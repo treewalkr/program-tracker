@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ProgramDto } from "$lib/api/types";
+  import type { ExerciseDto, ProgramDto } from "$lib/api/types";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
 
@@ -10,6 +10,7 @@
 
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
+  let catalog = $state<ExerciseDto[]>([]);
   let editing = $state(false);
   let saving = $state(false);
   let savedAt = $state<string | null>(null);
@@ -17,6 +18,7 @@
 
   async function load() {
     program = await api.program(id);
+    catalog = await api.exercises();
     if (program?.clientId) {
       const detail = await api.client(program.clientId);
       clientName = detail.client.name;
@@ -45,12 +47,43 @@
     }
   }
 
-  function bumpSet(si: number, ei: number, di: number, field: "reps" | "targetRpe" | "restSeconds", delta: number) {
+  function bumpSet(
+    si: number,
+    ei: number,
+    di: number,
+    field: "reps" | "targetRpe" | "restSeconds" | "targetWeightKg",
+    delta: number
+  ) {
     if (!program) return;
     const set = program.sessions[si].exercises[ei].prescribedSets[di];
     if (field === "reps") set.reps = Math.max(1, Math.min(100, set.reps + delta));
     else if (field === "targetRpe") set.targetRpe = Math.max(1, Math.min(10, (set.targetRpe ?? 5) + delta));
-    else set.restSeconds = Math.max(0, Math.min(600, set.restSeconds ?? 120 + delta * 15));
+    else if (field === "restSeconds") set.restSeconds = Math.max(0, Math.min(600, set.restSeconds ?? 120 + delta * 15));
+    else {
+      const cur = set.targetWeightKg ?? 20;
+      set.targetWeightKg = delta > 0 ? Math.round((cur + 2.5) * 2) / 2 : Math.max(0, Math.round((cur - 2.5) * 2) / 2);
+    }
+  }
+
+  /** Deload: cut every working-set load target by ~10%, rounded to the 2.5kg grid. */
+  function applyDeload() {
+    if (!program) return;
+    for (const s of program.sessions) {
+      for (const e of s.exercises) {
+        for (const ps of e.prescribedSets) {
+          if (ps.type === "working" && ps.targetWeightKg != null) {
+            ps.targetWeightKg = Math.max(0, Math.round((ps.targetWeightKg * 0.9) / 2.5) * 2.5);
+          }
+        }
+      }
+    }
+  }
+
+  function swapExercise(si: number, ei: number, exerciseId: string) {
+    if (!program) return;
+    const e = program.sessions[si].exercises[ei];
+    e.exerciseId = exerciseId;
+    e.exerciseName = catalog.find((c) => c.id === exerciseId)?.name ?? exerciseId;
   }
 
   onMount(load);
@@ -75,6 +108,7 @@
       {#if program.status === "archived"}
         <span class="subtle readonly-note">archived — read only</span>
       {:else if editing}
+        <button class="btn ghost" onclick={applyDeload} title="Cut working-set loads ~10%, rounded to 2.5kg">Deload −10%</button>
         <button class="btn ghost" onclick={() => (editing = false)}>Done</button>
         <button class="btn" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
       {:else}
@@ -109,10 +143,28 @@
         <div class="panel-body exlist">
           {#each s.exercises as e, ei (e.id)}
             <div class="exblock">
-              <div class="exhead">
-                <strong>{e.exerciseName}</strong>
-                {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
-              </div>
+              {#if editing}
+                <div class="exhead">
+                  <strong>{e.exerciseName}</strong>
+                  <select
+                    class="select swap"
+                    value={e.exerciseId}
+                    onchange={(ev) => swapExercise(si, ei, ev.currentTarget.value)}
+                    aria-label="Swap exercise"
+                    title="Swap exercise"
+                  >
+                    {#each catalog as ex (ex.id)}
+                      <option value={ex.id}>{ex.name}</option>
+                    {/each}
+                  </select>
+                  {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
+                </div>
+              {:else}
+                <div class="exhead">
+                  <strong>{e.exerciseName}</strong>
+                  {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
+                </div>
+              {/if}
 
               {#if editing}
                 <div class="setrows">
@@ -121,6 +173,11 @@
                       <span class="setno num">{ps.setNumber}</span>
                       <span class="setchip" class:warm={ps.type === "warm_up"}>
                         <span class="rep">{ps.reps}{ps.amrap ? "+" : ""}</span>
+                      </span>
+                      <span class="ctrl kg">
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetWeightKg", -1)} aria-label="lighter">−</button>
+                        <span class="num kgv">{ps.targetWeightKg != null ? `${ps.targetWeightKg}kg` : "—"}</span>
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetWeightKg", 1)} aria-label="heavier">+</button>
                       </span>
                       <span class="ctrl">
                         <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", -1)} aria-label="fewer reps">−</button>
@@ -179,6 +236,9 @@
   .setno { width: 18px; text-align: right; color: var(--faint); }
 
   .ctrl { display: inline-flex; align-items: center; gap: 4px; }
+  .ctrl.kg { min-width: 86px; }
+  .kgv { font-weight: 600; }
+  .select.swap { width: auto; padding: 3px 8px; font-size: 12.5px; max-width: 220px; }
   .ctrl.rest { margin-left: auto; }
   .stepper {
     width: 22px;

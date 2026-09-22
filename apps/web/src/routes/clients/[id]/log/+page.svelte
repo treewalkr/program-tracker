@@ -26,6 +26,7 @@
     setNumber: number;
     type: "warm_up" | "working" | "backoff";
     prescribedReps: number | null;
+    prescribedWeight: number | null;
     targetRpe: number | null;
     lastWeight: number | null;
     weight: string;
@@ -68,6 +69,7 @@
           setNumber: ps.setNumber,
           type: ps.type,
           prescribedReps: ps.reps,
+          prescribedWeight: ps.targetWeightKg ?? null,
           targetRpe: ps.targetRpe ?? null,
           lastWeight: lastWeightByExercise.get(e.exerciseId) ?? null,
           weight: "",
@@ -77,10 +79,12 @@
       ) ?? [];
   }
 
-  /** Fill every empty row: weight from last time, reps + RPE from prescription. */
+  /** Fill every empty row: weight from prescription (else last time), reps + RPE from prescription. */
   function prefill() {
     for (const r of rows) {
-      if (r.weight === "" && r.lastWeight != null) r.weight = String(r.lastWeight);
+      if (r.weight === "" && (r.prescribedWeight ?? r.lastWeight) != null) {
+        r.weight = String(r.prescribedWeight ?? r.lastWeight);
+      }
       if (r.reps === "") r.reps = String(r.prescribedReps ?? "");
       if (r.rpe === "") r.rpe = r.targetRpe != null ? String(r.targetRpe) : "";
     }
@@ -205,10 +209,10 @@
                 </td>
                 <td class="num">{r.setNumber}</td>
                 <td class="num pre">
-                  {r.prescribedReps}{#if r.type !== "warm_up" && r.targetRpe != null} @ {r.targetRpe}{/if}
+                  {#if r.prescribedWeight != null}{r.prescribedWeight}kg × {/if}{r.prescribedReps}{#if r.type !== "warm_up" && r.targetRpe != null} @ {r.targetRpe}{/if}
                 </td>
                 <td class="num pre">{r.lastWeight ?? "—"}</td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" placeholder={r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>
                 <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" placeholder={String(r.prescribedReps ?? "")} bind:value={r.reps} /></td>
                 <td class="cell"><input class="input tnum" type="number" inputmode="decimal" min="1" max="10" step="0.5" placeholder="—" bind:value={r.rpe} /></td>
               </tr>

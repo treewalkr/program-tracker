@@ -8,7 +8,17 @@
   let clients = $state<ClientDto[] | null>(null);
   let showForm = $state(false);
   let saving = $state(false);
+  let search = $state("");
   let form = $state({ name: "", email: "", goals: "", limitations: "", daysPerWeek: 3 });
+
+  const filtered = $derived(
+    (clients ?? []).filter(
+      (c) =>
+        search.trim() === "" ||
+        c.name.toLowerCase().includes(search.trim().toLowerCase()) ||
+        c.email.toLowerCase().includes(search.trim().toLowerCase())
+    )
+  );
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -83,14 +93,17 @@
   <div class="panel"><div class="panel-body"><div class="skeleton" style="height:60px"></div></div></div>
 {:else if clients.length === 0}
   <section class="panel"><div class="empty">No clients yet — add your first one above.</div></section>
+{:else if filtered.length === 0}
+  <section class="panel"><div class="empty">No client matches “{search}”.</div></section>
 {:else}
+  <input class="input search" type="search" placeholder="Search clients…" bind:value={search} aria-label="Search clients" />
   <section class="panel">
     <table class="sheet">
       <thead>
         <tr><th>Client</th><th>Status</th><th>Days</th><th>Goal</th><th>Limitations</th></tr>
       </thead>
       <tbody>
-        {#each clients as c (c.id)}
+        {#each filtered as c (c.id)}
           <tr class="rowlink">
             <td><a class="rowlink-name" href={`/clients/${c.id}`}><strong>{c.name}</strong></a><div class="subtle">{c.email}</div></td>
             <td><StatusPill status={c.status} /></td>
@@ -112,4 +125,5 @@
   }
   .span2 { grid-column: 1 / -1; }
   .goal { max-width: 320px; }
+  .search { margin-bottom: 12px; max-width: 320px; }
 </style>

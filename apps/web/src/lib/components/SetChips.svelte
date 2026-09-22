@@ -5,7 +5,7 @@
 
   const chip = (s: PrescribedSetDto) => ({
     warm: s.type === "warm_up",
-    main: `${s.reps}${s.amrap ? "+" : ""}`,
+    main: `${s.targetWeightKg != null ? `${s.targetWeightKg}kg × ` : ""}${s.reps}${s.amrap ? "+" : ""}`,
     rpe: s.targetRpe ?? null,
     sub: [
       s.restSeconds ? `${Math.round(s.restSeconds / 60) ? `${Math.round((s.restSeconds / 60) * 10) / 10}m` : `${s.restSeconds}s`}` : null,

@@ -368,10 +368,24 @@ export const mockApi: TrainerApi = {
       ? state.programs.find((p) => p.id === input.basedOnProgramId) ?? null
       : null;
     const draft = client?.id === "cl-maya" ? mayaDraft(basedOn) : genericDraft();
-    // Mirror what the real API guarantees: every draft exercise is nameable.
+    // Last logged working weight per exercise — drafts propose the next small jump.
+    const lastW = new Map<string, number>();
+    for (const log of [...state.logs].sort((a, b) => a.date.localeCompare(b.date))) {
+      for (const s of log.sets) {
+        if (s.type === "working" && s.weightKg != null) lastW.set(s.exerciseId, s.weightKg);
+      }
+    }
+    // Mirror what the real API guarantees: every draft exercise is nameable,
+    // and working sets carry a load target (last + 2.5kg, or leave RPE-driven).
     for (const s of draft.sessions) {
       for (const e of s.exercises) {
         if (!e.exerciseName && e.exerciseId) e.exerciseName = nameOf(e.exerciseId);
+        const last = e.exerciseId ? lastW.get(e.exerciseId) : undefined;
+        if (last == null) continue;
+        const next = Math.round((last + 2.5) * 2) / 2;
+        for (const ps of e.prescribedSets) {
+          if (ps.type === "working") ps.targetWeightKg = next;
+        }
       }
     }
     const gen: GenerationDto = {

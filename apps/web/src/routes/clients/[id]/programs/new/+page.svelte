@@ -26,6 +26,7 @@
     reps: number;
     targetRpe: number | null;
     restSeconds: number;
+    targetWeightKg: number | null;
   }
   interface ExRow {
     key: string;
@@ -72,6 +73,7 @@
       reps: type === "warm_up" ? 5 : 8,
       targetRpe: type === "warm_up" ? null : 8,
       restSeconds: type === "warm_up" ? 90 : 150,
+      targetWeightKg: null,
     });
     sessions = [...sessions];
   }
@@ -95,6 +97,7 @@
           type: ps.type,
           reps: Number(ps.reps),
           amrap: false,
+          targetWeightKg: ps.targetWeightKg === null ? undefined : Number(ps.targetWeightKg),
           targetRpe: ps.targetRpe ?? undefined,
           restSeconds: ps.restSeconds,
         })),
@@ -241,6 +244,7 @@
                           <option value="backoff">backoff</option>
                         </select>
                         <label class="mini"><input class="input tnum" type="number" min="1" max="100" bind:value={ps.reps} /> reps</label>
+                        <label class="mini"><input class="input tnum" type="number" min="0" step="2.5" bind:value={ps.targetWeightKg} placeholder="—" /> kg</label>
                         <label class="mini"><input class="input tnum" type="number" min="1" max="10" step="0.5" bind:value={ps.targetRpe} /> RPE</label>
                         <label class="mini"><input class="input tnum" type="number" min="0" step="15" bind:value={ps.restSeconds} /> s rest</label>
                         <button type="button" class="setx" onclick={() => removeSet(e, pi)} aria-label="Remove set">×</button>

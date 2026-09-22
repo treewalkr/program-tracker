@@ -8,6 +8,8 @@ export interface ClientDto {
   goals: string | null;
   limitations: string | null;
   daysPerWeek: number | null;
+  /** Planned training weekdays, ISO: 1=Mon … 7=Sun. */
+  trainingDays?: number[];
 }
 
 export interface PrescribedSetDto {
@@ -15,6 +17,8 @@ export interface PrescribedSetDto {
   type: "warm_up" | "working" | "backoff";
   reps: number;
   amrap: boolean;
+  /** Optional load target. Absent = auto-regulate by RPE (or bodyweight). */
+  targetWeightKg?: number | null;
   targetRpe?: number;
   restSeconds?: number;
 }

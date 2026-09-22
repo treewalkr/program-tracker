@@ -13,6 +13,19 @@
   let signals = $state<{ client: ClientDto; program: ProgramDto; signal: Signal }[]>([]);
   let nameOf = $state((id: string) => id);
 
+  interface WeekEntry {
+    day: number; // 1=Mon … 7=Sun
+    clientId: string;
+    clientName: string;
+    sessionName: string;
+    status: "logged" | "due" | "today" | "upcoming";
+  }
+  let week = $state<WeekEntry[]>([]);
+
+  const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1; // 1=Mon … 7=Sun
+  const dateStr = (d: Date) => d.toISOString().slice(0, 10);
+
   onMount(async () => {
     try {
       const [cs, ps, exs] = await Promise.all([api.clients(), api.providers(), api.exercises()]);
@@ -20,16 +33,39 @@
       nameOf = (id) => names.get(id) ?? id;
       clients = cs;
       providers = ps;
+      const monday = new Date();
+      monday.setDate(monday.getDate() - (isoDay(monday) - 1));
+      const today = isoDay(new Date());
+      const todayStr = dateStr(new Date());
+      const entries: WeekEntry[] = [];
       for (const c of cs) {
         const detail = await api.client(c.id);
         currentNames[c.id] = detail.currentProgram?.name ?? "—";
         if (detail.currentProgram) {
           const logs = await api.sessionLogs(c.id);
-          for (const signal of activeSignals(computeSignals(detail.currentProgram, logs, nameOf))) {
+          const loggedDates = new Set(logs.filter((l) => l.programId === detail.currentProgram!.id).map((l) => l.date.slice(0, 10)));
+          const sessions = detail.currentProgram.sessions;
+          let nth = 0;
+          for (const d of (c.trainingDays ?? []).slice().sort((a, b) => a - b)) {
+            const date = new Date(monday);
+            date.setDate(date.getDate() + (d - 1));
+            const ds = dateStr(date);
+            const session = sessions[nth % Math.max(1, sessions.length)];
+            nth++;
+            entries.push({
+              day: d,
+              clientId: c.id,
+              clientName: c.name,
+              sessionName: session?.name ?? "Session",
+              status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : d < today ? "due" : "upcoming",
+            });
+          }
+          for (const signal of activeSignals(computeSignals(detail.currentProgram, logs, nameOf, c.daysPerWeek))) {
             signals.push({ client: c, program: detail.currentProgram, signal });
           }
         }
       }
+      week = entries.sort((a, b) => a.day - b.day || a.clientName.localeCompare(b.clientName));
       signals = [...signals];
     } catch (err) {
       console.error(err);
@@ -51,6 +87,33 @@
 {#if clients === null}
   <div class="panel"><div class="panel-body"><div class="skeleton" style="height:80px"></div></div></div>
 {:else}
+  {#if week.length > 0}
+    <section class="panel week-panel">
+      <div class="panel-head">
+        <h2>This week</h2>
+        <span class="subtle">planned sessions — logged on the day they happened</span>
+      </div>
+      <div class="week-grid">
+        {#each DAY_LABELS as label, i (label)}
+          {@const dayEntries = week.filter((w) => w.day === i + 1)}
+          <div class="week-day" class:today={isoDay(new Date()) === i + 1} class:empty={dayEntries.length === 0}>
+            <div class="week-day-label">{label}</div>
+            {#each dayEntries as w (w.clientId + w.day)}
+              <a
+                class="week-entry {w.status}"
+                href={w.status === "logged" ? `/clients/${w.clientId}` : `/clients/${w.clientId}/log`}
+                title={`${w.clientName} — ${w.sessionName}`}
+              >
+                <span class="week-client">{w.clientName.split(" ")[0]}</span>
+                <span class="week-session">{w.sessionName}</span>
+                <span class="week-mark" aria-hidden="true">{w.status === "logged" ? "✓" : w.status === "due" ? "·" : ""}</span>
+              </a>
+            {/each}
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
   {#if signals.length > 0}
     <section class="panel needs-review">
       <div class="panel-head">
@@ -157,6 +220,50 @@
   .evidence { margin: 3px 0 0 18px; font-size: 13px; color: var(--muted); }
   .sig-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn.small { padding: 4px 10px; font-size: 13px; }
+
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+  .week-day {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 8px;
+    min-height: 92px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .week-day.today { border-color: var(--ink); border-width: 2px; }
+  .week-day.empty { opacity: 0.55; }
+  .week-day-label {
+    font: 700 11.5px var(--font-cond);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .week-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 7px;
+    text-decoration: none;
+    color: var(--ink);
+    position: relative;
+  }
+  .week-entry:hover { border-color: var(--ink); }
+  .week-entry.due { border-color: #e5c99a; background: var(--warn-bg); }
+  .week-client { font-weight: 700; font-size: 13px; }
+  .week-session { font-size: 11.5px; color: var(--muted); }
+  .week-mark { position: absolute; top: 4px; right: 7px; color: var(--good); font-weight: 700; }
+  .week-entry.due .week-mark { color: var(--warn); }
+
+  @media (max-width: 980px) {
+    .week-grid { grid-template-columns: repeat(2, 1fr); }
+  }
 
   .provs-row {
     display: flex;

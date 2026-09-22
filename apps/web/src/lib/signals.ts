@@ -128,7 +128,8 @@ function stall(logs: SessionLogDto[], nameOf: (id: string) => string): Signal | 
 export function computeSignals(
   program: ProgramDto | null,
   logs: SessionLogDto[],
-  nameOf: (id: string) => string
+  nameOf: (id: string) => string,
+  clientDaysPerWeek?: number | null
 ): Signal[] {
   if (!program || program.status !== "active") return [];
   const signals: Signal[] = [];
@@ -171,11 +172,13 @@ export function computeSignals(
     }
   }
 
-  // Adherence: sessions logged vs planned per week. Suppressed near block end —
-  // the block-ending review already brings the trainer in.
+  // Adherence: sessions logged vs planned per week — planned comes from the CLIENT's
+  // training days when known (a 2-day/week client on a 3-day program is not slacking).
+  // Suppressed near block end — the block-ending review already brings the trainer in.
   const phaseSignalExists = signals.some((s) => s.kind === "block-ending" || s.kind === "deload-week");
   const weeksRun = Math.max(1, week);
-  const expected = program.sessions.length * weeksRun;
+  const perWeek = clientDaysPerWeek ?? program.sessions.length;
+  const expected = perWeek * weeksRun;
   const logged = programLogs.length;
   if (!phaseSignalExists && expected >= 4 && logged / expected < 0.6) {
     signals.push({

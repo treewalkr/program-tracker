@@ -34,6 +34,7 @@ export const clients: ClientDto[] = [
     goals: "First unassisted pull-up and a 60 kg back squat by December.",
     limitations: "Right shoulder impingement — no barbell overhead pressing, no behind-neck work.",
     daysPerWeek: 4,
+    trainingDays: [1, 2, 4, 5],
   },
   {
     id: "cl-jonas",
@@ -43,6 +44,7 @@ export const clients: ClientDto[] = [
     goals: "Lean bulk to 80 kg bodyweight, keep visible abs.",
     limitations: null,
     daysPerWeek: 3,
+    trainingDays: [2, 4, 6],
   },
   {
     id: "cl-priya",
@@ -52,6 +54,7 @@ export const clients: ClientDto[] = [
     goals: "General strength, twice a week is all I can commit to.",
     limitations: "Old left ankle sprain — avoid high-impact jumping.",
     daysPerWeek: 2,
+    trainingDays: [3, 5],
   },
 ];
 
@@ -178,6 +181,36 @@ export const programs: ProgramDto[] = [
     sessions: [{ id: uuid(), name: "Day 1", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-press", order: 0, prescribedSets: [S(1, 12), S(2, 12)] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12), S(2, 12)] }] }],
   },
 ];
+
+// Working-set load targets — what the coach prescribed for the current block
+// (last logged progression + the next planned jump). Absent = bodyweight / RPE-driven.
+const LOAD_TARGETS: Record<string, number> = {
+  "ex-squat": 65,
+  "ex-bench": 45,
+  "ex-row": 55,
+  "ex-rdl": 62.5,
+  "ex-dead": 82.5,
+  "ex-pulldown": 47.5,
+  "ex-landmine": 35,
+  "ex-incline": 22,
+  "ex-crow": 45,
+  "ex-bss": 20,
+  "ex-press": 110,
+  "ex-hinge": 26,
+  "ex-curl": 12,
+  "ex-ext": 25,
+};
+for (const p of programs) {
+  for (const s of p.sessions) {
+    for (const e of s.exercises) {
+      const target = LOAD_TARGETS[e.exerciseId];
+      if (!target) continue;
+      for (const ps of e.prescribedSets) {
+        if (ps.type === "working") ps.targetWeightKg = target;
+      }
+    }
+  }
+}
 
 export interface StoredLog {
   sessionLogId: string;

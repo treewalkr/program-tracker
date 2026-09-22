@@ -31,7 +31,7 @@
     if (current) {
       const [logs, exs] = await Promise.all([api.sessionLogs(id), api.exercises()]);
       const names = new Map(exs.map((e) => [e.id, e.name]));
-      signals = activeSignals(computeSignals(current, logs, (x) => names.get(x) ?? x));
+      signals = activeSignals(computeSignals(current, logs, (x) => names.get(x) ?? x, detail.client.daysPerWeek));
     } else {
       signals = [];
     }
