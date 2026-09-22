@@ -15,6 +15,13 @@
 
 ## Phase 1 — Trainer UI: clients (next up)
 
+> **Status note 2026-09-22:** full trainer UI exists as a **mocked demo** (`PUBLIC_API_MODE=mock`,
+> default): all screens — overview, clients, client detail, log entry, AI generate/review/approve,
+> program editor, exercise library — run on in-memory fixtures, no backend needed. Built for
+> stakeholder alignment; phases 1–4 below now describe wiring these screens to `realApi`
+> (`PUBLIC_API_MODE=live`) plus the gaps that remain (builder for new programs from scratch,
+> typeahead exercise picker in builder, generation history list).
+
 - [ ] Clients list (status badges, days/week, current program name)
 - [ ] Create/edit client form — goals, limitations (marked as AI hard constraints),
       days per week

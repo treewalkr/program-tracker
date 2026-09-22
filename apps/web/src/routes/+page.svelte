@@ -1,115 +1,100 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type ClientDto, type ProviderInfo } from "$lib/api";
+  import { api, apiMode } from "$lib/api";
+  import type { ClientDto, ProviderDto } from "$lib/api/types";
+  import StatusPill from "$lib/components/StatusPill.svelte";
+  import { goto } from "$app/navigation";
 
   let clients = $state<ClientDto[] | null>(null);
-  let providers = $state<ProviderInfo[] | null>(null);
-  let apiUp = $state<boolean | null>(null);
-  let error = $state<string | null>(null);
-
-  const providerCount = $derived(providers?.filter((p) => p.configured).length ?? 0);
+  let providers = $state<ProviderDto[] | null>(null);
+  let currentNames = $state<Record<string, string>>({});
 
   onMount(async () => {
     try {
-      const [health, p, c] = await Promise.all([api.health(), api.providers(), api.clients()]);
-      apiUp = health.ok;
-      providers = p.providers;
-      clients = c;
+      const [cs, ps] = await Promise.all([api.clients(), api.providers()]);
+      clients = cs;
+      providers = ps;
+      for (const c of cs) {
+        const detail = await api.client(c.id);
+        currentNames[c.id] = detail.currentProgram?.name ?? "—";
+      }
     } catch (err) {
-      apiUp = false;
-      error = (err as Error).message;
+      console.error(err);
     }
   });
 </script>
 
-<svelte:head>
-  <title>Program Tracker</title>
-</svelte:head>
+<svelte:head><title>Overview · Program Tracker</title></svelte:head>
 
-<main class="shell">
-  <h1>Program Tracker</h1>
+<div class="page-head">
+  <div>
+    <h1>Overview</h1>
+    <p class="sub">Monday, week 13 of the training year.</p>
+  </div>
+  <a class="btn" href="/clients">All clients</a>
+</div>
 
-  {#if error}
-    <p class="banner error">API error: {error}</p>
-  {/if}
-
-  <section class="status">
-    <div class="card">
-      <h2>Backend</h2>
-      {#if apiUp === null}
-        <p>checking…</p>
-      {:else if apiUp}
-        <p class="ok">● online</p>
-      {:else}
-        <p class="bad">● offline — run <code>bun run dev:api</code></p>
-      {/if}
-    </div>
-
-    <div class="card">
-      <h2>AI providers</h2>
-      {#if providers === null}
-        <p>checking…</p>
-      {:else}
-        <p>{providerCount} of {providers.length} configured</p>
-        <ul>
-          {#each providers as p (p.id)}
-            <li class:p.ok-badge={p.configured}>
-              {p.label} · <code>{p.model}</code>
-              {p.configured ? "✓" : "— set " + p.id.toUpperCase() + "_API_KEY"}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-
-    <div class="card">
+{#if clients === null}
+  <div class="panel"><div class="panel-body"><div class="skeleton" style="height:80px"></div></div></div>
+{:else}
+  <section class="panel">
+    <div class="panel-head">
       <h2>Clients</h2>
-      {#if clients === null}
-        <p>loading…</p>
-      {:else if clients.length === 0}
-        <p>no clients yet — create one via <code>POST /v1/clients</code></p>
-      {:else}
-        <ul>
-          {#each clients as c (c.id)}
-            <li>{c.name} <span class="muted">· {c.status}{c.daysPerWeek ? ` · ${c.daysPerWeek}×/week` : ""}</span></li>
-          {/each}
-        </ul>
-      {/if}
+      <span class="subtle">{clients.filter((c) => c.status === "active").length} active</span>
+    </div>
+    <table class="sheet">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Status</th>
+          <th>Days</th>
+          <th>Current program</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each clients as c (c.id)}
+          <tr class="rowlink" onclick={() => goto(`/clients/${c.id}`)}>
+            <td>
+              <strong>{c.name}</strong>
+              {#if c.limitations}<span class="pill bad" style="margin-left:8px">limitations</span>{/if}
+            </td>
+            <td><StatusPill status={c.status} /></td>
+            <td class="num">{c.daysPerWeek ?? "—"}/wk</td>
+            <td>{currentNames[c.id] ?? "…"}</td>
+            <td class="subtle">→</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head">
+      <h2>AI providers</h2>
+      <span class="subtle">{apiMode === "mock" ? "demo registry" : "live registry"}</span>
+    </div>
+    <div class="panel-body provs">
+      {#each providers ?? [] as p (p.id)}
+        <div class="prov">
+          <strong>{p.label}</strong>
+          <span class="num subtle">{p.model}</span>
+          {#if p.configured}<span class="pill good">ready</span>{:else}<span class="pill neutral">no key</span>{/if}
+        </div>
+      {/each}
     </div>
   </section>
-</main>
+{/if}
 
 <style>
-  .shell {
-    max-width: 60rem;
-    margin: 2rem auto;
-    padding: 0 1rem;
-    font-family: system-ui, sans-serif;
+  .provs {
+    display: flex;
+    gap: 26px;
+    flex-wrap: wrap;
   }
-  .status {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    gap: 1rem;
-  }
-  .card {
-    border: 1px solid #ddd;
-    border-radius: 0.5rem;
-    padding: 1rem;
-  }
-  .ok { color: #167f3f; }
-  .bad { color: #b3261e; }
-  .ok-badge { color: #167f3f; }
-  .muted { color: #666; }
-  .banner.error {
-    border: 1px solid #b3261e;
-    color: #b3261e;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-  }
-  code {
-    background: #f4f4f4;
-    padding: 0.1rem 0.3rem;
-    border-radius: 0.25rem;
-    font-size: 0.85em;
+  .prov {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 </style>
