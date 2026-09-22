@@ -22,6 +22,15 @@
 > (`PUBLIC_API_MODE=live`) plus the gaps that remain (builder for new programs from scratch,
 > typeahead exercise picker in builder, generation history list).
 
+### Instruction templates (mocked now)
+
+Reusable standing rules for AI generations (RPE caps, block conventions, equipment
+constraints). Mock: in-memory CRUD. Real backend later: `prompt_templates` table
+(trainer_id, name, content, timestamps) + `GET/POST/DELETE /v1/ai/prompt-templates`;
+web `real.ts` already points there. Later refinements: per-client standing additions
+auto-prepended to every generation, and template usage recorded on each draft for
+auditing.
+
 - [ ] Clients list (status badges, days/week, current program name)
 - [ ] Create/edit client form — goals, limitations (marked as AI hard constraints),
       days per week
