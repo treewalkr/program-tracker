@@ -4,22 +4,25 @@ Training program tracker for personal trainers. Trainers manage clients, build a
 programs, and generate the next training block with AI assistance (Z.ai GLM flash first,
 any OpenAI-compatible provider after). Clients log workouts against their assigned program.
 
-## Architecture
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [docs/PLAN.md](docs/PLAN.md) | **Start here** — what we're building, the core loop, MVP scope, hard constraints |
+| [docs/architecture.md](docs/architecture.md) | monorepo layout, stack, key design decisions |
+| [docs/domain-model.md](docs/domain-model.md) | entities, program document structure, logging, history math |
+| [docs/api.md](docs/api.md) | every endpoint with examples and error behavior |
+| [docs/ai-integration.md](docs/ai-integration.md) | provider abstraction, prompt anatomy, validation gate, approval pipeline |
+| [docs/roadmap.md](docs/roadmap.md) | phase status, acceptance criteria, deferred features, open decisions |
 
 ```
-apps/web          SvelteKit (Svelte 5) — trainer + client UI
+apps/web          SvelteKit (Svelte 5) — trainer UI
 apps/api          ElysiaJS on Bun — REST API
 packages/shared   zod domain schemas (single source of truth for API, web, and AI output)
 packages/db       Drizzle ORM schema + migrations (Postgres)
 ```
 
-- **Monorepo**: Bun workspaces. `bun install` at the root.
-- **Database**: Postgres 17 via Docker Compose (port 5433 to avoid clashes).
-- **Programs are versioned documents**: `sessions` live in jsonb, validated by the shared
-  zod schema at every write boundary. Logs are normalized tables (AI history queries).
-- **AI never writes client-visible state**: the LLM emits an `AiProgramDraft` (JSON mode),
-  it's zod-validated with one retry, stored as an audit record, and only becomes a real
-  program (status `draft`) when the trainer approves it. Activation is a separate step.
+## Key decisions (short version — details in docs/architecture.md)
 
 ## Getting started
 
