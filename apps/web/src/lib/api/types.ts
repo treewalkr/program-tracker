@@ -136,8 +136,18 @@ export interface SessionLogDto {
   }[];
 }
 
+export interface InstructionTemplateDto {
+  id: string;
+  name: string;
+  content: string;
+  updatedAt: string;
+}
+
 export interface TrainerApi {
   providers(): Promise<ProviderDto[]>;
+  instructionTemplates(): Promise<InstructionTemplateDto[]>;
+  createInstructionTemplate(input: { name: string; content: string }): Promise<InstructionTemplateDto>;
+  deleteInstructionTemplate(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;
   createClient(input: Omit<ClientDto, "id" | "status">): Promise<ClientDto>;

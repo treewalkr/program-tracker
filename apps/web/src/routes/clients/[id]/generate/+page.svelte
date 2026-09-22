@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
-  import type { ClientDto, GenerationDto, ProgramDto, ProviderDto } from "$lib/api/types";
+  import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
 
@@ -14,6 +14,10 @@
   let providers = $state<ProviderDto[]>([]);
   let providerId = $state("zai");
   let instructions = $state("");
+  let templates = $state<InstructionTemplateDto[]>([]);
+  let selected = $state<string[]>([]);
+  let tplName = $state("");
+  let savingTpl = $state(false);
   let phase = $state<"form" | "generating" | "review" | "failed">("form");
   let gen = $state<GenerationDto | null>(null);
   let newProgram = $state<ProgramDto | null>(null);
@@ -26,6 +30,16 @@
     "Drafting the next block",
   ];
   let step = $state(0);
+
+  const selectedTemplates = $derived(
+    selected.map((id) => templates.find((t) => t.id === id)).filter((t) => t !== undefined)
+  );
+  /** What the provider actually receives: standing templates first, then the one-off note. */
+  const mergedInstructions = $derived(
+    [...selectedTemplates.map((t) => t.content), instructions]
+      .filter(Boolean)
+      .join("\n\n")
+  );
 
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
     ex.exerciseName ?? "";
@@ -88,7 +102,7 @@
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         providerId,
-        instructions: instructions || undefined,
+        instructions: mergedInstructions || undefined,
       });
       phase = "review";
     } catch (err) {
@@ -108,12 +122,37 @@
     }
   }
 
+  async function saveAsTemplate() {
+    if (!instructions.trim() || !tplName.trim()) return;
+    savingTpl = true;
+    try {
+      const tpl = await api.createInstructionTemplate({ name: tplName.trim(), content: instructions.trim() });
+      templates = [...templates, tpl];
+      tplName = "";
+      instructions = "";
+      selected = [...selected, tpl.id];
+    } finally {
+      savingTpl = false;
+    }
+  }
+
+  async function removeTemplate(id2: string) {
+    await api.deleteInstructionTemplate(id2);
+    templates = templates.filter((t) => t.id !== id2);
+    selected = selected.filter((s) => s !== id2);
+  }
+
+  function toggleTemplate(id2: string) {
+    selected = selected.includes(id2) ? selected.filter((s) => s !== id2) : [...selected, id2];
+  }
+
   onMount(async () => {
     const detail = await api.client(id);
     client = detail.client;
     current = detail.currentProgram;
     providers = (await api.providers()).filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
+    templates = await api.instructionTemplates();
   });
 </script>
 
@@ -157,8 +196,27 @@
           <input class="input" id="g-based" disabled value={current ? `${current.name} (active, v${current.version})` : "Cold start — no previous program"} />
         </div>
         <div>
+          <span class="label">Instruction templates <span class="subtle">— your standing rules, reusable across clients</span></span>
+          <div class="tpl-list">
+            {#each templates as t (t.id)}
+              <button
+                type="button"
+                class="tpl"
+                class:active={selected.includes(t.id)}
+                title={t.content}
+                onclick={() => toggleTemplate(t.id)}
+              >
+                {#if selected.includes(t.id)}✓{/if}
+                {t.name}
+              </button>
+              <button type="button" class="tpl-x" title="Delete template" onclick={() => removeTemplate(t.id)}>×</button>
+            {/each}
+            {#if templates.length === 0}<span class="subtle">No templates yet — write a note below and save it as one.</span>{/if}
+          </div>
+        </div>
+        <div>
           <label class="label" for="g-instructions">
-            Instructions <span class="subtle">— optional, steer the draft</span>
+            This generation <span class="subtle">— optional one-off note</span>
           </label>
           <textarea
             class="textarea"
@@ -169,6 +227,20 @@
             maxlength="2000"
           ></textarea>
         </div>
+        {#if instructions.trim()}
+          <div class="save-tpl">
+            <input class="input" placeholder="Template name, e.g. ‘Deload policy’" bind:value={tplName} maxlength="80" />
+            <button type="button" class="btn ghost small" onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
+              {savingTpl ? "Saving…" : "Save note as template"}
+            </button>
+          </div>
+        {/if}
+        {#if mergedInstructions}
+          <div>
+            <p class="label">AI receives <span class="subtle">— templates + note, always after profile and history</span></p>
+            <pre class="merged">{mergedInstructions}</pre>
+          </div>
+        {/if}
         {#if client.limitations}
           <p class="lim-note">
             Limitations always apply, regardless of instructions: “{client.limitations}”
@@ -278,6 +350,43 @@
 <style>
   .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
   .crumb a:hover { text-decoration: underline; }
+
+  .tpl-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tpl {
+    font: 600 12.5px var(--font-ui);
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    padding: 3px 11px;
+    cursor: pointer;
+  }
+  .tpl:hover { border-color: var(--line-strong); }
+  .tpl.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tpl-x {
+    margin-left: -6px;
+    margin-right: 6px;
+    border: none;
+    background: none;
+    color: var(--faint);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+  }
+  .tpl-x:hover { color: var(--bad); }
+  .save-tpl { display: flex; gap: 8px; }
+  .save-tpl .input { flex: 1; }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .merged {
+    margin: 0;
+    font: 12.5px/1.55 var(--font-mono);
+    background: var(--paper, #fff);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    color: var(--muted);
+  }
 
   .narrow { max-width: 560px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }

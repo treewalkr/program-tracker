@@ -7,6 +7,7 @@ import type {
   ProviderDto,
   SessionLogDto,
   SessionLogInput,
+  InstructionTemplateDto,
   TrainerApi,
 } from "./types";
 import { PUBLIC_API_URL } from "$env/static/public";
@@ -56,6 +57,15 @@ export const realApi: TrainerApi = {
   logSession: (input: SessionLogInput) =>
     request("/v1/logs/sessions", { method: "POST", body: JSON.stringify(input) }),
 
+  instructionTemplates: async () =>
+    (await request<{ templates: InstructionTemplateDto[] }>("/v1/ai/prompt-templates")).templates,
+  createInstructionTemplate: (input) =>
+    request<InstructionTemplateDto>("/v1/ai/prompt-templates", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteInstructionTemplate: (id) =>
+    request<void>(`/v1/ai/prompt-templates/${id}`, { method: "DELETE" }),
   generate: (input) =>
     request<GenerationDto>("/v1/ai/generate", { method: "POST", body: JSON.stringify(input) }),
   generations: (clientId) =>

@@ -4,6 +4,7 @@ import type {
   ClientDto,
   GenerationDto,
   HistoryEntryDto,
+  InstructionTemplateDto,
   ProgramDto,
   ProgramSessionDto,
   SessionLogInput,
@@ -14,11 +15,36 @@ import { clients as seedClients, exercises, logs as seedLogs, programs as seedPr
 const uuid = () => crypto.randomUUID();
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const seedTemplates: InstructionTemplateDto[] = [
+  {
+    id: "tpl-beginner-caps",
+    name: "Beginner — conservative caps",
+    content:
+      "Rules:\n- Cap all working sets at RPE 8; never prescribe RPE 9–10.\n- Progress main lifts by smallest available jump (2.5 kg lower-body, 1–2.5 kg upper-body).\n- Keep at least one repetition in reserve on the final set of each exercise.",
+    updatedAt: "2026-09-20T09:00:00Z",
+  },
+  {
+    id: "tpl-block-structure",
+    name: "Block structure conventions",
+    content:
+      "Steps:\n- 4-week blocks: 3 accumulation weeks, 1 deload week at ~60% volume.\n- Each session: 1 warm-up + 2–4 working sets per main lift.\n- Order: main compound first, accessories after, core last.",
+    updatedAt: "2026-09-18T14:30:00Z",
+  },
+  {
+    id: "tpl-home-gym",
+    name: "Home-gym equipment constraints",
+    content:
+      "Constraints:\n- Only: barbell, adjustable dumbbells up to 40 kg, pull-up bar, bench.\n- No machines, no cables, no specialty bars.\n- Substitute any machine movement with a free-weight equivalent.",
+    updatedAt: "2026-09-15T18:00:00Z",
+  },
+];
+
 /** Mutable in-memory demo state. Reset by reloading the page module. */
 const state = {
   clients: [...seedClients],
   programs: [...seedPrograms],
   logs: [...seedLogs],
+  templates: [...seedTemplates],
   generations: [] as GenerationDto[],
 };
 
@@ -140,6 +166,29 @@ export const mockApi: TrainerApi = {
       { id: "mock", label: "Mock (canned draft)", model: "mock-draft-v1", configured: true },
     ];
   },
+
+  async instructionTemplates() {
+    await delay(150);
+    return [...state.templates];
+  },
+
+  async createInstructionTemplate({ name, content }) {
+    await delay(250);
+    const tpl: InstructionTemplateDto = {
+      id: `tpl-${uuid().slice(0, 8)}`,
+      name,
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+    state.templates = [...state.templates, tpl];
+    return tpl;
+  },
+
+  async deleteInstructionTemplate(id) {
+    await delay(200);
+    state.templates = state.templates.filter((t) => t.id !== id);
+  },
+
 
   async clients() {
     await delay(250);
