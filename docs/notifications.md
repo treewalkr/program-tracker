@@ -82,6 +82,14 @@ pg_cron alternative (runs SQL in Postgres directly) only wins when there is no a
 app process or when many DB-side jobs exist — not the case here (also: not in the stock
 `postgres:17` image).
 
+**Horizontal scale (noted, not built):** with >1 API replica, every replica runs the
+cron job and the log-write hook concurrently. The outbox `signal_id` PK already
+collapses duplicate inserts, but *dispatch* needs coordination or trainers get duplicate
+emails. Fix when needed: Redis lock — `SET phase-check:lock <runId> NX EX 600` per scan
+run, or finer-grained `SET signal:<id>:sent 1 NX EX 86400` before each send; only the
+lock winner dispatches. Redis over DB advisory locks because TTL auto-expires crashed
+workers. Single-instance MVP ships none of this — just the outbox.
+
 ## New storage (whole addition)
 
 ```sql
