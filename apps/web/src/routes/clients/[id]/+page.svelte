@@ -192,7 +192,7 @@
               {#each history as h (h.exerciseName)}
                 <tr>
                   <td><strong>{h.exerciseName}</strong></td>
-                  <td class="num big">{h.bestE1rm}<span class="unit">kg</span></td>
+                  <td class="num big">{h.bestE1rm > 0 ? `${h.bestE1rm}` : "—"}{#if h.bestE1rm > 0}<span class="unit">kg</span>{/if}</td>
                   <td class="sets">{h.recentSets.join(", ")}</td>
                 </tr>
               {/each}

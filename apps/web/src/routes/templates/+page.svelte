@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "$lib/api";
+  import { fmtDate } from "$lib/format";
   import type { InstructionTemplateDto } from "$lib/api/types";
 
   let templates = $state<InstructionTemplateDto[]>([]);
@@ -152,7 +153,7 @@
             {:else}
               <div class="item-head">
                 <strong>{t.name}</strong>
-                <span class="subtle">{new Date(t.updatedAt).toLocaleDateString()}</span>
+                <span class="subtle">{fmtDate(t.updatedAt)}</span>
               </div>
               <pre class="body">{t.content}</pre>
               <div class="row-actions">

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ProgramDto } from "$lib/api/types";
   import SetChips from "$lib/components/SetChips.svelte";
@@ -10,12 +9,18 @@
   const id = $derived(page.params.id ?? "");
 
   let program = $state<ProgramDto | null>(null);
+  let clientName = $state<string | null>(null);
+  let editing = $state(false);
   let saving = $state(false);
   let savedAt = $state<string | null>(null);
   let activating = $state(false);
 
   async function load() {
     program = await api.program(id);
+    if (program?.clientId) {
+      const detail = await api.client(program.clientId);
+      clientName = detail.client.name;
+    }
   }
 
   async function save() {
@@ -24,6 +29,7 @@
     try {
       program = await api.saveProgram(program.id, program.sessions);
       savedAt = new Date().toLocaleTimeString();
+      editing = false;
     } finally {
       saving = false;
     }
@@ -44,7 +50,7 @@
     const set = program.sessions[si].exercises[ei].prescribedSets[di];
     if (field === "reps") set.reps = Math.max(1, Math.min(100, set.reps + delta));
     else if (field === "targetRpe") set.targetRpe = Math.max(1, Math.min(10, (set.targetRpe ?? 5) + delta));
-    else set.restSeconds = Math.max(0, Math.min(600, (set.restSeconds ?? 120) + delta * 15));
+    else set.restSeconds = Math.max(0, Math.min(600, set.restSeconds ?? 120 + delta * 15));
   }
 
   onMount(load);
@@ -57,7 +63,7 @@
 {:else}
   <div class="page-head">
     <div>
-      <p class="crumb"><a href={`/clients/${program.clientId}`}>Client</a> / Program</p>
+      <p class="crumb"><a href={`/clients/${program.clientId}`}>{clientName ?? "Client"}</a> / Program</p>
       <h1>{program.name} <StatusPill status={program.status} /></h1>
       <p class="sub">
         v{program.version}
@@ -66,23 +72,34 @@
       </p>
     </div>
     <div class="actions">
-      <button class="btn ghost" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
-      {#if program.status === "draft"}
-        <button class="btn" onclick={activate} disabled={activating}>
-          {activating ? "Activating…" : "Activate program"}
-        </button>
+      {#if program.status === "archived"}
+        <span class="subtle readonly-note">archived — read only</span>
+      {:else if editing}
+        <button class="btn ghost" onclick={() => (editing = false)}>Done</button>
+        <button class="btn" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+      {:else}
+        <button class="btn ghost" onclick={() => (editing = true)}>Edit sets</button>
+        {#if program.status === "draft"}
+          <button class="btn" onclick={activate} disabled={activating}>
+            {activating ? "Activating…" : "Activate program"}
+          </button>
+        {/if}
       {/if}
     </div>
   </div>
 
   {#if program.status === "draft"}
     <p class="hint">
-      Draft — nothing the client sees. Tweak sets below, then activate to make it current
+      Draft — nothing the client sees. Tweak sets, then activate to make it current
       (previous active program archives automatically).
     </p>
+  {:else if program.status === "archived"}
+    <p class="hint">Archived block — kept for history. Start a new block from the client page.</p>
+  {:else if editing}
+    <p class="hint">Editing bumps the version on save. Weights stay as prescribed — clients log actuals.</p>
   {/if}
 
-  <div class="sessions-grid">
+  <div class="sessions-grid" class:editing>
     {#each program.sessions as s, si (s.id)}
       <section class="panel">
         <div class="panel-head">
@@ -96,33 +113,38 @@
                 <strong>{e.exerciseName}</strong>
                 {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
               </div>
-              <div class="setrows">
-                {#each e.prescribedSets as ps, di (ps.setNumber)}
-                  <div class="setrow" class:warm={ps.type === "warm_up"}>
-                    <span class="setno num">{ps.setNumber}</span>
-                    <span class="setchip" class:warm={ps.type === "warm_up"}>
-                      <span class="rep">{ps.reps}{ps.amrap ? "+" : ""}</span>
-                    </span>
-                    <span class="ctrl">
-                      <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", -1)} aria-label="fewer reps">−</button>
-                      <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", 1)} aria-label="more reps">+</button>
-                      <span class="subtle">reps</span>
-                    </span>
-                    <span class="ctrl">
-                      <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetRpe", -0.5)} aria-label="lower RPE">−</button>
-                      <span class="num">{ps.targetRpe ?? "—"}</span>
-                      <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetRpe", 0.5)} aria-label="higher RPE">+</button>
-                      <span class="subtle">RPE</span>
-                    </span>
-                    <span class="ctrl rest">
-                      <button class="stepper" onclick={() => bumpSet(si, ei, di, "restSeconds", -1)} aria-label="less rest">−</button>
-                      <span class="num">{ps.restSeconds ? `${Math.round(ps.restSeconds / 60)}m` : "—"}</span>
-                      <button class="stepper" onclick={() => bumpSet(si, ei, di, "restSeconds", 1)} aria-label="more rest">+</button>
-                      <span class="subtle">rest</span>
-                    </span>
-                  </div>
-                {/each}
-              </div>
+
+              {#if editing}
+                <div class="setrows">
+                  {#each e.prescribedSets as ps, di (ps.setNumber)}
+                    <div class="setrow" class:warm={ps.type === "warm_up"}>
+                      <span class="setno num">{ps.setNumber}</span>
+                      <span class="setchip" class:warm={ps.type === "warm_up"}>
+                        <span class="rep">{ps.reps}{ps.amrap ? "+" : ""}</span>
+                      </span>
+                      <span class="ctrl">
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", -1)} aria-label="fewer reps">−</button>
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", 1)} aria-label="more reps">+</button>
+                        <span class="subtle">reps</span>
+                      </span>
+                      <span class="ctrl">
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetRpe", -0.5)} aria-label="lower RPE">−</button>
+                        <span class="num">{ps.targetRpe ?? "—"}</span>
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetRpe", 0.5)} aria-label="higher RPE">+</button>
+                        <span class="subtle">RPE</span>
+                      </span>
+                      <span class="ctrl rest">
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "restSeconds", -1)} aria-label="less rest">−</button>
+                        <span class="num">{ps.restSeconds ? `${Math.round(ps.restSeconds / 60)}m` : "—"}</span>
+                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "restSeconds", 1)} aria-label="more rest">+</button>
+                        <span class="subtle">rest</span>
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <SetChips sets={e.prescribedSets} />
+              {/if}
             </div>
             {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
           {/each}
@@ -136,7 +158,8 @@
   .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
   .crumb a:hover { text-decoration: underline; }
   h1 { display: flex; align-items: center; gap: 10px; }
-  .actions { display: flex; gap: 10px; }
+  .actions { display: flex; gap: 10px; align-items: center; }
+  .readonly-note { margin: 0; }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
   .sessions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }

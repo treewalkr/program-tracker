@@ -71,15 +71,16 @@
       }
     }
 
-    const draftEx = new Map<string, string>();
+    const draftEx = new Map<string, { name: string; sets: string }>();
     for (const s of gen.draft.sessions) {
       for (const e of s.exercises) {
-        draftEx.set(key(draftName(e)), setsOf(e));
+        const n = draftName(e);
+        draftEx.set(key(n), { name: n, sets: setsOf(e) });
       }
     }
 
     const rows: DiffRow[] = [];
-    for (const [name, sets] of draftEx) {
+    for (const [, { name, sets }] of draftEx) {
       const before = currentEx.get(name);
       if (!before) rows.push({ exercise: name, change: "added", detail: `new — ${sets}` });
       else if (before.sets !== sets)

@@ -27,8 +27,9 @@
             item.href === "/" ? page.url.pathname === "/" : page.url.pathname.startsWith(item.href)
           }
           href={item.href}
+          title={item.label}
         >
-          {item.label}
+          <span class="nav-label">{item.label}</span>
           {#if item.href === "/clients"}
             <span class="nav-count">3</span>
           {/if}
@@ -124,6 +125,7 @@
     max-width: 1080px;
     width: 100%;
     margin: 0 auto;
+    min-width: 0; /* grid child: let content shrink instead of forcing min-content width */
   }
 
   .demo-banner {
@@ -135,12 +137,16 @@
     padding: 5px 12px;
     margin-bottom: 22px;
     display: inline-block;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   @media (max-width: 860px) {
-    .shell { grid-template-columns: 64px 1fr; }
-    .brand-name, .nav-item span:not(.nav-count), .side-foot { display: none; }
-    .nav-item { justify-content: center; }
+    .shell { grid-template-columns: 56px 1fr; }
+    .brand { padding: 2px 0 16px; justify-content: center; }
+    .brand-name { display: none; }
+    .nav-label, .nav-count, .side-foot { display: none; }
+    .nav-item { justify-content: center; padding: 8px 0; }
     .main { padding: 20px 16px 60px; }
   }
 </style>

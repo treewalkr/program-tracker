@@ -8,6 +8,7 @@
 
   let clients = $state<ClientDto[] | null>(null);
   let providers = $state<ProviderDto[] | null>(null);
+  let loadFailed = $state(false);
   let currentNames = $state<Record<string, string>>({});
   let signals = $state<{ client: ClientDto; program: ProgramDto; signal: Signal }[]>([]);
   let nameOf = $state((id: string) => id);
@@ -32,6 +33,7 @@
       signals = [...signals];
     } catch (err) {
       console.error(err);
+      loadFailed = true;
     }
   });
 </script>
@@ -41,7 +43,7 @@
 <div class="page-head">
   <div>
     <h1>Overview</h1>
-    <p class="sub">Monday, week 13 of the training year.</p>
+    <p class="sub">{new Date().toLocaleDateString(undefined, { weekday: "long" })} · {(clients?.length ?? 0)} clients{#if signals.length > 0} · {signals.length} need{/if}</p>
   </div>
   <a class="btn" href="/clients">All clients</a>
 </div>
@@ -88,6 +90,7 @@
   <section class="panel" style="margin-top:{signals.length ? 18 : 0}px">
     <div class="panel-head">
       <h2>Clients</h2>
+      {#if loadFailed}<span class="subtle err-inline">couldn't load — refresh to retry</span>{/if}
       <span class="subtle">{clients.filter((c) => c.status === "active").length} active</span>
     </div>
     <table class="sheet">
@@ -122,13 +125,12 @@
       <h2>AI providers</h2>
       <span class="subtle">{apiMode === "mock" ? "demo registry" : "live registry"}</span>
     </div>
-    <div class="panel-body provs">
+    <div class="panel-body provs-row">
       {#each providers ?? [] as p (p.id)}
-        <div class="prov">
+        <span class="prov-chip">
           <strong>{p.label}</strong>
-          <span class="num subtle">{p.model}</span>
           {#if p.configured}<span class="pill good">ready</span>{:else}<span class="pill neutral">no key</span>{/if}
-        </div>
+        </span>
       {/each}
     </div>
   </section>
@@ -156,14 +158,20 @@
   .sig-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn.small { padding: 4px 10px; font-size: 13px; }
 
-  .provs {
+  .provs-row {
     display: flex;
-    gap: 26px;
-    flex-wrap: wrap;
-  }
-  .prov {
-    display: flex;
-    align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
   }
+  .prov-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 13.5px;
+  }
+  .err-inline { color: var(--bad); font-weight: 600; margin-left: auto; }
 </style>

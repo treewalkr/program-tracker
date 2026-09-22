@@ -191,6 +191,7 @@
             {/if}
           </div>
         </div>
+      <div class="table-wrap">
         <table class="sheet">
           <thead>
             <tr><th>Exercise</th><th>Set</th><th class="num-col">Prescribed</th><th class="num-col">Last</th><th class="num-col">kg</th><th class="num-col">Reps</th><th class="num-col">RPE</th></tr>
@@ -214,6 +215,7 @@
             {/each}
           </tbody>
         </table>
+      </div>
         <div class="panel-body foot">
           <div class="energy">
             <label class="label" for="log-energy">Perceived energy <span class="subtle">1–10</span></label>
@@ -251,6 +253,7 @@
 {/if}
 
 <style>
+  .table-wrap { overflow-x: auto; }
   .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
   .crumb a:hover { text-decoration: underline; }
 
