@@ -55,17 +55,24 @@ from `signal_outbox` → insert (dedupe) → background worker sends email.
 
 Calendar rules (block-ending, deload-week, adherence silence) need a timer.
 
-**Recommended for this stack: `node-cron` inside `apps/api`.** The API is already a
-long-running process, so zero new infrastructure; and the rules are TypeScript in
-`packages/shared` — pg_cron would force duplicating them in SQL (drift) or reduce the
-timer to a middleman that pokes the API anyway.
+**Recommended for this stack: `@elysiajs/cron` inside `apps/api`** (Elysia plugin wrapping
+node-cron). The API is already a long-running process, so zero new infrastructure; the
+job registers like any plugin (lifecycle-bound to the app instance); and the rules are
+TypeScript in `packages/shared` — pg_cron would force duplicating them in SQL (drift) or
+reduce the timer to a middleman that pokes the API anyway.
 
 ```ts
-import cron from "node-cron";
+import cron from "@elysiajs/cron";
 import { computeSignals } from "@pt/shared";
 
-cron.schedule("0 6 * * *", runPhaseCheck); // daily 06:00
-runPhaseCheck();                            // catch-up at boot
+app.use(
+  cron({
+    name: "phase-check",
+    pattern: "0 6 * * *", // daily 06:00
+    run() { void runPhaseCheck(); },
+  })
+);
+runPhaseCheck(); // boot catch-up — idempotent thanks to outbox dedupe
 ```
 
 The scan is idempotent: `signal_outbox` dedupe (`signal_id` PK) makes double-runs
