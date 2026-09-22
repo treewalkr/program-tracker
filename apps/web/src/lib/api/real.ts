@@ -41,6 +41,9 @@ export const realApi: TrainerApi = {
   programs: (clientId) => request<ProgramDto[]>(`/v1/programs?clientId=${clientId}`),
   saveProgram: (id, sessions) =>
     request<ProgramDto>(`/v1/programs/${id}`, { method: "PUT", body: JSON.stringify({ sessions }) }),
+  createProgram: (input) =>
+    // TODO(backend): extend zod program schema with phasing + activatedAt
+    request<ProgramDto>("/v1/programs", { method: "POST", body: JSON.stringify(input) }),
   setProgramStatus: (id, status) =>
     request<ProgramDto>(`/v1/programs/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
 

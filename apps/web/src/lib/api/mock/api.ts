@@ -262,9 +262,30 @@ export const mockApi: TrainerApi = {
           other.status = "archived";
         }
       }
+      if (!p.activatedAt) p.activatedAt = new Date().toISOString();
     }
     p.status = status;
     return withNames(p);
+  },
+
+  async createProgram(input) {
+    await delay(450);
+    const program: ProgramDto = {
+      id: `pg-${uuid().slice(0, 8)}`,
+      clientId: input.clientId,
+      name: input.name,
+      description: input.description ?? null,
+      status: "draft",
+      version: 1,
+      aiAssisted: false,
+      createdFromProgramId: null,
+      sessions: input.sessions,
+      createdAt: new Date().toISOString(),
+      activatedAt: null,
+      phasing: input.phasing ?? null,
+    };
+    state.programs = [...state.programs, program];
+    return withNames(program);
   },
 
   async exercises(query) {

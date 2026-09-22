@@ -167,6 +167,13 @@ export interface TrainerApi {
   program(id: string): Promise<ProgramDto>;
   programs(clientId: string): Promise<ProgramDto[]>;
   saveProgram(id: string, sessions: ProgramSessionDto[]): Promise<ProgramDto>;
+  createProgram(input: {
+    clientId: string;
+    name: string;
+    description?: string | null;
+    sessions: ProgramSessionDto[];
+    phasing?: ProgramPhasingDto | null;
+  }): Promise<ProgramDto>;
   setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;
 
   exercises(query?: string): Promise<ExerciseDto[]>;

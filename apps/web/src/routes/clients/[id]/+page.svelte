@@ -73,6 +73,7 @@
     <div class="actions">
       <button class="btn ghost" onclick={() => (editing = !editing)}>{editing ? "Cancel" : "Edit profile"}</button>
       <a class="btn ghost" href={`/clients/${id}/log`}>Log session</a>
+      <a class="btn ghost" href={`/clients/${id}/programs/new`}>Write program</a>
       {#if current}
         <a class="btn" href={`/clients/${id}/generate`}>✦ Generate next block</a>
       {:else}
