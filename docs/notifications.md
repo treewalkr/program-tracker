@@ -51,24 +51,29 @@ Data-driven signals (rpe-creep, stall) can only change when a log lands. In
 `POST /v1/logs/sessions`, after commit: run rules for that program; any signal id absent
 from `signal_outbox` → insert (dedupe) → background worker sends email.
 
-### 3. Clock path (daily cron)
+### 3. Clock path (daily scheduled scan)
 
-Calendar rules (block-ending, deload-week, adherence silence) need a timer:
+Calendar rules (block-ending, deload-week, adherence silence) need a timer.
 
-```sql
-SELECT cron.schedule('phase-check', '0 6 * * *', $$
-  INSERT INTO signal_outbox (signal_id, kind, payload, created_at)
-  SELECT p.id || ':block-ending', 'block-ending', jsonb_build_object(...)
-  FROM programs p
-  WHERE p.status = 'active'
-    AND (current_date - p.activated_at::date) / 7 + 1
-        >= (p.phasing->>'plannedWeeks')::int - 1
-  ON CONFLICT (signal_id) DO NOTHING
-$$);
+**Recommended for this stack: `node-cron` inside `apps/api`.** The API is already a
+long-running process, so zero new infrastructure; and the rules are TypeScript in
+`packages/shared` — pg_cron would force duplicating them in SQL (drift) or reduce the
+timer to a middleman that pokes the API anyway.
+
+```ts
+import cron from "node-cron";
+import { computeSignals } from "@pt/shared";
+
+cron.schedule("0 6 * * *", runPhaseCheck); // daily 06:00
+runPhaseCheck();                            // catch-up at boot
 ```
 
-Alternative to pg_cron: node-cron / systemd timer hitting an internal endpoint that runs
-the shared TS rules directly (preferable if rules get complex — keeps SQL dumb).
+The scan is idempotent: `signal_outbox` dedupe (`signal_id` PK) makes double-runs
+harmless, so boot-time catch-up covers restarts and downtime.
+
+pg_cron alternative (runs SQL in Postgres directly) only wins when there is no always-on
+app process or when many DB-side jobs exist — not the case here (also: not in the stock
+`postgres:17` image).
 
 ## New storage (whole addition)
 
