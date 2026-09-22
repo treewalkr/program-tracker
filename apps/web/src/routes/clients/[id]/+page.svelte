@@ -208,9 +208,9 @@
         <table class="sheet">
           <tbody>
             {#each programs ?? [] as p (p.id)}
-              <tr class="rowlink" onclick={() => goto(`/programs/${p.id}`)}>
+              <tr class="rowlink">
                 <td>
-                  <div><strong>{p.name}</strong></div>
+                  <div><a class="rowlink-name" href={`/programs/${p.id}`}><strong>{p.name}</strong></a></div>
                   <div class="subtle">v{p.version}{#if p.aiAssisted} · ✦ AI{/if}</div>
                 </td>
                 <td><StatusPill status={p.status} /></td>

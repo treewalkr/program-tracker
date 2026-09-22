@@ -58,7 +58,22 @@
   async function remove(id: string) {
     await api.deleteInstructionTemplate(id);
     if (editingId === id) editingId = null;
+    if (confirmDeleteId === id) confirmDeleteId = null;
     await load();
+  }
+
+  // Two-step delete: first click arms, second click within 4s deletes.
+  let confirmDeleteId = $state<string | null>(null);
+  let armTimer: ReturnType<typeof setTimeout> | undefined;
+  function armDelete(id: string) {
+    if (confirmDeleteId === id) {
+      clearTimeout(armTimer);
+      void remove(id);
+      return;
+    }
+    confirmDeleteId = id;
+    clearTimeout(armTimer);
+    armTimer = setTimeout(() => (confirmDeleteId = null), 4000);
   }
 
   onMount(load);
@@ -142,7 +157,13 @@
               <pre class="body">{t.content}</pre>
               <div class="row-actions">
                 <button class="btn ghost small" onclick={() => startEdit(t)}>Edit</button>
-                <button class="btn danger small" onclick={() => remove(t.id)}>Delete</button>
+                <button
+                  class="btn danger small"
+                  class:armed={confirmDeleteId === t.id}
+                  onclick={() => armDelete(t.id)}
+                >
+                  {confirmDeleteId === t.id ? "Really delete?" : "Delete"}
+                </button>
               </div>
             {/if}
           </div>
@@ -169,6 +190,7 @@
   }
 
   .row-actions { display: flex; gap: 8px; }
+  .btn.danger.armed { outline: 2px solid var(--bad); outline-offset: 2px; }
   .btn.small { padding: 4px 10px; font-size: 13px; }
   .err { color: var(--bad); font-weight: 600; }
 

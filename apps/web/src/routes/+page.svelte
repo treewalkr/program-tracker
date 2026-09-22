@@ -102,9 +102,9 @@
       </thead>
       <tbody>
         {#each clients as c (c.id)}
-          <tr class="rowlink" onclick={() => goto(`/clients/${c.id}`)}>
+          <tr class="rowlink">
             <td>
-              <strong>{c.name}</strong>
+              <a class="rowlink-name" href={`/clients/${c.id}`}><strong>{c.name}</strong></a>
               {#if c.limitations}<span class="pill bad" style="margin-left:8px">limitations</span>{/if}
             </td>
             <td><StatusPill status={c.status} /></td>

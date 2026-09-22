@@ -91,8 +91,8 @@
       </thead>
       <tbody>
         {#each clients as c (c.id)}
-          <tr class="rowlink" onclick={() => goto(`/clients/${c.id}`)}>
-            <td><strong>{c.name}</strong><div class="subtle">{c.email}</div></td>
+          <tr class="rowlink">
+            <td><a class="rowlink-name" href={`/clients/${c.id}`}><strong>{c.name}</strong></a><div class="subtle">{c.email}</div></td>
             <td><StatusPill status={c.status} /></td>
             <td class="num">{c.daysPerWeek ?? "—"}/wk</td>
             <td class="goal">{c.goals ?? "—"}</td>

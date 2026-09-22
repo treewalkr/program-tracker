@@ -22,6 +22,7 @@
   let gen = $state<GenerationDto | null>(null);
   let newProgram = $state<ProgramDto | null>(null);
   let approving = $state(false);
+  let rejecting = $state(false);
 
   const generatingSteps = [
     "Reading client profile and limitations",
@@ -122,6 +123,21 @@
     }
   }
 
+  async function reject() {
+    if (!gen) return;
+    rejecting = true;
+    try {
+      gen = await api.rejectGeneration(gen.id);
+    } finally {
+      rejecting = false;
+    }
+  }
+
+  function reset() {
+    gen = null;
+    newProgram = null;
+  }
+
   async function saveAsTemplate() {
     if (!instructions.trim() || !tplName.trim()) return;
     savingTpl = true;
@@ -134,12 +150,6 @@
     } finally {
       savingTpl = false;
     }
-  }
-
-  async function removeTemplate(id2: string) {
-    await api.deleteInstructionTemplate(id2);
-    templates = templates.filter((t) => t.id !== id2);
-    selected = selected.filter((s) => s !== id2);
   }
 
   function toggleTemplate(id2: string) {
@@ -215,7 +225,6 @@
                 {#if selected.includes(t.id)}✓{/if}
                 {t.name}
               </button>
-              <button type="button" class="tpl-x" title="Delete template" onclick={() => removeTemplate(t.id)}>×</button>
             {/each}
             {#if templates.length === 0}<span class="subtle">No templates yet — write a note below and save it as one.</span>{/if}
             <a class="manage" href="/templates">Manage templates →</a>
@@ -296,12 +305,18 @@
           </div>
           <hr class="divider" />
           <div class="actions-row">
-            <button class="btn" onclick={approve} disabled={approving || !!newProgram}>
-              {approving ? "Approving…" : newProgram ? "Approved ✓" : "Approve as draft program"}
-            </button>
-            <button class="btn danger" onclick={() => api.rejectGeneration(gen!.id)} disabled={!!newProgram}>
-              Reject
-            </button>
+            {#if gen.status === "rejected"}
+              <p class="discarded">Discarded — this draft won't be used.</p>
+              <button class="btn" onclick={reset}>Draft again</button>
+              <a class="btn ghost" href={`/clients/${id}`}>Back to client</a>
+            {:else}
+              <button class="btn" onclick={approve} disabled={approving || !!newProgram}>
+                {approving ? "Approving…" : newProgram ? "Approved ✓" : "Approve as draft program"}
+              </button>
+              <button class="btn danger" onclick={reject} disabled={!!newProgram || rejecting}>
+                {rejecting ? "Rejecting…" : "Reject"}
+              </button>
+            {/if}
           </div>
           {#if newProgram}
             <p class="ok">
@@ -370,17 +385,6 @@
   }
   .tpl:hover { border-color: var(--line-strong); }
   .tpl.active { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .tpl-x {
-    margin-left: -6px;
-    margin-right: 6px;
-    border: none;
-    background: none;
-    color: var(--faint);
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0 2px;
-  }
-  .tpl-x:hover { color: var(--bad); }
   .manage { font: 600 12.5px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
   .save-tpl { display: flex; gap: 8px; }
@@ -420,9 +424,10 @@
   .side-col { display: flex; flex-direction: column; }
 
   .rationale { white-space: pre-wrap; }
-  .actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .actions-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .ok { color: var(--good); font-weight: 600; }
   .err { color: var(--bad); font-weight: 600; }
+  .discarded { color: var(--bad); font-weight: 600; margin: 0; }
 
   .sessions { display: flex; flex-direction: column; }
   .session { padding: 10px 0; border-bottom: 1px solid var(--line); }

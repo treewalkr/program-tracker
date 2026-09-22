@@ -9,7 +9,7 @@
   --surface: #ffffff;
   --ink: #14181c;
   --muted: #5c646c;
-  --faint: #8b9299;
+  --faint: #666d74;
   --line: #dcded9;
   --line-strong: #b9bfc0;
 
@@ -221,6 +221,11 @@ table.sheet tr.rowlink:hover td { background: #f7f8f5; cursor: pointer; }
 }
 .sub { color: var(--muted); font-size: 14px; }
 .subtle { color: var(--faint); font-size: 13px; }
+
+/* Row links: real anchors inside table rows (keyboard + middle-click) */
+a.rowlink-name { color: inherit; text-decoration: none; }
+a.rowlink-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
 
 .divider { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
