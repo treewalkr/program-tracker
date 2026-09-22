@@ -153,6 +153,12 @@
     providers = (await api.providers()).filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
     templates = await api.instructionTemplates();
+    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>
+    const params = new URLSearchParams(page.url.search);
+    const note = params.get("note");
+    const tpl = params.get("tpl");
+    if (note) instructions = note;
+    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
   });
 </script>
 

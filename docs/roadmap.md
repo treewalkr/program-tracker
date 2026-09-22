@@ -23,7 +23,6 @@
 > typeahead exercise picker in builder, generation history list).
 
 ### Instruction templates (mocked now)
-
 Reusable standing rules for AI generations (RPE caps, block conventions, equipment
 constraints). Mock: in-memory CRUD. Real backend later: `prompt_templates` table
 (trainer_id, name, content, timestamps) + `GET/POST/DELETE /v1/ai/prompt-templates`;

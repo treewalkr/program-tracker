@@ -6,6 +6,7 @@
   import type { ClientDto, HistoryEntryDto, ProgramDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
+  import { activeSignals, computeSignals, snoozeSignal, type Signal } from "$lib/signals";
 
   const id = $derived(page.params.id ?? "");
 
@@ -16,6 +17,10 @@
   let editing = $state(false);
   let saving = $state(false);
   let form = $state({ goals: "", limitations: "", daysPerWeek: 3 });
+  let signals = $state<Signal[]>([]);
+  let dismissedNow = $state<string[]>([]);
+
+  const visibleSignals = $derived(signals.filter((s) => !dismissedNow.includes(s.id)));
 
   async function load() {
     const detail = await api.client(id);
@@ -23,6 +28,13 @@
     current = detail.currentProgram;
     programs = detail.programs;
     history = await api.history(id);
+    if (current) {
+      const [logs, exs] = await Promise.all([api.sessionLogs(id), api.exercises()]);
+      const names = new Map(exs.map((e) => [e.id, e.name]));
+      signals = activeSignals(computeSignals(current, logs, (x) => names.get(x) ?? x));
+    } else {
+      signals = [];
+    }
     form = {
       goals: detail.client.goals ?? "",
       limitations: detail.client.limitations ?? "",
@@ -68,6 +80,41 @@
       {/if}
     </div>
   </div>
+
+  {#if visibleSignals.length > 0}
+    <section class="panel sig-panel">
+      {#each visibleSignals as signal (signal.id)}
+        <div class="sig" class:urgent={signal.severity === "urgent"} class:attention={signal.severity === "attention"}>
+          <div class="sig-body">
+            <div class="sig-top">
+              <span class="sev-dot"></span>
+              <strong>{signal.title}</strong>
+            </div>
+            <p class="evidence">{signal.evidence}</p>
+          </div>
+          <div class="sig-actions">
+            {#if signal.prefillNote}
+              <a
+                class="btn small"
+                href={`/clients/${id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
+              >
+                ✦ Draft next block
+              </a>
+            {/if}
+            <button
+              class="btn ghost small"
+              onclick={() => {
+                snoozeSignal(signal.id, 7);
+                dismissedNow = [...dismissedNow, signal.id];
+              }}
+            >
+              Snooze 1 week
+            </button>
+          </div>
+        </div>
+      {/each}
+    </section>
+  {/if}
 
   {#if editing}
     <section class="panel" style="margin-bottom:18px">
@@ -190,6 +237,24 @@
 {/if}
 
 <style>
+  .sig-panel { margin-bottom: 18px; }
+  .sig {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .sig:last-child { border-bottom: none; }
+  .sig.urgent .sev-dot { background: var(--bad); }
+  .sig.attention .sev-dot { background: var(--warn); }
+  .sev-dot { width: 9px; height: 9px; border-radius: 99px; background: var(--good); flex-shrink: 0; }
+  .sig-top { display: flex; align-items: center; gap: 9px; }
+  .evidence { margin: 3px 0 0 18px; font-size: 13px; color: var(--muted); }
+  .sig-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
   .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
   .crumb a:hover { text-decoration: underline; }
   h1 { display: flex; align-items: center; gap: 10px; }

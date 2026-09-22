@@ -36,6 +36,13 @@ export interface ProgramSessionDto {
   exercises: ProgramExerciseDto[];
 }
 
+export interface ProgramPhasingDto {
+  plannedWeeks: number;
+  phase: string;
+  nextPhase: string | null;
+  deloadWeeks: number[];
+}
+
 export interface ProgramDto {
   id: string;
   clientId: string | null;
@@ -47,6 +54,8 @@ export interface ProgramDto {
   createdFromProgramId: string | null;
   sessions: ProgramSessionDto[];
   createdAt: string;
+  activatedAt?: string | null;
+  phasing?: ProgramPhasingDto | null;
 }
 
 export interface ExerciseDto {
