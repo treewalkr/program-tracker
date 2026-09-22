@@ -22,6 +22,8 @@
 > (`PUBLIC_API_MODE=live`) plus the gaps that remain (builder for new programs from scratch,
 > typeahead exercise picker in builder, generation history list).
 
+Full real-system design: **docs/notifications.md**.
+
 ### Periodization signals (mocked now)
 
 Phase-change nudges computed on read from (program.phasing, session logs): block-ending,
