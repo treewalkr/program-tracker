@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: pt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pt
+      POSTGRES_PASSWORD: pt_dev_password
+      POSTGRES_DB: program_tracker
+    ports:
+      - "5433:5432"
+    volumes:
+      - pt-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pt -d program_tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pt-pgdata:

@@ -1,0 +1,24 @@
+{
+  "name": "program-tracker",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"bun run --filter @pt/api dev\" \"bun run --filter @pt/web dev\"",
+    "dev:api": "bun run --filter @pt/api dev",
+    "dev:web": "bun run --filter @pt/web dev",
+    "build": "bun run --filter '@pt/*' build",
+    "test": "bun run --filter '@pt/shared' test && bun run --filter '@pt/api' test",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "bun run --filter @pt/db migrate",
+    "db:generate": "bun run --filter @pt/db generate",
+    "db:studio": "bun run --filter @pt/db studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}
