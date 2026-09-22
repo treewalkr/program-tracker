@@ -18,3 +18,4 @@ build/
 .vite/
 test-results/
 playwright-report/
+.pi-subagents/
