@@ -241,6 +241,22 @@ export const mockApi: TrainerApi = {
     }));
   },
 
+  async sessionLogs(clientId) {
+    await delay(250);
+    return state.logs
+      .filter((l) => l.clientId === clientId)
+      .map((l) => ({
+        id: l.sessionLogId,
+        clientId: l.clientId,
+        programId: l.programId,
+        programSessionId: null,
+        date: l.date,
+        notes: l.notes ?? null,
+        perceivedEnergy: l.perceivedEnergy ?? null,
+        sets: l.sets.map((s) => ({ ...s })),
+      }));
+  },
+
   async logSession(input: SessionLogInput) {
     await delay(500);
     state.logs.push({

@@ -117,6 +117,25 @@ export interface SessionLogInput {
   sets: LogSetInput[];
 }
 
+export interface SessionLogDto {
+  id: string;
+  clientId: string;
+  programId: string;
+  programSessionId: string | null;
+  date: string;
+  notes: string | null;
+  perceivedEnergy: number | null;
+  sets: {
+    id?: string;
+    exerciseId: string;
+    setNumber: number;
+    type: "warm_up" | "working" | "backoff";
+    weightKg?: number | null;
+    reps: number;
+    rpe?: number | null;
+  }[];
+}
+
 export interface TrainerApi {
   providers(): Promise<ProviderDto[]>;
   clients(): Promise<ClientDto[]>;
@@ -133,6 +152,7 @@ export interface TrainerApi {
   createExercise(input: { name: string; primaryMuscleGroup: string; equipment: string }): Promise<ExerciseDto>;
 
   history(clientId: string): Promise<HistoryEntryDto[]>;
+  sessionLogs(clientId: string): Promise<SessionLogDto[]>;
   logSession(input: SessionLogInput): Promise<unknown>;
 
   generate(input: {

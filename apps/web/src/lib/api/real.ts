@@ -5,6 +5,7 @@ import type {
   HistoryEntryDto,
   ProgramDto,
   ProviderDto,
+  SessionLogDto,
   SessionLogInput,
   TrainerApi,
 } from "./types";
@@ -50,6 +51,8 @@ export const realApi: TrainerApi = {
     request<{ history: HistoryEntryDto[] }>(`/v1/logs/history?clientId=${clientId}`).then(
       (r) => r.history
     ),
+  sessionLogs: (clientId) =>
+    request<SessionLogDto[]>(`/v1/logs/sessions?clientId=${clientId}`),
   logSession: (input: SessionLogInput) =>
     request("/v1/logs/sessions", { method: "POST", body: JSON.stringify(input) }),
 
