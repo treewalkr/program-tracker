@@ -19,10 +19,7 @@
 > default): all screens — overview, clients, client detail, log entry, AI generate/review/approve,
 > program editor, exercise library — run on in-memory fixtures, no backend needed. Built for
 > stakeholder alignment; phases 1–4 below now describe wiring these screens to `realApi`
-> (`PUBLIC_API_MODE=live`) plus the gaps that remain (typeahead exercise picker in builder,
-> generation history list). Scratch program builder now exists in mock
-> (`clients/[id]/programs/new`) including phasing metadata — wiring live needs the backend
-> program schema to accept `phasing` + `activatedAt`.
+> `PUBLIC_API_MODE=live` flip needs these contract additions: prescribed sets gain optional `targetWeightKg` (load targets), clients gain `trainingDays` (weekday ints, 1=Mon…7=Sun — powers the dashboard week strip and honest adherence), program editing needs exercise substitution (currently UI-only swap), and the zod program schema must accept `phasing` + `activatedAt`.
 
 Full real-system design: **docs/notifications.md**.
 
