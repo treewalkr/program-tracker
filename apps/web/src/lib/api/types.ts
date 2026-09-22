@@ -147,6 +147,8 @@ export interface TrainerApi {
   providers(): Promise<ProviderDto[]>;
   instructionTemplates(): Promise<InstructionTemplateDto[]>;
   createInstructionTemplate(input: { name: string; content: string }): Promise<InstructionTemplateDto>;
+  updateInstructionTemplate(id: string, input: { name: string; content: string }): Promise<InstructionTemplateDto>;
+  deleteInstructionTemplate(id: string): Promise<void>;
   deleteInstructionTemplate(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;

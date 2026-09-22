@@ -212,6 +212,7 @@
               <button type="button" class="tpl-x" title="Delete template" onclick={() => removeTemplate(t.id)}>×</button>
             {/each}
             {#if templates.length === 0}<span class="subtle">No templates yet — write a note below and save it as one.</span>{/if}
+            <a class="manage" href="/templates">Manage templates →</a>
           </div>
         </div>
         <div>
@@ -374,6 +375,8 @@
     padding: 0 2px;
   }
   .tpl-x:hover { color: var(--bad); }
+  .manage { font: 600 12.5px var(--font-ui); color: var(--muted); margin-left: auto; }
+  .manage:hover { color: var(--ink); }
   .save-tpl { display: flex; gap: 8px; }
   .save-tpl .input { flex: 1; }
   .btn.small { padding: 4px 10px; font-size: 13px; }

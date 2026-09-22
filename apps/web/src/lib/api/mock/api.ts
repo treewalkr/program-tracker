@@ -184,6 +184,18 @@ export const mockApi: TrainerApi = {
     return tpl;
   },
 
+  async updateInstructionTemplate(id, { name, content }) {
+    await delay(250);
+    let updated: InstructionTemplateDto | undefined;
+    state.templates = state.templates.map((t) => {
+      if (t.id !== id) return t;
+      updated = { ...t, name, content, updatedAt: new Date().toISOString() };
+      return updated;
+    });
+    if (!updated) throw new Error("template not found");
+    return updated;
+  },
+
   async deleteInstructionTemplate(id) {
     await delay(200);
     state.templates = state.templates.filter((t) => t.id !== id);

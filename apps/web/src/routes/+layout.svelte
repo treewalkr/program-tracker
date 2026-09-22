@@ -8,6 +8,7 @@
     { href: "/", label: "Overview" },
     { href: "/clients", label: "Clients" },
     { href: "/exercises", label: "Exercise library" },
+    { href: "/templates", label: "Templates" },
   ];
 </script>
 

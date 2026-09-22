@@ -64,6 +64,11 @@ export const realApi: TrainerApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updateInstructionTemplate: (id, input) =>
+    request<InstructionTemplateDto>(`/v1/ai/prompt-templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   deleteInstructionTemplate: (id) =>
     request<void>(`/v1/ai/prompt-templates/${id}`, { method: "DELETE" }),
   generate: (input) =>
