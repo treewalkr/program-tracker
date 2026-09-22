@@ -9,7 +9,9 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "bun run src/migrate.ts",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "seed:exercises": "bun run scripts/seed-exercises.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@pt/shared": "workspace:*",

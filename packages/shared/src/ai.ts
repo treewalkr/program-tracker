@@ -40,6 +40,15 @@ export const KNOWN_PROVIDERS = {
     apiKeyEnvVar: "OPENAI_API_KEY",
     maxOutputTokens: 8192,
   },
+  /** Canned draft, no network, no key. For tests and UI development. */
+  mock: {
+    id: "mock",
+    label: "Mock (canned draft)",
+    baseUrl: "mock://local",
+    model: "mock-draft-v1",
+    apiKeyEnvVar: "MOCK_NO_KEY_NEEDED",
+    maxOutputTokens: 4096,
+  },
 } as const satisfies Record<string, AiProviderConfig>;
 
 // ---------------------------------------------------------------------------

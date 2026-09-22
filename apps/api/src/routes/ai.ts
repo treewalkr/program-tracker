@@ -10,10 +10,12 @@ import {
   sessionLogs,
   setLogs,
 } from "@pt/db";
-import { AiProgramDraft, KNOWN_PROVIDERS, estimate1rm } from "@pt/shared";
+import { AiProgramDraft, KNOWN_PROVIDERS } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { buildGenerationMessages } from "../ai/prompt";
+import { MOCK_DRAFT } from "../ai/mock";
 import { bindPendingExercises, draftToSessions } from "../lib/draftToProgram";
+import { buildHistory } from "../lib/history";
 import { getDefaultTrainerId } from "../lib/trainer";
 
 const HISTORY_WINDOW_DAYS = 56;
@@ -55,19 +57,6 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
     : [];
 
-  // Group per exercise: recent working sets (text) + best e1RM in window.
-  const byExercise = new Map<string, { name: string; sets: string[]; best: number }>();
-  for (const set of sets) {
-    if (set.type !== "working") continue;
-    const exercise = catalogByTrainer.find((e) => e.id === set.exerciseId);
-    if (!exercise) continue;
-    const weight = set.weightKg ? Number(set.weightKg) : 0;
-    const entry = byExercise.get(set.exerciseId) ?? { name: exercise.name, sets: [], best: 0 };
-    entry.sets.push(`${weight ? `${weight}kg × ` : ""}${set.reps}${set.rpe ? ` @ RPE ${Number(set.rpe)}` : ""}`);
-    entry.best = Math.max(entry.best, estimate1rm(weight, set.reps));
-    byExercise.set(set.exerciseId, entry);
-  }
-
   return {
     client: {
       name: client.name,
@@ -76,11 +65,11 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
       daysPerWeek: client.daysPerWeek,
     },
     previousProgram: previous,
-    history: [...byExercise.entries()].map(([id, h]) => ({
-      exerciseName: h.name,
-      recentSets: h.sets.slice(-6),
-      bestE1rm: h.best,
-    })),
+    history: buildHistory({
+      logs,
+      sets,
+      catalog: catalogByTrainer.map((e) => ({ id: e.id, name: e.name })),
+    }),
     catalog: catalogByTrainer.map((e) => ({
       id: e.id,
       name: e.name,
@@ -99,6 +88,9 @@ class ContextError extends Error {
 function providerRuntime(providerId: string) {
   const known = KNOWN_PROVIDERS[providerId as keyof typeof KNOWN_PROVIDERS];
   const id = known?.id ?? providerId;
+  if (id === "mock") {
+    return { baseUrl: "mock://local", model: "mock-draft-v1", apiKey: "mock", maxOutputTokens: 4096 };
+  }
   const envKey = known?.apiKeyEnvVar ?? `${id.toUpperCase()}_API_KEY`;
   const apiKey = process.env[envKey];
   if (!apiKey) throw new ContextError(400, `provider "${providerId}" not configured (missing ${envKey})`);
@@ -140,10 +132,13 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai" })
         let validationError: string | null = null;
         for (let attempt = 0; attempt < 2 && !draft; attempt++) {
           try {
-            const raw = await chatJson(rt, [
-              { role: "system", content: messages.system },
-              { role: "user", content: messages.user },
-            ]);
+            const raw =
+              (body.providerId ?? "zai") === "mock"
+                ? JSON.stringify(MOCK_DRAFT)
+                : await chatJson(rt, [
+                    { role: "system", content: messages.system },
+                    { role: "user", content: messages.user },
+                  ]);
             const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
             if (parsed.success) {
               draft = parsed.data;

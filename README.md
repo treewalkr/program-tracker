@@ -48,11 +48,16 @@ bun run dev            # api :4000 + web :5173
 - [x] Domain schemas + validation gate (packages/shared)
 - [x] DB schema + migrations (packages/db)
 - [x] API: clients, programs, AI generate/validate/approve pipeline
-- [ ] Exercise library seed (WGER import)
-- [ ] Client workout logging endpoints (session_logs / set_logs)
-- [ ] Trainer UI: program builder, draft review/approve
-- [ ] Client UI: workout logging (PWA, offline later)
-- [ ] Auth: trainer accounts + client invite links
+- [x] Exercise library seed — `bun run seed:exercises` (WGER import, 719 exercises)
+- [x] Logging endpoints (trainer enters results on client's behalf) + history aggregation
+- [x] Mock provider — keyless end-to-end pipeline tests (`bun test` in apps/api)
+- [ ] Trainer UI: program builder, draft review/approve, log entry
+- [ ] Auth: trainer accounts (client portal cut from MVP)
+
+### MVP scope decision
+**No client portal for MVP.** The trainer runs the whole loop: builds programs, enters
+logged results, reviews AI drafts. The normalized log schema keeps a future client
+logging surface a pure additive change.
 
 ## Notes
 

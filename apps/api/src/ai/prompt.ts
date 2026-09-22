@@ -17,6 +17,8 @@ export interface ProgramSummary {
 
 export interface ExerciseHistoryEntry {
   exerciseName: string;
+  /** Present in API responses; not needed inside the prompt text. */
+  exerciseId?: string;
   /** Most recent sets, oldest→newest, e.g. "100kg × 5 @ RPE 8". */
   recentSets: string[];
   /** Best estimated 1RM in the window. */
