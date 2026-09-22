@@ -22,6 +22,17 @@
 > (`PUBLIC_API_MODE=live`) plus the gaps that remain (builder for new programs from scratch,
 > typeahead exercise picker in builder, generation history list).
 
+### Periodization signals (mocked now)
+
+Phase-change nudges computed on read from (program.phasing, session logs): block-ending,
+deload-week, RPE-creep, stall, adherence. Rules live in `apps/web/src/lib/signals.ts` as
+pure functions — **move to `packages/shared`** so the API can run them identically in
+`GET /v1/notifications`. Snooze = localStorage in mock; real API: small `signal_snoozes`
+table. Programs gain optional `phasing` metadata (plannedWeeks, phase, nextPhase,
+deloadWeeks) — AI drafts should propose it too (prompt update when wiring live).
+Refinement candidates: per-exercise e1RM trend charts in the evidence, email/push
+delivery, client check-in messages for adherence.
+
 ### Instruction templates (mocked now)
 Reusable standing rules for AI generations (RPE caps, block conventions, equipment
 constraints). Mock: in-memory CRUD. Real backend later: `prompt_templates` table
