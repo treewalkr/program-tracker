@@ -5,12 +5,19 @@ import type {
   GenerationDto,
   HistoryEntryDto,
   InstructionTemplateDto,
+  PeriodizationSchemeDto,
   ProgramDto,
   ProgramSessionDto,
   SessionLogInput,
   TrainerApi,
 } from "../types";
-import { clients as seedClients, exercises, logs as seedLogs, programs as seedPrograms } from "./data";
+import {
+  clients as seedClients,
+  exercises,
+  logs as seedLogs,
+  programs as seedPrograms,
+  schemes as seedSchemes,
+} from "./data";
 
 const uuid = () => crypto.randomUUID();
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -45,6 +52,7 @@ const state = {
   programs: [...seedPrograms],
   logs: [...seedLogs],
   templates: [...seedTemplates],
+  schemes: [...seedSchemes],
   generations: [] as GenerationDto[],
 };
 
@@ -199,6 +207,27 @@ export const mockApi: TrainerApi = {
   async deleteInstructionTemplate(id) {
     await delay(200);
     state.templates = state.templates.filter((t) => t.id !== id);
+  },
+
+  async schemes() {
+    await delay(120);
+    return [...state.schemes];
+  },
+
+  async createScheme({ name, weeks }) {
+    await delay(250);
+    const scheme: PeriodizationSchemeDto = {
+      id: `sch-${uuid().slice(0, 8)}`,
+      name,
+      weeks,
+    };
+    state.schemes = [...state.schemes, scheme];
+    return scheme;
+  },
+
+  async deleteScheme(id) {
+    await delay(200);
+    state.schemes = state.schemes.filter((s) => s.id !== id);
   },
 
 

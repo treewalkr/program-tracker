@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
-  import type { ClientDto, ExerciseDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
+  import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
 
   const id = $derived(page.params.id ?? "");
 
@@ -17,7 +17,7 @@
   let nextPhase = $state("deload");
   let endsWithDeload = $state(true);
   let usePhasing = $state(true);
-  let scheme = $state<"custom" | "4wave" | "6wave">("6wave");
+  let schemes = $state<PeriodizationSchemeDto[]>([]);
   let saving = $state(false);
   let error = $state<string | null>(null);
 
@@ -49,38 +49,73 @@
     { key: crypto.randomUUID(), name: "Day 1", cardioLabel: "", cardioDetail: "", exercises: [] },
   ]);
 
-  const SCHEMES: Record<
-    Exclude<typeof scheme, "custom">,
-    { label: string; weeks: { week: number; directive: WeekDirective }[] }
-  > = {
-    "4wave": {
-      label: "4-week wave — base → +volume → +intensity → deload",
-      weeks: [
-        { week: 1, directive: "base" },
-        { week: 2, directive: "+volume" },
-        { week: 3, directive: "+intensity" },
-        { week: 4, directive: "deload" },
-      ],
-    },
-    "6wave": {
-      label: "6-week wave — base → +volume → +intensity → +volume → transition → transition",
-      weeks: [
-        { week: 1, directive: "base" },
-        { week: 2, directive: "+volume" },
-        { week: 3, directive: "+intensity" },
-        { week: 4, directive: "+volume" },
-        { week: 5, directive: "transition" },
-        { week: 6, directive: "transition" },
-      ],
-    },
-  };
+  let schemeMode = $state<"saved" | "custom" | "none">("saved");
+  let selectedSchemeId = $state<string>("");
+  let customWeeks = $state<WeekDirective[]>(["base", "+volume", "+intensity", "transition"]);
+  let schemeName = $state("");
+  let savingScheme = $state(false);
+  let armedDelete = $state(false);
+  const DIRECTIVES: WeekDirective[] = ["base", "+volume", "+intensity", "deload", "transition", "test"];
+
+  const activeWeeks = $derived.by(() => {
+    if (schemeMode === "custom") return [...customWeeks];
+    if (schemeMode === "saved") {
+      return schemes.find((s) => s.id === selectedSchemeId)?.weeks.map((w) => w.directive) ?? [];
+    }
+    return [];
+  });
+
+  const selectedScheme = $derived(
+    schemeMode === "saved" ? (schemes.find((s) => s.id === selectedSchemeId) ?? null) : null
+  );
 
   $effect(() => {
-    if (scheme !== "custom") {
-      plannedWeeks = SCHEMES[scheme].weeks.length;
-      endsWithDeload = SCHEMES[scheme].weeks.at(-1)?.directive === "deload";
+    if (activeWeeks.length > 0) {
+      plannedWeeks = activeWeeks.length;
+      endsWithDeload = activeWeeks[activeWeeks.length - 1] === "deload";
     }
   });
+
+  function onSchemeSelect(value: string) {
+    armedDelete = false;
+    if (value === "custom" || value === "none") {
+      schemeMode = value;
+    } else {
+      schemeMode = "saved";
+      selectedSchemeId = value;
+    }
+  }
+
+  async function saveScheme() {
+    if (!schemeName.trim() || customWeeks.length < 2 || savingScheme) return;
+    savingScheme = true;
+    try {
+      const created = await api.createScheme({
+        name: schemeName.trim(),
+        weeks: customWeeks.map((d, i) => ({ week: i + 1, directive: d })),
+      });
+      schemes = await api.schemes();
+      schemeMode = "saved";
+      selectedSchemeId = created.id;
+      schemeName = "";
+    } finally {
+      savingScheme = false;
+    }
+  }
+
+  async function removeScheme() {
+    if (!armedDelete) {
+      armedDelete = true;
+      return;
+    }
+    if (!selectedScheme) return;
+    const gone = selectedScheme.id;
+    await api.deleteScheme(gone);
+    schemes = schemes.filter((s) => s.id !== gone);
+    armedDelete = false;
+    if (schemes.length > 0) selectedSchemeId = schemes[0].id;
+    else schemeMode = "none";
+  }
   const totalSets = $derived(
     sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.sets.length, 0), 0)
   );
@@ -169,7 +204,7 @@
               phase: phase.trim() || "block",
               nextPhase: nextPhase.trim() || null,
               deloadWeeks: endsWithDeload ? [Number(plannedWeeks)] : [],
-              weeks: scheme !== "custom" ? SCHEMES[scheme].weeks : undefined,
+              weeks: activeWeeks.length > 0 ? activeWeeks.map((d, i) => ({ week: i + 1, directive: d })) : undefined,
             }
           : null,
       });
@@ -185,6 +220,13 @@
     const detail = await api.client(id);
     client = detail.client;
     catalog = await api.exercises();
+    schemes = await api.schemes();
+    if (schemes.length > 0) {
+      schemeMode = "saved";
+      selectedSchemeId = schemes[0].id;
+    } else {
+      schemeMode = "none";
+    }
   });
 </script>
 
@@ -225,25 +267,74 @@
             <div class="phasing-grid">
               <div style="grid-column: 1 / -1">
                 <label class="label" for="np-scheme">Progression scheme</label>
-                <select class="select" id="np-scheme" bind:value={scheme}>
-                  <option value="6wave">{SCHEMES["6wave"].label}</option>
-                  <option value="4wave">{SCHEMES["4wave"].label}</option>
-                  <option value="custom">Custom (no week directives)</option>
+                <select
+                  class="select"
+                  id="np-scheme"
+                  value={schemeMode === "saved" ? selectedSchemeId : schemeMode}
+                  onchange={(e) => onSchemeSelect(e.currentTarget.value)}
+                >
+                  {#each schemes as s (s.id)}
+                    <option value={s.id}>{s.name} — {s.weeks.map((w) => w.directive).join(" → ")}</option>
+                  {/each}
+                  <option value="custom">Custom — define week directives</option>
+                  <option value="none">None — no week directives</option>
                 </select>
-                {#if scheme !== "custom"}
+                {#if schemeMode === "saved" && selectedScheme}
                   <div class="scheme-chips">
-                    {#each SCHEMES[scheme].weeks as w (w.week)}
+                    {#each selectedScheme.weeks as w (w.week)}
                       <span class="scheme-chip" class:d-up={w.directive === "+volume"} class:d-hot={w.directive === "+intensity"} class:d-tr={w.directive === "transition"} class:d-de={w.directive === "deload"}>W{w.week} {w.directive}</span>
                     {/each}
                   </div>
+                  <div class="scheme-manage">
+                    <button type="button" class="btn ghost small danger" onclick={removeScheme}>
+                      {armedDelete ? "Really delete scheme?" : "Delete scheme"}
+                    </button>
+                  </div>
+                {:else if schemeMode === "custom"}
+                  <div class="week-rows">
+                    {#each customWeeks as d, i (i)}
+                      <div class="week-row">
+                        <span class="wk">W{i + 1}</span>
+                        <select class="select" bind:value={customWeeks[i]} onchange={() => (armedDelete = false)}>
+                          {#each DIRECTIVES as opt (opt)}
+                            <option value={opt}>{opt}</option>
+                          {/each}
+                        </select>
+                        <button
+                          type="button"
+                          class="btn ghost small"
+                          disabled={customWeeks.length <= 2}
+                          onclick={() => (customWeeks = customWeeks.filter((_, j) => j !== i))}
+                          aria-label="Remove week"
+                        >✕</button>
+                      </div>
+                    {/each}
+                    <div class="save-row">
+                      <button type="button" class="btn ghost small" onclick={() => (customWeeks = [...customWeeks, "+volume"])}>+ Add week</button>
+                      <input class="input" style="flex:1" placeholder="Scheme name — e.g. 5-week peaking wave" bind:value={schemeName} />
+                      <button
+                        type="button"
+                        class="btn small"
+                        disabled={savingScheme || !schemeName.trim() || customWeeks.length < 2}
+                        onclick={saveScheme}
+                      >{savingScheme ? "Saving…" : "Save as scheme"}</button>
+                    </div>
+                  </div>
                 {/if}
               </div>
-              <div>
-                <label class="label" for="np-weeks">Block length</label>
-                <select class="select" id="np-weeks" bind:value={plannedWeeks}>
-                  {#each [3, 4, 5, 6, 8] as w}<option value={w}>{w} weeks</option>{/each}
-                </select>
-              </div>
+              {#if activeWeeks.length === 0}
+                <div>
+                  <label class="label" for="np-weeks">Block length</label>
+                  <select class="select" id="np-weeks" bind:value={plannedWeeks}>
+                    {#each [3, 4, 5, 6, 8] as w}<option value={w}>{w} weeks</option>{/each}
+                  </select>
+                </div>
+              {:else}
+                <div>
+                  <p class="label">Block length <span class="subtle">— from scheme</span></p>
+                  <p class="derived-val">{activeWeeks.length} weeks</p>
+                </div>
+              {/if}
               <div>
                 <label class="label" for="np-phase">This phase</label>
                 <input class="input" id="np-phase" bind:value={phase} maxlength="40" />
@@ -252,10 +343,17 @@
                 <label class="label" for="np-next">Next phase</label>
                 <input class="input" id="np-next" bind:value={nextPhase} maxlength="40" />
               </div>
-              <label class="label chk">
-                <input type="checkbox" bind:checked={endsWithDeload} />
-                Ends with a deload week
-              </label>
+              {#if activeWeeks.length === 0}
+                <label class="label chk">
+                  <input type="checkbox" bind:checked={endsWithDeload} />
+                  Ends with a deload week
+                </label>
+              {:else}
+                <label class="label chk">
+                  <input type="checkbox" checked disabled />
+                  Deload weeks per scheme
+                </label>
+              {/if}
             </div>
           {/if}
         </div>
@@ -357,6 +455,13 @@
   .phasing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
   .phasing-grid .chk { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .scheme-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .scheme-manage { margin-top: 6px; }
+  .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .week-row { display: flex; align-items: center; gap: 8px; }
+  .week-row .select { flex: 1; }
+  .wk { font: 700 12px var(--font-mono); width: 28px; color: var(--muted); }
+  .save-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .derived-val { margin: 6px 0 0; font: 600 14px var(--font-mono); }
   .scheme-chip {
     font: 600 12px var(--font-mono);
     border: 1px solid var(--line-strong);

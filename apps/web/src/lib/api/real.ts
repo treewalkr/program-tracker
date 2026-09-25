@@ -8,6 +8,7 @@ import type {
   SessionLogDto,
   SessionLogInput,
   InstructionTemplateDto,
+  PeriodizationSchemeDto,
   TrainerApi,
 } from "./types";
 import { PUBLIC_API_URL } from "$env/static/public";
@@ -74,6 +75,16 @@ export const realApi: TrainerApi = {
     }),
   deleteInstructionTemplate: (id) =>
     request<void>(`/v1/ai/prompt-templates/${id}`, { method: "DELETE" }),
+
+  schemes: async () =>
+    (await request<{ schemes: PeriodizationSchemeDto[] }>("/v1/schemes")).schemes,
+  createScheme: (input) =>
+    request<PeriodizationSchemeDto>("/v1/schemes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteScheme: (id) =>
+    request<void>(`/v1/schemes/${id}`, { method: "DELETE" }),
   generate: (input) =>
     request<GenerationDto>("/v1/ai/generate", { method: "POST", body: JSON.stringify(input) }),
   generations: (clientId) =>

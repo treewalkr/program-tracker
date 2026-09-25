@@ -173,13 +173,21 @@ export interface InstructionTemplateDto {
   updatedAt: string;
 }
 
+export interface PeriodizationSchemeDto {
+  id: string;
+  name: string;
+  weeks: WeekPlan[];
+}
+
 export interface TrainerApi {
   providers(): Promise<ProviderDto[]>;
   instructionTemplates(): Promise<InstructionTemplateDto[]>;
   createInstructionTemplate(input: { name: string; content: string }): Promise<InstructionTemplateDto>;
   updateInstructionTemplate(id: string, input: { name: string; content: string }): Promise<InstructionTemplateDto>;
   deleteInstructionTemplate(id: string): Promise<void>;
-  deleteInstructionTemplate(id: string): Promise<void>;
+  schemes(): Promise<PeriodizationSchemeDto[]>;
+  createScheme(input: { name: string; weeks: WeekPlan[] }): Promise<PeriodizationSchemeDto>;
+  deleteScheme(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;
   createClient(input: Omit<ClientDto, "id" | "status">): Promise<ClientDto>;

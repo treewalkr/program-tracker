@@ -1,4 +1,39 @@
-import type { ClientDto, ExerciseDto, ProgramDto, SessionLogInput } from "../types";
+import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramDto, SessionLogInput } from "../types";
+
+export const schemes: PeriodizationSchemeDto[] = [
+  {
+    id: "sch-6wave",
+    name: "6-week wave (coach's own)",
+    weeks: [
+      { week: 1, directive: "base" },
+      { week: 2, directive: "+volume" },
+      { week: 3, directive: "+intensity" },
+      { week: 4, directive: "+volume" },
+      { week: 5, directive: "transition" },
+      { week: 6, directive: "transition" },
+    ],
+  },
+  {
+    id: "sch-4wave",
+    name: "4-week wave",
+    weeks: [
+      { week: 1, directive: "base" },
+      { week: 2, directive: "+volume" },
+      { week: 3, directive: "+intensity" },
+      { week: 4, directive: "deload" },
+    ],
+  },
+  {
+    id: "sch-31",
+    name: "3:1 block",
+    weeks: [
+      { week: 1, directive: "base" },
+      { week: 2, directive: "+volume" },
+      { week: 3, directive: "+volume" },
+      { week: 4, directive: "deload" },
+    ],
+  },
+];
 
 const uuid = () => crypto.randomUUID();
 

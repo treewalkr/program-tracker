@@ -114,6 +114,11 @@ Directives: `base | +volume | +intensity | deload | transition | test`. Block we
 | Per program | N templates merged | exactly one scheme |
 | Tells the model | *how* you want programs written | *what* each week should do |
 
+Schemes live in a **trainer-owned library** (`PeriodizationSchemeDto { id, name,
+weeks }` — mock: seeded "6-week wave (coach's own)", "4-week wave", "3:1 block"; builder
+supports custom per-week editing + save/delete). Real system: `periodization_schemes`
+table + `GET/POST/DELETE /v1/schemes` (mock ↔ real adapter already wired).
+
 Delete every template and the scheme still drives all analytics; delete the scheme and
 the AI still gets the prose. They cooperate once: generate flow (scheme = context,
 templates = method notes).
