@@ -23,6 +23,15 @@
 
 Full real-system design: **docs/notifications.md**.
 
+### Periodization schemes & block pulse (mocked now)
+
+Trainer's week-by-week guide (`base → +volume → +intensity → +volume → transition →
+transition`) is modeled as `phasing.weeks` directives. `lib/metrics.ts` computes weekly
+tonnage / sets / avg RPE / best e1RM from logged working sets (pure functions — move to
+`packages/shared` with the signals). Off-plan signals compare directive vs measured week.
+Later: periodization-scheme template CRUD (presets currently hardcoded in builder),
+volume/intensity charts, ACWR fatigue ratio, cardio volume, per-exercise pulse drills.
+
 ### Periodization signals (mocked now)
 
 Phase-change nudges computed on read from (program.phasing, session logs): block-ending,
