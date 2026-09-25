@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
+  import { fmtDuration } from "$lib/format";
   import type { ExerciseDto, ProgramDto } from "$lib/api/types";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -51,15 +52,19 @@
     si: number,
     ei: number,
     di: number,
-    field: "reps" | "targetRpe" | "restSeconds" | "targetWeightKg",
+    field: "reps" | "targetRpe" | "restSeconds" | "targetWeightKg" | "duration",
     delta: number
   ) {
     if (!program) return;
     const set = program.sessions[si].exercises[ei].prescribedSets[di];
-    if (field === "reps") set.reps = Math.max(1, Math.min(100, set.reps + delta));
-    else if (field === "targetRpe") set.targetRpe = Math.max(1, Math.min(10, (set.targetRpe ?? 5) + delta));
+    if (field === "reps") {
+      if (set.repsMin != null) set.repsMin = Math.max(1, set.repsMin + delta);
+      set.reps = Math.max(1, Math.min(100, set.reps + delta));
+    } else if (field === "targetRpe") set.targetRpe = Math.max(1, Math.min(10, (set.targetRpe ?? 5) + delta));
     else if (field === "restSeconds") set.restSeconds = Math.max(0, Math.min(600, set.restSeconds ?? 120 + delta * 15));
-    else {
+    else if (field === "duration") {
+      set.durationSeconds = Math.max(5, (set.durationSeconds ?? 30) + delta * 15);
+    } else {
       const cur = set.targetWeightKg ?? 20;
       set.targetWeightKg = delta > 0 ? Math.round((cur + 2.5) * 2) / 2 : Math.max(0, Math.round((cur - 2.5) * 2) / 2);
     }
@@ -138,6 +143,7 @@
       <section class="panel">
         <div class="panel-head">
           <h2>{s.name}</h2>
+          {#if s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}>▲ {s.conditioning.label} · {s.conditioning.detail}</span>{/if}
           <span class="subtle">{s.exercises.length} exercises</span>
         </div>
         <div class="panel-body exlist">
@@ -179,11 +185,21 @@
                         <span class="num kgv">{ps.targetWeightKg != null ? `${ps.targetWeightKg}kg` : "—"}</span>
                         <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetWeightKg", 1)} aria-label="heavier">+</button>
                       </span>
-                      <span class="ctrl">
-                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", -1)} aria-label="fewer reps">−</button>
-                        <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", 1)} aria-label="more reps">+</button>
-                        <span class="subtle">reps</span>
-                      </span>
+                      {#if ps.durationSeconds != null}
+                        <span class="ctrl">
+                          <button class="stepper" onclick={() => bumpSet(si, ei, di, "duration", -1)} aria-label="shorter">−</button>
+                          <span class="num">{fmtDuration(ps.durationSeconds)}</span>
+                          <button class="stepper" onclick={() => bumpSet(si, ei, di, "duration", 1)} aria-label="longer">+</button>
+                          <span class="subtle">time</span>
+                        </span>
+                      {:else}
+                        <span class="ctrl">
+                          <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", -1)} aria-label="fewer reps">−</button>
+                          <span class="num">{ps.repsMin != null ? `${ps.repsMin}–${ps.reps}` : `${ps.reps}${ps.amrap ? "+" : ""}`}</span>
+                          <button class="stepper" onclick={() => bumpSet(si, ei, di, "reps", 1)} aria-label="more reps">+</button>
+                          <span class="subtle">reps</span>
+                        </span>
+                      {/if}
                       <span class="ctrl">
                         <button class="stepper" onclick={() => bumpSet(si, ei, di, "targetRpe", -0.5)} aria-label="lower RPE">−</button>
                         <span class="num">{ps.targetRpe ?? "—"}</span>
@@ -239,6 +255,18 @@
   .ctrl.kg { min-width: 86px; }
   .kgv { font-weight: 600; }
   .select.swap { width: auto; padding: 3px 8px; font-size: 12.5px; max-width: 220px; }
+  .cond-chip {
+    font: 600 12px var(--font-ui);
+    color: #4e6e58;
+    background: #eef3ef;
+    border: 1px solid #d4e0d8;
+    border-radius: 999px;
+    padding: 2px 10px;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .ctrl.rest { margin-left: auto; }
   .stepper {
     width: 22px;

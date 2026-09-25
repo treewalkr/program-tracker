@@ -24,9 +24,12 @@
     setNumber: number;
     type: "warm_up" | "working" | "backoff";
     reps: number;
+    repsTo: number | null;
     targetRpe: number | null;
     restSeconds: number;
     targetWeightKg: number | null;
+    durationSec: number | null;
+    failure: boolean;
   }
   interface ExRow {
     key: string;
@@ -36,11 +39,13 @@
   interface SessionRow {
     key: string;
     name: string;
+    cardioLabel: string;
+    cardioDetail: string;
     exercises: ExRow[];
   }
 
   let sessions = $state<SessionRow[]>([
-    { key: crypto.randomUUID(), name: "Day 1", exercises: [] },
+    { key: crypto.randomUUID(), name: "Day 1", cardioLabel: "", cardioDetail: "", exercises: [] },
   ]);
 
   const totalSets = $derived(
@@ -52,6 +57,8 @@
     sessions.push({
       key: crypto.randomUUID(),
       name: `Day ${sessions.length + 1}`,
+      cardioLabel: "",
+      cardioDetail: "",
       exercises: [],
     });
     sessions = [...sessions];
@@ -71,9 +78,12 @@
       setNumber: e.sets.length + 1,
       type,
       reps: type === "warm_up" ? 5 : 8,
+      repsTo: null,
       targetRpe: type === "warm_up" ? null : 8,
       restSeconds: type === "warm_up" ? 90 : 150,
       targetWeightKg: null,
+      durationSec: null,
+      failure: false,
     });
     sessions = [...sessions];
   }
@@ -88,19 +98,25 @@
       id: `ps-new-${si}`,
       name: s.name.trim() || `Session ${si + 1}`,
       order: si,
+      conditioning: s.cardioLabel.trim() ? { label: s.cardioLabel.trim(), detail: s.cardioDetail.trim() } : null,
       exercises: s.exercises.map((e, ei) => ({
         id: `pe-new-${si}-${ei}`,
         exerciseId: e.exerciseId,
         order: ei,
-        prescribedSets: e.sets.map((ps, pi) => ({
-          setNumber: pi + 1,
-          type: ps.type,
-          reps: Number(ps.reps),
-          amrap: false,
-          targetWeightKg: ps.targetWeightKg === null ? undefined : Number(ps.targetWeightKg),
-          targetRpe: ps.targetRpe ?? undefined,
-          restSeconds: ps.restSeconds,
-        })),
+        prescribedSets: e.sets.map((ps, pi) => {
+          const lo = Math.min(Number(ps.reps), Number(ps.repsTo ?? ps.reps));
+          return {
+            setNumber: pi + 1,
+            type: ps.type,
+            reps: ps.failure ? 0 : ps.repsTo != null ? Number(ps.repsTo) : Number(ps.reps),
+            repsMin: !ps.failure && ps.repsTo != null ? lo : undefined,
+            amrap: ps.failure,
+            durationSeconds: ps.durationSec != null && ps.durationSec > 0 ? Number(ps.durationSec) : undefined,
+            targetWeightKg: ps.targetWeightKg === null ? undefined : Number(ps.targetWeightKg),
+            targetRpe: ps.targetRpe ?? undefined,
+            restSeconds: ps.restSeconds,
+          };
+        }),
       })),
     }));
   }
@@ -204,12 +220,19 @@
             <input class="sess-name" value={s.name} oninput={(e) => (s.name = e.currentTarget.value)} maxlength="60" aria-label="Session name" />
             <div class="head-actions">
               <button type="button" class="btn ghost small" onclick={() => addExercise(s)}>+ Exercise</button>
+              <button type="button" class="btn ghost small" onclick={() => { s.cardioLabel = s.cardioLabel === "" ? "Cardio" : ""; sessions = [...sessions]; }} title="Add / remove cardio block">{s.cardioLabel === "" ? "+ Cardio" : "− Cardio"}</button>
               {#if sessions.length > 1}
                 <button type="button" class="btn danger small" onclick={() => removeSession(s.key)}>Remove day</button>
               {/if}
             </div>
           </div>
           <div class="panel-body exlist">
+            {#if s.cardioLabel !== "" || s.exercises.length === 0}
+              <div class="cardio-row">
+                <input class="input cardio-label" placeholder="Cardio — e.g. Zone 2–3" bind:value={s.cardioLabel} maxlength="60" aria-label="Cardio label" />
+                <input class="input" placeholder="Detail — e.g. 40–60 min steady" bind:value={s.cardioDetail} maxlength="80" aria-label="Cardio detail" />
+              </div>
+            {/if}
             {#each s.exercises as e (e.key)}
               <div class="exblock">
                 <div class="exhead">
@@ -243,7 +266,10 @@
                           <option value="working">working</option>
                           <option value="backoff">backoff</option>
                         </select>
-                        <label class="mini"><input class="input tnum" type="number" min="1" max="100" bind:value={ps.reps} /> reps</label>
+                        <label class="mini"><input class="input tnum" type="number" min="1" max="100" bind:value={ps.reps} disabled={ps.failure || ps.durationSec != null} /> {ps.durationSec != null ? "reps" : "reps"}</label>
+                        <label class="mini" title="Upper bound of a rep range (e.g. 6–10)"><input class="input tnum" type="number" min="1" max="100" bind:value={ps.repsTo} placeholder="to" disabled={ps.failure || ps.durationSec != null} /> –</label>
+                        <label class="mini" title="Timed set in seconds (e.g. 60 = 1 min)"><input class="input tnum" type="number" min="5" step="15" bind:value={ps.durationSec} placeholder="sec" disabled={ps.failure} /></label>
+                        <label class="mini chk" title="To failure"><input type="checkbox" bind:checked={ps.failure} /> max</label>
                         <label class="mini"><input class="input tnum" type="number" min="0" step="2.5" bind:value={ps.targetWeightKg} placeholder="—" /> kg</label>
                         <label class="mini"><input class="input tnum" type="number" min="1" max="10" step="0.5" bind:value={ps.targetRpe} /> RPE</label>
                         <label class="mini"><input class="input tnum" type="number" min="0" step="15" bind:value={ps.restSeconds} /> s rest</label>
@@ -293,6 +319,9 @@
   .btn.small { padding: 4px 10px; font-size: 13px; }
 
   .exlist { display: flex; flex-direction: column; gap: 12px; }
+  .cardio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cardio-row .cardio-label { max-width: 200px; }
+  .mini.chk { cursor: pointer; }
   .exblock { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
   .exhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
   .exsel { width: auto; min-width: 200px; font-weight: 600; }

@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { PrescribedSetDto } from "$lib/api/types";
+  import { fmtSet } from "$lib/format";
 
   let { sets }: { sets: PrescribedSetDto[] } = $props();
 
   const chip = (s: PrescribedSetDto) => ({
     warm: s.type === "warm_up",
-    main: `${s.targetWeightKg != null ? `${s.targetWeightKg}kg × ` : ""}${s.reps}${s.amrap ? "+" : ""}`,
+    main: fmtSet(s),
     rpe: s.targetRpe ?? null,
     sub: [
       s.restSeconds ? `${Math.round(s.restSeconds / 60) ? `${Math.round((s.restSeconds / 60) * 10) / 10}m` : `${s.restSeconds}s`}` : null,

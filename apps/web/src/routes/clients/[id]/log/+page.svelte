@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
+  import { fmtSet } from "$lib/format";
   import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
 
   const id = $derived(page.params.id ?? "");
@@ -26,6 +27,9 @@
     setNumber: number;
     type: "warm_up" | "working" | "backoff";
     prescribedReps: number | null;
+    prescribedMin: number | null;
+    prescribedDuration: number | null;
+    prescribedAmrap: boolean;
     prescribedWeight: number | null;
     targetRpe: number | null;
     lastWeight: number | null;
@@ -69,6 +73,9 @@
           setNumber: ps.setNumber,
           type: ps.type,
           prescribedReps: ps.reps,
+          prescribedMin: ps.repsMin ?? null,
+          prescribedDuration: ps.durationSeconds ?? null,
+          prescribedAmrap: ps.amrap,
           prescribedWeight: ps.targetWeightKg ?? null,
           targetRpe: ps.targetRpe ?? null,
           lastWeight: lastWeightByExercise.get(e.exerciseId) ?? null,
@@ -85,7 +92,10 @@
       if (r.weight === "" && (r.prescribedWeight ?? r.lastWeight) != null) {
         r.weight = String(r.prescribedWeight ?? r.lastWeight);
       }
-      if (r.reps === "") r.reps = String(r.prescribedReps ?? "");
+      if (r.reps === "") {
+        const target = r.prescribedDuration ?? r.prescribedReps;
+        if (target != null && target > 0) r.reps = String(target);
+      }
       if (r.rpe === "") r.rpe = r.targetRpe != null ? String(r.targetRpe) : "";
     }
   }
@@ -209,11 +219,11 @@
                 </td>
                 <td class="num">{r.setNumber}</td>
                 <td class="num pre">
-                  {#if r.prescribedWeight != null}{r.prescribedWeight}kg × {/if}{r.prescribedReps}{#if r.type !== "warm_up" && r.targetRpe != null} @ {r.targetRpe}{/if}
+                  {fmtSet({ reps: r.prescribedReps ?? 0, repsMin: r.prescribedMin ?? undefined, amrap: r.prescribedAmrap, durationSeconds: r.prescribedDuration ?? undefined, targetWeightKg: r.prescribedWeight })}{#if r.type !== "warm_up" && r.targetRpe != null} @ {r.targetRpe}{/if}
                 </td>
                 <td class="num pre">{r.lastWeight ?? "—"}</td>
                 <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" placeholder={String(r.prescribedReps ?? "")} bind:value={r.reps} /></td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" placeholder={r.prescribedDuration != null ? String(r.prescribedDuration) : r.prescribedReps === 0 && r.prescribedAmrap ? "max" : String(r.prescribedReps ?? "")} bind:value={r.reps} /></td>
                 <td class="cell"><input class="input tnum" type="number" inputmode="decimal" min="1" max="10" step="0.5" placeholder="—" bind:value={r.rpe} /></td>
               </tr>
             {/each}

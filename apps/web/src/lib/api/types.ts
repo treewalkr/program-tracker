@@ -15,8 +15,13 @@ export interface ClientDto {
 export interface PrescribedSetDto {
   setNumber: number;
   type: "warm_up" | "working" | "backoff";
+  /** Fixed rep target. 0 = not rep-based (see durationSeconds / amrap). */
   reps: number;
+  /** Lower bound when prescribing a range — reps holds the upper bound. */
+  repsMin?: number;
   amrap: boolean;
+  /** Time-based prescription (stretches, planks, timed work) — replaces reps. */
+  durationSeconds?: number;
   /** Optional load target. Absent = auto-regulate by RPE (or bodyweight). */
   targetWeightKg?: number | null;
   targetRpe?: number;
@@ -38,6 +43,8 @@ export interface ProgramSessionDto {
   order: number;
   notes?: string;
   exercises: ProgramExerciseDto[];
+  /** Cardio / conditioning attached to the session (zone work, intervals, easy runs). */
+  conditioning?: { label: string; detail: string } | null;
 }
 
 export interface ProgramPhasingDto {
