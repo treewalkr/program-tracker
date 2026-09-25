@@ -143,9 +143,34 @@
       <section class="panel">
         <div class="panel-head">
           <h2>{s.name}</h2>
-          {#if s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}>▲ {s.conditioning.label} · {s.conditioning.detail}</span>{/if}
+          {#if !editing && s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}>▲ {s.conditioning.label} · {s.conditioning.detail}</span>{/if}
           <span class="subtle">{s.exercises.length} exercises</span>
         </div>
+        {#if editing}
+          <div class="cardio-edit">
+            {#if s.conditioning}
+              <input
+                class="input cardio-label"
+                value={s.conditioning.label}
+                oninput={(ev) => (s.conditioning = { label: ev.currentTarget.value, detail: s.conditioning!.detail })}
+                placeholder="Cardio — e.g. Zone 2–3"
+                maxlength="60"
+                aria-label="Cardio label"
+              />
+              <input
+                class="input"
+                value={s.conditioning.detail}
+                oninput={(ev) => (s.conditioning = { label: s.conditioning!.label, detail: ev.currentTarget.value })}
+                placeholder="Detail — e.g. 40–60 min steady"
+                maxlength="80"
+                aria-label="Cardio detail"
+              />
+              <button type="button" class="btn danger small" onclick={() => (s.conditioning = null)} title="Remove cardio block">Remove</button>
+            {:else}
+              <button type="button" class="btn ghost small" onclick={() => (s.conditioning = { label: "Cardio", detail: "" })}>+ Cardio</button>
+            {/if}
+          </div>
+        {/if}
         <div class="panel-body exlist">
           {#each s.exercises as e, ei (e.id)}
             <div class="exblock">
@@ -267,6 +292,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .cardio-edit { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 2px; }
+  .cardio-edit .cardio-label { max-width: 200px; }
   .ctrl.rest { margin-left: auto; }
   .stepper {
     width: 22px;
