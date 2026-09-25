@@ -19,7 +19,7 @@
 > default): all screens — overview, clients, client detail, log entry, AI generate/review/approve,
 > program editor, exercise library — run on in-memory fixtures, no backend needed. Built for
 > stakeholder alignment; phases 1–4 below now describe wiring these screens to `realApi`
-> `PUBLIC_API_MODE=live` flip needs these contract additions: prescribed sets gain optional `targetWeightKg` (load targets), clients gain `trainingDays` (weekday ints, 1=Mon…7=Sun — powers the dashboard week strip and honest adherence), program editing needs exercise substitution (currently UI-only swap), and the zod program schema must accept `phasing` + `activatedAt`.
+> `PUBLIC_API_MODE=live` flip needs these contract additions: prescribed sets gain optional `targetWeightKg` (load targets) + `repsMin` (rep ranges, e.g. 6–10) + `durationSeconds` (timed sets — stretches, planks, swings; amrap with reps 0 = failure), sessions gain `conditioning {label, detail}` (zone/interval cardio blocks), clients gain `trainingDays` (weekday ints, 1=Mon…7=Sun — powers the dashboard week strip and honest adherence), program editing needs exercise substitution (currently UI-only swap), and the zod program schema must accept `phasing` + `activatedAt`.
 
 Full real-system design: **docs/notifications.md**.
 
