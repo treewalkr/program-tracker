@@ -47,11 +47,21 @@ export interface ProgramSessionDto {
   conditioning?: { label: string; detail: string } | null;
 }
 
+export type WeekDirective = "base" | "+volume" | "+intensity" | "deload" | "transition" | "test";
+
+export interface WeekPlan {
+  week: number;
+  directive: WeekDirective;
+  note?: string;
+}
+
 export interface ProgramPhasingDto {
   plannedWeeks: number;
   phase: string;
   nextPhase: string | null;
   deloadWeeks: number[];
+  /** Explicit week-by-week progression plan — the trainer's periodization scheme. */
+  weeks?: WeekPlan[];
 }
 
 export interface ProgramDto {

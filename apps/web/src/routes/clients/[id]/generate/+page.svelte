@@ -4,6 +4,8 @@
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
+  import { blockPulse, pulseSummary } from "$lib/metrics";
+  import { weekOf } from "$lib/signals";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
 
@@ -15,6 +17,7 @@
   let providerId = $state("zai");
   let instructions = $state("");
   let templates = $state<InstructionTemplateDto[]>([]);
+  let periodContext = $state<string | null>(null);
   let selected = $state<string[]>([]);
   let tplName = $state("");
   let savingTpl = $state(false);
@@ -164,6 +167,17 @@
     providers = (await api.providers()).filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
     templates = await api.instructionTemplates();
+    if (current) {
+      const logs = await api.sessionLogs(id);
+      const pulse = blockPulse(current, logs);
+      const w = weekOf(current, logs);
+      const directive = current.phasing?.weeks?.find((x) => x.week === w)?.directive ?? null;
+      const summary = pulseSummary(pulse);
+      const bits = [`week ${w} of ${current.phasing?.plannedWeeks ?? "?"}`];
+      if (directive) bits.push(`directive ${directive}`);
+      if (summary) bits.push(summary);
+      periodContext = bits.join(" · ");
+    }
     // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>
     const params = new URLSearchParams(page.url.search);
     const note = params.get("note");
@@ -250,6 +264,12 @@
             <button type="button" class="btn ghost small" onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
               {savingTpl ? "Saving…" : "Save note as template"}
             </button>
+          </div>
+        {/if}
+        {#if periodContext}
+          <div>
+            <p class="label">Periodization context <span class="subtle">— injected automatically, read-only</span></p>
+            <pre class="merged ctx">{periodContext}</pre>
           </div>
         {/if}
         {#if mergedInstructions}
@@ -401,6 +421,7 @@
     white-space: pre-wrap;
     color: var(--muted);
   }
+  .merged.ctx { color: #55558c; border-color: #dedee8; }
 
   .narrow { max-width: 560px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }

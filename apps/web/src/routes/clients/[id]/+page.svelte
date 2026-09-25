@@ -4,6 +4,8 @@
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ClientDto, HistoryEntryDto, ProgramDto } from "$lib/api/types";
+  import { blockPulse, type WeekMetrics } from "$lib/metrics";
+  import { weekOf } from "$lib/signals";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
   import { activeSignals, computeSignals, snoozeSignal, type Signal } from "$lib/signals";
@@ -18,6 +20,8 @@
   let saving = $state(false);
   let form = $state({ goals: "", limitations: "", daysPerWeek: 3 });
   let signals = $state<Signal[]>([]);
+  let pulse = $state<WeekMetrics[]>([]);
+  let pulseWeek = $state(0);
   let dismissedNow = $state<string[]>([]);
 
   const visibleSignals = $derived(signals.filter((s) => !dismissedNow.includes(s.id)));
@@ -32,8 +36,12 @@
       const [logs, exs] = await Promise.all([api.sessionLogs(id), api.exercises()]);
       const names = new Map(exs.map((e) => [e.id, e.name]));
       signals = activeSignals(computeSignals(current, logs, (x) => names.get(x) ?? x, detail.client.daysPerWeek));
+      pulse = blockPulse(current, logs);
+      pulseWeek = weekOf(current, logs);
     } else {
       signals = [];
+      pulse = [];
+      pulseWeek = 0;
     }
     form = {
       goals: detail.client.goals ?? "",
@@ -200,6 +208,32 @@
           </table>
         </section>
       {/if}
+
+      {#if pulse.length > 1}
+        <section class="panel" style="margin-top:18px">
+          <div class="panel-head">
+            <h2>Block pulse</h2>
+            <span class="subtle">volume · intensity per week — vs the periodization scheme</span>
+          </div>
+          <div class="table-wrap">
+            <table class="sheet">
+              <thead><tr><th>Week</th><th>Plan</th><th class="num-col">Tonnage</th><th class="num-col">Sets</th><th class="num-col">Avg RPE</th><th class="num-col">Best e1RM</th></tr></thead>
+              <tbody>
+                {#each pulse as w (w.week)}
+                  <tr class:pulse-now={w.week === pulseWeek} class:pulse-future={w.plannedOnly}>
+                    <td class="num"><strong>W{w.week}</strong></td>
+                    <td>{#if w.directive}<span class="dir" class:d-up={w.directive === "+volume"} class:d-hot={w.directive === "+intensity"} class:d-tr={w.directive === "transition"} class:d-de={w.directive === "deload"}>{w.directive}</span>{:else}<span class="subtle">—</span>{/if}</td>
+                    <td class="num">{w.plannedOnly ? "—" : w.tonnage >= 1000 ? `${(w.tonnage / 1000).toFixed(1)}t` : w.tonnage > 0 ? `${Math.round(w.tonnage)}kg` : "—"}{#if w.tonnageDelta != null && w.tonnage > 0}<span class="delta" class:neg={w.tonnageDelta < 0}>{w.tonnageDelta >= 0 ? "+" : ""}{w.tonnageDelta}%</span>{/if}</td>
+                    <td class="num">{w.plannedOnly ? "—" : w.sets}</td>
+                    <td class="num">{w.avgRpe ?? "—"}</td>
+                    <td class="num">{w.bestE1rm > 0 ? Math.round(w.bestE1rm) : "—"}{#if w.e1rmDelta != null && w.bestE1rm > 0}<span class="delta" class:neg={w.e1rmDelta < 0}>{w.e1rmDelta >= 0 ? "+" : ""}{w.e1rmDelta}%</span>{/if}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {/if}
     </div>
 
     <div class="col-side">
@@ -294,4 +328,14 @@
   @media (max-width: 900px) {
     .cols { grid-template-columns: 1fr; }
   }
+  .table-wrap { overflow-x: auto; }
+  .pulse-now td { background: #f6f7f3; }
+  .pulse-future td { color: var(--faint); }
+  .dir { font-weight: 700; font-size: 12.5px; }
+  .dir.d-up { color: #3f6339; }
+  .dir.d-hot { color: #7a520d; }
+  .dir.d-tr { color: #55558c; }
+  .dir.d-de { color: var(--muted); }
+  .delta { margin-left: 6px; font-size: 11.5px; color: var(--good); font-weight: 600; }
+  .delta.neg { color: var(--bad); }
 </style>

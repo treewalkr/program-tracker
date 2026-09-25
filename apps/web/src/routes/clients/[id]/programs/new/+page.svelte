@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
-  import type { ClientDto, ExerciseDto, ProgramSessionDto } from "$lib/api/types";
+  import type { ClientDto, ExerciseDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
 
   const id = $derived(page.params.id ?? "");
 
@@ -17,6 +17,7 @@
   let nextPhase = $state("deload");
   let endsWithDeload = $state(true);
   let usePhasing = $state(true);
+  let scheme = $state<"custom" | "4wave" | "6wave">("6wave");
   let saving = $state(false);
   let error = $state<string | null>(null);
 
@@ -48,6 +49,38 @@
     { key: crypto.randomUUID(), name: "Day 1", cardioLabel: "", cardioDetail: "", exercises: [] },
   ]);
 
+  const SCHEMES: Record<
+    Exclude<typeof scheme, "custom">,
+    { label: string; weeks: { week: number; directive: WeekDirective }[] }
+  > = {
+    "4wave": {
+      label: "4-week wave — base → +volume → +intensity → deload",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity" },
+        { week: 4, directive: "deload" },
+      ],
+    },
+    "6wave": {
+      label: "6-week wave — base → +volume → +intensity → +volume → transition → transition",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity" },
+        { week: 4, directive: "+volume" },
+        { week: 5, directive: "transition" },
+        { week: 6, directive: "transition" },
+      ],
+    },
+  };
+
+  $effect(() => {
+    if (scheme !== "custom") {
+      plannedWeeks = SCHEMES[scheme].weeks.length;
+      endsWithDeload = SCHEMES[scheme].weeks.at(-1)?.directive === "deload";
+    }
+  });
   const totalSets = $derived(
     sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.sets.length, 0), 0)
   );
@@ -136,6 +169,7 @@
               phase: phase.trim() || "block",
               nextPhase: nextPhase.trim() || null,
               deloadWeeks: endsWithDeload ? [Number(plannedWeeks)] : [],
+              weeks: scheme !== "custom" ? SCHEMES[scheme].weeks : undefined,
             }
           : null,
       });
@@ -189,6 +223,21 @@
           </label>
           {#if usePhasing}
             <div class="phasing-grid">
+              <div style="grid-column: 1 / -1">
+                <label class="label" for="np-scheme">Progression scheme</label>
+                <select class="select" id="np-scheme" bind:value={scheme}>
+                  <option value="6wave">{SCHEMES["6wave"].label}</option>
+                  <option value="4wave">{SCHEMES["4wave"].label}</option>
+                  <option value="custom">Custom (no week directives)</option>
+                </select>
+                {#if scheme !== "custom"}
+                  <div class="scheme-chips">
+                    {#each SCHEMES[scheme].weeks as w (w.week)}
+                      <span class="scheme-chip" class:d-up={w.directive === "+volume"} class:d-hot={w.directive === "+intensity"} class:d-tr={w.directive === "transition"} class:d-de={w.directive === "deload"}>W{w.week} {w.directive}</span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
               <div>
                 <label class="label" for="np-weeks">Block length</label>
                 <select class="select" id="np-weeks" bind:value={plannedWeeks}>
@@ -307,6 +356,17 @@
   .phasing > .label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .phasing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
   .phasing-grid .chk { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .scheme-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .scheme-chip {
+    font: 600 12px var(--font-mono);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .scheme-chip.d-up { color: #3f6339; border-color: #c3d2c5; }
+  .scheme-chip.d-hot { color: #7a520d; border-color: #ddd0ae; }
+  .scheme-chip.d-tr { color: #55558c; border-color: #cdcede; }
+  .scheme-chip.d-de { color: var(--muted); }
 
   .builder-col { display: flex; flex-direction: column; gap: 18px; }
   .sess-name {

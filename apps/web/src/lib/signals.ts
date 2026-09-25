@@ -1,5 +1,6 @@
 import { estimate1rm } from "@pt/shared";
 import type { ProgramDto, SessionLogDto } from "$lib/api/types";
+import { blockPulse, pulseSummary } from "$lib/metrics";
 
 /**
  * Phase-change signals: deterministic rules over (program, logs).
@@ -10,6 +11,8 @@ import type { ProgramDto, SessionLogDto } from "$lib/api/types";
 export type SignalKind =
   | "block-ending"
   | "deload-week"
+  | "transition-due"
+  | "off-plan"
   | "rpe-creep"
   | "stall"
   | "adherence";
@@ -138,7 +141,12 @@ export function computeSignals(
   const programLogs = logs.filter((l) => l.programId === program.id);
 
   if (ph) {
-    const isDeloadWeek = ph.deloadWeeks.includes(week);
+    const scheme = ph.weeks ?? [];
+    const hasTransition = scheme.some((w) => w.directive === "transition");
+    const directive = scheme.find((w) => w.week === week)?.directive ?? null;
+    const pulse = blockPulse(program, programLogs);
+    const summary = pulseSummary(pulse);
+    const isDeloadWeek = ph.deloadWeeks.includes(week) || directive === "deload";
     if (isDeloadWeek && week <= ph.plannedWeeks) {
       signals.push({
         id: `deload-week:${program.id}`,
@@ -155,20 +163,69 @@ export function computeSignals(
         kind: "block-ending",
         severity: "urgent",
         title: `Block complete — plan ${ph.nextPhase ?? "next block"}`,
-        evidence: `“${program.name}” (${ph.phase}) ran its ${ph.plannedWeeks} planned weeks.`,
+        evidence: `“${program.name}” (${ph.phase}) ran its ${ph.plannedWeeks} planned weeks.${summary ? ` Block delivered: ${summary}.` : ""}`,
         prefillNote: `The ${ph.phase} block (${ph.plannedWeeks} weeks) is complete. Draft the ${ph.nextPhase ?? "next"} block, progressing loads from the final week's logged numbers.`,
         templateHint: "tpl-block-structure",
       });
-    } else if (week >= ph.plannedWeeks - 1) {
+    } else if (!hasTransition && week >= ph.plannedWeeks - 1) {
       signals.push({
         id: `block-ending:${program.id}`,
         kind: "block-ending",
         severity: "attention",
         title: `${ph.phase} block ends after next week`,
-        evidence: `Week ${week} of ${ph.plannedWeeks} on “${program.name}”. Next: ${ph.nextPhase ?? "new block"}.`,
+        evidence: `Week ${week} of ${ph.plannedWeeks} on “${program.name}”. Next: ${ph.nextPhase ?? "new block"}.${summary ? ` So far: ${summary}.` : ""}`,
         prefillNote: `The ${ph.phase} block reaches its ${ph.plannedWeeks}-week limit after next week. Draft the ${ph.nextPhase ?? "next"} block now, progressing loads from the most recent logged numbers.`,
         templateHint: "tpl-block-structure",
       });
+    }
+
+    // Scheme-aware rules: the plan says what each week SHOULD do — compare with reality.
+    if (directive === "transition" && week < ph.plannedWeeks) {
+      signals.push({
+        id: `transition:${program.id}:w${week}`,
+        kind: "transition-due",
+        severity: "attention",
+        title: `Transition week ${week} — draft the shift`,
+        evidence: `Scheme says transition: introduce movement variants, cut volume ~20%.${summary ? ` Block so far: ${summary}.` : ""}`,
+        prefillNote: `Transition week (${week}/${ph.plannedWeeks}) of the ${ph.phase} block: shift toward ${ph.nextPhase ?? "the next phase"}. Cut volume ~20%, introduce variant movements, hold loads steady.`,
+        templateHint: "tpl-block-structure",
+      });
+    }
+
+    const cur = pulse.find((w) => w.week === week);
+    const prev = pulse.find((w) => w.week === week - 1);
+    if (cur && prev && !cur.plannedOnly && !prev.plannedOnly) {
+      const t = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}t` : `${Math.round(kg)}kg`);
+      if (directive === "+volume" && prev.tonnage > 0 && cur.tonnage <= prev.tonnage * 1.03) {
+        signals.push({
+          id: `offplan-vol:${program.id}:w${week}`,
+          kind: "off-plan",
+          severity: "attention",
+          title: `Planned +volume — tonnage came in flat`,
+          evidence: `Week ${week} directive is +volume, but logged tonnage is ${t(cur.tonnage)} vs ${t(prev.tonnage)} last week. Add a set, or check what got skipped.`,
+          prefillNote: `Week ${week} should add volume but last week came in flat — draft this week's sessions with one extra working set on the main lifts.`,
+        });
+      }
+      if (directive === "+intensity" && prev.bestE1rm > 0 && cur.bestE1rm <= prev.bestE1rm * 1.01) {
+        signals.push({
+          id: `offplan-int:${program.id}:w${week}`,
+          kind: "off-plan",
+          severity: "attention",
+          title: `Planned +intensity — best e1RM didn't move`,
+          evidence: `Week ${week} directive is +intensity, best e1RM is ${Math.round(cur.bestE1rm)} vs ${Math.round(prev.bestE1rm)} last week. Repeat the loads, or consider the early transition.`,
+          prefillNote: `Week ${week} should push intensity but loads stalled — draft sessions that repeat last week's loads with a rep target bump instead.`,
+        });
+      }
+      if (directive === "+volume" && cur.avgRpe != null && cur.avgRpe >= 8.5 && (prev.avgRpe ?? 0) < cur.avgRpe) {
+        signals.push({
+          id: `fatigue:${program.id}:w${week}`,
+          kind: "off-plan",
+          severity: "info",
+          title: `+volume planned, but RPE is at the ceiling`,
+          evidence: `Avg RPE this week: ${cur.avgRpe} (last week ${prev.avgRpe ?? "—"}). Body may not absorb more volume — consider holding instead.`,
+          prefillNote: `Planned +volume but avg RPE is ${cur.avgRpe} — hold volume at last week's level this week instead of adding.`,
+        });
+      }
     }
   }
 

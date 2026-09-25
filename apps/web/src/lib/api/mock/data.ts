@@ -78,7 +78,18 @@ export const programs: ProgramDto[] = [
     createdFromProgramId: null,
     createdAt: "2026-07-14T09:00:00Z",
     activatedAt: new Date(Date.now() - 19 * 86400_000).toISOString(),
-    phasing: { plannedWeeks: 4, phase: "accumulation", nextPhase: "deload → intensification", deloadWeeks: [4] },
+    phasing: {
+      plannedWeeks: 4,
+      phase: "accumulation",
+      nextPhase: "deload → intensification",
+      deloadWeeks: [4],
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity" },
+        { week: 4, directive: "deload" },
+      ],
+    },
     sessions: [
       {
         id: "ps-maya-1",
@@ -149,7 +160,20 @@ export const programs: ProgramDto[] = [
     createdFromProgramId: "pg-jonas-0",
     createdAt: "2026-08-02T09:00:00Z",
     activatedAt: new Date(Date.now() - 12 * 86400_000).toISOString(),
-    phasing: { plannedWeeks: 6, phase: "hypertrophy", nextPhase: "deload", deloadWeeks: [6] },
+    phasing: {
+      plannedWeeks: 6,
+      phase: "hypertrophy",
+      nextPhase: "deload",
+      deloadWeeks: [6],
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity" },
+        { week: 4, directive: "+volume" },
+        { week: 5, directive: "transition" },
+        { week: 6, directive: "transition" },
+      ],
+    },
     sessions: [
       { id: "ps-jonas-1", name: "Upper A", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-bench", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 150 }), S(2, 8, { targetRpe: 8, restSeconds: 150 }), S(3, 8, { targetRpe: 8, restSeconds: 150 })] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12, { targetRpe: 7, restSeconds: 90 }), S(2, 12, { targetRpe: 7, restSeconds: 90 }), S(3, 12, { targetRpe: 7, restSeconds: 90 })] }, { id: uuid(), exerciseId: "ex-ext", order: 2, prescribedSets: [S(1, 15, { restSeconds: 60 }), S(2, 15, { restSeconds: 60 })] }] },
       { id: "ps-jonas-2", name: "Lower", order: 1, exercises: [{ id: uuid(), exerciseId: "ex-squat", order: 0, prescribedSets: [S(1, 6, { type: "warm_up", restSeconds: 90 }), S(2, 8, { targetRpe: 8, restSeconds: 150 }), S(3, 8, { targetRpe: 8, restSeconds: 150 })] }, { id: uuid(), exerciseId: "ex-rdl", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 120 }), S(2, 10, { targetRpe: 7, restSeconds: 120 })] }] },
@@ -380,7 +404,20 @@ export const trainerProgram: ProgramDto = {
   aiAssisted: false,
   createdFromProgramId: null,
   activatedAt: new Date(Date.now() - 6 * 86400_000).toISOString(),
-  phasing: { plannedWeeks: 6, phase: "Sarcoplasmic hypertrophy", nextPhase: "Strength interlude", deloadWeeks: [6] },
+  phasing: {
+    plannedWeeks: 6,
+    phase: "Sarcoplasmic hypertrophy",
+    nextPhase: "Strength interlude",
+    deloadWeeks: [6],
+    weeks: [
+      { week: 1, directive: "base" },
+      { week: 2, directive: "+volume" },
+      { week: 3, directive: "+intensity" },
+      { week: 4, directive: "+volume" },
+      { week: 5, directive: "transition" },
+      { week: 6, directive: "transition" },
+    ],
+  },
   createdAt: new Date(Date.now() - 8 * 86400_000).toISOString(),
   sessions: [
     {
