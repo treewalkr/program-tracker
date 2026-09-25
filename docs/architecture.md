@@ -6,6 +6,8 @@
 program-tracker/
 ├── apps/
 │   ├── web/                  SvelteKit (Svelte 5) — trainer UI
+│   │   └── src/lib/         TrainerApi adapters (mock ↔ real), signals.ts (phase
+│   │                          rule engine), metrics.ts (block pulse) — pure, shared-bound
 │   └── api/                  ElysiaJS on Bun — REST API (:4000)
 ├── packages/
 │   ├── shared/               zod domain schemas — THE contract (API + web + AI)

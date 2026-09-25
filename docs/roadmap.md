@@ -19,7 +19,7 @@
 > default): all screens — overview, clients, client detail, log entry, AI generate/review/approve,
 > program editor, exercise library — run on in-memory fixtures, no backend needed. Built for
 > stakeholder alignment; phases 1–4 below now describe wiring these screens to `realApi`
-> `PUBLIC_API_MODE=live` flip needs these contract additions: prescribed sets gain optional `targetWeightKg` (load targets) + `repsMin` (rep ranges, e.g. 6–10) + `durationSeconds` (timed sets — stretches, planks, swings; amrap with reps 0 = failure), sessions gain `conditioning {label, detail}` (zone/interval cardio blocks), clients gain `trainingDays` (weekday ints, 1=Mon…7=Sun — powers the dashboard week strip and honest adherence), program editing needs exercise substitution (currently UI-only swap), and the zod program schema must accept `phasing` + `activatedAt`.
+> `PUBLIC_API_MODE=live` flip needs these contract additions: prescribed sets gain optional `targetWeightKg` (load targets) + `repsMin` (rep ranges, e.g. 6–10) + `durationSeconds` (timed sets — stretches, planks, swings; amrap with reps 0 = failure), sessions gain `conditioning {label, detail}` (zone/interval cardio blocks), clients gain `trainingDays` (weekday ints, 1=Mon…7=Sun — powers the dashboard week strip and honest adherence), program editing needs exercise substitution (currently UI-only swap), and the zod program schema must accept `phasing` (incl. `weeks` directives — powers scheme signals + block pulse) + `activatedAt`.
 
 Full real-system design: **docs/notifications.md**.
 
@@ -29,7 +29,8 @@ Trainer's week-by-week guide (`base → +volume → +intensity → +volume → t
 transition`) is modeled as `phasing.weeks` directives. `lib/metrics.ts` computes weekly
 tonnage / sets / avg RPE / best e1RM from logged working sets (pure functions — move to
 `packages/shared` with the signals). Off-plan signals compare directive vs measured week.
-Later: periodization-scheme template CRUD (presets currently hardcoded in builder),
+Later: **scheme library CRUD** (trainer saves his own waves — 6-week, 4-week, 3:1 —
+reusable like `/templates`; presets are currently hardcoded in the builder),
 volume/intensity charts, ACWR fatigue ratio, cardio volume, per-exercise pulse drills.
 
 ### Periodization signals (mocked now)

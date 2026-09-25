@@ -71,8 +71,17 @@ versioning, logging, history aggregation, exercise catalog (719 seeded from WGER
 and the full AI pipeline (generate → validate → approve) covered end-to-end by
 keyless integration tests via the mock provider.
 
-**Frontend: placeholder dashboard only.** The trainer UI is the remaining MVP work —
-see the [roadmap](roadmap.md).
+**Frontend: full trainer UI, running on the mock API** (`PUBLIC_API_MODE` switches to
+the live backend once its contract catches up — see the roadmap). Covers the whole
+loop: dashboard (needs-review signals + this-week strip), clients, client detail
+(block pulse, phase signals, snooze), scratch program builder with progression-scheme
+presets, program editor, one-click logging, exercise library, instruction templates,
+and the AI generate/approve flow with auto-injected periodization context. Periodization
+signals, block-pulse metrics, and scheme-aware rules live in pure frontend modules
+(`lib/signals.ts`, `lib/metrics.ts`) destined for `packages/shared`.
+
+Not wired yet: real backend (phasing/contract additions), email dispatch, AI provider
+beyond mock (pipeline exists, key needed).
 
 ## How to run it
 

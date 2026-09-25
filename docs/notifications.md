@@ -23,20 +23,38 @@ document is the contract for the real system.
 |---|---|---|
 | Logs | `session_logs`, `logged_sets` | normalized tables, already exist |
 | Program + previous blocks | `programs` (versioned jsonb, `created_from_program_id`) | already exists |
-| Phasing plan | `programs.phasing` jsonb: `{plannedWeeks, phase, nextPhase, deloadWeeks}` + `activated_at` column | small migration |
+| Phasing plan | `programs.phasing` jsonb: `{plannedWeeks, phase, nextPhase, deloadWeeks, weeks?}` + `activated_at` column | `weeks` = progression scheme (week → directive) |
+| Block pulse | derived — `blockPulse(program, logs)` | weekly tonnage / sets / avg RPE / best e1RM + deltas; same rule for UI, hooks, cron |
 
 ## Rule set (v1)
 
+Calendar rules (week number vs plan):
+
 | Signal | Kind | Trigger | Meaning |
 |---|---|---|---|
-| Block ending | `block-ending` | `week >= plannedWeeks - 1` | draft next block now |
-| Deload week | `deload-week` | `week ∈ deloadWeeks` | planned light week |
-| RPE creep | `rpe-creep` | same load, avg RPE +≥1.5 vs first week | fatigue building |
-| Stall | `stall` | weekly best e1RM peaked ≥3 weeks ago, last weeks within +1% | stimulus exhausted |
+| Block ending | `block-ending` | `week >= plannedWeeks` (complete) / `>= plannedWeeks − 1` (heads-up) | draft next block now — evidence carries the delivered metrics (`tonnage +18%, e1RM 77→84`) |
+| Deload week | `deload-week` | `week ∈ deloadWeeks` **or** week directive = `deload` | planned light week |
+| Transition due | `transition-due` | week directive = `transition` (supersedes the plain block-ending heads-up when the scheme owns the wind-down) | draft the variant-shift now |
 | Adherence | `adherence` | <60% planned sessions logged (suppressed near block end) | program isn't being run |
 
+Data rules (log-derived):
+
+| Signal | Kind | Trigger | Meaning |
+|---|---|---|---|
+| RPE creep | `rpe-creep` | same load, avg RPE +≥1.5 vs first week | fatigue building |
+| Stall | `stall` | weekly best e1RM peaked ≥3 weeks ago, last weeks within +1% | stimulus exhausted |
+
+Scheme-vs-reality rules (need `phasing.weeks` + block pulse):
+
+| Signal | Kind | Trigger | Meaning |
+|---|---|---|---|
+| Off-plan volume | `off-plan` | directive `+volume`, this week's tonnage ≤ last week's ×1.03 | volume didn't rise as planned |
+| Off-plan intensity | `off-plan` | directive `+intensity`, this week's best e1RM ≤ last week's ×1.01 | loads stalled in an intensity week |
+| Fatigue override | `off-plan` | directive `+volume`, avg RPE ≥8.5 and above last week's | suggest **holding** volume — the system can modulate the plan, not just announce weeks |
+
 `week = floor((today − activated_at) / 7) + 1`. e1RM = Epley capped at 12 reps (matches
-history aggregation).
+history aggregation). Tonnage = `Σ(kg × reps)` over working sets (see
+`docs/domain-model.md` → block pulse).
 
 ## Trigger paths
 
@@ -122,7 +140,8 @@ produces a new id automatically.
 
 ## Mock ↔ real parity
 
-Mock `apps/web/src/lib/signals.ts` is deliberately written as the same pure functions with
-the same signal ids and the same thresholds. Moving to real = copy file to
-`packages/shared`, swap `localStorage` snooze for the snooze table. The generate-flow
-handoff (`?tpl=&note=` prefill) is unchanged.
+Mock `apps/web/src/lib/signals.ts` + `apps/web/src/lib/metrics.ts` (block pulse) are
+deliberately written as the same pure functions with the same signal ids and the same
+thresholds. Moving to real = copy both files to `packages/shared`, swap `localStorage`
+snooze for the snooze table. The generate-flow handoff (`?tpl=&note=` prefill) is
+unchanged.

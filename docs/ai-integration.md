@@ -44,7 +44,11 @@ progression rules:
 3. Training history (8 weeks): per exercise — recent working sets (`100kg × 5 @ RPE 8`)
    and best estimated 1RM (Epley, capped at 12 reps)
 4. Exercise catalog: `id | name (muscle, equipment)` lines
-5. Trainer's free-text instructions for this generation
+5. **Periodization context (auto-injected, read-only)** — where in the wave the client
+   sits: `week 3 of 6 · directive +intensity · weekly tonnage 1.8t → 2.1t (+17%) ·
+   best e1RM 77 → 80`. The scheme (structure) tells the model *what* this week should
+   do; instruction templates (prose) tell it *how* you want programs written.
+6. Trainer's free-text instructions for this generation (templates + one-off note)
 
 ## The output gate
 

@@ -81,6 +81,57 @@ sets per exercise and computes, per exercise:
 - `bestE1rm`: best Epley estimate in the window — `w × (1 + min(reps,12)/30)`,
   capped at 12 reps because beyond that the formula inflates.
 
+## Periodization — phasing & the week scheme
+
+`programs.phasing` (optional, nullable):
+
+```jsonc
+{
+  "plannedWeeks": 6,
+  "phase": "sarcoplasmic hypertrophy",
+  "nextPhase": "strength interlude",
+  "deloadWeeks": [6],
+  "weeks": [                       // the progression scheme — optional
+    { "week": 1, "directive": "base" },
+    { "week": 2, "directive": "+volume" },
+    { "week": 3, "directive": "+intensity" },
+    { "week": 4, "directive": "+volume" },
+    { "week": 5, "directive": "transition" },
+    { "week": 6, "directive": "transition" }
+  ]
+}
+```
+
+Directives: `base | +volume | +intensity | deload | transition | test`. Block week
+`= floor((today − activatedAt)/7) + 1` — derived, never stored.
+
+**Progression scheme ≠ instruction template.** Different axes:
+
+| | Instruction template | Progression scheme |
+|---|---|---|
+| Shape | freeform prose | structured week directives |
+| Consumed by | the AI prompt (merged) | the **system** — signals, block pulse, AI context |
+| Per program | N templates merged | exactly one scheme |
+| Tells the model | *how* you want programs written | *what* each week should do |
+
+Delete every template and the scheme still drives all analytics; delete the scheme and
+the AI still gets the prose. They cooperate once: generate flow (scheme = context,
+templates = method notes).
+
+## Block pulse — weekly volume & intensity
+
+`blockPulse(program, logs)` (mock: `apps/web/src/lib/metrics.ts`, pure) computes per
+block week from logged **working** sets:
+
+- **Volume**: tonnage `Σ(kg × reps)` + set and rep counts (bodyweight sets count in
+  sets/reps, not tonnage)
+- **Intensity**: avg RPE, best e1RM (Epley, capped at 12 reps — matches history)
+- **Deltas**: % change vs the previous logged week
+- Weeks before `activatedAt` are excluded; unlogged weeks render as planned-only
+
+`pulseSummary()` distills the series into one evidence/context line:
+`weekly tonnage 1.8t → 2.3t (+28%) · best e1RM 77 → 84`.
+
 ## Exercise library
 
 - Global seed: 719 exercises imported from WGER (CC-BY-SA, `trainerId = null`).
