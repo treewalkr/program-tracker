@@ -1,3 +1,9 @@
+x-app: &app
+  build: .
+  image: program-tracker:local
+  environment:
+    DATABASE_URL: postgres://pt:pt_dev_password@postgres:5432/program_tracker
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -16,6 +22,44 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  migrate:
+    <<: *app
+    command: bun run --filter @pt/db migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: bun run --filter @pt/api start
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      # optional: root .env supplies ZAI_API_KEY / provider keys when present
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *app
+    # $env/static/public only picks up PUBLIC_* from apps/web/.env, so write it
+    # before starting vite; PUBLIC_API_URL must be host-reachable (published port),
+    # not the docker-internal service name.
+    command: >-
+      sh -c 'printf "PUBLIC_API_URL=http://localhost:4000\nPUBLIC_API_MODE=live\n" > apps/web/.env
+      && exec bun run --filter @pt/web dev -- --host 0.0.0.0 --port 5173 --strictPort'
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
 
 volumes:
   pt-pgdata:

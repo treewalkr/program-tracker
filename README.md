@@ -42,6 +42,12 @@ cp apps/web/.env.example apps/web/.env   # PUBLIC_API_MODE=live to leave mock de
 bun run dev            # api :4000 + web :5173
 ```
 
+Or run the whole stack in Docker (postgres + migrate + api + web):
+
+```bash
+docker compose up -d  # web :5173, api :4000, postgres :5433
+```
+
 ## API surface
 
 | Method | Path | Purpose |
@@ -68,8 +74,8 @@ bun run dev            # api :4000 + web :5173
 - [x] Mock provider — keyless end-to-end pipeline tests (`bun test` in apps/api)
 - [x] Trainer UI (mocked demo, full loop): clients, builder with schemes, logging,
       AI generate/review/approve, signals + block pulse — see roadmap
-- [ ] Phase L — go live: shared zod extensions, templates/schemes/notifications
-      endpoints, rule engine to shared, `PUBLIC_API_MODE=live` flip
+- [x] Phase L — go live: shared zod extensions, templates/schemes/notifications
+      endpoints, rule engine to shared, `PUBLIC_API_MODE=live` flip (done, live-tested)
 - [ ] Auth: trainer accounts (client portal cut from MVP)
 
 ### MVP scope decision
