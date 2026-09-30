@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PrescribedSet } from "./domain";
+import { Phasing, PrescribedSet } from "./domain";
 
 // ---------------------------------------------------------------------------
 // AI provider abstraction
@@ -90,6 +90,8 @@ export const AiProgramDraft = z.object({
   rationale: z.string().max(4000),
   /** Client-facing blurb the trainer can edit before sending. */
   clientSummary: z.string().max(2000),
+  /** Proposed periodization for the new block (week directives from the scheme). */
+  phasing: Phasing.optional(),
   sessions: z.array(DraftSession).min(1).max(14),
 });
 export type AiProgramDraft = z.infer<typeof AiProgramDraft>;

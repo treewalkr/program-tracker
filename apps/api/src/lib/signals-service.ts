@@ -21,7 +21,7 @@ import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
  * API returns exactly what the mock dashboard computed client-side.
  */
 
-function toSignalProgram(p: ProgramRow): SignalProgram {
+export function toSignalProgram(p: ProgramRow): SignalProgram {
   return {
     id: p.id,
     clientId: p.clientId,
@@ -35,7 +35,7 @@ function toSignalProgram(p: ProgramRow): SignalProgram {
 }
 
 /** numeric columns come back as strings — convert at this boundary. */
-function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
+export function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
   return {
     programId: log.programId,
     date: log.date,

@@ -127,6 +127,9 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.status).toBe("draft");
     expect(body.createdFromProgramId).toBe(programId);
     expect(body.clientId).toBe(clientId);
+    // mock draft proposes phasing — approve carries it into the program
+    expect(body.phasing?.plannedWeeks).toBe(4);
+    expect(body.phasing?.weeks?.some((w: any) => w.directive === "deload")).toBe(true);
 
     // original program stays active until the trainer promotes the draft
     const original = await call("GET", `/v1/programs/${programId}`);

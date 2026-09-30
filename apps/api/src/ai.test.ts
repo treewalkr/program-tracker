@@ -23,6 +23,7 @@ describe("buildGenerationMessages", () => {
     const { system, user } = buildGenerationMessages({
       client: { name: "Ada", goals: "get strong", limitations: "Left knee pain — no deep knee flexion", daysPerWeek: 3 },
       previousProgram: null,
+      periodization: null,
       history: [],
       catalog: [],
       trainerInstructions: "",
@@ -37,12 +38,28 @@ describe("buildGenerationMessages", () => {
     const { user } = buildGenerationMessages({
       client: { name: "Bob" },
       previousProgram: null,
+      periodization: null,
       history: [{ exerciseName: "Back Squat", recentSets: ["100kg × 5 @ RPE 8"], bestE1rm: 116.7 }],
       catalog: [],
       trainerInstructions: "",
     });
     expect(user).toContain("100kg × 5 @ RPE 8");
     expect(user).toContain("116.7");
+  });
+
+  test("periodization context is injected and phasing is instructed", () => {
+    const { system, user } = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 4 },
+      previousProgram: null,
+      periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly tonnage 1.8t → 2.1t (+17%)",
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("PERIODIZATION CONTEXT");
+    expect(user).toContain("week 3 of 6");
+    expect(system).toContain("Propose phasing");
+    expect(system).toContain("targetWeightKg");
   });
 });
 

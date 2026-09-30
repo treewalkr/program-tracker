@@ -35,6 +35,8 @@ export interface CatalogEntry {
 export interface GenerationContext {
   client: ClientContext;
   previousProgram: ProgramSummary | null;
+  /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · tonnage/e1RM summary". */
+  periodization: string | null;
   history: ExerciseHistoryEntry[];
   catalog: CatalogEntry[];
   trainerInstructions: string;
@@ -44,6 +46,15 @@ const DRAFT_SCHEMA_SPEC = `{
   "name": string,                    // short program name
   "rationale": string,              // trainer-facing: progression logic, volume/intensity changes, and why
   "clientSummary": string,          // client-facing blurb, encouraging, no jargon
+  "phasing": {                       // proposed periodization for the new block
+    "plannedWeeks": number,          // 2-26
+    "phase": string,                 // phase name, e.g. "accumulation"
+    "nextPhase": string?,
+    "deloadWeeks": number[],         // week numbers within the block
+    "weeks": [                       // week-by-week directives
+      { "week": number, "directive": "base"|"+volume"|"+intensity"|"deload"|"transition"|"test" }
+    ]?
+  },
   "sessions": [                     // exactly the client's training days per week
     {
       "name": string,
@@ -56,8 +67,11 @@ const DRAFT_SCHEMA_SPEC = `{
             {
               "setNumber": number,  // 1-indexed, sequential
               "type": "warm_up" | "working" | "backoff",
-              "reps": number,       // target reps (1-100)
+              "reps": number,       // target reps; 0 only for timed/failure sets
+              "repsMin": number?,   // lower bound of a rep range (reps = upper bound)
               "amrap": boolean,     // true = reps is the minimum, go to failure
+              "durationSeconds": number?, // timed sets; reps = 0
+              "targetWeightKg": number?,  // load target — progress from last logged loads
               "targetRpe": number?, // 1-10
               "restSeconds": number?
             }
@@ -79,7 +93,8 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
-    "- Progress load conservatively (~2.5% or the nearest practical increment); regress if RPEs were 9+ or reps were missed.",
+    "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    "- Propose phasing for the new block: plannedWeeks, phase name, deload weeks, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     "- Include warm-up sets for the first heavy compound of each session.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -98,6 +113,10 @@ export function buildGenerationMessages(ctx: GenerationContext) {
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    ctx.periodization
+      ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
+      : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.history.length > 0
       ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")

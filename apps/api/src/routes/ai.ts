@@ -10,13 +10,14 @@ import {
   sessionLogs,
   setLogs,
 } from "@pt/db";
-import { AiProgramDraft, KNOWN_PROVIDERS } from "@pt/shared";
+import { AiProgramDraft, KNOWN_PROVIDERS, blockPulse, pulseSummary, weekOf } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { buildGenerationMessages } from "../ai/prompt";
 import { MOCK_DRAFT } from "../ai/mock";
 import { bindPendingExercises, draftToSessions } from "../lib/draftToProgram";
 import { buildHistory } from "../lib/history";
 import { getDefaultTrainerId } from "../lib/trainer";
+import { toSignalLog, toSignalProgram } from "../lib/signals-service";
 
 const HISTORY_WINDOW_DAYS = 56;
 
@@ -28,9 +29,11 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
   const catalogByTrainer = catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId);
 
   let previous = null;
+  let basedOnProgram = null;
   if (basedOnProgramId) {
     const [p] = await db.select().from(programs).where(eq(programs.id, basedOnProgramId));
     if (p) {
+      basedOnProgram = p;
       const nameById = new Map(catalogByTrainer.map((e) => [e.id, e.name]));
       previous = {
         name: p.name,
@@ -57,6 +60,26 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
     : [];
 
+  // Auto-injected periodization context — derived, never trainer-editable.
+  let periodization: string | null = null;
+  if (basedOnProgram?.phasing) {
+    const ph = basedOnProgram.phasing;
+    const signalLogs = logs.map((l) =>
+      toSignalLog(l, sets.filter((s) => s.sessionLogId === l.id))
+    );
+    const program = toSignalProgram(basedOnProgram);
+    const week = weekOf(program, signalLogs);
+    const directive = ph.weeks?.find((w) => w.week === week)?.directive;
+    const summary = pulseSummary(blockPulse(program, signalLogs));
+    periodization = [
+      `week ${week} of ${ph.plannedWeeks} · ${ph.phase}`,
+      directive ? `this week's directive: ${directive}` : null,
+      summary,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
   return {
     client: {
       name: client.name,
@@ -65,6 +88,7 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
       daysPerWeek: client.daysPerWeek,
     },
     previousProgram: previous,
+    periodization,
     history: buildHistory({
       logs,
       sets,
@@ -245,6 +269,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai" })
           name: gen.draft.name,
           description: gen.draft.clientSummary,
           sessions: finalSessions,
+          phasing: gen.draft.phasing ?? null,
           aiAssisted: true,
           createdFromProgramId: gen.basedOnProgramId,
           status: "draft",
