@@ -16,7 +16,7 @@
   --chalk:#eceeea;
   --chalk-dim:#b9bcb3;
   --muted:#8f948c;
-  --faint:#666b65;
+  --faint:#838881;
   --line:#262a2e;
   --line-2:#35393f;
   /* IWF plate palette as the functional color system */
@@ -92,7 +92,7 @@ h1{font:700 34px/1 var(--font-cond);letter-spacing:.02em;text-transform:uppercas
 .sect .plate-rule{flex:none;width:34px;height:4px;border-radius:2px;background:var(--plate-blue);opacity:.9}
 .sect .plate-rule.green{background:var(--plate-green)} .sect .plate-rule.yellow{background:var(--plate-yellow)} .sect .plate-rule.red{background:var(--plate-red)} .sect .plate-rule.plain{background:var(--line-2)}
 
-.btn{appearance:none;display:inline-flex;align-items:center;gap:8px;font:700 12px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;padding:10px 16px;border-radius:4px;border:1px solid var(--chalk);background:var(--chalk);color:var(--ground);cursor:pointer;text-decoration:none}
+.btn{appearance:none;display:inline-flex;align-items:center;gap:8px;font:700 12px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;padding:10px 16px;border-radius:4px;border:1px solid var(--chalk);background:var(--chalk);color:var(--ground);cursor:pointer;text-decoration:none;white-space:nowrap}
 .btn:hover{background:#fff;border-color:#fff}
 .btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .btn.ghost{background:transparent;color:var(--chalk-dim);border-color:var(--line-2)}
@@ -154,7 +154,7 @@ h1{font:700 34px/1 var(--font-cond);letter-spacing:.02em;text-transform:uppercas
 .wk-cell:last-child{border-right:none}
 .wk-cell.today-cell{background:rgba(77,143,214,.05)}
 .stamp{width:100%;max-width:78px;padding:6px 4px 5px;border-radius:4px;text-align:center;border:1px solid var(--line-2);background:var(--well)}
-.stamp .tag{font:600 9px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stamp .tag{font:600 10px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .stamp.done{border-color:var(--plate-green-dim);background:rgba(72,168,110,.1)}
 .stamp.done .tag{color:#6fc492}
 .stamp.today{border:1.5px solid var(--plate-yellow);background:rgba(232,185,60,.09)}
@@ -652,6 +652,7 @@ function show(id){const t=id&&document.getElementById(id)?id:'s-overview';
   tabs.forEach(b=>b.classList.toggle('on',b.dataset.s===t));
   history.replaceState(null,'','#'+t);window.scrollTo(0,0)}
 tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.s)));
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
 show(location.hash.slice(1));
 </script>
 </body>

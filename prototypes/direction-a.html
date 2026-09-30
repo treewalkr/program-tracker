@@ -13,8 +13,8 @@
   --sheet:#fffdf9;        /* raised surface */
   --ink:#1b201c;
   --ink-2:#3a423c;
-  --muted:#6d7570;
-  --faint:#8b928c;
+  --muted:#616960;
+  --faint:#656c64;
   --rule:#d9d6ca;         /* hairline */
   --rule-2:#c4c1b2;       /* strong rule */
   --well:#f5f4ee;         /* recessed panel */
@@ -22,7 +22,7 @@
   --accent-ink:#7d2c21;
   --accent-wash:#f7ebe7;
   --good:#2e6b45; --good-wash:#e9f2ea;
-  --warn:#96660a; --warn-wash:#f8efd8;
+  --warn:#8a5c08; --warn-wash:#f8efd8;
   --bad:#a83528;  --bad-wash:#f8e9e5;
   --rpe-1:#2e6b45; --rpe-2:#96660a; --rpe-3:#96382a;
   --font-ui:"Barlow",system-ui,sans-serif;
@@ -85,7 +85,7 @@ h1{font:700 27px/1.1 var(--font-cond);letter-spacing:.01em;margin:0}
 .folio h2{font:700 17px/1 var(--font-cond);letter-spacing:.03em;text-transform:uppercase;margin:0}
 .folio .folio-note{font:500 11px/1 var(--font-mono);color:var(--faint);letter-spacing:.04em}
 
-.btn{appearance:none;display:inline-flex;align-items:center;gap:7px;font:600 12px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;padding:9px 14px;border-radius:4px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;text-decoration:none}
+.btn{appearance:none;display:inline-flex;align-items:center;gap:7px;font:600 12px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;padding:9px 14px;border-radius:4px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;text-decoration:none;white-space:nowrap}
 .btn:hover{background:#000;border-color:#000}
 .btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .btn.ghost{background:transparent;color:var(--ink)}
@@ -140,7 +140,7 @@ h1{font:700 27px/1.1 var(--font-cond);letter-spacing:.01em;margin:0}
 .wk-row:last-child .wk-cell{border-bottom:none}
 .wk-cell:last-child{border-right:none}
 .stamp{width:100%;max-width:78px;padding:5px 4px 4px;border-radius:3px;text-align:center;border:1px solid var(--rule-2);background:var(--well)}
-.stamp .tag{font:600 9px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stamp .tag{font:600 10px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .stamp.done{border-color:var(--good);background:var(--good-wash)}
 .stamp.done .tag{color:var(--good)}
 .stamp.today{border:1.5px solid var(--accent);background:var(--accent-wash)}
@@ -187,7 +187,7 @@ h1{font:700 27px/1.1 var(--font-cond);letter-spacing:.01em;margin:0}
 .pulse-note{font:500 11.5px/1.5 var(--font-mono);color:var(--muted);background:var(--well);border:1px solid var(--rule);border-radius:4px;padding:9px 11px;margin:12px 0 0}
 .dir{font:600 10px/1 var(--font-mono);letter-spacing:.05em;padding:3px 6px;border-radius:3px;border:1px solid}
 .dir.vol{color:#2e6b45;border-color:#bccdbd;background:var(--good-wash)}
-.dir.int{color:#96660a;border-color:#d9c68f;background:var(--warn-wash)}
+.dir.int{color:var(--warn);border-color:#d9c68f;background:var(--warn-wash)}
 .dir.tr{color:#55558c;border-color:#c6c6dc;background:#ededef}
 .dir.dl{color:var(--muted);border-color:var(--rule-2);background:var(--well)}
 .dir.base{color:var(--muted);border-color:var(--rule-2);background:transparent}
@@ -585,6 +585,7 @@ function show(id){const t=id&&document.getElementById(id)?id:'s-overview';
   tabs.forEach(b=>b.classList.toggle('on',b.dataset.s===t));
   history.replaceState(null,'','#'+t);window.scrollTo(0,0)}
 tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.s)));
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
 show(location.hash.slice(1));
 </script>
 </body>

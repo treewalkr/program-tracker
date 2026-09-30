@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI direction prototypes — Program Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eceef0; --surface:#fff; --ink:#191b20; --muted:#565c66; --faint:#656973;
+  --line:#dcdee3; --line-2:#c7cad1;
+  --font-ui:"Instrument Sans",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--font-ui);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:48px 32px 80px}
+header.page{margin-bottom:36px}
+header.page h1{font:700 30px/1.15 var(--font-ui);letter-spacing:-.02em;margin:0}
+header.page p{color:var(--muted);max-width:70ch;margin:10px 0 0}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.eval{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:16px;font:500 11px/1.5 var(--font-mono);color:var(--faint)}
+.eval span{display:inline-flex;gap:7px;align-items:baseline}
+.eval i{font-style:normal;color:var(--ink);font-weight:600}
+
+.deck{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:22px}
+.dir{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:inherit;box-shadow:0 1px 2px rgba(16,18,24,.04)}
+.dir:hover{border-color:var(--line-2);box-shadow:0 4px 16px rgba(16,18,24,.08)}
+.shot{position:relative;display:flex;justify-content:center;height:318px;overflow:hidden;background:#101215;border-bottom:1px solid var(--line)}
+.shot iframe{width:1180px;height:1060px;flex:none;transform:scale(.3);transform-origin:top center;border:0;pointer-events:none}
+.shot .veil{position:absolute;inset:0}
+.dir .body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:12px;flex:1}
+.dir .kicker{font:600 10.5px/1 var(--font-mono);letter-spacing:.14em;text-transform:uppercase}
+.dir h2{font:700 20px/1.15 var(--font-ui);letter-spacing:-.01em;margin:2px 0 0}
+.dir .thesis{color:var(--muted);font-size:13.5px;margin:0}
+.specs{display:flex;flex-direction:column;gap:7px;font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px;margin-top:2px}
+.specs .row{display:flex;gap:10px;align-items:baseline}
+.specs .k{font:600 10px/1.8 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);width:64px;flex:none}
+.swatches{display:flex;gap:4px;flex:1;align-items:center}
+.swatches i{height:12px;flex:1;border-radius:3px;border:1px solid rgba(0,0,0,.08)}
+.specs .v{flex:1}
+.open{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding-top:14px}
+.open .go{font:600 13px/1 var(--font-ui)}
+.open .arrow{transition:transform .15s ease}
+.dir:hover .arrow{transform:translateX(3px)}
+footer.note{margin-top:34px;color:var(--faint);font-size:12.5px}
+footer.note a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>Program Tracker — UI direction prototypes</h1>
+    <p>Three visual identities for the same product, built on the same screens and the same sample data: the overview dashboard, a client page with block pulse, and the AI draft-review flow. Compare the identity, not the content — every number and word is identical across the three.</p>
+    <div class="eval">
+      <span><i>1</i> Overview dashboard</span>
+      <span><i>2</i> Client — Maya Chen</span>
+      <span><i>3</i> AI draft review</span>
+      <span>· static HTML, nothing is wired</span>
+    </div>
+  </header>
+
+  <div class="deck">
+
+    <a class="dir" href="direction-a.html">
+      <div class="shot"><iframe src="direction-a.html#s-overview" tabindex="-1" title="Ledger preview" loading="lazy"></iframe><div class="veil"></div></div>
+      <div class="body">
+        <span class="kicker" style="color:#96382a">A · evolution</span>
+        <h2>Ledger</h2>
+        <p class="thesis">The current “chalk &amp; iron” identity, promoted: warm paper, ink, hairline rules and ruled tables like a fine print logbook. Serif italic is reserved for the client's own words. Quiet, credible, grown-up.</p>
+        <div class="specs">
+          <div class="row"><span class="k">Palette</span><span class="swatches"><i style="background:#f1f0ea"></i><i style="background:#fffdf9"></i><i style="background:#c4c1b2"></i><i style="background:#1b201c"></i><i style="background:#96382a"></i></span></div>
+          <div class="row"><span class="k">Type</span><span class="v">Barlow · Barlow Semi Condensed · IBM Plex Mono · Fraunces italic</span></div>
+          <div class="row"><span class="k">Says</span><span class="v">“A serious coaching instrument.” Reads as expertise and diligence.</span></div>
+          <div class="row"><span class="k">Risk</span><span class="v">Quiet needs great data density to impress in a first demo.</span></div>
+        </div>
+        <div class="open"><span class="go">Open prototype A</span><span class="arrow">→</span></div>
+      </div>
+    </a>
+
+    <a class="dir" href="direction-b.html">
+      <div class="shot"><iframe src="direction-b.html#s-overview" tabindex="-1" title="Platform preview" loading="lazy"></iframe><div class="veil"></div></div>
+      <div class="body">
+        <span class="kicker" style="color:#4d8fd6">B · departure</span>
+        <h2>Platform</h2>
+        <p class="thesis">Dark meet-day scoring world: charcoal surfaces, chalk-white primary buttons, and the IWF plate palette (red / blue / yellow / green) doing real work as the status and RPE system. Scoreboard numerals, chart-forward block pulse.</p>
+        <div class="specs">
+          <div class="row"><span class="k">Palette</span><span class="swatches"><i style="background:#101215"></i><i style="background:#1d2024"></i><i style="background:#eceeea"></i><i style="background:#e0343b"></i><i style="background:#48a86e"></i></span></div>
+          <div class="row"><span class="k">Type</span><span class="v">Barlow · Barlow Condensed (scoreboard display) · IBM Plex Mono</span></div>
+          <div class="row"><span class="k">Says</span><span class="v">“An elite performance lab.” Highest demo impact; strength-sport natives read the plate colors instantly.</span></div>
+          <div class="row"><span class="k">Risk</span><span class="v">Dark-first commitment; the busiest screens must stay disciplined.</span></div>
+        </div>
+        <div class="open"><span class="go">Open prototype B</span><span class="arrow">→</span></div>
+      </div>
+    </a>
+
+    <a class="dir" href="direction-c.html">
+      <div class="shot"><iframe src="direction-c.html#s-overview" tabindex="-1" title="Studio preview" loading="lazy"></iframe><div class="veil"></div></div>
+      <div class="body">
+        <span class="kicker" style="color:#4f46e5">C · departure</span>
+        <h2>Studio</h2>
+        <p class="thesis">Crisp modern light SaaS: cool neutrals, one indigo accent, compact density, soft-shadow cards, workspace switcher and ⌘K search. The AI actions own the accent color, so “AI-assisted” is visible at a glance.</p>
+        <div class="specs">
+          <div class="row"><span class="k">Palette</span><span class="swatches"><i style="background:#f7f8fa"></i><i style="background:#ffffff"></i><i style="background:#d9dce2"></i><i style="background:#16181d"></i><i style="background:#4f46e5"></i></span></div>
+          <div class="row"><span class="k">Type</span><span class="v">Instrument Sans · IBM Plex Mono</span></div>
+          <div class="row"><span class="k">Says</span><span class="v">“A modern, funded-feeling tool.” Most familiar to SaaS buyers; least to prove.</span></div>
+          <div class="row"><span class="k">Risk</span><span class="v">Familiarity — reads like many other products until the AI flow does the differentiating.</span></div>
+        </div>
+        <div class="open"><span class="go">Open prototype C</span><span class="arrow">→</span></div>
+      </div>
+    </a>
+
+  </div>
+
+  <footer class="note">
+    Prototypes are static HTML in <span class="mono">prototypes/</span> — open any file directly, no server needed. Fonts load from Google Fonts; everything else is inline. Choosing a direction here does not change <span class="mono">apps/web</span>; that happens after you pick.
+  </footer>
+</div>
+</body>
+</html>
