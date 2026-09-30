@@ -19,3 +19,7 @@ build/
 test-results/
 playwright-report/
 .pi-subagents/
+
+# local editor/agent files
+.vscode/
+.zcode/plans/
