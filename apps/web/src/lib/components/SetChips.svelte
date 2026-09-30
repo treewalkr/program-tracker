@@ -33,9 +33,8 @@
     flex-wrap: wrap;
     gap: 5px;
   }
-  /* RPE scale — same thresholds as the Rpe component (≤6 green · 7–8 amber · 9–10 red);
-     colors tuned AA on the chip's #f4f5f2 background at 12–13px semibold */
-  .rpe { color: #3f6339; font-weight: 600; }
-  .rpe-mid { color: #7a520d; }
-  .rpe-high { color: #a63a29; }
+  /* RPE effort scale — tokens tuned AA on the chip background at 12–13px semibold */
+  .rpe { color: var(--rpe-low); font-weight: 600; }
+  .rpe-mid { color: var(--rpe-mid); }
+  .rpe-high { color: var(--rpe-high); }
 </style>

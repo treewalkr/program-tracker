@@ -20,6 +20,22 @@
   --bad: #c92a2a;
   --bad-bg: #fdecec;
 
+  /* RPE effort scale (AA-tuned for 12–13px semibold on light surfaces) */
+  --rpe-low: #3f6339;
+  --rpe-mid: #7a520d;
+  --rpe-high: #a63a29;
+
+  /* one-off surface tints */
+  --hover-ink: #2a3138;
+  --hover-soft: #eceee9;
+  --row-hover: #f7f8f5;
+  --chip-bg: #f4f5f2;
+  --neutral-bg: #eceee9;
+  --warn-line: #e5b8b8;
+  --warn-line-soft: #eed3d3;
+  --pulse-now-bg: #f6f7f3;
+  --dir-tr: #55558c;
+
   --focus: #2b6cb0;
 
   --font-ui: "Barlow", system-ui, sans-serif;
@@ -78,16 +94,20 @@ code,
   cursor: pointer;
   transition: background 120ms, transform 60ms;
 }
-.btn:hover { background: #2a3138; }
+.btn:hover { background: var(--hover-ink); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: default; }
+.btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 
 .btn.ghost {
   background: transparent;
   color: var(--ink);
   border-color: var(--line-strong);
 }
-.btn.ghost:hover { background: #eceee9; }
+.btn.ghost:hover { background: var(--hover-soft); }
 .btn.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
 .btn.danger:hover { background: var(--bad-bg); }
 
@@ -130,6 +150,7 @@ code,
   gap: 12px;
   padding: 14px 18px 10px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap; /* narrow viewports: meta drops below the heading instead of overflowing */
 }
 .panel-body { padding: 16px 18px; }
 
@@ -153,7 +174,7 @@ table.sheet td {
   vertical-align: middle;
 }
 table.sheet tr:last-child td { border-bottom: none; }
-table.sheet tr.rowlink:hover td { background: #f7f8f5; cursor: pointer; }
+table.sheet tr.rowlink:hover td { background: var(--row-hover); cursor: pointer; }
 
 /* —— status / data chips ————————————————— */
 
@@ -169,7 +190,7 @@ table.sheet tr.rowlink:hover td { background: #f7f8f5; cursor: pointer; }
 .pill.good { color: var(--good); background: var(--good-bg); }
 .pill.warn { color: var(--warn); background: var(--warn-bg); }
 .pill.bad { color: var(--bad); background: var(--bad-bg); }
-.pill.neutral { color: var(--muted); background: #eceee9; }
+.pill.neutral { color: var(--muted); background: var(--neutral-bg); }
 
 .num {
   font: 500 14px var(--font-mono);
@@ -189,9 +210,9 @@ table.sheet tr.rowlink:hover td { background: #f7f8f5; cursor: pointer; }
   border-radius: 99px;
   background: currentColor;
 }
-.rpe.low { color: var(--good); }
-.rpe.mid { color: var(--warn); }
-.rpe.high { color: var(--bad); }
+.rpe.low { color: var(--rpe-low); }
+.rpe.mid { color: var(--rpe-mid); }
+.rpe.high { color: var(--rpe-high); }
 
 /* —— set chips (program view) ———————————— */
 
@@ -200,7 +221,7 @@ table.sheet tr.rowlink:hover td { background: #f7f8f5; cursor: pointer; }
   align-items: baseline;
   gap: 6px;
   font: 500 13px var(--font-mono);
-  background: #f4f5f2;
+  background: var(--chip-bg);
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 3px 8px;
