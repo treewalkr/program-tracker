@@ -38,8 +38,8 @@ services:
     ports:
       - "4000:4000"
     env_file:
-      # optional: root .env supplies ZAI_API_KEY / provider keys when present
-      - path: .env
+      # optional: root .env.local supplies ZAI_API_KEY when present
+      - path: .env.local
         required: false
     depends_on:
       postgres:

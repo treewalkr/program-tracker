@@ -7,10 +7,10 @@ import { Phasing, PrescribedSet } from "./domain";
 
 /**
  * Every provider speaks the OpenAI chat-completions dialect.
- * Z.ai GLM flash is the default; OpenAI/Groq/OpenRouter slot in by config.
+ * Z.ai GLM flash is the default; more slot in by config when needed.
  */
 export const AiProviderConfig = z.object({
-  /** Stable key used in DB records, e.g. "zai", "openai". */
+  /** Stable key used in DB records, e.g. "zai". */
   id: z.string().min(1),
   /** Human label shown in the trainer UI. */
   label: z.string().min(1),
@@ -30,14 +30,6 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.z.ai/api/paas/v4",
     model: "glm-4.5-flash",
     apiKeyEnvVar: "ZAI_API_KEY",
-    maxOutputTokens: 8192,
-  },
-  openai: {
-    id: "openai",
-    label: "OpenAI",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-4o-mini",
-    apiKeyEnvVar: "OPENAI_API_KEY",
     maxOutputTokens: 8192,
   },
   /** Canned draft, no network, no key. For tests and UI development. */
