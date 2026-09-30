@@ -22,6 +22,21 @@
   let pulse = $state<WeekMetrics[]>([]);
   let pulseWeek = $state(0);
   let dismissedNow = $state<string[]>([]);
+  let snoozing = $state<string | null>(null);
+  let snoozeErrors = $state<Record<string, string>>({});
+
+  async function snooze(signal: SignalDto) {
+    snoozing = signal.id;
+    snoozeErrors[signal.id] = "";
+    try {
+      await api.snoozeSignal(signal.id, new Date(Date.now() + 7 * 86400_000).toISOString());
+      dismissedNow = [...dismissedNow, signal.id];
+    } catch (err) {
+      snoozeErrors[signal.id] = (err as Error).message || "Snooze failed — try again.";
+    } finally {
+      snoozing = null;
+    }
+  }
 
   const visibleSignals = $derived(signals.filter((s) => !dismissedNow.includes(s.id)));
 
@@ -91,7 +106,7 @@
   </div>
 
   {#if visibleSignals.length > 0}
-    <section class="panel sig-panel">
+    <section class="panel sig-panel" aria-live="polite">
       {#each visibleSignals as signal (signal.id)}
         <div class="sig" class:urgent={signal.severity === "urgent"} class:attention={signal.severity === "attention"}>
           <div class="sig-body">
@@ -100,6 +115,9 @@
               <strong>{signal.title}</strong>
             </div>
             <p class="evidence">{signal.evidence}</p>
+            {#if snoozeErrors[signal.id]}
+              <p class="evidence err-inline" role="alert">Couldn't snooze — {snoozeErrors[signal.id]}</p>
+            {/if}
           </div>
           <div class="sig-actions">
             {#if signal.prefillNote}
@@ -110,14 +128,8 @@
                 ✦ Draft next block
               </a>
             {/if}
-            <button
-              class="btn ghost small"
-              onclick={() => {
-                api.snoozeSignal(signal.id, new Date(Date.now() + 7 * 86400_000).toISOString());
-                dismissedNow = [...dismissedNow, signal.id];
-              }}
-            >
-              Snooze 1 week
+            <button class="btn ghost small" disabled={snoozing === signal.id} onclick={() => snooze(signal)}>
+              {snoozing === signal.id ? "Snoozing…" : "Snooze 1 week"}
             </button>
           </div>
         </div>
@@ -175,12 +187,21 @@
                 <h3>{s.name}</h3>
                 {#each s.exercises as e (e.id)}
                   <div class="exrow">
-                    <span class="exname">{e.exerciseName}</span>
+                    <span class="exname">{e.exerciseName ?? "Unmapped exercise"}</span>
                     <SetChips sets={e.prescribedSets} />
                   </div>
                 {/each}
+                {#if s.conditioning}
+                  <div class="exrow cond">
+                    <span class="exname cond-name">{s.conditioning.label}</span>
+                    <span class="cond-detail">{s.conditioning.detail}</span>
+                  </div>
+                {/if}
               </div>
             {/each}
+            <p class="legend subtle">
+              Dashed chip = warm-up · @RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time (e.g. 10:00) = timed set
+            </p>
           </div>
         </section>
       {:else}
@@ -198,18 +219,20 @@
             <h2>Progress · 8 weeks</h2>
             <span class="subtle">working sets, best estimated 1RM</span>
           </div>
-          <table class="sheet">
-            <thead><tr><th>Exercise</th><th class="num-col">Best e1RM</th><th>Recent sets</th></tr></thead>
-            <tbody>
-              {#each history as h (h.exerciseName)}
-                <tr>
-                  <td><strong>{h.exerciseName}</strong></td>
-                  <td class="num big">{h.bestE1rm > 0 ? `${h.bestE1rm}` : "—"}{#if h.bestE1rm > 0}<span class="unit">kg</span>{/if}</td>
-                  <td class="sets">{h.recentSets.join(", ")}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="sheet">
+              <thead><tr><th>Exercise</th><th class="num-col">Best e1RM</th><th>Recent sets</th></tr></thead>
+              <tbody>
+                {#each history as h (h.exerciseName)}
+                  <tr>
+                    <td><strong>{h.exerciseName}</strong></td>
+                    <td class="num big">{h.bestE1rm > 0 ? `${h.bestE1rm}` : "—"}{#if h.bestE1rm > 0}<span class="unit">kg</span>{/if}</td>
+                    <td class="sets">{h.recentSets.join(", ")}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
         </section>
       {/if}
 
@@ -292,18 +315,21 @@
   .sev-dot { width: 9px; height: 9px; border-radius: 99px; background: var(--good); flex-shrink: 0; }
   .sig-top { display: flex; align-items: center; gap: 9px; }
   .evidence { margin: 3px 0 0 18px; font-size: 13px; color: var(--muted); }
+  .evidence.err-inline { color: var(--bad); font-weight: 600; }
   .sig-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn.small { padding: 4px 10px; font-size: 13px; }
   .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
   .crumb a:hover { text-decoration: underline; }
   h1 { display: flex; align-items: center; gap: 10px; }
 
-  .cols { display: grid; grid-template-columns: 1fr 280px; gap: 18px; align-items: start; }
+  /* minmax(0,·) — a bare 1fr track never shrinks below content min-content,
+     which blew the page out sideways on narrow viewports */
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
 
-  .grid { display: grid; grid-template-columns: 160px 1fr; gap: 14px; }
+  .grid { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; }
   .span { grid-column: 1 / -1; }
 
-  .head-right { display: flex; align-items: center; gap: 12px; }
+  .head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
   .sessions { display: flex; flex-direction: column; gap: 4px; }
   .session { padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -318,27 +344,28 @@
     flex-wrap: wrap;
   }
   .exname { font-weight: 600; min-width: 170px; }
+  .cond-name { color: var(--muted); }
+  .cond-detail { font-size: 13px; color: var(--muted); }
+  .legend { margin: 10px 0 2px; font-size: 12.5px; }
 
   .num-col { text-align: right; }
   td.num { text-align: right; white-space: nowrap; }
   .unit { font-size: 12px; color: var(--faint); margin-left: 3px; font-weight: 400; }
   .sets { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
 
-  .warn-panel { border-color: #e5b8b8; }
-  .warn-panel .panel-head { border-color: #eed3d3; }
-
-  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .warn-panel { border-color: var(--warn-line); }
+  .warn-panel .panel-head { border-color: var(--warn-line-soft); }
 
   @media (max-width: 900px) {
-    .cols { grid-template-columns: 1fr; }
+    .cols { grid-template-columns: minmax(0, 1fr); }
   }
   .table-wrap { overflow-x: auto; }
-  .pulse-now td { background: #f6f7f3; }
+  .pulse-now td { background: var(--pulse-now-bg); }
   .pulse-future td { color: var(--faint); }
   .dir { font-weight: 700; font-size: 12.5px; }
-  .dir.d-up { color: #3f6339; }
-  .dir.d-hot { color: #7a520d; }
-  .dir.d-tr { color: #55558c; }
+  .dir.d-up { color: var(--rpe-low); }
+  .dir.d-hot { color: var(--rpe-mid); }
+  .dir.d-tr { color: var(--dir-tr); }
   .dir.d-de { color: var(--muted); }
   .delta { margin-left: 6px; font-size: 11.5px; color: var(--good); font-weight: 600; }
   .delta.neg { color: var(--bad); }

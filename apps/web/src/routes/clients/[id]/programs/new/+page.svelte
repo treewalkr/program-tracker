@@ -173,6 +173,7 @@
         exercises: s.exercises.map((e, ei) => ({
           id: crypto.randomUUID(),
           exerciseId: e.exerciseId,
+          exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name,
           order: ei,
           prescribedSets: e.sets.map((ps, pi) => {
             const lo = Math.min(Number(ps.reps), Number(ps.repsTo ?? ps.reps));
