@@ -3,13 +3,21 @@
   import { api } from "$lib/api";
   import type { ClientDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
   import { goto } from "$app/navigation";
 
   let clients = $state<ClientDto[] | null>(null);
   let showForm = $state(false);
   let saving = $state(false);
   let search = $state("");
-  let form = $state({ name: "", email: "", goals: "", limitations: "", daysPerWeek: 3 });
+  let form = $state({
+    name: "",
+    email: "",
+    goals: "",
+    limitations: "",
+    daysPerWeek: 3,
+    trainingDays: [] as number[],
+  });
 
   const filtered = $derived(
     (clients ?? []).filter(
@@ -30,6 +38,7 @@
         goals: form.goals || null,
         limitations: form.limitations || null,
         daysPerWeek: Number(form.daysPerWeek),
+        trainingDays: form.trainingDays.length ? form.trainingDays : undefined,
       });
       goto(`/clients/${created.id}`);
     } finally {
@@ -71,6 +80,10 @@
         <select class="select" id="f-days" bind:value={form.daysPerWeek}>
           {#each [1, 2, 3, 4, 5, 6] as d}<option value={d}>{d}</option>{/each}
         </select>
+      </div>
+      <div class="span2">
+        <span class="label">Which days <span class="subtle">— drives the weekly plan grid</span></span>
+        <WeekdayPicker bind:days={form.trainingDays} />
       </div>
       <div class="span2">
         <label class="label" for="f-goals">Goals</label>

@@ -7,6 +7,7 @@
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
+  import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -16,7 +17,7 @@
   let history = $state<HistoryEntryDto[] | null>(null);
   let editing = $state(false);
   let saving = $state(false);
-  let form = $state({ goals: "", limitations: "", daysPerWeek: 3 });
+  let form = $state({ goals: "", limitations: "", daysPerWeek: 3, trainingDays: [] as number[] });
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
   let pulseWeek = $state(0);
@@ -44,6 +45,7 @@
       goals: detail.client.goals ?? "",
       limitations: detail.client.limitations ?? "",
       daysPerWeek: detail.client.daysPerWeek ?? 3,
+      trainingDays: detail.client.trainingDays ? [...detail.client.trainingDays] : [],
     };
   }
 
@@ -54,6 +56,7 @@
         goals: form.goals || null,
         limitations: form.limitations || null,
         daysPerWeek: Number(form.daysPerWeek),
+        trainingDays: form.trainingDays,
       });
       editing = false;
     } finally {
@@ -137,6 +140,10 @@
           <select class="select" id="p-days" bind:value={form.daysPerWeek}>
             {#each [1, 2, 3, 4, 5, 6, 7] as d}<option value={d}>{d}</option>{/each}
           </select>
+        </div>
+        <div>
+          <span class="label">Which days <span class="subtle">— drives the weekly plan grid</span></span>
+          <WeekdayPicker bind:days={form.trainingDays} />
         </div>
         <div class="span">
           <label class="label" for="p-goals">Goals</label>

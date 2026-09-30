@@ -1,8 +1,12 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/state";
+  import { onMount } from "svelte";
+  import { api, apiMode } from "$lib/api";
 
   let { children } = $props();
+
+  let clientCount = $state<number | null>(null);
 
   const nav = [
     { href: "/", label: "Overview" },
@@ -10,6 +14,14 @@
     { href: "/exercises", label: "Exercise library" },
     { href: "/templates", label: "Templates" },
   ];
+
+  onMount(async () => {
+    try {
+      clientCount = (await api.clients()).length;
+    } catch {
+      clientCount = null;
+    }
+  });
 </script>
 
 <div class="shell">
@@ -30,23 +42,25 @@
           title={item.label}
         >
           <span class="nav-label">{item.label}</span>
-          {#if item.href === "/clients"}
-            <span class="nav-count">3</span>
+          {#if item.href === "/clients" && clientCount !== null}
+            <span class="nav-count">{clientCount}</span>
           {/if}
         </a>
       {/each}
     </nav>
 
     <div class="side-foot">
-      <p class="coach">Coach Dara</p>
-      <p class="subtle">trainer account</p>
+      <p class="coach">Trainer</p>
+      <p class="subtle">{apiMode === "live" ? "live data" : "demo account"}</p>
     </div>
   </aside>
 
   <main class="main">
-    <div class="demo-banner" role="note">
-      Demo mode — every number on screen is mock data. Nothing is saved.
-    </div>
+    {#if apiMode === "mock"}
+      <div class="demo-banner" role="note">
+        Demo mode — every number on screen is mock data. Nothing is saved.
+      </div>
+    {/if}
     {@render children()}
   </main>
 </div>
