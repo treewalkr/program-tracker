@@ -41,6 +41,7 @@ export function draftToSessions(
   catalog: CatalogLike[]
 ): { sessions: ProgramSession[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
+  const nameById = new Map(catalog.map((c) => [c.id, c.name]));
   const byName = new Map(catalog.map((c) => [c.name.toLowerCase(), c.id]));
   const createdNames: string[] = [];
   const unresolvable: string[] = [];
@@ -63,6 +64,9 @@ export function draftToSessions(
         {
           id: crypto.randomUUID(),
           exerciseId: res.kind === "existing" ? res.exerciseId : `pending:${res.name.toLowerCase()}`,
+          // programs carry the display name — the UI renders it directly,
+          // no catalog join on read
+          exerciseName: res.kind === "existing" ? nameById.get(res.exerciseId) : res.name,
           order: ei,
           prescribedSets: ref.prescribedSets,
           notes: ref.notes,

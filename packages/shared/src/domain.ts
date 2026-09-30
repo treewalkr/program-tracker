@@ -129,6 +129,11 @@ export type PrescribedSet = z.infer<typeof PrescribedSet>;
 export const ProgramExercise = z.object({
   id: z.string().uuid(),
   exerciseId: z.string().uuid(),
+  /**
+   * Display name captured at write time (catalog name, custom-exercise name,
+   * or draft name). Programs render it directly — no catalog join on read.
+   */
+  exerciseName: z.string().min(1).max(200).optional(),
   /** 0-indexed order within the session. */
   order: z.number().int().min(0),
   prescribedSets: z.array(PrescribedSet).min(1).max(20),
