@@ -13,13 +13,14 @@ Every provider speaks the OpenAI chat-completions dialect — one HTTP client
 
 | Provider id | Default model | Key env var | Notes |
 |---|---|---|---|
-| `zai` | `glm-4.5-flash` | `ZAI_API_KEY` | **default**; free tier; 200K context |
-| `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` | example of "extended to other models" |
+| `zai` | `glm-4.5-flash` (first of `models`) | `ZAI_API_KEY` | **default**; free tier; 200K context |
 | `mock` | canned draft | — (always "configured") | keyless tests + UI dev |
 
-Per-provider overrides via env: `<ID>_API_KEY`, `<ID>_BASE_URL`, `<ID>_MODEL`.
-Registry lives in `packages/shared/src/ai.ts` (`KNOWN_PROVIDERS`) — add Groq or
-OpenRouter by adding one entry, zero code elsewhere.
+Per-provider overrides via env: `<ID>_API_KEY`, `<ID>_BASE_URL`, `<ID>_MODEL`
+(default), `<ID>_MODELS` (csv list). Registry lives in
+`packages/shared/src/ai.ts` (`KNOWN_PROVIDERS`) — add Groq or OpenRouter by
+adding one entry, zero code elsewhere. The registry carries only `models`
+(first entry = default); the resolved default model is computed at read time.
 
 Call shape: `POST {baseUrl}/chat/completions` with
 `response_format: {type: "json_object"}` (JSON mode).

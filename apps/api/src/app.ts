@@ -59,9 +59,8 @@ export const app = new Elysia()
       const parsed = AiProviderConfig.parse(p);
       const id = p.id.toUpperCase();
       const models = process.env[`${id}_MODELS`]?.split(",").map((s) => s.trim()).filter(Boolean)
-        ?? parsed.models
-        ?? [parsed.model];
-      const model = process.env[`${id}_MODEL`] ?? parsed.model;
+        ?? parsed.models;
+      const model = process.env[`${id}_MODEL`] ?? models[0];
       // the env default may sit outside the listed models — keep it pickable
       const pickable = models.includes(model) ? models : [model, ...models];
       return {

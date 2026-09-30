@@ -15,7 +15,6 @@ export const AiProviderConfig = z.object({
   /** Human label shown in the trainer UI. */
   label: z.string().min(1),
   baseUrl: z.string().url(),
-  model: z.string().min(1),
   /** API key is injected server-side from env — never serialized to clients. */
   apiKeyEnvVar: z.string().min(1),
   /** Max output tokens for program generation. */
@@ -26,10 +25,10 @@ export const AiProviderConfig = z.object({
    */
   disableThinking: z.boolean().optional(),
   /**
-   * Models the trainer may pick for generation; `model` is the default
-   * (first entry wins when unset). Overridable via `<ID>_MODELS` (csv).
+   * Models the trainer may pick for generation — the first entry is the
+   * default. Overridable via `<ID>_MODELS` (csv) / `<ID>_MODEL` (default).
    */
-  models: z.array(z.string().min(1)).min(1).optional(),
+  models: z.array(z.string().min(1)).min(1),
 });
 export type AiProviderConfig = z.infer<typeof AiProviderConfig>;
 
@@ -38,7 +37,6 @@ export const KNOWN_PROVIDERS = {
     id: "zai",
     label: "Z.ai GLM",
     baseUrl: "https://api.z.ai/api/paas/v4",
-    model: "glm-4.5-flash",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
     disableThinking: true,
@@ -62,7 +60,6 @@ export const KNOWN_PROVIDERS = {
     id: "mock",
     label: "Mock (canned draft)",
     baseUrl: "mock://local",
-    model: "mock-draft-v1",
     apiKeyEnvVar: "MOCK_NO_KEY_NEEDED",
     maxOutputTokens: 4096,
     models: ["mock-draft-v1"],

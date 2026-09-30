@@ -123,8 +123,8 @@ function providerRuntime(providerId: string, model?: string) {
   const upper = id.toUpperCase();
   const models = process.env[`${upper}_MODELS`]?.split(",").map((s) => s.trim()).filter(Boolean)
     ?? known?.models
-    ?? [known?.model ?? ""];
-  const defaultModel = process.env[`${upper}_MODEL`] ?? known?.model ?? models[0];
+    ?? [];
+  const defaultModel = process.env[`${upper}_MODEL`] ?? models[0] ?? "";
   if (model && model !== defaultModel && !models.includes(model))
     throw new ContextError(400, `model "${model}" not available for provider "${id}" (available: ${[defaultModel, ...models].join(", ")})`);
   return {
