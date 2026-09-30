@@ -24,6 +24,7 @@
   let tplName = $state("");
   let savingTpl = $state(false);
   let phase = $state<"form" | "generating" | "review" | "failed">("form");
+  let failReason = $state<string | null>(null);
   let gen = $state<GenerationDto | null>(null);
   let newProgram = $state<ProgramDto | null>(null);
   let approving = $state(false);
@@ -114,6 +115,7 @@
       });
       phase = "review";
     } catch (err) {
+      failReason = (err as Error).message || null;
       phase = "failed";
     } finally {
       clearInterval(ticker);
@@ -323,7 +325,7 @@
   {:else if phase === "failed"}
     <section class="panel narrow">
       <div class="panel-body">
-        <p class="err">Generation failed. Provider error or the draft failed validation.</p>
+        <p class="err">Generation failed. {failReason ?? "Provider error or the draft failed validation."}</p>
         <button class="btn ghost" onclick={() => (phase = "form")}>Back to settings</button>
       </div>
     </section>
