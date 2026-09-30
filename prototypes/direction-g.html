@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype G · Primer — Program Tracker</title>
+<style>
+:root{
+  --canvas:#ffffff;
+  --ink:#1f2328;
+  --muted:#59636e;
+  --faint:#666e78;
+  --line:#d0d7de;
+  --line-soft:#d8dee4;
+  --well:#f6f8fa;
+  --well-2:#eef1f4;
+  --blue:#0969da; --blue-hov:#0860c4;
+  --green:#1a7f37; --green-btn:#1f883d; --green-btn-hov:#1a7f37;
+  --green-soft:#dafbe1; --green-line:#aceebb;
+  --red:#cf222e; --red-soft:#ffebe9; --red-line:#ffcecb;
+  --amber:#9a6700; --amber-soft:#fff8c5; --amber-line:#d4a72c66;
+  --done-1:#aceebb; --done-2:#4ac26b; --done-3:#2da44e; --done-4:#116329;
+  --focus:rgba(9,105,218,.45);
+  --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{color-scheme:light}
+body{margin:0;background:var(--canvas);color:var(--ink);font:14px/1.5 var(--font-ui);-webkit-font-smoothing:antialiased}
+::selection{background:rgba(9,105,218,.18)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:-1px;border-radius:6px}
+.num,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---------- prototype chrome (not product UI) ---------- */
+.proto{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:18px;padding:7px 18px;background:#24292f;color:#8c959f;font:500 11.5px/1 var(--font-mono);border-bottom:2px solid var(--green-btn)}
+.proto b{color:#fff;font-weight:600}
+.proto .grow{flex:1}
+.proto-tabs{display:flex;gap:6px}
+.proto-tab{appearance:none;border:1px solid #444c56;background:transparent;color:#8c959f;font:500 11px/1 var(--font-mono);padding:6px 11px;border-radius:6px;cursor:pointer}
+.proto-tab:hover{border-color:#6e7681;color:#e6eaef}
+.proto-tab.on{background:#e6eaef;color:#1f2328;border-color:#e6eaef}
+.proto-note{color:#6e7681}
+.proto a.proto-link{color:#c9d1d9;border-bottom:1px dotted #6e7681}
+.proto a.proto-link:hover{color:#fff;text-decoration:none}
+
+/* ---------- app shell: Primer sidebar ---------- */
+.app{display:grid;grid-template-columns:236px 1fr;min-height:calc(100vh - 29px)}
+.side{background:var(--well);border-right:1px solid var(--line);padding:20px 12px 16px;display:flex;flex-direction:column;gap:20px;position:sticky;top:29px;height:calc(100vh - 29px)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px}
+.brand .mark{width:26px;height:26px;border-radius:99px;background:#24292f;color:#fff;display:grid;place-items:center;font:600 11px/1 var(--font-ui)}
+.brand .name{font:600 14px/1.2 var(--font-ui)}
+.brand .name small{display:block;font:400 11px/1.7 var(--font-ui);color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:1px}
+.nav-label{font:500 12px/1 var(--font-ui);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 8px;margin:4px 0 7px}
+.nav a{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:6px;text-decoration:none;font:400 14px/1.4 var(--font-ui);color:var(--ink)}
+.nav a svg{width:16px;height:16px;stroke:#59636e;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.nav a:hover{background:var(--well-2);text-decoration:none}
+.nav a.on{background:#e0e5ea;font-weight:600}
+.nav .count{margin-left:auto;font:400 12px/1 var(--font-ui);color:#59636e;border:1px solid var(--line);border-radius:99px;padding:0 7px;min-width:20px;text-align:center}
+.side-foot{margin-top:auto;border-top:1px solid var(--line);padding:14px 8px 0;font:400 12px/1.6 var(--font-ui);color:var(--muted)}
+.side-foot .dot{display:inline-block;width:7px;height:7px;border-radius:99px;background:var(--green-btn);margin-right:6px}
+
+.main{min-width:0}
+.screen{display:none;padding:28px 32px 64px;max-width:1080px}
+.screen.on{display:block}
+
+/* ---------- shared furniture ---------- */
+.crumbs{font:400 14px/1 var(--font-ui);color:var(--muted);margin:0 0 14px}
+h1{font:600 20px/1.25 var(--font-ui);letter-spacing:-.01em;margin:0}
+.sub{font:400 14px/1.5 var(--font-ui);color:var(--muted);margin:4px 0 0}
+.page-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.head-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* Primer buttons */
+.btn{appearance:none;display:inline-flex;align-items:center;gap:7px;font:500 14px/1 var(--font-ui);padding:5px 16px;border-radius:6px;border:1px solid rgba(31,35,40,.15);background:var(--well);color:var(--ink);cursor:pointer;text-decoration:none;white-space:nowrap;box-shadow:0 1px 0 rgba(31,35,40,.04)}
+.btn:hover{background:var(--well-2);text-decoration:none}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.btn.primary{background:var(--green-btn);color:#fff;border-color:rgba(31,35,40,.15)}
+.btn.primary:hover{background:var(--green-btn-hov)}
+.btn.small{padding:3px 12px;font-size:12px}
+
+/* GitHub box */
+.box{background:var(--canvas);border:1px solid var(--line);border-radius:6px}
+.box-head{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--well);border-bottom:1px solid var(--line);border-radius:6px 6px 0 0}
+.box-head h2{font:600 14px/1.3 var(--font-ui);margin:0}
+.box-head .counter{font:400 12px/1 var(--font-ui);color:#59636e;border:1px solid var(--line);border-radius:99px;padding:2px 8px;background:var(--canvas)}
+.box-head .act{margin-left:auto;font:400 13px/1 var(--font-ui)}
+.box-body{padding:16px}
+.box-body.tight{padding:4px 16px}
+
+.label{display:inline-flex;align-items:center;gap:5px;font:500 12px/1.2 var(--font-ui);padding:2px 8px;border-radius:99px;border:1px solid}
+.label.good{color:var(--green);border-color:var(--green-line);background:var(--green-soft)}
+.label.warn{color:var(--amber);border-color:#d4a72c66;background:var(--amber-soft)}
+.label.neutral{color:var(--muted);border-color:var(--line);background:var(--well)}
+
+/* tables: bordered rows */
+.sheet{width:100%;border-collapse:collapse;font-size:14px}
+.sheet th{font:600 12px/1.2 var(--font-ui);color:var(--muted);text-align:left;padding:8px 10px;border-bottom:2px solid var(--line-soft);white-space:nowrap}
+.sheet td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.sheet tr:last-child td{border-bottom:none}
+.sheet tbody tr:hover td{background:var(--well)}
+.sheet .r{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px}
+.sheet a.rowlink{color:var(--ink);font-weight:600}
+.subtle{color:var(--muted);font-size:12px}
+.delta{font:500 12px/1 var(--font-mono)}
+.delta.up{color:var(--green)} .delta.down{color:var(--red)}
+
+/* set chips: code-span styling */
+.sets{display:flex;flex-wrap:wrap;gap:4px}
+.setchip{display:inline-flex;align-items:baseline;gap:4px;font:500 12px/1 var(--font-mono);padding:2px 7px;border-radius:6px;background:rgba(175,184,193,.2);color:var(--ink);white-space:nowrap}
+.setchip .rpe{font-size:10.5px}
+.setchip .rest{color:var(--faint);font-size:10.5px}
+.setchip.warm{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+.setchip .rpe.e1{color:var(--green)} .setchip .rpe.e2{color:var(--amber)} .setchip .rpe.e3{color:var(--red)}
+
+/* ================= SCREEN 1 · OVERVIEW ================= */
+.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start}
+.signals{display:flex;flex-direction:column}
+.signal{display:flex;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line-soft);align-items:flex-start}
+.signal:last-child{border-bottom:none}
+.signal .lamp{width:8px;height:8px;border-radius:99px;margin-top:6px;flex:none}
+.lamp.green{background:var(--green-btn)} .lamp.amber{background:#bf8700} .lamp.gray{background:#818b98}
+.signal .body{flex:1;min-width:0}
+.signal .body strong{font-weight:600;font-size:14px}
+.signal .evi{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.5}
+.signal .act{flex:none;margin-top:2px}
+/* training week as a contributions-style grid */
+.week-grid{display:grid;grid-template-columns:104px repeat(7,minmax(52px,1fr))}
+.wk-h{font:500 12px/1.4 var(--font-ui);color:var(--muted);padding:8px 4px;text-align:center}
+.wk-h .d{display:block;font:400 11px/1.6 var(--font-ui);color:var(--faint)}
+.wk-h.corner{text-align:left;padding-left:12px}
+.wk-row{display:contents}
+.wk-client{padding:8px 4px 8px 12px;display:flex;flex-direction:column;gap:1px}
+.wk-client a{color:var(--ink);font-weight:600}
+.wk-client .meta{font:400 11px/1.4 var(--font-ui);color:var(--faint)}
+.wk-cell{padding:5px 4px;display:flex;justify-content:center}
+.cell{width:100%;max-width:70px;min-height:34px;border-radius:4px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:2px}
+.cell .tag{font:500 10px/1.2 var(--font-mono);letter-spacing:.02em;text-transform:uppercase;text-align:center}
+.cell.done{background:var(--done-2);border-color:var(--done-2)}
+.cell.done .tag{color:#fff}
+.cell.today{border-color:var(--blue);border-width:2px;background:#ddf4ff}
+.cell.today .tag{color:var(--blue)}
+.cell.next{background:var(--well)}
+.cell.next .tag{color:var(--muted)}
+.offday{align-self:center;color:#c1c8d0;font-size:11px}
+
+/* ================= SCREEN 2 · CLIENT ================= */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:16px 0 18px;flex-wrap:wrap}
+.tabs a{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;font:400 14px/1.3 var(--font-ui);color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a:hover{color:var(--ink);text-decoration:none;border-bottom-color:var(--line)}
+.tabs a .counter{font:400 12px/1 var(--font-ui);color:#59636e;border:1px solid var(--line);border-radius:99px;padding:1px 7px}
+.tabs a.on{color:var(--ink);font-weight:600;border-bottom-color:#fd8c73}
+.client-top{display:flex;gap:14px;align-items:center}
+.avatar{width:44px;height:44px;border-radius:99px;background:#dde4ea;color:var(--ink);display:grid;place-items:center;font:600 15px/1 var(--font-ui);flex:none}
+.two-col{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.session-head{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line-soft)}
+.session-head h3{font:600 13px/1.3 var(--font-ui);margin:0}
+.session-head .when{font:400 12px/1 var(--font-ui);color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 9px;background:var(--well)}
+.session-head .cond{margin-left:auto;font:500 12px/1 var(--font-ui);color:var(--green)}
+.session-body{padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.session+.session{border-top:1px solid var(--line)}
+.exrow{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.exrow .ex{font-weight:500;font-size:14px}
+.exrow .ex small{display:block;font:400 12px/1.4 var(--font-ui);color:var(--muted)}
+.side-stack{display:flex;flex-direction:column;gap:16px}
+.side-h{font:600 12px/1 var(--font-ui);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+.prog-row{display:flex;align-items:baseline;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px}
+.prog-row:last-child{border-bottom:none}
+.prog-row .lift{font-weight:500}
+.prog-row .num{font-size:11.5px;color:var(--muted);font-family:var(--font-mono)}
+.limit-panel{background:var(--amber-soft);border:1px solid #d4a72c66;border-radius:6px;padding:13px 15px}
+.limit-panel .side-h{color:var(--amber)}
+.limit-panel p{margin:0;font-size:13px;line-height:1.5;color:#4d3800}
+.dir{font:500 12px/1 var(--font-ui);padding:2px 8px;border-radius:99px;border:1px solid var(--line);background:var(--well);color:var(--muted)}
+.dir.vol{color:var(--green)} .dir.int{color:var(--amber)} .dir.tr{color:var(--blue)} .dir.dl{color:var(--muted)} .dir.base{color:var(--muted)}
+.snooze{appearance:none;background:none;border:none;font:400 12px/1 var(--font-ui);color:var(--blue);cursor:pointer;padding:2px 0;text-decoration:underline}
+.snooze:hover{color:var(--blue-hov)}
+/* tonnage heat strip (contributions-style) */
+.heat{display:flex;align-items:center;gap:4px;margin-left:auto}
+.heat i{width:13px;height:13px;border-radius:2px;display:block;border:1px solid rgba(31,35,40,.06)}
+.heat .h1{background:var(--done-1)} .heat .h2{background:var(--done-2)} .heat .h3{background:var(--done-3)} .heat .h4{background:var(--done-4)}
+.heat .hp{background:transparent;border:1px dashed var(--line)}
+.heat-l{font:400 11px/1 var(--font-ui);color:var(--faint);margin-right:6px}
+
+/* ================= SCREEN 3 · AI REVIEW ================= */
+.gen-meta{display:flex;gap:14px;flex-wrap:wrap;font:400 13px/1 var(--font-ui);color:var(--muted);margin-top:8px}
+.gen-meta span{display:inline-flex;align-items:center;gap:6px}
+.gen-meta .dot{width:7px;height:7px;border-radius:99px;background:var(--green-btn)}
+.rationale{font-size:14px;line-height:1.6;color:var(--ink)}
+.rationale p{margin:0 0 10px}
+.rationale p:last-child{margin:0}
+.rationale .cite{font-family:var(--font-mono);font-size:12px;background:rgba(175,184,193,.2);border-radius:6px;padding:1px 6px;white-space:nowrap;color:var(--ink)}
+.clientreads{background:var(--well);border:1px solid var(--line);border-radius:6px;padding:13px 15px;font-size:14px;line-height:1.55;color:var(--ink)}
+.clientreads .edit-note{display:flex;justify-content:space-between;align-items:center;font:500 12px/1 var(--font-ui);color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em}
+.clientreads .edit-note a{font-weight:500}
+.diff{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.diff-cell{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--canvas)}
+.diff-cell .n{font:600 20px/1 var(--font-mono)}
+.diff-cell .l{font:400 12px/1.3 var(--font-ui);color:var(--muted);margin-top:5px}
+.chg{display:flex;align-items:baseline;gap:8px;padding:8px 2px;border-bottom:1px solid var(--line-soft);font-size:13.5px}
+.chg:last-child{border-bottom:none}
+.chg .pm{font:700 13px/1 var(--font-mono);width:14px;flex:none}
+.chg.add .pm{color:var(--green)} .chg.rm .pm{color:var(--red)} .chg.ch .pm{color:var(--blue)}
+.chg.add .nm{color:var(--green)} .chg.rm .nm{color:var(--red)}
+.chg .detail{color:var(--muted);font-size:12px;margin-left:auto;font-family:var(--font-mono);white-space:nowrap}
+.approve-note{display:flex;gap:11px;align-items:flex-start;margin-top:18px;padding:13px 15px;border:1px solid var(--line);border-left:6px solid var(--green-btn);border-radius:6px;background:var(--well);color:var(--muted);font-size:13px;line-height:1.55}
+.approve-note svg{width:15px;height:15px;stroke:var(--muted);fill:none;stroke-width:1.6;flex:none;margin-top:1px;stroke-linecap:round;stroke-linejoin:round}
+
+@media (max-width:1060px){
+  .screen{padding:24px 20px 56px}
+  .grid-2,.two-col{grid-template-columns:1fr}
+  .week-grid{grid-template-columns:100px repeat(7,minmax(48px,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="proto">
+  <span>PROTOTYPE <b>G · PRIMER</b></span>
+  <nav class="proto-tabs">
+    <button class="proto-tab" data-s="s-overview">1 · Overview</button>
+    <button class="proto-tab" data-s="s-client">2 · Client — Maya Chen</button>
+    <button class="proto-tab" data-s="s-review">3 · AI draft review</button>
+  </nav>
+  <span class="proto-note">static · sample data</span>
+  <span class="grow"></span>
+  <a class="proto-link" href="index.html">← all directions</a>
+</div>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="mark">PT</div>
+      <div class="name">Program Tracker<small>Trainer · live data</small></div>
+    </div>
+    <nav class="nav">
+      <div class="nav-label">Workspace</div>
+      <a href="#" class="on"><svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>Overview</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients<span class="count">3</span></a>
+      <div class="nav-label" style="margin-top:12px">Library</div>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Exercises</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3 3 7l9 4 9-4zM3 12l9 4 9-4M3 17l9 4 9-4"/></svg>Templates</a>
+    </nav>
+    <div class="side-foot"><span class="dot"></span>Trainer</div>
+  </aside>
+
+  <main class="main">
+
+  <!-- ============================ OVERVIEW ============================ -->
+  <section class="screen" id="s-overview">
+    <div class="page-head">
+      <div>
+        <h1>This week</h1>
+        <p class="sub">Week of Mon 28 Sep – Sun 4 Oct · 2 clients training · 2 sessions logged, 1 due today</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add client</button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+        <div class="box">
+          <div class="box-head"><h2>Needs review</h2><span class="counter">3 signals</span></div>
+          <div class="signals">
+            <div class="signal">
+              <span class="lamp green"></span>
+              <div class="body">
+                <strong>Block ending — Maya Chen</strong>
+                <div class="evi">Strength Base A closes after week 6 of 6. Squat e1RM 77 → 84&nbsp;kg (+9%) at planned RPE — transition criteria met.</div>
+              </div>
+              <a class="btn primary small act" href="#"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z"/></svg>Draft next block</a>
+            </div>
+            <div class="signal">
+              <span class="lamp amber"></span>
+              <div class="body">
+                <strong>RPE creep — Jonas Weber</strong>
+                <div class="evi">Avg RPE 8.4 vs 7.9 planned over the last 2 weeks while tonnage rose +21%. Hold loads or pull volume.</div>
+              </div>
+              <a class="btn small act" href="#">Review load</a>
+            </div>
+            <div class="signal">
+              <span class="lamp gray"></span>
+              <div class="body">
+                <strong>Client paused — Priya Nair</strong>
+                <div class="evi">Paused 2 weeks ago; Rebuild Block 1 auto-archived. Resume training or archive the client.</div>
+              </div>
+              <a class="btn small act" href="#">Decide</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="box-head"><h2>Training week</h2><span class="counter">3 of 11 sessions logged</span><a class="act" href="#">Log a session</a></div>
+          <div class="box-body" style="padding:12px 16px">
+            <div class="week-grid">
+              <div class="wk-h corner">Client</div>
+              <div class="wk-h">Mon<span class="d">28</span></div>
+              <div class="wk-h">Tue<span class="d">29</span></div>
+              <div class="wk-h">Wed<span class="d">30</span></div>
+              <div class="wk-h">Thu<span class="d">1</span></div>
+              <div class="wk-h">Fri<span class="d">2</span></div>
+              <div class="wk-h">Sat<span class="d">3</span></div>
+              <div class="wk-h">Sun<span class="d">4</span></div>
+
+              <div class="wk-row">
+                <div class="wk-client"><a href="#">Maya Chen</a><span class="meta">4 d/wk · week 6 of 6</span></div>
+                <div class="wk-cell"><div class="cell done"><span class="tag">Day A ✓</span></div></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+                <div class="wk-cell"><div class="cell today"><span class="tag">Day B · due</span></div></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+                <div class="wk-cell"><div class="cell next"><span class="tag">Day C</span></div></div>
+                <div class="wk-cell"><div class="cell next"><span class="tag">Day D</span></div></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+              </div>
+              <div class="wk-row">
+                <div class="wk-client"><a href="#">Jonas Weber</a><span class="meta">3 d/wk · week 3 of 5</span></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+                <div class="wk-cell"><div class="cell done"><span class="tag">Day A ✓</span></div></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+                <div class="wk-cell"><div class="cell next"><span class="tag">Day B</span></div></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+                <div class="wk-cell"><div class="cell next"><span class="tag">Day C</span></div></div>
+                <div class="wk-cell"><span class="offday">—</span></div>
+              </div>
+              <div class="wk-row">
+                <div class="wk-client"><a href="#">Priya Nair</a><span class="meta">paused · 14 d</span></div>
+                <div class="wk-cell" style="grid-column:2 / -1;justify-content:flex-start"><span class="label neutral">paused</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="box-head"><h2>Clients</h2><span class="counter">3</span></div>
+        <div class="box-body tight">
+          <table class="sheet">
+            <thead><tr><th>Client</th><th>Status</th><th class="r">Days</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><a class="rowlink" href="#">Maya Chen</a><div class="subtle">Strength Base A · wk 6/6</div></td>
+                <td><span class="label good">active</span></td>
+                <td class="r">4 / wk</td>
+              </tr>
+              <tr>
+                <td><a class="rowlink" href="#">Jonas Weber</a><div class="subtle">Hypertrophy Block 2 · wk 3/5</div></td>
+                <td><span class="label good">active</span></td>
+                <td class="r">3 / wk</td>
+              </tr>
+              <tr>
+                <td><a class="rowlink" href="#">Priya Nair</a><div class="subtle">— archived Aug 16</div></td>
+                <td><span class="label warn">paused</span></td>
+                <td class="r">3 / wk</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ CLIENT ============================ -->
+  <section class="screen" id="s-client">
+    <div class="crumbs"><a href="#">Clients</a> / <b style="color:var(--ink)">Maya Chen</b></div>
+    <div class="client-top">
+      <div class="avatar">MC</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h1>Maya Chen</h1>
+          <span class="label good">active</span>
+        </div>
+        <p class="sub">4 days / week · Mon Wed Fri Sat · client since Feb 2026 · “First unassisted pull-up and a 60&nbsp;kg back squat by December.”</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn">Log session</button>
+        <button class="btn">Write program</button>
+        <a class="btn primary" href="#"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z"/></svg>Generate next block</a>
+      </div>
+    </div>
+
+    <nav class="tabs" aria-label="Client sections">
+      <a href="#" class="on">Program <span class="counter">4 days</span></a>
+      <a href="#">Pulse <span class="counter">6 wks</span></a>
+      <a href="#">History <span class="counter">8 wks</span></a>
+      <a href="#">Settings</a>
+    </nav>
+
+    <div class="two-col">
+      <div>
+        <div class="box" style="margin-bottom:16px"><div class="box-body" style="display:flex;gap:12px;align-items:center;padding:12px 16px">
+          <span class="lamp green" style="width:8px;height:8px;border-radius:99px;display:inline-block;flex:none"></span>
+          <div style="flex:1;font-size:14px"><strong>Transition due</strong> — Strength Base A closes after this week. Squat e1RM <span class="mono">77 → 84&nbsp;kg</span> at planned RPE.</div>
+          <button class="snooze">Snooze 1 wk</button>
+          <a class="btn primary small" href="#">Draft next block</a>
+        </div></div>
+
+        <div class="box" style="margin-bottom:16px">
+          <div class="box-head">
+            <h2>Block pulse</h2>
+            <div class="heat" aria-label="Weekly tonnage 1.8 to 2.3 tonnes, week 6 planned 1.4">
+              <span class="heat-l">tonnage</span>
+              <i class="h1"></i><i class="h2"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><i class="hp"></i>
+            </div>
+          </div>
+          <div class="box-body tight" style="padding-bottom:8px">
+            <table class="sheet">
+              <thead><tr><th class="r">Wk</th><th>Directive</th><th class="r">Tonnage</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best squat e1RM</th></tr></thead>
+              <tbody>
+                <tr><td class="r">1</td><td><span class="dir base">base</span></td><td class="r">1.8 t</td><td class="r">96</td><td class="r">7.6</td><td class="r">77 kg</td></tr>
+                <tr><td class="r">2</td><td><span class="dir vol">+volume</span></td><td class="r">2.0 t</td><td class="r">104</td><td class="r">7.8</td><td class="r">78 kg</td></tr>
+                <tr><td class="r">3</td><td><span class="dir vol">+volume</span></td><td class="r">2.1 t</td><td class="r">108</td><td class="r">7.9</td><td class="r">80 kg</td></tr>
+                <tr><td class="r">4</td><td><span class="dir int">+intensity</span></td><td class="r">2.2 t</td><td class="r">98</td><td class="r">8.0</td><td class="r">82 kg</td></tr>
+                <tr><td class="r">5</td><td><span class="dir int">+intensity</span></td><td class="r">2.3 t</td><td class="r">94</td><td class="r">8.2</td><td class="r">84 kg</td></tr>
+                <tr><td class="r">6</td><td><span class="dir dl">deload</span></td><td class="r subtle">1.4 t plan</td><td class="r subtle">62</td><td class="r subtle">—</td><td class="r subtle">—</td></tr>
+              </tbody>
+            </table>
+            <p style="font:400 13px/1.5 var(--font-ui);color:var(--muted);margin:8px 0 8px">weekly tonnage 1.8&nbsp;t → 2.3&nbsp;t (+28%) · best e1RM 77 → 84 (+9%) · week 5 RPE 8.2 vs 8.0 planned</p>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="box-head"><h2>Current program</h2><span class="counter">Strength Base A · v3 · AI-assisted</span><a class="act" href="#">Open builder</a></div>
+          <div class="session-head" style="margin-top:6px"><h3>Day A — Lower</h3><span class="when">Mon</span></div>
+          <div class="session-body">
+            <div class="exrow"><div class="ex">Back Squat<small>3 working sets</small></div><div class="sets"><span class="setchip warm">5<span class="rest">@5m</span></span><span class="setchip">6 @8 · <span class="rpe e2">RPE 8</span><span class="rest">2.5m</span></span><span class="setchip">6 @8<span class="rest">2.5m</span></span><span class="setchip">6 @8<span class="rest">2.5m</span></span></div></div>
+            <div class="exrow"><div class="ex">Romanian Deadlift</div><div class="sets"><span class="setchip">8 @7<span class="rest">2m</span></span><span class="setchip">8 @7<span class="rest">2m</span></span><span class="setchip">8 @7<span class="rest">2m</span></span></div></div>
+            <div class="exrow"><div class="ex">Bulgarian Split Squat</div><div class="sets"><span class="setchip">10 @7<span class="rest">1.5m</span></span><span class="setchip">10 @7<span class="rest">1.5m</span></span></div></div>
+            <div class="exrow"><div class="ex">Hanging Leg Raise</div><div class="sets"><span class="setchip">10<span class="rest">1m</span></span><span class="setchip">10<span class="rest">1m</span></span><span class="setchip">10<span class="rest">1m</span></span></div></div>
+          </div>
+          <div class="session-head" style="border-top:1px solid var(--line-soft);border-bottom:none;padding-bottom:13px"><span class="cond">▲ Zone 2 — 25 min</span></div>
+
+          <div class="session-head" style="border-top:1px solid var(--line-soft)"><h3>Day B — Upper</h3><span class="when">Wed · due today</span></div>
+          <div class="session-body">
+            <div class="exrow"><div class="ex">Neutral-Grip DB Press<small>shoulder-safe per limitations</small></div><div class="sets"><span class="setchip">8 @8<span class="rest">2m</span></span><span class="setchip">8 @8<span class="rest">2m</span></span><span class="setchip">8 @8<span class="rest">2m</span></span><span class="setchip">8 @8<span class="rest">2m</span></span></div></div>
+            <div class="exrow"><div class="ex">Chest-Supported Row</div><div class="sets"><span class="setchip">10 @7<span class="rest">1.5m</span></span><span class="setchip">10 @7<span class="rest">1.5m</span></span><span class="setchip">10 @7<span class="rest">1.5m</span></span></div></div>
+            <div class="exrow"><div class="ex">Half-Kneeling DB Press</div><div class="sets"><span class="setchip">10 @7<span class="rest">1.5m</span></span><span class="setchip">10 @7<span class="rest">1.5m</span></span><span class="setchip">10 @7<span class="rest">1.5m</span></span></div></div>
+            <div class="exrow"><div class="ex">Face Pull</div><div class="sets"><span class="setchip">15<span class="rest">45s</span></span><span class="setchip">15<span class="rest">45s</span></span><span class="setchip">15<span class="rest">45s</span></span></div></div>
+          </div>
+
+          <div class="session-head" style="border-top:1px solid var(--line-soft)"><h3>Day C — Lower</h3><span class="when">Fri</span></div>
+          <div class="session-body">
+            <div class="exrow"><div class="ex">Front Squat</div><div class="sets"><span class="setchip warm">3<span class="rest">@4m</span></span><span class="setchip">5 @8<span class="rest">3m</span></span><span class="setchip">5 @8<span class="rest">3m</span></span><span class="setchip">5 @8<span class="rest">3m</span></span></div></div>
+            <div class="exrow"><div class="ex">Deadlift</div><div class="sets"><span class="setchip">5 @8 · <span class="rpe e2">RPE 8</span><span class="rest">3m</span></span><span class="setchip">5 @8<span class="rest">3m</span></span><span class="setchip">5 @8<span class="rest">3m</span></span></div></div>
+            <div class="exrow"><div class="ex">Hip Thrust</div><div class="sets"><span class="setchip">8 @7<span class="rest">2m</span></span><span class="setchip">8 @7<span class="rest">2m</span></span><span class="setchip">8 @7<span class="rest">2m</span></span></div></div>
+          </div>
+          <div class="session-head" style="border-top:1px solid var(--line-soft);border-bottom:none;padding-bottom:13px"><span class="cond">▲ Zone 2 — 25 min</span></div>
+        </div>
+
+        <div class="box" style="margin-top:16px">
+          <div class="box-head"><h2>Progress · 8 weeks</h2><span class="counter">est. 1RM · Epley</span></div>
+          <div class="box-body tight" style="padding-bottom:8px">
+            <table class="sheet">
+              <thead><tr><th>Lift</th><th class="r">8 wks ago</th><th class="r">Now</th><th class="r">Δ</th></tr></thead>
+              <tbody>
+                <tr><td>Back Squat</td><td class="r">77 kg</td><td class="r">84 kg</td><td class="r"><span class="delta up">+9.1%</span></td></tr>
+                <tr><td>Deadlift</td><td class="r">105 kg</td><td class="r">114 kg</td><td class="r"><span class="delta up">+8.6%</span></td></tr>
+                <tr><td>Front Squat</td><td class="r">68 kg</td><td class="r">73 kg</td><td class="r"><span class="delta up">+7.4%</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-stack">
+        <div>
+          <h3 class="side-h">Programs</h3>
+          <div class="box"><div class="box-body" style="padding:4px 14px">
+            <div class="prog-row"><span class="lift">Strength Base A</span><span class="num">v3 · active</span></div>
+            <div class="prog-row"><span class="lift" style="color:var(--muted)">Strength Base A</span><span class="num">v2 · Jun–Aug</span></div>
+            <div class="prog-row"><span class="lift" style="color:var(--muted)">Intro Full-Body</span><span class="num">v1 · Feb–Jun</span></div>
+          </div></div>
+        </div>
+        <div class="limit-panel">
+          <h3 class="side-h">Limitations</h3>
+          <p>Right shoulder impingement — no overhead barbell work; neutral-grip pressing only. Carried into every AI draft.</p>
+        </div>
+        <div>
+          <h3 class="side-h">Goals</h3>
+          <p style="margin:0;font-size:13.5px;line-height:1.5;color:var(--ink)">“First unassisted pull-up and a 60&nbsp;kg back squat by December.”</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ AI REVIEW ============================ -->
+  <section class="screen" id="s-review">
+    <div class="crumbs"><a href="#">Clients</a> / <a href="#">Maya Chen</a> / <b style="color:var(--ink)">AI draft</b></div>
+    <div class="page-head">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <h1>Draft — next block</h1>
+          <span class="label good">validated</span>
+        </div>
+        <div class="gen-meta">
+          <span><span class="dot"></span>generated just now</span>
+          <span>run 3&nbsp;m&nbsp;12&nbsp;s</span>
+          <span>glm-5.3</span>
+          <span>from Strength Base A · 8-wk history</span>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="btn">Reject</button>
+        <a class="btn primary" href="#"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Approve as draft program</a>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-top:4px">
+      <div>
+        <div class="box">
+          <div class="box-head"><h2>Why this block</h2><span class="counter">trainer-facing rationale</span></div>
+          <div class="box-body rationale">
+            <p>Squat strength rose <span class="cite">77 → 84&nbsp;kg e1RM</span> across the block while week-5 RPE sat at <span class="cite">8.2 vs 8.0 planned</span> — the top of the window. I held squat load progression to <span class="cite">+2.5% / week</span> rather than jumping, and moved rep targets down to absorb it.</p>
+            <p>This is a transition block: volume comes down <span class="cite">96 → 82 working sets</span>, intensity rises, and the wave peaks in week 5 with a deload in week 6. Deadlift stays at 3×5 — it is progressing without drama (<span class="cite">105 → 114&nbsp;kg</span>).</p>
+            <p>For the December pull-up goal I added a second weekly pull day: band-assisted reps at <span class="cite">RPE 8</span> plus scapular work. Shoulder constraints are carried over unchanged — neutral-grip pressing only, no overhead barbell.</p>
+          </div>
+        </div>
+
+        <div style="height:16px"></div>
+        <div class="clientreads">
+          <div class="edit-note"><span>editable — what Maya reads</span><a href="#">Edit</a></div>
+          New block: heavier squats, fewer reps — six weeks, then an easy week to soak it in. You'll also see pull-up practice twice a week; that first unassisted rep in December is the target.
+        </div>
+
+        <div class="box" style="margin-top:16px">
+          <div class="box-head"><h2>Phasing</h2><span class="counter">proposed 6-week wave</span></div>
+          <div class="box-body tight" style="padding-bottom:8px">
+            <table class="sheet">
+              <thead><tr><th class="r">Wk</th><th>Directive</th><th>Focus</th></tr></thead>
+              <tbody>
+                <tr><td class="r">1</td><td><span class="dir base">base</span></td><td class="subtle">re-groove at 80% of prior loads</td></tr>
+                <tr><td class="r">2–3</td><td><span class="dir vol">+volume</span></td><td class="subtle">pull-up volume doubles</td></tr>
+                <tr><td class="r">4–5</td><td><span class="dir int">+intensity</span></td><td class="subtle">squats 4×4, DL 4×4</td></tr>
+                <tr><td class="r">6</td><td><span class="dir dl">deload</span></td><td class="subtle">test unassisted pull-up</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="box">
+          <div class="box-head"><h2>Changes vs current</h2><span class="counter">20 exercises reviewed</span></div>
+          <div class="box-body">
+            <div class="diff">
+              <div class="diff-cell"><div class="n" style="color:var(--muted)">11</div><div class="l">kept</div></div>
+              <div class="diff-cell"><div class="n" style="color:var(--green)">3</div><div class="l">added</div></div>
+              <div class="diff-cell"><div class="n" style="color:var(--red)">2</div><div class="l">removed</div></div>
+              <div class="diff-cell"><div class="n" style="color:var(--blue)">4</div><div class="l">changed</div></div>
+            </div>
+            <div class="chg add"><span class="pm">+</span><span class="nm">Band-Assisted Pull-Up</span><span class="detail">2 × / wk</span></div>
+            <div class="chg add"><span class="pm">+</span><span class="nm">Pause Squat</span><span class="detail">2×3 @7</span></div>
+            <div class="chg add"><span class="pm">+</span><span class="nm">Band Pull-Apart</span><span class="detail">warm-up</span></div>
+            <div class="chg rm"><span class="pm">−</span><span class="nm">Hanging Leg Raise</span><span class="detail">redundant</span></div>
+            <div class="chg rm"><span class="pm">−</span><span class="nm">Hip Thrust</span><span class="detail">squat covg.</span></div>
+            <div class="chg ch"><span class="pm">~</span><span class="nm">Back Squat</span><span class="detail">3×6 → 4×4 @8.5</span></div>
+            <div class="chg ch"><span class="pm">~</span><span class="nm">Deadlift</span><span class="detail">3×5 → 4×4 @8</span></div>
+            <div class="chg ch"><span class="pm">~</span><span class="nm">Neutral-Grip DB Press</span><span class="detail">4×8 → 4×6</span></div>
+            <div class="chg ch"><span class="pm">~</span><span class="nm">Front Squat</span><span class="detail">3×5 → 3×3 @8.5</span></div>
+          </div>
+        </div>
+
+        <div class="box" style="margin-top:16px">
+          <div class="box-head"><h2>Draft sessions</h2><span class="counter">4 days · 1 of 4 shown</span><a class="act" href="#">Next day</a></div>
+          <div class="session-head" style="margin-top:6px"><h3>Day A — Lower</h3><span class="when">Mon</span></div>
+          <div class="session-body">
+            <div class="exrow"><div class="ex">Back Squat<small>4 working sets</small></div><div class="sets"><span class="setchip warm">5<span class="rest">@5m</span></span><span class="setchip">4 @8.5 · <span class="rpe e3">RPE 8.5</span><span class="rest">3m</span></span><span class="setchip">4 @8.5<span class="rest">3m</span></span><span class="setchip">4 @8.5<span class="rest">3m</span></span><span class="setchip">4 @8.5<span class="rest">3m</span></span></div></div>
+            <div class="exrow"><div class="ex">Pause Squat</div><div class="sets"><span class="setchip">3 @7<span class="rest">2m</span></span><span class="setchip">3 @7<span class="rest">2m</span></span></div></div>
+            <div class="exrow"><div class="ex">Romanian Deadlift</div><div class="sets"><span class="setchip">6 @7<span class="rest">2m</span></span><span class="setchip">6 @7<span class="rest">2m</span></span><span class="setchip">6 @7<span class="rest">2m</span></span></div></div>
+            <div class="exrow"><div class="ex">Back Extension</div><div class="sets"><span class="setchip">10<span class="rest">1m</span></span><span class="setchip">10<span class="rest">1m</span></span><span class="setchip">10<span class="rest">1m</span></span></div></div>
+          </div>
+          <div class="session-head" style="border-top:1px solid var(--line-soft);border-bottom:none;padding-bottom:13px"><span class="cond">▲ Zone 2 — 20 min</span></div>
+
+          <div class="session-head" style="border-top:1px solid var(--line-soft)"><h3>Day B — Upper</h3><span class="when">Wed</span></div>
+          <div class="session-body">
+            <div class="exrow"><div class="ex">Band-Assisted Pull-Up<small>new — December goal</small></div><div class="sets"><span class="setchip">5 @8 · <span class="rpe e2">RPE 8</span><span class="rest">2.5m</span></span><span class="setchip">5 @8<span class="rest">2.5m</span></span><span class="setchip">5 @8<span class="rest">2.5m</span></span></div></div>
+            <div class="exrow"><div class="ex">Neutral-Grip DB Press</div><div class="sets"><span class="setchip">6 @8<span class="rest">2m</span></span><span class="setchip">6 @8<span class="rest">2m</span></span><span class="setchip">6 @8<span class="rest">2m</span></span><span class="setchip">6 @8<span class="rest">2m</span></span></div></div>
+            <div class="exrow"><div class="ex">Chest-Supported Row</div><div class="sets"><span class="setchip">8 @7<span class="rest">1.5m</span></span><span class="setchip">8 @7<span class="rest">1.5m</span></span><span class="setchip">8 @7<span class="rest">1.5m</span></span></div></div>
+            <div class="exrow"><div class="ex">Face Pull</div><div class="sets"><span class="setchip">15<span class="rest">45s</span></span><span class="setchip">15<span class="rest">45s</span></span><span class="setchip">15<span class="rest">45s</span></span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="approve-note">
+      <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span>Approving creates a <strong>draft</strong> — nothing reaches Maya until you edit and activate it. The AI never touches anything the client sees.</span>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+const tabs=document.querySelectorAll('.proto-tab'),screens=document.querySelectorAll('.screen');
+function show(id){const t=id&&document.getElementById(id)?id:'s-overview';
+  screens.forEach(s=>s.classList.toggle('on',s.id===t));
+  tabs.forEach(b=>b.classList.toggle('on',b.dataset.s===t));
+  history.replaceState(null,'','#'+t);window.scrollTo(0,0)}
+tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.s)));
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+show(location.hash.slice(1));
+</script>
+</body>
+</html>
