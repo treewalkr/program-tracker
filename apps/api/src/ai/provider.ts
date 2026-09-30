@@ -20,6 +20,8 @@ export interface ProviderRuntime {
   model: string;
   apiKey: string;
   maxOutputTokens: number;
+  /** Z.ai GLM 4.x: skip reasoning so JSON output fits the token budget. */
+  disableThinking?: boolean;
 }
 
 export interface ChatMessage {
@@ -46,6 +48,7 @@ export async function chatJson(
         response_format: { type: "json_object" },
         temperature: opts.temperature ?? 0.7,
         max_tokens: rt.maxOutputTokens,
+        ...(rt.disableThinking ? { thinking: { type: "disabled" } } : {}),
       }),
     });
   } catch (err) {

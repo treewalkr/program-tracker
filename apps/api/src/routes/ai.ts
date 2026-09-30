@@ -123,6 +123,7 @@ function providerRuntime(providerId: string) {
     model: process.env[`${id.toUpperCase()}_MODEL`] ?? known?.model ?? "",
     apiKey,
     maxOutputTokens: known?.maxOutputTokens ?? 8192,
+    disableThinking: known?.disableThinking,
   };
 }
 

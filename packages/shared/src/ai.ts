@@ -20,6 +20,11 @@ export const AiProviderConfig = z.object({
   apiKeyEnvVar: z.string().min(1),
   /** Max output tokens for program generation. */
   maxOutputTokens: z.number().int().min(256).max(32768).default(8192),
+  /**
+   * Z.ai GLM 4.x are thinking models: without this, reasoning eats the token
+   * budget and `content` comes back empty (or truncated) for structured JSON.
+   */
+  disableThinking: z.boolean().optional(),
 });
 export type AiProviderConfig = z.infer<typeof AiProviderConfig>;
 
@@ -31,6 +36,7 @@ export const KNOWN_PROVIDERS = {
     model: "glm-4.5-flash",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
+    disableThinking: true,
   },
   /** Canned draft, no network, no key. For tests and UI development. */
   mock: {
