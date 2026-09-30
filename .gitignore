@@ -26,3 +26,4 @@ playwright-report/
 .impeccable/
 docs/
 AGENTS.md
+.playwright-cli/
