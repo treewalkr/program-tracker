@@ -13,82 +13,119 @@
       approve/reject; provider registry (zai / openai / mock)
 - [x] Keyless e2e tests of the full loop via mock provider — 39 tests green
 
-## Phase 1 — Trainer UI: clients (next up)
+## Phases 1–4 — Trainer UI (✅ DONE as mocked demo, 2026-09-22)
 
-> **Status note 2026-09-22:** full trainer UI exists as a **mocked demo** (`PUBLIC_API_MODE=mock`,
-> default): all screens — overview, clients, client detail, log entry, AI generate/review/approve,
-> program editor, exercise library — run on in-memory fixtures, no backend needed. Built for
-> stakeholder alignment; phases 1–4 below now describe wiring these screens to `realApi`
-> `PUBLIC_API_MODE=live` flip needs these contract additions: prescribed sets gain optional `targetWeightKg` (load targets) + `repsMin` (rep ranges, e.g. 6–10) + `durationSeconds` (timed sets — stretches, planks, swings; amrap with reps 0 = failure), sessions gain `conditioning {label, detail}` (zone/interval cardio blocks), clients gain `trainingDays` (weekday ints, 1=Mon…7=Sun — powers the dashboard week strip and honest adherence), program editing needs exercise substitution (currently UI-only swap), and the zod program schema must accept `phasing` (incl. `weeks` directives — powers scheme signals + block pulse) + `activatedAt`, plus `periodization_schemes` table + `/v1/schemes` CRUD (scheme library).
+The full trainer UI exists and demos the entire loop end-to-end on in-memory fixtures
+(`PUBLIC_API_MODE=mock`, default — no backend, no keys, no Docker). Everything below is
+delivered and verified in the mock:
 
-Full real-system design: **docs/notifications.md**.
+- **Phase 1 — Clients:** list (search, status badges, training days, current program),
+  create/edit (goals, limitations as AI hard constraints, days/week, training days),
+  client detail (current program, per-exercise history, past programs, block pulse,
+  phase signals with snooze)
+- **Phase 2 — Programs:** scratch builder (sessions → exercises → per-set prescriptions
+  incl. rep ranges, timed sets, failure sets, load targets, conditioning; progression
+  scheme picker), editor (set editing, exercise swap, deload −10%, editable conditioning),
+  version bump on save, activate/archive lifecycle
+- **Phase 3 — Logging:** pick client + prescribed session → prefilled (prescription over
+  last-logged), fast per-set entry, one-click session logging, notes + energy, inline history
+- **Phase 4 — AI flow:** generate page (provider picker, instruction templates, one-off
+  note, auto-injected periodization context), draft review with diff vs current program,
+  approve → draft program, reject with audit trail preserved
+- **Extras shipped alongside:** dashboard needs-review signals + this-week strip,
+  instruction-template CRUD (`/templates`), progression-scheme library (seeded + custom
+  builder + save/delete), exercise library page
 
-### Periodization schemes & block pulse (mocked now)
+**What "mocked" means:** the web app talks to `mockApi` behind the `TrainerApi` interface
+(same DTOs as `realApi`). Signals/metrics/pulse are pure frontend modules. The backend's
+zod schema and endpoints do not yet know about these features — that is Phase L.
+
+## Delivered in mock — needs live wiring
+
+### Periodization schemes & block pulse
 
 Trainer's week-by-week guide (`base → +volume → +intensity → +volume → transition →
-transition`) is modeled as `phasing.weeks` directives. `lib/metrics.ts` computes weekly
-tonnage / sets / avg RPE / best e1RM from logged working sets (pure functions — move to
-`packages/shared` with the signals). Off-plan signals compare directive vs measured week.
-Later: **scheme library CRUD beyond the builder** (a dedicated `/schemes` manage page —
-create/save/delete already work inline in the program builder),
-volume/intensity charts, ACWR fatigue ratio, cardio volume, per-exercise pulse drills.
+transition`) is modeled as `phasing.weeks` directives, with a trainer-owned scheme
+library (`PeriodizationSchemeDto`). `apps/web/src/lib/metrics.ts` computes weekly
+tonnage / sets / avg RPE / best e1RM from logged working sets (pure functions). Off-plan
+signals compare directive vs measured week. Live wiring: L1 (schema) + L3 (move modules
+to shared). Later refinements: dedicated `/schemes` manage page, volume/intensity
+charts, ACWR fatigue ratio, cardio volume, per-exercise pulse drills.
 
-### Periodization signals (mocked now)
+### Periodization signals
 
 Phase-change nudges computed on read from (program.phasing, session logs): block-ending,
-deload-week, RPE-creep, stall, adherence. Rules live in `apps/web/src/lib/signals.ts` as
-pure functions — **move to `packages/shared`** so the API can run them identically in
-`GET /v1/notifications`. Snooze = localStorage in mock; real API: small `signal_snoozes`
-table. Programs gain optional `phasing` metadata (plannedWeeks, phase, nextPhase,
-deloadWeeks) — AI drafts should propose it too (prompt update when wiring live).
-Refinement candidates: per-exercise e1RM trend charts in the evidence, email/push
-delivery, client check-in messages for adherence.
+deload-week, transition-due, off-plan (volume/intensity/fatigue), RPE-creep, stall,
+adherence. Rules live in `apps/web/src/lib/signals.ts` as pure functions — L3 moves them
+to `packages/shared` so the API runs them identically in `GET /v1/notifications`.
+Snooze = localStorage in mock; real: `signal_snoozes` table. Full design:
+**docs/notifications.md**.
 
-### Instruction templates (mocked now)
+### Instruction templates
+
 Reusable standing rules for AI generations (RPE caps, block conventions, equipment
-constraints). Mock: in-memory CRUD. Real backend later: `prompt_templates` table
-(trainer_id, name, content, timestamps) + `GET/POST/DELETE /v1/ai/prompt-templates`;
-web `real.ts` already points there. Later refinements: per-client standing additions
-auto-prepended to every generation, and template usage recorded on each draft for
-auditing.
+constraints). Mock: in-memory CRUD at `/templates`. Real backend: `prompt_templates`
+table + `GET/POST/PUT/DELETE /v1/ai/prompt-templates`; web `real.ts` already points
+there. Later: per-client standing additions, template usage recorded per draft.
 
-- [ ] Clients list (status badges, days/week, current program name)
-- [ ] Create/edit client form — goals, limitations (marked as AI hard constraints),
-      days per week
-- [ ] Client detail: current program summary, per-exercise history (`GET /v1/logs/history`),
-      past programs with status
-- **Acceptance:** trainer can fully manage clients and see a client's history without
-  touching curl.
+## Phase L — go live (`PUBLIC_API_MODE=live`)
 
-## Phase 2 — Trainer UI: program builder
+Ordered workstreams; each is independently shippable. Contract details live in
+[api.md](api.md) + [domain-model.md](domain-model.md); design rationale in
+[notifications.md](notifications.md) / [ai-integration.md](ai-integration.md).
 
-- [ ] Program list per client (draft/active/archived, version, AI-assisted badge)
-- [ ] Builder: sessions → exercises (typeahead over catalog + customs, searchable
-      by muscle/equipment) → prescribed sets (reps, amrap, target RPE, rest, type)
-- [ ] Edit active program (version bump), activate/archive
-- [ ] Create custom exercises inline
-- **Acceptance:** trainer can build and activate a full program without curl; invalid
-  states can't be submitted (client-side mirrors of the zod rules).
+### L1 — Contract extensions (packages/shared + packages/db)
 
-## Phase 3 — Trainer UI: log entry
+- [ ] `packages/shared/src/domain.ts`: prescribed sets gain optional `targetWeightKg`
+      (load targets), `repsMin` (rep ranges, e.g. 6–10), `durationSeconds` (timed sets —
+      `amrap` with `reps: 0` = failure); sessions gain `conditioning {label, detail}`;
+      programs gain `phasing {plannedWeeks, phase, nextPhase, deloadWeeks, weeks?}` +
+      `activatedAt` (stamped on first activation); clients gain `trainingDays`
+      (weekday ints 1=Mon…7=Sun)
+- [ ] `packages/db`: drizzle migration for the new columns (`training_days`,
+      `activated_at`; phasing/set fields ride the jsonb documents)
+- [ ] Schema tests updated; `bun test` green
+- **Acceptance:** the exact DTOs `apps/web/src/lib/api/types.ts` describes all parse
+  through shared zod; old data still validates.
 
-- [ ] Pick client + prescribed session → form pre-filled with the prescribed sets
-- [ ] Fast tab-through entry: weight / reps / RPE per set; add ad-hoc sets
-- [ ] Session notes + perceived energy
-- [ ] Recent history shown inline while logging
-- **Acceptance:** logging a completed session takes <60 seconds for a typical workout.
+### L2 — New endpoints (apps/api)
 
-## Phase 4 — Trainer UI: AI generation flow (the headline)
+- [ ] `prompt_templates` table + `/v1/ai/prompt-templates` CRUD (real.ts contract)
+- [ ] `periodization_schemes` table + `/v1/schemes` CRUD
+- [ ] `GET /v1/notifications` (signals computed on read via L3 engine) + snooze
+      (`PUT /v1/notifications/:signalId/snooze` → `signal_snoozes` table)
+- [ ] Program POST/PUT persist `phasing`; activation stamps `activated_at`
+- [ ] Client PATCH accepts `trainingDays`; logs write hook runs signal rules post-commit
+- **Acceptance:** every path `real.ts` calls exists with matching shapes (parity table
+  in api.md); e2e tests per endpoint.
 
-- [ ] "Generate next block" on client detail: provider picker (only configured ones
-      enabled), optional free-text instructions, optional base program
-- [ ] Generation states: pending → validated / failed (error surfaced)
-- [ ] Draft review: rationale, client summary, sessions/set-by-set, **diff vs current
-      program** (added/removed exercises, set/rep changes)
-- [ ] Approve → opens the new draft program in the builder (Phase 2) for edits
-- [ ] Reject with the audit trail preserved
-- **Acceptance:** full loop — client → program → logs → AI draft → approve → activate —
-  works entirely in the UI, zero curl.
+### L3 — Rule engine to shared (packages/shared)
+
+- [ ] Move `apps/web/src/lib/signals.ts` + `lib/metrics.ts` → `packages/shared`
+      (same ids, same thresholds; only snooze source differs)
+- [ ] Web imports from shared; API uses them for `GET /v1/notifications`
+- **Acceptance:** mock-mode UI behavior unchanged; API returns the same signals the
+  mock dashboard showed for the same data.
+
+### L4 — Web live flip (apps/web)
+
+- [ ] `PUBLIC_API_MODE=live` smoke pass on every screen against real backend
+- [ ] Real-mode prompt: AI drafts should propose `phasing` (incl. weeks from the
+      client's scheme) and `targetWeightKg` progressing from last logged loads —
+      prompt update per ai-integration.md
+- [ ] Exercise substitution parity (editor swap needs API-side set rewrite — already
+      covered by PUT sessions; verify)
+- [ ] Demo data behind env flag for seed parity (`SEED_DEMO`, optional)
+- **Acceptance:** full loop — client → program (scheme) → log → pulse/signals →
+  AI draft with periodization context → approve → activate — in live mode, zero mock
+  imports.
+
+### L5 — Delivery & scheduling (optional, post-flip)
+
+- [ ] `@elysiajs/cron` daily 06:00 scan + boot catch-up; `signal_outbox` dedupe
+- [ ] Email dispatch (see notifications.md; Redis locks only if >1 replica)
+- **Acceptance:** snoozed-away signal produces no duplicate email; restart mid-scan
+  harmless.
 
 ## Phase 5 — Real-world hardening (post-MVP)
 
@@ -110,8 +147,8 @@ auditing.
 
 1. **Freestyle logging:** should trainers be able to log a session with *no* program
    (vacation workout, drop-in)? Schema supports it (`programId` is required today —
-   would need nullability). Decide when building Phase 3 UI.
+   would need nullability). Decide during L4 live-mode pass.
 2. **Auto-create custom exercises on approve** (current behavior) vs forcing manual
-   mapping in the review UI. Revisit after Phase 4 usability pass.
+   mapping in the review UI. Revisit during L4 usability pass.
 3. **Program version history UI:** archived copies exist by convention; do we surface
    a proper diff/history view or keep it minimal?

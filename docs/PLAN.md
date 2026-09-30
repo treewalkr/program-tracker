@@ -35,15 +35,23 @@ so adding a portal later is additive, not a migration.
 ```
 ┌─────────────────────────────── TRAINER ───────────────────────────────┐
 │                                                                       │
-│  1. Create client         name, email, goals, limitations, days/week  │
+│  1. Create client         name, email, goals, limitations, days/week +│
+│                           training days                               │
 │  2. Build program         sessions → exercises → prescribed sets      │
-│     (or ask AI first)     from 719-exercise catalog + customs         │
-│  3. Activate program      auto-archives client's previous program     │
+│     (or ask AI first)     reps/ranges/timed/failure + load targets,   │
+│                           conditioning; periodization scheme          │
+│     (week-by-week         base → +volume → +intensity → transition)   │
+│      directives)                                                      │
+│  3. Activate program      stamps activatedAt; auto-archives previous  │
 │  4. Client trains         (outside the app — gym, paper, chat)        │
 │  5. Log results           trainer enters sets: weight/reps/RPE        │
+│  5b. System computes      block pulse (weekly tonnage/e1RM) vs the    │
+│                           scheme → signals: transition due, off-plan, │
+│                           stalls, block ending                        │
 │  6. Generate next block   AI gets: profile + program + 8-week logs    │
-│                           + catalog → returns JSON draft              │
-│  7. Review draft          rationale, sessions, set-by-set             │
+│                           + catalog + periodization context →         │
+│                           JSON draft (proposes phasing + loads)       │
+│  7. Review draft          rationale, sessions, set-by-set, diff       │
 │  8. Approve → draft pgm   created in `draft` status; edit freely      │
 │  9. Activate new block    → back to step 3                            │
 │                                                                       │
