@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { buildHistory } from "../lib/history";
+import { queueSignalsForOutbox } from "../lib/signals-service";
 
 const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
 
@@ -98,6 +99,12 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs" })
           }))
         )
         .returning();
+
+      // Write path: the log is committed — queue any new signals for the outbox.
+      // A queueing failure must not fail the already-committed log write.
+      await queueSignalsForOutbox(program.trainerId, input.clientId).catch((err) =>
+        console.error("signal outbox queue failed:", err)
+      );
 
       return status(201, { ...log, sets: insertedSets });
     },

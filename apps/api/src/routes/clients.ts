@@ -41,6 +41,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients" })
         goals: t.Optional(t.String({ maxLength: 2000 })),
         limitations: t.Optional(t.String({ maxLength: 2000 })),
         daysPerWeek: t.Optional(t.Integer({ minimum: 1, maximum: 7 })),
+        trainingDays: t.Optional(t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true })),
       }),
     }
   )
@@ -62,6 +63,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients" })
         goals: t.Optional(t.String({ maxLength: 2000 })),
         limitations: t.Optional(t.String({ maxLength: 2000 })),
         daysPerWeek: t.Optional(t.Integer({ minimum: 1, maximum: 7 })),
+        trainingDays: t.Optional(t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true })),
         status: t.Optional(t.String()),
       }),
     }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { db, trainers } from "@pt/db";
+import { db, trainers, signalOutbox } from "@pt/db";
 import { app } from "./app";
 
 /** Integration tests need a live Postgres (bun run db:up). Skip otherwise. */
@@ -146,5 +146,216 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       sets: [],
     });
     expect(status).toBe(422);
+  });
+});
+
+describe.skipIf(!dbUp)("phase L endpoints", () => {
+  let clientId = "";
+  let programId = "";
+  let squatId = "";
+  const sessions = () => [
+    {
+      id: crypto.randomUUID(),
+      name: "Day A",
+      order: 0,
+      exercises: [
+        {
+          id: crypto.randomUUID(),
+          exerciseId: squatId,
+          order: 0,
+          prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
+        },
+      ],
+    },
+  ];
+
+  test("client created with trainingDays; program with phasing; activation stamps activatedAt once", async () => {
+    const c = await call("POST", "/v1/clients", {
+      name: "Phase L Client",
+      email: `l-${Date.now()}@test.dev`,
+      trainingDays: [1, 4],
+    });
+    expect(c.status).toBe(201);
+    expect(c.body.trainingDays).toEqual([1, 4]);
+    clientId = c.body.id;
+
+    squatId = (await call("GET", "/v1/exercises?q=squat")).body[0].id;
+
+    // 1-week block so block-ending fires deterministically at week 1
+    const p = await call("POST", "/v1/programs", {
+      name: "L Block",
+      clientId,
+      phasing: {
+        plannedWeeks: 1,
+        phase: "accumulation",
+        nextPhase: "intensification",
+        deloadWeeks: [],
+        weeks: [{ week: 1, directive: "base" }],
+      },
+      sessions: sessions(),
+    });
+    expect(p.status).toBe(201);
+    expect(p.body.phasing.plannedWeeks).toBe(1);
+    expect(p.body.activatedAt).toBeNull();
+    programId = p.body.id;
+
+    const act = await call("PATCH", `/v1/programs/${programId}/status`, { status: "active" });
+    expect(act.body.status).toBe("active");
+    expect(act.body.activatedAt).toBeTruthy();
+    const firstActivation = act.body.activatedAt;
+
+    // archive + reactivate: first activation is the block anchor, never restamped
+    await call("PATCH", `/v1/programs/${programId}/status`, { status: "archived" });
+    const reactivated = await call("PATCH", `/v1/programs/${programId}/status`, { status: "active" });
+    expect(reactivated.body.activatedAt).toBe(firstActivation);
+  });
+
+  test("invalid phasing document is a 422", async () => {
+    const { status } = await call("POST", "/v1/programs", {
+      name: "Bad Phasing",
+      clientId,
+      phasing: { plannedWeeks: 99, phase: "x" },
+      sessions: sessions(),
+    });
+    expect(status).toBe(422);
+  });
+
+  test("PUT replaces phasing; explicit null clears it", async () => {
+    const replaced = await call("PUT", `/v1/programs/${programId}`, {
+      sessions: sessions(),
+      phasing: {
+        plannedWeeks: 3,
+        phase: "intensification",
+        deloadWeeks: [3],
+        weeks: [{ week: 1, directive: "base" }],
+      },
+    });
+    expect(replaced.body.phasing.plannedWeeks).toBe(3);
+
+    const cleared = await call("PUT", `/v1/programs/${programId}`, {
+      sessions: sessions(),
+      phasing: null,
+    });
+    expect(cleared.body.phasing).toBeNull();
+
+    // restore the 1-week phasing for the notification tests below
+    const restored = await call("PUT", `/v1/programs/${programId}`, {
+      sessions: sessions(),
+      phasing: {
+        plannedWeeks: 1,
+        phase: "accumulation",
+        nextPhase: "intensification",
+        deloadWeeks: [],
+        weeks: [{ week: 1, directive: "base" }],
+      },
+    });
+    expect(restored.body.phasing.plannedWeeks).toBe(1);
+  });
+
+  test("client PATCH accepts trainingDays", async () => {
+    const { body } = await call("PATCH", `/v1/clients/${clientId}`, { trainingDays: [2, 4, 6] });
+    expect(body.trainingDays).toEqual([2, 4, 6]);
+  });
+
+  test("periodization schemes CRUD", async () => {
+    const created = await call("POST", "/v1/schemes", {
+      name: "3:1 block (e2e)",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity" },
+        { week: 4, directive: "deload" },
+      ],
+    });
+    expect(created.status).toBe(201);
+    const schemeId = created.body.id;
+
+    const list = await call("GET", "/v1/schemes");
+    expect(list.body.schemes.some((s: any) => s.id === schemeId)).toBe(true);
+
+    // non-contiguous weeks are rejected
+    const bad = await call("POST", "/v1/schemes", {
+      name: "gappy",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 3, directive: "deload" },
+      ],
+    });
+    expect(bad.status).toBe(422);
+
+    const del = await call("DELETE", `/v1/schemes/${schemeId}`);
+    expect(del.status).toBe(204);
+    expect((await call("DELETE", `/v1/schemes/${schemeId}`)).status).toBe(404);
+  });
+
+  test("instruction templates CRUD", async () => {
+    const created = await call("POST", "/v1/ai/prompt-templates", {
+      name: "RPE cap 8",
+      content: "Never prescribe working sets above RPE 8.",
+    });
+    expect(created.status).toBe(201);
+    const id = created.body.id;
+
+    const list = await call("GET", "/v1/ai/prompt-templates");
+    expect(list.body.templates.some((t: any) => t.id === id)).toBe(true);
+
+    const updated = await call("PUT", `/v1/ai/prompt-templates/${id}`, {
+      name: "RPE cap 7",
+      content: "Never prescribe working sets above RPE 7.",
+    });
+    expect(updated.body.name).toBe("RPE cap 7");
+    expect(updated.body.updatedAt).toBeTruthy();
+
+    const missing = await call("PUT", `/v1/ai/prompt-templates/${crypto.randomUUID()}`, {
+      name: "x",
+      content: "y",
+    });
+    expect(missing.status).toBe(404);
+
+    expect((await call("DELETE", `/v1/ai/prompt-templates/${id}`)).status).toBe(204);
+    expect((await call("DELETE", `/v1/ai/prompt-templates/${id}`)).status).toBe(404);
+  });
+
+  test("log write queues new signals into the outbox (deduped)", async () => {
+    const log = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8 }],
+    });
+    expect(log.status).toBe(201);
+
+    const rows = await db.select().from(signalOutbox);
+    const queued = rows.filter((r) => (r.payload as any).programId === programId);
+    expect(queued.length).toBeGreaterThan(0);
+    expect(queued.some((r) => r.signalId === `block-ending:${programId}`)).toBe(true);
+
+    // second log of the same state → PK conflict dedupes, no new row for the same id
+    await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8 }],
+    });
+    const after = (await db.select().from(signalOutbox)).filter(
+      (r) => (r.payload as any).programId === programId
+    );
+    expect(after.filter((r) => r.signalId === `block-ending:${programId}`)).toHaveLength(1);
+  });
+
+  test("notifications: read computes signals, snooze filters them", async () => {
+    const feed = await call("GET", "/v1/notifications");
+    expect(feed.status).toBe(200);
+    const signal = feed.body.signals.find((s: any) => s.id === `block-ending:${programId}`);
+    expect(signal).toBeDefined();
+    expect(signal.clientId).toBe(clientId);
+    expect(signal.severity).toBe("urgent");
+
+    const until = new Date(Date.now() + 7 * 86400_000).toISOString();
+    expect((await call("PUT", `/v1/notifications/${encodeURIComponent(`block-ending:${programId}`)}/snooze`, { until })).status).toBe(200);
+    expect((await call("PUT", `/v1/notifications/${encodeURIComponent("bogus")}/snooze`, { until: "nope" })).status).toBe(422);
+
+    const filtered = await call("GET", "/v1/notifications");
+    expect(filtered.body.signals.some((s: any) => s.id === `block-ending:${programId}`)).toBe(false);
   });
 });

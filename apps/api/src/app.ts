@@ -6,6 +6,9 @@ import { clientRoutes } from "./routes/clients";
 import { programRoutes } from "./routes/programs";
 import { logRoutes } from "./routes/logs";
 import { exerciseRoutes } from "./routes/exercises";
+import { schemeRoutes } from "./routes/schemes";
+import { promptTemplateRoutes } from "./routes/prompt-templates";
+import { notificationRoutes } from "./routes/notifications";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -35,6 +38,9 @@ export const app = new Elysia()
   .use(clientRoutes)
   .use(programRoutes)
   .use(logRoutes)
-  .use(exerciseRoutes);
+  .use(exerciseRoutes)
+  .use(schemeRoutes)
+  .use(promptTemplateRoutes)
+  .use(notificationRoutes);
 
 export type App = typeof app;

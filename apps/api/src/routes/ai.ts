@@ -146,7 +146,15 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai" })
               validationError = z.prettifyError(parsed.error);
             }
           } catch (err) {
-            if (err instanceof ProviderError) throw err;
+            if (err instanceof ProviderError) {
+              // Persist the audit trail — a pending-forever row would lie.
+              const [failed] = await db
+                .update(aiGenerations)
+                .set({ status: "failed_provider", error: err.message })
+                .where(eq(aiGenerations.id, generation.id))
+                .returning();
+              return status(502, failed);
+            }
             validationError = `parse failure: ${(err as Error).message}`;
           }
         }
@@ -167,9 +175,6 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai" })
           .returning();
         return status(502, failed);
       } catch (err) {
-        if (err instanceof ProviderError) {
-          return status(502, { error: err.message, detail: err.body });
-        }
         if (err instanceof ContextError) return status(err.status, { error: err.message });
         throw err;
       }
