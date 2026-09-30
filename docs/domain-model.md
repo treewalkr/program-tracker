@@ -12,7 +12,11 @@ trainers ──< clients ──< programs >────── (self-ref: created
     │           │                    └── exercises[] ──▶ exercises.id
     │           ├──< session_logs ──< set_logs ──▶ exercises.id
     │           └──< ai_generations (audit: draft + status trail)
-    └──< exercises (trainer_id = custom exercises; NULL = global seed)
+    ├──< exercises (trainer_id = custom exercises; NULL = global seed)
+    ├──< prompt_templates        (planned — Phase L2)
+    └──< periodization_schemes   (planned — Phase L2)
+
+signal_snoozes / signal_outbox (planned — L2/L5, see notifications.md)
 ```
 
 ## Programs — the document structure
@@ -37,16 +41,31 @@ A program's `sessions` column is one jsonb array matching `ProgramSession[]`:
           { "setNumber": 2, "type": "working", "reps": 5, "amrap": true, "targetRpe": 9, "restSeconds": 180 }
         ]
       }
-    ]
+    ],
+    "conditioning": { "label": "Cardio VO2max", "detail": "intervals 1 : 3–5, 20–30 min" }
   }
 ]
 ```
 
 Rules enforced by zod at every write:
 - 1–14 sessions, 1–20 exercises per session, 1–20 prescribed sets per exercise.
-- `reps` always present (1–100). `amrap: true` means reps is the *minimum*.
+- `reps` always present (0–100). `amrap: true` means reps is the *minimum*.
 - `targetRpe` / logged `rpe` ∈ 1–10. `weightKg` ∈ 0–600.
 - Set types: `warm_up | working | backoff`.
+
+**Coach-format prescriptions** (beyond plain fixed reps — all optional, shared zod):
+
+| Kind | Fields | Display |
+|---|---|---|
+| fixed reps | `reps` | `5` |
+| rep range | `repsMin` + `reps` (upper bound) | `6–10` |
+| timed | `durationSeconds`, `reps: 0` | `45s`, `1:00` |
+| failure / AMRAP | `amrap: true`, `reps: 0` | `max` |
+| load target | `targetWeightKg` (null = RPE-autoregulated) | `65kg × 5 @8` |
+- `conditioning {label, detail}` per session: cardio prescription, display-only in MVP
+  (not logged). Set-count ranges ("1–2 sets") map to the upper bound by convention.
+
+One-click logging prefers `targetWeightKg` over last-logged when both exist.
 
 ### Program lifecycle
 
@@ -58,6 +77,8 @@ draft ──activate──▶ active ──activate-new──▶ archived
 
 - Exactly **zero or one** `active` program per client: activating archives the
   client's other active programs (API enforces).
+- **First activation stamps `activatedAt`** — the basis for block-week math
+  (`floor((today − activatedAt)/7) + 1`). Derived, never stored per week.
 - Editing an active program (`PUT /v1/programs/:id`) replaces the sessions document
   and bumps `version` (history of past versions = archived copies, by convention).
 - `aiAssisted: true` + `createdFromProgramId` record AI provenance.
@@ -153,4 +174,6 @@ block week from logged **working** sets:
 
 `goals` (free text), `limitations` (free text, **hard constraints** in every AI
 prompt), `daysPerWeek` (1–7; the AI must produce exactly this many sessions),
-`status` (active / paused / archived).
+`trainingDays` (optional weekday ints 1=Mon…7=Sun — the client's real calendar; drives
+the dashboard week strip and adherence expectations), `status` (active / paused /
+archived).
