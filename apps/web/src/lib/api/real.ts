@@ -16,9 +16,21 @@ import { client } from "./treaty";
 
 /**
  * Eden result → thrown Error, preserving the API's `error` message envelope.
- * `data` is `unknown` and each call site names its wire type: Eden's inferred
- * Date objects arrive as ISO strings over JSON, so the DTO is the wire truth.
+ * `data` is `unknown` and each call site names its wire type. Eden revives ISO
+ * date strings into Date objects; the DTOs model dates as ISO strings, so we
+ * deep-convert back — pages then see identical shapes in mock and live modes.
  */
+function datesToIso(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(datesToIso);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, datesToIso(v)])
+    );
+  }
+  return value;
+}
+
 async function unwrap<T>(
   p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>
 ): Promise<T> {
@@ -29,7 +41,7 @@ async function unwrap<T>(
     const code = typeof error.status === "number" ? error.status : "unknown";
     throw new Error(message ?? `request failed: ${code}`);
   }
-  return data as T;
+  return datesToIso(data) as T;
 }
 
 /** Wire-up against the running Elysia API via Eden Treaty. Enabled via PUBLIC_API_MODE=live. */

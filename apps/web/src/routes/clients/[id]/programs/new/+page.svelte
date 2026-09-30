@@ -162,31 +162,34 @@
   }
 
   function toDto(): ProgramSessionDto[] {
-    return sessions.map((s, si) => ({
-      id: `ps-new-${si}`,
-      name: s.name.trim() || `Session ${si + 1}`,
-      order: si,
-      conditioning: s.cardioLabel.trim() ? { label: s.cardioLabel.trim(), detail: s.cardioDetail.trim() } : null,
-      exercises: s.exercises.map((e, ei) => ({
-        id: `pe-new-${si}-${ei}`,
-        exerciseId: e.exerciseId,
-        order: ei,
-        prescribedSets: e.sets.map((ps, pi) => {
-          const lo = Math.min(Number(ps.reps), Number(ps.repsTo ?? ps.reps));
-          return {
-            setNumber: pi + 1,
-            type: ps.type,
-            reps: ps.failure ? 0 : ps.repsTo != null ? Number(ps.repsTo) : Number(ps.reps),
-            repsMin: !ps.failure && ps.repsTo != null ? lo : undefined,
-            amrap: ps.failure,
-            durationSeconds: ps.durationSec != null && ps.durationSec > 0 ? Number(ps.durationSec) : undefined,
-            targetWeightKg: ps.targetWeightKg === null ? undefined : Number(ps.targetWeightKg),
-            targetRpe: ps.targetRpe ?? undefined,
-            restSeconds: ps.restSeconds,
-          };
-        }),
-      })),
-    }));
+    return sessions
+      .filter((s) => s.exercises.length > 0) // zod gate requires ≥1 exercise per session
+      .map((s, si) => ({
+        // ids must be uuids — the API's zod gate rejects anything else
+        id: crypto.randomUUID(),
+        name: s.name.trim() || `Session ${si + 1}`,
+        order: si,
+        conditioning: s.cardioLabel.trim() ? { label: s.cardioLabel.trim(), detail: s.cardioDetail.trim() } : null,
+        exercises: s.exercises.map((e, ei) => ({
+          id: crypto.randomUUID(),
+          exerciseId: e.exerciseId,
+          order: ei,
+          prescribedSets: e.sets.map((ps, pi) => {
+            const lo = Math.min(Number(ps.reps), Number(ps.repsTo ?? ps.reps));
+            return {
+              setNumber: pi + 1,
+              type: ps.type,
+              reps: ps.failure ? 0 : ps.repsTo != null ? Number(ps.repsTo) : Number(ps.reps),
+              repsMin: !ps.failure && ps.repsTo != null ? lo : undefined,
+              amrap: ps.failure,
+              durationSeconds: ps.durationSec != null && ps.durationSec > 0 ? Number(ps.durationSec) : undefined,
+              targetWeightKg: ps.targetWeightKg === null ? undefined : Number(ps.targetWeightKg),
+              targetRpe: ps.targetRpe ?? undefined,
+              restSeconds: ps.restSeconds,
+            };
+          }),
+        })),
+      }));
   }
 
   async function save() {
