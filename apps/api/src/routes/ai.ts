@@ -10,7 +10,7 @@ import {
   sessionLogs,
   setLogs,
 } from "@pt/db";
-import { AiProgramDraft, KNOWN_PROVIDERS, blockPulse, pulseSummary, weekOf } from "@pt/shared";
+import { AiProgramDraft, AiProviderConfig, KNOWN_PROVIDERS, blockPulse, pulseSummary, weekOf } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { buildGenerationMessages } from "../ai/prompt";
 import { MOCK_DRAFT } from "../ai/mock";
@@ -109,18 +109,27 @@ class ContextError extends Error {
   }
 }
 
-function providerRuntime(providerId: string) {
-  const known = KNOWN_PROVIDERS[providerId as keyof typeof KNOWN_PROVIDERS];
+function providerRuntime(providerId: string, model?: string) {
+  const known: AiProviderConfig | undefined = KNOWN_PROVIDERS[providerId as keyof typeof KNOWN_PROVIDERS];
   const id = known?.id ?? providerId;
   if (id === "mock") {
+    if (model && model !== "mock-draft-v1")
+      throw new ContextError(400, `model "${model}" not available for provider "mock"`);
     return { baseUrl: "mock://local", model: "mock-draft-v1", apiKey: "mock", maxOutputTokens: 4096 };
   }
   const envKey = known?.apiKeyEnvVar ?? `${id.toUpperCase()}_API_KEY`;
   const apiKey = process.env[envKey];
   if (!apiKey) throw new ContextError(400, `provider "${providerId}" not configured (missing ${envKey})`);
+  const upper = id.toUpperCase();
+  const models = process.env[`${upper}_MODELS`]?.split(",").map((s) => s.trim()).filter(Boolean)
+    ?? known?.models
+    ?? [known?.model ?? ""];
+  const defaultModel = process.env[`${upper}_MODEL`] ?? known?.model ?? models[0];
+  if (model && model !== defaultModel && !models.includes(model))
+    throw new ContextError(400, `model "${model}" not available for provider "${id}" (available: ${[defaultModel, ...models].join(", ")})`);
   return {
-    baseUrl: process.env[`${id.toUpperCase()}_BASE_URL`] ?? known?.baseUrl ?? "",
-    model: process.env[`${id.toUpperCase()}_MODEL`] ?? known?.model ?? "",
+    baseUrl: process.env[`${upper}_BASE_URL`] ?? known?.baseUrl ?? "",
+    model: model ?? defaultModel,
     apiKey,
     maxOutputTokens: known?.maxOutputTokens ?? 8192,
     disableThinking: known?.disableThinking,
@@ -134,7 +143,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       const trainerId = await getDefaultTrainerId();
       try {
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
-        const rt = providerRuntime(body.providerId ?? "zai");
+        const rt = providerRuntime(body.providerId ?? "zai", body.model);
         const messages = buildGenerationMessages({
           ...ctx,
           trainerInstructions: body.instructions ?? "",
@@ -209,6 +218,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         clientId: t.String(),
         basedOnProgramId: t.Optional(t.Union([t.String(), t.Null()])),
         providerId: t.Optional(t.String()),
+        model: t.Optional(t.String()),
         instructions: t.Optional(t.String({ maxLength: 2000 })),
       }),
     }

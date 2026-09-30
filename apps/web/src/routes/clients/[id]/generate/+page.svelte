@@ -15,6 +15,8 @@
   let current = $state<ProgramDto | null>(null);
   let providers = $state<ProviderDto[]>([]);
   let providerId = $state("zai");
+  let model = $state("");
+  const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   let instructions = $state("");
   let templates = $state<InstructionTemplateDto[]>([]);
   let periodContext = $state<string | null>(null);
@@ -107,6 +109,7 @@
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         providerId,
+        model: model || undefined,
         instructions: mergedInstructions || undefined,
       });
       phase = "review";
@@ -214,12 +217,30 @@
       >
         <div>
           <label class="label" for="g-provider">Provider</label>
-          <select class="select" id="g-provider" bind:value={providerId}>
+          <select
+            class="select"
+            id="g-provider"
+            bind:value={providerId}
+            onchange={() => (model = "")}
+          >
             {#each providers as p (p.id)}
               <option value={p.id}>{p.label} · {p.model}</option>
             {/each}
           </select>
         </div>
+        {#if provider && provider.models.length > 1}
+          <div>
+            <label class="label" for="g-model">Model</label>
+            <select class="select" id="g-model" bind:value={model}>
+              <option value="">{provider.model} · default</option>
+              {#each provider.models as m (m)}
+                {#if m !== provider.model}
+                  <option value={m}>{m}</option>
+                {/if}
+              {/each}
+            </select>
+          </div>
+        {/if}
         <div>
           <label class="label" for="g-based">
             Based on

@@ -25,18 +25,37 @@ export const AiProviderConfig = z.object({
    * budget and `content` comes back empty (or truncated) for structured JSON.
    */
   disableThinking: z.boolean().optional(),
+  /**
+   * Models the trainer may pick for generation; `model` is the default
+   * (first entry wins when unset). Overridable via `<ID>_MODELS` (csv).
+   */
+  models: z.array(z.string().min(1)).min(1).optional(),
 });
 export type AiProviderConfig = z.infer<typeof AiProviderConfig>;
 
 export const KNOWN_PROVIDERS = {
   zai: {
     id: "zai",
-    label: "Z.ai GLM Flash",
+    label: "Z.ai GLM",
     baseUrl: "https://api.z.ai/api/paas/v4",
     model: "glm-4.5-flash",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
     disableThinking: true,
+    models: [
+      "glm-4.5-flash", // default — free tier
+      "glm-5.3-flash",
+      "glm-5.3-flashx",
+      "glm-5.3",
+      "glm-5.2",
+      "glm-5.1",
+      "glm-5",
+      "glm-5-turbo",
+      "glm-4.7",
+      "glm-4.6",
+      "glm-4.5",
+      "glm-4.5-air",
+    ],
   },
   /** Canned draft, no network, no key. For tests and UI development. */
   mock: {
@@ -46,6 +65,7 @@ export const KNOWN_PROVIDERS = {
     model: "mock-draft-v1",
     apiKeyEnvVar: "MOCK_NO_KEY_NEEDED",
     maxOutputTokens: 4096,
+    models: ["mock-draft-v1"],
   },
 } as const satisfies Record<string, AiProviderConfig>;
 

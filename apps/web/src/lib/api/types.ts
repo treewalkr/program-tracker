@@ -67,6 +67,7 @@ export interface ProviderDto {
   id: string;
   label: string;
   model: string;
+  models: string[];
   configured: boolean;
 }
 
@@ -192,6 +193,7 @@ export interface TrainerApi {
     clientId: string;
     basedOnProgramId?: string | null;
     providerId?: string;
+    model?: string;
     instructions?: string;
   }): Promise<GenerationDto>;
   generations(clientId: string): Promise<GenerationDto[]>;

@@ -11,7 +11,7 @@ route schemas (TypeBox + zod via `mapJsonSchema`), grouped by tag.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | `{ok, service, time}` |
-| GET | `/v1/ai/providers` | provider registry; `configured: bool` per provider; **never returns API keys** |
+| GET | `/v1/ai/providers` | provider registry; `configured: bool`, `model` (default) + `models` (pickable list) per provider; **never returns API keys**. List overridable via `<ID>_MODELS` (csv env) |
 
 ## Clients
 
@@ -124,7 +124,7 @@ Delivery (email via cron + outbox) is Phase L5 — the read path ships first.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, instructions?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept). Context bundle auto-includes instruction templates selection and periodization context (week N of M, directive, tonnage/e1RM trend) — see [ai-integration.md](ai-integration.md) |
+| POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, model?, instructions?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept); unknown `model` for the provider → **400**. Context bundle auto-includes instruction templates selection and periodization context (week N of M, directive, tonnage/e1RM trend) — see [ai-integration.md](ai-integration.md). GLM 5.x models always think (Z.ai rejects `disabled`) — the provider layer sends `budget: low` and a roomier token cap automatically |
 | GET | `/v1/ai/generations?clientId=` | audit trail |
 | POST | `/v1/ai/generations/:id/approve` | draft → real program (`draft` status, `aiAssisted: true`); **409** if not `validated`; **422** if unresolvable exercise refs |
 | POST | `/v1/ai/generations/:id/reject` | mark rejected, nothing created |

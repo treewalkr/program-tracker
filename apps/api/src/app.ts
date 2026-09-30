@@ -57,11 +57,19 @@ export const app = new Elysia()
   .get("/v1/ai/providers", () => {
     const providers = Object.values(KNOWN_PROVIDERS).map((p) => {
       const parsed = AiProviderConfig.parse(p);
+      const id = p.id.toUpperCase();
+      const models = process.env[`${id}_MODELS`]?.split(",").map((s) => s.trim()).filter(Boolean)
+        ?? parsed.models
+        ?? [parsed.model];
+      const model = process.env[`${id}_MODEL`] ?? parsed.model;
+      // the env default may sit outside the listed models — keep it pickable
+      const pickable = models.includes(model) ? models : [model, ...models];
       return {
         ...parsed,
         configured: p.id === "mock" || Boolean(process.env[p.apiKeyEnvVar]),
-        model: process.env[`${p.id.toUpperCase()}_MODEL`] ?? parsed.model,
-        baseUrl: process.env[`${p.id.toUpperCase()}_BASE_URL`] ?? parsed.baseUrl,
+        model,
+        models: pickable,
+        baseUrl: process.env[`${id}_BASE_URL`] ?? parsed.baseUrl,
       };
     });
     return { providers };

@@ -120,6 +120,26 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     (globalThis as any).__genId = body.id;
   });
 
+  test("model override: unknown model for the provider is a 400", async () => {
+    const { status, body } = await call("POST", "/v1/ai/generate", {
+      clientId,
+      providerId: "mock",
+      model: "gpt-not-real",
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("not available");
+  });
+
+  test("model override: listed model is accepted and recorded", async () => {
+    const { status, body } = await call("POST", "/v1/ai/generate", {
+      clientId,
+      providerId: "mock",
+      model: "mock-draft-v1",
+    });
+    expect(status).toBe(201);
+    expect(body.model).toBe("mock-draft-v1");
+  });
+
   test("approve creates an AI-assisted DRAFT program (not client-visible)", async () => {
     const { status, body } = await call("POST", `/v1/ai/generations/${(globalThis as any).__genId}/approve`, {});
     expect(status).toBe(201);
