@@ -68,57 +68,70 @@ constraints). Mock: in-memory CRUD at `/templates`. Real backend: `prompt_templa
 table + `GET/POST/PUT/DELETE /v1/ai/prompt-templates`; web `real.ts` already points
 there. Later: per-client standing additions, template usage recorded per draft.
 
-## Phase L — go live (`PUBLIC_API_MODE=live`)
+## Phase L — go live (`PUBLIC_API_MODE=live`) — ✅ DONE, 2026-09-30
 
 Ordered workstreams; each is independently shippable. Contract details live in
 [api.md](api.md) + [domain-model.md](domain-model.md); design rationale in
 [notifications.md](notifications.md) / [ai-integration.md](ai-integration.md).
+L3 ran before L2 (the notifications endpoint consumes the shared engine); the Eden
+Treaty client (D1) replaced the hand-written fetch inside the `TrainerApi` seam.
 
 ### L1 — Contract extensions (packages/shared + packages/db)
 
-- [ ] `packages/shared/src/domain.ts`: prescribed sets gain optional `targetWeightKg`
+- [x] `packages/shared/src/domain.ts`: prescribed sets gain optional `targetWeightKg`
       (load targets), `repsMin` (rep ranges, e.g. 6–10), `durationSeconds` (timed sets —
       `amrap` with `reps: 0` = failure); sessions gain `conditioning {label, detail}`;
       programs gain `phasing {plannedWeeks, phase, nextPhase, deloadWeeks, weeks?}` +
       `activatedAt` (stamped on first activation); clients gain `trainingDays`
       (weekday ints 1=Mon…7=Sun)
-- [ ] `packages/db`: drizzle migration for the new columns (`training_days`,
-      `activated_at`; phasing/set fields ride the jsonb documents)
-- [ ] Schema tests updated; `bun test` green
+- [x] `packages/db`: drizzle migration for the new columns (`training_days`,
+      `activated_at`, `phasing`; set fields ride the sessions jsonb)
+- [x] Schema tests updated; `bun test` green
 - **Acceptance:** the exact DTOs `apps/web/src/lib/api/types.ts` describes all parse
   through shared zod; old data still validates.
 
 ### L2 — New endpoints (apps/api)
 
-- [ ] `prompt_templates` table + `/v1/ai/prompt-templates` CRUD (real.ts contract)
-- [ ] `periodization_schemes` table + `/v1/schemes` CRUD
-- [ ] `GET /v1/notifications` (signals computed on read via L3 engine) + snooze
+- [x] `prompt_templates` table + `/v1/ai/prompt-templates` CRUD (real.ts contract)
+- [x] `periodization_schemes` table + `/v1/schemes` CRUD
+- [x] `GET /v1/notifications` (signals computed on read via L3 engine) + snooze
       (`PUT /v1/notifications/:signalId/snooze` → `signal_snoozes` table)
-- [ ] Program POST/PUT persist `phasing`; activation stamps `activated_at`
-- [ ] Client PATCH accepts `trainingDays`; logs write hook runs signal rules post-commit
+- [x] Program POST/PUT persist `phasing`; activation stamps `activated_at` (first only)
+- [x] Client PATCH accepts `trainingDays`; logs write hook queues signals into
+      `signal_outbox` post-commit (dedupe by signal id; email consumer is L5)
 - **Acceptance:** every path `real.ts` calls exists with matching shapes (parity table
-  in api.md); e2e tests per endpoint.
+  in api.md); e2e tests per endpoint. Bonus: generate now persists `failed_provider`
+      instead of leaving the audit row `pending` forever.
 
 ### L3 — Rule engine to shared (packages/shared)
 
-- [ ] Move `apps/web/src/lib/signals.ts` + `lib/metrics.ts` → `packages/shared`
-      (same ids, same thresholds; only snooze source differs)
-- [ ] Web imports from shared; API uses them for `GET /v1/notifications`
+- [x] Move `apps/web/src/lib/signals.ts` + `lib/metrics.ts` → `packages/shared`
+      (same ids, same thresholds; only snooze source differs — localStorage in mock,
+      `signal_snoozes` via the API in live)
+- [x] Web imports from shared; API uses them for `GET /v1/notifications` and the
+      log write hook (`apps/api/src/lib/signals-service.ts`)
 - **Acceptance:** mock-mode UI behavior unchanged; API returns the same signals the
-  mock dashboard showed for the same data.
+  mock dashboard showed for the same data. Signals carry `programId`/`clientId`.
 
 ### L4 — Web live flip (apps/web)
 
-- [ ] `PUBLIC_API_MODE=live` smoke pass on every screen against real backend
-- [ ] Real-mode prompt: AI drafts should propose `phasing` (incl. weeks from the
-      client's scheme) and `targetWeightKg` progressing from last logged loads —
-      prompt update per ai-integration.md
-- [ ] Exercise substitution parity (editor swap needs API-side set rewrite — already
-      covered by PUT sessions; verify)
-- [ ] Demo data behind env flag for seed parity (`SEED_DEMO`, optional)
+- [x] `PUBLIC_API_MODE=live` smoke pass on every screen against real backend
+      (full trainer loop verified in the browser: client with weekday picker →
+      program with scheme → activate → one-click log → pulse/signals → AI draft
+      with periodization context → approve → activate, auto-archive previous block)
+- [x] Eden Treaty inside the `TrainerApi` seam replaces the hand-written fetch client
+      (AGENTS.md rule satisfied; mock demo mode preserved; `unwrap` converts Eden's
+      revived Dates back to ISO strings so DTOs hold in both modes)
+- [x] Real-mode prompt: AI drafts propose `phasing` (incl. week directives) and
+      `targetWeightKg` progressing from last logged loads; periodization context
+      auto-injected into the prompt
+- [x] Exercise substitution parity (editor swap rides PUT sessions — verified)
+- [ ] Demo data behind env flag for seed parity (`SEED_DEMO`, optional — not built)
 - **Acceptance:** full loop — client → program (scheme) → log → pulse/signals →
   AI draft with periodization context → approve → activate — in live mode, zero mock
-  imports.
+  imports. Smoke pass fixed real bugs: builder emitted non-uuid ids and empty
+  sessions (both rejected by the live zod gate), Eden Date revival broke
+  string-typed date fields, mode flag now read via `$env/static/public`.
 
 ### L5 — Delivery & scheduling (optional, post-flip)
 

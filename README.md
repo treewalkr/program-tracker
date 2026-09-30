@@ -28,7 +28,7 @@ packages/db       Drizzle ORM schema + migrations (Postgres)
 - Programs = versioned jsonb documents; logs = normalized tables
 - One zod schema package shared by API, web, AI gate — no drift
 - AI is advisory: zod-gated drafts, trainer approval before anything is live
-- Web talks to one `TrainerApi` interface; mock and real adapters swap via `PUBLIC_API_MODE`
+- Web talks to one `TrainerApi` interface; mock and real (Eden Treaty) adapters swap via `PUBLIC_API_MODE`
 - Signals/metrics derived on read, never stored as truth
 
 ## Getting started
@@ -38,6 +38,7 @@ bun install
 bun run db:up          # postgres via docker compose
 bun run db:migrate     # apply drizzle migrations
 cp .env.example .env   # add ZAI_API_KEY when ready (GLM flash tier is free)
+cp apps/web/.env.example apps/web/.env   # PUBLIC_API_MODE=live to leave mock demo mode
 bun run dev            # api :4000 + web :5173
 ```
 

@@ -74,22 +74,28 @@ validation status, approval decision) — nothing the model produces is silently
 
 ## Status right now
 
-**Backend: complete and tested (39 tests, all green).** Clients CRUD, program
-versioning, logging, history aggregation, exercise catalog (719 seeded from WGER),
-and the full AI pipeline (generate → validate → approve) covered end-to-end by
-keyless integration tests via the mock provider.
+**Live (Phase L complete, 2026-09-30).** The web app runs against the real Elysia
+backend via Eden Treaty inside the `TrainerApi` seam — set `PUBLIC_API_MODE=live`
+in `apps/web/.env` (see `.env.example`); mock demo mode remains the default.
+The full trainer loop is verified in live mode: client (weekday picker) → program
+with a saved periodization scheme → activate → one-click logging → block pulse +
+signals (`GET /v1/notifications`, snooze persisted server-side) → AI draft with
+auto-injected periodization context → approve (phasing carried into the program)
+→ activate, auto-archiving the previous block.
 
-**Frontend: full trainer UI, running on the mock API** (`PUBLIC_API_MODE` switches to
-the live backend once its contract catches up — see the roadmap). Covers the whole
-loop: dashboard (needs-review signals + this-week strip), clients, client detail
-(block pulse, phase signals, snooze), scratch program builder with progression-scheme
-presets, program editor, one-click logging, exercise library, instruction templates,
-and the AI generate/approve flow with auto-injected periodization context. Periodization
-signals, block-pulse metrics, and scheme-aware rules live in pure frontend modules
-(`lib/signals.ts`, `lib/metrics.ts`) destined for `packages/shared`.
+**Backend: 60 tests green** — clients/programs/logging/history/exercises/AI pipeline
+plus the Phase L endpoints (schemes CRUD, prompt templates CRUD, notifications +
+snooze, outbox write hook). Signal/metric rules live in `packages/shared`
+(`signals.ts`, `metrics.ts`) and run identically in the UI and the API.
 
-Not wired yet: real backend (phasing/contract additions), email dispatch, AI provider
-beyond mock (pipeline exists, key needed).
+**Frontend: full trainer UI** covering the whole loop: dashboard (needs-review
+signals + this-week strip), clients, client detail (block pulse, phase signals,
+snooze), program builder with progression-scheme library, program editor, one-click
+logging, exercise library, instruction templates, and the AI generate/approve flow.
+
+Not wired yet: email dispatch + daily cron (L5 — `signal_outbox` table already
+accumulates), real AI provider key (pipeline exists, `ZAI_API_KEY` needed),
+deploy (Phase 5).
 
 ## How to run it
 

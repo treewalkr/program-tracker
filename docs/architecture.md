@@ -84,14 +84,27 @@ never stored back.
 
 `apps/web/src/lib/api/types.ts` defines `TrainerApi` — every screen talks only to it.
 Two implementations: `mock/api.ts` (in-memory fixtures, `PUBLIC_API_MODE=mock`, default
-— demos run with zero infra) and `real.ts` (fetch to Elysia, `PUBLIC_API_MODE=live`).
-Pure analysis modules sit beside the seam and are shared-bound: `lib/signals.ts`
-(phase rule engine) and `lib/metrics.ts` (block pulse) move to `packages/shared`
-in Phase L3 so UI and API run identical rules.
+— demos run with zero infra) and `real.ts` (**Eden Treaty** transport,
+`PUBLIC_API_MODE=live`). The mode flag is read via `$env/static/public` (set it in
+`apps/web/.env` — see `.env.example`); treaty needs only a type-only import of
+`@pt/api`, so there is no runtime coupling. Two wrinkles worth knowing:
 
-Planned additions (Phase L): `periodization_schemes` + `prompt_templates` tables,
-`GET /v1/notifications` reading the shared engine, daily cron + `signal_outbox`
-for email (see notifications.md).
+- Bun's isolated linker gives web and api separate `elysia` store entries (identical
+  version, different paths) — for one type identity, `apps/web/tsconfig.json` aliases
+  `elysia` to the api's copy during type-check.
+- Eden revives ISO date strings into `Date` objects; the DTOs model dates as strings,
+  so `unwrap` deep-converts Dates back to ISO. Pages then see identical shapes in
+  mock and live modes.
+
+The phase rule engine + block pulse live in `packages/shared` (`signals.ts`,
+`metrics.ts`) — the UI imports them through thin re-export shims and the API runs
+the same functions for `GET /v1/notifications` and the log write hook
+(`apps/api/src/lib/signals-service.ts`). Signal snooze: localStorage in mock mode,
+`signal_snoozes` rows via the API in live mode — both behind `TrainerApi`.
+
+Shipped with Phase L: `periodization_schemes` + `prompt_templates` tables,
+`GET /v1/notifications` reading the shared engine, `signal_outbox` accumulating on
+log writes (email consumer is L5 — see notifications.md).
 
 ## Running & testing
 
@@ -102,7 +115,7 @@ for email (see notifications.md).
 | `bun run db:generate` | new migration from schema.ts changes |
 | `bun run db:migrate` | apply migrations |
 | `bun run seed:exercises` | WGER import (idempotent) |
-| `bun test` | 39 tests; e2e suite auto-skips if Postgres is down |
+| `bun test` | 60 tests; e2e suite auto-skips if Postgres is down |
 
 API tests run in-process via Elysia's `app.handle()` (`src/app.ts` exports the app
 without the `listen()` side effect; `src/index.ts` only boots).
