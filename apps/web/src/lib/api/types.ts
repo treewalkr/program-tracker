@@ -1,4 +1,13 @@
-/** DTOs + the one interface the whole UI talks to. Two impls: real REST + mock. */
+/** DTOs + the one interface the whole UI talks to. Two impls: real (Eden) + mock.
+ *  Domain shapes are re-exported from @pt/shared (single source of truth); the
+ *  remaining interfaces are the seam contract both adapters are checked against. */
+import type { Phasing, PrescribedSet, Signal, WeekDirective as Wd, WeekPlan as Wp } from "@pt/shared";
+
+export type PrescribedSetDto = PrescribedSet;
+export type WeekDirective = Wd;
+export type WeekPlan = Wp;
+export type ProgramPhasingDto = Phasing;
+export type SignalDto = Signal;
 
 export interface ClientDto {
   id: string;
@@ -10,22 +19,6 @@ export interface ClientDto {
   daysPerWeek: number | null;
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. */
   trainingDays?: number[];
-}
-
-export interface PrescribedSetDto {
-  setNumber: number;
-  type: "warm_up" | "working" | "backoff";
-  /** Fixed rep target. 0 = not rep-based (see durationSeconds / amrap). */
-  reps: number;
-  /** Lower bound when prescribing a range — reps holds the upper bound. */
-  repsMin?: number;
-  amrap: boolean;
-  /** Time-based prescription (stretches, planks, timed work) — replaces reps. */
-  durationSeconds?: number;
-  /** Optional load target. Absent = auto-regulate by RPE (or bodyweight). */
-  targetWeightKg?: number | null;
-  targetRpe?: number;
-  restSeconds?: number;
 }
 
 export interface ProgramExerciseDto {
@@ -45,23 +38,6 @@ export interface ProgramSessionDto {
   exercises: ProgramExerciseDto[];
   /** Cardio / conditioning attached to the session (zone work, intervals, easy runs). */
   conditioning?: { label: string; detail: string } | null;
-}
-
-export type WeekDirective = "base" | "+volume" | "+intensity" | "deload" | "transition" | "test";
-
-export interface WeekPlan {
-  week: number;
-  directive: WeekDirective;
-  note?: string;
-}
-
-export interface ProgramPhasingDto {
-  plannedWeeks: number;
-  phase: string;
-  nextPhase: string | null;
-  deloadWeeks: number[];
-  /** Explicit week-by-week progression plan — the trainer's periodization scheme. */
-  weeks?: WeekPlan[];
 }
 
 export interface ProgramDto {
@@ -221,4 +197,8 @@ export interface TrainerApi {
   generations(clientId: string): Promise<GenerationDto[]>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string): Promise<GenerationDto>;
+
+  /** Phase-change signals, snooze-filtered (computed by the shared engine). */
+  notifications(): Promise<SignalDto[]>;
+  snoozeSignal(id: string, until: string): Promise<void>;
 }

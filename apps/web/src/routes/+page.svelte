@@ -1,17 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
-  import type { ClientDto, ProgramDto, ProviderDto } from "$lib/api/types";
+  import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
-  import { activeSignals, computeSignals, type Signal } from "$lib/signals";
   import { goto } from "$app/navigation";
 
   let clients = $state<ClientDto[] | null>(null);
   let providers = $state<ProviderDto[] | null>(null);
   let loadFailed = $state(false);
   let currentNames = $state<Record<string, string>>({});
-  let signals = $state<{ client: ClientDto; program: ProgramDto; signal: Signal }[]>([]);
-  let nameOf = $state((id: string) => id);
+  let signals = $state<SignalDto[]>([]);
 
   interface WeekEntry {
     day: number; // 1=Mon … 7=Sun
@@ -28,11 +26,10 @@
 
   onMount(async () => {
     try {
-      const [cs, ps, exs] = await Promise.all([api.clients(), api.providers(), api.exercises()]);
-      const names = new Map(exs.map((e) => [e.id, e.name]));
-      nameOf = (id) => names.get(id) ?? id;
+      const [cs, ps, sigs] = await Promise.all([api.clients(), api.providers(), api.notifications()]);
       clients = cs;
       providers = ps;
+      signals = sigs.filter((s) => s.clientId);
       const monday = new Date();
       monday.setDate(monday.getDate() - (isoDay(monday) - 1));
       const today = isoDay(new Date());
@@ -60,13 +57,9 @@
               status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : d < today ? "due" : "upcoming",
             });
           }
-          for (const signal of activeSignals(computeSignals(detail.currentProgram, logs, nameOf, c.daysPerWeek))) {
-            signals.push({ client: c, program: detail.currentProgram, signal });
-          }
         }
       }
       week = entries.sort((a, b) => a.day - b.day || a.clientName.localeCompare(b.clientName));
-      signals = [...signals];
     } catch (err) {
       console.error(err);
       loadFailed = true;
@@ -121,30 +114,33 @@
         <span class="subtle">periodization signals — computed from logs, you decide</span>
       </div>
       <div class="sig-list">
-        {#each signals as { client, signal } (signal.id)}
-          <div class="sig" class:urgent={signal.severity === "urgent"} class:attention={signal.severity === "attention"}>
-            <div class="sig-body">
-              <div class="sig-top">
-                <span class="sev-dot"></span>
-                <strong>{signal.title}</strong>
-                <a class="client-link" href={`/clients/${client.id}`}>{client.name}</a>
+        {#each signals as signal (signal.id)}
+          {@const client = clients?.find((c) => c.id === signal.clientId)}
+          {#if client}
+            <div class="sig" class:urgent={signal.severity === "urgent"} class:attention={signal.severity === "attention"}>
+              <div class="sig-body">
+                <div class="sig-top">
+                  <span class="sev-dot"></span>
+                  <strong>{signal.title}</strong>
+                  <a class="client-link" href={`/clients/${client.id}`}>{client.name}</a>
+                </div>
+                <p class="evidence">{signal.evidence}</p>
               </div>
-              <p class="evidence">{signal.evidence}</p>
+              <div class="sig-actions">
+                {#if signal.prefillNote}
+                  <a
+                    class="btn small"
+                    href={`/clients/${client.id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
+                  >
+                    ✦ Draft next block
+                  </a>
+                {:else if signal.altHref}
+                  <a class="btn ghost small" href={signal.altHref}>{signal.altLabel}</a>
+                {/if}
+                <a class="btn ghost small" href={`/clients/${client.id}`}>Open client</a>
+              </div>
             </div>
-            <div class="sig-actions">
-              {#if signal.prefillNote}
-                <a
-                  class="btn small"
-                  href={`/clients/${client.id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
-                >
-                  ✦ Draft next block
-                </a>
-              {:else if signal.altHref}
-                <a class="btn ghost small" href={signal.altHref}>{signal.altLabel}</a>
-              {/if}
-              <a class="btn ghost small" href={`/clients/${client.id}`}>Open client</a>
-            </div>
-          </div>
+          {/if}
         {/each}
       </div>
     </section>

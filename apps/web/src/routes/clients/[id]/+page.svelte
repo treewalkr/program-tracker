@@ -3,12 +3,10 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
-  import type { ClientDto, HistoryEntryDto, ProgramDto } from "$lib/api/types";
-  import { blockPulse, type WeekMetrics } from "$lib/metrics";
-  import { weekOf } from "$lib/signals";
+  import type { ClientDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
+  import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
-  import { activeSignals, computeSignals, snoozeSignal, type Signal } from "$lib/signals";
 
   const id = $derived(page.params.id ?? "");
 
@@ -19,7 +17,7 @@
   let editing = $state(false);
   let saving = $state(false);
   let form = $state({ goals: "", limitations: "", daysPerWeek: 3 });
-  let signals = $state<Signal[]>([]);
+  let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
   let pulseWeek = $state(0);
   let dismissedNow = $state<string[]>([]);
@@ -33,9 +31,8 @@
     programs = detail.programs;
     history = await api.history(id);
     if (current) {
-      const [logs, exs] = await Promise.all([api.sessionLogs(id), api.exercises()]);
-      const names = new Map(exs.map((e) => [e.id, e.name]));
-      signals = activeSignals(computeSignals(current, logs, (x) => names.get(x) ?? x, detail.client.daysPerWeek));
+      const [logs, sigs] = await Promise.all([api.sessionLogs(id), api.notifications()]);
+      signals = sigs.filter((s) => s.clientId === id);
       pulse = blockPulse(current, logs);
       pulseWeek = weekOf(current, logs);
     } else {
@@ -113,7 +110,7 @@
             <button
               class="btn ghost small"
               onclick={() => {
-                snoozeSignal(signal.id, 7);
+                api.snoozeSignal(signal.id, new Date(Date.now() + 7 * 86400_000).toISOString());
                 dismissedNow = [...dismissedNow, signal.id];
               }}
             >

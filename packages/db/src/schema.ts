@@ -11,7 +11,16 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { AiProgramDraft, Phasing, ProgramSession, WeekPlan } from "@pt/shared";
+import type {
+  AiProgramDraft,
+  ClientStatus,
+  GenerationStatus,
+  Phasing,
+  ProgramSession,
+  ProgramStatus,
+  SetType,
+  WeekPlan,
+} from "@pt/shared";
 
 // ---------------------------------------------------------------------------
 // People
@@ -31,7 +40,7 @@ export const clients = pgTable("clients", {
     .references(() => trainers.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   email: text("email").notNull(),
-  status: text("status").notNull().default("active"), // ClientStatus
+  status: text("status").$type<ClientStatus>().notNull().default("active"),
   goals: text("goals"),
   limitations: text("limitations"),
   daysPerWeek: integer("days_per_week"),
@@ -70,7 +79,7 @@ export const programs = pgTable("programs", {
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
-  status: text("status").notNull().default("draft"), // ProgramStatus
+  status: text("status").$type<ProgramStatus>().notNull().default("draft"),
   version: integer("version").notNull().default(1),
   createdFromProgramId: uuid("created_from_program_id"),
   aiAssisted: boolean("ai_assisted").notNull().default(false),
@@ -114,7 +123,7 @@ export const setLogs = pgTable("set_logs", {
     .notNull()
     .references(() => exercises.id, { onDelete: "restrict" }),
   setNumber: integer("set_number").notNull(),
-  type: text("type").notNull().default("working"), // SetType
+  type: text("type").$type<SetType>().notNull().default("working"),
   weightKg: numeric("weight_kg", { precision: 6, scale: 2 }),
   reps: integer("reps").notNull(),
   rpe: numeric("rpe", { precision: 3, scale: 1 }),
@@ -138,7 +147,7 @@ export const aiGenerations = pgTable("ai_generations", {
   }),
   providerId: text("provider_id").notNull(),
   model: text("model").notNull(),
-  status: text("status").notNull().default("pending"), // GenerationStatus
+  status: text("status").$type<GenerationStatus>().notNull().default("pending"),
   draft: jsonb("draft").$type<AiProgramDraft>(),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

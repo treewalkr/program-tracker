@@ -9,88 +9,80 @@ import type {
   SessionLogInput,
   InstructionTemplateDto,
   PeriodizationSchemeDto,
+  SignalDto,
   TrainerApi,
 } from "./types";
-import { PUBLIC_API_URL } from "$env/static/public";
+import { client } from "./treaty";
 
-const BASE = PUBLIC_API_URL ?? "http://localhost:4000";
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
-  });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((body as any)?.error ?? `request failed: ${res.status}`);
-  return body as T;
+/**
+ * Eden result → thrown Error, preserving the API's `error` message envelope.
+ * `data` is `unknown` and each call site names its wire type: Eden's inferred
+ * Date objects arrive as ISO strings over JSON, so the DTO is the wire truth.
+ */
+async function unwrap<T>(
+  p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>
+): Promise<T> {
+  const { data, error } = await p;
+  if (error) {
+    const value = error.value as { error?: string } | string | null;
+    const message = typeof value === "string" ? value : value?.error;
+    const code = typeof error.status === "number" ? error.status : "unknown";
+    throw new Error(message ?? `request failed: ${code}`);
+  }
+  return data as T;
 }
 
-/** Wire-up against the running Elysia API. Enabled via PUBLIC_API_MODE=live. */
+/** Wire-up against the running Elysia API via Eden Treaty. Enabled via PUBLIC_API_MODE=live. */
 export const realApi: TrainerApi = {
-  providers: async () => (await request<{ providers: ProviderDto[] }>("/v1/ai/providers")).providers,
-  clients: () => request<ClientDto[]>("/v1/clients"),
+  providers: async () =>
+    (await unwrap<{ providers: ProviderDto[] }>(client.v1.ai.providers.get())).providers,
+  clients: () => unwrap<ClientDto[]>(client.v1.clients.get()),
   client: (id) =>
-    request<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>(
-      `/v1/clients/${id}`
-    ).then((r) => ({ client: r.client, currentProgram: r.currentProgram, programs: r.programs })),
-  createClient: (input) =>
-    request<ClientDto>("/v1/clients", { method: "POST", body: JSON.stringify(input) }),
-  updateClient: (id, patch) =>
-    request<ClientDto>(`/v1/clients/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-
-  program: (id) => request<ProgramDto>(`/v1/programs/${id}`),
-  programs: (clientId) => request<ProgramDto[]>(`/v1/programs?clientId=${clientId}`),
-  saveProgram: (id, sessions) =>
-    request<ProgramDto>(`/v1/programs/${id}`, { method: "PUT", body: JSON.stringify({ sessions }) }),
-  createProgram: (input) =>
-    // TODO(backend): extend zod program schema with phasing + activatedAt
-    request<ProgramDto>("/v1/programs", { method: "POST", body: JSON.stringify(input) }),
-  setProgramStatus: (id, status) =>
-    request<ProgramDto>(`/v1/programs/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
-
-  exercises: (q) => request<ExerciseDto[]>(`/v1/exercises${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  createExercise: (input) =>
-    request<ExerciseDto>("/v1/exercises", { method: "POST", body: JSON.stringify(input) }),
-
-  history: (clientId) =>
-    request<{ history: HistoryEntryDto[] }>(`/v1/logs/history?clientId=${clientId}`).then(
-      (r) => r.history
+    unwrap<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>(
+      client.v1.clients({ id }).get()
     ),
+  createClient: (input) => unwrap<ClientDto>(client.v1.clients.post(input)),
+  updateClient: (id, patch) => unwrap<ClientDto>(client.v1.clients({ id }).patch(patch)),
+
+  program: (id) => unwrap<ProgramDto>(client.v1.programs({ id }).get()),
+  programs: (clientId) => unwrap<ProgramDto[]>(client.v1.programs.get({ query: { clientId } })),
+  saveProgram: (id, sessions) =>
+    unwrap<ProgramDto>(client.v1.programs({ id }).put({ sessions })),
+  createProgram: (input) => unwrap<ProgramDto>(client.v1.programs.post(input)),
+  setProgramStatus: (id, status) =>
+    unwrap<ProgramDto>(client.v1.programs({ id }).status.patch({ status })),
+
+  exercises: (q) => unwrap<ExerciseDto[]>(client.v1.exercises.get({ query: q ? { q } : {} })),
+  createExercise: (input) => unwrap<ExerciseDto>(client.v1.exercises.post(input)),
+
+  history: async (clientId) =>
+    (await unwrap<{ history: HistoryEntryDto[] }>(client.v1.logs.history.get({ query: { clientId } }))).history,
   sessionLogs: (clientId) =>
-    request<SessionLogDto[]>(`/v1/logs/sessions?clientId=${clientId}`),
-  logSession: (input: SessionLogInput) =>
-    request("/v1/logs/sessions", { method: "POST", body: JSON.stringify(input) }),
+    unwrap<SessionLogDto[]>(client.v1.logs.sessions.get({ query: { clientId } })),
+  logSession: (input: SessionLogInput) => unwrap<unknown>(client.v1.logs.sessions.post(input)),
 
   instructionTemplates: async () =>
-    (await request<{ templates: InstructionTemplateDto[] }>("/v1/ai/prompt-templates")).templates,
+    (await unwrap<{ templates: InstructionTemplateDto[] }>(client.v1.ai["prompt-templates"].get())).templates,
   createInstructionTemplate: (input) =>
-    request<InstructionTemplateDto>("/v1/ai/prompt-templates", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
+    unwrap<InstructionTemplateDto>(client.v1.ai["prompt-templates"].post(input)),
   updateInstructionTemplate: (id, input) =>
-    request<InstructionTemplateDto>(`/v1/ai/prompt-templates/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(input),
-    }),
+    unwrap<InstructionTemplateDto>(client.v1.ai["prompt-templates"]({ id }).put(input)),
   deleteInstructionTemplate: (id) =>
-    request<void>(`/v1/ai/prompt-templates/${id}`, { method: "DELETE" }),
+    unwrap<void>(client.v1.ai["prompt-templates"]({ id }).delete()),
 
   schemes: async () =>
-    (await request<{ schemes: PeriodizationSchemeDto[] }>("/v1/schemes")).schemes,
-  createScheme: (input) =>
-    request<PeriodizationSchemeDto>("/v1/schemes", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  deleteScheme: (id) =>
-    request<void>(`/v1/schemes/${id}`, { method: "DELETE" }),
-  generate: (input) =>
-    request<GenerationDto>("/v1/ai/generate", { method: "POST", body: JSON.stringify(input) }),
+    (await unwrap<{ schemes: PeriodizationSchemeDto[] }>(client.v1.schemes.get())).schemes,
+  createScheme: (input) => unwrap<PeriodizationSchemeDto>(client.v1.schemes.post(input)),
+  deleteScheme: (id) => unwrap<void>(client.v1.schemes({ id }).delete()),
+
+  notifications: async () =>
+    (await unwrap<{ signals: SignalDto[] }>(client.v1.notifications.get())).signals,
+  snoozeSignal: (id, until) =>
+    unwrap<void>(client.v1.notifications({ signalId: id }).snooze.put({ until })),
+
+  generate: (input) => unwrap<GenerationDto>(client.v1.ai.generate.post(input)),
   generations: (clientId) =>
-    request<GenerationDto[]>(`/v1/ai/generations?clientId=${clientId}`),
-  approveGeneration: (id) =>
-    request<ProgramDto>(`/v1/ai/generations/${id}/approve`, { method: "POST", body: "{}" }),
-  rejectGeneration: (id) =>
-    request<GenerationDto>(`/v1/ai/generations/${id}/reject`, { method: "POST", body: "{}" }),
+    unwrap<GenerationDto[]>(client.v1.ai.generations.get({ query: { clientId } })),
+  approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),
+  rejectGeneration: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).reject.post()),
 };

@@ -10,7 +10,17 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		// Eden treaty<App> requires ONE elysia type identity. Bun's isolated linker
+		// gives web and api separate store entries for the same version; alias the
+		// web check to the api's copy (type-check only — no runtime effect).
+		// NOTE: setting `paths` here replaces the generated aliases — repeat them.
+		"paths": {
+			"$lib": ["./src/lib"],
+			"$lib/*": ["./src/lib/*"],
+			"$app/types": ["./.svelte-kit/types/index.d.ts"],
+			"elysia": ["../api/node_modules/elysia"]
+		}
 	}
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files

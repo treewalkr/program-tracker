@@ -18,8 +18,12 @@ function snoozeMap(): Record<string, string> {
 }
 
 export function snoozeSignal(id: string, days = 7) {
+  snoozeUntil(id, new Date(Date.now() + days * 86400_000).toISOString());
+}
+
+export function snoozeUntil(id: string, untilIso: string) {
   const map = snoozeMap();
-  map[id] = new Date(Date.now() + days * 86400_000).toISOString();
+  map[id] = untilIso;
   localStorage.setItem(SNOOZE_KEY, JSON.stringify(map));
 }
 

@@ -72,7 +72,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs" })
       body: t.Object({
         name: t.String({ minLength: 1, maxLength: 160 }),
         clientId: t.Optional(t.String()),
-        description: t.Optional(t.String({ maxLength: 2000 })),
+        description: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         sessions: t.Any(),
         phasing: t.Optional(t.Any()),
         aiAssisted: t.Optional(t.Boolean()),

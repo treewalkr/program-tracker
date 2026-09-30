@@ -1,4 +1,5 @@
-import { estimate1rm } from "@pt/shared";
+import { computeSignals, estimate1rm } from "@pt/shared";
+import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
   ClientDto,
@@ -11,6 +12,7 @@ import type {
   SessionLogInput,
   TrainerApi,
 } from "../types";
+import { activeSignals, snoozeUntil } from "../../signals";
 import {
   clients as seedClients,
   exercises,
@@ -476,5 +478,26 @@ export const mockApi: TrainerApi = {
     const gen = state.generations.find((g) => g.id === id);
     if (gen) gen.status = "rejected";
     return gen!;
+  },
+
+  /** Same shared rule engine the API runs — over the in-memory fixtures. */
+  async notifications(): Promise<SignalDto[]> {
+    await delay(250);
+    const signals: SignalDto[] = [];
+    for (const client of state.clients) {
+      if (client.status === "archived") continue;
+      const current =
+        state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
+      if (!current) continue;
+      const logs = state.logs
+        .filter((l) => l.clientId === client.id)
+        .map((l) => ({ programId: l.programId, date: l.date, sets: l.sets }));
+      signals.push(...computeSignals(current, logs, nameOf, client.daysPerWeek));
+    }
+    return activeSignals(signals);
+  },
+
+  async snoozeSignal(id, until) {
+    snoozeUntil(id, until);
   },
 };

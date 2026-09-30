@@ -182,7 +182,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai" })
     {
       body: t.Object({
         clientId: t.String(),
-        basedOnProgramId: t.Optional(t.String()),
+        basedOnProgramId: t.Optional(t.Union([t.String(), t.Null()])),
         providerId: t.Optional(t.String()),
         instructions: t.Optional(t.String({ maxLength: 2000 })),
       }),

@@ -32,6 +32,15 @@ const SessionLogInput = z.object({
     .max(100),
 });
 
+/** numeric columns come back as strings — convert to numbers at the API boundary. */
+function serializeSets(rows: typeof setLogs.$inferSelect[]) {
+  return rows.map((s) => ({
+    ...s,
+    weightKg: s.weightKg != null ? Number(s.weightKg) : null,
+    rpe: s.rpe != null ? Number(s.rpe) : null,
+  }));
+}
+
 async function loadSessionWithSets(clientId?: string, from?: string, to?: string) {
   const conds = [];
   if (clientId) conds.push(eq(sessionLogs.clientId, clientId));
@@ -46,7 +55,8 @@ async function loadSessionWithSets(clientId?: string, from?: string, to?: string
   const sets = logs.length
     ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
     : [];
-  return logs.map((l) => ({ ...l, sets: sets.filter((s) => s.sessionLogId === l.id) }));
+  const byLog = serializeSets(sets);
+  return logs.map((l) => ({ ...l, sets: byLog.filter((s) => s.sessionLogId === l.id) }));
 }
 
 export const logRoutes = new Elysia({ prefix: "/v1/logs" })
@@ -106,7 +116,7 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs" })
         console.error("signal outbox queue failed:", err)
       );
 
-      return status(201, { ...log, sets: insertedSets });
+      return status(201, { ...log, sets: serializeSets(insertedSets) });
     },
     { body: t.Any() }
   )

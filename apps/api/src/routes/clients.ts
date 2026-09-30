@@ -38,10 +38,12 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients" })
       body: t.Object({
         name: t.String({ minLength: 1, maxLength: 120 }),
         email: t.String({ format: "email" }),
-        goals: t.Optional(t.String({ maxLength: 2000 })),
-        limitations: t.Optional(t.String({ maxLength: 2000 })),
-        daysPerWeek: t.Optional(t.Integer({ minimum: 1, maximum: 7 })),
-        trainingDays: t.Optional(t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true })),
+        goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
+        limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
+        daysPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
+        trainingDays: t.Optional(
+          t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true }), t.Null()])
+        ),
       }),
     }
   )
@@ -60,11 +62,13 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients" })
       params: t.Object({ id: t.String() }),
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
-        goals: t.Optional(t.String({ maxLength: 2000 })),
-        limitations: t.Optional(t.String({ maxLength: 2000 })),
-        daysPerWeek: t.Optional(t.Integer({ minimum: 1, maximum: 7 })),
-        trainingDays: t.Optional(t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true })),
-        status: t.Optional(t.String()),
+        goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
+        limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
+        daysPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
+        trainingDays: t.Optional(
+          t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true }), t.Null()])
+        ),
+        status: t.Optional(t.Union([t.Literal("active"), t.Literal("paused"), t.Literal("archived")])),
       }),
     }
   );
