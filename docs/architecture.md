@@ -80,6 +80,19 @@ schema migration.
 strings; conversion to number happens at the aggregation boundary (`buildHistory`),
 never stored back.
 
+### 6. Web ↔ API seam: one interface, two adapters
+
+`apps/web/src/lib/api/types.ts` defines `TrainerApi` — every screen talks only to it.
+Two implementations: `mock/api.ts` (in-memory fixtures, `PUBLIC_API_MODE=mock`, default
+— demos run with zero infra) and `real.ts` (fetch to Elysia, `PUBLIC_API_MODE=live`).
+Pure analysis modules sit beside the seam and are shared-bound: `lib/signals.ts`
+(phase rule engine) and `lib/metrics.ts` (block pulse) move to `packages/shared`
+in Phase L3 so UI and API run identical rules.
+
+Planned additions (Phase L): `periodization_schemes` + `prompt_templates` tables,
+`GET /v1/notifications` reading the shared engine, daily cron + `signal_outbox`
+for email (see notifications.md).
+
 ## Running & testing
 
 | Command | What |

@@ -50,6 +50,16 @@ progression rules:
    do; instruction templates (prose) tell it *how* you want programs written.
 6. Trainer's free-text instructions for this generation (templates + one-off note)
 
+**Instruction templates** are standing rules (RPE caps, block conventions, equipment
+constraints) stored per trainer and selected per generation; they merge into item 6
+ahead of the one-off note. **Periodization context** (item 5) is never editable — it
+is derived from the program's scheme and logs.
+
+**Draft guidance (Phase L4):** AI drafts should propose `phasing` (phase names,
+plannedWeeks, and `weeks` taken from the client's saved scheme) and
+`targetWeightKg` progressing from the most recent logged loads (last + 2.5 kg grid by
+default). Rationale must cite actual logged numbers.
+
 ## The output gate
 
 The only accepted shape is `AiProgramDraft` (zod, `packages/shared/src/ai.ts`):
