@@ -5,7 +5,7 @@ import { db, periodizationSchemes } from "@pt/db";
 import { PeriodizationSchemeInput } from "@pt/shared";
 import { getDefaultTrainerId } from "../lib/trainer";
 
-export const schemeRoutes = new Elysia({ prefix: "/v1/schemes" })
+export const schemeRoutes = new Elysia({ prefix: "/v1/schemes", tags: ["schemes"] })
   .get("/", async () => {
     const trainerId = await getDefaultTrainerId();
     const rows = await db

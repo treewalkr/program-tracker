@@ -52,6 +52,7 @@ docker compose up -d  # web :5173, api :4000, postgres :5433
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/openapi` | interactive API docs (Scalar) — spec at `/openapi/json` |
 | GET | `/health` | liveness |
 | GET | `/v1/ai/providers` | configured AI providers (never secrets) |
 | GET/POST/PATCH | `/v1/clients[...]` | client management |

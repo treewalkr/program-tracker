@@ -5,7 +5,7 @@ import { db, promptTemplates } from "@pt/db";
 import { InstructionTemplateInput } from "@pt/shared";
 import { getDefaultTrainerId } from "../lib/trainer";
 
-export const promptTemplateRoutes = new Elysia({ prefix: "/v1/ai/prompt-templates" })
+export const promptTemplateRoutes = new Elysia({ prefix: "/v1/ai/prompt-templates", tags: ["prompt-templates"] })
   .get("/", async () => {
     const trainerId = await getDefaultTrainerId();
     const rows = await db

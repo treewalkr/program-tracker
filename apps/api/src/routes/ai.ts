@@ -126,7 +126,7 @@ function providerRuntime(providerId: string) {
   };
 }
 
-export const aiRoutes = new Elysia({ prefix: "/v1/ai" })
+export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   .post(
     "/generate",
     async ({ body, status }) => {

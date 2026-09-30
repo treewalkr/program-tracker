@@ -3,7 +3,7 @@ import { and, eq, ilike, isNull, or } from "drizzle-orm";
 import { db, exercises } from "@pt/db";
 import { getDefaultTrainerId } from "../lib/trainer";
 
-export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises" })
+export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exercises"] })
   /** Search the seed library + this trainer's custom exercises. */
   .get(
     "/",

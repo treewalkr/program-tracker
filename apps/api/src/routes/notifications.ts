@@ -4,7 +4,7 @@ import { db, signalSnoozes } from "@pt/db";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { computeTrainerSignals } from "../lib/signals-service";
 
-export const notificationRoutes = new Elysia({ prefix: "/v1/notifications" })
+export const notificationRoutes = new Elysia({ prefix: "/v1/notifications", tags: ["notifications"] })
   /**
    * Signals are derived state — computed on read by the shared rule engine,
    * never stored as truth. Snoozed rows (until in the future) are filtered out.

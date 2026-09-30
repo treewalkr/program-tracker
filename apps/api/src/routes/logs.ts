@@ -59,7 +59,7 @@ async function loadSessionWithSets(clientId?: string, from?: string, to?: string
   return logs.map((l) => ({ ...l, sets: byLog.filter((s) => s.sessionLogId === l.id) }));
 }
 
-export const logRoutes = new Elysia({ prefix: "/v1/logs" })
+export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   /** Log a completed session on behalf of a client (trainer-entered in MVP). */
   .post(
     "/sessions",

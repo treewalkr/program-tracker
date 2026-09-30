@@ -23,3 +23,6 @@ playwright-report/
 # local editor/agent files
 .vscode/
 .zcode/plans/
+.impeccable/
+docs/
+AGENTS.md

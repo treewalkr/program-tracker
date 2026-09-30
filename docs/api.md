@@ -2,6 +2,10 @@
 
 Base URL (dev): `http://localhost:4000` · All bodies are JSON.
 
+Interactive OpenAPI docs (Scalar): `http://localhost:4000/openapi` ·
+raw spec: `http://localhost:4000/openapi/json` — generated from the live
+route schemas (TypeBox + zod via `mapJsonSchema`), grouped by tag.
+
 ## System
 
 | Method | Path | Notes |

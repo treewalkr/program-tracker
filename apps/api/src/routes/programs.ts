@@ -16,7 +16,7 @@ function parsePhasing(raw: unknown): { ok: true; value: Phasing | null } | { ok:
   return { ok: true, value: parsed.data };
 }
 
-export const programRoutes = new Elysia({ prefix: "/v1/programs" })
+export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["programs"] })
   .get("/", async ({ query }) => {
     const trainerId = await getDefaultTrainerId();
     const rows = query.clientId
