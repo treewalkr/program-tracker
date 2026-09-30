@@ -58,6 +58,14 @@ export const Client = z.object({
   limitations: z.string().max(2000).optional(),
   /** Training days per week the client can commit to. */
   daysPerWeek: z.number().int().min(1).max(7).optional(),
+  /** Planned training weekdays, ISO: 1=Mon … 7=Sun. Drives the week strip. */
+  trainingDays: z
+    .array(z.number().int().min(1).max(7))
+    .max(7)
+    .refine((days) => new Set(days).size === days.length, {
+      message: "trainingDays must be unique",
+    })
+    .optional(),
   createdAt: z.string(),
 });
 export type Client = z.infer<typeof Client>;
@@ -90,18 +98,32 @@ export const SetType = z.enum(SET_TYPES);
 export type SetType = z.infer<typeof SetType>;
 
 /** A single prescribed set within a program exercise. */
-export const PrescribedSet = z.object({
-  /** 1-indexed order within the exercise. */
-  setNumber: z.number().int().min(1).max(20),
-  type: SetType.default("working"),
-  /** Target rep count. When `amrap` is true this is the *minimum*. */
-  reps: z.number().int().min(1).max(100),
-  amrap: z.boolean().default(false),
-  /** Target rate of perceived exertion, 1–10. */
-  targetRpe: z.number().min(1).max(10).optional(),
-  /** Planned rest after this set, in seconds. */
-  restSeconds: z.number().int().min(0).max(600).optional(),
-});
+export const PrescribedSet = z
+  .object({
+    /** 1-indexed order within the exercise. */
+    setNumber: z.number().int().min(1).max(20),
+    type: SetType.default("working"),
+    /** Target rep count. 0 = not rep-based (timed or failure set).
+     *  When `amrap` is true this is the *minimum*. */
+    reps: z.number().int().min(0).max(100),
+    amrap: z.boolean().default(false),
+    /** Lower bound of a rep range — `reps` holds the upper bound (e.g. 6–10). */
+    repsMin: z.number().int().min(0).max(100).optional(),
+    /** Time-based prescription (planks, timed holds) — replaces reps. */
+    durationSeconds: z.number().int().min(1).max(3600).optional(),
+    /** Load target. Absent/null = auto-regulate by RPE (or bodyweight). */
+    targetWeightKg: z.number().min(0).max(600).nullable().optional(),
+    /** Target rate of perceived exertion, 1–10. */
+    targetRpe: z.number().min(1).max(10).optional(),
+    /** Planned rest after this set, in seconds. */
+    restSeconds: z.number().int().min(0).max(600).optional(),
+  })
+  .refine((s) => s.reps > 0 || s.amrap || s.durationSeconds !== undefined, {
+    message: "reps 0 requires amrap (failure set) or durationSeconds (timed set)",
+  })
+  .refine((s) => s.repsMin === undefined || s.repsMin <= s.reps, {
+    message: "repsMin must be ≤ reps (reps is the range's upper bound)",
+  });
 export type PrescribedSet = z.infer<typeof PrescribedSet>;
 
 export const ProgramExercise = z.object({
@@ -115,6 +137,13 @@ export const ProgramExercise = z.object({
 });
 export type ProgramExercise = z.infer<typeof ProgramExercise>;
 
+/** Cardio / conditioning attached to a session (zone work, intervals, easy runs). */
+export const Conditioning = z.object({
+  label: z.string().min(1).max(80),
+  detail: z.string().min(1).max(500),
+});
+export type Conditioning = z.infer<typeof Conditioning>;
+
 export const ProgramSession = z.object({
   id: z.string().uuid(),
   /** e.g. "Day A — Lower". */
@@ -122,8 +151,51 @@ export const ProgramSession = z.object({
   order: z.number().int().min(0),
   exercises: z.array(ProgramExercise).min(1).max(20),
   notes: z.string().max(2000).optional(),
+  conditioning: Conditioning.nullable().optional(),
 });
 export type ProgramSession = z.infer<typeof ProgramSession>;
+
+// ---------------------------------------------------------------------------
+// Periodization (phasing)
+// ---------------------------------------------------------------------------
+
+export const WEEK_DIRECTIVES = [
+  "base",
+  "+volume",
+  "+intensity",
+  "deload",
+  "transition",
+  "test",
+] as const;
+export const WeekDirective = z.enum(WEEK_DIRECTIVES);
+export type WeekDirective = z.infer<typeof WeekDirective>;
+
+/** One week of a periodization scheme: what this week should do. */
+export const WeekPlan = z.object({
+  week: z.number().int().min(1).max(26),
+  directive: WeekDirective,
+  note: z.string().max(500).optional(),
+});
+export type WeekPlan = z.infer<typeof WeekPlan>;
+
+/** The trainer's week-by-week guide for a program block. */
+export const Phasing = z
+  .object({
+    plannedWeeks: z.number().int().min(1).max(26),
+    /** Current block phase name, e.g. "accumulation". */
+    phase: z.string().min(1).max(120),
+    nextPhase: z.string().min(1).max(120).nullable().optional(),
+    deloadWeeks: z.array(z.number().int().min(1).max(26)).default([]),
+    /** Explicit week-by-week progression — the trainer's periodization scheme. */
+    weeks: z.array(WeekPlan).optional(),
+  })
+  .refine((p) => p.deloadWeeks.every((w) => w <= p.plannedWeeks), {
+    message: "deloadWeeks must fall within plannedWeeks",
+  })
+  .refine((p) => !p.weeks || p.weeks.every((w) => w.week <= p.plannedWeeks), {
+    message: "week plans must fall within plannedWeeks",
+  });
+export type Phasing = z.infer<typeof Phasing>;
 
 export const Program = z.object({
   id: z.string().uuid(),
@@ -139,6 +211,9 @@ export const Program = z.object({
   createdFromProgramId: z.string().uuid().nullable().default(null),
   aiAssisted: z.boolean().default(false),
   sessions: z.array(ProgramSession).min(1).max(14),
+  /** Stamped on first activation — basis for block-week math (derived, never edited). */
+  activatedAt: z.string().nullable().optional(),
+  phasing: Phasing.nullable().optional(),
   createdAt: z.string(),
 });
 export type Program = z.infer<typeof Program>;

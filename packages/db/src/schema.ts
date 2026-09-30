@@ -10,7 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { AiProgramDraft, ProgramSession } from "@pt/shared";
+import type { AiProgramDraft, Phasing, ProgramSession } from "@pt/shared";
 
 // ---------------------------------------------------------------------------
 // People
@@ -34,6 +34,8 @@ export const clients = pgTable("clients", {
   goals: text("goals"),
   limitations: text("limitations"),
   daysPerWeek: integer("days_per_week"),
+  /** Planned training weekdays as ISO ints (1=Mon … 7=Sun). */
+  trainingDays: jsonb("training_days").$type<number[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -73,6 +75,10 @@ export const programs = pgTable("programs", {
   aiAssisted: boolean("ai_assisted").notNull().default(false),
   /** Whole-program document, validated by shared ProgramSession[] zod schema on write. */
   sessions: jsonb("sessions").$type<ProgramSession[]>().notNull(),
+  /** Stamped on first activation; block-week math derives from it. */
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  /** Periodization plan (scheme copy) — structured input to signals + AI context. */
+  phasing: jsonb("phasing").$type<Phasing>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

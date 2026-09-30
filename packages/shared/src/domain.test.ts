@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   AiProgramDraft,
+  Client,
   DraftExerciseRef,
   estimate1rm,
   LoggedSet,
+  Phasing,
   PrescribedSet,
   Program,
 } from "./index";
@@ -18,8 +20,9 @@ describe("PrescribedSet", () => {
   });
 
   test("rejects impossible reps", () => {
-    expect(() => PrescribedSet.parse({ setNumber: 1, reps: 0 })).toThrow();
     expect(() => PrescribedSet.parse({ setNumber: 1, reps: 101 })).toThrow();
+    // reps 0 is legal ONLY as a failure (amrap) or timed set
+    expect(() => PrescribedSet.parse({ setNumber: 1, reps: 0 })).toThrow();
   });
 
   test("rejects RPE out of 1-10", () => {
@@ -28,6 +31,105 @@ describe("PrescribedSet", () => {
     expect(() =>
       PrescribedSet.parse({ setNumber: 1, reps: 5, targetRpe: 10 })
     ).not.toThrow();
+  });
+});
+
+describe("PrescribedSet coach formats", () => {
+  test("rep range: repsMin lower bound, reps upper bound", () => {
+    const s = PrescribedSet.parse({ setNumber: 1, reps: 10, repsMin: 6 });
+    expect(s.repsMin).toBe(6);
+    expect(() => PrescribedSet.parse({ setNumber: 1, reps: 6, repsMin: 10 })).toThrow();
+  });
+
+  test("timed set: durationSeconds with reps 0", () => {
+    const s = PrescribedSet.parse({ setNumber: 1, reps: 0, durationSeconds: 60 });
+    expect(s.durationSeconds).toBe(60);
+  });
+
+  test("failure set: amrap with reps 0", () => {
+    const s = PrescribedSet.parse({ setNumber: 1, reps: 0, amrap: true });
+    expect(s.amrap).toBe(true);
+  });
+
+  test("load target: targetWeightKg present or null", () => {
+    const s = PrescribedSet.parse({ setNumber: 1, reps: 5, targetWeightKg: 65 });
+    expect(s.targetWeightKg).toBe(65);
+    expect(
+      PrescribedSet.parse({ setNumber: 1, reps: 5, targetWeightKg: null }).targetWeightKg
+    ).toBeNull();
+    expect(() => PrescribedSet.parse({ setNumber: 1, reps: 5, targetWeightKg: 700 })).toThrow();
+  });
+});
+
+describe("Phasing", () => {
+  test("round-trips a scheme-backed phasing with week directives", () => {
+    const p = Phasing.parse({
+      plannedWeeks: 6,
+      phase: "accumulation",
+      nextPhase: "intensification",
+      deloadWeeks: [4],
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity" },
+        { week: 4, directive: "deload" },
+      ],
+    });
+    expect(p.weeks).toHaveLength(4);
+    expect(p.deloadWeeks).toEqual([4]);
+  });
+
+  test("deload weeks and week plans must fall within plannedWeeks", () => {
+    expect(() =>
+      Phasing.parse({ plannedWeeks: 4, phase: "acc", deloadWeeks: [5] })
+    ).toThrow();
+    expect(() =>
+      Phasing.parse({
+        plannedWeeks: 4,
+        phase: "acc",
+        weeks: [{ week: 5, directive: "base" }],
+      })
+    ).toThrow();
+  });
+
+  test("rejects unknown directives", () => {
+    expect(() =>
+      Phasing.parse({
+        plannedWeeks: 4,
+        phase: "acc",
+        weeks: [{ week: 1, directive: "growth" as never }],
+      })
+    ).toThrow();
+  });
+
+  test("defaults deloadWeeks to empty", () => {
+    const p = Phasing.parse({ plannedWeeks: 3, phase: "acc" });
+    expect(p.deloadWeeks).toEqual([]);
+  });
+});
+
+describe("Client trainingDays", () => {
+  const base = {
+    id: uuid(),
+    trainerId: uuid(),
+    name: "Maya",
+    email: "maya@example.com",
+    createdAt: new Date().toISOString(),
+  };
+
+  test("accepts ISO weekday ints 1–7", () => {
+    const c = Client.parse({ ...base, trainingDays: [1, 3, 5] });
+    expect(c.trainingDays).toEqual([1, 3, 5]);
+  });
+
+  test("rejects duplicates and out-of-range days", () => {
+    expect(() => Client.parse({ ...base, trainingDays: [1, 1] })).toThrow();
+    expect(() => Client.parse({ ...base, trainingDays: [0] })).toThrow();
+    expect(() => Client.parse({ ...base, trainingDays: [8] })).toThrow();
+  });
+
+  test("old-shape clients (no trainingDays) still parse", () => {
+    expect(Client.parse(base).trainingDays).toBeUndefined();
   });
 });
 
@@ -60,6 +162,40 @@ describe("Program", () => {
     expect(p.version).toBe(1);
     expect(p.aiAssisted).toBe(false);
     expect(p.createdFromProgramId).toBeNull();
+    expect(p.activatedAt).toBeUndefined();
+    expect(p.phasing).toBeUndefined();
+  });
+
+  test("accepts conditioning on sessions and phasing + activatedAt on the program", () => {
+    const p = Program.parse({
+      id: uuid(),
+      trainerId: uuid(),
+      clientId: null,
+      name: "Block 1",
+      activatedAt: new Date().toISOString(),
+      phasing: {
+        plannedWeeks: 6,
+        phase: "accumulation",
+        deloadWeeks: [4],
+        weeks: [
+          { week: 1, directive: "base" },
+          { week: 2, directive: "+volume" },
+        ],
+      },
+      sessions: [
+        {
+          id: uuid(),
+          name: "Day A",
+          order: 0,
+          exercises: [baseExercise],
+          conditioning: { label: "Zone 2", detail: "20 min easy bike" },
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    });
+    expect(p.sessions[0].conditioning?.label).toBe("Zone 2");
+    expect(p.phasing?.weeks).toHaveLength(2);
+    expect(p.activatedAt).toBeTruthy();
   });
 });
 
