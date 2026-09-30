@@ -5,12 +5,13 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { AiProgramDraft, Phasing, ProgramSession } from "@pt/shared";
+import type { AiProgramDraft, Phasing, ProgramSession, WeekPlan } from "@pt/shared";
 
 // ---------------------------------------------------------------------------
 // People
@@ -150,3 +151,62 @@ export type ProgramRow = typeof programs.$inferSelect;
 export type SessionLogRow = typeof sessionLogs.$inferSelect;
 export type SetLogRow = typeof setLogs.$inferSelect;
 export type AiGenerationRow = typeof aiGenerations.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Trainer library — instruction templates + periodization schemes
+// ---------------------------------------------------------------------------
+
+/** Standing rules for AI generations (RPE caps, block conventions, equipment). */
+export const promptTemplates = pgTable("prompt_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Trainer-owned week-by-week progression schemes. Programs keep their own
+ *  phasing copy, so deleting a scheme never rewrites history. */
+export const periodizationSchemes = pgTable("periodization_schemes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  weeks: jsonb("weeks").$type<WeekPlan[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Notifications — signals are derived state; only snoozes + outbox persist
+// -----------------------------------------------------------------------------
+
+export const signalSnoozes = pgTable(
+  "signal_snoozes",
+  {
+    signalId: text("signal_id").notNull(),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.signalId, t.trainerId] })]
+);
+
+/** Write-path dedupe queue; consumed by the (L5) email dispatcher. */
+export const signalOutbox = pgTable("signal_outbox", {
+  signalId: text("signal_id").primaryKey(),
+  kind: text("kind").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: text("status").notNull().default("pending"), // pending | sent | failed
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PromptTemplateRow = typeof promptTemplates.$inferSelect;
+export type PeriodizationSchemeRow = typeof periodizationSchemes.$inferSelect;
+export type SignalSnoozeRow = typeof signalSnoozes.$inferSelect;
+export type SignalOutboxRow = typeof signalOutbox.$inferSelect;

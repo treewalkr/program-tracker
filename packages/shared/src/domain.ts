@@ -197,6 +197,26 @@ export const Phasing = z
   });
 export type Phasing = z.infer<typeof Phasing>;
 
+// ---------------------------------------------------------------------------
+// Trainer library inputs — schemes + instruction templates
+// ---------------------------------------------------------------------------
+
+export const InstructionTemplateInput = z.object({
+  name: z.string().min(1).max(120),
+  content: z.string().min(1).max(4000),
+});
+export type InstructionTemplateInput = z.infer<typeof InstructionTemplateInput>;
+
+export const PeriodizationSchemeInput = z
+  .object({
+    name: z.string().min(1).max(120),
+    weeks: z.array(WeekPlan).min(2).max(26),
+  })
+  .refine((s) => s.weeks.every((w, i) => w.week === i + 1), {
+    message: "weeks must be contiguous, starting at week 1",
+  });
+export type PeriodizationSchemeInput = z.infer<typeof PeriodizationSchemeInput>;
+
 export const Program = z.object({
   id: z.string().uuid(),
   trainerId: z.string().uuid(),

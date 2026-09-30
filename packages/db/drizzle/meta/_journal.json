@@ -15,6 +15,13 @@
       "when": 1790728447511,
       "tag": "0001_cynical_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790728735391,
+      "tag": "0002_flowery_stephen_strange",
+      "breakpoints": true
     }
   ]
 }
