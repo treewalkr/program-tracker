@@ -350,6 +350,10 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .signal .body strong { font-weight: 600; font-size: 14px; }
 .signal .evi { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
 .signal .act { flex: none; margin-top: 2px; }
+@media (max-width: 520px) {
+  .signal { flex-wrap: wrap; }
+  .signal .act { flex: 1 1 100%; margin-top: 6px; }
+}
 
 .snooze {
   appearance: none;
@@ -383,7 +387,16 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   background: var(--well);
   white-space: nowrap;
 }
-.session-head .cond { margin-left: auto; font: 500 12px/1 var(--font-ui); color: var(--good); white-space: nowrap; }
+.session-head .cond {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 500 12px/1 var(--font-ui);
+  color: var(--good);
+  white-space: nowrap;
+}
+.session-head .cond svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
 .session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
 .session + .session { border-top: 1px solid var(--line); }
 .exrow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }

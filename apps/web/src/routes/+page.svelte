@@ -331,4 +331,7 @@
   @media (max-width: 1060px) {
     .grid-2 { grid-template-columns: 1fr; }
   }
+  @media (max-width: 520px) {
+    .signal .act { justify-content: flex-start; }
+  }
 </style>

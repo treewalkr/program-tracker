@@ -272,7 +272,7 @@
                 title={t.content}
                 onclick={() => toggleTemplate(t.id)}
               >
-                {#if selected.includes(t.id)}✓{/if}
+                {#if selected.includes(t.id)}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>{/if}
                 {t.name}
               </button>
             {/each}
@@ -468,6 +468,9 @@
 
   .tpl-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .tpl {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font: 500 12px var(--font-ui);
     color: var(--muted);
     background: var(--surface);
@@ -476,6 +479,7 @@
     padding: 4px 12px;
     cursor: pointer;
   }
+  .tpl svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
   .tpl:hover { border-color: var(--line-strong); }
   .tpl.active { background: #24292f; color: #fff; border-color: #24292f; }
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
