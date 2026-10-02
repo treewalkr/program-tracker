@@ -344,6 +344,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .signal .lamp { width: 8px; height: 8px; border-radius: 99px; margin-top: 6px; flex: none; }
 .lamp.green { background: var(--green-btn); }
 .lamp.amber { background: #bf8700; }
+.lamp.red { background: var(--bad); }
 .lamp.gray { background: #818b98; }
 .signal .body { flex: 1; min-width: 0; }
 .signal .body strong { font-weight: 600; font-size: 14px; }
