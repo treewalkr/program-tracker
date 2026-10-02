@@ -173,8 +173,8 @@
       <p class="sub">Enter what {client.name.split(" ")[0]} actually did.</p>
     </div>
     {#if rows.length > 0}
-      <button class="btn" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
-        {oneClickBusy ? "Logging…" : "⚡ Did it as prescribed"}
+      <button class="btn primary" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
+        {#if oneClickBusy}Logging…{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>Did it as prescribed{/if}
       </button>
     {/if}
   </div>
@@ -280,13 +280,12 @@
   .head-controls .label { margin: 0; }
   .head-controls .select { width: auto; }
   .date { width: 150px; }
-  .btn.small { padding: 4px 10px; font-size: 13px; }
 
   th.num-col, td.num { text-align: right; }
   td.pre { color: var(--faint); }
   td.cell { width: 84px; }
   .tnum { text-align: right; font-family: var(--font-mono); padding: 5px 8px; }
-  tr.filled td { background: #f9faf6; }
+  tr.filled td { background: var(--well); }
 
   .foot {
     display: grid;
@@ -295,6 +294,7 @@
     align-items: end;
   }
   .energy { display: flex; align-items: center; gap: 10px; }
+  .energy input[type="range"] { accent-color: var(--blue); }
   .energy .label { margin: 0; }
   .notes { min-width: 220px; }
   .submit-row { display: flex; align-items: center; gap: 14px; }

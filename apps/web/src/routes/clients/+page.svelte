@@ -58,8 +58,8 @@
     <h1>Clients</h1>
     <p class="sub">{clients?.length ?? "…"} on the roster</p>
   </div>
-  <button class="btn" onclick={() => (showForm = !showForm)}>
-    {showForm ? "Cancel" : "Add client"}
+  <button class="btn" class:ghost={showForm} onclick={() => (showForm = !showForm)}>
+    {#if showForm}Cancel{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>Add client{/if}
   </button>
 </div>
 
@@ -94,7 +94,7 @@
         <textarea class="textarea" id="f-lim" rows="2" bind:value={form.limitations} maxlength="2000"></textarea>
       </div>
       <div class="span2">
-        <button class="btn" type="submit" disabled={saving || !form.name || !form.email}>
+        <button class="btn primary" type="submit" disabled={saving || !form.name || !form.email}>
           {saving ? "Saving…" : "Save client"}
         </button>
       </div>
@@ -120,7 +120,7 @@
           <tr class="rowlink">
             <td><a class="rowlink-name" href={`/clients/${c.id}`}><strong>{c.name}</strong></a><div class="subtle">{c.email}</div></td>
             <td><StatusPill status={c.status} /></td>
-            <td class="num">{c.daysPerWeek ?? "—"}/wk</td>
+            <td class="r">{c.daysPerWeek ?? "—"} / wk</td>
             <td class="goal">{c.goals ?? "—"}</td>
             <td>{#if c.limitations}<span class="pill bad">yes</span>{:else}<span class="subtle">none</span>{/if}</td>
           </tr>
