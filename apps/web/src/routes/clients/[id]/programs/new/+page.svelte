@@ -245,7 +245,7 @@
       <h1>Write a program by hand</h1>
       <p class="sub">Saved as draft — nothing goes live until you activate it.</p>
     </div>
-    <button class="btn" onclick={save} disabled={saving || !canSave}>
+    <button class="btn primary" onclick={save} disabled={saving || !canSave}>
       {saving ? "Saving…" : "Save as draft"}
     </button>
   </div>
@@ -286,7 +286,7 @@
                 {#if schemeMode === "saved" && selectedScheme}
                   <div class="scheme-chips">
                     {#each selectedScheme.weeks as w (w.week)}
-                      <span class="scheme-chip" class:d-up={w.directive === "+volume"} class:d-hot={w.directive === "+intensity"} class:d-tr={w.directive === "transition"} class:d-de={w.directive === "deload"}>W{w.week} {w.directive}</span>
+                      <span class="dir {w.directive === '+volume' ? 'vol' : w.directive === '+intensity' ? 'int' : w.directive === 'transition' ? 'tr' : ''}">W{w.week} {w.directive}</span>
                     {/each}
                   </div>
                   <div class="scheme-manage">
@@ -310,7 +310,7 @@
                           disabled={customWeeks.length <= 2}
                           onclick={() => (customWeeks = customWeeks.filter((_, j) => j !== i))}
                           aria-label="Remove week"
-                        >✕</button>
+                        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
                       </div>
                     {/each}
                     <div class="save-row">
@@ -424,7 +424,7 @@
                         <label class="mini"><input class="input tnum" type="number" min="0" step="2.5" bind:value={ps.targetWeightKg} placeholder="—" /> kg</label>
                         <label class="mini"><input class="input tnum" type="number" min="1" max="10" step="0.5" bind:value={ps.targetRpe} /> RPE</label>
                         <label class="mini"><input class="input tnum" type="number" min="0" step="15" bind:value={ps.restSeconds} /> s rest</label>
-                        <button type="button" class="setx" onclick={() => removeSet(e, pi)} aria-label="Remove set">×</button>
+                        <button type="button" class="setx" onclick={() => removeSet(e, pi)} aria-label="Remove set"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
                       </div>
                     {/each}
                   </div>
@@ -441,7 +441,7 @@
       {#if error}<p class="err">{error}</p>{/if}
       <p class="subtle hint">
         {totalSets} sets across {sessions.length} {sessions.length === 1 ? "day" : "days"}.
-        Prefer help? <a href={`/clients/${id}/generate`}>✦ Generate with AI</a> instead.
+        Prefer help? <a href={`/clients/${id}/generate`}>Generate with AI</a> instead.
       </p>
     </div>
   </div>
@@ -463,29 +463,18 @@
   .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .week-row { display: flex; align-items: center; gap: 8px; }
   .week-row .select { flex: 1; }
-  .wk { font: 700 12px var(--font-mono); width: 28px; color: var(--muted); }
+  .wk { font: 500 12px var(--font-mono); width: 28px; color: var(--muted); }
   .save-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
   .derived-val { margin: 6px 0 0; font: 600 14px var(--font-mono); }
-  .scheme-chip {
-    font: 600 12px var(--font-mono);
-    border: 1px solid var(--line-strong);
-    border-radius: 999px;
-    padding: 2px 9px;
-  }
-  .scheme-chip.d-up { color: #3f6339; border-color: #c3d2c5; }
-  .scheme-chip.d-hot { color: #7a520d; border-color: #ddd0ae; }
-  .scheme-chip.d-tr { color: #55558c; border-color: #cdcede; }
-  .scheme-chip.d-de { color: var(--muted); }
 
   .builder-col { display: flex; flex-direction: column; gap: 18px; }
   .sess-name {
-    font: 700 16px var(--font-ui);
+    font: 600 14px/1.3 var(--font-ui);
     border: none; background: none; color: var(--ink);
     padding: 0; width: 220px;
   }
-  .sess-name:focus { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 2px; }
+  .sess-name:focus { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
   .head-actions { display: flex; gap: 6px; }
-  .btn.small { padding: 4px 10px; font-size: 13px; }
 
   .exlist { display: flex; flex-direction: column; gap: 12px; }
   .cardio-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -503,11 +492,11 @@
   .select.tiny { width: auto; padding: 3px 6px; font-size: 12.5px; }
   .mini { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
   .mini .input { width: 58px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
-  .setx { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 0 4px; }
+  .setx { border: none; background: none; color: var(--faint); cursor: pointer; padding: 2px; display: inline-flex; }
+  .setx svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
   .setx:hover { color: var(--bad); }
 
   .addday { align-self: flex-start; }
-  .err { color: var(--bad); font-weight: 600; }
   .hint { margin: 0; }
 
   @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }

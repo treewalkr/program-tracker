@@ -105,7 +105,7 @@
       <h1>{program.name} <StatusPill status={program.status} /></h1>
       <p class="sub">
         v{program.version}
-        {#if program.aiAssisted} · ✦ AI-assisted draft{#if program.createdFromProgramId}, built on previous block{/if}{/if}
+        {#if program.aiAssisted} · AI-assisted draft{#if program.createdFromProgramId}, built on previous block{/if}{/if}
         {#if savedAt} · saved {savedAt}{/if}
       </p>
     </div>
@@ -115,11 +115,11 @@
       {:else if editing}
         <button class="btn ghost" onclick={applyDeload} title="Cut working-set loads ~10%, rounded to 2.5kg">Deload −10%</button>
         <button class="btn ghost" onclick={() => (editing = false)}>Done</button>
-        <button class="btn" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+        <button class="btn primary" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
       {:else}
         <button class="btn ghost" onclick={() => (editing = true)}>Edit sets</button>
         {#if program.status === "draft"}
-          <button class="btn" onclick={activate} disabled={activating}>
+          <button class="btn primary" onclick={activate} disabled={activating}>
             {activating ? "Activating…" : "Activate program"}
           </button>
         {/if}
@@ -143,7 +143,7 @@
       <section class="panel">
         <div class="panel-head">
           <h2>{s.name}</h2>
-          {#if !editing && s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}>▲ {s.conditioning.label} · {s.conditioning.detail}</span>{/if}
+          {#if !editing && s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6l7 12H5z" /></svg>{s.conditioning.label} · {s.conditioning.detail}</span>{/if}
           <span class="subtle">{s.exercises.length} exercises</span>
         </div>
         {#if editing}
@@ -281,25 +281,29 @@
   .kgv { font-weight: 600; }
   .select.swap { width: auto; padding: 3px 8px; font-size: 12.5px; max-width: 220px; }
   .cond-chip {
-    font: 600 12px var(--font-ui);
-    color: #4e6e58;
-    background: #eef3ef;
-    border: 1px solid #d4e0d8;
-    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font: 500 12px var(--font-ui);
+    color: var(--good);
+    background: var(--good-bg);
+    border: 1px solid var(--good-line);
+    border-radius: 99px;
     padding: 2px 10px;
     max-width: 320px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .cond-chip svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
   .cardio-edit { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 2px; }
   .cardio-edit .cardio-label { max-width: 200px; }
   .ctrl.rest { margin-left: auto; }
   .stepper {
     width: 22px;
     height: 22px;
-    border: 1px solid var(--line-strong);
-    border-radius: 5px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
     background: var(--surface);
     font: 600 13px var(--font-ui);
     cursor: pointer;
@@ -308,7 +312,7 @@
     align-items: center;
     justify-content: center;
   }
-  .stepper:hover { background: #eceee9; }
+  .stepper:hover { background: var(--well-2); }
 
   @media (max-width: 980px) {
     .sessions-grid { grid-template-columns: 1fr; }
