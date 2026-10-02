@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -97,6 +96,21 @@
       if (!draftEx.has(name)) rows.push({ exercise: name, change: "removed", detail: `was ${info.sets} (${info.sessions.join(", ")})` });
     }
     return rows;
+  });
+
+  const diffCounts = $derived({
+    kept: diff.filter((d) => d.change === "kept").length,
+    added: diff.filter((d) => d.change === "added").length,
+    removed: diff.filter((d) => d.change === "removed").length,
+    changed: diff.filter((d) => d.change === "changed").length,
+  });
+
+  const genWhen = $derived.by(() => {
+    if (!gen) return "";
+    const mins = Math.floor((Date.now() - new Date(gen.createdAt).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} min ago`;
+    return new Date(gen.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   });
 
   async function start() {
@@ -196,13 +210,13 @@
 
 {#if client === null}
   <div class="skeleton" style="height:140px"></div>
-{:else}
+{:else if phase === "form" || phase === "generating" || phase === "failed"}
+  <p class="crumbs"><a href={`/clients/${id}`}>{client.name}</a> / <b>Generate</b></p>
   <div class="page-head">
     <div>
-      <p class="crumb"><a href={`/clients/${id}`}>{client.name}</a> / Generate</p>
-      <h1>✦ Draft next block with AI</h1>
+      <h1>Draft next block with AI</h1>
       <p class="sub">
-        Reads {client.name.split(" ")[0]}'s profile, {current ? `"${current.name}"` : "no program yet"}, and 8 weeks of logged sets.
+        Reads {client.name.split(" ")[0]}'s profile, {current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.
       </p>
     </div>
   </div>
@@ -244,9 +258,7 @@
           </div>
         {/if}
         <div>
-          <label class="label" for="g-based">
-            Based on
-          </label>
+          <label class="label" for="g-based">Based on</label>
           <input class="input" id="g-based" disabled value={current ? `${current.name} (active, v${current.version})` : "Cold start — no previous program"} />
         </div>
         <div>
@@ -306,7 +318,10 @@
             Limitations always apply, regardless of instructions: “{client.limitations}”
           </p>
         {/if}
-        <button class="btn" type="submit">✦ Generate draft</button>
+        <button class="btn primary" type="submit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" /></svg>
+          Generate draft
+        </button>
         <p class="subtle">Nothing goes live — the draft waits for your review.</p>
       </form>
     </section>
@@ -322,165 +337,276 @@
       </div>
     </section>
 
-  {:else if phase === "failed"}
+  {:else}
     <section class="panel narrow">
-      <div class="panel-body">
+      <div class="panel-body stack">
         <p class="err">Generation failed. {failReason ?? "Provider error or the draft failed validation."}</p>
         <button class="btn ghost" onclick={() => (phase = "form")}>Back to settings</button>
       </div>
     </section>
+  {/if}
 
-  {:else if gen?.draft}
-    <div class="review-cols">
+{:else if gen?.draft}
+  <p class="crumbs"><a href="/clients">Clients</a> / <a href={`/clients/${id}`}>{client.name}</a> / <b>AI draft</b></p>
+  <div class="page-head">
+    <div>
+      <div class="title-row">
+        <h1>Draft — next block</h1>
+        <StatusPill status={gen.status} />
+      </div>
+      <div class="gen-meta">
+        <span><span class="dot" aria-hidden="true"></span>generated {genWhen}</span>
+        <span class="mono">{gen.model}</span>
+        <span>from {current ? `“${current.name}” · 8-wk history` : "cold start"}</span>
+      </div>
+    </div>
+    <div class="head-actions">
+      {#if gen.status === "rejected"}
+        <button class="btn" onclick={reset}>Draft again</button>
+        <a class="btn ghost" href={`/clients/${id}`}>Back to client</a>
+      {:else if newProgram}
+        <a class="btn primary" href={`/programs/${newProgram.id}`}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 7l9 4 9-4zM3 12l9 4 9-4M3 17l9 4 9-4" /></svg>
+          Open in builder
+        </a>
+        <a class="btn" href={`/clients/${id}`}>Back to client</a>
+      {:else}
+        <button class="btn danger" onclick={reject} disabled={rejecting}>
+          {rejecting ? "Rejecting…" : "Reject"}
+        </button>
+        <button class="btn primary" onclick={approve} disabled={approving}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+          {approving ? "Approving…" : "Approve as draft program"}
+        </button>
+      {/if}
+    </div>
+  </div>
+
+  {#if newProgram}
+    <p class="flash-ok">
+      Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.
+    </p>
+  {:else if gen.status === "rejected"}
+    <p class="flash-bad">Discarded — this draft won't be used.</p>
+  {/if}
+
+  <div class="review-cols">
+    <div>
       <section class="panel">
         <div class="panel-head">
-          <h2>✦ {gen.draft.name}</h2>
-          <StatusPill status={gen.status} />
+          <h2>Why this block</h2>
+          <span class="counter">trainer-facing rationale</span>
         </div>
-        <div class="panel-body stack">
-          <div>
-            <p class="label">Why this draft — for you</p>
-            <p class="rationale">{gen.draft.rationale}</p>
-          </div>
-          <hr class="divider" />
-          <div>
-            <p class="label">What the client reads</p>
-            <p>{gen.draft.clientSummary}</p>
-          </div>
-          <hr class="divider" />
-          <div class="actions-row">
-            {#if gen.status === "rejected"}
-              <p class="discarded">Discarded — this draft won't be used.</p>
-              <button class="btn" onclick={reset}>Draft again</button>
-              <a class="btn ghost" href={`/clients/${id}`}>Back to client</a>
-            {:else}
-              <button class="btn" onclick={approve} disabled={approving || !!newProgram}>
-                {approving ? "Approving…" : newProgram ? "Approved ✓" : "Approve as draft program"}
-              </button>
-              <button class="btn danger" onclick={reject} disabled={!!newProgram || rejecting}>
-                {rejecting ? "Rejecting…" : "Reject"}
-              </button>
-            {/if}
-          </div>
-          {#if newProgram}
-            <p class="ok">
-              Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.
-            </p>
-            <div class="actions-row">
-              <a class="btn" href={`/programs/${newProgram.id}`}>Open in builder</a>
-              <a class="btn ghost" href={`/clients/${id}`}>Back to client</a>
-            </div>
-          {/if}
-        </div>
+        <div class="panel-body rationale">{gen.draft.rationale}</div>
       </section>
 
-      <div class="side-col">
-        {#if diff.length > 0}
-          <section class="panel">
-            <div class="panel-head"><h2>Changes vs current</h2></div>
-            <table class="sheet">
-              <tbody>
-                {#each diff as d (d.exercise)}
-                  <tr>
-                    <td><strong>{d.exercise}</strong></td>
-                    <td><span class="pill {d.change === 'added' ? 'good' : d.change === 'removed' ? 'bad' : d.change === 'changed' ? 'warn' : 'neutral'}">{d.change}</span></td>
-                    <td class="num">{d.detail}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </section>
-        {/if}
+      <div class="clientreads">
+        <div class="edit-note">what {client.name.split(" ")[0]} reads</div>
+        {gen.draft.clientSummary}
+      </div>
+    </div>
 
-        <section class="panel" style="margin-top:18px">
-          <div class="panel-head"><h2>Draft sessions</h2></div>
-          <div class="panel-body sessions">
-            {#each gen.draft.sessions as s, si (si)}
-              <div class="session">
-                <h3>{s.name}</h3>
-                {#each s.exercises as e, ei (ei)}
-                  <div class="exrow">
-                    <span class="exname">{draftName(e)}</span>
-                    <SetChips sets={e.prescribedSets} />
-                  </div>
-                {/each}
-              </div>
+    <div>
+      {#if diff.length > 0}
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Changes vs current</h2>
+            <span class="counter">{diff.length} exercises reviewed</span>
+          </div>
+          <div class="panel-body">
+            <div class="diff">
+              <div class="diff-cell"><div class="n muted">{diffCounts.kept}</div><div class="l">kept</div></div>
+              <div class="diff-cell"><div class="n green">{diffCounts.added}</div><div class="l">added</div></div>
+              <div class="diff-cell"><div class="n red">{diffCounts.removed}</div><div class="l">removed</div></div>
+              <div class="diff-cell"><div class="n blue">{diffCounts.changed}</div><div class="l">changed</div></div>
+            </div>
+            {#each diff as d (d.exercise)}
+              {#if d.change !== "kept"}
+                <div class="chg {d.change === 'added' ? 'add' : d.change === 'removed' ? 'rm' : 'ch'}">
+                  <span class="pm" aria-hidden="true">{d.change === "added" ? "+" : d.change === "removed" ? "−" : "~"}</span>
+                  <span class="nm">{d.exercise}</span>
+                  <span class="detail">{d.detail}</span>
+                </div>
+              {/if}
             {/each}
           </div>
         </section>
-      </div>
+      {/if}
+
+      <section class="panel" style="margin-top:16px">
+        <div class="panel-head">
+          <h2>Draft sessions</h2>
+          <span class="counter">{gen.draft.sessions.length} days</span>
+        </div>
+        {#each gen.draft.sessions as s, si (si)}
+          <div class="session">
+            <div class="session-head"><h3>{s.name}</h3></div>
+            <div class="session-body">
+              {#each s.exercises as e, ei (ei)}
+                <div class="exrow">
+                  <div class="ex">{draftName(e) || "Unmapped exercise"}</div>
+                  <SetChips sets={e.prescribedSets} />
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/each}
+      </section>
+    </div>
+  </div>
+
+  {#if gen.status !== "rejected" && !newProgram}
+    <div class="approve-note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+      <span>Approving creates a <strong>draft</strong> — nothing reaches {client.name.split(" ")[0]} until you edit and activate it. The AI never touches anything the client sees.</span>
     </div>
   {/if}
 {/if}
 
 <style>
-  .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
-  .crumb a:hover { text-decoration: underline; }
+  .crumbs b { color: var(--ink); }
 
   .tpl-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .tpl {
-    font: 600 12.5px var(--font-ui);
+    font: 500 12px var(--font-ui);
     color: var(--muted);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 99px;
-    padding: 3px 11px;
+    padding: 4px 12px;
     cursor: pointer;
   }
   .tpl:hover { border-color: var(--line-strong); }
-  .tpl.active { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .manage { font: 600 12.5px var(--font-ui); color: var(--muted); margin-left: auto; }
+  .tpl.active { background: #24292f; color: #fff; border-color: #24292f; }
+  .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
   .save-tpl { display: flex; gap: 8px; }
   .save-tpl .input { flex: 1; }
-  .btn.small { padding: 4px 10px; font-size: 13px; }
+
   .merged {
     margin: 0;
-    font: 12.5px/1.55 var(--font-mono);
-    background: var(--paper, #fff);
+    font: 12px/1.6 var(--font-mono);
+    background: var(--well);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: 6px;
     padding: 10px 12px;
     white-space: pre-wrap;
-    color: var(--muted);
+    color: var(--ink);
   }
-  .merged.ctx { color: #55558c; border-color: #dedee8; }
+  .merged.ctx { color: var(--blue); }
 
   .narrow { max-width: 560px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }
   .lim-note {
     margin: 0;
-    font-size: 13px;
+    font: 500 13px/1.5 var(--font-ui);
     color: var(--bad);
     background: var(--bad-bg);
-    border-radius: var(--radius);
+    border: 1px solid var(--bad-line);
+    border-radius: 6px;
     padding: 8px 12px;
   }
 
   .steps { padding: 22px 18px; }
-  .step { display: flex; align-items: center; gap: 10px; color: var(--faint); padding: 5px 0; }
-  .step .dot { width: 9px; height: 9px; border-radius: 99px; background: var(--line-strong); }
+  .step { display: flex; align-items: center; gap: 10px; color: var(--faint); padding: 5px 0; font-size: 14px; }
+  .step .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--line-strong); }
   .step.active { color: var(--ink); font-weight: 600; }
   .step.active .dot { background: var(--ink); }
   .step.done { color: var(--good); }
   .step.done .dot { background: var(--good); }
 
-  .review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
-  .side-col { display: flex; flex-direction: column; }
+  .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .gen-meta {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font: 400 13px/1 var(--font-ui);
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .gen-meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .gen-meta .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--green-btn); }
 
-  .rationale { white-space: pre-wrap; }
-  .actions-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .ok { color: var(--good); font-weight: 600; }
-  .err { color: var(--bad); font-weight: 600; }
-  .discarded { color: var(--bad); font-weight: 600; margin: 0; }
+  .flash-ok {
+    margin: 0 0 16px;
+    font: 500 13px/1.5 var(--font-ui);
+    color: var(--good);
+    background: var(--good-bg);
+    border: 1px solid var(--good-line);
+    border-radius: 6px;
+    padding: 8px 16px;
+  }
+  .flash-bad {
+    margin: 0 0 16px;
+    font: 500 13px/1.5 var(--font-ui);
+    color: var(--bad);
+    background: var(--bad-bg);
+    border: 1px solid var(--bad-line);
+    border-radius: 6px;
+    padding: 8px 16px;
+  }
 
-  .sessions { display: flex; flex-direction: column; }
-  .session { padding: 10px 0; border-bottom: 1px solid var(--line); }
-  .session:last-child { border-bottom: none; }
-  .exrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; flex-wrap: wrap; }
-  .exname { font-weight: 600; }
+  .review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .rationale { white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
 
-  td.num { font-size: 12.5px; color: var(--muted); }
+  .clientreads {
+    margin-top: 16px;
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 13px 15px;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .clientreads .edit-note {
+    font: 500 12px/1 var(--font-ui);
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .diff-cell { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--surface); }
+  .diff-cell .n { font: 600 20px/1 var(--font-mono); }
+  .diff-cell .n.muted { color: var(--muted); }
+  .diff-cell .n.green { color: var(--good); }
+  .diff-cell .n.red { color: var(--bad); }
+  .diff-cell .n.blue { color: var(--blue); }
+  .diff-cell .l { font: 400 12px/1.3 var(--font-ui); color: var(--muted); margin-top: 5px; }
+
+  .chg {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 2px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13.5px;
+  }
+  .chg:last-child { border-bottom: none; }
+  .chg .pm { font: 700 13px/1 var(--font-mono); width: 14px; flex: none; }
+  .chg.add .pm { color: var(--good); }
+  .chg.rm .pm { color: var(--bad); }
+  .chg.ch .pm { color: var(--blue); }
+  .chg.add .nm { color: var(--good); }
+  .chg.rm .nm { color: var(--bad); }
+  .chg .detail { color: var(--muted); font: 400 12px/1.4 var(--font-mono); margin-left: auto; white-space: nowrap; }
+
+  .approve-note {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    margin-top: 18px;
+    padding: 13px 15px;
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--green-btn);
+    border-radius: 6px;
+    background: var(--well);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .approve-note svg { width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 1.6; flex: none; margin-top: 1px; stroke-linecap: round; stroke-linejoin: round; }
 
   @media (max-width: 900px) {
     .review-cols { grid-template-columns: 1fr; }
