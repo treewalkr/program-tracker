@@ -58,14 +58,14 @@
   .search { max-width: 260px; }
   .groups { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
-    font: 600 12.5px var(--font-ui);
+    font: 500 12px var(--font-ui);
     color: var(--muted);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 99px;
-    padding: 3px 11px;
+    padding: 4px 12px;
     cursor: pointer;
   }
   .chip:hover { border-color: var(--line-strong); }
-  .chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chip.active { background: #24292f; color: #fff; border-color: #24292f; }
 </style>

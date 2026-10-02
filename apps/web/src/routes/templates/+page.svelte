@@ -119,14 +119,14 @@
         ></textarea>
       </div>
       {#if error}<p class="err">{error}</p>{/if}
-      <button class="btn" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
+      <button class="btn primary" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
         {saving ? "Saving…" : "Create template"}
       </button>
     </form>
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>Library</h2><span class="subtle">{templates.length}</span></div>
+    <div class="panel-head"><h2>Library</h2><span class="counter">{templates.length}</span></div>
     {#if !loaded}
       <div class="skeleton" style="height:120px"></div>
     {:else if templates.length === 0}
@@ -185,15 +185,13 @@
 
   .body {
     margin: 0 0 8px;
-    font: 12.5px/1.55 var(--font-mono);
+    font: 12px/1.6 var(--font-mono);
     color: var(--muted);
     white-space: pre-wrap;
   }
 
   .row-actions { display: flex; gap: 8px; }
   .btn.danger.armed { outline: 2px solid var(--bad); outline-offset: 2px; }
-  .btn.small { padding: 4px 10px; font-size: 13px; }
-  .err { color: var(--bad); font-weight: 600; }
 
   @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
 </style>
