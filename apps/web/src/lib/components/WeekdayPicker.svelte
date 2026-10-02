@@ -30,16 +30,16 @@
     flex-wrap: wrap;
   }
   .wd {
-    font: 600 12.5px var(--font-ui);
-    padding: 5px 11px;
+    font: 500 12px var(--font-ui);
+    padding: 4px 12px;
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: 99px;
     background: var(--surface);
     color: var(--muted);
     cursor: pointer;
   }
   .wd:hover {
-    border-color: var(--ink);
+    border-color: var(--line-strong);
     color: var(--ink);
   }
   .wd:focus-visible {
@@ -47,8 +47,8 @@
     outline-offset: 1px;
   }
   .wd.on {
-    background: var(--ink);
-    border-color: var(--ink);
+    background: #24292f;
+    border-color: #24292f;
     color: #fff;
   }
 </style>
