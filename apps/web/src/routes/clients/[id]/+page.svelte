@@ -230,7 +230,7 @@
                 </div>
                 {#if s.conditioning}
                   <div class="session-head cond-row">
-                    <span class="cond">▲ {s.conditioning.label}{#if s.conditioning.detail} · {s.conditioning.detail}{/if}</span>
+                    <span class="cond"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6l7 12H5z" /></svg>{s.conditioning.label}{#if s.conditioning.detail} · {s.conditioning.detail}{/if}</span>
                   </div>
                 {/if}
               </div>
