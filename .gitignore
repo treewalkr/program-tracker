@@ -13,6 +13,7 @@ build/
 !.env.example
 
 # misc
+COMMITS.md
 .DS_Store
 *.log
 .vite/
@@ -21,6 +22,7 @@ playwright-report/
 .pi-subagents/
 
 # local editor/agent files
+/.agents
 .vscode/
 .zcodeignore
 .zcode/plans/
