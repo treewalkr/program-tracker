@@ -6,6 +6,8 @@
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import SessionCard from "$lib/components/SessionCard.svelte";
+  import DiffTiles from "$lib/components/DiffTiles.svelte";
+  import ChangeRow from "$lib/components/ChangeRow.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -399,19 +401,10 @@
       {#if diff.length > 0}
         <Panel title="Changes vs current" count={`${diff.length} exercises reviewed`}>
           <div class="panel-body">
-            <div class="diff">
-              <div class="diff-cell"><div class="n muted">{diffCounts.kept}</div><div class="l">kept</div></div>
-              <div class="diff-cell"><div class="n green">{diffCounts.added}</div><div class="l">added</div></div>
-              <div class="diff-cell"><div class="n red">{diffCounts.removed}</div><div class="l">removed</div></div>
-              <div class="diff-cell"><div class="n blue">{diffCounts.changed}</div><div class="l">changed</div></div>
-            </div>
+            <DiffTiles kept={diffCounts.kept} added={diffCounts.added} removed={diffCounts.removed} changed={diffCounts.changed} />
             {#each diff as d (d.exercise)}
               {#if d.change !== "kept"}
-                <div class="chg {d.change === 'added' ? 'add' : d.change === 'removed' ? 'rm' : 'ch'}">
-                  <span class="pm" aria-hidden="true">{d.change === "added" ? "+" : d.change === "removed" ? "−" : "~"}</span>
-                  <span class="nm">{d.exercise}</span>
-                  <span class="detail">{d.detail}</span>
-                </div>
+                <ChangeRow change={d.change} exercise={d.exercise} detail={d.detail} />
               {/if}
             {/each}
           </div>
@@ -502,32 +495,6 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
-
-  .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-  .diff-cell { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--surface); }
-  .diff-cell .n { font: 600 20px/1 var(--font-mono); }
-  .diff-cell .n.muted { color: var(--muted); }
-  .diff-cell .n.green { color: var(--good); }
-  .diff-cell .n.red { color: var(--bad); }
-  .diff-cell .n.blue { color: var(--blue); }
-  .diff-cell .l { font: 400 12px/1.3 var(--font-ui); color: var(--muted); margin-top: 5px; }
-
-  .chg {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 8px 2px;
-    border-bottom: 1px solid var(--line-soft);
-    font-size: 13.5px;
-  }
-  .chg:last-child { border-bottom: none; }
-  .chg .pm { font: 700 13px/1 var(--font-mono); width: 14px; flex: none; }
-  .chg.add .pm { color: var(--good); }
-  .chg.rm .pm { color: var(--bad); }
-  .chg.ch .pm { color: var(--blue); }
-  .chg.add .nm { color: var(--good); }
-  .chg.rm .nm { color: var(--bad); }
-  .chg .detail { color: var(--muted); font: 400 12px/1.4 var(--font-mono); margin-left: auto; white-space: nowrap; }
 
   .approve-note {
     display: flex;
