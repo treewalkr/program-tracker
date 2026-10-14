@@ -290,6 +290,15 @@ The overview's signature: one row per client, seven day cells (104px label colum
 ### AI Draft Review
 The code-review moment: a 2×2 diff-tile grid (kept/added/removed/changed — 20px/600 mono counts in Muted/Commit Green/Danger Red/Link Blue over 12px labels) above +/−/~ change rows (bold mono sign, colored exercise name, faint mono detail right-aligned), a rationale panel beside a well-gray "what the client reads" card, and — pinned exception — an **approve-note** with a 6px Action Green left border on a hairline well, carrying the lock icon and "nothing reaches the client until you activate it".
 
+## Component Library & Storybook
+
+Reusable UI lives in code, catalogued in Storybook:
+
+- **Run:** `bun run storybook` (repo root) → http://localhost:6006. Stories are Svelte 5 CSF (`defineMeta` + `Story`) via `@storybook/addon-svelte-csf`.
+- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonPanel, Counter, Icon); `src/lib/components/` holds domain components (StatusPill, WeekdayPicker, SetChips, SignalRow). Stories are colocated as `X.stories.svelte` next to each component.
+- **Architecture:** `src/app.css` stays the single style source — tokens (`:root` custom properties) plus the Primer classes. Components are typed Svelte 5 wrappers over those classes; page-scoped one-offs that recurred were consolidated into shared classes (`.tchip` toggle chips, `.note` flash notes) and their duplicated scoped styles deleted. When a new pattern appears 3+ times, extract it here.
+- **Design/Tokens** stories render swatches live from `:root`, so the catalog cannot drift from the shipped stylesheet.
+
 ## Do's and Don'ts
 
 ### Do:
