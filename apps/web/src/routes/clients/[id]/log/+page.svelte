@@ -4,8 +4,13 @@
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
-  import Crumbs from "$lib/ui/Crumbs.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -166,28 +171,30 @@
 <svelte:head><title>Log session · Program Tracker</title></svelte:head>
 
 {#if client === null}
-  <div class="skeleton" style="height:140px"></div>
+  <Skeleton h="140px" />
 {:else}
-  <div class="page-head">
-    <div>
-      <Crumbs items={[{ href: `/clients/${id}`, label: client.name }, { label: "Log session" }]} />
-      <h1>Log a session</h1>
-      <p class="sub">Enter what {client.name.split(" ")[0]} actually did.</p>
-    </div>
-    {#if rows.length > 0}
-      <button class="btn primary" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
-        {#if oneClickBusy}Logging…{:else}<Icon name="bolt" />Did it as prescribed{/if}
-      </button>
-    {/if}
-  </div>
+  <PageHead
+    title="Log a session"
+    sub={`Enter what ${client.name.split(" ")[0]} actually did.`}
+    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "Log session" }]}
+  >
+    {#snippet actions()}
+      {#if rows.length > 0}
+        <Button variant="primary" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
+          {#snippet icon()}{#if !oneClickBusy}<Icon name="bolt" />{/if}{/snippet}
+          {oneClickBusy ? "Logging…" : "Did it as prescribed"}
+        </Button>
+      {/if}
+    {/snippet}
+  </PageHead>
 
   {#if !program}
-    <section class="panel"><div class="empty">No active program — log sessions once a program is running.</div></section>
+    <section class="panel"><EmptyState>No active program — log sessions once a program is running.</EmptyState></section>
   {:else}
+    {@const prog = program}
     <form onsubmit={submit}>
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Session</h2>
+      <Panel title="Session">
+        {#snippet act()}
           <div class="head-controls">
             <label class="label" for="log-session">From program</label>
             <select
@@ -196,17 +203,17 @@
               bind:value={sessionId}
               onchange={loadSession}
             >
-              {#each program.sessions as s (s.id)}
+              {#each prog.sessions as s (s.id)}
                 <option value={s.id}>{s.name}</option>
               {/each}
             </select>
             <label class="label" for="log-date">Date</label>
             <input class="input date" id="log-date" type="date" bind:value={date} />
             {#if prefillable}
-              <button type="button" class="btn ghost small" onclick={prefill}>Prefill prescribed</button>
+              <Button variant="ghost" small type="button" onclick={prefill}>Prefill prescribed</Button>
             {/if}
           </div>
-        </div>
+        {/snippet}
       <div class="table-wrap">
         <table class="sheet">
           <thead>
@@ -239,17 +246,18 @@
             <span class="num big">{energy}</span>
           </div>
           <div class="notes">
-            <label class="label" for="log-notes">Session notes</label>
-            <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
+            <Field label="Session notes" htmlFor="log-notes">
+              <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
+            </Field>
           </div>
           <div class="submit-row">
             <span class="subtle">{doneCount}/{rows.length} sets filled</span>
-            <button class="btn" type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Save session"}
-            </button>
+            </Button>
           </div>
         </div>
-      </section>
+      </Panel>
     </form>
 
     {#if savedCount > 0}

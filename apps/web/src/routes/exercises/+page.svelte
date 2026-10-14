@@ -3,6 +3,8 @@
   import { api } from "$lib/api";
   import type { ExerciseDto } from "$lib/api/types";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
 
   let all = $state<ExerciseDto[]>([]);
   let q = $state("");
@@ -24,13 +26,14 @@
 
 <svelte:head><title>Exercises · Program Tracker</title></svelte:head>
 
-<div class="page-head">
-  <div>
-    <h1>Exercise library</h1>
-    <p class="sub">{all.length ? `${all.length} in the demo catalog — the real seed holds 719 from WGER` : "loading…"}</p>
-  </div>
-  <input class="input search" placeholder="Search…" bind:value={q} />
-</div>
+<PageHead
+  title="Exercise library"
+  sub={all.length ? `${all.length} in the demo catalog — the real seed holds 719 from WGER` : "loading…"}
+>
+  {#snippet actions()}
+    <input class="input search" placeholder="Search…" bind:value={q} />
+  {/snippet}
+</PageHead>
 
 <div class="groups">
   {#each groups as g (g)}
@@ -38,7 +41,7 @@
   {/each}
 </div>
 
-<section class="panel" style="margin-top:14px">
+<section class="panel table-panel">
   <table class="sheet">
     <thead><tr><th>Exercise</th><th>Primary</th><th>Secondary</th><th>Equipment</th></tr></thead>
     <tbody>
@@ -52,10 +55,11 @@
       {/each}
     </tbody>
   </table>
-  {#if filtered.length === 0}<div class="empty">No exercise matches.</div>{/if}
+  {#if filtered.length === 0}<EmptyState>No exercise matches.</EmptyState>{/if}
 </section>
 
 <style>
   .search { max-width: 260px; }
   .groups { display: flex; flex-wrap: wrap; gap: 6px; }
+  .table-panel { margin-top: 14px; }
 </style>

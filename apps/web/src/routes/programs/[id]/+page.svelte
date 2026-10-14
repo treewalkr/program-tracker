@@ -8,6 +8,7 @@
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -99,7 +100,7 @@
 <svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
 
 {#if program === null}
-  <div class="skeleton" style="height:140px"></div>
+  <Skeleton h="140px" />
 {:else}
   <div class="page-head">
     <div>

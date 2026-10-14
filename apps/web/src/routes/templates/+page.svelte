@@ -5,6 +5,11 @@
   import type { InstructionTemplateDto } from "$lib/api/types";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
 
   let templates = $state<InstructionTemplateDto[]>([]);
   let loaded = $state(false);
@@ -69,20 +74,15 @@
 
 <svelte:head><title>Instruction templates · Program Tracker</title></svelte:head>
 
-<div class="page-head">
-  <div>
-    <h1>Instruction templates</h1>
-    <p class="sub">
-      Standing rules the AI applies when drafting blocks. Reusable across every client.
-      Use headings like <strong>Rules:</strong> <strong>Steps:</strong> <strong>Constraints:</strong> —
-      they land in the prompt exactly as written.
-    </p>
-  </div>
-</div>
+<PageHead
+  title="Instruction templates"
+  sub={`Standing rules the AI applies when drafting blocks. Reusable across every client.
+      Use headings like Rules: Steps: Constraints: — they land in the prompt exactly as written.`}
+>
+</PageHead>
 
 <div class="cols">
-  <section class="panel">
-    <div class="panel-head"><h2>New template</h2></div>
+  <Panel title="New template">
     <form
       class="panel-body stack"
       onsubmit={(e) => {
@@ -90,12 +90,10 @@
         create();
       }}
     >
-      <div>
-        <label class="label" for="t-name">Name</label>
+      <Field label="Name" htmlFor="t-name">
         <input class="input" id="t-name" placeholder="e.g. Deload policy" bind:value={newName} maxlength="80" />
-      </div>
-      <div>
-        <label class="label" for="t-content">Body</label>
+      </Field>
+      <Field label="Body" htmlFor="t-content">
         <textarea
           class="textarea"
           id="t-content"
@@ -104,20 +102,19 @@
           bind:value={newContent}
           maxlength="4000"
         ></textarea>
-      </div>
+      </Field>
       {#if error}<p class="err">{error}</p>{/if}
-      <button class="btn primary" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
+      <Button variant="primary" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
         {saving ? "Saving…" : "Create template"}
-      </button>
+      </Button>
     </form>
-  </section>
+  </Panel>
 
-  <section class="panel">
-    <div class="panel-head"><h2>Library</h2><span class="counter">{templates.length}</span></div>
+  <Panel title="Library" count={templates.length}>
     {#if !loaded}
       <div class="panel-body"><Skeleton h="120px" /></div>
     {:else if templates.length === 0}
-      <div class="empty">No templates yet — create one on the left.</div>
+      <EmptyState>No templates yet — create one on the left.</EmptyState>
     {:else}
       <div class="list">
         {#each templates as t (t.id)}
@@ -133,8 +130,8 @@
                 <input class="input" bind:value={editName} maxlength="80" aria-label="Template name" />
                 <textarea class="textarea" rows="7" bind:value={editContent} maxlength="4000" aria-label="Template body"></textarea>
                 <div class="row-actions">
-                  <button class="btn small" type="submit" disabled={savingEdit}>Save</button>
-                  <button class="btn ghost small" type="button" onclick={() => (editingId = null)}>Cancel</button>
+                  <Button small type="submit" disabled={savingEdit}>Save</Button>
+                  <Button variant="ghost" small type="button" onclick={() => (editingId = null)}>Cancel</Button>
                 </div>
               </form>
             {:else}
@@ -144,7 +141,7 @@
               </div>
               <pre class="body">{t.content}</pre>
               <div class="row-actions">
-                <button class="btn ghost small" onclick={() => startEdit(t)}>Edit</button>
+                <Button variant="ghost" small onclick={() => startEdit(t)}>Edit</Button>
                 <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => remove(t.id)} small />
               </div>
             {/if}
@@ -152,7 +149,7 @@
         {/each}
       </div>
     {/if}
-  </section>
+  </Panel>
 </div>
 
 <style>

@@ -5,7 +5,12 @@
   import { api } from "$lib/api";
   import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
-  import Crumbs from "$lib/ui/Crumbs.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -232,31 +237,29 @@
 <svelte:head><title>New program · Program Tracker</title></svelte:head>
 
 {#if client === null}
-  <div class="skeleton" style="height:140px"></div>
+  <Skeleton h="140px" />
 {:else}
-  <div class="page-head">
-    <div>
-      <Crumbs items={[{ href: `/clients/${id}`, label: client.name }, { label: "New program" }]} />
-      <h1>Write a program by hand</h1>
-      <p class="sub">Saved as draft — nothing goes live until you activate it.</p>
-    </div>
-    <button class="btn primary" onclick={save} disabled={saving || !canSave}>
-      {saving ? "Saving…" : "Save as draft"}
-    </button>
-  </div>
+  <PageHead
+    title="Write a program by hand"
+    sub="Saved as draft — nothing goes live until you activate it."
+    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "New program" }]}
+  >
+    {#snippet actions()}
+      <Button variant="primary" onclick={save} disabled={saving || !canSave}>
+        {saving ? "Saving…" : "Save as draft"}
+      </Button>
+    {/snippet}
+  </PageHead>
 
   <div class="cols">
-    <section class="panel">
-      <div class="panel-head"><h2>Basics</h2></div>
+    <Panel title="Basics">
       <div class="panel-body stack">
-        <div>
-          <label class="label" for="np-name">Name</label>
+        <Field label="Name" htmlFor="np-name">
           <input class="input" id="np-name" placeholder="e.g. Strength Base B" bind:value={name} maxlength="120" />
-        </div>
-        <div>
-          <label class="label" for="np-desc">Description <span class="subtle">— optional</span></label>
+        </Field>
+        <Field label="Description" hint="optional" htmlFor="np-desc">
           <input class="input" id="np-desc" placeholder="Focus, notes to self…" bind:value={description} maxlength="300" />
-        </div>
+        </Field>
         <div class="phasing">
           <label class="label">
             <input type="checkbox" bind:checked={usePhasing} />
@@ -265,7 +268,7 @@
           {#if usePhasing}
             <div class="phasing-grid">
               <div style="grid-column: 1 / -1">
-                <label class="label" for="np-scheme">Progression scheme</label>
+                <Field label="Progression scheme" htmlFor="np-scheme">
                 <select
                   class="select"
                   id="np-scheme"
@@ -278,6 +281,7 @@
                   <option value="custom">Custom — define week directives</option>
                   <option value="none">None — no week directives</option>
                 </select>
+                </Field>
                 {#if schemeMode === "saved" && selectedScheme}
                   <div class="scheme-chips">
                     {#each selectedScheme.weeks as w (w.week)}
@@ -304,34 +308,35 @@
                             <option value={opt}>{opt}</option>
                           {/each}
                         </select>
-                        <button
-                          type="button"
-                          class="btn ghost small"
+                        <Button
+                          variant="ghost"
+                          small
                           disabled={customWeeks.length <= 2}
                           onclick={() => (customWeeks = customWeeks.filter((_, j) => j !== i))}
                           aria-label="Remove week"
-                        ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
+                        >{#snippet icon()}<Icon name="x" />{/snippet}</Button>
                       </div>
                     {/each}
                     <div class="save-row">
-                      <button type="button" class="btn ghost small" onclick={() => (customWeeks = [...customWeeks, "+volume"])}>+ Add week</button>
+                      <Button variant="ghost" small type="button" onclick={() => (customWeeks = [...customWeeks, "+volume"])}>+ Add week</Button>
                       <input class="input" style="flex:1" placeholder="Scheme name — e.g. 5-week peaking wave" bind:value={schemeName} />
-                      <button
+                      <Button
+                        small
                         type="button"
-                        class="btn small"
                         disabled={savingScheme || !schemeName.trim() || customWeeks.length < 2}
                         onclick={saveScheme}
-                      >{savingScheme ? "Saving…" : "Save as scheme"}</button>
+                      >{savingScheme ? "Saving…" : "Save as scheme"}</Button>
                     </div>
                   </div>
                 {/if}
               </div>
               {#if activeWeeks.length === 0}
                 <div>
-                  <label class="label" for="np-weeks">Block length</label>
-                  <select class="select" id="np-weeks" bind:value={plannedWeeks}>
-                    {#each [3, 4, 5, 6, 8] as w}<option value={w}>{w} weeks</option>{/each}
-                  </select>
+                  <Field label="Block length" htmlFor="np-weeks">
+                    <select class="select" id="np-weeks" bind:value={plannedWeeks}>
+                      {#each [3, 4, 5, 6, 8] as w}<option value={w}>{w} weeks</option>{/each}
+                    </select>
+                  </Field>
                 </div>
               {:else}
                 <div>
@@ -340,12 +345,14 @@
                 </div>
               {/if}
               <div>
-                <label class="label" for="np-phase">This phase</label>
-                <input class="input" id="np-phase" bind:value={phase} maxlength="40" />
+                <Field label="This phase" htmlFor="np-phase">
+                  <input class="input" id="np-phase" bind:value={phase} maxlength="40" />
+                </Field>
               </div>
               <div>
-                <label class="label" for="np-next">Next phase</label>
-                <input class="input" id="np-next" bind:value={nextPhase} maxlength="40" />
+                <Field label="Next phase" htmlFor="np-next">
+                  <input class="input" id="np-next" bind:value={nextPhase} maxlength="40" />
+                </Field>
               </div>
               {#if activeWeeks.length === 0}
                 <label class="label chk">
@@ -362,7 +369,7 @@
           {/if}
         </div>
       </div>
-    </section>
+    </Panel>
 
     <div class="builder-col">
       {#each sessions as s, si (s.key)}
@@ -370,10 +377,10 @@
           <div class="panel-head">
             <input class="sess-name" value={s.name} oninput={(e) => (s.name = e.currentTarget.value)} maxlength="60" aria-label="Session name" />
             <div class="head-actions">
-              <button type="button" class="btn ghost small" onclick={() => addExercise(s)}>+ Exercise</button>
-              <button type="button" class="btn ghost small" onclick={() => { s.cardioLabel = s.cardioLabel === "" ? "Cardio" : ""; sessions = [...sessions]; }} title="Add / remove cardio block">{s.cardioLabel === "" ? "+ Cardio" : "− Cardio"}</button>
+              <Button variant="ghost" small type="button" onclick={() => addExercise(s)}>+ Exercise</Button>
+              <Button variant="ghost" small type="button" onclick={() => { s.cardioLabel = s.cardioLabel === "" ? "Cardio" : ""; sessions = [...sessions]; }} title="Add / remove cardio block">{s.cardioLabel === "" ? "+ Cardio" : "− Cardio"}</Button>
               {#if sessions.length > 1}
-                <button type="button" class="btn danger small" onclick={() => removeSession(s.key)}>Remove day</button>
+                <Button variant="danger" small type="button" onclick={() => removeSession(s.key)}>Remove day</Button>
               {/if}
             </div>
           </div>
@@ -393,16 +400,17 @@
                     {/each}
                   </select>
                   <div class="head-actions">
-                    <button type="button" class="btn ghost small" onclick={() => addSet(e, "warm_up")}>+ warm-up</button>
-                    <button type="button" class="btn ghost small" onclick={() => addSet(e, "working")}>+ set</button>
-                    <button
+                    <Button variant="ghost" small type="button" onclick={() => addSet(e, "warm_up")}>+ warm-up</Button>
+                    <Button variant="ghost" small type="button" onclick={() => addSet(e, "working")}>+ set</Button>
+                    <Button
+                      variant="danger"
+                      small
                       type="button"
-                      class="btn danger small"
                       onclick={() => {
                         s.exercises = s.exercises.filter((x) => x.key !== e.key);
                         sessions = [...sessions];
                       }}
-                    >Remove</button>
+                    >Remove</Button>
                   </div>
                 </div>
                 {#if e.sets.length === 0}
@@ -437,7 +445,9 @@
           </div>
         </section>
       {/each}
-      <button type="button" class="btn ghost addday" onclick={addSession}>+ Add training day</button>
+      <div class="addday">
+        <Button variant="ghost" type="button" onclick={addSession}>+ Add training day</Button>
+      </div>
       {#if error}<p class="err">{error}</p>{/if}
       <p class="subtle hint">
         {totalSets} sets across {sessions.length} {sessions.length === 1 ? "day" : "days"}.
