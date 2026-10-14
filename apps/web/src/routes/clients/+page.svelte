@@ -6,6 +6,11 @@
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
   import { goto } from "$app/navigation";
 
   let clients = $state<ClientDto[] | null>(null);
@@ -55,61 +60,61 @@
 
 <svelte:head><title>Clients · Program Tracker</title></svelte:head>
 
-<div class="page-head">
-  <div>
-    <h1>Clients</h1>
-    <p class="sub">{clients?.length ?? "…"} on the roster</p>
-  </div>
-  <button class="btn" class:ghost={showForm} onclick={() => (showForm = !showForm)}>
-    {#if showForm}Cancel{:else}<Icon name="plus" />Add client{/if}
-  </button>
-</div>
+<PageHead title="Clients" sub={`${clients?.length ?? "…"} on the roster`}>
+  {#snippet actions()}
+    <Button variant={showForm ? "ghost" : "default"} onclick={() => (showForm = !showForm)}>
+      {#snippet icon()}{#if !showForm}<Icon name="plus" />{/if}{/snippet}
+      {#if showForm}Cancel{:else}Add client{/if}
+    </Button>
+  {/snippet}
+</PageHead>
 
 {#if showForm}
-  <section class="panel" style="margin-bottom:18px">
-    <div class="panel-head"><h2>New client</h2></div>
+  <div class="mb-18">
+  <Panel title="New client">
     <form class="panel-body grid" onsubmit={submit}>
-      <div>
-        <label class="label" for="f-name">Name</label>
+      <Field label="Name" htmlFor="f-name">
         <input class="input" id="f-name" bind:value={form.name} required maxlength="120" />
-      </div>
-      <div>
-        <label class="label" for="f-email">Email</label>
+      </Field>
+      <Field label="Email" htmlFor="f-email">
         <input class="input" id="f-email" type="email" bind:value={form.email} required />
-      </div>
-      <div>
-        <label class="label" for="f-days">Training days per week</label>
+      </Field>
+      <Field label="Training days per week" htmlFor="f-days">
         <select class="select" id="f-days" bind:value={form.daysPerWeek}>
           {#each [1, 2, 3, 4, 5, 6] as d}<option value={d}>{d}</option>{/each}
         </select>
+      </Field>
+      <div class="span2">
+        <Field label="Which days" hint="drives the weekly plan grid">
+          <WeekdayPicker bind:days={form.trainingDays} />
+        </Field>
       </div>
       <div class="span2">
-        <span class="label">Which days <span class="subtle">— drives the weekly plan grid</span></span>
-        <WeekdayPicker bind:days={form.trainingDays} />
+        <Field label="Goals" htmlFor="f-goals">
+          <textarea class="textarea" id="f-goals" rows="2" bind:value={form.goals} maxlength="2000"></textarea>
+        </Field>
       </div>
       <div class="span2">
-        <label class="label" for="f-goals">Goals</label>
-        <textarea class="textarea" id="f-goals" rows="2" bind:value={form.goals} maxlength="2000"></textarea>
+        <Field label="Limitations" htmlFor="f-lim" hint="treated as hard constraints by the AI">
+          <textarea class="textarea" id="f-lim" rows="2" bind:value={form.limitations} maxlength="2000"></textarea>
+        </Field>
       </div>
       <div class="span2">
-        <label class="label" for="f-lim">Limitations <span class="subtle">— treated as hard constraints by the AI</span></label>
-        <textarea class="textarea" id="f-lim" rows="2" bind:value={form.limitations} maxlength="2000"></textarea>
-      </div>
-      <div class="span2">
-        <button class="btn primary" type="submit" disabled={saving || !form.name || !form.email}>
+        <Button variant="primary" type="submit" disabled={saving || !form.name || !form.email}>
           {saving ? "Saving…" : "Save client"}
-        </button>
+        </Button>
       </div>
     </form>
-  </section>
+  </Panel>
+  </div>
 {/if}
 
 {#if clients === null}
   <SkeletonPanel height={60} />
 {:else if clients.length === 0}
-  <section class="panel"><div class="empty">No clients yet — add your first one above.</div></section>
+  <section class="panel"><EmptyState>No clients yet — add your first one above.</EmptyState></section>
 {:else if filtered.length === 0}
-  <section class="panel"><div class="empty">No client matches “{search}”.</div></section>
+  <section class="panel"><EmptyState>No client matches “{search}”.</EmptyState></section>
 {:else}
   <input class="input search" type="search" placeholder="Search clients…" bind:value={search} aria-label="Search clients" />
   <section class="panel">
@@ -141,4 +146,5 @@
   .span2 { grid-column: 1 / -1; }
   .goal { max-width: 320px; }
   .search { margin-bottom: 12px; max-width: 320px; }
+  .mb-18 { margin-bottom: 18px; }
 </style>

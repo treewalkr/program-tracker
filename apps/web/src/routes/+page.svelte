@@ -6,6 +6,9 @@
   import SignalRow from "$lib/components/SignalRow.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
 
   let clients = $state<ClientDto[] | null>(null);
   let providers = $state<ProviderDto[] | null>(null);
@@ -90,19 +93,17 @@
 
 <svelte:head><title>Overview · Program Tracker</title></svelte:head>
 
-<div class="page-head">
-  <div>
-    <h1>This week</h1>
-    <p class="sub">
-      Week of Mon {dayNumbers[0]}–Sun {dayNumbers[6]} · {trainingClients} clients training · {loggedCount} of {plannedCount} logged{#if dueToday} · {dueToday} due today{/if}
-    </p>
-  </div>
-  <div class="head-actions">
-    <a class="btn" href="/clients">
-      <Icon name="plus" />Add client
-    </a>
-  </div>
-</div>
+<PageHead
+  title="This week"
+  sub={`Week of Mon ${dayNumbers[0]}–Sun ${dayNumbers[6]} · ${trainingClients} clients training · ${loggedCount} of ${plannedCount} logged${dueToday ? ` · ${dueToday} due today` : ""}`}
+>
+  {#snippet actions()}
+    <Button href="/clients">
+      {#snippet icon()}<Icon name="plus" />{/snippet}
+      Add client
+    </Button>
+  {/snippet}
+</PageHead>
 
 {#if clients === null}
   <SkeletonPanel height={80} />
@@ -110,11 +111,7 @@
   <div class="grid-2">
     <div class="col">
       {#if signals.length > 0}
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Needs review</h2>
-            <span class="counter">{signals.length} signals</span>
-          </div>
+        <Panel title="Needs review" count={`${signals.length} signals`}>
           <div class="signal-list">
             {#each signals as signal (signal.id)}
               {@const client = clients?.find((c) => c.id === signal.clientId)}
@@ -125,25 +122,28 @@
                   {/snippet}
                   {#snippet actions()}
                     {#if signal.prefillNote}
-                      <a
-                        class="btn primary small"
+                      <Button
+                        variant="primary"
+                        small
                         href={`/clients/${client.id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
                       >
-                        <Icon name="sparkle" />Draft next block
-                      </a>
+                        {#snippet icon()}<Icon name="sparkle" />{/snippet}
+                        Draft next block
+                      </Button>
                     {:else if signal.altHref}
-                      <a class="btn small" href={signal.altHref}>{signal.altLabel}</a>
+                      <Button small href={signal.altHref}>{signal.altLabel}</Button>
                     {/if}
-                    <a class="btn ghost small" href={`/clients/${client.id}`}>Open client</a>
+                    <Button variant="ghost" small href={`/clients/${client.id}`}>Open client</Button>
                   {/snippet}
                 </SignalRow>
               {/if}
             {/each}
           </div>
-        </section>
+        </Panel>
       {/if}
 
-      <section class="panel" style="margin-top:16px">
+      <div class="mt-16">
+      <section class="panel">
         <div class="panel-head">
           <h2>Training week</h2>
           <span class="counter">{loggedCount} of {plannedCount} logged</span>
@@ -193,16 +193,15 @@
           </div>
         </div>
       </section>
+      </div>
     </div>
 
     <div class="col">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Clients</h2>
-          <span class="counter">{clients.length}</span>
+      <Panel title="Clients" count={clients.length}>
+        {#snippet act()}
           {#if loadFailed}<span class="subtle err-inline">couldn't load — refresh to retry</span>{/if}
           <a class="act" href="/clients">All clients</a>
-        </div>
+        {/snippet}
         <div class="panel-body tight">
           <table class="sheet">
             <thead>
@@ -226,14 +225,16 @@
             </tbody>
           </table>
         </div>
-      </section>
+      </Panel>
 
-      <section class="panel" style="margin-top:16px">
-        <div class="panel-head">
-          <h2>AI providers</h2>
-          <span class="counter">{(providers ?? []).filter((p) => p.configured).length} ready</span>
+      <div class="mt-16">
+      <Panel
+        title="AI providers"
+        count={`${(providers ?? []).filter((p) => p.configured).length} ready`}
+      >
+        {#snippet act()}
           <span class="subtle act">{apiMode === "mock" ? "demo registry" : "live registry"}</span>
-        </div>
+        {/snippet}
         <div class="panel-body provs-row">
           {#each providers ?? [] as p (p.id)}
             <span class="prov-chip">
@@ -242,7 +243,8 @@
             </span>
           {/each}
         </div>
-      </section>
+      </Panel>
+      </div>
     </div>
   </div>
 {/if}
@@ -255,6 +257,7 @@
     align-items: start;
   }
   .col { display: flex; flex-direction: column; min-width: 0; }
+  .mt-16 { margin-top: 16px; }
   .signal-list { display: flex; flex-direction: column; }
   .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .client-link { color: inherit; }

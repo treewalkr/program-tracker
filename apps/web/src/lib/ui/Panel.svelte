@@ -10,7 +10,7 @@
 	interface Props {
 		title?: string;
 		/** Evidence counter next to the title ("9 of 12 logged"). */
-		count?: string;
+		count?: string | number;
 		/** Right-aligned head content — render `<a class="act">` inside. */
 		act?: Snippet;
 		children?: Snippet;
