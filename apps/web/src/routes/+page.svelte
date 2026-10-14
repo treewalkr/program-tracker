@@ -4,6 +4,7 @@
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
+  import WeekGrid, { type ClientRow, type WeekEntry } from "$lib/components/WeekGrid.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -16,37 +17,24 @@
   let currentNames = $state<Record<string, string>>({});
   let signals = $state<SignalDto[]>([]);
 
-  interface WeekEntry {
-    day: number; // 1=Mon … 7=Sun
-    clientId: string;
-    sessionName: string;
-    status: "logged" | "due" | "today" | "upcoming";
-  }
-  interface ClientRow {
-    client: ClientDto;
-    program: string | null;
-    entries: Map<number, WeekEntry>;
-  }
   let rows = $state<ClientRow[]>([]);
 
-  const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1; // 1=Mon … 7=Sun
   const dateStr = (d: Date) => d.toISOString().slice(0, 10);
   const monday = new Date();
   monday.setDate(monday.getDate() - (isoDay(monday) - 1));
-  const dayNumbers = DAY_LABELS.map((_, i) => {
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(d.getDate() + i);
-    return d.getDate();
+    return dateStr(d);
   });
-  const todayNum = isoDay(new Date());
+  const dayNumbers = weekDates.map((iso) => Number(iso.slice(8, 10)));
+  const today = dateStr(new Date());
 
   const loggedCount = $derived(rows.flatMap((r) => [...r.entries.values()]).filter((e) => e.status === "logged").length);
   const plannedCount = $derived(rows.flatMap((r) => [...r.entries.values()]).length);
   const trainingClients = $derived(rows.filter((r) => r.program).length);
   const dueToday = $derived(rows.flatMap((r) => [...r.entries.values()]).filter((e) => e.status === "today").length);
-
-  const shortName = (sessionName: string) => sessionName.split("—")[0].trim() || "Session";
 
   onMount(async () => {
     try {
@@ -54,7 +42,7 @@
       clients = cs;
       providers = ps;
       signals = sigs.filter((s) => s.clientId);
-      const today = isoDay(new Date());
+      const todayDay = isoDay(new Date());
       const todayStr = dateStr(new Date());
       const built: ClientRow[] = [];
       for (const c of cs) {
@@ -77,7 +65,7 @@
               day: d,
               clientId: c.id,
               sessionName: session?.name ?? "Session",
-              status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : d < today ? "due" : "upcoming",
+              status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : d < todayDay ? "due" : "upcoming",
             });
           }
         }
@@ -148,50 +136,7 @@
           <h2>Training week</h2>
           <span class="counter">{loggedCount} of {plannedCount} logged</span>
         </div>
-        <div class="week-wrap">
-          <div class="week-grid">
-            <div class="wk-h corner">Client</div>
-            {#each DAY_LABELS as label, i (label)}
-              <div class="wk-h" class:dim={dayNumbers[i] !== todayNum && dayNumbers[i] < todayNum}>
-                {label}<span class="d">{dayNumbers[i]}</span>
-              </div>
-            {/each}
-
-            {#each rows as row (row.client.id)}
-              <div class="wk-row">
-                <div class="wk-client">
-                  <a href={`/clients/${row.client.id}`}>{row.client.name}</a>
-                  <span class="meta">
-                    {#if row.program}{row.client.daysPerWeek ?? "—"} d/wk · {currentNames[row.client.id]}{:else}{row.client.status === "active" ? "no program" : row.client.status}{/if}
-                  </span>
-                </div>
-                {#if row.entries.size === 0}
-                  <div class="wk-cell span">
-                    <span class="pill neutral">{row.client.status === "active" ? "no program" : row.client.status}</span>
-                  </div>
-                {:else}
-                  {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
-                    {@const e = row.entries.get(d)}
-                    <div class="wk-cell">
-                      {#if e}
-                        {@const cls = e.status === "logged" ? "done" : e.status === "today" ? "today" : e.status === "due" ? "missed" : "next"}
-                        <a
-                          class="cell {cls}"
-                          href={e.status === "logged" ? `/clients/${row.client.id}` : `/clients/${row.client.id}/log`}
-                          title={`${row.client.name} — ${e.sessionName}`}
-                        >
-                          <span class="tag">{shortName(e.sessionName)}{#if e.status === "logged"} ✓{:else if e.status === "today"} · due{:else if e.status === "due"} · missed{/if}</span>
-                        </a>
-                      {:else}
-                        <span class="offday">—</span>
-                      {/if}
-                    </div>
-                  {/each}
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
+        <WeekGrid {rows} {weekDates} {today} {currentNames} />
       </section>
       </div>
     </div>
@@ -262,63 +207,6 @@
   .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
-
-  /* training week as a contributions-style grid */
-  .week-wrap { overflow-x: auto; padding: 12px 16px; }
-  .week-grid {
-    display: grid;
-    grid-template-columns: 104px repeat(7, minmax(52px, 1fr));
-    min-width: 480px;
-  }
-  .wk-h {
-    font: 500 12px/1.4 var(--font-ui);
-    color: var(--muted);
-    padding: 8px 4px;
-    text-align: center;
-  }
-  .wk-h .d { display: block; font: 400 11px/1.6 var(--font-ui); color: var(--faint); }
-  .wk-h.dim { color: var(--faint); }
-  .wk-h.corner { text-align: left; padding-left: 12px; }
-  .wk-row { display: contents; }
-  .wk-client { padding: 8px 4px 8px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .wk-client a { color: var(--ink); font-weight: 600; }
-  .wk-client .meta {
-    font: 400 11px/1.4 var(--font-ui);
-    color: var(--faint);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .wk-cell { padding: 5px 4px; display: flex; justify-content: center; }
-  .wk-cell.span { grid-column: 2 / -1; justify-content: flex-start; }
-  .cell {
-    width: 100%;
-    max-width: 70px;
-    min-height: 34px;
-    border-radius: 4px;
-    border: 1px solid var(--line);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    text-decoration: none;
-  }
-  .cell:hover { text-decoration: none; filter: brightness(1.05); }
-  .cell .tag {
-    font: 500 10px/1.2 var(--font-mono);
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    text-align: center;
-  }
-  .cell.done { background: var(--done-4); border-color: var(--done-4); }
-  .cell.done .tag { color: #fff; }
-  .cell.today { border-color: var(--blue); border-width: 2px; background: var(--pulse-now-bg); }
-  .cell.today .tag { color: var(--blue); }
-  .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); }
-  .cell.missed .tag { color: var(--bad); }
-  .cell.next { background: var(--well); }
-  .cell.next .tag { color: var(--muted); }
-  .offday { align-self: center; color: #c1c8d0; font-size: 11px; }
 
   .provs-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .prov-chip {
