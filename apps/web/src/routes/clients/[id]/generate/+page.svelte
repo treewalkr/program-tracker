@@ -13,6 +13,7 @@
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
+  import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -152,6 +153,7 @@
     approving = true;
     try {
       newProgram = await api.approveGeneration(gen.id);
+      gen = { ...gen, status: "approved" }; // backend flips it; keep the pill in sync
     } finally {
       approving = false;
     }
@@ -170,6 +172,7 @@
   function reset() {
     gen = null;
     newProgram = null;
+    phase = "form";
   }
 
   async function saveAsTemplate() {
@@ -221,7 +224,7 @@
 
 {#if client === null}
   <Skeleton h="140px" />
-{:else if phase === "form" || phase === "generating" || phase === "failed"}
+{:else if phase !== "review" || !gen?.draft}
   <PageHead
     title="Draft next block with AI"
     sub={`Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
@@ -368,9 +371,7 @@
         </Button>
         <Button href={`/clients/${id}`}>Back to client</Button>
       {:else}
-        <Button variant="danger" onclick={reject} disabled={rejecting}>
-          {rejecting ? "Rejecting…" : "Reject"}
-        </Button>
+        <ConfirmButton label="Reject" confirmLabel="Really reject?" variant="danger" onconfirm={reject} disabled={rejecting} />
         <Button variant="primary" onclick={approve} disabled={approving}>
           {#snippet icon()}<Icon name="check" />{/snippet}
           {approving ? "Approving…" : "Approve as draft program"}
@@ -380,9 +381,9 @@
   </div>
 
   {#if newProgram}
-    <Note tone="ok" class="flash">Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.</Note>
+    <Note tone="ok" class="flash" role="status">Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.</Note>
   {:else if gen.status === "rejected"}
-    <Note tone="bad">Discarded — this draft won't be used.</Note>
+    <Note tone="bad" role="status">Discarded — this draft won't be used.</Note>
   {/if}
 
   <div class="review-cols">

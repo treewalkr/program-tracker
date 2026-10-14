@@ -57,6 +57,11 @@ typography:
     fontSize: "12px"
     fontWeight: 500
     lineHeight: 1.2
+  micro:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif"
+    fontSize: "13px / 11px"
+    fontWeight: 400
+    lineHeight: 1.4
   mono:
     fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
     fontSize: "12px"
@@ -263,7 +268,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 - **Status pill (Primer Label):** 99px, 12px/500 ink-on-tint (`good`/`warn`/`bad`/`neutral`) with a matching tint edge; the StatusPill component maps every domain state onto these four
 - **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged")
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
-- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m`; warm-up sets go dashed-border transparent; RPE ink reuses the RPE tiers (≤6 Commit Green, 7–8 Attention Amber, 9–10 Danger Red)
+- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m` (11px micro); warm-up sets go dashed-border transparent; chip RPE ink reuses the RPE tiers darkened one step for AA on the chip background (≤6 #116329, 7–8 #7d5600, 9–10 Danger Red)
 - **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (weekday picker, templates, exercise filters)
 
 ### Cards / Containers

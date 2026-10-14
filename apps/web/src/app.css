@@ -326,11 +326,9 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .rpe.low { color: var(--rpe-low); }
 .rpe.mid { color: var(--rpe-mid); }
 .rpe.high { color: var(--rpe-high); }
-/* inside set chips: colored text, no dot */
+/* inside set chips: colored text, no dot (tiers below, after .sub, so the
+   combined sub+rpe span keeps its tier ink) */
 .setchip .rpe::before { display: none; }
-.setchip .rpe.e1, .setchip .rpe.low { color: var(--good); }
-.setchip .rpe.e2, .setchip .rpe.mid { color: var(--warn); }
-.setchip .rpe.e3, .setchip .rpe.high { color: var(--bad); }
 
 /* —— set chips: code-span styling ————————— */
 
@@ -347,8 +345,14 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   white-space: nowrap;
 }
 .setchip .rep { font-weight: 500; }
-.setchip .sub { color: var(--faint); font-size: 10.5px; }
+.setchip .sub { color: var(--faint); font-size: 11px; }
 .setchip.warm { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+/* RPE effort tiers on chips — low/mid darkened one step for AA on the chip
+   background at 12px semibold (6.6:1 / 5.8:1 / 4.7:1); after .sub so the
+   combined sub+rpe span keeps its tier ink */
+.setchip .rpe { color: var(--done-4); font-weight: 600; }
+.setchip .rpe.rpe-mid { color: #7d5600; }
+.setchip .rpe.rpe-high { color: var(--bad); }
 
 /* —— signals (needs-review cards) ————————— */
 
@@ -381,7 +385,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   font: 400 12px/1 var(--font-ui);
   color: var(--blue);
   cursor: pointer;
-  padding: 2px 0;
+  padding: 6px 2px;
   text-decoration: underline;
   white-space: nowrap;
 }

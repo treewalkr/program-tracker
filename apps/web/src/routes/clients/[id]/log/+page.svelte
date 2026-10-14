@@ -231,9 +231,9 @@
                   {fmtSet({ reps: r.prescribedReps ?? 0, repsMin: r.prescribedMin ?? undefined, amrap: r.prescribedAmrap, durationSeconds: r.prescribedDuration ?? undefined, targetWeightKg: r.prescribedWeight })}{#if r.type !== "warm_up" && r.targetRpe != null} @ {r.targetRpe}{/if}
                 </td>
                 <td class="num pre">{r.lastWeight ?? "—"}</td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" placeholder={r.prescribedDuration != null ? String(r.prescribedDuration) : r.prescribedReps === 0 && r.prescribedAmrap ? "max" : String(r.prescribedReps ?? "")} bind:value={r.reps} /></td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" min="1" max="10" step="0.5" placeholder="—" bind:value={r.rpe} /></td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, kg`} placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, reps`} placeholder={r.prescribedDuration != null ? String(r.prescribedDuration) : r.prescribedReps === 0 && r.prescribedAmrap ? "max" : String(r.prescribedReps ?? "")} bind:value={r.reps} /></td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" min="1" max="10" step="0.5" aria-label={`${r.exerciseName} set ${r.setNumber}, RPE`} placeholder="—" bind:value={r.rpe} /></td>
               </tr>
             {/each}
           </tbody>

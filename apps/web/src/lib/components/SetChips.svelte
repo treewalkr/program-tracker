@@ -33,8 +33,5 @@
     flex-wrap: wrap;
     gap: 5px;
   }
-  /* RPE effort scale — tokens tuned AA on the chip background at 12–13px semibold */
-  .rpe { color: var(--rpe-low); font-weight: 600; }
-  .rpe-mid { color: var(--rpe-mid); }
-  .rpe-high { color: var(--rpe-high); }
+  /* RPE effort tiers live in app.css (.setchip .rpe) — chip-darkened for AA */
 </style>

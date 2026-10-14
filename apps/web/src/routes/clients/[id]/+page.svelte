@@ -242,7 +242,7 @@
             {#each programs ?? [] as p, i (p.id)}
               <div class="prog-row">
                 <a class="lift" class:dim={p.status !== "active"} href={`/programs/${p.id}`}>{p.name}</a>
-                <span class="num">v{p.version} · {p.status}</span>
+                <span class="prog-meta"><span class="num">v{p.version}</span><StatusPill status={p.status} /></span>
               </div>
             {/each}
           </div>
@@ -315,7 +315,9 @@
                     <span class="num big">{h.bestE1rm > 0 ? Math.round(h.bestE1rm) : "—"}</span>
                     {#if h.bestE1rm > 0}<span class="unit">kg</span>{/if}
                   </td>
-                  <td class="sets">{h.recentSets.join(", ")}</td>
+                  <td class="sets">
+                    {#each h.recentSets as s, i (i)}<span class="setchip"><span class="rep">{s}</span></span>{/each}
+                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -384,6 +386,7 @@
     margin: 0 0 8px;
   }
   .prog-box { padding: 4px 14px; }
+  .prog-meta { display: inline-flex; align-items: center; gap: 8px; }
   .prog-row {
     display: flex;
     align-items: baseline;
@@ -424,7 +427,7 @@
   .table-wrap { overflow-x: auto; }
   .lift { font-weight: 500; }
   .unit { font-size: 12px; color: var(--faint); margin-left: 3px; font-weight: 400; }
-  .sets { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  td.sets { max-width: 340px; }
 
   .narrow { max-width: 560px; }
   .grid { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; }

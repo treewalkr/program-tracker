@@ -52,9 +52,11 @@
       <div class="wk-row">
         <div class="wk-client">
           <a href={`/clients/${row.client.id}`}>{row.client.name}</a>
-          <span class="meta">
-            {#if row.program}{row.client.daysPerWeek ?? "—"} d/wk · {currentNames[row.client.id]}{:else}{row.client.status === "active" ? "no program" : row.client.status}{/if}
-          </span>
+          {#if row.program}
+            <span class="meta">
+              {row.client.daysPerWeek ?? "—"} d/wk · {currentNames[row.client.id]}
+            </span>
+          {/if}
         </div>
         {#if row.entries.size === 0}
           <div class="wk-cell span">
@@ -139,5 +141,5 @@
   .cell.missed .tag { color: var(--bad); }
   .cell.next { background: var(--well); }
   .cell.next .tag { color: var(--muted); }
-  .offday { align-self: center; color: #c1c8d0; font-size: 11px; }
+  .offday { align-self: center; color: var(--faint); font-size: 11px; }
 </style>
