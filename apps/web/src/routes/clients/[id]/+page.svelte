@@ -5,7 +5,7 @@
   import type { ClientDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
-  import SetChips from "$lib/components/SetChips.svelte";
+  import SessionCard from "$lib/components/SessionCard.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
@@ -210,27 +210,12 @@
             {#snippet act()}<a class="act" href={`/programs/${prog.id}`}>Open builder</a>{/snippet}
             {#each current.sessions as s, i (s.id)}
               {@const dayNum = sortedDays[i]}
-              <div class="session">
-                <div class="session-head">
-                  <h3>{s.name}</h3>
-                  {#if dayNum}
-                    <span class="when">{DAY_NAMES[dayNum - 1]}{#if dayNum === todayNum && !loggedDates.has(todayStr)} · due today{/if}</span>
-                  {/if}
-                </div>
-                <div class="session-body">
-                  {#each s.exercises as e (e.id)}
-                    <div class="exrow">
-                      <div class="ex">{e.exerciseName ?? "Unmapped exercise"}</div>
-                      <SetChips sets={e.prescribedSets} />
-                    </div>
-                  {/each}
-                </div>
-                {#if s.conditioning}
-                  <div class="session-head cond-row">
-                    <span class="cond"><Icon name="pulse" />{s.conditioning.label}{#if s.conditioning.detail} · {s.conditioning.detail}{/if}</span>
-                  </div>
-                {/if}
-              </div>
+              <SessionCard
+                name={s.name}
+                when={dayNum ? `${DAY_NAMES[dayNum - 1]}${dayNum === todayNum && !loggedDates.has(todayStr) ? " · due today" : ""}` : undefined}
+                conditioning={s.conditioning}
+                exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", sets: e.prescribedSets }))}
+              />
             {/each}
             <p class="legend">Dashed chip = warm-up · RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
           </Panel>
@@ -388,7 +373,6 @@
      which blew the page out sideways on narrow viewports */
   .two-col { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 
-  .session .cond-row { border-bottom: none; padding-bottom: 13px; }
   .legend { margin: 12px 16px; font: 400 13px/1.5 var(--font-ui); color: var(--muted); }
 
   .side-stack { display: flex; flex-direction: column; gap: 16px; }

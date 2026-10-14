@@ -5,7 +5,7 @@
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
-  import SetChips from "$lib/components/SetChips.svelte";
+  import SessionCard from "$lib/components/SessionCard.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -421,17 +421,10 @@
       <div class="mt-16">
         <Panel title="Draft sessions" count={`${gen.draft.sessions.length} days`}>
           {#each gen.draft.sessions as s, si (si)}
-            <div class="session">
-              <div class="session-head"><h3>{s.name}</h3></div>
-              <div class="session-body">
-                {#each s.exercises as e, ei (ei)}
-                  <div class="exrow">
-                    <div class="ex">{draftName(e) || "Unmapped exercise"}</div>
-                    <SetChips sets={e.prescribedSets} />
-                  </div>
-                {/each}
-              </div>
-            </div>
+            <SessionCard
+              name={s.name}
+              exercises={s.exercises.map((e) => ({ name: draftName(e), sets: e.prescribedSets }))}
+            />
           {/each}
         </Panel>
       </div>
