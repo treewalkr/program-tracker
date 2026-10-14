@@ -282,6 +282,25 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .dir.int { color: var(--warn); }
 .dir.tr { color: var(--blue); }
 
+/* toggle chips: hairline pills that invert to Inverted Ink when selected */
+.tchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 500 12px var(--font-ui);
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tchip:hover { border-color: var(--line-strong); color: var(--ink); }
+.tchip:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.tchip.on { background: var(--hover-ink); border-color: var(--hover-ink); color: #fff; }
+.tchip svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
 .num {
   font: 500 12px var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -412,19 +431,27 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   margin: 16px 0 18px;
   flex-wrap: wrap;
 }
-.tabs a {
+.tabs a,
+.tabs button {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 8px 12px;
   font: 400 14px/1.3 var(--font-ui);
   color: var(--muted);
-  border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   text-decoration: none;
+  cursor: pointer;
 }
-.tabs a:hover { color: var(--ink); border-bottom-color: var(--line); }
-.tabs a.on { color: var(--ink); font-weight: 600; border-bottom-color: #fd8c73; }
+.tabs a:hover,
+.tabs button:hover { color: var(--ink); border-bottom-color: var(--line); }
+.tabs a.on,
+.tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: #fd8c73; }
+.tabs button:disabled { opacity: 0.5; cursor: default; }
 
 /* —— misc ————————————————————————————— */
 
@@ -443,6 +470,17 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .subtle { color: var(--muted); font-size: 12px; }
 
 .err { font: 500 13px/1.5 var(--font-ui); color: var(--bad); margin: 0; }
+
+/* flash/notice notes: ink-on-tint boxes (Ink-on-Tint Rule) */
+.note {
+  font: 500 13px/1.5 var(--font-ui);
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.note.ok { color: var(--good); background: var(--good-bg); border-color: var(--good-line); }
+.note.bad { color: var(--bad); background: var(--bad-bg); border-color: var(--bad-line); }
+.note.warn { color: #4d3800; background: var(--warn-bg); border-color: var(--warn-line); }
 
 .avatar {
   width: 44px;
