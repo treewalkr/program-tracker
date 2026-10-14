@@ -4,6 +4,8 @@
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
+  import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
+  import Crumbs from "$lib/ui/Crumbs.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -54,7 +56,6 @@
   let customWeeks = $state<WeekDirective[]>(["base", "+volume", "+intensity", "transition"]);
   let schemeName = $state("");
   let savingScheme = $state(false);
-  let armedDelete = $state(false);
   const DIRECTIVES: WeekDirective[] = ["base", "+volume", "+intensity", "deload", "transition", "test"];
 
   const activeWeeks = $derived.by(() => {
@@ -77,7 +78,6 @@
   });
 
   function onSchemeSelect(value: string) {
-    armedDelete = false;
     if (value === "custom" || value === "none") {
       schemeMode = value;
     } else {
@@ -104,15 +104,10 @@
   }
 
   async function removeScheme() {
-    if (!armedDelete) {
-      armedDelete = true;
-      return;
-    }
     if (!selectedScheme) return;
     const gone = selectedScheme.id;
     await api.deleteScheme(gone);
     schemes = schemes.filter((s) => s.id !== gone);
-    armedDelete = false;
     if (schemes.length > 0) selectedSchemeId = schemes[0].id;
     else schemeMode = "none";
   }
@@ -241,7 +236,7 @@
 {:else}
   <div class="page-head">
     <div>
-      <p class="crumb"><a href={`/clients/${id}`}>{client.name}</a> / New program</p>
+      <Crumbs items={[{ href: `/clients/${id}`, label: client.name }, { label: "New program" }]} />
       <h1>Write a program by hand</h1>
       <p class="sub">Saved as draft — nothing goes live until you activate it.</p>
     </div>
@@ -290,16 +285,21 @@
                     {/each}
                   </div>
                   <div class="scheme-manage">
-                    <button type="button" class="btn ghost small danger" onclick={removeScheme}>
-                      {armedDelete ? "Really delete scheme?" : "Delete scheme"}
-                    </button>
+                    <ConfirmButton
+                      label="Delete scheme"
+                      confirmLabel="Really delete scheme?"
+                      variant="danger"
+                      class="ghost"
+                      small
+                      onconfirm={removeScheme}
+                    />
                   </div>
                 {:else if schemeMode === "custom"}
                   <div class="week-rows">
                     {#each customWeeks as d, i (i)}
                       <div class="week-row">
                         <span class="wk">W{i + 1}</span>
-                        <select class="select" bind:value={customWeeks[i]} onchange={() => (armedDelete = false)}>
+                        <select class="select" bind:value={customWeeks[i]}>
                           {#each DIRECTIVES as opt (opt)}
                             <option value={opt}>{opt}</option>
                           {/each}
@@ -448,9 +448,6 @@
 {/if}
 
 <style>
-  .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
-  .crumb a:hover { text-decoration: underline; }
-
   .cols { display: grid; grid-template-columns: 4fr 8fr; gap: 18px; align-items: start; }
   .stack { display: flex; flex-direction: column; gap: 12px; }
 

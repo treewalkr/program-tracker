@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import type { HTMLButtonAttributes } from 'svelte/elements';
 
 	/**
 	 * Hairline pill that inverts to Inverted Ink when selected. Controlled:
@@ -11,9 +12,9 @@
 		children?: Snippet;
 	}
 
-	let { on = false, onclick, children }: Props = $props();
+	let { on = false, onclick, children, ...rest }: Props & HTMLButtonAttributes = $props();
 </script>
 
-<button type="button" class="tchip" class:on aria-pressed={on} onclick={() => onclick?.()}>
+<button type="button" class="tchip" class:on aria-pressed={on} onclick={() => onclick?.()} {...rest}>
 	{@render children?.()}
 </button>

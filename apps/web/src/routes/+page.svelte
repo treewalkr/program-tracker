@@ -3,6 +3,9 @@
   import { api, apiMode } from "$lib/api";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import SignalRow from "$lib/components/SignalRow.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   let clients = $state<ClientDto[] | null>(null);
   let providers = $state<ProviderDto[] | null>(null);
@@ -96,13 +99,13 @@
   </div>
   <div class="head-actions">
     <a class="btn" href="/clients">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>Add client
+      <Icon name="plus" />Add client
     </a>
   </div>
 </div>
 
 {#if clients === null}
-  <div class="panel"><div class="panel-body"><div class="skeleton" style="height:80px"></div></div></div>
+  <SkeletonPanel height={80} />
 {:else}
   <div class="grid-2">
     <div class="col">
@@ -116,26 +119,24 @@
             {#each signals as signal (signal.id)}
               {@const client = clients?.find((c) => c.id === signal.clientId)}
               {#if client}
-                <div class="signal">
-                  <span class="lamp {signal.severity === 'urgent' ? 'red' : signal.severity === 'attention' ? 'amber' : 'green'}" aria-hidden="true"></span>
-                  <div class="body">
-                    <strong>{signal.title} — <a class="client-link" href={`/clients/${client.id}`}>{client.name}</a></strong>
-                    <p class="evi">{signal.evidence}</p>
-                  </div>
-                  <div class="act">
+                <SignalRow severity={signal.severity} evidence={signal.evidence}>
+                  {#snippet title()}
+                    {signal.title} — <a class="client-link" href={`/clients/${client.id}`}>{client.name}</a>
+                  {/snippet}
+                  {#snippet actions()}
                     {#if signal.prefillNote}
                       <a
                         class="btn primary small"
                         href={`/clients/${client.id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
                       >
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" /></svg>Draft next block
+                        <Icon name="sparkle" />Draft next block
                       </a>
                     {:else if signal.altHref}
                       <a class="btn small" href={signal.altHref}>{signal.altLabel}</a>
                     {/if}
                     <a class="btn ghost small" href={`/clients/${client.id}`}>Open client</a>
-                  </div>
-                </div>
+                  {/snippet}
+                </SignalRow>
               {/if}
             {/each}
           </div>
@@ -255,7 +256,7 @@
   }
   .col { display: flex; flex-direction: column; min-width: 0; }
   .signal-list { display: flex; flex-direction: column; }
-  .signal .act { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
 
@@ -332,6 +333,6 @@
     .grid-2 { grid-template-columns: 1fr; }
   }
   @media (max-width: 520px) {
-    .signal .act { justify-content: flex-start; }
+    .signal-list :global(.signal .act) { justify-content: flex-start; }
   }
 </style>

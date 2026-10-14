@@ -4,6 +4,8 @@
   import type { ClientDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import { goto } from "$app/navigation";
 
   let clients = $state<ClientDto[] | null>(null);
@@ -59,7 +61,7 @@
     <p class="sub">{clients?.length ?? "…"} on the roster</p>
   </div>
   <button class="btn" class:ghost={showForm} onclick={() => (showForm = !showForm)}>
-    {#if showForm}Cancel{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>Add client{/if}
+    {#if showForm}Cancel{:else}<Icon name="plus" />Add client{/if}
   </button>
 </div>
 
@@ -103,7 +105,7 @@
 {/if}
 
 {#if clients === null}
-  <div class="panel"><div class="panel-body"><div class="skeleton" style="height:60px"></div></div></div>
+  <SkeletonPanel height={60} />
 {:else if clients.length === 0}
   <section class="panel"><div class="empty">No clients yet — add your first one above.</div></section>
 {:else if filtered.length === 0}

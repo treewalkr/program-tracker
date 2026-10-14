@@ -6,6 +6,8 @@
   import type { ExerciseDto, ProgramDto } from "$lib/api/types";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import Crumbs from "$lib/ui/Crumbs.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -101,7 +103,7 @@
 {:else}
   <div class="page-head">
     <div>
-      <p class="crumb"><a href={`/clients/${program.clientId}`}>{clientName ?? "Client"}</a> / Program</p>
+      <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
       <h1>{program.name} <StatusPill status={program.status} /></h1>
       <p class="sub">
         v{program.version}
@@ -143,7 +145,7 @@
       <section class="panel">
         <div class="panel-head">
           <h2>{s.name}</h2>
-          {#if !editing && s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6l7 12H5z" /></svg>{s.conditioning.label} · {s.conditioning.detail}</span>{/if}
+          {#if !editing && s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}><Icon name="pulse" />{s.conditioning.label} · {s.conditioning.detail}</span>{/if}
           <span class="subtle">{s.exercises.length} exercises</span>
         </div>
         {#if editing}
@@ -253,8 +255,6 @@
 {/if}
 
 <style>
-  .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
-  .crumb a:hover { text-decoration: underline; }
   h1 { display: flex; align-items: center; gap: 10px; }
   .actions { display: flex; gap: 10px; align-items: center; }
   .readonly-note { margin: 0; }
@@ -295,7 +295,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .cond-chip svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
+  .cond-chip :global(svg) { width: 10px; height: 10px; fill: var(--good); flex: none; }
   .cardio-edit { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 2px; }
   .cardio-edit .cardio-label { max-width: 200px; }
   .ctrl.rest { margin-left: auto; }

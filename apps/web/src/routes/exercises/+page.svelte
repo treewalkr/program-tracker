@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api } from "$lib/api";
   import type { ExerciseDto } from "$lib/api/types";
+  import ToggleChip from "$lib/ui/ToggleChip.svelte";
 
   let all = $state<ExerciseDto[]>([]);
   let q = $state("");
@@ -33,7 +34,7 @@
 
 <div class="groups">
   {#each groups as g (g)}
-    <button class="chip" class:active={group === g} onclick={() => (group = g)}>{g}</button>
+    <ToggleChip on={group === g} onclick={() => (group = g)}>{g}</ToggleChip>
   {/each}
 </div>
 
@@ -57,15 +58,4 @@
 <style>
   .search { max-width: 260px; }
   .groups { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip {
-    font: 500 12px var(--font-ui);
-    color: var(--muted);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 99px;
-    padding: 4px 12px;
-    cursor: pointer;
-  }
-  .chip:hover { border-color: var(--line-strong); }
-  .chip.active { background: #24292f; color: #fff; border-color: #24292f; }
 </style>

@@ -11,10 +11,12 @@
 		tone?: Tone;
 		/** e.g. role="note" or role="status" for live announcements. */
 		role?: string;
+		/** Extra classes (e.g. layout placement). */
+		class?: string;
 		children?: Snippet;
 	}
 
-	let { tone = 'ok', role, children }: Props = $props();
+	let { tone = 'ok', role, class: cls, children }: Props = $props();
 </script>
 
-<div class="note {tone}" {role}>{@render children?.()}</div>
+<div class={['note', tone, cls]} {role}>{@render children?.()}</div>

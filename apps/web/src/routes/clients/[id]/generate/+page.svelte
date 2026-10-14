@@ -7,6 +7,9 @@
   import { weekOf } from "$lib/signals";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import ToggleChip from "$lib/ui/ToggleChip.svelte";
+  import Note from "$lib/ui/Note.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -265,16 +268,14 @@
           <span class="label">Instruction templates <span class="subtle">— your standing rules, reusable across clients</span></span>
           <div class="tpl-list">
             {#each templates as t (t.id)}
-              <button
-                type="button"
-                class="tpl"
-                class:active={selected.includes(t.id)}
+              <ToggleChip
+                on={selected.includes(t.id)}
                 title={t.content}
                 onclick={() => toggleTemplate(t.id)}
               >
-                {#if selected.includes(t.id)}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>{/if}
+                {#if selected.includes(t.id)}<Icon name="check" />{/if}
                 {t.name}
-              </button>
+              </ToggleChip>
             {/each}
             {#if templates.length === 0}<span class="subtle">No templates yet — write a note below and save it as one.</span>{/if}
             <a class="manage" href="/templates">Manage templates →</a>
@@ -314,12 +315,10 @@
           </div>
         {/if}
         {#if client.limitations}
-          <p class="lim-note">
-            Limitations always apply, regardless of instructions: “{client.limitations}”
-          </p>
+          <Note tone="bad">Limitations always apply, regardless of instructions: “{client.limitations}”</Note>
         {/if}
         <button class="btn primary" type="submit">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" /></svg>
+          <Icon name="sparkle" />
           Generate draft
         </button>
         <p class="subtle">Nothing goes live — the draft waits for your review.</p>
@@ -366,7 +365,7 @@
         <a class="btn ghost" href={`/clients/${id}`}>Back to client</a>
       {:else if newProgram}
         <a class="btn primary" href={`/programs/${newProgram.id}`}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 7l9 4 9-4zM3 12l9 4 9-4M3 17l9 4 9-4" /></svg>
+          <Icon name="layers" />
           Open in builder
         </a>
         <a class="btn" href={`/clients/${id}`}>Back to client</a>
@@ -375,7 +374,7 @@
           {rejecting ? "Rejecting…" : "Reject"}
         </button>
         <button class="btn primary" onclick={approve} disabled={approving}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+          <Icon name="check" />
           {approving ? "Approving…" : "Approve as draft program"}
         </button>
       {/if}
@@ -383,11 +382,9 @@
   </div>
 
   {#if newProgram}
-    <p class="flash-ok">
-      Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.
-    </p>
+    <Note tone="ok" class="flash">Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.</Note>
   {:else if gen.status === "rejected"}
-    <p class="flash-bad">Discarded — this draft won't be used.</p>
+    <Note tone="bad">Discarded — this draft won't be used.</Note>
   {/if}
 
   <div class="review-cols">
@@ -457,7 +454,7 @@
 
   {#if gen.status !== "rejected" && !newProgram}
     <div class="approve-note">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+      <Icon name="lock" />
       <span>Approving creates a <strong>draft</strong> — nothing reaches {client.name.split(" ")[0]} until you edit and activate it. The AI never touches anything the client sees.</span>
     </div>
   {/if}
@@ -467,21 +464,6 @@
   .crumbs b { color: var(--ink); }
 
   .tpl-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .tpl {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font: 500 12px var(--font-ui);
-    color: var(--muted);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 99px;
-    padding: 4px 12px;
-    cursor: pointer;
-  }
-  .tpl svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-  .tpl:hover { border-color: var(--line-strong); }
-  .tpl.active { background: #24292f; color: #fff; border-color: #24292f; }
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
   .save-tpl { display: flex; gap: 8px; }
@@ -501,15 +483,7 @@
 
   .narrow { max-width: 560px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }
-  .lim-note {
-    margin: 0;
-    font: 500 13px/1.5 var(--font-ui);
-    color: var(--bad);
-    background: var(--bad-bg);
-    border: 1px solid var(--bad-line);
-    border-radius: 6px;
-    padding: 8px 12px;
-  }
+  :global(.flash) { margin: 0 0 16px; }
 
   .steps { padding: 22px 18px; }
   .step { display: flex; align-items: center; gap: 10px; color: var(--faint); padding: 5px 0; font-size: 14px; }
@@ -530,25 +504,6 @@
   }
   .gen-meta span { display: inline-flex; align-items: center; gap: 6px; }
   .gen-meta .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--green-btn); }
-
-  .flash-ok {
-    margin: 0 0 16px;
-    font: 500 13px/1.5 var(--font-ui);
-    color: var(--good);
-    background: var(--good-bg);
-    border: 1px solid var(--good-line);
-    border-radius: 6px;
-    padding: 8px 16px;
-  }
-  .flash-bad {
-    margin: 0 0 16px;
-    font: 500 13px/1.5 var(--font-ui);
-    color: var(--bad);
-    background: var(--bad-bg);
-    border: 1px solid var(--bad-line);
-    border-radius: 6px;
-    padding: 8px 16px;
-  }
 
   .review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   .rationale { white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
@@ -610,7 +565,7 @@
     font-size: 13px;
     line-height: 1.55;
   }
-  .approve-note svg { width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 1.6; flex: none; margin-top: 1px; stroke-linecap: round; stroke-linejoin: round; }
+  .approve-note :global(svg) { width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 1.6; flex: none; margin-top: 1px; stroke-linecap: round; stroke-linejoin: round; }
 
   @media (max-width: 900px) {
     .review-cols { grid-template-columns: 1fr; }

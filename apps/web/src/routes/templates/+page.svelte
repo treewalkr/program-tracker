@@ -3,6 +3,8 @@
   import { api } from "$lib/api";
   import { fmtDate } from "$lib/format";
   import type { InstructionTemplateDto } from "$lib/api/types";
+  import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   let templates = $state<InstructionTemplateDto[]>([]);
   let loaded = $state(false);
@@ -59,22 +61,7 @@
   async function remove(id: string) {
     await api.deleteInstructionTemplate(id);
     if (editingId === id) editingId = null;
-    if (confirmDeleteId === id) confirmDeleteId = null;
     await load();
-  }
-
-  // Two-step delete: first click arms, second click within 4s deletes.
-  let confirmDeleteId = $state<string | null>(null);
-  let armTimer: ReturnType<typeof setTimeout> | undefined;
-  function armDelete(id: string) {
-    if (confirmDeleteId === id) {
-      clearTimeout(armTimer);
-      void remove(id);
-      return;
-    }
-    confirmDeleteId = id;
-    clearTimeout(armTimer);
-    armTimer = setTimeout(() => (confirmDeleteId = null), 4000);
   }
 
   onMount(load);
@@ -128,7 +115,7 @@
   <section class="panel">
     <div class="panel-head"><h2>Library</h2><span class="counter">{templates.length}</span></div>
     {#if !loaded}
-      <div class="skeleton" style="height:120px"></div>
+      <div class="panel-body"><Skeleton h="120px" /></div>
     {:else if templates.length === 0}
       <div class="empty">No templates yet — create one on the left.</div>
     {:else}
@@ -158,13 +145,7 @@
               <pre class="body">{t.content}</pre>
               <div class="row-actions">
                 <button class="btn ghost small" onclick={() => startEdit(t)}>Edit</button>
-                <button
-                  class="btn danger small"
-                  class:armed={confirmDeleteId === t.id}
-                  onclick={() => armDelete(t.id)}
-                >
-                  {confirmDeleteId === t.id ? "Really delete?" : "Delete"}
-                </button>
+                <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => remove(t.id)} small />
               </div>
             {/if}
           </div>
@@ -191,7 +172,6 @@
   }
 
   .row-actions { display: flex; gap: 8px; }
-  .btn.danger.armed { outline: 2px solid var(--bad); outline-offset: 2px; }
 
   @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
 </style>

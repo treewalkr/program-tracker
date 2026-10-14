@@ -6,7 +6,10 @@
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
+  import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
+  import Tabs from "$lib/ui/Tabs.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -151,7 +154,7 @@
       <a class="btn" href={`/clients/${id}/log`}>Log session</a>
       <a class="btn" href={`/clients/${id}/programs/new`}>Write program</a>
       <a class="btn primary" href={`/clients/${id}/generate`}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" /></svg>
+        <Icon name="sparkle" />
         {current ? "Generate next block" : "Generate first program"}
       </a>
     </div>
@@ -160,46 +163,42 @@
   {#if visibleSignals.length > 0}
     <section class="panel sig-panel" aria-live="polite">
       {#each visibleSignals as signal (signal.id)}
-        <div class="signal">
-          <span class="lamp {signal.severity === 'urgent' ? 'red' : signal.severity === 'attention' ? 'amber' : 'green'}" aria-hidden="true"></span>
-          <div class="body">
-            <strong>{signal.title}</strong>
-            <p class="evi">{signal.evidence}</p>
-            {#if snoozeErrors[signal.id]}
-              <p class="evi err" role="alert">Couldn't snooze — {snoozeErrors[signal.id]}</p>
-            {/if}
-          </div>
-          <div class="act">
+        <SignalRow
+          severity={signal.severity}
+          title={signal.title}
+          evidence={signal.evidence}
+          error={snoozeErrors[signal.id] ? `Couldn't snooze — ${snoozeErrors[signal.id]}` : undefined}
+        >
+          {#snippet actions()}
             {#if signal.prefillNote}
               <a
                 class="btn primary small"
                 href={`/clients/${id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" /></svg>
+                <Icon name="sparkle" />
                 Draft next block
               </a>
             {/if}
             <button class="snooze" disabled={snoozing === signal.id} onclick={() => snooze(signal)}>
               {snoozing === signal.id ? "Snoozing…" : "Snooze 1 wk"}
             </button>
-          </div>
-        </div>
+          {/snippet}
+        </SignalRow>
       {/each}
     </section>
   {/if}
 
-  <div class="tabs" role="tablist" aria-label="Client sections">
-    <button type="button" id="tab-program" role="tab" class="tab" class:on={tab === "program"} aria-selected={tab === "program"} aria-controls="panel-program" onclick={() => setTab("program")}>
-      Program <span class="counter">{current?.sessions.length ?? 0} days</span>
-    </button>
-    <button type="button" id="tab-pulse" role="tab" class="tab" class:on={tab === "pulse"} aria-selected={tab === "pulse"} aria-controls="panel-pulse" onclick={() => setTab("pulse")} disabled={pulse.length === 0}>
-      Pulse <span class="counter">{pulse.length} wks</span>
-    </button>
-    <button type="button" id="tab-history" role="tab" class="tab" class:on={tab === "history"} aria-selected={tab === "history"} aria-controls="panel-history" onclick={() => setTab("history")}>
-      History <span class="counter">8 wks</span>
-    </button>
-    <button type="button" id="tab-settings" role="tab" class="tab" class:on={tab === "settings"} aria-selected={tab === "settings"} aria-controls="panel-settings" onclick={() => setTab("settings")}>Settings</button>
-  </div>
+  <Tabs
+    label="Client sections"
+    value={tab}
+    onchange={(t) => setTab(t as typeof tab)}
+    items={[
+      { id: 'program', label: 'Program', count: `${current?.sessions.length ?? 0} days` },
+      { id: 'pulse', label: 'Pulse', count: `${pulse.length} wks`, disabled: pulse.length === 0 },
+      { id: 'history', label: 'History', count: '8 wks' },
+      { id: 'settings', label: 'Settings' },
+    ]}
+  />
 
   {#if tab === "program"}
     <div class="two-col" id="panel-program" role="tabpanel" aria-labelledby="tab-program">
@@ -230,7 +229,7 @@
                 </div>
                 {#if s.conditioning}
                   <div class="session-head cond-row">
-                    <span class="cond"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6l7 12H5z" /></svg>{s.conditioning.label}{#if s.conditioning.detail} · {s.conditioning.detail}{/if}</span>
+                    <span class="cond"><Icon name="pulse" />{s.conditioning.label}{#if s.conditioning.detail} · {s.conditioning.detail}{/if}</span>
                   </div>
                 {/if}
               </div>
@@ -243,7 +242,7 @@
               No active program. Generate one with AI or build it manually.
               <div style="margin-top:12px; display: flex; gap: 8px; justify-content: center">
                 <a class="btn primary" href={`/clients/${id}/generate`}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" /></svg>
+                  <Icon name="sparkle" />
                   Generate first program
                 </a>
                 <a class="btn" href={`/clients/${id}/programs/new`}>Write program</a>
@@ -394,26 +393,8 @@
   .sub { margin: 4px 0 0; }
 
   .sig-panel { margin: 18px 0 0; }
-  .sig-panel .act { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .sig-panel :global(.signal .act) { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .snooze:disabled { color: var(--muted); cursor: default; }
-
-  .tab {
-    appearance: none;
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 12px;
-    font: 400 14px/1.3 var(--font-ui);
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .tab:hover { color: var(--ink); }
-  .tab.on { color: var(--ink); font-weight: 600; border-bottom-color: #fd8c73; }
-  .tab:disabled { opacity: 0.5; cursor: default; }
 
   /* minmax(0,·) — a bare 1fr track never shrinks below content min-content,
      which blew the page out sideways on narrow viewports */

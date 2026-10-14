@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
+  import Note from "$lib/ui/Note.svelte";
 
   let { children } = $props();
 
@@ -83,9 +84,9 @@
 
   <main class="main">
     {#if apiMode === "mock"}
-      <div class="demo-banner" role="note">
+      <Note tone="warn" role="note" class="demo-banner">
         Demo mode — every number on screen is mock data. Nothing is saved.
-      </div>
+      </Note>
     {/if}
     {@render children()}
   </main>
@@ -215,12 +216,8 @@
     min-width: 0; /* grid child: let content shrink instead of forcing min-content width */
   }
 
-  .demo-banner {
-    font: 500 13px/1.5 var(--font-ui);
-    color: #4d3800;
-    background: var(--warn-bg);
-    border: 1px solid #d4a72c66;
-    border-radius: 6px;
+  /* layout placement for the global note component */
+  .main :global(.demo-banner) {
     padding: 8px 16px;
     margin-bottom: 22px;
     max-width: 100%;

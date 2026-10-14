@@ -4,6 +4,8 @@
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
+  import Crumbs from "$lib/ui/Crumbs.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -168,13 +170,13 @@
 {:else}
   <div class="page-head">
     <div>
-      <p class="crumb"><a href={`/clients/${id}`}>{client.name}</a> / Log session</p>
+      <Crumbs items={[{ href: `/clients/${id}`, label: client.name }, { label: "Log session" }]} />
       <h1>Log a session</h1>
       <p class="sub">Enter what {client.name.split(" ")[0]} actually did.</p>
     </div>
     {#if rows.length > 0}
       <button class="btn primary" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
-        {#if oneClickBusy}Logging…{:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>Did it as prescribed{/if}
+        {#if oneClickBusy}Logging…{:else}<Icon name="bolt" />Did it as prescribed{/if}
       </button>
     {/if}
   </div>
@@ -268,8 +270,6 @@
 
 <style>
   .table-wrap { overflow-x: auto; }
-  .crumb { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
-  .crumb a:hover { text-decoration: underline; }
 
   .head-controls {
     display: flex;
