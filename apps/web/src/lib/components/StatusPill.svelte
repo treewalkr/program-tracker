@@ -1,18 +1,23 @@
 <script lang="ts">
-  let { status }: { status: string } = $props();
+	import Pill from '$lib/ui/Pill.svelte';
 
-  const map: Record<string, { cls: string; label: string }> = {
-    active: { cls: "good", label: "active" },
-    paused: { cls: "warn", label: "paused" },
-    archived: { cls: "neutral", label: "archived" },
-    draft: { cls: "neutral", label: "draft" },
-    validated: { cls: "good", label: "validated" },
-    approved: { cls: "good", label: "approved" },
-    rejected: { cls: "bad", label: "rejected" },
-    failed_validation: { cls: "bad", label: "failed validation" },
-    failed_provider: { cls: "bad", label: "provider error" },
-  };
-  const view = $derived(map[status] ?? { cls: "neutral", label: status });
+	type Tone = 'good' | 'warn' | 'bad' | 'neutral';
+
+	/** Maps every domain status onto the four Primer Label tones. */
+	let { status }: { status: string } = $props();
+
+	const map: Record<string, { tone: Tone; label: string }> = {
+		active: { tone: 'good', label: 'active' },
+		paused: { tone: 'warn', label: 'paused' },
+		archived: { tone: 'neutral', label: 'archived' },
+		draft: { tone: 'neutral', label: 'draft' },
+		validated: { tone: 'good', label: 'validated' },
+		approved: { tone: 'good', label: 'approved' },
+		rejected: { tone: 'bad', label: 'rejected' },
+		failed_validation: { tone: 'bad', label: 'failed validation' },
+		failed_provider: { tone: 'bad', label: 'provider error' },
+	};
+	const view = $derived(map[status] ?? { tone: 'neutral' as Tone, label: status });
 </script>
 
-<span class="pill {view.cls}">{view.label}</span>
+<Pill tone={view.tone}>{view.label}</Pill>
