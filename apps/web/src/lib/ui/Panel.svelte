@@ -1,11 +1,13 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import type { HTMLAttributes } from 'svelte/elements';
 
 	/**
 	 * Primer Box: canvas-white surface on a hairline border, 6px radius.
 	 * Optional well head (title + evidence counter + right-aligned `act`
 	 * snippet). Body content is passed through as-is — wrap tables in
-	 * `<div class="panel-body tight">` yourself.
+	 * `<div class="panel-body tight">` yourself. Extra attributes (id,
+	 * role, aria-*) land on the section.
 	 */
 	interface Props {
 		title?: string;
@@ -18,10 +20,10 @@
 		class?: string;
 	}
 
-	let { title, count, act, children, class: cls }: Props = $props();
+	let { title, count, act, children, class: cls, ...rest }: Props & HTMLAttributes<HTMLElement> = $props();
 </script>
 
-<section class={['panel', cls]}>
+<section class={['panel', cls]} {...rest}>
 	{#if title || act}
 		<div class="panel-head">
 			{#if title}<h2>{title}</h2>{/if}

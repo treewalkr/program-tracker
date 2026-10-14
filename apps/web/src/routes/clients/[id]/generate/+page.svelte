@@ -10,6 +10,12 @@
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import Crumbs from "$lib/ui/Crumbs.svelte";
+  import PageHead from "$lib/ui/PageHead.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -212,21 +218,16 @@
 <svelte:head><title>Generate program · Program Tracker</title></svelte:head>
 
 {#if client === null}
-  <div class="skeleton" style="height:140px"></div>
+  <Skeleton h="140px" />
 {:else if phase === "form" || phase === "generating" || phase === "failed"}
-  <p class="crumbs"><a href={`/clients/${id}`}>{client.name}</a> / <b>Generate</b></p>
-  <div class="page-head">
-    <div>
-      <h1>Draft next block with AI</h1>
-      <p class="sub">
-        Reads {client.name.split(" ")[0]}'s profile, {current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.
-      </p>
-    </div>
-  </div>
+  <PageHead
+    title="Draft next block with AI"
+    sub={`Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
+    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "Generate" }]}
+  />
 
   {#if phase === "form"}
-    <section class="panel narrow">
-      <div class="panel-head"><h2>Generation settings</h2></div>
+    <Panel class="narrow" title="Generation settings">
       <form
         class="panel-body stack"
         onsubmit={(e) => {
@@ -234,8 +235,7 @@
           start();
         }}
       >
-        <div>
-          <label class="label" for="g-provider">Provider</label>
+        <Field label="Provider" htmlFor="g-provider">
           <select
             class="select"
             id="g-provider"
@@ -246,10 +246,9 @@
               <option value={p.id}>{p.label} · {p.model}</option>
             {/each}
           </select>
-        </div>
+        </Field>
         {#if provider && provider.models.length > 1}
-          <div>
-            <label class="label" for="g-model">Model</label>
+          <Field label="Model" htmlFor="g-model">
             <select class="select" id="g-model" bind:value={model}>
               <option value="">{provider.model} · default</option>
               {#each provider.models as m (m)}
@@ -258,14 +257,13 @@
                 {/if}
               {/each}
             </select>
-          </div>
+          </Field>
         {/if}
-        <div>
-          <label class="label" for="g-based">Based on</label>
+        <Field label="Based on" htmlFor="g-based">
           <input class="input" id="g-based" disabled value={current ? `${current.name} (active, v${current.version})` : "Cold start — no previous program"} />
-        </div>
+        </Field>
         <div>
-          <span class="label">Instruction templates <span class="subtle">— your standing rules, reusable across clients</span></span>
+          <Field label="Instruction templates" hint="your standing rules, reusable across clients">
           <div class="tpl-list">
             {#each templates as t (t.id)}
               <ToggleChip
@@ -280,11 +278,9 @@
             {#if templates.length === 0}<span class="subtle">No templates yet — write a note below and save it as one.</span>{/if}
             <a class="manage" href="/templates">Manage templates →</a>
           </div>
+          </Field>
         </div>
-        <div>
-          <label class="label" for="g-instructions">
-            This generation <span class="subtle">— optional one-off note</span>
-          </label>
+        <Field label="This generation" hint="optional one-off note" htmlFor="g-instructions">
           <textarea
             class="textarea"
             id="g-instructions"
@@ -293,13 +289,13 @@
             bind:value={instructions}
             maxlength="2000"
           ></textarea>
-        </div>
+        </Field>
         {#if instructions.trim()}
           <div class="save-tpl">
             <input class="input" placeholder="Template name, e.g. ‘Deload policy’" bind:value={tplName} maxlength="80" />
-            <button type="button" class="btn ghost small" onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
+            <Button variant="ghost" small onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
               {savingTpl ? "Saving…" : "Save note as template"}
-            </button>
+            </Button>
           </div>
         {/if}
         {#if periodContext}
@@ -317,13 +313,13 @@
         {#if client.limitations}
           <Note tone="bad">Limitations always apply, regardless of instructions: “{client.limitations}”</Note>
         {/if}
-        <button class="btn primary" type="submit">
-          <Icon name="sparkle" />
+        <Button variant="primary" type="submit">
+          {#snippet icon()}<Icon name="sparkle" />{/snippet}
           Generate draft
-        </button>
+        </Button>
         <p class="subtle">Nothing goes live — the draft waits for your review.</p>
       </form>
-    </section>
+    </Panel>
 
   {:else if phase === "generating"}
     <section class="panel narrow">
@@ -340,13 +336,13 @@
     <section class="panel narrow">
       <div class="panel-body stack">
         <p class="err">Generation failed. {failReason ?? "Provider error or the draft failed validation."}</p>
-        <button class="btn ghost" onclick={() => (phase = "form")}>Back to settings</button>
+        <Button variant="ghost" onclick={() => (phase = "form")}>Back to settings</Button>
       </div>
     </section>
   {/if}
 
 {:else if gen?.draft}
-  <p class="crumbs"><a href="/clients">Clients</a> / <a href={`/clients/${id}`}>{client.name}</a> / <b>AI draft</b></p>
+  <Crumbs items={[{ href: "/clients", label: "Clients" }, { href: `/clients/${id}`, label: client.name }, { label: "AI draft" }]} />
   <div class="page-head">
     <div>
       <div class="title-row">
@@ -361,22 +357,22 @@
     </div>
     <div class="head-actions">
       {#if gen.status === "rejected"}
-        <button class="btn" onclick={reset}>Draft again</button>
-        <a class="btn ghost" href={`/clients/${id}`}>Back to client</a>
+        <Button onclick={reset}>Draft again</Button>
+        <Button variant="ghost" href={`/clients/${id}`}>Back to client</Button>
       {:else if newProgram}
-        <a class="btn primary" href={`/programs/${newProgram.id}`}>
-          <Icon name="layers" />
+        <Button variant="primary" href={`/programs/${newProgram.id}`}>
+          {#snippet icon()}<Icon name="layers" />{/snippet}
           Open in builder
-        </a>
-        <a class="btn" href={`/clients/${id}`}>Back to client</a>
+        </Button>
+        <Button href={`/clients/${id}`}>Back to client</Button>
       {:else}
-        <button class="btn danger" onclick={reject} disabled={rejecting}>
+        <Button variant="danger" onclick={reject} disabled={rejecting}>
           {rejecting ? "Rejecting…" : "Reject"}
-        </button>
-        <button class="btn primary" onclick={approve} disabled={approving}>
-          <Icon name="check" />
+        </Button>
+        <Button variant="primary" onclick={approve} disabled={approving}>
+          {#snippet icon()}<Icon name="check" />{/snippet}
           {approving ? "Approving…" : "Approve as draft program"}
-        </button>
+        </Button>
       {/if}
     </div>
   </div>
@@ -389,13 +385,9 @@
 
   <div class="review-cols">
     <div>
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Why this block</h2>
-          <span class="counter">trainer-facing rationale</span>
-        </div>
+      <Panel title="Why this block" count="trainer-facing rationale">
         <div class="panel-body rationale">{gen.draft.rationale}</div>
-      </section>
+      </Panel>
 
       <div class="clientreads">
         <div class="edit-note">what {client.name.split(" ")[0]} reads</div>
@@ -405,11 +397,7 @@
 
     <div>
       {#if diff.length > 0}
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Changes vs current</h2>
-            <span class="counter">{diff.length} exercises reviewed</span>
-          </div>
+        <Panel title="Changes vs current" count={`${diff.length} exercises reviewed`}>
           <div class="panel-body">
             <div class="diff">
               <div class="diff-cell"><div class="n muted">{diffCounts.kept}</div><div class="l">kept</div></div>
@@ -427,28 +415,26 @@
               {/if}
             {/each}
           </div>
-        </section>
+        </Panel>
       {/if}
 
-      <section class="panel" style="margin-top:16px">
-        <div class="panel-head">
-          <h2>Draft sessions</h2>
-          <span class="counter">{gen.draft.sessions.length} days</span>
-        </div>
-        {#each gen.draft.sessions as s, si (si)}
-          <div class="session">
-            <div class="session-head"><h3>{s.name}</h3></div>
-            <div class="session-body">
-              {#each s.exercises as e, ei (ei)}
-                <div class="exrow">
-                  <div class="ex">{draftName(e) || "Unmapped exercise"}</div>
-                  <SetChips sets={e.prescribedSets} />
-                </div>
-              {/each}
+      <div class="mt-16">
+        <Panel title="Draft sessions" count={`${gen.draft.sessions.length} days`}>
+          {#each gen.draft.sessions as s, si (si)}
+            <div class="session">
+              <div class="session-head"><h3>{s.name}</h3></div>
+              <div class="session-body">
+                {#each s.exercises as e, ei (ei)}
+                  <div class="exrow">
+                    <div class="ex">{draftName(e) || "Unmapped exercise"}</div>
+                    <SetChips sets={e.prescribedSets} />
+                  </div>
+                {/each}
+              </div>
             </div>
-          </div>
-        {/each}
-      </section>
+          {/each}
+        </Panel>
+      </div>
     </div>
   </div>
 
@@ -461,8 +447,6 @@
 {/if}
 
 <style>
-  .crumbs b { color: var(--ink); }
-
   .tpl-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
@@ -482,6 +466,7 @@
   .merged.ctx { color: var(--blue); }
 
   .narrow { max-width: 560px; }
+  .mt-16 { margin-top: 16px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }
   :global(.flash) { margin: 0 0 16px; }
 

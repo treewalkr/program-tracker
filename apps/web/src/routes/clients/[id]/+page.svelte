@@ -8,8 +8,16 @@
   import SetChips from "$lib/components/SetChips.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
+  import DirChip from "$lib/components/DirChip.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import Button from "$lib/ui/Button.svelte";
+  import Crumbs from "$lib/ui/Crumbs.svelte";
+  import Panel from "$lib/ui/Panel.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
+  import Avatar from "$lib/ui/Avatar.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -33,14 +41,6 @@
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayNum = isoDay(new Date());
   const sortedDays = $derived([...(client?.trainingDays ?? [])].sort((a, b) => a - b));
-  const initials = $derived(
-    (client?.name ?? "")
-      .split(" ")
-      .map((p) => p[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase(),
-  );
 
   function setTab(t: typeof tab) {
     tab = t;
@@ -81,9 +81,6 @@
     if (last.avgRpe != null) parts.push(`week ${last.week} avg RPE ${last.avgRpe}`);
     return parts.join(" · ");
   });
-  const dirClass = (directive: string) =>
-    directive === "+volume" ? "vol" : directive === "+intensity" ? "int" : directive === "transition" ? "tr" : "";
-
   async function load() {
     const detail = await api.client(id);
     const cur = detail.currentProgram;
@@ -134,12 +131,12 @@
 <svelte:head><title>{client?.name ?? "Client"} · Program Tracker</title></svelte:head>
 
 {#if client === null}
-  <div class="skeleton" style="height:140px"></div>
+  <Skeleton h="140px" />
 {:else}
-  <p class="crumbs"><a href="/clients">Clients</a> / <b>{client.name}</b></p>
+  <Crumbs items={[{ href: "/clients", label: "Clients" }, { label: client.name }]} />
 
   <div class="client-top">
-    <div class="avatar" aria-hidden="true">{initials}</div>
+    <Avatar name={client.name} />
     <div class="id-block">
       <div class="name-row">
         <h1>{client.name}</h1>
@@ -151,12 +148,12 @@
       </p>
     </div>
     <div class="head-actions">
-      <a class="btn" href={`/clients/${id}/log`}>Log session</a>
-      <a class="btn" href={`/clients/${id}/programs/new`}>Write program</a>
-      <a class="btn primary" href={`/clients/${id}/generate`}>
-        <Icon name="sparkle" />
+      <Button href={`/clients/${id}/log`}>Log session</Button>
+      <Button href={`/clients/${id}/programs/new`}>Write program</Button>
+      <Button variant="primary" href={`/clients/${id}/generate`}>
+        {#snippet icon()}<Icon name="sparkle" />{/snippet}
         {current ? "Generate next block" : "Generate first program"}
-      </a>
+      </Button>
     </div>
   </div>
 
@@ -171,13 +168,14 @@
         >
           {#snippet actions()}
             {#if signal.prefillNote}
-              <a
-                class="btn primary small"
+              <Button
+                variant="primary"
+                small
                 href={`/clients/${id}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
               >
-                <Icon name="sparkle" />
+                {#snippet icon()}<Icon name="sparkle" />{/snippet}
                 Draft next block
-              </a>
+              </Button>
             {/if}
             <button class="snooze" disabled={snoozing === signal.id} onclick={() => snooze(signal)}>
               {snoozing === signal.id ? "Snoozing…" : "Snooze 1 wk"}
@@ -204,12 +202,12 @@
     <div class="two-col" id="panel-program" role="tabpanel" aria-labelledby="tab-program">
       <div>
         {#if current}
-          <section class="panel">
-            <div class="panel-head">
-              <h2>Current program</h2>
-              <span class="counter">{current.name} · v{current.version}{#if current.aiAssisted} · AI-assisted{/if}</span>
-              <a class="act" href={`/programs/${current.id}`}>Open builder</a>
-            </div>
+          {@const prog = current}
+          <Panel
+            title="Current program"
+            count={`${prog.name} · v${prog.version}${prog.aiAssisted ? " · AI-assisted" : ""}`}
+          >
+            {#snippet act()}<a class="act" href={`/programs/${prog.id}`}>Open builder</a>{/snippet}
             {#each current.sessions as s, i (s.id)}
               {@const dayNum = sortedDays[i]}
               <div class="session">
@@ -235,19 +233,19 @@
               </div>
             {/each}
             <p class="legend">Dashed chip = warm-up · RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
-          </section>
+          </Panel>
         {:else}
           <section class="panel">
-            <div class="empty">
+            <EmptyState>
               No active program. Generate one with AI or build it manually.
-              <div style="margin-top:12px; display: flex; gap: 8px; justify-content: center">
-                <a class="btn primary" href={`/clients/${id}/generate`}>
-                  <Icon name="sparkle" />
+              {#snippet actions()}
+                <Button variant="primary" href={`/clients/${id}/generate`}>
+                  {#snippet icon()}<Icon name="sparkle" />{/snippet}
                   Generate first program
-                </a>
-                <a class="btn" href={`/clients/${id}/programs/new`}>Write program</a>
-              </div>
-            </div>
+                </Button>
+                <Button href={`/clients/${id}/programs/new`}>Write program</Button>
+              {/snippet}
+            </EmptyState>
           </section>
         {/if}
       </div>
@@ -279,9 +277,8 @@
       </div>
     </div>
   {:else if tab === "pulse"}
-    <div class="panel" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
-      <div class="panel-head">
-        <h2>Block pulse</h2>
+    <Panel title="Block pulse" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
+      {#snippet act()}
         {#if doneWeeks.length > 1}
           <div class="heat" aria-label={`Weekly tonnage ${fmtTonnage(doneWeeks[0].tonnage)} to ${fmtTonnage(maxTonnage)}`}>
             <span class="heat-l">tonnage</span>
@@ -291,7 +288,7 @@
             {/each}
           </div>
         {/if}
-      </div>
+      {/snippet}
       <div class="table-wrap">
         <table class="sheet">
           <thead><tr><th class="r">Wk</th><th>Directive</th><th class="r">Tonnage</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
@@ -300,7 +297,7 @@
               <tr class:pulse-now={w.week === pulseWeek} class:pulse-future={w.plannedOnly}>
                 <td class="r">{w.week}</td>
                 <td>
-                  {#if w.directive}<span class="dir {dirClass(w.directive)}">{w.directive}</span>{:else}<span class="subtle">—</span>{/if}
+                  {#if w.directive}<DirChip directive={w.directive}>{w.directive}</DirChip>{:else}<span class="subtle">—</span>{/if}
                 </td>
                 <td class="r">
                   {#if w.plannedOnly}<span class="subtle">{fmtTonnage(w.tonnage)} plan</span>{:else if w.tonnage > 0}{fmtTonnage(w.tonnage)}{:else}—{/if}
@@ -318,13 +315,9 @@
         </table>
       </div>
       {#if pulseSummary}<p class="pulse-sub">{pulseSummary}</p>{/if}
-    </div>
+    </Panel>
   {:else if tab === "history"}
-    <div class="panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
-      <div class="panel-head">
-        <h2>Progress · 8 weeks</h2>
-        <span class="counter">est. 1RM · Epley</span>
-      </div>
+    <Panel title="Progress · 8 weeks" count="est. 1RM · Epley" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
       {#if historyEntries !== null && historyEntries.length > 0}
         <div class="table-wrap">
           <table class="sheet">
@@ -344,15 +337,12 @@
           </table>
         </div>
       {:else}
-        <div class="empty">No logged sets in the last 8 weeks.</div>
+        <EmptyState>No logged sets in the last 8 weeks.</EmptyState>
       {/if}
-    </div>
+    </Panel>
   {:else}
-    <div class="panel narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">
-      <div class="panel-head">
-        <h2>Profile</h2>
-        <span class="subtle act">feeds every AI draft</span>
-      </div>
+    <Panel class="narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" title="Profile">
+      {#snippet act()}<span class="subtle act">feeds every AI draft</span>{/snippet}
       <form
         class="panel-body grid"
         onsubmit={(e) => {
@@ -360,33 +350,31 @@
           save();
         }}
       >
-        <div>
-          <label class="label" for="p-days">Training days per week</label>
+        <Field label="Training days per week" htmlFor="p-days">
           <select class="select" id="p-days" bind:value={form.daysPerWeek}>
             {#each [1, 2, 3, 4, 5, 6, 7] as d}<option value={d}>{d}</option>{/each}
           </select>
-        </div>
-        <div>
-          <span class="label">Which days <span class="subtle">— drives the weekly plan grid</span></span>
+        </Field>
+        <Field label="Which days" hint="drives the weekly plan grid">
           <WeekdayPicker bind:days={form.trainingDays} />
+        </Field>
+        <div class="span">
+          <Field label="Goals" htmlFor="p-goals">
+            <textarea class="textarea" id="p-goals" rows="2" bind:value={form.goals}></textarea>
+          </Field>
         </div>
         <div class="span">
-          <label class="label" for="p-goals">Goals</label>
-          <textarea class="textarea" id="p-goals" rows="2" bind:value={form.goals}></textarea>
+          <Field label="Limitations — hard constraints for the AI" htmlFor="p-lim">
+            <textarea class="textarea" id="p-lim" rows="2" bind:value={form.limitations}></textarea>
+          </Field>
         </div>
-        <div class="span">
-          <label class="label" for="p-lim">Limitations — hard constraints for the AI</label>
-          <textarea class="textarea" id="p-lim" rows="2" bind:value={form.limitations}></textarea>
-        </div>
-        <div class="span"><button class="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</button></div>
+        <div class="span"><Button variant="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button></div>
       </form>
-    </div>
+    </Panel>
   {/if}
 {/if}
 
 <style>
-  .crumbs b { color: var(--ink); }
-
   .client-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .id-block { flex: 1; min-width: 220px; }
   .name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
