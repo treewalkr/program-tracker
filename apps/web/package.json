@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^7.0.1",
@@ -20,7 +22,12 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "elysia": "^1.4.2",
-    "@types/node": "^24.0.0"
+    "@types/node": "^24.0.0",
+    "storybook": "^10.6.2",
+    "@storybook/sveltekit": "^10.6.2",
+    "@storybook/addon-svelte-csf": "latest",
+    "@storybook/addon-a11y": "^10.6.2",
+    "@storybook/addon-docs": "^10.6.2"
   },
   "dependencies": {
     "@pt/shared": "workspace:*",
