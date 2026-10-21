@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { db, trainers, signalOutbox } from "@pt/db";
+import { EXERCISE_ROLES } from "@pt/shared";
 import { app } from "./app";
 
 /** Integration tests need a live Postgres (bun run db:up). Skip otherwise. */
@@ -153,6 +154,13 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       for (const e of s.exercises) {
         expect(e.exerciseName, `exercise ${e.exerciseId} must have a display name`).toBeTruthy();
       }
+      // the mock draft roles every exercise and approve sorts by role rank
+      const ranks = s.exercises.map((e: any) => EXERCISE_ROLES.indexOf(e.role));
+      expect(ranks.every((r: number) => r >= 0), "every exercise must carry a role").toBe(true);
+      expect(
+        ranks.every((r: number, i: number) => i === 0 || r >= ranks[i - 1]),
+        "session exercises must be sorted power → primary → strength → accessory → core"
+      ).toBe(true);
     }
 
     // original program stays active until the trainer promotes the draft
