@@ -43,16 +43,7 @@ export const KNOWN_PROVIDERS = {
     models: [
       "glm-4.5-flash", // default — free tier
       "glm-5.3-flash",
-      "glm-5.3-flashx",
-      "glm-5.3",
-      "glm-5.2",
-      "glm-5.1",
-      "glm-5",
-      "glm-5-turbo",
-      "glm-4.7",
-      "glm-4.6",
-      "glm-4.5",
-      "glm-4.5-air",
+      "glm-5.3"
     ],
   },
   /** Canned draft, no network, no key. For tests and UI development. */

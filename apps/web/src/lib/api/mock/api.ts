@@ -174,8 +174,8 @@ export const mockApi: TrainerApi = {
       {
         id: "zai",
         label: "Z.ai GLM",
-        model: "glm-4.5-flash",
-        models: ["glm-4.5-flash", "glm-5.3-flash", "glm-5.3-flashx", "glm-5.3"],
+        model: "glm-5.3-flash",
+        models: ["glm-4.5-flash", "glm-5.3-flash", "glm-5.3"],
         configured: true,
       },
       { id: "mock", label: "Mock (canned draft)", model: "mock-draft-v1", models: ["mock-draft-v1"], configured: true },
