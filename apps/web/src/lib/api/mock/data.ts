@@ -132,9 +132,9 @@ export const programs: ProgramDto[] = [
         name: "Day 1 — Lower",
         order: 0,
         exercises: [
-          { id: "pe-maya-1", exerciseId: "ex-squat", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 180 }), S(2, 5, { targetRpe: 8, restSeconds: 180 }), S(3, 5, { amrap: true, targetRpe: 9, restSeconds: 180 })], notes: "2s pause in the hole on last set" },
-          { id: "pe-maya-2", exerciseId: "ex-rdl", order: 1, prescribedSets: [S(1, 8, { targetRpe: 7, restSeconds: 120 }), S(2, 8, { targetRpe: 7, restSeconds: 120 }), S(3, 8, { targetRpe: 7, restSeconds: 120 })] },
-          { id: "pe-maya-3", exerciseId: "ex-plank", order: 2, prescribedSets: [S(1, 45, { restSeconds: 60 }), S(2, 45, { restSeconds: 60 })], notes: "45s holds" },
+          { id: "pe-maya-1", exerciseId: "ex-squat", role: "primary", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 180 }), S(2, 5, { targetRpe: 8, restSeconds: 180 }), S(3, 5, { amrap: true, targetRpe: 9, restSeconds: 180 })], notes: "2s pause in the hole on last set" },
+          { id: "pe-maya-2", exerciseId: "ex-rdl", role: "strength", order: 1, prescribedSets: [S(1, 8, { targetRpe: 7, restSeconds: 120 }), S(2, 8, { targetRpe: 7, restSeconds: 120 }), S(3, 8, { targetRpe: 7, restSeconds: 120 })] },
+          { id: "pe-maya-3", exerciseId: "ex-plank", role: "core", order: 2, prescribedSets: [S(1, 45, { restSeconds: 60 }), S(2, 45, { restSeconds: 60 })], notes: "45s holds" },
         ],
       },
       {
@@ -142,9 +142,9 @@ export const programs: ProgramDto[] = [
         name: "Day 2 — Upper",
         order: 1,
         exercises: [
-          { id: "pe-maya-4", exerciseId: "ex-landmine", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 120 }), S(2, 8, { targetRpe: 8, restSeconds: 120 }), S(3, 8, { targetRpe: 8, restSeconds: 120 })], notes: "Shoulder-friendly pressing slot" },
-          { id: "pe-maya-5", exerciseId: "ex-pulldown", order: 1, prescribedSets: [S(1, 10, { targetRpe: 8, restSeconds: 90 }), S(2, 10, { targetRpe: 8, restSeconds: 90 }), S(3, 10, { amrap: true, targetRpe: 9, restSeconds: 90 })] },
-          { id: "pe-maya-6", exerciseId: "ex-facepull", order: 2, prescribedSets: [S(1, 15, { restSeconds: 60 }), S(2, 15, { restSeconds: 60 }), S(3, 15, { restSeconds: 60 })] },
+          { id: "pe-maya-4", exerciseId: "ex-landmine", role: "primary", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 120 }), S(2, 8, { targetRpe: 8, restSeconds: 120 }), S(3, 8, { targetRpe: 8, restSeconds: 120 })], notes: "Shoulder-friendly pressing slot" },
+          { id: "pe-maya-5", exerciseId: "ex-pulldown", role: "strength", order: 1, prescribedSets: [S(1, 10, { targetRpe: 8, restSeconds: 90 }), S(2, 10, { targetRpe: 8, restSeconds: 90 }), S(3, 10, { amrap: true, targetRpe: 9, restSeconds: 90 })] },
+          { id: "pe-maya-6", exerciseId: "ex-facepull", role: "accessory", order: 2, prescribedSets: [S(1, 15, { restSeconds: 60 }), S(2, 15, { restSeconds: 60 }), S(3, 15, { restSeconds: 60 })] },
         ],
       },
       {
@@ -152,9 +152,9 @@ export const programs: ProgramDto[] = [
         name: "Day 3 — Lower",
         order: 2,
         exercises: [
-          { id: "pe-maya-7", exerciseId: "ex-dead", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 210 }), S(2, 5, { targetRpe: 8, restSeconds: 210 })] },
-          { id: "pe-maya-8", exerciseId: "ex-bss", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 90 }), S(2, 10, { targetRpe: 7, restSeconds: 90 }), S(3, 10, { targetRpe: 7, restSeconds: 90 })] },
-          { id: "pe-maya-9", exerciseId: "ex-hlr", order: 2, prescribedSets: [S(1, 10, { restSeconds: 60 }), S(2, 10, { restSeconds: 60 }), S(3, 10, { restSeconds: 60 })] },
+          { id: "pe-maya-7", exerciseId: "ex-dead", role: "primary", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 210 }), S(2, 5, { targetRpe: 8, restSeconds: 210 })] },
+          { id: "pe-maya-8", exerciseId: "ex-bss", role: "strength", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 90 }), S(2, 10, { targetRpe: 7, restSeconds: 90 }), S(3, 10, { targetRpe: 7, restSeconds: 90 })] },
+          { id: "pe-maya-9", exerciseId: "ex-hlr", role: "core", order: 2, prescribedSets: [S(1, 10, { restSeconds: 60 }), S(2, 10, { restSeconds: 60 }), S(3, 10, { restSeconds: 60 })] },
         ],
       },
       {
@@ -162,10 +162,10 @@ export const programs: ProgramDto[] = [
         name: "Day 4 — Upper",
         order: 3,
         exercises: [
-          { id: "pe-maya-10", exerciseId: "ex-incline", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 120 }), S(2, 8, { targetRpe: 8, restSeconds: 120 }), S(3, 8, { amrap: true, targetRpe: 9, restSeconds: 120 })] },
-          { id: "pe-maya-11", exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12, { targetRpe: 7, restSeconds: 90 }), S(2, 12, { targetRpe: 7, restSeconds: 90 }), S(3, 12, { targetRpe: 7, restSeconds: 90 })] },
-          { id: "pe-maya-12", exerciseId: "ex-chin", order: 2, prescribedSets: [S(1, 6, { amrap: true, targetRpe: 9, restSeconds: 120 }), S(2, 6, { amrap: true, targetRpe: 9, restSeconds: 120 })], notes: "Band-assisted, reduce band when 8+ reps" },
-          { id: "pe-maya-13", exerciseId: "ex-curl", order: 3, prescribedSets: [S(1, 12, { restSeconds: 60 }), S(2, 12, { restSeconds: 60 })] },
+          { id: "pe-maya-10", exerciseId: "ex-incline", role: "primary", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 120 }), S(2, 8, { targetRpe: 8, restSeconds: 120 }), S(3, 8, { amrap: true, targetRpe: 9, restSeconds: 120 })] },
+          { id: "pe-maya-11", exerciseId: "ex-crow", role: "strength", order: 1, prescribedSets: [S(1, 12, { targetRpe: 7, restSeconds: 90 }), S(2, 12, { targetRpe: 7, restSeconds: 90 }), S(3, 12, { targetRpe: 7, restSeconds: 90 })] },
+          { id: "pe-maya-12", exerciseId: "ex-chin", role: "strength", order: 2, prescribedSets: [S(1, 6, { amrap: true, targetRpe: 9, restSeconds: 120 }), S(2, 6, { amrap: true, targetRpe: 9, restSeconds: 120 })], notes: "Band-assisted, reduce band when 8+ reps" },
+          { id: "pe-maya-13", exerciseId: "ex-curl", role: "accessory", order: 3, prescribedSets: [S(1, 12, { restSeconds: 60 }), S(2, 12, { restSeconds: 60 })] },
         ],
       },
     ],

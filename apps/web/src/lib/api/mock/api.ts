@@ -1,4 +1,4 @@
-import { computeSignals, estimate1rm } from "@pt/shared";
+import { computeSignals, estimate1rm, sortExercisesByRole } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
@@ -81,72 +81,72 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
       "Same 4-day split you've been running. Squats go up to 65kg on top sets — your last AMRAP at 62.5kg×7 says you're ready. Chin-ups lose a band level, and deadlifts jump to 85kg. Everything else stays familiar.",
     sessions: [
       { name: "Day 1 — Lower", exercises: [
-        { exerciseId: "ex-squat", prescribedSets: [
+        { exerciseId: "ex-squat", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
           { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
           { setNumber: 3, type: "backoff", reps: 5, amrap: true, targetRpe: 9, restSeconds: 180 },
         ], notes: "Top sets 65kg; backoff 60kg" },
-        { exerciseId: "ex-rdl", prescribedSets: [
+        { exerciseId: "ex-rdl", role: "strength", prescribedSets: [
           { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 7, restSeconds: 120 },
           { setNumber: 2, type: "working", reps: 8, amrap: false, targetRpe: 7, restSeconds: 120 },
           { setNumber: 3, type: "working", reps: 8, amrap: false, targetRpe: 7, restSeconds: 120 },
         ] },
-        { exerciseId: "ex-hlr", prescribedSets: [
+        { exerciseId: "ex-hlr", role: "core", prescribedSets: [
           { setNumber: 1, type: "working", reps: 10, amrap: false, restSeconds: 60 },
           { setNumber: 2, type: "working", reps: 10, amrap: false, restSeconds: 60 },
           { setNumber: 3, type: "working", reps: 10, amrap: false, restSeconds: 60 },
         ] },
       ]},
       { name: "Day 2 — Upper", exercises: [
-        { exerciseId: "ex-landmine", prescribedSets: [
+        { exerciseId: "ex-landmine", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 2, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 3, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 4, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
         ], notes: "Hold 35kg — added a set" },
-        { exerciseId: "ex-pulldown", prescribedSets: [
+        { exerciseId: "ex-pulldown", role: "strength", prescribedSets: [
           { setNumber: 1, type: "working", reps: 10, amrap: false, targetRpe: 8, restSeconds: 90 },
           { setNumber: 2, type: "working", reps: 10, amrap: false, targetRpe: 8, restSeconds: 90 },
           { setNumber: 3, type: "working", reps: 10, amrap: true, targetRpe: 9, restSeconds: 90 },
         ], notes: "54.5kg" },
-        { exerciseId: "ex-facepull", prescribedSets: [
+        { exerciseId: "ex-facepull", role: "accessory", prescribedSets: [
           { setNumber: 1, type: "working", reps: 15, amrap: false, restSeconds: 60 },
           { setNumber: 2, type: "working", reps: 15, amrap: false, restSeconds: 60 },
           { setNumber: 3, type: "working", reps: 15, amrap: false, restSeconds: 60 },
         ] },
       ]},
       { name: "Day 3 — Lower", exercises: [
-        { exerciseId: "ex-dead", prescribedSets: [
+        { exerciseId: "ex-dead", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
           { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
         ], notes: "85kg working sets" },
-        { exerciseId: "ex-bss", prescribedSets: [
+        { exerciseId: "ex-bss", role: "strength", prescribedSets: [
           { setNumber: 1, type: "working", reps: 10, amrap: false, targetRpe: 7, restSeconds: 90 },
           { setNumber: 2, type: "working", reps: 10, amrap: false, targetRpe: 7, restSeconds: 90 },
           { setNumber: 3, type: "working", reps: 10, amrap: false, targetRpe: 7, restSeconds: 90 },
         ] },
-        { exerciseId: "ex-plank", prescribedSets: [
+        { exerciseId: "ex-plank", role: "core", prescribedSets: [
           { setNumber: 1, type: "working", reps: 45, amrap: false, restSeconds: 60 },
           { setNumber: 2, type: "working", reps: 45, amrap: false, restSeconds: 60 },
         ], notes: "45s holds" },
       ]},
       { name: "Day 4 — Upper", exercises: [
-        { exerciseId: "ex-incline", prescribedSets: [
+        { exerciseId: "ex-incline", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 2, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 3, type: "working", reps: 8, amrap: true, targetRpe: 9, restSeconds: 120 },
         ] },
-        { exerciseId: "ex-crow", prescribedSets: [
+        { exerciseId: "ex-crow", role: "strength", prescribedSets: [
           { setNumber: 1, type: "working", reps: 12, amrap: false, targetRpe: 7, restSeconds: 90 },
           { setNumber: 2, type: "working", reps: 12, amrap: false, targetRpe: 7, restSeconds: 90 },
           { setNumber: 3, type: "working", reps: 12, amrap: false, targetRpe: 7, restSeconds: 90 },
         ] },
-        { exerciseId: "ex-chin", prescribedSets: [
+        { exerciseId: "ex-chin", role: "strength", prescribedSets: [
           { setNumber: 1, type: "working", reps: 6, amrap: true, targetRpe: 9, restSeconds: 120 },
           { setNumber: 2, type: "working", reps: 6, amrap: true, targetRpe: 9, restSeconds: 120 },
           { setNumber: 3, type: "working", reps: 6, amrap: true, targetRpe: 9, restSeconds: 120 },
         ], notes: "Thinner band — you hit 6 unassisted-rep equivalents" },
-        { exerciseId: "ex-curl", prescribedSets: [
+        { exerciseId: "ex-curl", role: "accessory", prescribedSets: [
           { setNumber: 1, type: "working", reps: 12, amrap: false, restSeconds: 60 },
           { setNumber: 2, type: "working", reps: 12, amrap: false, restSeconds: 60 },
         ] },
@@ -161,7 +161,7 @@ function genericDraft(): AiDraftDto {
     name: "Next Block — Draft",
     rationale: "Generic progression: +2.5% on primary lifts, volume held.",
     clientSummary: "Same split, small jumps on the main lifts.",
-    sessions: [{ name: "Day 1", exercises: [{ exerciseId: "ex-squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }] }] }],
+    sessions: [{ name: "Day 1", exercises: [{ exerciseId: "ex-squat", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }] }] }],
   };
 }
 
@@ -461,10 +461,11 @@ export const mockApi: TrainerApi = {
         name: s.name,
         order: si,
         notes: s.notes,
-        exercises: s.exercises.map((e, ei) => ({
+        exercises: sortExercisesByRole(s.exercises).map((e, ei) => ({
           id: uuid(),
           exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
           exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
+          role: e.role,
           order: ei,
           prescribedSets: e.prescribedSets,
           notes: e.notes,

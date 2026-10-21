@@ -1,9 +1,10 @@
 /** DTOs + the one interface the whole UI talks to. Two impls: real (Eden) + mock.
  *  Domain shapes are re-exported from @pt/shared (single source of truth); the
  *  remaining interfaces are the seam contract both adapters are checked against. */
-import type { Phasing, PrescribedSet, SetType, Signal, WeekDirective as Wd, WeekPlan as Wp } from "@pt/shared";
+import type { ExerciseRole as Er, Phasing, PrescribedSet, SetType, Signal, WeekDirective as Wd, WeekPlan as Wp } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
+export type ExerciseRole = Er;
 export type WeekDirective = Wd;
 export type WeekPlan = Wp;
 export type ProgramPhasingDto = Phasing;
@@ -25,6 +26,7 @@ export interface ProgramExerciseDto {
   id: string;
   exerciseId: string;
   exerciseName?: string;
+  role?: ExerciseRole;
   order: number;
   prescribedSets: PrescribedSetDto[];
   notes?: string;
@@ -81,6 +83,7 @@ export interface HistoryEntryDto {
 export interface DraftExerciseRef {
   exerciseId?: string;
   exerciseName?: string;
+  role?: ExerciseRole;
   prescribedSets: PrescribedSetDto[];
   notes?: string;
 }
