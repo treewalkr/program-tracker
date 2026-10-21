@@ -4,6 +4,7 @@
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
+  import type { SetType } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -32,7 +33,7 @@
     exerciseName: string;
     programExerciseId: string;
     setNumber: number;
-    type: "warm_up" | "working" | "backoff";
+    type: SetType;
     prescribedReps: number | null;
     prescribedMin: number | null;
     prescribedDuration: number | null;
@@ -224,11 +225,10 @@
               <tr class:filled={r.reps !== ""}>
                 <td>
                   <strong>{r.exerciseName}</strong>
-                  {#if r.type === "warm_up"}<span class="subtle"> warm-up</span>{/if}
                 </td>
                 <td class="num">{r.setNumber}</td>
                 <td class="num pre">
-                  {fmtSet({ reps: r.prescribedReps ?? 0, repsMin: r.prescribedMin ?? undefined, amrap: r.prescribedAmrap, durationSeconds: r.prescribedDuration ?? undefined, targetWeightKg: r.prescribedWeight })}{#if r.type !== "warm_up" && r.targetRpe != null} @ {r.targetRpe}{/if}
+                  {fmtSet({ reps: r.prescribedReps ?? 0, repsMin: r.prescribedMin ?? undefined, amrap: r.prescribedAmrap, durationSeconds: r.prescribedDuration ?? undefined, targetWeightKg: r.prescribedWeight })}{#if r.targetRpe != null} @ {r.targetRpe}{/if}
                 </td>
                 <td class="num pre">{r.lastWeight ?? "—"}</td>
                 <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, kg`} placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>

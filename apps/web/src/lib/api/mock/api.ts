@@ -36,7 +36,7 @@ const seedTemplates: InstructionTemplateDto[] = [
     id: "tpl-block-structure",
     name: "Block structure conventions",
     content:
-      "Steps:\n- 4-week blocks: 3 accumulation weeks, 1 deload week at ~60% volume.\n- Each session: 1 warm-up + 2–4 working sets per main lift.\n- Order: main compound first, accessories after, core last.",
+      "Steps:\n- 4-week blocks: 3 accumulation weeks, 1 deload week at ~60% volume.\n- Each session: 2–4 working sets per main lift.\n- Order: main compound first, accessories after, core last.",
     updatedAt: "2026-09-18T14:30:00Z",
   },
   {
@@ -82,10 +82,9 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
     sessions: [
       { name: "Day 1 — Lower", exercises: [
         { exerciseId: "ex-squat", prescribedSets: [
-          { setNumber: 1, type: "warm_up", reps: 5, amrap: false, restSeconds: 90 },
+          { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
           { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
-          { setNumber: 3, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
-          { setNumber: 4, type: "backoff", reps: 5, amrap: true, targetRpe: 9, restSeconds: 180 },
+          { setNumber: 3, type: "backoff", reps: 5, amrap: true, targetRpe: 9, restSeconds: 180 },
         ], notes: "Top sets 65kg; backoff 60kg" },
         { exerciseId: "ex-rdl", prescribedSets: [
           { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 7, restSeconds: 120 },
@@ -118,9 +117,8 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
       ]},
       { name: "Day 3 — Lower", exercises: [
         { exerciseId: "ex-dead", prescribedSets: [
-          { setNumber: 1, type: "warm_up", reps: 3, amrap: false, restSeconds: 120 },
+          { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
           { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
-          { setNumber: 3, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
         ], notes: "85kg working sets" },
         { exerciseId: "ex-bss", prescribedSets: [
           { setNumber: 1, type: "working", reps: 10, amrap: false, targetRpe: 7, restSeconds: 90 },

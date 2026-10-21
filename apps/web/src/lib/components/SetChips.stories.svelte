@@ -10,18 +10,16 @@
       docs: {
         description: {
           component:
-            'Code-span set chips: mono `3×8`, `@RPE` colored by effort tier (≤6 green, 7–8 amber, 9–10 red), faint rest, dashed border for warm-ups.',
+            'Code-span set chips: mono `3×8`, `@RPE` colored by effort tier (≤6 green, 7–8 amber, 9–10 red), faint rest.',
         },
       },
     },
   });
 
   const squat: PrescribedSetDto[] = [
-    { setNumber: 1, type: 'warm_up', reps: 5, amrap: false, targetWeightKg: 60, restSeconds: 90 },
-    { setNumber: 2, type: 'warm_up', reps: 3, amrap: false, targetWeightKg: 100, restSeconds: 120 },
-    { setNumber: 3, type: 'working', reps: 5, amrap: false, targetRpe: 8, targetWeightKg: 142.5, restSeconds: 180 },
-    { setNumber: 4, type: 'working', reps: 5, amrap: false, targetRpe: 8, targetWeightKg: 142.5, restSeconds: 180 },
-    { setNumber: 5, type: 'working', reps: 5, amrap: false, targetRpe: 9, targetWeightKg: 142.5, restSeconds: 180 },
+    { setNumber: 1, type: 'working', reps: 5, amrap: false, targetRpe: 8, targetWeightKg: 142.5, restSeconds: 180 },
+    { setNumber: 2, type: 'working', reps: 5, amrap: false, targetRpe: 8, targetWeightKg: 142.5, restSeconds: 180 },
+    { setNumber: 3, type: 'working', reps: 5, amrap: false, targetRpe: 9, targetWeightKg: 142.5, restSeconds: 180 },
   ];
 
   const plank: PrescribedSetDto[] = [

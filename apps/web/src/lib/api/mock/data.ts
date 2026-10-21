@@ -1,4 +1,5 @@
 import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramDto, SessionLogInput } from "../types";
+import type { SetType } from "@pt/shared";
 
 export const schemes: PeriodizationSchemeDto[] = [
   {
@@ -131,7 +132,7 @@ export const programs: ProgramDto[] = [
         name: "Day 1 — Lower",
         order: 0,
         exercises: [
-          { id: "pe-maya-1", exerciseId: "ex-squat", order: 0, prescribedSets: [S(1, 5, { type: "warm_up", restSeconds: 90 }), S(2, 5, { targetRpe: 8, restSeconds: 180 }), S(3, 5, { targetRpe: 8, restSeconds: 180 }), S(4, 5, { amrap: true, targetRpe: 9, restSeconds: 180 })], notes: "2s pause in the hole on last set" },
+          { id: "pe-maya-1", exerciseId: "ex-squat", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 180 }), S(2, 5, { targetRpe: 8, restSeconds: 180 }), S(3, 5, { amrap: true, targetRpe: 9, restSeconds: 180 })], notes: "2s pause in the hole on last set" },
           { id: "pe-maya-2", exerciseId: "ex-rdl", order: 1, prescribedSets: [S(1, 8, { targetRpe: 7, restSeconds: 120 }), S(2, 8, { targetRpe: 7, restSeconds: 120 }), S(3, 8, { targetRpe: 7, restSeconds: 120 })] },
           { id: "pe-maya-3", exerciseId: "ex-plank", order: 2, prescribedSets: [S(1, 45, { restSeconds: 60 }), S(2, 45, { restSeconds: 60 })], notes: "45s holds" },
         ],
@@ -151,7 +152,7 @@ export const programs: ProgramDto[] = [
         name: "Day 3 — Lower",
         order: 2,
         exercises: [
-          { id: "pe-maya-7", exerciseId: "ex-dead", order: 0, prescribedSets: [S(1, 3, { type: "warm_up", restSeconds: 120 }), S(2, 5, { targetRpe: 8, restSeconds: 210 }), S(3, 5, { targetRpe: 8, restSeconds: 210 })] },
+          { id: "pe-maya-7", exerciseId: "ex-dead", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 210 }), S(2, 5, { targetRpe: 8, restSeconds: 210 })] },
           { id: "pe-maya-8", exerciseId: "ex-bss", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 90 }), S(2, 10, { targetRpe: 7, restSeconds: 90 }), S(3, 10, { targetRpe: 7, restSeconds: 90 })] },
           { id: "pe-maya-9", exerciseId: "ex-hlr", order: 2, prescribedSets: [S(1, 10, { restSeconds: 60 }), S(2, 10, { restSeconds: 60 }), S(3, 10, { restSeconds: 60 })] },
         ],
@@ -211,7 +212,7 @@ export const programs: ProgramDto[] = [
     },
     sessions: [
       { id: "ps-jonas-1", name: "Upper A", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-bench", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 150 }), S(2, 8, { targetRpe: 8, restSeconds: 150 }), S(3, 8, { targetRpe: 8, restSeconds: 150 })] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12, { targetRpe: 7, restSeconds: 90 }), S(2, 12, { targetRpe: 7, restSeconds: 90 }), S(3, 12, { targetRpe: 7, restSeconds: 90 })] }, { id: uuid(), exerciseId: "ex-ext", order: 2, prescribedSets: [S(1, 15, { restSeconds: 60 }), S(2, 15, { restSeconds: 60 })] }] },
-      { id: "ps-jonas-2", name: "Lower", order: 1, exercises: [{ id: uuid(), exerciseId: "ex-squat", order: 0, prescribedSets: [S(1, 6, { type: "warm_up", restSeconds: 90 }), S(2, 8, { targetRpe: 8, restSeconds: 150 }), S(3, 8, { targetRpe: 8, restSeconds: 150 })] }, { id: uuid(), exerciseId: "ex-rdl", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 120 }), S(2, 10, { targetRpe: 7, restSeconds: 120 })] }] },
+      { id: "ps-jonas-2", name: "Lower", order: 1, exercises: [{ id: uuid(), exerciseId: "ex-squat", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 150 }), S(2, 8, { targetRpe: 8, restSeconds: 150 })] }, { id: uuid(), exerciseId: "ex-rdl", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 120 }), S(2, 10, { targetRpe: 7, restSeconds: 120 })] }] },
       { id: "ps-jonas-3", name: "Upper B", order: 2, exercises: [{ id: uuid(), exerciseId: "ex-incline", order: 0, prescribedSets: [S(1, 10, { targetRpe: 8, restSeconds: 120 }), S(2, 10, { targetRpe: 8, restSeconds: 120 })] }, { id: uuid(), exerciseId: "ex-pulldown", order: 1, prescribedSets: [S(1, 12, { targetRpe: 7, restSeconds: 90 }), S(2, 12, { targetRpe: 7, restSeconds: 90 })] }] },
     ],
   },
@@ -281,7 +282,7 @@ export interface StoredLog {
   sets: {
     exerciseId: string;
     setNumber: number;
-    type: "warm_up" | "working" | "backoff";
+    type: SetType;
     weightKg?: number;
     reps: number;
     rpe?: number;
@@ -294,20 +295,17 @@ const day = (offset: number) =>
 /** 8 weeks of Maya's squat/landmine/pulldown/chin/RDL progress — the AI's fuel. */
 export const logs: StoredLog[] = [
   { sessionLogId: uuid(), clientId: "cl-maya", programId: "pg-maya-a", date: day(42), perceivedEnergy: 7, sets: [
-    { exerciseId: "ex-squat", setNumber: 1, type: "warm_up", weightKg: 40, reps: 5 },
-    { exerciseId: "ex-squat", setNumber: 2, type: "working", weightKg: 50, reps: 5, rpe: 7 },
-    { exerciseId: "ex-squat", setNumber: 3, type: "working", weightKg: 50, reps: 5, rpe: 8 },
+    { exerciseId: "ex-squat", setNumber: 1, type: "working", weightKg: 50, reps: 5, rpe: 7 },
+    { exerciseId: "ex-squat", setNumber: 2, type: "working", weightKg: 50, reps: 5, rpe: 8 },
   ]},
   { sessionLogId: uuid(), clientId: "cl-maya", programId: "pg-maya-a", date: day(35), perceivedEnergy: 8, sets: [
-    { exerciseId: "ex-squat", setNumber: 1, type: "warm_up", weightKg: 45, reps: 5 },
-    { exerciseId: "ex-squat", setNumber: 2, type: "working", weightKg: 52.5, reps: 5, rpe: 8 },
-    { exerciseId: "ex-squat", setNumber: 3, type: "working", weightKg: 52.5, reps: 4, rpe: 9 },
+    { exerciseId: "ex-squat", setNumber: 1, type: "working", weightKg: 52.5, reps: 5, rpe: 8 },
+    { exerciseId: "ex-squat", setNumber: 2, type: "working", weightKg: 52.5, reps: 4, rpe: 9 },
     { exerciseId: "ex-landmine", setNumber: 1, type: "working", weightKg: 30, reps: 8, rpe: 7 },
   ]},
   { sessionLogId: uuid(), clientId: "cl-maya", programId: "pg-maya-a", date: day(28), perceivedEnergy: 6, sets: [
-    { exerciseId: "ex-squat", setNumber: 1, type: "warm_up", weightKg: 45, reps: 5 },
+    { exerciseId: "ex-squat", setNumber: 1, type: "working", weightKg: 55, reps: 5, rpe: 8 },
     { exerciseId: "ex-squat", setNumber: 2, type: "working", weightKg: 55, reps: 5, rpe: 8 },
-    { exerciseId: "ex-squat", setNumber: 3, type: "working", weightKg: 55, reps: 5, rpe: 8 },
     { exerciseId: "ex-pulldown", setNumber: 1, type: "working", weightKg: 41, reps: 10, rpe: 8 },
     { exerciseId: "ex-pulldown", setNumber: 2, type: "working", weightKg: 41, reps: 9, rpe: 8 },
   ]},
@@ -459,8 +457,8 @@ export const trainerProgram: ProgramDto = {
       id: "ps-nat-1", name: "Day 1 — Back / Biceps", order: 0,
       conditioning: { label: "Cardio Zone 2–3", detail: "40–60 min steady" },
       exercises: [
-        { id: "pe-nat-1", exerciseId: "ex-latstretch", order: 0, prescribedSets: timed(2, 15, { type: "warm_up" }), notes: "Static stretch" },
-        { id: "pe-nat-2", exerciseId: "ex-scapdep", order: 1, prescribedSets: many(2, 10, { type: "warm_up" }), notes: "1–2 sets" },
+        { id: "pe-nat-1", exerciseId: "ex-latstretch", order: 0, prescribedSets: timed(2, 15), notes: "Static stretch" },
+        { id: "pe-nat-2", exerciseId: "ex-scapdep", order: 1, prescribedSets: many(2, 10), notes: "1–2 sets" },
         { id: "pe-nat-3", exerciseId: "ex-pullup", order: 2, prescribedSets: many(3, 6), notes: "Power intent — move fast" },
         { id: "pe-nat-4", exerciseId: "ex-sarow", order: 3, prescribedSets: range(3, 6, 10) },
         { id: "pe-nat-5", exerciseId: "ex-bentrow-sup", order: 4, prescribedSets: many(5, 5), notes: "Supinate grip" },
@@ -473,9 +471,9 @@ export const trainerProgram: ProgramDto = {
       id: "ps-nat-2", name: "Day 2 — Chest / Triceps", order: 1,
       conditioning: { label: "Cardio Zone 1–2", detail: "Long run 10 km+" },
       exercises: [
-        { id: "pe-nat-9", exerciseId: "ex-cheststretch", order: 0, prescribedSets: timed(2, 12, { type: "warm_up" }), notes: "PAILs/RAILs" },
-        { id: "pe-nat-10", exerciseId: "ex-cars", order: 1, prescribedSets: range(2, 3, 5, { type: "warm_up" }), notes: "Rounds" },
-        { id: "pe-nat-11", exerciseId: "ex-extrot", order: 2, prescribedSets: many(3, 10, { type: "warm_up" }), notes: "2–3 sets" },
+        { id: "pe-nat-9", exerciseId: "ex-cheststretch", order: 0, prescribedSets: timed(2, 12), notes: "PAILs/RAILs" },
+        { id: "pe-nat-10", exerciseId: "ex-cars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
+        { id: "pe-nat-11", exerciseId: "ex-extrot", order: 2, prescribedSets: many(3, 10), notes: "2–3 sets" },
         { id: "pe-nat-12", exerciseId: "ex-cgmp", order: 3, prescribedSets: range(3, 6, 10), notes: "Asymmetrical load" },
         { id: "pe-nat-13", exerciseId: "ex-bench", order: 4, prescribedSets: many(4, 12) },
         { id: "pe-nat-14", exerciseId: "ex-incline", order: 5, prescribedSets: many(4, 12), notes: "45°" },
@@ -487,8 +485,8 @@ export const trainerProgram: ProgramDto = {
       id: "ps-nat-3", name: "Day 3 — Lower", order: 2,
       conditioning: { label: "Cardio Zone 2–3", detail: "40–60 min steady" },
       exercises: [
-        { id: "pe-nat-17", exerciseId: "ex-hipflex", order: 0, prescribedSets: timed(2, 12, { type: "warm_up" }) },
-        { id: "pe-nat-18", exerciseId: "ex-hipcars", order: 1, prescribedSets: range(2, 3, 5, { type: "warm_up" }), notes: "Rounds" },
+        { id: "pe-nat-17", exerciseId: "ex-hipflex", order: 0, prescribedSets: timed(2, 12) },
+        { id: "pe-nat-18", exerciseId: "ex-hipcars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
         { id: "pe-nat-19", exerciseId: "ex-kbdlsq", order: 2, prescribedSets: many(3, 10) },
         { id: "pe-nat-20", exerciseId: "ex-kbswing", order: 3, prescribedSets: timed(3, 60) },
         { id: "pe-nat-21", exerciseId: "ex-dead", order: 4, prescribedSets: many(4, 10) },

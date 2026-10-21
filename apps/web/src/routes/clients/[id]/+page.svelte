@@ -217,7 +217,7 @@
                 exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", sets: e.prescribedSets }))}
               />
             {/each}
-            <p class="legend">Dashed chip = warm-up · RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
+            <p class="legend">RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
           </Panel>
         {:else}
           <section class="panel">

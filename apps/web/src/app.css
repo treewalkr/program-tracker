@@ -346,7 +346,6 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 }
 .setchip .rep { font-weight: 500; }
 .setchip .sub { color: var(--faint); font-size: 11px; }
-.setchip.warm { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
 /* RPE effort tiers on chips — low/mid darkened one step for AA on the chip
    background at 12px semibold (6.6:1 / 5.8:1 / 4.7:1); after .sub so the
    combined sub+rpe span keeps its tier ink */

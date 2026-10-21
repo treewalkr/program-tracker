@@ -4,6 +4,7 @@
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
+  import type { SetType } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -30,7 +31,7 @@
 
   interface SetRow {
     setNumber: number;
-    type: "warm_up" | "working" | "backoff";
+    type: SetType;
     reps: number;
     repsTo: number | null;
     targetRpe: number | null;
@@ -145,10 +146,10 @@
     e.sets.push({
       setNumber: e.sets.length + 1,
       type,
-      reps: type === "warm_up" ? 5 : 8,
+      reps: 8,
       repsTo: null,
-      targetRpe: type === "warm_up" ? null : 8,
-      restSeconds: type === "warm_up" ? 90 : 150,
+      targetRpe: 8,
+      restSeconds: 150,
       targetWeightKg: null,
       durationSec: null,
       failure: false,
@@ -400,7 +401,6 @@
                     {/each}
                   </select>
                   <div class="head-actions">
-                    <Button variant="ghost" small type="button" onclick={() => addSet(e, "warm_up")}>+ warm-up</Button>
                     <Button variant="ghost" small type="button" onclick={() => addSet(e, "working")}>+ set</Button>
                     <Button
                       variant="danger"
@@ -414,14 +414,13 @@
                   </div>
                 </div>
                 {#if e.sets.length === 0}
-                  <p class="subtle nosets">No sets yet — add a warm-up or working set.</p>
+                  <p class="subtle nosets">No sets yet — add a working set.</p>
                 {:else}
                   <div class="setrows">
                     {#each e.sets as ps, pi (pi)}
-                      <div class="setrow" class:warm={ps.type === "warm_up"}>
+                      <div class="setrow">
                         <span class="setno">{ps.setNumber}</span>
                         <select class="select tiny" bind:value={ps.type} aria-label="Set type">
-                          <option value="warm_up">warm-up</option>
                           <option value="working">working</option>
                           <option value="backoff">backoff</option>
                         </select>
@@ -494,7 +493,6 @@
 
   .setrows { display: flex; flex-direction: column; gap: 6px; }
   .setrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .setrow.warm { opacity: 0.7; }
   .setno { width: 16px; text-align: right; color: var(--faint); font-family: var(--font-mono); font-size: 12px; }
   .select.tiny { width: auto; padding: 3px 6px; font-size: 12.5px; }
   .mini { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }

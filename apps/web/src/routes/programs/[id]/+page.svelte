@@ -203,9 +203,9 @@
               {#if editing}
                 <div class="setrows">
                   {#each e.prescribedSets as ps, di (ps.setNumber)}
-                    <div class="setrow" class:warm={ps.type === "warm_up"}>
+                    <div class="setrow">
                       <span class="setno num">{ps.setNumber}</span>
-                      <span class="setchip" class:warm={ps.type === "warm_up"}>
+                      <span class="setchip">
                         <span class="rep">{ps.reps}{ps.amrap ? "+" : ""}</span>
                       </span>
                       <span class="ctrl kg">
@@ -274,7 +274,6 @@
     padding: 4px 8px;
     border-radius: var(--radius);
   }
-  .setrow.warm { opacity: 0.65; }
   .setno { width: 18px; text-align: right; color: var(--faint); }
 
   .ctrl { display: inline-flex; align-items: center; gap: 4px; }

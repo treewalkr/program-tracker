@@ -5,7 +5,6 @@
   let { sets }: { sets: PrescribedSetDto[] } = $props();
 
   const chip = (s: PrescribedSetDto) => ({
-    warm: s.type === "warm_up",
     main: fmtSet(s),
     rpe: s.targetRpe ?? null,
     sub: [
@@ -19,7 +18,7 @@
 <span class="chips">
   {#each sets as s (s.setNumber)}
     {@const c = chip(s)}
-    <span class="setchip" class:warm={c.warm}>
+    <span class="setchip">
       <span class="rep">{c.main}</span>
       {#if c.rpe}<span class="sub rpe" class:rpe-mid={c.rpe >= 7} class:rpe-high={c.rpe >= 9}>@{c.rpe}</span>{/if}
       {#if c.sub}<span class="sub">{c.sub}</span>{/if}

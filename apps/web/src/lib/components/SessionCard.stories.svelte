@@ -34,7 +34,7 @@
   ];
 
   const lower = [
-    { name: 'Back Squat', sets: [{ setNumber: 1, type: 'warm_up' as const, reps: 5, amrap: false, targetWeightKg: 60, restSeconds: 90 }, ...working(5, 3, 140, 8, 2)] },
+    { name: 'Back Squat', sets: working(5, 3, 140, 8) },
     { name: 'Romanian Deadlift', sets: working(8, 3, 100) },
   ];
 </script>
