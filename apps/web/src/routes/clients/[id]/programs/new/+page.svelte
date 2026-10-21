@@ -4,7 +4,8 @@
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ClientDto, ExerciseDto, PeriodizationSchemeDto, ProgramSessionDto, WeekDirective } from "$lib/api/types";
-  import type { SetType } from "@pt/shared";
+  import { EXERCISE_ROLE_INFO, EXERCISE_ROLES, sortExercisesByRole } from "@pt/shared";
+  import type { ExerciseRole, SetType } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -43,6 +44,7 @@
   interface ExRow {
     key: string;
     exerciseId: string;
+    role: ExerciseRole | "";
     sets: SetRow[];
   }
   interface SessionRow {
@@ -138,7 +140,7 @@
   }
 
   function addExercise(s: SessionRow) {
-    s.exercises.push({ key: crypto.randomUUID(), exerciseId: catalog[0]?.id ?? "", sets: [] });
+    s.exercises.push({ key: crypto.randomUUID(), exerciseId: catalog[0]?.id ?? "", role: "", sets: [] });
     sessions = [...sessions];
   }
 
@@ -171,10 +173,13 @@
         name: s.name.trim() || `Session ${si + 1}`,
         order: si,
         conditioning: s.cardioLabel.trim() ? { label: s.cardioLabel.trim(), detail: s.cardioDetail.trim() } : null,
-        exercises: s.exercises.map((e, ei) => ({
+        // role order is the session order — sort before assigning array-index orders,
+        // so the saved program lists power → primary → strength → accessory → core
+        exercises: sortExercisesByRole(s.exercises.map((e) => ({ ...e, role: e.role || undefined }))).map((e, ei) => ({
           id: crypto.randomUUID(),
           exerciseId: e.exerciseId,
           exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name,
+          role: e.role,
           order: ei,
           prescribedSets: e.sets.map((ps, pi) => {
             const lo = Math.min(Number(ps.reps), Number(ps.repsTo ?? ps.reps));
@@ -398,6 +403,12 @@
                   <select class="select exsel" bind:value={e.exerciseId} aria-label="Exercise">
                     {#each catalog as ex (ex.id)}
                       <option value={ex.id}>{ex.name}</option>
+                    {/each}
+                  </select>
+                  <select class="select tiny" bind:value={e.role} aria-label="Exercise role" title="Session slot for this exercise">
+                    <option value="">Role…</option>
+                    {#each EXERCISE_ROLES as r (r)}
+                      <option value={r} title={EXERCISE_ROLE_INFO[r].description}>{EXERCISE_ROLE_INFO[r].label}</option>
                     {/each}
                   </select>
                   <div class="head-actions">
