@@ -1,7 +1,7 @@
 <script module lang="ts">
   import { defineMeta } from '@storybook/addon-svelte-csf';
   import SessionCard from './SessionCard.svelte';
-  import type { PrescribedSetDto } from '$lib/api/types';
+  import type { ExerciseRole, PrescribedSetDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
     title: 'Domain/SessionCard',
@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Prescribed session row: name, optional day pill, exercise rows with set chips, optional cardio footer. Hairline-divided when stacked inside a Panel — pass multiple as children to see the dividers.',
+            'Prescribed session row: name, optional day pill, exercise rows with an optional role chip and set chips, optional cardio footer. Hairline-divided when stacked inside a Panel — pass multiple as children to see the dividers.',
         },
       },
     },
@@ -28,9 +28,9 @@
     }));
 
   const upper = [
-    { name: 'Bench Press', sets: working(5, 4, 80, 8) },
-    { name: 'Barbell Row', sets: working(8, 3, 70, 7) },
-    { name: '', sets: working(12, 3, 20) },
+    { name: 'Bench Press', role: 'primary' as ExerciseRole, sets: working(5, 4, 80, 8) },
+    { name: 'Barbell Row', role: 'strength' as ExerciseRole, sets: working(8, 3, 70, 7) },
+    { name: '', role: 'accessory' as ExerciseRole, sets: working(12, 3, 20) },
   ];
 
   const lower = [
@@ -39,9 +39,9 @@
   ];
 </script>
 
-{#snippet template(args: { name: string; when?: string; conditioning?: { label: string; detail?: string | null } | null; exercises: { name: string; sets: PrescribedSetDto[] }[] })}
+{#snippet template(args: { name: string; when?: string; conditioning?: { label: string; detail?: string | null } | null; exercises: { name: string; role?: ExerciseRole; sets: PrescribedSetDto[] }[] })}
   <SessionCard {...args} />
 {/snippet}
 
 <Story name="Upper day" {template} args={{ name: 'Day 1 — Upper', when: 'Thursday · due today', exercises: upper }} />
-<Story name="Lower day with cardio" {template} args={{ name: 'Day 2 — Lower', exercises: lower, conditioning: { label: 'Zone 2', detail: '40 min steady on the bike' } }} />
+<Story name="Lower day with cardio (no roles, older program)" {template} args={{ name: 'Day 2 — Lower', exercises: lower, conditioning: { label: 'Zone 2', detail: '40 min steady on the bike' } }} />

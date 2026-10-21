@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
+  import { sortExercisesByRole } from "@pt/shared";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
@@ -415,9 +416,10 @@
       <div class="mt-16">
         <Panel title="Draft sessions" count={`${gen.draft.sessions.length} days`}>
           {#each gen.draft.sessions as s, si (si)}
+            <!-- approve sorts by role, so review shows the order that will be saved -->
             <SessionCard
               name={s.name}
-              exercises={s.exercises.map((e) => ({ name: draftName(e), sets: e.prescribedSets }))}
+              exercises={sortExercisesByRole(s.exercises).map((e) => ({ name: draftName(e), role: e.role, sets: e.prescribedSets }))}
             />
           {/each}
         </Panel>

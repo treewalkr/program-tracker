@@ -214,7 +214,7 @@
                 name={s.name}
                 when={dayNum ? `${DAY_NAMES[dayNum - 1]}${dayNum === todayNum && !loggedDates.has(todayStr) ? " · due today" : ""}` : undefined}
                 conditioning={s.conditioning}
-                exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", sets: e.prescribedSets }))}
+                exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", role: e.role, sets: e.prescribedSets }))}
               />
             {/each}
             <p class="legend">RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
