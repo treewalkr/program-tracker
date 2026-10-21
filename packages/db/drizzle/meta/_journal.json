@@ -22,6 +22,13 @@
       "when": 1790728735391,
       "tag": "0002_flowery_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792620475783,
+      "tag": "0003_drop_warm_up_sets",
+      "breakpoints": true
     }
   ]
 }
