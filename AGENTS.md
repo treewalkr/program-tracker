@@ -15,6 +15,10 @@
 
 # Commit Rules
 
+## Frequency
+
+- Commit often — one small, focused commit per logical change; never batch unrelated work into a single commit
+
 ## Message rules
 
 - Prefix the message with a type: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`
