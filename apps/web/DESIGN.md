@@ -171,7 +171,7 @@ Density is the aesthetic: a 14px base, 5px control padding, tabular mono figures
 - One green action per screen state — primary buttons reserve themselves for review-flow verbs (Generate draft, Approve as draft program, Save)
 - Every figure renders `ui-monospace` with tabular numerals; every panel head cites its evidence with a count pill
 - Status is ink-on-tint (Primer Labels); logged intensity uses the 4-step contributions ramp
-- Primer widgets repurposed for training review: orange-underline tabs, dashed warm-up chips, lamp-dot signal rows, code-span set chips
+- Primer widgets repurposed for training review: orange-underline tabs, lamp-dot signal rows, code-span set chips
 - Flat and light-only; the only shadows are the button lip and the blue focus halo
 
 ## Colors
@@ -249,7 +249,7 @@ Flat, and deliberately so. Depth is conveyed by tonal layering — white panels 
 
 ## Shapes
 
-A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 4px only inside data grids (week cells, tonnage heat squares). Everything gets a 1px border — transparent-background variants (ghost buttons, warm-up chips) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
+A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 4px only inside data grids (week cells, tonnage heat squares). Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
 
 ### Named Rules
 **The Fixed Radii Rule.** Three radii exist — 6px containers/controls, 99px pills, 4px inner data cells — and no others. No new corner value enters the system.
@@ -268,7 +268,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 - **Status pill (Primer Label):** 99px, 12px/500 ink-on-tint (`good`/`warn`/`bad`/`neutral`) with a matching tint edge; the StatusPill component maps every domain state onto these four
 - **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged")
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
-- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m` (11px micro); warm-up sets go dashed-border transparent; chip RPE ink reuses the RPE tiers darkened one step for AA on the chip background (≤6 #116329, 7–8 #7d5600, 9–10 Danger Red)
+- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m` (11px micro); chip RPE ink reuses the RPE tiers darkened one step for AA on the chip background (≤6 #116329, 7–8 #7d5600, 9–10 Danger Red)
 - **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (weekday picker, templates, exercise filters)
 
 ### Cards / Containers
