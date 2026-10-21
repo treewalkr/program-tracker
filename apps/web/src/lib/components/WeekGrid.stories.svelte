@@ -1,6 +1,7 @@
 <script module lang="ts">
   import { defineMeta } from '@storybook/addon-svelte-csf';
   import WeekGrid, { type ClientRow, type WeekEntry } from './WeekGrid.svelte';
+  import Panel from '$lib/ui/Panel.svelte';
   import type { ClientDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -69,13 +70,11 @@
 </script>
 
 {#snippet template(args: { rows: ClientRow[]; weekDates: string[]; today: string; currentNames: Record<string, string> })}
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Training week</h2>
-      <span class="counter">3 of 7 logged</span>
-    </div>
-    <WeekGrid {...args} />
-  </section>
+  <div style="max-width: 760px;">
+    <Panel title="Training week" count="3 of 7 logged">
+      <WeekGrid {...args} />
+    </Panel>
+  </div>
 {/snippet}
 
 <Story name="Mixed week" {template} args={{ rows, weekDates, today, currentNames }} />

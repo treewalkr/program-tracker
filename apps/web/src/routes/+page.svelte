@@ -131,13 +131,9 @@
       {/if}
 
       <div class="mt-16">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Training week</h2>
-          <span class="counter">{loggedCount} of {plannedCount} logged</span>
-        </div>
+      <Panel title="Training week" count={`${loggedCount} of ${plannedCount} logged`}>
         <WeekGrid {rows} {weekDates} {today} {currentNames} />
-      </section>
+      </Panel>
       </div>
     </div>
 
