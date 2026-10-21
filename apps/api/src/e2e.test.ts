@@ -69,8 +69,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
               exerciseId: squatId,
               order: 0,
               prescribedSets: [
-                { setNumber: 1, type: "warm_up", reps: 5, amrap: false },
-                { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
               ],
             },
           ],
@@ -91,13 +90,12 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       date: new Date().toISOString().slice(0, 10),
       perceivedEnergy: 7,
       sets: [
-        { exerciseId: squatId, setNumber: 1, type: "warm_up", weightKg: 60, reps: 5 },
-        { exerciseId: squatId, setNumber: 2, type: "working", weightKg: 100, reps: 5, rpe: 8 },
+        { exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8 },
         { exerciseId: benchId, setNumber: 1, type: "working", weightKg: 80, reps: 5, rpe: 8 },
       ],
     });
     expect(status).toBe(201);
-    expect(body.sets).toHaveLength(3);
+    expect(body.sets).toHaveLength(2);
   });
 
   test("history aggregates e1RM and set strings", async () => {

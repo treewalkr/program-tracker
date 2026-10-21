@@ -66,7 +66,7 @@ const DRAFT_SCHEMA_SPEC = `{
           "prescribedSets": [
             {
               "setNumber": number,  // 1-indexed, sequential
-              "type": "warm_up" | "working" | "backoff",
+              "type": "working" | "backoff",
               "reps": number,       // target reps; 0 only for timed/failure sets
               "repsMin": number?,   // lower bound of a rep range (reps = upper bound)
               "amrap": boolean,     // true = reps is the minimum, go to failure
@@ -95,7 +95,6 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, deload weeks, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
-    "- Include warm-up sets for the first heavy compound of each session.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
   ].join("\n");

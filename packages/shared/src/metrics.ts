@@ -1,5 +1,5 @@
 import { estimate1rm } from "./domain";
-import type { Phasing, WeekDirective } from "./domain";
+import type { Phasing, SetType, WeekDirective } from "./domain";
 
 /**
  * Block pulse: weekly volume & intensity computed from logged working sets.
@@ -21,7 +21,7 @@ export interface SignalProgram {
 
 export interface SignalLogSet {
   exerciseId: string;
-  type: "warm_up" | "working" | "backoff";
+  type: SetType;
   weightKg?: number | null;
   reps: number;
   rpe?: number | null;

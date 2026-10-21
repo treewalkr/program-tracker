@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
+import { SetType } from "@pt/shared";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { buildHistory } from "../lib/history";
 import { queueSignalsForOutbox } from "../lib/signals-service";
@@ -22,7 +23,7 @@ const SessionLogInput = z.object({
         programExerciseId: z.string().uuid().nullable().optional(),
         exerciseId: z.string().uuid(),
         setNumber: z.number().int().min(1).max(20),
-        type: z.enum(["warm_up", "working", "backoff"]).default("working"),
+        type: SetType.default("working"),
         weightKg: z.number().min(0).max(600).optional(),
         reps: z.number().int().min(0).max(200),
         rpe: z.number().min(1).max(10).optional(),

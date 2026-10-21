@@ -19,6 +19,11 @@ describe("PrescribedSet", () => {
     expect(s.amrap).toBe(false);
   });
 
+  test("only working and backoff set types exist — warm-ups are handled in the room", () => {
+    expect(() => PrescribedSet.parse({ setNumber: 1, reps: 5, type: "backoff" })).not.toThrow();
+    expect(() => PrescribedSet.parse({ setNumber: 1, reps: 5, type: "warm_up" })).toThrow();
+  });
+
   test("rejects impossible reps", () => {
     expect(() => PrescribedSet.parse({ setNumber: 1, reps: 101 })).toThrow();
     // reps 0 is legal ONLY as a failure (amrap) or timed set
@@ -270,8 +275,8 @@ describe("AiProgramDraft (full LLM payload)", () => {
             {
               exerciseName: "Back Squat",
               prescribedSets: [
-                { setNumber: 1, type: "warm_up", reps: 5 },
-                { setNumber: 2, reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
+                { setNumber: 1, reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
+                { setNumber: 2, reps: 5, amrap: true, targetRpe: 9, restSeconds: 180 },
               ],
             },
           ],

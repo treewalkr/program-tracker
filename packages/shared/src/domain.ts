@@ -93,7 +93,7 @@ export const PROGRAM_STATUSES = ["draft", "active", "archived"] as const;
 export const ProgramStatus = z.enum(PROGRAM_STATUSES);
 export type ProgramStatus = z.infer<typeof ProgramStatus>;
 
-export const SET_TYPES = ["warm_up", "working", "backoff"] as const;
+export const SET_TYPES = ["working", "backoff"] as const;
 export const SetType = z.enum(SET_TYPES);
 export type SetType = z.infer<typeof SetType>;
 

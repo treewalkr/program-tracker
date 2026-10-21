@@ -1,7 +1,7 @@
 /** DTOs + the one interface the whole UI talks to. Two impls: real (Eden) + mock.
  *  Domain shapes are re-exported from @pt/shared (single source of truth); the
  *  remaining interfaces are the seam contract both adapters are checked against. */
-import type { Phasing, PrescribedSet, Signal, WeekDirective as Wd, WeekPlan as Wp } from "@pt/shared";
+import type { Phasing, PrescribedSet, SetType, Signal, WeekDirective as Wd, WeekPlan as Wp } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
 export type WeekDirective = Wd;
@@ -108,7 +108,7 @@ export interface LogSetInput {
   programExerciseId?: string | null;
   exerciseId: string;
   setNumber: number;
-  type: "warm_up" | "working" | "backoff";
+  type: SetType;
   weightKg?: number;
   reps: number;
   rpe?: number;
@@ -136,7 +136,7 @@ export interface SessionLogDto {
     id?: string;
     exerciseId: string;
     setNumber: number;
-    type: "warm_up" | "working" | "backoff";
+    type: SetType;
     weightKg?: number | null;
     reps: number;
     rpe?: number | null;
