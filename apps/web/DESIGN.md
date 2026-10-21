@@ -268,6 +268,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 - **Status pill (Primer Label):** 99px, 12px/500 ink-on-tint (`good`/`warn`/`bad`/`neutral`) with a matching tint edge; the StatusPill component maps every domain state onto these four
 - **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged")
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
+- **Role chip:** the session slot an exercise fills (Power / Primary / Str / Aux / Core) — neutral well pill in the trainer's shorthand, the primary lift in default ink; full description on hover (`title`); leads the exercise name in session rows
 - **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m` (11px micro); chip RPE ink reuses the RPE tiers darkened one step for AA on the chip background (≤6 #116329, 7–8 #7d5600, 9–10 Danger Red)
 - **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (weekday picker, templates, exercise filters)
 
