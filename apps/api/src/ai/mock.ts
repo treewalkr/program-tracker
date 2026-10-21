@@ -27,6 +27,7 @@ export const MOCK_DRAFT: AiProgramDraft = {
       exercises: [
         {
           exerciseName: "Back Squat",
+          role: "primary",
           prescribedSets: [
             { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180, targetWeightKg: 102.5 },
             { setNumber: 2, type: "working", reps: 5, amrap: true, targetRpe: 9, restSeconds: 180, targetWeightKg: 102.5 },
@@ -34,6 +35,7 @@ export const MOCK_DRAFT: AiProgramDraft = {
         },
         {
           exerciseName: "Romanian Deadlift",
+          role: "strength",
           prescribedSets: [
             { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
             { setNumber: 2, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
@@ -47,12 +49,14 @@ export const MOCK_DRAFT: AiProgramDraft = {
       exercises: [
         {
           exerciseName: "Bench Press",
+          role: "primary",
           prescribedSets: [
             { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 150 },
           ],
         },
         {
           exerciseName: "Seated Cable Row",
+          role: "accessory",
           prescribedSets: [
             { setNumber: 1, type: "working", reps: 10, amrap: false, targetRpe: 8, restSeconds: 90 },
             { setNumber: 2, type: "working", reps: 10, amrap: false, targetRpe: 8, restSeconds: 90 },

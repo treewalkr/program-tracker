@@ -1,3 +1,4 @@
+import { sortExercisesByRole } from "@pt/shared";
 import type { AiProgramDraft, DraftExerciseRef, ProgramSession } from "@pt/shared";
 
 export interface CatalogLike {
@@ -51,7 +52,8 @@ export function draftToSessions(
     name: s.name,
     order: si,
     notes: s.notes,
-    exercises: s.exercises.flatMap((ref, ei) => {
+    // role order is the session order; `order` is the post-sort index
+    exercises: sortExercisesByRole(s.exercises).flatMap((ref, ei) => {
       const res = resolveRef(ref, byId, byName);
       if (res.kind === "unresolvable") {
         unresolvable.push(res.ref);
@@ -67,6 +69,7 @@ export function draftToSessions(
           // programs carry the display name — the UI renders it directly,
           // no catalog join on read
           exerciseName: res.kind === "existing" ? nameById.get(res.exerciseId) : res.name,
+          role: ref.role,
           order: ei,
           prescribedSets: ref.prescribedSets,
           notes: ref.notes,

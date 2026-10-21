@@ -61,6 +61,24 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("Propose phasing");
     expect(system).toContain("targetWeightKg");
   });
+
+  test("role schema field, role rule and previous-program roles reach the prompt", () => {
+    const { system, user } = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: {
+        name: "Block 1",
+        sessions: [{ name: "Day A", exercises: [{ name: "Back Squat", role: "primary", sets: ["5 reps"] }] }],
+      },
+      periodization: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(system).toContain('"role": "power" | "primary" | "strength" | "accessory" | "core"');
+    expect(system).toContain("role order (power → primary → strength → accessory → core)");
+    expect(system).toContain("primary: The main lift");
+    expect(user).toContain("Back Squat (primary) [5 reps]");
+  });
 });
 
 const draft: AiProgramDraft = {
@@ -103,6 +121,29 @@ describe("draftToSessions", () => {
     const d3 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] }] };
     const { unresolvable } = draftToSessions(d3, catalog);
     expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
+  });
+
+  test("approve sorts a session by role, carries the role and renumbers order", () => {
+    const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
+    const d4: AiProgramDraft = {
+      ...draft,
+      sessions: [
+        {
+          name: "Day A",
+          exercises: [
+            { exerciseName: "Cable Crunch", role: "core", prescribedSets: sets },
+            { exerciseName: "Lateral Raise", prescribedSets: sets },
+            { exerciseId: "22222222-2222-2222-2222-222222222222", role: "strength", prescribedSets: sets },
+            { exerciseId: "11111111-1111-1111-1111-111111111111", role: "primary", prescribedSets: sets },
+          ],
+        },
+      ],
+    };
+    const { sessions } = draftToSessions(d4, catalog);
+    const ex = sessions[0].exercises;
+    expect(ex.map((e) => e.exerciseName)).toEqual(["Back Squat", "Bench Press", "Cable Crunch", "Lateral Raise"]);
+    expect(ex.map((e) => e.role)).toEqual(["primary", "strength", "core", undefined]);
+    expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { AiProgramDraft } from "@pt/shared";
+import { EXERCISE_ROLE_INFO, EXERCISE_ROLES, type AiProgramDraft } from "@pt/shared";
 
 export interface ClientContext {
   name: string;
@@ -11,7 +11,7 @@ export interface ProgramSummary {
   name: string;
   sessions: {
     name: string;
-    exercises: { name: string; sets: string[] }[];
+    exercises: { name: string; role?: string; sets: string[] }[];
   }[];
 }
 
@@ -63,6 +63,7 @@ const DRAFT_SCHEMA_SPEC = `{
         {
           "exerciseId": string?,    // preferred: use a catalog id
           "exerciseName": string,   // required if exerciseId omitted
+          "role": "power" | "primary" | "strength" | "accessory" | "core", // session slot, see rules
           "prescribedSets": [
             {
               "setNumber": number,  // 1-indexed, sequential
@@ -83,6 +84,11 @@ const DRAFT_SCHEMA_SPEC = `{
   ]
 }`;
 
+const ROLE_RULE = [
+  `- Give every exercise exactly one role and list each session's exercises in role order (${EXERCISE_ROLES.join(" → ")}).`,
+  ...EXERCISE_ROLES.map((r) => `  ${r}: ${EXERCISE_ROLE_INFO[r].description}`),
+].join("\n");
+
 export function buildGenerationMessages(ctx: GenerationContext) {
   const system = [
     "You are an expert strength & conditioning coach drafting the NEXT training block for a client.",
@@ -93,6 +99,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
+    ROLE_RULE,
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, deload weeks, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
@@ -135,7 +142,7 @@ function programToText(p: ProgramSummary): string {
     .map(
       (s) =>
         `- ${s.name}: ${s.exercises
-          .map((e) => `${e.name} [${e.sets.join("; ")}]`)
+          .map((e) => `${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
           .join(", ")}`
     )
     .join("\n");

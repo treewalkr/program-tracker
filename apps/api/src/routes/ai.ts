@@ -41,6 +41,7 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
           name: s.name,
           exercises: s.exercises.map((e) => ({
             name: nameById.get(e.exerciseId) ?? e.exerciseId,
+            role: e.role,
             sets: e.prescribedSets.map(
               (ps) =>
                 `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`

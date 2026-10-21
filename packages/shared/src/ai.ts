@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Phasing, PrescribedSet } from "./domain";
+import { ExerciseRole, Phasing, PrescribedSet } from "./domain";
 
 // ---------------------------------------------------------------------------
 // AI provider abstraction
@@ -69,6 +69,8 @@ export const DraftExerciseRef = z
   .object({
     exerciseId: z.string().uuid().optional(),
     exerciseName: z.string().min(1).max(160).optional(),
+    /** Session slot; the prompt asks for one on every exercise, the gate tolerates its absence. */
+    role: ExerciseRole.optional(),
     prescribedSets: z.array(PrescribedSet).min(1).max(20),
     notes: z.string().max(1000).optional(),
   })
