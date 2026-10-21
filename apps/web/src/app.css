@@ -282,6 +282,13 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .dir.vol { color: var(--good); }
 .dir.int { color: var(--warn); }
 .dir.tr { color: var(--blue); }
+/* role chips share one width so exercise names line up across rows */
+.role {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+}
 .role.primary { color: var(--ink); border-color: var(--line-strong); }
 
 /* toggle chips: hairline pills that invert to Inverted Ink when selected */
@@ -424,8 +431,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
 .session + .session { border-top: 1px solid var(--line); }
 .exrow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
-.exrow .ex { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 500; font-size: 14px; }
-.exrow .ex small { flex-basis: 100%; font: 400 12px/1.4 var(--font-ui); color: var(--muted); }
+.exrow .ex { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; min-width: 0; }
 
 /* —— tabs (orange underline, GitHub-style) — */
 
