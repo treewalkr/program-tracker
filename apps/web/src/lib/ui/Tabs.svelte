@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Counter from './Counter.svelte';
 	/**
 	 * Orange-underline tabs over the global `.tabs` styles. Buttons get
 	 * `id="{idPrefix}-{tabId}"` and point at `panel-{tabId}` panels —
@@ -37,7 +38,7 @@
 			onclick={() => onchange?.(t.id)}
 		>
 			{t.label}
-			{#if t.count}<span class="counter">{t.count}</span>{/if}
+			{#if t.count}<Counter value={t.count} />{/if}
 		</button>
 	{/each}
 </div>

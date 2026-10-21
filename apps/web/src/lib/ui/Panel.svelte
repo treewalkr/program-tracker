@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import Counter from './Counter.svelte';
 
 	/**
 	 * Primer Box: canvas-white surface on a hairline border, 6px radius.
@@ -27,7 +28,7 @@
 	{#if title || act}
 		<div class="panel-head">
 			{#if title}<h2>{title}</h2>{/if}
-			{#if count}<span class="counter">{count}</span>{/if}
+			{#if count}<Counter value={count} />{/if}
 			{@render act?.()}
 		</div>
 	{/if}
