@@ -4,10 +4,14 @@ import {
   Client,
   DraftExerciseRef,
   estimate1rm,
+  EXERCISE_ROLE_INFO,
+  EXERCISE_ROLES,
   LoggedSet,
   Phasing,
   PrescribedSet,
   Program,
+  ProgramExercise,
+  sortExercisesByRole,
 } from "./index";
 
 const uuid = () => crypto.randomUUID();
@@ -201,6 +205,52 @@ describe("Program", () => {
     expect(p.sessions[0].conditioning?.label).toBe("Zone 2");
     expect(p.phasing?.weeks).toHaveLength(2);
     expect(p.activatedAt).toBeTruthy();
+  });
+});
+
+describe("ExerciseRole", () => {
+  const baseExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] };
+
+  test("role is optional and only the five session slots are accepted", () => {
+    expect(ProgramExercise.parse(baseExercise).role).toBeUndefined();
+    expect(ProgramExercise.parse({ ...baseExercise, role: "primary" }).role).toBe("primary");
+    expect(() => ProgramExercise.parse({ ...baseExercise, role: "warmup" })).toThrow();
+  });
+
+  test("every role has a label and a description", () => {
+    for (const r of EXERCISE_ROLES) {
+      expect(EXERCISE_ROLE_INFO[r].label.length).toBeGreaterThan(0);
+      expect(EXERCISE_ROLE_INFO[r].description.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("sortExercisesByRole orders power → primary → strength → accessory → core", () => {
+    const sorted = sortExercisesByRole([
+      { name: "plank", role: "core" as const },
+      { name: "row", role: "accessory" as const },
+      { name: "squat", role: "primary" as const },
+      { name: "box jump", role: "power" as const },
+      { name: "rdl", role: "strength" as const },
+    ]);
+    expect(sorted.map((e) => e.name)).toEqual(["box jump", "squat", "rdl", "row", "plank"]);
+  });
+
+  test("sort is stable within a rank and puts unset roles last", () => {
+    const sorted = sortExercisesByRole([
+      { name: "curl", role: undefined },
+      { name: "row", role: "accessory" as const },
+      { name: "squat", role: "primary" as const },
+      { name: "lateral raise", role: "accessory" as const },
+      { name: "face pull" },
+    ]);
+    expect(sorted.map((e) => e.name)).toEqual(["squat", "row", "lateral raise", "curl", "face pull"]);
+  });
+
+  test("all-unset input keeps its order and is not mutated", () => {
+    const input = [{ name: "a" }, { name: "b" }, { name: "c" }];
+    const sorted = sortExercisesByRole(input);
+    expect(sorted.map((e) => e.name)).toEqual(["a", "b", "c"]);
+    expect(sorted).not.toBe(input);
   });
 });
 

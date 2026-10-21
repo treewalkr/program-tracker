@@ -97,6 +97,49 @@ export const SET_TYPES = ["working", "backoff"] as const;
 export const SetType = z.enum(SET_TYPES);
 export type SetType = z.infer<typeof SetType>;
 
+/**
+ * Slot an exercise fills within a session. Array order is the classic S&C
+ * session order — power → primary → strength → accessory → core — and is the
+ * rank `sortExercisesByRole` uses. "core" here is the closing slot of a
+ * session, not the `core` muscle group.
+ */
+export const EXERCISE_ROLES = ["power", "primary", "strength", "accessory", "core"] as const;
+export const ExerciseRole = z.enum(EXERCISE_ROLES);
+export type ExerciseRole = z.infer<typeof ExerciseRole>;
+
+/** Chip label (the trainer's shorthand) and tooltip copy per role; also fed to the AI prompt. */
+export const EXERCISE_ROLE_INFO: Record<ExerciseRole, { label: string; description: string }> = {
+  power: {
+    label: "Power",
+    description: "Explosive, low-rep work done fresh — jumps, throws, Olympic lift variations.",
+  },
+  primary: {
+    label: "Primary",
+    description: "The main lift the session is built around — the heaviest compound movement.",
+  },
+  strength: {
+    label: "Str",
+    description: "Secondary compound strength work that supports the primary lift.",
+  },
+  accessory: {
+    label: "Aux",
+    description: "Isolation or higher-rep assistance work for hypertrophy, weak points and balance.",
+  },
+  core: {
+    label: "Core",
+    description: "Trunk and anti-movement work, typically closing the session.",
+  },
+};
+
+/** Stable sort by role rank; exercises without a role keep their relative order at the end. */
+export function sortExercisesByRole<T extends { role?: ExerciseRole | null }>(
+  list: readonly T[]
+): T[] {
+  const rank = (r: ExerciseRole | null | undefined) =>
+    r ? EXERCISE_ROLES.indexOf(r) : EXERCISE_ROLES.length;
+  return [...list].sort((a, b) => rank(a.role) - rank(b.role));
+}
+
 /** A single prescribed set within a program exercise. */
 export const PrescribedSet = z
   .object({
@@ -134,6 +177,8 @@ export const ProgramExercise = z.object({
    * or draft name). Programs render it directly — no catalog join on read.
    */
   exerciseName: z.string().min(1).max(200).optional(),
+  /** Session slot (power → primary → strength → accessory → core). Absent on programs written before roles existed. */
+  role: ExerciseRole.optional(),
   /** 0-indexed order within the session. */
   order: z.number().int().min(0),
   prescribedSets: z.array(PrescribedSet).min(1).max(20),
