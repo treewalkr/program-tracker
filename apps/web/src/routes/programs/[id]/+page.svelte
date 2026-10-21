@@ -3,7 +3,10 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { fmtDuration } from "$lib/format";
+  import { EXERCISE_ROLE_INFO, EXERCISE_ROLES } from "@pt/shared";
+  import type { ExerciseRole } from "@pt/shared";
   import type { ExerciseDto, ProgramDto } from "$lib/api/types";
+  import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
@@ -94,6 +97,12 @@
     e.exerciseName = catalog.find((c) => c.id === exerciseId)?.name ?? exerciseId;
   }
 
+  function setRole(si: number, ei: number, raw: string) {
+    if (!program) return;
+    const role = EXERCISE_ROLES.includes(raw as ExerciseRole) ? (raw as ExerciseRole) : undefined;
+    program.sessions[si].exercises[ei].role = role;
+  }
+
   onMount(load);
 </script>
 
@@ -181,6 +190,18 @@
                 <div class="exhead">
                   <strong>{e.exerciseName}</strong>
                   <select
+                    class="select role"
+                    value={e.role ?? ""}
+                    onchange={(ev) => setRole(si, ei, ev.currentTarget.value)}
+                    aria-label="Exercise role"
+                    title="Session slot for this exercise"
+                  >
+                    <option value="">Role…</option>
+                    {#each EXERCISE_ROLES as r (r)}
+                      <option value={r} title={EXERCISE_ROLE_INFO[r].description}>{EXERCISE_ROLE_INFO[r].label}</option>
+                    {/each}
+                  </select>
+                  <select
                     class="select swap"
                     value={e.exerciseId}
                     onchange={(ev) => swapExercise(si, ei, ev.currentTarget.value)}
@@ -195,6 +216,7 @@
                 </div>
               {:else}
                 <div class="exhead">
+                  {#if e.role}<RoleChip role={e.role} />{/if}
                   <strong>{e.exerciseName}</strong>
                   {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
                 </div>
@@ -280,6 +302,7 @@
   .ctrl.kg { min-width: 86px; }
   .kgv { font-weight: 600; }
   .select.swap { width: auto; padding: 3px 8px; font-size: 12.5px; max-width: 220px; }
+  .select.role { width: auto; padding: 3px 8px; font-size: 12.5px; }
   .cond-chip {
     display: inline-flex;
     align-items: center;
