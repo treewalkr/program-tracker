@@ -224,7 +224,6 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
         plannedWeeks: 1,
         phase: "accumulation",
         nextPhase: "intensification",
-        deloadWeeks: [],
         weeks: [{ week: 1, directive: "base" }],
       },
       sessions: sessions(),
@@ -261,7 +260,6 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       phasing: {
         plannedWeeks: 3,
         phase: "intensification",
-        deloadWeeks: [3],
         weeks: [{ week: 1, directive: "base" }],
       },
     });
@@ -280,7 +278,6 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
         plannedWeeks: 1,
         phase: "accumulation",
         nextPhase: "intensification",
-        deloadWeeks: [],
         weeks: [{ week: 1, directive: "base" }],
       },
     });

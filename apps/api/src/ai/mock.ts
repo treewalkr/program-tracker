@@ -13,7 +13,6 @@ export const MOCK_DRAFT: AiProgramDraft = {
     plannedWeeks: 4,
     phase: "accumulation",
     nextPhase: "intensification",
-    deloadWeeks: [4],
     weeks: [
       { week: 1, directive: "base" },
       { week: 2, directive: "+volume" },

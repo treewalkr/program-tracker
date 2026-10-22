@@ -50,7 +50,6 @@ const DRAFT_SCHEMA_SPEC = `{
     "plannedWeeks": number,          // 2-26
     "phase": string,                 // phase name, e.g. "accumulation"
     "nextPhase": string?,
-    "deloadWeeks": number[],         // week numbers within the block
     "weeks": [                       // week-by-week directives
       { "week": number, "directive": "base"|"+volume"|"+intensity"|"deload"|"transition"|"test" }
     ]?
@@ -101,7 +100,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
     ROLE_RULE,
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
-    "- Propose phasing for the new block: plannedWeeks, phase name, deload weeks, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
   ].join("\n");
