@@ -9,6 +9,7 @@
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
+  import PulseChart from "$lib/components/PulseChart.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -274,6 +275,11 @@
           </div>
         {/if}
       {/snippet}
+      {#if doneWeeks.length > 0}
+        <div class="chart">
+          <PulseChart weeks={pulse} pulseWeek={pulseWeek} />
+        </div>
+      {/if}
       <div class="table-wrap">
         <table class="sheet">
           <thead><tr><th class="r">Wk</th><th>Directive</th><th class="r">Tonnage</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
@@ -423,6 +429,7 @@
   .pulse-now td { background: var(--pulse-now-bg); }
   .pulse-future td { color: var(--faint); }
   .pulse-sub { font: 400 13px/1.5 var(--font-ui); color: var(--muted); margin: 0; padding: 8px 16px 12px; }
+  .chart { padding: 14px 16px 0; border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; }
 
   .table-wrap { overflow-x: auto; }
   .lift { font-weight: 500; }
