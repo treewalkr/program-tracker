@@ -113,16 +113,18 @@ export const programs: ProgramDto[] = [
     aiAssisted: false,
     createdFromProgramId: null,
     createdAt: "2026-07-14T09:00:00Z",
-    activatedAt: new Date(Date.now() - 19 * 86400_000).toISOString(),
+    activatedAt: new Date(Date.now() - 35 * 86400_000).toISOString(),
     phasing: {
-      plannedWeeks: 4,
+      plannedWeeks: 6,
       phase: "accumulation",
-      nextPhase: "deload → intensification",
+      nextPhase: "intensification",
       weeks: [
         { week: 1, directive: "base" },
         { week: 2, directive: "+volume" },
         { week: 3, directive: "+intensity" },
-        { week: 4, directive: "deload" },
+        { week: 4, directive: "base" },
+        { week: 5, directive: "+volume" },
+        { week: 6, directive: "deload" },
       ],
     },
     sessions: [
