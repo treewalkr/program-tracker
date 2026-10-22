@@ -118,7 +118,6 @@ export const programs: ProgramDto[] = [
       plannedWeeks: 4,
       phase: "accumulation",
       nextPhase: "deload → intensification",
-      deloadWeeks: [4],
       weeks: [
         { week: 1, directive: "base" },
         { week: 2, directive: "+volume" },
@@ -200,7 +199,6 @@ export const programs: ProgramDto[] = [
       plannedWeeks: 6,
       phase: "hypertrophy",
       nextPhase: "deload",
-      deloadWeeks: [6],
       weeks: [
         { week: 1, directive: "base" },
         { week: 2, directive: "+volume" },
@@ -441,7 +439,6 @@ export const trainerProgram: ProgramDto = {
     plannedWeeks: 6,
     phase: "Sarcoplasmic hypertrophy",
     nextPhase: "Strength interlude",
-    deloadWeeks: [6],
     weeks: [
       { week: 1, directive: "base" },
       { week: 2, directive: "+volume" },
@@ -520,7 +517,7 @@ export const trainerProgramDraft: ProgramDto = {
   status: "draft",
   version: 1,
   activatedAt: null,
-  phasing: { plannedWeeks: 4, phase: "Myofibrillar strength", nextPhase: "Return to hypertrophy", deloadWeeks: [4] },
+  phasing: { plannedWeeks: 4, phase: "Myofibrillar strength", nextPhase: "Return to hypertrophy" },
   createdAt: new Date(Date.now() - 2 * 86400_000).toISOString(),
   sessions: [
     {

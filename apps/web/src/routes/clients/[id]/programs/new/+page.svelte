@@ -24,7 +24,6 @@
   let plannedWeeks = $state(4);
   let phase = $state("accumulation");
   let nextPhase = $state("deload");
-  let endsWithDeload = $state(true);
   let usePhasing = $state(true);
   let schemes = $state<PeriodizationSchemeDto[]>([]);
   let saving = $state(false);
@@ -81,7 +80,6 @@
   $effect(() => {
     if (activeWeeks.length > 0) {
       plannedWeeks = activeWeeks.length;
-      endsWithDeload = activeWeeks[activeWeeks.length - 1] === "deload";
     }
   });
 
@@ -213,7 +211,6 @@
               plannedWeeks: Number(plannedWeeks),
               phase: phase.trim() || "block",
               nextPhase: nextPhase.trim() || null,
-              deloadWeeks: endsWithDeload ? [Number(plannedWeeks)] : [],
               weeks: activeWeeks.length > 0 ? activeWeeks.map((d, i) => ({ week: i + 1, directive: d })) : undefined,
             }
           : null,
@@ -360,17 +357,6 @@
                   <input class="input" id="np-next" bind:value={nextPhase} maxlength="40" />
                 </Field>
               </div>
-              {#if activeWeeks.length === 0}
-                <label class="label chk">
-                  <input type="checkbox" bind:checked={endsWithDeload} />
-                  Ends with a deload week
-                </label>
-              {:else}
-                <label class="label chk">
-                  <input type="checkbox" checked disabled />
-                  Deload weeks per scheme
-                </label>
-              {/if}
             </div>
           {/if}
         </div>
@@ -474,7 +460,6 @@
   .phasing { border-top: 1px solid var(--line); padding-top: 12px; }
   .phasing > .label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .phasing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-  .phasing-grid .chk { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .scheme-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
   .scheme-manage { margin-top: 6px; }
   .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
