@@ -85,7 +85,7 @@
   aria-label={aria}
   preserveAspectRatio="xMidYMid meet"
 >
-  <!-- tonnage gridlines + left ticks -->
+  <!-- tonnage gridlines + left ticks (0 and max only — the half line stays unlabeled) -->
   {#each [0, 0.5, 1] as f (f)}
     <line
       x1={PAD_L}
@@ -94,14 +94,16 @@
       y2={yOf(tMax * f)}
       class="grid"
     />
-    <text x={PAD_L - 8} y={yOf(tMax * f) + 3.5} class="tick" text-anchor="end">
-      {fmtTonnage(tMax * f)}
-    </text>
+    {#if f !== 0.5}
+      <text x={PAD_L - 8} y={yOf(tMax * f) + 3.5} class="tick" text-anchor="end">
+        {f === 0 ? "0" : fmtTonnage(tMax)}
+      </text>
+    {/if}
   {/each}
 
   <!-- avg RPE right ticks (6–10) -->
   {#each [6, 8, 10] as r (r)}
-    <text x={W - PAD_R + 8} y={rpeY(r) + 3.5} class="tick rpe" text-anchor="start">…{r}</text>
+    <text x={W - PAD_R + 8} y={rpeY(r) + 3.5} class="tick rpe" text-anchor="start">{r === RPE_MAX ? `RPE ${r}` : r}</text>
   {/each}
 
   <!-- volume bars -->
