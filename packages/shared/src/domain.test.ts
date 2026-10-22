@@ -76,7 +76,6 @@ describe("Phasing", () => {
       plannedWeeks: 6,
       phase: "accumulation",
       nextPhase: "intensification",
-      deloadWeeks: [4],
       weeks: [
         { week: 1, directive: "base" },
         { week: 2, directive: "+volume" },
@@ -85,13 +84,9 @@ describe("Phasing", () => {
       ],
     });
     expect(p.weeks).toHaveLength(4);
-    expect(p.deloadWeeks).toEqual([4]);
   });
 
-  test("deload weeks and week plans must fall within plannedWeeks", () => {
-    expect(() =>
-      Phasing.parse({ plannedWeeks: 4, phase: "acc", deloadWeeks: [5] })
-    ).toThrow();
+  test("week plans must fall within plannedWeeks", () => {
     expect(() =>
       Phasing.parse({
         plannedWeeks: 4,
@@ -109,11 +104,6 @@ describe("Phasing", () => {
         weeks: [{ week: 1, directive: "growth" as never }],
       })
     ).toThrow();
-  });
-
-  test("defaults deloadWeeks to empty", () => {
-    const p = Phasing.parse({ plannedWeeks: 3, phase: "acc" });
-    expect(p.deloadWeeks).toEqual([]);
   });
 });
 
@@ -185,7 +175,6 @@ describe("Program", () => {
       phasing: {
         plannedWeeks: 6,
         phase: "accumulation",
-        deloadWeeks: [4],
         weeks: [
           { week: 1, directive: "base" },
           { week: 2, directive: "+volume" },

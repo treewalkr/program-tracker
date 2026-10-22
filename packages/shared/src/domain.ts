@@ -235,12 +235,8 @@ export const Phasing = z
     /** Current block phase name, e.g. "accumulation". */
     phase: z.string().min(1).max(120),
     nextPhase: z.string().min(1).max(120).nullable().optional(),
-    deloadWeeks: z.array(z.number().int().min(1).max(26)).default([]),
     /** Explicit week-by-week progression — the trainer's periodization scheme. */
     weeks: z.array(WeekPlan).optional(),
-  })
-  .refine((p) => p.deloadWeeks.every((w) => w <= p.plannedWeeks), {
-    message: "deloadWeeks must fall within plannedWeeks",
   })
   .refine((p) => !p.weeks || p.weeks.every((w) => w.week <= p.plannedWeeks), {
     message: "week plans must fall within plannedWeeks",

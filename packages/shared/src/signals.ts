@@ -146,7 +146,7 @@ export function computeSignals(
     const directive = scheme.find((w) => w.week === week)?.directive ?? null;
     const pulse = blockPulse(program, programLogs, now);
     const summary = pulseSummary(pulse);
-    const isDeloadWeek = ph.deloadWeeks.includes(week) || directive === "deload";
+    const isDeloadWeek = directive === "deload";
     if (isDeloadWeek && week <= ph.plannedWeeks) {
       signals.push({
         ...owner,
