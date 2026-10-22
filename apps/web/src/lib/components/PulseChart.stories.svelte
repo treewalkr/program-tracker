@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Weekly volume bars for a program block, colored by the contributions ramp. Dashed stubs are planned-only weeks; the blue tick marks the current week.',
+            'Weekly volume bars (contributions ramp) with an average-RPE line on a 6–10 right axis. Dashed stubs are planned-only weeks; the blue tick marks the current week.',
         },
       },
     },
@@ -81,6 +81,22 @@
       mk(1, 'base', 8400, { avgRpe: 7.5 }),
       mk(2, '+volume', 0, { plannedOnly: true }),
       mk(3, '+intensity', 0, { plannedOnly: true }),
+    ],
+  }}
+/>
+
+<Story
+  name="RPE gaps over unlogged weeks"
+  {template}
+  args={{
+    pulseWeek: 5,
+    weeks: [
+      mk(1, 'base', 10200, { avgRpe: 7.0 }),
+      mk(2, '+volume', 11900, { avgRpe: 7.3 }),
+      mk(3, '+intensity', 0, { plannedOnly: true }),
+      mk(4, 'base', 12400, { avgRpe: 8.1 }),
+      mk(5, 'deload', 7100, { avgRpe: 6.2 }),
+      mk(6, 'transition', 0, { plannedOnly: true }),
     ],
   }}
 />
