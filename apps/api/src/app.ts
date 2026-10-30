@@ -12,6 +12,7 @@ import { schemeRoutes } from "./routes/schemes";
 import { chainRoutes } from "./routes/chains";
 import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
+import { clientMessageRoutes } from "./routes/client-messages";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -21,6 +22,7 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
 const TAGS = [
   { name: "health", description: "Liveness and provider discovery" },
   { name: "ai", description: "AI draft generation, audit trail, and approval gate" },
+  { name: "client-messages", description: "Client-facing weekly messages — AI-drafted, trainer-approved, copy-to-LINE" },
   { name: "prompt-templates", description: "Reusable instruction template library" },
   { name: "clients", description: "Client management" },
   { name: "programs", description: "Versioned program documents and lifecycle" },
@@ -82,6 +84,7 @@ export const app = new Elysia()
     },
   })
   .use(aiRoutes)
+  .use(clientMessageRoutes)
   .use(clientRoutes)
   .use(programRoutes)
   .use(logRoutes)
