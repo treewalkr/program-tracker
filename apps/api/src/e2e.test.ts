@@ -1211,3 +1211,210 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     expect(body.error).toBe("generation targets a week that is no longer current");
   });
 });
+
+describe.skipIf(!dbUp)("client messages (mock provider)", () => {
+  let clientId = "";
+  let otherClientId = "";
+  let programId = "";
+  let squatId = "";
+  let editedGenId = "";
+  let asIsGenId = "";
+
+  test("setup: client, program, week-1 logs", async () => {
+    const c = await call("POST", "/v1/clients", {
+      name: "Message Client",
+      email: `msg-${Date.now()}@test.dev`,
+      daysPerWeek: 2,
+    });
+    expect(c.status).toBe(201);
+    clientId = c.body.id;
+
+    const other = await call("POST", "/v1/clients", {
+      name: "Other Client",
+      email: `other-${Date.now()}@test.dev`,
+    });
+    otherClientId = other.body.id;
+
+    const ex = await call("GET", "/v1/exercises?q=squat");
+    squatId = ex.body[0].id;
+
+    const p = await call("POST", "/v1/programs", {
+      name: "Message Block",
+      clientId,
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: crypto.randomUUID(),
+              day: 1,
+              sessions: [
+                {
+                  id: crypto.randomUUID(),
+                  name: "Day A",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId: squatId,
+                      order: 0,
+                      prescribedSets: [
+                        { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(p.status).toBe(201);
+    programId = p.body.id;
+    const act = await call("PATCH", `/v1/programs/${programId}/status`, { status: "active" });
+    expect(act.body.status).toBe("active");
+
+    const log = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: new Date().toISOString().slice(0, 10),
+      sets: [
+        { exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8 },
+        { exerciseId: squatId, setNumber: 2, type: "working", weightKg: 100, reps: 5, rpe: 8 },
+      ],
+    });
+    expect(log.status).toBe(201);
+  });
+
+  test("client message generate (mock) validates, snapshots stats and audits provider", async () => {
+    const { status, body } = await call("POST", "/v1/client-messages/generate", {
+      clientId,
+      programId,
+      week: 1,
+      providerId: "mock",
+    });
+    expect(status).toBe(201);
+    expect(body.status).toBe("validated");
+    expect(body.providerId).toBe("mock");
+    expect(body.model).toBe("mock-draft-v1");
+    expect(body.draft.message.length).toBeGreaterThan(0);
+    expect(body.draft.message.length).toBeLessThanOrEqual(1200);
+    expect(body.stats).not.toBeNull();
+    expect(body.stats.week).toBe(1);
+    expect(body.stats.sessionsLogged).toBe(1);
+    expect(body.stats.overallVolume).toBe(1000);
+    expect(body.stats.sets).toBe(2);
+    expect(body.finalText).toBeNull();
+    editedGenId = body.id;
+
+    // second draft for the same week is free (regeneration, Decision 6)
+    const again = await call("POST", "/v1/client-messages/generate", {
+      clientId,
+      programId,
+      week: 1,
+      providerId: "mock",
+    });
+    expect(again.status).toBe(201);
+    asIsGenId = again.body.id;
+  });
+
+  test("client message generate guards: 404s, wrong-client program 422, unlogged week 422", async () => {
+    const noClient = await call("POST", "/v1/client-messages/generate", {
+      clientId: "00000000-0000-0000-0000-000000000000",
+      programId,
+      week: 1,
+      providerId: "mock",
+    });
+    expect(noClient.status).toBe(404);
+    expect(noClient.body.error).toBe("client not found");
+
+    const noProgram = await call("POST", "/v1/client-messages/generate", {
+      clientId,
+      programId: "00000000-0000-0000-0000-000000000000",
+      week: 1,
+      providerId: "mock",
+    });
+    expect(noProgram.status).toBe(404);
+    expect(noProgram.body.error).toBe("program not found");
+
+    const wrongClient = await call("POST", "/v1/client-messages/generate", {
+      clientId: otherClientId,
+      programId,
+      week: 1,
+      providerId: "mock",
+    });
+    expect(wrongClient.status).toBe(422);
+    expect(wrongClient.body.error).toBe("program does not belong to client");
+
+    const unlogged = await call("POST", "/v1/client-messages/generate", {
+      clientId,
+      programId,
+      week: 2,
+      providerId: "mock",
+    });
+    expect(unlogged.status).toBe(422);
+    expect(unlogged.body.error).toBe("week 2 has no logged sessions");
+  });
+
+  test("approve stores edited text as finalText; copy source is finalText", async () => {
+    const edited = await call("POST", `/v1/client-messages/${editedGenId}/approve`, {
+      text: `  Edited final text — strong week.  `,
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.status).toBe("approved");
+    expect(edited.body.finalText).toBe("Edited final text — strong week.");
+
+    const asIs = await call("POST", `/v1/client-messages/${asIsGenId}/approve`, {});
+    expect(asIs.status).toBe(200);
+    expect(asIs.body.finalText).toBe(asIs.body.draft.message);
+  });
+
+  test("approve guards 409/422; reject marks discarded; list filters by clientId", async () => {
+    // approving an already-approved row → 409
+    const reApprove = await call("POST", `/v1/client-messages/${editedGenId}/approve`, {});
+    expect(reApprove.status).toBe(409);
+    expect(reApprove.body.error).toBe("client message is approved, not validated");
+
+    // unknown id → 404
+    const missing = await call("POST", "/v1/client-messages/00000000-0000-0000-0000-000000000000/approve", {});
+    expect(missing.status).toBe(404);
+    expect(missing.body.error).toBe("client message not found");
+
+    // whitespace-only text → 422
+    const fresh = await call("POST", "/v1/client-messages/generate", {
+      clientId,
+      programId,
+      week: 1,
+      providerId: "mock",
+    });
+    const blank = await call("POST", `/v1/client-messages/${fresh.body.id}/approve`, { text: "   " });
+    expect(blank.status).toBe(422);
+    expect(blank.body.error).toBe("text must not be empty");
+
+    // reject → discarded
+    const rejected = await call("POST", `/v1/client-messages/${fresh.body.id}/reject`, {});
+    expect(rejected.status).toBe(200);
+    expect(rejected.body.status).toBe("rejected");
+    expect(rejected.body.finalText).toBeNull();
+
+    // list newest-first, filtered by clientId
+    const mine = await call("GET", `/v1/client-messages/?clientId=${clientId}`);
+    expect(mine.status).toBe(200);
+    expect(mine.body.length).toBe(3);
+    expect(new Date(mine.body[0].createdAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(mine.body[1].createdAt).getTime()
+    );
+
+    const others = await call("GET", `/v1/client-messages/?clientId=${otherClientId}`);
+    expect(others.body).toEqual([]);
+
+    // single fetch + 404
+    const one = await call("GET", `/v1/client-messages/${editedGenId}`);
+    expect(one.body.id).toBe(editedGenId);
+    const none = await call("GET", "/v1/client-messages/00000000-0000-0000-0000-000000000000");
+    expect(none.status).toBe(404);
+    expect(none.body.error).toBe("client message not found");
+  });
+});

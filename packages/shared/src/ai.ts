@@ -198,3 +198,16 @@ export function mockReviseDraft(previous: AiProgramDraft, message: string): AiPr
   next.rationale = `${previous.rationale}\n\nRevision: ${message}`;
   return next;
 }
+
+// ---------------------------------------------------------------------------
+// AI client message draft
+// ---------------------------------------------------------------------------
+
+/** Hard cap for a client-facing message — LINE-sized. */
+export const CLIENT_MESSAGE_MAX_CHARS = 1200;
+
+/** Structured output of the "draft client message" call — the only shape accepted. */
+export const AiClientMessageDraft = z.object({
+  message: z.string().min(1).max(CLIENT_MESSAGE_MAX_CHARS),
+});
+export type AiClientMessageDraft = z.infer<typeof AiClientMessageDraft>;

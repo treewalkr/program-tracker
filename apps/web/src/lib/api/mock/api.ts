@@ -10,12 +10,14 @@ import {
   ProgramWeeksDocument,
   sortExercisesByRole,
   stampWeeks,
+  weekSummary,
 } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
   ChainWeekDto,
   ClientDto,
+  ClientMessageDto,
   ExerciseDto,
   GenerationDto,
   HistoryEntryDto,
@@ -90,6 +92,7 @@ const state = {
   schemes: [...seedSchemes],
   chains: seedChains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] })),
   generations: [] as GenerationDto[],
+  clientMessages: [] as ClientMessageDto[],
 };
 
 const nameOf = (exerciseId: string) =>
@@ -203,6 +206,31 @@ function genericDraft(): AiDraftDto {
     clientSummary: "Same split, small jumps on the main lifts.",
     sessions: [{ name: "Day 1", exercises: [{ exerciseId: "ex-squat", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }] }] }],
   };
+}
+
+/** Deterministic client-message draft from the computed stats — the web mock
+ *  never imports @pt/api; the template lives here. */
+function cannedClientMessage(stats: NonNullable<ClientMessageDto["stats"]>): string {
+  const lines: string[] = [];
+  lines.push(
+    `Great week — ${stats.sessionsLogged} sessions logged, ${stats.overallVolume}kg lifted over ${stats.sets} working sets.`
+  );
+  if (stats.prs.length > 0) {
+    const pr = stats.prs[0];
+    lines.push(
+      `Standout: ${pr.exerciseName} at ${pr.weightKg}kg for ${pr.reps} — your best on that lift this block.`
+    );
+  } else {
+    lines.push(`Showing up every session is exactly what keeps this moving.`);
+  }
+  if (stats.nextWeek) {
+    lines.push(
+      `Next week we keep building (${stats.nextWeek.directive ?? "same rhythm"}) — recover well and I'll see you then.`
+    );
+  } else {
+    lines.push(`That's the block done — proud of how you finished it. Next program coming your way.`);
+  }
+  return lines.join("\n");
 }
 
 export const mockApi: TrainerApi = {
@@ -647,6 +675,86 @@ export const mockApi: TrainerApi = {
     const gen = state.generations.find((g) => g.id === id);
     if (gen) gen.status = "rejected";
     return gen!;
+  },
+
+  async generateClientMessage(input) {
+    await delay(800);
+    const client = state.clients.find((c) => c.id === input.clientId);
+    if (!client) throw new Error("client not found");
+    const program = state.programs.find((p) => p.id === input.programId);
+    if (!program) throw new Error("program not found");
+    if (program.clientId !== input.clientId) {
+      throw new Error("program does not belong to client");
+    }
+    const clientLogs = state.logs
+      .filter((l) => l.clientId === input.clientId)
+      .map((l) => ({
+        programId: l.programId,
+        date: l.date,
+        kind: l.kind,
+        cardio: l.cardio ?? null,
+        sets: l.sets,
+      }));
+    const stats = weekSummary({
+      program,
+      logs: clientLogs,
+      week: input.week,
+      catalog: exercises.map((e) => ({ id: e.id, name: e.name })),
+    });
+    if (!stats) throw new Error(`week ${input.week} has no logged sessions`);
+
+    const message = cannedClientMessage(stats);
+    const row: ClientMessageDto = {
+      id: uuid(),
+      clientId: input.clientId,
+      programId: input.programId,
+      week: input.week,
+      providerId: input.providerId ?? "mock",
+      model: "mock-draft-v1",
+      status: "validated",
+      draft: { message },
+      stats,
+      finalText: null,
+      error: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.clientMessages.unshift(row);
+    return structuredClone(row);
+  },
+
+  async clientMessages(clientId) {
+    await delay(200);
+    return state.clientMessages
+      .filter((m) => m.clientId === clientId)
+      .map((m) => structuredClone(m));
+  },
+
+  async clientMessage(id) {
+    const row = state.clientMessages.find((m) => m.id === id);
+    if (!row) throw new Error("client message not found");
+    return structuredClone(row);
+  },
+
+  async approveClientMessage(id, text) {
+    await delay(400);
+    const row = state.clientMessages.find((m) => m.id === id);
+    if (!row) throw new Error("client message not found");
+    if (row.status !== "validated") {
+      throw new Error(`client message is ${row.status}, not validated`);
+    }
+    if (!row.draft) throw new Error("client message has no draft");
+    if (text !== undefined && !text.trim()) throw new Error("text must not be empty");
+    row.status = "approved";
+    row.finalText = (text ?? row.draft.message).trim();
+    return structuredClone(row);
+  },
+
+  async rejectClientMessage(id) {
+    await delay(300);
+    const row = state.clientMessages.find((m) => m.id === id);
+    if (!row) throw new Error("client message not found");
+    row.status = "rejected";
+    return structuredClone(row);
   },
 
   /** Same shared rule engine the API runs — over the in-memory fixtures. */

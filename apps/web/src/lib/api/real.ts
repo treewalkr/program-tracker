@@ -1,5 +1,6 @@
 import type {
   ChainWeekDto,
+  ClientMessageDto,
   ClientDto,
   ExerciseDto,
   GenerationDto,
@@ -107,6 +108,18 @@ export const realApi: TrainerApi = {
     unwrap<GenerationDto>(client.v1.ai.generations({ id }).revise.post({ message })),
   approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),
   rejectGeneration: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).reject.post()),
+
+  generateClientMessage: (input) =>
+    unwrap<ClientMessageDto>(client.v1["client-messages"].generate.post(input)),
+  clientMessages: (clientId) =>
+    unwrap<ClientMessageDto[]>(client.v1["client-messages"].get({ query: { clientId } })),
+  clientMessage: (id) => unwrap<ClientMessageDto>(client.v1["client-messages"]({ id }).get()),
+  approveClientMessage: (id, text) =>
+    unwrap<ClientMessageDto>(
+      client.v1["client-messages"]({ id }).approve.post(text !== undefined ? { text } : {})
+    ),
+  rejectClientMessage: (id) =>
+    unwrap<ClientMessageDto>(client.v1["client-messages"]({ id }).reject.post()),
 
   chains: async () => {
     const res = await unwrap<{

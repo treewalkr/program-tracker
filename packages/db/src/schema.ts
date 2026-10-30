@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type {
+  AiClientMessageDraft,
   AiProgramDraft,
   CardioLog,
   CardioTarget,
@@ -27,6 +28,7 @@ import type {
   SessionKind,
   SetType,
   WeekPlan,
+  WeekSummaryStats,
 } from "@pt/shared";
 
 // ---------------------------------------------------------------------------
@@ -254,3 +256,30 @@ export type PeriodizationSchemeRow = typeof periodizationSchemes.$inferSelect;
 export type SignalSnoozeRow = typeof signalSnoozes.$inferSelect;
 export type SignalOutboxRow = typeof signalOutbox.$inferSelect;
 export type KineticChainRow = typeof kineticChains.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Client-facing weekly messages — AI-drafted, trainer-approved, copy-to-LINE
+// ---------------------------------------------------------------------------
+
+export const clientMessages = pgTable("client_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  programId: uuid("program_id").references(() => programs.id, { onDelete: "set null" }),
+  week: integer("week").notNull(),
+  providerId: text("provider_id").notNull(),
+  model: text("model").notNull(),
+  status: text("status").$type<GenerationStatus>().notNull().default("pending"),
+  draft: jsonb("draft").$type<AiClientMessageDraft>(),
+  /** Deterministic stats snapshot the prompt was built from. */
+  stats: jsonb("stats").$type<WeekSummaryStats>(),
+  /** Final trainer-approved text (set on approve). */
+  finalText: text("final_text"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ClientMessageRow = typeof clientMessages.$inferSelect;

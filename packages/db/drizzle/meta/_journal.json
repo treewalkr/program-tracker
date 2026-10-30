@@ -71,6 +71,13 @@
       "when": 1793398879018,
       "tag": "0009_left_hairball",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793400155021,
+      "tag": "0012_client_messages",
+      "breakpoints": true
     }
   ]
 }

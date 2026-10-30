@@ -8,6 +8,7 @@ import {
   pulseSummary,
   weekOf,
   weekSessions,
+  weekSummary,
   type ChainCatalogEntry,
   type ChainDef,
   type ProgramWeek,
@@ -347,5 +348,160 @@ describe("blockPulse & pulseSummary", () => {
     const nowCreated = new Date("2026-10-03T00:00:00.000Z").getTime();
     expect(daysIntoBlock(baseProgram, [], nowCreated)).toBe(2);
     expect(weekOf(baseProgram, [], nowCreated)).toBe(1);
+  });
+});
+
+describe("weekSummary", () => {
+  const catalog = [
+    { id: "ex-squat", name: "Back Squat" },
+    { id: "ex-bench", name: "Bench Press" },
+  ];
+  const session = (n: number) => ({
+    id: `s-${n}`,
+    name: `Day ${n}`,
+    order: 0,
+    kind: "lifting" as const,
+    exercises: [],
+  });
+  const summaryProgram: SignalProgram = {
+    id: "prog-s",
+    clientId: "client-1",
+    name: "Summary Block",
+    status: "active",
+    weeks: [
+      { week: 1, days: [{ id: "d1", day: 1, sessions: [session(1), session(2)] }] },
+      { week: 2, days: [{ id: "d2", day: 1, sessions: [session(3), session(4), session(5)] }] },
+    ],
+    createdAt: "2026-09-30T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+    phasing: {
+      plannedWeeks: 3,
+      phase: "accumulation",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume" },
+        { week: 3, directive: "+intensity", target: { metric: "intensity", deltaPercent: 2.5 } },
+      ],
+    },
+  };
+  const L = (date: string, sets: SignalLog["sets"], programId = "prog-s"): SignalLog => ({
+    programId,
+    date,
+    sets,
+  });
+
+  test("weekSummary buckets logs by block week and computes volume, sets, avgRpe, bestE1rm", () => {
+    const logs: SignalLog[] = [
+      // Week 1 (2026-10-01 .. 2026-10-07): 1300kg, 3 working sets, avg RPE 8
+      L("2026-10-02", [
+        { exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5, rpe: 8 },
+        { exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5, rpe: 8 },
+        { exerciseId: "ex-bench", type: "working", weightKg: 60, reps: 5 },
+        { exerciseId: "ex-squat", type: "backoff", weightKg: 80, reps: 5 },
+      ]),
+      // Week 2 (2026-10-08 .. 2026-10-14): 950kg, 2 sets, avg RPE 9
+      L("2026-10-09", [
+        { exerciseId: "ex-squat", type: "working", weightKg: 110, reps: 5 },
+        { exerciseId: "ex-bench", type: "working", weightKg: 80, reps: 5, rpe: 9 },
+      ]),
+    ];
+
+    const w1 = weekSummary({ program: summaryProgram, logs, week: 1, catalog })!;
+    expect(w1.weekStart).toBe("2026-10-01");
+    expect(w1.sessionsLogged).toBe(1);
+    expect(w1.overallVolume).toBe(1300);
+    expect(w1.sets).toBe(3);
+    expect(w1.avgRpe).toBe(8);
+    expect(w1.bestE1rm).toBe(116.7); // squat 100×5
+    expect(w1.overallVolumeDelta).toBeNull(); // week 1 has no previous week
+
+    const w2 = weekSummary({ program: summaryProgram, logs, week: 2, catalog })!;
+    expect(w2.weekStart).toBe("2026-10-08");
+    expect(w2.overallVolume).toBe(950);
+    expect(w2.sets).toBe(2);
+    expect(w2.avgRpe).toBe(9);
+    expect(w2.bestE1rm).toBe(128.3); // squat 110×5
+    expect(w2.overallVolumeDelta).toBe(-27); // (950 - 1300) / 1300
+  });
+
+  test("weekSummary flags PRs only when this week beats a prior week's best in the same program", () => {
+    const logs: SignalLog[] = [
+      // Week 1: squat 100×5 (e1RM 116.7) — first-ever lift, no PR to beat
+      L("2026-10-02", [
+        { exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5 },
+      ]),
+      // Week 2: squat 105×5 (e1RM 122.5) — beats 116.7 → PR
+      L("2026-10-09", [
+        { exerciseId: "ex-squat", type: "working", weightKg: 105, reps: 5 },
+      ]),
+      // Week 3: squat 95×5 (e1RM 110.8) — regress, no PR
+      L("2026-10-16", [
+        { exerciseId: "ex-squat", type: "working", weightKg: 95, reps: 5 },
+      ]),
+      // Same exercise, another program — must not count as prior best
+      L("2026-10-04", [
+        { exerciseId: "ex-squat", type: "working", weightKg: 140, reps: 5 },
+      ], "prog-other"),
+    ];
+
+    const w1 = weekSummary({ program: summaryProgram, logs, week: 1, catalog })!;
+    expect(w1.prs).toEqual([]); // nothing beaten
+
+    const w2 = weekSummary({ program: summaryProgram, logs, week: 2, catalog })!;
+    expect(w2.prs).toEqual([
+      {
+        exerciseId: "ex-squat",
+        exerciseName: "Back Squat",
+        weightKg: 105,
+        reps: 5,
+        e1rm: 122.5,
+        prevBest: 116.7,
+      },
+    ]);
+
+    const w3 = weekSummary({ program: summaryProgram, logs, week: 3, catalog })!;
+    expect(w3.prs).toEqual([]); // regress, and other program's logs ignored
+  });
+
+  test("weekSummary computes adherence and nextWeek; null when no logs in window", () => {
+    const logs: SignalLog[] = [
+      // Week 1: 1 of 2 planned sessions → 50%
+      L("2026-10-02", [{ exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5 }]),
+      // Week 2: 3 of 3 planned → 100%
+      L("2026-10-09", [{ exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5 }]),
+      L("2026-10-10", [{ exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5 }]),
+      L("2026-10-11", [{ exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5 }]),
+    ];
+
+    const w1 = weekSummary({ program: summaryProgram, logs, week: 1, catalog })!;
+    expect(w1.sessionsPlanned).toBe(2);
+    expect(w1.adherencePct).toBe(50);
+    expect(w1.nextWeek).toEqual({ week: 2, directive: "+volume", target: null });
+
+    const w2 = weekSummary({ program: summaryProgram, logs, week: 2, catalog })!;
+    expect(w2.sessionsPlanned).toBe(3);
+    expect(w2.adherencePct).toBe(100);
+    expect(w2.nextWeek).toEqual({
+      week: 3,
+      directive: "+intensity",
+      target: { metric: "intensity", deltaPercent: 2.5 },
+    });
+
+    // Week 3 is logged → beyond the program doc (2 weeks): planned/adherence null,
+    // and phasing has no week 4 entry → nextWeek null.
+    const w3 = weekSummary({
+      program: summaryProgram,
+      logs: [...logs, L("2026-10-16", [{ exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5 }])],
+      week: 3,
+      catalog,
+    })!;
+    expect(w3.sessionsPlanned).toBeNull();
+    expect(w3.adherencePct).toBeNull();
+    expect(w3.nextWeek).toBeNull();
+
+    // Unlogged week → null
+    expect(
+      weekSummary({ program: summaryProgram, logs, week: 3, catalog })
+    ).toBeNull();
   });
 });
