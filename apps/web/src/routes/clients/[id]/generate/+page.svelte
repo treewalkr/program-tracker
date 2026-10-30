@@ -17,7 +17,6 @@
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
-  import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -52,6 +51,8 @@
   let newProgram = $state<ProgramDto | null>(null);
   let approving = $state(false);
   let rejecting = $state(false);
+  let rejectOpen = $state(false);
+  let rejectReason = $state("");
   let startedAtIso = $state("");
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -241,7 +242,8 @@
     if (!gen) return;
     rejecting = true;
     try {
-      gen = await api.rejectGeneration(gen.id);
+      gen = await api.rejectGeneration(gen.id, rejectReason.trim() || undefined);
+      rejectOpen = false;
     } finally {
       rejecting = false;
     }
@@ -547,7 +549,7 @@
         </Button>
         <Button href={`/clients/${id}`}>Back to client</Button>
       {:else}
-        <ConfirmButton label="Reject" confirmLabel="Really reject?" variant="danger" onconfirm={reject} disabled={rejecting} />
+        <Button variant="danger" onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
         <Button variant="primary" onclick={approve} disabled={approving}>
           {#snippet icon()}<Icon name="check" />{/snippet}
           {approving ? "Approving…" : "Approve as draft program"}
@@ -555,6 +557,26 @@
       {/if}
     </div>
   </div>
+
+  {#if rejectOpen && gen.status !== "rejected" && !newProgram}
+    <Panel title="Reject this draft">
+      <div class="panel-body">
+        <Field label="Reason (optional)" htmlFor="g-reject-reason">
+          <textarea
+            id="g-reject-reason"
+            rows="2"
+            maxlength="2000"
+            placeholder="Optional — why? It trains future drafts. e.g. Too much volume for a deload week."
+            bind:value={rejectReason}
+          ></textarea>
+        </Field>
+        <div class="head-actions">
+          <Button variant="danger" onclick={reject} disabled={rejecting}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
+          <Button variant="ghost" onclick={() => (rejectOpen = false)}>Cancel</Button>
+        </div>
+      </div>
+    </Panel>
+  {/if}
 
   {#if newProgram}
     {#if gen.kind === "week"}
