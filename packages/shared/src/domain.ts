@@ -216,6 +216,7 @@ export type ClientStatus = z.infer<typeof ClientStatus>;
 /** Weekly cardio target units — one fixed progress formula per unit (cardio.ts). */
 export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "zone_minutes"] as const;
 export const CardioTargetUnit = z.enum(CARDIO_TARGET_UNITS);
+export type CardioTargetUnit = z.infer<typeof CardioTargetUnit>;
 export const CardioTarget = z.object({
   unit: CardioTargetUnit,
   value: z.number().int().min(1).max(10000),
