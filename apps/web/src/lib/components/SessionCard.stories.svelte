@@ -37,11 +37,18 @@
     { name: 'Back Squat', sets: working(5, 3, 140, 8) },
     { name: 'Romanian Deadlift', sets: working(8, 3, 100) },
   ];
+
+  const patternSession = [
+    { name: 'Bench Press', role: 'primary' as ExerciseRole, movementPattern: 'horizontal_push', sets: working(5, 4, 80, 8) },
+    { name: 'Barbell Row', role: 'strength' as ExerciseRole, movementPattern: 'horizontal_pull', sets: working(8, 3, 70, 7) },
+    { name: 'Untagged Drill', role: 'accessory' as ExerciseRole, sets: working(12, 3, 20) },
+  ];
 </script>
 
-{#snippet template(args: { name: string; when?: string; conditioning?: { label: string; detail?: string | null } | null; exercises: { name: string; role?: ExerciseRole; sets: PrescribedSetDto[] }[] })}
+{#snippet template(args: { name: string; when?: string; conditioning?: { label: string; detail?: string | null } | null; exercises: { name: string; role?: ExerciseRole; movementPattern?: string | null; sets: PrescribedSetDto[] }[] })}
   <SessionCard {...args} />
 {/snippet}
 
 <Story name="Upper day" {template} args={{ name: 'Day 1 — Upper', when: 'Thursday · due today', exercises: upper }} />
 <Story name="Lower day with cardio (no roles, older program)" {template} args={{ name: 'Day 2 — Lower', exercises: lower, conditioning: { label: 'Zone 2', detail: '40 min steady on the bike' } }} />
+<Story name="With movement patterns & balance" {template} args={{ name: 'Day 3 — Pattern balance', exercises: patternSession }} />

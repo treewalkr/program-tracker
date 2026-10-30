@@ -3,7 +3,14 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { fmtDuration } from "$lib/format";
-  import { EXERCISE_ROLE_INFO, EXERCISE_ROLES } from "@pt/shared";
+  import {
+    EXERCISE_ROLE_INFO,
+    EXERCISE_ROLES,
+    formatPatternBalance,
+    MOVEMENT_PATTERN_INFO,
+    type MovementPattern,
+    patternBalance,
+  } from "@pt/shared";
   import type { ExerciseRole } from "@pt/shared";
   import type { ExerciseDto, ProgramDto } from "$lib/api/types";
   import RoleChip from "$lib/components/RoleChip.svelte";
@@ -18,6 +25,7 @@
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
+  const catalogById = $derived(new Map(catalog.map((e) => [e.id, e])));
   let editing = $state(false);
   let saving = $state(false);
   let savedAt = $state<string | null>(null);
@@ -150,12 +158,23 @@
     <p class="hint">Editing bumps the version on save. Weights stay as prescribed — clients log actuals.</p>
   {/if}
 
+  {@const weekExercises = program.sessions.flatMap((s) =>
+    s.exercises.map((e) => ({ movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null }))
+  )}
+  <p class="hint">Week balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
+
   <div class="sessions-grid" class:editing>
     {#each program.sessions as s, si (s.id)}
       <section class="panel">
         <div class="panel-head">
           <h2>{s.name}</h2>
           {#if !editing && s.conditioning}<span class="cond-chip" title={`${s.conditioning.label} — ${s.conditioning.detail}`}><Icon name="pulse" />{s.conditioning.label} · {s.conditioning.detail}</span>{/if}
+          {#if !editing}
+            {@const sessionExercises = s.exercises.map((e) => ({
+              movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
+            }))}
+            <span class="subtle">{formatPatternBalance(patternBalance(sessionExercises))}</span>
+          {/if}
           <span class="subtle">{s.exercises.length} exercises</span>
         </div>
         {#if editing}
@@ -218,6 +237,10 @@
                 <div class="exhead">
                   {#if e.role}<RoleChip role={e.role} />{/if}
                   <strong>{e.exerciseName}</strong>
+                  {#if catalogById.get(e.exerciseId)?.movementPattern && catalogById.get(e.exerciseId)!.movementPattern! in MOVEMENT_PATTERN_INFO}
+                    {@const p = catalogById.get(e.exerciseId)!.movementPattern as MovementPattern}
+                    <span class="mp-tag" title={MOVEMENT_PATTERN_INFO[p].description}>{MOVEMENT_PATTERN_INFO[p].label}</span>
+                  {/if}
                   {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
                 </div>
               {/if}
@@ -298,6 +321,18 @@
   }
   .setno { width: 18px; text-align: right; color: var(--faint); }
 
+  .mp-tag {
+    display: inline-flex;
+    align-items: center;
+    font: 500 11px/1 var(--font-ui);
+    padding: 1px 6px;
+    border-radius: 99px;
+    border: 1px solid var(--line);
+    background: var(--well);
+    color: var(--muted);
+    white-space: nowrap;
+    margin-left: 6px;
+  }
   .ctrl { display: inline-flex; align-items: center; gap: 4px; }
   .ctrl.kg { min-width: 86px; }
   .kgv { font-weight: 600; }

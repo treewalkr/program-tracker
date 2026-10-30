@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
-  import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
+  import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS, revisionChain } from "$lib/generation";
   import { diffSources, draftToDiffSource, programToDiffSource, type DiffRow } from "$lib/draftDiff";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -29,6 +29,7 @@
 
   let client = $state<ClientDto | null>(null);
   let current = $state<ProgramDto | null>(null);
+  let catalogById = $state(new Map<string, ExerciseDto>());
   let providers = $state<ProviderDto[]>([]);
   let providerId = $state("zai");
   let model = $state("");
@@ -266,7 +267,8 @@
   }
 
   onMount(async () => {
-    const detail = await api.client(id);
+    const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
+    catalogById = new Map(exList.map((e) => [e.id, e]));
     client = detail.client;
     current = detail.currentProgram;
     providers = (await api.providers()).filter((p) => p.configured);
@@ -534,7 +536,12 @@
             <!-- approve sorts by role, so review shows the order that will be saved -->
             <SessionCard
               name={s.name}
-              exercises={sortExercisesByRole(s.exercises).map((e) => ({ name: draftName(e), role: e.role, sets: e.prescribedSets }))}
+              exercises={sortExercisesByRole(s.exercises).map((e) => ({
+                name: draftName(e),
+                role: e.role,
+                movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
+                sets: e.prescribedSets,
+              }))}
             />
           {/each}
         </Panel>

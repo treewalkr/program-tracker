@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ClientDto, GenerationDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
+  import type { ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -31,6 +31,7 @@
   let latestGen = $state<GenerationDto | null>(null);
   let saving = $state(false);
   let form = $state({ goals: "", limitations: "", daysPerWeek: 3, trainingDays: [] as number[] });
+  let catalogById = $state(new Map<string, ExerciseDto>());
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
   let pulseWeek = $state(0);
@@ -86,7 +87,8 @@
     return parts.join(" · ");
   });
   async function load() {
-    const detail = await api.client(id);
+    const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
+    catalogById = new Map(exList.map((e) => [e.id, e]));
     const cur = detail.currentProgram;
     client = detail.client;
     current = cur;
@@ -226,7 +228,12 @@
                 name={s.name}
                 when={dayNum ? `${DAY_NAMES[dayNum - 1]}${dayNum === todayNum && !loggedDates.has(todayStr) ? " · due today" : ""}` : undefined}
                 conditioning={s.conditioning}
-                exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", role: e.role, sets: e.prescribedSets }))}
+                exercises={s.exercises.map((e) => ({
+                  name: e.exerciseName ?? "",
+                  role: e.role,
+                  movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
+                  sets: e.prescribedSets,
+                }))}
               />
             {/each}
             <p class="legend">RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
