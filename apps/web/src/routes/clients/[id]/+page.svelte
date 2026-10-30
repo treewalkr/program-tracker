@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
+  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -29,6 +29,7 @@
   let programs = $state<ProgramDto[] | null>(null);
   let historyEntries = $state<HistoryEntryDto[] | null>(null);
   let latestGen = $state<GenerationDto | null>(null);
+  let chainWeekData = $state<ChainWeekDto | null>(null);
   let saving = $state(false);
   let form = $state({ goals: "", limitations: "", daysPerWeek: 3, trainingDays: [] as number[] });
   let catalogById = $state(new Map<string, ExerciseDto>());
@@ -70,6 +71,7 @@
   const fmtTonnage = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
   const doneWeeks = $derived(pulse.filter((w) => !w.plannedOnly && w.tonnage > 0));
   const maxTonnage = $derived(Math.max(...doneWeeks.map((w) => w.tonnage), 1));
+  const maxChainSets = $derived(Math.max(...(chainWeekData?.chains.map((c) => c.sets) ?? [0]), 1));
   const heatLevel = (w: WeekMetrics) => (w.plannedOnly ? 0 : Math.max(1, Math.ceil((4 * w.tonnage) / maxTonnage)));
   const pulseSummary = $derived.by(() => {
     if (doneWeeks.length < 2) return "";
@@ -87,8 +89,13 @@
     return parts.join(" · ");
   });
   async function load() {
-    const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
+    const [detail, exList, cw] = await Promise.all([
+      api.client(id),
+      api.exercises(),
+      api.chainWeek(id).catch(() => null),
+    ]);
     catalogById = new Map(exList.map((e) => [e.id, e]));
+    chainWeekData = cw;
     const cur = detail.currentProgram;
     client = detail.client;
     current = cur;
@@ -281,50 +288,78 @@
       </div>
     </div>
   {:else if tab === "pulse"}
-    <Panel title="Block pulse" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
-      {#snippet act()}
-        {#if doneWeeks.length > 1}
-          <div class="heat" aria-label={`Weekly tonnage ${fmtTonnage(doneWeeks[0].tonnage)} to ${fmtTonnage(maxTonnage)}`}>
-            <span class="heat-l">tonnage</span>
-            {#each pulse as w (w.week)}
-              {@const l = heatLevel(w)}
-              <i class="h{l}" aria-hidden="true"></i>
-            {/each}
+    <div class="pulse-stack">
+      <Panel title="Block pulse" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
+        {#snippet act()}
+          {#if doneWeeks.length > 1}
+            <div class="heat" aria-label={`Weekly tonnage ${fmtTonnage(doneWeeks[0].tonnage)} to ${fmtTonnage(maxTonnage)}`}>
+              <span class="heat-l">tonnage</span>
+              {#each pulse as w (w.week)}
+                {@const l = heatLevel(w)}
+                <i class="h{l}" aria-hidden="true"></i>
+              {/each}
+            </div>
+          {/if}
+        {/snippet}
+        {#if doneWeeks.length > 0}
+          <div class="chart">
+            <PulseChart weeks={pulse} pulseWeek={pulseWeek} />
           </div>
         {/if}
-      {/snippet}
-      {#if doneWeeks.length > 0}
-        <div class="chart">
-          <PulseChart weeks={pulse} pulseWeek={pulseWeek} />
+        <div class="table-wrap">
+          <table class="sheet">
+            <thead><tr><th class="r">Wk</th><th>Directive</th><th class="r">Tonnage</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
+            <tbody>
+              {#each pulse as w (w.week)}
+                <tr class:pulse-now={w.week === pulseWeek} class:pulse-future={w.plannedOnly}>
+                  <td class="r">{w.week}</td>
+                  <td>
+                    {#if w.directive}<DirChip directive={w.directive}>{w.directive}</DirChip>{:else}<span class="subtle">—</span>{/if}
+                  </td>
+                  <td class="r">
+                    {#if w.plannedOnly}<span class="subtle">{fmtTonnage(w.tonnage)} plan</span>{:else if w.tonnage > 0}{fmtTonnage(w.tonnage)}{:else}—{/if}
+                    {#if w.tonnageDelta != null && w.tonnage > 0}<span class="delta {w.tonnageDelta < 0 ? 'down' : 'up'}">{w.tonnageDelta >= 0 ? "+" : ""}{w.tonnageDelta}%</span>{/if}
+                  </td>
+                  <td class="r">{#if w.plannedOnly}<span class="subtle">{w.sets}</span>{:else}{w.sets}{/if}</td>
+                  <td class="r">{w.avgRpe ?? "—"}</td>
+                  <td class="r">
+                    {w.bestE1rm > 0 ? `${Math.round(w.bestE1rm)} kg` : "—"}
+                    {#if w.e1rmDelta != null && w.bestE1rm > 0}<span class="delta {w.e1rmDelta < 0 ? 'down' : 'up'}">{w.e1rmDelta >= 0 ? "+" : ""}{w.e1rmDelta}%</span>{/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
         </div>
-      {/if}
-      <div class="table-wrap">
-        <table class="sheet">
-          <thead><tr><th class="r">Wk</th><th>Directive</th><th class="r">Tonnage</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
-          <tbody>
-            {#each pulse as w (w.week)}
-              <tr class:pulse-now={w.week === pulseWeek} class:pulse-future={w.plannedOnly}>
-                <td class="r">{w.week}</td>
-                <td>
-                  {#if w.directive}<DirChip directive={w.directive}>{w.directive}</DirChip>{:else}<span class="subtle">—</span>{/if}
-                </td>
-                <td class="r">
-                  {#if w.plannedOnly}<span class="subtle">{fmtTonnage(w.tonnage)} plan</span>{:else if w.tonnage > 0}{fmtTonnage(w.tonnage)}{:else}—{/if}
-                  {#if w.tonnageDelta != null && w.tonnage > 0}<span class="delta {w.tonnageDelta < 0 ? 'down' : 'up'}">{w.tonnageDelta >= 0 ? "+" : ""}{w.tonnageDelta}%</span>{/if}
-                </td>
-                <td class="r">{#if w.plannedOnly}<span class="subtle">{w.sets}</span>{:else}{w.sets}{/if}</td>
-                <td class="r">{w.avgRpe ?? "—"}</td>
-                <td class="r">
-                  {w.bestE1rm > 0 ? `${Math.round(w.bestE1rm)} kg` : "—"}
-                  {#if w.e1rmDelta != null && w.bestE1rm > 0}<span class="delta {w.e1rmDelta < 0 ? 'down' : 'up'}">{w.e1rmDelta >= 0 ? "+" : ""}{w.e1rmDelta}%</span>{/if}
-                </td>
-              </tr>
+        {#if pulseSummary}<p class="pulse-sub">{pulseSummary}</p>{/if}
+      </Panel>
+
+      {#if chainWeekData}
+        <Panel title="Chains trained this week" count={`week of ${chainWeekData.weekStart}`}>
+          <div class="chains-list">
+            {#each chainWeekData.chains as c (c.id)}
+              {@const isZero = c.sets === 0}
+              <div class="chain-row" class:muted={isZero}>
+                <div class="chain-info">
+                  <span class="chain-name">{c.name}</span>
+                  {#if isZero}
+                    <span class="chain-status">not trained this week</span>
+                  {:else}
+                    <span class="chain-count">{c.sets} {c.sets === 1 ? "working set" : "working sets"}</span>
+                  {/if}
+                </div>
+                <div class="bar-track">
+                  <div
+                    class="bar-fill"
+                    style:width={`${isZero ? 0 : Math.round((c.sets / maxChainSets) * 100)}%`}
+                  ></div>
+                </div>
+              </div>
             {/each}
-          </tbody>
-        </table>
-      </div>
-      {#if pulseSummary}<p class="pulse-sub">{pulseSummary}</p>{/if}
-    </Panel>
+          </div>
+        </Panel>
+      {/if}
+    </div>
   {:else if tab === "history"}
     <Panel title="Progress · 8 weeks" count="est. 1RM · Epley" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
       {#if historyEntries !== null && historyEntries.length > 0}
@@ -455,6 +490,18 @@
   .pulse-now td { background: var(--pulse-now-bg); }
   .pulse-future td { color: var(--faint); }
   .pulse-sub { font: 400 13px/1.5 var(--font-ui); color: var(--muted); margin: 0; padding: 8px 16px 12px; }
+  .pulse-stack { display: flex; flex-direction: column; gap: 16px; }
+  .chains-list { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .chain-row { display: flex; flex-direction: column; gap: 6px; }
+  .chain-row.muted { opacity: 0.6; }
+  .chain-info { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+  .chain-name { font-weight: 500; color: var(--ink); }
+  .chain-row.muted .chain-name { color: var(--muted); }
+  .chain-count { color: var(--muted); font-size: 12.5px; }
+  .chain-status { color: var(--faint); font-style: italic; font-size: 12px; }
+  .bar-track { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; width: 100%; }
+  .bar-fill { height: 100%; background: var(--primary, #0969da); border-radius: 4px; transition: width 0.2s ease; }
+  .chain-row.muted .bar-fill { background: transparent; }
   .chart { padding: 14px 16px 0; border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; }
 
   .table-wrap { overflow-x: auto; }
