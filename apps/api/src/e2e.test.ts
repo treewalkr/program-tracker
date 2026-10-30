@@ -521,3 +521,135 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
     expect(body.issues).toBeDefined();
   });
 });
+
+describe.skipIf(!dbUp)("kinetic chains", () => {
+  test("GET /v1/chains seeds the five chains", async () => {
+    const { status, body } = await call("GET", "/v1/chains");
+    expect(status).toBe(200);
+    expect(body.chains).toHaveLength(5);
+    expect(body.chains.map((c: any) => c.name)).toEqual([
+      "Intrinsic",
+      "Deep Longitudinal",
+      "Lateral",
+      "Posterior Spiral",
+      "Anterior Spiral",
+    ]);
+    for (const c of body.chains) {
+      expect(c.muscleGroups.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("PUT /v1/chains/:id updates muscle groups", async () => {
+    const listRes = await call("GET", "/v1/chains");
+    const target = listRes.body.chains[0];
+    const putRes = await call("PUT", `/v1/chains/${target.id}`, {
+      muscleGroups: ["back", "biceps"],
+    });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.muscleGroups).toEqual(["back", "biceps"]);
+    expect(putRes.body.name).toBe(target.name);
+
+    const followUp = await call("GET", "/v1/chains");
+    const reloaded = followUp.body.chains.find((c: any) => c.id === target.id);
+    expect(reloaded.muscleGroups).toEqual(["back", "biceps"]);
+  });
+
+  test("PUT rejects invalid body and unknown id", async () => {
+    const listRes = await call("GET", "/v1/chains");
+    const target = listRes.body.chains[0];
+    const emptyRes = await call("PUT", `/v1/chains/${target.id}`, {
+      muscleGroups: [],
+    });
+    expect(emptyRes.status).toBe(422);
+    expect(emptyRes.body.error).toBe("invalid chain");
+
+    const cardioRes = await call("PUT", `/v1/chains/${target.id}`, {
+      muscleGroups: ["cardio"],
+    });
+    expect(cardioRes.status).toBe(422);
+    expect(cardioRes.body.error).toBe("invalid chain");
+
+    const unknownRes = await call("PUT", `/v1/chains/${crypto.randomUUID()}`, {
+      muscleGroups: ["back"],
+    });
+    expect(unknownRes.status).toBe(404);
+    expect(unknownRes.body.error).toBe("chain not found");
+  });
+
+  test("GET /v1/chains/week counts working sets", async () => {
+    const badClient = await call("GET", "/v1/chains/week?clientId=not-a-uuid");
+    expect(badClient.status).toBe(422);
+
+    const clientRes = await call("POST", "/v1/clients", {
+      name: "Chains Week Client",
+      email: `chains-${Date.now()}@test.dev`,
+      goals: "hypertrophy",
+      daysPerWeek: 3,
+    });
+    const cId = clientRes.body.id;
+
+    const exRes = await call("POST", "/v1/exercises", {
+      name: `Chains Test Squat ${Date.now()}`,
+      primaryMuscleGroup: "quads",
+      secondaryMuscleGroups: ["glutes"],
+      equipment: "barbell",
+    });
+    const exerciseId = exRes.body.id;
+
+    const progRes = await call("POST", "/v1/programs", {
+      clientId: cId,
+      name: "Chains Test Program",
+      sessions: [
+        {
+          id: crypto.randomUUID(),
+          name: "Day 1",
+          order: 0,
+          exercises: [
+            {
+              id: crypto.randomUUID(),
+              exerciseId,
+              order: 0,
+              prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(progRes.status).toBe(201);
+    const pId = progRes.body.id;
+    await call("PATCH", `/v1/programs/${pId}/status`, { status: "active" });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const logRes = await call("POST", "/v1/logs/sessions", {
+      clientId: cId,
+      programId: pId,
+      date: today,
+      sets: [
+        { exerciseId, setNumber: 1, type: "working", reps: 5 },
+        { exerciseId, setNumber: 2, type: "working", reps: 5 },
+        { exerciseId, setNumber: 3, type: "working", reps: 5 },
+        { exerciseId, setNumber: 4, type: "backoff", reps: 10 },
+      ],
+    });
+    expect(logRes.status).toBe(201);
+
+    const weekRes = await call("GET", `/v1/chains/week?clientId=${cId}`);
+    expect(weekRes.status).toBe(200);
+
+    const d = new Date();
+    const dayOffset = (d.getDay() + 6) % 7;
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dayOffset);
+    const expectedMonday = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    expect(weekRes.body.weekStart).toBe(expectedMonday);
+
+    for (const c of weekRes.body.chains) {
+      const hasOverlap = c.muscleGroups.some((g: string) => g === "quads" || g === "glutes");
+      if (hasOverlap) {
+        expect(c.sets).toBe(3);
+      } else {
+        expect(c.sets).toBe(0);
+      }
+    }
+  });
+});
+

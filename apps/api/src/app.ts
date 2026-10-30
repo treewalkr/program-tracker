@@ -9,6 +9,7 @@ import { programRoutes } from "./routes/programs";
 import { logRoutes } from "./routes/logs";
 import { exerciseRoutes } from "./routes/exercises";
 import { schemeRoutes } from "./routes/schemes";
+import { chainRoutes } from "./routes/chains";
 import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
 
@@ -26,6 +27,7 @@ const TAGS = [
   { name: "logs", description: "Session logging and history aggregation" },
   { name: "exercises", description: "Exercise catalog" },
   { name: "schemes", description: "Periodization scheme library" },
+  { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
 ];
 
@@ -85,6 +87,7 @@ export const app = new Elysia()
   .use(logRoutes)
   .use(exerciseRoutes)
   .use(schemeRoutes)
+  .use(chainRoutes)
   .use(promptTemplateRoutes)
   .use(notificationRoutes);
 
