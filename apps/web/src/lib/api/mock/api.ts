@@ -1,12 +1,22 @@
-import { computeSignals, estimate1rm, mockReviseDraft, sortExercisesByRole } from "@pt/shared";
+import {
+  chainSetCounts,
+  computeSignals,
+  estimate1rm,
+  KINETIC_CHAIN_DEFAULTS,
+  KineticChainInput,
+  mockReviseDraft,
+  sortExercisesByRole,
+} from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
+  ChainWeekDto,
   ClientDto,
   ExerciseDto,
   GenerationDto,
   HistoryEntryDto,
   InstructionTemplateDto,
+  KineticChainDto,
   PeriodizationSchemeDto,
   ProgramDto,
   ProgramSessionDto,
@@ -49,6 +59,21 @@ const seedTemplates: InstructionTemplateDto[] = [
   },
 ];
 
+const CHAIN_IDS = [
+  "chain-intrinsic",
+  "chain-deep-longitudinal",
+  "chain-lateral",
+  "chain-posterior-spiral",
+  "chain-anterior-spiral",
+];
+
+const seedChains: KineticChainDto[] = KINETIC_CHAIN_DEFAULTS.map((c, i) => ({
+  id: CHAIN_IDS[i],
+  name: c.name,
+  muscleGroups: [...c.muscleGroups],
+  sortOrder: c.sortOrder,
+}));
+
 /** Mutable in-memory demo state. Reset by reloading the page module. */
 const state = {
   clients: [...seedClients],
@@ -56,6 +81,7 @@ const state = {
   logs: [...seedLogs],
   templates: [...seedTemplates],
   schemes: [...seedSchemes],
+  chains: seedChains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] })),
   generations: [] as GenerationDto[],
 };
 
@@ -554,5 +580,49 @@ export const mockApi: TrainerApi = {
 
   async snoozeSignal(id, until) {
     snoozeUntil(id, until);
+  },
+
+  async chains() {
+    await delay(120);
+    return state.chains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] }));
+  },
+
+  async updateChain(id: string, input: { muscleGroups: string[] }) {
+    await delay(200);
+    const parsed = KineticChainInput.safeParse(input);
+    if (!parsed.success) {
+      throw new Error("invalid chain");
+    }
+    const idx = state.chains.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      throw new Error("chain not found");
+    }
+    const updated: KineticChainDto = {
+      ...state.chains[idx],
+      muscleGroups: [...parsed.data.muscleGroups],
+    };
+    state.chains[idx] = updated;
+    return { ...updated, muscleGroups: [...updated.muscleGroups] };
+  },
+
+  async chainWeek(clientId: string): Promise<ChainWeekDto> {
+    await delay(150);
+    const d = new Date();
+    const dayOffset = (d.getDay() + 6) % 7;
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dayOffset);
+    const weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+
+    const clientLogs = state.logs.filter((l) => l.clientId === clientId && l.date >= weekStart);
+    const counts = chainSetCounts(state.chains, clientLogs, exercises, weekStart);
+
+    return {
+      weekStart,
+      chains: state.chains.map((c) => ({
+        id: c.id,
+        name: c.name,
+        muscleGroups: [...c.muscleGroups],
+        sets: counts[c.id] ?? 0,
+      })),
+    };
   },
 };

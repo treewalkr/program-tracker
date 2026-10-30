@@ -163,6 +163,23 @@ export interface PeriodizationSchemeDto {
   weeks: WeekPlan[];
 }
 
+export interface KineticChainDto {
+  id: string;
+  name: string;
+  muscleGroups: string[];
+  sortOrder: number;
+}
+
+export interface ChainWeekDto {
+  weekStart: string;
+  chains: {
+    id: string;
+    name: string;
+    muscleGroups: string[];
+    sets: number;
+  }[];
+}
+
 export interface TrainerApi {
   providers(): Promise<ProviderDto[]>;
   instructionTemplates(): Promise<InstructionTemplateDto[]>;
@@ -222,4 +239,8 @@ export interface TrainerApi {
   /** Phase-change signals, snooze-filtered (computed by the shared engine). */
   notifications(): Promise<SignalDto[]>;
   snoozeSignal(id: string, until: string): Promise<void>;
+
+  chains(): Promise<KineticChainDto[]>;
+  updateChain(id: string, input: { muscleGroups: string[] }): Promise<KineticChainDto>;
+  chainWeek(clientId: string): Promise<ChainWeekDto>;
 }

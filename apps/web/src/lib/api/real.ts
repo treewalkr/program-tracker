@@ -1,14 +1,16 @@
 import type {
+  ChainWeekDto,
   ClientDto,
   ExerciseDto,
   GenerationDto,
   HistoryEntryDto,
+  InstructionTemplateDto,
+  KineticChainDto,
+  PeriodizationSchemeDto,
   ProgramDto,
   ProviderDto,
   SessionLogDto,
   SessionLogInput,
-  InstructionTemplateDto,
-  PeriodizationSchemeDto,
   SignalDto,
   TrainerApi,
 } from "./types";
@@ -101,4 +103,37 @@ export const realApi: TrainerApi = {
     unwrap<GenerationDto>(client.v1.ai.generations({ id }).revise.post({ message })),
   approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),
   rejectGeneration: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).reject.post()),
+
+  chains: async () => {
+    const res = await unwrap<{
+      chains: (KineticChainDto & {
+        trainerId?: string;
+        createdAt?: string;
+        updatedAt?: string;
+      })[];
+    }>(client.v1.chains.get());
+    return res.chains.map((c) => ({
+      id: c.id,
+      name: c.name,
+      muscleGroups: c.muscleGroups,
+      sortOrder: c.sortOrder,
+    }));
+  },
+  updateChain: async (id, input) => {
+    const row = await unwrap<
+      KineticChainDto & {
+        trainerId?: string;
+        createdAt?: string;
+        updatedAt?: string;
+      }
+    >(client.v1.chains({ id }).put(input));
+    return {
+      id: row.id,
+      name: row.name,
+      muscleGroups: row.muscleGroups,
+      sortOrder: row.sortOrder,
+    };
+  },
+  chainWeek: (clientId) =>
+    unwrap<ChainWeekDto>(client.v1.chains.week.get({ query: { clientId } })),
 };
