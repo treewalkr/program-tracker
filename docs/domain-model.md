@@ -112,10 +112,15 @@ draft ──activate──▶ active ──activate-new──▶ archived
 Logged by the **trainer** in MVP (no client portal):
 
 - `session_logs`: one per workout — client, program, optional link to the prescribed
-  session, date (YYYY-MM-DD), notes, optional `perceivedEnergy` (1–10).
+  session, date (YYYY-MM-DD), `kind` (`lifting` default | `cardio`), notes, optional
+  `perceivedEnergy` (1–10). A cardio row carries its actuals in `cardio`
+  (`modality`, optional `durationMin`/`hrZone`/`intensity`/`distanceKm`/`rpe`) and no
+  sets; a date can hold both a lifting and a cardio row.
 - `set_logs`: one row per set — links to `sessionLogId` + `exerciseId`, optionally
   to `programExerciseId` (which prescribed slot it filled; null = ad-hoc set),
-  weight/reps/rpe/type.
+  weight/reps/rpe/type. Cardio logs never have rows here.
+
+Adherence counts **lifting** logs only — cardio progress has its own target/signal path.
 
 ## History aggregation (AI input + trainer view)
 
@@ -233,3 +238,18 @@ prompt), `daysPerWeek` (1–7; the AI must produce exactly this many sessions),
 `trainingDays` (optional weekday ints 1=Mon…7=Sun — the client's real calendar; drives
 the dashboard week strip and adherence expectations), `status` (active / paused /
 archived).
+
+## Weekly cardio target
+
+`clients.cardioTarget` `{unit, value}` — a standing per-client weekly target, reset
+every ISO calendar week (Monday-start, same window as the chains week and the
+overview grid). Progress is computed on read by the shared pure functions
+(`cardioWeekTotals` / `cardioDone` in `packages/shared/src/cardio.ts`):
+
+- `minutes` = Σ `durationMin` of the week's cardio logs
+- `sessions` = count of cardio logs
+- `zone_minutes` = Σ `durationMin` × `hrZone` (missing zone → ×1)
+
+A `cardio-behind` signal (shared `cardioBehindSignal`) fires when a client with a
+target is under 60% of pro-rata pace (`0.6 × value × weekday/7`) on Thursday or later.
+The AI prompt carries the target so drafts prescribe cardio consistent with it.

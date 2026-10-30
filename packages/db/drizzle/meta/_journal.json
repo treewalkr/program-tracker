@@ -57,6 +57,13 @@
       "when": 1793392699257,
       "tag": "0007_wet_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793397523130,
+      "tag": "0008_modern_kate_bishop",
+      "breakpoints": true
     }
   ]
 }

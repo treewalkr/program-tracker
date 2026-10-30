@@ -1,5 +1,6 @@
 import {
   applyDefaultWeekdays,
+  cardioBehindSignal,
   chainSetCounts,
   computeSignals,
   estimate1rm,
@@ -423,6 +424,8 @@ export const mockApi: TrainerApi = {
         programId: l.programId,
         programSessionId: null,
         date: l.date,
+        kind: l.kind ?? "lifting",
+        cardio: l.cardio ?? null,
         notes: l.notes ?? null,
         perceivedEnergy: l.perceivedEnergy ?? null,
         sets: l.sets.map((s) => ({ ...s })),
@@ -436,6 +439,8 @@ export const mockApi: TrainerApi = {
       clientId: input.clientId,
       programId: input.programId,
       date: input.date,
+      kind: input.kind ?? "lifting",
+      cardio: input.cardio ?? null,
       perceivedEnergy: input.perceivedEnergy,
       notes: input.notes,
       sets: input.sets.map((s) => ({
@@ -600,10 +605,19 @@ export const mockApi: TrainerApi = {
       const current =
         state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
       if (!current) continue;
-      const logs = state.logs
+      const clientLogs = state.logs
         .filter((l) => l.clientId === client.id)
-        .map((l) => ({ programId: l.programId, date: l.date, sets: l.sets }));
-      signals.push(...computeSignals(current, logs, nameOf, client.daysPerWeek));
+        .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, sets: l.sets }));
+      signals.push(...computeSignals(current, clientLogs, nameOf, client.daysPerWeek));
+      if (client.cardioTarget) {
+        const behind = cardioBehindSignal(
+          { programId: current.id, clientId: client.id },
+          client.cardioTarget,
+          clientLogs,
+          Date.now()
+        );
+        if (behind) signals.push(behind);
+      }
     }
     return activeSignals(signals);
   },

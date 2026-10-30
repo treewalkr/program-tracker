@@ -2,6 +2,7 @@
  *  Domain shapes are re-exported from @pt/shared (single source of truth); the
  *  remaining interfaces are the seam contract both adapters are checked against. */
 import type {
+  CardioLog,
   CardioPrescription,
   ExerciseRole as Er,
   Phasing,
@@ -25,6 +26,7 @@ export type ProgramWeekDto = ProgramWeek;
 export type ProgramDayDto = ProgramDay;
 export type CardioPrescriptionDto = CardioPrescription;
 export type SessionKindDto = SessionKind;
+export type CardioLogDto = CardioLog;
 
 export interface ClientDto {
   id: string;
@@ -36,6 +38,8 @@ export interface ClientDto {
   daysPerWeek: number | null;
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. */
   trainingDays?: number[];
+  /** Standing weekly cardio target — null/undefined = none. */
+  cardioTarget?: { unit: "minutes" | "sessions" | "zone_minutes"; value: number } | null;
 }
 
 export interface ProgramExerciseDto {
@@ -148,6 +152,8 @@ export interface SessionLogInput {
   programId: string;
   programSessionId?: string | null;
   date: string;
+  kind?: SessionKind;
+  cardio?: CardioLogDto | null;
   notes?: string;
   perceivedEnergy?: number;
   sets: LogSetInput[];
@@ -159,6 +165,8 @@ export interface SessionLogDto {
   programId: string;
   programSessionId: string | null;
   date: string;
+  kind: SessionKind;
+  cardio?: CardioLogDto | null;
   notes: string | null;
   perceivedEnergy: number | null;
   sets: {

@@ -1,4 +1,6 @@
 import { estimate1rm, weekSessions } from "./domain";
+import type { CardioTarget } from "./domain";
+import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
 import { blockPulse, pulseSummary, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
@@ -15,7 +17,8 @@ export type SignalKind =
   | "off-plan"
   | "rpe-creep"
   | "stall"
-  | "adherence";
+  | "adherence"
+  | "cardio-behind";
 
 export interface Signal {
   /** Deterministic id, e.g. `block-ending:<programId>` — PK for snooze/outbox. */
@@ -243,7 +246,7 @@ export function computeSignals(
   const weeksRun = Math.max(1, week);
   const perWeek = clientDaysPerWeek ?? weekSessions(program.weeks, week).length;
   const expected = perWeek * weeksRun;
-  const logged = programLogs.length;
+  const logged = programLogs.filter((l) => l.kind !== "cardio").length;
   if (!phaseSignalExists && expected >= 4 && logged / expected < 0.6) {
     signals.push({
       ...owner,
@@ -263,4 +266,33 @@ export function computeSignals(
   if (stalled) signals.push({ ...stalled, ...owner });
 
   return signals;
+}
+
+/** Cardio pace check, merged by each signal caller next to computeSignals.
+ *  Fires when a client with a weekly target is under 60% of pro-rata pace
+ *  on Thursday or later — same 0.6 threshold as the adherence rule. */
+export function cardioBehindSignal(
+  owner: { programId: string; clientId: string | null },
+  target: CardioTarget,
+  logs: CardioCountLog[],
+  now: number = Date.now()
+): Signal | null {
+  const isoWeekday = (new Date(now).getDay() + 6) % 7 + 1; // 1=Mon … 7=Sun
+  if (isoWeekday < 4) return null; // only Thu–Sun
+  const label = cardioUnitLabel(target.unit);
+  const done = cardioDone(target, cardioWeekTotals(logs, isoWeekStart(new Date(now))));
+  const expected = Math.round(0.6 * target.value * (isoWeekday / 7));
+  if (done >= expected) return null;
+  const dayName = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][isoWeekday - 1];
+  return {
+    id: `cardio-behind:${owner.clientId}`,
+    kind: "cardio-behind",
+    severity: "attention",
+    title: "Cardio behind weekly target",
+    evidence: `${done} of ${target.value} ${label} logged this week — pace expects ≥ ${expected} by ${dayName}.`,
+    programId: owner.programId,
+    clientId: owner.clientId,
+    altHref: `/clients/${owner.clientId}`,
+    altLabel: "Review client",
+  };
 }

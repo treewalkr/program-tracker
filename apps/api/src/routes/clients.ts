@@ -44,6 +44,15 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         trainingDays: t.Optional(
           t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true }), t.Null()])
         ),
+        cardioTarget: t.Optional(
+          t.Union([
+            t.Object({
+              unit: t.Union([t.Literal("minutes"), t.Literal("sessions"), t.Literal("zone_minutes")]),
+              value: t.Integer({ minimum: 1, maximum: 10000 }),
+            }),
+            t.Null(),
+          ])
+        ),
       }),
     }
   )
@@ -67,6 +76,15 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         daysPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
         trainingDays: t.Optional(
           t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true }), t.Null()])
+        ),
+        cardioTarget: t.Optional(
+          t.Union([
+            t.Object({
+              unit: t.Union([t.Literal("minutes"), t.Literal("sessions"), t.Literal("zone_minutes")]),
+              value: t.Integer({ minimum: 1, maximum: 10000 }),
+            }),
+            t.Null(),
+          ])
         ),
         status: t.Optional(t.Union([t.Literal("active"), t.Literal("paused"), t.Literal("archived")])),
       }),

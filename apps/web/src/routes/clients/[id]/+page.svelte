@@ -2,9 +2,10 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
+  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
+  import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart } from "@pt/shared";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
@@ -30,8 +31,16 @@
   let historyEntries = $state<HistoryEntryDto[] | null>(null);
   let latestGen = $state<GenerationDto | null>(null);
   let chainWeekData = $state<ChainWeekDto | null>(null);
+  let sessionLogRows = $state<SessionLogDto[]>([]);
   let saving = $state(false);
-  let form = $state({ goals: "", limitations: "", daysPerWeek: 3, trainingDays: [] as number[] });
+  let form = $state({
+    goals: "",
+    limitations: "",
+    daysPerWeek: 3,
+    trainingDays: [] as number[],
+    cardioUnit: "none" as "none" | "minutes" | "sessions" | "zone_minutes",
+    cardioValue: 120,
+  });
   let catalogById = $state(new Map<string, ExerciseDto>());
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
@@ -94,6 +103,16 @@
     const clampedWeek = Math.max(1, Math.min(pulseWeek || 1, current.weeks.length));
     return current.weeks.find((w) => w.week === clampedWeek) ?? current.weeks[0];
   });
+
+  const cardioTotals = $derived(cardioWeekTotals(sessionLogRows, isoWeekStart(new Date())));
+  const cardioDoneVal = $derived(
+    client?.cardioTarget ? cardioDone(client.cardioTarget, cardioTotals) : 0
+  );
+  const cardioPct = $derived(
+    client?.cardioTarget ? Math.round((cardioDoneVal / client.cardioTarget.value) * 100) : 0
+  );
+  const cardioLabel = $derived(client?.cardioTarget ? cardioUnitLabel(client.cardioTarget.unit) : "");
+
   async function load() {
     const [detail, exList, cw] = await Promise.all([
       api.client(id),
@@ -107,8 +126,10 @@
     current = cur;
     programs = detail.programs;
     historyEntries = await api.history(id);
+    const logs = await api.sessionLogs(id);
+    sessionLogRows = logs;
     if (cur) {
-      const [logs, sigs] = await Promise.all([api.sessionLogs(id), api.notifications()]);
+      const sigs = await api.notifications();
       signals = sigs.filter((s) => s.clientId === id);
       pulse = blockPulse(cur, logs);
       pulseWeek = weekOf(cur, logs);
@@ -123,6 +144,8 @@
       limitations: detail.client.limitations ?? "",
       daysPerWeek: detail.client.daysPerWeek ?? 3,
       trainingDays: detail.client.trainingDays ? [...detail.client.trainingDays] : [],
+      cardioUnit: detail.client.cardioTarget?.unit ?? "none",
+      cardioValue: detail.client.cardioTarget?.value ?? 120,
     };
     latestGen = (await api.generations(id))[0] ?? null;
   }
@@ -135,6 +158,10 @@
         limitations: form.limitations || null,
         daysPerWeek: Number(form.daysPerWeek),
         trainingDays: form.trainingDays,
+        cardioTarget:
+          form.cardioUnit === "none"
+            ? null
+            : { unit: form.cardioUnit, value: Number(form.cardioValue) },
       });
     } finally {
       saving = false;
@@ -285,6 +312,18 @@
             {/each}
           </div>
         </div>
+        {#if client.cardioTarget}
+          <div>
+            <h3 class="side-h">Cardio this week</h3>
+            <div class="panel cardio-box">
+              <p class="cardio-line">
+                {cardioDoneVal} / {client.cardioTarget.value} {cardioLabel} · {cardioPct}%
+              </p>
+              <div class="bar"><i style:width={`${Math.min(cardioPct, 100)}%`}></i></div>
+              {#if cardioPct >= 100}<p class="cardio-met">target met ✓</p>{/if}
+            </div>
+          </div>
+        {/if}
         {#if client.limitations}
           <div class="limit-panel">
             <h3 class="side-h">Limitations</h3>
@@ -430,6 +469,33 @@
           <WeekdayPicker bind:days={form.trainingDays} />
         </Field>
         <div class="span">
+          <Field label="Cardio target / week" hint="resets every Monday — feeds AI drafts">
+            <div class="cardio-fields">
+              <select
+                class="select"
+                bind:value={form.cardioUnit}
+                aria-label="Cardio target unit"
+              >
+                <option value="none">None</option>
+                <option value="minutes">min</option>
+                <option value="sessions">sessions</option>
+                <option value="zone_minutes">zone-min</option>
+              </select>
+              {#if form.cardioUnit !== "none"}
+                <input
+                  class="input tnum"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="10000"
+                  bind:value={form.cardioValue}
+                  aria-label="Cardio target value"
+                />
+              {/if}
+            </div>
+          </Field>
+        </div>
+        <div class="span">
           <Field label="Goals" htmlFor="p-goals">
             <textarea class="textarea" id="p-goals" rows="2" bind:value={form.goals}></textarea>
           </Field>
@@ -537,6 +603,26 @@
   .narrow { max-width: 560px; }
   .grid { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; }
   .span { grid-column: 1 / -1; }
+
+  .cardio-fields { display: flex; gap: 8px; align-items: center; }
+  .cardio-fields .select { width: auto; }
+  .cardio-fields .input { width: 110px; }
+  .cardio-box { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cardio-line { margin: 0; font: 500 13px/1.4 var(--font-ui); color: var(--ink); }
+  .cardio-box .bar {
+    height: 8px;
+    background: var(--line-soft);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .cardio-box .bar i {
+    display: block;
+    height: 100%;
+    background: var(--primary, #0969da);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+  }
+  .cardio-met { margin: 0; font: 600 12px/1.4 var(--font-ui); color: var(--good); }
 
   @media (max-width: 900px) {
     .two-col { grid-template-columns: minmax(0, 1fr); }

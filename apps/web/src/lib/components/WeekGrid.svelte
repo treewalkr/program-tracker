@@ -12,6 +12,8 @@
     client: ClientDto;
     program: string | null;
     entries: Map<number, WeekEntry>;
+    /** This week's cardio progress vs the client target — hidden when unset. */
+    cardio?: { done: number; target: number; unitLabel: string } | null;
   }
 </script>
 
@@ -56,6 +58,9 @@
             <span class="meta">
               {row.client.daysPerWeek ?? "—"} d/wk · {currentNames[row.client.id]}
             </span>
+          {/if}
+          {#if row.cardio}
+            <span class="meta cardio">cardio {row.cardio.done}/{row.cardio.target} {row.cardio.unitLabel}</span>
           {/if}
         </div>
         {#if row.entries.size === 0}
@@ -112,6 +117,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .wk-client .meta.cardio { color: var(--muted); }
   .wk-cell { padding: 5px 4px; display: flex; justify-content: center; }
   .wk-cell.span { grid-column: 2 / -1; justify-content: flex-start; }
   .cell {

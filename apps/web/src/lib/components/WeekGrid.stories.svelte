@@ -67,6 +67,28 @@
   ];
 
   const currentNames: Record<string, string> = { maya: 'Strength Base B', jonas: 'Hypertrophy Wave', priya: '—' };
+
+const cardioRows: ClientRow[] = [
+  {
+    client: client('maya', 'Maya Chen', [1, 2, 4]),
+    program: 'Strength Base B',
+    entries: new Map([
+      [1, entry(1, 'maya', 'Day 1 — Upper', 'logged')],
+      [4, entry(4, 'maya', 'Day 3 — Full-body', 'today')],
+    ]),
+    // mid-week progress vs a 180 min target
+    cardio: { done: 75, target: 180, unitLabel: 'min' },
+  },
+  {
+    client: client('jonas', 'Jonas Berg', [1, 3, 5, 6]),
+    program: 'Hypertrophy Wave',
+    entries: new Map([
+      [1, entry(1, 'jonas', 'Push', 'logged')],
+      [3, entry(3, 'jonas', 'Pull', 'due')],
+    ]),
+    // no cardio target — no chip
+  },
+];
 </script>
 
 {#snippet template(args: { rows: ClientRow[]; weekDates: string[]; today: string; currentNames: Record<string, string> })}
@@ -78,3 +100,9 @@
 {/snippet}
 
 <Story name="Mixed week" {template} args={{ rows, weekDates, today, currentNames }} />
+
+<Story
+  name="With cardio chips"
+  {template}
+  args={{ rows: cardioRows, weekDates, today, currentNames }}
+/>

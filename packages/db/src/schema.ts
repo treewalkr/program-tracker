@@ -15,6 +15,8 @@ import {
 import { sql } from "drizzle-orm";
 import type {
   AiProgramDraft,
+  CardioLog,
+  CardioTarget,
   ClientStatus,
   FunctionalMovement,
   GenerationStatus,
@@ -22,6 +24,7 @@ import type {
   Phasing,
   ProgramStatus,
   ProgramWeek,
+  SessionKind,
   SetType,
   WeekPlan,
 } from "@pt/shared";
@@ -50,6 +53,8 @@ export const clients = pgTable("clients", {
   daysPerWeek: integer("days_per_week"),
   /** Planned training weekdays as ISO ints (1=Mon … 7=Sun). */
   trainingDays: jsonb("training_days").$type<number[]>(),
+  /** Standing weekly cardio target {unit, value} — null = none. */
+  cardioTarget: jsonb("cardio_target").$type<CardioTarget>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -113,6 +118,10 @@ export const sessionLogs = pgTable("session_logs", {
   /** Which prescribed session this was; null = freestyle workout. */
   programSessionId: uuid("program_session_id"),
   date: date("date").notNull(),
+  /** "lifting" (sets below) or "cardio" (payload in `cardio`). */
+  kind: text("kind").$type<SessionKind>().notNull().default("lifting"),
+  /** Cardio actuals when kind = "cardio". */
+  cardio: jsonb("cardio").$type<CardioLog>(),
   notes: text("notes"),
   perceivedEnergy: integer("perceived_energy"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

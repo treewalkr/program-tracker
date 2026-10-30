@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
-  import { weekOf } from "@pt/shared";
+  import { weekOf, cardioDone, cardioUnitLabel, cardioWeekTotals } from "@pt/shared";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekGrid, { type ClientRow, type WeekEntry } from "$lib/components/WeekGrid.svelte";
@@ -51,9 +51,18 @@
         const programName = detail.currentProgram?.name ?? null;
         currentNames[c.id] = programName ?? "—";
         const row: ClientRow = { client: c, program: programName, entries: new Map() };
+        // unconditional per client — the cardio chip renders for clients with a
+        // target even when no program is running
+        const logs = await api.sessionLogs(c.id);
+        if (c.cardioTarget) {
+          row.cardio = {
+            done: cardioDone(c.cardioTarget, cardioWeekTotals(logs, weekDates[0])),
+            target: c.cardioTarget.value,
+            unitLabel: cardioUnitLabel(c.cardioTarget.unit),
+          };
+        }
         if (detail.currentProgram && detail.currentProgram.weeks?.length) {
           const prog = detail.currentProgram;
-          const logs = await api.sessionLogs(c.id);
           const loggedDates = new Set(logs.filter((l) => l.programId === prog.id).map((l) => l.date.slice(0, 10)));
           const currentWeekNum = weekOf(prog, logs);
           const clampedWeek = Math.max(1, Math.min(currentWeekNum, prog.weeks.length));
