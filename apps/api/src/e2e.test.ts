@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { db, trainers, signalOutbox } from "@pt/db";
-import { EXERCISE_ROLES } from "@pt/shared";
+import { db, trainers, signalOutbox, aiGenerations, programs } from "@pt/db";
+import { EXERCISE_ROLES, stampWeeks } from "@pt/shared";
+import { mockWeekDraft } from "./ai/mock";
 import { app } from "./app";
 
 /** Integration tests need a live Postgres (bun run db:up). Skip otherwise. */
@@ -843,6 +844,208 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
         expect(c.sets).toBe(0);
       }
     }
+  });
+});
+
+describe.skipIf(!dbUp)("weekly generation cadence", () => {
+  let clientId = "";
+  let programId = "";
+  let squatId = "";
+  let week2GenId = "";
+
+  const fourWeekDoc = (exerciseId: string) =>
+    stampWeeks(
+      [
+        {
+          id: crypto.randomUUID(),
+          day: 1,
+          sessions: [
+            {
+              id: crypto.randomUUID(),
+              name: "Day 1",
+              order: 0,
+              kind: "lifting" as const,
+              exercises: [
+                {
+                  id: crypto.randomUUID(),
+                  exerciseId,
+                  order: 0,
+                  prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5 }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      4
+    );
+
+  test("setup 4-week active program with phasing", async () => {
+    const c = await call("POST", "/v1/clients", {
+      name: "Weekly Client",
+      email: `weekly-${Date.now()}@test.dev`,
+      trainingDays: [1, 3],
+    });
+    expect(c.status).toBe(201);
+    clientId = c.body.id;
+
+    const sq = await call("GET", "/v1/exercises?q=squat");
+    squatId = sq.body[0].id;
+
+    const p = await call("POST", "/v1/programs", {
+      name: "Weekly Cadence Block",
+      clientId,
+      direction: "Build squat volume",
+      phasing: {
+        plannedWeeks: 4,
+        phase: "accumulation",
+        weeks: [
+          { week: 1, directive: "base" },
+          { week: 2, directive: "+volume", target: { metric: "overall_volume", deltaPercent: 5 } },
+          { week: 3, directive: "+intensity" },
+          { week: 4, directive: "deload" },
+        ],
+      },
+      weeks: fourWeekDoc(squatId),
+    });
+    expect(p.status).toBe(201);
+    programId = p.body.id;
+
+    const act = await call("PATCH", `/v1/programs/${programId}/status`, { status: "active" });
+    expect(act.status).toBe(200);
+    expect(act.body.status).toBe("active");
+  });
+
+  test("weekly generate guards: 422s for bad targets and programs", async () => {
+    // 1. missing basedOnProgramId
+    const missingProg = await call("POST", "/v1/ai/generate", {
+      clientId,
+      targetWeek: 2,
+    });
+    expect(missingProg.status).toBe(422);
+    expect(missingProg.body.error).toBe("weekly generation requires basedOnProgramId");
+
+    // 2. program not found
+    const notFoundProg = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: crypto.randomUUID(),
+      targetWeek: 2,
+    });
+    expect(notFoundProg.status).toBe(404);
+    expect(notFoundProg.body.error).toBe("program not found");
+
+    // 3. non-active program
+    const draftProg = await call("POST", "/v1/programs", {
+      name: "Draft Prog",
+      clientId,
+      weeks: fourWeekDoc(squatId),
+    });
+    const nonActiveRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: draftProg.body.id,
+      targetWeek: 2,
+    });
+    expect(nonActiveRes.status).toBe(422);
+    expect(nonActiveRes.body.error).toBe("weekly generation requires an active program");
+
+    // 4. targetWeek beyond block
+    const beyondRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      targetWeek: 5,
+    });
+    expect(beyondRes.status).toBe(422);
+    expect(beyondRes.body.error).toBe("target week is beyond the block");
+
+    // 5. targetWeek must be upcoming week (current is 1, target 1 is bad)
+    const badWeekRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      targetWeek: 1,
+    });
+    expect(badWeekRes.status).toBe(422);
+    expect(badWeekRes.body.error).toBe("target week must be the upcoming week (week 1 + 1)");
+  });
+
+  test("weekly generate (mock) validates and records kind/targetWeek", async () => {
+    const { status, body } = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      targetWeek: 2,
+      providerId: "mock",
+    });
+    expect(status).toBe(201);
+    expect(body.kind).toBe("week");
+    expect(body.targetWeek).toBe(2);
+    expect(body.status).toBe("validated");
+    expect(body.draft.sessions.length).toBe(3);
+    expect(body.draft.phasing).toBeUndefined();
+    week2GenId = body.id;
+  });
+
+  test("approve weekly generation replaces the week in place", async () => {
+    const pre = await call("GET", `/v1/programs/${programId}`);
+    const preWeeks = pre.body.weeks;
+
+    const { status, body } = await call("POST", `/v1/ai/generations/${week2GenId}/approve`, {});
+    expect(status).toBe(201);
+    expect(body.id).toBe(programId);
+    expect(body.version).toBe(2);
+    expect(body.status).toBe("active");
+    expect(body.weeks.length).toBe(4);
+
+    // week-2 days = 3 incl. cardio day (modality "Bike")
+    expect(body.weeks[1].days).toHaveLength(3);
+    const cardioSession = body.weeks[1].days[2].sessions[0];
+    expect(cardioSession.kind).toBe("cardio");
+    expect(cardioSession.cardio?.modality).toBe("Bike");
+
+    // week-2 ids != old ids
+    expect(body.weeks[1].days[0].id).not.toBe(preWeeks[1].days[0].id);
+
+    // weeks 1/3 deep-equal pre-approve snapshots
+    expect(body.weeks[0]).toEqual(preWeeks[0]);
+    expect(body.weeks[2]).toEqual(preWeeks[2]);
+
+    // phasing unchanged
+    expect(body.phasing).toEqual(pre.body.phasing);
+  });
+
+  test("weekly approve rejects a stale target week", async () => {
+    // Program where weekNow has advanced past targetWeek
+    // Create an active program activated 25 days ago (weekNow = 4)
+    const pastActivated = new Date(Date.now() - 25 * 86400_000).toISOString();
+    const [elapsedProgram] = await db
+      .insert(programs)
+      .values({
+        trainerId: (await trainers.findFirst?.())?.id ?? (await db.select().from(trainers).limit(1))[0].id,
+        clientId,
+        name: "Elapsed Block",
+        status: "active",
+        activatedAt: new Date(pastActivated),
+        sessions: fourWeekDoc(squatId),
+      })
+      .returning();
+
+    // Directly seed a validated generation for targetWeek 2 on this program
+    const [staleGen] = await db
+      .insert(aiGenerations)
+      .values({
+        trainerId: elapsedProgram.trainerId,
+        clientId,
+        basedOnProgramId: elapsedProgram.id,
+        kind: "week",
+        targetWeek: 2,
+        providerId: "mock",
+        model: "mock-draft-v1",
+        status: "validated",
+        draft: mockWeekDraft(2, null),
+      })
+      .returning();
+
+    const { status, body } = await call("POST", `/v1/ai/generations/${staleGen.id}/approve`, {});
+    expect(status).toBe(409);
+    expect(body.error).toBe("generation targets a week that is no longer current");
   });
 });
 

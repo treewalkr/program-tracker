@@ -74,3 +74,12 @@ export const MOCK_DRAFT: AiProgramDraft = {
     },
   ],
 };
+
+export function mockWeekDraft(targetWeek: number, directive: string | null): AiProgramDraft {
+  return {
+    name: `Week ${targetWeek}${directive ? ` — ${directive}` : ""}`,
+    rationale: `Weekly re-draft (mock) for week ${targetWeek} repeats this week's sessions with small load progressions.`,
+    clientSummary: "Same week again with small jumps where you earned them.",
+    sessions: structuredClone(MOCK_DRAFT.sessions),
+  };
+}

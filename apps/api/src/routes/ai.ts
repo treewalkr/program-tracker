@@ -14,6 +14,7 @@ import {
   AiProgramDraft,
   AiProviderConfig,
   KNOWN_PROVIDERS,
+  ProgramWeeksDocument,
   blockPulse,
   chainBalanceText,
   chainSetCounts,
@@ -22,17 +23,29 @@ import {
   weekOf,
 } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
-import { buildGenerationMessages, buildRevisionMessages, periodizationContext } from "../ai/prompt";
-import { MOCK_DRAFT } from "../ai/mock";
-import { bindPendingExercises, draftToWeeks } from "../lib/draftToProgram";
+import {
+  buildGenerationMessages,
+  buildRevisionMessages,
+  buildWeekMessages,
+  buildWeekRevisionMessages,
+  periodizationContext,
+} from "../ai/prompt";
+import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
+import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
 import { buildHistory } from "../lib/history";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { ensureSeededChains } from "../lib/chains";
 import { toSignalLog, toSignalProgram } from "../lib/signals-service";
+import { toProgramDto } from "./programs";
 
 const HISTORY_WINDOW_DAYS = 56;
 
-async function loadContext(trainerId: string, clientId: string, basedOnProgramId: string | null) {
+async function loadContext(
+  trainerId: string,
+  clientId: string,
+  basedOnProgramId: string | null,
+  focus?: { focusWeek: number }
+) {
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId));
   if (!client) throw new ContextError(404, "client not found");
 
@@ -46,11 +59,13 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     if (p) {
       basedOnProgram = p;
       const nameById = new Map(catalogByTrainer.map((e) => [e.id, e.name]));
-      const latestWeek = p.sessions[p.sessions.length - 1];
-      const latestSessions = latestWeek ? latestWeek.days.flatMap((d) => d.sessions) : [];
+      const targetWeekObj = focus?.focusWeek
+        ? p.sessions.find((w) => w.week === focus.focusWeek) ?? p.sessions[p.sessions.length - 1]
+        : p.sessions[p.sessions.length - 1];
+      const targetSessions = targetWeekObj ? targetWeekObj.days.flatMap((d) => d.sessions) : [];
       previous = {
         name: p.name,
-        sessions: latestSessions.map((s) => ({
+        sessions: targetSessions.map((s) => ({
           name: s.name,
           exercises: s.exercises.map((e) => ({
             name: nameById.get(e.exerciseId) ?? e.exerciseId,
@@ -93,7 +108,7 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
       toSignalLog(l, sets.filter((s) => s.sessionLogId === l.id))
     );
     const program = toSignalProgram(basedOnProgram);
-    const week = weekOf(program, signalLogs);
+    const week = focus?.focusWeek ? focus.focusWeek + 1 : weekOf(program, signalLogs);
     const summary = pulseSummary(blockPulse(program, signalLogs));
     periodization = periodizationContext(ph, week, summary);
   }
@@ -108,6 +123,7 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     previousProgram: previous,
     periodization,
     chainBalance,
+    programDirection: basedOnProgram?.direction ?? null,
     history: buildHistory({
       logs,
       sets,
@@ -163,10 +179,115 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     async ({ body, status }) => {
       const trainerId = await getDefaultTrainerId();
       try {
+        if (body.targetWeek !== undefined && body.targetWeek !== null) {
+          if (!body.basedOnProgramId) {
+            return status(422, { error: "weekly generation requires basedOnProgramId" });
+          }
+          const [basedProg] = await db
+            .select()
+            .from(programs)
+            .where(eq(programs.id, body.basedOnProgramId));
+          if (!basedProg) {
+            return status(404, { error: "program not found" });
+          }
+          if (basedProg.status !== "active") {
+            return status(422, { error: "weekly generation requires an active program" });
+          }
+          if (body.targetWeek > basedProg.sessions.length) {
+            return status(422, { error: "target week is beyond the block" });
+          }
+          const currentWeek = weekOf(toSignalProgram(basedProg), []);
+          if (body.targetWeek !== currentWeek + 1) {
+            return status(422, { error: `target week must be the upcoming week (week ${currentWeek} + 1)` });
+          }
+
+          const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId, {
+            focusWeek: currentWeek,
+          });
+          const rt = providerRuntime(body.providerId ?? "zai", body.model);
+
+          const targetPlan = basedProg.phasing?.weeks?.find((w) => w.week === body.targetWeek);
+          const targetDirective = targetPlan?.directive ?? null;
+          const target = targetPlan?.target ?? null;
+          const plannedWeeks = basedProg.phasing?.plannedWeeks ?? basedProg.sessions.length;
+
+          const messages = buildWeekMessages({
+            ...ctx,
+            targetWeek: body.targetWeek,
+            plannedWeeks,
+            targetDirective,
+            target,
+            direction: ctx.programDirection,
+            trainerInstructions: body.instructions ?? "",
+          });
+
+          const [generation] = await db
+            .insert(aiGenerations)
+            .values({
+              trainerId,
+              clientId: body.clientId,
+              basedOnProgramId: body.basedOnProgramId,
+              kind: "week",
+              targetWeek: body.targetWeek,
+              direction: ctx.programDirection,
+              providerId: body.providerId ?? "zai",
+              model: rt.model,
+              status: "pending",
+            })
+            .returning();
+
+          let draft: z.infer<typeof AiProgramDraft> | null = null;
+          let validationError: string | null = null;
+          for (let attempt = 0; attempt < 2 && !draft; attempt++) {
+            try {
+              const raw =
+                (body.providerId ?? "zai") === "mock"
+                  ? JSON.stringify(mockWeekDraft(body.targetWeek, targetDirective))
+                  : await chatJson(rt, [
+                      { role: "system", content: messages.system },
+                      { role: "user", content: messages.user },
+                    ]);
+              const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
+              if (parsed.success) {
+                draft = parsed.data;
+              } else {
+                validationError = z.prettifyError(parsed.error);
+              }
+            } catch (err) {
+              if (err instanceof ProviderError) {
+                const [failed] = await db
+                  .update(aiGenerations)
+                  .set({ status: "failed_provider", error: err.message })
+                  .where(eq(aiGenerations.id, generation.id))
+                  .returning();
+                return status(502, failed);
+              }
+              validationError = `parse failure: ${(err as Error).message}`;
+            }
+          }
+
+          if (draft) {
+            const [updated] = await db
+              .update(aiGenerations)
+              .set({ status: "validated", draft, error: null })
+              .where(eq(aiGenerations.id, generation.id))
+              .returning();
+            return status(201, updated);
+          }
+
+          const [failed] = await db
+            .update(aiGenerations)
+            .set({ status: "failed_validation", error: validationError })
+            .where(eq(aiGenerations.id, generation.id))
+            .returning();
+          return status(502, failed);
+        }
+
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
         const rt = providerRuntime(body.providerId ?? "zai", body.model);
         const messages = buildGenerationMessages({
           ...ctx,
+          direction: body.direction ?? null,
           trainerInstructions: body.instructions ?? "",
         });
 
@@ -176,6 +297,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             trainerId,
             clientId: body.clientId,
             basedOnProgramId: body.basedOnProgramId ?? null,
+            kind: "block",
             direction: body.direction ?? null,
             providerId: body.providerId ?? "zai",
             model: rt.model,
@@ -243,6 +365,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         model: t.Optional(t.String()),
         instructions: t.Optional(t.String({ maxLength: 2000 })),
         direction: t.Optional(t.String({ maxLength: 500 })),
+        targetWeek: t.Optional(t.Integer()),
       }),
     }
   )
@@ -284,6 +407,65 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         : [null];
 
       const catalog = await db.select().from(exercises);
+      if (gen.kind === "week") {
+        if (!gen.basedOnProgramId) return status(404, { error: "program not found" });
+        const [prog] = await db.select().from(programs).where(eq(programs.id, gen.basedOnProgramId));
+        if (!prog) return status(404, { error: "program not found" });
+        if (prog.status !== "active") return status(409, { error: "program is not active" });
+
+        const weekNow = weekOf(toSignalProgram(prog), []);
+        if (
+          !gen.targetWeek ||
+          gen.targetWeek > prog.sessions.length ||
+          !(gen.targetWeek === weekNow || gen.targetWeek === weekNow + 1)
+        ) {
+          return status(409, { error: "generation targets a week that is no longer current" });
+        }
+
+        const { weeks, createdNames, unresolvable } = replaceWeek(
+          prog.sessions,
+          gen.targetWeek,
+          gen.draft,
+          catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
+          client?.trainingDays
+        );
+        if (unresolvable.length > 0) {
+          return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
+        }
+
+        const nameToId = new Map<string, string>();
+        for (const name of createdNames) {
+          const [created] = await db
+            .insert(exercises)
+            .values({
+              trainerId,
+              name,
+              primaryMuscleGroup: "full_body",
+              equipment: "other",
+            })
+            .returning();
+          nameToId.set(name.toLowerCase(), created.id);
+        }
+
+        const finalWeeks = bindPendingExercises(weeks, nameToId);
+        const parsedDoc = ProgramWeeksDocument.safeParse(finalWeeks);
+        if (!parsedDoc.success) {
+          return status(422, { error: "invalid weeks document" });
+        }
+
+        const [updatedProgram] = await db
+          .update(programs)
+          .set({
+            sessions: parsedDoc.data,
+            version: prog.version + 1,
+          })
+          .where(eq(programs.id, prog.id))
+          .returning();
+
+        await db.update(aiGenerations).set({ status: "approved" }).where(eq(aiGenerations.id, gen.id));
+        return status(201, toProgramDto(updatedProgram));
+      }
+
       const { weeks, createdNames, unresolvable } = draftToWeeks(
         gen.draft,
         catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
@@ -378,6 +560,9 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           trainerId: parent.trainerId,
           clientId: parent.clientId,
           basedOnProgramId: parent.basedOnProgramId,
+          kind: parent.kind,
+          targetWeek: parent.targetWeek,
+          direction: parent.direction,
           providerId: parent.providerId,
           model: parent.model,
           status: "pending",
@@ -390,13 +575,41 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         let messages: { system: string; user: string } | null = null;
         let rt: ReturnType<typeof providerRuntime> | null = null;
         if (parent.providerId !== "mock") {
-          const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
-          messages = buildRevisionMessages({
-            ...ctx,
-            trainerInstructions: "",
-            previousDraft: parent.draft!,
-            feedback: message,
-          });
+          if (parent.kind === "week") {
+            const [basedProg] = parent.basedOnProgramId
+              ? await db.select().from(programs).where(eq(programs.id, parent.basedOnProgramId))
+              : [null];
+            const focusWeek = basedProg
+              ? weekOf(toSignalProgram(basedProg), [])
+              : (parent.targetWeek ? parent.targetWeek - 1 : 1);
+            const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
+              focusWeek,
+            });
+            const targetPlan = basedProg?.phasing?.weeks?.find((w) => w.week === parent.targetWeek);
+            const targetDirective = targetPlan?.directive ?? null;
+            const target = targetPlan?.target ?? null;
+            const plannedWeeks = basedProg?.phasing?.plannedWeeks ?? basedProg?.sessions.length ?? 4;
+            messages = buildWeekRevisionMessages({
+              ...ctx,
+              targetWeek: parent.targetWeek ?? 1,
+              plannedWeeks,
+              targetDirective,
+              target,
+              direction: parent.direction ?? ctx.programDirection,
+              trainerInstructions: "",
+              previousDraft: parent.draft!,
+              feedback: message,
+            });
+          } else {
+            const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
+            messages = buildRevisionMessages({
+              ...ctx,
+              trainerInstructions: "",
+              direction: parent.direction,
+              previousDraft: parent.draft!,
+              feedback: message,
+            });
+          }
           rt = providerRuntime(parent.providerId, parent.model);
         }
 
