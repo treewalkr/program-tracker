@@ -225,7 +225,16 @@
           error={snoozeErrors[signal.id] ? `Couldn't snooze — ${snoozeErrors[signal.id]}` : undefined}
         >
           {#snippet actions()}
-            {#if signal.prefillNote}
+            {#if signal.targetWeek}
+              <Button
+                variant="primary"
+                small
+                href={`/clients/${id}/generate?week=${signal.targetWeek}${signal.prefillNote ? `&note=${encodeURIComponent(signal.prefillNote)}` : ""}`}
+              >
+                {#snippet icon()}<Icon name="sparkle" />{/snippet}
+                Generate week {signal.targetWeek}
+              </Button>
+            {:else if signal.prefillNote}
               <Button
                 variant="primary"
                 small
