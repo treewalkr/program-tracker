@@ -79,6 +79,62 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("primary: The main lift");
     expect(user).toContain("Back Squat (primary) [5 reps]");
   });
+
+  test("catalog lines carry movement pattern and functional movement", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      history: [],
+      catalog: [
+        {
+          id: "ex-1",
+          name: "Bench Press",
+          primaryMuscleGroup: "chest",
+          equipment: "barbell",
+          movementPattern: "horizontal_push",
+          functionalMovement: "push",
+        },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-1 | Bench Press (chest, barbell, horizontal_push, push)");
+  });
+
+  test("unclassified catalog entries render n/a markers", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      history: [],
+      catalog: [
+        {
+          id: "ex-2",
+          name: "Mystery Exercise",
+          primaryMuscleGroup: "core",
+          equipment: "bodyweight",
+          movementPattern: null,
+          functionalMovement: null,
+        },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-2 | Mystery Exercise (core, bodyweight, pattern n/a, function n/a)");
+  });
+
+  test("system instructs pattern balance and rationale must explain it", () => {
+    const { system } = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(system).toContain("push volume (vertical + horizontal) with pull volume");
+    expect(system).toContain("knee-dominant with hip-dominant");
+    expect(system).toContain("rationale must state how the block is balanced");
+  });
 });
 
 describe("buildRevisionMessages", () => {

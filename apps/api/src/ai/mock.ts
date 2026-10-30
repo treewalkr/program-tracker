@@ -7,7 +7,7 @@ import type { AiProgramDraft } from "@pt/shared";
 export const MOCK_DRAFT: AiProgramDraft = {
   name: "Mock Block — Progressive Overload",
   rationale:
-    "Volume held constant vs previous block; +2.5kg on primary lifts, first set RPE targets held at 8.",
+    "Volume held constant vs previous block; +2.5kg on primary lifts, first set RPE targets held at 8; each day pairs push with equal pull work and knee with hip work (squat/RDL, bench/row) for pattern balance.",
   clientSummary: "Same split as before — small jumps on the main lifts, everything else unchanged.",
   phasing: {
     plannedWeeks: 4,

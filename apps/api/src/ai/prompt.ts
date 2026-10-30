@@ -30,6 +30,8 @@ export interface CatalogEntry {
   name: string;
   primaryMuscleGroup: string;
   equipment: string;
+  movementPattern: string | null;
+  functionalMovement: string | null;
 }
 
 export interface GenerationContext {
@@ -99,6 +101,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
     ROLE_RULE,
+    "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
@@ -128,7 +131,12 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       : "RECENT TRAINING LOGS: none.",
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
-    ctx.catalog.map((e) => `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment})`).join("\n"),
+    ctx.catalog
+      .map(
+        (e) =>
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+      )
+      .join("\n"),
     "",
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
@@ -152,6 +160,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
     ROLE_RULE,
+    "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
@@ -183,7 +192,12 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
       : "RECENT TRAINING LOGS: none.",
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
-    ctx.catalog.map((e) => `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment})`).join("\n"),
+    ctx.catalog
+      .map(
+        (e) =>
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+      )
+      .join("\n"),
     "",
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),

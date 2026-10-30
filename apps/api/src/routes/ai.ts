@@ -108,6 +108,8 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
       name: e.name,
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment,
+      movementPattern: e.movementPattern,
+      functionalMovement: e.functionalMovement,
     })),
   };
 }
