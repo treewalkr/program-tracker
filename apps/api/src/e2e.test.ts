@@ -253,6 +253,72 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(weekdays).toEqual([1, 2, null]);
   });
 
+  test("generate persists merged instructions on the audit row", async () => {
+    const sentInstructions = "prefer free weights; cap RPE at 8";
+    const { status, body } = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+      instructions: sentInstructions,
+    });
+    expect(status).toBe(201);
+    expect(body.instructions).toBe(sentInstructions);
+    expect(body.rejectReason).toBeNull();
+    expect(body.approvedProgramId).toBeNull();
+
+    const getRes = await call("GET", `/v1/ai/generations/${body.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.instructions).toBe(sentInstructions);
+    expect(getRes.body.rejectReason).toBeNull();
+    expect(getRes.body.approvedProgramId).toBeNull();
+  });
+
+  test("reject persists an optional reason", async () => {
+    const genRes1 = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes1.status).toBe(201);
+
+    const rejRes1 = await call("POST", `/v1/ai/generations/${genRes1.body.id}/reject`, {
+      reason: "too much volume",
+    });
+    expect(rejRes1.status).toBe(200);
+    expect(rejRes1.body.status).toBe("rejected");
+    expect(rejRes1.body.rejectReason).toBe("too much volume");
+
+    // body-less reject
+    const genRes2 = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes2.status).toBe(201);
+
+    const rejRes2 = await call("POST", `/v1/ai/generations/${genRes2.body.id}/reject`);
+    expect(rejRes2.status).toBe(200);
+    expect(rejRes2.body.status).toBe("rejected");
+    expect(rejRes2.body.rejectReason).toBeNull();
+  });
+
+  test("approve stamps approvedProgramId on the audit row", async () => {
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes.status).toBe(201);
+
+    const appRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
+    expect(appRes.status).toBe(201);
+    const approvedProgram = appRes.body;
+
+    const getRes = await call("GET", `/v1/ai/generations/${genRes.body.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.approvedProgramId).toBe(approvedProgram.id);
+  });
+
   test("reject on non-validated generation is a 409", async () => {
     const { status } = await call("POST", `/v1/ai/generations/${(globalThis as any).__genId}/approve`, {});
     expect(status).toBe(409); // already approved
