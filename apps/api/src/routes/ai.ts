@@ -104,6 +104,7 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
       goals: client.goals,
       limitations: client.limitations,
       daysPerWeek: client.daysPerWeek,
+      cardioTarget: client.cardioTarget ?? null,
     },
     previousProgram: previous,
     periodization,

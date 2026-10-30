@@ -389,3 +389,75 @@ describe("bindPendingExercises", () => {
     expect(() => bindPendingExercises(weeks, new Map())).toThrow(/cable crunch/);
   });
 });
+
+describe("cardio target prompt context", () => {
+  const ctxBase = {
+    previousProgram: null,
+    periodization: null,
+    chainBalance: null,
+    history: [],
+    catalog: [],
+    trainerInstructions: "",
+  };
+
+  test("generation prompt includes the cardio target line when set, absent when null", () => {
+    const withTarget = buildGenerationMessages({
+      ...ctxBase,
+      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "minutes", value: 150 } },
+    });
+    expect(withTarget.user).toContain("CARDIO TARGET (per week): 150 min");
+    expect(withTarget.user).toContain(
+      "prescribe the week's cardio sessions so their prescribed minutes add up to it"
+    );
+    expect(withTarget.system).toContain(
+      "When a CARDIO TARGET is given, the week's cardio prescriptions must add up to it"
+    );
+
+    const withoutTarget = buildGenerationMessages({
+      ...ctxBase,
+      client: { name: "Maya", daysPerWeek: 3, cardioTarget: null },
+    });
+    expect(withoutTarget.user).not.toContain("CARDIO TARGET");
+
+    const sessionsTarget = buildGenerationMessages({
+      ...ctxBase,
+      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "sessions", value: 2 } },
+    });
+    expect(sessionsTarget.user).toContain("CARDIO TARGET (per week): 2 sessions");
+
+    const zoneTarget = buildGenerationMessages({
+      ...ctxBase,
+      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "zone_minutes", value: 120 } },
+    });
+    expect(zoneTarget.user).toContain("CARDIO TARGET (per week): 120 zone-min");
+    expect(zoneTarget.user).toContain("so their zone-minutes add up to it");
+  });
+
+  test("revision prompt includes the cardio target line when set, absent when null", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "c",
+      sessions: [],
+    };
+
+    const withTarget = buildRevisionMessages({
+      ...ctxBase,
+      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "minutes", value: 150 } },
+      previousDraft,
+      feedback: "more cardio",
+    });
+    expect(withTarget.user).toContain("CARDIO TARGET (per week): 150 min");
+    expect(withTarget.system).toContain(
+      "When a CARDIO TARGET is given, the week's cardio prescriptions must add up to it"
+    );
+
+    const withoutTarget = buildRevisionMessages({
+      ...ctxBase,
+      client: { name: "Maya", daysPerWeek: 3, cardioTarget: null },
+      previousDraft,
+      feedback: "more cardio",
+    });
+    expect(withoutTarget.user).not.toContain("CARDIO TARGET");
+  });
+});

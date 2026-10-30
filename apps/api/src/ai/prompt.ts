@@ -1,10 +1,18 @@
-import { EXERCISE_ROLE_INFO, EXERCISE_ROLES, type AiProgramDraft, type Phasing } from "@pt/shared";
+import {
+  EXERCISE_ROLE_INFO,
+  EXERCISE_ROLES,
+  cardioUnitLabel,
+  type AiProgramDraft,
+  type CardioTarget,
+  type Phasing,
+} from "@pt/shared";
 
 export interface ClientContext {
   name: string;
   goals?: string | null;
   limitations?: string | null;
   daysPerWeek?: number | null;
+  cardioTarget?: CardioTarget | null;
 }
 
 export interface ProgramSummary {
@@ -108,6 +116,20 @@ const ROLE_RULE = [
   ...EXERCISE_ROLES.map((r) => `  ${r}: ${EXERCISE_ROLE_INFO[r].description}`),
 ].join("\n");
 
+const CARDIO_TARGET_RULE =
+  "- When a CARDIO TARGET is given, the week's cardio prescriptions must add up to it.";
+
+function cardioTargetLine(target: CardioTarget): string {
+  const label = cardioUnitLabel(target.unit);
+  const unitPhrase =
+    target.unit === "minutes"
+      ? "prescribed minutes"
+      : target.unit === "sessions"
+        ? "cardio sessions"
+        : "zone-minutes";
+  return `CARDIO TARGET (per week): ${target.value} ${label} — prescribe the week's cardio sessions so their ${unitPhrase} add up to it.`;
+}
+
 export function buildGenerationMessages(ctx: GenerationContext) {
   const system = [
     "You are an expert strength & conditioning coach drafting the NEXT training block for a client.",
@@ -123,6 +145,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
+    CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
@@ -135,6 +158,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
     "",
     ctx.previousProgram
       ? [
@@ -189,6 +213,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
+    CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
@@ -203,6 +228,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
     "",
     ctx.previousProgram
       ? [
