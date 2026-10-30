@@ -12,12 +12,14 @@ import type {
   SetType,
   Signal,
   WeekDirective as Wd,
+  WeekMetric as Wm,
   WeekPlan as Wp,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
 export type ExerciseRole = Er;
 export type WeekDirective = Wd;
+export type WeekMetric = Wm;
 export type WeekPlan = Wp;
 export type ProgramPhasingDto = Phasing;
 export type SignalDto = Signal;

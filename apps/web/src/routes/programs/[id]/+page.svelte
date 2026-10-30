@@ -16,6 +16,7 @@
   import type { ExerciseDto, ProgramDto, ProgramSessionDto } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
   import SessionBlockEditor from "$lib/components/SessionBlockEditor.svelte";
+  import PhasingEditor from "$lib/components/PhasingEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -56,7 +57,7 @@
     if (!program || !validation.ok) return;
     saving = true;
     try {
-      program = await api.saveProgram(program.id, program.weeks);
+      program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null);
       savedAt = new Date().toLocaleTimeString();
       editing = false;
     } finally {
@@ -278,6 +279,10 @@
         </section>
       {/each}
     </div>
+
+    {#if editing}
+      <PhasingEditor bind:phasing={program.phasing} weeksCount={program.weeks.length} />
+    {/if}
   {/if}
 {/if}
 
