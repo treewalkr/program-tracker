@@ -9,7 +9,7 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
 } from "../types";
-import { applyDefaultWeekdays, type SetType } from "@pt/shared";
+import { applyDefaultWeekdays, type CardioLog, type SessionKind, type SetType } from "@pt/shared";
 
 export const schemes: PeriodizationSchemeDto[] = [
   {
@@ -399,6 +399,8 @@ export interface StoredLog {
   clientId: string;
   programId: string;
   date: string;
+  kind?: SessionKind;
+  cardio?: CardioLog | null;
   perceivedEnergy?: number;
   notes?: string;
   sets: {
@@ -535,6 +537,7 @@ export const trainerClient: ClientDto = {
   limitations: null,
   daysPerWeek: 4,
   trainingDays: [1, 2, 4, 6],
+  cardioTarget: { unit: "minutes", value: 180 },
 };
 clients.push(trainerClient);
 
@@ -756,4 +759,5 @@ logs.push(
     { exerciseId: "ex-hlr", setNumber: 1, type: "working", reps: 12, rpe: 8 },
     { exerciseId: "ex-plank", setNumber: 1, type: "working", reps: 0, rpe: 8 },
   ]},
+  { sessionLogId: uuid(), clientId: "cl-nat", programId: "pg-nat-a", date: day(0), kind: "cardio", cardio: { modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5, rpe: 6 }, sets: [] },
 );
