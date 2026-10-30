@@ -56,3 +56,25 @@ export function generationPhase(g: GenerationDto | null | undefined, now = Date.
       return "form";
   }
 }
+
+export function revisionChain(gens: GenerationDto[], currentId: string): GenerationDto[] {
+  if (!currentId) return [];
+  const map = new Map<string, GenerationDto>();
+  for (const g of gens) {
+    map.set(g.id, g);
+  }
+  const current = map.get(currentId);
+  if (!current) return [];
+
+  const chain: GenerationDto[] = [current];
+  const seen = new Set<string>([current.id]);
+  let cursor = current;
+  while (cursor.parentGenerationId) {
+    const parent = map.get(cursor.parentGenerationId);
+    if (!parent || seen.has(parent.id)) break;
+    chain.push(parent);
+    seen.add(parent.id);
+    cursor = parent;
+  }
+  return chain.reverse();
+}

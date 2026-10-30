@@ -5,6 +5,7 @@
   import { sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
+  import { diffSources, draftToDiffSource, programToDiffSource, type DiffRow } from "$lib/draftDiff";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import SessionCard from "$lib/components/SessionCard.svelte";
@@ -90,52 +91,9 @@
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
     ex.exerciseName ?? "";
 
-  interface DiffRow {
-    exercise: string;
-    change: "kept" | "added" | "removed" | "changed";
-    detail: string;
-  }
-
   const diff = $derived.by<DiffRow[]>(() => {
     if (!current || !gen?.draft) return [];
-    const setsOf = (ex: { prescribedSets: { reps: number; amrap: boolean }[] }) =>
-      ex.prescribedSets.map((s) => `${s.reps}${s.amrap ? "+" : ""}`).join("/");
-    const key = (name: string) => name.toLowerCase();
-
-    const currentEx = new Map<string, { name: string; sets: string; sessions: string[] }>();
-    for (const s of current.sessions) {
-      for (const e of s.exercises) {
-        const name = e.exerciseName ?? e.exerciseId;
-        const existing = currentEx.get(key(name));
-        if (existing) {
-          existing.sessions.push(s.name);
-          existing.sets = setsOf(e);
-        } else {
-          currentEx.set(key(name), { name, sets: setsOf(e), sessions: [s.name] });
-        }
-      }
-    }
-
-    const draftEx = new Map<string, { name: string; sets: string }>();
-    for (const s of gen.draft.sessions) {
-      for (const e of s.exercises) {
-        const n = draftName(e);
-        draftEx.set(key(n), { name: n, sets: setsOf(e) });
-      }
-    }
-
-    const rows: DiffRow[] = [];
-    for (const [, { name, sets }] of draftEx) {
-      const before = currentEx.get(name);
-      if (!before) rows.push({ exercise: name, change: "added", detail: `new — ${sets}` });
-      else if (before.sets !== sets)
-        rows.push({ exercise: name, change: "changed", detail: `${before.sets} → ${sets}` });
-      else rows.push({ exercise: name, change: "kept", detail: sets });
-    }
-    for (const [name, info] of currentEx) {
-      if (!draftEx.has(name)) rows.push({ exercise: name, change: "removed", detail: `was ${info.sets} (${info.sessions.join(", ")})` });
-    }
-    return rows;
+    return diffSources(programToDiffSource(current), draftToDiffSource(gen.draft));
   });
 
   const diffCounts = $derived({

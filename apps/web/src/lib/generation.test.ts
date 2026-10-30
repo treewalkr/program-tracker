@@ -5,6 +5,7 @@ import {
   generationPhase,
   isLivePending,
   progressFraction,
+  revisionChain,
   typicalLabel,
 } from "./generation";
 
@@ -92,5 +93,29 @@ describe("generation helpers", () => {
     expect(isLivePending(mockGen({ status: "validated" }), now)).toBe(false);
     expect(isLivePending(mockGen({ status: "rejected" }), now)).toBe(false);
     expect(isLivePending(null, now)).toBe(false);
+  });
+});
+
+describe("revisionChain", () => {
+  test("revisionChain walks parentGenerationId from root to current", () => {
+    const root = mockGen({ id: "gen-1", parentGenerationId: null });
+    const v2 = mockGen({ id: "gen-2", parentGenerationId: "gen-1", revisionMessage: "v2" });
+    const v3 = mockGen({ id: "gen-3", parentGenerationId: "gen-2", revisionMessage: "v3" });
+    const unrelated = mockGen({ id: "gen-other", parentGenerationId: null });
+
+    const gens = [unrelated, v3, root, v2];
+
+    // Linear chain root -> current; unrelated ignored
+    expect(revisionChain(gens, "gen-3")).toEqual([root, v2, v3]);
+    expect(revisionChain(gens, "gen-2")).toEqual([root, v2]);
+    expect(revisionChain(gens, "gen-1")).toEqual([root]);
+
+    // Unknown id -> []
+    expect(revisionChain(gens, "unknown")).toEqual([]);
+    expect(revisionChain(gens, "")).toEqual([]);
+
+    // Missing parent stops the walk
+    const orphan = mockGen({ id: "gen-orphan", parentGenerationId: "missing-parent" });
+    expect(revisionChain([orphan], "gen-orphan")).toEqual([orphan]);
   });
 });
