@@ -12,6 +12,7 @@ import { schemeRoutes } from "./routes/schemes";
 import { chainRoutes } from "./routes/chains";
 import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
+import { preferenceRoutes } from "./routes/preferences";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -29,6 +30,7 @@ const TAGS = [
   { name: "schemes", description: "Periodization scheme library" },
   { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
+  { name: "preferences", description: "Distilled trainer/client style preferences" },
 ];
 
 export const app = new Elysia()
@@ -82,6 +84,7 @@ export const app = new Elysia()
     },
   })
   .use(aiRoutes)
+  .use(preferenceRoutes)
   .use(clientRoutes)
   .use(programRoutes)
   .use(logRoutes)
