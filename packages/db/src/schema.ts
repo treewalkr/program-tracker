@@ -9,6 +9,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -224,7 +225,18 @@ export const signalOutbox = pgTable("signal_outbox", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const kineticChains = pgTable("kinetic_chains", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id").notNull().references(() => trainers.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  muscleGroups: jsonb("muscle_groups").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("kinetic_chains_trainer_name_key").on(t.trainerId, t.name)]);
+
 export type PromptTemplateRow = typeof promptTemplates.$inferSelect;
 export type PeriodizationSchemeRow = typeof periodizationSchemes.$inferSelect;
 export type SignalSnoozeRow = typeof signalSnoozes.$inferSelect;
 export type SignalOutboxRow = typeof signalOutbox.$inferSelect;
+export type KineticChainRow = typeof kineticChains.$inferSelect;
