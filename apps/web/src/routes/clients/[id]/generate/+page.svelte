@@ -8,6 +8,7 @@
   import { diffSources, draftToDiffSource, programToDiffSource, type DiffRow } from "$lib/draftDiff";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
+  import { effectivePreferences } from "$lib/preferences";
   import SessionCard from "$lib/components/SessionCard.svelte";
   import RevisionThread from "$lib/components/RevisionThread.svelte";
   import DiffTiles from "$lib/components/DiffTiles.svelte";
@@ -37,6 +38,7 @@
   let direction = $state("");
   let weekMode = $state<number | null>(null);
   let templates = $state<InstructionTemplateDto[]>([]);
+  let learned = $state<string | null>(null);
   let periodContext = $state<string | null>(null);
   let selected = $state<string[]>([]);
   let tplName = $state("");
@@ -279,6 +281,8 @@
 
   onMount(async () => {
     const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
+    const prefs = await api.preferences();
+    learned = effectivePreferences(prefs, id);
     catalogById = new Map(exList.map((e) => [e.id, e]));
     client = detail.client;
     current = detail.currentProgram;
@@ -445,6 +449,12 @@
           </div>
           </Field>
         </div>
+        {#if learned}
+          <div>
+            <p class="label">Learned preferences <span class="subtle">— distilled from your feedback, auto-injected into every draft</span></p>
+            <pre class="merged">{learned}</pre>
+          </div>
+        {/if}
         <Field label="This generation" hint="optional one-off note" htmlFor="g-instructions">
           <textarea
             class="textarea"
