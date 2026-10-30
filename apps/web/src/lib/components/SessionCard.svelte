@@ -58,7 +58,7 @@
     {/each}
   </div>
   {#if hasPattern}
-    <div class="balance">{formatPatternBalance(patternBalance(exercises as any))}</div>
+    <div class="balance">{formatPatternBalance(patternBalance(exercises))}</div>
   {/if}
   {#if conditioning}
     <div class="session-head cond-row">

@@ -319,7 +319,7 @@ export interface PatternBalance {
 }
 
 export function patternBalance(
-  list: readonly { movementPattern?: MovementPattern | null }[]
+  list: readonly { movementPattern?: string | null }[]
 ): PatternBalance {
   const result: PatternBalance = {
     push: 0,
@@ -344,7 +344,7 @@ export function patternBalance(
     } else if (p === "hip_dominant") {
       result.hip++;
     }
-    if (MOVEMENT_PATTERN_INFO[p]?.core) {
+    if (MOVEMENT_PATTERN_INFO[p as MovementPattern]?.core) {
       result.core++;
     }
   }

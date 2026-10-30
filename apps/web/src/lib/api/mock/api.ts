@@ -3,6 +3,7 @@ import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
   ClientDto,
+  ExerciseDto,
   GenerationDto,
   HistoryEntryDto,
   InstructionTemplateDto,
