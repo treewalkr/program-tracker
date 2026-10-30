@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
-import { buildGenerationMessages } from "./ai/prompt";
+import { buildGenerationMessages, buildRevisionMessages } from "./ai/prompt";
 import { bindPendingExercises, draftToSessions } from "./lib/draftToProgram";
 import type { AiProgramDraft } from "@pt/shared";
 
@@ -78,6 +78,55 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("role order (power → primary → strength → accessory → core)");
     expect(system).toContain("primary: The main lift");
     expect(user).toContain("Back Squat (primary) [5 reps]");
+  });
+});
+
+describe("buildRevisionMessages", () => {
+  test("buildRevisionMessages carries previous draft, feedback verbatim, and safety context", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "Initial mesocycle rationale",
+      clientSummary: "Client summary",
+      sessions: [
+        {
+          name: "Day A",
+          exercises: [
+            {
+              exerciseName: "Bench Press",
+              role: "primary",
+              prescribedSets: [
+                { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                { setNumber: 2, type: "working", reps: 5, amrap: true, targetRpe: 9 },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const feedback = "swap bench for incline DB press; cut one set";
+    const { system, user } = buildRevisionMessages({
+      client: {
+        name: "Ada",
+        goals: "hypertrophy",
+        limitations: "Shoulder impingement — keep elbow tucked",
+        daysPerWeek: 3,
+      },
+      previousProgram: null,
+      periodization: null,
+      history: [],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell" }],
+      trainerInstructions: "",
+      previousDraft,
+      feedback,
+    });
+
+    expect(system).toContain("REVISING");
+    expect(system).toContain('"name": string');
+    expect(system).toContain("This is a REVISION: the previous draft is provided below.");
+    expect(user).toContain("Shoulder impingement — keep elbow tucked");
+    expect(user).toContain("- Day A: Bench Press (primary) [5 reps @ RPE 8; 5+ reps @ RPE 9]");
+    expect(user).toContain(feedback);
   });
 });
 

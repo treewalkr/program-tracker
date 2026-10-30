@@ -136,6 +136,85 @@ export function buildGenerationMessages(ctx: GenerationContext) {
   return { system, user };
 }
 
+export interface RevisionContext extends GenerationContext {
+  previousDraft: AiProgramDraft;
+  feedback: string;
+}
+
+export function buildRevisionMessages(ctx: RevisionContext): { system: string; user: string } {
+  const system = [
+    "You are an expert strength & conditioning coach REVISING the draft of the NEXT training block for a client.",
+    "You reason about progressive overload from logged training data and design sensible mesocycles.",
+    "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
+    "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
+    DRAFT_SCHEMA_SPEC,
+    "Rules:",
+    "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
+    "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
+    ROLE_RULE,
+    "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
+    "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+    "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
+    "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
+  ].join("\n");
+
+  const user = [
+    `CLIENT: ${ctx.client.name}`,
+    ctx.client.goals ? `GOALS: ${ctx.client.goals}` : "GOALS: not specified",
+    ctx.client.limitations
+      ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
+      : "LIMITATIONS: none listed",
+    "",
+    ctx.previousProgram
+      ? [
+          "CURRENT PROGRAM (the block you are following up):",
+          programToText(ctx.previousProgram),
+        ].join("\n")
+      : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    ctx.periodization
+      ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
+      : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
+    "",
+    ctx.history.length > 0
+      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
+      : "RECENT TRAINING LOGS: none.",
+    "",
+    `EXERCISE CATALOG (use these exerciseId values when possible):`,
+    ctx.catalog.map((e) => `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment})`).join("\n"),
+    "",
+    "PREVIOUS DRAFT (your earlier output — revise it):",
+    draftToText(ctx.previousDraft),
+    "",
+    `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
+  ].join("\n");
+
+  return { system, user };
+}
+
+function draftToText(d: AiProgramDraft): string {
+  const lines = [
+    d.name,
+    d.rationale,
+    ...d.sessions.map((s) => {
+      const exercises = s.exercises
+        .map((e) => {
+          const name = e.exerciseName ?? e.exerciseId ?? "";
+          const sets = e.prescribedSets.map(
+            (ps) =>
+              `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
+          );
+          return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
+        })
+        .join(", ");
+      return `- ${s.name}: ${exercises}`;
+    }),
+  ];
+  return lines.join("\n");
+}
+
 function programToText(p: ProgramSummary): string {
   return p.sessions
     .map(
