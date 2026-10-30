@@ -140,6 +140,9 @@ export interface GenerationDto {
   error: string | null;
   parentGenerationId: string | null;
   revisionMessage: string | null;
+  instructions: string | null;
+  rejectReason: string | null;
+  approvedProgramId: string | null;
   createdAt: string;
 }
 
@@ -190,6 +193,16 @@ export interface InstructionTemplateDto {
   id: string;
   name: string;
   content: string;
+  updatedAt: string;
+}
+
+export interface PreferencesDto {
+  id: string;
+  clientId: string | null;
+  clientName: string | null;
+  document: string;
+  providerId: string;
+  model: string;
   updatedAt: string;
 }
 
@@ -273,7 +286,15 @@ export interface TrainerApi {
   generation(id: string): Promise<GenerationDto>;
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
-  rejectGeneration(id: string): Promise<GenerationDto>;
+  rejectGeneration(id: string, reason?: string): Promise<GenerationDto>;
+
+  preferences(): Promise<PreferencesDto[]>;
+  distillPreferences(input: {
+    clientId?: string | null;
+    providerId?: string;
+    model?: string;
+  }): Promise<PreferencesDto>;
+  deletePreference(id: string): Promise<void>;
 
   /** Phase-change signals, snooze-filtered (computed by the shared engine). */
   notifications(): Promise<SignalDto[]>;

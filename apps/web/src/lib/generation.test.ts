@@ -21,6 +21,9 @@ function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
     error: null,
     parentGenerationId: null,
     revisionMessage: null,
+    instructions: null,
+    rejectReason: null,
+    approvedProgramId: null,
     createdAt: new Date().toISOString(),
     ...partial,
   };
