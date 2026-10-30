@@ -95,6 +95,8 @@ export const programs = pgTable("programs", {
   activatedAt: timestamp("activated_at", { withTimezone: true }),
   /** Periodization plan (scheme copy) — structured input to signals + AI context. */
   phasing: jsonb("phasing").$type<Phasing>(),
+  /** Standing direction (block-level steer) — every weekly generation follows it. */
+  direction: text("direction"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -151,6 +153,9 @@ export const aiGenerations = pgTable("ai_generations", {
   basedOnProgramId: uuid("based_on_program_id").references(() => programs.id, {
     onDelete: "set null",
   }),
+  kind: text("kind").$type<"block" | "week">().notNull().default("block"),
+  targetWeek: integer("target_week"),
+  direction: text("direction"),
   providerId: text("provider_id").notNull(),
   model: text("model").notNull(),
   status: text("status").$type<GenerationStatus>().notNull().default("pending"),
