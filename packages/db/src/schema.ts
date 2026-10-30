@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   date,
   integer,
@@ -150,6 +151,10 @@ export const aiGenerations = pgTable("ai_generations", {
   status: text("status").$type<GenerationStatus>().notNull().default("pending"),
   draft: jsonb("draft").$type<AiProgramDraft>(),
   error: text("error"),
+  parentGenerationId: uuid("parent_generation_id").references((): AnyPgColumn => aiGenerations.id, {
+    onDelete: "set null",
+  }),
+  revisionMessage: text("revision_message"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

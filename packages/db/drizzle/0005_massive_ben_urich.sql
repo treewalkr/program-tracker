@@ -1,0 +1,3 @@
+ALTER TABLE "ai_generations" ADD COLUMN "parent_generation_id" uuid;--> statement-breakpoint
+ALTER TABLE "ai_generations" ADD COLUMN "revision_message" text;--> statement-breakpoint
+ALTER TABLE "ai_generations" ADD CONSTRAINT "ai_generations_parent_generation_id_ai_generations_id_fk" FOREIGN KEY ("parent_generation_id") REFERENCES "public"."ai_generations"("id") ON DELETE set null ON UPDATE no action;
