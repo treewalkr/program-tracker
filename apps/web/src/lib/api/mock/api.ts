@@ -330,9 +330,28 @@ export const mockApi: TrainerApi = {
 
   async createExercise(input) {
     await delay(300);
-    const created = { ...input, id: uuid(), secondaryMuscleGroups: [] };
+    const created: ExerciseDto = {
+      ...input,
+      id: uuid(),
+      secondaryMuscleGroups: [],
+      movementPattern: input.movementPattern ?? null,
+      functionalMovement: input.functionalMovement ?? null,
+    };
     exercises.push(created);
     return created;
+  },
+
+  async patchExercise(id, input) {
+    await delay(200);
+    const i = exercises.findIndex((e) => e.id === id);
+    if (i === -1) throw new Error("exercise not found");
+    const updated: ExerciseDto = {
+      ...exercises[i],
+      ...(input.movementPattern !== undefined ? { movementPattern: input.movementPattern } : {}),
+      ...(input.functionalMovement !== undefined ? { functionalMovement: input.functionalMovement } : {}),
+    };
+    exercises[i] = updated;
+    return updated;
   },
 
   async history(clientId): Promise<HistoryEntryDto[]> {

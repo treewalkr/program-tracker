@@ -63,6 +63,8 @@ export interface ExerciseDto {
   primaryMuscleGroup: string;
   secondaryMuscleGroups: string[];
   equipment: string;
+  movementPattern: string | null;
+  functionalMovement: string | null;
 }
 
 export interface ProviderDto {
@@ -188,7 +190,17 @@ export interface TrainerApi {
   setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;
 
   exercises(query?: string): Promise<ExerciseDto[]>;
-  createExercise(input: { name: string; primaryMuscleGroup: string; equipment: string }): Promise<ExerciseDto>;
+  createExercise(input: {
+    name: string;
+    primaryMuscleGroup: string;
+    equipment: string;
+    movementPattern?: string | null;
+    functionalMovement?: string | null;
+  }): Promise<ExerciseDto>;
+  patchExercise(
+    id: string,
+    input: { movementPattern?: string | null; functionalMovement?: string | null }
+  ): Promise<ExerciseDto>;
 
   history(clientId: string): Promise<HistoryEntryDto[]>;
   sessionLogs(clientId: string): Promise<SessionLogDto[]>;
