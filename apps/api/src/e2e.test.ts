@@ -214,6 +214,21 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(original.body.status).toBe("active");
   });
 
+  test("generate with direction stores it; approve copies it onto the program", async () => {
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+      direction: "Build squat volume; keep upper body at maintenance.",
+    });
+    expect(genRes.status).toBe(201);
+    expect(genRes.body.direction).toBe("Build squat volume; keep upper body at maintenance.");
+
+    const approveRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
+    expect(approveRes.status).toBe(201);
+    expect(approveRes.body.direction).toBe("Build squat volume; keep upper body at maintenance.");
+  });
+
   test("approve assigns weekday defaults from client trainingDays", async () => {
     const cRes = await call("POST", "/v1/clients", {
       name: "TrainingDays Client",
@@ -488,6 +503,44 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       },
     });
     expect(restored.body.phasing.plannedWeeks).toBe(1);
+  });
+
+  test("program direction round-trips through POST, PUT and PATCH", async () => {
+    const postRes = await call("POST", "/v1/programs", {
+      name: "Direction Program",
+      clientId,
+      direction: "Build squat volume; keep upper body at maintenance.",
+      weeks: weeksDoc(),
+    });
+    expect(postRes.status).toBe(201);
+    expect(postRes.body.direction).toBe("Build squat volume; keep upper body at maintenance.");
+    const progId = postRes.body.id;
+    const initialVersion = postRes.body.version;
+
+    // weeks-only PUT leaves direction untouched
+    const putWeeksRes = await call("PUT", `/v1/programs/${progId}`, {
+      weeks: weeksDoc(),
+    });
+    expect(putWeeksRes.status).toBe(200);
+    expect(putWeeksRes.body.direction).toBe("Build squat volume; keep upper body at maintenance.");
+    expect(putWeeksRes.body.version).toBe(initialVersion + 1);
+
+    // PUT direction: null clears it
+    const putNullRes = await call("PUT", `/v1/programs/${progId}`, {
+      weeks: weeksDoc(),
+      direction: null,
+    });
+    expect(putNullRes.status).toBe(200);
+    expect(putNullRes.body.direction).toBeNull();
+
+    // PATCH sets it without version bump
+    const versionBeforePatch = putNullRes.body.version;
+    const patchRes = await call("PATCH", `/v1/programs/${progId}/direction`, {
+      direction: "Focus on deadlift speed.",
+    });
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.direction).toBe("Focus on deadlift speed.");
+    expect(patchRes.body.version).toBe(versionBeforePatch);
   });
 
   test("client PATCH accepts trainingDays", async () => {

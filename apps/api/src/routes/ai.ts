@@ -176,6 +176,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             trainerId,
             clientId: body.clientId,
             basedOnProgramId: body.basedOnProgramId ?? null,
+            direction: body.direction ?? null,
             providerId: body.providerId ?? "zai",
             model: rt.model,
             status: "pending",
@@ -241,6 +242,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         providerId: t.Optional(t.String()),
         model: t.Optional(t.String()),
         instructions: t.Optional(t.String({ maxLength: 2000 })),
+        direction: t.Optional(t.String({ maxLength: 500 })),
       }),
     }
   )
@@ -317,6 +319,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           description: gen.draft.clientSummary,
           sessions: finalWeeks,
           phasing: gen.draft.phasing ?? null,
+          direction: gen.direction ?? null,
           aiAssisted: true,
           createdFromProgramId: gen.basedOnProgramId,
           status: "draft",
