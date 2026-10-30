@@ -6,6 +6,7 @@ import { KNOWN_PROVIDERS, AiProviderConfig } from "@pt/shared";
 import { aiRoutes } from "./routes/ai";
 import { clientRoutes } from "./routes/clients";
 import { programRoutes } from "./routes/programs";
+import { exampleRoutes } from "./routes/examples";
 import { logRoutes } from "./routes/logs";
 import { exerciseRoutes } from "./routes/exercises";
 import { schemeRoutes } from "./routes/schemes";
@@ -24,6 +25,7 @@ const TAGS = [
   { name: "prompt-templates", description: "Reusable instruction template library" },
   { name: "clients", description: "Client management" },
   { name: "programs", description: "Versioned program documents and lifecycle" },
+  { name: "examples", description: "Gold-standard program library used as AI few-shot examples" },
   { name: "logs", description: "Session logging and history aggregation" },
   { name: "exercises", description: "Exercise catalog" },
   { name: "schemes", description: "Periodization scheme library" },
@@ -84,6 +86,7 @@ export const app = new Elysia()
   .use(aiRoutes)
   .use(clientRoutes)
   .use(programRoutes)
+  .use(exampleRoutes)
   .use(logRoutes)
   .use(exerciseRoutes)
   .use(schemeRoutes)

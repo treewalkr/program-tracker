@@ -1211,3 +1211,185 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     expect(body.error).toBe("generation targets a week that is no longer current");
   });
 });
+
+describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
+  let clientId = "";
+  let programId = "";
+  let otherProgramId = "";
+  let squatId = "";
+
+  const twoDayWeek = () => [
+    {
+      week: 1,
+      days: [
+        {
+          id: crypto.randomUUID(),
+          day: 1,
+          sessions: [
+            {
+              id: crypto.randomUUID(),
+              name: "Day A",
+              order: 0,
+              kind: "lifting",
+              exercises: [
+                {
+                  id: crypto.randomUUID(),
+                  exerciseId: squatId,
+                  order: 0,
+                  prescribedSets: [
+                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: crypto.randomUUID(),
+          day: 2,
+          sessions: [
+            {
+              id: crypto.randomUUID(),
+              name: "Day B",
+              order: 0,
+              kind: "lifting",
+              exercises: [
+                {
+                  id: crypto.randomUUID(),
+                  exerciseId: squatId,
+                  order: 0,
+                  prescribedSets: [
+                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  test("seed client + two programs", async () => {
+    const found = await call("GET", "/v1/exercises?q=squat");
+    expect(found.body.length).toBeGreaterThan(0);
+    squatId = found.body[0].id;
+
+    const c = await call("POST", "/v1/clients", {
+      name: "Example Lib Client",
+      email: `exlib-${Date.now()}@test.dev`,
+      goals: "lean bulk",
+      daysPerWeek: 2,
+    });
+    expect(c.status).toBe(201);
+    clientId = c.body.id;
+
+    const p1 = await call("POST", "/v1/programs", {
+      name: "Gold Standard Block",
+      clientId,
+      weeks: twoDayWeek(),
+    });
+    expect(p1.status).toBe(201);
+    programId = p1.body.id;
+
+    const p2 = await call("POST", "/v1/programs", {
+      name: "Other Block",
+      clientId,
+      weeks: twoDayWeek(),
+    });
+    expect(p2.status).toBe(201);
+    otherProgramId = p2.body.id;
+  });
+
+  test("mark a program as an example: 201, derived days, duplicate 409, unknown program 404", async () => {
+    const marked = await call("POST", "/v1/examples", {
+      programId,
+      goal: "lean bulk hypertrophy",
+      level: "intermediate",
+    });
+    expect(marked.status).toBe(201);
+    expect(marked.body.goal).toBe("lean bulk hypertrophy");
+    expect(marked.body.level).toBe("intermediate");
+    expect(marked.body.programId).toBe(programId);
+    // derived from the program's first week (2 days)
+    expect(marked.body.daysPerWeek).toBe(2);
+    expect(marked.body.program.id).toBe(programId);
+
+    const dup = await call("POST", "/v1/examples", {
+      programId,
+      goal: "again",
+      level: "beginner",
+    });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error).toBe("program is already marked as an example");
+
+    const missing = await call("POST", "/v1/examples", {
+      programId: crypto.randomUUID(),
+      goal: "ghost",
+      level: "beginner",
+    });
+    expect(missing.status).toBe(404);
+    expect(missing.body.error).toBe("program not found");
+
+    const badLevel = await call("POST", "/v1/examples", {
+      programId: otherProgramId,
+      goal: "ok",
+      level: "expert",
+    });
+    expect(badLevel.status).toBe(422);
+    expect(badLevel.body.error).toBe("invalid example");
+
+    const blankGoal = await call("POST", "/v1/examples", {
+      programId: otherProgramId,
+      goal: "",
+      level: "beginner",
+    });
+    expect(blankGoal.status).toBe(422);
+  });
+
+  test("example tags: patch, note clear, delete, programId filter", async () => {
+    const withNote = await call("PATCH", `/v1/examples/${(await call("GET", `/v1/examples?programId=${programId}`)).body.examples[0].id}`, {
+      goal: "lean bulk strength",
+      level: "advanced",
+      note: "revisit tags",
+    });
+    expect(withNote.status).toBe(200);
+    expect(withNote.body.goal).toBe("lean bulk strength");
+    expect(withNote.body.level).toBe("advanced");
+    expect(withNote.body.note).toBe("revisit tags");
+
+    const cleared = await call("PATCH", `/v1/examples/${withNote.body.id}`, { note: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.note).toBe(null);
+
+    // a second example to assert the filter and newest-first order
+    const second = await call("POST", "/v1/examples", {
+      programId: otherProgramId,
+      goal: "general strength",
+      level: "beginner",
+      daysPerWeek: 3,
+    });
+    expect(second.status).toBe(201);
+
+    const filtered = await call("GET", `/v1/examples?programId=${programId}`);
+    expect(filtered.body.examples.length).toBe(1);
+    expect(filtered.body.examples[0].programId).toBe(programId);
+
+    const all = await call("GET", "/v1/examples");
+    const ids = all.body.examples.map((e: any) => e.programId);
+    expect(ids).toContain(programId);
+    expect(ids).toContain(otherProgramId);
+    // newest first: the second mark was created last
+    expect(ids.indexOf(otherProgramId)).toBeLessThan(ids.indexOf(programId));
+
+    // patch on unknown id
+    expect((await call("PATCH", `/v1/examples/${crypto.randomUUID()}`, { goal: "x" })).status).toBe(404);
+
+    const del = await call("DELETE", `/v1/examples/${second.body.id}`);
+    expect(del.status).toBe(204);
+    expect((await call("DELETE", `/v1/examples/${second.body.id}`)).status).toBe(404);
+
+    // cleanup the first example so later generate tests see a known library
+    expect((await call("DELETE", `/v1/examples/${withNote.body.id}`)).status).toBe(204);
+  });
+});

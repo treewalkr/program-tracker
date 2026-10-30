@@ -64,6 +64,20 @@ for ranges:
 Sessions may carry optional `conditioning {label, detail}` (cardio blocks — display-only
 in MVP, not logged).
 
+## Examples (gold-standard library)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/v1/examples?programId=` | `{examples: [{id, programId, goal, level, daysPerWeek, note, createdAt, program}]}` newest first; optional `programId` filter (program-page membership) |
+| POST | `/v1/examples` | `{programId, goal, level: beginner\|intermediate\|advanced, daysPerWeek?, note?}` → 201; `daysPerWeek` defaults to the program's first-week day count; marking is metadata only — the program row is never touched; duplicate mark → **409**, unknown program → **404**, invalid tags → **422** |
+| PATCH | `/v1/examples/:id` | partial tag edit; `note: null` clears the note, absent fields untouched |
+| DELETE | `/v1/examples/:id` | unmark — deletes the example row only |
+
+The trainer curates these gold-standard programs; AI generation retrieves the
+best-matching ones (goal-word overlap + days/week proximity) and injects them
+into the prompt as few-shot examples. The generation row records which were
+used in `exampleProgramIds`.
+
 ## Logging (trainer enters results)
 
 | Method | Path | Notes |
@@ -155,7 +169,7 @@ Delivery (email via cron + outbox) is Phase L5 — the read path ships first.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, model?, instructions?, direction?, targetWeek?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept); unknown `model` for the provider → **400**. When `targetWeek` is set, operates in **weekly mode**: validates `basedOnProgramId` is active, `targetWeek = weekOf + 1 ≤ weeks.length`, inserts `kind: "week"`, and drafts week N+1. Context bundle auto-includes instruction templates selection, periodization context, and standing direction — see [ai-integration.md](ai-integration.md). GLM 5.x models always think (Z.ai rejects `disabled`) — the provider layer sends `budget: low` and a roomier token cap automatically |
+| POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, model?, instructions?, direction?, targetWeek?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept); unknown `model` for the provider → **400**. When `targetWeek` is set, operates in **weekly mode**: validates `basedOnProgramId` is active, `targetWeek = weekOf + 1 ≤ weeks.length`, inserts `kind: "week"`, and drafts week N+1. Context bundle auto-includes instruction templates selection, periodization context, standing direction, and matched gold-standard examples (recorded on the generation row as `exampleProgramIds`) — see [ai-integration.md](ai-integration.md). GLM 5.x models always think (Z.ai rejects `disabled`) — the provider layer sends `budget: low` and a roomier token cap automatically |
 | GET | `/v1/ai/generations?clientId=` | audit trail |
 | POST | `/v1/ai/generations/:id/approve` | draft → real program; **409** if not `validated`; **422** if unresolvable exercise refs. In block mode: creates a new draft program (`draft` status, `aiAssisted: true`, copies direction). In week mode: replaces the target week in place on the active program (`version++`, fresh ids, carries weekdays) |
 | POST | `/v1/ai/generations/:id/reject` | mark rejected, nothing created |
