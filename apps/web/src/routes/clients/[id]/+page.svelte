@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ClientDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
+  import type { ClientDto, GenerationDto, HistoryEntryDto, ProgramDto, SignalDto } from "$lib/api/types";
+  import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
@@ -19,6 +20,7 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Note from "$lib/ui/Note.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -26,6 +28,7 @@
   let current = $state<ProgramDto | null>(null);
   let programs = $state<ProgramDto[] | null>(null);
   let historyEntries = $state<HistoryEntryDto[] | null>(null);
+  let latestGen = $state<GenerationDto | null>(null);
   let saving = $state(false);
   let form = $state({ goals: "", limitations: "", daysPerWeek: 3, trainingDays: [] as number[] });
   let signals = $state<SignalDto[]>([]);
@@ -106,6 +109,7 @@
       daysPerWeek: detail.client.daysPerWeek ?? 3,
       trainingDays: detail.client.trainingDays ? [...detail.client.trainingDays] : [],
     };
+    latestGen = (await api.generations(id))[0] ?? null;
   }
 
   async function save() {
@@ -157,6 +161,13 @@
       </Button>
     </div>
   </div>
+
+  {#if isLivePending(latestGen)}
+    <Note tone="warn" role="status" class="gen-banner">
+      <span>AI draft is generating in the background — it keeps going even with this page closed.</span>
+      <Button variant="ghost" href={`/clients/${id}/generate`}>Watch progress</Button>
+    </Note>
+  {/if}
 
   {#if visibleSignals.length > 0}
     <section class="panel sig-panel" aria-live="polite">
@@ -372,6 +383,14 @@
   .id-block { flex: 1; min-width: 220px; }
   .name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .sub { margin: 4px 0 0; }
+
+  :global(.gen-banner) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 18px 0 0;
+  }
 
   .sig-panel { margin: 18px 0 0; }
   .sig-panel :global(.signal .act) { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
