@@ -4,11 +4,12 @@
   import { api } from "$lib/api";
   import { sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
-  import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
+  import { generationPhase, isLivePending, POLL_INTERVAL_MS, revisionChain } from "$lib/generation";
   import { diffSources, draftToDiffSource, programToDiffSource, type DiffRow } from "$lib/draftDiff";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import SessionCard from "$lib/components/SessionCard.svelte";
+  import RevisionThread from "$lib/components/RevisionThread.svelte";
   import DiffTiles from "$lib/components/DiffTiles.svelte";
   import ChangeRow from "$lib/components/ChangeRow.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -41,6 +42,10 @@
   let phase = $state<"form" | "generating" | "review" | "failed">("form");
   let failReason = $state<string | null>(null);
   let gen = $state<GenerationDto | null>(null);
+  let allGens = $state<GenerationDto[]>([]);
+  let revisionNote = $state("");
+  let revising = $state(false);
+  let reviseError = $state<string | null>(null);
   let newProgram = $state<ProgramDto | null>(null);
   let approving = $state(false);
   let rejecting = $state(false);
@@ -91,8 +96,23 @@
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
     ex.exerciseName ?? "";
 
+  const chain = $derived(revisionChain(allGens, gen?.id ?? ""));
+
+  const diffTitle = $derived(
+    chain.length > 1 && chain[chain.length - 2]?.draft
+      ? "Changes vs previous draft"
+      : "Changes vs current"
+  );
+
   const diff = $derived.by<DiffRow[]>(() => {
-    if (!current || !gen?.draft) return [];
+    if (!gen?.draft) return [];
+    if (chain.length > 1) {
+      const parentGen = chain[chain.length - 2];
+      if (parentGen?.draft) {
+        return diffSources(draftToDiffSource(parentGen.draft), draftToDiffSource(gen.draft));
+      }
+    }
+    if (!current) return [];
     return diffSources(programToDiffSource(current), draftToDiffSource(gen.draft));
   });
 
@@ -122,6 +142,7 @@
         model: model || undefined,
         instructions: mergedInstructions || undefined,
       });
+      allGens = [gen, ...allGens];
       phase = "review";
     } catch (err) {
       try {
@@ -138,6 +159,60 @@
         failReason = (err as Error).message || null;
       }
       phase = "failed";
+    }
+  }
+
+  async function revise() {
+    if (!gen) return;
+    const note = revisionNote.trim();
+    if (!note) return;
+
+    startedAtIso = new Date().toISOString();
+    phase = "generating";
+    revising = true;
+    reviseError = null;
+
+    try {
+      const child = await api.reviseGeneration(gen.id, note);
+      gen = child;
+      allGens = [child, ...allGens];
+      const nextPhase = generationPhase(child);
+      if (nextPhase === "failed") {
+        failReason = child.error;
+      }
+      phase = nextPhase;
+      revisionNote = "";
+      reviseError = null;
+    } catch (err) {
+      try {
+        const gens = await api.generations(id);
+        allGens = gens;
+        const pendingChild = gens.find((g) => g.parentGenerationId === gen?.id && isLivePending(g));
+        if (pendingChild) {
+          gen = pendingChild;
+          phase = "generating";
+          startPolling(pendingChild.id);
+          return;
+        }
+        const failedChild = gens.find(
+          (g) =>
+            g.parentGenerationId === gen?.id &&
+            (g.status === "failed_validation" || g.status === "failed_provider")
+        );
+        if (failedChild) {
+          gen = failedChild;
+          failReason = failedChild.error;
+          phase = "failed";
+          return;
+        }
+        phase = "review";
+        reviseError = (err as Error).message || "Revision failed";
+      } catch {
+        phase = "review";
+        reviseError = (err as Error).message || "Revision failed";
+      }
+    } finally {
+      revising = false;
     }
   }
 
@@ -165,6 +240,8 @@
   function reset() {
     stopPolling();
     gen = null;
+    revisionNote = "";
+    reviseError = null;
     newProgram = null;
     failReason = null;
     phase = "form";
@@ -214,6 +291,7 @@
     if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
 
     const gens = await api.generations(id);
+    allGens = gens;
     const latest = gens[0] ?? null;
     const initialPhase = generationPhase(latest);
     if (initialPhase === "generating" || initialPhase === "review" || initialPhase === "failed") {
@@ -350,7 +428,24 @@
     <section class="panel narrow">
       <div class="panel-body stack">
         <p class="err">Generation failed. {failReason ?? "Provider error or the draft failed validation."}</p>
-        <Button variant="ghost" onclick={() => (phase = "form")}>Back to settings</Button>
+        {#if gen?.parentGenerationId}
+          <Button
+            variant="ghost"
+            onclick={() => {
+              const parent = allGens.find((g) => g.id === gen?.parentGenerationId) ?? null;
+              if (parent) {
+                gen = parent;
+                phase = "review";
+              } else {
+                phase = "form";
+              }
+            }}
+          >
+            Back to previous draft
+          </Button>
+        {:else}
+          <Button variant="ghost" onclick={() => (phase = "form")}>Back to settings</Button>
+        {/if}
       </div>
     </section>
   {/if}
@@ -401,6 +496,18 @@
         <div class="panel-body rationale">{gen.draft.rationale}</div>
       </Panel>
 
+      {#if chain.length > 1}
+        <div class="mt-16">
+          <RevisionThread
+            entries={chain.slice(1).map((g, i) => ({
+              version: i + 2,
+              message: g.revisionMessage ?? "",
+              createdAt: g.createdAt,
+            }))}
+          />
+        </div>
+      {/if}
+
       <div class="clientreads">
         <div class="edit-note">what {client.name.split(" ")[0]} reads</div>
         {gen.draft.clientSummary}
@@ -409,7 +516,7 @@
 
     <div>
       {#if diff.length > 0}
-        <Panel title="Changes vs current" count={`${diff.length} exercises reviewed`}>
+        <Panel title={diffTitle} count={`${diff.length} exercises reviewed`}>
           <div class="panel-body">
             <DiffTiles kept={diffCounts.kept} added={diffCounts.added} removed={diffCounts.removed} changed={diffCounts.changed} />
             {#each diff as d (d.exercise)}
@@ -434,6 +541,41 @@
       </div>
     </div>
   </div>
+
+  {#if gen.status === "validated" && !newProgram}
+    <div class="mt-16">
+      <Panel title="Revise this draft">
+        <div class="panel-body stack">
+          <Field
+            label="Revision note"
+            htmlFor="g-revision"
+            hint="The AI gets this draft plus your note — everything else stays."
+          >
+            <textarea
+              class="textarea"
+              id="g-revision"
+              rows="2"
+              maxlength="2000"
+              placeholder="e.g. Swap day 2 bench for incline DB press; cut one RDL set."
+              bind:value={revisionNote}
+            ></textarea>
+          </Field>
+          {#if reviseError}
+            <Note tone="bad">{reviseError}</Note>
+          {/if}
+          <div>
+            <Button
+              variant="primary"
+              onclick={revise}
+              disabled={!revisionNote.trim() || revising}
+            >
+              {revising ? "Revising…" : "Revise draft"}
+            </Button>
+          </div>
+        </div>
+      </Panel>
+    </div>
+  {/if}
 
   {#if gen.status !== "rejected" && !newProgram}
     <div class="approve-note">
