@@ -142,6 +142,14 @@ export const AiGeneration = z.object({
   draft: AiProgramDraft.nullable(),
   /** Error detail when status = failed_*. */
   error: z.string().max(4000).nullable(),
+  parentGenerationId: z.string().uuid().nullable(),
+  revisionMessage: z.string().max(2000).nullable(),
   createdAt: z.string(),
 });
 export type AiGeneration = z.infer<typeof AiGeneration>;
+
+export function mockReviseDraft(previous: AiProgramDraft, message: string): AiProgramDraft {
+  const next = structuredClone(previous);
+  next.rationale = `${previous.rationale}\n\nRevision: ${message}`;
+  return next;
+}
