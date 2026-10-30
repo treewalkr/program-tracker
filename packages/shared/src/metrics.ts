@@ -1,5 +1,5 @@
 import { estimate1rm } from "./domain";
-import type { Phasing, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
+import type { CardioLog, Phasing, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
 /**
  * Block pulse: weekly volume & intensity computed from logged working sets.
@@ -30,6 +30,10 @@ export interface SignalLog {
   programId: string;
   /** ISO date (YYYY-MM-DD). */
   date: string;
+  /** "lifting" (default) or "cardio" — cardio logs carry no sets. */
+  kind?: string;
+  /** Cardio actuals when kind is "cardio". */
+  cardio?: CardioLog | null;
   sets: SignalLogSet[];
 }
 
