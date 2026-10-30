@@ -177,6 +177,9 @@ export const AiGeneration = z.object({
   clientId: z.string().uuid(),
   /** Program this draft was generated from; null for a cold start. */
   basedOnProgramId: z.string().uuid().nullable(),
+  kind: z.enum(["block", "week"]).default("block"),
+  targetWeek: z.number().int().min(1).max(26).nullable().optional(),
+  direction: z.string().max(500).nullable().optional(),
   providerId: z.string(),
   model: z.string(),
   status: GenerationStatus,

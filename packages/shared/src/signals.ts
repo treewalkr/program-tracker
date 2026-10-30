@@ -1,5 +1,5 @@
 import { estimate1rm, weekSessions } from "./domain";
-import { blockPulse, pulseSummary, weekOf } from "./metrics";
+import { blockPulse, daysIntoBlock, pulseSummary, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
 /**
@@ -15,7 +15,8 @@ export type SignalKind =
   | "off-plan"
   | "rpe-creep"
   | "stall"
-  | "adherence";
+  | "adherence"
+  | "week-ending";
 
 export interface Signal {
   /** Deterministic id, e.g. `block-ending:<programId>` — PK for snooze/outbox. */
@@ -34,6 +35,8 @@ export interface Signal {
   /** Alternative action when generating isn't the answer. */
   altHref?: string;
   altLabel?: string;
+  /** Weekly-cadence target the action opens (week-ending). */
+  targetWeek?: number;
 }
 
 /** Same load getting harder: avg RPE at identical weight, latest vs earliest week. */
@@ -193,6 +196,28 @@ export function computeSignals(
         evidence: `Scheme says transition: introduce movement variants, cut volume ~20%.${summary ? ` Block so far: ${summary}.` : ""}`,
         prefillNote: `Transition week (${week}/${ph.plannedWeeks}) of the ${ph.phase} block: shift toward ${ph.nextPhase ?? "the next phase"}. Cut volume ~20%, introduce variant movements, hold loads steady.`,
         templateHint: "tpl-block-structure",
+      });
+    }
+
+    const daysIn = daysIntoBlock(program, logs, now);
+    if (week < ph.plannedWeeks && daysIn % 7 >= 5) {
+      const next = scheme.find((w) => w.week === week + 1) ?? null;
+      signals.push({
+        ...owner,
+        id: `week-ending:${program.id}:w${week + 1}`,
+        kind: "week-ending",
+        severity: "info",
+        title: `Week ${week} of ${ph.plannedWeeks} ends soon — draft week ${week + 1}`,
+        evidence:
+          `“${program.name}” rolls into week ${week + 1}` +
+          (next ? ` — directive ${next.directive}` +
+            (next.target
+              ? ` (target ${next.target.deltaPercent >= 0 ? "+" : ""}${next.target.deltaPercent}% ${next.target.metric.replace("_", " ")})`
+              : "")
+            : " — no directive set for that week") +
+          `. Re-draft it from this week's logs.`,
+        prefillNote: `Re-draft week ${week + 1} of the ${ph.phase} block from this week's logged numbers.`,
+        targetWeek: week + 1,
       });
     }
 
