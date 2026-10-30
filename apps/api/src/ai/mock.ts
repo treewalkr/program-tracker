@@ -83,3 +83,40 @@ export function mockWeekDraft(targetWeek: number, directive: string | null): AiP
     sessions: structuredClone(MOCK_DRAFT.sessions),
   };
 }
+
+import type { AiClientMessageDraft, WeekSummaryStats } from "@pt/shared";
+
+/** Deterministic canned client message — keyless pipeline testing and UI dev.
+ *  Templated from the computed stats so the numbers are always real. */
+export function mockClientMessage(stats: WeekSummaryStats): AiClientMessageDraft {
+  const lines: string[] = [];
+  const sessions =
+    stats.sessionsPlanned != null
+      ? `${stats.sessionsLogged} of ${stats.sessionsPlanned} sessions`
+      : `${stats.sessionsLogged} sessions`;
+  lines.push(
+    `Strong week — ${sessions} logged and ${stats.overallVolume}kg lifted across ${stats.sets} working sets.`
+  );
+  if (stats.prs.length > 0) {
+    const pr = stats.prs[0];
+    lines.push(
+      `Highlight: ${pr.exerciseName} at ${pr.weightKg}kg for ${pr.reps} — your best yet on that lift (previous best ${pr.prevBest}kg est. 1RM).`
+    );
+  } else {
+    lines.push(`Every planned rep got done — that consistency is exactly what progress is built on.`);
+  }
+  if (stats.nextWeek) {
+    const what =
+      stats.nextWeek.directive === "+volume"
+        ? "a bit more total work"
+        : stats.nextWeek.directive === "+intensity"
+          ? "slightly heavier top sets"
+          : stats.nextWeek.directive === "deload"
+            ? "an easier week to absorb all this work"
+            : "the same rhythm with small steps forward";
+    lines.push(`Next week we move into ${what} — same plan, just turn up as you did this week.`);
+  } else {
+    lines.push(`That wraps the block — great way to finish it. I'll have your next program ready shortly.`);
+  }
+  return { message: lines.join("\n") };
+}

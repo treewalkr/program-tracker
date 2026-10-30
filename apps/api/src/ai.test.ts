@@ -644,3 +644,99 @@ describe("replaceWeek", () => {
     expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
   });
 });
+
+import {
+  buildClientMessageMessages,
+  clientMessageStatsText,
+} from "./ai/prompt";
+import { mockClientMessage } from "./ai/mock";
+import type { WeekSummaryStats } from "@pt/shared";
+
+const statsFixture: WeekSummaryStats = {
+  week: 3,
+  weekStart: "2026-10-15",
+  sessionsLogged: 3,
+  sessionsPlanned: 4,
+  adherencePct: 75,
+  overallVolume: 9540,
+  overallVolumeDelta: 12,
+  sets: 42,
+  avgRpe: 8.1,
+  bestE1rm: 128.3,
+  prs: [
+    { exerciseId: "ex-squat", exerciseName: "Back Squat", weightKg: 110, reps: 5, e1rm: 128.3, prevBest: 116.7 },
+    { exerciseId: "ex-bench", exerciseName: "Bench Press", weightKg: 80, reps: 5, e1rm: 93.3, prevBest: 70 },
+  ],
+  nextWeek: { week: 4, directive: "+intensity", target: { metric: "intensity", deltaPercent: 2.5 } },
+};
+
+describe("buildClientMessageMessages", () => {
+  test("renders client name, stats text, next week and safety rules", () => {
+    const { system, user } = buildClientMessageMessages({
+      clientName: "Maya Chen",
+      programName: "Strength Base A",
+      stats: statsFixture,
+    });
+
+    // fixed safety rules in the system prompt
+    expect(system).toContain("no markdown");
+    expect(system).toContain("at most about 120 words");
+    expect(system).toContain("NEVER invent or estimate any number");
+    expect(system).toContain("Never comment on body weight or appearance");
+    expect(system).toContain("2–4 short paragraphs");
+
+    // user prompt: first name + the deterministic stats render
+    expect(user).toContain("Maya");
+    expect(user).not.toContain("Maya Chen"); // first name only
+    expect(user).toContain("Strength Base A");
+    expect(user).toContain("WEEK OF 2026-10-15 · 3/4 sessions (75%)");
+    expect(user).toContain("VOLUME 9540kg (+12% vs last week) · 42 working sets · avg RPE 8.1");
+    expect(user).toContain("PR Back Squat 110kg × 5 (est. 1RM 128.3kg, previous best 116.7kg)");
+    expect(user).toContain("NEXT WEEK +intensity · target +2.5% intensity");
+
+    // final-week variant: no next week planned
+    const final = buildClientMessageMessages({
+      clientName: "Maya Chen",
+      programName: "Strength Base A",
+      stats: { ...statsFixture, nextWeek: null, prs: [] },
+    });
+    expect(final.user).toContain("FINAL WEEK OF THE BLOCK — no next week planned");
+    expect(final.user).toContain("NO NEW BESTS");
+  });
+});
+
+describe("clientMessageStatsText", () => {
+  test("renders every stat line deterministically", () => {
+    const text = clientMessageStatsText(statsFixture);
+    expect(text.split("\n")).toEqual([
+      "WEEK OF 2026-10-15 · 3/4 sessions (75%)",
+      "VOLUME 9540kg (+12% vs last week) · 42 working sets · avg RPE 8.1",
+      "PR Back Squat 110kg × 5 (est. 1RM 128.3kg, previous best 116.7kg)",
+      "PR Bench Press 80kg × 5 (est. 1RM 93.3kg, previous best 70kg)",
+      "NEXT WEEK +intensity · target +2.5% intensity",
+    ]);
+  });
+});
+
+describe("mockClientMessage", () => {
+  test("echoes the stats deterministically", () => {
+    const a = mockClientMessage(statsFixture);
+    const b = mockClientMessage(statsFixture);
+    expect(a.message).toBe(b.message);
+    expect(a.message.length).toBeGreaterThan(0);
+    expect(a.message.length).toBeLessThanOrEqual(1200);
+    // references the sessions logged and the first PR
+    expect(a.message).toContain("3 of 4 sessions");
+    expect(a.message).toContain("Back Squat");
+    expect(a.message).toContain("110kg");
+
+    // no PR → volume/compliment path, still deterministic
+    const noPr = mockClientMessage({ ...statsFixture, prs: [] });
+    expect(noPr.message).toBe(mockClientMessage({ ...statsFixture, prs: [] }).message);
+    expect(noPr.message).toContain("9540kg");
+
+    // final week → wrap-up, not a next week
+    const final = mockClientMessage({ ...statsFixture, nextWeek: null });
+    expect(final.message).toContain("wraps the block");
+  });
+});
