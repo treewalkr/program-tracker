@@ -15,6 +15,8 @@ import {
   AiProviderConfig,
   KNOWN_PROVIDERS,
   blockPulse,
+  chainBalanceText,
+  chainSetCounts,
   mockReviseDraft,
   pulseSummary,
   weekOf,
@@ -25,6 +27,7 @@ import { MOCK_DRAFT } from "../ai/mock";
 import { bindPendingExercises, draftToSessions } from "../lib/draftToProgram";
 import { buildHistory } from "../lib/history";
 import { getDefaultTrainerId } from "../lib/trainer";
+import { ensureSeededChains } from "../lib/chains";
 import { toSignalLog, toSignalProgram } from "../lib/signals-service";
 
 const HISTORY_WINDOW_DAYS = 56;
@@ -69,6 +72,17 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
     : [];
 
+  const chains = await ensureSeededChains(trainerId);
+  const structuredLogs = logs.map((l) => ({
+    date: l.date,
+    sets: sets
+      .filter((s) => s.sessionLogId === l.id)
+      .map((s) => ({ exerciseId: s.exerciseId, type: s.type })),
+  }));
+  const counts = chainSetCounts(chains, structuredLogs, catalogByTrainer, since);
+  const totalWorkingSets = sets.filter((s) => s.type === "working").length;
+  const chainBalance = totalWorkingSets === 0 ? null : chainBalanceText(chains, counts);
+
   // Auto-injected periodization context — derived, never trainer-editable.
   let periodization: string | null = null;
   if (basedOnProgram?.phasing) {
@@ -98,6 +112,7 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     },
     previousProgram: previous,
     periodization,
+    chainBalance,
     history: buildHistory({
       logs,
       sets,

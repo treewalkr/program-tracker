@@ -24,6 +24,7 @@ describe("buildGenerationMessages", () => {
       client: { name: "Ada", goals: "get strong", limitations: "Left knee pain — no deep knee flexion", daysPerWeek: 3 },
       previousProgram: null,
       periodization: null,
+      chainBalance: null,
       history: [],
       catalog: [],
       trainerInstructions: "",
@@ -39,6 +40,7 @@ describe("buildGenerationMessages", () => {
       client: { name: "Bob" },
       previousProgram: null,
       periodization: null,
+      chainBalance: null,
       history: [{ exerciseName: "Back Squat", recentSets: ["100kg × 5 @ RPE 8"], bestE1rm: 116.7 }],
       catalog: [],
       trainerInstructions: "",
@@ -52,6 +54,7 @@ describe("buildGenerationMessages", () => {
       client: { name: "Maya", daysPerWeek: 4 },
       previousProgram: null,
       periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly tonnage 1.8t → 2.1t (+17%)",
+      chainBalance: null,
       history: [],
       catalog: [],
       trainerInstructions: "",
@@ -70,6 +73,7 @@ describe("buildGenerationMessages", () => {
         sessions: [{ name: "Day A", exercises: [{ name: "Back Squat", role: "primary", sets: ["5 reps"] }] }],
       },
       periodization: null,
+      chainBalance: null,
       history: [],
       catalog: [],
       trainerInstructions: "",
@@ -85,6 +89,7 @@ describe("buildGenerationMessages", () => {
       client: { name: "Maya", daysPerWeek: 2 },
       previousProgram: null,
       periodization: null,
+      chainBalance: null,
       history: [],
       catalog: [
         {
@@ -106,6 +111,7 @@ describe("buildGenerationMessages", () => {
       client: { name: "Maya", daysPerWeek: 2 },
       previousProgram: null,
       periodization: null,
+      chainBalance: null,
       history: [],
       catalog: [
         {
@@ -127,6 +133,7 @@ describe("buildGenerationMessages", () => {
       client: { name: "Maya", daysPerWeek: 2 },
       previousProgram: null,
       periodization: null,
+      chainBalance: null,
       history: [],
       catalog: [],
       trainerInstructions: "",
@@ -134,6 +141,32 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("push volume (vertical + horizontal) with pull volume");
     expect(system).toContain("knee-dominant with hip-dominant");
     expect(system).toContain("rationale must state how the block is balanced");
+  });
+
+  test("chain balance reaches the prompt", () => {
+    const withBalance = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: "Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral",
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(withBalance.user).toContain("KINETIC CHAIN BALANCE");
+    expect(withBalance.user).toContain("Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral");
+    expect(withBalance.system).toContain("five kinetic chains");
+
+    const noBalance = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(noBalance.user).toContain("no logged training to balance yet");
   });
 });
 
@@ -170,6 +203,7 @@ describe("buildRevisionMessages", () => {
       },
       previousProgram: null,
       periodization: null,
+      chainBalance: null,
       history: [],
       catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell" }],
       trainerInstructions: "",
@@ -183,6 +217,56 @@ describe("buildRevisionMessages", () => {
     expect(user).toContain("Shoulder impingement — keep elbow tucked");
     expect(user).toContain("- Day A: Bench Press (primary) [5 reps @ RPE 8; 5+ reps @ RPE 9]");
     expect(user).toContain(feedback);
+  });
+
+  test("chain balance reaches the revision prompt", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "Initial mesocycle rationale",
+      clientSummary: "Client summary",
+      sessions: [
+        {
+          name: "Day A",
+          exercises: [
+            {
+              exerciseName: "Bench Press",
+              role: "primary",
+              prescribedSets: [
+                { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const withBalance = buildRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: "Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral",
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "more lateral chain",
+    });
+    expect(withBalance.user).toContain("KINETIC CHAIN BALANCE");
+    expect(withBalance.user).toContain("Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral");
+    expect(withBalance.system).toContain("five kinetic chains");
+
+    const noBalance = buildRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "more lateral chain",
+    });
+    expect(noBalance.user).toContain("no logged training to balance yet");
   });
 });
 

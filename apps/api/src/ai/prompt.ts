@@ -39,6 +39,7 @@ export interface GenerationContext {
   previousProgram: ProgramSummary | null;
   /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · tonnage/e1RM summary". */
   periodization: string | null;
+  chainBalance: string | null;
   history: ExerciseHistoryEntry[];
   catalog: CatalogEntry[];
   trainerInstructions: string;
@@ -104,6 +105,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
   ].join("\n");
@@ -125,6 +127,10 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     ctx.periodization
       ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
+    "",
+    ctx.chainBalance
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0
       ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
@@ -163,6 +169,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
@@ -186,6 +193,10 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     ctx.periodization
       ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
+    "",
+    ctx.chainBalance
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0
       ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
