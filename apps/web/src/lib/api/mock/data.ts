@@ -734,17 +734,6 @@ export const trainerProgramDraft: ProgramDto = {
     [1, 2, 4, 6]
   ),
 };
-      id: "ps-natb-3", name: "Day 3 — Lower", order: 2, conditioning: null,
-      exercises: [
-        { id: "pe-natb-13", exerciseId: "ex-squat", order: 0, prescribedSets: range(4, 6, 8) },
-        { id: "pe-natb-14", exerciseId: "ex-press", order: 1, prescribedSets: range(3, 9, 12) },
-        { id: "pe-natb-15", exerciseId: "ex-walklunge", order: 2, prescribedSets: many(3, 20), notes: "Steps per set" },
-        { id: "pe-natb-16", exerciseId: "ex-legext", order: 3, prescribedSets: range(3, 9, 12) },
-        { id: "pe-natb-17", exerciseId: "ex-legcurl", order: 4, prescribedSets: range(3, 9, 12) },
-      ],
-    },
-  ],
-};
 programs.push(trainerProgramDraft);
 
 logs.push(

@@ -236,7 +236,7 @@
                         value={s.cardio?.modality ?? ""}
                         oninput={(ev) => {
                           s.cardio = {
-                            ...(s.cardio ?? { modality: "", durationMin: null, hrZone: null, intensity: "", distanceKm: null, targetRpe: null }),
+                            ...(s.cardio ?? { modality: "", durationMin: null, hrZone: null, intensity: "", distanceKm: undefined, targetRpe: undefined }),
                             modality: ev.currentTarget.value,
                           };
                         }}

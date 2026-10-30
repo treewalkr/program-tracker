@@ -635,7 +635,7 @@
   .setx svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
   .setx:hover { color: var(--bad); }
 
-  .addday { align-self: flex-start; }
+  :global(.addday) { align-self: flex-start; }
   .hint { margin: 0; }
 
   @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }

@@ -278,10 +278,22 @@
       const logs = await api.sessionLogs(id);
       const pulse = blockPulse(current, logs);
       const w = weekOf(current, logs);
-      const directive = current.phasing?.weeks?.find((x) => x.week === w)?.directive ?? null;
+      const currentPlan = current.phasing?.weeks?.find((x) => x.week === w) ?? null;
+      const directive = currentPlan?.directive ?? null;
+      const target = currentPlan?.target ?? null;
       const summary = pulseSummary(pulse);
       const bits = [`week ${w} of ${current.phasing?.plannedWeeks ?? "?"}`];
       if (directive) bits.push(`directive ${directive}`);
+      if (target) {
+        const metricLabels: Record<string, string> = {
+          overall_volume: "overall volume",
+          rep_volume: "rep volume",
+          intensity: "intensity",
+        };
+        const label = metricLabels[target.metric] ?? target.metric;
+        const sign = target.deltaPercent >= 0 ? "+" : "";
+        bits.push(`target ${label} ${sign}${target.deltaPercent}%`);
+      }
       if (summary) bits.push(summary);
       periodContext = bits.join(" · ");
     }
@@ -536,6 +548,8 @@
             <!-- approve sorts by role, so review shows the order that will be saved -->
             <SessionCard
               name={s.name}
+              kind={s.kind}
+              cardio={s.cardio}
               exercises={sortExercisesByRole(s.exercises).map((e) => ({
                 name: draftName(e),
                 role: e.role,
