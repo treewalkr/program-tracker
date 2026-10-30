@@ -1,5 +1,5 @@
 import { estimate1rm } from "./domain";
-import type { Phasing, SetType, WeekDirective, WeekTarget } from "./domain";
+import type { Phasing, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
 /**
  * Block pulse: weekly volume & intensity computed from logged working sets.
@@ -12,8 +12,7 @@ export interface SignalProgram {
   clientId: string | null;
   name: string;
   status: string;
-  /** Only the count matters (adherence expectations). */
-  sessions: unknown[];
+  weeks: ProgramWeek[];
   activatedAt?: string | null;
   createdAt: string;
   phasing?: Phasing | null;

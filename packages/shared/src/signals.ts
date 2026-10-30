@@ -1,4 +1,4 @@
-import { estimate1rm } from "./domain";
+import { estimate1rm, weekSessions } from "./domain";
 import { blockPulse, pulseSummary, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
@@ -241,7 +241,7 @@ export function computeSignals(
   // Suppressed near block end — the block-ending review already brings the trainer in.
   const phaseSignalExists = signals.some((s) => s.kind === "block-ending" || s.kind === "deload-week");
   const weeksRun = Math.max(1, week);
-  const perWeek = clientDaysPerWeek ?? program.sessions.length;
+  const perWeek = clientDaysPerWeek ?? weekSessions(program.weeks, week).length;
   const expected = perWeek * weeksRun;
   const logged = programLogs.length;
   if (!phaseSignalExists && expected >= 4 && logged / expected < 0.6) {

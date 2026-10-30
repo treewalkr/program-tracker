@@ -55,22 +55,37 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     benchId = bench.body[0].id;
   });
 
+  let programSessionId = "";
+
   test("create + activate program", async () => {
+    programSessionId = crypto.randomUUID();
     const { status, body } = await call("POST", "/v1/programs", {
       name: "E2E Block 1",
       clientId,
-      sessions: [
+      weeks: [
         {
-          id: crypto.randomUUID(),
-          name: "Day A",
-          order: 0,
-          exercises: [
+          week: 1,
+          days: [
             {
               id: crypto.randomUUID(),
-              exerciseId: squatId,
-              order: 0,
-              prescribedSets: [
-                { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+              day: 1,
+              sessions: [
+                {
+                  id: programSessionId,
+                  name: "Day A",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId: squatId,
+                      order: 0,
+                      prescribedSets: [
+                        { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                      ],
+                    },
+                  ],
+                },
               ],
             },
           ],
@@ -78,6 +93,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       ],
     });
     expect(status).toBe(201);
+    expect(body.weeks).toBeDefined();
     programId = body.id;
 
     const act = await call("PATCH", `/v1/programs/${programId}/status`, { status: "active" });
@@ -88,6 +104,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     const { status, body } = await call("POST", "/v1/logs/sessions", {
       clientId,
       programId,
+      programSessionId,
       date: new Date().toISOString().slice(0, 10),
       perceivedEnergy: 7,
       sets: [
@@ -166,17 +183,22 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.phasing?.plannedWeeks).toBe(4);
     expect(body.phasing?.weeks?.some((w: any) => w.directive === "deload")).toBe(true);
     // every exercise carries its display name — the UI renders it directly
-    for (const s of body.sessions) {
-      for (const e of s.exercises) {
-        expect(e.exerciseName, `exercise ${e.exerciseId} must have a display name`).toBeTruthy();
+    expect(body.weeks).toHaveLength(4);
+    for (const w of body.weeks) {
+      for (const d of w.days) {
+        for (const s of d.sessions) {
+          for (const e of s.exercises) {
+            expect(e.exerciseName, `exercise ${e.exerciseId} must have a display name`).toBeTruthy();
+          }
+          // the mock draft roles every exercise and approve sorts by role rank
+          const ranks = s.exercises.map((e: any) => EXERCISE_ROLES.indexOf(e.role));
+          expect(ranks.every((r: number) => r >= 0), "every exercise must carry a role").toBe(true);
+          expect(
+            ranks.every((r: number, i: number) => i === 0 || r >= ranks[i - 1]),
+            "session exercises must be sorted power → primary → strength → accessory → core"
+          ).toBe(true);
+        }
       }
-      // the mock draft roles every exercise and approve sorts by role rank
-      const ranks = s.exercises.map((e: any) => EXERCISE_ROLES.indexOf(e.role));
-      expect(ranks.every((r: number) => r >= 0), "every exercise must carry a role").toBe(true);
-      expect(
-        ranks.every((r: number, i: number) => i === 0 || r >= ranks[i - 1]),
-        "session exercises must be sorted power → primary → strength → accessory → core"
-      ).toBe(true);
     }
 
     // original program stays active until the trainer promotes the draft
@@ -268,21 +290,94 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
   let clientId = "";
   let programId = "";
   let squatId = "";
-  const sessions = () => [
+  const weeksDoc = () => [
     {
-      id: crypto.randomUUID(),
-      name: "Day A",
-      order: 0,
-      exercises: [
+      week: 1,
+      days: [
         {
           id: crypto.randomUUID(),
-          exerciseId: squatId,
-          order: 0,
-          prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
+          day: 1,
+          sessions: [
+            {
+              id: crypto.randomUUID(),
+              name: "Day A",
+              order: 0,
+              kind: "lifting",
+              exercises: [
+                {
+                  id: crypto.randomUUID(),
+                  exerciseId: squatId,
+                  order: 0,
+                  prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
+                },
+              ],
+            },
+          ],
         },
       ],
     },
   ];
+
+  test("non-contiguous weeks document is a 422", async () => {
+    const { status, body } = await call("POST", "/v1/programs", {
+      name: "Non-contiguous",
+      clientId,
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: crypto.randomUUID(),
+              day: 1,
+              sessions: [
+                {
+                  id: crypto.randomUUID(),
+                  name: "Day A",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId: squatId,
+                      order: 0,
+                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          week: 3,
+          days: [
+            {
+              id: crypto.randomUUID(),
+              day: 1,
+              sessions: [
+                {
+                  id: crypto.randomUUID(),
+                  name: "Day B",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId: squatId,
+                      order: 0,
+                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(status).toBe(422);
+    expect(body.error).toBe("invalid weeks document");
+  });
 
   test("client created with trainingDays; program with phasing; activation stamps activatedAt once", async () => {
     const c = await call("POST", "/v1/clients", {
@@ -306,7 +401,7 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
         nextPhase: "intensification",
         weeks: [{ week: 1, directive: "base" }],
       },
-      sessions: sessions(),
+      weeks: weeksDoc(),
     });
     expect(p.status).toBe(201);
     expect(p.body.phasing.plannedWeeks).toBe(1);
@@ -329,14 +424,14 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       name: "Bad Phasing",
       clientId,
       phasing: { plannedWeeks: 99, phase: "x" },
-      sessions: sessions(),
+      weeks: weeksDoc(),
     });
     expect(status).toBe(422);
   });
 
   test("PUT replaces phasing; explicit null clears it", async () => {
     const replaced = await call("PUT", `/v1/programs/${programId}`, {
-      sessions: sessions(),
+      weeks: weeksDoc(),
       phasing: {
         plannedWeeks: 3,
         phase: "intensification",
@@ -346,14 +441,14 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
     expect(replaced.body.phasing.plannedWeeks).toBe(3);
 
     const cleared = await call("PUT", `/v1/programs/${programId}`, {
-      sessions: sessions(),
+      weeks: weeksDoc(),
       phasing: null,
     });
     expect(cleared.body.phasing).toBeNull();
 
     // restore the 1-week phasing for the notification tests below
     const restored = await call("PUT", `/v1/programs/${programId}`, {
-      sessions: sessions(),
+      weeks: weeksDoc(),
       phasing: {
         plannedWeeks: 1,
         phase: "accumulation",
@@ -599,17 +694,29 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
     const progRes = await call("POST", "/v1/programs", {
       clientId: cId,
       name: "Chains Test Program",
-      sessions: [
+      weeks: [
         {
-          id: crypto.randomUUID(),
-          name: "Day 1",
-          order: 0,
-          exercises: [
+          week: 1,
+          days: [
             {
               id: crypto.randomUUID(),
-              exerciseId,
-              order: 0,
-              prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
+              day: 1,
+              sessions: [
+                {
+                  id: crypto.randomUUID(),
+                  name: "Day 1",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId,
+                      order: 0,
+                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },

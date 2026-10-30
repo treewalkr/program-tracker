@@ -24,7 +24,7 @@ import {
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { buildGenerationMessages, buildRevisionMessages } from "../ai/prompt";
 import { MOCK_DRAFT } from "../ai/mock";
-import { bindPendingExercises, draftToSessions } from "../lib/draftToProgram";
+import { bindPendingExercises, draftToWeeks } from "../lib/draftToProgram";
 import { buildHistory } from "../lib/history";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { ensureSeededChains } from "../lib/chains";
@@ -46,9 +46,11 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     if (p) {
       basedOnProgram = p;
       const nameById = new Map(catalogByTrainer.map((e) => [e.id, e.name]));
+      const latestWeek = p.sessions[p.sessions.length - 1];
+      const latestSessions = latestWeek ? latestWeek.days.flatMap((d) => d.sessions) : [];
       previous = {
         name: p.name,
-        sessions: p.sessions.map((s) => ({
+        sessions: latestSessions.map((s) => ({
           name: s.name,
           exercises: s.exercises.map((e) => ({
             name: nameById.get(e.exerciseId) ?? e.exerciseId,
@@ -282,10 +284,16 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       if (gen.status !== "validated") return status(409, { error: `generation is ${gen.status}, not validated` });
       if (!gen.draft) return status(409, { error: "generation has no draft" });
 
+      const [client] = gen.clientId
+        ? await db.select().from(clients).where(eq(clients.id, gen.clientId))
+        : [null];
+
       const catalog = await db.select().from(exercises);
-      const { sessions, createdNames, unresolvable } = draftToSessions(
+      const { weeks, createdNames, unresolvable } = draftToWeeks(
         gen.draft,
-        catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId)
+        catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
+        gen.draft.phasing?.plannedWeeks ?? 4,
+        client?.trainingDays
       );
       if (unresolvable.length > 0) {
         return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
@@ -306,7 +314,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         nameToId.set(name.toLowerCase(), created.id);
       }
 
-      const finalSessions = bindPendingExercises(sessions, nameToId);
+      const finalWeeks = bindPendingExercises(weeks, nameToId);
       const [program] = await db
         .insert(programs)
         .values({
@@ -314,7 +322,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           clientId: gen.clientId,
           name: gen.draft.name,
           description: gen.draft.clientSummary,
-          sessions: finalSessions,
+          sessions: finalWeeks,
           phasing: gen.draft.phasing ?? null,
           aiAssisted: true,
           createdFromProgramId: gen.basedOnProgramId,
@@ -323,7 +331,8 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         .returning();
 
       await db.update(aiGenerations).set({ status: "approved" }).where(eq(aiGenerations.id, gen.id));
-      return status(201, program);
+      const { sessions, ...rest } = program;
+      return status(201, { ...rest, weeks: sessions });
     },
     { params: t.Object({ id: t.String() }) }
   )

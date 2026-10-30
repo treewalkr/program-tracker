@@ -5,8 +5,10 @@ import {
   chainSetCounts,
   chainsForExercise,
   pulseSummary,
+  weekSessions,
   type ChainCatalogEntry,
   type ChainDef,
+  type ProgramWeek,
   type SignalLog,
   type SignalProgram,
 } from "./index";
@@ -103,7 +105,7 @@ describe("blockPulse & pulseSummary", () => {
     clientId: "client-1",
     name: "Block 1",
     status: "active",
-    sessions: [],
+    weeks: [],
     createdAt: "2026-10-01T00:00:00.000Z",
     activatedAt: "2026-10-01T00:00:00.000Z",
     phasing: {
@@ -249,5 +251,62 @@ describe("blockPulse & pulseSummary", () => {
     expect(summary).toBeTruthy();
     expect(summary).toContain("weekly overall volume");
     expect(summary).not.toContain("tonnage");
+  });
+
+  test("weekSessions adherence-shape: flattens sessions of the requested week", () => {
+    const weeks: ProgramWeek[] = [
+      {
+        week: 1,
+        days: [
+          {
+            id: "d1",
+            day: 1,
+            sessions: [
+              {
+                id: "s1",
+                name: "S1",
+                order: 0,
+                kind: "lifting",
+                exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+              },
+            ],
+          },
+          {
+            id: "d2",
+            day: 2,
+            sessions: [
+              {
+                id: "s2",
+                name: "S2",
+                order: 0,
+                kind: "lifting",
+                exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        week: 2,
+        days: [
+          {
+            id: "d3",
+            day: 1,
+            sessions: [
+              {
+                id: "s3",
+                name: "S3",
+                order: 0,
+                kind: "lifting",
+                exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(weekSessions(weeks, 1).map((s) => s.id)).toEqual(["s1", "s2"]);
+    expect(weekSessions(weeks, 2).map((s) => s.id)).toEqual(["s3"]);
+    expect(weekSessions(weeks, 3)).toEqual([]);
   });
 });
