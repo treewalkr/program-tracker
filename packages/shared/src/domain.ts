@@ -37,6 +37,132 @@ export const EQUIPMENT = [
 export const Equipment = z.enum(EQUIPMENT);
 export type Equipment = z.infer<typeof Equipment>;
 
+export const MOVEMENT_PATTERNS = [
+  "vertical_push",
+  "vertical_pull",
+  "horizontal_push",
+  "horizontal_pull",
+  "knee_dominant",
+  "hip_dominant",
+  "rotation",
+  "anti_rotation",
+  "lateral_flexion",
+  "anti_lateral_flexion",
+  "trunk_flexion",
+  "anti_trunk_flexion",
+] as const;
+export const MovementPattern = z.enum(MOVEMENT_PATTERNS);
+export type MovementPattern = z.infer<typeof MovementPattern>;
+
+export const FUNCTIONAL_MOVEMENTS = [
+  "push",
+  "pull",
+  "bend_lift",
+  "squat",
+  "single_leg",
+  "rotation",
+  "locomotion",
+] as const;
+export const FunctionalMovement = z.enum(FUNCTIONAL_MOVEMENTS);
+export type FunctionalMovement = z.infer<typeof FunctionalMovement>;
+
+export const MOVEMENT_PATTERN_INFO: Record<
+  MovementPattern,
+  { label: string; name: string; description: string; core: boolean }
+> = {
+  vertical_push: {
+    label: "v push",
+    name: "Vertical push",
+    description: "Pressing overhead — overhead/push press, jerks, handstand work.",
+    core: false,
+  },
+  vertical_pull: {
+    label: "v pull",
+    name: "Vertical pull",
+    description: "Pulling from above — pull-ups, chin-ups, pulldowns.",
+    core: false,
+  },
+  horizontal_push: {
+    label: "h push",
+    name: "Horizontal push",
+    description: "Pressing forward — bench press, push-up and fly variations.",
+    core: false,
+  },
+  horizontal_pull: {
+    label: "h pull",
+    name: "Horizontal pull",
+    description: "Pulling toward the torso — rows, face pulls, rear-delt work.",
+    core: false,
+  },
+  knee_dominant: {
+    label: "knee",
+    name: "Knee-dominant",
+    description: "Squatting patterns — knee-flexion-biased leg work.",
+    core: false,
+  },
+  hip_dominant: {
+    label: "hip",
+    name: "Hip-dominant",
+    description: "Hinging patterns — deadlifts, good mornings, hip thrusts, curls.",
+    core: false,
+  },
+  rotation: {
+    label: "rot",
+    name: "Rotation",
+    description: "Rotating the trunk under load — twists, chops.",
+    core: true,
+  },
+  anti_rotation: {
+    label: "anti-rot",
+    name: "Anti-rotation",
+    description: "Resisting trunk rotation — Pallof press and friends.",
+    core: true,
+  },
+  lateral_flexion: {
+    label: "lat flex",
+    name: "Lateral flexion",
+    description: "Bending the trunk sideways — side bends.",
+    core: true,
+  },
+  anti_lateral_flexion: {
+    label: "anti-lat",
+    name: "Anti-lateral flexion",
+    description: "Resisting sideways bend — side planks, suitcase carries.",
+    core: true,
+  },
+  trunk_flexion: {
+    label: "trunk flex",
+    name: "Trunk flexion",
+    description: "Flexing the trunk — crunches, leg raises.",
+    core: true,
+  },
+  anti_trunk_flexion: {
+    label: "anti-trunk",
+    name: "Anti-trunk flexion",
+    description: "Resisting trunk flexion — planks, rollouts.",
+    core: true,
+  },
+};
+
+export const FUNCTIONAL_MOVEMENT_INFO: Record<
+  FunctionalMovement,
+  { label: string; description: string }
+> = {
+  push: { label: "Push", description: "Pushing things away from you." },
+  pull: { label: "Pull", description: "Pulling things toward you." },
+  bend_lift: {
+    label: "Bend & lift",
+    description: "Bending and lifting from the floor — hinges, deadlifts.",
+  },
+  squat: { label: "Squat", description: "Squatting down and standing up." },
+  single_leg: { label: "Single leg", description: "Split-stance and one-leg work." },
+  rotation: { label: "Rotation", description: "Rotating and resisting rotation." },
+  locomotion: {
+    label: "Locomotion",
+    description: "Carries, drags, gait, jumping — getting from A to B.",
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Trainer / Client
 // ---------------------------------------------------------------------------
@@ -82,6 +208,8 @@ export const Exercise = z.object({
   primaryMuscleGroup: MuscleGroup,
   secondaryMuscleGroups: z.array(MuscleGroup).max(4).default([]),
   equipment: Equipment,
+  movementPattern: MovementPattern.nullable().optional(),
+  functionalMovement: FunctionalMovement.nullable().optional(),
 });
 export type Exercise = z.infer<typeof Exercise>;
 
@@ -138,6 +266,53 @@ export function sortExercisesByRole<T extends { role?: ExerciseRole | null }>(
   const rank = (r: ExerciseRole | null | undefined) =>
     r ? EXERCISE_ROLES.indexOf(r) : EXERCISE_ROLES.length;
   return [...list].sort((a, b) => rank(a.role) - rank(b.role));
+}
+
+export interface PatternBalance {
+  push: number;
+  pull: number;
+  knee: number;
+  hip: number;
+  core: number;
+  unclassified: number;
+}
+
+export function patternBalance(
+  list: readonly { movementPattern?: MovementPattern | null }[]
+): PatternBalance {
+  const result: PatternBalance = {
+    push: 0,
+    pull: 0,
+    knee: 0,
+    hip: 0,
+    core: 0,
+    unclassified: 0,
+  };
+  for (const item of list) {
+    const p = item.movementPattern;
+    if (!p) {
+      result.unclassified++;
+      continue;
+    }
+    if (p === "vertical_push" || p === "horizontal_push") {
+      result.push++;
+    } else if (p === "vertical_pull" || p === "horizontal_pull") {
+      result.pull++;
+    } else if (p === "knee_dominant") {
+      result.knee++;
+    } else if (p === "hip_dominant") {
+      result.hip++;
+    }
+    if (MOVEMENT_PATTERN_INFO[p]?.core) {
+      result.core++;
+    }
+  }
+  return result;
+}
+
+export function formatPatternBalance(b: PatternBalance): string {
+  const main = `push ${b.push} · pull ${b.pull} · knee ${b.knee} · hip ${b.hip} · core ${b.core}`;
+  return b.unclassified > 0 ? `${main} · unclassified ${b.unclassified}` : main;
 }
 
 /** A single prescribed set within a program exercise. */

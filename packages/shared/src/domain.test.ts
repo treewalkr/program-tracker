@@ -4,9 +4,16 @@ import {
   Client,
   DraftExerciseRef,
   estimate1rm,
+  Exercise,
   EXERCISE_ROLE_INFO,
   EXERCISE_ROLES,
+  formatPatternBalance,
+  FUNCTIONAL_MOVEMENT_INFO,
+  FUNCTIONAL_MOVEMENTS,
   LoggedSet,
+  MOVEMENT_PATTERN_INFO,
+  MOVEMENT_PATTERNS,
+  patternBalance,
   Phasing,
   PrescribedSet,
   Program,
@@ -334,5 +341,107 @@ describe("AiProgramDraft (full LLM payload)", () => {
         sessions: [],
       })
     ).toThrow();
+  });
+});
+
+describe("Movement taxonomy", () => {
+  test("movement pattern enum has exactly the 12 pinned values", () => {
+    expect(MOVEMENT_PATTERNS).toEqual([
+      "vertical_push",
+      "vertical_pull",
+      "horizontal_push",
+      "horizontal_pull",
+      "knee_dominant",
+      "hip_dominant",
+      "rotation",
+      "anti_rotation",
+      "lateral_flexion",
+      "anti_lateral_flexion",
+      "trunk_flexion",
+      "anti_trunk_flexion",
+    ]);
+    expect(Object.keys(MOVEMENT_PATTERN_INFO)).toEqual([...MOVEMENT_PATTERNS]);
+    const coreCount = MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core).length;
+    expect(coreCount).toBe(6);
+  });
+
+  test("functional movement enum has exactly the 7 pinned values", () => {
+    expect(FUNCTIONAL_MOVEMENTS).toEqual([
+      "push",
+      "pull",
+      "bend_lift",
+      "squat",
+      "single_leg",
+      "rotation",
+      "locomotion",
+    ]);
+    expect(Object.keys(FUNCTIONAL_MOVEMENT_INFO)).toEqual([...FUNCTIONAL_MOVEMENTS]);
+  });
+
+  test("Exercise accepts absent and null taxonomy fields, rejects unknown values", () => {
+    const base = {
+      id: uuid(),
+      trainerId: null,
+      name: "Bench Press",
+      primaryMuscleGroup: "chest",
+      secondaryMuscleGroups: [],
+      equipment: "barbell",
+    };
+    const e1 = Exercise.parse(base);
+    expect(e1.movementPattern).toBeUndefined();
+    expect(e1.functionalMovement).toBeUndefined();
+
+    const e2 = Exercise.parse({
+      ...base,
+      movementPattern: null,
+      functionalMovement: null,
+    });
+    expect(e2.movementPattern).toBeNull();
+    expect(e2.functionalMovement).toBeNull();
+
+    expect(() =>
+      Exercise.parse({ ...base, movementPattern: "push_press" })
+    ).toThrow();
+    expect(() =>
+      Exercise.parse({ ...base, functionalMovement: "invalid" })
+    ).toThrow();
+  });
+});
+
+describe("patternBalance", () => {
+  const tagged8Plus1Null = [
+    { movementPattern: "vertical_push" as const },
+    { movementPattern: "horizontal_push" as const },
+    { movementPattern: "vertical_pull" as const },
+    { movementPattern: "horizontal_pull" as const },
+    { movementPattern: "knee_dominant" as const },
+    { movementPattern: "knee_dominant" as const },
+    { movementPattern: "hip_dominant" as const },
+    { movementPattern: "anti_rotation" as const },
+    { movementPattern: null },
+  ];
+
+  test("tallies push/pull/knee/hip/core and unclassified", () => {
+    const balance = patternBalance(tagged8Plus1Null);
+    expect(balance).toEqual({
+      push: 2,
+      pull: 2,
+      knee: 2,
+      hip: 1,
+      core: 1,
+      unclassified: 1,
+    });
+  });
+
+  test("formatPatternBalance renders counts and hides zero unclassified", () => {
+    const withUnclassified = patternBalance(tagged8Plus1Null);
+    expect(formatPatternBalance(withUnclassified)).toBe(
+      "push 2 · pull 2 · knee 2 · hip 1 · core 1 · unclassified 1"
+    );
+
+    const zeroUnclassified = patternBalance(tagged8Plus1Null.slice(0, 8));
+    expect(formatPatternBalance(zeroUnclassified)).toBe(
+      "push 2 · pull 2 · knee 2 · hip 1 · core 1"
+    );
   });
 });
