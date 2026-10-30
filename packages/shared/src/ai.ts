@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { ExerciseRole, Phasing, PrescribedSet } from "./domain";
+import {
+  CardioPrescription,
+  ExerciseRole,
+  Phasing,
+  PrescribedSet,
+  SessionKind,
+} from "./domain";
 
 // ---------------------------------------------------------------------------
 // AI provider abstraction
@@ -89,11 +95,47 @@ export const DraftExerciseRef = z
   });
 export type DraftExerciseRef = z.infer<typeof DraftExerciseRef>;
 
-export const DraftSession = z.object({
-  name: z.string().min(1).max(160),
-  exercises: z.array(DraftExerciseRef).min(1).max(20),
-  notes: z.string().max(2000).optional(),
-});
+export const DraftSession = z
+  .object({
+    name: z.string().min(1).max(160),
+    kind: SessionKind.default("lifting"),
+    cardio: CardioPrescription.nullable().optional(),
+    exercises: z.array(DraftExerciseRef).max(20).default([]),
+    notes: z.string().max(2000).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.kind === "lifting") {
+      if (val.exercises.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting session requires at least one exercise",
+          path: ["exercises"],
+        });
+      }
+      if (val.cardio != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting session must not have cardio prescription",
+          path: ["cardio"],
+        });
+      }
+    } else if (val.kind === "cardio") {
+      if (val.cardio == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio session requires cardio prescription",
+          path: ["cardio"],
+        });
+      }
+      if (val.exercises.length !== 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio session must not have exercises",
+          path: ["exercises"],
+        });
+      }
+    }
+  });
 export type DraftSession = z.infer<typeof DraftSession>;
 
 /**

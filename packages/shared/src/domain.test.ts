@@ -605,6 +605,30 @@ describe("AiProgramDraft (full LLM payload)", () => {
     expect(d.sessions).toHaveLength(1);
   });
 
+  test("accepts cardio sessions", () => {
+    const d = AiProgramDraft.parse({
+      name: "Block 2",
+      rationale: "Rationale",
+      clientSummary: "Summary",
+      sessions: [
+        {
+          name: "Day 1",
+          kind: "lifting",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+        },
+        {
+          name: "Cardio 1",
+          kind: "cardio",
+          cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+        },
+      ],
+    });
+    expect(d.sessions).toHaveLength(2);
+    expect(d.sessions[1].kind).toBe("cardio");
+    expect(d.sessions[1].cardio?.modality).toBe("Bike");
+    expect(d.sessions[1].exercises).toEqual([]);
+  });
+
   test("rejects a draft with empty sessions (AI always proposes structure)", () => {
     expect(() =>
       AiProgramDraft.parse({

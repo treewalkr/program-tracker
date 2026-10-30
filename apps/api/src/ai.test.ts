@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
-import { buildGenerationMessages, buildRevisionMessages } from "./ai/prompt";
+import { buildGenerationMessages, buildRevisionMessages, periodizationContext } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks } from "./lib/draftToProgram";
 import type { AiProgramDraft } from "@pt/shared";
 
@@ -290,6 +290,24 @@ const catalog = [
   { id: "22222222-2222-2222-2222-222222222222", name: "Bench Press" },
 ];
 
+describe("periodizationContext", () => {
+  test("periodizationContext includes the quantified target", () => {
+    const ph = {
+      plannedWeeks: 4,
+      phase: "accumulation",
+      weeks: [
+        { week: 1, directive: "base" as const },
+        { week: 2, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 5 } },
+      ],
+    };
+    const line = periodizationContext(ph, 2, "weekly overall volume 1.0t → 1.2t (+20%)");
+    expect(line).toContain("target overall volume +5%");
+    expect(line).toBe(
+      "week 2 of 4 · accumulation · this week's directive: +volume · target overall volume +5% · weekly overall volume 1.0t → 1.2t (+20%)"
+    );
+  });
+});
+
 describe("draftToWeeks", () => {
   test("resolves by id, by name-match, and flags creates", () => {
     const { weeks, createdNames, unresolvable } = draftToWeeks(draft, catalog);
@@ -334,6 +352,28 @@ describe("draftToWeeks", () => {
     expect(ex.map((e) => e.exerciseName)).toEqual(["Back Squat", "Bench Press", "Cable Crunch", "Lateral Raise"]);
     expect(ex.map((e) => e.role)).toEqual(["primary", "strength", "core", undefined]);
     expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
+  });
+
+  test("draftToWeeks maps cardio draft sessions into cardio days", () => {
+    const draftWithCardio: AiProgramDraft = {
+      ...draft,
+      sessions: [
+        {
+          name: "Cardio 1",
+          kind: "cardio",
+          cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+          exercises: [],
+        },
+      ],
+    };
+    const { weeks } = draftToWeeks(draftWithCardio, catalog);
+    const day = weeks[0].days[0];
+    expect(day.sessions).toHaveLength(1);
+    expect(day.sessions[0].kind).toBe("cardio");
+    expect(day.sessions[0].cardio?.modality).toBe("Bike");
+    expect(day.sessions[0].cardio?.durationMin).toBe(30);
+    expect(day.sessions[0].cardio?.hrZone).toBe(2);
+    expect(day.sessions[0].exercises).toEqual([]);
   });
 });
 

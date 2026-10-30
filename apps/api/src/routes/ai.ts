@@ -22,7 +22,7 @@ import {
   weekOf,
 } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
-import { buildGenerationMessages, buildRevisionMessages } from "../ai/prompt";
+import { buildGenerationMessages, buildRevisionMessages, periodizationContext } from "../ai/prompt";
 import { MOCK_DRAFT } from "../ai/mock";
 import { bindPendingExercises, draftToWeeks } from "../lib/draftToProgram";
 import { buildHistory } from "../lib/history";
@@ -94,15 +94,8 @@ async function loadContext(trainerId: string, clientId: string, basedOnProgramId
     );
     const program = toSignalProgram(basedOnProgram);
     const week = weekOf(program, signalLogs);
-    const directive = ph.weeks?.find((w) => w.week === week)?.directive;
     const summary = pulseSummary(blockPulse(program, signalLogs));
-    periodization = [
-      `week ${week} of ${ph.plannedWeeks} · ${ph.phase}`,
-      directive ? `this week's directive: ${directive}` : null,
-      summary,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    periodization = periodizationContext(ph, week, summary);
   }
 
   return {

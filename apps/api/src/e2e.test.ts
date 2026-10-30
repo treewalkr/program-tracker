@@ -182,6 +182,14 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     // mock draft proposes phasing — approve carries it into the program
     expect(body.phasing?.plannedWeeks).toBe(4);
     expect(body.phasing?.weeks?.some((w: any) => w.directive === "deload")).toBe(true);
+    // every week's days include the cardio day
+    for (const w of body.weeks) {
+      expect(w.days).toHaveLength(3);
+      const cardio = w.days[2].sessions[0];
+      expect(cardio.kind).toBe("cardio");
+      expect(cardio.cardio?.modality).toBe("Bike");
+      expect(cardio.exercises).toEqual([]);
+    }
     // every exercise carries its display name — the UI renders it directly
     expect(body.weeks).toHaveLength(4);
     for (const w of body.weeks) {
@@ -204,6 +212,29 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     // original program stays active until the trainer promotes the draft
     const original = await call("GET", `/v1/programs/${programId}`);
     expect(original.body.status).toBe("active");
+  });
+
+  test("approve assigns weekday defaults from client trainingDays", async () => {
+    const cRes = await call("POST", "/v1/clients", {
+      name: "TrainingDays Client",
+      email: `td-${Date.now()}@test.dev`,
+      trainingDays: [1, 2],
+    });
+    expect(cRes.status).toBe(201);
+    const cId = cRes.body.id;
+
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId: cId,
+      providerId: "mock",
+    });
+    expect(genRes.status).toBe(201);
+
+    const appRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
+    expect(appRes.status).toBe(201);
+    const approved = appRes.body;
+    expect(approved.weeks[0].days).toHaveLength(3);
+    const weekdays = approved.weeks[0].days.map((d: any) => d.weekday);
+    expect(weekdays).toEqual([1, 2, null]);
   });
 
   test("reject on non-validated generation is a 409", async () => {
@@ -469,8 +500,8 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       name: "3:1 block (e2e)",
       weeks: [
         { week: 1, directive: "base" },
-        { week: 2, directive: "+volume" },
-        { week: 3, directive: "+intensity" },
+        { week: 2, directive: "+volume", target: { metric: "overall_volume", deltaPercent: 5 } },
+        { week: 3, directive: "+intensity", target: { metric: "intensity", deltaPercent: 2.5 } },
         { week: 4, directive: "deload" },
       ],
     });
@@ -478,7 +509,9 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
     const schemeId = created.body.id;
 
     const list = await call("GET", "/v1/schemes");
-    expect(list.body.schemes.some((s: any) => s.id === schemeId)).toBe(true);
+    const found = list.body.schemes.find((s: any) => s.id === schemeId);
+    expect(found).toBeDefined();
+    expect(found.weeks[1].target).toEqual({ metric: "overall_volume", deltaPercent: 5 });
 
     // non-contiguous weeks are rejected
     const bad = await call("POST", "/v1/schemes", {
