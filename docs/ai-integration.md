@@ -102,6 +102,26 @@ On success a program is created with `status: draft`, `aiAssisted: true`,
 `createdFromProgramId` set. The trainer then edits freely and activates when ready
 (activation archives the previous active program automatically).
 
+## Weekly generation cadence
+
+Cadence becomes weekly: block up front, refine weekly.
+
+1. **Initial block creation:** generates and approves the entire mesocycle (all weeks).
+   The trainer can attach an optional standing `direction` (≤500 chars).
+2. **Weekly re-draft:** towards the end of each week (nudged by `week-ending`), the trainer
+   triggers "Generate week N+1" (`POST /v1/ai/generate` with `targetWeek`).
+3. **Weekly prompt framing (`buildWeekMessages`):**
+   - System framing: drafting the NEXT WEEK (week N+1 of plannedWeeks) of the CURRENT block.
+   - Sessions rule: exactly one week — client's training days. Periodization is fixed (`phasing` omitted).
+   - Follows next week's directive and target from the program's scheme.
+   - Injects standing `direction`: `STANDING DIRECTION (block-level — applies to every generation of this block): ...`
+   - Keeps exercise selection stable week-to-week; swaps must be justified in rationale.
+4. **In-place replacement on approval:**
+   Approving a `kind: "week"` generation replaces week N+1 in place on the active program via `replaceWeek`:
+   - Fresh session and exercise IDs.
+   - Weekdays carried over: `oldWeek.days[i].weekday ?? sortedTrainingDays[i] ?? null`.
+   - `version++`, other weeks and phasing untouched, program remains `active`.
+
 ## Safety rules (non-negotiable)
 
 1. Limitations reach the prompt verbatim, labelled "LIMITATIONS (hard constraints)".

@@ -34,6 +34,7 @@ Calendar rules (week number vs plan):
 |---|---|---|---|
 | Block ending | `block-ending` | `week >= plannedWeeks` (complete) / `>= plannedWeeks − 1` (heads-up) | draft next block now — evidence carries the delivered metrics (`overall volume +18%, e1RM 77→84`) |
 | Deload week | `deload-week` | `week ∈ deloadWeeks` **or** week directive = `deload` | planned light week |
+| Week ending | `week-ending` | `week < plannedWeeks` and `daysIntoBlock % 7 >= 5` | week ends soon — draft week N+1 from this week's logs (carries `targetWeek`) |
 | Transition due | `transition-due` | week directive = `transition` (supersedes the plain block-ending heads-up when the scheme owns the wind-down) | draft the variant-shift now |
 | Adherence | `adherence` | <60% planned sessions logged (suppressed near block end) | program isn't being run |
 

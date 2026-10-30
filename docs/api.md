@@ -31,9 +31,10 @@ not the program's day count).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/v1/programs?clientId=` | list (optionally filtered), newest first |
-| POST | `/v1/programs` | `{name, clientId?, description?, weeks, phasing?, aiAssisted?, createdFromProgramId?}` — `weeks` must pass the `ProgramWeeksDocument` zod schema or **422** (`"invalid weeks document"`) |
+| POST | `/v1/programs` | `{name, clientId?, description?, direction?, weeks, phasing?, aiAssisted?, createdFromProgramId?}` — `weeks` must pass the `ProgramWeeksDocument` zod schema or **422** (`"invalid weeks document"`) |
 | GET | `/v1/programs/:id` | one program |
-| PUT | `/v1/programs/:id` | `{weeks}` (and optionally `phasing`) — replace document, **version++** |
+| PUT | `/v1/programs/:id` | `{weeks, phasing?, direction?}` — replace document, **version++** (absent direction untouched, null clears) |
+| PATCH | `/v1/programs/:id/direction` | `{direction: string \| null}` — sets standing direction steer (≤500 chars), **no version bump** |
 | PATCH | `/v1/programs/:id/status` | `{status: draft\|active\|archived}` — activating archives the client's other active programs; **first activation stamps `activatedAt`** (basis for block week math) |
 
 `phasing` (optional, object): `{plannedWeeks, phase, nextPhase?, deloadWeeks[], weeks?}`
@@ -132,9 +133,9 @@ Delivery (email via cron + outbox) is Phase L5 — the read path ships first.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, model?, instructions?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept); unknown `model` for the provider → **400**. Context bundle auto-includes instruction templates selection and periodization context (week N of M, directive, overall volume/e1RM trend) — see [ai-integration.md](ai-integration.md). GLM 5.x models always think (Z.ai rejects `disabled`) — the provider layer sends `budget: low` and a roomier token cap automatically |
+| POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, model?, instructions?, direction?, targetWeek?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept); unknown `model` for the provider → **400**. When `targetWeek` is set, operates in **weekly mode**: validates `basedOnProgramId` is active, `targetWeek = weekOf + 1 ≤ weeks.length`, inserts `kind: "week"`, and drafts week N+1. Context bundle auto-includes instruction templates selection, periodization context, and standing direction — see [ai-integration.md](ai-integration.md). GLM 5.x models always think (Z.ai rejects `disabled`) — the provider layer sends `budget: low` and a roomier token cap automatically |
 | GET | `/v1/ai/generations?clientId=` | audit trail |
-| POST | `/v1/ai/generations/:id/approve` | draft → real program (`draft` status, `aiAssisted: true`); **409** if not `validated`; **422** if unresolvable exercise refs |
+| POST | `/v1/ai/generations/:id/approve` | draft → real program; **409** if not `validated`; **422** if unresolvable exercise refs. In block mode: creates a new draft program (`draft` status, `aiAssisted: true`, copies direction). In week mode: replaces the target week in place on the active program (`version++`, fresh ids, carries weekdays) |
 | POST | `/v1/ai/generations/:id/reject` | mark rejected, nothing created |
 
 Generation status lifecycle:
