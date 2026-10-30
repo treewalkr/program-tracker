@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
+  addExercise,
+  addSession,
+  addSet,
   AiProgramDraft,
   applyDefaultWeekdays,
   CardioPrescription,
   CHAIN_MUSCLE_GROUPS,
   ChainMuscleGroup,
   Client,
+  defaultCardio,
   DraftExerciseRef,
   estimate1rm,
   Exercise,
@@ -17,8 +21,11 @@ import {
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
   LoggedSet,
+  moveExercise,
+  moveSession,
   MOVEMENT_PATTERN_INFO,
   MOVEMENT_PATTERNS,
+  newSet,
   patternBalance,
   Phasing,
   PrescribedSet,
@@ -28,8 +35,15 @@ import {
   ProgramSession,
   ProgramWeek,
   ProgramWeeksDocument,
+  removeExercise,
+  removeSession,
+  removeSet,
+  setAmrap,
+  setRepsRange,
+  setTimed,
   sortExercisesByRole,
   stampWeeks,
+  switchSessionKind,
   weekSessions,
   WeekPlan,
   WeekTarget,
@@ -779,4 +793,215 @@ describe("KineticChainInput", () => {
     ).toBe(false);
   });
 });
+
+describe("Program editing (pure)", () => {
+  test("addExercise appends with uuid + renumbered order; removeExercise renumbers", () => {
+    const s: ProgramSession = {
+      id: uuid(),
+      name: "Session 1",
+      order: 0,
+      kind: "lifting",
+      exercises: [
+        {
+          id: uuid(),
+          exerciseId: uuid(),
+          exerciseName: "Squat",
+          order: 0,
+          prescribedSets: [{ setNumber: 1, reps: 5 }],
+        },
+      ],
+      cardio: null,
+    };
+    const exId = uuid();
+    const updated = addExercise(s, exId, "Bench Press");
+    expect(updated.exercises.length).toBe(2);
+    const added = updated.exercises[1];
+    expect(added.exerciseId).toBe(exId);
+    expect(added.exerciseName).toBe("Bench Press");
+    expect(added.order).toBe(1);
+    expect(added.prescribedSets).toEqual([]);
+    expect(added.id).toBeDefined();
+    expect(added.id).not.toBe(s.exercises[0].id);
+
+    const removed = removeExercise(updated, 0);
+    expect(removed.exercises.length).toBe(1);
+    expect(removed.exercises[0].exerciseName).toBe("Bench Press");
+    expect(removed.exercises[0].order).toBe(0);
+  });
+
+  test("addSet uses builder defaults; removeSet renumbers setNumber", () => {
+    const ex: ProgramExercise = {
+      id: uuid(),
+      exerciseId: uuid(),
+      exerciseName: "Squat",
+      order: 0,
+      prescribedSets: [{ setNumber: 1, reps: 5, type: "working" }],
+    };
+    const withSet = addSet(ex);
+    expect(withSet.prescribedSets.length).toBe(2);
+    const s2 = withSet.prescribedSets[1];
+    expect(s2).toEqual({
+      setNumber: 2,
+      type: "working",
+      reps: 8,
+      amrap: false,
+      targetRpe: 8,
+      restSeconds: 150,
+    });
+    expect(s2.repsMin).toBeUndefined();
+    expect(s2.durationSeconds).toBeUndefined();
+    expect(s2.targetWeightKg).toBeUndefined();
+
+    const withBackoff = addSet(withSet, "backoff");
+    expect(withBackoff.prescribedSets.length).toBe(3);
+    expect(withBackoff.prescribedSets[2].type).toBe("backoff");
+    expect(withBackoff.prescribedSets[2].setNumber).toBe(3);
+
+    const removed = removeSet(withBackoff, 0);
+    expect(removed.prescribedSets.length).toBe(2);
+    expect(removed.prescribedSets[0].setNumber).toBe(1);
+    expect(removed.prescribedSets[1].setNumber).toBe(2);
+  });
+
+  test("setRepsRange / setAmrap / setTimed transitions", () => {
+    let s = newSet();
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+
+    // min < max -> { repsMin: min, reps: max }
+    s = setRepsRange(s, 6, 10);
+    expect(s.repsMin).toBe(6);
+    expect(s.reps).toBe(10);
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+
+    // min = null -> repsMin undefined
+    s = setRepsRange(s, null, 8);
+    expect(s.repsMin).toBeUndefined();
+    expect(s.reps).toBe(8);
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+
+    // min >= max -> repsMin undefined
+    s = setRepsRange(s, 10, 8);
+    expect(s.repsMin).toBeUndefined();
+    expect(s.reps).toBe(8);
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+
+    // amrap on: clears repsMin, keeps reps
+    s = setRepsRange(s, 6, 12);
+    s = setAmrap(s, true);
+    expect(s.amrap).toBe(true);
+    expect(s.repsMin).toBeUndefined();
+    expect(s.reps).toBe(12);
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+
+    // setRepsRange ignored when amrap on (only reps updated)
+    s = setRepsRange(s, 5, 15);
+    expect(s.reps).toBe(15);
+    expect(s.repsMin).toBeUndefined();
+    expect(s.amrap).toBe(true);
+
+    // amrap off
+    s = setAmrap(s, false);
+    expect(s.amrap).toBe(false);
+
+    // timed set
+    s = setRepsRange(s, 6, 10);
+    s = setTimed(s, 45);
+    expect(s.durationSeconds).toBe(45);
+    expect(s.repsMin).toBeUndefined();
+    expect(s.reps).toBe(10);
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+
+    // setTimed(null) clears durationSeconds
+    s = setTimed(s, null);
+    expect(s.durationSeconds).toBeUndefined();
+    expect(PrescribedSet.safeParse(s).success).toBe(true);
+  });
+
+  test("moveExercise / moveSession renumber; boundaries are no-ops", () => {
+    const s: ProgramSession = {
+      id: uuid(),
+      name: "Session 1",
+      order: 0,
+      kind: "lifting",
+      exercises: [
+        { id: uuid(), exerciseId: uuid(), exerciseName: "A", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] },
+        { id: uuid(), exerciseId: uuid(), exerciseName: "B", order: 1, prescribedSets: [{ setNumber: 1, reps: 5 }] },
+        { id: uuid(), exerciseId: uuid(), exerciseName: "C", order: 2, prescribedSets: [{ setNumber: 1, reps: 5 }] },
+      ],
+      cardio: null,
+    };
+
+    // Swap 0 and 1
+    const moved = moveExercise(s, 0, 1);
+    expect(moved.exercises.map((e) => e.exerciseName)).toEqual(["B", "A", "C"]);
+    expect(moved.exercises.map((e) => e.order)).toEqual([0, 1, 2]);
+
+    // from === to -> no-op
+    expect(moveExercise(s, 1, 1)).toEqual(s);
+
+    // out of bounds -> no-op
+    expect(moveExercise(s, -1, 1)).toEqual(s);
+    expect(moveExercise(s, 0, 3)).toEqual(s);
+
+    const d: ProgramDay = {
+      id: uuid(),
+      day: 1,
+      sessions: [
+        { id: uuid(), name: "S1", order: 0, kind: "lifting", exercises: [], cardio: null },
+        { id: uuid(), name: "S2", order: 1, kind: "lifting", exercises: [], cardio: null },
+      ],
+    };
+
+    const movedS = moveSession(d, 0, 1);
+    expect(movedS.sessions.map((x) => x.name)).toEqual(["S2", "S1"]);
+    expect(movedS.sessions.map((x) => x.order)).toEqual([0, 1]);
+
+    // boundaries no-op
+    expect(moveSession(d, 0, 0)).toEqual(d);
+    expect(moveSession(d, -1, 0)).toEqual(d);
+    expect(moveSession(d, 0, 5)).toEqual(d);
+  });
+
+  test("addSession defaults; switchSessionKind resets both ways; defaultCardio", () => {
+    const d: ProgramDay = {
+      id: uuid(),
+      day: 1,
+      sessions: [],
+    };
+    const d1 = addSession(d);
+    expect(d1.sessions.length).toBe(1);
+    expect(d1.sessions[0].name).toBe("Session 1");
+    expect(d1.sessions[0].kind).toBe("lifting");
+    expect(d1.sessions[0].order).toBe(0);
+    expect(d1.sessions[0].exercises).toEqual([]);
+    expect(d1.sessions[0].cardio).toBeNull();
+
+    const d2 = addSession(d1);
+    expect(d2.sessions[1].name).toBe("Session 2");
+    expect(d2.sessions[1].order).toBe(1);
+
+    expect(defaultCardio()).toEqual({
+      modality: "",
+      durationMin: 30,
+      hrZone: 2,
+      intensity: "",
+      distanceKm: undefined,
+      targetRpe: undefined,
+    });
+
+    const liftingSession = d1.sessions[0];
+    liftingSession.exercises = [
+      { id: uuid(), exerciseId: uuid(), exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] },
+    ];
+    const cardioSession = switchSessionKind(liftingSession, "cardio");
+    expect(cardioSession.kind).toBe("cardio");
+    expect(cardioSession.exercises).toEqual([]);
+    expect(cardioSession.cardio).toEqual(defaultCardio());
+
+    const backToLifting = switchSessionKind(cardioSession, "lifting");
+    expect(backToLifting.kind).toBe("lifting");
+    expect(backToLifting.cardio).toBeNull();
+  });
+});
+
 
