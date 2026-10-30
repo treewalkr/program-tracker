@@ -1,4 +1,11 @@
-import { EXERCISE_ROLE_INFO, EXERCISE_ROLES, type AiProgramDraft, type Phasing } from "@pt/shared";
+import {
+  EXERCISE_ROLE_INFO,
+  EXERCISE_ROLES,
+  type AiProgramDraft,
+  type Phasing,
+  type WeekDirective,
+  type WeekTarget,
+} from "@pt/shared";
 
 export interface ClientContext {
   name: string;
@@ -43,6 +50,7 @@ export interface GenerationContext {
   history: ExerciseHistoryEntry[];
   catalog: CatalogEntry[];
   trainerInstructions: string;
+  direction?: string | null;
 }
 
 const DRAFT_SCHEMA_SPEC = `{
@@ -163,6 +171,9 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       )
       .join("\n"),
     "",
+    ...(ctx.direction
+      ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
+      : []),
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
 
@@ -234,6 +245,172 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),
     "",
+    ...(ctx.direction
+      ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
+      : []),
+    `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
+  ].join("\n");
+
+  return { system, user };
+}
+
+export interface WeekContext extends GenerationContext {
+  targetWeek: number;
+  plannedWeeks: number;
+  targetDirective: WeekDirective | null;
+  target: WeekTarget | null;
+}
+
+export interface WeekRevisionContext extends WeekContext {
+  previousDraft: AiProgramDraft;
+  feedback: string;
+}
+
+export function buildWeekMessages(ctx: WeekContext): { system: string; user: string } {
+  const system = [
+    `You are an expert strength & conditioning coach drafting the NEXT WEEK (week ${ctx.targetWeek} of ${ctx.plannedWeeks}) of the client's CURRENT block.`,
+    "You reason about progressive overload from logged training data and design sensible mesocycles.",
+    "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
+    "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
+    DRAFT_SCHEMA_SPEC,
+    "Rules:",
+    "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
+    "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
+    "- Keep exercise selection stable week to week — swap only with a reason stated in rationale.",
+    ROLE_RULE,
+    "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
+    "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    "- Do NOT propose phasing: the block's periodization is fixed.",
+    "- Follow the next week's directive and target when provided.",
+    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
+    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    "- sessions is exactly one week — the client's training days.",
+    "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+  ].join("\n");
+
+  const user = [
+    `CLIENT: ${ctx.client.name}`,
+    ctx.client.goals ? `GOALS: ${ctx.client.goals}` : "GOALS: not specified",
+    ctx.client.limitations
+      ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
+      : "LIMITATIONS: none listed",
+    "",
+    ctx.previousProgram
+      ? [
+          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          programToText(ctx.previousProgram),
+        ].join("\n")
+      : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
+    }${
+      ctx.target
+        ? ` · target ${ctx.target.deltaPercent >= 0 ? "+" : ""}${ctx.target.deltaPercent}% ${ctx.target.metric.replace("_", " ")}`
+        : ""
+    }`,
+    "",
+    ctx.periodization
+      ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
+      : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
+    "",
+    ctx.chainBalance
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+    "",
+    ctx.history.length > 0
+      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
+      : "RECENT TRAINING LOGS: none.",
+    "",
+    `EXERCISE CATALOG (use these exerciseId values when possible):`,
+    ctx.catalog
+      .map(
+        (e) =>
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+      )
+      .join("\n"),
+    "",
+    ...(ctx.direction
+      ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
+      : []),
+    `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
+  ].join("\n");
+
+  return { system, user };
+}
+
+export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: string; user: string } {
+  const system = [
+    `You are an expert strength & conditioning coach REVISING the draft of the NEXT WEEK (week ${ctx.targetWeek} of ${ctx.plannedWeeks}) of the client's CURRENT block.`,
+    "You reason about progressive overload from logged training data and design sensible mesocycles.",
+    "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
+    "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
+    DRAFT_SCHEMA_SPEC,
+    "Rules:",
+    "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
+    "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
+    "- Keep exercise selection stable week to week — swap only with a reason stated in rationale.",
+    ROLE_RULE,
+    "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
+    "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    "- Do NOT propose phasing: the block's periodization is fixed.",
+    "- Follow the next week's directive and target when provided.",
+    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
+    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    "- sessions is exactly one week — the client's training days.",
+    "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+    "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
+    "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
+  ].join("\n");
+
+  const user = [
+    `CLIENT: ${ctx.client.name}`,
+    ctx.client.goals ? `GOALS: ${ctx.client.goals}` : "GOALS: not specified",
+    ctx.client.limitations
+      ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
+      : "LIMITATIONS: none listed",
+    "",
+    ctx.previousProgram
+      ? [
+          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          programToText(ctx.previousProgram),
+        ].join("\n")
+      : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
+    }${
+      ctx.target
+        ? ` · target ${ctx.target.deltaPercent >= 0 ? "+" : ""}${ctx.target.deltaPercent}% ${ctx.target.metric.replace("_", " ")}`
+        : ""
+    }`,
+    "",
+    ctx.periodization
+      ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
+      : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
+    "",
+    ctx.chainBalance
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+    "",
+    ctx.history.length > 0
+      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
+      : "RECENT TRAINING LOGS: none.",
+    "",
+    `EXERCISE CATALOG (use these exerciseId values when possible):`,
+    ctx.catalog
+      .map(
+        (e) =>
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+      )
+      .join("\n"),
+    "",
+    "PREVIOUS DRAFT (your earlier output — revise it):",
+    draftToText(ctx.previousDraft),
+    "",
+    ...(ctx.direction
+      ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
+      : []),
     `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
   ].join("\n");
 

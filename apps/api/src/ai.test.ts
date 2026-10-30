@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
-import { buildGenerationMessages, buildRevisionMessages, periodizationContext } from "./ai/prompt";
+import {
+  buildGenerationMessages,
+  buildRevisionMessages,
+  buildWeekMessages,
+  buildWeekRevisionMessages,
+  periodizationContext,
+} from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks } from "./lib/draftToProgram";
 import type { AiProgramDraft } from "@pt/shared";
 
@@ -167,6 +173,65 @@ describe("buildGenerationMessages", () => {
       trainerInstructions: "",
     });
     expect(noBalance.user).toContain("no logged training to balance yet");
+  });
+
+  test("buildGenerationMessages includes the standing direction line", () => {
+    const withDir = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      direction: "Build squat volume; keep upper body at maintenance.",
+    });
+    expect(withDir.user).toContain("STANDING DIRECTION (block-level — applies to every generation of this block): Build squat volume; keep upper body at maintenance.");
+
+    const withoutDir = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      direction: null,
+    });
+    expect(withoutDir.user).not.toContain("STANDING DIRECTION");
+  });
+});
+
+describe("buildWeekMessages", () => {
+  test("buildWeekMessages carries direction, directive, target and current-week sessions", () => {
+    const { system, user } = buildWeekMessages({
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: "+volume",
+      target: { metric: "overall_volume", deltaPercent: 5 },
+      direction: "Build squat volume; keep upper body at maintenance.",
+      previousProgram: {
+        name: "Jonas Block",
+        sessions: [
+          { name: "Week 2 Squat Focus", exercises: [{ name: "Back Squat", sets: ["120kg × 5 @ RPE 8"] }] },
+          { name: "Week 2 Bench Focus", exercises: [{ name: "Bench Press", sets: ["90kg × 5 @ RPE 8"] }] },
+        ],
+      },
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+
+    expect(system).toContain("Do NOT propose phasing: the block's periodization is fixed");
+    expect(system).toContain("drafting the NEXT WEEK (week 3 of 4)");
+    expect(user).toContain("STANDING DIRECTION (block-level — applies to every generation of this block): Build squat volume; keep upper body at maintenance.");
+    expect(user).toContain("NEXT WEEK: week 3 of 4 · directive +volume · target +5% overall volume");
+    expect(user).toContain("CURRENT WEEK (week 2 — what the client is doing now):");
+    expect(user).toContain("Week 2 Squat Focus");
+    expect(user).toContain("Week 2 Bench Focus");
   });
 });
 
