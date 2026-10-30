@@ -356,6 +356,14 @@ export const mockApi: TrainerApi = {
     return withNames(p);
   },
 
+  async saveProgramDirection(id, direction) {
+    await delay(200);
+    const i = state.programs.findIndex((p) => p.id === id);
+    if (i < 0) throw new Error("program not found");
+    state.programs[i] = { ...state.programs[i], direction: direction ?? null };
+    return withNames(state.programs[i]);
+  },
+
   async createProgram(input) {
     await delay(450);
     const program: ProgramDto = {
@@ -478,7 +486,12 @@ export const mockApi: TrainerApi = {
     const basedOn = input.basedOnProgramId
       ? state.programs.find((p) => p.id === input.basedOnProgramId) ?? null
       : null;
+    const isWeek = Boolean(input.targetWeek);
     const draft = client?.id === "cl-maya" ? mayaDraft(basedOn) : genericDraft();
+    if (isWeek) {
+      draft.name = `Week ${input.targetWeek}`;
+      delete (draft as any).phasing;
+    }
     // Last logged working weight per exercise — drafts propose the next small jump.
     const lastW = new Map<string, number>();
     for (const log of [...state.logs].sort((a, b) => a.date.localeCompare(b.date))) {
@@ -503,6 +516,9 @@ export const mockApi: TrainerApi = {
       id: uuid(),
       clientId: input.clientId,
       basedOnProgramId: input.basedOnProgramId ?? null,
+      kind: isWeek ? "week" : "block",
+      targetWeek: input.targetWeek ?? null,
+      direction: input.direction ?? basedOn?.direction ?? null,
       providerId: input.providerId ?? "zai",
       model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-4.5-flash",
       status: "validated",
@@ -537,6 +553,9 @@ export const mockApi: TrainerApi = {
       id: uuid(),
       clientId: gen.clientId,
       basedOnProgramId: gen.basedOnProgramId,
+      kind: gen.kind ?? "block",
+      targetWeek: gen.targetWeek ?? null,
+      direction: gen.direction ?? null,
       providerId: gen.providerId,
       model: gen.model,
       status: "validated",
@@ -585,6 +604,24 @@ export const mockApi: TrainerApi = {
         ],
       };
     });
+
+    if (gen.kind === "week") {
+      const targetProg = state.programs.find((p) => p.id === gen.basedOnProgramId);
+      if (!targetProg) throw new Error("based-on program not found");
+      const sorted = client?.trainingDays ? [...client.trainingDays].sort((a, b) => a - b) : [];
+      const oldWeek = targetProg.weeks.find((w) => w.week === gen.targetWeek);
+      const newDays: ProgramDayDto[] = templateDays.map((d, i) => ({
+        ...d,
+        weekday: oldWeek?.days[i]?.weekday ?? sorted[i] ?? null,
+      }));
+      targetProg.weeks = targetProg.weeks.map((w) =>
+        w.week === gen.targetWeek ? { ...w, days: newDays } : w
+      );
+      targetProg.version += 1;
+      gen.status = "approved";
+      return withNames(targetProg);
+    }
+
     const plannedWeeks = 4;
     const stamped = stampWeeks(templateDays, plannedWeeks);
     const weeks = applyDefaultWeekdays(stamped, client?.trainingDays);

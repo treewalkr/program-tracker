@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
-import { buildGenerationMessages, buildRevisionMessages, periodizationContext } from "./ai/prompt";
-import { bindPendingExercises, draftToWeeks } from "./lib/draftToProgram";
+import {
+  buildGenerationMessages,
+  buildRevisionMessages,
+  buildWeekMessages,
+  buildWeekRevisionMessages,
+  periodizationContext,
+} from "./ai/prompt";
+import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
 import type { AiProgramDraft } from "@pt/shared";
 
 describe("extractJsonObject", () => {
@@ -167,6 +173,65 @@ describe("buildGenerationMessages", () => {
       trainerInstructions: "",
     });
     expect(noBalance.user).toContain("no logged training to balance yet");
+  });
+
+  test("buildGenerationMessages includes the standing direction line", () => {
+    const withDir = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      direction: "Build squat volume; keep upper body at maintenance.",
+    });
+    expect(withDir.user).toContain("STANDING DIRECTION (block-level — applies to every generation of this block): Build squat volume; keep upper body at maintenance.");
+
+    const withoutDir = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      direction: null,
+    });
+    expect(withoutDir.user).not.toContain("STANDING DIRECTION");
+  });
+});
+
+describe("buildWeekMessages", () => {
+  test("buildWeekMessages carries direction, directive, target and current-week sessions", () => {
+    const { system, user } = buildWeekMessages({
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: "+volume",
+      target: { metric: "overall_volume", deltaPercent: 5 },
+      direction: "Build squat volume; keep upper body at maintenance.",
+      previousProgram: {
+        name: "Jonas Block",
+        sessions: [
+          { name: "Week 2 Squat Focus", exercises: [{ name: "Back Squat", sets: ["120kg × 5 @ RPE 8"] }] },
+          { name: "Week 2 Bench Focus", exercises: [{ name: "Bench Press", sets: ["90kg × 5 @ RPE 8"] }] },
+        ],
+      },
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+
+    expect(system).toContain("Do NOT propose phasing: the block's periodization is fixed");
+    expect(system).toContain("drafting the NEXT WEEK (week 3 of 4)");
+    expect(user).toContain("STANDING DIRECTION (block-level — applies to every generation of this block): Build squat volume; keep upper body at maintenance.");
+    expect(user).toContain("NEXT WEEK: week 3 of 4 · directive +volume · target +5% overall volume");
+    expect(user).toContain("CURRENT WEEK (week 2 — what the client is doing now):");
+    expect(user).toContain("Week 2 Squat Focus");
+    expect(user).toContain("Week 2 Bench Focus");
   });
 });
 
@@ -459,5 +524,123 @@ describe("cardio target prompt context", () => {
       feedback: "more cardio",
     });
     expect(withoutTarget.user).not.toContain("CARDIO TARGET");
+  });
+});
+
+describe("replaceWeek", () => {
+  test("replaceWeek splices fresh ids, carries weekdays, leaves other weeks untouched", () => {
+    const initialWeeks = [
+      {
+        week: 1,
+        days: [
+          {
+            id: crypto.randomUUID(),
+            day: 1,
+            weekday: 1,
+            sessions: [
+              {
+                id: crypto.randomUUID(),
+                name: "W1D1",
+                order: 0,
+                kind: "lifting" as const,
+                exercises: [{ id: crypto.randomUUID(), exerciseId: catalog[0].id, order: 0, prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        week: 2,
+        days: [
+          {
+            id: crypto.randomUUID(),
+            day: 1,
+            weekday: 2,
+            sessions: [
+              {
+                id: crypto.randomUUID(),
+                name: "W2D1-Old",
+                order: 0,
+                kind: "lifting" as const,
+                exercises: [{ id: crypto.randomUUID(), exerciseId: catalog[0].id, order: 0, prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        week: 3,
+        days: [
+          {
+            id: crypto.randomUUID(),
+            day: 1,
+            weekday: 5,
+            sessions: [
+              {
+                id: crypto.randomUUID(),
+                name: "W3D1",
+                order: 0,
+                kind: "lifting" as const,
+                exercises: [{ id: crypto.randomUUID(), exerciseId: catalog[1].id, order: 0, prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const week2Draft: AiProgramDraft = {
+      name: "Week 2 Replacement",
+      rationale: "Re-drafted week 2",
+      clientSummary: "New week 2",
+      sessions: [
+        {
+          name: "W2D1-New",
+          exercises: [{ exerciseId: catalog[0].id, prescribedSets: [{ setNumber: 1, reps: 6, type: "working", amrap: false }] }],
+        },
+        {
+          name: "W2D2-New",
+          exercises: [
+            { exerciseName: "Brand New Exercise", prescribedSets: [{ setNumber: 1, reps: 8, type: "working", amrap: false }] },
+            { exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] },
+          ],
+        },
+      ],
+    };
+
+    // trainingDays = [4, 1] -> sorted = [1, 4]
+    const { weeks, createdNames, unresolvable } = replaceWeek(
+      initialWeeks,
+      2,
+      week2Draft,
+      catalog,
+      [4, 1]
+    );
+
+    // other week objects pass through untouched (deep equal)
+    expect(weeks[0]).toEqual(initialWeeks[0]);
+    expect(weeks[2]).toEqual(initialWeeks[2]);
+
+    // replaced week has fresh day/session/exercise ids
+    const repWeek = weeks[1];
+    expect(repWeek.week).toBe(2);
+    expect(repWeek.days).toHaveLength(2);
+
+    const oldDay0 = initialWeeks[1].days[0];
+    const newDay0 = repWeek.days[0];
+    expect(newDay0.id).not.toBe(oldDay0.id);
+    expect(newDay0.sessions[0].id).not.toBe(oldDay0.sessions[0].id);
+    expect(newDay0.sessions[0].exercises[0].id).not.toBe(oldDay0.sessions[0].exercises[0].id);
+
+    // day-0 weekday preserved from old week (weekday 2)
+    expect(newDay0.weekday).toBe(2);
+
+    // extra day (day 1) defaults from sorted trainingDays: sorted[1] = 4
+    const newDay1 = repWeek.days[1];
+    expect(newDay1.weekday).toBe(4);
+
+    // createdNames and unresolvable flow through
+    expect(createdNames).toEqual(["Brand New Exercise"]);
+    expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
   });
 });

@@ -62,14 +62,29 @@ export interface WeekMetrics {
   plannedOnly: boolean;
 }
 
-/** 1-indexed block week derived from first activation (or first log / creation). */
-export function weekOf(program: SignalProgram, logs: SignalLog[], now = Date.now()): number {
+function blockAnchor(program: SignalProgram, logs: SignalLog[]): string {
   const programLogs = logs.filter((l) => l.programId === program.id);
-  const start =
+  return (
     program.activatedAt ??
     programLogs.map((l) => l.date).sort()[0] ??
-    program.createdAt;
-  const days = (now - new Date(start).getTime()) / 86400_000;
+    program.createdAt
+  );
+}
+
+/** Fractional days since the block anchor (activatedAt ?? first log ?? createdAt) —
+ *  the same anchor weekOf uses; weekOf is refactored onto the shared private anchor. */
+export function daysIntoBlock(
+  program: SignalProgram,
+  logs: SignalLog[],
+  now = Date.now()
+): number {
+  const start = blockAnchor(program, logs);
+  return (now - new Date(start).getTime()) / 86400_000;
+}
+
+/** 1-indexed block week derived from first activation (or first log / creation). */
+export function weekOf(program: SignalProgram, logs: SignalLog[], now = Date.now()): number {
+  const days = daysIntoBlock(program, logs, now);
   return Math.max(1, Math.floor(days / 7) + 1);
 }
 

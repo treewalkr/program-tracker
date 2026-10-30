@@ -105,6 +105,10 @@ draft ──activate──▶ active ──activate-new──▶ archived
   (`floor((today − activatedAt)/7) + 1`). Derived, never stored per week.
 - Editing an active program (`PUT /v1/programs/:id`) replaces the sessions document
   and bumps `version` (history of past versions = archived copies, by convention).
+- **Standing direction (`direction`)**: optional block-scoped steer (≤500 chars), editable
+  via `PATCH /v1/programs/:id/direction` without bumping `version`. Directs every weekly AI generation.
+- **Weekly re-draft**: approving a week-kind generation replaces week N+1 in place
+  inside the `sessions` jsonb (`version++`, fresh ids, weekdays carried over; other weeks untouched).
 - `aiAssisted: true` + `createdFromProgramId` record AI provenance.
 
 ## Logging

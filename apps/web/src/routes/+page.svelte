@@ -126,7 +126,16 @@
                     {signal.title} — <a class="client-link" href={`/clients/${client.id}`}>{client.name}</a>
                   {/snippet}
                   {#snippet actions()}
-                    {#if signal.prefillNote}
+                    {#if signal.targetWeek}
+                      <Button
+                        variant="primary"
+                        small
+                        href={`/clients/${client.id}/generate?week=${signal.targetWeek}${signal.prefillNote ? `&note=${encodeURIComponent(signal.prefillNote)}` : ""}`}
+                      >
+                        {#snippet icon()}<Icon name="sparkle" />{/snippet}
+                        Generate week {signal.targetWeek}
+                      </Button>
+                    {:else if signal.prefillNote}
                       <Button
                         variant="primary"
                         small

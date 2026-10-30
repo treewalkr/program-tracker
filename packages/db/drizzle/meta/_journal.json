@@ -64,6 +64,13 @@
       "when": 1793397523130,
       "tag": "0008_modern_kate_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793398879018,
+      "tag": "0009_left_hairball",
+      "breakpoints": true
     }
   ]
 }

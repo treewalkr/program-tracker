@@ -147,6 +147,15 @@ Treaty client (D1) replaced the hand-written fetch inside the `TrainerApi` seam.
 - [ ] Error monitoring, request logging, rate limits
 - [ ] Prompt tuning from real trainer feedback (progression conservatism etc.)
 
+## Wave 4 — Week / day / session model + Weekly generation cadence
+
+- [x] Weeks model & schema migration (`v7s4y`) — `ProgramWeek` document structure, week-based metrics
+- [x] Weekly generation cadence & general direction (`xxtns`)
+  - Standing `direction` field on programs & AI prompt steering (`g5749`)
+  - `week-ending` signal for upcoming week review (`tzqca`)
+  - "Generate next week" action replacing week N+1 in place (`u9qwq`)
+  - Read-only week switcher on client Program tab
+
 ## Deferred (explicitly NOT in MVP)
 
 | Feature | Why deferred | Re-entry cost |

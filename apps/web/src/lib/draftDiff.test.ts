@@ -45,7 +45,7 @@ describe("diffSources", () => {
     expect(diffSources(null, { sessions: [] })).toEqual([]);
   });
 
-  test("programToDiffSource flattens the latest week", () => {
+  test("programToDiffSource picks the requested week; default stays latest", () => {
     const program: any = {
       weeks: [
         {
@@ -78,11 +78,33 @@ describe("diffSources", () => {
             },
           ],
         },
+        {
+          week: 3,
+          days: [
+            {
+              id: "d3",
+              sessions: [
+                {
+                  id: "s3",
+                  name: "Week 3 Day 1",
+                  exercises: [{ exerciseName: "Bench", prescribedSets: [{ reps: 8, amrap: false }] }],
+                },
+              ],
+            },
+          ],
+        },
       ],
     };
-    const source = programToDiffSource(program);
-    expect(source.sessions).toHaveLength(1);
-    expect(source.sessions[0].name).toBe("Week 2 Day 1");
-    expect(source.sessions[0].exercises[0].name).toBe("Deadlift");
+    // No arg -> latest week (week 3)
+    const latest = programToDiffSource(program);
+    expect(latest.sessions).toHaveLength(1);
+    expect(latest.sessions[0].name).toBe("Week 3 Day 1");
+    expect(latest.sessions[0].exercises[0].name).toBe("Bench");
+
+    // Explicit week 2 -> week 2's sessions
+    const week2 = programToDiffSource(program, 2);
+    expect(week2.sessions).toHaveLength(1);
+    expect(week2.sessions[0].name).toBe("Week 2 Day 1");
+    expect(week2.sessions[0].exercises[0].name).toBe("Deadlift");
   });
 });

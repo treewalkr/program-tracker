@@ -256,6 +256,39 @@ describe("Program", () => {
     expect(p.phasing?.weeks).toHaveLength(2);
     expect(p.activatedAt).toBeTruthy();
   });
+
+  test("Program direction: optional, nullable, ≤500", () => {
+    const minimal = {
+      id: uuid(),
+      trainerId: uuid(),
+      clientId: null,
+      name: "Block 1",
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: uuid(),
+              day: 1,
+              sessions: [{ id: uuid(), name: "Day A", order: 0, exercises: [baseExercise] }],
+            },
+          ],
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+
+    const withoutDir = Program.parse(minimal);
+    expect(withoutDir.direction).toBeUndefined();
+
+    const withNull = Program.parse({ ...minimal, direction: null });
+    expect(withNull.direction).toBeNull();
+
+    const with500 = Program.parse({ ...minimal, direction: "a".repeat(500) });
+    expect(with500.direction).toBe("a".repeat(500));
+
+    expect(() => Program.parse({ ...minimal, direction: "a".repeat(501) })).toThrow();
+  });
 });
 
 describe("ProgramWeeksDocument", () => {

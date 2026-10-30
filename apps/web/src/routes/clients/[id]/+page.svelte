@@ -6,6 +6,7 @@
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart } from "@pt/shared";
+  import { weekOptions } from "$lib/format";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
@@ -98,10 +99,21 @@
     return parts.join(" · ");
   });
 
+  let selectedWeekNumber = $state<number | null>(null);
+  let directionText = $state("");
+  let savingDirection = $state(false);
+  let directionSaved = $state(false);
+
+  const activeWeekNumber = $derived.by(() => {
+    if (!current?.weeks || current.weeks.length === 0) return 1;
+    if (selectedWeekNumber != null) return selectedWeekNumber;
+    const opts = weekOptions(current.weeks, pulseWeek);
+    return opts.find((o) => o.isCurrent)?.week ?? 1;
+  });
+
   const currentWeek = $derived.by(() => {
     if (!current?.weeks || current.weeks.length === 0) return null;
-    const clampedWeek = Math.max(1, Math.min(pulseWeek || 1, current.weeks.length));
-    return current.weeks.find((w) => w.week === clampedWeek) ?? current.weeks[0];
+    return current.weeks.find((w) => w.week === activeWeekNumber) ?? current.weeks[0];
   });
 
   const cardioTotals = $derived(cardioWeekTotals(sessionLogRows, isoWeekStart(new Date())));
@@ -139,6 +151,8 @@
       pulse = [];
       pulseWeek = 0;
     }
+    directionText = cur?.direction ?? "";
+    selectedWeekNumber = null;
     form = {
       goals: detail.client.goals ?? "",
       limitations: detail.client.limitations ?? "",
@@ -165,6 +179,23 @@
       });
     } finally {
       saving = false;
+    }
+  }
+
+  async function saveDirection() {
+    if (!current) return;
+    savingDirection = true;
+    directionSaved = false;
+    try {
+      const updated = await api.saveProgramDirection(current.id, directionText.trim() || null);
+      current = updated;
+      directionText = updated.direction ?? "";
+      directionSaved = true;
+      setTimeout(() => {
+        directionSaved = false;
+      }, 2000);
+    } finally {
+      savingDirection = false;
     }
   }
 
@@ -221,7 +252,16 @@
           error={snoozeErrors[signal.id] ? `Couldn't snooze — ${snoozeErrors[signal.id]}` : undefined}
         >
           {#snippet actions()}
-            {#if signal.prefillNote}
+            {#if signal.targetWeek}
+              <Button
+                variant="primary"
+                small
+                href={`/clients/${id}/generate?week=${signal.targetWeek}${signal.prefillNote ? `&note=${encodeURIComponent(signal.prefillNote)}` : ""}`}
+              >
+                {#snippet icon()}<Icon name="sparkle" />{/snippet}
+                Generate week {signal.targetWeek}
+              </Button>
+            {:else if signal.prefillNote}
               <Button
                 variant="primary"
                 small
@@ -261,7 +301,25 @@
             title="Current program"
             count={`${prog.name} · v${prog.version}${prog.aiAssisted ? " · AI-assisted" : ""}`}
           >
-            {#snippet act()}<a class="act" href={`/programs/${prog.id}`}>Open builder</a>{/snippet}
+            {#snippet act()}
+              {#if prog.status === "active" && prog.phasing && pulseWeek < Math.min(prog.phasing.plannedWeeks, prog.weeks.length)}
+                <Button small href={`/clients/${id}/generate?week=${pulseWeek + 1}`}>Generate week {pulseWeek + 1}</Button>
+              {/if}
+              <a class="act" href={`/programs/${prog.id}`}>Open builder</a>
+            {/snippet}
+            <div class="week-chips" role="group" aria-label="Program week">
+              {#each weekOptions(prog.weeks, pulseWeek) as opt (opt.week)}
+                <button
+                  type="button"
+                  class="tchip"
+                  class:on={activeWeekNumber === opt.week}
+                  aria-pressed={activeWeekNumber === opt.week}
+                  onclick={() => { selectedWeekNumber = opt.week; }}
+                >
+                  {opt.label}
+                </button>
+              {/each}
+            </div>
             {#if currentWeek}
               {#each currentWeek.days as d, i (d.id)}
                 {@const dayNum = d.weekday ?? sortedDays[i]}
@@ -301,6 +359,24 @@
       </div>
 
       <div class="side-stack">
+        {#if current}
+          <div class="panel dir-panel">
+            <h3 class="side-h">Direction</h3>
+            <p class="side-hint">standing steer — every weekly generation follows it</p>
+            <textarea
+              class="dir-input"
+              maxlength="500"
+              rows="3"
+              placeholder="e.g. Build squat volume; keep upper body at maintenance."
+              bind:value={directionText}
+            ></textarea>
+            <div class="dir-actions">
+              <Button small onclick={saveDirection} disabled={savingDirection}>
+                {savingDirection ? "Saving…" : directionSaved ? "Saved" : "Save"}
+              </Button>
+            </div>
+          </div>
+        {/if}
         <div>
           <h3 class="side-h">Programs</h3>
           <div class="panel prog-box">
@@ -628,4 +704,23 @@
     .two-col { grid-template-columns: minmax(0, 1fr); }
     .client-top .head-actions { width: 100%; }
   }
+
+  .week-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 4px; }
+  .dir-panel { padding: 12px 14px; }
+  .side-hint { margin: 2px 0 8px; font-size: 11.5px; color: var(--faint); line-height: 1.4; }
+  .dir-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--surface);
+    color: var(--ink);
+    resize: vertical;
+  }
+  .dir-input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .dir-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 </style>

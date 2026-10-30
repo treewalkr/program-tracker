@@ -74,6 +74,7 @@ export interface ProgramDto {
   aiAssisted: boolean;
   createdFromProgramId: string | null;
   weeks: ProgramWeekDto[];
+  direction?: string | null;
   createdAt: string;
   activatedAt?: string | null;
   phasing?: ProgramPhasingDto | null;
@@ -129,6 +130,9 @@ export interface GenerationDto {
   id: string;
   clientId: string;
   basedOnProgramId: string | null;
+  kind: "block" | "week";
+  targetWeek: number | null;
+  direction?: string | null;
   providerId: string;
   model: string;
   status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected";
@@ -237,6 +241,7 @@ export interface TrainerApi {
     phasing?: ProgramPhasingDto | null;
   }): Promise<ProgramDto>;
   setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;
+  saveProgramDirection(id: string, direction: string | null): Promise<ProgramDto>;
 
   exercises(query?: string): Promise<ExerciseDto[]>;
   createExercise(input: {
@@ -258,6 +263,8 @@ export interface TrainerApi {
   generate(input: {
     clientId: string;
     basedOnProgramId?: string | null;
+    targetWeek?: number;
+    direction?: string;
     providerId?: string;
     model?: string;
     instructions?: string;

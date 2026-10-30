@@ -67,6 +67,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
           description: body.description ?? null,
           sessions: parsed.data,
           phasing: phasing.value,
+          direction: body.direction ?? null,
           aiAssisted: body.aiAssisted ?? false,
           createdFromProgramId: body.createdFromProgramId ?? null,
         })
@@ -78,6 +79,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         name: t.String({ minLength: 1, maxLength: 160 }),
         clientId: t.Optional(t.String()),
         description: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
+        direction: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
         weeks: t.Any(),
         phasing: t.Optional(t.Any()),
         aiAssisted: t.Optional(t.Boolean()),
@@ -105,6 +107,9 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         }
         update.phasing = phasing.value;
       }
+      if (body.direction !== undefined) {
+        update.direction = body.direction;
+      }
 
       const [updated] = await db
         .update(programs)
@@ -115,7 +120,31 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({ weeks: t.Any(), phasing: t.Optional(t.Any()) }),
+      body: t.Object({
+        weeks: t.Any(),
+        phasing: t.Optional(t.Any()),
+        direction: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
+      }),
+    }
+  )
+  .patch(
+    "/:id/direction",
+    async ({ params, body, status }) => {
+      const [current] = await db.select().from(programs).where(eq(programs.id, params.id));
+      if (!current) return status(404, { error: "program not found" });
+
+      const [updated] = await db
+        .update(programs)
+        .set({ direction: body.direction })
+        .where(eq(programs.id, params.id))
+        .returning();
+      return toProgramDto(updated);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        direction: t.Union([t.String({ maxLength: 500 }), t.Null()]),
+      }),
     }
   )
   /** Status transitions; activating a program archives the client's other active ones

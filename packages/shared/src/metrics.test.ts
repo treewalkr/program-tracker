@@ -4,7 +4,9 @@ import {
   chainBalanceText,
   chainSetCounts,
   chainsForExercise,
+  daysIntoBlock,
   pulseSummary,
+  weekOf,
   weekSessions,
   type ChainCatalogEntry,
   type ChainDef,
@@ -308,5 +310,42 @@ describe("blockPulse & pulseSummary", () => {
     expect(weekSessions(weeks, 1).map((s) => s.id)).toEqual(["s1", "s2"]);
     expect(weekSessions(weeks, 2).map((s) => s.id)).toEqual(["s3"]);
     expect(weekSessions(weeks, 3)).toEqual([]);
+  });
+
+  test("daysIntoBlock and weekOf anchor to activatedAt, first log, or createdAt", () => {
+    const baseProgram: SignalProgram = {
+      id: "p1",
+      clientId: "c1",
+      name: "Block A",
+      status: "active",
+      createdAt: "2026-10-01T00:00:00.000Z",
+    };
+
+    // Case 1: uses activatedAt
+    const pActivated: SignalProgram = {
+      ...baseProgram,
+      activatedAt: "2026-10-10T00:00:00.000Z",
+    };
+    const now1 = new Date("2026-10-15T12:00:00.000Z").getTime();
+    expect(daysIntoBlock(pActivated, [], now1)).toBeCloseTo(5.5, 4);
+    expect(weekOf(pActivated, [], now1)).toBe(1);
+
+    const now2 = new Date("2026-10-24T00:00:00.000Z").getTime();
+    expect(daysIntoBlock(pActivated, [], now2)).toBe(14);
+    expect(weekOf(pActivated, [], now2)).toBe(3);
+
+    // Case 2: falls back to first log
+    const logs: SignalLog[] = [
+      { id: "l1", programId: "p1", date: "2026-10-05T00:00:00.000Z", sets: [] },
+      { id: "l2", programId: "p1", date: "2026-10-08T00:00:00.000Z", sets: [] },
+    ];
+    const nowLog = new Date("2026-10-12T00:00:00.000Z").getTime();
+    expect(daysIntoBlock(baseProgram, logs, nowLog)).toBe(7);
+    expect(weekOf(baseProgram, logs, nowLog)).toBe(2);
+
+    // Case 3: falls back to createdAt
+    const nowCreated = new Date("2026-10-03T00:00:00.000Z").getTime();
+    expect(daysIntoBlock(baseProgram, [], nowCreated)).toBe(2);
+    expect(weekOf(baseProgram, [], nowCreated)).toBe(1);
   });
 });

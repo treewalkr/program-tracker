@@ -43,19 +43,17 @@ export function resolveRef(
   return { kind: "unresolvable", ref: ref.exerciseId ?? "<no ref>" };
 }
 
-export function draftToWeeks(
+export function draftTemplateDays(
   draft: AiProgramDraft,
-  catalog: CatalogLike[],
-  plannedWeeks = 4,
-  trainingDays?: number[] | null
-): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
+  catalog: CatalogLike[]
+): { days: ProgramDay[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
   const nameById = new Map(catalog.map((c) => [c.id, c.name]));
   const byName = new Map(catalog.map((c) => [c.name.toLowerCase(), c.id]));
   const createdNames: string[] = [];
   const unresolvable: string[] = [];
 
-  const templateDays: ProgramDay[] = draft.sessions.map((s, si) => {
+  const days: ProgramDay[] = draft.sessions.map((s, si) => {
     const isCardio = (s as any).kind === "cardio";
     const exercises = isCardio
       ? []
@@ -104,10 +102,49 @@ export function draftToWeeks(
     };
   });
 
-  const stamped = stampWeeks(templateDays, plannedWeeks);
+  return { days, createdNames, unresolvable };
+}
+
+export function draftToWeeks(
+  draft: AiProgramDraft,
+  catalog: CatalogLike[],
+  plannedWeeks = 4,
+  trainingDays?: number[] | null
+): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
+  const { days, createdNames, unresolvable } = draftTemplateDays(draft, catalog);
+  const stamped = stampWeeks(days, plannedWeeks);
   const weeks = applyDefaultWeekdays(stamped, trainingDays);
 
   return { weeks, createdNames, unresolvable };
+}
+
+/** Replace weeks[weekNumber-1] with a freshly-built week from the draft.
+ *  Fresh day/session/exercise ids; weekday of new day i =
+ *  oldWeek.days[i]?.weekday ?? sortedTrainingDays[i] ?? null (decision 5).
+ *  Other week objects pass through untouched. */
+export function replaceWeek(
+  weeks: ProgramWeek[],
+  weekNumber: number,
+  draft: AiProgramDraft,
+  catalog: CatalogLike[],
+  trainingDays?: number[] | null
+): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
+  const { days, createdNames, unresolvable } = draftTemplateDays(draft, catalog);
+  const oldWeek = weeks.find((w) => w.week === weekNumber);
+  const sorted = trainingDays ? [...trainingDays].sort((a, b) => a - b) : [];
+
+  const newDays: ProgramDay[] = days.map((d, i) => ({
+    ...d,
+    weekday: oldWeek?.days[i]?.weekday ?? sorted[i] ?? null,
+  }));
+
+  const newWeek: ProgramWeek = {
+    week: weekNumber,
+    days: newDays,
+  };
+
+  const updatedWeeks = weeks.map((w) => (w.week === weekNumber ? newWeek : w));
+  return { weeks: updatedWeeks, createdNames, unresolvable };
 }
 
 /** Replace `pending:<name>` ids with real ids once custom exercises are inserted. */
