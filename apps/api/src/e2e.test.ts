@@ -139,6 +139,22 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.model).toBe("mock-draft-v1");
   });
 
+  test("GET /v1/ai/generations/:id returns the generation", async () => {
+    const genId = (globalThis as any).__genId;
+    const { status, body } = await call("GET", `/v1/ai/generations/${genId}`);
+    expect(status).toBe(200);
+    expect(body.id).toBe(genId);
+    expect(body.status).toBe("validated");
+    expect(body.draft).toBeDefined();
+    expect(body.draft.sessions.length).toBeGreaterThan(0);
+  });
+
+  test("GET /v1/ai/generations/:id 404s for unknown id", async () => {
+    const { status, body } = await call("GET", `/v1/ai/generations/${crypto.randomUUID()}`);
+    expect(status).toBe(404);
+    expect(body.error).toBe("generation not found");
+  });
+
   test("approve creates an AI-assisted DRAFT program (not client-visible)", async () => {
     const { status, body } = await call("POST", `/v1/ai/generations/${(globalThis as any).__genId}/approve`, {});
     expect(status).toBe(201);

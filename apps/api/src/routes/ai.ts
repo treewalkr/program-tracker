@@ -238,6 +238,15 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     },
     { query: t.Object({ clientId: t.Optional(t.String()) }) }
   )
+  .get(
+    "/generations/:id",
+    async ({ params, status }) => {
+      const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, params.id));
+      if (!gen) return status(404, { error: "generation not found" });
+      return gen;
+    },
+    { params: t.Object({ id: t.String() }) }
+  )
   /** Approve: draft → real draft-status Program (never client-visible until trainer activates). */
   .post(
     "/generations/:id/approve",
