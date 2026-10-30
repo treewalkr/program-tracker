@@ -68,18 +68,18 @@
 
   const visibleSignals = $derived(signals.filter((s) => !dismissedNow.includes(s.id)));
 
-  const fmtTonnage = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
-  const doneWeeks = $derived(pulse.filter((w) => !w.plannedOnly && w.tonnage > 0));
-  const maxTonnage = $derived(Math.max(...doneWeeks.map((w) => w.tonnage), 1));
+  const fmtVolume = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
+  const doneWeeks = $derived(pulse.filter((w) => !w.plannedOnly && w.overallVolume > 0));
+  const maxVolume = $derived(Math.max(...doneWeeks.map((w) => w.overallVolume), 1));
   const maxChainSets = $derived(Math.max(...(chainWeekData?.chains.map((c) => c.sets) ?? [0]), 1));
-  const heatLevel = (w: WeekMetrics) => (w.plannedOnly ? 0 : Math.max(1, Math.ceil((4 * w.tonnage) / maxTonnage)));
+  const heatLevel = (w: WeekMetrics) => (w.plannedOnly ? 0 : Math.max(1, Math.ceil((4 * w.overallVolume) / maxVolume)));
   const pulseSummary = $derived.by(() => {
     if (doneWeeks.length < 2) return "";
     const first = doneWeeks[0];
     const last = doneWeeks[doneWeeks.length - 1];
-    const tΔ = Math.round(((last.tonnage - first.tonnage) / first.tonnage) * 100);
+    const tΔ = Math.round(((last.overallVolume - first.overallVolume) / first.overallVolume) * 100);
     const parts = [
-      `weekly tonnage ${fmtTonnage(first.tonnage)} → ${fmtTonnage(last.tonnage)} (${tΔ >= 0 ? "+" : ""}${tΔ}%)`,
+      `weekly overall volume ${fmtVolume(first.overallVolume)} → ${fmtVolume(last.overallVolume)} (${tΔ >= 0 ? "+" : ""}${tΔ}%)`,
     ];
     if (first.bestE1rm > 0 && last.bestE1rm > 0) {
       const eΔ = Math.round(((last.bestE1rm - first.bestE1rm) / first.bestE1rm) * 100);
@@ -87,6 +87,12 @@
     }
     if (last.avgRpe != null) parts.push(`week ${last.week} avg RPE ${last.avgRpe}`);
     return parts.join(" · ");
+  });
+
+  const currentWeek = $derived.by(() => {
+    if (!current?.weeks || current.weeks.length === 0) return null;
+    const clampedWeek = Math.max(1, Math.min(pulseWeek || 1, current.weeks.length));
+    return current.weeks.find((w) => w.week === clampedWeek) ?? current.weeks[0];
   });
   async function load() {
     const [detail, exList, cw] = await Promise.all([
@@ -212,7 +218,7 @@
     value={tab}
     onchange={(t) => setTab(t as typeof tab)}
     items={[
-      { id: 'program', label: 'Program', count: `${current?.sessions.length ?? 0} days` },
+      { id: 'program', label: 'Program', count: `${currentWeek?.days.length ?? 0} days` },
       { id: 'pulse', label: 'Pulse', count: `${pulse.length} wks`, disabled: pulse.length === 0 },
       { id: 'history', label: 'History', count: '8 wks' },
       { id: 'settings', label: 'Settings' },
@@ -229,20 +235,26 @@
             count={`${prog.name} · v${prog.version}${prog.aiAssisted ? " · AI-assisted" : ""}`}
           >
             {#snippet act()}<a class="act" href={`/programs/${prog.id}`}>Open builder</a>{/snippet}
-            {#each current.sessions as s, i (s.id)}
-              {@const dayNum = sortedDays[i]}
-              <SessionCard
-                name={s.name}
-                when={dayNum ? `${DAY_NAMES[dayNum - 1]}${dayNum === todayNum && !loggedDates.has(todayStr) ? " · due today" : ""}` : undefined}
-                conditioning={s.conditioning}
-                exercises={s.exercises.map((e) => ({
-                  name: e.exerciseName ?? "",
-                  role: e.role,
-                  movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
-                  sets: e.prescribedSets,
-                }))}
-              />
-            {/each}
+            {#if currentWeek}
+              {#each currentWeek.days as d, i (d.id)}
+                {@const dayNum = d.weekday ?? sortedDays[i]}
+                {@const when = dayNum ? `${DAY_NAMES[dayNum - 1]}${dayNum === todayNum && !loggedDates.has(todayStr) ? " · due today" : ""}` : undefined}
+                {#each d.sessions as s (s.id)}
+                  <SessionCard
+                    name={s.name}
+                    when={when}
+                    kind={s.kind}
+                    cardio={s.cardio}
+                    exercises={s.exercises.map((e) => ({
+                      name: e.exerciseName ?? "",
+                      role: e.role,
+                      movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
+                      sets: e.prescribedSets,
+                    }))}
+                  />
+                {/each}
+              {/each}
+            {/if}
             <p class="legend">RPE colour: ≤6 easy, 7–8 hard, 9–10 max · a bare time = timed set</p>
           </Panel>
         {:else}
@@ -292,8 +304,8 @@
       <Panel title="Block pulse" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
         {#snippet act()}
           {#if doneWeeks.length > 1}
-            <div class="heat" aria-label={`Weekly tonnage ${fmtTonnage(doneWeeks[0].tonnage)} to ${fmtTonnage(maxTonnage)}`}>
-              <span class="heat-l">tonnage</span>
+            <div class="heat" aria-label={`Weekly overall volume ${fmtVolume(doneWeeks[0].overallVolume)} to ${fmtVolume(maxVolume)}`}>
+              <span class="heat-l">overall volume</span>
               {#each pulse as w (w.week)}
                 {@const l = heatLevel(w)}
                 <i class="h{l}" aria-hidden="true"></i>
@@ -308,7 +320,7 @@
         {/if}
         <div class="table-wrap">
           <table class="sheet">
-            <thead><tr><th class="r">Wk</th><th>Directive</th><th class="r">Tonnage</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
+            <thead><tr><th class="r">Wk</th><th>Directive</th><th>Target</th><th class="r">Overall volume</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
             <tbody>
               {#each pulse as w (w.week)}
                 <tr class:pulse-now={w.week === pulseWeek} class:pulse-future={w.plannedOnly}>
@@ -316,9 +328,22 @@
                   <td>
                     {#if w.directive}<DirChip directive={w.directive}>{w.directive}</DirChip>{:else}<span class="subtle">—</span>{/if}
                   </td>
+                  <td>
+                    {#if w.target}
+                      {@const short = w.target.metric === "overall_volume" ? "overall vol" : w.target.metric === "rep_volume" ? "rep vol" : "intensity"}
+                      {@const sign = w.target.deltaPercent >= 0 ? "+" : ""}
+                      {#if w.targetDelta != null}
+                        <span>{short} {sign}{w.target.deltaPercent}% → {w.targetDelta >= 0 ? "+" : ""}{w.targetDelta}% {w.targetMet ? "✓" : "✗"}</span>
+                      {:else}
+                        <span class="subtle">{short} {sign}{w.target.deltaPercent}%</span>
+                      {/if}
+                    {:else}
+                      <span class="subtle">—</span>
+                    {/if}
+                  </td>
                   <td class="r">
-                    {#if w.plannedOnly}<span class="subtle">{fmtTonnage(w.tonnage)} plan</span>{:else if w.tonnage > 0}{fmtTonnage(w.tonnage)}{:else}—{/if}
-                    {#if w.tonnageDelta != null && w.tonnage > 0}<span class="delta {w.tonnageDelta < 0 ? 'down' : 'up'}">{w.tonnageDelta >= 0 ? "+" : ""}{w.tonnageDelta}%</span>{/if}
+                    {#if w.plannedOnly}<span class="subtle">{fmtVolume(w.overallVolume)} plan</span>{:else if w.overallVolume > 0}{fmtVolume(w.overallVolume)}{:else}—{/if}
+                    {#if w.overallVolumeDelta != null && w.overallVolume > 0}<span class="delta {w.overallVolumeDelta < 0 ? 'down' : 'up'}">{w.overallVolumeDelta >= 0 ? "+" : ""}{w.overallVolumeDelta}%</span>{/if}
                   </td>
                   <td class="r">{#if w.plannedOnly}<span class="subtle">{w.sets}</span>{:else}{w.sets}{/if}</td>
                   <td class="r">{w.avgRpe ?? "—"}</td>

@@ -25,10 +25,10 @@
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
 
-  const logged = $derived(weeks.filter((w) => !w.plannedOnly && w.tonnage > 0));
-  const rawMax = $derived(Math.max(...weeks.map((w) => w.tonnage), 1));
+  const logged = $derived(weeks.filter((w) => !w.plannedOnly && w.overallVolume > 0));
+  const rawMax = $derived(Math.max(...weeks.map((w) => w.overallVolume), 1));
 
-  // Round the tonnage ceiling to 1 / 2 / 2.5 / 5 × 10^k for clean ticks.
+  // Round the volume ceiling to 1 / 2 / 2.5 / 5 × 10^k for clean ticks.
   const tMax = $derived.by(() => {
     const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
     const f = rawMax / pow;
@@ -46,7 +46,7 @@
   const RPE_MAX = 10;
   const rpeY = (rpe: number) =>
     PAD_T + plotH * (1 - (Math.min(RPE_MAX, Math.max(RPE_MIN, rpe)) - RPE_MIN) / (RPE_MAX - RPE_MIN));
-  const heatLevel = (w: WeekMetrics) => Math.max(1, Math.ceil((4 * w.tonnage) / tMax));
+  const heatLevel = (w: WeekMetrics) => Math.max(1, Math.ceil((4 * w.overallVolume) / tMax));
 
   // Contiguous runs of weeks carrying an RPE — the line gaps over nulls.
   const rpeRuns = $derived.by(() => {
@@ -69,12 +69,12 @@
     weeks.flatMap((w, i) => (w.avgRpe != null && !w.plannedOnly ? [{ i, rpe: w.avgRpe }] : []))
   );
 
-  const fmtTonnage = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
+  const fmtVolume = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
 
   const aria = $derived.by(() => {
     const first = logged[0];
     const last = logged[logged.length - 1];
-    const range = first && last ? ` from ${fmtTonnage(first.tonnage)} to ${fmtTonnage(last.tonnage)}` : "";
+    const range = first && last ? ` from ${fmtVolume(first.overallVolume)} to ${fmtVolume(last.overallVolume)}` : "";
     return `Weekly volume bars with average RPE per block week${range}; the table below lists the exact numbers.`;
   });
 </script>
@@ -85,7 +85,7 @@
   aria-label={aria}
   preserveAspectRatio="xMidYMid meet"
 >
-  <!-- tonnage gridlines + left ticks (0 and max only — the half line stays unlabeled) -->
+  <!-- overall volume gridlines + left ticks (0 and max only — the half line stays unlabeled) -->
   {#each [0, 0.5, 1] as f (f)}
     <line
       x1={PAD_L}
@@ -96,7 +96,7 @@
     />
     {#if f !== 0.5}
       <text x={PAD_L - 8} y={yOf(tMax * f) + 3.5} class="tick" text-anchor="end">
-        {f === 0 ? "0" : fmtTonnage(tMax)}
+        {f === 0 ? "0" : fmtVolume(tMax)}
       </text>
     {/if}
   {/each}
@@ -109,7 +109,7 @@
   <!-- volume bars -->
   {#each weeks as w, i (w.week)}
     {@const x = xOf(i)}
-    {#if w.plannedOnly || w.tonnage === 0}
+    {#if w.plannedOnly || w.overallVolume === 0}
       <rect
         x={x - barW / 2}
         y={PAD_T + plotH - 6}
@@ -121,7 +121,7 @@
         <title>Week {w.week} — no logs yet{w.directive ? ` (${w.directive})` : ""}</title>
       </rect>
     {:else}
-      {@const y = yOf(w.tonnage)}
+      {@const y = yOf(w.overallVolume)}
       <rect
         x={x - barW / 2}
         y={y}
@@ -130,7 +130,7 @@
         rx="3"
         class="bar d{heatLevel(w)}"
       >
-        <title>Week {w.week} — {fmtTonnage(w.tonnage)}{w.avgRpe != null ? ` · avg RPE ${w.avgRpe}` : ""}{w.directive ? ` · ${w.directive}` : ""}</title>
+        <title>Week {w.week} — {fmtVolume(w.overallVolume)}{w.avgRpe != null ? ` · avg RPE ${w.avgRpe}` : ""}{w.directive ? ` · ${w.directive}` : ""}</title>
       </rect>
     {/if}
   {/each}

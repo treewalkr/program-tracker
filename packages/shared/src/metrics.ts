@@ -1,5 +1,5 @@
 import { estimate1rm } from "./domain";
-import type { Phasing, SetType, WeekDirective } from "./domain";
+import type { Phasing, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
 /**
  * Block pulse: weekly volume & intensity computed from logged working sets.
@@ -12,8 +12,7 @@ export interface SignalProgram {
   clientId: string | null;
   name: string;
   status: string;
-  /** Only the count matters (adherence expectations). */
-  sessions: unknown[];
+  weeks: ProgramWeek[];
   activatedAt?: string | null;
   createdAt: string;
   phasing?: Phasing | null;
@@ -38,15 +37,23 @@ export interface WeekMetrics {
   week: number;
   /** Directive from the program's periodization scheme, when present. */
   directive: WeekDirective | null;
+  /** Target from phasing.weeks[w].target ?? null */
+  target: WeekTarget | null;
   /** Σ kg × reps of working sets with a load. Bodyweight work counts in sets/reps only. */
-  tonnage: number;
+  overallVolume: number;
   sets: number;
   reps: number;
   avgRpe: number | null;
   bestE1rm: number;
   /** % change vs previous logged week. */
-  tonnageDelta: number | null;
+  overallVolumeDelta: number | null;
+  /** % change of Σ reps */
+  repsDelta: number | null;
   e1rmDelta: number | null;
+  /** Actual % on the target's metric */
+  targetDelta: number | null;
+  /** Decision 8: met when actual satisfies target */
+  targetMet: boolean | null;
   /** True when the week has no logs yet (future or missed). */
   plannedOnly: boolean;
 }
@@ -74,19 +81,19 @@ export function blockPulse(
   const ph = program.phasing;
   if (!ph) return [];
   const start = program.activatedAt ? dateKey(program.activatedAt) : null;
-  const weeks = new Map<number, { tonnage: number; sets: number; reps: number; rpeSum: number; rpeN: number; best: number }>();
+  const weeks = new Map<number, { overallVolume: number; sets: number; reps: number; rpeSum: number; rpeN: number; best: number }>();
 
   for (const log of logs) {
     if (log.programId !== program.id) continue;
     if (start != null && dateKey(log.date) < start) continue;
     const days = (dateKey(log.date) - (start ?? dateKey(log.date) - 7 * 86400_000)) / 86400_000;
     const week = Math.max(1, Math.floor(days / 7) + 1);
-    const entry = weeks.get(week) ?? { tonnage: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, best: 0 };
+    const entry = weeks.get(week) ?? { overallVolume: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, best: 0 };
     for (const s of log.sets) {
       if (s.type !== "working") continue;
       entry.sets += 1;
       entry.reps += s.reps;
-      if (s.weightKg) entry.tonnage += s.weightKg * s.reps;
+      if (s.weightKg) entry.overallVolume += s.weightKg * s.reps;
       if (s.rpe) {
         entry.rpeSum += s.rpe;
         entry.rpeN += 1;
@@ -101,22 +108,45 @@ export function blockPulse(
   let prev: WeekMetrics | null = null;
   for (let w = 1; w <= totalWeeks; w++) {
     const e = weeks.get(w);
-    const directive = ph.weeks?.find((x) => x.week === w)?.directive ?? null;
+    const weekPlan = ph.weeks?.find((x) => x.week === w);
+    const directive = weekPlan?.directive ?? null;
+    const target = weekPlan?.target ?? null;
     const metric: WeekMetrics = {
       week: w,
       directive,
-      tonnage: e?.tonnage ?? 0,
+      target,
+      overallVolume: e?.overallVolume ?? 0,
       sets: e?.sets ?? 0,
       reps: e?.reps ?? 0,
       avgRpe: e && e.rpeN > 0 ? Math.round((e.rpeSum / e.rpeN) * 10) / 10 : null,
       bestE1rm: e?.best ?? 0,
-      tonnageDelta: null,
+      overallVolumeDelta: null,
+      repsDelta: null,
       e1rmDelta: null,
+      targetDelta: null,
+      targetMet: null,
       plannedOnly: !e,
     };
     if (prev && !metric.plannedOnly && !prev.plannedOnly) {
-      if (prev.tonnage > 0) metric.tonnageDelta = Math.round(((metric.tonnage - prev.tonnage) / prev.tonnage) * 100);
+      if (prev.overallVolume > 0) metric.overallVolumeDelta = Math.round(((metric.overallVolume - prev.overallVolume) / prev.overallVolume) * 100);
+      if (prev.reps > 0) metric.repsDelta = Math.round(((metric.reps - prev.reps) / prev.reps) * 100);
       if (prev.bestE1rm > 0) metric.e1rmDelta = Math.round(((metric.bestE1rm - prev.bestE1rm) / prev.bestE1rm) * 100);
+
+      if (target) {
+        if (target.metric === "overall_volume") {
+          metric.targetDelta = metric.overallVolumeDelta;
+        } else if (target.metric === "rep_volume") {
+          metric.targetDelta = metric.repsDelta;
+        } else if (target.metric === "intensity") {
+          metric.targetDelta = metric.e1rmDelta;
+        }
+
+        if (metric.targetDelta != null) {
+          metric.targetMet = target.deltaPercent >= 0
+            ? metric.targetDelta >= target.deltaPercent
+            : metric.targetDelta <= target.deltaPercent;
+        }
+      }
     }
     out.push(metric);
     prev = metric;
@@ -124,17 +154,17 @@ export function blockPulse(
   return out;
 }
 
-/** One-line summary for AI context and signal evidence: "weekly tonnage 1.8t → 2.3t (+28%) · best e1RM 77 → 84". */
+/** One-line summary for AI context and signal evidence: "weekly overall volume 1.8t → 2.3t (+28%) · best e1RM 77 → 84". */
 export function pulseSummary(pulse: WeekMetrics[]): string | null {
-  const logged = pulse.filter((w) => !w.plannedOnly && (w.tonnage > 0 || w.bestE1rm > 0));
+  const logged = pulse.filter((w) => !w.plannedOnly && (w.overallVolume > 0 || w.bestE1rm > 0));
   if (logged.length < 2) return null;
   const first = logged[0];
   const last = logged[logged.length - 1];
   const t = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}t` : `${Math.round(kg)}kg`);
   const parts: string[] = [];
-  if (first.tonnage > 0 && last.tonnage > 0) {
-    const delta = Math.round(((last.tonnage - first.tonnage) / first.tonnage) * 100);
-    parts.push(`weekly tonnage ${t(first.tonnage)} → ${t(last.tonnage)} (${delta >= 0 ? "+" : ""}${delta}%)`);
+  if (first.overallVolume > 0 && last.overallVolume > 0) {
+    const delta = Math.round(((last.overallVolume - first.overallVolume) / first.overallVolume) * 100);
+    parts.push(`weekly overall volume ${t(first.overallVolume)} → ${t(last.overallVolume)} (${delta >= 0 ? "+" : ""}${delta}%)`);
   }
   if (first.bestE1rm > 0 && last.bestE1rm > 0) {
     parts.push(`best e1RM ${Math.round(first.bestE1rm)} → ${Math.round(last.bestE1rm)}`);

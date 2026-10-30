@@ -403,23 +403,157 @@ export const ProgramExercise = z.object({
 });
 export type ProgramExercise = z.infer<typeof ProgramExercise>;
 
-/** Cardio / conditioning attached to a session (zone work, intervals, easy runs). */
-export const Conditioning = z.object({
-  label: z.string().min(1).max(80),
-  detail: z.string().min(1).max(500),
-});
-export type Conditioning = z.infer<typeof Conditioning>;
+export const SESSION_KINDS = ["lifting", "cardio"] as const;
+export const SessionKind = z.enum(SESSION_KINDS);
+export type SessionKind = z.infer<typeof SessionKind>;
 
-export const ProgramSession = z.object({
+export const CardioPrescription = z.object({
+  modality: z.string().min(1).max(80), // "Bike", "Run", "Rower"…
+  durationMin: z.number().int().min(1).max(300).nullable().optional(), // null = unspecified (legacy)
+  hrZone: z.number().int().min(1).max(5).nullable().optional(),
+  intensity: z.string().max(60).optional(), // labelled intensity ("easy", "85% FTP")
+  distanceKm: z.number().min(0).max(300).optional(),
+  targetRpe: z.number().min(1).max(10).optional(),
+});
+export type CardioPrescription = z.infer<typeof CardioPrescription>;
+
+export const ProgramSession = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(160),
+    order: z.number().int().min(0), // order within its day
+    kind: SessionKind.default("lifting"),
+    notes: z.string().max(2000).optional(),
+    exercises: z.array(ProgramExercise).max(20).default([]),
+    cardio: CardioPrescription.nullable().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.kind === "lifting") {
+      if (val.exercises.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting session requires at least one exercise",
+          path: ["exercises"],
+        });
+      }
+      if (val.cardio != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting session must not have cardio prescription",
+          path: ["cardio"],
+        });
+      }
+    } else if (val.kind === "cardio") {
+      if (val.cardio == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio session requires cardio prescription",
+          path: ["cardio"],
+        });
+      }
+      if (val.exercises.length !== 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio session must not have exercises",
+          path: ["exercises"],
+        });
+      }
+    }
+  });
+export type ProgramSession = z.infer<typeof ProgramSession>;
+
+export const ProgramDay = z.object({
   id: z.string().uuid(),
-  /** e.g. "Day A — Lower". */
+  day: z.number().int().min(1).max(14), // ordinal "Day N" within the week
+  weekday: z.number().int().min(1).max(7).nullable().optional(), // 1=Mon…7=Sun
+  sessions: z.array(ProgramSession).min(1).max(4),
+});
+export type ProgramDay = z.infer<typeof ProgramDay>;
+
+export const ProgramWeek = z.object({
+  week: z.number().int().min(1).max(26),
+  days: z.array(ProgramDay).min(1).max(7),
+});
+export type ProgramWeek = z.infer<typeof ProgramWeek>;
+
+/** Whole-document write boundary shared by the API and tests. */
+export const ProgramWeeksDocument = z
+  .array(ProgramWeek)
+  .min(1)
+  .max(26)
+  .refine((ws) => ws.every((w, i) => w.week === i + 1), {
+    message: "weeks must be contiguous, starting at week 1",
+  });
+export type ProgramWeeksDocument = z.infer<typeof ProgramWeeksDocument>;
+
+/** Fill day.weekday from SORTED-ascending trainingDays by day index (decision 16);
+ *  null beyond the list / when trainingDays absent. Sorting happens HERE —
+ *  callers pass the client's array as-is. Pure: returns new weeks. */
+export function applyDefaultWeekdays(
+  weeks: ProgramWeek[],
+  trainingDays?: number[] | null
+): ProgramWeek[] {
+  const sorted =
+    trainingDays && trainingDays.length > 0
+      ? [...trainingDays].sort((a, b) => a - b)
+      : [];
+  return weeks.map((w) => ({
+    ...w,
+    days: w.days.map((d, i) => ({
+      ...d,
+      weekday: sorted[i] ?? null,
+    })),
+  }));
+}
+
+/** Copy a day template into every week 1..plannedWeeks, fresh uuids per week
+ *  (day/session/exercise ids; `exerciseId` catalog refs kept). */
+export function stampWeeks(template: ProgramDay[], plannedWeeks: number): ProgramWeek[] {
+  const weeks: ProgramWeek[] = [];
+  for (let w = 1; w <= plannedWeeks; w++) {
+    weeks.push({
+      week: w,
+      days: template.map((d) => ({
+        ...d,
+        id: crypto.randomUUID(),
+        sessions: d.sessions.map((s) => ({
+          ...s,
+          id: crypto.randomUUID(),
+          exercises: s.exercises.map((e) => ({
+            ...e,
+            id: crypto.randomUUID(),
+          })),
+        })),
+      })),
+    });
+  }
+  return weeks;
+}
+
+/** All sessions of one week, flattened (empty array when the week has no doc). */
+export function weekSessions(weeks: ProgramWeek[], week: number): ProgramSession[] {
+  const found = weeks.find((w) => w.week === week);
+  if (!found) return [];
+  return found.days.flatMap((d) => d.sessions);
+}
+
+/** The pre-change flat session shape incl. `conditioning` — for the data-migration
+ *  script only; frozen copy of the current ProgramSession zod (:372-381). */
+export const LegacyProgramSession = z.object({
+  id: z.string().uuid(),
   name: z.string().min(1).max(160),
   order: z.number().int().min(0),
   exercises: z.array(ProgramExercise).min(1).max(20),
   notes: z.string().max(2000).optional(),
-  conditioning: Conditioning.nullable().optional(),
+  conditioning: z
+    .object({
+      label: z.string().min(1).max(80),
+      detail: z.string().min(1).max(500),
+    })
+    .nullable()
+    .optional(),
 });
-export type ProgramSession = z.infer<typeof ProgramSession>;
+export type LegacyProgramSession = z.infer<typeof LegacyProgramSession>;
 
 // ---------------------------------------------------------------------------
 // Periodization (phasing)
@@ -436,10 +570,21 @@ export const WEEK_DIRECTIVES = [
 export const WeekDirective = z.enum(WEEK_DIRECTIVES);
 export type WeekDirective = z.infer<typeof WeekDirective>;
 
+export const WEEK_METRICS = ["overall_volume", "rep_volume", "intensity"] as const;
+export const WeekMetric = z.enum(WEEK_METRICS);
+export type WeekMetric = z.infer<typeof WeekMetric>;
+
+export const WeekTarget = z.object({
+  metric: WeekMetric,
+  deltaPercent: z.number().min(-100).max(200), // % vs the PREVIOUS week
+});
+export type WeekTarget = z.infer<typeof WeekTarget>;
+
 /** One week of a periodization scheme: what this week should do. */
 export const WeekPlan = z.object({
   week: z.number().int().min(1).max(26),
   directive: WeekDirective,
+  target: WeekTarget.optional(),
   note: z.string().max(500).optional(),
 });
 export type WeekPlan = z.infer<typeof WeekPlan>;
@@ -492,7 +637,7 @@ export const Program = z.object({
   /** Set when this program was drafted by AI, possibly on top of a previous one. */
   createdFromProgramId: z.string().uuid().nullable().default(null),
   aiAssisted: z.boolean().default(false),
-  sessions: z.array(ProgramSession).min(1).max(14),
+  weeks: ProgramWeeksDocument,
   /** Stamped on first activation — basis for block-week math (derived, never edited). */
   activatedAt: z.string().nullable().optional(),
   phasing: Phasing.nullable().optional(),

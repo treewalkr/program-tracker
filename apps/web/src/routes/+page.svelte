@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
+  import { weekOf } from "@pt/shared";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekGrid, { type ClientRow, type WeekEntry } from "$lib/components/WeekGrid.svelte";
@@ -50,23 +51,30 @@
         const programName = detail.currentProgram?.name ?? null;
         currentNames[c.id] = programName ?? "—";
         const row: ClientRow = { client: c, program: programName, entries: new Map() };
-        if (detail.currentProgram) {
+        if (detail.currentProgram && detail.currentProgram.weeks?.length) {
+          const prog = detail.currentProgram;
           const logs = await api.sessionLogs(c.id);
-          const loggedDates = new Set(logs.filter((l) => l.programId === detail.currentProgram!.id).map((l) => l.date.slice(0, 10)));
-          const sessions = detail.currentProgram.sessions;
-          let nth = 0;
-          for (const d of (c.trainingDays ?? []).slice().sort((a, b) => a - b)) {
-            const date = new Date(monday);
-            date.setDate(date.getDate() + (d - 1));
-            const ds = dateStr(date);
-            const session = sessions[nth % Math.max(1, sessions.length)];
-            nth++;
-            row.entries.set(d, {
-              day: d,
-              clientId: c.id,
-              sessionName: session?.name ?? "Session",
-              status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : d < todayDay ? "due" : "upcoming",
-            });
+          const loggedDates = new Set(logs.filter((l) => l.programId === prog.id).map((l) => l.date.slice(0, 10)));
+          const currentWeekNum = weekOf(prog, logs);
+          const clampedWeek = Math.max(1, Math.min(currentWeekNum, prog.weeks.length));
+          const currentWeek = prog.weeks.find((w) => w.week === clampedWeek) ?? prog.weeks[0];
+          const sortedTrainingDays = (c.trainingDays ?? []).slice().sort((a, b) => a - b);
+          if (currentWeek) {
+            for (let i = 0; i < currentWeek.days.length; i++) {
+              const day = currentWeek.days[i];
+              const weekday = day.weekday ?? sortedTrainingDays[i];
+              if (!weekday) continue;
+              const date = new Date(monday);
+              date.setDate(date.getDate() + (weekday - 1));
+              const ds = dateStr(date);
+              const sessionName = day.sessions.map((s) => s.name).join(" + ") || "Session";
+              row.entries.set(weekday, {
+                day: weekday,
+                clientId: c.id,
+                sessionName,
+                status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : weekday < todayDay ? "due" : "upcoming",
+              });
+            }
           }
         }
         built.push(row);

@@ -15,14 +15,15 @@ export const MOCK_DRAFT: AiProgramDraft = {
     nextPhase: "intensification",
     weeks: [
       { week: 1, directive: "base" },
-      { week: 2, directive: "+volume" },
-      { week: 3, directive: "+intensity" },
+      { week: 2, directive: "+volume", target: { metric: "overall_volume", deltaPercent: 5 } },
+      { week: 3, directive: "+intensity", target: { metric: "intensity", deltaPercent: 2.5 } },
       { week: 4, directive: "deload" },
     ],
   },
   sessions: [
     {
       name: "Day A — Lower",
+      kind: "lifting",
       exercises: [
         {
           exerciseName: "Back Squat",
@@ -45,6 +46,7 @@ export const MOCK_DRAFT: AiProgramDraft = {
     },
     {
       name: "Day B — Upper",
+      kind: "lifting",
       exercises: [
         {
           exerciseName: "Bench Press",
@@ -63,6 +65,12 @@ export const MOCK_DRAFT: AiProgramDraft = {
           ],
         },
       ],
+    },
+    {
+      name: "Cardio 1",
+      kind: "cardio",
+      cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+      exercises: [],
     },
   ],
 };

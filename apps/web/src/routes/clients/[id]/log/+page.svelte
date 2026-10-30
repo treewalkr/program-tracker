@@ -3,8 +3,8 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
-  import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
-  import type { SetType } from "@pt/shared";
+  import type { ClientDto, ProgramDto, ProgramSessionDto, SessionLogDto } from "$lib/api/types";
+  import { weekOf, type SetType } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -18,6 +18,7 @@
   let client = $state<ClientDto | null>(null);
   let program = $state<ProgramDto | null>(null);
   let pastLogs = $state<SessionLogDto[]>([]);
+  let selectedWeekNumber = $state<number>(1);
   let sessionId = $state<string>("");
   let date = $state(new Date().toISOString().slice(0, 10));
   let energy = $state<number>(7);
@@ -63,6 +64,25 @@
   const doneCount = $derived(rows.filter((r) => r.reps !== "").length);
   const prefillable = $derived(rows.length > 0 && doneCount < rows.length);
 
+  const selectedWeek = $derived(
+    program?.weeks.find((w) => w.week === selectedWeekNumber) ?? program?.weeks[0] ?? null
+  );
+
+  const liftingSessions = $derived.by(() => {
+    if (!selectedWeek) return [];
+    const list: { id: string; label: string; session: ProgramSessionDto }[] = [];
+    for (const d of selectedWeek.days) {
+      for (const s of d.sessions) {
+        if (s.kind === "lifting") {
+          list.push({ id: s.id, label: `Day ${d.day} · ${s.name}`, session: s });
+        }
+      }
+    }
+    return list;
+  });
+
+  const isPureCardioWeek = $derived(selectedWeek != null && liftingSessions.length === 0);
+
   function loadSession() {
     savedCount = 0;
     error = null;
@@ -70,7 +90,7 @@
       rows = [];
       return;
     }
-    const session = program.sessions.find((s) => s.id === sessionId);
+    const session = liftingSessions.find((ls) => ls.id === sessionId)?.session;
     rows =
       session?.exercises.flatMap((e) =>
         e.prescribedSets.map((ps) => ({
@@ -162,8 +182,13 @@
     client = detail.client;
     program = detail.currentProgram;
     pastLogs = await api.sessionLogs(id);
-    if (program) {
-      sessionId = program.sessions[0]?.id ?? "";
+    if (program && program.weeks?.length) {
+      const initialWeek = weekOf(
+        program,
+        pastLogs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
+      );
+      selectedWeekNumber = Math.max(1, Math.min(initialWeek, program.weeks.length));
+      sessionId = liftingSessions[0]?.id ?? "";
       loadSession();
     }
   });
@@ -197,16 +222,36 @@
       <Panel title="Session">
         {#snippet act()}
           <div class="head-controls">
-            <label class="label" for="log-session">From program</label>
+            <label class="label" for="log-week">Week</label>
+            <select
+              class="select"
+              id="log-week"
+              bind:value={selectedWeekNumber}
+              onchange={() => {
+                const first = liftingSessions[0];
+                sessionId = first ? first.id : "";
+                loadSession();
+              }}
+            >
+              {#each prog.weeks as w (w.week)}
+                <option value={w.week}>Week {w.week}</option>
+              {/each}
+            </select>
+            <label class="label" for="log-session">Session</label>
             <select
               class="select"
               id="log-session"
               bind:value={sessionId}
               onchange={loadSession}
+              disabled={isPureCardioWeek}
             >
-              {#each prog.sessions as s (s.id)}
-                <option value={s.id}>{s.name}</option>
-              {/each}
+              {#if isPureCardioWeek}
+                <option value="">No lifting sessions</option>
+              {:else}
+                {#each liftingSessions as ls (ls.id)}
+                  <option value={ls.id}>{ls.label}</option>
+                {/each}
+              {/if}
             </select>
             <label class="label" for="log-date">Date</label>
             <input class="input date" id="log-date" type="date" bind:value={date} />
@@ -215,6 +260,11 @@
             {/if}
           </div>
         {/snippet}
+      {#if isPureCardioWeek}
+        <div class="panel-body">
+          <p class="subtle">Pure cardio week — cardio logging lands with z8jsh.</p>
+        </div>
+      {:else}
       <div class="table-wrap">
         <table class="sheet">
           <thead>
@@ -252,11 +302,12 @@
           </div>
           <div class="submit-row">
             <span class="subtle">{doneCount}/{rows.length} sets filled</span>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || isPureCardioWeek}>
               {saving ? "Saving…" : "Save session"}
             </Button>
           </div>
         </div>
+      {/if}
       </Panel>
     </form>
 

@@ -2,11 +2,16 @@ import { Elysia, t } from "elysia";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, programs } from "@pt/db";
-import { Phasing, ProgramSession } from "@pt/shared";
+import { Phasing, ProgramWeeksDocument } from "@pt/shared";
 import { getDefaultTrainerId } from "../lib/trainer";
 
-/** Write boundary: raw jsonb sessions are only accepted if they pass the shared schema. */
-const SessionsDoc = z.array(ProgramSession).min(1).max(14);
+/** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema. */
+const WeeksDoc = ProgramWeeksDocument;
+
+export function toProgramDto(row: typeof programs.$inferSelect) {
+  const { sessions, ...rest } = row;
+  return { ...rest, weeks: sessions };
+}
 
 /** null clears the phasing; a malformed document is a 422. */
 function parsePhasing(raw: unknown): { ok: true; value: Phasing | null } | { ok: false; issues: unknown } {
@@ -30,14 +35,14 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
           .from(programs)
           .where(eq(programs.trainerId, trainerId))
           .orderBy(desc(programs.createdAt));
-    return rows;
+    return rows.map(toProgramDto);
   })
   .get(
     "/:id",
     async ({ params, status }) => {
       const [row] = await db.select().from(programs).where(eq(programs.id, params.id));
       if (!row) return status(404, { error: "program not found" });
-      return row;
+      return toProgramDto(row);
     },
     { params: t.Object({ id: t.String() }) }
   )
@@ -45,9 +50,9 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     "/",
     async ({ body, status }) => {
       const trainerId = await getDefaultTrainerId();
-      const parsed = SessionsDoc.safeParse(body.sessions);
+      const parsed = WeeksDoc.safeParse(body.weeks);
       if (!parsed.success) {
-        return status(422, { error: "invalid sessions document", issues: z.treeifyError(parsed.error) });
+        return status(422, { error: "invalid weeks document", issues: z.treeifyError(parsed.error) });
       }
       const phasing = parsePhasing(body.phasing);
       if (!phasing.ok) {
@@ -66,28 +71,28 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
           createdFromProgramId: body.createdFromProgramId ?? null,
         })
         .returning();
-      return status(201, created);
+      return status(201, toProgramDto(created));
     },
     {
       body: t.Object({
         name: t.String({ minLength: 1, maxLength: 160 }),
         clientId: t.Optional(t.String()),
         description: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
-        sessions: t.Any(),
+        weeks: t.Any(),
         phasing: t.Optional(t.Any()),
         aiAssisted: t.Optional(t.Boolean()),
         createdFromProgramId: t.Optional(t.String()),
       }),
     }
   )
-  /** Replace the whole sessions document (trainer edited an active program) → version++.
+  /** Replace the whole weeks document (trainer edited an active program) → version++.
    *  An absent phasing leaves it untouched; explicit null clears it. */
   .put(
     "/:id",
     async ({ params, body, status }) => {
-      const parsed = SessionsDoc.safeParse(body.sessions);
+      const parsed = WeeksDoc.safeParse(body.weeks);
       if (!parsed.success) {
-        return status(422, { error: "invalid sessions document", issues: z.treeifyError(parsed.error) });
+        return status(422, { error: "invalid weeks document", issues: z.treeifyError(parsed.error) });
       }
       const [current] = await db.select().from(programs).where(eq(programs.id, params.id));
       if (!current) return status(404, { error: "program not found" });
@@ -106,11 +111,11 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         .set(update)
         .where(eq(programs.id, params.id))
         .returning();
-      return updated;
+      return toProgramDto(updated);
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({ sessions: t.Any(), phasing: t.Optional(t.Any()) }),
+      body: t.Object({ weeks: t.Any(), phasing: t.Optional(t.Any()) }),
     }
   )
   /** Status transitions; activating a program archives the client's other active ones
@@ -138,7 +143,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         .set({ status: body.status, ...stamp })
         .where(eq(programs.id, params.id))
         .returning();
-      return updated;
+      return toProgramDto(updated);
     },
     {
       params: t.Object({ id: t.String() }),

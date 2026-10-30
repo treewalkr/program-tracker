@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { diffSources, type DiffSource, type DiffRow } from "./draftDiff";
+import { diffSources, programToDiffSource, type DiffSource, type DiffRow } from "./draftDiff";
 
 describe("diffSources", () => {
   test("diffSources marks added, removed, changed, kept with stable details", () => {
@@ -43,5 +43,46 @@ describe("diffSources", () => {
     expect(diffSources(null, null)).toEqual([]);
     expect(diffSources({ sessions: [] }, null)).toEqual([]);
     expect(diffSources(null, { sessions: [] })).toEqual([]);
+  });
+
+  test("programToDiffSource flattens the latest week", () => {
+    const program: any = {
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: "d1",
+              sessions: [
+                {
+                  id: "s1",
+                  name: "Week 1 Day 1",
+                  exercises: [{ exerciseName: "Squat", prescribedSets: [{ reps: 5, amrap: false }] }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          week: 2,
+          days: [
+            {
+              id: "d2",
+              sessions: [
+                {
+                  id: "s2",
+                  name: "Week 2 Day 1",
+                  exercises: [{ exerciseName: "Deadlift", prescribedSets: [{ reps: 3, amrap: false }] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const source = programToDiffSource(program);
+    expect(source.sessions).toHaveLength(1);
+    expect(source.sessions[0].name).toBe("Week 2 Day 1");
+    expect(source.sessions[0].exercises[0].name).toBe("Deadlift");
   });
 });

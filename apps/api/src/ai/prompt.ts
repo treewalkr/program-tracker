@@ -1,4 +1,4 @@
-import { EXERCISE_ROLE_INFO, EXERCISE_ROLES, type AiProgramDraft } from "@pt/shared";
+import { EXERCISE_ROLE_INFO, EXERCISE_ROLES, type AiProgramDraft, type Phasing } from "@pt/shared";
 
 export interface ClientContext {
   name: string;
@@ -37,7 +37,7 @@ export interface CatalogEntry {
 export interface GenerationContext {
   client: ClientContext;
   previousProgram: ProgramSummary | null;
-  /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · tonnage/e1RM summary". */
+  /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · overall volume/e1RM summary". */
   periodization: string | null;
   chainBalance: string | null;
   history: ExerciseHistoryEntry[];
@@ -53,13 +53,30 @@ const DRAFT_SCHEMA_SPEC = `{
     "plannedWeeks": number,          // 2-26
     "phase": string,                 // phase name, e.g. "accumulation"
     "nextPhase": string?,
-    "weeks": [                       // week-by-week directives
-      { "week": number, "directive": "base"|"+volume"|"+intensity"|"deload"|"transition"|"test" }
+    "weeks": [                       // week-by-week directives and optional targets
+      {
+        "week": number,
+        "directive": "base"|"+volume"|"+intensity"|"deload"|"transition"|"test",
+        "target"?: {
+          "metric": "overall_volume" | "rep_volume" | "intensity",
+          "deltaPercent": number     // % vs previous week, e.g. 5 for +5%
+        },
+        "note"?: string
+      }
     ]?
   },
   "sessions": [                     // exactly the client's training days per week
     {
       "name": string,
+      "kind"?: "lifting" | "cardio", // defaults to "lifting"
+      "cardio"?: {                   // required if kind is "cardio"; omit/null for lifting
+        "modality": string,          // "Bike", "Run", "Rower", etc.
+        "durationMin"?: number,      // 1-300
+        "hrZone"?: number,           // 1-5
+        "intensity"?: string,        // e.g. "easy", "threshold"
+        "distanceKm"?: number,
+        "targetRpe"?: number         // 1-10
+      },
       "notes": string?,             // optional
       "exercises": [
         {
@@ -105,6 +122,8 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
+    "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -169,6 +188,8 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
+    "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -255,6 +276,28 @@ function historyToText(h: ExerciseHistoryEntry[]): string {
   return h
     .map((e) => `- ${e.exerciseName} (best e1RM ${e.bestE1rm}kg): ${e.recentSets.join(", ")}`)
     .join("\n");
+}
+
+export function periodizationContext(
+  ph: Phasing,
+  week: number,
+  summary: string | null
+): string {
+  const currentPlan = ph.weeks?.find((w) => w.week === week);
+  const directivePart = currentPlan?.directive ? ` · this week's directive: ${currentPlan.directive}` : "";
+  let targetPart = "";
+  if (currentPlan?.target) {
+    const metricLabels: Record<string, string> = {
+      overall_volume: "overall volume",
+      rep_volume: "rep volume",
+      intensity: "intensity",
+    };
+    const label = metricLabels[currentPlan.target.metric] ?? currentPlan.target.metric;
+    const sign = currentPlan.target.deltaPercent > 0 ? "+" : "";
+    targetPart = ` · target ${label} ${sign}${currentPlan.target.deltaPercent}%`;
+  }
+  const summaryPart = summary ? ` · ${summary}` : "";
+  return `week ${week} of ${ph.plannedWeeks} · ${ph.phase}${directivePart}${targetPart}${summaryPart}`;
 }
 
 /** Typed re-export so routes share one import path. */

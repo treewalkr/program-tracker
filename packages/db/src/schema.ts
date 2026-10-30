@@ -20,8 +20,8 @@ import type {
   GenerationStatus,
   MovementPattern,
   Phasing,
-  ProgramSession,
   ProgramStatus,
+  ProgramWeek,
   SetType,
   WeekPlan,
 } from "@pt/shared";
@@ -89,8 +89,8 @@ export const programs = pgTable("programs", {
   version: integer("version").notNull().default(1),
   createdFromProgramId: uuid("created_from_program_id"),
   aiAssisted: boolean("ai_assisted").notNull().default(false),
-  /** Whole-program document, validated by shared ProgramSession[] zod schema on write. */
-  sessions: jsonb("sessions").$type<ProgramSession[]>().notNull(),
+  /** Whole-program document, validated by shared ProgramWeeksDocument on write. */
+  sessions: jsonb("sessions").$type<ProgramWeek[]>().notNull(),
   /** Stamped on first activation; block-week math derives from it. */
   activatedAt: timestamp("activated_at", { withTimezone: true }),
   /** Periodization plan (scheme copy) — structured input to signals + AI context. */

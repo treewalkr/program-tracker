@@ -1,5 +1,11 @@
-import { sortExercisesByRole } from "@pt/shared";
-import type { AiProgramDraft, DraftExerciseRef, ProgramSession } from "@pt/shared";
+import { applyDefaultWeekdays, sortExercisesByRole, stampWeeks } from "@pt/shared";
+import type {
+  AiProgramDraft,
+  DraftExerciseRef,
+  ProgramDay,
+  ProgramSession,
+  ProgramWeek,
+} from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
@@ -37,65 +43,94 @@ export function resolveRef(
   return { kind: "unresolvable", ref: ref.exerciseId ?? "<no ref>" };
 }
 
-export function draftToSessions(
+export function draftToWeeks(
   draft: AiProgramDraft,
-  catalog: CatalogLike[]
-): { sessions: ProgramSession[]; createdNames: string[]; unresolvable: string[] } {
+  catalog: CatalogLike[],
+  plannedWeeks = 4,
+  trainingDays?: number[] | null
+): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
   const nameById = new Map(catalog.map((c) => [c.id, c.name]));
   const byName = new Map(catalog.map((c) => [c.name.toLowerCase(), c.id]));
   const createdNames: string[] = [];
   const unresolvable: string[] = [];
 
-  const sessions: ProgramSession[] = draft.sessions.map((s, si) => ({
-    id: crypto.randomUUID(),
-    name: s.name,
-    order: si,
-    notes: s.notes,
-    // role order is the session order; `order` is the post-sort index
-    exercises: sortExercisesByRole(s.exercises).flatMap((ref, ei) => {
-      const res = resolveRef(ref, byId, byName);
-      if (res.kind === "unresolvable") {
-        unresolvable.push(res.ref);
-        return [];
-      }
-      if (res.kind === "create" && !createdNames.includes(res.name)) {
-        createdNames.push(res.name);
-      }
-      return [
-        {
-          id: crypto.randomUUID(),
-          exerciseId: res.kind === "existing" ? res.exerciseId : `pending:${res.name.toLowerCase()}`,
-          // programs carry the display name — the UI renders it directly,
-          // no catalog join on read
-          exerciseName: res.kind === "existing" ? nameById.get(res.exerciseId) : res.name,
-          role: ref.role,
-          order: ei,
-          prescribedSets: ref.prescribedSets,
-          notes: ref.notes,
-        },
-      ];
-    }),
-  }));
+  const templateDays: ProgramDay[] = draft.sessions.map((s, si) => {
+    const isCardio = (s as any).kind === "cardio";
+    const exercises = isCardio
+      ? []
+      : sortExercisesByRole(s.exercises ?? []).flatMap((ref, ei) => {
+          const res = resolveRef(ref, byId, byName);
+          if (res.kind === "unresolvable") {
+            unresolvable.push(res.ref);
+            return [];
+          }
+          if (res.kind === "create" && !createdNames.includes(res.name)) {
+            createdNames.push(res.name);
+          }
+          return [
+            {
+              id: crypto.randomUUID(),
+              exerciseId:
+                res.kind === "existing"
+                  ? res.exerciseId
+                  : `pending:${res.name.toLowerCase()}`,
+              exerciseName:
+                res.kind === "existing"
+                  ? nameById.get(res.exerciseId)
+                  : res.name,
+              role: ref.role,
+              order: ei,
+              prescribedSets: ref.prescribedSets,
+              notes: ref.notes,
+            },
+          ];
+        });
 
-  return { sessions, createdNames, unresolvable };
+    const session: ProgramSession = {
+      id: crypto.randomUUID(),
+      name: s.name,
+      order: 0,
+      kind: isCardio ? ("cardio" as const) : ("lifting" as const),
+      notes: s.notes,
+      exercises,
+      cardio: isCardio ? (s as any).cardio : null,
+    };
+
+    return {
+      id: crypto.randomUUID(),
+      day: si + 1,
+      sessions: [session],
+    };
+  });
+
+  const stamped = stampWeeks(templateDays, plannedWeeks);
+  const weeks = applyDefaultWeekdays(stamped, trainingDays);
+
+  return { weeks, createdNames, unresolvable };
 }
 
 /** Replace `pending:<name>` ids with real ids once custom exercises are inserted. */
 export function bindPendingExercises(
-  sessions: ProgramSession[],
+  weeks: ProgramWeek[],
   nameToId: Map<string, string>
-): ProgramSession[] {
-  return sessions.map((s) => ({
-    ...s,
-    exercises: s.exercises.map((e) => {
-      if (e.exerciseId.startsWith("pending:")) {
-        const name = e.exerciseId.slice("pending:".length);
-        const id = nameToId.get(name);
-        if (!id) throw new Error(`unresolved pending exercise: ${name}`);
-        return { ...e, exerciseId: id };
-      }
-      return e;
-    }),
+): ProgramWeek[] {
+  return weeks.map((w) => ({
+    ...w,
+    days: w.days.map((d) => ({
+      ...d,
+      sessions: d.sessions.map((s) => ({
+        ...s,
+        exercises: s.exercises.map((e) => {
+          if (e.exerciseId.startsWith("pending:")) {
+            const name = e.exerciseId.slice("pending:".length);
+            const id = nameToId.get(name);
+            if (!id) throw new Error(`unresolved pending exercise: ${name}`);
+            return { ...e, exerciseId: id };
+          }
+          return e;
+        }),
+      })),
+    })),
   }));
 }

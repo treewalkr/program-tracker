@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
-import { buildGenerationMessages, buildRevisionMessages } from "./ai/prompt";
-import { bindPendingExercises, draftToSessions } from "./lib/draftToProgram";
+import { buildGenerationMessages, buildRevisionMessages, periodizationContext } from "./ai/prompt";
+import { bindPendingExercises, draftToWeeks } from "./lib/draftToProgram";
 import type { AiProgramDraft } from "@pt/shared";
 
 describe("extractJsonObject", () => {
@@ -53,7 +53,7 @@ describe("buildGenerationMessages", () => {
     const { system, user } = buildGenerationMessages({
       client: { name: "Maya", daysPerWeek: 4 },
       previousProgram: null,
-      periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly tonnage 1.8t → 2.1t (+17%)",
+      periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly overall volume 1.8t → 2.1t (+17%)",
       chainBalance: null,
       history: [],
       catalog: [],
@@ -290,25 +290,44 @@ const catalog = [
   { id: "22222222-2222-2222-2222-222222222222", name: "Bench Press" },
 ];
 
-describe("draftToSessions", () => {
+describe("periodizationContext", () => {
+  test("periodizationContext includes the quantified target", () => {
+    const ph = {
+      plannedWeeks: 4,
+      phase: "accumulation",
+      weeks: [
+        { week: 1, directive: "base" as const },
+        { week: 2, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 5 } },
+      ],
+    };
+    const line = periodizationContext(ph, 2, "weekly overall volume 1.0t → 1.2t (+20%)");
+    expect(line).toContain("target overall volume +5%");
+    expect(line).toBe(
+      "week 2 of 4 · accumulation · this week's directive: +volume · target overall volume +5% · weekly overall volume 1.0t → 1.2t (+20%)"
+    );
+  });
+});
+
+describe("draftToWeeks", () => {
   test("resolves by id, by name-match, and flags creates", () => {
-    const { sessions, createdNames, unresolvable } = draftToSessions(draft, catalog);
+    const { weeks, createdNames, unresolvable } = draftToWeeks(draft, catalog);
     expect(unresolvable).toEqual([]);
     expect(createdNames).toEqual(["Cable Crunch"]); // not in catalog → create
-    expect(sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
-    expect(sessions[0].exercises[1].exerciseId).toBe("pending:cable crunch");
+    const s0 = weeks[0].days[0].sessions[0];
+    expect(s0.exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
+    expect(s0.exercises[1].exerciseId).toBe("pending:cable crunch");
   });
 
   test("name refs that exactly match the catalog reuse the catalog id", () => {
     const d2 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseName: "back squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] }] };
-    const { createdNames, sessions } = draftToSessions(d2, catalog);
+    const { createdNames, weeks } = draftToWeeks(d2, catalog);
     expect(createdNames).toEqual([]);
-    expect(sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
+    expect(weeks[0].days[0].sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
   });
 
   test("bogus id without name is unresolvable, not silently dropped", () => {
     const d3 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] }] };
-    const { unresolvable } = draftToSessions(d3, catalog);
+    const { unresolvable } = draftToWeeks(d3, catalog);
     expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
   });
 
@@ -328,23 +347,45 @@ describe("draftToSessions", () => {
         },
       ],
     };
-    const { sessions } = draftToSessions(d4, catalog);
-    const ex = sessions[0].exercises;
+    const { weeks } = draftToWeeks(d4, catalog);
+    const ex = weeks[0].days[0].sessions[0].exercises;
     expect(ex.map((e) => e.exerciseName)).toEqual(["Back Squat", "Bench Press", "Cable Crunch", "Lateral Raise"]);
     expect(ex.map((e) => e.role)).toEqual(["primary", "strength", "core", undefined]);
     expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
+  });
+
+  test("draftToWeeks maps cardio draft sessions into cardio days", () => {
+    const draftWithCardio: AiProgramDraft = {
+      ...draft,
+      sessions: [
+        {
+          name: "Cardio 1",
+          kind: "cardio",
+          cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+          exercises: [],
+        },
+      ],
+    };
+    const { weeks } = draftToWeeks(draftWithCardio, catalog);
+    const day = weeks[0].days[0];
+    expect(day.sessions).toHaveLength(1);
+    expect(day.sessions[0].kind).toBe("cardio");
+    expect(day.sessions[0].cardio?.modality).toBe("Bike");
+    expect(day.sessions[0].cardio?.durationMin).toBe(30);
+    expect(day.sessions[0].cardio?.hrZone).toBe(2);
+    expect(day.sessions[0].exercises).toEqual([]);
   });
 });
 
 describe("bindPendingExercises", () => {
   test("replaces pending ids with real ones", () => {
-    const { sessions } = draftToSessions(draft, catalog);
-    const bound = bindPendingExercises(sessions, new Map([["cable crunch", "33333333-3333-3333-3333-333333333333"]]));
-    expect(bound[0].exercises[1].exerciseId).toBe("33333333-3333-3333-3333-333333333333");
+    const { weeks } = draftToWeeks(draft, catalog);
+    const bound = bindPendingExercises(weeks, new Map([["cable crunch", "33333333-3333-3333-3333-333333333333"]]));
+    expect(bound[0].days[0].sessions[0].exercises[1].exerciseId).toBe("33333333-3333-3333-3333-333333333333");
   });
 
   test("throws on a name that never got an id (programming error)", () => {
-    const { sessions } = draftToSessions(draft, catalog);
-    expect(() => bindPendingExercises(sessions, new Map())).toThrow(/cable crunch/);
+    const { weeks } = draftToWeeks(draft, catalog);
+    expect(() => bindPendingExercises(weeks, new Map())).toThrow(/cable crunch/);
   });
 });

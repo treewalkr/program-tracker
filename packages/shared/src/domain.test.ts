@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   AiProgramDraft,
+  applyDefaultWeekdays,
+  CardioPrescription,
   CHAIN_MUSCLE_GROUPS,
   ChainMuscleGroup,
   Client,
@@ -21,8 +23,16 @@ import {
   Phasing,
   PrescribedSet,
   Program,
+  ProgramDay,
   ProgramExercise,
+  ProgramSession,
+  ProgramWeek,
+  ProgramWeeksDocument,
   sortExercisesByRole,
+  stampWeeks,
+  weekSessions,
+  WeekPlan,
+  WeekTarget,
 } from "./index";
 
 const uuid = () => crypto.randomUUID();
@@ -146,14 +156,14 @@ describe("Client trainingDays", () => {
 describe("Program", () => {
   const baseExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] };
 
-  test("requires at least one session with one exercise", () => {
+  test("requires at least one week with at least one day and session", () => {
     expect(() =>
       Program.parse({
         id: uuid(),
         trainerId: uuid(),
         clientId: null,
         name: "Block 1",
-        sessions: [],
+        weeks: [],
         createdAt: new Date().toISOString(),
       })
     ).toThrow();
@@ -165,7 +175,18 @@ describe("Program", () => {
       trainerId: uuid(),
       clientId: null,
       name: "Block 1",
-      sessions: [{ id: uuid(), name: "Day A", order: 0, exercises: [baseExercise] }],
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: uuid(),
+              day: 1,
+              sessions: [{ id: uuid(), name: "Day A", order: 0, exercises: [baseExercise] }],
+            },
+          ],
+        },
+      ],
       createdAt: new Date().toISOString(),
     });
     expect(p.status).toBe("draft");
@@ -176,7 +197,7 @@ describe("Program", () => {
     expect(p.phasing).toBeUndefined();
   });
 
-  test("accepts conditioning on sessions and phasing + activatedAt on the program", () => {
+  test("accepts cardio sessions and phasing + activatedAt on the program", () => {
     const p = Program.parse({
       id: uuid(),
       trainerId: uuid(),
@@ -191,20 +212,268 @@ describe("Program", () => {
           { week: 2, directive: "+volume" },
         ],
       },
-      sessions: [
+      weeks: [
         {
-          id: uuid(),
-          name: "Day A",
-          order: 0,
-          exercises: [baseExercise],
-          conditioning: { label: "Zone 2", detail: "20 min easy bike" },
+          week: 1,
+          days: [
+            {
+              id: uuid(),
+              day: 1,
+              sessions: [
+                {
+                  id: uuid(),
+                  name: "Cardio 1",
+                  order: 0,
+                  kind: "cardio",
+                  cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+                },
+              ],
+            },
+          ],
         },
       ],
       createdAt: new Date().toISOString(),
     });
-    expect(p.sessions[0].conditioning?.label).toBe("Zone 2");
+    expect(p.weeks[0].days[0].sessions[0].kind).toBe("cardio");
+    expect(p.weeks[0].days[0].sessions[0].cardio?.modality).toBe("Bike");
     expect(p.phasing?.weeks).toHaveLength(2);
     expect(p.activatedAt).toBeTruthy();
+  });
+});
+
+describe("ProgramWeeksDocument", () => {
+  const baseExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] };
+
+  test("ProgramWeeksDocument: accepts weeks→days→sessions and defaults kind \"lifting\"", () => {
+    const doc = ProgramWeeksDocument.parse([
+      {
+        week: 1,
+        days: [
+          {
+            id: uuid(),
+            day: 1,
+            sessions: [
+              {
+                id: uuid(),
+                name: "Day 1",
+                order: 0,
+                exercises: [baseExercise],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(doc[0].days[0].sessions[0].kind).toBe("lifting");
+  });
+
+  test("rejects non-contiguous week numbers", () => {
+    expect(() =>
+      ProgramWeeksDocument.parse([
+        {
+          week: 1,
+          days: [{ id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S1", order: 0, exercises: [baseExercise] }] }],
+        },
+        {
+          week: 3,
+          days: [{ id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S2", order: 0, exercises: [baseExercise] }] }],
+        },
+      ])
+    ).toThrow();
+  });
+
+  test("cardio session requires cardio fields and no exercises; lifting requires ≥1", () => {
+    // Lifting with no exercises throws
+    expect(() =>
+      ProgramSession.parse({
+        id: uuid(),
+        name: "Empty Lifting",
+        order: 0,
+        kind: "lifting",
+        exercises: [],
+      })
+    ).toThrow();
+
+    // Lifting with cardio throws
+    expect(() =>
+      ProgramSession.parse({
+        id: uuid(),
+        name: "Lifting with Cardio",
+        order: 0,
+        kind: "lifting",
+        exercises: [baseExercise],
+        cardio: { modality: "Bike" },
+      })
+    ).toThrow();
+
+    // Cardio with exercises throws
+    expect(() =>
+      ProgramSession.parse({
+        id: uuid(),
+        name: "Cardio with Exercises",
+        order: 0,
+        kind: "cardio",
+        exercises: [baseExercise],
+        cardio: { modality: "Bike" },
+      })
+    ).toThrow();
+
+    // Cardio with no cardio fields throws
+    expect(() =>
+      ProgramSession.parse({
+        id: uuid(),
+        name: "Cardio without cardio",
+        order: 0,
+        kind: "cardio",
+        exercises: [],
+      })
+    ).toThrow();
+
+    // Valid cardio passes
+    const validCardio = ProgramSession.parse({
+      id: uuid(),
+      name: "Cardio 1",
+      order: 0,
+      kind: "cardio",
+      cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+    });
+    expect(validCardio.kind).toBe("cardio");
+    expect(validCardio.exercises).toEqual([]);
+  });
+
+  test("CardioPrescription: fields, nullable duration, hrZone bounds", () => {
+    expect(() => CardioPrescription.parse({ modality: "Run", hrZone: 6 })).toThrow();
+    expect(() => CardioPrescription.parse({ modality: "Run", hrZone: 0 })).toThrow();
+    expect(() => CardioPrescription.parse({ modality: "Run", distanceKm: -1 })).toThrow();
+    expect(() => CardioPrescription.parse({ modality: "Run", distanceKm: 301 })).toThrow();
+    expect(() => CardioPrescription.parse({ modality: "Run", targetRpe: 0 })).toThrow();
+    expect(() => CardioPrescription.parse({ modality: "Run", targetRpe: 11 })).toThrow();
+    expect(() => CardioPrescription.parse({ modality: "" })).toThrow();
+
+    const valid = CardioPrescription.parse({
+      modality: "Bike",
+      durationMin: null,
+      hrZone: 2,
+      intensity: "easy spin",
+      distanceKm: 15,
+      targetRpe: 4,
+    });
+    expect(valid.durationMin).toBeNull();
+    expect(valid.modality).toBe("Bike");
+  });
+
+  test("old session documents lose conditioning and default to lifting", () => {
+    const legacy = {
+      id: uuid(),
+      name: "Day A",
+      order: 0,
+      exercises: [baseExercise],
+      conditioning: { label: "Zone 2", detail: "20 min easy bike" },
+    };
+    const parsed = ProgramSession.parse(legacy);
+    expect(parsed.kind).toBe("lifting");
+    expect("conditioning" in parsed).toBe(false);
+  });
+
+  test("applyDefaultWeekdays fills day i from sorted trainingDays, extras stay null", () => {
+    const templateWeeks: ProgramWeek[] = [
+      {
+        week: 1,
+        days: [
+          { id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S1", order: 0, exercises: [baseExercise] }] },
+          { id: uuid(), day: 2, sessions: [{ id: uuid(), name: "S2", order: 0, exercises: [baseExercise] }] },
+          { id: uuid(), day: 3, sessions: [{ id: uuid(), name: "S3", order: 0, exercises: [baseExercise] }] },
+        ],
+      },
+    ];
+    // trainingDays: [4, 2] -> sorted is [2, 4] -> day 1: 2, day 2: 4, day 3: null
+    const result = applyDefaultWeekdays(templateWeeks, [4, 2]);
+    expect(result[0].days[0].weekday).toBe(2);
+    expect(result[0].days[1].weekday).toBe(4);
+    expect(result[0].days[2].weekday).toBeNull();
+  });
+
+  test("stampWeeks gives each week fresh ids and keeps catalog exerciseIds", () => {
+    const catalogExerciseId = uuid();
+    const template: ProgramDay[] = [
+      {
+        id: uuid(),
+        day: 1,
+        sessions: [
+          {
+            id: uuid(),
+            name: "S1",
+            order: 0,
+            kind: "lifting",
+            exercises: [
+              {
+                id: uuid(),
+                exerciseId: catalogExerciseId,
+                order: 0,
+                prescribedSets: [{ setNumber: 1, reps: 5 }],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const stamped = stampWeeks(template, 3);
+    expect(stamped).toHaveLength(3);
+    expect(stamped[0].week).toBe(1);
+    expect(stamped[1].week).toBe(2);
+    expect(stamped[2].week).toBe(3);
+
+    const dayIds = stamped.map((w) => w.days[0].id);
+    const sessionIds = stamped.map((w) => w.days[0].sessions[0].id);
+    const exerciseIds = stamped.map((w) => w.days[0].sessions[0].exercises[0].id);
+
+    expect(new Set(dayIds).size).toBe(3);
+    expect(new Set(sessionIds).size).toBe(3);
+    expect(new Set(exerciseIds).size).toBe(3);
+
+    for (const w of stamped) {
+      expect(w.days[0].sessions[0].exercises[0].exerciseId).toBe(catalogExerciseId);
+    }
+  });
+
+  test("WeekPlan target: metric enum and deltaPercent bounds", () => {
+    expect(() =>
+      WeekPlan.parse({ week: 1, directive: "base", target: { metric: "unknown" as never, deltaPercent: 5 } })
+    ).toThrow();
+    expect(() =>
+      WeekPlan.parse({ week: 1, directive: "base", target: { metric: "overall_volume", deltaPercent: -101 } })
+    ).toThrow();
+    expect(() =>
+      WeekPlan.parse({ week: 1, directive: "base", target: { metric: "overall_volume", deltaPercent: 201 } })
+    ).toThrow();
+
+    const validMin = WeekPlan.parse({
+      week: 1,
+      directive: "base",
+      target: { metric: "overall_volume", deltaPercent: -100 },
+    });
+    expect(validMin.target?.deltaPercent).toBe(-100);
+
+    const validMax = WeekPlan.parse({
+      week: 1,
+      directive: "base",
+      target: { metric: "intensity", deltaPercent: 200 },
+    });
+    expect(validMax.target?.deltaPercent).toBe(200);
+
+    const phasing = Phasing.parse({
+      plannedWeeks: 3,
+      phase: "accumulation",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume", target: { metric: "overall_volume", deltaPercent: 5 } },
+        { week: 3, directive: "+intensity", target: { metric: "intensity", deltaPercent: 2.5 } },
+      ],
+    });
+    expect(phasing.weeks?.[1].target?.metric).toBe("overall_volume");
+    expect(phasing.weeks?.[1].target?.deltaPercent).toBe(5);
+    expect(phasing.weeks?.[2].target?.metric).toBe("intensity");
+    expect(phasing.weeks?.[2].target?.deltaPercent).toBe(2.5);
   });
 });
 
@@ -334,6 +603,30 @@ describe("AiProgramDraft (full LLM payload)", () => {
       ],
     });
     expect(d.sessions).toHaveLength(1);
+  });
+
+  test("accepts cardio sessions", () => {
+    const d = AiProgramDraft.parse({
+      name: "Block 2",
+      rationale: "Rationale",
+      clientSummary: "Summary",
+      sessions: [
+        {
+          name: "Day 1",
+          kind: "lifting",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+        },
+        {
+          name: "Cardio 1",
+          kind: "cardio",
+          cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
+        },
+      ],
+    });
+    expect(d.sessions).toHaveLength(2);
+    expect(d.sessions[1].kind).toBe("cardio");
+    expect(d.sessions[1].cardio?.modality).toBe("Bike");
+    expect(d.sessions[1].exercises).toEqual([]);
   });
 
   test("rejects a draft with empty sessions (AI always proposes structure)", () => {

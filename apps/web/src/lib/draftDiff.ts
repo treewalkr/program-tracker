@@ -17,8 +17,10 @@ const setsOf = (prescribedSets: { reps: number; amrap: boolean }[]) =>
   prescribedSets.map((s) => `${s.reps}${s.amrap ? "+" : ""}`).join("/");
 
 export function programToDiffSource(p: ProgramDto): DiffSource {
+  const latestWeek = p.weeks[p.weeks.length - 1];
+  const sessions = latestWeek ? latestWeek.days.flatMap((d) => d.sessions) : [];
   return {
-    sessions: p.sessions.map((s) => ({
+    sessions: sessions.map((s) => ({
       name: s.name,
       exercises: s.exercises.map((e) => ({
         name: e.exerciseName ?? e.exerciseId,

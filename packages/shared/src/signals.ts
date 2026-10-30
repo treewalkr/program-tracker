@@ -1,4 +1,4 @@
-import { estimate1rm } from "./domain";
+import { estimate1rm, weekSessions } from "./domain";
 import { blockPulse, pulseSummary, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
@@ -200,14 +200,14 @@ export function computeSignals(
     const prev = pulse.find((w) => w.week === week - 1);
     if (cur && prev && !cur.plannedOnly && !prev.plannedOnly) {
       const t = (kg: number) => (kg >= 1000 ? `${(kg / 1000).toFixed(1)}t` : `${Math.round(kg)}kg`);
-      if (directive === "+volume" && prev.tonnage > 0 && cur.tonnage <= prev.tonnage * 1.03) {
+      if (directive === "+volume" && prev.overallVolume > 0 && cur.overallVolume <= prev.overallVolume * 1.03) {
         signals.push({
           ...owner,
           id: `offplan-vol:${program.id}:w${week}`,
           kind: "off-plan",
           severity: "attention",
-          title: `Planned +volume — tonnage came in flat`,
-          evidence: `Week ${week} directive is +volume, but logged tonnage is ${t(cur.tonnage)} vs ${t(prev.tonnage)} last week. Add a set, or check what got skipped.`,
+          title: `Planned +volume — overall volume came in flat`,
+          evidence: `Week ${week} directive is +volume, but logged overall volume is ${t(cur.overallVolume)} vs ${t(prev.overallVolume)} last week. Add a set, or check what got skipped.`,
           prefillNote: `Week ${week} should add volume but last week came in flat — draft this week's sessions with one extra working set on the main lifts.`,
         });
       }
@@ -241,7 +241,7 @@ export function computeSignals(
   // Suppressed near block end — the block-ending review already brings the trainer in.
   const phaseSignalExists = signals.some((s) => s.kind === "block-ending" || s.kind === "deload-week");
   const weeksRun = Math.max(1, week);
-  const perWeek = clientDaysPerWeek ?? program.sessions.length;
+  const perWeek = clientDaysPerWeek ?? weekSessions(program.weeks, week).length;
   const expected = perWeek * weeksRun;
   const logged = programLogs.length;
   if (!phaseSignalExists && expected >= 4 && logged / expected < 0.6) {

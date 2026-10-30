@@ -27,7 +27,7 @@ export function toSignalProgram(p: ProgramRow): SignalProgram {
     clientId: p.clientId,
     name: p.name,
     status: p.status,
-    sessions: p.sessions,
+    weeks: p.sessions,
     activatedAt: p.activatedAt?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
     phasing: p.phasing ?? null,

@@ -24,7 +24,7 @@ document is the contract for the real system.
 | Logs | `session_logs`, `logged_sets` | normalized tables, already exist |
 | Program + previous blocks | `programs` (versioned jsonb, `created_from_program_id`) | already exists |
 | Phasing plan | `programs.phasing` jsonb: `{plannedWeeks, phase, nextPhase, deloadWeeks, weeks?}` + `activated_at` column | `weeks` = progression scheme (week → directive) |
-| Block pulse | derived — `blockPulse(program, logs)` | weekly tonnage / sets / avg RPE / best e1RM + deltas; same rule for UI, hooks, cron |
+| Block pulse | derived — `blockPulse(program, logs)` | weekly overall volume / sets / avg RPE / best e1RM + deltas; same rule for UI, hooks, cron |
 
 ## Rule set (v1)
 
@@ -32,7 +32,7 @@ Calendar rules (week number vs plan):
 
 | Signal | Kind | Trigger | Meaning |
 |---|---|---|---|
-| Block ending | `block-ending` | `week >= plannedWeeks` (complete) / `>= plannedWeeks − 1` (heads-up) | draft next block now — evidence carries the delivered metrics (`tonnage +18%, e1RM 77→84`) |
+| Block ending | `block-ending` | `week >= plannedWeeks` (complete) / `>= plannedWeeks − 1` (heads-up) | draft next block now — evidence carries the delivered metrics (`overall volume +18%, e1RM 77→84`) |
 | Deload week | `deload-week` | `week ∈ deloadWeeks` **or** week directive = `deload` | planned light week |
 | Transition due | `transition-due` | week directive = `transition` (supersedes the plain block-ending heads-up when the scheme owns the wind-down) | draft the variant-shift now |
 | Adherence | `adherence` | <60% planned sessions logged (suppressed near block end) | program isn't being run |
@@ -48,12 +48,12 @@ Scheme-vs-reality rules (need `phasing.weeks` + block pulse):
 
 | Signal | Kind | Trigger | Meaning |
 |---|---|---|---|
-| Off-plan volume | `off-plan` | directive `+volume`, this week's tonnage ≤ last week's ×1.03 | volume didn't rise as planned |
+| Off-plan volume | `off-plan` | directive `+volume`, this week's overall volume ≤ last week's ×1.03 | volume didn't rise as planned |
 | Off-plan intensity | `off-plan` | directive `+intensity`, this week's best e1RM ≤ last week's ×1.01 | loads stalled in an intensity week |
 | Fatigue override | `off-plan` | directive `+volume`, avg RPE ≥8.5 and above last week's | suggest **holding** volume — the system can modulate the plan, not just announce weeks |
 
 `week = floor((today − activated_at) / 7) + 1`. e1RM = Epley capped at 12 reps (matches
-history aggregation). Tonnage = `Σ(kg × reps)` over working sets (see
+history aggregation). Overall volume = `Σ(kg × reps)` over working sets (see
 `docs/domain-model.md` → block pulse).
 
 ## Trigger paths

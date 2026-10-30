@@ -1,7 +1,7 @@
 <script module lang="ts">
   import { defineMeta } from '@storybook/addon-svelte-csf';
   import SessionCard from './SessionCard.svelte';
-  import type { ExerciseRole, PrescribedSetDto } from '$lib/api/types';
+  import type { CardioPrescriptionDto, ExerciseRole, PrescribedSetDto, SessionKindDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
     title: 'Domain/SessionCard',
@@ -45,10 +45,11 @@
   ];
 </script>
 
-{#snippet template(args: { name: string; when?: string; conditioning?: { label: string; detail?: string | null } | null; exercises: { name: string; role?: ExerciseRole; movementPattern?: string | null; sets: PrescribedSetDto[] }[] })}
+{#snippet template(args: { name: string; when?: string; kind?: SessionKindDto; cardio?: CardioPrescriptionDto | null; exercises?: { name: string; role?: ExerciseRole; movementPattern?: string | null; sets: PrescribedSetDto[] }[] })}
   <SessionCard {...args} />
 {/snippet}
 
-<Story name="Upper day" {template} args={{ name: 'Day 1 — Upper', when: 'Thursday · due today', exercises: upper }} />
-<Story name="Lower day with cardio (no roles, older program)" {template} args={{ name: 'Day 2 — Lower', exercises: lower, conditioning: { label: 'Zone 2', detail: '40 min steady on the bike' } }} />
-<Story name="With movement patterns & balance" {template} args={{ name: 'Day 3 — Pattern balance', exercises: patternSession }} />
+<Story name="Lifting day" {template} args={{ name: 'Day 1 — Upper', when: 'Thursday · due today', kind: 'lifting', exercises: upper }} />
+<Story name="Cardio session" {template} args={{ name: 'Cardio 1', kind: 'cardio', cardio: { modality: 'Bike', durationMin: 40, hrZone: 2, distanceKm: 15, targetRpe: 5 } }} />
+<Story name="Two-a-day (evening cardio)" {template} args={{ name: 'Evening Cardio', when: 'Thursday · evening', kind: 'cardio', cardio: { modality: 'Run', durationMin: 30, hrZone: 3, targetRpe: 7 } }} />
+<Story name="With movement patterns & balance" {template} args={{ name: 'Day 3 — Pattern balance', kind: 'lifting', exercises: patternSession }} />
