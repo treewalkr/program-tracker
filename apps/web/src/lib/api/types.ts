@@ -200,6 +200,7 @@ export interface TrainerApi {
     instructions?: string;
   }): Promise<GenerationDto>;
   generations(clientId: string): Promise<GenerationDto[]>;
+  generation(id: string): Promise<GenerationDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string): Promise<GenerationDto>;
 

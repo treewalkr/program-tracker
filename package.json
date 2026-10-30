@@ -11,7 +11,7 @@
     "dev:web": "bun run --filter @pt/web dev",
     "storybook": "bun run --filter @pt/web storybook",
     "build": "bun run --filter '@pt/*' build",
-    "test": "bun run --filter @pt/shared test && bun run --filter @pt/db test && bun run --filter @pt/api test",
+    "test": "bun run --filter @pt/shared test && bun run --filter @pt/db test && bun run --filter @pt/api test && bun run --filter @pt/web test",
     "seed:exercises": "bun run --filter @pt/db seed:exercises",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

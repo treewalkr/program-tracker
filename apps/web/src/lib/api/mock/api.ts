@@ -442,6 +442,12 @@ export const mockApi: TrainerApi = {
     return state.generations.filter((g) => g.clientId === clientId);
   },
 
+  async generation(id) {
+    const g = state.generations.find((g) => g.id === id);
+    if (!g) throw new Error("generation not found");
+    return structuredClone(g);
+  },
+
   async approveGeneration(id) {
     await delay(600);
     const gen = state.generations.find((g) => g.id === id);

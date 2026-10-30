@@ -95,6 +95,7 @@ export const realApi: TrainerApi = {
   generate: (input) => unwrap<GenerationDto>(client.v1.ai.generate.post(input)),
   generations: (clientId) =>
     unwrap<GenerationDto[]>(client.v1.ai.generations.get({ query: { clientId } })),
+  generation: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).get()),
   approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),
   rejectGeneration: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).reject.post()),
 };

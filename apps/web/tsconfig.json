@@ -21,7 +21,10 @@
 			"$app/types": ["./.svelte-kit/types/index.d.ts"],
 			"elysia": ["../api/node_modules/elysia"]
 		}
-	}
+	},
+	"exclude": [
+		"src/**/*.test.ts"
+	]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 	//
