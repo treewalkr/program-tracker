@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { sortExercisesByRole } from "@pt/shared";
+  import { sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
@@ -20,6 +20,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import GeneratingState from "$lib/ui/GeneratingState.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -41,14 +42,7 @@
   let newProgram = $state<ProgramDto | null>(null);
   let approving = $state(false);
   let rejecting = $state(false);
-
-  const generatingSteps = [
-    "Reading client profile and limitations",
-    "Summarising 8 weeks of logged sets",
-    "Comparing against the current program",
-    "Drafting the next block",
-  ];
-  let step = $state(0);
+  let startedAtIso = $state("");
 
   const selectedTemplates = $derived(
     selected.map((id) => templates.find((t) => t.id === id)).filter((t) => t !== undefined)
@@ -127,11 +121,8 @@
   });
 
   async function start() {
+    startedAtIso = new Date().toISOString();
     phase = "generating";
-    step = 0;
-    const ticker = setInterval(() => {
-      step = Math.min(step + 1, generatingSteps.length - 1);
-    }, 550);
     try {
       gen = await api.generate({
         clientId: id,
@@ -144,8 +135,6 @@
     } catch (err) {
       failReason = (err as Error).message || null;
       phase = "failed";
-    } finally {
-      clearInterval(ticker);
     }
   }
 
@@ -329,12 +318,13 @@
 
   {:else if phase === "generating"}
     <section class="panel narrow">
-      <div class="panel-body stack steps">
-        {#each generatingSteps as s, i (s)}
-          <div class="step" class:done={i < step} class:active={i === step}>
-            <span class="dot"></span> {s}
-          </div>
-        {/each}
+      <div class="panel-body">
+        <GeneratingState
+          providerLabel={providers.find((p) => p.id === (gen?.providerId ?? providerId))?.label ?? providerId}
+          model={gen?.model || model || provider?.model || ""}
+          expectedSeconds={typicalGenerationSeconds(gen?.providerId ?? providerId)}
+          startedAt={gen?.createdAt ?? startedAtIso}
+        />
       </div>
     </section>
 
@@ -458,14 +448,6 @@
   .mt-16 { margin-top: 16px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }
   :global(.flash) { margin: 0 0 16px; }
-
-  .steps { padding: 22px 18px; }
-  .step { display: flex; align-items: center; gap: 10px; color: var(--faint); padding: 5px 0; font-size: 14px; }
-  .step .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--line-strong); }
-  .step.active { color: var(--ink); font-weight: 600; }
-  .step.active .dot { background: var(--ink); }
-  .step.done { color: var(--good); }
-  .step.done .dot { background: var(--good); }
 
   .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .gen-meta {
