@@ -418,6 +418,7 @@
     <div class="pulse-stack">
       <Panel title="Block pulse" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
         {#snippet act()}
+          {#if current}<Button small href={`/clients/${id}/message`}>Message client</Button>{/if}
           {#if doneWeeks.length > 1}
             <div class="heat" aria-label={`Weekly overall volume ${fmtVolume(doneWeeks[0].overallVolume)} to ${fmtVolume(maxVolume)}`}>
               <span class="heat-l">overall volume</span>
