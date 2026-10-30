@@ -65,6 +65,8 @@ export const realApi: TrainerApi = {
   createProgram: (input) => unwrap<ProgramDto>(client.v1.programs.post(input)),
   setProgramStatus: (id, status) =>
     unwrap<ProgramDto>(client.v1.programs({ id }).status.patch({ status })),
+  saveProgramDirection: (id, direction) =>
+    unwrap<ProgramDto>(client.v1.programs({ id }).direction.patch({ direction })),
 
   exercises: (q) => unwrap<ExerciseDto[]>(client.v1.exercises.get({ query: q ? { q } : {} })),
   createExercise: (input) => unwrap<ExerciseDto>(client.v1.exercises.post(input)),

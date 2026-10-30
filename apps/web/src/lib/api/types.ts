@@ -68,6 +68,7 @@ export interface ProgramDto {
   aiAssisted: boolean;
   createdFromProgramId: string | null;
   weeks: ProgramWeekDto[];
+  direction?: string | null;
   createdAt: string;
   activatedAt?: string | null;
   phasing?: ProgramPhasingDto | null;
@@ -227,6 +228,7 @@ export interface TrainerApi {
     phasing?: ProgramPhasingDto | null;
   }): Promise<ProgramDto>;
   setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;
+  saveProgramDirection(id: string, direction: string | null): Promise<ProgramDto>;
 
   exercises(query?: string): Promise<ExerciseDto[]>;
   createExercise(input: {

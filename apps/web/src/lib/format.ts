@@ -1,4 +1,4 @@
-import type { WeekPlan } from "./api/types";
+import type { ProgramWeekDto, WeekPlan } from "./api/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -46,4 +46,18 @@ export function weekPlanLabel(w: WeekPlan): string {
     label += ` · ${short} ${sign}${w.target.deltaPercent}%`;
   }
   return label;
+}
+
+/** Week-switcher model for the client Program tab: one entry per program week,
+ *  in order; `isCurrent` marks the default selection (pulseWeek clamped to range). */
+export function weekOptions(
+  weeks: ProgramWeekDto[],
+  currentWeek: number
+): { week: number; label: string; isCurrent: boolean }[] {
+  const clamped = Math.max(1, Math.min(currentWeek, weeks.length));
+  return weeks.map((w) => ({
+    week: w.week,
+    label: `W${w.week}`,
+    isCurrent: w.week === clamped,
+  }));
 }

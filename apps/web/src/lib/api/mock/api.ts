@@ -339,6 +339,14 @@ export const mockApi: TrainerApi = {
     return withNames(p);
   },
 
+  async saveProgramDirection(id, direction) {
+    await delay(200);
+    const i = state.programs.findIndex((p) => p.id === id);
+    if (i < 0) throw new Error("program not found");
+    state.programs[i] = { ...state.programs[i], direction: direction ?? null };
+    return withNames(state.programs[i]);
+  },
+
   async createProgram(input) {
     await delay(450);
     const program: ProgramDto = {

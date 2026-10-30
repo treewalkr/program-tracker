@@ -299,6 +299,7 @@ export const programs: ProgramDto[] = [
     description: "3-day upper/lower/upper split, 8–12 rep focus.",
     status: "active",
     version: 2,
+    direction: "Build squat volume; keep upper body at maintenance.",
     aiAssisted: true,
     createdFromProgramId: "pg-jonas-0",
     createdAt: "2026-08-02T09:00:00Z",
