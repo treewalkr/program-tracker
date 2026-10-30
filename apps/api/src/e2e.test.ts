@@ -1393,3 +1393,103 @@ describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
     expect((await call("DELETE", `/v1/examples/${withNote.body.id}`)).status).toBe(204);
   });
 });
+
+describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
+  let matchClientId = "";
+  let coldClientId = "";
+  let programId = "";
+
+  test("seed matching + non-matching clients and a marked example", async () => {
+    const found = await call("GET", "/v1/exercises?q=squat");
+    const squatId = found.body[0].id;
+
+    const mk = async (name: string, goals: string, daysPerWeek: number) => {
+      const c = await call("POST", "/v1/clients", {
+        name,
+        email: `exgen-${name}-${Date.now()}@test.dev`,
+        goals,
+        daysPerWeek,
+      });
+      expect(c.status).toBe(201);
+      return c.body.id as string;
+    };
+    // "lean bulk" shares words with the tag below; 4 days matches too
+    matchClientId = await mk("Matcher", "lean bulk strength", 4);
+    // no shared words and 2 days vs 4 → zero score
+    coldClientId = await mk("Cold", "marathon endurance running", 2);
+
+    const p = await call("POST", "/v1/programs", {
+      name: "Few-shot Gold Block",
+      clientId: matchClientId,
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: crypto.randomUUID(),
+              day: 1,
+              sessions: [
+                {
+                  id: crypto.randomUUID(),
+                  name: "Day A",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId: squatId,
+                      order: 0,
+                      prescribedSets: [
+                        { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(p.status).toBe(201);
+    programId = p.body.id;
+
+    const marked = await call("POST", "/v1/examples", {
+      programId,
+      goal: "lean bulk hypertrophy block",
+      level: "intermediate",
+      daysPerWeek: 4,
+    });
+    expect(marked.status).toBe(201);
+  });
+
+  test("generate with a marked example stamps exampleProgramIds; revision copies them", async () => {
+    const gen = await call("POST", "/v1/ai/generate", {
+      clientId: matchClientId,
+      providerId: "mock",
+    });
+    expect(gen.status).toBe(201);
+    expect(gen.body.status).toBe("validated");
+    expect(gen.body.exampleProgramIds).toContain(programId);
+
+    const cold = await call("POST", "/v1/ai/generate", {
+      clientId: coldClientId,
+      providerId: "mock",
+    });
+    expect(cold.status).toBe(201);
+    expect(cold.body.exampleProgramIds).toEqual([]);
+
+    const child = await call("POST", `/v1/ai/generations/${gen.body.id}/revise`, {
+      message: "trim one set per session",
+    });
+    expect(child.status).toBe(201);
+    expect(child.body.parentGenerationId).toBe(gen.body.id);
+    expect(child.body.exampleProgramIds).toEqual(gen.body.exampleProgramIds);
+
+    // cleanup the library marker
+    const list = await call("GET", `/v1/examples?programId=${programId}`);
+    for (const e of list.body.examples) {
+      expect((await call("DELETE", `/v1/examples/${e.id}`)).status).toBe(204);
+    }
+  });
+});

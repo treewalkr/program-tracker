@@ -44,12 +44,23 @@ export interface CatalogEntry {
   functionalMovement: string | null;
 }
 
+export interface ExampleProgramSummary {
+  programId: string;
+  name: string;
+  goal: string | null;
+  level: string | null;
+  daysPerWeek: number | null;
+  sessions: ProgramSummary["sessions"];
+}
+
 export interface GenerationContext {
   client: ClientContext;
   previousProgram: ProgramSummary | null;
   /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · overall volume/e1RM summary". */
   periodization: string | null;
   chainBalance: string | null;
+  /** Gold-standard programs retrieved from the trainer's example library (few-shot). */
+  examples?: ExampleProgramSummary[];
   history: ExerciseHistoryEntry[];
   catalog: CatalogEntry[];
   trainerInstructions: string;
@@ -119,6 +130,9 @@ const ROLE_RULE = [
   ...EXERCISE_ROLES.map((r) => `  ${r}: ${EXERCISE_ROLE_INFO[r].description}`),
 ].join("\n");
 
+const GOLD_STANDARD_RULE =
+  "- When GOLD-STANDARD EXAMPLE PROGRAMS are provided, treat them as the trainer's gold standard: mirror their session structure, exercise-role usage, set/rep style and level of detail, adapted to this client's history — never copy exercises or loads blindly.";
+
 const CARDIO_TARGET_RULE =
   "- When a CARDIO TARGET is given, the week's cardio prescriptions must add up to it.";
 
@@ -151,6 +165,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    GOLD_STANDARD_RULE,
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
   ].join("\n");
@@ -169,6 +184,10 @@ export function buildGenerationMessages(ctx: GenerationContext) {
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    ...(ctx.examples?.length
+      ? [examplesToText(ctx.examples)]
+      : ["GOLD-STANDARD EXAMPLE PROGRAMS: none matching this client."]),
     "",
     ctx.periodization
       ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
@@ -222,6 +241,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    GOLD_STANDARD_RULE,
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
@@ -242,6 +262,10 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    ...(ctx.examples?.length
+      ? [examplesToText(ctx.examples)]
+      : ["GOLD-STANDARD EXAMPLE PROGRAMS: none matching this client."]),
     "",
     ctx.periodization
       ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
@@ -468,6 +492,18 @@ function programToText(p: ProgramSummary): string {
           .join(", ")}`
     )
     .join("\n");
+}
+
+function examplesToText(examples: ExampleProgramSummary[]): string {
+  return [
+    "GOLD-STANDARD EXAMPLE PROGRAMS (the trainer's library — few-shot: mirror their structure, style and detail level; adapt to this client, never copy exercises or loads blindly):",
+    ...examples.flatMap((e) => [
+      `- ${e.name} (goal: ${e.goal ?? "n/a"} · level: ${e.level ?? "n/a"} · ${e.daysPerWeek ?? "?"} days/week)`,
+      ...programToText({ name: e.name, sessions: e.sessions })
+        .split("\n")
+        .map((line) => `  ${line}`),
+    ]),
+  ].join("\n");
 }
 
 function historyToText(h: ExerciseHistoryEntry[]): string {

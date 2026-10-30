@@ -6,6 +6,7 @@ import {
   aiGenerations,
   clients,
   exercises,
+  programExamples,
   programs,
   sessionLogs,
   setLogs,
@@ -20,6 +21,7 @@ import {
   chainSetCounts,
   mockReviseDraft,
   pulseSummary,
+  selectExamples,
   weekOf,
 } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
@@ -29,6 +31,7 @@ import {
   buildWeekMessages,
   buildWeekRevisionMessages,
   periodizationContext,
+  type ExampleProgramSummary,
 } from "../ai/prompt";
 import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
@@ -100,6 +103,50 @@ async function loadContext(
   const totalWorkingSets = sets.filter((s) => s.type === "working").length;
   const chainBalance = totalWorkingSets === 0 ? null : chainBalanceText(chains, counts);
 
+  // Gold-standard few-shot retrieval — the trainer's example library, ranked
+  // by goal-word overlap + days/week proximity, capped at 2 positive matches.
+  const exampleRows = await db
+    .select({ example: programExamples, program: programs })
+    .from(programExamples)
+    .innerJoin(programs, eq(programExamples.programId, programs.id))
+    .where(eq(programExamples.trainerId, trainerId))
+    .orderBy(desc(programExamples.createdAt));
+  const matched = selectExamples(
+    exampleRows.map(({ example, program }) => ({
+      programId: program.id,
+      goal: example.goal,
+      level: example.level,
+      daysPerWeek: example.daysPerWeek,
+      createdAt: example.createdAt,
+    })),
+    { goals: client.goals, daysPerWeek: client.daysPerWeek },
+    { excludeProgramId: basedOnProgramId, limit: 2 },
+  );
+  const exampleExerciseNames = new Map(catalogByTrainer.map((e) => [e.id, e.name]));
+  const examples: ExampleProgramSummary[] = matched.flatMap((m) => {
+    const row = exampleRows.find((r) => r.program.id === m.programId);
+    if (!row) return [];
+    const firstWeek = row.program.sessions[0];
+    return [{
+      programId: row.program.id,
+      name: row.program.name,
+      goal: m.goal,
+      level: m.level,
+      daysPerWeek: m.daysPerWeek,
+      sessions: firstWeek.days.flatMap((d) => d.sessions).map((s) => ({
+        name: s.name,
+        exercises: s.exercises.map((e) => ({
+          name: exampleExerciseNames.get(e.exerciseId) ?? e.exerciseId,
+          role: e.role,
+          sets: e.prescribedSets.map(
+            (ps) =>
+              `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
+          ),
+        })),
+      })),
+    }];
+  });
+
   // Auto-injected periodization context — derived, never trainer-editable.
   let periodization: string | null = null;
   if (basedOnProgram?.phasing) {
@@ -124,6 +171,7 @@ async function loadContext(
     previousProgram: previous,
     periodization,
     chainBalance,
+    examples,
     programDirection: basedOnProgram?.direction ?? null,
     history: buildHistory({
       logs,
@@ -303,6 +351,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             providerId: body.providerId ?? "zai",
             model: rt.model,
             status: "pending",
+            exampleProgramIds: ctx.examples.map((e) => e.programId),
           })
           .returning();
 
@@ -569,6 +618,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           status: "pending",
           parentGenerationId: parent.id,
           revisionMessage: message,
+          exampleProgramIds: parent.exampleProgramIds ?? [],
         })
         .returning();
 
@@ -586,6 +636,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
               focusWeek,
             });
+            await db
+              .update(aiGenerations)
+              .set({ exampleProgramIds: ctx.examples.map((e) => e.programId) })
+              .where(eq(aiGenerations.id, generation.id));
             const targetPlan = basedProg?.phasing?.weeks?.find((w) => w.week === parent.targetWeek);
             const targetDirective = targetPlan?.directive ?? null;
             const target = targetPlan?.target ?? null;
@@ -603,6 +657,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             });
           } else {
             const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
+            await db
+              .update(aiGenerations)
+              .set({ exampleProgramIds: ctx.examples.map((e) => e.programId) })
+              .where(eq(aiGenerations.id, generation.id));
             messages = buildRevisionMessages({
               ...ctx,
               trainerInstructions: "",
