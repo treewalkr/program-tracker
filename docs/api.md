@@ -18,13 +18,18 @@ route schemas (TypeBox + zod via `mapJsonSchema`), grouped by tag.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/v1/clients` | all clients of the (single) trainer |
-| POST | `/v1/clients` | `{name, email, goals?, limitations?, daysPerWeek?, trainingDays?}` → 201 |
+| POST | `/v1/clients` | `{name, email, goals?, limitations?, daysPerWeek?, trainingDays?, cardioTarget?}` → 201 |
 | GET | `/v1/clients/:id` | client + `currentProgram` + all their programs |
-| PATCH | `/v1/clients/:id` | partial update of name/goals/limitations/daysPerWeek/trainingDays/status |
+| PATCH | `/v1/clients/:id` | partial update of name/goals/limitations/daysPerWeek/trainingDays/cardioTarget/status |
 
 `trainingDays`: weekday ints 1=Mon…7=Sun (e.g. `[1,2,4,6]`) — powers the dashboard
 week strip and honest adherence (expected sessions come from the *client's calendar*,
 not the program's day count).
+
+`cardioTarget`: `{unit: minutes|sessions|zone_minutes, value: 1–10000}` or `null` — the
+client's standing weekly cardio target. Resets every ISO week (Monday-start); progress
+is computed client-side from session logs (no progress endpoint). Feeds the AI prompt
+and the `cardio-behind` signal.
 
 ## Programs
 
@@ -66,7 +71,7 @@ in MVP, not logged).
 | GET | `/v1/logs/sessions?clientId=&from=&to=` | logs with their sets, newest first, max 200 |
 | GET | `/v1/logs/history?clientId=` | per-exercise 8-week aggregation: `recentSets[]`, `bestE1rm` — same shape the AI consumes |
 
-`POST /v1/logs/sessions` body:
+`POST /v1/logs/sessions` body — lifting (default `kind`) or cardio:
 
 ```json
 {
@@ -74,6 +79,7 @@ in MVP, not logged).
   "programId": "…",
   "programSessionId": "… or null",
   "date": "2026-09-22",
+  "kind": "lifting",
   "perceivedEnergy": 7,
   "notes": "felt strong",
   "sets": [
@@ -83,8 +89,24 @@ in MVP, not logged).
 }
 ```
 
-Guards: ≥1 set required; all `exerciseId`s must exist (**422** otherwise);
-program must belong to the client (**422**); date `YYYY-MM-DD`.
+Cardio session — same day can also hold a lifting log (two rows):
+
+```json
+{
+  "clientId": "…",
+  "programId": "…",
+  "programSessionId": "… or null",
+  "date": "2026-09-22",
+  "kind": "cardio",
+  "cardio": { "modality": "Run", "durationMin": 35, "hrZone": 2, "distanceKm": 5.5, "rpe": 6 },
+  "sets": []
+}
+```
+
+Guards (**422** `"invalid log"`): `kind` defaults to `lifting`;
+lifting logs need ≥1 set and must not carry `cardio`; cardio logs need `cardio`
+(`modality` required, `durationMin` 1–300, `hrZone` 1–5) and must not carry sets;
+all `exerciseId`s must exist; program must belong to the client; date `YYYY-MM-DD`.
 
 ## Periodization schemes (trainer library)
 
