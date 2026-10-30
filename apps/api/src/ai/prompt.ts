@@ -37,7 +37,7 @@ export interface CatalogEntry {
 export interface GenerationContext {
   client: ClientContext;
   previousProgram: ProgramSummary | null;
-  /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · tonnage/e1RM summary". */
+  /** Auto-injected, read-only: "week 3 of 6 · directive +intensity · overall volume/e1RM summary". */
   periodization: string | null;
   chainBalance: string | null;
   history: ExerciseHistoryEntry[];

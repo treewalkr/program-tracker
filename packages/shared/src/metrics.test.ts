@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
+  blockPulse,
   chainBalanceText,
   chainSetCounts,
   chainsForExercise,
+  pulseSummary,
   type ChainCatalogEntry,
   type ChainDef,
+  type SignalLog,
+  type SignalProgram,
 } from "./index";
 
 describe("chainsForExercise", () => {
@@ -90,5 +94,160 @@ describe("chainBalanceText", () => {
     expect(textNoZero).toBe(
       "Intrinsic 5 · Deep Longitudinal 31 · Lateral 2 working sets"
     );
+  });
+});
+
+describe("blockPulse & pulseSummary", () => {
+  const baseProgram: SignalProgram = {
+    id: "prog-1",
+    clientId: "client-1",
+    name: "Block 1",
+    status: "active",
+    sessions: [],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+    phasing: {
+      plannedWeeks: 4,
+      phase: "accumulation",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+volume", target: { metric: "overall_volume", deltaPercent: 5 } },
+        { week: 3, directive: "+volume", target: { metric: "rep_volume", deltaPercent: 5 } },
+        { week: 4, directive: "+intensity", target: { metric: "intensity", deltaPercent: 2.5 } },
+      ],
+    },
+  };
+
+  test("blockPulse carries target and computes targetMet for overall_volume", () => {
+    // Week 1: 1000kg
+    const logsMeet: SignalLog[] = [
+      {
+        programId: "prog-1",
+        date: "2026-10-02",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 10 }],
+      },
+      // Week 2: 1070kg (+7% actual vs +5% target -> met)
+      {
+        programId: "prog-1",
+        date: "2026-10-09",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 107, reps: 10 }],
+      },
+    ];
+    const pulseMeet = blockPulse(baseProgram, logsMeet);
+    expect(pulseMeet[1].target).toEqual({ metric: "overall_volume", deltaPercent: 5 });
+    expect(pulseMeet[1].overallVolumeDelta).toBe(7);
+    expect(pulseMeet[1].targetDelta).toBe(7);
+    expect(pulseMeet[1].targetMet).toBe(true);
+
+    // Week 2 with +2% actual (1020kg vs 1000kg -> not met)
+    const logsMiss: SignalLog[] = [
+      {
+        programId: "prog-1",
+        date: "2026-10-02",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 10 }],
+      },
+      {
+        programId: "prog-1",
+        date: "2026-10-09",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 102, reps: 10 }],
+      },
+    ];
+    const pulseMiss = blockPulse(baseProgram, logsMiss);
+    expect(pulseMiss[1].overallVolumeDelta).toBe(2);
+    expect(pulseMiss[1].targetDelta).toBe(2);
+    expect(pulseMiss[1].targetMet).toBe(false);
+  });
+
+  test("rep_volume target uses the new repsDelta", () => {
+    const logs: SignalLog[] = [
+      {
+        programId: "prog-1",
+        date: "2026-10-02",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 10 }],
+      },
+      // Week 2: 100 reps
+      {
+        programId: "prog-1",
+        date: "2026-10-09",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 10, reps: 100 }],
+      },
+      // Week 3: 110 reps (+10% actual vs +5% target -> met)
+      {
+        programId: "prog-1",
+        date: "2026-10-16",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 10, reps: 110 }],
+      },
+    ];
+    const pulse = blockPulse(baseProgram, logs);
+    expect(pulse[2].repsDelta).toBe(10);
+    expect(pulse[2].targetDelta).toBe(10);
+    expect(pulse[2].targetMet).toBe(true);
+  });
+
+  test("intensity target uses e1rmDelta", () => {
+    const logs: SignalLog[] = [
+      {
+        programId: "prog-1",
+        date: "2026-10-02",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 1 }],
+      },
+      {
+        programId: "prog-1",
+        date: "2026-10-09",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 1 }],
+      },
+      // Week 3: e1rm 100 (100kg x 1)
+      {
+        programId: "prog-1",
+        date: "2026-10-16",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 1 }],
+      },
+      // Week 4: e1rm 100 (flat -> e1rmDelta 0% vs +2.5% target -> not met)
+      {
+        programId: "prog-1",
+        date: "2026-10-23",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 1 }],
+      },
+    ];
+    const pulse = blockPulse(baseProgram, logs);
+    expect(pulse[3].e1rmDelta).toBe(0);
+    expect(pulse[3].targetDelta).toBe(0);
+    expect(pulse[3].targetMet).toBe(false);
+  });
+
+  test("targetMet is null when the previous week is unplanned", () => {
+    // Only week 2 logged, week 1 unplanned
+    const logs: SignalLog[] = [
+      {
+        programId: "prog-1",
+        date: "2026-10-09",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 10 }],
+      },
+    ];
+    const pulse = blockPulse(baseProgram, logs);
+    expect(pulse[0].targetDelta).toBeNull();
+    expect(pulse[0].targetMet).toBeNull();
+    expect(pulse[1].targetDelta).toBeNull();
+    expect(pulse[1].targetMet).toBeNull();
+  });
+
+  test("pulseSummary says \"weekly overall volume\"", () => {
+    const logs: SignalLog[] = [
+      {
+        programId: "prog-1",
+        date: "2026-10-02",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 100, reps: 10 }], // 1000kg = 1.0t
+      },
+      {
+        programId: "prog-1",
+        date: "2026-10-09",
+        sets: [{ exerciseId: "ex-1", type: "working", weightKg: 120, reps: 10 }], // 1200kg = 1.2t (+20%)
+      },
+    ];
+    const pulse = blockPulse(baseProgram, logs);
+    const summary = pulseSummary(pulse);
+    expect(summary).toBeTruthy();
+    expect(summary).toContain("weekly overall volume");
+    expect(summary).not.toContain("tonnage");
   });
 });

@@ -53,7 +53,7 @@ describe("buildGenerationMessages", () => {
     const { system, user } = buildGenerationMessages({
       client: { name: "Maya", daysPerWeek: 4 },
       previousProgram: null,
-      periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly tonnage 1.8t → 2.1t (+17%)",
+      periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly overall volume 1.8t → 2.1t (+17%)",
       chainBalance: null,
       history: [],
       catalog: [],
