@@ -51,6 +51,7 @@ export function draftToSessions(
     id: crypto.randomUUID(),
     name: s.name,
     order: si,
+    kind: "lifting",
     notes: s.notes,
     // role order is the session order; `order` is the post-sort index
     exercises: sortExercisesByRole(s.exercises).flatMap((ref, ei) => {
