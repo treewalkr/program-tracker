@@ -18,6 +18,7 @@ import type {
   CardioLog,
   CardioTarget,
   ClientStatus,
+  ExampleLevel,
   FunctionalMovement,
   GenerationStatus,
   MovementPattern,
@@ -174,6 +175,11 @@ export const aiGenerations = pgTable("ai_generations", {
     onDelete: "set null",
   }),
   revisionMessage: text("revision_message"),
+  /** Example programs whose text was injected into this generation's prompt. */
+  exampleProgramIds: jsonb("example_program_ids")
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -212,6 +218,24 @@ export const periodizationSchemes = pgTable("periodization_schemes", {
   weeks: jsonb("weeks").$type<WeekPlan[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Gold-standard programs the AI uses as few-shot examples (trainer-curated). */
+export const programExamples = pgTable("program_examples", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  programId: uuid("program_id")
+    .notNull()
+    .references(() => programs.id, { onDelete: "cascade" })
+    .unique(),
+  goal: text("goal").notNull(),
+  level: text("level").$type<ExampleLevel>().notNull(),
+  daysPerWeek: integer("days_per_week").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ProgramExampleRow = typeof programExamples.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // Notifications — signals are derived state; only snoozes + outbox persist
