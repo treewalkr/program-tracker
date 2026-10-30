@@ -9,20 +9,26 @@ import {
   programs,
   sessionLogs,
   setLogs,
+  trainerPreferences,
 } from "@pt/db";
 import {
   AiProgramDraft,
-  AiProviderConfig,
-  KNOWN_PROVIDERS,
   ProgramWeeksDocument,
   blockPulse,
   chainBalanceText,
   chainSetCounts,
+  combinePreferenceDocs,
   mockReviseDraft,
   pulseSummary,
   weekOf,
 } from "@pt/shared";
-import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
+import {
+  chatJson,
+  extractJsonObject,
+  ProviderError,
+  ContextError,
+  providerRuntime,
+} from "../ai/provider";
 import {
   buildGenerationMessages,
   buildRevisionMessages,
@@ -113,6 +119,18 @@ async function loadContext(
     periodization = periodizationContext(ph, week, summary);
   }
 
+  const prefRows = await db
+    .select()
+    .from(trainerPreferences)
+    .where(eq(trainerPreferences.trainerId, trainerId));
+
+  const trainerDoc = prefRows
+    .filter((r) => r.clientId === null)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
+  const clientDoc = prefRows
+    .filter((r) => r.clientId === clientId)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
+
   return {
     client: {
       name: client.name,
@@ -125,6 +143,7 @@ async function loadContext(
     periodization,
     chainBalance,
     programDirection: basedOnProgram?.direction ?? null,
+    learnedPreferences: combinePreferenceDocs(trainerDoc, clientDoc),
     history: buildHistory({
       logs,
       sets,
@@ -138,39 +157,6 @@ async function loadContext(
       movementPattern: e.movementPattern,
       functionalMovement: e.functionalMovement,
     })),
-  };
-}
-
-class ContextError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-function providerRuntime(providerId: string, model?: string) {
-  const known: AiProviderConfig | undefined = KNOWN_PROVIDERS[providerId as keyof typeof KNOWN_PROVIDERS];
-  const id = known?.id ?? providerId;
-  if (id === "mock") {
-    if (model && model !== "mock-draft-v1")
-      throw new ContextError(400, `model "${model}" not available for provider "mock"`);
-    return { baseUrl: "mock://local", model: "mock-draft-v1", apiKey: "mock", maxOutputTokens: 4096 };
-  }
-  const envKey = known?.apiKeyEnvVar ?? `${id.toUpperCase()}_API_KEY`;
-  const apiKey = process.env[envKey];
-  if (!apiKey) throw new ContextError(400, `provider "${providerId}" not configured (missing ${envKey})`);
-  const upper = id.toUpperCase();
-  const models = process.env[`${upper}_MODELS`]?.split(",").map((s) => s.trim()).filter(Boolean)
-    ?? known?.models
-    ?? [];
-  const defaultModel = process.env[`${upper}_MODEL`] ?? models[0] ?? "";
-  if (model && model !== defaultModel && !models.includes(model))
-    throw new ContextError(400, `model "${model}" not available for provider "${id}" (available: ${[defaultModel, ...models].join(", ")})`);
-  return {
-    baseUrl: process.env[`${upper}_BASE_URL`] ?? known?.baseUrl ?? "",
-    model: model ?? defaultModel,
-    apiKey,
-    maxOutputTokens: known?.maxOutputTokens ?? 8192,
-    disableThinking: known?.disableThinking,
   };
 }
 

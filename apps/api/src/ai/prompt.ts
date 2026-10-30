@@ -7,6 +7,8 @@ import {
   type Phasing,
   type WeekDirective,
   type WeekTarget,
+  renderPreferenceSignals,
+  type PreferenceSignal,
 } from "@pt/shared";
 
 export interface ClientContext {
@@ -54,6 +56,7 @@ export interface GenerationContext {
   catalog: CatalogEntry[];
   trainerInstructions: string;
   direction?: string | null;
+  learnedPreferences?: string | null;
 }
 
 const DRAFT_SCHEMA_SPEC = `{
@@ -183,15 +186,25 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       : "RECENT TRAINING LOGS: none.",
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
-    ctx.catalog
-      .map(
-        (e) =>
-          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
-      )
-      .join("\n"),
+    ...(ctx.catalog.length
+      ? [
+          ctx.catalog
+            .map(
+              (e) =>
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+            )
+            .join("\n"),
+        ]
+      : []),
     "",
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
+      : []),
+    ...(ctx.learnedPreferences
+      ? [
+          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
+          "",
+        ]
       : []),
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
@@ -256,12 +269,22 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
       : "RECENT TRAINING LOGS: none.",
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
-    ctx.catalog
-      .map(
-        (e) =>
-          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
-      )
-      .join("\n"),
+    ...(ctx.catalog.length
+      ? [
+          ctx.catalog
+            .map(
+              (e) =>
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+            )
+            .join("\n"),
+        ]
+      : []),
+    ...(ctx.learnedPreferences
+      ? [
+          "",
+          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
+        ]
+      : []),
     "",
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),
@@ -496,6 +519,38 @@ export function periodizationContext(
   }
   const summaryPart = summary ? ` · ${summary}` : "";
   return `week ${week} of ${ph.plannedWeeks} · ${ph.phase}${directivePart}${targetPart}${summaryPart}`;
+}
+
+export interface DistillContext {
+  clientName: string | null; // null = trainer-wide
+  previousDocument: string | null;
+  signals: PreferenceSignal[];
+}
+
+export function buildDistillMessages(ctx: DistillContext): { system: string; user: string } {
+  const system = [
+    "You are distilling a personal trainer's standing style preferences from their feedback history into one preferences document. The document is injected verbatim into every future AI program-draft prompt for this trainer, like standing instructions.",
+    "Respond with the document as plain text only — no JSON, no preamble.",
+    "Rules:",
+    '- A short bullet list (one rule per "- " line), at most 300 words.',
+    "- Only rules the feedback signals support; prefer concrete, checkable rules (RPE caps, set/rep ranges, exercise substitutions, block structure, selection style) over vague taste.",
+    "- Ignore one-off requests that never recur.",
+    "- When a previous document is provided, keep its still-valid rules stable and merge in what is new.",
+  ].join("\n");
+
+  const user = [
+    `SCOPE: ${ctx.clientName ? `client ${ctx.clientName} only` : "trainer-wide — all clients"}`,
+    ...(ctx.previousDocument
+      ? [
+          "",
+          `PREVIOUS DOCUMENT (keep stable what still holds):\n${ctx.previousDocument}`,
+        ]
+      : []),
+    "",
+    `FEEDBACK SIGNALS (oldest → newest):\n${renderPreferenceSignals(ctx.signals)}`,
+  ].join("\n");
+
+  return { system, user };
 }
 
 /** Typed re-export so routes share one import path. */

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
 import {
+  buildDistillMessages,
   buildGenerationMessages,
   buildRevisionMessages,
   buildWeekMessages,
@@ -332,6 +333,130 @@ describe("buildRevisionMessages", () => {
       feedback: "more lateral chain",
     });
     expect(noBalance.user).toContain("no logged training to balance yet");
+  });
+
+  test("learned preferences section lands in generation and revision prompts", () => {
+    const gen = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      learnedPreferences: "Cap RPE at 8.",
+    });
+    expect(gen.user).toContain(
+      "LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nCap RPE at 8."
+    );
+
+    const prevDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "s",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    };
+    const rev = buildRevisionMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft: prevDraft,
+      feedback: "fix reps",
+      learnedPreferences: "Cap RPE at 8.",
+    });
+    expect(rev.user).toContain(
+      "LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nCap RPE at 8."
+    );
+    const learnedIdx = rev.user.indexOf("LEARNED PREFERENCES");
+    const draftIdx = rev.user.indexOf("PREVIOUS DRAFT");
+    expect(learnedIdx).toBeLessThan(draftIdx);
+  });
+
+  test("prompts are byte-identical without learned preferences", () => {
+    const gen = buildGenerationMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(gen.user).toContain("EXERCISE CATALOG (use these exerciseId values when possible):\n\nTRAINER INSTRUCTIONS: none");
+    expect(gen.user).not.toContain("LEARNED PREFERENCES");
+
+    const prevDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "s",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    };
+    const rev = buildRevisionMessages({
+      client: { name: "Maya", daysPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft: prevDraft,
+      feedback: "fix reps",
+    });
+    expect(rev.user).toContain(
+      "EXERCISE CATALOG (use these exerciseId values when possible):\n\nPREVIOUS DRAFT (your earlier output — revise it):"
+    );
+    expect(rev.user).not.toContain("LEARNED PREFERENCES");
+  });
+});
+
+describe("buildDistillMessages", () => {
+  test("buildDistillMessages carries scope, previous document, and rendered signals", () => {
+    const trainerWide = buildDistillMessages({
+      clientName: null,
+      previousDocument: "Old rules:\n- RPE 8 cap",
+      signals: [
+        {
+          kind: "revision",
+          clientName: "Maya",
+          at: "2026-10-31T05:00:00.000Z",
+          text: "swap bench for incline",
+        },
+      ],
+    });
+    expect(trainerWide.user).toContain("SCOPE: trainer-wide — all clients");
+    expect(trainerWide.user).toContain("PREVIOUS DOCUMENT (keep stable what still holds):\nOld rules:\n- RPE 8 cap");
+    expect(trainerWide.user).toContain("- revision · Maya · 2026-10-31: swap bench for incline");
+
+    const clientScoped = buildDistillMessages({
+      clientName: "Maya",
+      previousDocument: null,
+      signals: [
+        {
+          kind: "instruction",
+          clientName: "Maya",
+          at: "2026-10-31T05:00:00.000Z",
+          text: "no machines",
+        },
+      ],
+    });
+    expect(clientScoped.user).toContain("SCOPE: client Maya only");
+    expect(clientScoped.user).not.toContain("PREVIOUS DOCUMENT");
+    expect(clientScoped.user).toContain("- instruction · Maya · 2026-10-31: no machines");
+    expect(clientScoped.system).toContain("You are distilling a personal trainer's standing style preferences");
   });
 });
 
