@@ -793,3 +793,165 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
   });
 });
 
+describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
+  let clientId = "";
+  let programId = "";
+  let squatId = "";
+  const today = new Date().toISOString().slice(0, 10);
+
+  test("client PATCH accepts cardioTarget and clears it with null", async () => {
+    const created = await call("POST", "/v1/clients", {
+      name: "Cardio Client",
+      email: `cardio-${Date.now()}@test.dev`,
+    });
+    expect(created.status).toBe(201);
+    clientId = created.body.id;
+
+    const set = await call("PATCH", `/v1/clients/${clientId}`, {
+      cardioTarget: { unit: "minutes", value: 150 },
+    });
+    expect(set.status).toBe(200);
+    expect(set.body.cardioTarget).toEqual({ unit: "minutes", value: 150 });
+
+    const cleared = await call("PATCH", `/v1/clients/${clientId}`, { cardioTarget: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.cardioTarget).toBeNull();
+
+    // restore for the signal test below
+    await call("PATCH", `/v1/clients/${clientId}`, {
+      cardioTarget: { unit: "minutes", value: 150 },
+    });
+
+    const bad = await call("PATCH", `/v1/clients/${clientId}`, {
+      cardioTarget: { unit: "km", value: 1 },
+    });
+    expect(bad.status).toBe(422);
+  });
+
+  test("active program for the cardio client", async () => {
+    squatId = (await call("GET", "/v1/exercises?q=squat")).body[0].id;
+    const prog = await call("POST", "/v1/programs", {
+      name: "Cardio Block",
+      clientId,
+      weeks: [
+        {
+          week: 1,
+          days: [
+            {
+              id: crypto.randomUUID(),
+              day: 1,
+              sessions: [
+                {
+                  id: crypto.randomUUID(),
+                  name: "Day A",
+                  order: 0,
+                  kind: "lifting",
+                  exercises: [
+                    {
+                      id: crypto.randomUUID(),
+                      exerciseId: squatId,
+                      order: 0,
+                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(prog.status).toBe(201);
+    programId = prog.body.id;
+    const act = await call("PATCH", `/v1/programs/${programId}/status`, { status: "active" });
+    expect(act.body.status).toBe("active");
+  });
+
+  test("log a cardio session; same day also holds a lifting log", async () => {
+    const cardio = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId: null,
+      date: today,
+      kind: "cardio",
+      cardio: { modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5 },
+      sets: [],
+    });
+    expect(cardio.status).toBe(201);
+    expect(cardio.body.kind).toBe("cardio");
+    expect(cardio.body.cardio).toEqual({ modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5 });
+    expect(cardio.body.sets).toEqual([]);
+
+    const lifting = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId: null,
+      date: today,
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+    });
+    expect(lifting.status).toBe(201);
+    expect(lifting.body.kind).toBe("lifting");
+
+    const list = await call("GET", `/v1/logs/sessions?clientId=${clientId}`);
+    expect(list.status).toBe(200);
+    const cardioRow = list.body.find((l: any) => l.kind === "cardio");
+    const liftingRow = list.body.find((l: any) => l.kind === "lifting");
+    expect(cardioRow).toBeDefined();
+    expect(cardioRow.cardio.modality).toBe("Run");
+    expect(cardioRow.sets).toEqual([]);
+    expect(liftingRow).toBeDefined();
+    expect(liftingRow.cardio).toBeNull();
+  });
+
+  test("cardio log with sets is a 422", async () => {
+    const { status, body } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: today,
+      kind: "cardio",
+      cardio: { modality: "Run", durationMin: 30 },
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", reps: 5 }],
+    });
+    expect(status).toBe(422);
+    expect(body.error).toBe("invalid log");
+  });
+
+  test("lifting log with cardio payload is a 422", async () => {
+    const { status, body } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: today,
+      cardio: { modality: "Run", durationMin: 30 },
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", reps: 5 }],
+    });
+    expect(status).toBe(422);
+    expect(body.error).toBe("invalid log");
+  });
+
+  test("lifting log with zero sets is a 422 (regression for the dropped .min(1))", async () => {
+    const { status, body } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: today,
+      sets: [],
+    });
+    expect(status).toBe(422);
+    expect(body.error).toBe("invalid log");
+    expect(JSON.stringify(body.issues)).toContain("lifting log requires at least 1 set");
+  });
+
+  test("notifications include cardio-behind when behind", async () => {
+    const feed = await call("GET", "/v1/notifications");
+    expect(feed.status).toBe(200);
+    // target 150 min; only this week's cardio logs count. weekday-dependent —
+    // the signal exists only Thu–Sun (unit tests pin the rule with fixed now).
+    const wd = (new Date().getDay() + 6) % 7 + 1;
+    const find = () =>
+      feed.body.signals.find((s: any) => s.id === `cardio-behind:${clientId}`);
+    if (wd >= 4) {
+      expect(find()).toBeDefined();
+    } else {
+      expect(find()).toBeUndefined();
+    }
+  });
+});

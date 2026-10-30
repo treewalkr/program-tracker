@@ -2,36 +2,72 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
-import { SetType } from "@pt/shared";
+import { CardioLog, SessionKind, SetType } from "@pt/shared";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { buildHistory } from "../lib/history";
 import { queueSignalsForOutbox } from "../lib/signals-service";
 
 const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
 
-/** Write boundary for a full session log: session + sets in one payload. */
-const SessionLogInput = z.object({
-  clientId: z.string().uuid(),
-  programId: z.string().uuid(),
-  programSessionId: z.string().uuid().nullable().optional(),
-  date: IsoDate,
-  notes: z.string().max(2000).optional(),
-  perceivedEnergy: z.number().int().min(1).max(10).optional(),
-  sets: z
-    .array(
-      z.object({
-        programExerciseId: z.string().uuid().nullable().optional(),
-        exerciseId: z.string().uuid(),
-        setNumber: z.number().int().min(1).max(20),
-        type: SetType.default("working"),
-        weightKg: z.number().min(0).max(600).optional(),
-        reps: z.number().int().min(0).max(200),
-        rpe: z.number().min(1).max(10).optional(),
-      })
-    )
-    .min(1)
-    .max(100),
-});
+/** Write boundary for a full session log: session + sets in one payload.
+ *  Same four cardio rules as the shared SessionLog (domain.ts). */
+const SessionLogInput = z
+  .object({
+    clientId: z.string().uuid(),
+    programId: z.string().uuid(),
+    programSessionId: z.string().uuid().nullable().optional(),
+    date: IsoDate,
+    kind: SessionKind.default("lifting"),
+    cardio: CardioLog.nullable().optional(),
+    notes: z.string().max(2000).optional(),
+    perceivedEnergy: z.number().int().min(1).max(10).optional(),
+    sets: z
+      .array(
+        z.object({
+          programExerciseId: z.string().uuid().nullable().optional(),
+          exerciseId: z.string().uuid(),
+          setNumber: z.number().int().min(1).max(20),
+          type: SetType.default("working"),
+          weightKg: z.number().min(0).max(600).optional(),
+          reps: z.number().int().min(0).max(200),
+          rpe: z.number().min(1).max(10).optional(),
+        })
+      )
+      .max(100),
+  })
+  .superRefine((val, ctx) => {
+    if (val.kind === "lifting") {
+      if (val.sets.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting log requires at least 1 set",
+          path: ["sets"],
+        });
+      }
+      if (val.cardio != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting log must not have cardio payload",
+          path: ["cardio"],
+        });
+      }
+    } else if (val.kind === "cardio") {
+      if (val.cardio == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio log requires cardio payload",
+          path: ["cardio"],
+        });
+      }
+      if (val.sets.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio log must not have sets",
+          path: ["sets"],
+        });
+      }
+    }
+  });
 
 /** numeric columns come back as strings — convert to numbers at the API boundary. */
 function serializeSets(rows: typeof setLogs.$inferSelect[]) {
@@ -78,10 +114,12 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       }
 
       const exerciseIds = [...new Set(input.sets.map((s) => s.exerciseId))];
-      const known = await db.select().from(exercises).where(inArray(exercises.id, exerciseIds));
-      const knownIds = new Set(known.map((e) => e.id));
-      const missing = exerciseIds.filter((id) => !knownIds.has(id));
-      if (missing.length) return status(422, { error: "unknown exercises", ids: missing });
+      if (exerciseIds.length > 0) {
+        const known = await db.select().from(exercises).where(inArray(exercises.id, exerciseIds));
+        const knownIds = new Set(known.map((e) => e.id));
+        const missing = exerciseIds.filter((id) => !knownIds.has(id));
+        if (missing.length) return status(422, { error: "unknown exercises", ids: missing });
+      }
 
       const [log] = await db
         .insert(sessionLogs)
@@ -90,26 +128,32 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
           programId: input.programId,
           programSessionId: input.programSessionId ?? null,
           date: input.date,
+          kind: input.kind,
+          cardio: input.cardio ?? null,
           notes: input.notes ?? null,
           perceivedEnergy: input.perceivedEnergy ?? null,
         })
         .returning();
 
-      const insertedSets = await db
-        .insert(setLogs)
-        .values(
-          input.sets.map((s) => ({
-            sessionLogId: log.id,
-            programExerciseId: s.programExerciseId ?? null,
-            exerciseId: s.exerciseId,
-            setNumber: s.setNumber,
-            type: s.type,
-            weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
-            reps: s.reps,
-            rpe: s.rpe !== undefined ? String(s.rpe) : null,
-          }))
-        )
-        .returning();
+      // Cardio logs carry no sets — drizzle `.values([])` throws, so insert only with rows.
+      const insertedSets =
+        input.sets.length > 0
+          ? await db
+              .insert(setLogs)
+              .values(
+                input.sets.map((s) => ({
+                  sessionLogId: log.id,
+                  programExerciseId: s.programExerciseId ?? null,
+                  exerciseId: s.exerciseId,
+                  setNumber: s.setNumber,
+                  type: s.type,
+                  weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
+                  reps: s.reps,
+                  rpe: s.rpe !== undefined ? String(s.rpe) : null,
+                }))
+              )
+              .returning()
+          : [];
 
       // Write path: the log is committed — queue any new signals for the outbox.
       // A queueing failure must not fail the already-committed log write.

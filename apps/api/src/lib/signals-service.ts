@@ -11,7 +11,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { computeSignals } from "@pt/shared";
+import { cardioBehindSignal, computeSignals } from "@pt/shared";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
 /**
@@ -39,6 +39,8 @@ export function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
   return {
     programId: log.programId,
     date: log.date,
+    kind: log.kind,
+    cardio: log.cardio ?? null,
     sets: sets.map((s) => ({
       exerciseId: s.exerciseId,
       type: s.type as SignalLog["sets"][number]["type"],
@@ -97,6 +99,16 @@ export async function computeTrainerSignals(
         client?.daysPerWeek ?? undefined
       )
     );
+    // One active program per client — no per-client dedupe needed here.
+    if (client?.cardioTarget) {
+      const behind = cardioBehindSignal(
+        { programId: program.id, clientId: program.clientId },
+        client.cardioTarget,
+        programLogs,
+        Date.now()
+      );
+      if (behind) signals.push(behind);
+    }
   }
   return signals;
 }
