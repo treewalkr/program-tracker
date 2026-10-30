@@ -49,6 +49,15 @@
 
   let rows = $state<Row[]>([]);
 
+  let cardioForm = $state({
+    modality: "",
+    durationMin: "",
+    hrZone: "",
+    intensity: "",
+    distanceKm: "",
+    rpe: "",
+  });
+
   /** Most recent working-set weight per exercise — "same as last time" default. */
   const lastWeightByExercise = $derived.by(() => {
     const map = new Map<string, number>();
@@ -68,20 +77,21 @@
     program?.weeks.find((w) => w.week === selectedWeekNumber) ?? program?.weeks[0] ?? null
   );
 
-  const liftingSessions = $derived.by(() => {
+  const weekSessionsList = $derived.by(() => {
     if (!selectedWeek) return [];
     const list: { id: string; label: string; session: ProgramSessionDto }[] = [];
     for (const d of selectedWeek.days) {
       for (const s of d.sessions) {
-        if (s.kind === "lifting") {
-          list.push({ id: s.id, label: `Day ${d.day} · ${s.name}`, session: s });
-        }
+        list.push({ id: s.id, label: `Day ${d.day} · ${s.name}`, session: s });
       }
     }
     return list;
   });
 
-  const isPureCardioWeek = $derived(selectedWeek != null && liftingSessions.length === 0);
+  const selectedSession = $derived(
+    sessionId ? weekSessionsList.find((ws) => ws.id === sessionId)?.session ?? null : null
+  );
+  const isCardioSession = $derived(selectedSession?.kind === "cardio");
 
   function loadSession() {
     savedCount = 0;
@@ -90,7 +100,12 @@
       rows = [];
       return;
     }
-    const session = liftingSessions.find((ls) => ls.id === sessionId)?.session;
+    const session = weekSessionsList.find((ws) => ws.id === sessionId)?.session;
+    if (session?.kind === "cardio") {
+      rows = [];
+      prefillCardio(session.cardio);
+      return;
+    }
     rows =
       session?.exercises.flatMap((e) =>
         e.prescribedSets.map((ps) => ({
@@ -114,6 +129,18 @@
       ) ?? [];
   }
 
+  /** Fill the cardio form from a prescription (or a prior actual). */
+  function prefillCardio(c?: ProgramSessionDto["cardio"]) {
+    cardioForm = {
+      modality: c?.modality ?? "",
+      durationMin: c?.durationMin != null ? String(c.durationMin) : "",
+      hrZone: c?.hrZone != null ? String(c.hrZone) : "",
+      intensity: c?.intensity ?? "",
+      distanceKm: c?.distanceKm != null ? String(c.distanceKm) : "",
+      rpe: c?.targetRpe != null ? String(c.targetRpe) : "",
+    };
+  }
+
   /** Fill every empty row: weight from prescription (else last time), reps + RPE from prescription. */
   function prefill() {
     for (const r of rows) {
@@ -130,7 +157,47 @@
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
+    if (isCardioSession) {
+      await saveCardio();
+      return;
+    }
     await save(rows.filter((r) => r.reps !== "" || r.weight !== ""));
+  }
+
+  async function saveCardio() {
+    if (!program || !sessionId) return;
+    if (cardioForm.modality.trim() === "") {
+      error = "Enter the modality — what did they do?";
+      return;
+    }
+    saving = true;
+    error = null;
+    try {
+      await api.logSession({
+        clientId: id,
+        programId: program.id,
+        programSessionId: sessionId,
+        date,
+        notes: notes || undefined,
+        kind: "cardio",
+        cardio: {
+          modality: cardioForm.modality.trim(),
+          durationMin: cardioForm.durationMin === "" ? null : Number(cardioForm.durationMin),
+          hrZone: cardioForm.hrZone === "" ? null : Number(cardioForm.hrZone),
+          intensity: cardioForm.intensity.trim() === "" ? undefined : cardioForm.intensity.trim(),
+          distanceKm: cardioForm.distanceKm === "" ? undefined : Number(cardioForm.distanceKm),
+          rpe: cardioForm.rpe === "" ? undefined : Number(cardioForm.rpe),
+        },
+        sets: [],
+      });
+      notes = "";
+      loadSession();
+      savedCount = 1;
+    } catch (err) {
+      error = (err as Error).message;
+    } finally {
+      saving = false;
+    }
   }
 
   async function save(filled: typeof rows) {
@@ -172,8 +239,13 @@
   /** One click: session happened exactly as prescribed. */
   async function logAsPrescribed() {
     oneClickBusy = true;
-    prefill();
-    await save(rows);
+    if (isCardioSession) {
+      prefillCardio(selectedSession?.cardio);
+      await saveCardio();
+    } else {
+      prefill();
+      await save(rows);
+    }
     oneClickBusy = false;
   }
 
@@ -188,7 +260,7 @@
         pastLogs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
       );
       selectedWeekNumber = Math.max(1, Math.min(initialWeek, program.weeks.length));
-      sessionId = liftingSessions[0]?.id ?? "";
+      sessionId = weekSessionsList[0]?.id ?? "";
       loadSession();
     }
   });
@@ -205,7 +277,7 @@
     crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "Log session" }]}
   >
     {#snippet actions()}
-      {#if rows.length > 0}
+      {#if rows.length > 0 || isCardioSession}
         <Button variant="primary" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
           {#snippet icon()}{#if !oneClickBusy}<Icon name="bolt" />{/if}{/snippet}
           {oneClickBusy ? "Logging…" : "Did it as prescribed"}
@@ -228,7 +300,7 @@
               id="log-week"
               bind:value={selectedWeekNumber}
               onchange={() => {
-                const first = liftingSessions[0];
+                const first = weekSessionsList[0];
                 sessionId = first ? first.id : "";
                 loadSession();
               }}
@@ -243,26 +315,59 @@
               id="log-session"
               bind:value={sessionId}
               onchange={loadSession}
-              disabled={isPureCardioWeek}
             >
-              {#if isPureCardioWeek}
-                <option value="">No lifting sessions</option>
-              {:else}
-                {#each liftingSessions as ls (ls.id)}
-                  <option value={ls.id}>{ls.label}</option>
-                {/each}
-              {/if}
+              {#each weekSessionsList as ws (ws.id)}
+                <option value={ws.id}>{ws.label}{ws.session.kind === "cardio" ? " · cardio" : ""}</option>
+              {/each}
             </select>
             <label class="label" for="log-date">Date</label>
             <input class="input date" id="log-date" type="date" bind:value={date} />
-            {#if prefillable}
+            {#if prefillable && !isCardioSession}
               <Button variant="ghost" small type="button" onclick={prefill}>Prefill prescribed</Button>
             {/if}
           </div>
         {/snippet}
-      {#if isPureCardioWeek}
-        <div class="panel-body">
-          <p class="subtle">Pure cardio week — cardio logging lands with z8jsh.</p>
+      {#if isCardioSession}
+        <div class="panel-body cardio-form">
+          <Field label="Modality" htmlFor="c-modality" hint="what did they do?">
+            <input class="input" id="c-modality" placeholder="Run, Bike, Rower…" bind:value={cardioForm.modality} maxlength="80" />
+          </Field>
+          <Field label="Min" htmlFor="c-min">
+            <input class="input tnum" id="c-min" type="number" inputmode="numeric" min="1" max="300" bind:value={cardioForm.durationMin} />
+          </Field>
+          <Field label="HR zone" htmlFor="c-zone">
+            <select class="select" id="c-zone" bind:value={cardioForm.hrZone}>
+              <option value="">—</option>
+              {#each [1, 2, 3, 4, 5] as z}<option value={String(z)}>Z{z}</option>{/each}
+            </select>
+          </Field>
+          <Field label="Intensity" htmlFor="c-intensity">
+            <input class="input" id="c-intensity" placeholder="easy, threshold…" bind:value={cardioForm.intensity} maxlength="60" />
+          </Field>
+          <Field label="km" htmlFor="c-km">
+            <input class="input tnum" id="c-km" type="number" inputmode="decimal" min="0" max="300" step="0.1" bind:value={cardioForm.distanceKm} />
+          </Field>
+          <Field label="RPE" htmlFor="c-rpe">
+            <input class="input tnum" id="c-rpe" type="number" inputmode="decimal" min="1" max="10" step="0.5" bind:value={cardioForm.rpe} />
+          </Field>
+        </div>
+        <div class="panel-body foot">
+          <div class="energy">
+            <label class="label" for="log-energy">Perceived energy <span class="subtle">1–10</span></label>
+            <input id="log-energy" type="range" min="1" max="10" bind:value={energy} />
+            <span class="num big">{energy}</span>
+          </div>
+          <div class="notes">
+            <Field label="Session notes" htmlFor="log-notes">
+              <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
+            </Field>
+          </div>
+          <div class="submit-row">
+            <span class="subtle">cardio session — counts toward the weekly target</span>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save session"}
+            </Button>
+          </div>
         </div>
       {:else}
       <div class="table-wrap">
@@ -302,7 +407,7 @@
           </div>
           <div class="submit-row">
             <span class="subtle">{doneCount}/{rows.length} sets filled</span>
-            <Button type="submit" disabled={saving || isPureCardioWeek}>
+            <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Save session"}
             </Button>
           </div>
@@ -313,7 +418,11 @@
 
     {#if savedCount > 0}
       <p class="ok-msg" role="status">
-        Logged {savedCount} sets — now counting toward history and the next AI draft.
+        {#if isCardioSession}
+          Logged — counting toward this week's cardio target.
+        {:else}
+          Logged {savedCount} sets — now counting toward history and the next AI draft.
+        {/if}
       </p>
     {/if}
     {#if error}
@@ -352,6 +461,11 @@
     gap: 22px;
     align-items: end;
   }
+  .cardio-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
   .energy { display: flex; align-items: center; gap: 10px; }
   .energy input[type="range"] { accent-color: var(--blue); }
   .energy .label { margin: 0; }
@@ -364,5 +478,6 @@
 
   @media (max-width: 860px) {
     .foot { grid-template-columns: 1fr; }
+    .cardio-form { grid-template-columns: 1fr; }
   }
 </style>
