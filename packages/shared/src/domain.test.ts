@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   AiProgramDraft,
   applyDefaultWeekdays,
+  CardioLog,
   CardioPrescription,
+  CardioTarget,
   CHAIN_MUSCLE_GROUPS,
   ChainMuscleGroup,
   Client,
@@ -28,6 +30,7 @@ import {
   ProgramSession,
   ProgramWeek,
   ProgramWeeksDocument,
+  SessionLog,
   sortExercisesByRole,
   stampWeeks,
   weekSessions,
@@ -777,6 +780,113 @@ describe("KineticChainInput", () => {
     expect(
       KineticChainInput.safeParse({ muscleGroups: ["full_body"] }).success
     ).toBe(false);
+  });
+});
+
+describe("CardioTarget", () => {
+  test("accepts 150 min/week; rejects unknown unit, 0, non-integer", () => {
+    expect(CardioTarget.safeParse({ unit: "minutes", value: 150 }).success).toBe(true);
+    expect(CardioTarget.safeParse({ unit: "km", value: 1 }).success).toBe(false);
+    expect(CardioTarget.safeParse({ unit: "minutes", value: 0 }).success).toBe(false);
+    expect(CardioTarget.safeParse({ unit: "minutes", value: 1.5 }).success).toBe(false);
+    expect(CardioTarget.safeParse({ unit: "minutes", value: 10001 }).success).toBe(false);
+  });
+
+  test("Client carries an optional nullable cardioTarget", () => {
+    const base = {
+      id: uuid(),
+      trainerId: uuid(),
+      name: "Maya",
+      email: "maya@example.com",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    expect(Client.parse(base).cardioTarget).toBeUndefined();
+    expect(Client.parse({ ...base, cardioTarget: null }).cardioTarget).toBeNull();
+    expect(Client.parse({ ...base, cardioTarget: { unit: "sessions", value: 3 } }).cardioTarget).toEqual({
+      unit: "sessions",
+      value: 3,
+    });
+  });
+});
+
+const baseLog = () => ({
+  id: uuid(),
+  clientId: uuid(),
+  programId: uuid(),
+  programSessionId: null,
+  date: "2026-10-29",
+});
+
+const cardioPayload = { modality: "Run", durationMin: 35, hrZone: 2 };
+
+const liftingSet = () => ({
+  id: uuid(),
+  programExerciseId: null,
+  exerciseId: uuid(),
+  setNumber: 1,
+  reps: 5,
+});
+
+describe("SessionLog cardio rules", () => {
+  test("cardio log with payload and no sets parses", () => {
+    const parsed = SessionLog.parse({ ...baseLog(), kind: "cardio", cardio: cardioPayload });
+    expect(parsed.kind).toBe("cardio");
+    expect(parsed.sets).toEqual([]);
+  });
+
+  test("kind defaults to lifting", () => {
+    const parsed = SessionLog.parse({ ...baseLog(), sets: [liftingSet()] });
+    expect(parsed.kind).toBe("lifting");
+    expect(parsed.cardio).toBeUndefined();
+  });
+
+  test("lifting log with zero sets is rejected with the named message", () => {
+    const res = SessionLog.safeParse({ ...baseLog(), sets: [] });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues[0].message).toBe("lifting log requires at least 1 set");
+      expect(res.error.issues[0].path).toEqual(["sets"]);
+    }
+  });
+
+  test("lifting log must not carry a cardio payload", () => {
+    const res = SessionLog.safeParse({ ...baseLog(), sets: [liftingSet()], cardio: cardioPayload });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues.some((i) => i.message === "lifting log must not have cardio payload" && i.path[0] === "cardio")).toBe(true);
+    }
+  });
+
+  test("cardio log requires a cardio payload", () => {
+    const res = SessionLog.safeParse({ ...baseLog(), kind: "cardio", sets: [] });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues[0].message).toBe("cardio log requires cardio payload");
+      expect(res.error.issues[0].path).toEqual(["cardio"]);
+    }
+  });
+
+  test("cardio log must not have sets", () => {
+    const res = SessionLog.safeParse({
+      ...baseLog(),
+      kind: "cardio",
+      cardio: cardioPayload,
+      sets: [liftingSet()],
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues[0].message).toBe("cardio log must not have sets");
+      expect(res.error.issues[0].path).toEqual(["sets"]);
+    }
+  });
+
+  test("CardioLog bounds", () => {
+    expect(CardioLog.safeParse({ modality: "" }).success).toBe(false);
+    expect(CardioLog.safeParse({ modality: "Run", durationMin: 0 }).success).toBe(false);
+    expect(CardioLog.safeParse({ modality: "Run", hrZone: 6 }).success).toBe(false);
+    expect(CardioLog.safeParse({ modality: "Run", distanceKm: -1 }).success).toBe(false);
+    expect(CardioLog.safeParse({ modality: "Run", rpe: 11 }).success).toBe(false);
+    expect(CardioLog.safeParse({ modality: "Run", durationMin: null, hrZone: null }).success).toBe(true);
   });
 });
 

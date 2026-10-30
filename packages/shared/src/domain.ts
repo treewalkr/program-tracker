@@ -213,6 +213,15 @@ export const CLIENT_STATUSES = ["active", "paused", "archived"] as const;
 export const ClientStatus = z.enum(CLIENT_STATUSES);
 export type ClientStatus = z.infer<typeof ClientStatus>;
 
+/** Weekly cardio target units — one fixed progress formula per unit (cardio.ts). */
+export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "zone_minutes"] as const;
+export const CardioTargetUnit = z.enum(CARDIO_TARGET_UNITS);
+export const CardioTarget = z.object({
+  unit: CardioTargetUnit,
+  value: z.number().int().min(1).max(10000),
+});
+export type CardioTarget = z.infer<typeof CardioTarget>;
+
 export const Client = z.object({
   id: z.string().uuid(),
   trainerId: z.string().uuid(),
@@ -233,6 +242,8 @@ export const Client = z.object({
       message: "trainingDays must be unique",
     })
     .optional(),
+  /** Standing weekly cardio target — resets every ISO week (cardio.ts math). */
+  cardioTarget: CardioTarget.nullable().optional(),
   createdAt: z.string(),
 });
 export type Client = z.infer<typeof Client>;
@@ -664,18 +675,64 @@ export const LoggedSet = z.object({
 });
 export type LoggedSet = z.infer<typeof LoggedSet>;
 
-export const SessionLog = z.object({
-  id: z.string().uuid(),
-  clientId: z.string().uuid(),
-  programId: z.string().uuid(),
-  /** Which program session this log was meant to be; null for freestyle. */
-  programSessionId: z.string().uuid().nullable(),
-  date: z.string(), // ISO date (YYYY-MM-DD)
-  sets: z.array(LoggedSet).default([]),
-  notes: z.string().max(2000).optional(),
-  /** Client subjective readiness 1–10, optional but great AI signal. */
-  perceivedEnergy: z.number().min(1).max(10).optional(),
+export const CardioLog = z.object({
+  modality: z.string().min(1).max(80),
+  durationMin: z.number().int().min(1).max(300).nullable().optional(),
+  hrZone: z.number().int().min(1).max(5).nullable().optional(),
+  intensity: z.string().max(60).optional(),
+  distanceKm: z.number().min(0).max(300).optional(),
+  rpe: z.number().min(1).max(10).optional(),
 });
+export type CardioLog = z.infer<typeof CardioLog>;
+
+export const SessionLog = z
+  .object({
+    id: z.string().uuid(),
+    clientId: z.string().uuid(),
+    programId: z.string().uuid(),
+    /** Which program session this log was meant to be; null for freestyle. */
+    programSessionId: z.string().uuid().nullable(),
+    date: z.string(), // ISO date (YYYY-MM-DD)
+    kind: SessionKind.default("lifting"),
+    cardio: CardioLog.nullable().optional(),
+    sets: z.array(LoggedSet).default([]),
+    notes: z.string().max(2000).optional(),
+    /** Client subjective readiness 1–10, optional but great AI signal. */
+    perceivedEnergy: z.number().min(1).max(10).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.kind === "lifting") {
+      if (val.sets.length < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting log requires at least 1 set",
+          path: ["sets"],
+        });
+      }
+      if (val.cardio != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "lifting log must not have cardio payload",
+          path: ["cardio"],
+        });
+      }
+    } else if (val.kind === "cardio") {
+      if (val.cardio == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio log requires cardio payload",
+          path: ["cardio"],
+        });
+      }
+      if (val.sets.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "cardio log must not have sets",
+          path: ["sets"],
+        });
+      }
+    }
+  });
 export type SessionLog = z.infer<typeof SessionLog>;
 
 // ---------------------------------------------------------------------------
