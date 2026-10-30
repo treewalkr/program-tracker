@@ -23,6 +23,47 @@ export const MUSCLE_GROUPS = [
 export const MuscleGroup = z.enum(MUSCLE_GROUPS);
 export type MuscleGroup = z.infer<typeof MuscleGroup>;
 
+export const CHAIN_MUSCLE_GROUPS = [
+  "chest",
+  "back",
+  "shoulders",
+  "biceps",
+  "triceps",
+  "forearms",
+  "quads",
+  "hamstrings",
+  "glutes",
+  "calves",
+  "core",
+  "traps",
+] as const; // MUSCLE_GROUPS minus "cardio" | "full_body"
+export const ChainMuscleGroup = z.enum(CHAIN_MUSCLE_GROUPS);
+export type ChainMuscleGroup = z.infer<typeof ChainMuscleGroup>;
+
+export const KineticChainInput = z.object({
+  muscleGroups: z
+    .array(ChainMuscleGroup)
+    .min(1)
+    .max(12)
+    .refine((gs) => new Set(gs).size === gs.length, {
+      message: "muscleGroups must be unique",
+    }),
+});
+export type KineticChainInput = z.infer<typeof KineticChainInput>;
+
+/** Seed defaults — the fixed five, in the trainer's order. */
+export const KINETIC_CHAIN_DEFAULTS: {
+  name: string;
+  muscleGroups: ChainMuscleGroup[];
+  sortOrder: number;
+}[] = [
+  { name: "Intrinsic", muscleGroups: ["core", "back", "traps"], sortOrder: 1 },
+  { name: "Deep Longitudinal", muscleGroups: ["back", "hamstrings", "calves"], sortOrder: 2 },
+  { name: "Lateral", muscleGroups: ["core", "glutes", "quads"], sortOrder: 3 },
+  { name: "Posterior Spiral", muscleGroups: ["glutes", "back", "hamstrings"], sortOrder: 4 },
+  { name: "Anterior Spiral", muscleGroups: ["core", "quads", "chest"], sortOrder: 5 },
+];
+
 export const EQUIPMENT = [
   "barbell",
   "dumbbell",

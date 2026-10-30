@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   AiProgramDraft,
+  CHAIN_MUSCLE_GROUPS,
+  ChainMuscleGroup,
   Client,
   DraftExerciseRef,
   estimate1rm,
@@ -10,6 +12,8 @@ import {
   formatPatternBalance,
   FUNCTIONAL_MOVEMENT_INFO,
   FUNCTIONAL_MOVEMENTS,
+  KINETIC_CHAIN_DEFAULTS,
+  KineticChainInput,
   LoggedSet,
   MOVEMENT_PATTERN_INFO,
   MOVEMENT_PATTERNS,
@@ -445,3 +449,41 @@ describe("patternBalance", () => {
     );
   });
 });
+
+describe("KINETIC_CHAIN_DEFAULTS", () => {
+  test("five chains in trainer order with valid muscle groups", () => {
+    expect(KINETIC_CHAIN_DEFAULTS.length).toBe(5);
+    expect(KINETIC_CHAIN_DEFAULTS.map((c) => c.name)).toEqual([
+      "Intrinsic",
+      "Deep Longitudinal",
+      "Lateral",
+      "Posterior Spiral",
+      "Anterior Spiral",
+    ]);
+    expect(KINETIC_CHAIN_DEFAULTS.map((c) => c.sortOrder)).toEqual([1, 2, 3, 4, 5]);
+    for (const chain of KINETIC_CHAIN_DEFAULTS) {
+      for (const group of chain.muscleGroups) {
+        expect(CHAIN_MUSCLE_GROUPS.includes(group)).toBe(true);
+      }
+      expect(() =>
+        KineticChainInput.parse({ muscleGroups: chain.muscleGroups })
+      ).not.toThrow();
+    }
+  });
+});
+
+describe("KineticChainInput", () => {
+  test("rejects empty, duplicate, cardio, full_body", () => {
+    expect(KineticChainInput.safeParse({ muscleGroups: [] }).success).toBe(false);
+    expect(
+      KineticChainInput.safeParse({ muscleGroups: ["back", "back"] }).success
+    ).toBe(false);
+    expect(
+      KineticChainInput.safeParse({ muscleGroups: ["cardio"] }).success
+    ).toBe(false);
+    expect(
+      KineticChainInput.safeParse({ muscleGroups: ["full_body"] }).success
+    ).toBe(false);
+  });
+});
+

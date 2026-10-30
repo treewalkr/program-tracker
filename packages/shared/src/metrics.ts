@@ -141,3 +141,75 @@ export function pulseSummary(pulse: WeekMetrics[]): string | null {
   }
   return parts.length > 0 ? parts.join(" · ") : null;
 }
+
+export interface ChainDef {
+  id: string;
+  name: string;
+  muscleGroups: string[];
+}
+
+export interface ChainCatalogEntry {
+  id: string;
+  primaryMuscleGroup: string;
+  secondaryMuscleGroups?: string[] | null;
+}
+
+/** Chain ids (in `chains` order) whose muscleGroups intersect the exercise's primary ∪ secondary. */
+export function chainsForExercise(exercise: ChainCatalogEntry, chains: ChainDef[]): string[] {
+  const exGroups = new Set<string>([
+    exercise.primaryMuscleGroup,
+    ...(exercise.secondaryMuscleGroups ?? []),
+  ]);
+  const matched: string[] = [];
+  for (const c of chains) {
+    if (c.muscleGroups.some((g) => exGroups.has(g))) {
+      matched.push(c.id);
+    }
+  }
+  return matched;
+}
+
+/** Working sets per chain id for logs with date >= since (date-only ISO strings, client-local). */
+export function chainSetCounts(
+  chains: ChainDef[],
+  logs: { date: string; sets: { exerciseId: string; type: string }[] }[],
+  catalog: ChainCatalogEntry[],
+  since: string,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const c of chains) {
+    counts[c.id] = 0;
+  }
+  const exerciseChainIds = new Map<string, string[]>();
+  for (const entry of catalog) {
+    exerciseChainIds.set(entry.id, chainsForExercise(entry, chains));
+  }
+
+  for (const log of logs) {
+    if (log.date < since) continue;
+    for (const s of log.sets) {
+      if (s.type !== "working") continue;
+      const matchedChains = exerciseChainIds.get(s.exerciseId);
+      if (matchedChains) {
+        for (const cid of matchedChains) {
+          counts[cid] = (counts[cid] ?? 0) + 1;
+        }
+      }
+    }
+  }
+  return counts;
+}
+
+/** "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 · … working sets · untrained: Lateral" —
+ *  the " · untrained: A, B" suffix appears only when ≥1 chain has 0 sets. */
+export function chainBalanceText(chains: ChainDef[], counts: Record<string, number>): string {
+  const parts = chains.map((c) => `${c.name} ${counts[c.id] ?? 0}`);
+  const base = `${parts.join(" · ")} working sets`;
+  const untrained = chains
+    .filter((c) => (counts[c.id] ?? 0) === 0)
+    .map((c) => c.name);
+  if (untrained.length > 0) {
+    return `${base} · untrained: ${untrained.join(", ")}`;
+  }
+  return base;
+}
