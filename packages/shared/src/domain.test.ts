@@ -45,6 +45,7 @@ import {
   setRepsRange,
   setTimed,
   sortExercisesByRole,
+  cloneProgramWeeks,
   stampWeeks,
   switchSessionKind,
   weekSessions,
@@ -484,6 +485,65 @@ describe("ProgramWeeksDocument", () => {
     for (const w of stamped) {
       expect(w.days[0].sessions[0].exercises[0].exerciseId).toBe(catalogExerciseId);
     }
+  });
+
+  test("cloneProgramWeeks regenerates ids, keeps refs and structure", () => {
+    const catalogExerciseId = uuid();
+    const originalWeeks: ProgramWeek[] = [
+      {
+        week: 1,
+        days: [
+          {
+            id: uuid(),
+            day: 1,
+            weekday: 1,
+            sessions: [
+              {
+                id: uuid(),
+                name: "Leg Day",
+                order: 0,
+                kind: "lifting",
+                exercises: [
+                  {
+                    id: uuid(),
+                    exerciseId: catalogExerciseId,
+                    order: 0,
+                    role: "primary",
+                    prescribedSets: [
+                      { setNumber: 1, reps: 5, targetWeightKg: 100 },
+                      { setNumber: 2, reps: 5, targetWeightKg: 100 },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const serializedOriginalBefore = JSON.stringify(originalWeeks);
+    const cloned = cloneProgramWeeks(originalWeeks);
+
+    expect(cloned).toHaveLength(1);
+    expect(cloned[0].week).toBe(1);
+    expect(cloned[0].days[0].day).toBe(1);
+    expect(cloned[0].days[0].weekday).toBe(1);
+    expect(cloned[0].days[0].sessions[0].name).toBe("Leg Day");
+    expect(cloned[0].days[0].sessions[0].exercises[0].exerciseId).toBe(catalogExerciseId);
+    expect(cloned[0].days[0].sessions[0].exercises[0].role).toBe("primary");
+    expect(cloned[0].days[0].sessions[0].exercises[0].prescribedSets).toEqual([
+      { setNumber: 1, reps: 5, targetWeightKg: 100 },
+      { setNumber: 2, reps: 5, targetWeightKg: 100 },
+    ]);
+
+    expect(cloned[0].days[0].id).not.toBe(originalWeeks[0].days[0].id);
+    expect(cloned[0].days[0].sessions[0].id).not.toBe(originalWeeks[0].days[0].sessions[0].id);
+    expect(cloned[0].days[0].sessions[0].exercises[0].id).not.toBe(
+      originalWeeks[0].days[0].sessions[0].exercises[0].id
+    );
+
+    expect(JSON.stringify(originalWeeks)).toBe(serializedOriginalBefore);
   });
 
   test("WeekPlan target: metric enum and deltaPercent bounds", () => {

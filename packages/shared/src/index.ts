@@ -3,3 +3,4 @@ export * from "./ai";
 export * from "./cardio";
 export * from "./metrics";
 export * from "./signals";
+export * from "./examples";
