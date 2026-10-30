@@ -57,6 +57,16 @@ export const KNOWN_PROVIDERS = {
   },
 } as const satisfies Record<string, AiProviderConfig>;
 
+/** Rough wall-clock seconds one generation takes, for UI expectation-setting. */
+export const TYPICAL_GENERATION_SECONDS: Record<string, number> = {
+  zai: 210, // live GLM ≈ 3.5 min per draft
+  mock: 3, // mock generate delays 2.2 s
+};
+export const DEFAULT_GENERATION_SECONDS = 240;
+export function typicalGenerationSeconds(providerId: string): number {
+  return TYPICAL_GENERATION_SECONDS[providerId] ?? DEFAULT_GENERATION_SECONDS;
+}
+
 // ---------------------------------------------------------------------------
 // AI program draft — the ONLY shape the LLM is allowed to emit
 // ---------------------------------------------------------------------------
