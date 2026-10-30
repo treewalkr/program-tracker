@@ -94,6 +94,14 @@ program must belong to the client (**422**); date `YYYY-MM-DD`.
 | POST | `/v1/schemes` | `{name, weeks: [{week, directive}]}` → 201 |
 | DELETE | `/v1/schemes/:id` | removing a scheme never touches programs that already used it (they carry their own `phasing` copy) |
 
+## Kinetic chains (trainer library & analytics)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/v1/chains` | the trainer's five chains (`{chains: [{id, name, muscleGroups, sortOrder}]}`), lazily seeded on first read |
+| PUT | `/v1/chains/:id` | `{muscleGroups: string[]}` — update muscle groups for a chain (min 1, unique, ⊆ `CHAIN_MUSCLE_GROUPS`) |
+| GET | `/v1/chains/week?clientId=` | working-set volume per chain for the current ISO week (Monday-start): `{weekStart, chains: [{id, name, muscleGroups, sets}]}` |
+
 ## Instruction templates (AI prompt library)
 
 | Method | Path | Notes |

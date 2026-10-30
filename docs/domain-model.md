@@ -170,6 +170,37 @@ block week from logged **working** sets:
 - `equipment`: barbell, dumbbell, machine, cable, bodyweight, kettlebell, band,
   plate_loaded, other.
 
+## Kinetic chains (myofascial slings)
+
+The trainer organizes anatomy into five kinetic chains (myofascial slings):
+1. **Intrinsic** (seed: core, back, traps)
+2. **Deep Longitudinal** (seed: back, hamstrings, calves)
+3. **Lateral** (seed: core, glutes, quads)
+4. **Posterior Spiral** (seed: glutes, back, hamstrings)
+5. **Anterior Spiral** (seed: core, quads, chest)
+
+Each chain is a trainer-maintained set of muscle groups stored in the `kinetic_chains`
+table (lazily seeded with defaults, editable at `/settings`). Selectable muscle groups
+are `CHAIN_MUSCLE_GROUPS` (the 12 anatomical groups from `MUSCLE_GROUPS`, excluding
+`cardio` and `full_body`).
+
+### Exercise inheritance rule
+
+Exercises do not carry manual chain tags. Instead, an exercise inherits chain
+membership through its muscle groups:
+$$\text{exercise groups} = \{\text{primaryMuscleGroup}\} \cup \text{secondaryMuscleGroups}$$
+An exercise hits a chain iff $\text{exercise groups} \cap \text{chain.muscleGroups} \neq \emptyset$.
+A working set counts toward **every** overlapping chain (membership sets, not a
+partition).
+
+### Weekly volume & AI balance
+
+- **Chains trained this week**: `GET /v1/chains/week` calculates working-set volume
+  per chain for the current ISO week (Mon-start) and displays on the client's Pulse tab.
+- **AI generation & revision context**: `chainBalanceText` summarizes working sets per
+  chain over the 8-week history window (e.g. `Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral`),
+  directing AI volume distribution across neglected chains.
+
 ## Client profile — the AI's steering wheel
 
 `goals` (free text), `limitations` (free text, **hard constraints** in every AI
