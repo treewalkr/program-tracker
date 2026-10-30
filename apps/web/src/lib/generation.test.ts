@@ -18,6 +18,8 @@ function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
     status: "pending",
     draft: null,
     error: null,
+    parentGenerationId: null,
+    revisionMessage: null,
     createdAt: new Date().toISOString(),
     ...partial,
   };

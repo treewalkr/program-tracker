@@ -104,6 +104,8 @@ export interface GenerationDto {
   status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected";
   draft: AiDraftDto | null;
   error: string | null;
+  parentGenerationId: string | null;
+  revisionMessage: string | null;
   createdAt: string;
 }
 
@@ -201,6 +203,7 @@ export interface TrainerApi {
   }): Promise<GenerationDto>;
   generations(clientId: string): Promise<GenerationDto[]>;
   generation(id: string): Promise<GenerationDto>;
+  reviseGeneration(id: string, message: string): Promise<GenerationDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string): Promise<GenerationDto>;
 

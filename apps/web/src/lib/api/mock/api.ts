@@ -1,4 +1,4 @@
-import { computeSignals, estimate1rm, sortExercisesByRole } from "@pt/shared";
+import { computeSignals, estimate1rm, mockReviseDraft, sortExercisesByRole } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
@@ -431,6 +431,8 @@ export const mockApi: TrainerApi = {
       status: "validated",
       draft,
       error: null,
+      parentGenerationId: null,
+      revisionMessage: null,
       createdAt: new Date().toISOString(),
     };
     state.generations.unshift(gen);
@@ -446,6 +448,29 @@ export const mockApi: TrainerApi = {
     const g = state.generations.find((g) => g.id === id);
     if (!g) throw new Error("generation not found");
     return structuredClone(g);
+  },
+
+  async reviseGeneration(id, message) {
+    await delay(2200);
+    const gen = state.generations.find((g) => g.id === id);
+    if (!gen || gen.status !== "validated" || !gen.draft) {
+      throw new Error("generation is not validated");
+    }
+    const child: GenerationDto = {
+      id: uuid(),
+      clientId: gen.clientId,
+      basedOnProgramId: gen.basedOnProgramId,
+      providerId: gen.providerId,
+      model: gen.model,
+      status: "validated",
+      draft: mockReviseDraft(gen.draft as any, message) as any,
+      error: null,
+      parentGenerationId: gen.id,
+      revisionMessage: message,
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(child);
+    return structuredClone(child);
   },
 
   async approveGeneration(id) {
