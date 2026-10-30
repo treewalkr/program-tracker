@@ -386,8 +386,8 @@ export const PrescribedSet = z
 export type PrescribedSet = z.infer<typeof PrescribedSet>;
 
 export const ProgramExercise = z.object({
-  id: z.string().uuid(),
-  exerciseId: z.string().uuid(),
+  id: z.string().min(1),
+  exerciseId: z.string().min(1),
   /**
    * Display name captured at write time (catalog name, custom-exercise name,
    * or draft name). Programs render it directly — no catalog join on read.
@@ -419,7 +419,7 @@ export type CardioPrescription = z.infer<typeof CardioPrescription>;
 
 export const ProgramSession = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().min(1),
     name: z.string().min(1).max(160),
     order: z.number().int().min(0), // order within its day
     kind: SessionKind.default("lifting"),
@@ -463,7 +463,7 @@ export const ProgramSession = z
 export type ProgramSession = z.infer<typeof ProgramSession>;
 
 export const ProgramDay = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   day: z.number().int().min(1).max(14), // ordinal "Day N" within the week
   weekday: z.number().int().min(1).max(7).nullable().optional(), // 1=Mon…7=Sun
   sessions: z.array(ProgramSession).min(1).max(4),

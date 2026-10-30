@@ -6,6 +6,7 @@ import {
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
   mockReviseDraft,
+  ProgramWeeksDocument,
   sortExercisesByRole,
   stampWeeks,
 } from "@pt/shared";
@@ -22,6 +23,7 @@ import type {
   PeriodizationSchemeDto,
   ProgramDayDto,
   ProgramDto,
+  ProgramPhasingDto,
   ProgramSessionDto,
   ProgramWeekDto,
   SessionLogInput,
@@ -316,11 +318,25 @@ export const mockApi: TrainerApi = {
     return state.programs.filter((p) => p.clientId === clientId).map(withNames);
   },
 
-  async saveProgram(id, weeks: ProgramWeekDto[]) {
+  async saveProgram(id, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null) {
     await delay(400);
+    const parsed = ProgramWeeksDocument.safeParse(weeks);
+    if (!parsed.success) {
+      throw new Error("invalid weeks document");
+    }
     const i = state.programs.findIndex((p) => p.id === id);
-    state.programs[i] = { ...state.programs[i], weeks, version: state.programs[i].version + 1 };
-    return withNames(state.programs[i]);
+    if (i < 0) throw new Error("program not found");
+    const current = state.programs[i];
+    const updated: ProgramDto = {
+      ...current,
+      weeks,
+      version: current.version + 1,
+    };
+    if (phasing !== undefined) {
+      updated.phasing = phasing;
+    }
+    state.programs[i] = updated;
+    return withNames(updated);
   },
 
   async setProgramStatus(id, status) {

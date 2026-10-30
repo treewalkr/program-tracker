@@ -218,7 +218,7 @@ export interface TrainerApi {
 
   program(id: string): Promise<ProgramDto>;
   programs(clientId: string): Promise<ProgramDto[]>;
-  saveProgram(id: string, weeks: ProgramWeekDto[]): Promise<ProgramDto>;
+  saveProgram(id: string, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null): Promise<ProgramDto>;
   createProgram(input: {
     clientId: string;
     name: string;
