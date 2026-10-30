@@ -4,21 +4,18 @@
   import { api } from "$lib/api";
   import { fmtDuration } from "$lib/format";
   import {
-    addExercise,
-    addSet,
-    EXERCISE_ROLE_INFO,
-    EXERCISE_ROLES,
+    addSession,
     formatPatternBalance,
-    moveExercise,
+    moveSession,
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
     patternBalance,
-    removeExercise,
+    removeSession,
   } from "@pt/shared";
   import type { ExerciseRole } from "@pt/shared";
   import type { ExerciseDto, ProgramDto, ProgramSessionDto } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
-  import ExerciseBlockEditor from "$lib/components/ExerciseBlockEditor.svelte";
+  import SessionBlockEditor from "$lib/components/SessionBlockEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -201,38 +198,46 @@
           </div>
 
           <div class="panel-body exlist">
-            {#each d.sessions as s, si (s.id)}
-              <div class="session-block">
-                <div class="session-header">
-                  <h3>{s.name}</h3>
-                  <span class="kind-tag">{s.kind}</span>
-                </div>
+            {#if editing}
+              <div class="session-list-edit">
+                {#each d.sessions as _, si (d.sessions[si].id)}
+                  <SessionBlockEditor
+                    bind:session={currentWeek.days[di].sessions[si]}
+                    {catalog}
+                    canMoveUp={si > 0}
+                    canMoveDown={si < d.sessions.length - 1}
+                    onmoveup={() => {
+                      if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si - 1);
+                    }}
+                    onmovedown={() => {
+                      if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si + 1);
+                    }}
+                    onremove={() => {
+                      if (currentWeek) currentWeek.days[di] = removeSession(currentWeek.days[di], si);
+                    }}
+                  />
+                {/each}
+                <button
+                  type="button"
+                  class="btn ghost small add-sess"
+                  disabled={d.sessions.length >= 4}
+                  onclick={() => {
+                    if (currentWeek) currentWeek.days[di] = addSession(currentWeek.days[di]);
+                  }}
+                >
+                  + Session
+                </button>
+              </div>
+            {:else}
+              {#each d.sessions as s, si (s.id)}
+                <div class="session-block">
+                  <div class="session-header">
+                    <h3>{s.name}</h3>
+                    <span class="kind-tag">{s.kind}</span>
+                  </div>
+                  {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
 
-                {#if s.kind === "cardio"}
-                  {#if editing}
-                    <div class="cardio-edit-fields">
-                      <input
-                        class="input"
-                        placeholder="Modality (e.g. Bike, Run) *"
-                        value={s.cardio?.modality ?? ""}
-                        oninput={(ev) => {
-                          s.cardio = {
-                            ...(s.cardio ?? { modality: "", durationMin: null, hrZone: null, intensity: "", distanceKm: undefined, targetRpe: undefined }),
-                            modality: ev.currentTarget.value,
-                          };
-                        }}
-                        maxlength="80"
-                        aria-label="Modality"
-                      />
-                      <div class="cardio-grid">
-                        <label class="mini">Duration <input class="input tnum" type="number" min="1" max="300" value={s.cardio?.durationMin ?? ""} oninput={(ev) => { if (s.cardio) s.cardio.durationMin = ev.currentTarget.value ? Number(ev.currentTarget.value) : null; }} placeholder="min" /> min</label>
-                        <label class="mini">Zone <input class="input tnum" type="number" min="1" max="5" value={s.cardio?.hrZone ?? ""} oninput={(ev) => { if (s.cardio) s.cardio.hrZone = ev.currentTarget.value ? Number(ev.currentTarget.value) : null; }} placeholder="1-5" /></label>
-                        <label class="mini">Intensity <input class="input" value={s.cardio?.intensity ?? ""} oninput={(ev) => { if (s.cardio) s.cardio.intensity = ev.currentTarget.value; }} placeholder="easy…" maxlength="60" /></label>
-                        <label class="mini">Distance <input class="input tnum" type="number" min="0" step="0.5" value={s.cardio?.distanceKm ?? ""} oninput={(ev) => { if (s.cardio) s.cardio.distanceKm = ev.currentTarget.value ? Number(ev.currentTarget.value) : undefined; }} placeholder="km" /> km</label>
-                        <label class="mini">RPE <input class="input tnum" type="number" min="1" max="10" value={s.cardio?.targetRpe ?? ""} oninput={(ev) => { if (s.cardio) s.cardio.targetRpe = ev.currentTarget.value ? Number(ev.currentTarget.value) : undefined; }} placeholder="1-10" /></label>
-                      </div>
-                    </div>
-                  {:else}
+                  {#if s.kind === "cardio"}
                     <div class="cardio-display">
                       {#if s.cardio}
                         <span class="cond-chip">
@@ -247,44 +252,6 @@
                           ].filter(Boolean).join(" · ")}
                         </span>
                       {/if}
-                    </div>
-                  {/if}
-                {:else}
-                  {#if editing}
-                    <div class="exlist-edit">
-                      {#each s.exercises as _, ei (s.exercises[ei].id)}
-                        <ExerciseBlockEditor
-                          bind:exercise={d.sessions[si].exercises[ei]}
-                          {catalog}
-                          canMoveUp={ei > 0}
-                          canMoveDown={ei < s.exercises.length - 1}
-                          onmoveup={() => {
-                            d.sessions[si] = moveExercise(d.sessions[si], ei, ei - 1);
-                          }}
-                          onmovedown={() => {
-                            d.sessions[si] = moveExercise(d.sessions[si], ei, ei + 1);
-                          }}
-                          onremove={() => {
-                            d.sessions[si] = removeExercise(d.sessions[si], ei);
-                          }}
-                          onaddset={() => {
-                            d.sessions[si].exercises[ei] = addSet(d.sessions[si].exercises[ei]);
-                          }}
-                        />
-                      {/each}
-                      <button
-                        type="button"
-                        class="btn ghost small add-ex"
-                        disabled={s.exercises.length >= 20}
-                        onclick={() => {
-                          const first = catalog[0];
-                          if (first) {
-                            d.sessions[si] = addExercise(d.sessions[si], first.id, first.name);
-                          }
-                        }}
-                      >
-                        + Exercise
-                      </button>
                     </div>
                   {:else}
                     {#each s.exercises as e, ei (e.id)}
@@ -303,10 +270,10 @@
                       {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
                     {/each}
                   {/if}
-                {/if}
-              </div>
-              {#if si < d.sessions.length - 1}<hr class="divider" />{/if}
-            {/each}
+                </div>
+                {#if si < d.sessions.length - 1}<hr class="divider" />{/if}
+              {/each}
+            {/if}
           </div>
         </section>
       {/each}
@@ -341,8 +308,8 @@
   .sessions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 
   .exlist { display: flex; flex-direction: column; gap: 12px; }
-  .exlist-edit { display: flex; flex-direction: column; gap: 10px; }
-  .add-ex { align-self: flex-start; }
+  .session-list-edit { display: flex; flex-direction: column; gap: 16px; }
+  .add-sess { align-self: flex-start; }
   .gate-error { color: var(--bad); }
   .session-block { display: flex; flex-direction: column; gap: 8px; }
   .session-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -355,11 +322,7 @@
     background: var(--well);
     color: var(--muted);
   }
-  .cardio-edit-fields { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
-  .cardio-grid { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .cardio-display { margin: 2px 0 4px; }
-  .mini { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-  .mini .input { width: 58px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12px; }
 
   .exblock .exhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 
