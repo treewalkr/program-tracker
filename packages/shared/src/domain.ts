@@ -641,6 +641,7 @@ export const Program = z.object({
   /** Stamped on first activation — basis for block-week math (derived, never edited). */
   activatedAt: z.string().nullable().optional(),
   phasing: Phasing.nullable().optional(),
+  direction: z.string().max(500).nullable().optional(),
   createdAt: z.string(),
 });
 export type Program = z.infer<typeof Program>;
