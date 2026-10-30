@@ -21,37 +21,62 @@ signal_snoozes / signal_outbox (planned — L2/L5, see notifications.md)
 
 ## Programs — the document structure
 
-A program's `sessions` column is one jsonb array matching `ProgramSession[]`:
+A program stores a `ProgramWeeksDocument` (`weeks: ProgramWeek[]`):
 
 ```jsonc
 [
   {
-    "id": "…uuid",            // stable id — set_logs.programExerciseId points HERE
-    "name": "Day A — Lower",
-    "order": 0,
-    "notes": "stop 2 reps shy of failure on the last set",
-    "exercises": [
+    "week": 1,
+    "days": [
       {
-        "id": "…uuid",        // programExercise id (see above)
-        "exerciseId": "…uuid",// reference into the exercises table
-        "order": 0,
-        "notes": "2s pause at bottom",
-        "prescribedSets": [
-          { "setNumber": 1, "type": "warm_up", "reps": 5, "amrap": false, "restSeconds": 90 },
-          { "setNumber": 2, "type": "working", "reps": 5, "amrap": true, "targetRpe": 9, "restSeconds": 180 }
+        "id": "…uuid",
+        "day": 1,               // ordinal day within the week
+        "weekday": 1,           // optional weekday (1=Mon…7=Sun)
+        "sessions": [
+          {
+            "id": "…uuid",      // stable session id
+            "name": "Day A — Lower",
+            "order": 0,
+            "kind": "lifting",  // "lifting" | "cardio"
+            "notes": "stop 2 reps shy of failure on the last set",
+            "exercises": [
+              {
+                "id": "…uuid",        // programExercise id — set_logs.programExerciseId points HERE
+                "exerciseId": "…uuid",// reference into the exercises table
+                "order": 0,
+                "notes": "2s pause at bottom",
+                "prescribedSets": [
+                  { "setNumber": 1, "type": "working", "reps": 5, "amrap": false, "targetRpe": 8, "restSeconds": 90 }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "…uuid",
+            "name": "Cardio 1",
+            "order": 1,
+            "kind": "cardio",
+            "cardio": {
+              "modality": "Bike",
+              "durationMin": 30,
+              "hrZone": 2
+            },
+            "exercises": []
+          }
         ]
       }
-    ],
-    "conditioning": { "label": "Cardio VO2max", "detail": "intervals 1 : 3–5, 20–30 min" }
+    ]
   }
 ]
 ```
 
 Rules enforced by zod at every write:
-- 1–14 sessions, 1–20 exercises per session, 1–20 prescribed sets per exercise.
-- `reps` always present (0–100). `amrap: true` means reps is the *minimum*.
+- 1–26 contiguous weeks, 1–7 days per week, 1–4 sessions per day, 1–20 exercises per lifting session, 1–20 prescribed sets per exercise.
+- `kind: "lifting"` requires ≥1 exercise and no cardio prescription.
+- `kind: "cardio"` requires cardio prescription and 0 exercises.
+- `reps` always present on lifting sets. `amrap: true` means reps is the *minimum*.
 - `targetRpe` / logged `rpe` ∈ 1–10. `weightKg` ∈ 0–600.
-- Set types: `warm_up | working | backoff`.
+- Set types: `working | backoff`.
 
 **Coach-format prescriptions** (beyond plain fixed reps — all optional, shared zod):
 
@@ -62,8 +87,7 @@ Rules enforced by zod at every write:
 | timed | `durationSeconds`, `reps: 0` | `45s`, `1:00` |
 | failure / AMRAP | `amrap: true`, `reps: 0` | `max` |
 | load target | `targetWeightKg` (null = RPE-autoregulated) | `65kg × 5 @8` |
-- `conditioning {label, detail}` per session: cardio prescription, display-only in MVP
-  (not logged). Set-count ranges ("1–2 sets") map to the upper bound by convention.
+- Cardio prescription (`CardioPrescription`): `modality` (required), optional `durationMin`, `hrZone` (1–5), `intensity`, `distanceKm`, `targetRpe`.
 
 One-click logging prefers `targetWeightKg` over last-logged when both exist.
 
@@ -149,14 +173,15 @@ templates = method notes).
 `blockPulse(program, logs)` (mock: `apps/web/src/lib/metrics.ts`, pure) computes per
 block week from logged **working** sets:
 
-- **Volume**: tonnage `Σ(kg × reps)` + set and rep counts (bodyweight sets count in
-  sets/reps, not tonnage)
+- **Volume**: overall volume `Σ(kg × reps)` + set and rep counts (bodyweight sets count in
+  sets/reps, not overall volume)
 - **Intensity**: avg RPE, best e1RM (Epley, capped at 12 reps — matches history)
-- **Deltas**: % change vs the previous logged week
+- **Deltas**: % change vs the previous logged week (`overallVolumeDelta`, `repsDelta`, `e1rmDelta`)
+- **Targets**: `WeekTarget { metric, deltaPercent }` with `targetDelta` and `targetMet` evaluated
 - Weeks before `activatedAt` are excluded; unlogged weeks render as planned-only
 
 `pulseSummary()` distills the series into one evidence/context line:
-`weekly tonnage 1.8t → 2.3t (+28%) · best e1RM 77 → 84`.
+`weekly overall volume 1.8t → 2.3t (+28%) · best e1RM 77 → 84`.
 
 ## Exercise library
 

@@ -47,7 +47,7 @@ zod schema and endpoints do not yet know about these features — that is Phase 
 Trainer's week-by-week guide (`base → +volume → +intensity → +volume → transition →
 transition`) is modeled as `phasing.weeks` directives, with a trainer-owned scheme
 library (`PeriodizationSchemeDto`). `apps/web/src/lib/metrics.ts` computes weekly
-tonnage / sets / avg RPE / best e1RM from logged working sets (pure functions). Off-plan
+overall volume / sets / avg RPE / best e1RM from logged working sets (pure functions). Off-plan
 signals compare directive vs measured week. Live wiring: L1 (schema) + L3 (move modules
 to shared). Later refinements: dedicated `/schemes` manage page, volume/intensity
 charts, ACWR fatigue ratio, cardio volume, per-exercise pulse drills.

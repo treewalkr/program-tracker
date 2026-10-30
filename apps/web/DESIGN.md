@@ -191,7 +191,7 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 - **Danger Red** (#cf222e): Destructive actions, rejected/failed states, delta-down, missed sessions, maximal RPE. Tint Danger Red Tint (#ffebe9) + Edge Danger Red Edge (#ffcecb) for the bad pill, missed cells, and the reject flash.
 - **Attention Amber** (#9a6700): Paused/warn ink and the hard RPE tier (7–8). Tint Attention Amber Tint (#fff8c5) + Edge (#d4a72c66) for the demo banner and limitations panel (amber body ink #4d3800 on the tint).
 - **Tab Coral** (#fd8c73): The 2px active-tab underline — the system's only warm flourish, straight from Primer's UnderlineNav.
-- **Contributions Ramp** (done-1 #aceebb → done-4 #116329): Logged intensity. The tonnage heat strip walks the full 4 steps; logged week cells intentionally use the darkest step (done-4, #116329) instead of the prototype's brighter #4ac26b so the 10px white uppercase tag keeps 4.5:1 contrast; missed-past cells are Danger Red Tint (a real data state, not prototype furniture).
+- **Contributions Ramp** (done-1 #aceebb → done-4 #116329): Logged intensity. The overall volume heat strip walks the full 4 steps; logged week cells intentionally use the darkest step (done-4, #116329) instead of the prototype's brighter #4ac26b so the 10px white uppercase tag keeps 4.5:1 contrast; missed-past cells are Danger Red Tint (a real data state, not prototype furniture).
 
 ### Neutral
 - **Canvas White** (#ffffff): Page background and every panel surface.
@@ -249,7 +249,7 @@ Flat, and deliberately so. Depth is conveyed by tonal layering — white panels 
 
 ## Shapes
 
-A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 4px only inside data grids (week cells, tonnage heat squares). Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
+A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 4px only inside data grids (week cells, overall volume heat squares). Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
 
 ### Named Rules
 **The Fixed Radii Rule.** Three radii exist — 6px containers/controls, 99px pills, 4px inner data cells — and no others. No new corner value enters the system.

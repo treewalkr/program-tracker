@@ -42,7 +42,7 @@ Nothing imports from `apps/*`. `shared` imports nothing internal.
 ### 1. Programs are versioned documents; logs are normalized tables
 
 - `programs.sessions` is a **jsonb document** validated by the shared
-  `ProgramSession[]` zod schema at every write boundary. Rationale: a program is
+  `ProgramWeeksDocument` zod schema at every write boundary. Rationale: a program is
   read and written as a whole, versioned by copying, and edited structurally by the
   trainer — document shape fits. Renaming an exercise later doesn't corrupt programs
   (they store exercise *references*, not embedded copies).
