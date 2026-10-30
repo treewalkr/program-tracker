@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
   import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
+  import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import SessionCard from "$lib/components/SessionCard.svelte";
@@ -43,6 +44,38 @@
   let approving = $state(false);
   let rejecting = $state(false);
   let startedAtIso = $state("");
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function stopPolling() {
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function startPolling(genId: string) {
+    stopPolling();
+    pollTimer = setInterval(async () => {
+      try {
+        const row = await api.generation(genId);
+        gen = row;
+        const nextPhase = generationPhase(row);
+        if (nextPhase !== "generating") {
+          stopPolling();
+          if (nextPhase === "failed") {
+            failReason = row.error ?? null;
+          }
+          phase = nextPhase;
+        }
+      } catch {
+        // a failed poll request keeps waiting (next tick)
+      }
+    }, POLL_INTERVAL_MS);
+  }
+
+  onDestroy(() => {
+    stopPolling();
+  });
 
   const selectedTemplates = $derived(
     selected.map((id) => templates.find((t) => t.id === id)).filter((t) => t !== undefined)
@@ -133,7 +166,19 @@
       });
       phase = "review";
     } catch (err) {
-      failReason = (err as Error).message || null;
+      try {
+        const gens = await api.generations(id);
+        const latest = gens[0] ?? null;
+        if (isLivePending(latest)) {
+          gen = latest;
+          phase = "generating";
+          startPolling(latest.id);
+          return;
+        }
+        failReason = latest?.error ?? (err as Error).message ?? null;
+      } catch {
+        failReason = (err as Error).message || null;
+      }
       phase = "failed";
     }
   }
@@ -160,8 +205,10 @@
   }
 
   function reset() {
+    stopPolling();
     gen = null;
     newProgram = null;
+    failReason = null;
     phase = "form";
   }
 
@@ -207,6 +254,19 @@
     const tpl = params.get("tpl");
     if (note) instructions = note;
     if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
+
+    const gens = await api.generations(id);
+    const latest = gens[0] ?? null;
+    const initialPhase = generationPhase(latest);
+    if (initialPhase === "generating" || initialPhase === "review" || initialPhase === "failed") {
+      gen = latest;
+      phase = initialPhase;
+      if (initialPhase === "failed") {
+        failReason = latest.error;
+      } else if (initialPhase === "generating") {
+        startPolling(latest.id);
+      }
+    }
   });
 </script>
 
