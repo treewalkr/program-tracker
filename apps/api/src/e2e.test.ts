@@ -198,6 +198,70 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     });
     expect(status).toBe(422);
   });
+
+  let revisionParentId = "";
+  let revisionChildId = "";
+
+  test("revise creates a validated child generation (mock)", async () => {
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes.status).toBe(201);
+    expect(genRes.body.status).toBe("validated");
+    revisionParentId = genRes.body.id;
+
+    const message = "swap bench for incline DB; cut one RDL set";
+    const { status, body } = await call("POST", `/v1/ai/generations/${revisionParentId}/revise`, {
+      message,
+    });
+    expect(status).toBe(201);
+    expect(body.parentGenerationId).toBe(revisionParentId);
+    expect(body.revisionMessage).toBe(message);
+    expect(body.status).toBe("validated");
+    expect(body.draft.rationale).toContain(message);
+    revisionChildId = body.id;
+
+    const list = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
+    expect(list.body.some((g: any) => g.id === body.id)).toBe(true);
+  });
+
+  test("revise error paths: 404 unknown id, 409 non-validated, 422 blank message", async () => {
+    const notFound = await call("POST", `/v1/ai/generations/${crypto.randomUUID()}/revise`, {
+      message: "some note",
+    });
+    expect(notFound.status).toBe(404);
+    expect(notFound.body.error).toBe("generation not found");
+
+    const nonValidated = await call("POST", `/v1/ai/generations/${(globalThis as any).__genId}/revise`, {
+      message: "some note",
+    });
+    expect(nonValidated.status).toBe(409);
+    expect(nonValidated.body.error).toBe("generation is approved, not validated");
+
+    const blank = await call("POST", `/v1/ai/generations/${revisionParentId}/revise`, {
+      message: "   ",
+    });
+    expect(blank.status).toBe(422);
+    expect(blank.body.error).toBe("message must not be empty");
+  });
+
+  test("revise chains: a revised child can be revised again (v3)", async () => {
+    const message = "v3: increase squat weight";
+    const { status, body } = await call("POST", `/v1/ai/generations/${revisionChildId}/revise`, {
+      message,
+    });
+    expect(status).toBe(201);
+    expect(body.parentGenerationId).toBe(revisionChildId);
+    expect(body.revisionMessage).toBe(message);
+    expect(body.status).toBe("validated");
+    expect(body.draft.rationale).toContain(message);
+
+    const list = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
+    expect(list.body.some((g: any) => g.id === revisionChildId)).toBe(true);
+    expect(list.body.some((g: any) => g.id === body.id)).toBe(true);
+  });
 });
 
 describe.skipIf(!dbUp)("phase L endpoints", () => {
