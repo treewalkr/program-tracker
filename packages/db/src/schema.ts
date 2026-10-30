@@ -15,7 +15,9 @@ import { sql } from "drizzle-orm";
 import type {
   AiProgramDraft,
   ClientStatus,
+  FunctionalMovement,
   GenerationStatus,
+  MovementPattern,
   Phasing,
   ProgramSession,
   ProgramStatus,
@@ -65,6 +67,8 @@ export const exercises = pgTable("exercises", {
     .notNull()
     .default(sql`'[]'::jsonb`),
   equipment: text("equipment").notNull(),
+  movementPattern: text("movement_pattern").$type<MovementPattern>(),
+  functionalMovement: text("functional_movement").$type<FunctionalMovement>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

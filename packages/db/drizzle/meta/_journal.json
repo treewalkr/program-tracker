@@ -43,6 +43,13 @@
       "when": 1793390133438,
       "tag": "0005_massive_ben_urich",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793390943566,
+      "tag": "0006_yellow_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }
