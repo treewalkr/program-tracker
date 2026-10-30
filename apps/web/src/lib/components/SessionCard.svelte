@@ -1,10 +1,11 @@
 <script lang="ts">
-  import type { ExerciseRole, PrescribedSetDto } from "$lib/api/types";
+  import type { CardioPrescriptionDto, ExerciseRole, PrescribedSetDto } from "$lib/api/types";
   import {
     formatPatternBalance,
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
     patternBalance,
+    type SessionKind,
   } from "@pt/shared";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
@@ -20,9 +21,9 @@
     name: string;
     /** Day pill next to the name ("Thursday · due today"). */
     when?: string;
-    /** Cardio / conditioning footer row. */
-    conditioning?: { label: string; detail?: string | null } | null;
-    exercises: {
+    kind?: SessionKind;
+    cardio?: CardioPrescriptionDto | null;
+    exercises?: {
       name: string;
       role?: ExerciseRole;
       movementPattern?: string | null;
@@ -30,11 +31,24 @@
     }[];
   }
 
-  let { name, when, conditioning, exercises }: Props = $props();
+  let { name, when, kind = "lifting", cardio = null, exercises = [] }: Props = $props();
 
   const hasPattern = $derived(
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
   );
+
+  const cardioLine = $derived.by(() => {
+    if (!cardio) return "";
+    const parts = [
+      cardio.modality,
+      cardio.durationMin ? `${cardio.durationMin} min` : null,
+      cardio.hrZone ? `Z${cardio.hrZone}` : null,
+      cardio.intensity || null,
+      cardio.distanceKm ? `${cardio.distanceKm} km` : null,
+      cardio.targetRpe ? `RPE ${cardio.targetRpe}` : null,
+    ].filter(Boolean);
+    return parts.join(" · ");
+  });
 </script>
 
 <div class="session">
@@ -42,28 +56,34 @@
     <h3>{name}</h3>
     {#if when}<span class="when">{when}</span>{/if}
   </div>
-  <div class="session-body">
-    {#each exercises as e, i (i)}
-      <div class="exrow">
-        <div class="ex">
-          {#if e.role}<RoleChip role={e.role} />{/if}
-          {e.name || "Unmapped exercise"}
-          {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
-            {@const info = MOVEMENT_PATTERN_INFO[e.movementPattern as MovementPattern]}
-            <span class="mp-tag" title={info.description}>{info.label}</span>
-          {/if}
-        </div>
-        <SetChips sets={e.sets} />
-      </div>
-    {/each}
-  </div>
-  {#if hasPattern}
-    <div class="balance">{formatPatternBalance(patternBalance(exercises))}</div>
-  {/if}
-  {#if conditioning}
+  {#if kind === "cardio" || (cardio && exercises.length === 0)}
     <div class="session-head cond-row">
-      <span class="cond"><Icon name="pulse" />{conditioning.label}{#if conditioning.detail} · {conditioning.detail}{/if}</span>
+      <span class="cond"><Icon name="pulse" />{cardioLine}</span>
     </div>
+  {:else}
+    <div class="session-body">
+      {#each exercises as e, i (i)}
+        <div class="exrow">
+          <div class="ex">
+            {#if e.role}<RoleChip role={e.role} />{/if}
+            {e.name || "Unmapped exercise"}
+            {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
+              {@const info = MOVEMENT_PATTERN_INFO[e.movementPattern as MovementPattern]}
+              <span class="mp-tag" title={info.description}>{info.label}</span>
+            {/if}
+          </div>
+          <SetChips sets={e.sets} />
+        </div>
+      {/each}
+    </div>
+    {#if hasPattern}
+      <div class="balance">{formatPatternBalance(patternBalance(exercises))}</div>
+    {/if}
+    {#if cardio}
+      <div class="session-head cond-row">
+        <span class="cond"><Icon name="pulse" />{cardioLine}</span>
+      </div>
+    {/if}
   {/if}
 </div>
 

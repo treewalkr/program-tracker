@@ -19,18 +19,22 @@
   const mk = (
     week: number,
     directive: WeekMetrics['directive'],
-    tonnage: number,
+    volume: number,
     extra: Partial<WeekMetrics> = {}
   ): WeekMetrics => ({
     week,
     directive,
-    tonnage,
-    sets: Math.round(tonnage / 250),
-    reps: Math.round(tonnage / 30),
+    target: null,
+    overallVolume: volume,
+    sets: Math.round(volume / 250),
+    reps: Math.round(volume / 30),
     avgRpe: null,
     bestE1rm: 0,
-    tonnageDelta: null,
+    overallVolumeDelta: null,
+    repsDelta: null,
     e1rmDelta: null,
+    targetDelta: null,
+    targetMet: null,
     plannedOnly: false,
     ...extra,
   });

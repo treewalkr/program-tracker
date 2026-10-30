@@ -23,7 +23,7 @@
     <SignalRow
       severity="urgent"
       title="Block ending — 8 wks done"
-      evidence="Tonnage flat for 2 wks (12.4t → 12.1t); avg RPE 8.4 over the last 3 sessions."
+      evidence="Overall volume flat for 2 wks (12.4t → 12.1t); avg RPE 8.4 over the last 3 sessions."
     >
       {#snippet actions()}
         <Button href="/clients/1/generate" variant="primary" small>
@@ -63,7 +63,7 @@
 
 <Story name="Overview variant (client link in title)" asChild>
   <section class="panel">
-    <SignalRow severity="urgent" evidence="Tonnage flat for 2 wks; avg RPE 8.4 over the last 3 sessions.">
+    <SignalRow severity="urgent" evidence="Overall volume flat for 2 wks; avg RPE 8.4 over the last 3 sessions.">
       {#snippet title()}
         Block ending — <a class="client-link" href="/clients/1">Alex Rivera</a>
       {/snippet}
