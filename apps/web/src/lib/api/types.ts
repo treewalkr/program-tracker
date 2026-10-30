@@ -124,6 +124,9 @@ export interface GenerationDto {
   id: string;
   clientId: string;
   basedOnProgramId: string | null;
+  kind: "block" | "week";
+  targetWeek: number | null;
+  direction?: string | null;
   providerId: string;
   model: string;
   status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected";
@@ -250,6 +253,8 @@ export interface TrainerApi {
   generate(input: {
     clientId: string;
     basedOnProgramId?: string | null;
+    targetWeek?: number;
+    direction?: string;
     providerId?: string;
     model?: string;
     instructions?: string;

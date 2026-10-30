@@ -35,6 +35,8 @@
   let model = $state("");
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   let instructions = $state("");
+  let direction = $state("");
+  let weekMode = $state<number | null>(null);
   let templates = $state<InstructionTemplateDto[]>([]);
   let periodContext = $state<string | null>(null);
   let selected = $state<string[]>([]);
@@ -97,6 +99,9 @@
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
     ex.exerciseName ?? "";
 
+  const plannedWeeks = $derived(current?.phasing?.plannedWeeks ?? current?.weeks.length ?? 4);
+  const activeTargetWeek = $derived(gen?.kind === "week" ? gen.targetWeek ?? weekMode : null);
+
   const chain = $derived(revisionChain(allGens, gen?.id ?? ""));
 
   const diffTitle = $derived(
@@ -114,7 +119,9 @@
       }
     }
     if (!current) return [];
-    return diffSources(programToDiffSource(current), draftToDiffSource(gen.draft));
+    const targetW = gen.kind === "week" ? gen.targetWeek ?? weekMode : weekMode;
+    const baseSource = targetW != null ? programToDiffSource(current, targetW) : programToDiffSource(current);
+    return diffSources(baseSource, draftToDiffSource(gen.draft));
   });
 
   const diffCounts = $derived({
@@ -139,6 +146,8 @@
       gen = await api.generate({
         clientId: id,
         basedOnProgramId: current?.id ?? null,
+        targetWeek: weekMode ?? undefined,
+        direction: weekMode ? undefined : direction.trim() || undefined,
         providerId,
         model: model || undefined,
         instructions: mergedInstructions || undefined,
@@ -274,15 +283,37 @@
     providers = (await api.providers()).filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
     templates = await api.instructionTemplates();
+
+    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>&week=<targetWeek>
+    const params = new URLSearchParams(page.url.search);
+    const note = params.get("note");
+    const tpl = params.get("tpl");
+    if (note) instructions = note;
+    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
+
+    const weekParam = params.get("week");
+    const parsedWeek = weekParam ? Number.parseInt(weekParam, 10) : NaN;
+    if (
+      current &&
+      current.status === "active" &&
+      !Number.isNaN(parsedWeek) &&
+      parsedWeek >= 2 &&
+      parsedWeek <= current.weeks.length
+    ) {
+      weekMode = parsedWeek;
+    } else {
+      weekMode = null;
+    }
+
     if (current) {
       const logs = await api.sessionLogs(id);
       const pulse = blockPulse(current, logs);
-      const w = weekOf(current, logs);
+      const w = weekMode ?? weekOf(current, logs);
       const currentPlan = current.phasing?.weeks?.find((x) => x.week === w) ?? null;
       const directive = currentPlan?.directive ?? null;
       const target = currentPlan?.target ?? null;
       const summary = pulseSummary(pulse);
-      const bits = [`week ${w} of ${current.phasing?.plannedWeeks ?? "?"}`];
+      const bits = [`week ${w} of ${current.phasing?.plannedWeeks ?? current.weeks.length}`];
       if (directive) bits.push(`directive ${directive}`);
       if (target) {
         const metricLabels: Record<string, string> = {
@@ -290,19 +321,13 @@
           rep_volume: "rep volume",
           intensity: "intensity",
         };
-        const label = metricLabels[target.metric] ?? target.metric;
+        const label = metricLabels[target.metric] ?? target.metric.replace("_", " ");
         const sign = target.deltaPercent >= 0 ? "+" : "";
         bits.push(`target ${label} ${sign}${target.deltaPercent}%`);
       }
-      if (summary) bits.push(summary);
+      if (!weekMode && summary) bits.push(summary);
       periodContext = bits.join(" · ");
     }
-    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>
-    const params = new URLSearchParams(page.url.search);
-    const note = params.get("note");
-    const tpl = params.get("tpl");
-    if (note) instructions = note;
-    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
 
     const gens = await api.generations(id);
     allGens = gens;
@@ -326,9 +351,11 @@
   <Skeleton h="140px" />
 {:else if phase !== "review" || !gen?.draft}
   <PageHead
-    title="Draft next block with AI"
-    sub={`Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
-    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "Generate" }]}
+    title={weekMode ? `Draft week ${weekMode} with AI` : "Draft next block with AI"}
+    sub={weekMode
+      ? `Re-drafts week ${weekMode} of ${plannedWeeks} from this week's logs — the pre-drafted week ${weekMode} is replaced on approval.`
+      : `Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
+    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: weekMode ? `Draft week ${weekMode}` : "Generate" }]}
   />
 
   {#if phase === "form"}
@@ -365,8 +392,39 @@
           </Field>
         {/if}
         <Field label="Based on" htmlFor="g-based">
-          <input class="input" id="g-based" disabled value={current ? `${current.name} (active, v${current.version})` : "Cold start — no previous program"} />
+          <input
+            class="input"
+            id="g-based"
+            disabled
+            value={weekMode && current
+              ? `${current.name} · week ${weekMode} of ${plannedWeeks}`
+              : current
+              ? `${current.name} (active, v${current.version})`
+              : "Cold start — no previous program"}
+          />
         </Field>
+        {#if weekMode}
+          {#if current?.direction}
+            <Field label="Standing direction" hint="block-level steer — applies to this weekly draft">
+              <input class="input" disabled value={current.direction} />
+            </Field>
+          {/if}
+        {:else}
+          <Field
+            label="Standing direction"
+            hint="saved with the new block — every weekly generation follows it"
+            htmlFor="g-direction"
+          >
+            <textarea
+              class="textarea"
+              id="g-direction"
+              rows="2"
+              placeholder="e.g. Build squat volume; keep upper body at maintenance."
+              bind:value={direction}
+              maxlength="500"
+            ></textarea>
+          </Field>
+        {/if}
         <div>
           <Field label="Instruction templates" hint="your standing rules, reusable across clients">
           <div class="tpl-list">
@@ -469,7 +527,7 @@
   <div class="page-head">
     <div>
       <div class="title-row">
-        <h1>Draft — next block</h1>
+        <h1>{gen.kind === "week" ? `Draft — week ${gen.targetWeek ?? weekMode}` : "Draft — next block"}</h1>
         <StatusPill status={gen.status} />
       </div>
       <div class="gen-meta">
@@ -499,7 +557,13 @@
   </div>
 
   {#if newProgram}
-    <Note tone="ok" class="flash" role="status">Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.</Note>
+    {#if gen.kind === "week"}
+      <Note tone="ok" class="flash" role="status"
+        >Week {gen.targetWeek ?? weekMode} replaced in “{newProgram.name}” (v{newProgram.version}) — the rest of the block is untouched.</Note
+      >
+    {:else}
+      <Note tone="ok" class="flash" role="status">Approved. “{newProgram.name}” is now a draft program — edit it, then activate when ready.</Note>
+    {/if}
   {:else if gen.status === "rejected"}
     <Note tone="bad" role="status">Discarded — this draft won't be used.</Note>
   {/if}
@@ -543,7 +607,7 @@
       {/if}
 
       <div class="mt-16">
-        <Panel title="Draft sessions" count={`${gen.draft.sessions.length} days`}>
+        <Panel title={`Draft sessions${activeTargetWeek ? ` · week ${activeTargetWeek}` : ""}`} count={`${gen.draft.sessions.length} days`}>
           {#each gen.draft.sessions as s, si (si)}
             <!-- approve sorts by role, so review shows the order that will be saved -->
             <SessionCard
