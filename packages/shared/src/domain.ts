@@ -398,8 +398,8 @@ export const PrescribedSet = z
 export type PrescribedSet = z.infer<typeof PrescribedSet>;
 
 export const ProgramExercise = z.object({
-  id: z.string().uuid(),
-  exerciseId: z.string().uuid(),
+  id: z.string().min(1),
+  exerciseId: z.string().min(1),
   /**
    * Display name captured at write time (catalog name, custom-exercise name,
    * or draft name). Programs render it directly — no catalog join on read.
@@ -431,7 +431,7 @@ export type CardioPrescription = z.infer<typeof CardioPrescription>;
 
 export const ProgramSession = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().min(1),
     name: z.string().min(1).max(160),
     order: z.number().int().min(0), // order within its day
     kind: SessionKind.default("lifting"),
@@ -475,7 +475,7 @@ export const ProgramSession = z
 export type ProgramSession = z.infer<typeof ProgramSession>;
 
 export const ProgramDay = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   day: z.number().int().min(1).max(14), // ordinal "Day N" within the week
   weekday: z.number().int().min(1).max(7).nullable().optional(), // 1=Mon…7=Sun
   sessions: z.array(ProgramSession).min(1).max(4),
@@ -548,6 +548,218 @@ export function weekSessions(weeks: ProgramWeek[], week: number): ProgramSession
   if (!found) return [];
   return found.days.flatMap((d) => d.sessions);
 }
+
+// ---------------------------------------------------------------------------
+// Program editing (pure)
+// ---------------------------------------------------------------------------
+
+export function newSet(over?: Partial<PrescribedSet>): PrescribedSet {
+  return {
+    setNumber: 1,
+    type: "working",
+    reps: 8,
+    amrap: false,
+    targetRpe: 8,
+    restSeconds: 150,
+    ...over,
+  };
+}
+
+export function defaultCardio(): CardioPrescription {
+  return {
+    modality: "",
+    durationMin: 30,
+    hrZone: 2,
+    intensity: "",
+    distanceKm: undefined,
+    targetRpe: undefined,
+  };
+}
+
+export function addExercise(
+  s: ProgramSession,
+  exerciseId: string,
+  exerciseName: string
+): ProgramSession {
+  const len = s.exercises.length;
+  const newEx: ProgramExercise = {
+    id: crypto.randomUUID(),
+    exerciseId,
+    exerciseName,
+    order: len,
+    prescribedSets: [],
+  };
+  const exercises = [...s.exercises, newEx].map((e, i) => ({
+    ...e,
+    order: i,
+  }));
+  return { ...s, exercises };
+}
+
+export function removeExercise(s: ProgramSession, index: number): ProgramSession {
+  if (index < 0 || index >= s.exercises.length) return s;
+  const exercises = s.exercises
+    .filter((_, i) => i !== index)
+    .map((e, i) => ({ ...e, order: i }));
+  return { ...s, exercises };
+}
+
+export function moveExercise(
+  s: ProgramSession,
+  from: number,
+  to: number
+): ProgramSession {
+  if (
+    from < 0 ||
+    from >= s.exercises.length ||
+    to < 0 ||
+    to >= s.exercises.length ||
+    from === to
+  ) {
+    return s;
+  }
+  const next = [...s.exercises];
+  const temp = next[from];
+  next[from] = next[to];
+  next[to] = temp;
+  return {
+    ...s,
+    exercises: next.map((e, i) => ({ ...e, order: i })),
+  };
+}
+
+export function addSet(e: ProgramExercise, type?: SetType): ProgramExercise {
+  const next = newSet({
+    ...(type ? { type } : {}),
+    setNumber: e.prescribedSets.length + 1,
+  });
+  const prescribedSets = [...e.prescribedSets, next].map((s, i) => ({
+    ...s,
+    setNumber: i + 1,
+  }));
+  return { ...e, prescribedSets };
+}
+
+export function removeSet(e: ProgramExercise, index: number): ProgramExercise {
+  if (index < 0 || index >= e.prescribedSets.length) return e;
+  const prescribedSets = e.prescribedSets
+    .filter((_, i) => i !== index)
+    .map((s, i) => ({ ...s, setNumber: i + 1 }));
+  return { ...e, prescribedSets };
+}
+
+export function addSession(d: ProgramDay): ProgramDay {
+  const len = d.sessions.length;
+  const newS: ProgramSession = {
+    id: crypto.randomUUID(),
+    name: `Session ${len + 1}`,
+    order: len,
+    kind: "lifting",
+    exercises: [],
+    cardio: null,
+  };
+  const sessions = [...d.sessions, newS].map((s, i) => ({
+    ...s,
+    order: i,
+  }));
+  return { ...d, sessions };
+}
+
+export function removeSession(d: ProgramDay, index: number): ProgramDay {
+  if (index < 0 || index >= d.sessions.length) return d;
+  const sessions = d.sessions
+    .filter((_, i) => i !== index)
+    .map((s, i) => ({ ...s, order: i }));
+  return { ...d, sessions };
+}
+
+export function moveSession(d: ProgramDay, from: number, to: number): ProgramDay {
+  if (
+    from < 0 ||
+    from >= d.sessions.length ||
+    to < 0 ||
+    to >= d.sessions.length ||
+    from === to
+  ) {
+    return d;
+  }
+  const next = [...d.sessions];
+  const temp = next[from];
+  next[from] = next[to];
+  next[to] = temp;
+  return {
+    ...d,
+    sessions: next.map((s, i) => ({ ...s, order: i })),
+  };
+}
+
+export function switchSessionKind(
+  s: ProgramSession,
+  kind: SessionKind
+): ProgramSession {
+  if (kind === "cardio") {
+    return {
+      ...s,
+      kind: "cardio",
+      exercises: [],
+      cardio: defaultCardio(),
+    };
+  } else {
+    return {
+      ...s,
+      kind: "lifting",
+      cardio: null,
+    };
+  }
+}
+
+export function setRepsRange(
+  ps: PrescribedSet,
+  min: number | null,
+  max: number
+): PrescribedSet {
+  const clampedMax = Math.min(100, Math.max(1, Math.round(max)));
+  if (ps.amrap || ps.durationSeconds != null) {
+    return { ...ps, reps: clampedMax };
+  }
+  if (min != null && min < clampedMax) {
+    const clampedMin = Math.max(0, Math.round(min));
+    return { ...ps, reps: clampedMax, repsMin: clampedMin };
+  }
+  return { ...ps, reps: clampedMax, repsMin: undefined };
+}
+
+export function setAmrap(ps: PrescribedSet, on: boolean): PrescribedSet {
+  if (on) {
+    return {
+      ...ps,
+      amrap: true,
+      repsMin: undefined,
+    };
+  }
+  return {
+    ...ps,
+    amrap: false,
+  };
+}
+
+export function setTimed(
+  ps: PrescribedSet,
+  seconds: number | null
+): PrescribedSet {
+  if (seconds != null && seconds >= 1) {
+    return {
+      ...ps,
+      durationSeconds: Math.round(seconds),
+      repsMin: undefined,
+    };
+  }
+  return {
+    ...ps,
+    durationSeconds: undefined,
+  };
+}
+
 
 /** The pre-change flat session shape incl. `conditioning` — for the data-migration
  *  script only; frozen copy of the current ProgramSession zod (:372-381). */

@@ -61,7 +61,7 @@
 />
 
 <Story
-  name="6-week with planned tail"
+  name="Six-week with planned tail"
   {template}
   args={{
     pulseWeek: 4,
