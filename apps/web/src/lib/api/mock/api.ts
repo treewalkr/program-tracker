@@ -1,4 +1,4 @@
-import { computeSignals, estimate1rm, mockReviseDraft, sortExercisesByRole } from "@pt/shared";
+import { applyDefaultWeekdays, computeSignals, estimate1rm, mockReviseDraft, sortExercisesByRole, stampWeeks } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
@@ -8,8 +8,10 @@ import type {
   HistoryEntryDto,
   InstructionTemplateDto,
   PeriodizationSchemeDto,
+  ProgramDayDto,
   ProgramDto,
   ProgramSessionDto,
+  ProgramWeekDto,
   SessionLogInput,
   TrainerApi,
 } from "../types";
@@ -65,9 +67,15 @@ const nameOf = (exerciseId: string) =>
 function withNames(p: ProgramDto): ProgramDto {
   return {
     ...p,
-    sessions: p.sessions.map((s) => ({
-      ...s,
-      exercises: s.exercises.map((e) => ({ ...e, exerciseName: nameOf(e.exerciseId) })),
+    weeks: p.weeks.map((w) => ({
+      ...w,
+      days: w.days.map((d) => ({
+        ...d,
+        sessions: d.sessions.map((s) => ({
+          ...s,
+          exercises: s.exercises.map((e) => ({ ...e, exerciseName: nameOf(e.exerciseId) })),
+        })),
+      })),
     })),
   };
 }
@@ -280,10 +288,10 @@ export const mockApi: TrainerApi = {
     return state.programs.filter((p) => p.clientId === clientId).map(withNames);
   },
 
-  async saveProgram(id, sessions: ProgramSessionDto[]) {
+  async saveProgram(id, weeks: ProgramWeekDto[]) {
     await delay(400);
     const i = state.programs.findIndex((p) => p.id === id);
-    state.programs[i] = { ...state.programs[i], sessions, version: state.programs[i].version + 1 };
+    state.programs[i] = { ...state.programs[i], weeks, version: state.programs[i].version + 1 };
     return withNames(state.programs[i]);
   },
 
@@ -314,7 +322,7 @@ export const mockApi: TrainerApi = {
       version: 1,
       aiAssisted: false,
       createdFromProgramId: null,
-      sessions: input.sessions,
+      weeks: input.weeks,
       createdAt: new Date().toISOString(),
       activatedAt: null,
       phasing: input.phasing ?? null,
@@ -497,6 +505,40 @@ export const mockApi: TrainerApi = {
     await delay(600);
     const gen = state.generations.find((g) => g.id === id);
     if (!gen || !gen.draft) throw new Error("generation not found");
+    const client = state.clients.find((c) => c.id === gen.clientId);
+    const templateDays: ProgramDayDto[] = gen.draft.sessions.map((s, si) => {
+      const isCardio = s.kind === "cardio";
+      const exercises = isCardio
+        ? []
+        : sortExercisesByRole(s.exercises).map((e, ei) => ({
+            id: uuid(),
+            exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
+            exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
+            role: e.role,
+            order: ei,
+            prescribedSets: e.prescribedSets,
+            notes: e.notes,
+          }));
+      return {
+        id: uuid(),
+        day: si + 1,
+        weekday: null,
+        sessions: [
+          {
+            id: uuid(),
+            name: s.name,
+            order: 0,
+            kind: isCardio ? ("cardio" as const) : ("lifting" as const),
+            notes: s.notes,
+            exercises,
+            cardio: isCardio ? s.cardio : null,
+          },
+        ],
+      };
+    });
+    const plannedWeeks = 4;
+    const stamped = stampWeeks(templateDays, plannedWeeks);
+    const weeks = applyDefaultWeekdays(stamped, client?.trainingDays);
     const program: ProgramDto = {
       id: uuid(),
       clientId: gen.clientId,
@@ -507,21 +549,7 @@ export const mockApi: TrainerApi = {
       aiAssisted: true,
       createdFromProgramId: gen.basedOnProgramId,
       createdAt: new Date().toISOString(),
-      sessions: gen.draft.sessions.map((s, si) => ({
-        id: uuid(),
-        name: s.name,
-        order: si,
-        notes: s.notes,
-        exercises: sortExercisesByRole(s.exercises).map((e, ei) => ({
-          id: uuid(),
-          exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
-          exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
-          role: e.role,
-          order: ei,
-          prescribedSets: e.prescribedSets,
-          notes: e.notes,
-        })),
-      })),
+      weeks,
     };
     state.programs.unshift(program);
     gen.status = "approved";

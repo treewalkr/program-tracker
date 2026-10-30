@@ -1,7 +1,19 @@
 /** DTOs + the one interface the whole UI talks to. Two impls: real (Eden) + mock.
  *  Domain shapes are re-exported from @pt/shared (single source of truth); the
  *  remaining interfaces are the seam contract both adapters are checked against. */
-import type { ExerciseRole as Er, Phasing, PrescribedSet, SetType, Signal, WeekDirective as Wd, WeekPlan as Wp } from "@pt/shared";
+import type {
+  CardioPrescription,
+  ExerciseRole as Er,
+  Phasing,
+  PrescribedSet,
+  ProgramDay,
+  ProgramWeek,
+  SessionKind,
+  SetType,
+  Signal,
+  WeekDirective as Wd,
+  WeekPlan as Wp,
+} from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
 export type ExerciseRole = Er;
@@ -9,6 +21,10 @@ export type WeekDirective = Wd;
 export type WeekPlan = Wp;
 export type ProgramPhasingDto = Phasing;
 export type SignalDto = Signal;
+export type ProgramWeekDto = ProgramWeek;
+export type ProgramDayDto = ProgramDay;
+export type CardioPrescriptionDto = CardioPrescription;
+export type SessionKindDto = SessionKind;
 
 export interface ClientDto {
   id: string;
@@ -36,10 +52,10 @@ export interface ProgramSessionDto {
   id: string;
   name: string;
   order: number;
+  kind: SessionKind;
   notes?: string;
   exercises: ProgramExerciseDto[];
-  /** Cardio / conditioning attached to the session (zone work, intervals, easy runs). */
-  conditioning?: { label: string; detail: string } | null;
+  cardio?: CardioPrescriptionDto | null;
 }
 
 export interface ProgramDto {
@@ -51,7 +67,7 @@ export interface ProgramDto {
   version: number;
   aiAssisted: boolean;
   createdFromProgramId: string | null;
-  sessions: ProgramSessionDto[];
+  weeks: ProgramWeekDto[];
   createdAt: string;
   activatedAt?: string | null;
   phasing?: ProgramPhasingDto | null;
@@ -94,7 +110,13 @@ export interface AiDraftDto {
   name: string;
   rationale: string;
   clientSummary: string;
-  sessions: { name: string; notes?: string; exercises: DraftExerciseRef[] }[];
+  sessions: {
+    name: string;
+    kind?: SessionKind;
+    notes?: string;
+    exercises: DraftExerciseRef[];
+    cardio?: CardioPrescriptionDto | null;
+  }[];
 }
 
 export interface GenerationDto {
@@ -179,12 +201,12 @@ export interface TrainerApi {
 
   program(id: string): Promise<ProgramDto>;
   programs(clientId: string): Promise<ProgramDto[]>;
-  saveProgram(id: string, sessions: ProgramSessionDto[]): Promise<ProgramDto>;
+  saveProgram(id: string, weeks: ProgramWeekDto[]): Promise<ProgramDto>;
   createProgram(input: {
     clientId: string;
     name: string;
     description?: string | null;
-    sessions: ProgramSessionDto[];
+    weeks: ProgramWeekDto[];
     phasing?: ProgramPhasingDto | null;
   }): Promise<ProgramDto>;
   setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;

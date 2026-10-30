@@ -1,3 +1,5 @@
+import type { WeekPlan } from "./api/types";
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "20 Sep 2026" — fixed 3-letter months, day-first, locale-independent. */
@@ -29,4 +31,19 @@ export function fmtSet(s: SetLabelInput): string {
   const reps =
     s.repsMin != null && s.repsMin !== s.reps ? `${s.repsMin}–${s.reps}` : `${s.reps}${s.amrap ? "+" : ""}`;
   return `${load}${reps}`;
+}
+
+export function weekPlanLabel(w: WeekPlan): string {
+  let label = `W${w.week} · ${w.directive}`;
+  if (w.target) {
+    const short =
+      w.target.metric === "overall_volume"
+        ? "overall vol"
+        : w.target.metric === "rep_volume"
+        ? "rep vol"
+        : "intensity";
+    const sign = w.target.deltaPercent >= 0 ? "+" : "";
+    label += ` · ${short} ${sign}${w.target.deltaPercent}%`;
+  }
+  return label;
 }

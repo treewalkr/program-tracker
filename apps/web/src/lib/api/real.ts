@@ -58,8 +58,8 @@ export const realApi: TrainerApi = {
 
   program: (id) => unwrap<ProgramDto>(client.v1.programs({ id }).get()),
   programs: (clientId) => unwrap<ProgramDto[]>(client.v1.programs.get({ query: { clientId } })),
-  saveProgram: (id, sessions) =>
-    unwrap<ProgramDto>(client.v1.programs({ id }).put({ sessions })),
+  saveProgram: (id, weeks) =>
+    unwrap<ProgramDto>(client.v1.programs({ id }).put({ weeks })),
   createProgram: (input) => unwrap<ProgramDto>(client.v1.programs.post(input)),
   setProgramStatus: (id, status) =>
     unwrap<ProgramDto>(client.v1.programs({ id }).status.patch({ status })),
