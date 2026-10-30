@@ -12,6 +12,7 @@
 import { db, exercises } from "../src";
 import type { MuscleGroupValue, EquipmentValue } from "./map-wger";
 import { mapMuscle, mapEquipment, type WgerExercise } from "./map-wger";
+import { classifyExercise } from "./map-patterns";
 
 const API = "https://wger.de/api/v2";
 
@@ -87,12 +88,16 @@ const run = async () => {
         .map((id) => mapEquipment(equipmentById.get(id) ?? ""))
         .find(Boolean) ?? "bodyweight";
 
+    const { movementPattern, functionalMovement } = classifyExercise(name);
+
     await db.insert(exercises).values({
       trainerId: null,
       name,
       primaryMuscleGroup: mapped[0] as MuscleGroupValue,
       secondaryMuscleGroups: secondary,
       equipment: equip,
+      movementPattern,
+      functionalMovement,
     });
     existing.add(name.toLowerCase());
     inserted++;

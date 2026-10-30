@@ -11,6 +11,7 @@
     "migrate": "bun run src/migrate.ts",
     "studio": "drizzle-kit studio",
     "seed:exercises": "bun run scripts/seed-exercises.ts",
+    "backfill:patterns": "bun run scripts/backfill-patterns.ts",
     "test": "bun test"
   },
   "dependencies": {

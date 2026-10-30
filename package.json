@@ -13,6 +13,7 @@
     "build": "bun run --filter '@pt/*' build",
     "test": "bun run --filter @pt/shared test && bun run --filter @pt/db test && bun run --filter @pt/api test && bun run --filter @pt/web test",
     "seed:exercises": "bun run --filter @pt/db seed:exercises",
+    "backfill:patterns": "bun run --filter @pt/db backfill:patterns",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "bun run --filter @pt/db migrate",
