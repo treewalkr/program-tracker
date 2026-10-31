@@ -264,6 +264,84 @@ describe("weekly prompts: learned preferences", () => {
     expect(dirIdx).toBeLessThan(learnedIdx);
     expect(learnedIdx).toBeLessThan(trainerIdx);
   });
+
+  test("learned preferences section lands in weekly revision prompt", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "s",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    };
+    const { user } = buildWeekRevisionMessages({
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "fix reps",
+      learnedPreferences: "Cap RPE at 8.",
+    });
+    expect(user).toContain(
+      "LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nCap RPE at 8."
+    );
+    const catalogIdx = user.indexOf("EXERCISE CATALOG");
+    const learnedIdx = user.indexOf("LEARNED PREFERENCES");
+    const draftIdx = user.indexOf("PREVIOUS DRAFT");
+    expect(catalogIdx).toBeLessThan(learnedIdx);
+    expect(learnedIdx).toBeLessThan(draftIdx);
+  });
+
+  test("weekly prompts are byte-identical without learned preferences", () => {
+    const baseCtx = {
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: null as null,
+      target: null as null,
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell" }],
+      trainerInstructions: "",
+    };
+
+    const draft = buildWeekMessages(baseCtx);
+    expect(draft.user).toContain("function n/a)\n\nTRAINER INSTRUCTIONS: none");
+    expect(draft.user).not.toContain("LEARNED PREFERENCES");
+
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "s",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    };
+    const revision = buildWeekRevisionMessages({ ...baseCtx, previousDraft, feedback: "fix reps" });
+    expect(revision.user).toContain("function n/a)\n\nPREVIOUS DRAFT (your earlier output — revise it):");
+    expect(revision.user).not.toContain("LEARNED PREFERENCES");
+
+    expect(buildWeekMessages({ ...baseCtx, learnedPreferences: null }).user).toBe(draft.user);
+    expect(
+      buildWeekRevisionMessages({ ...baseCtx, previousDraft, feedback: "fix reps", learnedPreferences: null }).user
+    ).toBe(revision.user);
+  });
 });
 
 describe("buildRevisionMessages", () => {
