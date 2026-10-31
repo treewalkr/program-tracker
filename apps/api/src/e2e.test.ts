@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { db, trainers, signalOutbox, aiGenerations, programs } from "@pt/db";
-import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks } from "@pt/shared";
+import { db, trainers, signalOutbox, aiGenerations, programs, exercises } from "@pt/db";
+import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { app } from "./app";
 
@@ -317,6 +317,62 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     const getRes = await call("GET", `/v1/ai/generations/${genRes.body.id}`);
     expect(getRes.status).toBe(200);
     expect(getRes.body.approvedProgramId).toBe(approvedProgram.id);
+  });
+
+  test("approve 422s and fails validation when the draft maps to more than 7 days", async () => {
+    const [trainer] = await db.select().from(trainers).limit(1);
+    const breachDraft: AiProgramDraft = {
+      name: "Breach Block",
+      rationale: "8 sessions maps to 8 days which exceeds the 7-day limit",
+      clientSummary: "boundary test",
+      sessions: Array.from({ length: 8 }, (_, i) => ({
+        name: `Day ${i + 1}`,
+        kind: "lifting",
+        exercises: [
+          {
+            exerciseName: `Breach Lift ${i + 1}`,
+            prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }],
+          },
+        ],
+      })),
+    };
+
+    const [gen] = await db
+      .insert(aiGenerations)
+      .values({
+        trainerId: trainer.id,
+        clientId,
+        kind: "block",
+        providerId: "mock",
+        model: "mock-draft-v1",
+        status: "validated",
+        draft: breachDraft,
+      })
+      .returning();
+
+    const programsBefore = (await db.select().from(programs)).length;
+    const exercisesBefore = (await db.select().from(exercises)).length;
+
+    const { status, body } = await call("POST", `/v1/ai/generations/${gen.id}/approve`, {});
+    expect(status).toBe(422);
+    expect(body.error).toBe("invalid weeks document");
+
+    const getRes = await call("GET", `/v1/ai/generations/${gen.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.status).toBe("failed_validation");
+    expect(getRes.body.error).toBeTruthy();
+    expect(getRes.body.approvedProgramId).toBeNull();
+
+    const programsAfter = (await db.select().from(programs)).length;
+    expect(programsAfter).toBe(programsBefore);
+
+    const exercisesAfter = (await db.select().from(exercises)).length;
+    expect(exercisesAfter).toBe(exercisesBefore);
+
+    const breachExercises = (await db.select().from(exercises)).filter((e) =>
+      e.name.startsWith("Breach Lift")
+    );
+    expect(breachExercises).toHaveLength(0);
   });
 
   test("reject on non-validated generation is a 409", async () => {
