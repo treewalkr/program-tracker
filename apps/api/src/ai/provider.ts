@@ -85,6 +85,57 @@ export async function chatJson(
   return content;
 }
 
+export async function chatText(
+  rt: ProviderRuntime,
+  messages: ChatMessage[],
+  opts: { temperature?: number } = {}
+): Promise<string> {
+  const glm5 = /^glm-5/.test(rt.model);
+  const thinking = glm5
+    ? { type: "enabled", budget: "low" }
+    : rt.disableThinking
+      ? { type: "disabled" }
+      : undefined;
+  const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
+  let res: Response;
+  try {
+    res = await fetch(`${rt.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${rt.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: rt.model,
+        messages,
+        temperature: opts.temperature ?? 0.7,
+        max_tokens: maxTokens,
+        ...(thinking ? { thinking } : {}),
+      }),
+    });
+  } catch (err) {
+    throw new ProviderError(`network error calling provider: ${(err as Error).message}`);
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    let detail = body.slice(0, 200);
+    try {
+      detail = (JSON.parse(body) as { error?: { message?: string } }).error?.message ?? detail;
+    } catch {
+      // body wasn't JSON — keep the raw slice
+    }
+    throw new ProviderError(`provider returned ${res.status}: ${detail}`, res.status, body.slice(0, 500));
+  }
+
+  const json = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) throw new ProviderError("provider returned no content", 200, JSON.stringify(json).slice(0, 500));
+  return content;
+}
+
 /** LLMs sometimes wrap JSON in fences or prose; extract the outermost JSON object. */
 export function extractJsonObject(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);

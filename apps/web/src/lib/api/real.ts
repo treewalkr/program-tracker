@@ -8,6 +8,7 @@ import type {
   InstructionTemplateDto,
   KineticChainDto,
   PeriodizationSchemeDto,
+  PreferencesDto,
   ProgramDto,
   ProviderDto,
   SessionLogDto,
@@ -107,7 +108,21 @@ export const realApi: TrainerApi = {
   reviseGeneration: (id, message) =>
     unwrap<GenerationDto>(client.v1.ai.generations({ id }).revise.post({ message })),
   approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),
-  rejectGeneration: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).reject.post()),
+  rejectGeneration: (id, reason) =>
+    unwrap<GenerationDto>(
+      client.v1.ai.generations({ id }).reject.post(reason ? { reason } : {})
+    ),
+
+  preferences: async () =>
+    (
+      await unwrap<{ preferences: PreferencesDto[] }>(
+        client.v1.ai.preferences.get()
+      )
+    ).preferences,
+  distillPreferences: (input) =>
+    unwrap<PreferencesDto>(client.v1.ai.preferences.distill.post(input)),
+  deletePreference: (id) =>
+    unwrap<void>(client.v1.ai.preferences({ id }).delete()),
 
   generateClientMessage: (input) =>
     unwrap<ClientMessageDto>(client.v1["client-messages"].generate.post(input)),

@@ -176,6 +176,11 @@ export const aiGenerations = pgTable("ai_generations", {
     onDelete: "set null",
   }),
   revisionMessage: text("revision_message"),
+  instructions: text("instructions"),
+  rejectReason: text("reject_reason"),
+  approvedProgramId: uuid("approved_program_id").references((): AnyPgColumn => programs.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -250,6 +255,22 @@ export const kineticChains = pgTable("kinetic_chains", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("kinetic_chains_trainer_name_key").on(t.trainerId, t.name)]);
+
+/** Distilled standing preferences — the trainer's learned style, injected into every prompt. */
+export const trainerPreferences = pgTable("trainer_preferences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  /** null = trainer-wide style document. */
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  document: text("document").notNull(),
+  providerId: text("provider_id").notNull(),
+  model: text("model").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type TrainerPreferenceRow = typeof trainerPreferences.$inferSelect;
 
 export type PromptTemplateRow = typeof promptTemplates.$inferSelect;
 export type PeriodizationSchemeRow = typeof periodizationSchemes.$inferSelect;

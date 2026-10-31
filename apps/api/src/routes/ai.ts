@@ -9,6 +9,7 @@ import {
   programs,
   sessionLogs,
   setLogs,
+  trainerPreferences,
 } from "@pt/db";
 import {
   AiProgramDraft,
@@ -16,6 +17,7 @@ import {
   blockPulse,
   chainBalanceText,
   chainSetCounts,
+  combinePreferenceDocs,
   mockReviseDraft,
   pulseSummary,
   weekOf,
@@ -112,6 +114,18 @@ async function loadContext(
     periodization = periodizationContext(ph, week, summary);
   }
 
+  const prefRows = await db
+    .select()
+    .from(trainerPreferences)
+    .where(eq(trainerPreferences.trainerId, trainerId));
+
+  const trainerDoc = prefRows
+    .filter((r) => r.clientId === null)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
+  const clientDoc = prefRows
+    .filter((r) => r.clientId === clientId)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
+
   return {
     client: {
       name: client.name,
@@ -124,6 +138,7 @@ async function loadContext(
     periodization,
     chainBalance,
     programDirection: basedOnProgram?.direction ?? null,
+    learnedPreferences: combinePreferenceDocs(trainerDoc, clientDoc),
     history: buildHistory({
       logs,
       sets,
@@ -197,6 +212,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               kind: "week",
               targetWeek: body.targetWeek,
               direction: ctx.programDirection,
+              instructions: body.instructions ?? null,
               providerId: body.providerId ?? "zai",
               model: rt.model,
               status: "pending",
@@ -266,6 +282,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             basedOnProgramId: body.basedOnProgramId ?? null,
             kind: "block",
             direction: body.direction ?? null,
+            instructions: body.instructions ?? null,
             providerId: body.providerId ?? "zai",
             model: rt.model,
             status: "pending",
@@ -429,7 +446,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           .where(eq(programs.id, prog.id))
           .returning();
 
-        await db.update(aiGenerations).set({ status: "approved" }).where(eq(aiGenerations.id, gen.id));
+        await db
+          .update(aiGenerations)
+          .set({ status: "approved", approvedProgramId: prog.id })
+          .where(eq(aiGenerations.id, gen.id));
         return status(201, toProgramDto(updatedProgram));
       }
 
@@ -475,7 +495,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         })
         .returning();
 
-      await db.update(aiGenerations).set({ status: "approved" }).where(eq(aiGenerations.id, gen.id));
+      await db
+        .update(aiGenerations)
+        .set({ status: "approved", approvedProgramId: program.id })
+        .where(eq(aiGenerations.id, gen.id));
       const { sessions, ...rest } = program;
       return status(201, { ...rest, weeks: sessions });
     },
@@ -483,17 +506,21 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   )
   .post(
     "/generations/:id/reject",
-    async ({ params, status }) => {
+    async ({ params, body, status }) => {
       const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, params.id));
       if (!gen) return status(404, { error: "generation not found" });
+      const reason = body?.reason?.trim() || null;
       const [updated] = await db
         .update(aiGenerations)
-        .set({ status: "rejected" })
+        .set(reason ? { status: "rejected", rejectReason: reason } : { status: "rejected" })
         .where(eq(aiGenerations.id, params.id))
         .returning();
       return updated;
     },
-    { params: t.Object({ id: t.String() }) }
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 2000 })) })),
+    }
   )
   .post(
     "/generations/:id/revise",

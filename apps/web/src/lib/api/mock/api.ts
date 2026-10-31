@@ -1,16 +1,22 @@
 import {
+  aiDraftToDiffSource,
   applyDefaultWeekdays,
   cardioBehindSignal,
   chainSetCounts,
   computeSignals,
+  diffRowsToText,
+  diffSources,
   estimate1rm,
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
+  mockDistillPreferences,
   mockReviseDraft,
+  programWeeksToDiffSource,
   ProgramWeeksDocument,
   sortExercisesByRole,
   stampWeeks,
   weekSummary,
+  type PreferenceSignal,
 } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
@@ -24,6 +30,7 @@ import type {
   InstructionTemplateDto,
   KineticChainDto,
   PeriodizationSchemeDto,
+  PreferencesDto,
   ProgramDayDto,
   ProgramDto,
   ProgramPhasingDto,
@@ -68,6 +75,19 @@ const seedTemplates: InstructionTemplateDto[] = [
   },
 ];
 
+const seedPreferences: PreferencesDto[] = [
+  {
+    id: "pref-trainer-style",
+    clientId: null,
+    clientName: null,
+    document:
+      "Rules:\n- Prefer free-weight compound movements first in every session; machines only as accessories.\n- Cap main-lift top sets at RPE 8; progress by 2.5 kg when all target reps are hit.\n- 4-week blocks: 3 accumulation weeks, then a deload at ~60% volume.",
+    providerId: "zai",
+    model: "glm-4.5-flash",
+    updatedAt: "2026-10-20T08:00:00Z",
+  },
+];
+
 const CHAIN_IDS = [
   "chain-intrinsic",
   "chain-deep-longitudinal",
@@ -93,6 +113,7 @@ const state = {
   chains: seedChains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] })),
   generations: [] as GenerationDto[],
   clientMessages: [] as ClientMessageDto[],
+  preferences: [...seedPreferences] as PreferencesDto[],
 };
 
 const nameOf = (exerciseId: string) =>
@@ -554,6 +575,9 @@ export const mockApi: TrainerApi = {
       error: null,
       parentGenerationId: null,
       revisionMessage: null,
+      instructions: input.instructions ?? null,
+      rejectReason: null,
+      approvedProgramId: null,
       createdAt: new Date().toISOString(),
     };
     state.generations.unshift(gen);
@@ -591,6 +615,9 @@ export const mockApi: TrainerApi = {
       error: null,
       parentGenerationId: gen.id,
       revisionMessage: message,
+      instructions: null,
+      rejectReason: null,
+      approvedProgramId: null,
       createdAt: new Date().toISOString(),
     };
     state.generations.unshift(child);
@@ -647,6 +674,7 @@ export const mockApi: TrainerApi = {
       );
       targetProg.version += 1;
       gen.status = "approved";
+      gen.approvedProgramId = targetProg.id;
       return withNames(targetProg);
     }
 
@@ -667,13 +695,17 @@ export const mockApi: TrainerApi = {
     };
     state.programs.unshift(program);
     gen.status = "approved";
+    gen.approvedProgramId = program.id;
     return withNames(program);
   },
 
-  async rejectGeneration(id) {
+  async rejectGeneration(id, reason) {
     await delay(300);
     const gen = state.generations.find((g) => g.id === id);
-    if (gen) gen.status = "rejected";
+    if (gen) {
+      gen.status = "rejected";
+      gen.rejectReason = reason ?? null;
+    }
     return gen!;
   },
 
@@ -755,6 +787,84 @@ export const mockApi: TrainerApi = {
     if (!row) throw new Error("client message not found");
     row.status = "rejected";
     return structuredClone(row);
+  },
+
+  async preferences() {
+    await delay(150);
+    return structuredClone(state.preferences);
+  },
+
+  async distillPreferences(input) {
+    // Simulated distillation latency — matches the generate feel.
+    await delay(2500);
+    const clientId = input.clientId ?? null;
+    const scoped = clientId
+      ? state.generations.filter((g) => g.clientId === clientId)
+      : state.generations;
+    // Oldest-first, mirroring the server's gather order.
+    const rows = [...scoped].reverse();
+
+    const signals: PreferenceSignal[] = [];
+    for (const gen of rows) {
+      const clientName = state.clients.find((c) => c.id === gen.clientId)?.name ?? null;
+      if (gen.instructions && gen.instructions.trim().length > 0) {
+        signals.push({ kind: "instruction", clientName, at: gen.createdAt, text: gen.instructions });
+      }
+      if (gen.revisionMessage && gen.revisionMessage.trim().length > 0) {
+        signals.push({ kind: "revision", clientName, at: gen.createdAt, text: gen.revisionMessage });
+      }
+      if (gen.rejectReason && gen.rejectReason.trim().length > 0) {
+        signals.push({ kind: "reject", clientName, at: gen.createdAt, text: gen.rejectReason });
+      }
+      if (gen.approvedProgramId && gen.draft) {
+        const prog = state.programs.find((p) => p.id === gen.approvedProgramId);
+        if (prog) {
+          const diffText = diffRowsToText(
+            diffSources(
+              aiDraftToDiffSource(gen.draft as never),
+              programWeeksToDiffSource(prog.weeks)
+            )
+          );
+          if (diffText.length > 0) {
+            signals.push({ kind: "approved-diff", clientName, at: gen.createdAt, text: diffText });
+          }
+        }
+      }
+    }
+
+    if (signals.length === 0) throw new Error("no feedback signals to distill");
+
+    const document = mockDistillPreferences(signals);
+    const existing = state.preferences.find((p) =>
+      clientId ? p.clientId === clientId : p.clientId === null
+    );
+    if (existing) {
+      existing.document = document;
+      existing.providerId = input.providerId ?? existing.providerId;
+      existing.model = input.model ?? existing.model;
+      existing.updatedAt = new Date().toISOString();
+      return structuredClone(existing);
+    }
+    const row: PreferencesDto = {
+      id: uuid(),
+      clientId,
+      clientName: clientId
+        ? state.clients.find((c) => c.id === clientId)?.name ?? null
+        : null,
+      document,
+      providerId: input.providerId ?? "zai",
+      model: input.model ?? "glm-4.5-flash",
+      updatedAt: new Date().toISOString(),
+    };
+    state.preferences.unshift(row);
+    return structuredClone(row);
+  },
+
+  async deletePreference(id) {
+    await delay(200);
+    const idx = state.preferences.findIndex((p) => p.id === id);
+    if (idx === -1) throw new Error("preference not found");
+    state.preferences.splice(idx, 1);
   },
 
   /** Same shared rule engine the API runs — over the in-memory fixtures. */

@@ -189,6 +189,9 @@ export const AiGeneration = z.object({
   error: z.string().max(4000).nullable(),
   parentGenerationId: z.string().uuid().nullable(),
   revisionMessage: z.string().max(2000).nullable(),
+  instructions: z.string().max(2000).nullable(),
+  rejectReason: z.string().max(2000).nullable(),
+  approvedProgramId: z.string().uuid().nullable(),
   createdAt: z.string(),
 });
 export type AiGeneration = z.infer<typeof AiGeneration>;

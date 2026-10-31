@@ -6,6 +6,7 @@ import {
   TYPICAL_GENERATION_SECONDS,
   mockReviseDraft,
   typicalGenerationSeconds,
+  AiGeneration,
   type AiProgramDraft,
 } from "./index";
 
@@ -61,5 +62,47 @@ describe("AiClientMessageDraft", () => {
     expect(tooLong.success).toBe(false);
     const atLimit = AiClientMessageDraft.safeParse({ message: "x".repeat(CLIENT_MESSAGE_MAX_CHARS) });
     expect(atLimit.success).toBe(true);
+  });
+});
+
+describe("AiGeneration schema", () => {
+  test("AiGeneration row schema parses the new signal fields", () => {
+    const fullRow = {
+      id: "a0000000-0000-4000-8000-000000000001",
+      trainerId: "b0000000-0000-4000-8000-000000000001",
+      clientId: "c0000000-0000-4000-8000-000000000001",
+      basedOnProgramId: null,
+      kind: "block",
+      targetWeek: null,
+      direction: null,
+      providerId: "mock",
+      model: "mock-v1",
+      status: "approved",
+      draft: null,
+      error: null,
+      parentGenerationId: null,
+      revisionMessage: "please change squat",
+      instructions: "cap RPE at 8",
+      rejectReason: null,
+      approvedProgramId: "d0000000-0000-4000-8000-000000000001",
+      createdAt: "2026-10-31T05:00:00.000Z",
+    };
+
+    const parsed = AiGeneration.parse(fullRow);
+    expect(parsed.instructions).toBe("cap RPE at 8");
+    expect(parsed.rejectReason).toBeNull();
+    expect(parsed.approvedProgramId).toBe("d0000000-0000-4000-8000-000000000001");
+
+    // null variants
+    const nullRow = {
+      ...fullRow,
+      instructions: null,
+      rejectReason: "too much volume",
+      approvedProgramId: null,
+    };
+    const parsedNull = AiGeneration.parse(nullRow);
+    expect(parsedNull.instructions).toBeNull();
+    expect(parsedNull.rejectReason).toBe("too much volume");
+    expect(parsedNull.approvedProgramId).toBeNull();
   });
 });

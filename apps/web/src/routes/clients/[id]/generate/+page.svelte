@@ -8,6 +8,7 @@
   import { diffSources, draftToDiffSource, programToDiffSource, type DiffRow } from "$lib/draftDiff";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
+  import { effectivePreferences } from "$lib/preferences";
   import SessionCard from "$lib/components/SessionCard.svelte";
   import RevisionThread from "$lib/components/RevisionThread.svelte";
   import DiffTiles from "$lib/components/DiffTiles.svelte";
@@ -17,7 +18,6 @@
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
-  import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -38,6 +38,7 @@
   let direction = $state("");
   let weekMode = $state<number | null>(null);
   let templates = $state<InstructionTemplateDto[]>([]);
+  let learned = $state<string | null>(null);
   let periodContext = $state<string | null>(null);
   let selected = $state<string[]>([]);
   let tplName = $state("");
@@ -52,6 +53,8 @@
   let newProgram = $state<ProgramDto | null>(null);
   let approving = $state(false);
   let rejecting = $state(false);
+  let rejectOpen = $state(false);
+  let rejectReason = $state("");
   let startedAtIso = $state("");
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -241,7 +244,8 @@
     if (!gen) return;
     rejecting = true;
     try {
-      gen = await api.rejectGeneration(gen.id);
+      gen = await api.rejectGeneration(gen.id, rejectReason.trim() || undefined);
+      rejectOpen = false;
     } finally {
       rejecting = false;
     }
@@ -277,6 +281,8 @@
 
   onMount(async () => {
     const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
+    const prefs = await api.preferences();
+    learned = effectivePreferences(prefs, id);
     catalogById = new Map(exList.map((e) => [e.id, e]));
     client = detail.client;
     current = detail.currentProgram;
@@ -443,6 +449,12 @@
           </div>
           </Field>
         </div>
+        {#if learned}
+          <div>
+            <p class="label">Learned preferences <span class="subtle">— distilled from your feedback, auto-injected into every draft</span></p>
+            <pre class="merged">{learned}</pre>
+          </div>
+        {/if}
         <Field label="This generation" hint="optional one-off note" htmlFor="g-instructions">
           <textarea
             class="textarea"
@@ -547,7 +559,7 @@
         </Button>
         <Button href={`/clients/${id}`}>Back to client</Button>
       {:else}
-        <ConfirmButton label="Reject" confirmLabel="Really reject?" variant="danger" onconfirm={reject} disabled={rejecting} />
+        <Button variant="danger" onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
         <Button variant="primary" onclick={approve} disabled={approving}>
           {#snippet icon()}<Icon name="check" />{/snippet}
           {approving ? "Approving…" : "Approve as draft program"}
@@ -555,6 +567,26 @@
       {/if}
     </div>
   </div>
+
+  {#if rejectOpen && gen.status !== "rejected" && !newProgram}
+    <Panel title="Reject this draft">
+      <div class="panel-body">
+        <Field label="Reason (optional)" htmlFor="g-reject-reason">
+          <textarea
+            id="g-reject-reason"
+            rows="2"
+            maxlength="2000"
+            placeholder="Optional — why? It trains future drafts. e.g. Too much volume for a deload week."
+            bind:value={rejectReason}
+          ></textarea>
+        </Field>
+        <div class="head-actions">
+          <Button variant="danger" onclick={reject} disabled={rejecting}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
+          <Button variant="ghost" onclick={() => (rejectOpen = false)}>Cancel</Button>
+        </div>
+      </div>
+    </Panel>
+  {/if}
 
   {#if newProgram}
     {#if gen.kind === "week"}

@@ -253,6 +253,72 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(weekdays).toEqual([1, 2, null]);
   });
 
+  test("generate persists merged instructions on the audit row", async () => {
+    const sentInstructions = "prefer free weights; cap RPE at 8";
+    const { status, body } = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+      instructions: sentInstructions,
+    });
+    expect(status).toBe(201);
+    expect(body.instructions).toBe(sentInstructions);
+    expect(body.rejectReason).toBeNull();
+    expect(body.approvedProgramId).toBeNull();
+
+    const getRes = await call("GET", `/v1/ai/generations/${body.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.instructions).toBe(sentInstructions);
+    expect(getRes.body.rejectReason).toBeNull();
+    expect(getRes.body.approvedProgramId).toBeNull();
+  });
+
+  test("reject persists an optional reason", async () => {
+    const genRes1 = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes1.status).toBe(201);
+
+    const rejRes1 = await call("POST", `/v1/ai/generations/${genRes1.body.id}/reject`, {
+      reason: "too much volume",
+    });
+    expect(rejRes1.status).toBe(200);
+    expect(rejRes1.body.status).toBe("rejected");
+    expect(rejRes1.body.rejectReason).toBe("too much volume");
+
+    // body-less reject
+    const genRes2 = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes2.status).toBe(201);
+
+    const rejRes2 = await call("POST", `/v1/ai/generations/${genRes2.body.id}/reject`);
+    expect(rejRes2.status).toBe(200);
+    expect(rejRes2.body.status).toBe("rejected");
+    expect(rejRes2.body.rejectReason).toBeNull();
+  });
+
+  test("approve stamps approvedProgramId on the audit row", async () => {
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes.status).toBe(201);
+
+    const appRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
+    expect(appRes.status).toBe(201);
+    const approvedProgram = appRes.body;
+
+    const getRes = await call("GET", `/v1/ai/generations/${genRes.body.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.approvedProgramId).toBe(approvedProgram.id);
+  });
+
   test("reject on non-validated generation is a 409", async () => {
     const { status } = await call("POST", `/v1/ai/generations/${(globalThis as any).__genId}/approve`, {});
     expect(status).toBe(409); // already approved
@@ -330,6 +396,142 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     const list = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
     expect(list.body.some((g: any) => g.id === revisionChildId)).toBe(true);
     expect(list.body.some((g: any) => g.id === body.id)).toBe(true);
+  });
+
+  test("trainer edits after approval become a distill signal", async () => {
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      basedOnProgramId: programId,
+      providerId: "mock",
+    });
+    expect(genRes.status).toBe(201);
+    const approvedRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
+    expect(approvedRes.status).toBe(201);
+    const approvedProg = approvedRes.body;
+
+    const session = approvedProg.weeks[0].days[0].sessions[0];
+    expect(session.exercises.length).toBeGreaterThanOrEqual(2);
+    const removedExercise = session.exercises[session.exercises.length - 1];
+    const removedName = removedExercise.exerciseName ?? removedExercise.exerciseId;
+    const editedWeeks = structuredClone(approvedProg.weeks);
+    for (const w of editedWeeks) {
+      w.days[0].sessions[0].exercises = w.days[0].sessions[0].exercises.filter(
+        (e: any) => (e.exerciseName ?? e.exerciseId) !== removedName
+      );
+    }
+
+    const putRes = await call("PUT", `/v1/programs/${approvedProg.id}`, {
+      weeks: editedWeeks,
+      version: approvedProg.version,
+    });
+    expect(putRes.status).toBe(200);
+
+    const distillRes = await call("POST", "/v1/ai/preferences/distill", {
+      clientId,
+      providerId: "mock",
+    });
+    expect(distillRes.status).toBe(201);
+    expect(distillRes.body.document).toContain("removed");
+    expect(distillRes.body.document).toContain(removedName);
+  });
+
+  let trainerPrefId = "";
+  test("distill upserts a trainer-wide preferences document (mock)", async () => {
+    const existingList = await call("GET", "/v1/ai/preferences");
+    for (const p of existingList.body.preferences) {
+      if (p.clientId === null) {
+        await call("DELETE", `/v1/ai/preferences/${p.id}`);
+      }
+    }
+
+    const res1 = await call("POST", "/v1/ai/preferences/distill", {
+      providerId: "mock",
+    });
+    expect(res1.status).toBe(201);
+    expect(res1.body.clientId).toBeNull();
+    expect(res1.body.providerId).toBe("mock");
+    expect(res1.body.document).toContain("Mock distilled preferences:");
+    expect(res1.body.document).toContain("prefer free weights; cap RPE at 8");
+    expect(res1.body.document).toContain("swap bench for incline DB");
+    expect(res1.body.document).toContain("too much volume");
+    trainerPrefId = res1.body.id;
+
+    const res2 = await call("POST", "/v1/ai/preferences/distill", {
+      providerId: "mock",
+    });
+    expect(res2.status).toBe(200);
+    expect(res2.body.id).toBe(trainerPrefId);
+
+    const listRes = await call("GET", "/v1/ai/preferences");
+    expect(listRes.status).toBe(200);
+    const trainerWideRows = listRes.body.preferences.filter((p: any) => p.clientId === null);
+    expect(trainerWideRows).toHaveLength(1);
+    expect(trainerWideRows[0].id).toBe(trainerPrefId);
+  });
+
+  test("distill: client scope, unknown client 404, no signals 422", async () => {
+    const clientBRes = await call("POST", "/v1/clients", {
+      name: "Client B",
+      email: `client-b-${Date.now()}@test.dev`,
+    });
+    expect(clientBRes.status).toBe(201);
+    const clientBId = clientBRes.body.id;
+
+    const genBRes = await call("POST", "/v1/ai/generate", {
+      clientId: clientBId,
+      providerId: "mock",
+      instructions: "client B only unique signal instruction",
+    });
+    expect(genBRes.status).toBe(201);
+
+    const distillClientARes = await call("POST", "/v1/ai/preferences/distill", {
+      clientId,
+      providerId: "mock",
+    });
+    expect([200, 201]).toContain(distillClientARes.status);
+    expect(distillClientARes.body.document).not.toContain("client B only unique signal instruction");
+
+    const unknownRes = await call("POST", "/v1/ai/preferences/distill", {
+      clientId: crypto.randomUUID(),
+      providerId: "mock",
+    });
+    expect(unknownRes.status).toBe(404);
+    expect(unknownRes.body.error).toBe("client not found");
+
+    const freshClientRes = await call("POST", "/v1/clients", {
+      name: "Fresh Client",
+      email: `fresh-${Date.now()}@test.dev`,
+    });
+    expect(freshClientRes.status).toBe(201);
+    const freshDistill = await call("POST", "/v1/ai/preferences/distill", {
+      clientId: freshClientRes.body.id,
+      providerId: "mock",
+    });
+    expect(freshDistill.status).toBe(422);
+    expect(freshDistill.body.error).toBe("no feedback signals to distill");
+  });
+
+  test("preference list (trainer first) and delete", async () => {
+    const listBefore = await call("GET", "/v1/ai/preferences");
+    expect(listBefore.status).toBe(200);
+    const prefs = listBefore.body.preferences;
+    expect(prefs.length).toBeGreaterThanOrEqual(2);
+    expect(prefs[0].clientId).toBeNull();
+    expect(prefs[0].clientName).toBeNull();
+    const clientRow = prefs.find((p: any) => p.clientId !== null);
+    expect(clientRow).toBeDefined();
+    expect(clientRow.clientName).toBeTruthy();
+
+    const delRes = await call("DELETE", `/v1/ai/preferences/${clientRow.id}`);
+    expect(delRes.status).toBe(204);
+
+    const listAfter = await call("GET", "/v1/ai/preferences");
+    expect(listAfter.body.preferences).toHaveLength(prefs.length - 1);
+    expect(listAfter.body.preferences.some((p: any) => p.id === clientRow.id)).toBe(false);
+
+    const delAgain = await call("DELETE", `/v1/ai/preferences/${clientRow.id}`);
+    expect(delAgain.status).toBe(404);
+    expect(delAgain.body.error).toBe("preference not found");
   });
 });
 
