@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   AiClientMessageDraft,
+  ChatMessage,
   CLIENT_MESSAGE_MAX_CHARS,
   DEFAULT_GENERATION_SECONDS,
   TYPICAL_GENERATION_SECONDS,
+  draftNoticeText,
+  mockChatReply,
   mockReviseDraft,
   typicalGenerationSeconds,
   AiGeneration,
@@ -104,5 +107,50 @@ describe("AiGeneration schema", () => {
     expect(parsedNull.instructions).toBeNull();
     expect(parsedNull.rejectReason).toBe("too much volume");
     expect(parsedNull.approvedProgramId).toBeNull();
+  });
+});
+
+describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
+  test("ChatMessage schema, mockChatReply, draftNoticeText", () => {
+    const fixture = {
+      id: "a0000000-0000-4000-8000-000000000001",
+      trainerId: "b0000000-0000-4000-8000-000000000002",
+      clientId: "c0000000-0000-4000-8000-000000000003",
+      role: "trainer" as const,
+      content: "How is Maya doing?",
+      generationId: null,
+      createdAt: "2026-10-31T05:00:00.000Z",
+    };
+    const parsed = ChatMessage.parse(fixture);
+    expect(parsed.kind).toBe("chat");
+    expect(parsed.role).toBe("trainer");
+
+    const fullRow = {
+      ...fixture,
+      role: "assistant" as const,
+      kind: "draft" as const,
+      generationId: "d0000000-0000-4000-8000-000000000004",
+    };
+    expect(ChatMessage.parse(fullRow).kind).toBe("draft");
+
+    expect(mockChatReply("hi", "Maya")).toBe(
+      "(Maya) You asked: “hi” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
+    );
+    expect(mockChatReply("hi", null)).toBe(
+      "(this client) You asked: “hi” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
+    );
+
+    const draftSample: AiProgramDraft = {
+      name: "Strength Block A",
+      rationale: "Rationale",
+      clientSummary: "Summary",
+      sessions: [
+        { name: "Day 1", exercises: [] },
+        { name: "Day 2", exercises: [] },
+      ],
+    };
+    expect(draftNoticeText(draftSample)).toBe(
+      "Draft ready: Strength Block A — 2 sessions. Open review to inspect and approve."
+    );
   });
 });

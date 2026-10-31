@@ -214,3 +214,33 @@ export const AiClientMessageDraft = z.object({
   message: z.string().min(1).max(CLIENT_MESSAGE_MAX_CHARS),
 });
 export type AiClientMessageDraft = z.infer<typeof AiClientMessageDraft>;
+
+// ---------------------------------------------------------------------------
+// Chat messages & mocks
+// ---------------------------------------------------------------------------
+
+export const CHAT_ROLES = ["trainer", "assistant"] as const;
+export type ChatRole = (typeof CHAT_ROLES)[number];
+export const CHAT_MESSAGE_KINDS = ["chat", "revision", "draft", "error"] as const;
+export type ChatMessageKind = (typeof CHAT_MESSAGE_KINDS)[number];
+
+export const ChatMessage = z.object({
+  id: z.string().uuid(),
+  trainerId: z.string().uuid(),
+  clientId: z.string().uuid(),
+  role: z.enum(CHAT_ROLES),
+  kind: z.enum(CHAT_MESSAGE_KINDS).default("chat"),
+  content: z.string().max(4000),
+  generationId: z.string().uuid().nullable(),
+  createdAt: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessage>;
+
+export function mockChatReply(message: string, clientName: string | null): string {
+  return `(${clientName ?? "this client"}) You asked: “${message}” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers.`;
+}
+
+export function draftNoticeText(d: AiProgramDraft): string {
+  return `Draft ready: ${d.name} — ${d.sessions.length} sessions. Open review to inspect and approve.`;
+}
+
