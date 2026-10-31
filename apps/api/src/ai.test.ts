@@ -746,6 +746,9 @@ describe("example library few-shot", () => {
       feedback: "tighten volume",
     });
     expect(rev.user).toContain("GOLD-STANDARD EXAMPLE PROGRAMS: none matching this client.");
+  });
+});
+
 import {
   buildClientMessageMessages,
   clientMessageStatsText,
