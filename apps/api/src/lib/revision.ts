@@ -7,6 +7,7 @@ import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { providerRuntime } from "../ai/runtime";
 import { buildRevisionMessages, buildWeekRevisionMessages } from "../ai/prompt";
 import { loadContext } from "./context";
+import { deregisterGeneration, registerGeneration } from "../ai/cancellation";
 
 export type RevisionResult =
   | { ok: false; status: 404 | 409 | 422; error: string }
@@ -53,91 +54,124 @@ export async function runRevision(parentId: string, message: string): Promise<Re
     })
     .returning();
 
-  let messages: { system: string; user: string } | null = null;
-  let rt: ReturnType<typeof providerRuntime> | null = null;
-  if (parent.providerId !== "mock") {
-    if (parent.kind === "week") {
-      const [basedProg] = parent.basedOnProgramId
-        ? await db.select().from(programs).where(eq(programs.id, parent.basedOnProgramId))
-        : [null];
-      const focusWeek = basedProg
-        ? weekOf(toSignalProgram(basedProg), [])
-        : (parent.targetWeek ? parent.targetWeek - 1 : 1);
-      const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
-        focusWeek,
-      });
-      const targetPlan = basedProg?.phasing?.weeks?.find((w) => w.week === parent.targetWeek);
-      const targetDirective = targetPlan?.directive ?? null;
-      const target = targetPlan?.target ?? null;
-      const plannedWeeks = basedProg?.phasing?.plannedWeeks ?? basedProg?.sessions.length ?? 4;
-      messages = buildWeekRevisionMessages({
-        ...ctx,
-        targetWeek: parent.targetWeek ?? 1,
-        plannedWeeks,
-        targetDirective,
-        target,
-        direction: parent.direction ?? ctx.programDirection,
-        trainerInstructions: "",
-        previousDraft: parent.draft!,
-        feedback: trimmedMessage,
-      });
-    } else {
-      const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
-      messages = buildRevisionMessages({
-        ...ctx,
-        trainerInstructions: "",
-        direction: parent.direction,
-        previousDraft: parent.draft!,
-        feedback: trimmedMessage,
-      });
-    }
-    rt = providerRuntime(parent.providerId, parent.model);
-  }
-
-  // Call + validate, with exactly one retry on validation failure.
-  let draft: z.infer<typeof AiProgramDraft> | null = null;
-  let validationError: string | null = null;
-  for (let attempt = 0; attempt < 2 && !draft; attempt++) {
-    try {
-      const raw =
-        parent.providerId === "mock"
-          ? JSON.stringify(mockReviseDraft(parent.draft!, trimmedMessage))
-          : await chatJson(rt!, [
-              { role: "system", content: messages!.system },
-              { role: "user", content: messages!.user },
-            ]);
-      const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
-      if (parsed.success) {
-        draft = parsed.data;
+  const ac = registerGeneration(generation.id);
+  try {
+    let messages: { system: string; user: string } | null = null;
+    let rt: ReturnType<typeof providerRuntime> | null = null;
+    if (parent.providerId !== "mock") {
+      if (parent.kind === "week") {
+        const [basedProg] = parent.basedOnProgramId
+          ? await db.select().from(programs).where(eq(programs.id, parent.basedOnProgramId))
+          : [null];
+        const focusWeek = basedProg
+          ? weekOf(toSignalProgram(basedProg), [])
+          : (parent.targetWeek ? parent.targetWeek - 1 : 1);
+        const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
+          focusWeek,
+        });
+        const targetPlan = basedProg?.phasing?.weeks?.find((w) => w.week === parent.targetWeek);
+        const targetDirective = targetPlan?.directive ?? null;
+        const target = targetPlan?.target ?? null;
+        const plannedWeeks = basedProg?.phasing?.plannedWeeks ?? basedProg?.sessions.length ?? 4;
+        messages = buildWeekRevisionMessages({
+          ...ctx,
+          targetWeek: parent.targetWeek ?? 1,
+          plannedWeeks,
+          targetDirective,
+          target,
+          direction: parent.direction ?? ctx.programDirection,
+          trainerInstructions: "",
+          previousDraft: parent.draft!,
+          feedback: trimmedMessage,
+        });
       } else {
-        validationError = z.prettifyError(parsed.error);
+        const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
+        messages = buildRevisionMessages({
+          ...ctx,
+          trainerInstructions: "",
+          direction: parent.direction,
+          previousDraft: parent.draft!,
+          feedback: trimmedMessage,
+        });
       }
-    } catch (err) {
-      if (err instanceof ProviderError) {
-        const [failed] = await db
-          .update(aiGenerations)
-          .set({ status: "failed_provider", error: err.message })
-          .where(eq(aiGenerations.id, generation.id))
-          .returning();
-        return { ok: true, generation: failed };
-      }
-      validationError = `parse failure: ${(err as Error).message}`;
+      rt = providerRuntime(parent.providerId, parent.model);
     }
-  }
 
-  if (draft) {
-    const [updated] = await db
+    // Call + validate, with exactly one retry on validation failure.
+    let draft: z.infer<typeof AiProgramDraft> | null = null;
+    let validationError: string | null = null;
+    for (let attempt = 0; attempt < 2 && !draft; attempt++) {
+      try {
+        const raw =
+          parent.providerId === "mock"
+            ? JSON.stringify(mockReviseDraft(parent.draft!, trimmedMessage))
+            : await chatJson(
+                rt!,
+                [
+                  { role: "system", content: messages!.system },
+                  { role: "user", content: messages!.user },
+                ],
+                { signal: ac.signal }
+              );
+        const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
+        if (parsed.success) {
+          draft = parsed.data;
+        } else {
+          validationError = z.prettifyError(parsed.error);
+        }
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") {
+          break;
+        }
+        if (err instanceof ProviderError) {
+          const [failed] = await db
+            .update(aiGenerations)
+            .set({ status: "failed_provider", error: err.message })
+            .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
+            .returning();
+          if (!failed) {
+            const [row] = await db
+              .select()
+              .from(aiGenerations)
+              .where(eq(aiGenerations.id, generation.id));
+            return { ok: true, generation: row };
+          }
+          return { ok: true, generation: failed };
+        }
+        validationError = `parse failure: ${(err as Error).message}`;
+      }
+    }
+
+    if (draft) {
+      const [updated] = await db
+        .update(aiGenerations)
+        .set({ status: "validated", draft, error: null })
+        .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
+        .returning();
+      if (!updated) {
+        const [row] = await db
+          .select()
+          .from(aiGenerations)
+          .where(eq(aiGenerations.id, generation.id));
+        return { ok: true, generation: row };
+      }
+      return { ok: true, generation: updated };
+    }
+
+    const [failed] = await db
       .update(aiGenerations)
-      .set({ status: "validated", draft, error: null })
-      .where(eq(aiGenerations.id, generation.id))
+      .set({ status: "failed_validation", error: validationError })
+      .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
       .returning();
-    return { ok: true, generation: updated };
+    if (!failed) {
+      const [row] = await db
+        .select()
+        .from(aiGenerations)
+        .where(eq(aiGenerations.id, generation.id));
+      return { ok: true, generation: row };
+    }
+    return { ok: true, generation: failed };
+  } finally {
+    deregisterGeneration(generation.id);
   }
-
-  const [failed] = await db
-    .update(aiGenerations)
-    .set({ status: "failed_validation", error: validationError })
-    .where(eq(aiGenerations.id, generation.id))
-    .returning();
-  return { ok: true, generation: failed };
 }

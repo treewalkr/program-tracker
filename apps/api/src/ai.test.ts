@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { extractJsonObject } from "./ai/provider";
+import { chatJson, extractJsonObject, ProviderError, type ProviderRuntime } from "./ai/provider";
 import {
   buildChatSystem,
   buildDistillMessages,
@@ -1089,5 +1089,27 @@ describe("buildChatSystem", () => {
       learnedPreferences: null,
     });
     expect(sys).not.toContain("LEARNED PREFERENCES");
+  });
+});
+
+describe("chatJson abort handling", () => {
+  test("chatJson surfaces AbortError unwrapped when the signal is aborted", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const dummyRt: ProviderRuntime = {
+      baseUrl: "http://127.0.0.1:9999",
+      model: "test-model",
+      apiKey: "test-key",
+      maxOutputTokens: 1000,
+    };
+    let caught: any;
+    try {
+      await chatJson(dummyRt, [], { signal: ac.signal });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeDefined();
+    expect(caught?.name).toBe("AbortError");
+    expect(caught instanceof ProviderError).toBe(false);
   });
 });

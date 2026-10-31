@@ -10,6 +10,8 @@ import {
   mockReviseDraft,
   typicalGenerationSeconds,
   AiGeneration,
+  GenerationStatus,
+  GENERATION_STATUSES,
   type AiProgramDraft,
 } from "./index";
 
@@ -65,6 +67,28 @@ describe("AiClientMessageDraft", () => {
     expect(tooLong.success).toBe(false);
     const atLimit = AiClientMessageDraft.safeParse({ message: "x".repeat(CLIENT_MESSAGE_MAX_CHARS) });
     expect(atLimit.success).toBe(true);
+  });
+});
+
+describe("GenerationStatus schema", () => {
+  test("GenerationStatus accepts cancelled alongside existing statuses", () => {
+    expect(GENERATION_STATUSES).toEqual([
+      "pending",
+      "validated",
+      "failed_validation",
+      "failed_provider",
+      "approved",
+      "rejected",
+      "cancelled",
+    ]);
+    for (const status of GENERATION_STATUSES) {
+      const res = GenerationStatus.safeParse(status);
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data).toBe(status);
+      }
+    }
+    expect(GenerationStatus.safeParse("unknown").success).toBe(false);
   });
 });
 

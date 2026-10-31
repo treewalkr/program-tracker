@@ -14,6 +14,7 @@
 		validated: { tone: 'good', label: 'validated' },
 		approved: { tone: 'good', label: 'approved' },
 		rejected: { tone: 'bad', label: 'rejected' },
+		cancelled: { tone: 'neutral', label: 'cancelled' },
 		failed_validation: { tone: 'bad', label: 'failed validation' },
 		failed_provider: { tone: 'bad', label: 'provider error' },
 	};

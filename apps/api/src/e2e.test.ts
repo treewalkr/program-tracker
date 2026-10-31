@@ -380,6 +380,61 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(status).toBe(409); // already approved
   });
 
+  test("cancel marks a pending generation cancelled", async () => {
+    const trainerId = (await trainers.findFirst?.())?.id ?? (await db.select().from(trainers).limit(1))[0].id;
+    const [pendingGen] = await db
+      .insert(aiGenerations)
+      .values({
+        trainerId,
+        clientId,
+        basedOnProgramId: programId,
+        kind: "block",
+        providerId: "mock",
+        model: "mock-draft-v1",
+        status: "pending",
+      })
+      .returning();
+
+    const { status, body } = await call("POST", `/v1/ai/generations/${pendingGen.id}/cancel`);
+    expect(status).toBe(200);
+    expect(body.status).toBe("cancelled");
+    expect(body.draft).toBeNull();
+    expect(body.error).toBeNull();
+
+    const getRes = await call("GET", `/v1/ai/generations/${pendingGen.id}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.status).toBe("cancelled");
+  });
+
+  test("cancel 409s for non-pending and 404s for unknown ids", async () => {
+    const trainerId = (await trainers.findFirst?.())?.id ?? (await db.select().from(trainers).limit(1))[0].id;
+    const [pendingGen] = await db
+      .insert(aiGenerations)
+      .values({
+        trainerId,
+        clientId,
+        basedOnProgramId: programId,
+        kind: "block",
+        providerId: "mock",
+        model: "mock-draft-v1",
+        status: "pending",
+      })
+      .returning();
+
+    const cancel1 = await call("POST", `/v1/ai/generations/${pendingGen.id}/cancel`);
+    expect(cancel1.status).toBe(200);
+    expect(cancel1.body.status).toBe("cancelled");
+
+    const cancel2 = await call("POST", `/v1/ai/generations/${pendingGen.id}/cancel`);
+    expect(cancel2.status).toBe(409);
+    expect(cancel2.body.error).toBe("generation is cancelled, not pending");
+
+    const randomId = crypto.randomUUID();
+    const cancelMissing = await call("POST", `/v1/ai/generations/${randomId}/cancel`);
+    expect(cancelMissing.status).toBe(404);
+    expect(cancelMissing.body.error).toBe("generation not found");
+  });
+
   test("bad log payload is rejected 422", async () => {
     const { status } = await call("POST", "/v1/logs/sessions", {
       clientId,

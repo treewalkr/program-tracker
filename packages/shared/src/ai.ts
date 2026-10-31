@@ -167,6 +167,7 @@ export const GENERATION_STATUSES = [
   "failed_provider",
   "approved",
   "rejected",
+  "cancelled",
 ] as const;
 export const GenerationStatus = z.enum(GENERATION_STATUSES);
 export type GenerationStatus = z.infer<typeof GenerationStatus>;

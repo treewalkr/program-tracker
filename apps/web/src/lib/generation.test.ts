@@ -77,7 +77,26 @@ describe("generation helpers", () => {
     expect(generationPhase(undefined)).toBe("form");
     expect(generationPhase(mockGen({ status: "approved" }))).toBe("form");
     expect(generationPhase(mockGen({ status: "rejected" }))).toBe("form");
+    expect(generationPhase(mockGen({ status: "cancelled" }))).toBe("form");
     expect(generationPhase(mockGen({ status: "failed_validation" }))).toBe("failed");
+  });
+
+  test("generationPhase maps cancelled to the form", () => {
+    const now = 1_700_000_000_000;
+    const freshCancelled = mockGen({
+      status: "cancelled",
+      createdAt: new Date(now - 1_000).toISOString(),
+    });
+    expect(generationPhase(freshCancelled, now)).toBe("form");
+  });
+
+  test("isLivePending ignores cancelled rows", () => {
+    const now = 1_700_000_000_000;
+    const freshCancelled = mockGen({
+      status: "cancelled",
+      createdAt: new Date(now - 1_000).toISOString(),
+    });
+    expect(isLivePending(freshCancelled, now)).toBe(false);
   });
 
   test("isLivePending flags only fresh pending rows", () => {

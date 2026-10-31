@@ -113,6 +113,8 @@ export const realApi: TrainerApi = {
     unwrap<GenerationDto>(
       client.v1.ai.generations({ id }).reject.post(reason ? { reason } : {})
     ),
+  cancelGeneration: (id) =>
+    unwrap<GenerationDto>(client.v1.ai.generations({ id }).cancel.post()),
 
   preferences: async () =>
     (
