@@ -145,6 +145,8 @@ export interface GenerationDto {
   instructions: string | null;
   rejectReason: string | null;
   approvedProgramId: string | null;
+  /** Example programs whose text was injected into this generation's prompt. */
+  exampleProgramIds: string[];
   createdAt: string;
 }
 
@@ -161,6 +163,17 @@ export interface ClientMessageDto {
   finalText: string | null;
   error: string | null;
   createdAt: string;
+}
+
+export interface ProgramExampleDto {
+  id: string;
+  programId: string;
+  goal: string;
+  level: "beginner" | "intermediate" | "advanced";
+  daysPerWeek: number;
+  note: string | null;
+  createdAt: string;
+  program: ProgramDto;
 }
 
 export interface LogSetInput {
@@ -278,9 +291,29 @@ export interface TrainerApi {
     description?: string | null;
     weeks: ProgramWeekDto[];
     phasing?: ProgramPhasingDto | null;
+    createdFromProgramId?: string | null;
   }): Promise<ProgramDto>;
   setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;
   saveProgramDirection(id: string, direction: string | null): Promise<ProgramDto>;
+
+  examples(programId?: string): Promise<ProgramExampleDto[]>;
+  createExample(input: {
+    programId: string;
+    goal: string;
+    level: ProgramExampleDto["level"];
+    daysPerWeek?: number;
+    note?: string | null;
+  }): Promise<ProgramExampleDto>;
+  updateExample(
+    id: string,
+    patch: {
+      goal?: string;
+      level?: ProgramExampleDto["level"];
+      daysPerWeek?: number;
+      note?: string | null;
+    }
+  ): Promise<ProgramExampleDto>;
+  deleteExample(id: string): Promise<void>;
 
   exercises(query?: string): Promise<ExerciseDto[]>;
   createExercise(input: {

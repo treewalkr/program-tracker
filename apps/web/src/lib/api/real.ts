@@ -11,6 +11,7 @@ import type {
   PeriodizationSchemeDto,
   PreferencesDto,
   ProgramDto,
+  ProgramExampleDto,
   ProviderDto,
   SessionLogDto,
   SessionLogInput,
@@ -67,11 +68,27 @@ export const realApi: TrainerApi = {
     unwrap<ProgramDto>(
       client.v1.programs({ id }).put(phasing === undefined ? { weeks } : { weeks, phasing })
     ),
-  createProgram: (input) => unwrap<ProgramDto>(client.v1.programs.post(input)),
+  createProgram: (input) =>
+    unwrap<ProgramDto>(
+      client.v1.programs.post({
+        ...input,
+        createdFromProgramId: input.createdFromProgramId ?? undefined,
+      })
+    ),
   setProgramStatus: (id, status) =>
     unwrap<ProgramDto>(client.v1.programs({ id }).status.patch({ status })),
   saveProgramDirection: (id, direction) =>
     unwrap<ProgramDto>(client.v1.programs({ id }).direction.patch({ direction })),
+
+  examples: async (programId) =>
+    (
+      await unwrap<{ examples: ProgramExampleDto[]}>(
+        client.v1.examples.get({ query: programId ? { programId } : {} })
+      )
+    ).examples,
+  createExample: (input) => unwrap<ProgramExampleDto>(client.v1.examples.post(input)),
+  updateExample: (id, patch) => unwrap<ProgramExampleDto>(client.v1.examples({ id }).patch(patch)),
+  deleteExample: (id) => unwrap<void>(client.v1.examples({ id }).delete()),
 
   exercises: (q) => unwrap<ExerciseDto[]>(client.v1.exercises.get({ query: q ? { q } : {} })),
   createExercise: (input) => unwrap<ExerciseDto>(client.v1.exercises.post(input)),

@@ -88,6 +88,7 @@ const liftProgram = (activatedAt: string): SignalProgram => ({
               id: "s1",
               name: "Day A",
               order: 0,
+              kind: "lifting",
               exercises: [],
             },
           ],

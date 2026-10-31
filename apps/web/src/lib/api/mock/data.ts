@@ -4,6 +4,7 @@ import type {
   PeriodizationSchemeDto,
   ProgramDayDto,
   ProgramDto,
+  ProgramExampleDto,
   ProgramExerciseDto,
   ProgramSessionDto,
   ProgramWeekDto,
@@ -480,6 +481,19 @@ export const logs: StoredLog[] = [
 ];
 
 export const sessionLogInputs: SessionLogInput[] = [];
+
+export const examples: ProgramExampleDto[] = [
+  {
+    id: "exx-jonas-hyp",
+    programId: "pg-jonas-a",
+    goal: "lean bulk hypertrophy",
+    level: "intermediate",
+    daysPerWeek: 4,
+    note: "Jonas's lean-bulk block — the 8–12 rep split to reuse.",
+    createdAt: "2026-10-20T09:00:00Z",
+    program: programs.find((p) => p.id === "pg-jonas-a")!,
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Coach-supplied program (real format from the trainer's own programming):

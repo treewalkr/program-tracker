@@ -15,6 +15,7 @@ import {
   mockReviseDraft,
   programWeeksToDiffSource,
   ProgramWeeksDocument,
+  selectExamples,
   sortExercisesByRole,
   stampWeeks,
   weekSummary,
@@ -36,6 +37,7 @@ import type {
   PreferencesDto,
   ProgramDayDto,
   ProgramDto,
+  ProgramExampleDto,
   ProgramPhasingDto,
   ProgramSessionDto,
   ProgramWeekDto,
@@ -45,6 +47,7 @@ import type {
 import { activeSignals, snoozeUntil } from "../../signals";
 import {
   clients as seedClients,
+  examples as seedExamples,
   exercises,
   logs as seedLogs,
   programs as seedPrograms,
@@ -118,6 +121,7 @@ const state = {
   clientMessages: [] as ClientMessageDto[],
   preferences: [...seedPreferences] as PreferencesDto[],
   messages: [] as (ChatMessageDto & { clientId: string })[],
+  examples: [...seedExamples] as ProgramExampleDto[],
 };
 
 function reviseDraftInState(s: typeof state, id: string, message: string): GenerationDto {
@@ -142,6 +146,7 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
     instructions: null,
     rejectReason: null,
     approvedProgramId: null,
+    exampleProgramIds: gen.exampleProgramIds ?? [],
     createdAt: new Date().toISOString(),
   };
   s.generations.unshift(child);
@@ -165,6 +170,12 @@ function withNames(p: ProgramDto): ProgramDto {
       })),
     })),
   };
+}
+
+/** Join the live program into an example row — the library never snapshots. */
+function exampleDto(e: ProgramExampleDto): ProgramExampleDto {
+  const live = state.programs.find((p) => p.id === e.programId);
+  return { ...structuredClone(e), program: live ? withNames(live) : structuredClone(e.program) };
 }
 
 /** Maya's handcrafted draft — references her real logged numbers + limitation. */
@@ -356,6 +367,57 @@ export const mockApi: TrainerApi = {
     state.schemes = state.schemes.filter((s) => s.id !== id);
   },
 
+  async examples(programId) {
+    await delay(150);
+    return state.examples
+      .filter((e) => !programId || e.programId === programId)
+      .map(exampleDto);
+  },
+
+  async createExample(input) {
+    await delay(300);
+    const program = state.programs.find((p) => p.id === input.programId);
+    if (!program) throw new Error("program not found");
+    if (state.examples.some((e) => e.programId === input.programId)) {
+      throw new Error("program is already marked as an example");
+    }
+    const created: ProgramExampleDto = {
+      id: `ex-${uuid().slice(0, 8)}`,
+      programId: input.programId,
+      goal: input.goal,
+      level: input.level,
+      daysPerWeek: input.daysPerWeek ?? program.weeks[0].days.length,
+      note: input.note ?? null,
+      createdAt: new Date().toISOString(),
+      program: withNames(program),
+    };
+    state.examples = [created, ...state.examples];
+    return structuredClone(created);
+  },
+
+  async updateExample(id, patch) {
+    await delay(250);
+    const i = state.examples.findIndex((e) => e.id === id);
+    if (i < 0) throw new Error("example not found");
+    const current = state.examples[i];
+    const updated: ProgramExampleDto = {
+      ...current,
+      ...(patch.goal !== undefined ? { goal: patch.goal } : {}),
+      ...(patch.level !== undefined ? { level: patch.level } : {}),
+      ...(patch.daysPerWeek !== undefined ? { daysPerWeek: patch.daysPerWeek } : {}),
+      ...(patch.note !== undefined ? { note: patch.note } : {}),
+    };
+    state.examples[i] = updated;
+    return exampleDto(updated);
+  },
+
+  async deleteExample(id) {
+    await delay(200);
+    const before = state.examples.length;
+    state.examples = state.examples.filter((e) => e.id !== id);
+    if (state.examples.length === before) throw new Error("example not found");
+  },
+
 
   async clients() {
     await delay(250);
@@ -455,7 +517,7 @@ export const mockApi: TrainerApi = {
       status: "draft",
       version: 1,
       aiAssisted: false,
-      createdFromProgramId: null,
+      createdFromProgramId: input.createdFromProgramId ?? null,
       weeks: input.weeks,
       createdAt: new Date().toISOString(),
       activatedAt: null,
@@ -583,6 +645,7 @@ export const mockApi: TrainerApi = {
       instructions: input.instructions ?? null,
       rejectReason: null,
       approvedProgramId: null,
+      exampleProgramIds: [],
       createdAt: new Date().toISOString(),
     };
     state.generations.unshift(gen);
@@ -619,8 +682,21 @@ export const mockApi: TrainerApi = {
         }
       }
     }
+    // Same deterministic retrieval the real API runs in loadContext.
+    const exampleProgramIds = selectExamples(
+      state.examples.map((e) => ({
+        programId: e.programId,
+        goal: e.goal,
+        level: e.level,
+        daysPerWeek: e.daysPerWeek,
+        createdAt: e.createdAt,
+      })),
+      { goals: client?.goals ?? null, daysPerWeek: client?.daysPerWeek ?? null },
+      { excludeProgramId: input.basedOnProgramId ?? null, limit: 2 },
+    ).map((m) => m.programId);
     gen.status = "validated";
     gen.draft = draft;
+    gen.exampleProgramIds = exampleProgramIds;
     return structuredClone(gen);
   },
 
@@ -657,6 +733,7 @@ export const mockApi: TrainerApi = {
       instructions: null,
       rejectReason: null,
       approvedProgramId: null,
+      exampleProgramIds: parent.exampleProgramIds ?? [],
       createdAt: new Date().toISOString(),
     };
     state.generations.unshift(child);

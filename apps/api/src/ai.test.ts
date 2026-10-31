@@ -896,6 +896,110 @@ describe("replaceWeek", () => {
   });
 });
 
+describe("example library few-shot", () => {
+  const example = {
+    programId: "pg-1",
+    name: "Gold Standard Block",
+    goal: "lean bulk hypertrophy",
+    level: "intermediate",
+    daysPerWeek: 4,
+    sessions: [
+      {
+        name: "Day A",
+        exercises: [{ name: "Back Squat", role: "primary", sets: ["5 reps @ RPE 8"] }],
+      },
+    ],
+  };
+
+  test("example library reaches the generation prompt as few-shot", () => {
+    const { system, user } = buildGenerationMessages({
+      client: { name: "Jonas", goals: "lean bulk to 80 kg", daysPerWeek: 4 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      examples: [example],
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("GOLD-STANDARD EXAMPLE PROGRAMS (the trainer's library");
+    expect(user).toContain("- Gold Standard Block (goal: lean bulk hypertrophy · level: intermediate · 4 days/week)");
+    expect(user).toContain("  - Day A: Back Squat (primary) [5 reps @ RPE 8]");
+    expect(system).toContain(
+      "When GOLD-STANDARD EXAMPLE PROGRAMS are provided, treat them as the trainer's gold standard",
+    );
+    // rule sits right after the kinetic-chain rule
+    const chainIdx = system.indexOf("Spread volume across the trainer's five kinetic chains");
+    const goldIdx = system.indexOf("When GOLD-STANDARD EXAMPLE PROGRAMS are provided");
+    expect(chainIdx).toBeGreaterThan(-1);
+    expect(goldIdx).toBeGreaterThan(chainIdx);
+    // section lands between CURRENT PROGRAM and PERIODIZATION CONTEXT
+    expect(user.indexOf("GOLD-STANDARD EXAMPLE PROGRAMS")).toBeGreaterThan(user.indexOf("CURRENT PROGRAM"));
+    expect(user.indexOf("GOLD-STANDARD EXAMPLE PROGRAMS")).toBeLessThan(user.indexOf("PERIODIZATION CONTEXT"));
+  });
+
+  test("example library reaches the revision prompt too", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "Initial mesocycle rationale",
+      clientSummary: "Client summary",
+      sessions: [
+        {
+          name: "Day A",
+          exercises: [
+            {
+              exerciseName: "Bench Press",
+              role: "primary",
+              prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }],
+            },
+          ],
+        },
+      ],
+    };
+    const { system, user } = buildRevisionMessages({
+      client: { name: "Jonas", goals: "lean bulk to 80 kg", daysPerWeek: 4 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      examples: [example],
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "more back work",
+    });
+    expect(user).toContain("- Gold Standard Block (goal: lean bulk hypertrophy · level: intermediate · 4 days/week)");
+    expect(system).toContain("When GOLD-STANDARD EXAMPLE PROGRAMS are provided");
+  });
+
+  test("no examples renders the none line in generation and revision prompts", () => {
+    const base = {
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    };
+    const gen = buildGenerationMessages(base);
+    expect(gen.user).toContain("GOLD-STANDARD EXAMPLE PROGRAMS: none matching this client.");
+
+    const rev = buildRevisionMessages({
+      ...base,
+      examples: [],
+      previousDraft: {
+        name: "Block 1",
+        rationale: "r",
+        clientSummary: "c",
+        sessions: [],
+      },
+      feedback: "tighten volume",
+    });
+    expect(rev.user).toContain("GOLD-STANDARD EXAMPLE PROGRAMS: none matching this client.");
+  });
+});
+
 import {
   buildClientMessageMessages,
   clientMessageStatsText,

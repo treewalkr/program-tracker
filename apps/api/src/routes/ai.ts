@@ -100,6 +100,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               providerId: body.providerId ?? "zai",
               model: rt.model,
               status: "pending",
+              exampleProgramIds: ctx.examples.map((e) => e.programId),
             })
             .returning();
 
@@ -203,6 +204,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             providerId: body.providerId ?? "zai",
             model: rt.model,
             status: "pending",
+            exampleProgramIds: ctx.examples.map((e) => e.programId),
           })
           .returning();
 

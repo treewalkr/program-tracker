@@ -542,6 +542,27 @@ export function stampWeeks(template: ProgramDay[], plannedWeeks: number): Progra
   return weeks;
 }
 
+/** Deep-copy program weeks with fresh day/session/exercise ids; catalog
+ *  exerciseId refs, weekdays, roles, sets and week numbers are kept. Pure. */
+export function cloneProgramWeeks(weeks: ProgramWeek[]): ProgramWeek[] {
+  return weeks.map((w) => ({
+    ...w,
+    days: w.days.map((d) => ({
+      ...d,
+      id: crypto.randomUUID(),
+      sessions: d.sessions.map((s) => ({
+        ...s,
+        id: crypto.randomUUID(),
+        exercises: s.exercises.map((e) => ({
+          ...e,
+          id: crypto.randomUUID(),
+          prescribedSets: e.prescribedSets.map((ps) => ({ ...ps })),
+        })),
+      })),
+    })),
+  }));
+}
+
 /** All sessions of one week, flattened (empty array when the week has no doc). */
 export function weekSessions(weeks: ProgramWeek[], week: number): ProgramSession[] {
   const found = weeks.find((w) => w.week === week);

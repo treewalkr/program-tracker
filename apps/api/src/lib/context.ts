@@ -1,8 +1,9 @@
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
   clients,
   exercises,
+  programExamples,
   programs,
   sessionLogs,
   setLogs,
@@ -14,10 +15,11 @@ import {
   chainSetCounts,
   combinePreferenceDocs,
   pulseSummary,
+  selectExamples,
   weekOf,
 } from "@pt/shared";
 import { ContextError } from "../ai/runtime";
-import { periodizationContext } from "../ai/prompt";
+import { periodizationContext, type ExampleProgramSummary } from "../ai/prompt";
 import { buildHistory } from "./history";
 import { ensureSeededChains } from "./chains";
 import { toSignalLog, toSignalProgram } from "./signals-service";
@@ -109,6 +111,50 @@ export async function loadContext(
     .filter((r) => r.clientId === clientId)
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
 
+  // Gold-standard few-shot retrieval — the trainer's example library, ranked
+  // by goal-word overlap + days/week proximity, capped at 2 positive matches.
+  const exampleRows = await db
+    .select({ example: programExamples, program: programs })
+    .from(programExamples)
+    .innerJoin(programs, eq(programExamples.programId, programs.id))
+    .where(eq(programExamples.trainerId, trainerId))
+    .orderBy(desc(programExamples.createdAt));
+  const matched = selectExamples(
+    exampleRows.map(({ example, program }) => ({
+      programId: program.id,
+      goal: example.goal,
+      level: example.level,
+      daysPerWeek: example.daysPerWeek,
+      createdAt: example.createdAt,
+    })),
+    { goals: client.goals, daysPerWeek: client.daysPerWeek },
+    { excludeProgramId: basedOnProgramId, limit: 2 },
+  );
+  const examples: ExampleProgramSummary[] = matched.flatMap((m) => {
+    const row = exampleRows.find((r) => r.program.id === m.programId);
+    if (!row) return [];
+    const firstWeek = row.program.sessions[0];
+    return [
+      {
+        programId: row.program.id,
+        name: row.program.name,
+        goal: m.goal,
+        level: m.level,
+        daysPerWeek: m.daysPerWeek,
+        sessions: firstWeek.days.flatMap((d) => d.sessions).map((s) => ({
+          name: s.name,
+          exercises: s.exercises.map((e) => ({
+            name: e.exerciseName ?? e.exerciseId,
+            role: e.role,
+            sets: e.prescribedSets.map(
+              (ps) => `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
+            ),
+          })),
+        })),
+      },
+    ];
+  });
+
   return {
     client: {
       name: client.name,
@@ -120,6 +166,7 @@ export async function loadContext(
     previousProgram: previous,
     periodization,
     chainBalance,
+    examples,
     programDirection: basedOnProgram?.direction ?? null,
     learnedPreferences: combinePreferenceDocs(trainerDoc, clientDoc),
     history: buildHistory({

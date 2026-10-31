@@ -270,7 +270,7 @@ describe("blockPulse & pulseSummary", () => {
                 name: "S1",
                 order: 0,
                 kind: "lifting",
-                exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+                exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
               },
             ],
           },
@@ -283,7 +283,7 @@ describe("blockPulse & pulseSummary", () => {
                 name: "S2",
                 order: 0,
                 kind: "lifting",
-                exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+                exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
               },
             ],
           },
@@ -301,7 +301,7 @@ describe("blockPulse & pulseSummary", () => {
                 name: "S3",
                 order: 0,
                 kind: "lifting",
-                exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+                exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
               },
             ],
           },
@@ -319,6 +319,7 @@ describe("blockPulse & pulseSummary", () => {
       clientId: "c1",
       name: "Block A",
       status: "active",
+      weeks: [],
       createdAt: "2026-10-01T00:00:00.000Z",
     };
 
@@ -337,8 +338,8 @@ describe("blockPulse & pulseSummary", () => {
 
     // Case 2: falls back to first log
     const logs: SignalLog[] = [
-      { id: "l1", programId: "p1", date: "2026-10-05T00:00:00.000Z", sets: [] },
-      { id: "l2", programId: "p1", date: "2026-10-08T00:00:00.000Z", sets: [] },
+      { programId: "p1", date: "2026-10-05T00:00:00.000Z", sets: [] },
+      { programId: "p1", date: "2026-10-08T00:00:00.000Z", sets: [] },
     ];
     const nowLog = new Date("2026-10-12T00:00:00.000Z").getTime();
     expect(daysIntoBlock(baseProgram, logs, nowLog)).toBe(7);

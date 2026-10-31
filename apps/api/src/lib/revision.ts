@@ -51,6 +51,7 @@ export async function runRevision(parentId: string, message: string): Promise<Re
       status: "pending",
       parentGenerationId: parent.id,
       revisionMessage: trimmedMessage,
+      exampleProgramIds: parent.exampleProgramIds ?? [],
     })
     .returning();
 
@@ -69,6 +70,10 @@ export async function runRevision(parentId: string, message: string): Promise<Re
         const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
           focusWeek,
         });
+        await db
+          .update(aiGenerations)
+          .set({ exampleProgramIds: ctx.examples.map((e) => e.programId) })
+          .where(eq(aiGenerations.id, generation.id));
         const targetPlan = basedProg?.phasing?.weeks?.find((w) => w.week === parent.targetWeek);
         const targetDirective = targetPlan?.directive ?? null;
         const target = targetPlan?.target ?? null;
@@ -86,6 +91,10 @@ export async function runRevision(parentId: string, message: string): Promise<Re
         });
       } else {
         const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
+        await db
+          .update(aiGenerations)
+          .set({ exampleProgramIds: ctx.examples.map((e) => e.programId) })
+          .where(eq(aiGenerations.id, generation.id));
         messages = buildRevisionMessages({
           ...ctx,
           trainerInstructions: "",
