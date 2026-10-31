@@ -33,7 +33,7 @@ export interface ChatMessage {
 export async function chatJson(
   rt: ProviderRuntime,
   messages: ChatMessage[],
-  opts: { temperature?: number } = {}
+  opts: { temperature?: number; signal?: AbortSignal } = {}
 ): Promise<string> {
   // GLM 5.x always thinks and rejects "disabled" (Z.ai error 1210): budget low
   // so the JSON draft still fits; give those models a roomier token cap since
@@ -49,6 +49,7 @@ export async function chatJson(
   try {
     res = await fetch(`${rt.baseUrl}/chat/completions`, {
       method: "POST",
+      signal: opts.signal,
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${rt.apiKey}`,
@@ -63,6 +64,7 @@ export async function chatJson(
       }),
     });
   } catch (err) {
+    if ((err as Error)?.name === "AbortError") throw err;
     throw new ProviderError(`network error calling provider: ${(err as Error).message}`);
   }
 
