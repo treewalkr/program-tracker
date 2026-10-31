@@ -378,6 +378,12 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
       : []),
+    ...(ctx.learnedPreferences
+      ? [
+          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
+          "",
+        ]
+      : []),
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
 

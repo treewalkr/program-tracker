@@ -238,6 +238,34 @@ describe("buildWeekMessages", () => {
   });
 });
 
+describe("weekly prompts: learned preferences", () => {
+  test("learned preferences section lands in weekly generation prompt", () => {
+    const { user } = buildWeekMessages({
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      direction: "Build squat volume; keep upper body at maintenance.",
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      learnedPreferences: "Cap RPE at 8.",
+    });
+    expect(user).toContain(
+      "LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nCap RPE at 8."
+    );
+    const dirIdx = user.indexOf("STANDING DIRECTION");
+    const learnedIdx = user.indexOf("LEARNED PREFERENCES");
+    const trainerIdx = user.indexOf("TRAINER INSTRUCTIONS");
+    expect(dirIdx).toBeLessThan(learnedIdx);
+    expect(learnedIdx).toBeLessThan(trainerIdx);
+  });
+});
+
 describe("buildRevisionMessages", () => {
   test("buildRevisionMessages carries previous draft, feedback verbatim, and safety context", () => {
     const previousDraft: AiProgramDraft = {
