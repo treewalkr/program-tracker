@@ -14,6 +14,7 @@ import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
 import { clientMessageRoutes } from "./routes/client-messages";
 import { preferenceRoutes } from "./routes/preferences";
+import { chatRoutes } from "./routes/chat";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -23,6 +24,7 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
 const TAGS = [
   { name: "health", description: "Liveness and provider discovery" },
   { name: "ai", description: "AI draft generation, audit trail, and approval gate" },
+  { name: "chat", description: "Conversational surface — client Q&A and draft revision over chat" },
   { name: "client-messages", description: "Client-facing weekly messages — AI-drafted, trainer-approved, copy-to-LINE" },
   { name: "prompt-templates", description: "Reusable instruction template library" },
   { name: "clients", description: "Client management" },
@@ -88,6 +90,7 @@ export const app = new Elysia()
   .use(aiRoutes)
   .use(clientMessageRoutes)
   .use(preferenceRoutes)
+  .use(chatRoutes)
   .use(clientRoutes)
   .use(programRoutes)
   .use(logRoutes)
