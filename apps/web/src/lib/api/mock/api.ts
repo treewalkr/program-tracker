@@ -6,9 +6,11 @@ import {
   computeSignals,
   diffRowsToText,
   diffSources,
+  draftNoticeText,
   estimate1rm,
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
+  mockChatReply,
   mockDistillPreferences,
   mockReviseDraft,
   programWeeksToDiffSource,
@@ -22,6 +24,7 @@ import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
   ChainWeekDto,
+  ChatMessageDto,
   ClientDto,
   ClientMessageDto,
   ExerciseDto,
@@ -114,7 +117,36 @@ const state = {
   generations: [] as GenerationDto[],
   clientMessages: [] as ClientMessageDto[],
   preferences: [...seedPreferences] as PreferencesDto[],
+  messages: [] as (ChatMessageDto & { clientId: string })[],
 };
+
+function reviseDraftInState(s: typeof state, id: string, message: string): GenerationDto {
+  const gen = s.generations.find((g) => g.id === id);
+  if (!gen || gen.status !== "validated" || !gen.draft) {
+    throw new Error("generation is not validated");
+  }
+  const child: GenerationDto = {
+    id: uuid(),
+    clientId: gen.clientId,
+    basedOnProgramId: gen.basedOnProgramId,
+    kind: gen.kind ?? "block",
+    targetWeek: gen.targetWeek ?? null,
+    direction: gen.direction ?? null,
+    providerId: gen.providerId,
+    model: gen.model,
+    status: "validated",
+    draft: mockReviseDraft(gen.draft as any, message) as any,
+    error: null,
+    parentGenerationId: gen.id,
+    revisionMessage: message,
+    instructions: null,
+    rejectReason: null,
+    approvedProgramId: null,
+    createdAt: new Date().toISOString(),
+  };
+  s.generations.unshift(child);
+  return child;
+}
 
 const nameOf = (exerciseId: string) =>
   exercises.find((e) => e.id === exerciseId)?.name ?? exerciseId;
@@ -597,30 +629,7 @@ export const mockApi: TrainerApi = {
 
   async reviseGeneration(id, message) {
     await delay(2200);
-    const gen = state.generations.find((g) => g.id === id);
-    if (!gen || gen.status !== "validated" || !gen.draft) {
-      throw new Error("generation is not validated");
-    }
-    const child: GenerationDto = {
-      id: uuid(),
-      clientId: gen.clientId,
-      basedOnProgramId: gen.basedOnProgramId,
-      kind: gen.kind ?? "block",
-      targetWeek: gen.targetWeek ?? null,
-      direction: gen.direction ?? null,
-      providerId: gen.providerId,
-      model: gen.model,
-      status: "validated",
-      draft: mockReviseDraft(gen.draft as any, message) as any,
-      error: null,
-      parentGenerationId: gen.id,
-      revisionMessage: message,
-      instructions: null,
-      rejectReason: null,
-      approvedProgramId: null,
-      createdAt: new Date().toISOString(),
-    };
-    state.generations.unshift(child);
+    const child = reviseDraftInState(state, id, message);
     return structuredClone(child);
   },
 
@@ -939,5 +948,74 @@ export const mockApi: TrainerApi = {
         sets: counts[c.id] ?? 0,
       })),
     };
+  },
+
+  async chatMessages(clientId) {
+    await delay(200);
+    return structuredClone(state.messages.filter((m) => m.clientId === clientId));
+  },
+
+  async sendChatMessage(input) {
+    await delay(1200);
+    const client = state.clients.find((c) => c.id === input.clientId);
+    if (!client) throw new Error("client not found");
+    const trimmed = input.message.trim();
+    if (!trimmed) throw new Error("message must not be empty");
+
+    const trainerRow: ChatMessageDto & { clientId: string } = {
+      id: uuid(),
+      clientId: input.clientId,
+      role: "trainer",
+      kind: "chat",
+      content: trimmed,
+      generationId: null,
+      createdAt: new Date().toISOString(),
+    };
+    const assistantRow: ChatMessageDto & { clientId: string } = {
+      id: uuid(),
+      clientId: input.clientId,
+      role: "assistant",
+      kind: "chat",
+      content: mockChatReply(trimmed, client.name),
+      generationId: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(trainerRow, assistantRow);
+    return structuredClone([trainerRow, assistantRow]);
+  },
+
+  async reviseViaChat(input) {
+    const trimmed = input.message.trim();
+    if (!trimmed) throw new Error("message must not be empty");
+    const child = reviseDraftInState(state, input.generationId, trimmed);
+
+    const trainerRow: ChatMessageDto & { clientId: string } = {
+      id: uuid(),
+      clientId: child.clientId,
+      role: "trainer",
+      kind: "revision",
+      content: trimmed,
+      generationId: child.id,
+      createdAt: new Date().toISOString(),
+    };
+    const assistantRow: ChatMessageDto & { clientId: string } = {
+      id: uuid(),
+      clientId: child.clientId,
+      role: "assistant",
+      kind: "draft",
+      content: draftNoticeText(child.draft as any),
+      generationId: child.id,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(trainerRow, assistantRow);
+    return {
+      messages: structuredClone([trainerRow, assistantRow]),
+      generation: structuredClone(child),
+    };
+  },
+
+  async clearChat(clientId) {
+    await delay(200);
+    state.messages = state.messages.filter((m) => m.clientId !== clientId);
   },
 };

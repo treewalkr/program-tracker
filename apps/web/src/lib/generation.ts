@@ -78,3 +78,8 @@ export function revisionChain(gens: GenerationDto[], currentId: string): Generat
   }
   return chain.reverse();
 }
+
+export function latestValidatedDraft(gens: GenerationDto[]): GenerationDto | null {
+  return gens.find((g) => g.status === "validated" && g.draft) ?? null;
+}
+
