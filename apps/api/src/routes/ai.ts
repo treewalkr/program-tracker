@@ -37,6 +37,7 @@ import { toSignalLog, toSignalProgram } from "../lib/signals-service";
 import { toProgramDto } from "./programs";
 import { loadContext } from "../lib/context";
 import { runRevision } from "../lib/revision";
+import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 
 export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   .post(
@@ -102,51 +103,84 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             })
             .returning();
 
-          let draft: z.infer<typeof AiProgramDraft> | null = null;
-          let validationError: string | null = null;
-          for (let attempt = 0; attempt < 2 && !draft; attempt++) {
-            try {
-              const raw =
-                (body.providerId ?? "zai") === "mock"
-                  ? JSON.stringify(mockWeekDraft(body.targetWeek, targetDirective))
-                  : await chatJson(rt, [
-                      { role: "system", content: messages.system },
-                      { role: "user", content: messages.user },
-                    ]);
-              const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
-              if (parsed.success) {
-                draft = parsed.data;
-              } else {
-                validationError = z.prettifyError(parsed.error);
+          const ac = registerGeneration(generation.id);
+          try {
+            let draft: z.infer<typeof AiProgramDraft> | null = null;
+            let validationError: string | null = null;
+            for (let attempt = 0; attempt < 2 && !draft; attempt++) {
+              try {
+                const raw =
+                  (body.providerId ?? "zai") === "mock"
+                    ? JSON.stringify(mockWeekDraft(body.targetWeek, targetDirective))
+                    : await chatJson(
+                        rt,
+                        [
+                          { role: "system", content: messages.system },
+                          { role: "user", content: messages.user },
+                        ],
+                        { signal: ac.signal }
+                      );
+                const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
+                if (parsed.success) {
+                  draft = parsed.data;
+                } else {
+                  validationError = z.prettifyError(parsed.error);
+                }
+              } catch (err) {
+                if ((err as Error)?.name === "AbortError") {
+                  break;
+                }
+                if (err instanceof ProviderError) {
+                  const [failed] = await db
+                    .update(aiGenerations)
+                    .set({ status: "failed_provider", error: err.message })
+                    .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
+                    .returning();
+                  if (!failed) {
+                    const [row] = await db
+                      .select()
+                      .from(aiGenerations)
+                      .where(eq(aiGenerations.id, generation.id));
+                    return status(200, row);
+                  }
+                  return status(502, failed);
+                }
+                validationError = `parse failure: ${(err as Error).message}`;
               }
-            } catch (err) {
-              if (err instanceof ProviderError) {
-                const [failed] = await db
-                  .update(aiGenerations)
-                  .set({ status: "failed_provider", error: err.message })
-                  .where(eq(aiGenerations.id, generation.id))
-                  .returning();
-                return status(502, failed);
-              }
-              validationError = `parse failure: ${(err as Error).message}`;
             }
-          }
 
-          if (draft) {
-            const [updated] = await db
+            if (draft) {
+              const [updated] = await db
+                .update(aiGenerations)
+                .set({ status: "validated", draft, error: null })
+                .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
+                .returning();
+              if (!updated) {
+                const [row] = await db
+                  .select()
+                  .from(aiGenerations)
+                  .where(eq(aiGenerations.id, generation.id));
+                return status(200, row);
+              }
+              return status(201, updated);
+            }
+
+            const [failed] = await db
               .update(aiGenerations)
-              .set({ status: "validated", draft, error: null })
-              .where(eq(aiGenerations.id, generation.id))
+              .set({ status: "failed_validation", error: validationError })
+              .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
               .returning();
-            return status(201, updated);
+            if (!failed) {
+              const [row] = await db
+                .select()
+                .from(aiGenerations)
+                .where(eq(aiGenerations.id, generation.id));
+              return status(200, row);
+            }
+            return status(502, failed);
+          } finally {
+            deregisterGeneration(generation.id);
           }
-
-          const [failed] = await db
-            .update(aiGenerations)
-            .set({ status: "failed_validation", error: validationError })
-            .where(eq(aiGenerations.id, generation.id))
-            .returning();
-          return status(502, failed);
         }
 
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
@@ -172,53 +206,86 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           })
           .returning();
 
-        // Call + validate, with exactly one retry on validation failure.
-        let draft: z.infer<typeof AiProgramDraft> | null = null;
-        let validationError: string | null = null;
-        for (let attempt = 0; attempt < 2 && !draft; attempt++) {
-          try {
-            const raw =
-              (body.providerId ?? "zai") === "mock"
-                ? JSON.stringify(MOCK_DRAFT)
-                : await chatJson(rt, [
-                    { role: "system", content: messages.system },
-                    { role: "user", content: messages.user },
-                  ]);
-            const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
-            if (parsed.success) {
-              draft = parsed.data;
-            } else {
-              validationError = z.prettifyError(parsed.error);
+        const ac = registerGeneration(generation.id);
+        try {
+          // Call + validate, with exactly one retry on validation failure.
+          let draft: z.infer<typeof AiProgramDraft> | null = null;
+          let validationError: string | null = null;
+          for (let attempt = 0; attempt < 2 && !draft; attempt++) {
+            try {
+              const raw =
+                (body.providerId ?? "zai") === "mock"
+                  ? JSON.stringify(MOCK_DRAFT)
+                  : await chatJson(
+                      rt,
+                      [
+                        { role: "system", content: messages.system },
+                        { role: "user", content: messages.user },
+                      ],
+                      { signal: ac.signal }
+                    );
+              const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
+              if (parsed.success) {
+                draft = parsed.data;
+              } else {
+                validationError = z.prettifyError(parsed.error);
+              }
+            } catch (err) {
+              if ((err as Error)?.name === "AbortError") {
+                break;
+              }
+              if (err instanceof ProviderError) {
+                // Persist the audit trail — a pending-forever row would lie.
+                const [failed] = await db
+                  .update(aiGenerations)
+                  .set({ status: "failed_provider", error: err.message })
+                  .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
+                  .returning();
+                if (!failed) {
+                  const [row] = await db
+                    .select()
+                    .from(aiGenerations)
+                    .where(eq(aiGenerations.id, generation.id));
+                  return status(200, row);
+                }
+                return status(502, failed);
+              }
+              validationError = `parse failure: ${(err as Error).message}`;
             }
-          } catch (err) {
-            if (err instanceof ProviderError) {
-              // Persist the audit trail — a pending-forever row would lie.
-              const [failed] = await db
-                .update(aiGenerations)
-                .set({ status: "failed_provider", error: err.message })
-                .where(eq(aiGenerations.id, generation.id))
-                .returning();
-              return status(502, failed);
-            }
-            validationError = `parse failure: ${(err as Error).message}`;
           }
-        }
 
-        if (draft) {
-          const [updated] = await db
+          if (draft) {
+            const [updated] = await db
+              .update(aiGenerations)
+              .set({ status: "validated", draft, error: null })
+              .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
+              .returning();
+            if (!updated) {
+              const [row] = await db
+                .select()
+                .from(aiGenerations)
+                .where(eq(aiGenerations.id, generation.id));
+              return status(200, row);
+            }
+            return status(201, updated);
+          }
+
+          const [failed] = await db
             .update(aiGenerations)
-            .set({ status: "validated", draft, error: null })
-            .where(eq(aiGenerations.id, generation.id))
+            .set({ status: "failed_validation", error: validationError })
+            .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
             .returning();
-          return status(201, updated);
+          if (!failed) {
+            const [row] = await db
+              .select()
+              .from(aiGenerations)
+              .where(eq(aiGenerations.id, generation.id));
+            return status(200, row);
+          }
+          return status(502, failed);
+        } finally {
+          deregisterGeneration(generation.id);
         }
-
-        const [failed] = await db
-          .update(aiGenerations)
-          .set({ status: "failed_validation", error: validationError })
-          .where(eq(aiGenerations.id, generation.id))
-          .returning();
-        return status(502, failed);
       } catch (err) {
         if (err instanceof ContextError) return status(err.status, { error: err.message });
         throw err;
@@ -406,6 +473,26 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     }
   )
   .post(
+    "/generations/:id/cancel",
+    async ({ params, status }) => {
+      const [cancelled] = await db
+        .update(aiGenerations)
+        .set({ status: "cancelled" })
+        .where(and(eq(aiGenerations.id, params.id), eq(aiGenerations.status, "pending")))
+        .returning();
+
+      if (!cancelled) {
+        const [row] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, params.id));
+        if (!row) return status(404, { error: "generation not found" });
+        return status(409, { error: `generation is ${row.status}, not pending` });
+      }
+
+      abortGeneration(params.id);
+      return cancelled;
+    },
+    { params: t.Object({ id: t.String() }) }
+  )
+  .post(
     "/generations/:id/revise",
     async ({ params, body, status }) => {
       try {
@@ -413,7 +500,13 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         if (!res.ok) {
           return status(res.status, { error: res.error });
         }
-        return status(res.generation.status === "validated" ? 201 : 502, res.generation);
+        const code =
+          res.generation.status === "validated"
+            ? 201
+            : res.generation.status === "cancelled"
+              ? 200
+              : 502;
+        return status(code, res.generation);
       } catch (err) {
         if (err instanceof ContextError) return status(err.status, { error: err.message });
         throw err;
