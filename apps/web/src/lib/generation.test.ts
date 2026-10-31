@@ -14,6 +14,8 @@ function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
     id: "gen-1",
     clientId: "client-1",
     basedOnProgramId: null,
+    kind: "block",
+    targetWeek: null,
     providerId: "zai",
     model: "glm-4.5-flash",
     status: "pending",
@@ -21,6 +23,7 @@ function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
     error: null,
     parentGenerationId: null,
     revisionMessage: null,
+    exampleProgramIds: [],
     createdAt: new Date().toISOString(),
     ...partial,
   };
