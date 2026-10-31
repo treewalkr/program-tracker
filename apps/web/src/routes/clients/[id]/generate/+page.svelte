@@ -45,6 +45,8 @@
   let savingTpl = $state(false);
   let phase = $state<"form" | "generating" | "review" | "failed">("form");
   let failReason = $state<string | null>(null);
+  let cancelling = $state(false);
+  let cancelledNote = $state<"block" | "revision" | null>(null);
   let gen = $state<GenerationDto | null>(null);
   let allGens = $state<GenerationDto[]>([]);
   let revisionNote = $state("");
@@ -71,6 +73,11 @@
       try {
         const row = await api.generation(genId);
         gen = row;
+        allGens = allGens.map((g) => (g.id === row.id ? row : g));
+        if (row.status === "cancelled") {
+          onGenerationCancelled(row);
+          return;
+        }
         const nextPhase = generationPhase(row);
         if (nextPhase !== "generating") {
           stopPolling();
@@ -83,6 +90,49 @@
         // a failed poll request keeps waiting (next tick)
       }
     }, POLL_INTERVAL_MS);
+  }
+
+  function onGenerationCancelled(row: GenerationDto) {
+    stopPolling();
+    const parent = row.parentGenerationId
+      ? allGens.find((g) => g.id === row.parentGenerationId && g.draft) ?? null
+      : null;
+    if (parent) {
+      gen = parent;
+      phase = "review";
+      cancelledNote = "revision";
+    } else {
+      gen = row;
+      phase = "form";
+      cancelledNote = "block";
+    }
+  }
+
+  async function cancelRunning() {
+    if (cancelling) return;
+    cancelling = true;
+    try {
+      let target = gen?.status === "pending" ? gen : null;
+      if (!target) {
+        const gens = await api.generations(id);
+        allGens = gens;
+        target = gens.find((g) => isLivePending(g)) ?? null;
+      }
+      if (!target) {
+        return;
+      }
+      const row = await api.cancelGeneration(target.id);
+      if (allGens.some((g) => g.id === row.id)) {
+        allGens = allGens.map((g) => (g.id === row.id ? row : g));
+      } else {
+        allGens = [row, ...allGens];
+      }
+      onGenerationCancelled(row);
+    } catch {
+      // swallow error, held POST / poll drives phase
+    } finally {
+      cancelling = false;
+    }
   }
 
   onDestroy(() => {
@@ -145,8 +195,9 @@
   async function start() {
     startedAtIso = new Date().toISOString();
     phase = "generating";
+    cancelledNote = null;
     try {
-      gen = await api.generate({
+      const row = await api.generate({
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         targetWeek: weekMode ?? undefined,
@@ -155,12 +206,26 @@
         model: model || undefined,
         instructions: mergedInstructions || undefined,
       });
-      allGens = [gen, ...allGens];
-      phase = "review";
+      allGens = [row, ...allGens.filter((g) => g.id !== row.id)];
+      if (row.status === "cancelled") {
+        onGenerationCancelled(row);
+        return;
+      }
+      gen = row;
+      const nextPhase = generationPhase(row);
+      if (nextPhase === "failed") {
+        failReason = row.error ?? null;
+      }
+      phase = nextPhase;
     } catch (err) {
       try {
         const gens = await api.generations(id);
+        allGens = gens;
         const latest = gens[0] ?? null;
+        if (latest?.status === "cancelled") {
+          onGenerationCancelled(latest);
+          return;
+        }
         if (isLivePending(latest)) {
           gen = latest;
           phase = "generating";
@@ -182,13 +247,18 @@
 
     startedAtIso = new Date().toISOString();
     phase = "generating";
+    cancelledNote = null;
     revising = true;
     reviseError = null;
 
     try {
       const child = await api.reviseGeneration(gen.id, note);
+      allGens = [child, ...allGens.filter((g) => g.id !== child.id)];
+      if (child.status === "cancelled") {
+        onGenerationCancelled(child);
+        return;
+      }
       gen = child;
-      allGens = [child, ...allGens];
       const nextPhase = generationPhase(child);
       if (nextPhase === "failed") {
         failReason = child.error;
@@ -200,6 +270,11 @@
       try {
         const gens = await api.generations(id);
         allGens = gens;
+        const latestChild = gens.find((g) => g.parentGenerationId === gen?.id);
+        if (latestChild?.status === "cancelled") {
+          onGenerationCancelled(latestChild);
+          return;
+        }
         const pendingChild = gens.find((g) => g.parentGenerationId === gen?.id && isLivePending(g));
         if (pendingChild) {
           gen = pendingChild;
@@ -258,6 +333,7 @@
     reviseError = null;
     newProgram = null;
     failReason = null;
+    cancelledNote = null;
     phase = "form";
   }
 
@@ -373,6 +449,9 @@
           start();
         }}
       >
+        {#if cancelledNote === "block"}
+          <Note tone="warn" role="status">Generation cancelled — nothing was drafted.</Note>
+        {/if}
         <Field label="Provider" htmlFor="g-provider">
           <select
             class="select"
@@ -498,13 +577,16 @@
 
   {:else if phase === "generating"}
     <section class="panel narrow">
-      <div class="panel-body">
+      <div class="panel-body stack">
         <GeneratingState
           providerLabel={providers.find((p) => p.id === (gen?.providerId ?? providerId))?.label ?? providerId}
           model={gen?.model || model || provider?.model || ""}
           expectedSeconds={typicalGenerationSeconds(gen?.providerId ?? providerId)}
           startedAt={gen?.createdAt ?? startedAtIso}
         />
+        <Button variant="ghost" onclick={cancelRunning} disabled={cancelling}>
+          {cancelling ? "Cancelling…" : "Cancel generation"}
+        </Button>
       </div>
     </section>
 
@@ -567,6 +649,10 @@
       {/if}
     </div>
   </div>
+
+  {#if cancelledNote === "revision"}
+    <Note tone="warn" role="status">Revision cancelled — the previous draft is untouched.</Note>
+  {/if}
 
   {#if rejectOpen && gen.status !== "rejected" && !newProgram}
     <Panel title="Reject this draft">
