@@ -13,7 +13,8 @@
     removeSession,
   } from "@pt/shared";
   import type { ExerciseRole } from "@pt/shared";
-  import type { ExerciseDto, ProgramDto, ProgramSessionDto } from "$lib/api/types";
+  import { EXAMPLE_LEVELS } from "@pt/shared";
+  import type { ExerciseDto, ProgramDto, ProgramExampleDto, ProgramSessionDto } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
   import SessionBlockEditor from "$lib/components/SessionBlockEditor.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
@@ -21,6 +22,8 @@
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
+  import Field from "$lib/ui/Field.svelte";
+  import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
 
@@ -36,6 +39,14 @@
   let activating = $state(false);
   let currentWeekIndex = $state(0);
 
+  let existingExample = $state<ProgramExampleDto | null>(null);
+  let marking = $state(false);
+  let markGoal = $state("");
+  let markLevel = $state<ProgramExampleDto["level"]>("intermediate");
+  let markNote = $state("");
+  let savingMark = $state(false);
+  let markError = $state<string | null>(null);
+
   const currentWeek = $derived(
     program?.weeks[currentWeekIndex] ?? program?.weeks[0] ?? null
   );
@@ -47,10 +58,40 @@
   async function load() {
     program = await api.program(id);
     catalog = await api.exercises();
+    const mine = await api.examples(id);
+    existingExample = mine[0] ?? null;
+    if (!existingExample) marking = false;
     if (program?.clientId) {
       const detail = await api.client(program.clientId);
       clientName = detail.client.name;
     }
+  }
+
+  async function markAsExample() {
+    if (!program || !markGoal.trim()) return;
+    savingMark = true;
+    markError = null;
+    try {
+      existingExample = await api.createExample({
+        programId: program.id,
+        goal: markGoal.trim(),
+        level: markLevel,
+        note: markNote.trim() || undefined,
+      });
+      marking = false;
+      markGoal = "";
+      markNote = "";
+    } catch (e) {
+      markError = (e as Error).message;
+    } finally {
+      savingMark = false;
+    }
+  }
+
+  async function removeFromLibrary() {
+    if (!existingExample) return;
+    await api.deleteExample(existingExample.id);
+    existingExample = null;
   }
 
   async function save() {
@@ -121,6 +162,15 @@
         <button class="btn primary" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
       {:else}
         <button class="btn ghost" onclick={() => (editing = true)}>Edit sets</button>
+        {#if existingExample}
+          <span class="subtle lib-state">In the example library</span>
+          <a class="lib-link" href="/examples">View in library →</a>
+          <ConfirmButton label="Remove" confirmLabel="Really remove?" onconfirm={removeFromLibrary} small />
+        {:else if marking}
+          <button class="btn ghost" onclick={() => (marking = false)}>Cancel mark</button>
+        {:else}
+          <button class="btn ghost" onclick={() => { marking = true; markError = null; }}>Mark as example</button>
+        {/if}
         {#if program.status === "draft"}
           <button class="btn primary" onclick={activate} disabled={activating}>
             {activating ? "Activating…" : "Activate program"}
@@ -129,6 +179,50 @@
       {/if}
     </div>
   </div>
+
+  {#if marking && !existingExample}
+    <form
+      class="mark-form"
+      onsubmit={(e) => {
+        e.preventDefault();
+        markAsExample();
+      }}
+    >
+      <Field label="Goal" htmlFor="ex-goal">
+        <input
+          class="input"
+          id="ex-goal"
+          placeholder="e.g. first pull-up, 5k time, lean bulk"
+          bind:value={markGoal}
+          maxlength="120"
+        />
+      </Field>
+      <Field label="Level" htmlFor="ex-level">
+        <select class="input" id="ex-level" bind:value={markLevel}>
+          {#each EXAMPLE_LEVELS as l (l)}
+            <option value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>
+          {/each}
+        </select>
+      </Field>
+      <Field label="Note" htmlFor="ex-note">
+        <textarea
+          class="textarea"
+          id="ex-note"
+          rows="2"
+          maxlength="500"
+          placeholder="optional — when to reuse this block"
+          bind:value={markNote}
+        ></textarea>
+      </Field>
+      <div class="mark-actions">
+        <p class="hint">Days/week defaults to the program's day count ({program.weeks[0].days.length}).</p>
+        <button class="btn primary" type="submit" disabled={savingMark || !markGoal.trim()}>
+          {savingMark ? "Adding…" : "Add to example library"}
+        </button>
+      </div>
+      {#if markError}<p class="hint gate-error">{markError}</p>{/if}
+    </form>
+  {/if}
 
   {#if program.status === "draft"}
     <p class="hint">
@@ -288,7 +382,25 @@
 
 <style>
   h1 { display: flex; align-items: center; gap: 10px; }
-  .actions { display: flex; gap: 10px; align-items: center; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .lib-state { font-size: 13px; }
+  .lib-link { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .lib-link:hover { text-decoration: underline; }
+
+  .mark-form {
+    display: grid;
+    grid-template-columns: 2fr 1fr 2fr;
+    gap: 14px;
+    align-items: start;
+    padding: 14px 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    background: var(--panel, transparent);
+  }
+  .mark-actions { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .mark-actions .hint { margin: 0; }
+  @media (max-width: 980px) { .mark-form { grid-template-columns: 1fr; } }
   .readonly-note { margin: 0; }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
