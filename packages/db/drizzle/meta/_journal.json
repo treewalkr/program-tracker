@@ -73,10 +73,18 @@
       "breakpoints": true
     },
     {
+    {
       "idx": 11,
       "version": "7",
       "when": 1793400352518,
       "tag": "0011_smart_the_hood",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793400155021,
+      "tag": "0012_client_messages",
       "breakpoints": true
     }
   ]

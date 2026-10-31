@@ -122,6 +122,32 @@ Cadence becomes weekly: block up front, refine weekly.
    - Weekdays carried over: `oldWeek.days[i].weekday ?? sortedTrainingDays[i] ?? null`.
    - `version++`, other weeks and phasing untouched, program remains `active`.
 
+## Client messages (`POST /v1/client-messages/generate`)
+
+The one AI output a **client** ever reads. Stats-first: every number is computed
+deterministically by `weekSummary` (shared, pure — volume, % delta, working
+sets, avg RPE, best e1RM, per-exercise PRs vs the prior block-best, adherence,
+next week's directive) and handed to the model pre-rendered
+(`clientMessageStatsText`). The model phrases; it never computes — and the
+system prompt forbids inventing or estimating any number not in the data.
+
+Output shape is `AiClientMessageDraft` (`{"message": string}`, ≤ 1200 chars —
+LINE-sized); same call → zod gate → one retry → audit-row pipeline as program
+generation, in a dedicated `client_messages` table (provider/model/status/error
+plus the `stats` snapshot, so what the AI saw is always reconstructible).
+
+Two extra safety rules, because compliments are the riskiest text this app
+produces: the compliment must reference a specific effort, PR, or consistency,
+and it must never comment on body weight or appearance (effort, consistency, or
+strength only). No jargon ("e1RM", "RPE table", "volume") — plain words and real
+numbers.
+
+**Gate + delivery:** nothing exists for the client until the trainer approves
+(`POST /:id/approve` — the trainer's edited text becomes `finalText`). The only
+delivery surface is a copy button: the trainer pastes into LINE by hand. No
+Messaging API, no client LINE ids, no delivery/read tracking — nothing is ever
+sent automatically.
+
 ## Safety rules (non-negotiable)
 
 1. Limitations reach the prompt verbatim, labelled "LIMITATIONS (hard constraints)".

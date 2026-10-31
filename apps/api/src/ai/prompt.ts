@@ -6,6 +6,7 @@ import {
   type CardioTarget,
   type Phasing,
   type WeekDirective,
+  type WeekSummaryStats,
   type WeekTarget,
 } from "@pt/shared";
 
@@ -536,3 +537,83 @@ export function periodizationContext(
 
 /** Typed re-export so routes share one import path. */
 export type { AiProgramDraft };
+
+// ---------------------------------------------------------------------------
+// Client message (weekly result summary + compliment)
+// ---------------------------------------------------------------------------
+
+/** Deterministic render of the computed week stats — the ONLY numbers the model
+ *  ever sees. What the AI gets, the trainer can re-read in the stats panel. */
+export function clientMessageStatsText(stats: WeekSummaryStats): string {
+  const lines: string[] = [];
+  lines.push(
+    `WEEK OF ${stats.weekStart} · ${stats.sessionsLogged}/${stats.sessionsPlanned ?? "?"} sessions` +
+      (stats.adherencePct != null ? ` (${stats.adherencePct}%)` : "")
+  );
+  lines.push(
+    `VOLUME ${stats.overallVolume}kg` +
+      (stats.overallVolumeDelta != null
+        ? ` (${stats.overallVolumeDelta >= 0 ? "+" : ""}${stats.overallVolumeDelta}% vs last week)`
+        : "") +
+      ` · ${stats.sets} working sets` +
+      (stats.avgRpe != null ? ` · avg RPE ${stats.avgRpe}` : "")
+  );
+  if (stats.prs.length > 0) {
+    for (const pr of stats.prs.slice(0, 3)) {
+      lines.push(
+        `PR ${pr.exerciseName} ${pr.weightKg}kg × ${pr.reps} (est. 1RM ${pr.e1rm}kg, previous best ${pr.prevBest}kg)`
+      );
+    }
+  } else {
+    lines.push("NO NEW BESTS");
+  }
+  if (stats.nextWeek) {
+    let next = `NEXT WEEK ${stats.nextWeek.directive ?? "—"}`;
+    if (stats.nextWeek.target) {
+      const t = stats.nextWeek.target;
+      next += ` · target ${t.deltaPercent >= 0 ? "+" : ""}${t.deltaPercent}% ${t.metric.replace("_", " ")}`;
+    }
+    lines.push(next);
+  } else {
+    lines.push("FINAL WEEK OF THE BLOCK — no next week planned");
+  }
+  return lines.join("\n");
+}
+
+export interface ClientMessageContext {
+  clientName: string;
+  programName: string;
+  stats: WeekSummaryStats;
+}
+
+/** Fixed system rules + rendered stats. The model phrases; it never computes. */
+export function buildClientMessageMessages(ctx: ClientMessageContext): {
+  system: string;
+  user: string;
+} {
+  const system = [
+    "You are a personal trainer writing a short message to your client on LINE.",
+    "The message comes from the trainer to the client, in the trainer's voice — warm, direct, specific.",
+    "Rules:",
+    "- Plain text only: no markdown, no hashtags, no headers, no emoji lists.",
+    "- 2–4 short paragraphs, at most about 120 words total. Keep each paragraph 1–3 sentences.",
+    "- Paragraph 1: what they did this week — use ONLY the numbers given in the data, exactly as given.",
+    "- Paragraph 2: what's next week, from the NEXT WEEK line. If the data says FINAL WEEK, wrap up the block warmly — do not invent a next week.",
+    "- Include one genuine compliment that references a specific effort, personal record, or consistency shown in the data.",
+    "- No jargon: never write \"e1RM\", \"RPE table\", or \"volume\". Use plain words and the actual numbers (e.g. \"your best squat day yet\", \"100kg for 5\", \"all 3 sessions done\").",
+    "- NEVER invent or estimate any number that is not in the data.",
+    "- Never comment on body weight or appearance. Compliment effort, consistency, or strength only.",
+    "Respond with a single JSON object only: {\"message\": string}.",
+  ].join("\n");
+
+  const first = ctx.clientName.split(" ")[0];
+  const user = [
+    `CLIENT: ${first}`,
+    `PROGRAM: ${ctx.programName}`,
+    "",
+    "WEEK DATA (computed from logged training — the only numbers you may use):",
+    clientMessageStatsText(ctx.stats),
+  ].join("\n");
+
+  return { system, user };
+}

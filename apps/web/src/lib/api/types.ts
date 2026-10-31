@@ -15,6 +15,7 @@ import type {
   WeekDirective as Wd,
   WeekMetric as Wm,
   WeekPlan as Wp,
+  WeekSummaryStats,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -29,6 +30,7 @@ export type ProgramDayDto = ProgramDay;
 export type CardioPrescriptionDto = CardioPrescription;
 export type SessionKindDto = SessionKind;
 export type CardioLogDto = CardioLog;
+export type WeekSummaryStatsDto = WeekSummaryStats;
 
 export interface ClientDto {
   id: string;
@@ -140,6 +142,21 @@ export interface GenerationDto {
   error: string | null;
   parentGenerationId: string | null;
   revisionMessage: string | null;
+  createdAt: string;
+}
+
+export interface ClientMessageDto {
+  id: string;
+  clientId: string;
+  programId: string | null;
+  week: number;
+  providerId: string;
+  model: string;
+  status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected";
+  draft: { message: string } | null;
+  stats: WeekSummaryStatsDto | null;
+  finalText: string | null;
+  error: string | null;
   createdAt: string;
 }
 
@@ -274,6 +291,18 @@ export interface TrainerApi {
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string): Promise<GenerationDto>;
+
+  generateClientMessage(input: {
+    clientId: string;
+    programId: string;
+    week: number;
+    providerId?: string;
+    model?: string;
+  }): Promise<ClientMessageDto>;
+  clientMessages(clientId: string): Promise<ClientMessageDto[]>;
+  clientMessage(id: string): Promise<ClientMessageDto>;
+  approveClientMessage(id: string, text?: string): Promise<ClientMessageDto>;
+  rejectClientMessage(id: string): Promise<ClientMessageDto>;
 
   /** Phase-change signals, snooze-filtered (computed by the shared engine). */
   notifications(): Promise<SignalDto[]>;

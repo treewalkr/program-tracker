@@ -195,3 +195,26 @@ pending → validated ──approve──▶ approved  (+ program created in dra
 
 Status codes: 404 missing entity · 409 state conflict · 422 semantic rejection ·
 502 upstream AI failure · 400 unconfigured provider.
+
+## Client messages (weekly result summary + compliment)
+
+Client-facing weekly messages the trainer copies into LINE by hand — **no
+delivery integration** (Q6: LINE, copy-paste; no Messaging API, no client LINE
+ids, no delivery tracking). Numbers are computed deterministically by
+`weekSummary` (shared, pure) — the LLM only phrases.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/v1/client-messages/generate` | `{clientId, programId, week (1–26), providerId?, model?}` → 201 row (`status: "validated"`, `draft.message` ≤ 1200 chars, `stats` snapshot) or **502** (`failed_validation`/`failed_provider`). Guards: unknown client/program **404**; program of another client **422** `"program does not belong to client"`; week window without logged sessions **422** `"week N has no logged sessions"` |
+| GET | `/v1/client-messages?clientId=` | audit trail, newest first (optionally filtered) |
+| GET | `/v1/client-messages/:id` | one row, or **404** |
+| POST | `/v1/client-messages/:id/approve` | `{text?}` — trainer's edited text (≤ 1200 chars) becomes `finalText`; omitted → the draft message verbatim. **409** unless `validated`; whitespace-only text **422** |
+| POST | `/v1/client-messages/:id/reject` | mark rejected, nothing sent |
+
+Row shape: `{id, trainerId, clientId, programId, week, providerId, model,
+status, draft: {message} \| null, stats: WeekSummaryStats \| null, finalText,
+error, createdAt}`. Statuses reuse the generation lifecycle (`pending` →
+`validated` → `approved`/`rejected`, `failed_*` on provider/validation errors).
+`stats` is the deterministic snapshot the prompt was built from — what the AI
+saw is always reconstructible. The only "delivery" is the trainer's copy button
+(`finalText`), which pastes into LINE manually.

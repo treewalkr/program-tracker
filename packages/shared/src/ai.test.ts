@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  AiClientMessageDraft,
+  CLIENT_MESSAGE_MAX_CHARS,
   DEFAULT_GENERATION_SECONDS,
   TYPICAL_GENERATION_SECONDS,
   mockReviseDraft,
@@ -44,5 +46,20 @@ describe("mockReviseDraft", () => {
     expect(revised.name).toBe(draft.name);
     expect(revised.clientSummary).toBe(draft.clientSummary);
     expect(draft).toEqual(clonedBefore);
+  });
+});
+
+describe("AiClientMessageDraft", () => {
+  test("accepts a LINE-sized message and caps at CLIENT_MESSAGE_MAX_CHARS", () => {
+    const ok = AiClientMessageDraft.safeParse({ message: "Great week — see you Monday." });
+    expect(ok.success).toBe(true);
+
+    const empty = AiClientMessageDraft.safeParse({ message: "" });
+    expect(empty.success).toBe(false);
+
+    const tooLong = AiClientMessageDraft.safeParse({ message: "x".repeat(CLIENT_MESSAGE_MAX_CHARS + 1) });
+    expect(tooLong.success).toBe(false);
+    const atLimit = AiClientMessageDraft.safeParse({ message: "x".repeat(CLIENT_MESSAGE_MAX_CHARS) });
+    expect(atLimit.success).toBe(true);
   });
 });
