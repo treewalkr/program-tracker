@@ -137,7 +137,7 @@ export interface GenerationDto {
   direction?: string | null;
   providerId: string;
   model: string;
-  status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected";
+  status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected" | "cancelled";
   draft: AiDraftDto | null;
   error: string | null;
   parentGenerationId: string | null;
@@ -313,6 +313,7 @@ export interface TrainerApi {
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string, reason?: string): Promise<GenerationDto>;
+  cancelGeneration(id: string): Promise<GenerationDto>;
 
   preferences(): Promise<PreferencesDto[]>;
   distillPreferences(input: {

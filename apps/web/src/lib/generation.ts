@@ -52,6 +52,7 @@ export function generationPhase(g: GenerationDto | null | undefined, now = Date.
       return "failed";
     case "approved":
     case "rejected":
+    case "cancelled":
     default:
       return "form";
   }

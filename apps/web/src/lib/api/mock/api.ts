@@ -561,13 +561,39 @@ export const mockApi: TrainerApi = {
   },
 
   async generate(input) {
-    // Simulated model latency — the demo should feel like real work is happening.
-    await delay(2200);
     const client = state.clients.find((c) => c.id === input.clientId);
     const basedOn = input.basedOnProgramId
       ? state.programs.find((p) => p.id === input.basedOnProgramId) ?? null
       : null;
     const isWeek = Boolean(input.targetWeek);
+    const gen: GenerationDto = {
+      id: uuid(),
+      clientId: input.clientId,
+      basedOnProgramId: input.basedOnProgramId ?? null,
+      kind: isWeek ? "week" : "block",
+      targetWeek: input.targetWeek ?? null,
+      direction: input.direction ?? basedOn?.direction ?? null,
+      providerId: input.providerId ?? "zai",
+      model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-4.5-flash",
+      status: "pending",
+      draft: null,
+      error: null,
+      parentGenerationId: null,
+      revisionMessage: null,
+      instructions: input.instructions ?? null,
+      rejectReason: null,
+      approvedProgramId: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(gen);
+
+    // Simulated model latency — the demo should feel like real work is happening.
+    await delay(2200);
+
+    if (gen.status !== "pending") {
+      return structuredClone(gen);
+    }
+
     const draft = client?.id === "cl-maya" ? mayaDraft(basedOn) : genericDraft();
     if (isWeek) {
       draft.name = `Week ${input.targetWeek}`;
@@ -593,27 +619,9 @@ export const mockApi: TrainerApi = {
         }
       }
     }
-    const gen: GenerationDto = {
-      id: uuid(),
-      clientId: input.clientId,
-      basedOnProgramId: input.basedOnProgramId ?? null,
-      kind: isWeek ? "week" : "block",
-      targetWeek: input.targetWeek ?? null,
-      direction: input.direction ?? basedOn?.direction ?? null,
-      providerId: input.providerId ?? "zai",
-      model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-4.5-flash",
-      status: "validated",
-      draft,
-      error: null,
-      parentGenerationId: null,
-      revisionMessage: null,
-      instructions: input.instructions ?? null,
-      rejectReason: null,
-      approvedProgramId: null,
-      createdAt: new Date().toISOString(),
-    };
-    state.generations.unshift(gen);
-    return gen;
+    gen.status = "validated";
+    gen.draft = draft;
+    return structuredClone(gen);
   },
 
   async generations(clientId) {
@@ -628,9 +636,49 @@ export const mockApi: TrainerApi = {
   },
 
   async reviseGeneration(id, message) {
+    const parent = state.generations.find((g) => g.id === id);
+    if (!parent || parent.status !== "validated" || !parent.draft) {
+      throw new Error("generation is not validated");
+    }
+    const child: GenerationDto = {
+      id: uuid(),
+      clientId: parent.clientId,
+      basedOnProgramId: parent.basedOnProgramId,
+      kind: parent.kind ?? "block",
+      targetWeek: parent.targetWeek ?? null,
+      direction: parent.direction ?? null,
+      providerId: parent.providerId,
+      model: parent.model,
+      status: "pending",
+      draft: null,
+      error: null,
+      parentGenerationId: parent.id,
+      revisionMessage: message,
+      instructions: null,
+      rejectReason: null,
+      approvedProgramId: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(child);
+
     await delay(2200);
-    const child = reviseDraftInState(state, id, message);
+
+    if (child.status !== "pending") {
+      return structuredClone(child);
+    }
+
+    child.status = "validated";
+    child.draft = mockReviseDraft(parent.draft as any, message) as any;
     return structuredClone(child);
+  },
+
+  async cancelGeneration(id) {
+    await delay(150);
+    const g = state.generations.find((g) => g.id === id);
+    if (!g) throw new Error("generation not found");
+    if (g.status !== "pending") throw new Error(`generation is ${g.status}, not pending`);
+    g.status = "cancelled";
+    return structuredClone(g);
   },
 
   async approveGeneration(id) {
