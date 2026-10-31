@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { LegacyProgramSession, Phasing } from "@pt/shared";
+import { ProgramWeeksDocument, type LegacyProgramSession, type Phasing } from "@pt/shared";
 import { migrateProgramDocument } from "./migrate-v7s4y";
 
 const uuid = () => crypto.randomUUID();
@@ -108,5 +108,29 @@ describe("migrateProgramDocument", () => {
     const firstPass = migrateProgramDocument(legacy, { plannedWeeks: 2, phase: "acc" });
     const secondPass = migrateProgramDocument(firstPass, { plannedWeeks: 2, phase: "acc" });
     expect(secondPass).toEqual(firstPass);
+  });
+
+  test("8 legacy sessions cannot produce a valid document (output boundary)", () => {
+    const legacy: LegacyProgramSession[] = Array.from({ length: 8 }, (_, i) => ({
+      id: uuid(),
+      name: `Day ${i + 1}`,
+      order: i,
+      exercises: [baseExercise],
+    }));
+
+    expect(() => migrateProgramDocument(legacy, null)).toThrow();
+  });
+
+  test("7 legacy sessions migrate to exactly 7 days (boundary passes)", () => {
+    const legacy: LegacyProgramSession[] = Array.from({ length: 7 }, (_, i) => ({
+      id: uuid(),
+      name: `Day ${i + 1}`,
+      order: i,
+      exercises: [baseExercise],
+    }));
+
+    const result = migrateProgramDocument(legacy, null);
+    expect(result[0].days).toHaveLength(7);
+    expect(ProgramWeeksDocument.safeParse(result).success).toBe(true);
   });
 });

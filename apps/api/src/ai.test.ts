@@ -11,7 +11,7 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import type { AiProgramDraft } from "@pt/shared";
+import { ProgramWeeksDocument, type AiProgramDraft } from "@pt/shared";
 
 describe("extractJsonObject", () => {
   test("passes through clean JSON", () => {
@@ -672,6 +672,24 @@ describe("draftToWeeks", () => {
     expect(day.sessions[0].cardio?.durationMin).toBe(30);
     expect(day.sessions[0].cardio?.hrZone).toBe(2);
     expect(day.sessions[0].exercises).toEqual([]);
+  });
+
+  test("drafts with more than 7 sessions produce a document that fails the boundary", () => {
+    const eightSessionDraft: AiProgramDraft = {
+      ...draft,
+      sessions: Array.from({ length: 8 }, (_, i) => ({
+        name: `Day ${i + 1}`,
+        exercises: [
+          {
+            exerciseName: `Breach Lift ${i + 1}`,
+            prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }],
+          },
+        ],
+      })),
+    };
+    const { weeks } = draftToWeeks(eightSessionDraft, catalog);
+    expect(weeks[0].days).toHaveLength(8);
+    expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(false);
   });
 });
 
