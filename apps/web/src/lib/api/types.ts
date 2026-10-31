@@ -246,6 +246,15 @@ export interface ChainWeekDto {
   }[];
 }
 
+export interface ChatMessageDto {
+  id: string;
+  role: "trainer" | "assistant";
+  kind: "chat" | "revision" | "draft" | "error";
+  content: string;
+  generationId: string | null;
+  createdAt: string;
+}
+
 export interface TrainerApi {
   providers(): Promise<ProviderDto[]>;
   instructionTemplates(): Promise<InstructionTemplateDto[]>;
@@ -332,4 +341,9 @@ export interface TrainerApi {
   chains(): Promise<KineticChainDto[]>;
   updateChain(id: string, input: { muscleGroups: string[] }): Promise<KineticChainDto>;
   chainWeek(clientId: string): Promise<ChainWeekDto>;
+
+  chatMessages(clientId: string): Promise<ChatMessageDto[]>;
+  sendChatMessage(input: { clientId: string; message: string; providerId?: string; model?: string }): Promise<ChatMessageDto[]>;
+  reviseViaChat(input: { generationId: string; message: string }): Promise<{ messages: ChatMessageDto[]; generation: GenerationDto }>;
+  clearChat(clientId: string): Promise<void>;
 }

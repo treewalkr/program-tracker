@@ -688,6 +688,7 @@
             >
               {revising ? "Revising…" : "Revise draft"}
             </Button>
+            <Button variant="ghost" href={`/clients/${id}/chat`}>Discuss in chat</Button>
           </div>
         </div>
       </Panel>

@@ -227,6 +227,7 @@
     </div>
     <div class="head-actions">
       <Button href={`/clients/${id}/log`}>Log session</Button>
+      <Button href={`/clients/${id}/chat`}>Ask AI</Button>
       <Button href={`/clients/${id}/programs/new`}>Write program</Button>
       <Button variant="primary" href={`/clients/${id}/generate`}>
         {#snippet icon()}<Icon name="sparkle" />{/snippet}

@@ -1,5 +1,6 @@
 import type {
   ChainWeekDto,
+  ChatMessageDto,
   ClientMessageDto,
   ClientDto,
   ExerciseDto,
@@ -168,4 +169,12 @@ export const realApi: TrainerApi = {
   },
   chainWeek: (clientId) =>
     unwrap<ChainWeekDto>(client.v1.chains.week.get({ query: { clientId } })),
+
+  chatMessages: async (clientId) =>
+    (await unwrap<{ messages: ChatMessageDto[] }>(client.v1.ai.chat.get({ query: { clientId } }))).messages,
+  sendChatMessage: async (input) =>
+    (await unwrap<{ messages: ChatMessageDto[] }>(client.v1.ai.chat.post(input))).messages,
+  reviseViaChat: (input) =>
+    unwrap<{ messages: ChatMessageDto[]; generation: GenerationDto }>(client.v1.ai.chat.revise.post(input)),
+  clearChat: (clientId) => unwrap<void>(client.v1.ai.chat.delete(undefined, { query: { clientId } })),
 };

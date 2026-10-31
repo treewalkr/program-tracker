@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { db, trainers, signalOutbox, aiGenerations, programs } from "@pt/db";
-import { EXERCISE_ROLES, stampWeeks } from "@pt/shared";
+import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { app } from "./app";
 
@@ -1618,5 +1618,179 @@ describe.skipIf(!dbUp)("client messages (mock provider)", () => {
     const none = await call("GET", "/v1/client-messages/00000000-0000-0000-0000-000000000000");
     expect(none.status).toBe(404);
     expect(none.body.error).toBe("client message not found");
+  });
+});
+
+describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
+  let clientId = "";
+  let clientName = "Chat Test Client";
+  let genId = "";
+
+  test("setup: create client and draft generation", async () => {
+    const clientRes = await call("POST", "/v1/clients", {
+      name: clientName,
+      email: `chat-${Date.now()}@test.dev`,
+      goals: "strength & chat test",
+      daysPerWeek: 3,
+    });
+    expect(clientRes.status).toBe(201);
+    clientId = clientRes.body.id;
+
+    // Generate a draft to revise against
+    const genRes = await call("POST", "/v1/ai/generate", {
+      clientId,
+      trainerInstructions: "Initial test block",
+      providerId: "mock",
+    });
+    expect(genRes.status).toBe(201);
+    expect(genRes.body.status).toBe("validated");
+    genId = genRes.body.id;
+  });
+
+  test("chat: send a message, get the mock reply, transcript persists", async () => {
+    const msg1 = "How is Maya doing with squat volume?";
+    const send1 = await call("POST", "/v1/ai/chat", {
+      clientId,
+      message: msg1,
+      providerId: "mock",
+    });
+    expect(send1.status).toBe(201);
+    expect(send1.body.messages).toHaveLength(2);
+    const [trainer1, ai1] = send1.body.messages;
+    expect(trainer1.role).toBe("trainer");
+    expect(trainer1.kind).toBe("chat");
+    expect(trainer1.content).toBe(msg1);
+    expect(trainer1.generationId).toBeNull();
+    expect(ai1.role).toBe("assistant");
+    expect(ai1.kind).toBe("chat");
+    expect(ai1.content).toBe(mockChatReply(msg1, clientName));
+    expect(ai1.generationId).toBeNull();
+
+    // GET returns both messages ordered oldest-first
+    const list1 = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    expect(list1.status).toBe(200);
+    expect(list1.body.messages).toHaveLength(2);
+    expect(list1.body.messages[0].id).toBe(trainer1.id);
+    expect(list1.body.messages[1].id).toBe(ai1.id);
+
+    // Second send -> 4 messages
+    const msg2 = "What should we target next week?";
+    const send2 = await call("POST", "/v1/ai/chat", {
+      clientId,
+      message: msg2,
+      providerId: "mock",
+    });
+    expect(send2.status).toBe(201);
+    expect(send2.body.messages).toHaveLength(2);
+
+    const list2 = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    expect(list2.status).toBe(200);
+    expect(list2.body.messages).toHaveLength(4);
+    expect(list2.body.messages[2].content).toBe(msg2);
+    expect(list2.body.messages[3].content).toBe(mockChatReply(msg2, clientName));
+  });
+
+  test("chat: 422 blank message, 404 unknown client", async () => {
+    const preList = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    const preCount = preList.body.messages.length;
+
+    const blank = await call("POST", "/v1/ai/chat", {
+      clientId,
+      message: "   ",
+      providerId: "mock",
+    });
+    expect(blank.status).toBe(422);
+    expect(blank.body.error).toBe("message must not be empty");
+
+    const postBlank = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    expect(postBlank.body.messages).toHaveLength(preCount);
+
+    const unknown = await call("POST", "/v1/ai/chat", {
+      clientId: "00000000-0000-0000-0000-000000000000",
+      message: "hello",
+      providerId: "mock",
+    });
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error).toBe("client not found");
+  });
+
+  test("chat revise creates a child generation and records the exchange", async () => {
+    const reviseMsg = "Swap back squat for safety bar squat";
+    const res = await call("POST", "/v1/ai/chat/revise", {
+      generationId: genId,
+      message: reviseMsg,
+    });
+    expect(res.status).toBe(201);
+    const childGen = res.body.generation;
+    expect(childGen.parentGenerationId).toBe(genId);
+    expect(childGen.revisionMessage).toBe(reviseMsg);
+    expect(childGen.status).toBe("validated");
+
+    expect(res.body.messages).toHaveLength(2);
+    const [trainerMsg, aiMsg] = res.body.messages;
+    expect(trainerMsg.role).toBe("trainer");
+    expect(trainerMsg.kind).toBe("revision");
+    expect(trainerMsg.content).toBe(reviseMsg);
+    expect(trainerMsg.generationId).toBe(childGen.id);
+
+    expect(aiMsg.role).toBe("assistant");
+    expect(aiMsg.kind).toBe("draft");
+    expect(aiMsg.content).toBe(draftNoticeText(childGen.draft));
+    expect(aiMsg.generationId).toBe(childGen.id);
+
+    // Shows in transcript in order
+    const list = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    expect(list.status).toBe(200);
+    const lastTwo = list.body.messages.slice(-2);
+    expect(lastTwo[0].id).toBe(trainerMsg.id);
+    expect(lastTwo[1].id).toBe(aiMsg.id);
+  });
+
+  test("chat revise pre-flight failures write no rows", async () => {
+    const preList = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    const preCount = preList.body.messages.length;
+
+    // Unknown generationId -> 404
+    const unknown = await call("POST", "/v1/ai/chat/revise", {
+      generationId: "00000000-0000-0000-0000-000000000000",
+      message: "some message",
+    });
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error).toBe("generation not found");
+
+    // Blank message -> 422
+    const blank = await call("POST", "/v1/ai/chat/revise", {
+      generationId: genId,
+      message: "   ",
+    });
+    expect(blank.status).toBe(422);
+    expect(blank.body.error).toBe("message must not be empty");
+
+    // Reject generation then revise -> 409
+    const rejectedGen = await call("POST", `/v1/ai/generations/${genId}/reject`, {});
+    expect(rejectedGen.status).toBe(200);
+
+    const onRejected = await call("POST", "/v1/ai/chat/revise", {
+      generationId: genId,
+      message: "try to revise rejected",
+    });
+    expect(onRejected.status).toBe(409);
+    expect(onRejected.body.error).toBe("generation is rejected, not validated");
+
+    const postList = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    expect(postList.body.messages).toHaveLength(preCount);
+  });
+
+  test("chat: DELETE clears transcript idempotently", async () => {
+    const del = await call("DELETE", `/v1/ai/chat?clientId=${clientId}`);
+    expect(del.status).toBe(204);
+
+    const list = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    expect(list.status).toBe(200);
+    expect(list.body.messages).toEqual([]);
+
+    // Idempotent
+    const delAgain = await call("DELETE", `/v1/ai/chat?clientId=${clientId}`);
+    expect(delAgain.status).toBe(204);
   });
 });

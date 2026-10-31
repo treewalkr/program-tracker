@@ -4,6 +4,7 @@ import {
   formatElapsed,
   generationPhase,
   isLivePending,
+  latestValidatedDraft,
   progressFraction,
   revisionChain,
   typicalLabel,
@@ -120,5 +121,23 @@ describe("revisionChain", () => {
     // Missing parent stops the walk
     const orphan = mockGen({ id: "gen-orphan", parentGenerationId: "missing-parent" });
     expect(revisionChain([orphan], "gen-orphan")).toEqual([orphan]);
+  });
+});
+
+describe("latestValidatedDraft", () => {
+  test("latestValidatedDraft picks the newest validated row with a draft", () => {
+    const draftObj: any = { name: "Draft", sessions: [] };
+    const pending = mockGen({ id: "g-pending", status: "pending", draft: null });
+    const validated1 = mockGen({ id: "g-val-1", status: "validated", draft: draftObj });
+    const rejected = mockGen({ id: "g-rejected", status: "rejected", draft: draftObj });
+    const validated2 = mockGen({ id: "g-val-2", status: "validated", draft: draftObj });
+    const validatedNoDraft = mockGen({ id: "g-val-nodraft", status: "validated", draft: null });
+
+    // newest-first: pending, validatedNoDraft, validated1, rejected, validated2
+    expect(latestValidatedDraft([pending, validatedNoDraft, validated1, rejected, validated2])).toBe(validated1);
+
+    // none validated with draft -> null
+    expect(latestValidatedDraft([pending, rejected, validatedNoDraft])).toBeNull();
+    expect(latestValidatedDraft([])).toBeNull();
   });
 });
