@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { extractJsonObject } from "./ai/provider";
 import {
+  buildChatSystem,
   buildDistillMessages,
   buildGenerationMessages,
   buildRevisionMessages,
   buildWeekMessages,
   buildWeekRevisionMessages,
+  draftToText,
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
@@ -863,5 +865,105 @@ describe("mockClientMessage", () => {
     // final week → wrap-up, not a next week
     const final = mockClientMessage({ ...statsFixture, nextWeek: null });
     expect(final.message).toContain("wraps the block");
+  });
+});
+
+describe("buildChatSystem", () => {
+  test("buildChatSystem grounds scope, client context, latest draft, and learned preferences", () => {
+    const fixtureDraft: AiProgramDraft = {
+      name: "Strength Block 1",
+      rationale: "Progress squat and bench",
+      clientSummary: "Great work coming up",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [
+            {
+              exerciseName: "Squat",
+              prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const sys = buildChatSystem({
+      client: { name: "Maya", goals: "500lb total", limitations: "mild impingement", daysPerWeek: 3 },
+      previousProgram: {
+        name: "Intro Block",
+        sessions: [
+          {
+            name: "Session A",
+            exercises: [{ name: "Squat", sets: ["5 reps @ RPE 7"] }],
+          },
+        ],
+      },
+      periodization: "week 2 of 4 · +volume",
+      chainBalance: "Anterior 12 sets",
+      history: [
+        {
+          exerciseName: "Squat",
+          recentSets: ["100kg × 5"],
+          bestE1rm: 116.7,
+        },
+      ],
+      catalog: [
+        {
+          id: "ex-1",
+          name: "Back Squat",
+          primaryMuscleGroup: "quads",
+          equipment: "barbell",
+          movementPattern: "squat",
+          functionalMovement: "bilateral_squat",
+        },
+      ],
+      learnedPreferences: "Keep RPE under 8.",
+      latestDraft: {
+        kind: "block",
+        targetWeek: null,
+        text: draftToText(fixtureDraft),
+        revisionMessage: "swap bench for db press",
+      },
+    });
+
+    expect(sys).toContain("not a general assistant");
+    expect(sys).toContain("Revise draft");
+    expect(sys).toContain("CLIENT: Maya");
+    expect(sys).toContain("CURRENT PROGRAM (the block you are following up):");
+    expect(sys).toContain("Session A: Squat");
+    expect(sys).toContain("RECENT TRAINING LOGS (last 8 weeks, oldest → newest):");
+    expect(sys).toContain("LATEST DRAFT (under review — the trainer can revise it):");
+    expect(sys).toContain("Strength Block 1");
+    expect(sys).toContain("Last revision message: swap bench for db press");
+    expect(sys).toContain("LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):");
+    expect(sys).toContain("Keep RPE under 8.");
+    expect(sys).toContain("EXERCISE CATALOG (names for reference):");
+    expect(sys).toContain("- ex-1 | Back Squat (quads, barbell, squat, bilateral_squat)");
+
+    // With latestDraft: null
+    const sysNoDraft = buildChatSystem({
+      client: { name: "Maya", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      latestDraft: null,
+    });
+    expect(sysNoDraft).toContain("LATEST DRAFT: none under review.");
+  });
+
+  test("buildChatSystem omits the preferences section when unset; existing builders unchanged", () => {
+    const sys = buildChatSystem({
+      client: { name: "Maya", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      latestDraft: null,
+      learnedPreferences: null,
+    });
+    expect(sys).not.toContain("LEARNED PREFERENCES");
   });
 });

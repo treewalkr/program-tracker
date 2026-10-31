@@ -462,7 +462,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
   return { system, user };
 }
 
-function draftToText(d: AiProgramDraft): string {
+export function draftToText(d: AiProgramDraft): string {
   const lines = [
     d.name,
     d.rationale,
@@ -636,3 +636,91 @@ export function buildClientMessageMessages(ctx: ClientMessageContext): {
 
   return { system, user };
 }
+
+// ---------------------------------------------------------------------------
+// Chat system prompt
+// ---------------------------------------------------------------------------
+
+export interface ChatDraftContext {
+  kind: "block" | "week";
+  targetWeek: number | null;
+  text: string; // draftToText output
+  revisionMessage: string | null;
+}
+
+export interface ChatContext extends Omit<GenerationContext, "trainerInstructions"> {
+  latestDraft: ChatDraftContext | null;
+}
+
+export function buildChatSystem(ctx: ChatContext): string {
+  const header = [
+    "You are the trainer's assistant inside their strength & conditioning app, chatting about ONE client.",
+    "Answer only about this client — profile, current program, logged numbers, progress, and AI drafts. This is not a general assistant: for anything else, point the trainer to the right part of their app.",
+    "Ground every claim in the CONTEXT below and quote actual numbers. If the context does not cover it, say so plainly — never invent data.",
+    "LIMITATIONS are hard constraints: never suggest movements that conflict with them.",
+    'If the trainer wants the latest draft changed, tell them to send the message with "Revise draft" — that creates the next draft version; you cannot change drafts yourself.',
+    "Keep replies short and concrete.",
+  ].join("\n");
+
+  const draftBlock = ctx.latestDraft
+    ? [
+        "LATEST DRAFT (under review — the trainer can revise it):",
+        ctx.latestDraft.kind === "week"
+          ? `week ${ctx.latestDraft.targetWeek ?? "?"} draft`
+          : "next-block draft",
+        `${ctx.latestDraft.text}${ctx.latestDraft.revisionMessage ? `\nLast revision message: ${ctx.latestDraft.revisionMessage}` : ""}`,
+      ].join("\n")
+    : "LATEST DRAFT: none under review.";
+
+  return [
+    header,
+    "",
+    "CONTEXT:",
+    `CLIENT: ${ctx.client.name}`,
+    ctx.client.goals ? `GOALS: ${ctx.client.goals}` : "GOALS: not specified",
+    ctx.client.limitations
+      ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
+      : "LIMITATIONS: none listed",
+    ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
+    "",
+    ctx.previousProgram
+      ? [
+          "CURRENT PROGRAM (the block you are following up):",
+          programToText(ctx.previousProgram),
+        ].join("\n")
+      : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+    "",
+    ctx.periodization
+      ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
+      : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
+    "",
+    ctx.chainBalance
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+    "",
+    ctx.history.length > 0
+      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
+      : "RECENT TRAINING LOGS: none.",
+    "",
+    draftBlock,
+    "",
+    ...(ctx.learnedPreferences
+      ? [
+          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
+          "",
+        ]
+      : []),
+    `EXERCISE CATALOG (names for reference):`,
+    ...(ctx.catalog.length
+      ? [
+          ctx.catalog
+            .map(
+              (e) =>
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+            )
+            .join("\n"),
+        ]
+      : []),
+  ].join("\n");
+}
+
