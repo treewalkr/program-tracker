@@ -413,6 +413,15 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
       }
 
+      const parsedDoc = ProgramWeeksDocument.safeParse(weeks);
+      if (!parsedDoc.success) {
+        await db
+          .update(aiGenerations)
+          .set({ status: "failed_validation", error: z.prettifyError(parsedDoc.error) })
+          .where(eq(aiGenerations.id, gen.id));
+        return status(422, { error: "invalid weeks document" });
+      }
+
       // Create custom exercise rows for genuinely new movements.
       const nameToId = new Map<string, string>();
       for (const name of createdNames) {
@@ -428,7 +437,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         nameToId.set(name.toLowerCase(), created.id);
       }
 
-      const finalWeeks = bindPendingExercises(weeks, nameToId);
+      const finalWeeks = bindPendingExercises(parsedDoc.data, nameToId);
       const [program] = await db
         .insert(programs)
         .values({

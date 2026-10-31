@@ -77,7 +77,7 @@ export function migrateProgramDocument(
     });
   }
 
-  return applyDefaultWeekdays(weeks, trainingDays);
+  return ProgramWeeksDocument.parse(applyDefaultWeekdays(weeks, trainingDays));
 }
 
 export async function main() {
@@ -106,11 +106,17 @@ export async function main() {
       continue;
     }
 
-    const reshaped = migrateProgramDocument(
-      legacyParsed.data,
-      row.phasing ?? null,
-      row.trainingDays
-    );
+    let reshaped: ProgramWeek[];
+    try {
+      reshaped = migrateProgramDocument(
+        legacyParsed.data,
+        row.phasing ?? null,
+        row.trainingDays
+      );
+    } catch {
+      skipped++;
+      continue;
+    }
 
     await db
       .update(programs)

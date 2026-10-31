@@ -11,7 +11,7 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import type { AiProgramDraft } from "@pt/shared";
+import { ProgramWeeksDocument, type AiProgramDraft } from "@pt/shared";
 
 describe("extractJsonObject", () => {
   test("passes through clean JSON", () => {
@@ -235,6 +235,112 @@ describe("buildWeekMessages", () => {
     expect(user).toContain("CURRENT WEEK (week 2 — what the client is doing now):");
     expect(user).toContain("Week 2 Squat Focus");
     expect(user).toContain("Week 2 Bench Focus");
+  });
+});
+
+describe("weekly prompts: learned preferences", () => {
+  test("learned preferences section lands in weekly generation prompt", () => {
+    const { user } = buildWeekMessages({
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      direction: "Build squat volume; keep upper body at maintenance.",
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      learnedPreferences: "Cap RPE at 8.",
+    });
+    expect(user).toContain(
+      "LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nCap RPE at 8."
+    );
+    const dirIdx = user.indexOf("STANDING DIRECTION");
+    const learnedIdx = user.indexOf("LEARNED PREFERENCES");
+    const trainerIdx = user.indexOf("TRAINER INSTRUCTIONS");
+    expect(dirIdx).toBeLessThan(learnedIdx);
+    expect(learnedIdx).toBeLessThan(trainerIdx);
+  });
+
+  test("learned preferences section lands in weekly revision prompt", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "s",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    };
+    const { user } = buildWeekRevisionMessages({
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "fix reps",
+      learnedPreferences: "Cap RPE at 8.",
+    });
+    expect(user).toContain(
+      "LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nCap RPE at 8."
+    );
+    const catalogIdx = user.indexOf("EXERCISE CATALOG");
+    const learnedIdx = user.indexOf("LEARNED PREFERENCES");
+    const draftIdx = user.indexOf("PREVIOUS DRAFT");
+    expect(catalogIdx).toBeLessThan(learnedIdx);
+    expect(learnedIdx).toBeLessThan(draftIdx);
+  });
+
+  test("weekly prompts are byte-identical without learned preferences", () => {
+    const baseCtx = {
+      client: { name: "Jonas", daysPerWeek: 3 },
+      targetWeek: 3,
+      plannedWeeks: 4,
+      targetDirective: null as null,
+      target: null as null,
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell" }],
+      trainerInstructions: "",
+    };
+
+    const draft = buildWeekMessages(baseCtx);
+    expect(draft.user).toContain("function n/a)\n\nTRAINER INSTRUCTIONS: none");
+    expect(draft.user).not.toContain("LEARNED PREFERENCES");
+
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "r",
+      clientSummary: "s",
+      sessions: [
+        {
+          name: "Day 1",
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    };
+    const revision = buildWeekRevisionMessages({ ...baseCtx, previousDraft, feedback: "fix reps" });
+    expect(revision.user).toContain("function n/a)\n\nPREVIOUS DRAFT (your earlier output — revise it):");
+    expect(revision.user).not.toContain("LEARNED PREFERENCES");
+
+    expect(buildWeekMessages({ ...baseCtx, learnedPreferences: null }).user).toBe(draft.user);
+    expect(
+      buildWeekRevisionMessages({ ...baseCtx, previousDraft, feedback: "fix reps", learnedPreferences: null }).user
+    ).toBe(revision.user);
   });
 });
 
@@ -566,6 +672,24 @@ describe("draftToWeeks", () => {
     expect(day.sessions[0].cardio?.durationMin).toBe(30);
     expect(day.sessions[0].cardio?.hrZone).toBe(2);
     expect(day.sessions[0].exercises).toEqual([]);
+  });
+
+  test("drafts with more than 7 sessions produce a document that fails the boundary", () => {
+    const eightSessionDraft: AiProgramDraft = {
+      ...draft,
+      sessions: Array.from({ length: 8 }, (_, i) => ({
+        name: `Day ${i + 1}`,
+        exercises: [
+          {
+            exerciseName: `Breach Lift ${i + 1}`,
+            prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }],
+          },
+        ],
+      })),
+    };
+    const { weeks } = draftToWeeks(eightSessionDraft, catalog);
+    expect(weeks[0].days).toHaveLength(8);
+    expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(false);
   });
 });
 

@@ -157,14 +157,14 @@ Delivery (email via cron + outbox) is Phase L5 — the read path ships first.
 |---|---|---|
 | POST | `/v1/ai/generate` | `{clientId, basedOnProgramId?, providerId?, model?, instructions?, direction?, targetWeek?}` → 201 generation (status `validated` + `draft`) or **502** (`failed_validation` / `failed_provider`, error detail kept); unknown `model` for the provider → **400**. When `targetWeek` is set, operates in **weekly mode**: validates `basedOnProgramId` is active, `targetWeek = weekOf + 1 ≤ weeks.length`, inserts `kind: "week"`, and drafts week N+1. Context bundle auto-includes instruction templates selection, periodization context, and standing direction — see [ai-integration.md](ai-integration.md). GLM 5.x models always think (Z.ai rejects `disabled`) — the provider layer sends `budget: low` and a roomier token cap automatically |
 | GET | `/v1/ai/generations?clientId=` | audit trail |
-| POST | `/v1/ai/generations/:id/approve` | draft → real program; **409** if not `validated`; **422** if unresolvable exercise refs. In block mode: creates a new draft program (`draft` status, `aiAssisted: true`, copies direction). In week mode: replaces the target week in place on the active program (`version++`, fresh ids, carries weekdays) |
+| POST | `/v1/ai/generations/:id/approve` | draft → real program; **409** if not `validated`; **422** if unresolvable exercise refs; **422** `"invalid weeks document"` if the draft maps to a weeks document that fails the boundary (>7 training days) — the generation flips to `failed_validation`. In block mode: creates a new draft program (`draft` status, `aiAssisted: true`, copies direction). In week mode: replaces the target week in place on the active program (`version++`, fresh ids, carries weekdays) |
 | POST | `/v1/ai/generations/:id/reject` | mark rejected, nothing created |
 
 Generation status lifecycle:
 
 ```
 pending → validated ──approve──▶ approved  (+ program created in draft)
-              │
+              │            └──approve-breach──▶ failed_validation  (weeks document >7 days)
               ├──reject──▶ rejected
               ├──failed_validation   (zod rejected the LLM output twice)
               └──failed_provider     (network / HTTP / auth error)
