@@ -2,8 +2,8 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
-  import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProviderDto } from "$lib/api/types";
+  import { selectExamples, sortExercisesByRole, typicalGenerationSeconds } from "@pt/shared";
+  import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProviderDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS, revisionChain } from "$lib/generation";
   import { diffSources, draftToDiffSource, programToDiffSource, type DiffRow } from "$lib/draftDiff";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -46,6 +46,7 @@
   let failReason = $state<string | null>(null);
   let gen = $state<GenerationDto | null>(null);
   let allGens = $state<GenerationDto[]>([]);
+  let examples = $state<ProgramExampleDto[]>([]);
   let revisionNote = $state("");
   let revising = $state(false);
   let reviseError = $state<string | null>(null);
@@ -257,6 +258,14 @@
     phase = "form";
   }
 
+  const matchedExamples = $derived(
+    selectExamples(
+      examples,
+      { goals: client?.goals ?? null, daysPerWeek: client?.daysPerWeek ?? null },
+      { excludeProgramId: current?.id ?? null, limit: 2 }
+    )
+  );
+
   async function saveAsTemplate() {
     if (!instructions.trim() || !tplName.trim()) return;
     savingTpl = true;
@@ -330,6 +339,7 @@
     }
 
     const gens = await api.generations(id);
+    examples = await api.examples();
     allGens = gens;
     const latest = gens[0] ?? null;
     const initialPhase = generationPhase(latest);
@@ -467,6 +477,12 @@
             <pre class="merged ctx">{periodContext}</pre>
           </div>
         {/if}
+        {#if matchedExamples.length > 0}
+          <div>
+            <p class="label">Example library <span class="subtle">— injected automatically, matched by goal + days/week</span></p>
+            <p class="subtle">{matchedExamples.length} example program{matchedExamples.length === 1 ? "" : "s"} from your library will shape this draft.</p>
+          </div>
+        {/if}
         {#if mergedInstructions}
           <div>
             <p class="label">AI receives <span class="subtle">— templates + note, always after profile and history</span></p>
@@ -572,6 +588,9 @@
     <div>
       <Panel title="Why this block" count="trainer-facing rationale">
         <div class="panel-body rationale">{gen.draft.rationale}</div>
+        {#if gen.exampleProgramIds.length > 0}
+          <p class="subtle shaped-by">Shaped by {gen.exampleProgramIds.length} example program{gen.exampleProgramIds.length === 1 ? "" : "s"} from your library.</p>
+        {/if}
       </Panel>
 
       {#if chain.length > 1}
@@ -708,6 +727,7 @@
 
   .review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   .rationale { white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
+  .shaped-by { padding: 0 18px 14px; margin: 0; font-size: 13px; }
 
   .clientreads {
     margin-top: 16px;
