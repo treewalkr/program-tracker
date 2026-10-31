@@ -29,6 +29,7 @@ describe("mockReviseDraft", () => {
       sessions: [
         {
           name: "Day 1",
+          kind: "lifting",
           exercises: [
             {
               exerciseName: "Squat",

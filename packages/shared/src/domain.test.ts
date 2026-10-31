@@ -172,7 +172,7 @@ describe("Client trainingDays", () => {
 });
 
 describe("Program", () => {
-  const baseExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] };
+  const baseExercise: ProgramExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] };
 
   test("requires at least one week with at least one day and session", () => {
     expect(() =>
@@ -293,7 +293,7 @@ describe("Program", () => {
 });
 
 describe("ProgramWeeksDocument", () => {
-  const baseExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] };
+  const baseExercise: ProgramExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] };
 
   test("ProgramWeeksDocument: accepts weeks→days→sessions and defaults kind \"lifting\"", () => {
     const doc = ProgramWeeksDocument.parse([
@@ -323,11 +323,11 @@ describe("ProgramWeeksDocument", () => {
       ProgramWeeksDocument.parse([
         {
           week: 1,
-          days: [{ id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S1", order: 0, exercises: [baseExercise] }] }],
+          days: [{ id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S1", order: 0, kind: "lifting", exercises: [baseExercise] }] }],
         },
         {
           week: 3,
-          days: [{ id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S2", order: 0, exercises: [baseExercise] }] }],
+          days: [{ id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S2", order: 0, kind: "lifting", exercises: [baseExercise] }] }],
         },
       ])
     ).toThrow();
@@ -431,9 +431,9 @@ describe("ProgramWeeksDocument", () => {
       {
         week: 1,
         days: [
-          { id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S1", order: 0, exercises: [baseExercise] }] },
-          { id: uuid(), day: 2, sessions: [{ id: uuid(), name: "S2", order: 0, exercises: [baseExercise] }] },
-          { id: uuid(), day: 3, sessions: [{ id: uuid(), name: "S3", order: 0, exercises: [baseExercise] }] },
+          { id: uuid(), day: 1, sessions: [{ id: uuid(), name: "S1", order: 0, kind: "lifting", exercises: [baseExercise] }] },
+          { id: uuid(), day: 2, sessions: [{ id: uuid(), name: "S2", order: 0, kind: "lifting", exercises: [baseExercise] }] },
+          { id: uuid(), day: 3, sessions: [{ id: uuid(), name: "S3", order: 0, kind: "lifting", exercises: [baseExercise] }] },
         ],
       },
     ];
@@ -461,7 +461,7 @@ describe("ProgramWeeksDocument", () => {
                 id: uuid(),
                 exerciseId: catalogExerciseId,
                 order: 0,
-                prescribedSets: [{ setNumber: 1, reps: 5 }],
+                prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }],
               },
             ],
           },
@@ -510,8 +510,8 @@ describe("ProgramWeeksDocument", () => {
                     order: 0,
                     role: "primary",
                     prescribedSets: [
-                      { setNumber: 1, reps: 5, targetWeightKg: 100 },
-                      { setNumber: 2, reps: 5, targetWeightKg: 100 },
+                      { setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 },
+                      { setNumber: 2, type: "working", reps: 5, amrap: false, targetWeightKg: 100 },
                     ],
                   },
                 ],
@@ -533,8 +533,8 @@ describe("ProgramWeeksDocument", () => {
     expect(cloned[0].days[0].sessions[0].exercises[0].exerciseId).toBe(catalogExerciseId);
     expect(cloned[0].days[0].sessions[0].exercises[0].role).toBe("primary");
     expect(cloned[0].days[0].sessions[0].exercises[0].prescribedSets).toEqual([
-      { setNumber: 1, reps: 5, targetWeightKg: 100 },
-      { setNumber: 2, reps: 5, targetWeightKg: 100 },
+      { setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 },
+      { setNumber: 2, type: "working", reps: 5, amrap: false, targetWeightKg: 100 },
     ]);
 
     expect(cloned[0].days[0].id).not.toBe(originalWeeks[0].days[0].id);
@@ -588,7 +588,7 @@ describe("ProgramWeeksDocument", () => {
 });
 
 describe("ExerciseRole", () => {
-  const baseExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] };
+  const baseExercise: ProgramExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] };
 
   test("role is optional and only the five session slots are accepted", () => {
     expect(ProgramExercise.parse(baseExercise).role).toBeUndefined();
@@ -626,7 +626,7 @@ describe("ExerciseRole", () => {
   });
 
   test("all-unset input keeps its order and is not mutated", () => {
-    const input = [{ name: "a" }, { name: "b" }, { name: "c" }];
+    const input: { name: string; role?: null }[] = [{ name: "a" }, { name: "b" }, { name: "c" }];
     const sorted = sortExercisesByRole(input);
     expect(sorted.map((e) => e.name)).toEqual(["a", "b", "c"]);
     expect(sorted).not.toBe(input);
@@ -724,7 +724,7 @@ describe("AiProgramDraft (full LLM payload)", () => {
         {
           name: "Day 1",
           kind: "lifting",
-          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, reps: 5 }] }],
+          exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] }],
         },
         {
           name: "Cardio 1",
@@ -1010,7 +1010,7 @@ describe("Program editing (pure)", () => {
           exerciseId: uuid(),
           exerciseName: "Squat",
           order: 0,
-          prescribedSets: [{ setNumber: 1, reps: 5 }],
+          prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }],
         },
       ],
       cardio: null,
@@ -1038,7 +1038,7 @@ describe("Program editing (pure)", () => {
       exerciseId: uuid(),
       exerciseName: "Squat",
       order: 0,
-      prescribedSets: [{ setNumber: 1, reps: 5, type: "working" }],
+      prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }],
     };
     const withSet = addSet(ex);
     expect(withSet.prescribedSets.length).toBe(2);
@@ -1127,9 +1127,9 @@ describe("Program editing (pure)", () => {
       order: 0,
       kind: "lifting",
       exercises: [
-        { id: uuid(), exerciseId: uuid(), exerciseName: "A", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] },
-        { id: uuid(), exerciseId: uuid(), exerciseName: "B", order: 1, prescribedSets: [{ setNumber: 1, reps: 5 }] },
-        { id: uuid(), exerciseId: uuid(), exerciseName: "C", order: 2, prescribedSets: [{ setNumber: 1, reps: 5 }] },
+        { id: uuid(), exerciseId: uuid(), exerciseName: "A", order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] },
+        { id: uuid(), exerciseId: uuid(), exerciseName: "B", order: 1, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] },
+        { id: uuid(), exerciseId: uuid(), exerciseName: "C", order: 2, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] },
       ],
       cardio: null,
     };
@@ -1194,7 +1194,7 @@ describe("Program editing (pure)", () => {
 
     const liftingSession = d1.sessions[0];
     liftingSession.exercises = [
-      { id: uuid(), exerciseId: uuid(), exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, reps: 5 }] },
+      { id: uuid(), exerciseId: uuid(), exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
     ];
     const cardioSession = switchSessionKind(liftingSession, "cardio");
     expect(cardioSession.kind).toBe("cardio");
