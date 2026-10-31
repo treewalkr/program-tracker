@@ -1,6 +1,6 @@
 {
   "id": "0fa5905b-d3ee-4b48-94b7-29393028ceda",
-  "prevId": "d4168275-8663-40ae-90a7-bd7214146990",
+  "prevId": "fa19f149-d67b-4c58-b141-6f874dd35616",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -101,6 +101,24 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "instructions": {
+          "name": "instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reject_reason": {
+          "name": "reject_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_program_id": {
+          "name": "approved_program_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -150,6 +168,19 @@
           "tableTo": "ai_generations",
           "columnsFrom": [
             "parent_generation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "ai_generations_approved_program_id_programs_id_fk": {
+          "name": "ai_generations_approved_program_id_programs_id_fk",
+          "tableFrom": "ai_generations",
+          "tableTo": "programs",
+          "columnsFrom": [
+            "approved_program_id"
           ],
           "columnsTo": [
             "id"
@@ -1181,6 +1212,97 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.trainer_preferences": {
+      "name": "trainer_preferences",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "trainer_id": {
+          "name": "trainer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "document": {
+          "name": "document",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "trainer_preferences_trainer_id_trainers_id_fk": {
+          "name": "trainer_preferences_trainer_id_trainers_id_fk",
+          "tableFrom": "trainer_preferences",
+          "tableTo": "trainers",
+          "columnsFrom": [
+            "trainer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "trainer_preferences_client_id_clients_id_fk": {
+          "name": "trainer_preferences_client_id_clients_id_fk",
+          "tableFrom": "trainer_preferences",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

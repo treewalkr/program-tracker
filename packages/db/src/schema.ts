@@ -192,6 +192,27 @@ export type SessionLogRow = typeof sessionLogs.$inferSelect;
 export type SetLogRow = typeof setLogs.$inferSelect;
 export type AiGenerationRow = typeof aiGenerations.$inferSelect;
 
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  /** "trainer" = the human; "assistant" = the AI. */
+  role: text("role").$type<"trainer" | "assistant">().notNull(),
+  /** chat = plain Q&A · revision = trainer's revise send · draft = draft-ready notice · error = failed call. */
+  kind: text("kind").$type<"chat" | "revision" | "draft" | "error">().notNull().default("chat"),
+  content: text("content").notNull(),
+  /** Generation this message concerns (revision sends and their draft/error replies). */
+  generationId: uuid("generation_id").references((): AnyPgColumn => aiGenerations.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ChatMessageRow = typeof chatMessages.$inferSelect;
+
 // ---------------------------------------------------------------------------
 // Trainer library — instruction templates + periodization schemes
 // ---------------------------------------------------------------------------

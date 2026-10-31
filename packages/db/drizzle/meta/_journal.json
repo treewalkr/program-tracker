@@ -85,6 +85,13 @@
       "when": 1793400155021,
       "tag": "0012_client_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793421859007,
+      "tag": "0013_chat_messages",
+      "breakpoints": true
     }
   ]
 }
