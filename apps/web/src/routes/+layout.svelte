@@ -23,6 +23,7 @@
       items: [
         { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
         { href: "/templates", label: "Templates", icon: "layers" },
+        { href: "/examples", label: "Examples", icon: "sparkle" },
       ],
     },
   ];
