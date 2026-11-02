@@ -17,6 +17,7 @@ storybook-static/
 COMMITS.md
 .DS_Store
 *.log
+*.sql
 .vite/
 test-results/
 playwright-report/
