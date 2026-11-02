@@ -18,6 +18,7 @@ COMMITS.md
 .DS_Store
 *.log
 *.sql
+skills-lock.json
 .vite/
 test-results/
 playwright-report/
