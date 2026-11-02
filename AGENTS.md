@@ -13,6 +13,12 @@
 - **`svelte5-best-practices`** — Svelte 5 runes, snippets, and SvelteKit patterns; consult when writing or reviewing Svelte components
 - **`impeccable`** — UI design and polish; consult to avoid generic "AI slop" design — every screen must feel intentional and bespoke (design direction in `BRIEF.md`)
 
+## Task workflow
+
+All non-trivial units of work run through the shared kanban board — follow the
+`pi-kanban` skill (`.agents/skills/pi-kanban/SKILL.md`); load it before starting,
+advancing, or finishing any task. Tag cards `--project program-tracker`.
+
 # Commit Rules
 
 ## Frequency
