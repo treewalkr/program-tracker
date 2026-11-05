@@ -1,0 +1,172 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { app } from "./app";
+import { ContextError, providerRuntime } from "./ai/runtime";
+import { chatJson } from "./ai/provider";
+
+/**
+ * Provider-seam coverage for the `deepseek` registry entry.
+ * bun auto-loads .env* — snapshot and clear the provider vars per test so
+ * developer machines with real keys don't skew assertions.
+ */
+const MANAGED_ENV = [
+  "DEEPSEEK_API_KEY",
+  "DEEPSEEK_BASE_URL",
+  "DEEPSEEK_MODEL",
+  "DEEPSEEK_MODELS",
+  "ZAI_API_KEY",
+  "ZAI_BASE_URL",
+  "ZAI_MODEL",
+  "ZAI_MODELS",
+];
+let envSnapshot: Record<string, string | undefined>;
+
+beforeEach(() => {
+  envSnapshot = Object.fromEntries(MANAGED_ENV.map((k) => [k, process.env[k]]));
+  for (const k of MANAGED_ENV) delete process.env[k];
+});
+afterEach(() => {
+  for (const k of MANAGED_ENV) {
+    if (envSnapshot[k] === undefined) delete process.env[k];
+    else process.env[k] = envSnapshot[k];
+  }
+});
+
+const call = async (method: string, path: string, body?: unknown) => {
+  const res = await app.handle(
+    new Request(`http://local${path}`, {
+      method,
+      headers: { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  );
+  return { status: res.status, body: (await res.json().catch(() => null)) as any };
+};
+
+describe("GET /v1/ai/providers (deepseek)", () => {
+  test("T3 providers route lists deepseek with its default model", async () => {
+    const { status, body } = await call("GET", "/v1/ai/providers");
+    expect(status).toBe(200);
+    expect(body.providers.map((p: any) => p.id)).toEqual(["zai", "deepseek", "mock"]);
+    const deepseek = body.providers.find((p: any) => p.id === "deepseek");
+    expect(deepseek.label).toBe("DeepSeek");
+    expect(deepseek.model).toBe("deepseek-chat");
+    expect(deepseek.models).toEqual(["deepseek-chat", "deepseek-reasoner"]);
+    expect(deepseek.baseUrl).toBe("https://api.deepseek.com");
+    expect(deepseek.configured).toBe(false);
+
+    process.env.DEEPSEEK_API_KEY = "sk-test-not-real";
+    const withKey = await call("GET", "/v1/ai/providers");
+    const configured = withKey.body.providers.find((p: any) => p.id === "deepseek");
+    expect(configured.configured).toBe(true);
+  });
+
+  test("T4 providers route never echoes the deepseek key", async () => {
+    process.env.DEEPSEEK_API_KEY = "sk-test-not-real";
+    const { body } = await call("GET", "/v1/ai/providers");
+    expect(JSON.stringify(body)).not.toContain("sk-test-not-real");
+  });
+
+  test("T5 env overrides apply identically to zai and deepseek in the providers route", async () => {
+    for (const id of ["zai", "deepseek"] as const) {
+      const upper = id.toUpperCase();
+      process.env[`${upper}_MODELS`] = "m1,m2";
+      process.env[`${upper}_MODEL`] = "m9";
+      process.env[`${upper}_BASE_URL`] = "http://proxy.test/v1";
+
+      const { body } = await call("GET", "/v1/ai/providers");
+      const entry = body.providers.find((p: any) => p.id === id);
+      expect(entry.models).toEqual(["m9", "m1", "m2"]);
+      expect(entry.model).toBe("m9");
+      expect(entry.baseUrl).toBe("http://proxy.test/v1");
+
+      delete process.env[`${upper}_MODELS`];
+      delete process.env[`${upper}_MODEL`];
+      delete process.env[`${upper}_BASE_URL`];
+    }
+  });
+});
+
+describe("providerRuntime (deepseek)", () => {
+  test("T6 providerRuntime resolves deepseek defaults and missing key", () => {
+    let caught: any;
+    try {
+      providerRuntime("deepseek");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ContextError);
+    expect(caught.status).toBe(400);
+    expect(caught.message).toBe('provider "deepseek" not configured (missing DEEPSEEK_API_KEY)');
+
+    process.env.DEEPSEEK_API_KEY = "k";
+    const rt = providerRuntime("deepseek");
+    expect(rt).toEqual({
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-chat",
+      apiKey: "k",
+      maxOutputTokens: 8192,
+      disableThinking: undefined,
+    });
+    expect(providerRuntime("deepseek", "deepseek-reasoner").model).toBe("deepseek-reasoner");
+  });
+
+  test("T7 providerRuntime env overrides behave the same for zai and deepseek", () => {
+    for (const id of ["zai", "deepseek"] as const) {
+      const upper = id.toUpperCase();
+      process.env[`${upper}_API_KEY`] = "k";
+
+      process.env[`${upper}_BASE_URL`] = "http://proxy.test/v1";
+      expect(providerRuntime(id).baseUrl).toBe("http://proxy.test/v1");
+      delete process.env[`${upper}_BASE_URL`];
+
+      process.env[`${upper}_MODEL`] = "m9";
+      expect(providerRuntime(id).model).toBe("m9");
+      delete process.env[`${upper}_MODEL`];
+
+      process.env[`${upper}_MODELS`] = "m1,m2";
+      expect(providerRuntime(id, "m2").model).toBe("m2");
+      let caught: any;
+      try {
+        providerRuntime(id, "not-listed");
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ContextError);
+      expect(caught.status).toBe(400);
+      expect(caught.message).toMatch(new RegExp(`not available for provider "${id}"`));
+      delete process.env[`${upper}_MODELS`];
+    }
+  });
+});
+
+describe("chatJson (deepseek request shape)", () => {
+  test("T8 chatJson sends an OpenAI-shaped JSON-mode request to DeepSeek", async () => {
+    process.env.DEEPSEEK_API_KEY = "k";
+    const rt = providerRuntime("deepseek");
+    const origFetch = globalThis.fetch;
+    let url = "";
+    let headers: Headers | undefined;
+    let body: any;
+    try {
+      globalThis.fetch = (async (input: any, init?: RequestInit) => {
+        url = String(input);
+        headers = new Headers(init?.headers);
+        body = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch;
+      const out = await chatJson(rt, [{ role: "user", content: "Say JSON." }]);
+      expect(out).toBe('{"ok":true}');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+    expect(url).toBe("https://api.deepseek.com/chat/completions");
+    expect(headers?.get("authorization")).toBe("Bearer k");
+    expect(body.model).toBe("deepseek-chat");
+    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.max_tokens).toBe(8192);
+    expect("thinking" in body).toBe(false);
+  });
+});
