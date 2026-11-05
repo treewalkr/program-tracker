@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { db, trainers, signalOutbox, aiGenerations, programs, exercises } from "@pt/db";
 import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
+import { loadRevisionConversation } from "./lib/revision";
 import { app } from "./app";
 
 /** Integration tests need a live Postgres (bun run db:up). Skip otherwise. */
@@ -2185,5 +2186,45 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     // Idempotent
     const delAgain = await call("DELETE", `/v1/ai/chat?clientId=${clientId}`);
     expect(delAgain.status).toBe(204);
+  });
+
+  test("loadRevisionConversation returns recent chat+revision rows oldest-first, skipping draft/error", async () => {
+    // Empty transcript to start from a known state
+    await call("DELETE", `/v1/ai/chat?clientId=${clientId}`);
+
+    const msg1 = "How is the squat volume feeling?";
+    const send1 = await call("POST", "/v1/ai/chat", { clientId, message: msg1, providerId: "mock" });
+    expect(send1.status).toBe(201);
+
+    // Fresh parent — never reuse genId (rejected in a prior test)
+    const parentRes = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    expect(parentRes.status).toBe(201);
+    expect(parentRes.body.status).toBe("validated");
+    const parentId = parentRes.body.id;
+
+    const reviseMsg = "Pull week 3 volume back 20%";
+    const rev = await call("POST", "/v1/ai/chat/revise", { generationId: parentId, message: reviseMsg });
+    expect(rev.status).toBe(201);
+    const childId = rev.body.generation.id;
+
+    const result = await loadRevisionConversation(childId);
+    expect(result).not.toBeNull();
+    expect(result).toContain(`Trainer: ${msg1}`);
+    expect(result).toContain(`Trainer: ${reviseMsg}`);
+    const firstIdx = result!.indexOf(`Trainer: ${msg1}`);
+    const secondIdx = result!.indexOf(`Trainer: ${reviseMsg}`);
+    expect(firstIdx).toBeLessThan(secondIdx);
+    expect(result).not.toContain("Draft ready:");
+
+    // Unknown generation -> null
+    expect(await loadRevisionConversation(crypto.randomUUID())).toBeNull();
+
+    // Window caps at 10 rows (oldest dropped)
+    for (let i = 0; i < 12; i++) {
+      const sent = await call("POST", "/v1/ai/chat", { clientId, message: `filler ${i}`, providerId: "mock" });
+      expect(sent.status).toBe(201);
+    }
+    const capped = await loadRevisionConversation(childId);
+    expect(capped!.split("\n").length === 10).toBe(true);
   });
 });

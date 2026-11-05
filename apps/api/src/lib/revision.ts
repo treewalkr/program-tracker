@@ -1,11 +1,16 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { db, aiGenerations, programs, type AiGenerationRow } from "@pt/db";
+import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
 import { AiProgramDraft, mockReviseDraft, weekOf } from "@pt/shared";
 import { toSignalProgram } from "./signals-service";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { providerRuntime } from "../ai/runtime";
-import { buildRevisionMessages, buildWeekRevisionMessages } from "../ai/prompt";
+import {
+  REVISION_CONVERSATION_LIMIT,
+  buildRevisionMessages,
+  buildWeekRevisionMessages,
+  conversationToText,
+} from "../ai/prompt";
 import { loadContext } from "./context";
 import { deregisterGeneration, registerGeneration } from "../ai/cancellation";
 
@@ -13,7 +18,11 @@ export type RevisionResult =
   | { ok: false; status: 404 | 409 | 422; error: string }
   | { ok: true; generation: AiGenerationRow };
 
-export async function runRevision(parentId: string, message: string): Promise<RevisionResult> {
+export async function runRevision(
+  parentId: string,
+  message: string,
+  opts: { conversation?: string | null } = {}
+): Promise<RevisionResult> {
   const [parent] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, parentId));
   if (!parent) return { ok: false, status: 404, error: "generation not found" };
 
@@ -88,6 +97,7 @@ export async function runRevision(parentId: string, message: string): Promise<Re
           trainerInstructions: "",
           previousDraft: parent.draft!,
           feedback: trimmedMessage,
+          conversation: opts.conversation ?? null,
         });
       } else {
         const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId);
@@ -101,6 +111,7 @@ export async function runRevision(parentId: string, message: string): Promise<Re
           direction: parent.direction,
           previousDraft: parent.draft!,
           feedback: trimmedMessage,
+          conversation: opts.conversation ?? null,
         });
       }
       rt = providerRuntime(parent.providerId, parent.model);
@@ -183,4 +194,32 @@ export async function runRevision(parentId: string, message: string): Promise<Re
   } finally {
     deregisterGeneration(generation.id);
   }
+}
+
+/**
+ * Recent chat thread for the client that owns `generationId`, rendered for the
+ * revision prompt. Reads the last REVISION_CONVERSATION_LIMIT rows of kind
+ * chat|revision (draft/error rows excluded — boilerplate and failure text),
+ * oldest → newest. Returns null when the generation or history is missing.
+ */
+export async function loadRevisionConversation(generationId: string): Promise<string | null> {
+  const [generation] = await db
+    .select()
+    .from(aiGenerations)
+    .where(eq(aiGenerations.id, generationId));
+  if (!generation) return null;
+
+  const rows = await db
+    .select({ role: chatMessages.role, content: chatMessages.content })
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.clientId, generation.clientId),
+        inArray(chatMessages.kind, ["chat", "revision"])
+      )
+    )
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(REVISION_CONVERSATION_LIMIT);
+
+  return conversationToText(rows.reverse());
 }

@@ -7,7 +7,7 @@ import { ContextError, providerRuntime } from "../ai/runtime";
 import { buildChatSystem, draftToText, type ChatDraftContext } from "../ai/prompt";
 import { getDefaultTrainerId } from "../lib/trainer";
 import { loadContext } from "../lib/context";
-import { runRevision } from "../lib/revision";
+import { runRevision, loadRevisionConversation } from "../lib/revision";
 
 const CHAT_HISTORY_LIMIT = 20;
 
@@ -166,7 +166,10 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       if (!message) return status(422, { error: "message must not be empty" });
 
       try {
-        const res = await runRevision(body.generationId, message);
+        // Thread the recent chat history into the revision prompt. Runs before
+        // the trainer row is inserted, so the current message isn't duplicated.
+        const conversation = await loadRevisionConversation(body.generationId);
+        const res = await runRevision(body.generationId, message, { conversation });
         if (!res.ok) {
           return status(res.status, { error: res.error });
         }
