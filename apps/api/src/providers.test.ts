@@ -104,7 +104,7 @@ describe("providerRuntime (deepseek)", () => {
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-flash",
       apiKey: "k",
-      maxOutputTokens: 8192,
+      maxOutputTokens: 16384,
       disableThinking: undefined,
     });
     expect(providerRuntime("deepseek", "deepseek-v4-pro").model).toBe("deepseek-v4-pro");
@@ -166,7 +166,7 @@ describe("chatJson (deepseek request shape)", () => {
     expect(headers?.get("authorization")).toBe("Bearer k");
     expect(body.model).toBe("deepseek-flash");
     expect(body.response_format).toEqual({ type: "json_object" });
-    expect(body.max_tokens).toBe(8192);
+    expect(body.max_tokens).toBe(16384);
     expect("thinking" in body).toBe(false);
   });
 });
