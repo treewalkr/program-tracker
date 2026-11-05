@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Coach notation: uniform sets collapse to `3×5 @RPE 6→8 · 180s`; an ascending RPE ramp reads as `min→max`; `@RPE` colored by effort tier (≤6 green, 7–8 amber, 9–10 red), faint rest.',
+            'Coach notation: uniform sets collapse to `3×5 @RPE 6→8 · 180s`; an ascending RPE ramp reads as a `min–max` range; `@RPE` colored by effort tier (≤6 green, 7–8 amber, 9–10 red), faint rest.',
         },
       },
     },

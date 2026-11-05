@@ -19,7 +19,7 @@
       let rpe: string | null = null;
       if (rpes.every((r) => r != null)) {
         const vals = rpes as number[];
-        rpe = new Set(vals).size === 1 ? `${vals[0]}` : `${Math.min(...vals)}→${Math.max(...vals)}`;
+        rpe = new Set(vals).size === 1 ? `${vals[0]}` : `${Math.min(...vals)}–${Math.max(...vals)}`;
       }
       const maxRpe = rpes.every((r) => r != null) ? Math.max(...(rpes as number[])) : 0;
       return [{ count: labelled.length, main: labelled[0].main, rpe, rest: labelled[0].rest, maxRpe }];
