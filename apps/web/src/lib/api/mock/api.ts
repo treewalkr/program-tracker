@@ -308,6 +308,13 @@ export const mockApi: TrainerApi = {
         models: ["glm-4.5-flash", "glm-5.3-flash", "glm-5.3"],
         configured: true,
       },
+      {
+        id: "deepseek",
+        label: "DeepSeek",
+        model: "deepseek-chat",
+        models: ["deepseek-chat", "deepseek-reasoner"],
+        configured: true,
+      },
       { id: "mock", label: "Mock (canned draft)", model: "mock-draft-v1", models: ["mock-draft-v1"], configured: true },
     ];
   },
