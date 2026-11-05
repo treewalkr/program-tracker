@@ -19,7 +19,7 @@
       let rpe: string | null = null;
       if (rpes.every((r) => r != null)) {
         const vals = rpes as number[];
-        rpe = new Set(vals).size === 1 ? `${vals[0]}` : `${Math.min(...vals)}–${Math.max(...vals)}`;
+        rpe = new Set(vals).size === 1 ? `${vals[0]}` : `${Math.min(...vals)}→${Math.max(...vals)}`;
       }
       const maxRpe = rpes.every((r) => r != null) ? Math.max(...(rpes as number[])) : 0;
       return [{ count: labelled.length, main: labelled[0].main, rpe, rest: labelled[0].rest, maxRpe }];
@@ -31,8 +31,7 @@
 <span class="chips">
   {#each groups as g, i (i)}
     <span class="setchip">
-      {#if g.count > 1}<span class="count">{g.count}×</span>{/if}
-      <span class="rep">{g.main}</span>
+      {#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}
       {#if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>{/if}
       {#if g.rest}<span class="sub">· {g.rest}</span>{/if}
     </span>
