@@ -173,6 +173,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
   ].join("\n");
 
   const user = [
@@ -287,6 +288,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
     "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
     "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
   ].join("\n");
@@ -394,6 +396,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "- sessions is exactly one week — the client's training days.",
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
   ].join("\n");
 
   const user = [
@@ -474,6 +477,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "- sessions is exactly one week — the client's training days.",
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
     "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
     "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
   ].join("\n");
