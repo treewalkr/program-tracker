@@ -39,7 +39,9 @@ const TAGS = [
   { name: "preferences", description: "Distilled trainer/client style preferences" },
 ];
 
-export const app = new Elysia()
+// Bun's max idle timeout — a held chat-revise POST (deepseek + one validation
+// retry can take 30-45s) must not be dropped by the default 30s idle timeout.
+export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(cors({ origin: corsOrigins }))
   .use(
     openapi({
