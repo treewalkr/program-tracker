@@ -2227,4 +2227,49 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const capped = await loadRevisionConversation(childId);
     expect(capped!.split("\n").length === 10).toBe(true);
   });
+
+  test("chat revise never creates, approves, or activates a program", async () => {
+    const before = await call("GET", `/v1/clients/${clientId}`);
+    expect(before.status).toBe(200);
+    const programsBefore = before.body.programs.map((p: any) => [p.id, p.status]);
+
+    const parentRes = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    expect(parentRes.status).toBe(201);
+    expect(parentRes.body.status).toBe("validated");
+    const parentId = parentRes.body.id;
+
+    const rev = await call("POST", "/v1/ai/chat/revise", { generationId: parentId, message: "Keep everything, small tweak" });
+    expect(rev.status).toBe(201);
+    const generation = rev.body.generation;
+
+    const after = await call("GET", `/v1/clients/${clientId}`);
+    expect(after.status).toBe(200);
+    const programsAfter = after.body.programs.map((p: any) => [p.id, p.status]);
+    expect(programsAfter).toEqual(programsBefore);
+
+    expect(generation.status !== "approved").toBe(true);
+    expect(generation.approvedProgramId === null).toBe(true);
+
+    const parentAfter = await call("GET", `/v1/ai/generations/${parentId}`);
+    expect(parentAfter.status).toBe(200);
+    expect(parentAfter.body.status).toBe("validated");
+  });
+
+  test("a chat-revised draft approves through the unchanged generations route", async () => {
+    const parentRes = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    expect(parentRes.status).toBe(201);
+    const rev = await call("POST", "/v1/ai/chat/revise", { generationId: parentRes.body.id, message: "Add a core finisher" });
+    expect(rev.status).toBe(201);
+    const childId = rev.body.generation.id;
+
+    const approved = await call("POST", `/v1/ai/generations/${childId}/approve`, {});
+    expect(approved.status).toBe(201);
+    expect(approved.body.status).toBe("draft");
+    expect(approved.body.aiAssisted).toBe(true);
+
+    const genAfter = await call("GET", `/v1/ai/generations/${childId}`);
+    expect(genAfter.status).toBe(200);
+    expect(genAfter.body.status).toBe("approved");
+    expect(genAfter.body.approvedProgramId).toBe(approved.body.id);
+  });
 });
