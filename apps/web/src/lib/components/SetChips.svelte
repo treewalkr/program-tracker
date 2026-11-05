@@ -30,9 +30,10 @@
   /** Plain-words chip meaning for the hover tooltip. */
   const describe = (g: { count: number; main: string; rpe: string | null; rest: string | null }) => {
     const setsWord = g.count === 1 ? "1 set" : `${g.count} sets`;
+    const main = /^[\d–]+$/.test(g.main) ? `${g.main} reps` : g.main;
     const rpeWord = g.rpe ? `, effort RPE ${g.rpe} out of 10` : "";
     const restWord = g.rest ? `, ${g.rest.replace("s", " seconds")} rest between sets` : "";
-    return `${setsWord} of ${g.main}${rpeWord}${restWord}`;
+    return `${setsWord} of ${main}${rpeWord}${restWord}`;
   };
 </script>
 
