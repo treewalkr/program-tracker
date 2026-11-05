@@ -34,7 +34,7 @@
       {#if g.count > 1}<span class="count">{g.count}×</span>{/if}
       <span class="rep">{g.main}</span>
       {#if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>{/if}
-      {#if g.rest}<span class="sub">{g.rest}</span>{/if}
+      {#if g.rest}<span class="sub">· {g.rest}</span>{/if}
     </span>
   {/each}
 </span>
