@@ -4,6 +4,8 @@ import {
   ChatMessage,
   CLIENT_MESSAGE_MAX_CHARS,
   DEFAULT_GENERATION_SECONDS,
+  KNOWN_PROVIDERS,
+  AiProviderConfig,
   TYPICAL_GENERATION_SECONDS,
   draftNoticeText,
   mockChatReply,
@@ -15,7 +17,26 @@ import {
   type AiProgramDraft,
 } from "./index";
 
+describe("KNOWN_PROVIDERS", () => {
+  test("T1 KNOWN_PROVIDERS registers deepseek between zai and mock", () => {
+    expect(Object.keys(KNOWN_PROVIDERS)).toEqual(["zai", "deepseek", "mock"]);
+    const parsed = AiProviderConfig.parse(KNOWN_PROVIDERS.deepseek);
+    expect(parsed.models[0]).toBe("deepseek-chat");
+    expect(parsed.baseUrl).toBe("https://api.deepseek.com");
+    expect(parsed.apiKeyEnvVar).toBe("DEEPSEEK_API_KEY");
+    expect(parsed.maxOutputTokens).toBe(8192);
+    expect(parsed.disableThinking).toBeUndefined();
+  });
+});
+
 describe("typicalGenerationSeconds", () => {
+  test("T2 typicalGenerationSeconds knows deepseek", () => {
+    expect(typicalGenerationSeconds("deepseek")).toBe(120);
+    expect(typicalGenerationSeconds("zai")).toBe(210);
+    expect(typicalGenerationSeconds("mock")).toBe(3);
+    expect(typicalGenerationSeconds("unknown")).toBe(240);
+  });
+
   test("typicalGenerationSeconds returns configured providers and defaults unknowns", () => {
     expect(typicalGenerationSeconds("zai")).toBe(210);
     expect(typicalGenerationSeconds("mock")).toBe(3);

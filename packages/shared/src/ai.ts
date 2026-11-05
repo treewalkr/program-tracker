@@ -52,6 +52,17 @@ export const KNOWN_PROVIDERS = {
       "glm-5.3"
     ],
   },
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    apiKeyEnvVar: "DEEPSEEK_API_KEY",
+    maxOutputTokens: 8192,
+    models: [
+      "deepseek-chat", // default — non-thinking
+      "deepseek-reasoner",
+    ],
+  },
   /** Canned draft, no network, no key. For tests and UI development. */
   mock: {
     id: "mock",
@@ -66,6 +77,7 @@ export const KNOWN_PROVIDERS = {
 /** Rough wall-clock seconds one generation takes, for UI expectation-setting. */
 export const TYPICAL_GENERATION_SECONDS: Record<string, number> = {
   zai: 210, // live GLM ≈ 3.5 min per draft
+  deepseek: 120, // estimate — tune after live runs
   mock: 3, // mock generate delays 2.2 s
 };
 export const DEFAULT_GENERATION_SECONDS = 240;
