@@ -85,9 +85,9 @@ describe.skipIf(!live || !dbUp)("deepseek live (chat refinement)", () => {
     async () => {
       // Real HTTP through Bun.serve — this exercises the raised idle timeout
       // (a deepseek turn with a validation retry can exceed 30s).
-      const server = app.listen(0);
+      app.listen(0);
       try {
-        const url = `http://localhost:${server.port}`;
+        const url = `http://localhost:${app.server!.port}`;
         const json = async (method: string, path: string, body?: unknown) => {
           const res = await fetch(`${url}${path}`, {
             method,
@@ -131,6 +131,9 @@ describe.skipIf(!live || !dbUp)("deepseek live (chat refinement)", () => {
 
             expect(res.status).toBe(201);
             const body = (await res.json()) as any;
+            if (body.generation.status !== "validated") {
+              console.log("T12 turn failed:", body.generation.error);
+            }
             expect(body.generation.status).toBe("validated");
             expect(body.generation.model).toBe("deepseek-flash");
             currentId = body.generation.id;
