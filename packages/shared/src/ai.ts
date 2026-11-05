@@ -57,7 +57,7 @@ export const KNOWN_PROVIDERS = {
     label: "DeepSeek",
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
-    maxOutputTokens: 8192,
+    maxOutputTokens: 16384,
     models: [
       "deepseek-flash", // default — V4.1-Flash
       "deepseek-v4-pro",
