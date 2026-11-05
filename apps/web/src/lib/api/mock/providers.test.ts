@@ -9,8 +9,8 @@ describe("mockApi.providers (demo registry)", () => {
     expect(deepseek).toEqual({
       id: "deepseek",
       label: "DeepSeek",
-      model: "deepseek-chat",
-      models: ["deepseek-chat", "deepseek-reasoner"],
+      model: "deepseek-flash",
+      models: ["deepseek-flash", "deepseek-v4-pro"],
       configured: true,
     });
   });

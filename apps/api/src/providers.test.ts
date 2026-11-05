@@ -49,8 +49,8 @@ describe("GET /v1/ai/providers (deepseek)", () => {
     expect(body.providers.map((p: any) => p.id)).toEqual(["zai", "deepseek", "mock"]);
     const deepseek = body.providers.find((p: any) => p.id === "deepseek");
     expect(deepseek.label).toBe("DeepSeek");
-    expect(deepseek.model).toBe("deepseek-chat");
-    expect(deepseek.models).toEqual(["deepseek-chat", "deepseek-reasoner"]);
+    expect(deepseek.model).toBe("deepseek-flash");
+    expect(deepseek.models).toEqual(["deepseek-flash", "deepseek-v4-pro"]);
     expect(deepseek.baseUrl).toBe("https://api.deepseek.com");
     expect(deepseek.configured).toBe(false);
 
@@ -102,12 +102,12 @@ describe("providerRuntime (deepseek)", () => {
     const rt = providerRuntime("deepseek");
     expect(rt).toEqual({
       baseUrl: "https://api.deepseek.com",
-      model: "deepseek-chat",
+      model: "deepseek-flash",
       apiKey: "k",
       maxOutputTokens: 8192,
       disableThinking: undefined,
     });
-    expect(providerRuntime("deepseek", "deepseek-reasoner").model).toBe("deepseek-reasoner");
+    expect(providerRuntime("deepseek", "deepseek-v4-pro").model).toBe("deepseek-v4-pro");
   });
 
   test("T7 providerRuntime env overrides behave the same for zai and deepseek", () => {
@@ -164,7 +164,7 @@ describe("chatJson (deepseek request shape)", () => {
     }
     expect(url).toBe("https://api.deepseek.com/chat/completions");
     expect(headers?.get("authorization")).toBe("Bearer k");
-    expect(body.model).toBe("deepseek-chat");
+    expect(body.model).toBe("deepseek-flash");
     expect(body.response_format).toEqual({ type: "json_object" });
     expect(body.max_tokens).toBe(8192);
     expect("thinking" in body).toBe(false);

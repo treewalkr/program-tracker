@@ -21,7 +21,7 @@ describe("KNOWN_PROVIDERS", () => {
   test("T1 KNOWN_PROVIDERS registers deepseek between zai and mock", () => {
     expect(Object.keys(KNOWN_PROVIDERS)).toEqual(["zai", "deepseek", "mock"]);
     const parsed = AiProviderConfig.parse(KNOWN_PROVIDERS.deepseek);
-    expect(parsed.models[0]).toBe("deepseek-chat");
+    expect(parsed.models[0]).toBe("deepseek-flash");
     expect(parsed.baseUrl).toBe("https://api.deepseek.com");
     expect(parsed.apiKeyEnvVar).toBe("DEEPSEEK_API_KEY");
     expect(parsed.maxOutputTokens).toBe(8192);

@@ -14,7 +14,7 @@ Every provider speaks the OpenAI chat-completions dialect — one HTTP client
 | Provider id | Default model | Key env var | Notes |
 |---|---|---|---|
 | `zai` | `glm-4.5-flash` (first of `models`) | `ZAI_API_KEY` | **default**; free tier; 200K context |
-| `deepseek` | `deepseek-chat` (first of `models`) | `DEEPSEEK_API_KEY` | OpenAI-compatible; `deepseek-reasoner` also listed; JSON mode needs "json" in the prompt (all JSON prompts already say it) |
+| `deepseek` | `deepseek-flash` (first of `models`) | `DEEPSEEK_API_KEY` | OpenAI-compatible; `deepseek-v4-pro` also listed; both support reasoning effort low/high/max; JSON mode needs "json" in the prompt (all JSON prompts already say it) |
 | `mock` | canned draft | — (always "configured") | keyless tests + UI dev |
 
 Per-provider overrides via env: `<ID>_API_KEY`, `<ID>_BASE_URL`, `<ID>_MODEL`

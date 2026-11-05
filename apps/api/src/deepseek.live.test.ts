@@ -69,7 +69,7 @@ describe.skipIf(!live || !dbUp)("deepseek live (POST /v1/ai/generate)", () => {
       expect(gen.status).toBe(201);
       expect(gen.body.status).toBe("validated");
       expect(gen.body.providerId).toBe("deepseek");
-      expect(gen.body.model).toBe("deepseek-chat");
+      expect(gen.body.model).toBe("deepseek-flash");
       expect(gen.body.draft.sessions.length).toBeGreaterThanOrEqual(1);
     },
     { timeout: 300_000 }

@@ -59,8 +59,8 @@ export const KNOWN_PROVIDERS = {
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
     maxOutputTokens: 8192,
     models: [
-      "deepseek-chat", // default — non-thinking
-      "deepseek-reasoner",
+      "deepseek-flash", // default — V4.1-Flash
+      "deepseek-v4-pro",
     ],
   },
   /** Canned draft, no network, no key. For tests and UI development. */

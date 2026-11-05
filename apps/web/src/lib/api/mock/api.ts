@@ -10,6 +10,7 @@ import {
   estimate1rm,
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
+  KNOWN_PROVIDERS,
   mockChatReply,
   mockDistillPreferences,
   mockReviseDraft,
@@ -300,23 +301,13 @@ function cannedClientMessage(stats: NonNullable<ClientMessageDto["stats"]>): str
 export const mockApi: TrainerApi = {
   async providers() {
     await delay(150);
-    return [
-      {
-        id: "zai",
-        label: "Z.ai GLM",
-        model: "glm-5.3-flash",
-        models: ["glm-4.5-flash", "glm-5.3-flash", "glm-5.3"],
-        configured: true,
-      },
-      {
-        id: "deepseek",
-        label: "DeepSeek",
-        model: "deepseek-chat",
-        models: ["deepseek-chat", "deepseek-reasoner"],
-        configured: true,
-      },
-      { id: "mock", label: "Mock (canned draft)", model: "mock-draft-v1", models: ["mock-draft-v1"], configured: true },
-    ];
+    return Object.values(KNOWN_PROVIDERS).map((p) => ({
+      id: p.id,
+      label: p.label,
+      model: p.models[0],
+      models: [...p.models],
+      configured: true,
+    }));
   },
 
   async instructionTemplates() {
