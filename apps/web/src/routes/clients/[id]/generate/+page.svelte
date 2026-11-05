@@ -741,7 +741,6 @@
 
       <div class="mt-16">
         <Panel title={`Draft sessions${activeTargetWeek ? ` · week ${activeTargetWeek}` : ""}`} count={`${gen.draft.sessions.length} days`}>
-          <p class="subtle notation-legend">sets × reps @RPE · rest in seconds</p>
           {#each gen.draft.sessions as s, si (si)}
             <!-- approve sorts by role, so review shows the order that will be saved -->
             <SessionCard
@@ -844,7 +843,6 @@
   .review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   .rationale { white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
   .shaped-by { padding: 0 18px 14px; margin: 0; font-size: 13px; }
-  .notation-legend { padding: 0 18px 10px; margin: -6px 0 6px; font-size: 12px; font-family: var(--font-mono, monospace); }
 
   .approve-note {
     display: flex;

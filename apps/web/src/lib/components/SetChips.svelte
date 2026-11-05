@@ -28,7 +28,7 @@
   });
 </script>
 
-<span class="chips" title="sets × reps @RPE · rest (seconds)">
+<span class="chips">
   {#each groups as g, i (i)}
     <span class="setchip">
       {#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}
