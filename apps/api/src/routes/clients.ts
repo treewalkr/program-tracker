@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db, clients, programs } from "@pt/db";
 import { getDefaultTrainerId } from "../lib/trainer";
+import { toProgramDto } from "./programs";
 
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
   .get("/", async () => {
@@ -20,7 +21,11 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         .where(eq(programs.clientId, client.id));
       const current = activeProgram.find((p) => p.status === "active") ?? null;
 
-      return { client, currentProgram: current, programs: activeProgram };
+      return {
+        client,
+        currentProgram: current ? toProgramDto(current) : null,
+        programs: activeProgram.map(toProgramDto),
+      };
     },
     { params: t.Object({ id: t.String() }) }
   )
