@@ -78,3 +78,74 @@ describe.skipIf(!live || !dbUp)("deepseek live (POST /v1/ai/generate)", () => {
     { timeout: 300_000 }
   );
 });
+
+describe.skipIf(!live || !dbUp)("deepseek live (chat refinement)", () => {
+  test(
+    "T12 deepseek live: 3 refinement turns, median ≤ 20s, each ≤ 45s",
+    async () => {
+      // Real HTTP through Bun.serve — this exercises the raised idle timeout
+      // (a deepseek turn with a validation retry can exceed 30s).
+      const server = app.listen(0);
+      try {
+        const url = `http://localhost:${server.port}`;
+        const json = async (method: string, path: string, body?: unknown) => {
+          const res = await fetch(`${url}${path}`, {
+            method,
+            headers: { "content-type": "application/json" },
+            body: body === undefined ? undefined : JSON.stringify(body),
+          });
+          return { status: res.status, body: (await res.json().catch(() => null)) as any };
+        };
+
+        const client = await json("POST", "/v1/clients", {
+          name: "DeepSeek Chat Refine Client",
+          email: `deepseek-chat-refine-${Date.now()}@test.dev`,
+          goals: "build strength",
+          daysPerWeek: 3,
+        });
+        expect(client.status).toBe(201);
+        const clientId = client.body.id;
+
+        // Untimed seed draft — the clock starts at the first refinement turn.
+        const gen = await json("POST", "/v1/ai/generate", { clientId, providerId: "deepseek" });
+        expect(gen.status).toBe(201);
+        expect(gen.body.status).toBe("validated");
+
+        const messages = [
+          "Cut every accessory to 2 sets",
+          "Swap the first squat for a front squat",
+          "Add a short core finisher to day 1",
+        ];
+        const elapsedMs: number[] = [];
+        let currentId: string = gen.body.id;
+        try {
+          for (const message of messages) {
+            const start = performance.now();
+            const res = await fetch(`${url}/v1/ai/chat/revise`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ generationId: currentId, message }),
+            });
+            const elapsed = performance.now() - start;
+            elapsedMs.push(elapsed);
+
+            expect(res.status).toBe(201);
+            const body = (await res.json()) as any;
+            expect(body.generation.status).toBe("validated");
+            expect(body.generation.model).toBe("deepseek-flash");
+            currentId = body.generation.id;
+          }
+
+          elapsedMs.sort((a, b) => a - b);
+          expect(elapsedMs[1]).toBeLessThanOrEqual(20_000);
+          expect(Math.max(...elapsedMs)).toBeLessThanOrEqual(45_000);
+        } finally {
+          console.log("T12 elapsedMs", elapsedMs);
+        }
+      } finally {
+        await app.stop();
+      }
+    },
+    { timeout: 300_000 }
+  );
+});
