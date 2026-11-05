@@ -96,6 +96,16 @@ describe("prepareTestDatabase without a server", () => {
   });
 });
 
+describe("developer docs", () => {
+  test("T9 README documents how to run e2e and which DB it hits", async () => {
+    const readme = await Bun.file(new URL("../../../../README.md", import.meta.url)).text();
+    expect(readme).toContain("## Tests");
+    expect(readme).toContain("program_tracker_test");
+    expect(readme).toContain("TEST_DATABASE_URL");
+    expect(readme).toContain("bun run test");
+  });
+});
+
 describe("fail-closed guard", () => {
   // Run from the repo root, which skips apps/api/bunfig.toml — this proves the
   // e2e file itself refuses a non-test DB even when the preload is bypassed.
