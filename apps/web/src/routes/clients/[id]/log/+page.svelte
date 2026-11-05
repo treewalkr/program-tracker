@@ -18,6 +18,8 @@
   let client = $state<ClientDto | null>(null);
   let program = $state<ProgramDto | null>(null);
   let pastLogs = $state<SessionLogDto[]>([]);
+  /** id → name; program docs saved before the exerciseName schema fix carry no name. */
+  let exerciseNames = $state(new Map<string, string>());
   let selectedWeekNumber = $state<number>(1);
   let sessionId = $state<string>("");
   let date = $state(new Date().toISOString().slice(0, 10));
@@ -111,7 +113,7 @@
         e.prescribedSets.map((ps) => ({
           key: `${e.id}-${ps.setNumber}`,
           exerciseId: e.exerciseId,
-          exerciseName: e.exerciseName ?? e.exerciseId,
+          exerciseName: e.exerciseName ?? exerciseNames.get(e.exerciseId) ?? e.exerciseId,
           programExerciseId: e.id,
           setNumber: ps.setNumber,
           type: ps.type,
@@ -250,7 +252,8 @@
   }
 
   onMount(async () => {
-    const detail = await api.client(id);
+    const [detail, catalog] = await Promise.all([api.client(id), api.exercises()]);
+    exerciseNames = new Map(catalog.map((e) => [e.id, e.name]));
     client = detail.client;
     program = detail.currentProgram;
     pastLogs = await api.sessionLogs(id);
