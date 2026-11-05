@@ -676,6 +676,7 @@
       <div class="panel-body">
         <Field label="Reason (optional)" htmlFor="g-reject-reason">
           <textarea
+            class="textarea"
             id="g-reject-reason"
             rows="2"
             maxlength="2000"
