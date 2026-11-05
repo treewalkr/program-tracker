@@ -7,6 +7,7 @@ import {
   buildRevisionMessages,
   buildWeekMessages,
   buildWeekRevisionMessages,
+  conversationToText,
   draftToText,
   periodizationContext,
 } from "./ai/prompt";
@@ -1215,5 +1216,145 @@ describe("chatJson abort handling", () => {
     expect(caught).toBeDefined();
     expect(caught?.name).toBe("AbortError");
     expect(caught instanceof ProviderError).toBe(false);
+  });
+});
+
+describe("revision conversation threading", () => {
+  test("conversationToText labels roles, collapses whitespace, caps 600 chars", () => {
+    expect(conversationToText([])).toBeNull();
+
+    expect(conversationToText([{ role: "trainer", content: " a\n b " }])).toBe("Trainer: a b");
+
+    const long = "x".repeat(700);
+    const lines = conversationToText([{ role: "assistant", content: long }])!.split("\n");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].length).toBe("Assistant: ".length + 600);
+  });
+
+  test("revision prompts carry the conversation block before trainer feedback", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "Initial mesocycle rationale",
+      clientSummary: "Client summary",
+      sessions: [
+        {
+          name: "Day A",
+          exercises: [
+            { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
+          ],
+        },
+      ],
+    };
+    const conversation = "Trainer: a\nAssistant: b";
+    const expected =
+      "CONVERSATION SO FAR (earlier chat with the trainer, oldest → newest — context only; apply only the TRAINER FEEDBACK below):\nTrainer: a\nAssistant: b\n\nTRAINER FEEDBACK";
+
+    const revision = buildRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "cut volume",
+      conversation,
+    });
+    expect(revision.user).toContain(expected);
+
+    const weekRevision = buildWeekRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      targetWeek: 2,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "cut volume",
+      conversation,
+    });
+    expect(weekRevision.user).toContain(expected);
+  });
+
+  test("revision prompts are byte-identical without a conversation", () => {
+    const previousDraft: AiProgramDraft = {
+      name: "Block 1",
+      rationale: "Initial mesocycle rationale",
+      clientSummary: "Client summary",
+      sessions: [
+        {
+          name: "Day A",
+          exercises: [
+            { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
+          ],
+        },
+      ],
+    };
+
+    const plain = buildRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "cut volume",
+    });
+    const withNull = buildRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "cut volume",
+      conversation: null,
+    });
+    expect(plain).toEqual(withNull);
+    expect(plain.user).not.toContain("CONVERSATION SO FAR");
+
+    const plainWeek = buildWeekRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      targetWeek: 2,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "cut volume",
+    });
+    const withNullWeek = buildWeekRevisionMessages({
+      client: { name: "Ada", daysPerWeek: 3 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      targetWeek: 2,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      trainerInstructions: "",
+      previousDraft,
+      feedback: "cut volume",
+      conversation: null,
+    });
+    expect(plainWeek).toEqual(withNullWeek);
+    expect(plainWeek.user).not.toContain("CONVERSATION SO FAR");
   });
 });

@@ -233,9 +233,36 @@ export function buildGenerationMessages(ctx: GenerationContext) {
   return { system, user };
 }
 
+/** Chat-history window threaded into revision prompts (chat refine loop). */
+export const REVISION_CONVERSATION_LIMIT = 10;
+/** Max characters per conversation line, after whitespace collapsing. */
+export const REVISION_CONVERSATION_MAX_CHARS = 600;
+
+/**
+ * Render chat rows as "Trainer: …" / "Assistant: …" lines (oldest → newest),
+ * whitespace-collapsed and capped. Returns null for an empty conversation so
+ * prompts stay byte-identical when there is no history.
+ */
+export function conversationToText(
+  rows: { role: "trainer" | "assistant"; content: string }[]
+): string | null {
+  if (rows.length === 0) return null;
+  return rows
+    .map(
+      (r) =>
+        `${r.role === "trainer" ? "Trainer" : "Assistant"}: ${r.content
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, REVISION_CONVERSATION_MAX_CHARS)}`
+    )
+    .join("\n");
+}
+
 export interface RevisionContext extends GenerationContext {
   previousDraft: AiProgramDraft;
   feedback: string;
+  /** Recent chat thread for this client, oldest → newest (chat revise only). */
+  conversation?: string | null;
 }
 
 export function buildRevisionMessages(ctx: RevisionContext): { system: string; user: string } {
@@ -319,6 +346,13 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
       : []),
+    ...(ctx.conversation
+      ? [
+          "CONVERSATION SO FAR (earlier chat with the trainer, oldest → newest — context only; apply only the TRAINER FEEDBACK below):",
+          ctx.conversation,
+          "",
+        ]
+      : []),
     `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
   ].join("\n");
 
@@ -335,6 +369,8 @@ export interface WeekContext extends GenerationContext {
 export interface WeekRevisionContext extends WeekContext {
   previousDraft: AiProgramDraft;
   feedback: string;
+  /** Recent chat thread for this client, oldest → newest (chat revise only). */
+  conversation?: string | null;
 }
 
 export function buildWeekMessages(ctx: WeekContext): { system: string; user: string } {
@@ -495,6 +531,13 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "",
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
+      : []),
+    ...(ctx.conversation
+      ? [
+          "CONVERSATION SO FAR (earlier chat with the trainer, oldest → newest — context only; apply only the TRAINER FEEDBACK below):",
+          ctx.conversation,
+          "",
+        ]
       : []),
     `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
   ].join("\n");
