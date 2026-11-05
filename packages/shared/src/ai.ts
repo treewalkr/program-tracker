@@ -77,7 +77,7 @@ export const KNOWN_PROVIDERS = {
 /** Rough wall-clock seconds one generation takes, for UI expectation-setting. */
 export const TYPICAL_GENERATION_SECONDS: Record<string, number> = {
   zai: 210, // live GLM ≈ 3.5 min per draft
-  deepseek: 120, // estimate — tune after live runs
+  deepseek: 20, // live deepseek-chat ≈ 10 s per draft (2026-11-05 run)
   mock: 3, // mock generate delays 2.2 s
 };
 export const DEFAULT_GENERATION_SECONDS = 240;
