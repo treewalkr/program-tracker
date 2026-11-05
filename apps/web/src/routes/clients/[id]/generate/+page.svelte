@@ -723,11 +723,6 @@
           />
         </div>
       {/if}
-
-      <div class="clientreads">
-        <div class="edit-note">what {client.name.split(" ")[0]} reads</div>
-        {@html renderMarkdown(gen.draft.clientSummary)}
-      </div>
     </div>
 
     <div>
@@ -848,23 +843,6 @@
   .review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   .rationale { white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
   .shaped-by { padding: 0 18px 14px; margin: 0; font-size: 13px; }
-
-  .clientreads {
-    margin-top: 16px;
-    background: var(--well);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 13px 15px;
-    font-size: 14px;
-    line-height: 1.55;
-  }
-  .clientreads .edit-note {
-    font: 500 12px/1 var(--font-ui);
-    color: var(--muted);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
 
   .approve-note {
     display: flex;
