@@ -3,7 +3,10 @@ import { db, trainers, signalOutbox, aiGenerations, programs, exercises } from "
 import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
+import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
+
+assertTestDatabaseUrl(process.env.DATABASE_URL);
 
 /** Integration tests need a live Postgres (bun run db:up). Skip otherwise. */
 let dbUp = false;

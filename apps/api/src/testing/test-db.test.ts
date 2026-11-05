@@ -95,3 +95,31 @@ describe("prepareTestDatabase without a server", () => {
     expect(await prepareTestDatabase("postgres://pt:x@127.0.0.1:1/unreachable_test")).toBe(false);
   });
 });
+
+describe("fail-closed guard", () => {
+  // Run from the repo root, which skips apps/api/bunfig.toml — this proves the
+  // e2e file itself refuses a non-test DB even when the preload is bypassed.
+  // Port 1 is unreachable, so even a regressed guard can't write anywhere.
+  test(
+    "T8 e2e suite refuses to run when DATABASE_URL is not a *_test database",
+    async () => {
+      const root = new URL("../../../../", import.meta.url).pathname;
+      const proc = Bun.spawn(["bun", "test", "apps/api/src/e2e.test.ts"], {
+        cwd: root,
+        env: { ...process.env, DATABASE_URL: "postgres://pt:x@127.0.0.1:1/not_a_test_db" },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ]);
+      const code = await proc.exited;
+      expect(code).not.toBe(0);
+      expect(`${stdout}${stderr}`).toContain(
+        'refusing to run tests against database "not_a_test_db"'
+      );
+    },
+    30_000
+  );
+});

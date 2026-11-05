@@ -3,7 +3,10 @@ import { AiClientMessageDraft } from "@pt/shared";
 import { db, trainers } from "@pt/db";
 import { chatJson, extractJsonObject } from "./ai/provider";
 import { providerRuntime } from "./ai/runtime";
+import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
+
+assertTestDatabaseUrl(process.env.DATABASE_URL);
 
 /**
  * Live smoke suite against the real DeepSeek endpoint. Opt-in only — runs when
