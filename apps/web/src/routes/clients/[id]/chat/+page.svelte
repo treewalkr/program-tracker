@@ -2,8 +2,9 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ChatMessageDto, ClientDto, GenerationDto, ProgramDto } from "$lib/api/types";
-  import { latestValidatedDraft, revisionChain } from "$lib/generation";
+  import type { ChatMessageDto, ClientDto, ExerciseDto, GenerationDto, ProgramDto } from "$lib/api/types";
+  import { applyChatTurn, draftPreviewModel, submitChatTurn, type ChatTurnMode } from "$lib/chatRefine";
+  import DraftPreview from "$lib/components/DraftPreview.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
@@ -23,23 +24,27 @@
 
   let draft = $state("");
   let sending = $state(false);
+  let pendingMessage = $state<string | null>(null);
   let sendError = $state<string | null>(null);
+  let catalogById = $state(new Map<string, ExerciseDto>());
 
-  const target = $derived(latestValidatedDraft(allGens));
-  const targetVersion = $derived(revisionChain(allGens, target?.id ?? "").length);
+  const preview = $derived(draftPreviewModel(allGens, pendingMessage !== null, catalogById));
   const firstName = $derived(client?.name.split(" ")[0] ?? "this client");
+  const busy = $derived(sending || pendingMessage !== null);
 
   onMount(async () => {
     try {
-      const [detail, gens, msgs] = await Promise.all([
+      const [detail, gens, msgs, exList] = await Promise.all([
         api.client(id),
         api.generations(id),
         api.chatMessages(id),
+        api.exercises(),
       ]);
       client = detail.client;
       current = detail.currentProgram;
       allGens = gens;
       messages = msgs;
+      catalogById = new Map(exList.map((e) => [e.id, e]));
     } finally {
       loading = false;
     }
@@ -50,35 +55,29 @@
     messages = await api.chatMessages(id);
   }
 
-  async function send() {
+  /**
+   * One chat turn. With a draft target, refine revises it straight away
+   * (auto-apply — the preview pane shows skeletons, then the next version);
+   * every other path is plain Q&A. All submit logic lives in $lib/chatRefine.
+   */
+  async function turn(mode: ChatTurnMode) {
     const trimmed = draft.trim();
-    if (!trimmed || sending) return;
-    sending = true;
+    if (!trimmed || busy) return;
     sendError = null;
-    try {
-      const rows = await api.sendChatMessage({ clientId: id, message: trimmed });
-      messages = [...messages, ...rows];
-      draft = "";
-    } catch (err) {
-      sendError = (err as Error).message || "Send failed";
-    } finally {
-      sending = false;
+    if (mode === "refine" && preview.target) {
+      pendingMessage = trimmed;
+    } else {
+      sending = true;
     }
-  }
-
-  async function revise() {
-    const trimmed = draft.trim();
-    if (!trimmed || sending || !target) return;
-    sending = true;
-    sendError = null;
+    draft = "";
     try {
-      const res = await api.reviseViaChat({ generationId: target.id, message: trimmed });
-      messages = [...messages, ...res.messages];
-      allGens = [res.generation, ...allGens];
-      draft = "";
+      const res = await submitChatTurn(api, { clientId: id, target: preview.target, message: trimmed, mode });
+      ({ messages, gens: allGens } = applyChatTurn({ messages, gens: allGens }, res));
     } catch (err) {
-      sendError = (err as Error).message || "Revision failed";
+      draft = trimmed;
+      sendError = (err as Error).message || (mode === "refine" ? "Revision failed" : "Send failed");
     } finally {
+      pendingMessage = null;
       sending = false;
     }
   }
@@ -109,88 +108,129 @@
     {/snippet}
   </PageHead>
 
-  <div class="chat-layout">
-    {#if messages.length === 0}
-      <EmptyState>
-        <p>Ask about {firstName}'s numbers, or send a revision to the latest draft.</p>
-      </EmptyState>
-    {:else}
-      <Panel title="Transcript">
-        <div class="panel-body transcript">
-          {#each messages as m (m.id)}
-            <div class={`msg-row ${m.role} ${m.kind}`}>
-              <div class="msg-meta">
-                <span class="role-label">{m.role === "trainer" ? "You" : "AI"}</span>
-                {#if m.kind === "revision"}
+  <div class={preview.target ? "refine-layout" : "chat-layout"}>
+    <div class="chat-col">
+      {#if messages.length === 0 && pendingMessage === null}
+        <EmptyState>
+          <p>Ask about {firstName}'s numbers, or send a revision to the latest draft.</p>
+        </EmptyState>
+      {:else}
+        <Panel title="Transcript">
+          <div class="panel-body transcript">
+            {#each messages as m (m.id)}
+              <div class={`msg-row ${m.role} ${m.kind}`}>
+                <div class="msg-meta">
+                  <span class="role-label">{m.role === "trainer" ? "You" : "AI"}</span>
+                  {#if m.kind === "revision"}
+                    <span class="chip-rev">revision</span>
+                  {/if}
+                </div>
+                <div class="msg-content">
+                  {#if m.kind === "error"}
+                    <Note tone="bad">{m.content}</Note>
+                  {:else}
+                    <div class="content-text">{m.content}</div>
+                  {/if}
+                  {#if m.kind === "draft"}
+                    <div class="mt-8">
+                      <a class="act" href={`/clients/${id}/generate`}>Open review</a>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+            {#if pendingMessage !== null}
+              <div class="msg-row trainer pending">
+                <div class="msg-meta">
+                  <span class="role-label">You</span>
                   <span class="chip-rev">revision</span>
-                {/if}
+                </div>
+                <div class="msg-content">
+                  <div class="content-text">{pendingMessage}</div>
+                </div>
               </div>
-              <div class="msg-content">
-                {#if m.kind === "error"}
-                  <Note tone="bad">{m.content}</Note>
-                {:else}
-                  <div class="content-text">{m.content}</div>
-                {/if}
-                {#if m.kind === "draft"}
-                  <div class="mt-8">
-                    <a class="act" href={`/clients/${id}/generate`}>Open review</a>
+              <div class="msg-row assistant pending">
+                <div class="msg-meta">
+                  <span class="role-label">AI</span>
+                </div>
+                <div class="msg-content">
+                  <div class="content-text pending-note">Revising draft v{preview.version} → v{preview.nextVersion}…</div>
+                  <div class="pending-skeletons">
+                    <Skeleton h="14px" w="100%" />
+                    <Skeleton h="14px" w="100%" />
                   </div>
-                {/if}
+                </div>
               </div>
-            </div>
-          {/each}
-        </div>
-      </Panel>
-    {/if}
-
-    <div class="mt-16">
-      <Panel title="Message">
-        <div class="panel-body composer">
-          <Field label="Message" htmlFor="chat-message">
-            <textarea
-              id="chat-message"
-              class="textarea"
-              rows="2"
-              maxlength="2000"
-              placeholder={`e.g. How has ${firstName}'s squat e1RM moved this block?`}
-              bind:value={draft}
-            ></textarea>
-          </Field>
-
-          {#if sendError}
-            <Note tone="bad">{sendError}</Note>
-          {/if}
-
-          <div class="composer-actions">
-            <div class="btn-group">
-              <Button
-                variant="primary"
-                onclick={send}
-                disabled={!draft.trim() || sending}
-              >
-                {sending ? "Sending…" : "Send"}
-              </Button>
-
-              {#if target}
-                <Button
-                  variant="default"
-                  onclick={revise}
-                  disabled={!draft.trim() || sending}
-                >
-                  Revise draft
-                </Button>
-              {/if}
-            </div>
-
-            {#if target}
-              <p class="revise-hint">
-                Sends as a revision to the latest draft (v{targetVersion}) — creates the next version.
-              </p>
             {/if}
           </div>
-        </div>
-      </Panel>
+        </Panel>
+      {/if}
+
+      <div class="mt-16">
+        <Panel title="Message">
+          <div class="panel-body composer">
+            <Field label="Message" htmlFor="chat-message">
+              <textarea
+                id="chat-message"
+                class="textarea"
+                rows="2"
+                maxlength="2000"
+                placeholder={preview.target
+                  ? "e.g. Pull week 3 volume back 20%"
+                  : `e.g. How has ${firstName}'s squat e1RM moved this block?`}
+                bind:value={draft}
+              ></textarea>
+            </Field>
+
+            {#if sendError}
+              <Note tone="bad">{sendError}</Note>
+            {/if}
+
+            <div class="composer-actions">
+              <div class="btn-group">
+                {#if preview.target}
+                  <Button
+                    variant="primary"
+                    onclick={() => turn("refine")}
+                    disabled={!draft.trim() || busy}
+                  >
+                    {pendingMessage !== null ? "Revising…" : "Send"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onclick={() => turn("ask")}
+                    disabled={!draft.trim() || busy}
+                  >
+                    Ask without changing
+                  </Button>
+                {:else}
+                  <Button
+                    variant="primary"
+                    onclick={() => turn("refine")}
+                    disabled={!draft.trim() || busy}
+                  >
+                    {sending ? "Sending…" : "Send"}
+                  </Button>
+                {/if}
+              </div>
+
+              {#if preview.target}
+                <p class="revise-hint">
+                  Each message revises the draft (v{preview.version} → v{preview.version + 1}). Approve stays on
+                  the review page.
+                </p>
+              {/if}
+            </div>
+          </div>
+        </Panel>
+      </div>
     </div>
+
+    {#if preview.target}
+      <div class="preview-col">
+        <DraftPreview model={preview} reviewHref={`/clients/${id}/generate`} />
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -203,6 +243,17 @@
   }
   .chat-layout {
     max-width: 800px;
+  }
+  .refine-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .refine-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .transcript {
     display: flex;
@@ -246,6 +297,16 @@
     font-size: 14px;
     line-height: 1.55;
     color: var(--ink);
+  }
+  .pending-note {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .pending-skeletons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
   }
   .composer {
     display: flex;
