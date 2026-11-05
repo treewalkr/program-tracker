@@ -26,11 +26,19 @@
     }
     return labelled.map((l) => ({ count: 1, main: l.main, rpe: l.rpe != null ? `${l.rpe}` : null, rest: l.rest, maxRpe: l.rpe ?? 0 }));
   });
+
+  /** Plain-words chip meaning for the hover tooltip. */
+  const describe = (g: { count: number; main: string; rpe: string | null; rest: string | null }) => {
+    const setsWord = g.count === 1 ? "1 set" : `${g.count} sets`;
+    const rpeWord = g.rpe ? `, effort RPE ${g.rpe} out of 10` : "";
+    const restWord = g.rest ? `, ${g.rest.replace("s", " seconds")} rest between sets` : "";
+    return `${setsWord} of ${g.main}${rpeWord}${restWord}`;
+  };
 </script>
 
 <span class="chips">
   {#each groups as g, i (i)}
-    <span class="setchip">
+    <span class="setchip" title={describe(g)}>
       {#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}
       {#if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>{/if}
       {#if g.rest}<span class="sub">· {g.rest}</span>{/if}
