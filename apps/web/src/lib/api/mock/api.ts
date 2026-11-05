@@ -1108,6 +1108,9 @@ export const mockApi: TrainerApi = {
   },
 
   async reviseViaChat(input) {
+    // Mirror live reviseGeneration latency so the chat page's generating
+    // state (skeletons + version counter) is observable in demo mode.
+    await delay(2200);
     const trimmed = input.message.trim();
     if (!trimmed) throw new Error("message must not be empty");
     const child = reviseDraftInState(state, input.generationId, trimmed);

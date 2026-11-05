@@ -69,3 +69,41 @@ describe("mock adapter: chat send, revise, and clear", () => {
   15_000
 );
 });
+
+describe("mock adapter: reviseViaChat latency and no-publish", () => {
+  test(
+    "mock reviseViaChat holds ~2.2s then returns the validated child",
+    async () => {
+      const g = await mockApi.generate({ clientId: "cl-maya" });
+      expect(g.status).toBe("validated");
+
+      const start = performance.now();
+      const res = await mockApi.reviseViaChat({ generationId: g.id, message: "Cut accessories to 2 sets" });
+      const elapsed = performance.now() - start;
+      expect(elapsed >= 2_000).toBe(true);
+
+      expect(res.generation.status).toBe("validated");
+      expect(res.generation.parentGenerationId).toBe(g.id);
+      const gens = await mockApi.generations("cl-maya");
+      expect(gens[0].id).toBe(res.generation.id);
+    },
+    15_000
+  );
+
+  test(
+    "mock reviseViaChat leaves programs untouched; approve still yields a draft program",
+    async () => {
+      const g = await mockApi.generate({ clientId: "cl-maya" });
+      expect(g.status).toBe("validated");
+
+      const before = (await mockApi.client("cl-maya")).programs.map((p) => [p.id, p.status]);
+      const res = await mockApi.reviseViaChat({ generationId: g.id, message: "Swap one accessory" });
+      const after = (await mockApi.client("cl-maya")).programs.map((p) => [p.id, p.status]);
+      expect(after).toEqual(before);
+
+      const program = await mockApi.approveGeneration(res.generation.id);
+      expect(program.status).toBe("draft");
+    },
+    15_000
+  );
+});
