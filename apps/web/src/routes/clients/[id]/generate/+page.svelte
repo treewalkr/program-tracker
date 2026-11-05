@@ -16,6 +16,7 @@
   import StatusPill from "$lib/components/StatusPill.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import { renderMarkdown } from "$lib/markdown";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
@@ -705,7 +706,7 @@
   <div class="review-cols">
     <div>
       <Panel title="Why this block" count="trainer-facing rationale">
-        <div class="panel-body rationale">{gen.draft.rationale}</div>
+        <div class="panel-body rationale md">{@html renderMarkdown(gen.draft.rationale)}</div>
         {#if gen.exampleProgramIds.length > 0}
           <p class="subtle shaped-by">Shaped by {gen.exampleProgramIds.length} example program{gen.exampleProgramIds.length === 1 ? "" : "s"} from your library.</p>
         {/if}
@@ -725,7 +726,7 @@
 
       <div class="clientreads">
         <div class="edit-note">what {client.name.split(" ")[0]} reads</div>
-        {gen.draft.clientSummary}
+        {@html renderMarkdown(gen.draft.clientSummary)}
       </div>
     </div>
 

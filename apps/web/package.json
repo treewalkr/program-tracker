@@ -31,8 +31,9 @@
     "@storybook/addon-docs": "^10.6.2"
   },
   "dependencies": {
-    "@pt/shared": "workspace:*",
     "@elysiajs/eden": "^1.4.9",
-    "@pt/api": "workspace:*"
+    "@pt/api": "workspace:*",
+    "@pt/shared": "workspace:*",
+    "marked": "^18.1.3"
   }
 }

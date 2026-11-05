@@ -172,6 +172,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     GOLD_STANDARD_RULE,
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
   ].join("\n");
 
   const user = [
@@ -258,6 +259,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     GOLD_STANDARD_RULE,
     `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
     "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
     "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
   ].join("\n");
@@ -355,6 +357,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     "- sessions is exactly one week — the client's training days.",
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
   ].join("\n");
 
   const user = [
@@ -434,6 +437,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     "- sessions is exactly one week — the client's training days.",
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
+    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
     "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
     "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
   ].join("\n");
