@@ -259,3 +259,88 @@ export async function submitBuild(
 export function findBuildingChild(gens: GenerationDto[], parentGenerationId: string): GenerationDto | null {
   return gens.find((g) => g.status === "pending" && g.parentGenerationId === parentGenerationId) ?? null;
 }
+// ---- version view (draft pane) ----
+
+export interface VersionView {
+  /** 1-based version shown. */
+  version: number;
+  generation: GenerationDto;
+  sessions: PreviewSessionCard[];
+  /** Changes from the previous version; empty for v1. */
+  changes: SlotChange[];
+}
+
+/**
+ * Version `version` (1-based) of the revision chain that ends at `targetId`,
+ * as preview cards plus its changes from the version before it.
+ * null when the chain is shorter than `version` or the draft is missing.
+ */
+export function versionView(
+  gens: GenerationDto[],
+  targetId: string,
+  version: number,
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+): VersionView | null {
+  const chain = revisionChain(gens, targetId);
+  const gen = chain[version - 1];
+  if (!gen?.draft) return null;
+  const prev = version >= 2 ? chain[version - 2]?.draft ?? null : null;
+  const sessions: PreviewSessionCard[] = gen.draft.sessions.map((s) => ({
+    name: s.name,
+    kind: s.kind ?? "lifting",
+    cardio: s.cardio ?? null,
+    exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 }))).map((e) => ({
+      name: e.exerciseName ?? "",
+      role: e.role,
+      movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
+      sets: e.prescribedSets,
+      slot: e.slot,
+    })),
+  }));
+  return { version, generation: gen, sessions, changes: prev ? diffDraftSlots(prev, gen.draft) : [] };
+}
+
+/** "Day 2 · 5 changes" style counts for the draft pane summary. */
+export function changeSummary(changes: SlotChange[]): string {
+  const swaps = changes.filter((c) => c.kind === "swap").length;
+  const rx = changes.filter((c) => c.kind === "rx").length;
+  const added = changes.filter((c) => c.kind === "added").length;
+  const removed = changes.filter((c) => c.kind === "removed").length;
+  const p = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  return [
+    swaps && `${p(swaps, "exercise")} swapped or renamed`,
+    rx && p(rx, "prescription edit"),
+    added && `${added} added`,
+    removed && `${removed} removed`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Safe markdown subset for AI replies: HTML escaped, **bold**, paragraphs, line breaks, "- " lists. */
+export function renderMarkdown(text: string): string {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const inline = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  return esc
+    .trim()
+    .split(/\n{2,}/)
+    .map((block) => {
+      const lines = block.split("\n");
+      if (lines.every((l) => /^\s*[-*] /.test(l))) {
+        return `<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ""))}</li>`).join("")}</ul>`;
+      }
+      return `<p>${inline(lines.join("<br>"))}</p>`;
+    })
+    .join("");
+}
+
+/** mm:ss from milliseconds. */
+export function fmtElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Assistant "draft" reply text without the trailing "Draft ready: …" notice line. */
+export function stripDraftNotice(content: string): string {
+  return content.replace(/\n*Draft ready:[^\n]*$/, "").trim();
+}
