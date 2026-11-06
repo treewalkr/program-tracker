@@ -11,8 +11,10 @@ import {
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
   KNOWN_PROVIDERS,
+  mockApplyProposal,
   mockChatReply,
   mockDistillPreferences,
+  mockProposal,
   mockReviseDraft,
   programWeeksToDiffSource,
   ProgramWeeksDocument,
@@ -1157,22 +1159,71 @@ export const mockApi: TrainerApi = {
       };
     }
 
-    const child = reviseDraftInState(state, input.generationId, trimmed);
-    trainerRow.generationId = child.id;
+    const target = state.generations.find((g) => g.id === input.generationId);
+    if (!target) throw new Error("generation not found");
     const assistantRow: ChatMessageDto & { clientId: string } = {
       id: uuid(),
-      clientId: child.clientId,
+      clientId: input.clientId,
       role: "assistant",
-      kind: "draft",
-      content: `Applied: ${trimmed}\n\n${draftNoticeText(child.draft as any)}`,
-      generationId: child.id,
+      kind: "proposal",
+      content: `Proposed: ${trimmed}`,
+      generationId: null,
+      proposal: {
+        ...mockProposal(target.draft as any, trimmed),
+        parentGenerationId: input.generationId,
+        builtGenerationId: null,
+      },
       createdAt: new Date().toISOString(),
     };
     state.messages.push(trainerRow, assistantRow);
     return {
       messages: structuredClone([trainerRow, assistantRow]),
-      generation: structuredClone(child),
+      generation: null,
     };
+  },
+
+  async buildProposal(messageId, _opts) {
+    const row = state.messages.find((m) => m.id === messageId);
+    if (!row || row.kind !== "proposal" || !row.proposal) throw new Error("proposal not found");
+    if (row.proposal.builtGenerationId) throw new Error("proposal already built");
+    const parent = state.generations.find((g) => g.id === row.proposal!.parentGenerationId);
+    const pending: GenerationDto = {
+      ...structuredClone(parent!),
+      id: uuid(),
+      status: "pending",
+      parentGenerationId: parent!.id,
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(pending);
+    await delay(4000);
+    if (pending.status === "cancelled") {
+      const err: ChatMessageDto & { clientId: string } = {
+        id: uuid(),
+        clientId: row.clientId,
+        role: "assistant" as const,
+        kind: "error" as const,
+        content: "Build cancelled. The draft is unchanged.",
+        generationId: pending.id,
+        createdAt: new Date().toISOString(),
+      };
+      state.messages.push(err);
+      return { messages: structuredClone([err]), generation: structuredClone(pending) };
+    }
+    state.generations.splice(state.generations.indexOf(pending), 1);
+    const child = reviseDraftInState(state, parent!.id, row.proposal.summary);
+    child.draft = mockApplyProposal(child.draft as any, row.proposal) as any;
+    row.proposal.builtGenerationId = child.id;
+    const out: ChatMessageDto & { clientId: string } = {
+      id: uuid(),
+      clientId: row.clientId,
+      role: "assistant" as const,
+      kind: "draft" as const,
+      content: `Built from the proposal.\n\n${draftNoticeText(child.draft as any)}`,
+      generationId: child.id,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(out);
+    return { messages: structuredClone([out]), generation: structuredClone(child) };
   },
 
   async clearChat(clientId) {

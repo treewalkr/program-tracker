@@ -195,5 +195,9 @@ export const realApi: TrainerApi = {
     (await unwrap<{ messages: ChatMessageDto[] }>(client.v1.ai.chat.post(input))).messages,
   chatTurn: (input) =>
     unwrap<{ messages: ChatMessageDto[]; generation: GenerationDto | null }>(client.v1.ai.chat.turn.post(input)),
+  buildProposal: (messageId, opts) =>
+    unwrap<{ messages: ChatMessageDto[]; generation: GenerationDto }>(
+      client.v1.ai.chat.proposals({ messageId }).build.post(opts)
+    ),
   clearChat: (clientId) => unwrap<void>(client.v1.ai.chat.delete(undefined, { query: { clientId } })),
 };

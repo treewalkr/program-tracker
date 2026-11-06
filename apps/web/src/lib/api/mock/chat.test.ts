@@ -54,23 +54,23 @@ describe("mock adapter: chat send, revise, and clear", () => {
     expect(noTarget.generation).toBeNull();
     expect(noTarget.messages[0].kind).toBe("chat");
 
-    // Change-request turn: reply + validated child
+    // Change-request turn: a proposal, no version built yet
     const revMsg = "Swap bench for incline dumbbell press";
     const reviseRes = await mockApi.chatTurn({ clientId, generationId: gen.id, message: revMsg });
     expect(reviseRes.messages).toHaveLength(2);
-    expect(reviseRes.generation!.parentGenerationId).toBe(gen.id);
-    expect(reviseRes.generation!.status).toBe("validated");
-    expect(reviseRes.generation!.revisionMessage).toBe(revMsg);
+    expect(reviseRes.generation).toBeNull();
 
     expect(reviseRes.messages[0].role).toBe("trainer");
     expect(reviseRes.messages[0].kind).toBe("revision");
     expect(reviseRes.messages[0].content).toBe(revMsg);
-    expect(reviseRes.messages[0].generationId).toBe(reviseRes.generation!.id);
+    expect(reviseRes.messages[0].generationId).toBeNull();
 
     expect(reviseRes.messages[1].role).toBe("assistant");
-    expect(reviseRes.messages[1].kind).toBe("draft");
-    expect(reviseRes.messages[1].content).toBe(`Applied: ${revMsg}\n\n${draftNoticeText(reviseRes.generation!.draft as any)}`);
-    expect(reviseRes.messages[1].generationId).toBe(reviseRes.generation!.id);
+    expect(reviseRes.messages[1].kind).toBe("proposal");
+    expect(reviseRes.messages[1].content).toBe(`Proposed: ${revMsg}`);
+    expect(reviseRes.messages[1].generationId).toBeNull();
+    expect(reviseRes.messages[1].proposal!.parentGenerationId).toBe(gen.id);
+    expect(reviseRes.messages[1].proposal!.builtGenerationId).toBeNull();
 
     const updatedTranscript = await mockApi.chatMessages(clientId);
     expect(updatedTranscript).toHaveLength(8);
@@ -86,20 +86,22 @@ describe("mock adapter: chat send, revise, and clear", () => {
 
 describe("mock adapter: chatTurn latency and no-publish", () => {
   test(
-    "mock chatTurn change request holds ~2.2s then returns the validated child",
+    "mock chatTurn change request holds ~2.2s then returns a proposal",
     async () => {
       const g = await mockApi.generate({ clientId: "cl-maya" });
       expect(g.status).toBe("validated");
+      const gensBefore = await mockApi.generations("cl-maya");
 
       const start = performance.now();
       const res = await mockApi.chatTurn({ clientId: "cl-maya", generationId: g.id, message: "Cut accessories to 2 sets" });
       const elapsed = performance.now() - start;
       expect(elapsed >= 2_000).toBe(true);
 
-      expect(res.generation.status).toBe("validated");
-      expect(res.generation.parentGenerationId).toBe(g.id);
+      expect(res.generation).toBeNull();
+      expect(res.messages[1].kind).toBe("proposal");
       const gens = await mockApi.generations("cl-maya");
-      expect(gens[0].id).toBe(res.generation.id);
+      expect(gens.length).toBe(gensBefore.length);
+      expect(gens[0].id).toBe(gensBefore[0].id);
     },
     15_000
   );
@@ -112,12 +114,43 @@ describe("mock adapter: chatTurn latency and no-publish", () => {
 
       const before = (await mockApi.client("cl-maya")).programs.map((p) => [p.id, p.status]);
       const res = await mockApi.chatTurn({ clientId: "cl-maya", generationId: g.id, message: "Swap one accessory" });
+      const built = await mockApi.buildProposal(res.messages[1].id, {});
       const after = (await mockApi.client("cl-maya")).programs.map((p) => [p.id, p.status]);
       expect(after).toEqual(before);
 
-      const program = await mockApi.approveGeneration(res.generation.id);
+      const program = await mockApi.approveGeneration(built.generation.id);
       expect(program.status).toBe("draft");
     },
     15_000
+  );
+});
+
+describe("mock: propose → build", () => {
+  test(
+    "mock: change request → proposal → build → next version",
+    async () => {
+      const clientId = "cl-maya";
+      const gens = await mockApi.generations(clientId);
+      const parent = gens.find((g) => g.status === "validated" && g.draft);
+      expect(parent).toBeDefined();
+
+      const turn = await mockApi.chatTurn({
+        clientId,
+        generationId: parent!.id,
+        message: "Add rest to the first exercise",
+      });
+      expect(turn.generation).toBeNull();
+      expect(turn.messages[1].kind).toBe("proposal");
+
+      const built = await mockApi.buildProposal(turn.messages[1].id, {});
+      expect(built.generation.parentGenerationId).toBe(parent!.id);
+      expect(built.generation.status).toBe("validated");
+      expect(built.messages[0].kind).toBe("draft");
+
+      await expect(mockApi.buildProposal(turn.messages[1].id, {})).rejects.toThrow(
+        "proposal already built"
+      );
+    },
+    20_000
   );
 });

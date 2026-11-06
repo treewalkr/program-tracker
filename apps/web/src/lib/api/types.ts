@@ -12,6 +12,7 @@ import type {
   SessionKind,
   SetType,
   Signal,
+  StoredChatProposal,
   WeekDirective as Wd,
   WeekMetric as Wm,
   WeekPlan as Wp,
@@ -263,12 +264,16 @@ export interface ChainWeekDto {
   }[];
 }
 
+export type ChatProposalDto = StoredChatProposal;
+
 export interface ChatMessageDto {
   id: string;
   role: "trainer" | "assistant";
-  kind: "chat" | "revision" | "draft" | "error";
+  kind: "chat" | "revision" | "draft" | "error" | "proposal";
   content: string;
   generationId: string | null;
+  /** Proposal payload for kind "proposal"; null/absent otherwise. */
+  proposal?: ChatProposalDto | null;
   createdAt: string;
 }
 
@@ -383,7 +388,7 @@ export interface TrainerApi {
 
   chatMessages(clientId: string): Promise<ChatMessageDto[]>;
   sendChatMessage(input: { clientId: string; message: string; providerId?: string; model?: string; effort?: string }): Promise<ChatMessageDto[]>;
-  /** One smart turn (card 27tc8): always replies; drafts only when asked. */
+  /** One chat turn on a draft: replies always, proposes slot changes when asked. */
   chatTurn(input: {
     clientId: string;
     generationId?: string | null;
@@ -392,5 +397,10 @@ export interface TrainerApi {
     model?: string;
     effort?: string;
   }): Promise<{ messages: ChatMessageDto[]; generation: GenerationDto | null }>;
+  /** Build a proposal into the next version. Refused twice (409). */
+  buildProposal(
+    messageId: string,
+    opts: { providerId?: string; model?: string; effort?: string }
+  ): Promise<{ messages: ChatMessageDto[]; generation: GenerationDto }>;
   clearChat(clientId: string): Promise<void>;
 }

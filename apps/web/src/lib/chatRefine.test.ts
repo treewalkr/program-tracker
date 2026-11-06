@@ -120,7 +120,7 @@ describe("submitChatTurn", () => {
   });
 
   test(
-    "one Send on a draft auto-applies the next version (mock adapter)",
+    "one Send on a draft returns a proposal and builds no version (mock adapter)",
     async () => {
       const g = await mockApi.generate({ clientId: "cl-maya" });
       expect(g.status).toBe("validated");
@@ -135,14 +135,16 @@ describe("submitChatTurn", () => {
         message: "Cut accessories to 2 sets",
       });
 
-      expect(res.generation?.status).toBe("validated");
+      // Propose, don't build: no version churn until Build is pressed
+      expect(res.generation).toBeNull();
+      expect(res.messages[1].kind).toBe("proposal");
       const merged = applyChatTurn({ messages: [], gens }, res);
       const after = draftPreviewModel(merged.gens, false, new Map());
-      expect(after.target?.id).toBe(res.generation?.id);
-      expect(after.version).toBe(before.version + 1);
+      expect(after.target?.id).toBe(g.id);
+      expect(after.version).toBe(before.version);
 
       const stored = await mockApi.generations("cl-maya");
-      expect(stored[0].id).toBe(res.generation?.id);
+      expect(stored[0].id).toBe(gens[0].id);
     },
     15_000
   );
