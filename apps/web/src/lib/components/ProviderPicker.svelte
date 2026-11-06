@@ -8,6 +8,8 @@
    * Selectors hide when they'd have nothing to choose: single-model providers
    * skip the model select, providers without effortLevels (and glm-4.x, whose
    * thinking is disabled) skip the effort select. "" effort = provider default.
+   * The default option is labelled "(provider default)" / "(default)" and the
+   * matching entry is not listed twice.
    */
   let {
     providers,
@@ -56,7 +58,7 @@
   {#if showModel}
     <Field label="Model" htmlFor="{idPrefix}-model">
       <select class="select" id="{idPrefix}-model" bind:value={model}>
-        <option value="">{provider?.model} · default</option>
+        <option value="">{provider?.model} (provider default)</option>
         {#each provider!.models as m (m)}
           {#if m !== provider!.model}
             <option value={m}>{m}</option>
@@ -69,9 +71,11 @@
   {#if effortLevels}
     <Field label="Thinking" htmlFor="{idPrefix}-effort">
       <select class="select" id="{idPrefix}-effort" bind:value={effort}>
-        <option value="">{provider?.defaultEffort ?? effortLevels[0]} · default</option>
+        <option value="">{provider?.defaultEffort ?? effortLevels[0]} (default)</option>
         {#each effortLevels as lvl (lvl)}
-          <option value={lvl}>{lvl}</option>
+          {#if lvl !== (provider?.defaultEffort ?? effortLevels[0])}
+            <option value={lvl}>{lvl}</option>
+          {/if}
         {/each}
       </select>
     </Field>

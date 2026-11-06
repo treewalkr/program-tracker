@@ -1,0 +1,85 @@
+<script lang="ts">
+  import type { ProviderDto } from "$lib/api/types";
+  import ProviderPicker from "./ProviderPicker.svelte";
+
+  /** One-line model summary that opens the provider/model/effort picker in a popover. Escape closes. */
+  let {
+    providers,
+    providerId = $bindable(""),
+    model = $bindable(""),
+    effort = $bindable(""),
+  }: { providers: ProviderDto[]; providerId: string; model: string; effort: string } = $props();
+
+  let open = $state(false);
+  let btn = $state<HTMLButtonElement | null>(null);
+  const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
+  const label = $derived(model || provider?.model || "model");
+  const effortLabel = $derived(effort || provider?.defaultEffort || "");
+</script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === "Escape" && open) {
+      open = false;
+      btn?.focus();
+    }
+  }}
+/>
+
+<div class="ms">
+  <button bind:this={btn} type="button" class="ms-btn" aria-expanded={open} aria-controls="ms-pop" onclick={() => (open = !open)}>
+    <b>{label}</b>{#if effortLabel}<span> · {effortLabel} effort</span>{/if}
+  </button>
+  {#if open}
+    <div class="ms-pop" id="ms-pop" role="dialog" aria-label="Model settings">
+      <ProviderPicker {providers} bind:providerId bind:model bind:effort idPrefix="ms" />
+      <p>Applies to this draft's next turns.</p>
+    </div>
+  {/if}
+</div>
+
+<style>
+  .ms {
+    position: relative;
+  }
+  .ms-btn {
+    font: 400 12px/1 var(--font-ui, inherit);
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 5px 6px;
+    white-space: nowrap;
+  }
+  .ms-btn:hover {
+    border-color: var(--line);
+    color: var(--ink);
+  }
+  .ms-btn b {
+    font: 500 12px/1 var(--font-mono, monospace);
+    color: var(--ink);
+  }
+  .ms-pop {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    width: 300px;
+    display: grid;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+    padding: 12px;
+    z-index: 6;
+  }
+  .ms-pop p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
