@@ -28,6 +28,7 @@ import type {
   ProgramWeek,
   SessionKind,
   SetType,
+  StoredChatProposal,
   WeekPlan,
   WeekSummaryStats,
 } from "@pt/shared";
@@ -209,13 +210,15 @@ export const chatMessages = pgTable("chat_messages", {
     .references(() => clients.id, { onDelete: "cascade" }),
   /** "trainer" = the human; "assistant" = the AI. */
   role: text("role").$type<"trainer" | "assistant">().notNull(),
-  /** chat = plain Q&A · revision = trainer's revise send · draft = draft-ready notice · error = failed call. */
-  kind: text("kind").$type<"chat" | "revision" | "draft" | "error">().notNull().default("chat"),
+  /** chat = plain Q&A · revision = trainer's revise send · draft = draft-ready notice · error = failed call · proposal = AI-proposed change list awaiting Build. */
+  kind: text("kind").$type<"chat" | "revision" | "draft" | "error" | "proposal">().notNull().default("chat"),
   content: text("content").notNull(),
   /** Generation this message concerns (revision sends and their draft/error replies). */
   generationId: uuid("generation_id").references((): AnyPgColumn => aiGenerations.id, {
     onDelete: "set null",
   }),
+  /** Proposal turn payload (kind "proposal"); null for every other kind. */
+  proposal: jsonb("proposal").$type<StoredChatProposal>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type ChatMessageRow = typeof chatMessages.$inferSelect;
