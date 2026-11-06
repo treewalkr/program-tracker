@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v2 · Sheet + coverage — Exercise library</title>
+<link rel="stylesheet" href="../../../apps/web/src/app.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .search { position: relative; flex: 1 1 260px; max-width: 360px; }
+  .search .input { padding-right: 36px; }
+  .search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+  .fbtn svg { width: 12px; height: 12px; }
+  .fbtn .n { font: 500 11px/1 var(--font-ui); background: var(--hover-ink); color: #fff; border-radius: 99px; padding: 2px 6px; }
+  .sortsel { width: auto; margin-left: auto; }
+  .active-f { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: -4px 0 12px; }
+  .active-f:empty { display: none; }
+  .active-f .tchip svg { width: 10px; height: 10px; }
+
+  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+  .split.open { grid-template-columns: minmax(0, 1fr) 400px; }
+
+  .tw { overflow-x: auto; }
+  table.sheet td { vertical-align: middle; }
+  table.sheet .cb { width: 36px; padding-right: 0; }
+  table.sheet tbody tr { cursor: pointer; }
+  table.sheet tbody tr.sel td { background: var(--pulse-now-bg); }
+  table.sheet tbody tr.arch td { color: var(--faint); }
+  .nm { font-weight: 600; }
+  .sec { display: block; margin-top: 1px; font-size: 12px; color: var(--faint); }
+  input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--hover-ink); cursor: pointer; }
+  .ph-bulk { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; }
+  .pager { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); }
+  .pager .fig { color: var(--muted); }
+  .pager .btn:first-of-type { margin-left: auto; }
+
+  .insp[hidden] { display: none; }
+  .insp { position: sticky; top: 52px; max-height: calc(100vh - 68px); display: flex; flex-direction: column; }
+  .insp .panel-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .insp .body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+  .insp .meta { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .insp .foot { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface); border-radius: 0 0 6px 6px; }
+  .insp .foot .dirty { font-size: 12px; color: var(--muted); margin-right: auto; }
+
+  /* coverage map */
+  .cov { margin-bottom: 20px; }
+  .cov .panel-head { gap: 10px; }
+  .cov .tog { display: inline-flex; align-items: center; gap: 6px; appearance: none; border: 0; background: none; padding: 0; font: 600 14px/1.3 var(--font-ui); color: var(--ink); cursor: pointer; }
+  .cov .tog svg { width: 12px; height: 12px; stroke: var(--muted); fill: none; stroke-width: 2; transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .cov.closed .tog svg { transform: rotate(-90deg); }
+  .cov.closed .panel-head { border-bottom: 0; }
+  .cov .sum { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+  .cov .sum b { font: 500 12px var(--font-mono); color: var(--ink); }
+  .cov .sum .gaps b { color: var(--warn); }
+  .mapwrap { overflow-x: auto; padding: 8px 10px; }
+  table.map { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 760px; }
+  .map th { font: 600 12px/1.2 var(--font-ui); color: var(--muted); padding: 4px 6px; text-align: center; white-space: nowrap; }
+  .map th.rowh { text-align: left; width: 168px; }
+  .map th button { appearance: none; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+  .map th button:hover { color: var(--ink); background: var(--well-2); }
+  .map th button.on { color: var(--ink); background: var(--active); }
+  .map .grp td { padding: 6px 6px 0; font: 600 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
+  .map td.c { padding: 0; }
+  .cell { width: 100%; min-width: 52px; height: 26px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font: 500 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+  .cell.z { background: var(--surface); border: 1px dashed var(--line); color: var(--faint); }
+  .cell.l1 { background: var(--done-1); color: var(--ink); }
+  .cell.l2 { background: var(--done-2); color: var(--ink); }
+  .cell.l3 { background: var(--done-4); color: #fff; }
+  .cell.todo { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
+  .cell:hover { filter: brightness(1.05); border-color: var(--line-strong); }
+  .cell.on { box-shadow: inset 0 0 0 2px var(--hover-ink); }
+  .cell.z.on { border-style: solid; }
+  .map td.tot { font: 500 12px var(--font-mono); color: var(--muted); text-align: right; padding-right: 8px; }
+  .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 10px 16px; border-top: 1px solid var(--line); }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -3px; margin-right: 5px; }
+  .legend .z { border: 1px dashed var(--line); }
+  .legend .l1 { background: var(--done-1); } .legend .l2 { background: var(--done-2); } .legend .l3 { background: var(--done-4); }
+  .legend .todo { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+  .legend .faint { margin-left: auto; }
+  .gapnote { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 22px 16px; color: var(--muted); }
+  .gapnote b { color: var(--ink); }
+  .insp .ctx { margin: 0; font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 1180px) {
+    .split.open { grid-template-columns: minmax(0, 1fr); }
+    .insp { position: fixed; top: 31px; right: 0; bottom: 0; width: min(420px, 100vw); max-height: none; z-index: 20; border-radius: 0; box-shadow: var(--shadow-overlay); }
+  }
+  @media (max-width: 760px) { .col-func, .col-eq { display: none; } .cov .sum { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .cov .tog svg { transition: none; } }
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+const main = shell("v2 · Sheet + coverage map");
+const PAGE = 12;
+const S = { tab: "all", q: "", f: { muscle: new Set(), pattern: new Set(), equipment: new Set() }, sort: "name", page: 0, sel: new Set(), open: null, map: localStorage.getItem("xl-map") ? localStorage.getItem("xl-map") === "open" : !matchMedia("(max-width: 760px)").matches };
+const EQ = Object.keys(EQUIPMENT);
+const GROUPS = ["Upper", "Lower", "Core"];
+
+main.innerHTML = `
+  <div class="ph">
+    <div class="t">
+      <h1>Exercise library</h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="acts"><button class="btn primary" id="new"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New exercise</button></div>
+  </div>
+  <section class="panel cov" id="cov">
+    <div class="panel-head">
+      <button class="tog" id="tog" aria-expanded="true" aria-controls="covbody"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>Coverage</button>
+      <span class="sum" id="sum"></span>
+      <span class="act faint" id="covhint">Click a cell to filter the table. Empty cells are gaps the AI can't fill.</span>
+    </div>
+    <div id="covbody">
+      <div class="mapwrap"><table class="map" id="map"></table></div>
+      <div class="legend"><span><i class="z"></i>none</span><span><i class="l1"></i>1</span><span><i class="l2"></i>2–3</span><span><i class="l3"></i>4+</span><span><i class="todo"></i>untagged</span><span class="faint">Counts exclude archived and hidden</span></div>
+    </div>
+  </section>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="toolbar">
+    <div class="search"><input class="input" id="q" type="search" placeholder="Search exercises" aria-label="Search exercises"><kbd>/</kbd></div>
+    <button class="btn fbtn" data-menu="muscle">Muscle <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="btn fbtn" data-menu="pattern">Pattern <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="btn fbtn" data-menu="equipment">Equipment <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <select class="select sortsel" id="sort" aria-label="Sort">
+      <option value="name">Sort: Name</option>
+      <option value="uses">Sort: Most used</option>
+      <option value="muscle">Sort: Muscle</option>
+    </select>
+  </div>
+  <div class="active-f" id="af"></div>
+  <div class="split" id="split">
+    <section class="panel" id="list"></section>
+    <aside class="panel insp" id="insp" hidden></aside>
+  </div>`;
+
+const $ = (s) => main.querySelector(s);
+const FMAP = { muscle: MUSCLES, pattern: Object.fromEntries(Object.entries(PATTERNS).map(([k, v]) => [k, v.name])), equipment: EQUIPMENT };
+const FKEY = { muscle: "primary", pattern: "pattern", equipment: "equipment" };
+
+function inTab(e) {
+  if (S.tab === "archived") return e.archived;
+  if (e.archived) return false;
+  if (S.tab === "mine") return e.source === "custom";
+  if (S.tab === "untagged") return !e.pattern || !e.functional;
+  return true;
+}
+function rows() {
+  const q = norm(S.q);
+  let r = store.items.filter((e) => inTab(e) && (!q || norm(e.name).includes(q)) &&
+    Object.entries(S.f).every(([k, set]) => !set.size || set.has(k === "pattern" ? e.pattern || "none" : e[FKEY[k]])));
+  const by = { name: (a, b) => a.name.localeCompare(b.name), uses: (a, b) => b.uses - a.uses || a.name.localeCompare(b.name), muscle: (a, b) => a.primary.localeCompare(b.primary) || a.name.localeCompare(b.name) }[S.sort];
+  return r.sort(by);
+}
+
+function renderHead() {
+  const live = store.items.filter((e) => !e.archived);
+  const c = { all: live.length, mine: live.filter((e) => e.source === "custom").length, untagged: live.filter((e) => !e.pattern || !e.functional).length, archived: store.items.filter((e) => e.archived).length };
+  $("#sub").innerHTML = `<span class="fig">${live.filter((e) => e.source === "library").length}</span> from WGER · <span class="fig">${c.mine}</span> of yours. Tagged patterns feed balance checks and AI drafts.`;
+  const T = [["all", "All"], ["mine", "Mine"], ["untagged", "Needs tagging"], ["archived", "Archived & hidden"]];
+  $("#tabs").innerHTML = T.map(([k, l]) => `<button class="${S.tab === k ? "on" : ""}" data-tab="${k}">${l}<span class="counter">${c[k]}</span></button>`).join("");
+  $("#tabs").querySelectorAll("button").forEach((b) => (b.onclick = () => { S.tab = b.dataset.tab; S.page = 0; S.sel.clear(); render(); }));
+  main.querySelectorAll(".fbtn").forEach((b) => {
+    const n = S.f[b.dataset.menu].size;
+    b.querySelector(".n")?.remove();
+    if (n) b.querySelector("svg").insertAdjacentHTML("beforebegin", `<span class="n">${n}</span>`);
+  });
+  const chips = [];
+  for (const [k, set] of Object.entries(S.f)) for (const v of set)
+    chips.push(`<button class="tchip on" data-rm="${k}:${v}">${v === "none" ? "Untagged" : FMAP[k][v]} <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`);
+  $("#af").innerHTML = chips.length ? chips.join("") + `<button class="linkbtn" id="clr" style="font-size:12px;margin-left:6px">Clear filters</button>` : "";
+  $("#af").querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { const [k, v] = b.dataset.rm.split(":"); S.f[k].delete(v); S.page = 0; render(); }));
+  $("#clr")?.addEventListener("click", () => { Object.values(S.f).forEach((s) => s.clear()); S.page = 0; render(); });
+}
+
+function gapNote() {
+  const pre = prefill();
+  if (S.q || S.tab !== "all" && S.tab !== "untagged" || S.f.muscle.size || !pre.pattern || !pre.equipment || S.f.pattern.size > 1 || S.f.equipment.size > 1) return "";
+  return `<div class="gapnote"><span><b>No ${PATTERNS[pre.pattern].name.toLowerCase()} exercise with ${EQUIPMENT[pre.equipment].toLowerCase()} yet.</b> Programs that need one fall back to other equipment.</span><button class="btn" id="fill">Add one</button></div>`;
+}
+
+/* —— coverage map ————————————————— */
+const lvl = (n) => (n === 0 ? "z" : n === 1 ? "l1" : n <= 3 ? "l2" : "l3");
+const one = (set) => (set.size === 1 ? [...set][0] : undefined);
+/** The cell the current filters point at: pattern key, "none", or undefined. */
+function mapScope() {
+  const onlyPE = !S.f.muscle.size && S.f.pattern.size <= 1 && S.f.equipment.size <= 1;
+  return onlyPE ? { p: one(S.f.pattern), q: one(S.f.equipment) } : { p: "-", q: "-" };
+}
+function renderMap() {
+  const L = store.items.filter((e) => !e.archived);
+  const count = (p, q) => L.filter((e) => (p === "none" ? !e.pattern : e.pattern === p) && (q === undefined || e.equipment === q)).length;
+  let gaps = 0;
+  for (const p of Object.keys(PATTERNS)) for (const q of EQ) if (!count(p, q)) gaps++;
+  const placed = L.filter((e) => e.pattern).length;
+  $("#sum").innerHTML = `<span><b>${placed}</b> of <b>${L.length}</b> placed</span><span class="gaps"><b>${gaps}</b> gaps</span>`;
+  const cov = $("#cov");
+  cov.classList.toggle("closed", !S.map);
+  $("#covbody").hidden = !S.map;
+  $("#covhint").hidden = !S.map;
+  $("#tog").setAttribute("aria-expanded", S.map);
+  if (!S.map) return;
+  const sc = mapScope();
+  const cell = (p, q) => {
+    const n = count(p, q);
+    const on = sc.p === p && sc.q === q;
+    const label = `${p === "none" ? "Untagged" : PATTERNS[p].name}, ${EQUIPMENT[q]}: ${n}`;
+    return `<td class="c"><button class="cell ${p === "none" && n ? "todo" : lvl(n)}${on ? " on" : ""}" data-p="${p}" data-q="${q}" aria-label="${label}" aria-pressed="${on}">${n || "·"}</button></td>`;
+  };
+  const rowh = (p, label) => `<th class="rowh"><button data-rowh="${p}" class="${sc.p === p && sc.q === undefined ? "on" : ""}">${label}</button></th>`;
+  let h = `<thead><tr><th class="rowh"></th>${EQ.map((q) => `<th><button data-colh="${q}" class="${sc.p === undefined && sc.q === q ? "on" : ""}">${EQUIPMENT[q]}</button></th>`).join("")}<th style="text-align:right">All</th></tr></thead><tbody>`;
+  for (const g of GROUPS) {
+    h += `<tr class="grp"><td colspan="${EQ.length + 2}">${g}</td></tr>`;
+    for (const [p, info] of Object.entries(PATTERNS).filter(([, v]) => v.group === g))
+      h += `<tr>${rowh(p, info.name)}${EQ.map((q) => cell(p, q)).join("")}<td class="tot">${count(p)}</td></tr>`;
+  }
+  h += `<tr class="grp"><td colspan="${EQ.length + 2}">To tag</td></tr><tr>${rowh("none", "Untagged")}${EQ.map((q) => cell("none", q)).join("")}<td class="tot">${count("none")}</td></tr></tbody>`;
+  $("#map").innerHTML = h;
+  $("#map").querySelectorAll(".cell").forEach((b) => (b.onclick = () => pickCell(b.dataset.p, b.dataset.q)));
+  $("#map").querySelectorAll("[data-rowh]").forEach((b) => (b.onclick = () => pickCell(b.dataset.rowh, undefined)));
+  $("#map").querySelectorAll("[data-colh]").forEach((b) => (b.onclick = () => pickCell(undefined, b.dataset.colh)));
+}
+/** A map click replaces the pattern/equipment/muscle filters; clicking the active cell clears them. */
+function pickCell(p, q) {
+  const sc = mapScope();
+  const same = sc.p === p && sc.q === q;
+  S.f.muscle.clear(); S.f.pattern.clear(); S.f.equipment.clear();
+  if (!same) { if (p) S.f.pattern.add(p); if (q) S.f.equipment.add(q); }
+  if (S.tab === "archived" || S.tab === "mine") S.tab = "all";
+  S.q = ""; $("#q").value = ""; S.page = 0; S.sel.clear();
+  render();
+  if (!same) $("#split").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+/** Pattern + equipment to prefill a new exercise from the current filters. */
+function prefill() {
+  const p = one(S.f.pattern), q = one(S.f.equipment);
+  return { pattern: p && p !== "none" ? p : null, equipment: q || "" };
+}
+
+function renderList() {
+  const r = rows();
+  const pages = Math.max(1, Math.ceil(r.length / PAGE));
+  S.page = Math.min(S.page, pages - 1);
+  const slice = r.slice(S.page * PAGE, S.page * PAGE + PAGE);
+  const allSel = slice.length && slice.every((e) => S.sel.has(e.id));
+  const head = S.sel.size
+    ? `<div class="ph-bulk"><input type="checkbox" checked aria-label="Clear selection" id="selall"><b>${S.sel.size} selected</b>
+        <button class="btn small" data-bulk="pattern">Set pattern</button>
+        <button class="btn small" data-bulk="functional">Set functional</button>
+        <button class="btn small" id="b-arch">${S.tab === "archived" ? "Restore" : "Archive or hide"}</button>
+        <button class="linkbtn" id="b-clear" style="margin-left:auto;font-size:13px">Clear</button></div>`
+    : `<input type="checkbox" id="selall" aria-label="Select page"${allSel ? " checked" : ""}><h2>${r.length === 1 ? "1 exercise" : r.length + " exercises"}</h2><span class="act faint">Click a row to edit</span>`;
+  $("#list").innerHTML = `
+    <div class="panel-head">${head}</div>
+    ${r.length ? `<div class="tw"><table class="sheet">
+      <thead><tr><th class="cb"></th><th>Exercise</th><th>Primary</th><th>Pattern</th><th class="col-func">Functional</th><th class="col-eq">Equipment</th><th class="r">Used in</th><th></th></tr></thead>
+      <tbody>${slice.map((e) => `
+        <tr data-id="${e.id}" class="${S.open === e.id ? "sel" : ""}${e.archived ? " arch" : ""}">
+          <td class="cb"><input type="checkbox" aria-label="Select ${esc(e.name)}"${S.sel.has(e.id) ? " checked" : ""}></td>
+          <td><span class="nm">${esc(e.name)}</span>${sourceTag(e)}${e.archived ? `<span class="arch">${e.source === "library" ? "hidden" : "archived"}</span>` : ""}<span class="sec">${e.secondary.map((m) => MUSCLES[m].toLowerCase()).join(", ") || "no secondary"}</span></td>
+          <td><span class="pill neutral">${MUSCLES[e.primary]}</span></td>
+          <td>${e.pattern ? patternPill(e.pattern) : `<button class="untag" data-quick="pattern">Tag</button>`}</td>
+          <td class="col-func">${e.functional ? FUNCTIONAL[e.functional] : `<button class="untag" data-quick="functional">Tag</button>`}</td>
+          <td class="col-eq">${EQUIPMENT[e.equipment]}</td>
+          <td class="r">${e.uses ? e.uses : `<span class="faint">—</span>`}</td>
+          <td style="width:36px"><button class="iconbtn" data-more aria-label="More actions for ${esc(e.name)}"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></td>
+        </tr>`).join("")}
+      </tbody></table></div>
+      <div class="pager"><span class="fig">${S.page * PAGE + 1}–${Math.min(r.length, S.page * PAGE + PAGE)} of ${r.length}</span>
+        <button class="btn small" id="prev"${S.page ? "" : " disabled"}>Previous</button><button class="btn small" id="next"${S.page < pages - 1 ? "" : " disabled"}>Next</button></div>`
+    : gapNote() || `<div class="empty">${S.q ? `No exercise matches “${esc(S.q)}”.<br><br><button class="btn primary" id="new-from-q">Create “${esc(S.q)}”</button>` : S.tab === "untagged" ? "Every exercise has a pattern and a functional tag." : S.tab === "archived" ? "Nothing archived or hidden." : "No exercises match these filters."}</div>`}`;
+
+  $("#selall").onchange = (ev) => {
+    if (S.sel.size && !ev.target.checked) S.sel.clear();
+    else slice.forEach((e) => (ev.target.checked ? S.sel.add(e.id) : S.sel.delete(e.id)));
+    renderList();
+  };
+  $("#prev")?.addEventListener("click", () => { S.page--; renderList(); });
+  $("#next")?.addEventListener("click", () => { S.page++; renderList(); });
+  $("#new-from-q")?.addEventListener("click", () => openInsp(null, { ...prefill(), name: S.q }));
+  $("#fill")?.addEventListener("click", () => openInsp(null, prefill()));
+  $("#b-clear")?.addEventListener("click", () => { S.sel.clear(); renderList(); });
+  $("#b-arch")?.addEventListener("click", () => {
+    const list = [...S.sel].map((id) => store.items.find((e) => e.id === id));
+    const restore = S.tab === "archived";
+    const deletable = !restore ? list.filter((e) => removeAction(e).kind === "delete") : [];
+    list.forEach((e) => (e.archived = !restore));
+    S.sel.clear(); render();
+    flash(restore ? `Restored ${list.length}.` : `Archived or hid ${list.length}. ${deletable.length ? `${deletable.length} unused — delete them from the Archived tab.` : "Programs that use them are unchanged."}`,
+      () => { list.forEach((e) => (e.archived = restore)); render(); });
+  });
+  $("#list").querySelectorAll("[data-bulk]").forEach((b) => b.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    tagMenu(b, b.dataset.bulk, (v) => {
+      const list = [...S.sel].map((id) => store.items.find((e) => e.id === id));
+      const prev = list.map((e) => e[b.dataset.bulk]);
+      list.forEach((e) => (e[b.dataset.bulk] = v));
+      S.sel.clear(); render();
+      flash(`Tagged ${list.length} as ${v ? (b.dataset.bulk === "pattern" ? PATTERNS[v].name : FUNCTIONAL[v]) : "untagged"}.`, () => { list.forEach((e, i) => (e[b.dataset.bulk] = prev[i])); render(); });
+    });
+  }));
+  $("#list").querySelectorAll("tbody tr").forEach((tr) => {
+    const e = store.items.find((x) => x.id === tr.dataset.id);
+    tr.addEventListener("click", (ev) => {
+      if (ev.target.closest("input,button")) return;
+      openInsp(e);
+    });
+    tr.querySelector("input").onchange = (ev) => { ev.target.checked ? S.sel.add(e.id) : S.sel.delete(e.id); renderList(); };
+    tr.querySelectorAll("[data-quick]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      tagMenu(b, b.dataset.quick, (v) => { e[b.dataset.quick] = v; render(); flash(`${esc(e.name)} tagged.`); });
+    }));
+    tr.querySelector("[data-more]").addEventListener("click", (ev) => { ev.stopPropagation(); rowMenu(ev.currentTarget, e); });
+  });
+}
+
+/* —— popovers ————————————————————— */
+function popover(anchor, html, wire) {
+  closeMenu();
+  const m = document.createElement("div");
+  m.className = "menu"; m.innerHTML = html; m.setAttribute("role", "menu");
+  document.body.append(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.top = r.bottom + window.scrollY + 4 + "px";
+  m.style.left = Math.min(r.left + window.scrollX, window.innerWidth - m.offsetWidth - 12) + "px";
+  wire(m);
+  m.querySelector("button")?.focus();
+  setTimeout(() => document.addEventListener("click", closeMenu, { once: true }));
+}
+function closeMenu() { document.querySelectorAll(".menu").forEach((m) => m.remove()); }
+
+function tagMenu(anchor, kind, pick) {
+  const list = kind === "pattern" ? Object.entries(PATTERNS).map(([k, v]) => [k, v.name]) : Object.entries(FUNCTIONAL);
+  popover(anchor, `<div class="mh">${kind === "pattern" ? "Movement pattern" : "Functional movement"}</div>` +
+    list.map(([k, v]) => `<button data-v="${k}">${v}</button>`).join("") + `<hr><button data-v="">Untagged</button>`,
+    (m) => m.querySelectorAll("[data-v]").forEach((b) => (b.onclick = () => { pick(b.dataset.v || null); closeMenu(); })));
+}
+
+function filterMenu(anchor, kind) {
+  const set = S.f[kind];
+  const entries = Object.entries(FMAP[kind]);
+  if (kind === "pattern") entries.push(["none", "Untagged"]);
+  popover(anchor, entries.map(([k, v]) => `<button data-v="${k}" role="menuitemcheckbox" aria-checked="${set.has(k)}"><span class="chk">${set.has(k) ? "✓" : ""}</span>${v}</button>`).join(""),
+    (m) => m.querySelectorAll("[data-v]").forEach((b) => (b.onclick = (ev) => {
+      ev.stopPropagation();
+      set.has(b.dataset.v) ? set.delete(b.dataset.v) : set.add(b.dataset.v);
+      b.querySelector(".chk").textContent = set.has(b.dataset.v) ? "✓" : "";
+      S.page = 0; render();
+    })));
+}
+
+function rowMenu(anchor, e) {
+  const rm = removeAction(e);
+  popover(anchor, `
+    <button data-a="edit">Edit</button>
+    <button data-a="dup">Duplicate into my exercises</button>
+    <hr>
+    ${e.archived ? `<button data-a="restore">${e.source === "library" ? "Unhide" : "Restore"}</button>${e.source === "custom" && !e.uses ? `<button class="danger" data-a="delete">Delete permanently</button>` : ""}`
+      : `<button class="danger" data-a="rm">${rm.label}</button>`}`,
+    (m) => m.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => {
+      closeMenu();
+      ({ edit: () => openInsp(e), dup: () => { const c = duplicate(e); S.tab = "mine"; render(); openInsp(c); }, rm: () => removeItem(e, rm), restore: () => { e.archived = false; render(); flash(`${esc(e.name)} restored.`); }, delete: () => removeItem(e, { kind: "delete" }) })[b.dataset.a]();
+    })));
+}
+
+/* —— remove —————————————————————— */
+function removeItem(e, rm) {
+  if (rm.kind === "delete") {
+    const i = store.items.indexOf(e);
+    store.items.splice(i, 1);
+    if (S.open === e.id) closeInsp();
+    render();
+    flash(`Deleted ${esc(e.name)}.`, () => { store.items.splice(i, 0, e); render(); });
+  } else {
+    e.archived = true;
+    if (S.open === e.id) closeInsp();
+    render();
+    flash(`${rm.kind === "hide" ? "Hid" : "Archived"} ${esc(e.name)}.${e.uses ? ` Its ${e.uses} program${e.uses > 1 ? "s keep" : " keeps"} it.` : ""}`, () => { e.archived = false; render(); });
+  }
+}
+
+/* —— inspector ———————————————————— */
+function openInsp(e, pre = {}) {
+  if (typeof pre === "string") pre = { name: pre };
+  const seed = e || { name: pre.name || "", primary: "", secondary: [], equipment: pre.equipment || "", pattern: pre.pattern || null, functional: null, note: "", source: "custom" };
+  S.open = e ? e.id : "new";
+  const insp = $("#insp");
+  const rm = e && removeAction(e);
+  insp.hidden = false;
+  $("#split").classList.add("open");
+  insp.innerHTML = `
+    <div class="panel-head"><h2>${e ? esc(e.name) : "New exercise"}</h2>${e ? sourceTag(e) || `<span class="src">WGER</span>` : ""}
+      <button class="iconbtn" id="x" aria-label="Close" style="margin-left:auto"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="body">
+      ${!e && (pre.pattern || pre.equipment) ? `<p class="ctx">Prefilled from your filters: ${[pre.pattern && PATTERNS[pre.pattern].name, pre.equipment && EQUIPMENT[pre.equipment]].filter(Boolean).join(", ")}.</p>` : ""}
+      ${e ? `<div class="meta"><span>Used in <span class="fig">${e.uses}</span> program${e.uses === 1 ? "" : "s"}</span><button class="linkbtn" id="dup">Duplicate into my exercises</button></div>` : ""}
+      <form id="xf" novalidate>${formHTML(seed, { compact: true })}</form>
+      ${e && !e.archived ? `<div class="rm"><p><b>${rm.label}</b>${rm.why}</p><button class="btn ${rm.kind === "delete" ? "danger" : ""} small" id="rm">${rm.label}</button></div>` : ""}
+    </div>
+    <div class="foot"><span class="dirty" id="dirty">${e ? "No changes" : ""}</span><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="save"${e ? " disabled" : ""}>${e ? "Save" : "Create exercise"}</button></div>`;
+  const form = insp.querySelector("#xf");
+  wireForm(form, { exceptId: e?.id, onDupePick: (id) => openInsp(store.items.find((x) => x.id === id)) });
+  if (pre.name) form.querySelector("[name=name]").dispatchEvent(new Event("input"));
+  const snap = JSON.stringify(readForm(form));
+  const mark = () => {
+    const dirty = JSON.stringify(readForm(form)) !== snap;
+    if (e) { $("#save").disabled = !dirty; $("#dirty").textContent = dirty ? "Unsaved changes" : "No changes"; }
+  };
+  form.addEventListener("input", mark); form.addEventListener("change", mark); form.addEventListener("click", () => setTimeout(mark));
+  form.addEventListener("submit", (ev) => { ev.preventDefault(); $("#save").click(); });
+  $("#x").onclick = $("#cancel").onclick = closeInsp;
+  $("#dup")?.addEventListener("click", () => { const c = duplicate(e); render(); openInsp(c); flash(`Duplicated as ${esc(c.name)} — rename it and save.`); });
+  $("#rm")?.addEventListener("click", () => removeItem(e, rm));
+  $("#save").onclick = () => {
+    const item = saveFrom(form, e);
+    if (!item) return;
+    if (!e && !(item.pattern && one(S.f.pattern) === item.pattern)) { S.tab = "mine"; S.q = ""; $("#q").value = ""; S.page = 0; Object.values(S.f).forEach((x) => x.clear()); }
+    render(); openInsp(item);
+    flash(e ? `Saved ${esc(item.name)}.` : `Created ${esc(item.name)} in your exercises.`);
+  };
+  renderList();
+  const top = $("#split").getBoundingClientRect().top + window.scrollY - 44;
+  if (window.scrollY < top) window.scrollTo({ top, behavior: "smooth" });
+  (e ? form.querySelector("[name=pattern]") : form.querySelector("[name=name]")).focus({ preventScroll: true });
+}
+function closeInsp() { S.open = null; $("#insp").hidden = true; $("#split").classList.remove("open"); renderList(); }
+
+function render() { renderHead(); renderMap(); renderList(); }
+
+$("#new").onclick = () => openInsp(null, prefill());
+$("#tog").onclick = () => { S.map = !S.map; localStorage.setItem("xl-map", S.map ? "open" : "closed"); renderMap(); };
+$("#q").oninput = (ev) => { S.q = ev.target.value; S.page = 0; renderList(); };
+$("#sort").onchange = (ev) => { S.sort = ev.target.value; renderList(); };
+main.querySelectorAll(".fbtn").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); filterMenu(b, b.dataset.menu); }));
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.closest("input,textarea,select")) { if (ev.key === "Escape") ev.target.blur(); return; }
+  if (ev.key === "/") { ev.preventDefault(); $("#q").focus(); }
+  if (ev.key === "n") openInsp(null, prefill());
+  if (ev.key === "m") $("#tog").click();
+  if (ev.key === "Escape") { closeMenu(); if (S.open) closeInsp(); }
+});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exercise library v1 — prototypes</title>
+<link rel="stylesheet" href="../../../apps/web/src/app.css">
+<style>
+  body { margin: 0; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 32px 72px; }
+  .lede { color: var(--muted); max-width: 72ch; margin: 8px 0 0; }
+  h2.sec { margin: 32px 0 10px; }
+  ul.find { margin: 0; padding-left: 18px; color: var(--ink); max-width: 80ch; }
+  ul.find li { margin: 4px 0; }
+  .deck { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; margin-top: 12px; }
+  .card { display: flex; flex-direction: column; color: inherit; text-decoration: none; }
+  .card:hover { text-decoration: none; border-color: var(--line-strong); }
+  .shot { height: 230px; overflow: hidden; border-bottom: 1px solid var(--line); background: var(--well); position: relative; }
+  .shot iframe { width: 1440px; height: 1000px; border: 0; transform: scale(0.255); transform-origin: top left; pointer-events: none; }
+  .card .panel-body { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .card h3 { font-size: 16px; }
+  .card p { margin: 0; color: var(--muted); font-size: 13px; }
+  .card dl { margin: 4px 0 0; display: grid; grid-template-columns: 64px 1fr; gap: 4px 10px; font-size: 13px; }
+  .card dt { color: var(--muted); font-weight: 500; }
+  .card dd { margin: 0; }
+  .card .go { margin-top: auto; padding-top: 8px; color: var(--blue); font-weight: 500; font-size: 13px; }
+  table.sheet td:first-child { font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Exercise library — v1 prototypes</h1>
+  <p class="lede">Three ways to lay out the same library with add, edit, tag, duplicate, archive and delete. All three use the shipped Primer stylesheet and the same mock data, and every control works in memory. Reload a page to reset it.</p>
+
+  <h2 class="sec">Problems in the current page</h2>
+  <ul class="find">
+    <li>All 767 rows render at once in per-muscle panels, so the page is about 47,000px tall and finding one exercise means scrolling.</li>
+    <li>The Pattern select is too narrow to read ("h p…"), and raw keys like <code>full_body</code> appear in the UI.</li>
+    <li>WGER entries and the trainer's own exercises look the same. There is no add, edit or delete, so the trainer can't fix a wrong muscle or remove a duplicate.</li>
+    <li>"300 untagged" is the biggest job on the page but only appears as a line of text. Untagged exercises are invisible to balance checks.</li>
+    <li>The subtitle reads like a developer note ("the real seed holds 719 from WGER").</li>
+    <li>WGER contains non-English duplicates ("Croci su panca piana", "Klimmzüge an der Stange"). Each direction can hide them, and the seed could be filtered.</li>
+  </ul>
+
+  <h2 class="sec">Rules shared by all three directions</h2>
+  <table class="sheet panel" style="max-width:900px">
+    <tbody>
+      <tr><td>WGER entries</td><td>Locked: the trainer can tag the pattern and functional movement and add a coaching note. To change the name, muscles or equipment, they duplicate it into their own exercises. "Delete" becomes <b>Hide from library</b>.</td></tr>
+      <tr><td>Your exercises</td><td>Fully editable. Marked with a blue "Mine" label.</td></tr>
+      <tr><td>Delete</td><td>Only for custom exercises not used in any program. If a program uses it, the action becomes <b>Archive</b>: hidden from pickers and the AI, while existing programs and logs keep it. Every removal shows a flash with Undo.</td></tr>
+      <tr><td>Create</td><td>Requires name, primary muscle and equipment. As the trainer types a name, the form lists similar exercises already in the library ("Already in the library: Pendlay Row"). An exact name match is blocked.</td></tr>
+      <tr><td>Coaching note</td><td>A new field: setup cues stored per exercise, shown in programs and passed to the AI. It needs a DB column.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">Directions</h2>
+  <div class="deck">
+    <a class="panel card" href="a-sheet-inspector.html">
+      <div class="shot"><iframe src="a-sheet-inspector.html" tabindex="-1" loading="lazy" title="A preview"></iframe></div>
+      <div class="panel-body">
+        <h3>A · Sheet &amp; inspector</h3>
+        <p>One paged, filterable table with an edit panel on the right. It works like an issue list and is built for scale and bulk work.</p>
+        <dl>
+          <dt>Find</dt><dd>Tabs (All / Mine / Needs tagging / Archived), search with <kbd>/</kbd>, filter menus for muscle, pattern and equipment, and sorting</dd>
+          <dt>Edit</dt><dd>Click a row and the inspector opens beside the list. Save is enabled only after a change.</dd>
+          <dt>Bulk</dt><dd>Select rows to set a pattern or functional tag, or to archive, in one step</dd>
+          <dt>Best if</dt><dd>The trainer will tag hundreds of WGER entries</dd>
+        </dl>
+        <span class="go">Open prototype →</span>
+      </div>
+    </a>
+    <a class="panel card" href="b-groups-inline.html">
+      <div class="shot"><iframe src="b-groups-inline.html" tabindex="-1" loading="lazy" title="B preview"></iframe></div>
+      <div class="panel-body">
+        <h3>B · Groups &amp; inline edit</h3>
+        <p>Keeps today's grouped view but adds a group index on the left and lets the trainer edit a row in place.</p>
+        <dl>
+          <dt>Find</dt><dd>Group by muscle, pattern or equipment, with an amber dot on groups that have exercises to tag</dd>
+          <dt>Edit</dt><dd>Pattern and functional selects sit right in each row. The edit icon expands the row into a full form. <kbd>⌘↵</kbd> saves.</dd>
+          <dt>Add</dt><dd>"Add a back exercise" at the bottom of each group prefills the muscle</dd>
+          <dt>Best if</dt><dd>The trainer thinks in body parts and edits occasionally</dd>
+        </dl>
+        <span class="go">Open prototype →</span>
+      </div>
+    </a>
+    <a class="panel card" href="c-coverage-map.html">
+      <div class="shot"><iframe src="c-coverage-map.html" tabindex="-1" loading="lazy" title="C preview"></iframe></div>
+      <div class="panel-body">
+        <h3>C · Coverage map</h3>
+        <p>A pattern × equipment grid in the contributions-green ramp sits above the list. Empty cells show exactly which options are missing.</p>
+        <dl>
+          <dt>Find</dt><dd>Click a cell, a row or a column to list those exercises</dd>
+          <dt>Edit</dt><dd>A drawer slides in over the page. Delete takes two steps (the second turns red).</dd>
+          <dt>Add</dt><dd>"Add one" on an empty cell opens the form with that pattern and equipment filled in</dd>
+          <dt>Best if</dt><dd>The goal is a balanced library the AI can draw from</dd>
+        </dl>
+        <span class="go">Open prototype →</span>
+      </div>
+    </a>
+  </div>
+  <p class="lede" style="margin-top:20px">My recommendation: <b>A</b> as the page, with <b>C's map</b> as a collapsible panel above the table, where clicking a cell sets the filters. A handles 767 rows and bulk tagging. The map is the one view no spreadsheet gives the trainer.</p>
+</div>
+</body>
+</html>

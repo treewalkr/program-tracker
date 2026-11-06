@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Coverage map — Exercise library</title>
+<link rel="stylesheet" href="../../../apps/web/src/app.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .mapwrap { overflow-x: auto; }
+  table.map { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 760px; }
+  .map th { font: 600 12px/1.2 var(--font-ui); color: var(--muted); padding: 4px 6px; text-align: center; white-space: nowrap; }
+  .map th.rowh { text-align: left; width: 168px; }
+  .map th button, .map .grp-h { appearance: none; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+  .map th button:hover { color: var(--ink); background: var(--well-2); }
+  .map th button.on { color: var(--ink); background: var(--active); }
+  .map .grp td { padding: 10px 6px 2px; font: 600 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
+  .map td.c { padding: 0; }
+  .cell {
+    width: 100%; min-width: 52px; height: 34px; display: grid; place-items: center;
+    border: 1px solid transparent; border-radius: 4px; cursor: pointer;
+    font: 500 12px/1 var(--font-mono); font-variant-numeric: tabular-nums;
+  }
+  .cell.z { background: var(--surface); border: 1px dashed var(--line); color: var(--faint); }
+  .cell.l1 { background: var(--done-1); color: var(--ink); }
+  .cell.l2 { background: var(--done-2); color: var(--ink); }
+  .cell.l3 { background: var(--done-4); color: #fff; }
+  .cell.todo { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
+  .cell:hover { filter: brightness(1.05); border-color: var(--line-strong); }
+  .cell.on { box-shadow: inset 0 0 0 2px var(--hover-ink); }
+  .cell.z.on { border-style: solid; }
+  .map td.tot { font: 500 12px var(--font-mono); color: var(--muted); text-align: right; padding-right: 8px; }
+  .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 10px 16px; border-top: 1px solid var(--line); }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -3px; margin-right: 5px; }
+  .legend .z { border: 1px dashed var(--line); }
+  .legend .l1 { background: var(--done-1); } .legend .l2 { background: var(--done-2); } .legend .l3 { background: var(--done-4); }
+  .legend .todo { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+  .legend .faint { margin-left: auto; }
+
+  .listp { margin-top: 16px; }
+  .listp .panel-head .input { width: 220px; margin-left: auto; }
+  .listp .panel-head h2 { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .listp .panel-head .x { color: var(--muted); font-weight: 400; }
+  table.sheet td { vertical-align: middle; }
+  table.sheet tbody tr { cursor: pointer; }
+  table.sheet tbody tr.sel td { background: var(--pulse-now-bg); }
+  .nm { font-weight: 600; }
+  select.tagsel { width: auto; padding: 2px 8px; font-size: 13px; border-style: dashed; color: var(--warn); background: var(--surface); }
+  .gapnote { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 22px 16px; color: var(--muted); }
+  .gapnote b { color: var(--ink); }
+
+  .drawer {
+    position: fixed; top: 31px; right: 0; bottom: 0; width: min(460px, 100vw); z-index: 20;
+    background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow-overlay);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1); visibility: hidden;
+  }
+  .drawer.open { transform: none; visibility: visible; }
+  .drawer .dh { display: flex; gap: 8px; align-items: center; padding: 12px 16px; background: var(--well); border-bottom: 1px solid var(--line); }
+  .drawer .dh h2 { font: 600 14px/1.3 var(--font-ui); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer .db { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .drawer .df { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); }
+  .drawer .df .dirty { margin-right: auto; font-size: 12px; color: var(--muted); }
+  .drawer .ctx { font-size: 13px; color: var(--muted); margin: 0; }
+  .rm.armed { border-color: var(--bad-line); background: var(--bad-bg); }
+  .rm.armed p { color: var(--bad); }
+  @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+const main = shell("C · Coverage map");
+const S = { pat: undefined, eq: undefined, q: "", open: null, more: false };
+const EQ = Object.keys(EQUIPMENT);
+const GROUPS = ["Upper", "Lower", "Core"];
+
+main.innerHTML = `
+  <div class="ph">
+    <div class="t"><h1>Exercise library</h1><p class="sub" id="sub"></p></div>
+    <div class="acts"><button class="btn primary" id="new"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New exercise</button></div>
+  </div>
+  <section class="panel">
+    <div class="panel-head"><h2>Coverage by pattern and equipment</h2><span class="counter" id="tagged"></span><span class="act faint">Pick a cell to list it. Empty cells are gaps the AI can't fill.</span></div>
+    <div class="mapwrap" style="padding:8px 10px"><table class="map" id="map"></table></div>
+    <div class="legend"><span><i class="z"></i>none</span><span><i class="l1"></i>1</span><span><i class="l2"></i>2–3</span><span><i class="l3"></i>4+</span><span><i class="todo"></i>untagged</span><span class="faint">Counts exclude archived and hidden</span></div>
+  </section>
+  <section class="panel listp" id="list"></section>
+  <aside class="drawer" id="drawer" aria-label="Exercise editor" aria-hidden="true"></aside>`;
+const $ = (s) => main.querySelector(s);
+const live = () => store.items.filter((e) => !e.archived);
+const lvl = (n) => (n === 0 ? "z" : n === 1 ? "l1" : n <= 3 ? "l2" : "l3");
+
+function renderMap() {
+  const L = live();
+  const tagged = L.filter((e) => e.pattern).length;
+  $("#sub").innerHTML = `<span class="fig">${L.length}</span> exercises · <span class="fig">${L.filter((e) => e.source === "custom").length}</span> yours. The AI only picks exercises with a pattern.`;
+  $("#tagged").textContent = `${tagged} of ${L.length} placed`;
+  const count = (p, q) => L.filter((e) => (p === null ? !e.pattern : e.pattern === p) && (q === undefined || e.equipment === q)).length;
+  const cell = (p, q) => {
+    const n = count(p, q);
+    const on = S.pat === p && S.eq === q;
+    const label = `${p ? PATTERNS[p].name : "Untagged"}${q ? ", " + EQUIPMENT[q] : ""}: ${n}`;
+    return `<td class="c"><button class="cell ${p === null && n ? "todo" : lvl(n)}${on ? " on" : ""}" data-p="${p ?? ""}" data-q="${q ?? ""}" aria-label="${label}" aria-pressed="${on}">${n || "·"}</button></td>`;
+  };
+  let h = `<thead><tr><th class="rowh"></th>${EQ.map((q) => `<th><button data-colh="${q}" class="${S.pat === undefined && S.eq === q ? "on" : ""}">${EQUIPMENT[q]}</button></th>`).join("")}<th style="text-align:right">All</th></tr></thead><tbody>`;
+  for (const g of GROUPS) {
+    h += `<tr class="grp"><td colspan="${EQ.length + 2}">${g}</td></tr>`;
+    for (const [p, info] of Object.entries(PATTERNS).filter(([, v]) => v.group === g))
+      h += `<tr><th class="rowh"><button data-rowh="${p}" class="${S.pat === p && S.eq === undefined ? "on" : ""}">${info.name}</button></th>${EQ.map((q) => cell(p, q)).join("")}<td class="tot">${count(p)}</td></tr>`;
+  }
+  h += `<tr class="grp"><td colspan="${EQ.length + 2}">To tag</td></tr><tr><th class="rowh"><button data-rowh="" class="${S.pat === null && S.eq === undefined ? "on" : ""}">Untagged</button></th>${EQ.map((q) => cell(null, q)).join("")}<td class="tot">${count(null)}</td></tr></tbody>`;
+  $("#map").innerHTML = h;
+  $("#map").querySelectorAll(".cell").forEach((b) => (b.onclick = () => pick(b.dataset.p || null, b.dataset.q)));
+  $("#map").querySelectorAll("[data-rowh]").forEach((b) => (b.onclick = () => pick(b.dataset.rowh || null, undefined)));
+  $("#map").querySelectorAll("[data-colh]").forEach((b) => (b.onclick = () => pick(undefined, b.dataset.colh)));
+}
+
+function pick(p, q) {
+  S.pat = p; S.eq = q; S.q = ""; S.more = false;
+  render();
+  $("#list").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function listRows() {
+  const q = norm(S.q);
+  return live().filter((e) =>
+    (S.pat === undefined || (S.pat === null ? !e.pattern : e.pattern === S.pat)) &&
+    (S.eq === undefined || e.equipment === S.eq) &&
+    (!q || norm(e.name).includes(q)))
+    .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name));
+}
+
+function scopeLabel() {
+  const parts = [];
+  if (S.pat !== undefined) parts.push(S.pat ? PATTERNS[S.pat].name : "Untagged");
+  if (S.eq !== undefined) parts.push(EQUIPMENT[S.eq]);
+  return parts.length ? parts.join(" · ") : "All exercises";
+}
+
+function renderList() {
+  const full = listRows();
+  const cap = !S.more && full.length > 15 ? 15 : full.length;
+  const r = full.slice(0, cap);
+  const scoped = S.pat !== undefined || S.eq !== undefined;
+  const untaggedView = S.pat === null;
+  const canAddHere = S.pat !== null && scoped;
+  $("#list").innerHTML = `
+    <div class="panel-head">
+      <h2>${scopeLabel()} <span class="x">${full.length}</span></h2>
+      ${scoped ? `<button class="linkbtn" id="clr" style="font-size:13px">Show all</button>` : ""}
+      <input class="input" id="q" type="search" placeholder="Search ${scoped ? "this cell" : "exercises"}" value="${esc(S.q)}" aria-label="Search">
+      ${canAddHere ? `<button class="btn small" id="addhere"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add to ${scopeLabel()}</button>` : ""}
+    </div>
+    ${r.length ? `<div style="overflow-x:auto"><table class="sheet"><thead><tr>
+        <th>Exercise</th><th>Primary</th>${untaggedView ? `<th>Place it</th>` : `<th>Pattern</th>`}<th>Equipment</th><th class="r">Used in</th></tr></thead>
+      <tbody>${r.map((e) => `<tr data-id="${e.id}" class="${S.open === e.id ? "sel" : ""}">
+        <td><span class="nm">${esc(e.name)}</span>${sourceTag(e)}</td>
+        <td><span class="pill neutral">${MUSCLES[e.primary]}</span></td>
+        <td>${untaggedView ? `<select class="select tagsel" data-place aria-label="Pattern for ${esc(e.name)}">${patternOptions(null)}</select>` : patternPill(e.pattern)}</td>
+        <td>${EQUIPMENT[e.equipment]}</td>
+        <td class="r">${e.uses || `<span class="faint">—</span>`}</td></tr>`).join("")}</tbody></table></div>
+      ${cap < full.length ? `<div style="padding:10px 16px;border-top:1px solid var(--line)"><button class="linkbtn" id="more">Show ${full.length - cap} more, least used</button></div>` : ""}`
+    : S.q ? `<div class="empty">No exercise matches “${esc(S.q)}”.<br><br><button class="btn primary" id="mk">Create “${esc(S.q)}”</button></div>`
+    : `<div class="gapnote"><span><b>No ${scopeLabel().toLowerCase()} exercise yet.</b> Programs that need this pattern with this equipment fall back to something else.</span>${canAddHere ? `<button class="btn primary" id="fill">Add one</button>` : ""}</div>`}`;
+  $("#clr")?.addEventListener("click", () => pick(undefined, undefined));
+  $("#more")?.addEventListener("click", () => { S.more = true; renderList(); });
+  const qi = $("#q");
+  qi.oninput = () => { S.q = qi.value; const pos = qi.selectionStart; renderList(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
+  const pre = () => ({ pattern: S.pat ?? null, equipment: S.eq });
+  $("#addhere")?.addEventListener("click", () => openDrawer(null, pre()));
+  $("#fill")?.addEventListener("click", () => openDrawer(null, pre()));
+  $("#mk")?.addEventListener("click", () => openDrawer(null, { ...pre(), name: S.q }));
+  $("#list").querySelectorAll("tbody tr").forEach((tr) => {
+    const e = store.items.find((x) => x.id === tr.dataset.id);
+    tr.onclick = (ev) => { if (!ev.target.closest("select")) openDrawer(e); };
+    tr.querySelector("[data-place]")?.addEventListener("change", (ev) => {
+      e.pattern = ev.target.value || null;
+      if (!e.pattern) return;
+      render();
+      flash(`${esc(e.name)} placed under ${PATTERNS[e.pattern].name}.`, () => { e.pattern = null; render(); });
+    });
+  });
+}
+
+/* —— drawer ———————————————————————— */
+function openDrawer(e, pre = {}) {
+  S.open = e ? e.id : "new";
+  const d = $("#drawer");
+  const rm = e && removeAction(e);
+  const seed = e || { name: pre.name || "", primary: "", secondary: [], equipment: pre.equipment || "", pattern: pre.pattern || null, functional: null, note: "", source: "custom" };
+  d.innerHTML = `
+    <div class="dh"><h2>${e ? esc(e.name) : "New exercise"}</h2>${e ? sourceTag(e) || `<span class="src">WGER</span>` : ""}
+      <button class="iconbtn" id="dx" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="db">
+      ${e ? `<p class="ctx">Used in <span class="fig">${e.uses}</span> program${e.uses === 1 ? "" : "s"} · <button class="linkbtn" id="dup">Duplicate into my exercises</button></p>`
+          : pre.pattern || pre.equipment ? `<p class="ctx">Prefilled from the map cell you picked.</p>` : ""}
+      <form novalidate id="df">${formHTML(seed, { compact: true })}</form>
+      ${e ? `<div class="rm" id="rmz"><p><b>${rm.label}</b>${rm.why}</p><button class="btn small ${rm.kind === "delete" ? "danger" : ""}" id="rm">${rm.label}…</button></div>` : ""}
+    </div>
+    <div class="df"><span class="dirty" id="dirty"></span><button class="btn" id="dc">Cancel</button><button class="btn primary" id="ds"${e ? " disabled" : ""}>${e ? "Save" : "Create exercise"}</button></div>`;
+  d.classList.add("open"); d.setAttribute("aria-hidden", "false");
+  const form = d.querySelector("#df");
+  wireForm(form, { exceptId: e?.id, onDupePick: (id) => openDrawer(store.items.find((x) => x.id === id)) });
+  if (pre.name) form.querySelector("[name=name]").dispatchEvent(new Event("input"));
+  const snap = JSON.stringify(readForm(form));
+  const mark = () => { const dirty = JSON.stringify(readForm(form)) !== snap; if (e) { d.querySelector("#ds").disabled = !dirty; } d.querySelector("#dirty").textContent = e && dirty ? "Unsaved changes" : ""; };
+  ["input", "change"].forEach((t) => form.addEventListener(t, mark)); form.addEventListener("click", () => setTimeout(mark));
+  d.querySelector("#dx").onclick = d.querySelector("#dc").onclick = closeDrawer;
+  d.querySelector("#dup")?.addEventListener("click", () => { const c = duplicate(e); render(); openDrawer(c); flash(`Duplicated as ${esc(c.name)} — rename it and save.`); });
+  d.querySelector("#rm")?.addEventListener("click", (ev) => {
+    const z = d.querySelector("#rmz");
+    if (!z.classList.contains("armed")) {
+      z.classList.add("armed");
+      z.querySelector("p").innerHTML = `<b>${rm.kind === "delete" ? `Delete ${esc(e.name)} for good?` : rm.kind === "hide" ? `Hide ${esc(e.name)}?` : `Archive ${esc(e.name)}?`}</b>${rm.why}`;
+      ev.currentTarget.textContent = rm.kind === "delete" ? "Yes, delete" : rm.kind === "hide" ? "Yes, hide" : "Yes, archive";
+      ev.currentTarget.classList.add("danger");
+      return;
+    }
+    const i = store.items.indexOf(e);
+    if (rm.kind === "delete") store.items.splice(i, 1); else e.archived = true;
+    closeDrawer(); render();
+    flash(`${rm.kind === "delete" ? "Deleted" : rm.kind === "hide" ? "Hid" : "Archived"} ${esc(e.name)}.`, () => { rm.kind === "delete" ? store.items.splice(i, 0, e) : (e.archived = false); render(); });
+  });
+  d.querySelector("#ds").onclick = () => {
+    const item = saveFrom(form, e);
+    if (!item) return;
+    closeDrawer();
+    if (!e) { S.pat = item.pattern ?? null; S.eq = item.equipment; S.q = ""; }
+    render();
+    flash(e ? `Saved ${esc(item.name)}.` : `Created ${esc(item.name)}${item.pattern ? ` — ${PATTERNS[item.pattern].name}, ${EQUIPMENT[item.equipment]}` : ""}.`);
+  };
+  setTimeout(() => (form.querySelector("[name=name]:not(:disabled)") || form.querySelector("[name=pattern]")).focus(), 60);
+  renderList();
+}
+function closeDrawer() { S.open = null; const d = $("#drawer"); d.classList.remove("open"); d.setAttribute("aria-hidden", "true"); renderList(); }
+
+function render() { renderMap(); renderList(); }
+$("#new").onclick = () => openDrawer(null, { pattern: S.pat ?? null, equipment: S.eq });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && S.open) closeDrawer(); });
+render();
+</script>
+</body>
+</html>

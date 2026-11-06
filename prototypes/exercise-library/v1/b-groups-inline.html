@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Groups & inline edit — Exercise library</title>
+<link rel="stylesheet" href="../../../apps/web/src/app.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .index { position: sticky; top: 52px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .seg button { flex: 1; appearance: none; border: 0; background: var(--well); font: 500 12px/1 var(--font-ui); color: var(--muted); padding: 7px 4px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; }
+  .idx { list-style: none; margin: 0; padding: 0; }
+  .idx a { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; color: var(--ink); font-size: 14px; }
+  .idx a:hover { background: var(--well); text-decoration: none; }
+  .idx a.on { background: var(--active); font-weight: 600; }
+  .idx .fig { margin-left: auto; color: var(--muted); }
+  .todo { width: 6px; height: 6px; border-radius: 99px; background: #bf8700; flex: none; }
+  .todo.none { background: transparent; }
+  .idx-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+
+  .top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .top .input { flex: 1 1 240px; max-width: 360px; }
+  .top label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .top input[type=checkbox] { accent-color: var(--hover-ink); }
+
+  .grp-panel { margin-bottom: 16px; scroll-margin-top: 52px; }
+  .grp-panel .panel-head .fig { color: var(--muted); }
+  table.sheet td { vertical-align: middle; }
+  .nm { font-weight: 600; }
+  .rowacts { display: flex; gap: 2px; justify-content: flex-end; opacity: 0; }
+  tr:hover .rowacts, tr:focus-within .rowacts, tr.editing .rowacts { opacity: 1; }
+  @media (hover: none) { .rowacts { opacity: 1; } }
+  tr.editing td { background: var(--well) !important; border-bottom-color: transparent; }
+  tr.editor > td { background: var(--well); padding: 4px 16px 16px; }
+  .editbox { background: var(--surface); border: 1px solid var(--blue); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); border-radius: 6px; padding: 16px; }
+  .editbox .xform { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .editbox .lockline { grid-column: 1 / -1; grid-row: 1; }
+  .editbox .f-name { grid-column: 1 / 3; grid-row: 2; }
+  .editbox .f-primary { grid-column: 3 / 5; grid-row: 2; }
+  .editbox .f-sec { grid-column: 1 / 3; grid-row: 3; }
+  .editbox .f-pattern { grid-column: 3 / 4; grid-row: 3; }
+  .editbox .f-func { grid-column: 4 / 5; grid-row: 3; }
+  .editbox .f-eq { grid-column: 1 / 3; grid-row: 4; }
+  .editbox .f-note { grid-column: 3 / 5; grid-row: 4; }
+  table.sheet { table-layout: fixed; min-width: 640px; }
+  .ebar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .ebar .spacer { flex: 1; }
+  .ebar .why { font-size: 12px; color: var(--muted); max-width: 46ch; }
+  .confirm { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--bad); font-weight: 500; }
+  .addrow td { padding: 0; }
+  .addrow button { width: 100%; display: flex; gap: 8px; align-items: center; padding: 10px; border: 0; background: none; font: 500 13px var(--font-ui); color: var(--muted); cursor: pointer; border-radius: 0 0 6px 6px; }
+  .addrow button:hover { background: var(--well); color: var(--ink); }
+  .addrow svg, .rowacts svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  select.tagsel { width: 100%; padding: 2px 8px; font-size: 13px; }
+  select.tagsel.empty { border-style: dashed; color: var(--warn); background: var(--surface); }
+  tr.flashrow td { background: var(--good-bg) !important; transition: background 1.2s ease-out; }
+
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .index { position: static; }
+    .idx { display: flex; flex-wrap: wrap; gap: 4px; }
+    .idx a { border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; font-size: 13px; }
+    .idx-foot { display: none; }
+    .editbox .xform { grid-template-columns: 1fr; }
+    .editbox .xform > * { grid-column: 1 / -1 !important; grid-row: auto !important; }
+  }
+  @media (max-width: 760px) { .col-eq, .col-func { display: none; } }
+</style>
+</head>
+<body>
+<script src="shared.js"></script>
+<script>
+const main = shell("B · Groups & inline edit");
+const S = { axis: "muscle", q: "", onlyTodo: false, editing: null, adding: null, confirm: null };
+
+main.innerHTML = `
+  <div class="ph">
+    <div class="t"><h1>Exercise library</h1><p class="sub" id="sub"></p></div>
+    <div class="acts"><button class="btn primary" id="new"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New exercise</button></div>
+  </div>
+  <div class="layout">
+    <nav class="index" aria-label="Groups">
+      <div class="seg" role="tablist">
+        <button data-axis="muscle">Muscle</button><button data-axis="pattern">Pattern</button><button data-axis="equipment">Equipment</button>
+      </div>
+      <ul class="idx" id="idx"></ul>
+      <div class="idx-foot"><span class="todo"></span>has exercises to tag</div>
+    </nav>
+    <div>
+      <div class="top">
+        <input class="input" id="q" type="search" placeholder="Search exercises" aria-label="Search exercises">
+        <label><input type="checkbox" id="todo"> Only untagged</label>
+      </div>
+      <div id="groups"></div>
+    </div>
+  </div>`;
+const $ = (s) => main.querySelector(s);
+
+function groupsOf(list) {
+  const key = { muscle: (e) => e.primary, pattern: (e) => e.pattern || "untagged", equipment: (e) => e.equipment }[S.axis];
+  const label = { muscle: (k) => MUSCLES[k], pattern: (k) => (k === "untagged" ? "Untagged" : PATTERNS[k].name), equipment: (k) => EQUIPMENT[k] }[S.axis];
+  const order = { muscle: Object.keys(MUSCLES), pattern: [...Object.keys(PATTERNS), "untagged"], equipment: Object.keys(EQUIPMENT) }[S.axis];
+  const m = new Map();
+  for (const e of list) { const k = key(e); if (!m.has(k)) m.set(k, []); m.get(k).push(e); }
+  return order.filter((k) => m.has(k)).map((k) => ({ key: k, label: label(k), items: m.get(k).sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name)) }));
+}
+const live = () => store.items.filter((e) => !e.archived);
+const untagged = (e) => !e.pattern || !e.functional;
+
+function render() {
+  const all = live();
+  $("#sub").innerHTML = `<span class="fig">${all.length}</span> exercises · <span class="fig">${all.filter((e) => e.source === "custom").length}</span> yours · <span class="fig">${all.filter(untagged).length}</span> still need a pattern or functional tag`;
+  main.querySelectorAll("[data-axis]").forEach((b) => b.classList.toggle("on", b.dataset.axis === S.axis));
+
+  const q = norm(S.q);
+  const vis = all.filter((e) => (!q || norm(e.name).includes(q)) && (!S.onlyTodo || untagged(e)));
+  const G = groupsOf(vis);
+  const allG = groupsOf(all);
+  $("#idx").innerHTML = allG.map((g) => {
+    const shown = G.find((x) => x.key === g.key)?.items.length || 0;
+    return `<li><a href="#g-${g.key}" data-g="${g.key}"><span class="todo${g.items.some(untagged) ? "" : " none"}"></span>${g.label}<span class="fig">${shown}</span></a></li>`;
+  }).join("");
+
+  $("#groups").innerHTML = G.length ? G.map((g) => `
+    <section class="panel grp-panel" id="g-${g.key}">
+      <div class="panel-head"><h2>${g.label}</h2><span class="counter">${g.items.length}</span>
+        ${g.items.some(untagged) ? `<span class="pill warn">${g.items.filter(untagged).length} to tag</span>` : ""}</div>
+      <div style="overflow-x:auto"><table class="sheet">
+        <thead><tr><th>Exercise</th><th style="width:184px">Pattern</th><th class="col-func" style="width:150px">Functional</th><th class="col-eq" style="width:116px">Equipment</th><th class="r" style="width:72px">Used in</th><th style="width:84px"></th></tr></thead>
+        <tbody>
+          ${S.adding === g.key ? editorRow(null, g.key) : ""}
+          ${g.items.map((e) => rowHTML(e) + (S.editing === e.id ? editorRow(e) : "")).join("")}
+          ${S.axis === "muscle" && S.adding !== g.key ? `<tr class="addrow"><td colspan="6"><button data-add="${g.key}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add a ${g.label.toLowerCase()} exercise</button></td></tr>` : ""}
+        </tbody></table></div>
+    </section>`).join("")
+    : `<section class="panel"><div class="empty">${S.q ? `No exercise matches “${esc(S.q)}”.<br><br><button class="btn primary" data-add="new" data-name="${esc(S.q)}">Create “${esc(S.q)}”</button>` : "Every exercise is tagged."}</div></section>`;
+  wire();
+}
+
+function rowHTML(e) {
+  return `<tr data-id="${e.id}" class="${S.editing === e.id ? "editing" : ""}">
+    <td><span class="nm">${esc(e.name)}</span>${sourceTag(e)}</td>
+    <td><select class="select tagsel${e.pattern ? "" : " empty"}" data-tag="pattern" aria-label="Pattern for ${esc(e.name)}">${patternOptions(e.pattern)}</select></td>
+    <td class="col-func"><select class="select tagsel${e.functional ? "" : " empty"}" data-tag="functional" aria-label="Functional movement for ${esc(e.name)}"><option value="">Untagged</option>${Object.entries(FUNCTIONAL).map(([k, v]) => `<option value="${k}"${e.functional === k ? " selected" : ""}>${v}</option>`).join("")}</select></td>
+    <td class="col-eq">${EQUIPMENT[e.equipment]}</td>
+    <td class="r">${e.uses || `<span class="faint">—</span>`}</td>
+    <td><div class="rowacts">
+      <button class="iconbtn" data-edit aria-label="Edit ${esc(e.name)}" title="Edit"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+      <button class="iconbtn" data-dup aria-label="Duplicate ${esc(e.name)}" title="Duplicate"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+    </div></td>
+  </tr>`;
+}
+
+function editorRow(e, primary) {
+  const rm = e && removeAction(e);
+  const seed = e || { name: "", primary: primary === "new" ? "" : primary || "", secondary: [], equipment: "", pattern: null, functional: null, note: "", source: "custom" };
+  return `<tr class="editor" data-editor="${e ? e.id : "new"}"><td colspan="6"><div class="editbox">
+    <form novalidate>${formHTML(seed)}</form>
+    <div class="ebar">
+      ${e ? (S.confirm === e.id
+        ? `<span class="confirm">${rm.kind === "delete" ? "Delete for good?" : rm.kind === "hide" ? "Hide from your library?" : `Archive? ${e.uses} program${e.uses > 1 ? "s" : ""} keep it.`}</span><button class="btn danger small" data-rm-yes>${rm.label}</button><button class="btn small" data-rm-no>Keep</button>`
+        : `<button class="btn danger small" data-rm title="${rm.why}">${rm.label}…</button><span class="why">${rm.why}</span>`) : ""}
+      <span class="spacer"></span>
+      <span class="faint"><kbd>Esc</kbd> cancel · <kbd>⌘</kbd><kbd>↵</kbd> save</span>
+      <button class="btn" data-cancel>Cancel</button>
+      <button class="btn primary" data-save>${e ? "Save" : "Add exercise"}</button>
+    </div></div></td></tr>`;
+}
+
+function wire() {
+  main.querySelectorAll("[data-g]").forEach((a) => (a.onclick = (ev) => {
+    ev.preventDefault();
+    main.querySelectorAll("[data-g]").forEach((x) => x.classList.toggle("on", x === a));
+    document.getElementById("g-" + a.dataset.g)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
+  main.querySelectorAll("tr[data-id]").forEach((tr) => {
+    const e = store.items.find((x) => x.id === tr.dataset.id);
+    tr.querySelectorAll("[data-tag]").forEach((sel) => (sel.onchange = () => {
+      const k = sel.dataset.tag, prev = e[k];
+      e[k] = sel.value || null;
+      const wasTodo = S.onlyTodo && !untagged(e);
+      sel.classList.toggle("empty", !e[k]);
+      flash(`${esc(e.name)}: ${k === "pattern" ? "pattern" : "functional"} ${e[k] ? "set to " + (k === "pattern" ? PATTERNS[e[k]].name : FUNCTIONAL[e[k]]) : "cleared"}.${wasTodo ? " Fully tagged — it leaves this view." : ""}`, () => { e[k] = prev; render(); });
+      if (wasTodo) setTimeout(render, 700);
+      else render();
+    }));
+    tr.querySelector("[data-edit]").onclick = () => openEdit(e.id);
+    tr.querySelector("[data-dup]").onclick = () => { const c = duplicate(e); S.editing = c.id; S.adding = null; render(); focusEditor(); flash(`Duplicated as ${esc(c.name)} — rename it and save.`); };
+    tr.querySelector(".nm").ondblclick = () => openEdit(e.id);
+  });
+  main.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
+    S.adding = b.dataset.add; S.editing = null; S.confirm = null;
+    if (b.dataset.add === "new") { S.adding = null; openNew(b.dataset.name); return; }
+    render(); focusEditor();
+  }));
+  main.querySelectorAll("tr.editor").forEach((tr) => {
+    const id = tr.dataset.editor;
+    const e = id === "new" ? null : store.items.find((x) => x.id === id);
+    const form = tr.querySelector("form");
+    wireForm(form, { exceptId: e?.id, onDupePick: (pid) => openEdit(pid) });
+    const save = () => {
+      const item = saveFrom(form, e);
+      if (!item) return;
+      S.editing = S.adding = S.confirm = null;
+      if (!e && S.axis === "muscle") S.q = "", $("#q").value = "";
+      render();
+      const row = main.querySelector(`tr[data-id="${item.id}"]`);
+      row?.classList.add("flashrow"); setTimeout(() => row?.classList.remove("flashrow"), 50);
+      row?.scrollIntoView({ block: "nearest" });
+      flash(e ? `Saved ${esc(item.name)}.` : `Added ${esc(item.name)} to ${MUSCLES[item.primary]}.`);
+    };
+    tr.querySelector("[data-save]").onclick = save;
+    tr.querySelector("[data-cancel]").onclick = () => { S.editing = S.adding = S.confirm = null; render(); };
+    tr.querySelector("[data-rm]")?.addEventListener("click", () => { S.confirm = e.id; render(); main.querySelector("[data-rm-yes]").focus(); });
+    tr.querySelector("[data-rm-no]")?.addEventListener("click", () => { S.confirm = null; render(); });
+    tr.querySelector("[data-rm-yes]")?.addEventListener("click", () => {
+      const rm = removeAction(e);
+      const i = store.items.indexOf(e);
+      if (rm.kind === "delete") store.items.splice(i, 1); else e.archived = true;
+      S.editing = S.confirm = null; render();
+      flash(`${rm.kind === "delete" ? "Deleted" : rm.kind === "hide" ? "Hid" : "Archived"} ${esc(e.name)}.`, () => { rm.kind === "delete" ? store.items.splice(i, 0, e) : (e.archived = false); render(); });
+    });
+    form.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); save(); }
+      if (ev.key === "Escape") { S.editing = S.adding = S.confirm = null; render(); }
+    });
+  });
+}
+
+function openEdit(id) { S.editing = id; S.adding = null; S.confirm = null; render(); focusEditor(); }
+function openNew(name) {
+  S.axis = "muscle"; S.q = ""; $("#q").value = ""; S.onlyTodo = false; $("#todo").checked = false;
+  // A new exercise with no group yet: open the editor at the top of the first panel.
+  S.adding = "__top"; S.editing = null; render();
+  const first = main.querySelector(".grp-panel tbody");
+  first.insertAdjacentHTML("afterbegin", editorRow(null, "new"));
+  wire();
+  const n = main.querySelector("tr.editor [name=name]");
+  if (name) { n.value = name; n.dispatchEvent(new Event("input")); }
+  main.querySelector("tr.editor").scrollIntoView({ block: "center", behavior: "smooth" });
+  n.focus({ preventScroll: true });
+}
+function focusEditor() {
+  const ed = main.querySelector("tr.editor");
+  if (!ed) return;
+  ed.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  const f = ed.querySelector("[name=name]:not(:disabled)") || ed.querySelector("[name=pattern]");
+  f.focus({ preventScroll: true });
+}
+
+main.querySelectorAll("[data-axis]").forEach((b) => (b.onclick = () => { S.axis = b.dataset.axis; S.adding = S.editing = null; render(); }));
+$("#q").oninput = (ev) => { S.q = ev.target.value; render(); };
+$("#todo").onchange = (ev) => { S.onlyTodo = ev.target.checked; render(); };
+$("#new").onclick = () => openNew();
+render();
+</script>
+</body>
+</html>
