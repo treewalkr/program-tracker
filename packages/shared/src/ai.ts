@@ -246,7 +246,7 @@ export type AiClientMessageDraft = z.infer<typeof AiClientMessageDraft>;
 
 export const CHAT_ROLES = ["trainer", "assistant"] as const;
 export type ChatRole = (typeof CHAT_ROLES)[number];
-export const CHAT_MESSAGE_KINDS = ["chat", "revision", "draft", "error"] as const;
+export const CHAT_MESSAGE_KINDS = ["chat", "revision", "draft", "error", "proposal"] as const;
 export type ChatMessageKind = (typeof CHAT_MESSAGE_KINDS)[number];
 
 export const ChatMessage = z.object({
@@ -269,3 +269,70 @@ export function draftNoticeText(d: AiProgramDraft): string {
   return `Draft ready: ${d.name} — ${d.sessions.length} sessions. Open review to inspect and approve.`;
 }
 
+
+// ---------------------------------------------------------------------------
+// Chat proposals (propose → build)
+// ---------------------------------------------------------------------------
+
+export const ChatProposalChange = z.object({
+  /** 1-based session number in the draft being changed. */
+  day: z.number().int().min(1),
+  /** 1-based exercise number in that session; null only for kind "add". */
+  slot: z.number().int().min(1).nullable(),
+  kind: z.enum(["swap", "edit", "add", "remove"]),
+  from: z.string().max(200).nullable(),
+  to: z.string().max(200).nullable(),
+  /** Prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s". */
+  detail: z.string().max(300),
+});
+export type ChatProposalChange = z.infer<typeof ChatProposalChange>;
+
+export const ChatProposal = z.object({
+  summary: z.string().min(1).max(500),
+  changes: z.array(ChatProposalChange).min(1).max(20),
+});
+export type ChatProposal = z.infer<typeof ChatProposal>;
+
+/** What chat_messages.proposal stores. */
+export interface StoredChatProposal extends ChatProposal {
+  /** The version the proposal changes. */
+  parentGenerationId: string;
+  /** Set once Build produced a validated version; null until then. */
+  builtGenerationId: string | null;
+}
+
+/** Deterministic mock proposal: an "edit" on day 1, slot 1 (+15s rest). */
+export function mockProposal(draft: AiProgramDraft, message: string): ChatProposal {
+  const ex = draft.sessions[0]?.exercises[0];
+  const name = ex?.exerciseName ?? ex?.exerciseId ?? "Exercise 1";
+  return {
+    summary: `Mock proposal for: ${message}`,
+    changes: [{ day: 1, slot: 1, kind: "edit", from: name, to: name, detail: "rest +15s on every set" }],
+  };
+}
+
+/** Mock build: applies each "edit" as +15s rest on that slot; other kinds are ignored. */
+export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal): AiProgramDraft {
+  const next = structuredClone(draft);
+  for (const c of proposal.changes) {
+    if (c.kind !== "edit" || c.slot == null) continue;
+    const ex = next.sessions[c.day - 1]?.exercises[c.slot - 1];
+    if (!ex) continue;
+    ex.prescribedSets = ex.prescribedSets.map((s) => ({ ...s, restSeconds: (s.restSeconds ?? 60) + 15 }));
+  }
+  return next;
+}
+
+/** Revision feedback text that turns an approved proposal into a draft. */
+export function proposalToFeedback(message: string, proposal: ChatProposal): string {
+  const lines = proposal.changes.map((c) => {
+    const where = c.slot == null ? `Day ${c.day}, new slot` : `Day ${c.day}, slot ${c.slot}`;
+    return `- ${where} (${c.kind}): ${c.from ?? "—"} → ${c.to ?? "removed"} — ${c.detail}`;
+  });
+  return [
+    "Apply exactly these changes to the previous draft and nothing else. Keep every other exercise, set, rep, RPE and rest value identical.",
+    `Trainer request: ${message}`,
+    "Changes:",
+    ...lines,
+  ].join("\n");
+}

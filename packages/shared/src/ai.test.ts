@@ -8,8 +8,12 @@ import {
   AiProviderConfig,
   TYPICAL_GENERATION_SECONDS,
   draftNoticeText,
+  ChatProposal,
+  mockApplyProposal,
   mockChatReply,
+  mockProposal,
   mockReviseDraft,
+  proposalToFeedback,
   typicalGenerationSeconds,
   AiGeneration,
   GenerationStatus,
@@ -210,5 +214,24 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
     expect(draftNoticeText(draftSample)).toBe(
       "Draft ready: Strength Block A — 2 sessions. Open review to inspect and approve."
     );
+  });
+});
+
+describe("chat proposals", () => {
+  const draft: AiProgramDraft = {
+    name: "B", rationale: "", clientSummary: "",
+    sessions: [{ name: "Day 1", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, restSeconds: 120 }] }] }],
+  };
+  test("mockProposal is a valid ChatProposal", () => {
+    expect(ChatProposal.safeParse(mockProposal(draft, "more rest")).success).toBe(true);
+  });
+  test("mockApplyProposal adds 15s rest to the edited slot", () => {
+    const next = mockApplyProposal(draft, mockProposal(draft, "x"));
+    expect(next.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(135);
+  });
+  test("proposalToFeedback lists each change", () => {
+    const text = proposalToFeedback("swap it", { summary: "s", changes: [{ day: 3, slot: 2, kind: "swap", from: "Front Squat", to: "Paused Back Squat", detail: "5×5 @RPE 7–8 · rest 180s" }] });
+    expect(text).toContain("- Day 3, slot 2 (swap): Front Squat → Paused Back Squat — 5×5 @RPE 7–8 · rest 180s");
+    expect(text.startsWith("Apply exactly these changes")).toBe(true);
   });
 });
