@@ -7,14 +7,22 @@
     addExercise,
     addSet,
     addSession,
+    applyPlacementToAllWeeks,
     moveExercise,
     removeExercise,
     formatPatternBalance,
-    moveSession,
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
+    nextSeq,
     patternBalance,
+    placeSession,
+    placeSessions,
     removeSession,
+    sessionFocus,
+    sessionTag,
+    sessionsByWeekday,
+    type ProgramWeek,
+    type SessionKind,
   } from "@pt/shared";
   import { EXAMPLE_LEVELS } from "@pt/shared";
   import type { ExerciseDto, ProgramDto, ProgramExampleDto, ProgramSessionDto } from "$lib/api/types";
@@ -22,6 +30,7 @@
   import { programSubline, snapshot } from "$lib/programEdit";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
+  import WeekCalendar from "$lib/components/WeekCalendar.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
@@ -36,6 +45,10 @@
 
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
+  let trainingDays = $state<number[]>([]);
+  /** Placement edits apply to every week (the block's template) unless narrowed to this week. */
+  let placeAllWeeks = $state(true);
+  let selected = $state<string | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
   const catalogById = $derived(new Map(catalog.map((e) => [e.id, e])));
   /** Saved state of the program; edits are live on `program` and compared against this. */
@@ -59,9 +72,53 @@
   let savingMark = $state(false);
   let markError = $state<string | null>(null);
 
-  const currentWeek = $derived(
-    program?.weeks[currentWeekIndex] ?? program?.weeks[0] ?? null
-  );
+  const weekIndex = $derived(program?.weeks[currentWeekIndex] ? currentWeekIndex : 0);
+  const currentWeek = $derived(program?.weeks[weekIndex] ?? null);
+  const patternOf = (exerciseId: string) => catalogById.get(exerciseId)?.movementPattern ?? null;
+  const focusOf = (s: ProgramSessionDto) => sessionFocus(s, patternOf);
+  /** Sessions in calendar order: Mon → Sun, then unscheduled. */
+  const ordered = $derived.by(() => {
+    if (!currentWeek) return [];
+    const by = sessionsByWeekday(currentWeek.sessions);
+    return [1, 2, 3, 4, 5, 6, 7, 0].flatMap((d) => by.get(d)!.map((s) => ({ s, day: d })));
+  });
+  const liftingCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "lifting").length;
+  const indexOf = (sid: string) => currentWeek?.sessions.findIndex((x) => x.id === sid) ?? -1;
+
+  function setWeek(next: ProgramWeek) {
+    if (!program) return;
+    program.weeks[weekIndex] = next;
+  }
+
+  function place(sid: string, weekday: number | null, index: number) {
+    if (!program || !currentWeek) return;
+    setWeek(placeSession($state.snapshot(currentWeek) as ProgramWeek, sid, weekday, index));
+    if (placeAllWeeks) program.weeks = applyPlacementToAllWeeks($state.snapshot(program.weeks) as ProgramWeek[], currentWeek.week);
+  }
+
+  function autoPlace() {
+    if (!program) return;
+    // Each week on its own: the rules are deterministic, so identical weeks land identically.
+    program.weeks = ($state.snapshot(program.weeks) as ProgramWeek[]).map((w) => ({
+      ...w,
+      sessions: placeSessions(w.sessions, trainingDays, patternOf),
+    }));
+  }
+
+  function addNewSession(kind: SessionKind) {
+    if (!currentWeek) return;
+    const next = addSession($state.snapshot(currentWeek) as ProgramWeek, kind, null);
+    setWeek(next);
+    const added = next.sessions.at(-1)!;
+    openSession = added.id;
+    openExercise = null;
+    selected = added.id;
+  }
+
+  function select(sid: string) {
+    selected = sid;
+    document.getElementById(`sess-${sid}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   const validation = $derived(
     program ? validateProgramDoc(program.weeks) : { ok: true as const }
@@ -77,6 +134,7 @@
     if (program?.clientId) {
       const detail = await api.client(program.clientId);
       clientName = detail.client.name;
+      trainingDays = detail.client.trainingDays ?? [];
     }
   }
 
@@ -151,13 +209,11 @@
   /** Deload: cut every working-set load target by ~10% on viewed week only, rounded to the 2.5kg grid. */
   function applyDeload() {
     if (!currentWeek) return;
-    for (const d of currentWeek.days) {
-      for (const s of d.sessions) {
-        for (const e of s.exercises) {
-          for (const ps of e.prescribedSets) {
-            if (ps.type === "working" && ps.targetWeightKg != null) {
-              ps.targetWeightKg = Math.max(0, Math.round((ps.targetWeightKg * 0.9) / 2.5) * 2.5);
-            }
+    for (const s of currentWeek.sessions) {
+      for (const e of s.exercises) {
+        for (const ps of e.prescribedSets) {
+          if (ps.type === "working" && ps.targetWeightKg != null) {
+            ps.targetWeightKg = Math.max(0, Math.round((ps.targetWeightKg * 0.9) / 2.5) * 2.5);
           }
         }
       }
@@ -166,7 +222,7 @@
 
   onMount(load);
 
-  const DAY_NAMES = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const DAY_NAMES = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 </script>
 
 <svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
@@ -237,7 +293,7 @@
         ></textarea>
       </Field>
       <div class="mark-actions">
-        <p class="hint">Days/week defaults to the program's day count ({program.weeks[0].days.length}).</p>
+        <p class="hint">Days/week defaults to the program's lifting sessions per week ({liftingCount(program.weeks[0])}).</p>
         <button class="btn primary" type="submit" disabled={savingMark || !markGoal.trim()}>
           {savingMark ? "Adding…" : "Add to example library"}
         </button>
@@ -248,7 +304,7 @@
 
   {#if program.status === "draft"}
     <p class="hint">
-      Draft — the client doesn't see it yet. Click any exercise to tweak it, then activate
+      Draft — the client doesn't see it yet. Drag sessions to place them on the week, click any exercise to tweak it, then activate
       (the previous active program archives automatically).
     </p>
   {:else if program.status === "archived"}
@@ -271,10 +327,8 @@
   {/if}
 
   {#if currentWeek}
-    {@const weekExercises = currentWeek.days.flatMap((d) =>
-      d.sessions.flatMap((s) =>
-        s.exercises.map((e) => ({ movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null }))
-      )
+    {@const weekExercises = currentWeek.sessions.flatMap((s) =>
+      s.exercises.map((e) => ({ movementPattern: patternOf(e.exerciseId) }))
     )}
     <div class="week-bar">
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
@@ -288,129 +342,125 @@
       <PhasingEditor bind:phasing={program.phasing} weeksCount={program.weeks.length} />
     {/if}
 
+    {#if editable}
+      <div class="cal-bar">
+        {#if program.weeks.length > 1}
+          <div class="scope" role="radiogroup" aria-label="Placement changes apply to">
+            <span class="subtle">Moves apply to</span>
+            <button type="button" role="radio" aria-checked={placeAllWeeks} class:on={placeAllWeeks} onclick={() => (placeAllWeeks = true)}>every week</button>
+            <button type="button" role="radio" aria-checked={!placeAllWeeks} class:on={!placeAllWeeks} onclick={() => (placeAllWeeks = false)}>week {currentWeek.week} only</button>
+          </div>
+        {/if}
+        <span class="grow"></span>
+        {#if trainingDays.length > 0}
+          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's available days (keeps heavy lower days apart), for every week">Auto-place</button>
+        {/if}
+        {#if currentWeek.sessions.length < 14}
+          <button class="btn ghost small" onclick={() => addNewSession("lifting")}>+ Lifting session</button>
+          <button class="btn ghost small" onclick={() => addNewSession("cardio")}>+ Cardio session</button>
+        {/if}
+      </div>
+    {/if}
+
+    <WeekCalendar sessions={currentWeek.sessions} {editable} {focusOf} {selected} onplace={place} onselect={select} />
+
     <div class="sessions-grid">
-      {#each currentWeek.days as d, di (d.id)}
-        {@const dayExercises = d.sessions.flatMap((s) =>
-          s.exercises.map((e) => ({ movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null }))
-        )}
-        <section class="panel">
+      {#each ordered as { s, day } (s.id)}
+        {@const si = indexOf(s.id)}
+        {@const sessExercises = s.exercises.map((e) => ({ movementPattern: patternOf(e.exerciseId) }))}
+        <section class="panel" class:sel={selected === s.id} id="sess-{s.id}">
           <div class="panel-head">
-            <h2>Day {d.day}</h2>
-            {#if editable}
-              <select class="select weekday" bind:value={d.weekday} aria-label="Day {d.day} weekday">
-                <option value={null}>Any day</option>
-                {#each [1, 2, 3, 4, 5, 6, 7] as wd (wd)}<option value={wd}>{DAY_NAMES[wd]}</option>{/each}
-              </select>
-            {:else if d.weekday}
-              <span class="subtle">{DAY_NAMES[d.weekday]}</span>
-            {/if}
-            <span class="subtle">{formatPatternBalance(patternBalance(dayExercises))}</span>
+            <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}</span>
+            {#if s.kind === "lifting"}<span class="subtle">{formatPatternBalance(patternBalance(sessExercises))}</span>{/if}
           </div>
 
           <div class="panel-body exlist">
-            {#each d.sessions as s, si (s.id)}
-              <div class="session-block">
-                {#if openSession === s.id}
-                  <SessionHeadEditor
-                    bind:session={currentWeek.days[di].sessions[si]}
-                    canMoveUp={si > 0}
-                    canMoveDown={si < d.sessions.length - 1}
-                    onmoveup={() => { if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si - 1); }}
-                    onmovedown={() => { if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si + 1); }}
-                    onremove={() => { if (currentWeek) currentWeek.days[di] = removeSession(currentWeek.days[di], si); openSession = null; }}
-                    onclose={() => (openSession = null)}
-                  />
-                {:else}
-                  <div class="session-header">
-                    <h3>{s.name}</h3>
-                    <span class="kind-tag">{s.kind}</span>
-                    {#if editable}
-                      <button class="edit-link" onclick={() => { openSession = s.id; openExercise = null; }}>Edit session</button>
-                    {/if}
-                  </div>
-                  {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
-                {/if}
+            <div class="session-block">
+              {#if openSession === s.id}
+                <SessionHeadEditor
+                  bind:session={currentWeek.sessions[si]}
+                  nextSeqFor={(kind) => nextSeq(currentWeek.sessions.filter((x) => x.id !== s.id), kind)}
+                  onday={(wd) => place(s.id, wd, 99)}
+                  onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); openSession = null; }}
+                  onclose={() => (openSession = null)}
+                />
+              {:else}
+                <div class="session-header">
+                  <h3>{s.name}</h3>
+                  {#if editable}
+                    <button class="edit-link" onclick={() => { openSession = s.id; openExercise = null; }}>Edit session</button>
+                  {/if}
+                </div>
+                {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
+              {/if}
 
-                {#if s.kind === "cardio"}
-                  {#if s.cardio && openSession !== s.id}
-                    <div class="cardio-display">
-                      <span class="cond-chip">
-                        <Icon name="pulse" />
-                        {[
-                          s.cardio.modality,
-                          s.cardio.durationMin ? `${s.cardio.durationMin} min` : null,
-                          s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null,
-                          s.cardio.intensity || null,
-                          s.cardio.distanceKm ? `${s.cardio.distanceKm} km` : null,
-                          s.cardio.targetRpe ? `RPE ${s.cardio.targetRpe}` : null,
-                        ].filter(Boolean).join(" · ")}
-                      </span>
+              {#if s.kind === "cardio"}
+                {#if s.cardio && openSession !== s.id}
+                  <div class="cardio-display">
+                    <span class="cond-chip">
+                      <Icon name="pulse" />
+                      {[
+                        s.cardio.modality,
+                        s.cardio.durationMin ? `${s.cardio.durationMin} min` : null,
+                        s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null,
+                        s.cardio.intensity || null,
+                        s.cardio.distanceKm ? `${s.cardio.distanceKm} km` : null,
+                        s.cardio.targetRpe ? `RPE ${s.cardio.targetRpe}` : null,
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  </div>
+                {/if}
+              {:else}
+                {#each s.exercises as e, ei (e.id)}
+                  {#if openExercise === e.id}
+                    <ExerciseEditor
+                      bind:exercise={currentWeek.sessions[si].exercises[ei]}
+                      {catalog}
+                      canMoveUp={ei > 0}
+                      canMoveDown={ei < s.exercises.length - 1}
+                      onmoveup={() => { if (currentWeek) currentWeek.sessions[si] = moveExercise(currentWeek.sessions[si], ei, ei - 1); }}
+                      onmovedown={() => { if (currentWeek) currentWeek.sessions[si] = moveExercise(currentWeek.sessions[si], ei, ei + 1); }}
+                      onremove={() => { if (currentWeek) currentWeek.sessions[si] = removeExercise(currentWeek.sessions[si], ei); openExercise = null; }}
+                      onclose={() => (openExercise = null)}
+                    />
+                  {:else}
+                    {@const pattern = patternOf(e.exerciseId)}
+                    <div class="exblock" class:editable>
+                      <div class="exhead">
+                        {#if e.role}<RoleChip role={e.role} />{/if}
+                        {#if editable}
+                          <button class="exname" onclick={() => { openExercise = e.id; openSession = null; }} title="Edit {e.exerciseName}">{e.exerciseName}</button>
+                        {:else}
+                          <strong>{e.exerciseName}</strong>
+                        {/if}
+                        {#if pattern && pattern in MOVEMENT_PATTERN_INFO}
+                          {@const p = pattern as MovementPattern}
+                          <span class="mp-tag" title={MOVEMENT_PATTERN_INFO[p].description}>{MOVEMENT_PATTERN_INFO[p].label}</span>
+                        {/if}
+                      </div>
+                      {#if e.notes}<p class="subtle exnotes">{e.notes}</p>{/if}
+                      <SetChips sets={e.prescribedSets} />
                     </div>
                   {/if}
-                {:else}
-                  {#each s.exercises as e, ei (e.id)}
-                    {#if openExercise === e.id}
-                      <ExerciseEditor
-                        bind:exercise={currentWeek.days[di].sessions[si].exercises[ei]}
-                        {catalog}
-                        canMoveUp={ei > 0}
-                        canMoveDown={ei < s.exercises.length - 1}
-                        onmoveup={() => { if (currentWeek) currentWeek.days[di].sessions[si] = moveExercise(currentWeek.days[di].sessions[si], ei, ei - 1); }}
-                        onmovedown={() => { if (currentWeek) currentWeek.days[di].sessions[si] = moveExercise(currentWeek.days[di].sessions[si], ei, ei + 1); }}
-                        onremove={() => { if (currentWeek) currentWeek.days[di].sessions[si] = removeExercise(currentWeek.days[di].sessions[si], ei); openExercise = null; }}
-                        onclose={() => (openExercise = null)}
-                      />
-                    {:else}
-                      {@const pattern = catalogById.get(e.exerciseId)?.movementPattern}
-                      <div class="exblock" class:editable>
-                        <div class="exhead">
-                          {#if e.role}<RoleChip role={e.role} />{/if}
-                          {#if editable}
-                            <button class="exname" onclick={() => { openExercise = e.id; openSession = null; }} title="Edit {e.exerciseName}">{e.exerciseName}</button>
-                          {:else}
-                            <strong>{e.exerciseName}</strong>
-                          {/if}
-                          {#if pattern && pattern in MOVEMENT_PATTERN_INFO}
-                            {@const p = pattern as MovementPattern}
-                            <span class="mp-tag" title={MOVEMENT_PATTERN_INFO[p].description}>{MOVEMENT_PATTERN_INFO[p].label}</span>
-                          {/if}
-                        </div>
-                        {#if e.notes}<p class="subtle exnotes">{e.notes}</p>{/if}
-                        <SetChips sets={e.prescribedSets} />
-                      </div>
-                    {/if}
-                    {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
-                  {/each}
-                  {#if editable && s.exercises.length < 20}
-                    <button
-                      class="add-link"
-                      onclick={() => {
-                        const first = catalog[0];
-                        if (!currentWeek || !first) return;
-                        const sess = addExercise(currentWeek.days[di].sessions[si], first.id, first.name);
-                        const last = sess.exercises.length - 1;
-                        sess.exercises[last] = addSet(sess.exercises[last]);
-                        currentWeek.days[di].sessions[si] = sess;
-                        openExercise = sess.exercises[last].id;
-                        openSession = null;
-                      }}>+ Exercise</button
-                    >
-                  {/if}
+                  {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
+                {/each}
+                {#if editable && s.exercises.length < 20}
+                  <button
+                    class="add-link"
+                    onclick={() => {
+                      const first = catalog[0];
+                      if (!currentWeek || !first) return;
+                      const sess = addExercise(currentWeek.sessions[si], first.id, first.name);
+                      const last = sess.exercises.length - 1;
+                      sess.exercises[last] = addSet(sess.exercises[last]);
+                      currentWeek.sessions[si] = sess;
+                      openExercise = sess.exercises[last].id;
+                      openSession = null;
+                    }}>+ Exercise</button
+                  >
                 {/if}
-              </div>
-              {#if si < d.sessions.length - 1}<hr class="divider" />{/if}
-            {/each}
-            {#if editable && d.sessions.length < 4}
-              <button
-                class="add-link"
-                onclick={() => {
-                  if (!currentWeek) return;
-                  currentWeek.days[di] = addSession(currentWeek.days[di]);
-                  openSession = currentWeek.days[di].sessions.at(-1)?.id ?? null;
-                  openExercise = null;
-                }}>+ Session</button
-              >
-            {/if}
+              {/if}
+            </div>
           </div>
         </section>
       {/each}
@@ -483,14 +533,6 @@
   .session-block { display: flex; flex-direction: column; gap: 8px; }
   .session-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .session-header h3 { margin: 0; font: 600 13px var(--font-ui); color: var(--ink); }
-  .kind-tag {
-    font: 500 11px/1 var(--font-mono);
-    text-transform: uppercase;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--well);
-    color: var(--muted);
-  }
   .cardio-display { margin: 2px 0 4px; }
 
   .exblock .exhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -526,9 +568,25 @@
   .divider { border: none; border-top: 1px solid var(--line); margin: 8px 0; }
   .week-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
   .balance { margin: 0 auto 0 0; color: var(--muted); }
-  .weekday { width: auto; padding: 2px 6px; font-size: 12.5px; }
+  .cal-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+  .grow { flex: 1; }
+  .scope { display: inline-flex; align-items: center; gap: 0; font-size: 12.5px; }
+  .scope .subtle { margin-right: 8px; }
+  .scope button {
+    border: 1px solid var(--line);
+    background: none;
+    font: 500 12px var(--font-ui);
+    color: var(--muted);
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .scope button:first-of-type { border-radius: var(--radius) 0 0 var(--radius); }
+  .scope button + button { border-left: none; border-radius: 0 var(--radius) var(--radius) 0; }
+  .scope button.on { background: var(--well-2); color: var(--ink); font-weight: 600; }
+  .eyebrow { font: 500 11.5px var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; margin-right: auto; }
+  .panel.sel { border-color: var(--focus); }
+  .panel { scroll-margin-top: 16px; }
   .session-header .edit-link { margin-left: auto; }
-  .session-header .kind-tag { margin-left: 0; }
   .edit-link, .add-link {
     border: none;
     background: none;

@@ -3,25 +3,25 @@
   import { defaultCardio, switchSessionKind, type SessionKind } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
 
-  /** Inline editor for a session's name, kind, notes and cardio prescription. */
+  /** Inline editor for a session's name, kind, notes and cardio prescription.
+   *  Placement (day, order) lives on the week calendar, not here. */
   let {
     session = $bindable(),
-    canMoveUp,
-    canMoveDown,
-    onmoveup,
-    onmovedown,
+    nextSeqFor,
+    onday,
     onremove,
     onclose,
   }: {
     session: ProgramSessionDto;
-    canMoveUp: boolean;
-    canMoveDown: boolean;
-    onmoveup: () => void;
-    onmovedown: () => void;
+    /** Next free number on a kind's track, so a kind switch keeps keys unique. */
+    nextSeqFor: (kind: SessionKind) => number;
+    /** Move to a weekday (null = any day), appended to that day. Touch/keyboard fallback for the calendar. */
+    onday: (weekday: number | null) => void;
     onremove: () => void;
     onclose: () => void;
   } = $props();
 
+  const DAYS = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const num = (raw: string) => (raw.trim() === "" ? undefined : Number(raw));
   const cardio = () => (session.cardio ??= defaultCardio());
 </script>
@@ -34,9 +34,18 @@
     </label>
     <label class="f">
       <span>Kind</span>
-      <select class="select" value={session.kind} onchange={(e) => (session = switchSessionKind(session, e.currentTarget.value as SessionKind))}>
+      <select class="select" value={session.kind} onchange={(e) => {
+        const kind = e.currentTarget.value as SessionKind;
+        session = switchSessionKind(session, kind, nextSeqFor(kind));
+      }}>
         <option value="lifting">Lifting</option>
         <option value="cardio">Cardio</option>
+      </select>
+    </label>
+    <label class="f">
+      <span>Day</span>
+      <select class="select" value={String(session.weekday ?? 0)} onchange={(e) => onday(Number(e.currentTarget.value) || null)}>
+        {#each DAYS as d, i (i)}<option value={String(i)}>{d}</option>{/each}
       </select>
     </label>
   </div>
@@ -75,8 +84,6 @@
   {/if}
 
   <div class="foot">
-    <button type="button" class="btn ghost small" disabled={!canMoveUp} onclick={onmoveup}>↑ Up</button>
-    <button type="button" class="btn ghost small" disabled={!canMoveDown} onclick={onmovedown}>↓ Down</button>
     <ConfirmButton label="Remove session" confirmLabel="Really remove?" variant="danger" small onconfirm={onremove} />
     <span class="grow"></span>
     <button type="button" class="btn small" onclick={onclose}>Done</button>
