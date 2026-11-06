@@ -31,6 +31,13 @@ export const AiProviderConfig = z.object({
    */
   disableThinking: z.boolean().optional(),
   /**
+   * Reasoning-effort levels the trainer may pick for this provider's models
+   * (UI selector; absent = the provider takes no effort parameter).
+   */
+  effortLevels: z.array(z.string().min(1)).min(1).optional(),
+  /** Which effortLevel is used when none is selected. */
+  defaultEffort: z.string().min(1).optional(),
+  /**
    * Models the trainer may pick for generation — the first entry is the
    * default. Overridable via `<ID>_MODELS` (csv) / `<ID>_MODEL` (default).
    */
@@ -46,6 +53,8 @@ export const KNOWN_PROVIDERS = {
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
     disableThinking: true,
+    effortLevels: ["low", "high", "max"],
+    defaultEffort: "low", // glm-5 budget low is the shipped default; max maps to the provider's top budget
     models: [
       "glm-4.5-flash", // default — free tier
       "glm-5.3-flash",
@@ -58,6 +67,8 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
     maxOutputTokens: 16384,
+    effortLevels: ["low", "high", "max"],
+    defaultEffort: "high",
     models: [
       "deepseek-flash", // default — V4.1-Flash
       "deepseek-v4-pro",

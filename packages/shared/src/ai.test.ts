@@ -27,6 +27,18 @@ describe("KNOWN_PROVIDERS", () => {
     expect(parsed.maxOutputTokens).toBe(16384);
     expect(parsed.disableThinking).toBeUndefined();
   });
+
+  test("T1b effort levels use one vocabulary, mock takes none", () => {
+    const zai = AiProviderConfig.parse(KNOWN_PROVIDERS.zai);
+    const deepseek = AiProviderConfig.parse(KNOWN_PROVIDERS.deepseek);
+    const mock = AiProviderConfig.parse(KNOWN_PROVIDERS.mock);
+    expect(zai.effortLevels).toEqual(["low", "high", "max"]);
+    expect(zai.defaultEffort).toBe("low");
+    expect(deepseek.effortLevels).toEqual(["low", "high", "max"]);
+    expect(deepseek.defaultEffort).toBe("high");
+    expect(mock.effortLevels).toBeUndefined();
+    expect(mock.defaultEffort).toBeUndefined();
+  });
 });
 
 describe("typicalGenerationSeconds", () => {
