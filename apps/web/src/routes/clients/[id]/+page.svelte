@@ -34,6 +34,9 @@
   let chainWeekData = $state<ChainWeekDto | null>(null);
   let sessionLogRows = $state<SessionLogDto[]>([]);
   let saving = $state(false);
+  let savedForm = $state("");
+  let profileSaved = $state(false);
+  let saveProfileError = $state<string | null>(null);
   let form = $state({
     goals: "",
     limitations: "",
@@ -42,6 +45,9 @@
     cardioUnit: "none" as "none" | "minutes" | "sessions" | "zone_minutes",
     cardioValue: 120,
   });
+  /** Picked weekdays set the count; the count select only shows when no days are picked. */
+  const formDays = $derived(form.trainingDays.length > 0 ? form.trainingDays.length : Number(form.daysPerWeek));
+  const profileDirty = $derived(savedForm !== "" && JSON.stringify({ ...form, daysPerWeek: formDays }) !== savedForm);
   let catalogById = $state(new Map<string, ExerciseDto>());
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
@@ -161,22 +167,32 @@
       cardioUnit: detail.client.cardioTarget?.unit ?? "none",
       cardioValue: detail.client.cardioTarget?.value ?? 120,
     };
+    savedForm = JSON.stringify({ ...form, daysPerWeek: formDays });
     latestGen = (await api.generations(id))[0] ?? null;
   }
 
   async function save() {
     saving = true;
+    saveProfileError = null;
     try {
+      form.goals = form.goals.trim();
+      form.limitations = form.limitations.trim();
+      form.daysPerWeek = formDays;
       client = await api.updateClient(id, {
         goals: form.goals || null,
         limitations: form.limitations || null,
-        daysPerWeek: Number(form.daysPerWeek),
+        daysPerWeek: formDays,
         trainingDays: form.trainingDays,
         cardioTarget:
           form.cardioUnit === "none"
             ? null
             : { unit: form.cardioUnit, value: Number(form.cardioValue) },
       });
+      savedForm = JSON.stringify({ ...form, daysPerWeek: formDays });
+      profileSaved = true;
+      setTimeout(() => (profileSaved = false), 2500);
+    } catch (e) {
+      saveProfileError = (e as Error).message;
     } finally {
       saving = false;
     }
@@ -221,7 +237,7 @@
         <StatusPill status={client.status} />
       </div>
       <p class="sub">
-        {client.daysPerWeek ?? "?"} days / week{#if sortedDays.length > 0} · {sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+        {client.daysPerWeek ?? "?"} days / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
         {#if client.goals} · “{client.goals}”{/if}
       </p>
     </div>
@@ -532,33 +548,33 @@
     <Panel class="narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" title="Profile">
       {#snippet act()}<span class="subtle act">feeds every AI draft</span>{/snippet}
       <form
-        class="panel-body grid"
+        class="panel-body pf"
         onsubmit={(e) => {
           e.preventDefault();
           save();
         }}
       >
-        <Field label="Training days per week" htmlFor="p-days">
-          <select class="select" id="p-days" bind:value={form.daysPerWeek}>
-            {#each [1, 2, 3, 4, 5, 6, 7] as d}<option value={d}>{d}</option>{/each}
-          </select>
-        </Field>
-        <Field label="Which days" hint="drives the weekly plan grid">
-          <WeekdayPicker bind:days={form.trainingDays} />
-        </Field>
-        <div class="span">
-          <Field label="Cardio target / week" hint="resets every Monday — feeds AI drafts">
-            <div class="cardio-fields">
-              <select
-                class="select"
-                bind:value={form.cardioUnit}
-                aria-label="Cardio target unit"
-              >
-                <option value="none">None</option>
-                <option value="minutes">min</option>
-                <option value="sessions">sessions</option>
-                <option value="zone_minutes">zone-min</option>
+        <section class="pf-sec">
+          <h3>Schedule</h3>
+          <Field label="Training days" hint="drives the weekly plan grid">
+            <div class="days-row">
+              <WeekdayPicker bind:days={form.trainingDays} />
+              {#if form.trainingDays.length > 0}
+                <span class="subtle">{formDays} {formDays === 1 ? "day" : "days"} a week</span>
+              {/if}
+            </div>
+          </Field>
+          {#if form.trainingDays.length === 0}
+            <div class="count-row">
+              <label class="subtle" for="p-days">No fixed days — trains</label>
+              <select class="select count" id="p-days" bind:value={form.daysPerWeek}>
+                {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}<option value={d}>{d}</option>{/each}
               </select>
+              <span class="subtle">{Number(form.daysPerWeek) === 1 ? "day" : "days"} a week</span>
+            </div>
+          {/if}
+          <Field label="Weekly cardio target" hint="resets every Monday">
+            <div class="cardio-fields">
               {#if form.cardioUnit !== "none"}
                 <input
                   class="input tnum"
@@ -570,20 +586,46 @@
                   aria-label="Cardio target value"
                 />
               {/if}
+              <select class="select" bind:value={form.cardioUnit} aria-label="Cardio target unit">
+                <option value="none">No cardio target</option>
+                <option value="minutes">minutes</option>
+                <option value="sessions">sessions</option>
+                <option value="zone_minutes">zone minutes</option>
+              </select>
             </div>
           </Field>
-        </div>
-        <div class="span">
+        </section>
+
+        <section class="pf-sec">
+          <h3>For the AI</h3>
           <Field label="Goals" htmlFor="p-goals">
-            <textarea class="textarea" id="p-goals" rows="2" bind:value={form.goals}></textarea>
+            <textarea
+              class="textarea"
+              id="p-goals"
+              rows="2"
+              placeholder="e.g. Squat 140kg by spring, run a sub-25 min 5k"
+              bind:value={form.goals}
+            ></textarea>
           </Field>
-        </div>
-        <div class="span">
-          <Field label="Limitations — hard constraints for the AI" htmlFor="p-lim">
-            <textarea class="textarea" id="p-lim" rows="2" bind:value={form.limitations}></textarea>
+          <Field label="Limitations" htmlFor="p-lim" hint="hard constraints every draft must respect">
+            <textarea
+              class="textarea"
+              id="p-lim"
+              rows="2"
+              placeholder="e.g. Left shoulder impingement — no overhead pressing"
+              bind:value={form.limitations}
+            ></textarea>
           </Field>
+        </section>
+
+        <div class="pf-foot">
+          <Button variant="primary" type="submit" disabled={saving || !profileDirty}>{saving ? "Saving…" : "Save profile"}</Button>
+          <span class="subtle" role="status">
+            {#if saveProfileError}<span class="err">Save failed: {saveProfileError}</span>
+            {:else if profileDirty}Unsaved changes
+            {:else if profileSaved}Saved{/if}
+          </span>
         </div>
-        <div class="span"><Button variant="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button></div>
       </form>
     </Panel>
   {/if}
@@ -679,8 +721,20 @@
   td.sets { max-width: 340px; }
 
   .narrow { max-width: 560px; }
-  .grid { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; }
-  .span { grid-column: 1 / -1; }
+  .pf { display: flex; flex-direction: column; gap: 22px; max-width: 640px; }
+  .pf-sec { display: flex; flex-direction: column; gap: 14px; }
+  .pf-sec h3 {
+    margin: 0;
+    font: 600 11.5px/1 var(--font-ui);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .days-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .count-row { display: flex; align-items: center; gap: 8px; margin-top: -6px; font-size: 13px; }
+  .count-row .count { width: auto; }
+  .pf-foot { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
+  .pf-foot .err { color: var(--bad); }
 
   .cardio-fields { display: flex; gap: 8px; align-items: center; }
   .cardio-fields .select { width: auto; }
