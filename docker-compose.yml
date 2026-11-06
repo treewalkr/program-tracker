@@ -3,6 +3,8 @@ x-app: &app
   image: program-tracker:local
   environment:
     DATABASE_URL: postgres://pt:pt_dev_password@postgres:5432/program_tracker
+    # Calendar logic (week starts, "today", cardio deadlines) runs in local time.
+    TZ: Asia/Bangkok
 
 services:
   postgres:
