@@ -121,19 +121,22 @@ describe.skipIf(!live || !dbUp)("deepseek live (chat refinement)", () => {
         try {
           for (const message of messages) {
             const start = performance.now();
-            const res = await fetch(`${url}/v1/ai/chat/revise`, {
+            const res = await fetch(`${url}/v1/ai/chat/turn`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ generationId: currentId, message }),
+              body: JSON.stringify({ clientId, generationId: currentId, message, providerId: "deepseek" }),
             });
             const elapsed = performance.now() - start;
             elapsedMs.push(elapsed);
 
             expect(res.status).toBe(201);
             const body = (await res.json()) as any;
-            if (body.generation.status !== "validated") {
-              console.log("T12 turn failed:", body.generation.error);
+            if (body.generation?.status !== "validated") {
+              console.log("T12 turn failed:", body.generation?.error ?? body.error);
             }
+            // One smart turn: reply always lands, the change request revises.
+            expect(body.messages).toHaveLength(2);
+            expect(body.messages[1].content.length).toBeGreaterThan(0);
             expect(body.generation.status).toBe("validated");
             expect(body.generation.model).toBe("deepseek-flash");
             currentId = body.generation.id;
