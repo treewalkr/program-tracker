@@ -43,7 +43,7 @@
     position: relative;
   }
   .ms-btn {
-    font: 400 12px/1 var(--font-ui, inherit);
+    font: 400 12px/1 var(--font-ui);
     color: var(--muted);
     display: inline-flex;
     align-items: center;
@@ -55,31 +55,43 @@
     padding: 5px 6px;
     white-space: nowrap;
   }
-  .ms-btn:hover {
+  .ms-btn:hover,
+  .ms-btn[aria-expanded="true"] {
     border-color: var(--line);
     color: var(--ink);
   }
   .ms-btn b {
-    font: 500 12px/1 var(--font-mono, monospace);
+    font: 500 12px/1 var(--font-mono);
     color: var(--ink);
   }
   .ms-pop {
     position: absolute;
     bottom: calc(100% + 6px);
     left: 0;
-    width: 300px;
-    display: grid;
-    gap: 10px;
+    width: 320px;
+    max-width: calc(100vw - 32px);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 6px;
     box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
     padding: 12px;
+    display: grid;
+    gap: 10px;
     z-index: 6;
   }
   .ms-pop p {
     margin: 0;
     font-size: 12px;
     color: var(--muted);
+  }
+  @media (max-width: 560px) {
+    .ms-pop {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 110px;
+      width: auto;
+      max-width: none;
+    }
   }
 </style>
