@@ -635,6 +635,7 @@ export const mockApi: TrainerApi = {
       direction: input.direction ?? basedOn?.direction ?? null,
       providerId: input.providerId ?? "zai",
       model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-4.5-flash",
+      effort: input.effort ?? null,
       status: "pending",
       draft: null,
       error: null,

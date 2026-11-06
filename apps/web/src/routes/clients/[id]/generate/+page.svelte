@@ -23,6 +23,7 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
+  import ProviderPicker from "$lib/components/ProviderPicker.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
 
@@ -34,6 +35,7 @@
   let providers = $state<ProviderDto[]>([]);
   let providerId = $state("zai");
   let model = $state("");
+  let effort = $state("");
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   let instructions = $state("");
   let direction = $state("");
@@ -206,6 +208,7 @@
         direction: weekMode ? undefined : direction.trim() || undefined,
         providerId,
         model: model || undefined,
+        effort: effort || undefined,
         instructions: mergedInstructions || undefined,
       });
       allGens = [row, ...allGens.filter((g) => g.id !== row.id)];
@@ -463,30 +466,7 @@
         {#if cancelledNote === "block"}
           <Note tone="warn" role="status">Generation cancelled — nothing was drafted.</Note>
         {/if}
-        <Field label="Provider" htmlFor="g-provider">
-          <select
-            class="select"
-            id="g-provider"
-            bind:value={providerId}
-            onchange={() => (model = "")}
-          >
-            {#each providers as p (p.id)}
-              <option value={p.id}>{p.label} · {p.model}</option>
-            {/each}
-          </select>
-        </Field>
-        {#if provider && provider.models.length > 1}
-          <Field label="Model" htmlFor="g-model">
-            <select class="select" id="g-model" bind:value={model}>
-              <option value="">{provider.model} · default</option>
-              {#each provider.models as m (m)}
-                {#if m !== provider.model}
-                  <option value={m}>{m}</option>
-                {/if}
-              {/each}
-            </select>
-          </Field>
-        {/if}
+        <ProviderPicker {providers} bind:providerId bind:model bind:effort idPrefix="g" />
         <Field label="Based on" htmlFor="g-based">
           <input
             class="input"

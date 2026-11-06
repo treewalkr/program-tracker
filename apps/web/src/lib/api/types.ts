@@ -98,6 +98,9 @@ export interface ProviderDto {
   model: string;
   models: string[];
   configured: boolean;
+  /** Reasoning-effort levels the trainer may pick (absent = none). */
+  effortLevels?: string[];
+  defaultEffort?: string;
 }
 
 export interface HistoryEntryDto {
@@ -340,6 +343,7 @@ export interface TrainerApi {
     direction?: string;
     providerId?: string;
     model?: string;
+    effort?: string;
     instructions?: string;
   }): Promise<GenerationDto>;
   generations(clientId: string): Promise<GenerationDto[]>;
