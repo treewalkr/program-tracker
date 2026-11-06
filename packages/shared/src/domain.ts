@@ -364,8 +364,9 @@ export function patternBalance(
 }
 
 export function formatPatternBalance(b: PatternBalance): string {
-  const main = `push ${b.push} · pull ${b.pull} · knee ${b.knee} · hip ${b.hip} · core ${b.core}`;
-  return b.unclassified > 0 ? `${main} · unclassified ${b.unclassified}` : main;
+  const parts = (["push", "pull", "knee", "hip", "core"] as const).filter((k) => b[k] > 0).map((k) => `${k} ${b[k]}`);
+  if (b.unclassified > 0) parts.push(`${b.unclassified} untagged`);
+  return parts.length ? parts.join(" · ") : "no exercises";
 }
 
 /** A single prescribed set within a program exercise. */

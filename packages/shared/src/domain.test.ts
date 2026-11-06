@@ -840,11 +840,12 @@ describe("patternBalance", () => {
     });
   });
 
-  test("formatPatternBalance renders counts and hides zero unclassified", () => {
+  test("formatPatternBalance renders non-zero counts and untagged", () => {
     const withUnclassified = patternBalance(tagged8Plus1Null);
     expect(formatPatternBalance(withUnclassified)).toBe(
-      "push 2 · pull 2 · knee 2 · hip 1 · core 1 · unclassified 1"
+      "push 2 · pull 2 · knee 2 · hip 1 · core 1 · 1 untagged"
     );
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, core: 0, unclassified: 0 })).toBe("knee 2");
 
     const zeroUnclassified = patternBalance(tagged8Plus1Null.slice(0, 8));
     expect(formatPatternBalance(zeroUnclassified)).toBe(
