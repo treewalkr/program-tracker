@@ -4,13 +4,14 @@
   import type { ClientDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import { emptyProfile, profilePayload } from "$lib/clientProfile";
+  import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
+  import { emailError, emptyProfile, nameError, profileKey, profilePayload } from "$lib/clientProfile";
+  import { tick } from "svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
-  import Field from "$lib/ui/Field.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import { goto } from "$app/navigation";
   import { cardioUnitLabel } from "@pt/shared";
@@ -28,19 +29,28 @@
   let email = $state("");
   let profile = $state(emptyProfile());
   let createError = $state<string | null>(null);
-  const ready = $derived(name.trim() !== "" && /^\S+@\S+\.\S+$/.test(email.trim()));
+  /** Set by a submit attempt: shows every field error at once. */
+  let attempted = $state(false);
+  const missing = $derived(nameError(name) ? "a name" : emailError(email) ? "a valid email" : null);
+  const EMPTY_KEY = profileKey(emptyProfile());
+  const touchedForm = $derived(name.trim() !== "" || email.trim() !== "" || profileKey(profile) !== EMPTY_KEY);
 
   function openForm() {
     showForm = true;
     createError = null;
+    attempted = false;
     requestAnimationFrame(() => document.getElementById("f-name")?.focus());
   }
-  function closeForm() {
+  async function cancel() {
+    if (touchedForm && !confirm("Discard this new client?")) return;
     showForm = false;
     name = "";
     email = "";
     profile = emptyProfile();
     createError = null;
+    attempted = false;
+    await tick();
+    document.querySelector<HTMLButtonElement>("[data-add-client]")?.focus();
   }
 
   const q = $derived(search.trim().toLowerCase());
@@ -67,7 +77,12 @@
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
-    if (!ready) return;
+    if (missing) {
+      attempted = true;
+      await tick();
+      document.getElementById(nameError(name) ? "f-name" : "f-email")?.focus();
+      return;
+    }
     saving = true;
     createError = null;
     try {
@@ -86,11 +101,19 @@
 </script>
 
 <svelte:head><title>Clients · Program Tracker</title></svelte:head>
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key !== "Escape" || !showForm) return;
+    if (!document.querySelector(".newclient")?.contains(document.activeElement)) return;
+    e.preventDefault();
+    cancel();
+  }}
+/>
 
 <PageHead title="Clients" sub={rosterLine}>
   {#snippet actions()}
     {#if !showForm}
-      <Button onclick={openForm}>
+      <Button onclick={openForm} data-add-client>
         {#snippet icon()}<Icon name="plus" />{/snippet}
         Add client
       </Button>
@@ -99,29 +122,23 @@
 </PageHead>
 
 {#if showForm}
-  <div class="mb-18">
+  <div class="newclient">
   <Panel title="New client">
     <form class="panel-body pf" onsubmit={submit} novalidate>
       <section class="pf-sec">
         <h3>Client</h3>
-        <div class="who-fields">
-          <Field label="Name" htmlFor="f-name">
-            <input class="input" id="f-name" bind:value={name} required maxlength="120" autocomplete="off" />
-          </Field>
-          <Field label="Email" htmlFor="f-email">
-            <input class="input" id="f-email" type="email" bind:value={email} required maxlength="200" autocomplete="off" />
-          </Field>
-        </div>
+        <ClientIdentityFields bind:name bind:email idPrefix="f" showAll={attempted} />
       </section>
 
-      <ClientProfileFields bind:form={profile} idPrefix="f" />
+      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible />
 
       <div class="pf-foot">
-        <Button variant="primary" type="submit" disabled={saving || !ready}>{saving ? "Adding…" : "Add client"}</Button>
-        <Button variant="ghost" type="button" onclick={closeForm}>Cancel</Button>
-        <span class="subtle" role="status">
-          {#if createError}<span class="err">Couldn't add client: {createError}</span>
-          {:else if !ready}Name and a valid email are required{/if}
+        <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
+        <Button variant="ghost" type="button" onclick={cancel}>Cancel</Button>
+        <span class="subtle" role="status" aria-live="polite">
+          {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
+          {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
+          {:else}Opens their page next — no program is created yet{/if}
         </span>
       </div>
     </form>
@@ -173,12 +190,7 @@
 {/if}
 
 <style>
-  .pf { display: flex; flex-direction: column; gap: 22px; max-width: 640px; }
-  .pf-sec { display: flex; flex-direction: column; gap: 14px; }
-  .pf-sec h3 { margin: 0; font: 600 11.5px/1 var(--font-ui); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-  .who-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-  .pf-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--line-soft); padding-top: 16px; }
-  .pf-foot .err { color: var(--bad); }
+  .newclient { max-width: 720px; margin-bottom: 18px; }
   .search { margin-bottom: 12px; max-width: 320px; }
   .row { cursor: pointer; }
   .row.dim td { color: var(--muted); }
@@ -188,7 +200,6 @@
   .clamp { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 340px; }
   .lim { color: var(--warn); }
   @media (max-width: 700px) {
-    .who-fields { grid-template-columns: minmax(0, 1fr); }
     .search { max-width: none; }
     .roster thead { display: none; }
     .roster, .roster tbody, .roster tr, .roster td { display: block; width: 100%; }
@@ -199,5 +210,4 @@
     .roster td.limcell:has(.subtle) { display: none; }
     .clamp { max-width: none; }
   }
-  .mb-18 { margin-bottom: 18px; }
 </style>

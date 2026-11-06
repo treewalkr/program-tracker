@@ -1,6 +1,7 @@
 <script lang="ts">
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import { emptyProfile, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
+  import { emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
+  import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -39,7 +40,12 @@
   let profileSaved = $state(false);
   let saveProfileError = $state<string | null>(null);
   let form = $state<ProfileForm>(emptyProfile());
-  const profileDirty = $derived(savedForm !== "" && profileKey(form) !== savedForm);
+  let idName = $state("");
+  let idEmail = $state("");
+  let idAttempted = $state(false);
+  const idKey = () => JSON.stringify([idName.trim(), idEmail.trim()]);
+  let savedId = $state("");
+  const profileDirty = $derived(savedForm !== "" && (profileKey(form) !== savedForm || idKey() !== savedId));
   let catalogById = $state(new Map<string, ExerciseDto>());
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
@@ -164,16 +170,26 @@
     selectedWeekNumber = null;
     form = profileFromClient(detail.client);
     savedForm = profileKey(form);
+    idName = detail.client.name;
+    idEmail = detail.client.email;
+    savedId = idKey();
     latestGen = (await api.generations(id))[0] ?? null;
   }
 
   async function save() {
+    if (nameError(idName) || emailError(idEmail)) {
+      idAttempted = true;
+      return;
+    }
     saving = true;
     saveProfileError = null;
     try {
-      client = await api.updateClient(id, profilePayload(form));
+      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim(), ...profilePayload(form) });
       form = profileFromClient(client);
       savedForm = profileKey(form);
+      idName = client.name;
+      idEmail = client.email;
+      savedId = idKey();
       profileSaved = true;
       setTimeout(() => (profileSaved = false), 2500);
     } catch (e) {
@@ -538,7 +554,6 @@
     </Panel>
   {:else}
     <Panel class="narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" title="Profile">
-      {#snippet act()}<span class="subtle act">feeds every AI draft</span>{/snippet}
       <form
         class="panel-body pf"
         onsubmit={(e) => {
@@ -546,6 +561,11 @@
           save();
         }}
       >
+        <section class="pf-sec">
+          <h3>Client</h3>
+          <ClientIdentityFields bind:name={idName} bind:email={idEmail} idPrefix="p" showAll={idAttempted} />
+        </section>
+
         <ClientProfileFields bind:form idPrefix="p" />
 
         <div class="pf-foot">
@@ -651,7 +671,6 @@
   td.sets { max-width: 340px; }
 
   .narrow { max-width: 560px; }
-  .pf { display: flex; flex-direction: column; gap: 22px; max-width: 640px; }
   .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
   .day-h {
     display: flex;
@@ -666,8 +685,6 @@
   .day-h .due { color: var(--blue); }
   .day-h .day-note { color: var(--faint); }
   .day-h .day-count { margin-left: auto; }
-  .pf-foot { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
-  .pf-foot .err { color: var(--bad); }
 
   .cardio-box { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
   .cardio-line { margin: 0; font: 500 13px/1.4 var(--font-ui); color: var(--ink); }
