@@ -54,7 +54,8 @@ export const clients = pgTable("clients", {
   status: text("status").$type<ClientStatus>().notNull().default("active"),
   goals: text("goals"),
   limitations: text("limitations"),
-  daysPerWeek: integer("days_per_week"),
+  /** Lifting sessions per week (cardio does not count). */
+  sessionsPerWeek: integer("sessions_per_week"),
   /** Planned training weekdays as ISO ints (1=Mon … 7=Sun). */
   trainingDays: jsonb("training_days").$type<number[]>(),
   /** Standing weekly cardio target {unit, value} — null = none. */

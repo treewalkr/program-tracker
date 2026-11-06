@@ -13,7 +13,7 @@
     "studio": "drizzle-kit studio",
     "seed:exercises": "bun run scripts/seed-exercises.ts",
     "backfill:patterns": "bun run scripts/backfill-patterns.ts",
-    "migrate:v7s4y": "bun run scripts/migrate-v7s4y.ts",
+    "migrate:sessions": "bun run scripts/migrate-sessions.ts",
     "test": "bun test"
   },
   "dependencies": {

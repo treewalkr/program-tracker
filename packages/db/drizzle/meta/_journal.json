@@ -120,6 +120,13 @@
       "when": 1793960000000,
       "tag": "0016_generation_manual_edit",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793970000000,
+      "tag": "0017_sessions_per_week",
+      "breakpoints": true
     }
   ]
 }
