@@ -2111,9 +2111,10 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(unknown.body.error).toBe("client not found");
   });
 
-  test("chat revise creates a child generation and records the exchange", async () => {
+  test("chat turn with a change request creates a child generation and records the exchange", async () => {
     const reviseMsg = "Swap back squat for safety bar squat";
-    const res = await call("POST", "/v1/ai/chat/revise", {
+    const res = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
       generationId: genId,
       message: reviseMsg,
     });
@@ -2132,7 +2133,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
 
     expect(aiMsg.role).toBe("assistant");
     expect(aiMsg.kind).toBe("draft");
-    expect(aiMsg.content).toBe(draftNoticeText(childGen.draft));
+    expect(aiMsg.content).toBe(`Applied: ${reviseMsg}\n\n${draftNoticeText(childGen.draft)}`);
     expect(aiMsg.generationId).toBe(childGen.id);
 
     // Shows in transcript in order
@@ -2143,12 +2144,64 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(lastTwo[1].id).toBe(aiMsg.id);
   });
 
-  test("chat revise pre-flight failures write no rows", async () => {
+  test("chat turn with a question replies without drafting", async () => {
+    const gensBefore = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
+    const countBefore = (gensBefore.body as any[]).length;
+
+    const question = "Why is the squat volume so low?";
+    const res = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
+      generationId: (gensBefore.body as any[])[0].id,
+      message: question,
+      providerId: "mock",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.generation).toBeNull();
+
+    expect(res.body.messages).toHaveLength(2);
+    const [trainerMsg, aiMsg] = res.body.messages;
+    expect(trainerMsg.kind).toBe("revision");
+    expect(aiMsg.kind).toBe("chat");
+    expect(aiMsg.content).toBe(mockChatReply(question, clientName));
+
+    // No version churn: the generation list is untouched
+    const gensAfter = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
+    expect((gensAfter.body as any[]).length).toBe(countBefore);
+  });
+
+  test("chat turn without a generationId is plain Q&A", async () => {
+    const msg = "How are we doing overall?";
+    const res = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
+      message: msg,
+      providerId: "mock",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.generation).toBeNull();
+    expect(res.body.messages).toHaveLength(2);
+    expect(res.body.messages[0].kind).toBe("chat");
+    expect(res.body.messages[1].content).toBe(mockChatReply(msg, clientName));
+  });
+
+  test("chat turn rejects an effort the provider does not take", async () => {
+    const res = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
+      generationId: genId,
+      message: "cut accessories to 2 sets",
+      providerId: "mock",
+      effort: "ultra",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("provider takes no effort parameter");
+  });
+
+  test("chat turn pre-flight failures write no rows", async () => {
     const preList = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
     const preCount = preList.body.messages.length;
 
     // Unknown generationId -> 404
-    const unknown = await call("POST", "/v1/ai/chat/revise", {
+    const unknown = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
       generationId: "00000000-0000-0000-0000-000000000000",
       message: "some message",
     });
@@ -2156,7 +2209,8 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(unknown.body.error).toBe("generation not found");
 
     // Blank message -> 422
-    const blank = await call("POST", "/v1/ai/chat/revise", {
+    const blank = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
       generationId: genId,
       message: "   ",
     });
@@ -2167,7 +2221,8 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const rejectedGen = await call("POST", `/v1/ai/generations/${genId}/reject`, {});
     expect(rejectedGen.status).toBe(200);
 
-    const onRejected = await call("POST", "/v1/ai/chat/revise", {
+    const onRejected = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
       generationId: genId,
       message: "try to revise rejected",
     });
@@ -2206,7 +2261,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const parentId = parentRes.body.id;
 
     const reviseMsg = "Pull week 3 volume back 20%";
-    const rev = await call("POST", "/v1/ai/chat/revise", { generationId: parentId, message: reviseMsg });
+    const rev = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: parentId, message: reviseMsg, providerId: "mock" });
     expect(rev.status).toBe(201);
     const childId = rev.body.generation.id;
 
@@ -2241,7 +2296,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(parentRes.body.status).toBe("validated");
     const parentId = parentRes.body.id;
 
-    const rev = await call("POST", "/v1/ai/chat/revise", { generationId: parentId, message: "Keep everything, small tweak" });
+    const rev = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: parentId, message: "Keep everything, small tweak", providerId: "mock" });
     expect(rev.status).toBe(201);
     const generation = rev.body.generation;
 
@@ -2261,7 +2316,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
   test("a chat-revised draft approves through the unchanged generations route", async () => {
     const parentRes = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
     expect(parentRes.status).toBe(201);
-    const rev = await call("POST", "/v1/ai/chat/revise", { generationId: parentRes.body.id, message: "Add a core finisher" });
+    const rev = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: parentRes.body.id, message: "Add a core finisher", providerId: "mock" });
     expect(rev.status).toBe(201);
     const childId = rev.body.generation.id;
 
