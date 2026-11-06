@@ -430,7 +430,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .session-head .cond svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
 .session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
 .session + .session { border-top: 1px solid var(--line); }
-.exrow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.exrow { display: grid; grid-template-columns: minmax(min(16rem, 55%), 1fr) minmax(0, auto); gap: 12px; align-items: center; }
 .exrow .ex { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; min-width: 0; }
 
 @media (max-width: 560px) {

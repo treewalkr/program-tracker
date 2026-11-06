@@ -10,7 +10,8 @@
 		| 'layers'
 		| 'lock'
 		| 'bolt'
-		| 'pulse';
+		| 'pulse'
+		| 'chevron';
 </script>
 
 <script lang="ts">
@@ -56,6 +57,7 @@
 		lock: { d: 'M8 10V7a4 4 0 0 1 8 0v3', rect: { x: 4, y: 10, w: 16, h: 10, rx: 2 } },
 		bolt: { d: 'M13 2 3 14h7l-1 8 10-12h-7l1-8z', filled: true },
 		pulse: { d: 'M12 6l7 12H5z', filled: true },
+		chevron: { d: 'm6 9 6 6 6-6' },
 	};
 
 	const icon = $derived(ICONS[name]);
