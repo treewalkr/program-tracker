@@ -2395,3 +2395,52 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(genAfter.body.approvedProgramId).toBe(approved.body.id);
   });
 });
+
+describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
+  let genId = "";
+  let original: any = null;
+
+  test("setup: client and a validated block draft", async () => {
+    const c = await call("POST", "/v1/clients", { name: "Plan Edit Client", email: `plan-${Date.now()}@test.dev`, daysPerWeek: 3 });
+    expect(c.status).toBe(201);
+    const g = await call("POST", "/v1/ai/generate", { clientId: c.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    genId = g.body.id;
+    original = g.body.draft.phasing;
+    expect(original?.weeks?.length).toBeGreaterThan(1);
+  });
+
+  test("saving an edited plan creates the next version with only the plan changed", async () => {
+    const phasing = structuredClone(original);
+    phasing.weeks[1] = { ...phasing.weeks[1], directive: "deload", target: { metric: "overall_volume", deltaPercent: -30 }, note: "Travel week" };
+    const res = await call("POST", `/v1/ai/generations/${genId}/phasing`, { phasing });
+    expect(res.status).toBe(201);
+    expect(res.body.parentGenerationId).toBe(genId);
+    expect(res.body.status).toBe("validated");
+    expect(res.body.manualEdit).toBe(true);
+    expect(res.body.revisionMessage).toBe("Block plan edited by you");
+    expect(res.body.draft.phasing.weeks[1].directive).toBe("deload");
+
+    const parent = await call("GET", `/v1/ai/generations/${genId}`);
+    expect(res.body.draft.sessions).toEqual(parent.body.draft.sessions);
+    expect(parent.body.manualEdit).toBe(false);
+  });
+
+  test("an unchanged plan is refused", async () => {
+    const res = await call("POST", `/v1/ai/generations/${genId}/phasing`, { phasing: original });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("phasing is unchanged");
+  });
+
+  test("an invalid plan is refused", async () => {
+    const bad = { ...structuredClone(original), plannedWeeks: 1 };
+    const res = await call("POST", `/v1/ai/generations/${genId}/phasing`, { phasing: bad });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("invalid phasing document");
+  });
+
+  test("unknown generation is 404", async () => {
+    const res = await call("POST", `/v1/ai/generations/00000000-0000-0000-0000-000000000000/phasing`, { phasing: original });
+    expect(res.status).toBe(404);
+  });
+});
