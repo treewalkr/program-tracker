@@ -66,7 +66,7 @@ export async function runSmartTurn(
   try {
     rt = providerRuntime(providerId, opts.model ?? (providerId === parent.providerId ? parent.model : undefined));
   } catch (err) {
-    if (err instanceof ContextError) return { ok: false, status: err.status, error: err.message };
+    if (err instanceof ContextError) return { ok: false, status: err.status as 400 | 404 | 409 | 422, error: err.message };
     throw err;
   }
   let effort: string | undefined | null;
@@ -78,7 +78,7 @@ export async function runSmartTurn(
           ? parent.effort
           : null;
   } catch (err) {
-    if (err instanceof ContextError) return { ok: false, status: err.status, error: err.message };
+    if (err instanceof ContextError) return { ok: false, status: err.status as 400 | 404 | 409 | 422, error: err.message };
     throw err;
   }
 

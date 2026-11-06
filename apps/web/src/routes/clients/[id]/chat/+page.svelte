@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import type { ChatMessageDto, ClientDto, ExerciseDto, GenerationDto, ProgramDto } from "$lib/api/types";
-  import { applyChatTurn, draftPreviewModel, submitChatTurn, type ChatTurnMode } from "$lib/chatRefine";
+  import { applyChatTurn, draftPreviewModel, submitChatTurn } from "$lib/chatRefine";
   import DraftPreview from "$lib/components/DraftPreview.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -56,26 +56,26 @@
   }
 
   /**
-   * One chat turn. With a draft target, refine revises it straight away
-   * (auto-apply — the preview pane shows skeletons, then the next version);
-   * every other path is plain Q&A. All submit logic lives in $lib/chatRefine.
+   * One smart turn: the reply always lands here; the draft is revised
+   * (preview skeletons → next version) only when the message asks for changes.
+   * All submit logic lives in $lib/chatRefine.
    */
-  async function turn(mode: ChatTurnMode) {
+  async function turn() {
     const trimmed = draft.trim();
     if (!trimmed || busy) return;
     sendError = null;
-    if (mode === "refine" && preview.target) {
+    if (preview.target) {
       pendingMessage = trimmed;
     } else {
       sending = true;
     }
     draft = "";
     try {
-      const res = await submitChatTurn(api, { clientId: id, target: preview.target, message: trimmed, mode });
+      const res = await submitChatTurn(api, { clientId: id, target: preview.target, message: trimmed });
       ({ messages, gens: allGens } = applyChatTurn({ messages, gens: allGens }, res));
     } catch (err) {
       draft = trimmed;
-      sendError = (err as Error).message || (mode === "refine" ? "Revision failed" : "Send failed");
+      sendError = (err as Error).message || "Send failed";
     } finally {
       pendingMessage = null;
       sending = false;
@@ -191,14 +191,14 @@
                 {#if preview.target}
                   <Button
                     variant="primary"
-                    onclick={() => turn("refine")}
+                    onclick={() => turn()}
                     disabled={!draft.trim() || busy}
                   >
                     {pendingMessage !== null ? "Revising…" : "Send"}
                   </Button>
                   <Button
                     variant="ghost"
-                    onclick={() => turn("ask")}
+                    onclick={() => turn()}
                     disabled={!draft.trim() || busy}
                   >
                     Ask without changing
@@ -206,7 +206,7 @@
                 {:else}
                   <Button
                     variant="primary"
-                    onclick={() => turn("refine")}
+                    onclick={() => turn()}
                     disabled={!draft.trim() || busy}
                   >
                     {sending ? "Sending…" : "Send"}

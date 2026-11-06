@@ -38,7 +38,7 @@ export interface ProviderRuntime {
 function effortParams(
   rt: ProviderRuntime,
   effort: string | undefined,
-  thinking: { type: string; budget: string } | undefined
+  thinking: { type: string; budget?: string } | undefined
 ): Record<string, unknown> {
   if (!effort) return {};
   const deepseek = rt.providerId === "deepseek" || /^deepseek/.test(rt.model);

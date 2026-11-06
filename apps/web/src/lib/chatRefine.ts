@@ -12,41 +12,44 @@ import type {
 import { latestValidatedDraft, revisionChain } from "./generation";
 import { sortExercisesByRole } from "@pt/shared";
 
-// ---- turn submission (what Send / Ask do) ----
+// ---- turn submission (what Send does) ----
 
-export type ChatTurnMode = "refine" | "ask";
-
-export type ChatTurnApi = Pick<TrainerApi, "reviseViaChat" | "sendChatMessage">;
+export type ChatTurnApi = Pick<TrainerApi, "chatTurn">;
 
 export interface ChatTurnInput {
   clientId: string;
   target: GenerationDto | null;
   message: string;
-  mode: ChatTurnMode;
+  /** Provider/model/effort pickers (card 27tc8); omitted = draft's defaults. */
+  providerId?: string;
+  model?: string;
+  effort?: string;
 }
 
 export interface ChatTurnResult {
   messages: ChatMessageDto[];
-  /** The new validated child generation for a refine turn; null for an ask turn. */
+  /** The new validated child generation when the turn revised the draft; null otherwise. */
   generation: GenerationDto | null;
 }
 
 /**
- * One Send on the chat page. When a draft target exists and mode is "refine",
- * the turn revises that draft via reviseViaChat (auto-apply — no Apply tap);
- * every other path is plain Q&A via sendChatMessage.
+ * One smart turn on the chat page (card 27tc8): the reply always lands in the
+ * transcript; a revised draft comes back only when the message asked for
+ * changes. With no target draft the turn is plain Q&A (server side).
  */
 export async function submitChatTurn(api: ChatTurnApi, input: ChatTurnInput): Promise<ChatTurnResult> {
   const trimmed = input.message.trim();
   if (!trimmed) throw new Error("message must not be empty");
 
-  if (input.mode === "refine" && input.target !== null) {
-    const res = await api.reviseViaChat({ generationId: input.target.id, message: trimmed });
-    return { messages: res.messages, generation: res.generation };
-  }
-
-  const rows = await api.sendChatMessage({ clientId: input.clientId, message: trimmed });
-  return { messages: rows, generation: null };
+  const res = await api.chatTurn({
+    clientId: input.clientId,
+    generationId: input.target?.id ?? null,
+    message: trimmed,
+    providerId: input.providerId,
+    model: input.model,
+    effort: input.effort,
+  });
+  return { messages: res.messages, generation: res.generation };
 }
 
 /**

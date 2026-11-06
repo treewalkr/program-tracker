@@ -1107,29 +1107,63 @@ export const mockApi: TrainerApi = {
     return structuredClone([trainerRow, assistantRow]);
   },
 
-  async reviseViaChat(input) {
-    // Mirror live reviseGeneration latency so the chat page's generating
-    // state (skeletons + version counter) is observable in demo mode.
-    await delay(2200);
+  async chatTurn(input) {
     const trimmed = input.message.trim();
     if (!trimmed) throw new Error("message must not be empty");
-    const child = reviseDraftInState(state, input.generationId, trimmed);
 
+    // Without a target draft it is a plain Q&A turn.
+    if (!input.generationId) {
+      const rows = await mockApi.sendChatMessage({
+        clientId: input.clientId,
+        message: trimmed,
+        providerId: input.providerId,
+      });
+      return { messages: rows, generation: null };
+    }
+
+    // Question-shaped messages never draft (same heuristic as the API mock).
+    const question = /^(why|what|how|who|when|where|which|does|do|is|are|can|could|should|\?)/i.test(trimmed);
+    // Reply-only turns answer fast; revising mirrors live revise latency so
+    // the chat page's generating state is observable in demo mode.
+    await delay(question ? 1200 : 2200);
+
+    const client = state.clients.find((c) => c.id === input.clientId);
+    const now = new Date().toISOString();
     const trainerRow: ChatMessageDto & { clientId: string } = {
       id: uuid(),
-      clientId: child.clientId,
+      clientId: input.clientId,
       role: "trainer",
       kind: "revision",
       content: trimmed,
-      generationId: child.id,
-      createdAt: new Date().toISOString(),
+      generationId: null,
+      createdAt: now,
     };
+
+    if (question) {
+      const assistantRow: ChatMessageDto & { clientId: string } = {
+        id: uuid(),
+        clientId: input.clientId,
+        role: "assistant",
+        kind: "chat",
+        content: mockChatReply(trimmed, client?.name ?? null),
+        generationId: null,
+        createdAt: new Date().toISOString(),
+      };
+      state.messages.push(trainerRow, assistantRow);
+      return {
+        messages: structuredClone([trainerRow, assistantRow]),
+        generation: null,
+      };
+    }
+
+    const child = reviseDraftInState(state, input.generationId, trimmed);
+    trainerRow.generationId = child.id;
     const assistantRow: ChatMessageDto & { clientId: string } = {
       id: uuid(),
       clientId: child.clientId,
       role: "assistant",
       kind: "draft",
-      content: draftNoticeText(child.draft as any),
+      content: `Applied: ${trimmed}\n\n${draftNoticeText(child.draft as any)}`,
       generationId: child.id,
       createdAt: new Date().toISOString(),
     };

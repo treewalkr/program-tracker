@@ -67,18 +67,14 @@ const msg = (id: string): ChatMessageDto => ({
 // ---- turn submission ----
 
 describe("submitChatTurn", () => {
-  test("refine turn on a draft calls reviseViaChat once and nothing else", async () => {
+  test("a turn on a draft calls chatTurn once with the target and picker selection", async () => {
     const v1 = gen();
     const child = gen({ parentGenerationId: v1.id });
-    const calls: { revise: unknown[]; send: unknown[] } = { revise: [], send: [] };
+    const calls: unknown[] = [];
     const spy: ChatTurnApi = {
-      async reviseViaChat(input) {
-        calls.revise.push(input);
+      async chatTurn(input) {
+        calls.push(input);
         return { messages: [msg("r1")], generation: child };
-      },
-      async sendChatMessage(input) {
-        calls.send.push(input);
-        return [msg("s1")];
       },
     };
 
@@ -86,54 +82,41 @@ describe("submitChatTurn", () => {
       clientId: "c1",
       target: v1,
       message: "  pull week 3 volume back 20%  ",
-      mode: "refine",
+      providerId: "deepseek",
+      model: "deepseek-flash",
+      effort: "max",
     });
 
-    expect(calls.revise.length).toBe(1);
-    expect(calls.revise[0]).toEqual({ generationId: v1.id, message: "pull week 3 volume back 20%" });
-    expect(calls.send.length).toBe(0);
+    expect(calls.length).toBe(1);
+    expect(calls[0]).toEqual({
+      clientId: "c1",
+      generationId: v1.id,
+      message: "pull week 3 volume back 20%",
+      providerId: "deepseek",
+      model: "deepseek-flash",
+      effort: "max",
+    });
     expect(result.generation).toBe(child);
   });
 
-  test("ask turn and refine-without-target fall back to sendChatMessage", async () => {
+  test("no target sends a null generationId; blank message never reaches the api", async () => {
     const v1 = gen();
-    const makeSpy = (): { spy: ChatTurnApi; calls: { revise: unknown[]; send: unknown[] } } => {
-      const calls: { revise: unknown[]; send: unknown[] } = { revise: [], send: [] };
-      const spy: ChatTurnApi = {
-        async reviseViaChat(input) {
-          calls.revise.push(input);
-          return { messages: [], generation: null as unknown as GenerationDto };
-        },
-        async sendChatMessage(input) {
-          calls.send.push(input);
-          return [msg("s1")];
-        },
-      };
-      return { spy, calls };
+    const calls: unknown[] = [];
+    const spy: ChatTurnApi = {
+      async chatTurn(input) {
+        calls.push(input);
+        return { messages: [msg("s1")], generation: null };
+      },
     };
 
-    // Ask with a target stays Q&A
-    const a = makeSpy();
-    const askRes = await submitChatTurn(a.spy, { clientId: "c1", target: v1, message: "how is squat?", mode: "ask" });
-    expect(a.calls.send.length).toBe(1);
-    expect(a.calls.send[0]).toEqual({ clientId: "c1", message: "how is squat?" });
-    expect(a.calls.revise.length).toBe(0);
-    expect(askRes.generation).toBeNull();
-
-    // Refine with no target falls through to Q&A
-    const b = makeSpy();
-    const noTarget = await submitChatTurn(b.spy, { clientId: "c1", target: null, message: "how is squat?", mode: "refine" });
-    expect(b.calls.send.length).toBe(1);
-    expect(b.calls.revise.length).toBe(0);
+    const noTarget = await submitChatTurn(spy, { clientId: "c1", target: null, message: "how is squat?" });
+    expect(calls[0]).toEqual({ clientId: "c1", generationId: null, message: "how is squat?" });
     expect(noTarget.generation).toBeNull();
 
-    // Blank message never reaches the api
-    const c = makeSpy();
-    expect(submitChatTurn(c.spy, { clientId: "c1", target: v1, message: "   ", mode: "refine" })).rejects.toThrow(
+    expect(submitChatTurn(spy, { clientId: "c1", target: v1, message: "   " })).rejects.toThrow(
       "message must not be empty"
     );
-    expect(c.calls.send.length).toBe(0);
-    expect(c.calls.revise.length).toBe(0);
+    expect(calls.length).toBe(1);
   });
 
   test(
@@ -150,7 +133,6 @@ describe("submitChatTurn", () => {
         clientId: "cl-maya",
         target: before.target,
         message: "Cut accessories to 2 sets",
-        mode: "refine",
       });
 
       expect(res.generation?.status).toBe("validated");

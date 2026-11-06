@@ -378,7 +378,15 @@ export interface TrainerApi {
   chainWeek(clientId: string): Promise<ChainWeekDto>;
 
   chatMessages(clientId: string): Promise<ChatMessageDto[]>;
-  sendChatMessage(input: { clientId: string; message: string; providerId?: string; model?: string }): Promise<ChatMessageDto[]>;
-  reviseViaChat(input: { generationId: string; message: string }): Promise<{ messages: ChatMessageDto[]; generation: GenerationDto }>;
+  sendChatMessage(input: { clientId: string; message: string; providerId?: string; model?: string; effort?: string }): Promise<ChatMessageDto[]>;
+  /** One smart turn (card 27tc8): always replies; drafts only when asked. */
+  chatTurn(input: {
+    clientId: string;
+    generationId?: string | null;
+    message: string;
+    providerId?: string;
+    model?: string;
+    effort?: string;
+  }): Promise<{ messages: ChatMessageDto[]; generation: GenerationDto | null }>;
   clearChat(clientId: string): Promise<void>;
 }
