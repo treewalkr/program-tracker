@@ -25,13 +25,15 @@ playwright-report/
 .pi-subagents/
 
 # local editor/agent files
-/.agents
+.agents/
 .vscode/
 .zcodeignore
 .zcode/plans/
+.prototypes/
 .impeccable/
 docs/
 AGENTS.md
+CLAUDE.md
 .playwright-cli/
 FEEDBACK.md
 FEEDBACK-ANALYSIS.md
