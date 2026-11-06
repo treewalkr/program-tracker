@@ -76,6 +76,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
       params: t.Object({ id: t.String() }),
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
+        email: t.Optional(t.String({ format: "email" })),
         goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         sessionsPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),

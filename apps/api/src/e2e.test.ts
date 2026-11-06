@@ -851,6 +851,17 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
     expect(body.trainingDays).toEqual([2, 4, 6]);
   });
 
+  test("client PATCH corrects name and email, rejects a malformed email", async () => {
+    const before = await call("GET", `/v1/clients/${clientId}`);
+    const original = before.body.client ?? before.body;
+    const fixed = await call("PATCH", `/v1/clients/${clientId}`, { name: "Renamed Client", email: "renamed@example.com" });
+    expect(fixed.body.name).toBe("Renamed Client");
+    expect(fixed.body.email).toBe("renamed@example.com");
+    const bad = await call("PATCH", `/v1/clients/${clientId}`, { email: "not-an-email" });
+    expect(bad.status).toBe(422);
+    await call("PATCH", `/v1/clients/${clientId}`, { name: original.name, email: original.email });
+  });
+
   test("periodization schemes CRUD", async () => {
     const created = await call("POST", "/v1/schemes", {
       name: "3:1 block (e2e)",
