@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { db, trainers, signalOutbox, aiGenerations, programs, exercises } from "@pt/db";
+import { eq, sql } from "drizzle-orm";
+import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises } from "@pt/db";
 import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
@@ -2164,6 +2165,8 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(turn.status).toBe(201);
     const proposalRow = turn.body.messages[1];
     expect(proposalRow.kind).toBe("proposal");
+    // The proposal points at its request, so the build never has to infer it
+    expect(proposalRow.proposal.requestMessageId).toBe(turn.body.messages[0].id);
 
     const res = await call("POST", `/v1/ai/chat/proposals/${proposalRow.id}/build`, {});
     expect(res.status).toBe(201);
@@ -2184,6 +2187,50 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
 
     // The mock build applies a +15s rest edit on day 1 slot 1
     expect(generation.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(parentRest + 15);
+  });
+
+  test("a proposal build keeps the trainer's request when both rows share a millisecond", async () => {
+    const c = await call("POST", "/v1/clients", { name: "Same Millisecond Client", email: `same-ms-${Date.now()}@test.dev`, daysPerWeek: 2 });
+    expect(c.status).toBe(201);
+    const g = await call("POST", "/v1/ai/generate", { clientId: c.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+
+    // A proposal row written before proposals stored their request id: the trainer
+    // message sits 111µs before it, so a millisecond JS Date bound loses it.
+    const request = "Add rest to the first exercise";
+    const [trainerRow] = await db
+      .insert(chatMessages)
+      .values({
+        trainerId: g.body.trainerId,
+        clientId: c.body.id,
+        role: "trainer",
+        kind: "revision",
+        content: request,
+        createdAt: sql`'2026-01-02 09:00:00.124789+00'::timestamptz`,
+      })
+      .returning();
+    const [proposalRow] = await db
+      .insert(chatMessages)
+      .values({
+        trainerId: g.body.trainerId,
+        clientId: c.body.id,
+        role: "assistant",
+        kind: "proposal",
+        content: `Proposed: ${request}`,
+        createdAt: sql`'2026-01-02 09:00:00.124900+00'::timestamptz`,
+        proposal: {
+          summary: `Mock proposal for: ${request}`,
+          changes: [{ day: 1, slot: 1, kind: "edit", from: "Back Squat", to: "Back Squat", detail: "rest +15s on every set" }],
+          parentGenerationId: g.body.id,
+          builtGenerationId: null,
+        },
+      })
+      .returning();
+    expect(trainerRow.id).toBeTruthy();
+
+    const res = await call("POST", `/v1/ai/chat/proposals/${proposalRow.id}/build`, {});
+    expect(res.status).toBe(201);
+    expect(res.body.generation.revisionMessage).toBe(request);
   });
 
   test("building a proposal twice returns 409", async () => {
@@ -2397,15 +2444,19 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
 });
 
 describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
+  let clientId = "";
+  let trainerId = "";
   let genId = "";
   let original: any = null;
 
   test("setup: client and a validated block draft", async () => {
     const c = await call("POST", "/v1/clients", { name: "Plan Edit Client", email: `plan-${Date.now()}@test.dev`, daysPerWeek: 3 });
     expect(c.status).toBe(201);
+    clientId = c.body.id;
     const g = await call("POST", "/v1/ai/generate", { clientId: c.body.id, providerId: "mock" });
     expect(g.status).toBe(201);
     genId = g.body.id;
+    trainerId = g.body.trainerId;
     original = g.body.draft.phasing;
     expect(original?.weeks?.length).toBeGreaterThan(1);
   });
@@ -2442,5 +2493,48 @@ describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
   test("unknown generation is 404", async () => {
     const res = await call("POST", `/v1/ai/generations/00000000-0000-0000-0000-000000000000/phasing`, { phasing: original });
     expect(res.status).toBe(404);
+  });
+
+  test("a draft that is not validated is refused", async () => {
+    const [pending] = await db
+      .insert(aiGenerations)
+      .values({ trainerId, clientId, kind: "block", providerId: "mock", model: "mock-draft-v1", status: "pending" })
+      .returning();
+    const res = await call("POST", `/v1/ai/generations/${pending.id}/phasing`, { phasing: original });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("generation is pending, not validated");
+  });
+
+  test("a week draft is refused", async () => {
+    const [week] = await db
+      .insert(aiGenerations)
+      .values({
+        trainerId,
+        clientId,
+        kind: "week",
+        targetWeek: 2,
+        providerId: "mock",
+        model: "mock-week-v1",
+        status: "validated",
+        draft: mockWeekDraft(2, null),
+      })
+      .returning();
+    const res = await call("POST", `/v1/ai/generations/${week.id}/phasing`, { phasing: original });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("week drafts follow the block's plan");
+  });
+
+  test("a plan edit while a revision is running is refused", async () => {
+    const [running] = await db
+      .insert(aiGenerations)
+      .values({ trainerId, clientId, kind: "block", providerId: "mock", model: "mock-draft-v1", status: "pending", parentGenerationId: genId })
+      .returning();
+    const phasing = structuredClone(original);
+    phasing.weeks[0] = { ...phasing.weeks[0], note: "Deload week" };
+    const res = await call("POST", `/v1/ai/generations/${genId}/phasing`, { phasing });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("a revision is already running for this generation");
+
+    await db.delete(aiGenerations).where(eq(aiGenerations.id, running.id));
   });
 });
