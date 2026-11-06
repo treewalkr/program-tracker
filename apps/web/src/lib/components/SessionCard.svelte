@@ -79,7 +79,7 @@
         <div class="exrow" class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
           <div class="ex">
             {#if e.role}<RoleChip role={e.role} />{/if}
-            <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"} · not in proposal{/if}</span>{/if}</span>
+            <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"}{" · not in proposal"}{/if}</span>{/if}</span>
             {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
               {@const info = MOVEMENT_PATTERN_INFO[e.movementPattern as MovementPattern]}
               <span class="mp-tag" title={info.description}>{info.label}</span>

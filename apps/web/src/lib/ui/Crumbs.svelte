@@ -14,7 +14,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <p class="crumbs">
 	{#each items as c, i (i)}
-		{#if i > 0}<span class="sep" aria-hidden="true"> / </span>{/if}
+		{#if i > 0}<span class="sep" aria-hidden="true">{" / "}</span>{/if}
 		{#if c.href}<a href={c.href}>{c.label}</a>{:else}{c.label}{/if}
 	{/each}
 </p>

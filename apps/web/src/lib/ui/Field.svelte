@@ -22,11 +22,11 @@
 <div>
 	{#if htmlFor}
 		<label class="label" for={htmlFor}>
-			{label}{#if hint} <span class="subtle">— {hint}</span>{/if}
+			{label}{#if hint}{" "}<span class="subtle">— {hint}</span>{/if}
 		</label>
 	{:else}
 		<span class="label">
-			{label}{#if hint} <span class="subtle">— {hint}</span>{/if}
+			{label}{#if hint}{" "}<span class="subtle">— {hint}</span>{/if}
 		</span>
 	{/if}
 	{@render children()}
