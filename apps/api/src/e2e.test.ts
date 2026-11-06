@@ -46,7 +46,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       name: "E2E Client",
       email: `e2e-${Date.now()}@test.dev`,
       goals: "press 100kg",
-      daysPerWeek: 2,
+      sessionsPerWeek: 2,
     });
     expect(status).toBe(201);
     clientId = body.id;
@@ -71,25 +71,20 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
-              id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              id: programSessionId,
+              name: "Day A",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
-                  id: programSessionId,
-                  name: "Day A",
+                  id: crypto.randomUUID(),
+                  exerciseId: squatId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId: squatId,
-                      order: 0,
-                      prescribedSets: [
-                        { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
-                      ],
-                    },
+                  prescribedSets: [
+                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
                   ],
                 },
               ],
@@ -188,10 +183,11 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     // mock draft proposes phasing — approve carries it into the program
     expect(body.phasing?.plannedWeeks).toBe(4);
     expect(body.phasing?.weeks?.some((w: any) => w.directive === "deload")).toBe(true);
-    // every week's days include the cardio day
+    // every week holds the two lifting sessions and the cardio session on its own track
     for (const w of body.weeks) {
-      expect(w.days).toHaveLength(3);
-      const cardio = w.days[2].sessions[0];
+      expect(w.sessions).toHaveLength(3);
+      expect(w.sessions.map((s: any) => `${s.kind}:${s.seq}`).sort()).toEqual(["cardio:1", "lifting:1", "lifting:2"]);
+      const cardio = w.sessions.find((s: any) => s.kind === "cardio");
       expect(cardio.kind).toBe("cardio");
       expect(cardio.cardio?.modality).toBe("Bike");
       expect(cardio.exercises).toEqual([]);
@@ -199,19 +195,17 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     // every exercise carries its display name — the UI renders it directly
     expect(body.weeks).toHaveLength(4);
     for (const w of body.weeks) {
-      for (const d of w.days) {
-        for (const s of d.sessions) {
-          for (const e of s.exercises) {
-            expect(e.exerciseName, `exercise ${e.exerciseId} must have a display name`).toBeTruthy();
-          }
-          // the mock draft roles every exercise and approve sorts by role rank
-          const ranks = s.exercises.map((e: any) => EXERCISE_ROLES.indexOf(e.role));
-          expect(ranks.every((r: number) => r >= 0), "every exercise must carry a role").toBe(true);
-          expect(
-            ranks.every((r: number, i: number) => i === 0 || r >= ranks[i - 1]),
-            "session exercises must be sorted power → primary → strength → accessory → core"
-          ).toBe(true);
+      for (const s of w.sessions) {
+        for (const e of s.exercises) {
+          expect(e.exerciseName, `exercise ${e.exerciseId} must have a display name`).toBeTruthy();
         }
+        // the mock draft roles every exercise and approve sorts by role rank
+        const ranks = s.exercises.map((e: any) => EXERCISE_ROLES.indexOf(e.role));
+        expect(ranks.every((r: number) => r >= 0), "every exercise must carry a role").toBe(true);
+        expect(
+          ranks.every((r: number, i: number) => i === 0 || r >= ranks[i - 1]),
+          "session exercises must be sorted power → primary → strength → accessory → core"
+        ).toBe(true);
       }
     }
 
@@ -235,7 +229,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(approveRes.body.direction).toBe("Build squat volume; keep upper body at maintenance.");
   });
 
-  test("approve assigns weekday defaults from client trainingDays", async () => {
+  test("approve places sessions on the client's trainingDays", async () => {
     const cRes = await call("POST", "/v1/clients", {
       name: "TrainingDays Client",
       email: `td-${Date.now()}@test.dev`,
@@ -253,9 +247,13 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     const appRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
     expect(appRes.status).toBe(201);
     const approved = appRes.body;
-    expect(approved.weeks[0].days).toHaveLength(3);
-    const weekdays = approved.weeks[0].days.map((d: any) => d.weekday);
-    expect(weekdays).toEqual([1, 2, null]);
+    // 2 lifting sessions take Mon + Tue; cardio stacks on the lighter day (never left off)
+    const at = (w: any) => Object.fromEntries(w.sessions.map((s: any) => [`${s.kind}:${s.seq}`, s.weekday]));
+    const w1 = at(approved.weeks[0]);
+    expect([w1["lifting:1"], w1["lifting:2"]]).toEqual([1, 2]);
+    expect([1, 2]).toContain(w1["cardio:1"]);
+    // every week shares week 1's placement
+    for (const w of approved.weeks) expect(at(w)).toEqual(w1);
   });
 
   test("generate persists merged instructions on the audit row", async () => {
@@ -324,13 +322,13 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(getRes.body.approvedProgramId).toBe(approvedProgram.id);
   });
 
-  test("approve 422s and fails validation when the draft maps to more than 7 days", async () => {
+  test("approve 422s and fails validation when the draft maps to more than 14 sessions", async () => {
     const [trainer] = await db.select().from(trainers).limit(1);
     const breachDraft: AiProgramDraft = {
       name: "Breach Block",
-      rationale: "8 sessions maps to 8 days which exceeds the 7-day limit",
+      rationale: "15 sessions exceeds the 14-session week limit",
       clientSummary: "boundary test",
-      sessions: Array.from({ length: 8 }, (_, i) => ({
+      sessions: Array.from({ length: 15 }, (_, i) => ({
         name: `Day ${i + 1}`,
         kind: "lifting",
         exercises: [
@@ -525,13 +523,14 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(approvedRes.status).toBe(201);
     const approvedProg = approvedRes.body;
 
-    const session = approvedProg.weeks[0].days[0].sessions[0];
+    const firstLift = (w: any) => w.sessions.find((s: any) => s.kind === "lifting" && s.seq === 1);
+    const session = firstLift(approvedProg.weeks[0]);
     expect(session.exercises.length).toBeGreaterThanOrEqual(2);
     const removedExercise = session.exercises[session.exercises.length - 1];
     const removedName = removedExercise.exerciseName ?? removedExercise.exerciseId;
     const editedWeeks = structuredClone(approvedProg.weeks);
     for (const w of editedWeeks) {
-      w.days[0].sessions[0].exercises = w.days[0].sessions[0].exercises.filter(
+      firstLift(w).exercises = firstLift(w).exercises.filter(
         (e: any) => (e.exerciseName ?? e.exerciseId) !== removedName
       );
     }
@@ -658,24 +657,19 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
   const weeksDoc = () => [
     {
       week: 1,
-      days: [
+      sessions: [
         {
           id: crypto.randomUUID(),
-          day: 1,
-          sessions: [
+          name: "Day A",
+          seq: 1,
+          order: 0,
+          kind: "lifting",
+          exercises: [
             {
               id: crypto.randomUUID(),
-              name: "Day A",
+              exerciseId: squatId,
               order: 0,
-              kind: "lifting",
-              exercises: [
-                {
-                  id: crypto.randomUUID(),
-                  exerciseId: squatId,
-                  order: 0,
-                  prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
-                },
-              ],
+              prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
             },
           ],
         },
@@ -690,24 +684,19 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
               id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              name: "Day A",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
                   id: crypto.randomUUID(),
-                  name: "Day A",
+                  exerciseId: squatId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId: squatId,
-                      order: 0,
-                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
-                    },
-                  ],
+                  prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
                 },
               ],
             },
@@ -715,24 +704,19 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
         },
         {
           week: 3,
-          days: [
+          sessions: [
             {
               id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              name: "Day B",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
                   id: crypto.randomUUID(),
-                  name: "Day B",
+                  exerciseId: squatId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId: squatId,
-                      order: 0,
-                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
-                    },
-                  ],
+                  prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
                 },
               ],
             },
@@ -1084,7 +1068,7 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
       name: "Chains Week Client",
       email: `chains-${Date.now()}@test.dev`,
       goals: "hypertrophy",
-      daysPerWeek: 3,
+      sessionsPerWeek: 3,
     });
     const cId = clientRes.body.id;
 
@@ -1102,24 +1086,19 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
               id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              name: "Day 1",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
                   id: crypto.randomUUID(),
-                  name: "Day 1",
+                  exerciseId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId,
-                      order: 0,
-                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
-                    },
-                  ],
+                  prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
                 },
               ],
             },
@@ -1208,24 +1187,19 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
               id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              name: "Day A",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
                   id: crypto.randomUUID(),
-                  name: "Day A",
+                  exerciseId: squatId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId: squatId,
-                      order: 0,
-                      prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
-                    },
-                  ],
+                  prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }],
                 },
               ],
             },
@@ -1339,21 +1313,17 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
       [
         {
           id: crypto.randomUUID(),
-          day: 1,
-          sessions: [
+          name: "Session 1",
+          seq: 1,
+          weekday: 1,
+          order: 0,
+          kind: "lifting" as const,
+          exercises: [
             {
               id: crypto.randomUUID(),
-              name: "Day 1",
+              exerciseId,
               order: 0,
-              kind: "lifting" as const,
-              exercises: [
-                {
-                  id: crypto.randomUUID(),
-                  exerciseId,
-                  order: 0,
-                  prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5 }],
-                },
-              ],
+              prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }],
             },
           ],
         },
@@ -1475,14 +1445,16 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     expect(body.status).toBe("active");
     expect(body.weeks.length).toBe(4);
 
-    // week-2 days = 3 incl. cardio day (modality "Bike")
-    expect(body.weeks[1].days).toHaveLength(3);
-    const cardioSession = body.weeks[1].days[2].sessions[0];
-    expect(cardioSession.kind).toBe("cardio");
+    // week-2 sessions = 3 incl. the cardio session (modality "Bike")
+    expect(body.weeks[1].sessions).toHaveLength(3);
+    const cardioSession = body.weeks[1].sessions.find((s: any) => s.kind === "cardio");
     expect(cardioSession.cardio?.modality).toBe("Bike");
 
-    // week-2 ids != old ids
-    expect(body.weeks[1].days[0].id).not.toBe(preWeeks[1].days[0].id);
+    // week-2 ids != old ids; Session 1 keeps its old weekday (matched by kind:seq)
+    const oldS1 = preWeeks[1].sessions.find((s: any) => s.kind === "lifting" && s.seq === 1);
+    const newS1 = body.weeks[1].sessions.find((s: any) => s.kind === "lifting" && s.seq === 1);
+    expect(newS1.id).not.toBe(oldS1.id);
+    expect(newS1.weekday).toBe(oldS1.weekday);
 
     // weeks 1/3 deep-equal pre-approve snapshots
     expect(body.weeks[0]).toEqual(preWeeks[0]);
@@ -1539,47 +1511,37 @@ describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
   const twoDayWeek = () => [
     {
       week: 1,
-      days: [
+      sessions: [
         {
           id: crypto.randomUUID(),
-          day: 1,
-          sessions: [
+          name: "Day A",
+          seq: 1,
+          order: 0,
+          kind: "lifting",
+          exercises: [
             {
               id: crypto.randomUUID(),
-              name: "Day A",
+              exerciseId: squatId,
               order: 0,
-              kind: "lifting",
-              exercises: [
-                {
-                  id: crypto.randomUUID(),
-                  exerciseId: squatId,
-                  order: 0,
-                  prescribedSets: [
-                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
-                  ],
-                },
+              prescribedSets: [
+                { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
               ],
             },
           ],
         },
         {
           id: crypto.randomUUID(),
-          day: 2,
-          sessions: [
+          name: "Day B",
+          seq: 2,
+          order: 0,
+          kind: "lifting",
+          exercises: [
             {
               id: crypto.randomUUID(),
-              name: "Day B",
+              exerciseId: squatId,
               order: 0,
-              kind: "lifting",
-              exercises: [
-                {
-                  id: crypto.randomUUID(),
-                  exerciseId: squatId,
-                  order: 0,
-                  prescribedSets: [
-                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
-                  ],
-                },
+              prescribedSets: [
+                { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
               ],
             },
           ],
@@ -1597,7 +1559,7 @@ describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
       name: "Example Lib Client",
       email: `exlib-${Date.now()}@test.dev`,
       goals: "lean bulk",
-      daysPerWeek: 2,
+      sessionsPerWeek: 2,
     });
     expect(c.status).toBe(201);
     clientId = c.body.id;
@@ -1629,7 +1591,7 @@ describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
     expect(marked.body.goal).toBe("lean bulk hypertrophy");
     expect(marked.body.level).toBe("intermediate");
     expect(marked.body.programId).toBe(programId);
-    // derived from the program's first week (2 days)
+    // derived from the program's first week (2 lifting sessions)
     expect(marked.body.daysPerWeek).toBe(2);
     expect(marked.body.program.id).toBe(programId);
 
@@ -1721,12 +1683,12 @@ describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
     const found = await call("GET", "/v1/exercises?q=squat");
     const squatId = found.body[0].id;
 
-    const mk = async (name: string, goals: string, daysPerWeek: number) => {
+    const mk = async (name: string, goals: string, sessionsPerWeek: number) => {
       const c = await call("POST", "/v1/clients", {
         name,
         email: `exgen-${name}-${Date.now()}@test.dev`,
         goals,
-        daysPerWeek,
+        sessionsPerWeek,
       });
       expect(c.status).toBe(201);
       return c.body.id as string;
@@ -1742,25 +1704,20 @@ describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
               id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              name: "Day A",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
                   id: crypto.randomUUID(),
-                  name: "Day A",
+                  exerciseId: squatId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId: squatId,
-                      order: 0,
-                      prescribedSets: [
-                        { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
-                      ],
-                    },
+                  prescribedSets: [
+                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
                   ],
                 },
               ],
@@ -1824,7 +1781,7 @@ describe.skipIf(!dbUp)("client messages (mock provider)", () => {
     const c = await call("POST", "/v1/clients", {
       name: "Message Client",
       email: `msg-${Date.now()}@test.dev`,
-      daysPerWeek: 2,
+      sessionsPerWeek: 2,
     });
     expect(c.status).toBe(201);
     clientId = c.body.id;
@@ -1844,25 +1801,20 @@ describe.skipIf(!dbUp)("client messages (mock provider)", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
               id: crypto.randomUUID(),
-              day: 1,
-              sessions: [
+              name: "Day A",
+              seq: 1,
+              order: 0,
+              kind: "lifting",
+              exercises: [
                 {
                   id: crypto.randomUUID(),
-                  name: "Day A",
+                  exerciseId: squatId,
                   order: 0,
-                  kind: "lifting",
-                  exercises: [
-                    {
-                      id: crypto.randomUUID(),
-                      exerciseId: squatId,
-                      order: 0,
-                      prescribedSets: [
-                        { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
-                      ],
-                    },
+                  prescribedSets: [
+                    { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 },
                   ],
                 },
               ],
@@ -2029,7 +1981,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
       name: clientName,
       email: `chat-${Date.now()}@test.dev`,
       goals: "strength & chat test",
-      daysPerWeek: 3,
+      sessionsPerWeek: 3,
     });
     expect(clientRes.status).toBe(201);
     clientId = clientRes.body.id;
@@ -2190,7 +2142,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
   });
 
   test("a proposal build keeps the trainer's request when both rows share a millisecond", async () => {
-    const c = await call("POST", "/v1/clients", { name: "Same Millisecond Client", email: `same-ms-${Date.now()}@test.dev`, daysPerWeek: 2 });
+    const c = await call("POST", "/v1/clients", { name: "Same Millisecond Client", email: `same-ms-${Date.now()}@test.dev`, sessionsPerWeek: 2 });
     expect(c.status).toBe(201);
     const g = await call("POST", "/v1/ai/generate", { clientId: c.body.id, providerId: "mock" });
     expect(g.status).toBe(201);
@@ -2450,7 +2402,7 @@ describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
   let original: any = null;
 
   test("setup: client and a validated block draft", async () => {
-    const c = await call("POST", "/v1/clients", { name: "Plan Edit Client", email: `plan-${Date.now()}@test.dev`, daysPerWeek: 3 });
+    const c = await call("POST", "/v1/clients", { name: "Plan Edit Client", email: `plan-${Date.now()}@test.dev`, sessionsPerWeek: 3 });
     expect(c.status).toBe(201);
     clientId = c.body.id;
     const g = await call("POST", "/v1/ai/generate", { clientId: c.body.id, providerId: "mock" });

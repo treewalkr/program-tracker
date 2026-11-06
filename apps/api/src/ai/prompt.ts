@@ -17,7 +17,10 @@ export interface ClientContext {
   name: string;
   goals?: string | null;
   limitations?: string | null;
-  daysPerWeek?: number | null;
+  /** Lifting sessions per week (cardio does not count). */
+  sessionsPerWeek?: number | null;
+  /** Available ISO weekdays (1=Mon…7=Sun) — context only; code places sessions. */
+  trainingDays?: number[] | null;
   cardioTarget?: CardioTarget | null;
 }
 
@@ -25,6 +28,7 @@ export interface ProgramSummary {
   name: string;
   sessions: {
     name: string;
+    kind?: "lifting" | "cardio";
     exercises: { name: string; role?: string; sets: string[] }[];
   }[];
 }
@@ -92,7 +96,7 @@ const DRAFT_SCHEMA_SPEC = `{
       }
     ]?
   },
-  "sessions": [                     // exactly the client's training days per week
+  "sessions": [                     // one week: the lifting sessions, then any cardio sessions (no weekdays — the app schedules them)
     {
       "name": string,
       "kind"?: "lifting" | "cardio", // defaults to "lifting"
@@ -141,6 +145,36 @@ const GOLD_STANDARD_RULE =
 const CARDIO_TARGET_RULE =
   "- When a CARDIO TARGET is given, the week's cardio prescriptions must add up to it.";
 
+const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** How many lifting sessions to ask for: the client's setting, else the current program's. */
+function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | null): string {
+  if (client.sessionsPerWeek) return `exactly ${client.sessionsPerWeek}`;
+  const prev = previous?.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length ?? 0;
+  return prev > 0
+    ? `exactly ${prev} (not set on the client — match the current program's lifting sessions)`
+    : "not specified — infer a sensible number from the goals and history";
+}
+
+/** Session-structure rules shared by every draft-producing prompt. */
+function sessionStructureRules(client: ClientContext, previous: ProgramSummary | null): string[] {
+  const days = [...new Set(client.trainingDays ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
+  return [
+    `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous)}. List them in the order they should be trained.`,
+    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the lifting session number and do not use up a training day. List cardio sessions after the lifting ones.',
+    '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
+    `- Do not assign weekdays: the app places sessions on the calendar.${
+      days.length ? ` For context only, the client can train on ${days.map((d) => WEEKDAY_NAMES[d - 1]).join(", ")}; sessions may share a day.` : ""
+    }`,
+  ];
+}
+
+const WEEK_STABILITY_RULE =
+  "- sessions is exactly one week. Keep the current week's sessions in the same order (lifting first, then cardio) so each one keeps its calendar slot; add or drop a session only with a reason stated in rationale.";
+
+const MARKDOWN_RULE =
+  '- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins naming the session (e.g. **Lower — squat focus**), and bullet lists for per-session/per-week breakdowns. No headings, no tables.';
+
 function cardioTargetLine(target: CardioTarget): string {
   const label = cardioUnitLabel(target.unit);
   const unitPhrase =
@@ -166,14 +200,13 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
-    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     GOLD_STANDARD_RULE,
-    `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
+    ...sessionStructureRules(ctx.client, ctx.previousProgram),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
-    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
   ].join("\n");
 
@@ -274,7 +307,7 @@ export interface RevisionContext extends GenerationContext {
 }
 
 /** Output schema spec for proposal turns (propose → build). */
-const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (session number from DRAFT SLOTS), "slot": number | null (exercise number from DRAFT SLOTS; null only for kind "add"), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s")}]} | null}`;
+const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null only for kind "add"), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s")}]} | null}`;
 
 const PROPOSAL_RULES = [
   "- This is a CHAT TURN. You do NOT write a new draft in this turn.",
@@ -283,12 +316,15 @@ const PROPOSAL_RULES = [
 
 /** Numbered slot listing the proposal contract refers to. */
 export function draftSlotsText(d: AiProgramDraft): string {
+  const seq = { lifting: 0, cardio: 0 };
   return d.sessions
     .map((s, di) => {
+      const kind = s.kind === "cardio" ? "cardio" : "lifting";
+      const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
       const rows = s.exercises.map(
-        (e, ei) => `  S${ei + 1} ${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`
+        (e, ei) => `  slot ${ei + 1} ${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`
       );
-      return [`D${di + 1} ${s.name}`, ...rows].join("\n");
+      return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
     })
     .join("\n");
 }
@@ -308,14 +344,13 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
-    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     GOLD_STANDARD_RULE,
-    `- Number of sessions must equal the client's days per week (${ctx.client.daysPerWeek ?? "not specified — infer from the previous program"}).`,
+    ...sessionStructureRules(ctx.client, ctx.previousProgram),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
-    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
     ...(proposal
       ? PROPOSAL_RULES
@@ -428,11 +463,11 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
-    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
-    "- sessions is exactly one week — the client's training days.",
+    ...sessionStructureRules(ctx.client, ctx.previousProgram),
+    WEEK_STABILITY_RULE,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
-    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
   ].join("\n");
 
@@ -510,11 +545,11 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
-    "- Cardio sessions are their own kind: 'cardio' sessions (no exercises, named 'Cardio N' on their own numbering track) and count toward days-per-week.",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
-    "- sessions is exactly one week — the client's training days.",
+    ...sessionStructureRules(ctx.client, ctx.previousProgram),
+    WEEK_STABILITY_RULE,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
-    "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
+    MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
     ...(proposal
       ? PROPOSAL_RULES
@@ -621,7 +656,7 @@ function programToText(p: ProgramSummary): string {
   return p.sessions
     .map(
       (s) =>
-        `- ${s.name}: ${s.exercises
+        `- ${s.name}${s.kind === "cardio" ? " (cardio)" : ""}: ${s.exercises
           .map((e) => `${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
           .join(", ")}`
     )

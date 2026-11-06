@@ -16,6 +16,7 @@ import {
   combinePreferenceDocs,
   pulseSummary,
   selectExamples,
+  sessionsInSeqOrder,
   weekOf,
 } from "@pt/shared";
 import { ContextError } from "../ai/runtime";
@@ -48,11 +49,12 @@ export async function loadContext(
       const targetWeekObj = focus?.focusWeek
         ? p.sessions.find((w) => w.week === focus.focusWeek) ?? p.sessions[p.sessions.length - 1]
         : p.sessions[p.sessions.length - 1];
-      const targetSessions = targetWeekObj ? targetWeekObj.days.flatMap((d) => d.sessions) : [];
+      const targetSessions = targetWeekObj ? sessionsInSeqOrder(targetWeekObj.sessions) : [];
       previous = {
         name: p.name,
         sessions: targetSessions.map((s) => ({
           name: s.name,
+          kind: s.kind,
           exercises: s.exercises.map((e) => ({
             name: nameById.get(e.exerciseId) ?? e.exerciseId,
             role: e.role,
@@ -112,7 +114,7 @@ export async function loadContext(
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
 
   // Gold-standard few-shot retrieval — the trainer's example library, ranked
-  // by goal-word overlap + days/week proximity, capped at 2 positive matches.
+  // by goal-word overlap + sessions/week proximity, capped at 2 positive matches.
   const exampleRows = await db
     .select({ example: programExamples, program: programs })
     .from(programExamples)
@@ -127,7 +129,7 @@ export async function loadContext(
       daysPerWeek: example.daysPerWeek,
       createdAt: example.createdAt,
     })),
-    { goals: client.goals, daysPerWeek: client.daysPerWeek },
+    { goals: client.goals, daysPerWeek: client.sessionsPerWeek },
     { excludeProgramId: basedOnProgramId, limit: 2 },
   );
   const examples: ExampleProgramSummary[] = matched.flatMap((m) => {
@@ -141,8 +143,9 @@ export async function loadContext(
         goal: m.goal,
         level: m.level,
         daysPerWeek: m.daysPerWeek,
-        sessions: firstWeek.days.flatMap((d) => d.sessions).map((s) => ({
+        sessions: sessionsInSeqOrder(firstWeek.sessions).map((s) => ({
           name: s.name,
+          kind: s.kind,
           exercises: s.exercises.map((e) => ({
             name: e.exerciseName ?? e.exerciseId,
             role: e.role,
@@ -160,7 +163,8 @@ export async function loadContext(
       name: client.name,
       goals: client.goals,
       limitations: client.limitations,
-      daysPerWeek: client.daysPerWeek,
+      sessionsPerWeek: client.sessionsPerWeek,
+      trainingDays: client.trainingDays ?? null,
       cardioTarget: client.cardioTarget ?? null,
     },
     previousProgram: previous,

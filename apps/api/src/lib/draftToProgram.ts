@@ -1,15 +1,25 @@
-import { applyDefaultWeekdays, sortExercisesByRole, stampWeeks } from "@pt/shared";
-import type {
-  AiProgramDraft,
-  DraftExerciseRef,
-  ProgramDay,
-  ProgramSession,
-  ProgramWeek,
+import {
+  MAX_SESSIONS_PER_WEEKDAY,
+  placeSessions,
+  placeWeeks,
+  sessionKey,
+  sessionsInSeqOrder,
+  sortExercisesByRole,
+  stampWeeks,
 } from "@pt/shared";
+import type { AiProgramDraft, DraftExerciseRef, ProgramSession, ProgramWeek } from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
   name: string;
+  /** Feeds the placer's lower/upper focus read; absent = unknown. */
+  movementPattern?: string | null;
+}
+
+/** exerciseId → movement pattern, for `placeSessions`/`placeWeeks`. */
+export function patternLookup(catalog: CatalogLike[]): (exerciseId: string) => string | null | undefined {
+  const byId = new Map(catalog.map((c) => [c.id, c.movementPattern]));
+  return (id) => byId.get(id);
 }
 
 export type Resolution =
@@ -43,18 +53,21 @@ export function resolveRef(
   return { kind: "unresolvable", ref: ref.exerciseId ?? "<no ref>" };
 }
 
-export function draftTemplateDays(
+/** Draft sessions → a one-week, unplaced session template. `seq` numbers each
+ *  kind's track in draft order (lifting "Session N", cardio "Cardio N"). */
+export function draftTemplateSessions(
   draft: AiProgramDraft,
   catalog: CatalogLike[]
-): { days: ProgramDay[]; createdNames: string[]; unresolvable: string[] } {
+): { sessions: ProgramSession[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
   const nameById = new Map(catalog.map((c) => [c.id, c.name]));
   const byName = new Map(catalog.map((c) => [c.name.toLowerCase(), c.id]));
   const createdNames: string[] = [];
   const unresolvable: string[] = [];
+  const seq = { lifting: 0, cardio: 0 };
 
-  const days: ProgramDay[] = draft.sessions.map((s, si) => {
-    const isCardio = (s as any).kind === "cardio";
+  const sessions: ProgramSession[] = draft.sessions.map((s) => {
+    const isCardio = s.kind === "cardio";
     const exercises = isCardio
       ? []
       : sortExercisesByRole(s.exercises ?? []).flatMap((ref, ei) => {
@@ -85,24 +98,21 @@ export function draftTemplateDays(
           ];
         });
 
-    const session: ProgramSession = {
-      id: crypto.randomUUID(),
-      name: s.name,
-      order: 0,
-      kind: isCardio ? ("cardio" as const) : ("lifting" as const),
-      notes: s.notes,
-      exercises,
-      cardio: isCardio ? (s as any).cardio : null,
-    };
-
+    const kind = isCardio ? ("cardio" as const) : ("lifting" as const);
     return {
       id: crypto.randomUUID(),
-      day: si + 1,
-      sessions: [session],
+      name: s.name,
+      seq: ++seq[kind],
+      weekday: null,
+      order: 0,
+      kind,
+      notes: s.notes,
+      exercises,
+      cardio: isCardio ? s.cardio : null,
     };
   });
 
-  return { days, createdNames, unresolvable };
+  return { sessions, createdNames, unresolvable };
 }
 
 export function draftToWeeks(
@@ -111,17 +121,21 @@ export function draftToWeeks(
   plannedWeeks = 4,
   trainingDays?: number[] | null
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { days, createdNames, unresolvable } = draftTemplateDays(draft, catalog);
-  const stamped = stampWeeks(days, plannedWeeks);
-  const weeks = applyDefaultWeekdays(stamped, trainingDays);
-
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog);
+  const weeks = placeWeeks(stampWeeks(sessions, plannedWeeks), trainingDays, patternLookup(catalog));
   return { weeks, createdNames, unresolvable };
 }
 
-/** Replace weeks[weekNumber-1] with a freshly-built week from the draft.
- *  Fresh day/session/exercise ids; weekday of new day i =
- *  oldWeek.days[i]?.weekday ?? sortedTrainingDays[i] ?? null (decision 5).
- *  Other week objects pass through untouched. */
+/**
+ * Replace weeks[weekNumber-1] with a freshly-built week from the draft (fresh
+ * session/exercise ids). Placement:
+ *  - a new session whose `kind:seq` existed in the old week takes that session's
+ *    weekday and within-day order (the trainer's calendar survives a regen);
+ *  - an unmatched session goes where `placeSessions` would put it on the
+ *    client's training days if that day still has room (< 4 after the matched
+ *    ones), else the least-loaded training day with room, else unscheduled (null).
+ *  Never more than MAX_SESSIONS_PER_WEEKDAY on a day. Other weeks pass through untouched.
+ */
 export function replaceWeek(
   weeks: ProgramWeek[],
   weekNumber: number,
@@ -129,18 +143,57 @@ export function replaceWeek(
   catalog: CatalogLike[],
   trainingDays?: number[] | null
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { days, createdNames, unresolvable } = draftTemplateDays(draft, catalog);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog);
   const oldWeek = weeks.find((w) => w.week === weekNumber);
-  const sorted = trainingDays ? [...trainingDays].sort((a, b) => a - b) : [];
+  const oldAt = new Map(
+    (oldWeek?.sessions ?? []).map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }])
+  );
+  const ideal = new Map(
+    placeSessions(sessions, trainingDays, patternLookup(catalog)).map((s) => [s.id, s.weekday ?? null])
+  );
 
-  const newDays: ProgramDay[] = days.map((d, i) => ({
-    ...d,
-    weekday: oldWeek?.days[i]?.weekday ?? sorted[i] ?? null,
-  }));
+  const load = new Map<number, number>();
+  const at = new Map<string, { weekday: number | null; order: number }>();
+  const unmatched: ProgramSession[] = [];
+  for (const s of sessionsInSeqOrder(sessions)) {
+    const prev = oldAt.get(sessionKey(s));
+    if (prev && (prev.weekday == null || (load.get(prev.weekday) ?? 0) < MAX_SESSIONS_PER_WEEKDAY)) {
+      at.set(s.id, prev);
+      if (prev.weekday != null) load.set(prev.weekday, (load.get(prev.weekday) ?? 0) + 1);
+    } else {
+      unmatched.push(s);
+    }
+  }
+  const days = [...new Set(trainingDays ?? [])].sort((a, b) => a - b);
+  const hasRoom = (d: number) => (load.get(d) ?? 0) < MAX_SESSIONS_PER_WEEKDAY;
+  for (const s of unmatched) {
+    const want = ideal.get(s.id) ?? null;
+    const open = days.filter(hasRoom);
+    const d =
+      want != null && hasRoom(want)
+        ? want
+        : open.reduce<number | null>((a, b) => (a == null || (load.get(b) ?? 0) < (load.get(a) ?? 0) ? b : a), null);
+    at.set(s.id, { weekday: d, order: Number.MAX_SAFE_INTEGER }); // after the day's matched sessions
+    if (d != null) load.set(d, (load.get(d) ?? 0) + 1);
+  }
+
+  // Compact within-day order to 0..n-1 (matched by old order, then unmatched in seq order).
+  const seqRank = new Map(sessionsInSeqOrder(sessions).map((s, i) => [s.id, i]));
+  const byDay = new Map<number, ProgramSession[]>();
+  for (const s of sessions) {
+    const d = at.get(s.id)!.weekday ?? 0;
+    byDay.set(d, [...(byDay.get(d) ?? []), s]);
+  }
+  const placed = new Map<string, ProgramSession>();
+  for (const list of byDay.values()) {
+    list
+      .sort((a, b) => at.get(a.id)!.order - at.get(b.id)!.order || seqRank.get(a.id)! - seqRank.get(b.id)!)
+      .forEach((s, i) => placed.set(s.id, { ...s, weekday: at.get(s.id)!.weekday, order: i }));
+  }
 
   const newWeek: ProgramWeek = {
     week: weekNumber,
-    days: newDays,
+    sessions: sessions.map((s) => placed.get(s.id)!),
   };
 
   const updatedWeeks = weeks.map((w) => (w.week === weekNumber ? newWeek : w));
@@ -154,20 +207,17 @@ export function bindPendingExercises(
 ): ProgramWeek[] {
   return weeks.map((w) => ({
     ...w,
-    days: w.days.map((d) => ({
-      ...d,
-      sessions: d.sessions.map((s) => ({
-        ...s,
-        exercises: s.exercises.map((e) => {
-          if (e.exerciseId.startsWith("pending:")) {
-            const name = e.exerciseId.slice("pending:".length);
-            const id = nameToId.get(name);
-            if (!id) throw new Error(`unresolved pending exercise: ${name}`);
-            return { ...e, exerciseId: id };
-          }
-          return e;
-        }),
-      })),
+    sessions: w.sessions.map((s) => ({
+      ...s,
+      exercises: s.exercises.map((e) => {
+        if (e.exerciseId.startsWith("pending:")) {
+          const name = e.exerciseId.slice("pending:".length);
+          const id = nameToId.get(name);
+          if (!id) throw new Error(`unresolved pending exercise: ${name}`);
+          return { ...e, exerciseId: id };
+        }
+        return e;
+      }),
     })),
   }));
 }

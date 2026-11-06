@@ -31,22 +31,19 @@ for (const row of rows) {
   let changed = false;
   const weeks = parsed.data.map((week) => ({
     ...week,
-    days: week.days.map((day) => ({
-      ...day,
-      sessions: day.sessions.map((session) => ({
-        ...session,
-        exercises: session.exercises.map((ex) => {
-          if (ex.exerciseName) return ex;
-          const name = catalog.get(ex.exerciseId);
-          if (!name) {
-            missing++;
-            console.warn(`no catalog row for exerciseId ${ex.exerciseId} (${row.name})`);
-            return ex;
-          }
-          changed = true;
-          return { ...ex, exerciseName: name };
-        }),
-      })),
+    sessions: week.sessions.map((session) => ({
+      ...session,
+      exercises: session.exercises.map((ex) => {
+        if (ex.exerciseName) return ex;
+        const name = catalog.get(ex.exerciseId);
+        if (!name) {
+          missing++;
+          console.warn(`no catalog row for exerciseId ${ex.exerciseId} (${row.name})`);
+          return ex;
+        }
+        changed = true;
+        return { ...ex, exerciseName: name };
+      }),
     })),
   }));
 

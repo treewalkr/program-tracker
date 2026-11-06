@@ -96,7 +96,7 @@ export async function computeTrainerSignals(
         toSignalProgram(program),
         programLogs,
         nameOf,
-        client?.daysPerWeek ?? undefined
+        client?.sessionsPerWeek ?? undefined
       )
     );
     // One active program per client — no per-client dedupe needed here.

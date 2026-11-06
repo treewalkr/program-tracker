@@ -8,6 +8,7 @@ import {
   buildWeekMessages,
   buildWeekRevisionMessages,
   conversationToText,
+  draftSlotsText,
   draftToText,
   periodizationContext,
 } from "./ai/prompt";
@@ -31,7 +32,7 @@ describe("extractJsonObject", () => {
 describe("buildGenerationMessages", () => {
   test("limitations reach the prompt verbatim (safety)", () => {
     const { system, user } = buildGenerationMessages({
-      client: { name: "Ada", goals: "get strong", limitations: "Left knee pain — no deep knee flexion", daysPerWeek: 3 },
+      client: { name: "Ada", goals: "get strong", limitations: "Left knee pain — no deep knee flexion", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -42,7 +43,76 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("hard constraint");
     expect(user).toContain("Left knee pain");
     expect(user).toContain("Ada");
-    expect(system).toContain("days per week (3)");
+    expect(system).toContain('Lifting sessions (kind "lifting") per week: exactly 3.');
+  });
+
+  test("session-structure rules: lifting count, separate cardio, focus names, weekdays as context only", () => {
+    const base = {
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    };
+    const { system } = buildGenerationMessages({ ...base, client: { name: "Ada", sessionsPerWeek: 3, trainingDays: [5, 1, 3] } });
+    expect(system).not.toContain("days per week");
+    expect(system).not.toContain("count toward days-per-week");
+    expect(system).toContain("Cardio sessions never count toward the lifting session number and do not use up a training day");
+    expect(system).toContain('unit "sessions" → exactly that many cardio sessions');
+    expect(system).toContain('never by weekday or "Day N"');
+    expect(system).toContain("For context only, the client can train on Mon, Wed, Fri; sessions may share a day.");
+
+    const noDays = buildGenerationMessages({ ...base, client: { name: "Ada", sessionsPerWeek: 3 } });
+    expect(noDays.system).toContain("Do not assign weekdays: the app places sessions on the calendar.");
+    expect(noDays.system).not.toContain("For context only");
+
+    // No client setting → fall back to the previous program's LIFTING session count (cardio excluded)
+    const fallback = buildGenerationMessages({
+      ...base,
+      client: { name: "Ada" },
+      previousProgram: {
+        name: "Block 1",
+        sessions: [
+          { name: "Lower", kind: "lifting", exercises: [] },
+          { name: "Upper", kind: "lifting", exercises: [] },
+          { name: "Z2", kind: "cardio", exercises: [] },
+        ],
+      },
+    });
+    expect(fallback.system).toContain("per week: exactly 2 (not set on the client — match the current program's lifting sessions)");
+    expect(fallback.user).toContain("- Z2 (cardio): ");
+
+    const cold = buildGenerationMessages({ ...base, client: { name: "Ada" } });
+    expect(cold.system).toContain("per week: not specified — infer a sensible number from the goals and history");
+  });
+
+  test("every draft-producing prompt carries the session-structure rules", () => {
+    const base = {
+      client: { name: "Ada", sessionsPerWeek: 4 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    };
+    const previousDraft: AiProgramDraft = { name: "B", rationale: "r", clientSummary: "c", sessions: [] };
+    const week = { ...base, targetWeek: 2, plannedWeeks: 4, targetDirective: null, target: null };
+    const systems = [
+      buildGenerationMessages(base).system,
+      buildRevisionMessages({ ...base, previousDraft, feedback: "f" }).system,
+      buildRevisionMessages({ ...base, previousDraft, feedback: "f", outputContract: "proposal" }).system,
+      buildWeekMessages(week).system,
+      buildWeekRevisionMessages({ ...week, previousDraft, feedback: "f" }).system,
+    ];
+    for (const sys of systems) {
+      expect(sys).toContain('Lifting sessions (kind "lifting") per week: exactly 4.');
+      expect(sys).toContain("Cardio is separate");
+      expect(sys).not.toContain("Number of sessions must equal");
+      expect(sys).not.toContain("**Day 1**");
+    }
+    expect(systems[3]).toContain("Keep the current week's sessions in the same order");
   });
 
   test("history numbers are included for progression reasoning", () => {
@@ -61,7 +131,7 @@ describe("buildGenerationMessages", () => {
 
   test("periodization context is injected and phasing is instructed", () => {
     const { system, user } = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 4 },
+      client: { name: "Maya", sessionsPerWeek: 4 },
       previousProgram: null,
       periodization: "week 3 of 6 · accumulation · this week's directive: +intensity · weekly overall volume 1.8t → 2.1t (+17%)",
       chainBalance: null,
@@ -77,7 +147,7 @@ describe("buildGenerationMessages", () => {
 
   test("role schema field, role rule and previous-program roles reach the prompt", () => {
     const { system, user } = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: {
         name: "Block 1",
         sessions: [{ name: "Day A", exercises: [{ name: "Back Squat", role: "primary", sets: ["5 reps"] }] }],
@@ -96,7 +166,7 @@ describe("buildGenerationMessages", () => {
 
   test("catalog lines carry movement pattern and functional movement", () => {
     const { user } = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -118,7 +188,7 @@ describe("buildGenerationMessages", () => {
 
   test("unclassified catalog entries render n/a markers", () => {
     const { user } = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -140,7 +210,7 @@ describe("buildGenerationMessages", () => {
 
   test("system instructs pattern balance and rationale must explain it", () => {
     const { system } = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -155,7 +225,7 @@ describe("buildGenerationMessages", () => {
 
   test("chain balance reaches the prompt", () => {
     const withBalance = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: "Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral",
@@ -168,7 +238,7 @@ describe("buildGenerationMessages", () => {
     expect(withBalance.system).toContain("five kinetic chains");
 
     const noBalance = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -181,7 +251,7 @@ describe("buildGenerationMessages", () => {
 
   test("buildGenerationMessages includes the standing direction line", () => {
     const withDir = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -193,7 +263,7 @@ describe("buildGenerationMessages", () => {
     expect(withDir.user).toContain("STANDING DIRECTION (block-level — applies to every generation of this block): Build squat volume; keep upper body at maintenance.");
 
     const withoutDir = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -209,7 +279,7 @@ describe("buildGenerationMessages", () => {
 describe("buildWeekMessages", () => {
   test("buildWeekMessages carries direction, directive, target and current-week sessions", () => {
     const { system, user } = buildWeekMessages({
-      client: { name: "Jonas", daysPerWeek: 3 },
+      client: { name: "Jonas", sessionsPerWeek: 3 },
       targetWeek: 3,
       plannedWeeks: 4,
       targetDirective: "+volume",
@@ -242,7 +312,7 @@ describe("buildWeekMessages", () => {
 describe("weekly prompts: learned preferences", () => {
   test("learned preferences section lands in weekly generation prompt", () => {
     const { user } = buildWeekMessages({
-      client: { name: "Jonas", daysPerWeek: 3 },
+      client: { name: "Jonas", sessionsPerWeek: 3 },
       targetWeek: 3,
       plannedWeeks: 4,
       targetDirective: null,
@@ -279,7 +349,7 @@ describe("weekly prompts: learned preferences", () => {
       ],
     };
     const { user } = buildWeekRevisionMessages({
-      client: { name: "Jonas", daysPerWeek: 3 },
+      client: { name: "Jonas", sessionsPerWeek: 3 },
       targetWeek: 3,
       plannedWeeks: 4,
       targetDirective: null,
@@ -306,7 +376,7 @@ describe("weekly prompts: learned preferences", () => {
 
   test("weekly prompts are byte-identical without learned preferences", () => {
     const baseCtx = {
-      client: { name: "Jonas", daysPerWeek: 3 },
+      client: { name: "Jonas", sessionsPerWeek: 3 },
       targetWeek: 3,
       plannedWeeks: 4,
       targetDirective: null as null,
@@ -374,7 +444,7 @@ describe("buildRevisionMessages", () => {
         name: "Ada",
         goals: "hypertrophy",
         limitations: "Shoulder impingement — keep elbow tucked",
-        daysPerWeek: 3,
+        sessionsPerWeek: 3,
       },
       previousProgram: null,
       periodization: null,
@@ -416,7 +486,7 @@ describe("buildRevisionMessages", () => {
     };
 
     const withBalance = buildRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: "Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral",
@@ -431,7 +501,7 @@ describe("buildRevisionMessages", () => {
     expect(withBalance.system).toContain("five kinetic chains");
 
     const noBalance = buildRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -446,7 +516,7 @@ describe("buildRevisionMessages", () => {
 
   test("learned preferences section lands in generation and revision prompts", () => {
     const gen = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -471,7 +541,7 @@ describe("buildRevisionMessages", () => {
       ],
     };
     const rev = buildRevisionMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -492,7 +562,7 @@ describe("buildRevisionMessages", () => {
 
   test("prompts are byte-identical without learned preferences", () => {
     const gen = buildGenerationMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -515,7 +585,7 @@ describe("buildRevisionMessages", () => {
       ],
     };
     const rev = buildRevisionMessages({
-      client: { name: "Maya", daysPerWeek: 2 },
+      client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -612,7 +682,7 @@ describe("draftToWeeks", () => {
     const { weeks, createdNames, unresolvable } = draftToWeeks(draft, catalog);
     expect(unresolvable).toEqual([]);
     expect(createdNames).toEqual(["Cable Crunch"]); // not in catalog → create
-    const s0 = weeks[0].days[0].sessions[0];
+    const s0 = weeks[0].sessions[0];
     expect(s0.exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
     expect(s0.exercises[1].exerciseId).toBe("pending:cable crunch");
   });
@@ -621,7 +691,7 @@ describe("draftToWeeks", () => {
     const d2 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseName: "back squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] }] };
     const { createdNames, weeks } = draftToWeeks(d2, catalog);
     expect(createdNames).toEqual([]);
-    expect(weeks[0].days[0].sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
+    expect(weeks[0].sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
   });
 
   test("bogus id without name is unresolvable, not silently dropped", () => {
@@ -647,13 +717,13 @@ describe("draftToWeeks", () => {
       ],
     };
     const { weeks } = draftToWeeks(d4, catalog);
-    const ex = weeks[0].days[0].sessions[0].exercises;
+    const ex = weeks[0].sessions[0].exercises;
     expect(ex.map((e) => e.exerciseName)).toEqual(["Back Squat", "Bench Press", "Cable Crunch", "Lateral Raise"]);
     expect(ex.map((e) => e.role)).toEqual(["primary", "strength", "core", undefined]);
     expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
   });
 
-  test("draftToWeeks maps cardio draft sessions into cardio days", () => {
+  test("draftToWeeks maps cardio draft sessions into cardio sessions", () => {
     const draftWithCardio: AiProgramDraft = {
       ...draft,
       sessions: [
@@ -666,19 +736,61 @@ describe("draftToWeeks", () => {
       ],
     };
     const { weeks } = draftToWeeks(draftWithCardio, catalog);
-    const day = weeks[0].days[0];
-    expect(day.sessions).toHaveLength(1);
-    expect(day.sessions[0].kind).toBe("cardio");
-    expect(day.sessions[0].cardio?.modality).toBe("Bike");
-    expect(day.sessions[0].cardio?.durationMin).toBe(30);
-    expect(day.sessions[0].cardio?.hrZone).toBe(2);
-    expect(day.sessions[0].exercises).toEqual([]);
+    const sessions = weeks[0].sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].kind).toBe("cardio");
+    expect(sessions[0].seq).toBe(1);
+    expect(sessions[0].cardio?.modality).toBe("Bike");
+    expect(sessions[0].cardio?.durationMin).toBe(30);
+    expect(sessions[0].cardio?.hrZone).toBe(2);
+    expect(sessions[0].exercises).toEqual([]);
   });
 
-  test("drafts with more than 7 sessions produce a document that fails the boundary", () => {
-    const eightSessionDraft: AiProgramDraft = {
+  test("seq numbers each track in draft order; placement spreads lifting and keeps cardio off lifting days", () => {
+    const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
+    const lift = (name: string, id: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: id, prescribedSets: sets }] });
+    const z2 = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Bike", durationMin: 40 }, exercises: [] });
+    const d: AiProgramDraft = {
       ...draft,
-      sessions: Array.from({ length: 8 }, (_, i) => ({
+      sessions: [lift("Lower A", catalog[0].id), z2("Z2 A"), lift("Upper", catalog[1].id), lift("Lower B", catalog[0].id), z2("Z2 B")],
+    };
+    const patterned = [
+      { ...catalog[0], movementPattern: "knee_dominant" },
+      { ...catalog[1], movementPattern: "horizontal_push" },
+    ];
+    // Mon, Tue, Wed, Fri, Sat
+    const { weeks } = draftToWeeks(d, patterned, 3, [1, 2, 3, 5, 6]);
+    expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
+    const tags = (w: (typeof weeks)[number]) =>
+      Object.fromEntries(w.sessions.map((s) => [s.name, `${s.kind}:${s.seq}@${s.weekday}`]));
+    const w1 = tags(weeks[0]);
+    expect(w1["Lower A"]).toStartWith("lifting:1@");
+    expect(w1["Upper"]).toStartWith("lifting:2@");
+    expect(w1["Lower B"]).toStartWith("lifting:3@");
+    expect(w1["Z2 A"]).toStartWith("cardio:1@");
+    expect(w1["Z2 B"]).toStartWith("cardio:2@");
+    const dayOf = (name: string) => weeks[0].sessions.find((s) => s.name === name)!.weekday!;
+    // the two lower sessions are not on back-to-back days
+    expect(Math.abs(dayOf("Lower A") - dayOf("Lower B"))).toBeGreaterThan(1);
+    // cardio lands on training days without lifting (5 days, 3 lifting sessions)
+    const liftDays = new Set(["Lower A", "Upper", "Lower B"].map(dayOf));
+    expect(liftDays.has(dayOf("Z2 A"))).toBe(false);
+    expect(liftDays.has(dayOf("Z2 B"))).toBe(false);
+    // every week gets the same placement, fresh ids
+    expect(tags(weeks[1])).toEqual(w1);
+    expect(tags(weeks[2])).toEqual(w1);
+    expect(weeks[1].sessions[0].id).not.toBe(weeks[0].sessions[0].id);
+  });
+
+  test("no training days → every session unscheduled", () => {
+    const { weeks } = draftToWeeks(draft, catalog, 2, null);
+    expect(weeks.every((w) => w.sessions.every((s) => s.weekday == null))).toBe(true);
+  });
+
+  test("drafts with more than 14 sessions produce a document that fails the boundary", () => {
+    const fifteenSessionDraft: AiProgramDraft = {
+      ...draft,
+      sessions: Array.from({ length: 15 }, (_, i) => ({
         name: `Day ${i + 1}`,
         exercises: [
           {
@@ -688,8 +800,8 @@ describe("draftToWeeks", () => {
         ],
       })),
     };
-    const { weeks } = draftToWeeks(eightSessionDraft, catalog);
-    expect(weeks[0].days).toHaveLength(8);
+    const { weeks } = draftToWeeks(fifteenSessionDraft, catalog);
+    expect(weeks[0].sessions).toHaveLength(15);
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(false);
   });
 });
@@ -698,7 +810,7 @@ describe("bindPendingExercises", () => {
   test("replaces pending ids with real ones", () => {
     const { weeks } = draftToWeeks(draft, catalog);
     const bound = bindPendingExercises(weeks, new Map([["cable crunch", "33333333-3333-3333-3333-333333333333"]]));
-    expect(bound[0].days[0].sessions[0].exercises[1].exerciseId).toBe("33333333-3333-3333-3333-333333333333");
+    expect(bound[0].sessions[0].exercises[1].exerciseId).toBe("33333333-3333-3333-3333-333333333333");
   });
 
   test("throws on a name that never got an id (programming error)", () => {
@@ -720,7 +832,7 @@ describe("cardio target prompt context", () => {
   test("generation prompt includes the cardio target line when set, absent when null", () => {
     const withTarget = buildGenerationMessages({
       ...ctxBase,
-      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "minutes", value: 150 } },
+      client: { name: "Maya", sessionsPerWeek: 3, cardioTarget: { unit: "minutes", value: 150 } },
     });
     expect(withTarget.user).toContain("CARDIO TARGET (per week): 150 min");
     expect(withTarget.user).toContain(
@@ -732,19 +844,19 @@ describe("cardio target prompt context", () => {
 
     const withoutTarget = buildGenerationMessages({
       ...ctxBase,
-      client: { name: "Maya", daysPerWeek: 3, cardioTarget: null },
+      client: { name: "Maya", sessionsPerWeek: 3, cardioTarget: null },
     });
     expect(withoutTarget.user).not.toContain("CARDIO TARGET");
 
     const sessionsTarget = buildGenerationMessages({
       ...ctxBase,
-      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "sessions", value: 2 } },
+      client: { name: "Maya", sessionsPerWeek: 3, cardioTarget: { unit: "sessions", value: 2 } },
     });
     expect(sessionsTarget.user).toContain("CARDIO TARGET (per week): 2 sessions");
 
     const zoneTarget = buildGenerationMessages({
       ...ctxBase,
-      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "zone_minutes", value: 120 } },
+      client: { name: "Maya", sessionsPerWeek: 3, cardioTarget: { unit: "zone_minutes", value: 120 } },
     });
     expect(zoneTarget.user).toContain("CARDIO TARGET (per week): 120 zone-min");
     expect(zoneTarget.user).toContain("so their zone-minutes add up to it");
@@ -760,7 +872,7 @@ describe("cardio target prompt context", () => {
 
     const withTarget = buildRevisionMessages({
       ...ctxBase,
-      client: { name: "Maya", daysPerWeek: 3, cardioTarget: { unit: "minutes", value: 150 } },
+      client: { name: "Maya", sessionsPerWeek: 3, cardioTarget: { unit: "minutes", value: 150 } },
       previousDraft,
       feedback: "more cardio",
     });
@@ -771,7 +883,7 @@ describe("cardio target prompt context", () => {
 
     const withoutTarget = buildRevisionMessages({
       ...ctxBase,
-      client: { name: "Maya", daysPerWeek: 3, cardioTarget: null },
+      client: { name: "Maya", sessionsPerWeek: 3, cardioTarget: null },
       previousDraft,
       feedback: "more cardio",
     });
@@ -780,65 +892,37 @@ describe("cardio target prompt context", () => {
 });
 
 describe("replaceWeek", () => {
-  test("replaceWeek splices fresh ids, carries weekdays, leaves other weeks untouched", () => {
+  const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
+  const oldLift = (name: string, seq: number, weekday: number | null, order = 0, exerciseId = catalog[0].id) => ({
+    id: crypto.randomUUID(),
+    name,
+    seq,
+    weekday,
+    order,
+    kind: "lifting" as const,
+    exercises: [{ id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: sets }],
+  });
+  const oldCardio = (name: string, seq: number, weekday: number | null, order = 0) => ({
+    id: crypto.randomUUID(),
+    name,
+    seq,
+    weekday,
+    order,
+    kind: "cardio" as const,
+    exercises: [],
+    cardio: { modality: "Bike", durationMin: 30 },
+  });
+  const draftLift = (name: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
+  const draftCardio = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Row", durationMin: 25 }, exercises: [] });
+
+  test("replaceWeek splices fresh ids, carries placement by kind:seq, leaves other weeks untouched", () => {
     const initialWeeks = [
-      {
-        week: 1,
-        days: [
-          {
-            id: crypto.randomUUID(),
-            day: 1,
-            weekday: 1,
-            sessions: [
-              {
-                id: crypto.randomUUID(),
-                name: "W1D1",
-                order: 0,
-                kind: "lifting" as const,
-                exercises: [{ id: crypto.randomUUID(), exerciseId: catalog[0].id, order: 0, prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }],
-              },
-            ],
-          },
-        ],
-      },
+      { week: 1, sessions: [oldLift("W1 S1", 1, 1)] },
       {
         week: 2,
-        days: [
-          {
-            id: crypto.randomUUID(),
-            day: 1,
-            weekday: 2,
-            sessions: [
-              {
-                id: crypto.randomUUID(),
-                name: "W2D1-Old",
-                order: 0,
-                kind: "lifting" as const,
-                exercises: [{ id: crypto.randomUUID(), exerciseId: catalog[0].id, order: 0, prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }],
-              },
-            ],
-          },
-        ],
+        sessions: [oldLift("W2 S1-Old", 1, 2), oldCardio("W2 C1-Old", 1, 2, 1), oldLift("W2 S2-Old", 2, 4)],
       },
-      {
-        week: 3,
-        days: [
-          {
-            id: crypto.randomUUID(),
-            day: 1,
-            weekday: 5,
-            sessions: [
-              {
-                id: crypto.randomUUID(),
-                name: "W3D1",
-                order: 0,
-                kind: "lifting" as const,
-                exercises: [{ id: crypto.randomUUID(), exerciseId: catalog[1].id, order: 0, prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }],
-              },
-            ],
-          },
-        ],
-      },
+      { week: 3, sessions: [oldLift("W3 S1", 1, 5, 0, catalog[1].id)] },
     ];
 
     const week2Draft: AiProgramDraft = {
@@ -846,54 +930,106 @@ describe("replaceWeek", () => {
       rationale: "Re-drafted week 2",
       clientSummary: "New week 2",
       sessions: [
+        draftLift("W2 S1-New"),
         {
-          name: "W2D1-New",
-          exercises: [{ exerciseId: catalog[0].id, prescribedSets: [{ setNumber: 1, reps: 6, type: "working", amrap: false }] }],
-        },
-        {
-          name: "W2D2-New",
+          name: "W2 S2-New",
+          kind: "lifting",
           exercises: [
             { exerciseName: "Brand New Exercise", prescribedSets: [{ setNumber: 1, reps: 8, type: "working", amrap: false }] },
             { exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] },
           ],
         },
+        draftCardio("W2 C1-New"),
+        draftLift("W2 S3-New"),
       ],
     };
 
-    // trainingDays = [4, 1] -> sorted = [1, 4]
-    const { weeks, createdNames, unresolvable } = replaceWeek(
-      initialWeeks,
-      2,
-      week2Draft,
-      catalog,
-      [4, 1]
-    );
+    const { weeks, createdNames, unresolvable } = replaceWeek(initialWeeks, 2, week2Draft, catalog, [4, 1]);
 
     // other week objects pass through untouched (deep equal)
     expect(weeks[0]).toEqual(initialWeeks[0]);
     expect(weeks[2]).toEqual(initialWeeks[2]);
 
-    // replaced week has fresh day/session/exercise ids
     const repWeek = weeks[1];
     expect(repWeek.week).toBe(2);
-    expect(repWeek.days).toHaveLength(2);
+    expect(repWeek.sessions).toHaveLength(4);
+    const by = (name: string) => repWeek.sessions.find((x) => x.name === name)!;
 
-    const oldDay0 = initialWeeks[1].days[0];
-    const newDay0 = repWeek.days[0];
-    expect(newDay0.id).not.toBe(oldDay0.id);
-    expect(newDay0.sessions[0].id).not.toBe(oldDay0.sessions[0].id);
-    expect(newDay0.sessions[0].exercises[0].id).not.toBe(oldDay0.sessions[0].exercises[0].id);
+    // fresh session/exercise ids
+    const oldIds = new Set<string>(initialWeeks[1].sessions.flatMap((x) => [x.id, ...x.exercises.map((e) => e.id)]));
+    for (const x of repWeek.sessions) {
+      expect(oldIds.has(x.id)).toBe(false);
+      for (const e of x.exercises) expect(oldIds.has(e.id)).toBe(false);
+    }
 
-    // day-0 weekday preserved from old week (weekday 2)
-    expect(newDay0.weekday).toBe(2);
+    // matched by kind:seq → old weekday + within-day order
+    expect(by("W2 S1-New")).toMatchObject({ kind: "lifting", seq: 1, weekday: 2, order: 0 });
+    expect(by("W2 C1-New")).toMatchObject({ kind: "cardio", seq: 1, weekday: 2, order: 1 });
+    expect(by("W2 S2-New")).toMatchObject({ kind: "lifting", seq: 2, weekday: 4, order: 0 });
 
-    // extra day (day 1) defaults from sorted trainingDays: sorted[1] = 4
-    const newDay1 = repWeek.days[1];
-    expect(newDay1.weekday).toBe(4);
+    // unmatched lifting:3 lands on a training day with room
+    const s3 = by("W2 S3-New");
+    expect(s3.seq).toBe(3);
+    expect([1, 4]).toContain(s3.weekday!);
 
     // createdNames and unresolvable flow through
     expect(createdNames).toEqual(["Brand New Exercise"]);
     expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
+  });
+
+  test("unmatched sessions never push a weekday past 4; no room → unscheduled", () => {
+    const initialWeeks = [
+      {
+        week: 1,
+        sessions: [oldLift("S1", 1, 1, 0), oldLift("S2", 2, 1, 1), oldLift("S3", 3, 1, 2), oldCardio("C1", 1, 1, 3)],
+      },
+    ];
+    const d: AiProgramDraft = {
+      ...draft,
+      sessions: [draftLift("S1"), draftLift("S2"), draftLift("S3"), draftLift("S4"), draftCardio("C1"), draftCardio("C2")],
+    };
+    const { weeks } = replaceWeek(initialWeeks, 1, d, catalog, [1]);
+    expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
+    const at = Object.fromEntries(weeks[0].sessions.map((x) => [x.name, x.weekday]));
+    expect(at).toEqual({ S1: 1, S2: 1, S3: 1, C1: 1, S4: null, C2: null });
+    const unscheduled = weeks[0].sessions.filter((x) => x.weekday == null).map((x) => x.order);
+    expect(unscheduled.sort()).toEqual([0, 1]);
+  });
+
+  test("no old week and no training days → everything unscheduled", () => {
+    const { weeks } = replaceWeek([{ week: 1, sessions: [oldLift("S1", 1, 3)] }], 2, draft, catalog, null);
+    expect(weeks).toHaveLength(1); // only an existing week is replaced
+    const { weeks: w2 } = replaceWeek(
+      [{ week: 1, sessions: [oldCardio("C1", 1, 3)] }],
+      1,
+      { ...draft, sessions: [draftLift("S1")] },
+      catalog,
+      null
+    );
+    expect(w2[0].sessions[0].weekday).toBeNull();
+  });
+});
+
+describe("draftSlotsText", () => {
+  const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
+  const draftLift = (name: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
+  const draftCardio = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Row", durationMin: 25 }, exercises: [] });
+  test("labels sessions by position (#N) and track tag, never by day", () => {
+    const text = draftSlotsText({
+      ...draft,
+      sessions: [
+        draftLift("Lower — squat focus"),
+        draftCardio("Zone 2 row"),
+        draftLift("Upper — push"),
+      ],
+    });
+    expect(text.split("\n").filter((l) => l.startsWith("#"))).toEqual([
+      "#1 Session 1 · Lower — squat focus",
+      "#2 Cardio 1 · Zone 2 row",
+      "#3 Session 2 · Upper — push",
+    ]);
+    expect(text).toContain("  slot 1 ");
+    expect(text).not.toMatch(/\bD\d/);
   });
 });
 
@@ -914,7 +1050,7 @@ describe("example library few-shot", () => {
 
   test("example library reaches the generation prompt as few-shot", () => {
     const { system, user } = buildGenerationMessages({
-      client: { name: "Jonas", goals: "lean bulk to 80 kg", daysPerWeek: 4 },
+      client: { name: "Jonas", goals: "lean bulk to 80 kg", sessionsPerWeek: 4 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -958,7 +1094,7 @@ describe("example library few-shot", () => {
       ],
     };
     const { system, user } = buildRevisionMessages({
-      client: { name: "Jonas", goals: "lean bulk to 80 kg", daysPerWeek: 4 },
+      client: { name: "Jonas", goals: "lean bulk to 80 kg", sessionsPerWeek: 4 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -975,7 +1111,7 @@ describe("example library few-shot", () => {
 
   test("no examples renders the none line in generation and revision prompts", () => {
     const base = {
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1117,7 +1253,7 @@ describe("buildChatSystem", () => {
     };
 
     const sys = buildChatSystem({
-      client: { name: "Maya", goals: "500lb total", limitations: "mild impingement", daysPerWeek: 3 },
+      client: { name: "Maya", goals: "500lb total", limitations: "mild impingement", sessionsPerWeek: 3 },
       previousProgram: {
         name: "Intro Block",
         sessions: [
@@ -1171,7 +1307,7 @@ describe("buildChatSystem", () => {
 
     // With latestDraft: null
     const sysNoDraft = buildChatSystem({
-      client: { name: "Maya", daysPerWeek: 3 },
+      client: { name: "Maya", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1184,7 +1320,7 @@ describe("buildChatSystem", () => {
 
   test("buildChatSystem omits the preferences section when unset; existing builders unchanged", () => {
     const sys = buildChatSystem({
-      client: { name: "Maya", daysPerWeek: 3 },
+      client: { name: "Maya", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1250,7 +1386,7 @@ describe("revision conversation threading", () => {
       "CONVERSATION SO FAR (earlier chat with the trainer, oldest → newest — context only; apply only the TRAINER FEEDBACK below):\nTrainer: a\nAssistant: b\n\nTRAINER FEEDBACK";
 
     const revision = buildRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1264,7 +1400,7 @@ describe("revision conversation threading", () => {
     expect(revision.user).toContain(expected);
 
     const weekRevision = buildWeekRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1298,7 +1434,7 @@ describe("revision conversation threading", () => {
     };
 
     const plain = buildRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1309,7 +1445,7 @@ describe("revision conversation threading", () => {
       feedback: "cut volume",
     });
     const withNull = buildRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1324,7 +1460,7 @@ describe("revision conversation threading", () => {
     expect(plain.user).not.toContain("CONVERSATION SO FAR");
 
     const plainWeek = buildWeekRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,
@@ -1339,7 +1475,7 @@ describe("revision conversation threading", () => {
       feedback: "cut volume",
     });
     const withNullWeek = buildWeekRevisionMessages({
-      client: { name: "Ada", daysPerWeek: 3 },
+      client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
       chainBalance: null,

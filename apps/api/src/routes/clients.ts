@@ -45,7 +45,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         email: t.String({ format: "email" }),
         goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
-        daysPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
+        sessionsPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
         trainingDays: t.Optional(
           t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true }), t.Null()])
         ),
@@ -78,7 +78,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         name: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
         goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
-        daysPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
+        sessionsPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
         trainingDays: t.Optional(
           t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true }), t.Null()])
         ),

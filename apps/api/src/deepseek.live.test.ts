@@ -63,7 +63,7 @@ describe.skipIf(!live || !dbUp)("deepseek live (POST /v1/ai/generate)", () => {
         name: "DeepSeek Live Client",
         email: `deepseek-live-${Date.now()}@test.dev`,
         goals: "build strength",
-        daysPerWeek: 2,
+        sessionsPerWeek: 2,
       });
       expect(client.status).toBe(201);
       const clientId = client.body.id;
@@ -101,7 +101,7 @@ describe.skipIf(!live || !dbUp)("deepseek live (chat refinement)", () => {
           name: "DeepSeek Chat Refine Client",
           email: `deepseek-chat-refine-${Date.now()}@test.dev`,
           goals: "build strength",
-          daysPerWeek: 3,
+          sessionsPerWeek: 3,
         });
         expect(client.status).toBe(201);
         const clientId = client.body.id;
