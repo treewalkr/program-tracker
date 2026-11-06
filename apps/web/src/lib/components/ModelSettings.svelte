@@ -8,7 +8,8 @@
     providerId = $bindable(""),
     model = $bindable(""),
     effort = $bindable(""),
-  }: { providers: ProviderDto[]; providerId: string; model: string; effort: string } = $props();
+    hint = "Applies to this draft's next turns.",
+  }: { providers: ProviderDto[]; providerId: string; model: string; effort: string; hint?: string } = $props();
 
   let open = $state(false);
   let btn = $state<HTMLButtonElement | null>(null);
@@ -33,7 +34,7 @@
   {#if open}
     <div class="ms-pop" id="ms-pop" role="dialog" aria-label="Model settings">
       <ProviderPicker {providers} bind:providerId bind:model bind:effort idPrefix="ms" />
-      <p>Applies to this draft's next turns.</p>
+      <p>{hint}</p>
     </div>
   {/if}
 </div>
