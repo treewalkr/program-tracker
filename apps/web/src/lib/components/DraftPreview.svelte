@@ -289,7 +289,7 @@
   @media (max-width: 980px) {
     .pane {
       height: auto;
-      box-shadow: 0 6px 12px -8px rgba(31, 35, 40, 0.18);
+      box-shadow: var(--shadow-overlay);
     }
     .pane:not(.open) .summary,
     .pane:not(.open) .scroll,

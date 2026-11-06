@@ -498,7 +498,7 @@
     align-items: start;
     padding: 14px 18px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: var(--radius);
     margin-bottom: 14px;
     background: var(--panel, transparent);
   }
@@ -623,7 +623,7 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--surface);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-overlay);
   }
   .savemsg { flex: 1; font-size: 12.5px; color: var(--muted); }
 

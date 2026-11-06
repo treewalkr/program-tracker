@@ -206,7 +206,6 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 1px 0 var(--line);
   }
   .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .role { width: auto; font-size: 12.5px; padding: 4px 8px; }

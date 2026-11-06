@@ -74,7 +74,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+    box-shadow: var(--shadow-overlay);
     padding: 12px;
     display: grid;
     gap: 10px;

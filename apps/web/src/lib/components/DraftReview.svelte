@@ -457,7 +457,7 @@
   .meta { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   .plan { margin-top: 16px; }
-  .plan.editing { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.12); }
+  .plan.editing { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
   .act-r { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .plan .panel-body { padding: 12px 16px; }
   .legend { margin: 8px 2px 0; font-size: 12px; color: var(--muted); }
@@ -511,7 +511,7 @@
   }
   @media (max-width: 700px) {
     .rv-actions { display: none; }
-    .mbar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px 12px; box-shadow: 0 -6px 16px -10px rgba(31, 35, 40, 0.25); }
+    .mbar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px 12px; box-shadow: var(--shadow-overlay-up); }
     .mbar .row :global(.btn) { flex: 1; justify-content: center; min-height: 36px; }
     .mbar .lock, .mbar .paused { margin-top: 6px; }
     .ask { margin-left: 0; }

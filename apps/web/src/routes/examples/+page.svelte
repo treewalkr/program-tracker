@@ -270,7 +270,7 @@
     font: 11px/1.4 var(--font-mono);
     color: var(--muted);
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: 99px;
     padding: 2px 8px;
   }
 

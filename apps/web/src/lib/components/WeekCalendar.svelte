@@ -206,7 +206,7 @@
   .tag { font: 500 10.5px var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; }
   .name { font: 600 12.5px/1.25 var(--font-ui); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
   .meta { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .slot { height: 3px; border-radius: 2px; background: var(--focus); }
+  .slot { height: 3px; border-radius: 99px; background: var(--focus); }
 
   @media (max-width: 760px) {
     .week { grid-template-columns: minmax(0, 1fr); gap: 4px; }

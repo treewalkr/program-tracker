@@ -640,7 +640,7 @@
   .goals { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
 
   .heat { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-  .heat i { width: 13px; height: 13px; border-radius: 2px; display: block; border: 1px solid rgba(31, 35, 40, 0.06); }
+  .heat i { width: 13px; height: 13px; border-radius: 4px; display: block; border: 1px solid rgba(31, 35, 40, 0.06); }
   .heat .h1 { background: var(--done-1); }
   .heat .h2 { background: var(--done-2); }
   .heat .h3 { background: var(--done-3); }
