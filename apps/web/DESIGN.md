@@ -160,7 +160,7 @@ components:
 
 **Creative North Star: "The Coach's Code Review"**
 
-Training data gets the seriousness of engineering tooling. The trainer's loop — scan the week, read signals with cited evidence, approve an AI-drafted block — is staged exactly like reviewing a pull request: a contributions-style grid shows activity, a Needs-review queue lists signals with lamp dots and evidence lines, a 2×2 kept/added/removed/changed summary plus +/−/~ rows presents the draft as a diff, and a single green button merges it as a draft. The voice is quiet, dense, credible, and free of decoration; nothing on screen is ornament, everything is evidence or an action.
+Training data gets the seriousness of engineering tooling. The trainer's loop — scan the week, read signals with cited evidence, approve an AI-drafted block — is staged exactly like reviewing a pull request: a contributions-style grid shows activity, a Needs-review queue lists signals with lamp dots and evidence lines, a decision band (changes since the last version as +/−/~ lines, automated checks, and the version history) presents the draft as a diff, and a single green button merges it as a draft. The voice is quiet, dense, credible, and free of decoration; nothing on screen is ornament, everything is evidence or an action.
 
 The visual world is GitHub's Primer, user-pinned on 2026-10-02 from an eight-direction prototype field (`prototypes/direction-g.html` is the spec): white canvas over gray wells, hairline-bordered boxes with counters, code-span set chips, soft-tinted labels, orange-underline tabs, and a contributions-green data ramp — recognizable as this product even with all content removed. The system font stack (system UI sans + `ui-monospace`) is the committed typographic identity, not a placeholder; the app is light-mode only and explicitly refuses the dark-neon athletic-app default.
 
@@ -172,7 +172,7 @@ Density is the aesthetic: a 14px base, 5px control padding, tabular mono figures
 - Every figure renders `ui-monospace` with tabular numerals; every panel head cites its evidence with a count pill
 - Status is ink-on-tint (Primer Labels); logged intensity uses the 4-step contributions ramp
 - Primer widgets repurposed for training review: orange-underline tabs, lamp-dot signal rows, code-span set chips
-- Flat and light-only; the only shadows are the button lip and the blue focus halo
+- Flat and light-only; the only shadows are the button lip, the blue focus halo, and one overlay shadow for surfaces that float over content
 
 ## Colors
 
@@ -231,25 +231,27 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 
 A two-column shell: a 236px **well sidebar** (Well Gray, hairline right border, sticky full-height) and a main column anchored to the sidebar (never centered — centering opened a dead strip between nav and content on wide screens), capped at `--page-max` 1280px, padded 28px/40px/64px with a `min-width: 0` guard so grid children shrink instead of blowing the page sideways. The sidebar carries the inverted-ink "PT" mark, grouped nav (uppercase group labels; 14px items with inline stroke SVG icons, 6px/8px radius, hover Well Gray Deep, active Well Gray Active + 600 weight + ink icon), a right-aligned count pill, and a footer status dot.
 
-Pages open with a page-head (title + `.sub` context line, actions right, wrapping), then panels in grids: Overview runs 1.4fr/1fr; client detail runs `minmax(0,1fr)` + 300px; the draft review runs 1fr/1fr. Grid tracks that hold prose use `minmax(0,·)`. Widths come from tokens only: `--page-max` (1280px) for the column and `--measure-form` (720px) for single-column forms and settings panels (Settings, client Settings tab, generate setup steps). A form that sits above a full-width table spans the column too and pairs its sections into two columns at ≥1360px, so panel edges line up. Crumbs sit on their own line above the page title. The rhythm is 4/8/16: chip gaps 4, control gaps 8, panel grids and panel-body padding 16; panel heads sit at 10px/16px; tabs at 16px top / 18px bottom; page-head margin 22px. Wide tables scroll horizontally inside `overflow-x: auto` wrappers; the training-week grid keeps a 480px minimum and scrolls rather than compressing.
+Pages open with a page-head (title + `.sub` context line, actions right, wrapping), then panels in grids: Overview runs 1.4fr/1fr; client detail runs `minmax(0,1fr)` + 300px; the draft review's decision band runs 1.15fr/1fr/1fr and its session rows `minmax(0,1fr)` + 300px; the chat page runs `minmax(0,1fr)` + `minmax(380px, 0.95fr)`. Grid tracks that hold prose use `minmax(0,·)`. Widths come from tokens only: `--page-max` (1280px) for the column and `--measure-form` (720px) for single-column forms and settings panels (Settings, client Settings tab, generate setup steps). A form that sits above a full-width table spans the column too and pairs its sections into two columns at ≥1360px, so panel edges line up. Crumbs sit on their own line above the page title. The rhythm is 4/8/16: chip gaps 4, control gaps 8, panel grids and panel-body padding 16; panel heads sit at 10px/16px; tabs at 16px top / 18px bottom; page-head margin 22px. Wide tables scroll horizontally inside `overflow-x: auto` wrappers; the training-week grid keeps a 480px minimum and scrolls rather than compressing.
 
-Breakpoints: **860px** collapses the sidebar to a 56px icon rail (labels, counts, footer hidden; centered icons); **1060px** stacks the Overview columns; **900px** stacks client/review two-columns and stretches head-actions full width; **520px** wraps signal action buttons to their own row. Demo mode injects an amber banner note above the page.
+Breakpoints: **860px** collapses the sidebar to a 56px icon rail (labels, counts, footer hidden; centered icons); **1060px** stacks the Overview columns; **900px** stacks the client two-column and stretches head-actions full width; **1000px** stacks the draft review's band and session rows; **980px** stacks the chat page, with the draft pane collapsing above the conversation; **700px** moves draft-review actions into the fixed bottom bar; **520px** wraps signal action buttons to their own row. Demo mode injects an amber banner note above the page.
 
 ## Elevation & Depth
 
-Flat, and deliberately so. Depth is conveyed by tonal layering — white panels on white canvas separated by hairlines, wells (`#f6f8fa`) recessed one step for headers, inputs, buttons, and the sidebar — not by shadows or overlap. Panels never float.
+Flat, and deliberately so. Depth is conveyed by tonal layering — white panels on white canvas separated by hairlines, wells (`#f6f8fa`) recessed one step for headers, inputs, buttons, and the sidebar — not by shadows or overlap. Panels never float; only true overlays (a popover, a sticky save bar, the phone approve bar, the collapsed draft pane on narrow screens) do, and they take the overlay shadow.
 
 ### Shadow Vocabulary
 - **Button lip** (`box-shadow: 0 1px 0 rgba(31, 35, 40, 0.04)`): The system's only elevation, a 1px lip under every button; removed on `:active` so the press feels physical.
-- **Focus halo** (`box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15)`): Appears on input focus alongside a Link Blue border switch from well to white background.
+- **Focus halo** (`box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15)`): Appears on input focus alongside a Link Blue border switch from well to white background; also marks a panel in edit mode (the block plan while editing) and a focused composer box.
+- **Overlay** (`--shadow-overlay: 0 8px 24px rgba(140, 149, 159, 0.2)`, and `--shadow-overlay-up` with the y-offset flipped for bars pinned to the bottom edge): Primer's overlay shadow, for surfaces that sit on top of scrolling content — the model-settings popover, the program page's sticky save bar, the phone approve bar, the collapsed draft pane.
+- **Inset rings** (`inset 0 -2px 0` tab underline, `inset 0 0 0 1px` selected block-plan tile): borders drawn with box-shadow so they don't shift layout. They are borders, not elevation.
 - **Shimmer** (linear gradient `#eef1f4 → #f6f8fa → #eef1f4`, 200% width, 1.2s infinite linear): Loading skeletons; the sole animation besides 120ms button background transitions.
 
 ### Named Rules
-**The Hairline Rule.** Surfaces are separated by 1px hairlines (2px for table headers and the today cell) and layered by well tint, never by shadow. No panel, dropdown, or overlay may add elevation shadows; the button lip and focus halo are the entire shadow budget.
+**The Hairline Rule.** Surfaces are separated by 1px hairlines (2px for table headers and the today cell) and layered by well tint, never by shadow. No panel or in-flow container may add an elevation shadow. The budget is the button lip, the focus halo, and the overlay token — and the overlay token only goes on a surface that actually floats over content. Never write a raw shadow value; use the tokens.
 
 ## Shapes
 
-A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 4px only inside data grids (week cells, overall volume heat squares). Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
+A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 4px only inside data grids and small focus outlines (week cells, overall volume heat squares, the row-link focus ring). Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
 
 ### Named Rules
 **The Fixed Radii Rule.** Three radii exist — 6px containers/controls, 99px pills, 4px inner data cells — and no others. No new corner value enters the system.
@@ -291,18 +293,45 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 The needs-review unit: an 8px lamp dot (green/amber `#bf8700`/red/gray `#818b98`) beside a 14px/600 title and a 13px muted evidence line, with actions right (green "Draft next block" + ghost "Open client" or an underlined blue snooze). At 520px the actions wrap below. The lamp always travels with a label and evidence — color never signals alone.
 
 ### Contributions Week Grid
-The overview's signature: one row per client, seven day cells (104px label column, `minmax(52px, 1fr)` cells, max-width 70px each, 4px radius, min-height 34px) with a 10px uppercase mono tag. States: **done** = Contributions done-4 fill + white tag + ✓; **today** = 2px Link Blue border on Pulse Blue Tint + "· due"; **missed** = Danger Red Tint + edge + red tag; **next** = Well Gray + Muted Ink tag; off-days a faint em dash. Hover brightens 5%.
+The overview's signature: one row per client, seven day cells (104px label column, `minmax(52px, 1fr)` cells, max-width 70px each, 4px radius, min-height 34px). Each cell shows the session's short name as a 10px uppercase mono tag, with a 10px state word below it (done / today / missed). Upcoming cells show no state word. States: **done** = Contributions done-4 fill + white text; **today** = 2px Link Blue border on Pulse Blue Tint + blue text; **missed** = Danger Red Tint + edge + red text; **next** = Well Gray + Muted Ink tag; off-days a faint em dash. A day with more than one session shows the count as a 9px mono figure in the cell's top-right corner. The day header for today turns Link Blue + 600; past day headers dim to Faint Ink. The client column stacks name, `N/wk · program`, a `+N any day` line for sessions with no weekday, and the cardio progress line. A row with no placed sessions spans one neutral pill across the week ("2 sessions · any day", "no program", or the client status). Cells are links: logged → client, otherwise → the log page. Hover brightens 5%.
 
 ### AI Draft Review
-The code-review moment: a 2×2 diff-tile grid (kept/added/removed/changed — 20px/600 mono counts in Muted/Commit Green/Danger Red/Link Blue over 12px labels) above +/−/~ change rows (bold mono sign, colored exercise name, faint mono detail right-aligned), a rationale panel beside a well-gray "what the client reads" card, and — pinned exception — an **approve-note** with a 6px Action Green left border on a hairline well, carrying the lock icon and "nothing reaches the client until you activate it".
+The code-review moment (`DraftReview`). Top to bottom:
+- **Head:** crumbs, version title, and the action row: a Danger "Reject…" (opens an optional reason box that future drafts learn from) beside the primary "Approve vN as draft program". Under the buttons, a lock-icon line: "Creates a draft program. {name} sees nothing until you activate it." Below 700px the action row moves into a fixed bottom bar (`--shadow-overlay-up`).
+- **Decision band:** one panel, three columns (1.15fr/1fr/1fr; stacks on narrow screens). **Since vN−1** lists up to five +/−/~ lines (bold mono sign, session tag, struck-through old value → new value). The changes are read from the drafts, not from the AI's description, and the panel says so. **Checks** shows ok/warn icon rows. **How this draft evolved** lists each version with the trainer's request in quotes, the change count, and how long ago.
+- **Block plan:** a panel with the BlockPlanStrip. "Edit" swaps in the BlockPlanEditor; while editing, the panel takes the focus halo and approval pauses ("Finish editing the plan to approve.").
+- **Sessions:** SessionCards with changed slots marked, each beside a 300px "Why this session" column of AI reasoning.
+- **Reasoning:** two collapsed `<details>`: the trainer-facing rationale, and "What {name} will read" (editable after approval). Both render as markdown prose.
+- **Outcome flash:** after a decision, an ok or bad Note confirms what happened ("Approved… is now a draft program — edit it, then activate when ready").
+
+### Chat & Draft Preview
+The client chat page (`clients/[id]/chat`) runs two columns: the conversation (`minmax(0, 1fr)`) beside the **DraftPreview** pane (`minmax(380px, 0.95fr)`). Under every assistant turn that built a version sits a **VersionStamp**: the version tag plus a changed-slot count read from the drafts. It opens to the change list, and opens by itself when the build changed something the proposal didn't ask for. A **ChatProposal** card holds a proposed change. Nothing rebuilds until the trainer presses Build; "Adjust" hands the request back to the composer. A superseded proposal dims. The preview marks changed slots, and slots changed without being asked for get Attention Amber. While a new version builds, the current one stays visible but dimmed, with elapsed time and Cancel. Approving happens only on the review page. **ModelSettings** sits in the composer as a one-line summary that opens the ProviderPicker in a popover (`--shadow-overlay`, Escape closes).
+
+### Block Plan Strip
+The block's weeks as a row of button tiles: directive chip, % target, and a bar for the chained volume index (week 1 = 100). Picking a tile shows its note; weeks changed since the previous version get an outline. The selected tile takes a 1px Inverted Ink inset ring. The BlockPlanEditor edits a copy (per-week directive, target and note; add or remove weeks; rename the phase). Out-of-range targets block Save; softer issues show as warnings.
+
+### Week Calendar
+The program page's placement board: Mon–Sun columns plus an "Any day" tray. Session cards drag between days, stack inside a day and reorder within it. Alt+arrows do the same from the keyboard, and SessionHeadEditor has a day select as the touch fallback. The calendar handles placement only; session content is edited inline below it with SessionHeadEditor and ExerciseEditor. Edits collect in a sticky save bar (`--shadow-overlay`).
+
+### Pulse Chart
+Weekly volume bars on the contributions ramp, with an average-RPE line on a fixed 6–10 right axis. Weeks that are planned but not yet logged render as dashed stubs. The RPE line breaks over weeks with no RPE. It is purely presentational: metrics come from `blockPulse` in the page.
+
+### Generate Inputs & Client Message
+The generate page opens with an **InputLedger**: "What the AI reads", one lamp row per generation input. Empty inputs link to where they're filled in. While a draft runs, **GeneratingState** shows phase and elapsed time. The client message page puts the approved text next to a **CopyButton** ("Copy" → "Copied ✓" for 2s, errors shown in place). The trainer pastes the message into LINE by hand; the app never sends it.
 
 ## Component Library & Storybook
 
 Reusable UI lives in code, catalogued in Storybook:
 
 - **Run:** `bun run storybook` (repo root) → http://localhost:6006. Stories are Svelte 5 CSF (`defineMeta` + `Story`) via `@storybook/addon-svelte-csf`.
-- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonPanel, Counter, Icon, EmptyState, DirChip, Avatar); `src/lib/components/` holds domain components (StatusPill, WeekdayPicker, SetChips, SignalRow, SessionCard, DiffTiles, ChangeRow, WeekGrid). Stories are colocated as `X.stories.svelte` next to each component.
-- **Architecture:** `src/app.css` stays the single style source — tokens (`:root` custom properties) plus the Primer classes. Components are typed Svelte 5 wrappers over those classes; every route consumes the primitives (PageHead, Button, Panel, Field, Skeleton, EmptyState) instead of hand-rolling `.page-head`/`.btn`/`.panel` markup, and recurring domain shapes live as components: **SessionCard** (prescribed session rows over the global `.session` classes — callers resolve exercise names to plain strings), **DiffTiles + ChangeRow** (the AI draft diff tiles and +/−/~ rows), **WeekGrid** (the overview training-week grid — purely presentational; row building and status derivation stay in the page, which passes rows plus ISO week dates and today).
+- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonPanel, Counter, Icon, EmptyState, Avatar, GeneratingState). `src/lib/components/` holds domain components, grouped by surface:
+  - **Overview & client:** StatusPill, SignalRow, WeekGrid, PulseChart, SessionCard, SetChips, RoleChip, DirChip
+  - **Draft review & chat:** DraftReview, DraftPreview, ChatProposal, VersionStamp, BlockPlanStrip, BlockPlanEditor
+  - **Program editing:** WeekCalendar, SessionHeadEditor, ExerciseEditor, PhasingEditor, WeekdayPicker
+  - **Generate & settings:** InputLedger, ModelSettings, ProviderPicker, KineticChainEditor, ClientProfileFields, ClientIdentityFields, CopyButton
+  - **Unused (stories only):** DiffTiles, ChangeRow, RevisionThread. They are left over from the earlier draft review; delete them or bring them back into use.
+- **Stories** are colocated as `X.stories.svelte` next to each component.
+- **Architecture:** `src/app.css` stays the single style source — tokens (`:root` custom properties) plus the Primer classes. Components are typed Svelte 5 wrappers over those classes; every route consumes the primitives (PageHead, Button, Panel, Field, Skeleton, EmptyState) instead of hand-rolling `.page-head`/`.btn`/`.panel` markup, and recurring domain shapes live as components: **SessionCard** (prescribed session rows over the global `.session` classes — callers resolve exercise names to plain strings), **DraftReview** (the whole review surface, shared by full-block and single-week drafts), **WeekGrid** (the overview training-week grid — purely presentational; row building and status derivation live in `$lib/overview.ts`; the page passes rows plus local ISO week dates and today).
 - **The 3-uses rule:** a page-scoped pattern that appears 3+ times gets extracted — into an `app.css` class when it's styling, into `src/lib/ui/` when it's generic, into `src/lib/components/` when it speaks domain language. Never re-hand-roll markup or scoped CSS a library component already wraps.
 - **Design/Tokens** stories render swatches live from `:root`, so the catalog cannot drift from the shipped stylesheet.
 
@@ -319,9 +348,9 @@ Reusable UI lives in code, catalogued in Storybook:
 
 ### Don't:
 - **Don't** communicate status with saturated fills — status is colored ink on its soft tint (pills, flash notes, missed cells).
-- **Don't** raise panels on shadows or layer elevation; the button lip and focus halo are the entire shadow budget.
+- **Don't** raise panels on shadows or layer elevation. The button lip, focus halo and `--shadow-overlay` are the entire shadow budget, and the overlay only goes on surfaces that float over content.
 - **Don't** brighten logged week cells past #116329 — the prototype's #4ac26b was deliberately darkened for 4.5:1 contrast on 10px white tags.
-- **Don't** add colored left-edge stripes for emphasis; the approve-note's 6px green border is a single brief-pinned exception, not a pattern to extend.
+- **Don't** add colored left-edge stripes for emphasis — use a status pill, a lamp, or a full hairline border change instead.
 - **Don't** load webfonts or add display type — the system stacks are the committed identity.
 - **Don't** design dark mode or neon accents; the system is light-only and refuses the dark-neon athletic-app default.
 - **Don't** show a colored signal without its label — the lamp dot always travels with a title and an evidence line.
