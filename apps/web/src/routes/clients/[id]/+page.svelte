@@ -315,14 +315,14 @@
         {#if current}
           {@const prog = current}
           <Panel
-            title="Current program"
-            count={`${prog.name} · v${prog.version}${prog.aiAssisted ? " · AI-assisted" : ""}`}
+            title={prog.name}
+            count={`v${prog.version}`}
           >
             {#snippet act()}
               {#if prog.status === "active" && prog.phasing && pulseWeek < Math.min(prog.phasing.plannedWeeks, prog.weeks.length)}
                 <Button small href={`/clients/${id}/generate?week=${pulseWeek + 1}`}>Generate week {pulseWeek + 1}</Button>
               {/if}
-              <a class="act" href={`/programs/${prog.id}`}>Open builder</a>
+              <a class="act" href={`/programs/${prog.id}`}>Open program →</a>
             {/snippet}
             <div class="week-chips" role="group" aria-label="Program week">
               {#each weekOptions(prog.weeks, pulseWeek) as opt (opt.week)}

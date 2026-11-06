@@ -19,7 +19,7 @@
 <Story name="With head" asChild>
   <div style="max-width: 480px;">
     <Panel title="Current program" count="Block A · v3">
-      {#snippet act()}<a class="act" href="/programs/1">Open builder</a>{/snippet}
+      {#snippet act()}<a class="act" href="/programs/1">Open program →</a>{/snippet}
       <div class="panel-body">Panel body — 16px padding.</div>
     </Panel>
   </div>
