@@ -3,11 +3,23 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { selectExamples, typicalGenerationSeconds } from "@pt/shared";
-  import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto } from "$lib/api/types";
+  import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import { effectivePreferences } from "$lib/preferences";
+  import {
+    composeRequest,
+    generateSubtitle,
+    generateTitle,
+    instructionsPreview,
+    ledgerRows,
+    pendingProgram,
+    recentLogCount,
+    starterMode,
+    STARTERS,
+    summaryLine,
+  } from "$lib/generateForm";
   import DraftReview from "$lib/components/DraftReview.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -15,8 +27,8 @@
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
-  import Field from "$lib/ui/Field.svelte";
-  import ProviderPicker from "$lib/components/ProviderPicker.svelte";
+  import ModelSettings from "$lib/components/ModelSettings.svelte";
+  import InputLedger from "$lib/components/InputLedger.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
 
@@ -31,7 +43,15 @@
   let effort = $state("");
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   let instructions = $state("");
-  let direction = $state("");
+  let keep = $state(false);
+  let peek = $state(false);
+  let programs = $state<ProgramDto[]>([]);
+  let logs = $state<SessionLogDto[]>([]);
+  let pending = $state<ProgramDto | null>(null);
+  let activated = $state<ProgramDto | null>(null);
+  let activating = $state(false);
+  let activateError = $state<string | null>(null);
+  let textareaEl = $state<HTMLTextAreaElement | null>(null);
   let weekMode = $state<number | null>(null);
   let templates = $state<InstructionTemplateDto[]>([]);
   let learned = $state<string | null>(null);
@@ -134,18 +154,17 @@
   const selectedTemplates = $derived(
     selected.map((id) => templates.find((t) => t.id === id)).filter((t) => t !== undefined)
   );
-  /** What the provider actually receives: standing templates first, then the one-off note. */
-  const mergedInstructions = $derived(
-    [...selectedTemplates.map((t) => t.content), instructions]
-      .filter(Boolean)
-      .join("\n\n")
-  );
+  /** The generate body: templates first, then the note — or the note as the block direction when "Keep" is ticked. */
+  const request = $derived(composeRequest({ note: instructions, keep, weekMode, templates: selectedTemplates }));
+  const recentLogs = $derived(recentLogCount(logs));
 
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
     ex.exerciseName ?? "";
 
   const plannedWeeks = $derived(current?.phasing?.plannedWeeks ?? current?.weeks.length ?? 4);
   async function start() {
+    activated = null;
+    activateError = null;
     startedAtIso = new Date().toISOString();
     phase = "generating";
     cancelledNote = null;
@@ -154,11 +173,11 @@
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         targetWeek: weekMode ?? undefined,
-        direction: weekMode ? undefined : direction.trim() || undefined,
+        direction: weekMode ? undefined : request.direction || undefined,
         providerId,
         model: model || undefined,
         effort: effort || undefined,
-        instructions: mergedInstructions || undefined,
+        instructions: request.instructions || undefined,
       });
       allGens = [row, ...allGens.filter((g) => g.id !== row.id)];
       if (row.status === "cancelled") {
@@ -240,6 +259,84 @@
     )
   );
 
+  const preview = $derived(
+    instructionsPreview({
+      direction: weekMode ? (current?.direction ?? "") : request.direction,
+      learned,
+      instructions: request.instructions,
+    })
+  );
+  const rows = $derived(
+    client
+      ? ledgerRows({
+          clientId: id,
+          client,
+          current,
+          pending,
+          weekMode,
+          plannedWeeks,
+          recentLogs,
+          periodContext,
+          templates: selectedTemplates,
+          learned,
+          matchedExamples: matchedExamples.length,
+        })
+      : []
+  );
+  const summary = $derived(
+    client ? summaryLine({ client, current, pending, recentLogs, rulesOn: selectedTemplates.length }) : []
+  );
+
+  /** Logs for every client (the ledger counts them); the block-plan line only when a program is active. */
+  async function loadProgramContext() {
+    logs = await api.sessionLogs(id);
+    if (!current) {
+      periodContext = null;
+      return;
+    }
+    const pulse = blockPulse(current, logs);
+    const w = weekMode ?? weekOf(current, logs);
+    const currentPlan = current.phasing?.weeks?.find((x) => x.week === w) ?? null;
+    const directive = currentPlan?.directive ?? null;
+    const target = currentPlan?.target ?? null;
+    const pulseLine = pulseSummary(pulse);
+    const bits = [`week ${w} of ${current.phasing?.plannedWeeks ?? current.weeks.length}`];
+    if (directive) bits.push(`directive ${directive}`);
+    if (target) {
+      const metricLabels: Record<string, string> = {
+        overall_volume: "overall volume",
+        rep_volume: "rep volume",
+        intensity: "intensity",
+      };
+      const label = metricLabels[target.metric] ?? target.metric.replace("_", " ");
+      const sign = target.deltaPercent >= 0 ? "+" : "";
+      bits.push(`target ${label} ${sign}${target.deltaPercent}%`);
+    }
+    if (!weekMode && pulseLine) bits.push(pulseLine);
+    periodContext = bits.join(" · ");
+  }
+
+  /** Make the approved-but-inactive program live; the form then builds on it. */
+  async function activate() {
+    if (!pending || activating) return;
+    activating = true;
+    activateError = null;
+    try {
+      const p = await api.setProgramStatus(pending.id, "active");
+      current = p;
+      activated = p;
+      pending = null;
+      weekMode = null;
+      cancelledNote = null;
+      programs = programs.map((x) => (x.id === p.id ? p : x));
+      await loadProgramContext();
+    } catch (err) {
+      activateError = (err as Error).message;
+    } finally {
+      activating = false;
+    }
+  }
+
   async function saveAsTemplate() {
     if (!instructions.trim() || !tplName.trim()) return;
     savingTpl = true;
@@ -265,6 +362,7 @@
     catalogById = new Map(exList.map((e) => [e.id, e]));
     client = detail.client;
     current = detail.currentProgram;
+    programs = detail.programs;
     providers = (await api.providers()).filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
     templates = await api.instructionTemplates();
@@ -290,33 +388,12 @@
       weekMode = null;
     }
 
-    if (current) {
-      const logs = await api.sessionLogs(id);
-      const pulse = blockPulse(current, logs);
-      const w = weekMode ?? weekOf(current, logs);
-      const currentPlan = current.phasing?.weeks?.find((x) => x.week === w) ?? null;
-      const directive = currentPlan?.directive ?? null;
-      const target = currentPlan?.target ?? null;
-      const summary = pulseSummary(pulse);
-      const bits = [`week ${w} of ${current.phasing?.plannedWeeks ?? current.weeks.length}`];
-      if (directive) bits.push(`directive ${directive}`);
-      if (target) {
-        const metricLabels: Record<string, string> = {
-          overall_volume: "overall volume",
-          rep_volume: "rep volume",
-          intensity: "intensity",
-        };
-        const label = metricLabels[target.metric] ?? target.metric.replace("_", " ");
-        const sign = target.deltaPercent >= 0 ? "+" : "";
-        bits.push(`target ${label} ${sign}${target.deltaPercent}%`);
-      }
-      if (!weekMode && summary) bits.push(summary);
-      periodContext = bits.join(" · ");
-    }
+    await loadProgramContext();
 
     const gens = await api.generations(id);
     examples = await api.examples();
     allGens = gens;
+    pending = pendingProgram(gens, programs);
     const latest = gens[0] ?? null;
     const initialPhase = generationPhase(latest);
     if (initialPhase === "generating" || initialPhase === "review" || initialPhase === "failed") {
@@ -337,130 +414,169 @@
   <Skeleton h="140px" />
 {:else if phase !== "review" || !gen?.draft}
   <PageHead
-    title={weekMode ? `Draft week ${weekMode} with AI` : "Draft next block with AI"}
-    sub={weekMode
+    title={phase === "form"
+      ? generateTitle(current, weekMode)
+      : weekMode ? `Draft week ${weekMode} with AI` : "Draft next block with AI"}
+    sub={phase === "form"
+      ? generateSubtitle({ firstName: client.name.split(" ")[0], current, weekMode, plannedWeeks, recentLogs })
+      : weekMode
       ? `Re-drafts week ${weekMode} of ${plannedWeeks} from this week's logs — the pre-drafted week ${weekMode} is replaced on approval.`
       : `Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
     crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: weekMode ? `Draft week ${weekMode}` : "Generate" }]}
   />
 
   {#if phase === "form"}
-    <Panel class="narrow" title="Generation settings">
-      <form
-        class="panel-body stack"
-        onsubmit={(e) => {
-          e.preventDefault();
-          start();
-        }}
-      >
-        {#if cancelledNote === "block"}
-          <Note tone="warn" role="status">Generation cancelled — nothing was drafted.</Note>
-        {/if}
-        <ProviderPicker {providers} bind:providerId bind:model bind:effort idPrefix="g" />
-        <Field label="Based on" htmlFor="g-based">
-          <input
-            class="input"
-            id="g-based"
-            disabled
-            value={weekMode && current
-              ? `${current.name} · week ${weekMode} of ${plannedWeeks}`
-              : current
-              ? `${current.name} (active, v${current.version})`
-              : "Cold start — no previous program"}
-          />
-        </Field>
-        {#if weekMode}
-          {#if current?.direction}
-            <Field label="Standing direction" hint="block-level steer — applies to this weekly draft">
-              <input class="input" disabled value={current.direction} />
-            </Field>
+    {@const firstName = client.name.split(" ")[0]}
+    {#if activated}
+      {@const p = activated}
+      <div class="gf-banner done" role="status">
+        <span class="lamp green" aria-hidden="true"></span>
+        <div class="gf-banner-text"><strong>v{p.version} is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
+      </div>
+    {:else if pending}
+      {@const p = pending}
+      <div class="gf-banner" role="status">
+        <span class="lamp amber" aria-hidden="true"></span>
+        <div class="gf-banner-text">
+          <strong>v{p.version} is approved but not active.</strong>
+          <span>“{p.name}” — {firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
+        </div>
+        <div class="gf-banner-act">
+          <Button small href="/programs/{p.id}">Open program</Button>
+          <Button small type="button" onclick={activate} disabled={activating}>
+            {activating ? "Activating…" : `Activate v${p.version}`}
+          </Button>
+        </div>
+      </div>
+      {#if activateError}<Note tone="bad" role="status">{activateError}</Note>{/if}
+    {:else if cancelledNote === "block"}
+      <div class="gf-banner warn" role="status">
+        <span class="lamp gray" aria-hidden="true"></span>
+        <div class="gf-banner-text"><strong>Generation cancelled.</strong><span>Nothing was drafted — your brief is kept below.</span></div>
+      </div>
+    {/if}
+
+    <div class="gf-grid">
+      <div class="col">
+        <details class="gf-ctx">
+          <summary>
+            <span class="t">AI reads</span>
+            {#each summary as b (b.text)}
+              <span class="pt"><span class="lamp {b.lamp}" aria-hidden="true"></span>{b.text}</span>
+            {/each}
+            <span class="more">Details</span>
+          </summary>
+          <div class="body">
+            <InputLedger {rows} />
+            <p class="label">Your instructions as the AI gets them</p>
+            <pre class="merged">{preview}</pre>
+          </div>
+        </details>
+
+        <div class="starters">
+          {#each STARTERS[starterMode(current, weekMode)] as s (s)}
+            <button
+              type="button"
+              class="starter"
+              onclick={() => {
+                instructions = s;
+                textareaEl?.focus();
+              }}>{s}</button
+            >
+          {/each}
+        </div>
+
+        <form
+          class="box"
+          onsubmit={(e) => {
+            e.preventDefault();
+            start();
+          }}
+        >
+          <label class="sr" for="g-instructions">What should this {weekMode ? "week" : "block"} do?</label>
+          <textarea
+            id="g-instructions"
+            bind:this={textareaEl}
+            bind:value={instructions}
+            maxlength="2000"
+            rows="4"
+            placeholder="What should this {weekMode ? 'week' : 'block'} do? Optional — leave blank to draft from the inputs alone."
+          ></textarea>
+          {#if weekMode && current?.direction}
+            <div class="standing"><strong>Block direction</strong> · {current.direction}</div>
+          {:else if !weekMode}
+            <label class="keep" class:on={keep}>
+              <input type="checkbox" bind:checked={keep} /> Keep as the block's direction — every weekly draft follows it
+            </label>
           {/if}
-        {:else}
-          <Field
-            label="Standing direction"
-            hint="saved with the new block — every weekly generation follows it"
-            htmlFor="g-direction"
-          >
-            <textarea
-              class="textarea"
-              id="g-direction"
-              rows="2"
-              placeholder="e.g. Build squat volume; keep upper body at maintenance."
-              bind:value={direction}
-              maxlength="500"
-            ></textarea>
-          </Field>
-        {/if}
-        <div>
-          <Field label="Instruction templates" hint="your standing rules, reusable across clients">
-          <div class="tpl-list">
+          {#if request.directionTooLong}
+            <div class="box-note">
+              <Note tone="bad">A block direction is limited to 500 characters — shorten it or untick “Keep”.</Note>
+            </div>
+          {/if}
+          <div class="rules">
+            <span class="lbl">Rules</span>
             {#each templates as t (t.id)}
-              <ToggleChip
-                on={selected.includes(t.id)}
-                title={t.content}
-                onclick={() => toggleTemplate(t.id)}
-              >
+              <ToggleChip on={selected.includes(t.id)} title={t.content} onclick={() => toggleTemplate(t.id)}>
                 {#if selected.includes(t.id)}<Icon name="check" />{/if}
                 {t.name}
               </ToggleChip>
             {/each}
-            {#if templates.length === 0}<span class="subtle">No templates yet — write a note below and save it as one.</span>{/if}
+            {#if templates.length}
+              <Button variant="ghost" small type="button" onclick={() => (peek = !peek)}>
+                {peek ? "Hide rules" : "Read rules"}
+              </Button>
+            {:else}
+              <span class="subtle">No templates yet — write a note above and save it as one.</span>
+            {/if}
             <a class="manage" href="/templates">Manage templates →</a>
           </div>
-          </Field>
-        </div>
-        {#if learned}
-          <div>
-            <p class="label">Learned preferences <span class="subtle">— distilled from your feedback, auto-injected into every draft</span></p>
-            <pre class="merged">{learned}</pre>
+          <div class="row">
+            <ModelSettings {providers} bind:providerId bind:model bind:effort hint="Applies to this draft." />
+            <span class="spacer"></span>
+            <Button variant="primary" type="submit" disabled={request.directionTooLong || !providerId}>
+              {#snippet icon()}<Icon name="sparkle" />{/snippet}
+              {weekMode ? `Draft week ${weekMode}` : "Generate draft"}
+            </Button>
+          </div>
+        </form>
+        <p class="safe">Nothing goes live — the draft waits for your review.</p>
+
+        {#if peek}
+          <div class="tpl-peek">
+            {#each selectedTemplates as t (t.id)}
+              <div><strong>{t.name}</strong><p>{t.content}</p></div>
+            {:else}
+              <p class="subtle">No rules on.</p>
+            {/each}
           </div>
         {/if}
-        <Field label="This generation" hint="optional one-off note" htmlFor="g-instructions">
-          <textarea
-            class="textarea"
-            id="g-instructions"
-            rows="3"
-            placeholder="e.g. Add a second weekly squat day, she loved split squats. Keep chin-up volume."
-            bind:value={instructions}
-            maxlength="2000"
-          ></textarea>
-        </Field>
+
         {#if instructions.trim()}
           <div class="save-tpl">
             <input class="input" placeholder="Template name, e.g. ‘Deload policy’" bind:value={tplName} maxlength="80" />
-            <Button variant="ghost" small onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
+            <Button variant="ghost" small type="button" onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
               {savingTpl ? "Saving…" : "Save note as template"}
             </Button>
-          </div>
-        {/if}
-        {#if periodContext}
-          <div>
-            <p class="label">Periodization context <span class="subtle">— injected automatically, read-only</span></p>
-            <pre class="merged ctx">{periodContext}</pre>
-          </div>
-        {/if}
-        {#if matchedExamples.length > 0}
-          <div>
-            <p class="label">Example library <span class="subtle">— injected automatically, matched by goal + days/week</span></p>
-            <p class="subtle">{matchedExamples.length} example program{matchedExamples.length === 1 ? "" : "s"} from your library will shape this draft.</p>
-          </div>
-        {/if}
-        {#if mergedInstructions}
-          <div>
-            <p class="label">AI receives <span class="subtle">— templates + note, always after profile and history</span></p>
-            <pre class="merged">{mergedInstructions}</pre>
           </div>
         {/if}
         {#if client.limitations}
           <Note tone="bad">Limitations always apply, regardless of instructions: “{client.limitations}”</Note>
         {/if}
-        <Button variant="primary" type="submit">
-          {#snippet icon()}<Icon name="sparkle" />{/snippet}
-          Generate draft
-        </Button>
-        <p class="subtle">Nothing goes live — the draft waits for your review.</p>
-      </form>
-    </Panel>
+      </div>
+
+      <aside class="gf-aside">
+        <Panel title="What the AI reads">
+          <div class="aside-body"><InputLedger {rows} compact /></div>
+        </Panel>
+        <section class="panel">
+          <details class="recv">
+            <summary>Your instructions as the AI gets them</summary>
+            <pre class="merged">{preview}</pre>
+          </details>
+        </section>
+      </aside>
+    </div>
 
   {:else if phase === "generating"}
     <section class="panel narrow">
@@ -523,10 +639,9 @@
 
 
 <style>
-  .tpl-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
-  .save-tpl { display: flex; gap: 8px; }
+  .save-tpl { display: flex; gap: 8px; margin-top: 14px; }
   .save-tpl .input { flex: 1; }
 
   .merged {
@@ -539,13 +654,79 @@
     white-space: pre-wrap;
     color: var(--ink);
   }
-  .merged.ctx { color: var(--blue); }
 
   .narrow { max-width: 560px; }
   .stack { display: flex; flex-direction: column; gap: 14px; }
   :global(.flash) { margin: 0 0 16px; }
 
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 99px; flex: none; }
 
+  /* banner: approved-but-inactive / live / cancelled */
+  .gf-banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border: 1px solid var(--warn-line); background: var(--warn-bg);
+    border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;
+  }
+  .gf-banner.warn { background: var(--well); border-color: var(--line); }
+  .gf-banner.done { background: var(--good-bg); border-color: var(--good-line); }
+  .gf-banner-text { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 2px; }
+  .gf-banner-text span { color: var(--muted); font-size: 13px; }
+  .gf-banner-act { display: flex; gap: 8px; }
 
+  /* layout: composer + sticky "What the AI reads" column */
+  .gf-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+  .col > :global(.note) { margin-top: 14px; }
+  .gf-aside { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .aside-body { padding: 6px 14px 10px; }
+  .recv summary { cursor: pointer; font-size: 13px; color: var(--blue); padding: 10px 14px; }
+  .recv pre { margin: 0 14px 12px; max-height: 260px; overflow: auto; }
 
+  /* narrow: the column folds into a one-line summary above the box */
+  .gf-ctx { display: none; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 16px; }
+  .gf-ctx > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; font-size: 13px; }
+  .gf-ctx > summary::-webkit-details-marker { display: none; }
+  .gf-ctx .t { font-weight: 600; margin-right: 4px; }
+  .gf-ctx .pt { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+  .gf-ctx .more { margin-left: auto; color: var(--blue); }
+  .gf-ctx .more::after { content: " ▾"; }
+  .gf-ctx[open] .more::after { content: " ▴"; }
+  .gf-ctx .body { padding: 2px 14px 12px; border-top: 1px solid var(--line-soft); display: grid; gap: 8px; }
+  .gf-ctx .label { margin: 6px 0 0; }
+  @media (max-width: 959px) {
+    .gf-grid { grid-template-columns: 1fr; }
+    .gf-aside { display: none; }
+    .gf-ctx { display: block; }
+  }
+
+  /* composer */
+  .starters { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+  .starter {
+    font: 400 13px/1.3 var(--font-ui); border: 1px solid var(--line); background: var(--surface);
+    border-radius: 99px; padding: 6px 12px; cursor: pointer; color: var(--ink); text-align: left;
+  }
+  .starter:hover { border-color: var(--line-strong); background: var(--well); }
+
+  .box { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .box:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
+  .box textarea {
+    display: block; width: 100%; border: 0; resize: vertical; min-height: 96px; padding: 12px 14px 4px;
+    font: 15px/1.5 var(--font-ui); color: var(--ink); background: transparent; outline: none;
+  }
+  .box textarea::placeholder { color: var(--muted); }
+  .keep { display: flex; align-items: center; gap: 8px; padding: 4px 14px 10px; font-size: 13px; color: var(--muted); }
+  .keep input { margin: 0; }
+  .keep.on { color: var(--ink); }
+  .standing { margin: 0 14px 10px; padding: 8px 10px; border-left: 3px solid var(--blue); background: var(--well); font-size: 13px; }
+  .box-note { padding: 0 14px 10px; }
+  .rules { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+  .rules .lbl { font-size: 12px; color: var(--muted); margin-right: 2px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 8px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  .safe { color: var(--muted); font-size: 13px; margin: 10px 2px 0; }
+
+  .tpl-peek { margin-top: 12px; display: grid; gap: 8px; }
+  .tpl-peek div { font-size: 13px; border: 1px solid var(--line-soft); border-radius: 6px; padding: 8px 10px; }
+  .tpl-peek strong { display: block; }
+  .tpl-peek p { margin: 2px 0 0; color: var(--muted); white-space: pre-line; }
 </style>
