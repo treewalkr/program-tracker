@@ -1,3 +1,11 @@
+<script module lang="ts">
+  export interface SlotMark {
+    kind: "changed" | "unproposed";
+    /** Old value shown as "was …" (old name for swaps, old prescription parts for rx). */
+    was: string | null;
+  }
+</script>
+
 <script lang="ts">
   import type { CardioPrescriptionDto, ExerciseRole, PrescribedSetDto } from "$lib/api/types";
   import {
@@ -28,10 +36,14 @@
       role?: ExerciseRole;
       movementPattern?: string | null;
       sets: PrescribedSetDto[];
+      /** 1-based raw draft index; keys `marks`. */
+      slot?: number;
     }[];
+    /** Change marks keyed by exercise `slot` (chat draft preview). */
+    marks?: Map<number, SlotMark>;
   }
 
-  let { name, when, kind = "lifting", cardio = null, exercises = [] }: Props = $props();
+  let { name, when, kind = "lifting", cardio = null, exercises = [], marks }: Props = $props();
 
   const hasPattern = $derived(
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
@@ -63,10 +75,11 @@
   {:else}
     <div class="session-body">
       {#each exercises as e, i (i)}
-        <div class="exrow">
+        {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
+        <div class="exrow" class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
           <div class="ex">
             {#if e.role}<RoleChip role={e.role} />{/if}
-            {e.name || "Unmapped exercise"}
+            <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"} · not in proposal{/if}</span>{/if}</span>
             {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
               {@const info = MOVEMENT_PATTERN_INFO[e.movementPattern as MovementPattern]}
               <span class="mp-tag" title={info.description}>{info.label}</span>
@@ -88,6 +101,33 @@
 </div>
 
 <style>
+  .exrow {
+    position: relative;
+  }
+  .exrow.is-changed::before {
+    content: "~";
+    position: absolute;
+    left: -13px;
+    top: 1px;
+    font: 700 13px/1.4 var(--font-mono);
+    color: var(--blue);
+  }
+  .exrow.is-unasked::before {
+    color: var(--warn);
+  }
+  .ex-name {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  .was {
+    display: block;
+    font: 400 12px/1.4 var(--font-ui);
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .is-unasked .was {
+    color: var(--warn);
+  }
   .mp-tag {
     display: inline-flex;
     align-items: center;
