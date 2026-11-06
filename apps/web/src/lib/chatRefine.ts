@@ -10,7 +10,8 @@ import type {
   TrainerApi,
 } from "./api/types";
 import { latestValidatedDraft, revisionChain } from "./generation";
-import { sortExercisesByRole } from "@pt/shared";
+import { diffDraftSlots, sortExercisesByRole, unproposedChanges, type SlotChange } from "@pt/shared";
+import type { ChatProposalDto } from "./api/types";
 
 // ---- turn submission (what Send does) ----
 
@@ -28,14 +29,14 @@ export interface ChatTurnInput {
 
 export interface ChatTurnResult {
   messages: ChatMessageDto[];
-  /** The new validated child generation when the turn revised the draft; null otherwise. */
+  /** The new validated child generation when a build produced one; null otherwise. */
   generation: GenerationDto | null;
 }
 
 /**
- * One smart turn on the chat page (card 27tc8): the reply always lands in the
- * transcript; a revised draft comes back only when the message asked for
- * changes. With no target draft the turn is plain Q&A (server side).
+ * One chat turn on the chat page: the reply always lands in the transcript.
+ * A change request comes back as a proposal row — nothing is rebuilt until the
+ * trainer presses Build (submitBuild). With no target draft it is plain Q&A.
  */
 export async function submitChatTurn(api: ChatTurnApi, input: ChatTurnInput): Promise<ChatTurnResult> {
   const trimmed = input.message.trim();
@@ -78,6 +79,8 @@ export interface PreviewSessionCard {
   kind: SessionKindDto;
   cardio: CardioPrescriptionDto | null;
   exercises: {
+    /** 1-based index in the raw draft session (display order is role-sorted). */
+    slot: number;
     name: string;
     role?: ExerciseRole;
     movementPattern: string | null;
@@ -151,9 +154,10 @@ export function changedSessionIndexes(prev: AiDraftDto | null, next: AiDraftDto)
 }
 
 /**
- * View model for the draft preview pane beside the chat: which draft Send
- * will revise, its version, the generating state, and per-session cards
- * marked skeleton (while generating) / updated / unchanged.
+ * View model for the draft preview pane beside the chat: which draft Build
+ * revises, its version, the generating state, and per-session cards marked
+ * updated / unchanged. While a build is running the current version stays
+ * visible (no skeletons) — the page dims it instead.
  */
 export function draftPreviewModel(
   gens: GenerationDto[],
@@ -172,16 +176,16 @@ export function draftPreviewModel(
   const changed = new Set(changedSessionIndexes(parentDraft, target.draft));
 
   const sessions: PreviewSession[] = target.draft.sessions.map((s, index) => {
-    const state: PreviewSessionState = generating
-      ? "skeleton"
-      : changed.has(index)
-        ? "updated"
-        : "unchanged";
+    // Raw draft index travels with the exercise: slot marks must not move when
+    // display order is role-sorted.
+    const slotted = s.exercises.map((e, i) => ({ ...e, slot: i + 1 }));
+    const state: PreviewSessionState = changed.has(index) ? "updated" : "unchanged";
     const card: PreviewSessionCard = {
       name: s.name,
       kind: s.kind ?? "lifting",
       cardio: s.cardio ?? null,
-      exercises: sortExercisesByRole(s.exercises).map((e) => ({
+      exercises: sortExercisesByRole(slotted).map((e) => ({
+        slot: e.slot,
         name: e.exerciseName ?? "",
         role: e.role,
         movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
@@ -198,4 +202,60 @@ export function draftPreviewModel(
     nextVersion: generating ? version + 1 : null,
     sessions,
   };
+}
+
+// ---- propose → build ----
+
+export interface VersionStamp {
+  /** Assistant message the stamp belongs to. */
+  messageId: string;
+  generationId: string;
+  /** 1-based version of the generation (revision chain length). */
+  version: number;
+  changes: SlotChange[];
+  /** Changes outside the proposal; null when the version was not built from a proposal. */
+  unproposed: SlotChange[] | null;
+}
+
+/** One stamp per assistant "draft" row whose generation has a validated draft. Keyed by message id. */
+export function versionStamps(messages: ChatMessageDto[], gens: GenerationDto[]): Map<string, VersionStamp> {
+  const byId = new Map(gens.map((g) => [g.id, g]));
+  const proposalFor = new Map<string, ChatProposalDto>();
+  for (const m of messages) if (m.proposal?.builtGenerationId) proposalFor.set(m.proposal.builtGenerationId, m.proposal);
+  const out = new Map<string, VersionStamp>();
+  for (const m of messages) {
+    if (m.role !== "assistant" || m.kind !== "draft" || !m.generationId) continue;
+    const gen = byId.get(m.generationId);
+    if (!gen?.draft) continue;
+    const parent = gen.parentGenerationId ? byId.get(gen.parentGenerationId) : undefined;
+    const changes = parent?.draft ? diffDraftSlots(parent.draft, gen.draft) : [];
+    const proposal = proposalFor.get(gen.id);
+    out.set(m.id, {
+      messageId: m.id,
+      generationId: gen.id,
+      version: revisionChain(gens, gen.id).length,
+      changes,
+      unproposed: proposal ? unproposedChanges(changes, proposal) : null,
+    });
+  }
+  return out;
+}
+
+export type BuildApi = Pick<TrainerApi, "buildProposal">;
+
+export async function submitBuild(
+  api: BuildApi,
+  input: { messageId: string; providerId?: string; model?: string; effort?: string }
+): Promise<ChatTurnResult> {
+  const res = await api.buildProposal(input.messageId, {
+    providerId: input.providerId,
+    model: input.model,
+    effort: input.effort,
+  });
+  return { messages: res.messages, generation: res.generation.status === "validated" ? res.generation : null };
+}
+
+/** The pending child being built from `parentGenerationId`, if the poll has seen it. */
+export function findBuildingChild(gens: GenerationDto[], parentGenerationId: string): GenerationDto | null {
+  return gens.find((g) => g.status === "pending" && g.parentGenerationId === parentGenerationId) ?? null;
 }

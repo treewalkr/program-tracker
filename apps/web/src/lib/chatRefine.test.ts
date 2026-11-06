@@ -3,7 +3,9 @@ import {
   applyChatTurn,
   changedSessionIndexes,
   draftPreviewModel,
+  findBuildingChild,
   submitChatTurn,
+  versionStamps,
   type ChatTurnApi,
 } from "./chatRefine";
 import type { AiDraftDto, ChatMessageDto, GenerationDto, PrescribedSetDto } from "./api/types";
@@ -192,12 +194,13 @@ describe("draftPreviewModel", () => {
     });
   });
 
-  test("generating marks every session of the current draft as skeleton", () => {
+  test("build keeps the previous version visible", () => {
     const v1 = gen();
     const model = draftPreviewModel([v1], true, catalogById);
     expect(model.generating).toBe(true);
     expect(model.nextVersion).toBe(2);
-    expect(model.sessions.map((s) => s.state)).toEqual(["skeleton", "skeleton", "skeleton"]);
+    expect(model.sessions.every((s) => s.state !== "skeleton")).toBe(true);
+    expect(model.sessions.map((s) => s.state)).toEqual(["unchanged", "unchanged", "unchanged"]);
     expect(model.sessions[0].card.name).toBe("A");
   });
 
@@ -251,6 +254,8 @@ describe("draftPreviewModel", () => {
     const model = draftPreviewModel([v1], false, catalogById);
     const card = model.sessions[0].card;
     expect(card.exercises.map((e) => e.role)).toEqual(["primary", "accessory"]);
+    // slot is the raw draft index, not the sorted display position
+    expect(card.exercises.map((e) => e.slot)).toEqual([2, 1]);
     expect(card.exercises[0].movementPattern).toBe("squat");
     expect(card.exercises[1].movementPattern).toBeNull();
     expect(card.kind).toBe("lifting");
@@ -264,4 +269,81 @@ describe("draftPreviewModel", () => {
     const model = draftPreviewModel([v1], false, catalogById);
     expect(model.sessions[0].card.exercises[0].name).toBe("");
   });
+});
+
+// ---- version stamps + build ----
+
+const setR = (reps: number, rpe: number, rest: number): PrescribedSetDto => ({
+  setNumber: 1,
+  type: "working",
+  reps,
+  amrap: false,
+  targetRpe: rpe,
+  restSeconds: rest,
+});
+
+const exR = (name: string, sets: PrescribedSetDto[] = [setR(5, 7, 120)]) => ({ exerciseName: name, prescribedSets: sets });
+
+const draftR = (...days: { exerciseName: string; prescribedSets: PrescribedSetDto[] }[][]): AiDraftDto => ({
+  name: "Block",
+  rationale: "r",
+  clientSummary: "c",
+  sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })),
+});
+
+describe("versionStamps", () => {
+  test("version stamp flags changes not in the proposal", () => {
+    const parent = gen({ draft: draftR([exR("Squat"), exR("RDL")]) });
+    const child = gen({
+      parentGenerationId: parent.id,
+      draft: draftR([exR("Paused Squat"), exR("RDL", [setR(5, 7, 150)])]),
+    });
+    const proposal: ChatMessageDto = {
+      ...msg("m-proposal"),
+      role: "assistant",
+      kind: "proposal",
+      proposal: {
+        summary: "swap the squat",
+        changes: [{ day: 1, slot: 1, kind: "swap", from: "Squat", to: "Paused Squat", detail: "5×5 @RPE 7 · rest 120s" }],
+        parentGenerationId: parent.id,
+        builtGenerationId: child.id,
+      },
+    };
+    const draftRow: ChatMessageDto = {
+      ...msg("m-draft"),
+      role: "assistant",
+      kind: "draft",
+      generationId: child.id,
+    };
+    const stamps = versionStamps([proposal, draftRow], [child, parent]);
+    const stamp = stamps.get("m-draft")!;
+    expect(stamp.generationId).toBe(child.id);
+    expect(stamp.version).toBe(2);
+    expect(stamp.changes).toHaveLength(2);
+    expect(stamp.unproposed!).toHaveLength(1);
+    expect(stamp.unproposed![0].kind).toBe("rx");
+  });
+
+  test("legacy draft rows produce stamps without a proposal check", () => {
+    const parent = gen({ draft: draftR([exR("Squat")]) });
+    const child = gen({ parentGenerationId: parent.id, draft: draftR([exR("Paused Squat")]) });
+    const draftRow: ChatMessageDto = {
+      ...msg("m-legacy"),
+      role: "assistant",
+      kind: "draft",
+      generationId: child.id,
+      proposal: null,
+    };
+    const stamp = versionStamps([draftRow], [child, parent]).get("m-legacy")!;
+    expect(stamp.changes).toHaveLength(1);
+    expect(stamp.unproposed).toBeNull();
+  });
+});
+
+test("findBuildingChild finds the pending child", () => {
+  const parent = gen();
+  const pending = gen({ parentGenerationId: parent.id, status: "pending", draft: null });
+  const other = gen({ parentGenerationId: parent.id, draft: null });
+  expect(findBuildingChild([parent, pending, other], parent.id)?.id).toBe(pending.id);
+  expect(findBuildingChild([parent, other], parent.id)).toBeNull();
 });
