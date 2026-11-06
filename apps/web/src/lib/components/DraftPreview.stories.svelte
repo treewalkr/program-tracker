@@ -1,7 +1,8 @@
 <script module lang="ts">
   import { defineMeta } from '@storybook/addon-svelte-csf';
   import DraftPreview from './DraftPreview.svelte';
-  import { draftPreviewModel } from '$lib/chatRefine';
+  import { versionView } from '$lib/chatRefine';
+  import { diffDraftSlots, unproposedChanges } from '@pt/shared';
   import type { AiDraftDto, GenerationDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -11,7 +12,7 @@
       docs: {
         description: {
           component:
-            'Live AI-draft preview beside the chat. Version counter in the head; skeleton session cards while a refinement turn runs; "updated in vN" chips on changed sessions afterwards; footer link to the review page — no approve control here.',
+            'Draft pane beside the chat: version switcher, slot change marks against the previous version (amber = not in the proposal), building banner with elapsed time + Cancel (the current version stays visible, dimmed), footer link to the review page — no approve control here. Collapses to its head row under 980px.',
         },
       },
     },
@@ -59,11 +60,7 @@
   const catalogById = new Map([['ex-squat', { movementPattern: 'squat' }]]);
 
   const v1 = gen();
-  const idle = draftPreviewModel([v1], false, catalogById);
-
-  const generating = draftPreviewModel([v1], true, catalogById);
-
-  // v2: heavier day A, lighter day B — those two carry "updated in v2" chips.
+  // v2: heavier day A, lighter day B.
   const v2 = gen({
     parentGenerationId: v1.id,
     draft: {
@@ -71,9 +68,18 @@
       sessions: [session('Day A', 5), session('Day B', 3), session('Day C')],
     },
   });
-  const updated = draftPreviewModel([v2, v1], false, catalogById);
+  const gens = [v2, v1];
+  const latestView = versionView(gens, v2.id, 2, catalogById)!;
+  const firstView = versionView(gens, v2.id, 1, catalogById)!;
+  // Pretend the proposal only asked for day A: day B's edit is a surprise.
+  const surprise = unproposedChanges(diffDraftSlots(v1.draft!, v2.draft!), {
+    changes: [{ day: 1, slot: 1, kind: 'edit' }],
+  });
+  const href = '/clients/cl-maya/generate';
+  const noop = () => {};
 </script>
 
-<Story name="Idle" args={{ model: idle, reviewHref: '/clients/cl-maya/generate' }} />
-<Story name="Generating" args={{ model: generating, reviewHref: '/clients/cl-maya/generate' }} />
-<Story name="Updated" args={{ model: updated, reviewHref: '/clients/cl-maya/generate' }} />
+<Story name="Latest" args={{ view: latestView, latest: 2, reviewHref: href, onview: noop }} />
+<Story name="Older version" args={{ view: firstView, latest: 2, reviewHref: href, onview: noop }} />
+<Story name="Building" args={{ view: latestView, latest: 2, building: { next: 3, elapsed: '0:42' }, reviewHref: href, onview: noop, oncancel: noop }} />
+<Story name="With surprise" args={{ view: latestView, latest: 2, unproposed: surprise, reviewHref: href, onview: noop }} />
