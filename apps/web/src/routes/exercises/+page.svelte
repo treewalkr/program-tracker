@@ -105,6 +105,7 @@
 <p class="hint balance-strip">{formatPatternBalance(patternBalance(filtered))}</p>
 
 {#snippet exerciseTable(exerciseList: ExerciseDto[])}
+  <div class="table-wrap">
   <table class="sheet">
     <thead>
       <tr>
@@ -151,6 +152,7 @@
       {/each}
     </tbody>
   </table>
+  </div>
 {/snippet}
 
 {#if group === "all"}
@@ -182,6 +184,7 @@
   .groups { display: flex; flex-wrap: wrap; gap: 6px; }
   .balance-strip { margin: 12px 0 6px; }
   .table-panel { margin-top: 14px; }
+  .table-wrap { overflow-x: auto; }
   .group-header { padding: 12px 16px 8px; }
   .group-title { margin: 0; font-size: 1rem; font-weight: 600; }
   select.compact { padding: 2px 6px; font-size: 0.85rem; }

@@ -455,13 +455,14 @@
   .table-wrap { overflow-x: auto; }
 
   .head-controls {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
   }
   .head-controls .label { margin: 0; }
-  .head-controls .select { width: auto; }
+  .head-controls .select { width: auto; max-width: 100%; }
   .date { width: 150px; }
 
   th.num-col, td.num { text-align: right; }
