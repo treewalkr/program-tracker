@@ -189,7 +189,6 @@
     text-align: left;
     padding: 6px 8px;
     border: 1px solid var(--line);
-    border-left: 3px solid var(--line-strong);
     border-radius: var(--radius);
     background: var(--surface);
     font: inherit;
@@ -198,9 +197,9 @@
     min-width: 0;
   }
   .card[draggable="true"] { cursor: grab; }
-  .card.cardio { border-left-color: var(--good); }
+  .card.cardio .tag { color: var(--good); }
   .card:hover { background: var(--well); }
-  .card.sel { border-color: var(--focus); border-left-width: 3px; }
+  .card.sel { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
   .card.ghost { opacity: 0.35; }
   .card:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .tag { font: 500 10.5px var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; }
