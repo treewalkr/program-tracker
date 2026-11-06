@@ -57,7 +57,7 @@
 
 <style>
   .settings-wrap {
-    max-width: 800px;
+    max-width: var(--measure-form);
     display: flex;
     flex-direction: column;
     gap: 16px;

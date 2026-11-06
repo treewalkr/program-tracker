@@ -655,7 +655,7 @@
     color: var(--ink);
   }
 
-  .narrow { max-width: 560px; }
+  .narrow { max-width: var(--measure-form); }
   .stack { display: flex; flex-direction: column; gap: 14px; }
   :global(.flash) { margin: 0 0 16px; }
 

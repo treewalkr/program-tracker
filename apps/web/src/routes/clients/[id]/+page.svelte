@@ -670,7 +670,7 @@
   .unit { font-size: 12px; color: var(--faint); margin-left: 3px; font-weight: 400; }
   td.sets { max-width: 340px; }
 
-  .narrow { max-width: 560px; }
+  .narrow { max-width: var(--measure-form); }
   .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
   .day-h {
     display: flex;

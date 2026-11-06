@@ -213,10 +213,11 @@
   }
 
   .main {
-    padding: 28px 32px 64px;
-    max-width: 1080px;
+    /* Anchored to the sidebar: centering left a dead strip between nav and
+       content on wide screens. Extra width falls to the right edge. */
+    padding: 28px 40px 64px;
+    max-width: calc(var(--page-max) + 80px);
     width: 100%;
-    margin: 0 auto;
     min-width: 0; /* grid child: let content shrink instead of forcing min-content width */
   }
 

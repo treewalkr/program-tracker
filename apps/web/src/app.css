@@ -63,6 +63,11 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --radius: 6px;
+
+  /* Widths: one page column, one form measure. Pages never invent their own. */
+  --page-max: 1280px; /* main column, anchored to the sidebar */
+  --measure-form: 720px; /* single-column forms and settings panels */
+  --measure-prose: 68ch; /* running text */
 }
 
 * {
