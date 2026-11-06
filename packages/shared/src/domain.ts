@@ -233,8 +233,8 @@ export const Client = z.object({
   goals: z.string().max(2000).optional(),
   /** Injuries / limitations. MUST reach the AI prompt — safety signal. */
   limitations: z.string().max(2000).optional(),
-  /** Training days per week the client can commit to. */
-  daysPerWeek: z.number().int().min(1).max(7).optional(),
+  /** Lifting sessions per week the client can commit to (cardio does not count). */
+  sessionsPerWeek: z.number().int().min(1).max(7).optional(),
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. Drives the week strip. */
   trainingDays: z
     .array(z.number().int().min(1).max(7))
@@ -434,7 +434,13 @@ export const ProgramSession = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1).max(160),
-    order: z.number().int().min(0), // order within its day
+    /** Position on its track ("Session N" / "Cardio N"), 1-based, unique per kind
+     *  within a week and stable across weeks — the session's identity. */
+    seq: z.number().int().min(1).max(14),
+    /** Calendar placement, ISO 1=Mon…7=Sun; null/absent = unscheduled ("any day"). */
+    weekday: z.number().int().min(1).max(7).nullable().optional(),
+    /** 0-indexed order among the sessions placed on the same weekday. */
+    order: z.number().int().min(0),
     kind: SessionKind.default("lifting"),
     notes: z.string().max(2000).optional(),
     exercises: z.array(ProgramExercise).max(20).default([]),
@@ -475,18 +481,31 @@ export const ProgramSession = z
   });
 export type ProgramSession = z.infer<typeof ProgramSession>;
 
-export const ProgramDay = z.object({
-  id: z.string().min(1),
-  day: z.number().int().min(1).max(14), // ordinal "Day N" within the week
-  weekday: z.number().int().min(1).max(7).nullable().optional(), // 1=Mon…7=Sun
-  sessions: z.array(ProgramSession).min(1).max(4),
-});
-export type ProgramDay = z.infer<typeof ProgramDay>;
+export const MAX_SESSIONS_PER_WEEKDAY = 4;
 
-export const ProgramWeek = z.object({
-  week: z.number().int().min(1).max(26),
-  days: z.array(ProgramDay).min(1).max(7),
-});
+/** A week = a set of sessions, each placed on a weekday (or unscheduled). */
+export const ProgramWeek = z
+  .object({
+    week: z.number().int().min(1).max(26),
+    sessions: z.array(ProgramSession).min(1).max(14),
+  })
+  .superRefine((w, ctx) => {
+    const keys = new Set<string>();
+    const perDay = new Map<number, number>();
+    w.sessions.forEach((s, i) => {
+      const key = sessionKey(s);
+      if (keys.has(key)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `duplicate session ${key}`, path: ["sessions", i, "seq"] });
+      }
+      keys.add(key);
+      if (s.weekday != null) perDay.set(s.weekday, (perDay.get(s.weekday) ?? 0) + 1);
+    });
+    for (const [d, n] of perDay) {
+      if (n > MAX_SESSIONS_PER_WEEKDAY) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `weekday ${d} has ${n} sessions (max ${MAX_SESSIONS_PER_WEEKDAY})`, path: ["sessions"] });
+      }
+    }
+  });
 export type ProgramWeek = z.infer<typeof ProgramWeek>;
 
 /** Whole-document write boundary shared by the API and tests. */
@@ -499,76 +518,104 @@ export const ProgramWeeksDocument = z
   });
 export type ProgramWeeksDocument = z.infer<typeof ProgramWeeksDocument>;
 
-/** Fill day.weekday from SORTED-ascending trainingDays by day index (decision 16);
- *  null beyond the list / when trainingDays absent. Sorting happens HERE —
- *  callers pass the client's array as-is. Pure: returns new weeks. */
-export function applyDefaultWeekdays(
-  weeks: ProgramWeek[],
-  trainingDays?: number[] | null
-): ProgramWeek[] {
-  const sorted =
-    trainingDays && trainingDays.length > 0
-      ? [...trainingDays].sort((a, b) => a - b)
-      : [];
-  return weeks.map((w) => ({
-    ...w,
-    days: w.days.map((d, i) => ({
-      ...d,
-      weekday: sorted[i] ?? null,
-    })),
-  }));
+/** Identity of a session within a week, stable across weeks: "lifting:2", "cardio:1". */
+export function sessionKey(s: Pick<ProgramSession, "kind" | "seq">): string {
+  return `${s.kind}:${s.seq}`;
 }
 
-/** Copy a day template into every week 1..plannedWeeks, fresh uuids per week
- *  (day/session/exercise ids; `exerciseId` catalog refs kept). */
-export function stampWeeks(template: ProgramDay[], plannedWeeks: number): ProgramWeek[] {
+/** Track label: "Session 2" / "Cardio 1". */
+export function sessionTag(s: Pick<ProgramSession, "kind" | "seq">): string {
+  return `${s.kind === "cardio" ? "Cardio" : "Session"} ${s.seq}`;
+}
+
+/** Programming order: lifting track then cardio track, each by seq. */
+export function sessionsInSeqOrder<T extends Pick<ProgramSession, "kind" | "seq">>(sessions: readonly T[]): T[] {
+  const rank = (s: T) => (s.kind === "cardio" ? 100 : 0) + s.seq;
+  return [...sessions].sort((a, b) => rank(a) - rank(b));
+}
+
+/** Sessions grouped by weekday (1–7) in within-day order; key 0 = unscheduled. */
+export function sessionsByWeekday<T extends Pick<ProgramSession, "weekday" | "order" | "kind" | "seq">>(
+  sessions: readonly T[]
+): Map<number, T[]> {
+  const out = new Map<number, T[]>();
+  for (let d = 0; d <= 7; d++) out.set(d, []);
+  for (const s of sessionsInSeqOrder(sessions)) out.get(s.weekday ?? 0)!.push(s);
+  for (const list of out.values()) list.sort((a, b) => a.order - b.order);
+  return out;
+}
+
+/** Distinct weekdays with at least one session placed. */
+export function placedWeekdays(sessions: readonly Pick<ProgramSession, "weekday">[]): number[] {
+  return [...new Set(sessions.flatMap((s) => (s.weekday != null ? [s.weekday] : [])))].sort((a, b) => a - b);
+}
+
+/** Copy a one-week session template into every week 1..plannedWeeks, fresh
+ *  session/exercise ids per week (seq, placement and catalog refs kept). */
+export function stampWeeks(template: ProgramSession[], plannedWeeks: number): ProgramWeek[] {
   const weeks: ProgramWeek[] = [];
   for (let w = 1; w <= plannedWeeks; w++) {
     weeks.push({
       week: w,
-      days: template.map((d) => ({
-        ...d,
+      sessions: template.map((s) => ({
+        ...s,
         id: crypto.randomUUID(),
-        sessions: d.sessions.map((s) => ({
-          ...s,
-          id: crypto.randomUUID(),
-          exercises: s.exercises.map((e) => ({
-            ...e,
-            id: crypto.randomUUID(),
-          })),
-        })),
+        exercises: s.exercises.map((e) => ({ ...e, id: crypto.randomUUID() })),
       })),
     });
   }
   return weeks;
 }
 
-/** Deep-copy program weeks with fresh day/session/exercise ids; catalog
- *  exerciseId refs, weekdays, roles, sets and week numbers are kept. Pure. */
+/** Deep-copy program weeks with fresh session/exercise ids; catalog
+ *  exerciseId refs, seq, placement, roles, sets and week numbers are kept. Pure. */
 export function cloneProgramWeeks(weeks: ProgramWeek[]): ProgramWeek[] {
   return weeks.map((w) => ({
     ...w,
-    days: w.days.map((d) => ({
-      ...d,
+    sessions: w.sessions.map((s) => ({
+      ...s,
       id: crypto.randomUUID(),
-      sessions: d.sessions.map((s) => ({
-        ...s,
+      exercises: s.exercises.map((e) => ({
+        ...e,
         id: crypto.randomUUID(),
-        exercises: s.exercises.map((e) => ({
-          ...e,
-          id: crypto.randomUUID(),
-          prescribedSets: e.prescribedSets.map((ps) => ({ ...ps })),
-        })),
+        prescribedSets: e.prescribedSets.map((ps) => ({ ...ps })),
       })),
     })),
   }));
 }
 
-/** All sessions of one week, flattened (empty array when the week has no doc). */
+/** All sessions of one week in programming order (empty when the week has no doc). */
 export function weekSessions(weeks: ProgramWeek[], week: number): ProgramSession[] {
   const found = weeks.find((w) => w.week === week);
-  if (!found) return [];
-  return found.days.flatMap((d) => d.sessions);
+  return found ? sessionsInSeqOrder(found.sessions) : [];
+}
+
+/**
+ * Convert a pre-redesign week (`days[]` of `{day, weekday, sessions[]}`) to the
+ * flat shape. Day order sets each track's seq; a day's weekday becomes each of
+ * its sessions' placement (null stays unscheduled); order within a weekday
+ * continues across days that share it. Session ids are kept so logs stay linked.
+ * Already-flat weeks pass through. Pure.
+ */
+export function migrateLegacyWeek(w: any): ProgramWeek {
+  if (!Array.isArray(w?.days)) return w as ProgramWeek;
+  const seq = { lifting: 0, cardio: 0 };
+  const used = new Map<number, number>();
+  const days = [...w.days].sort((a: any, b: any) => (a.day ?? 0) - (b.day ?? 0));
+  const sessions: ProgramSession[] = [];
+  for (const d of days) {
+    const list = [...(d.sessions ?? [])].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+    for (const s of list) {
+      const kind: SessionKind = s.kind === "cardio" ? "cardio" : "lifting";
+      const weekday: number | null = d.weekday ?? null;
+      const slot = weekday ?? 0;
+      const order = used.get(slot) ?? 0;
+      used.set(slot, order + 1);
+      sessions.push({ ...s, kind, seq: ++seq[kind], weekday, order });
+    }
+  }
+  const { days: _days, ...rest } = w;
+  return { ...rest, sessions };
 }
 
 // ---------------------------------------------------------------------------
@@ -670,69 +717,86 @@ export function removeSet(e: ProgramExercise, index: number): ProgramExercise {
   return { ...e, prescribedSets };
 }
 
-export function addSession(d: ProgramDay): ProgramDay {
-  const len = d.sessions.length;
-  const newS: ProgramSession = {
+/** Next free seq on a kind's track (gaps are not reused, so identity never shifts). */
+export function nextSeq(sessions: readonly Pick<ProgramSession, "kind" | "seq">[], kind: SessionKind): number {
+  return Math.max(0, ...sessions.filter((s) => s.kind === kind).map((s) => s.seq)) + 1;
+}
+
+/** Append a new session at the end of `weekday` (null = unscheduled). */
+export function addSession(w: ProgramWeek, kind: SessionKind = "lifting", weekday: number | null = null): ProgramWeek {
+  const seq = nextSeq(w.sessions, kind);
+  const order = w.sessions.filter((s) => (s.weekday ?? null) === weekday).length;
+  const s: ProgramSession = {
     id: crypto.randomUUID(),
-    name: `Session ${len + 1}`,
-    order: len,
-    kind: "lifting",
+    name: kind === "cardio" ? `Cardio ${seq}` : `Session ${seq}`,
+    seq,
+    weekday,
+    order,
+    kind,
     exercises: [],
-    cardio: null,
+    cardio: kind === "cardio" ? defaultCardio() : null,
   };
-  const sessions = [...d.sessions, newS].map((s, i) => ({
-    ...s,
-    order: i,
-  }));
-  return { ...d, sessions };
+  return { ...w, sessions: [...w.sessions, s] };
 }
 
-export function removeSession(d: ProgramDay, index: number): ProgramDay {
-  if (index < 0 || index >= d.sessions.length) return d;
-  const sessions = d.sessions
-    .filter((_, i) => i !== index)
-    .map((s, i) => ({ ...s, order: i }));
-  return { ...d, sessions };
-}
-
-export function moveSession(d: ProgramDay, from: number, to: number): ProgramDay {
-  if (
-    from < 0 ||
-    from >= d.sessions.length ||
-    to < 0 ||
-    to >= d.sessions.length ||
-    from === to
-  ) {
-    return d;
+/** Rewrite within-day order to 0..n-1 for every weekday. */
+function compactOrder(sessions: ProgramSession[]): ProgramSession[] {
+  const next = new Map<number, number>();
+  const ranked = [...sessions].sort((a, b) => (a.weekday ?? 0) - (b.weekday ?? 0) || a.order - b.order);
+  const orderOf = new Map<string, number>();
+  for (const s of ranked) {
+    const d = s.weekday ?? 0;
+    const o = next.get(d) ?? 0;
+    orderOf.set(s.id, o);
+    next.set(d, o + 1);
   }
-  const next = [...d.sessions];
-  const temp = next[from];
-  next[from] = next[to];
-  next[to] = temp;
-  return {
-    ...d,
-    sessions: next.map((s, i) => ({ ...s, order: i })),
-  };
+  return sessions.map((s) => ({ ...s, order: orderOf.get(s.id)! }));
 }
 
+export function removeSession(w: ProgramWeek, id: string): ProgramWeek {
+  return { ...w, sessions: compactOrder(w.sessions.filter((s) => s.id !== id)) };
+}
+
+/**
+ * Place a session on `weekday` (null = unscheduled) at `index` within that day.
+ * Placement only — the session's content and seq are untouched.
+ */
+export function placeSession(w: ProgramWeek, id: string, weekday: number | null, index: number): ProgramWeek {
+  const moving = w.sessions.find((s) => s.id === id);
+  if (!moving) return w;
+  const target = sessionsByWeekday(w.sessions.filter((s) => s.id !== id)).get(weekday ?? 0)!;
+  const at = Math.max(0, Math.min(index, target.length));
+  const reordered = [...target.slice(0, at), { ...moving, weekday }, ...target.slice(at)];
+  const placed = new Map(reordered.map((s, i) => [s.id, { ...s, weekday, order: i }]));
+  const sessions = w.sessions.map((s) => placed.get(s.id) ?? s);
+  return { ...w, sessions: compactOrder(sessions) };
+}
+
+/** Copy week `from`'s placement (by session key) onto every other week. Content untouched;
+ *  sessions with no match in `from` keep their own placement. */
+export function applyPlacementToAllWeeks(weeks: ProgramWeek[], from: number): ProgramWeek[] {
+  const src = weeks.find((w) => w.week === from);
+  if (!src) return weeks;
+  const at = new Map(src.sessions.map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }]));
+  return weeks.map((w) =>
+    w.week === from
+      ? w
+      : { ...w, sessions: compactOrder(w.sessions.map((s) => ({ ...s, ...(at.get(sessionKey(s)) ?? {}) }))) }
+  );
+}
+
+/** Switch a session's kind. Pass `seq` (from `nextSeq` on the new kind's track)
+ *  when the session lives in a week, so its key stays unique. */
 export function switchSessionKind(
   s: ProgramSession,
-  kind: SessionKind
+  kind: SessionKind,
+  seq: number = s.seq
 ): ProgramSession {
+  if (kind === s.kind) return s;
   if (kind === "cardio") {
-    return {
-      ...s,
-      kind: "cardio",
-      exercises: [],
-      cardio: defaultCardio(),
-    };
-  } else {
-    return {
-      ...s,
-      kind: "lifting",
-      cardio: null,
-    };
+    return { ...s, kind: "cardio", seq, exercises: [], cardio: defaultCardio() };
   }
+  return { ...s, kind: "lifting", seq, cardio: null };
 }
 
 export function setRepsRange(

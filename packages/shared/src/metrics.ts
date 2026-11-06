@@ -333,7 +333,7 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
 
   const docWeek = program.weeks.find((w) => w.week === week);
   const sessionsPlanned = docWeek
-    ? docWeek.days.flatMap((d) => d.sessions).length
+    ? docWeek.sessions.length
     : null;
   const adherencePct =
     sessionsPlanned && sessionsPlanned > 0

@@ -39,7 +39,7 @@ export function aiDraftToDiffSource(d: AiProgramDraft): DiffSource {
 export function programWeeksToDiffSource(weeks: ProgramWeek[], weekNumber?: number): DiffSource {
   const chosenWeek =
     weekNumber != null ? weeks.find((w) => w.week === weekNumber) : weeks[weeks.length - 1];
-  const sessions = chosenWeek ? chosenWeek.days.flatMap((d) => d.sessions) : [];
+  const sessions = chosenWeek ? chosenWeek.sessions : [];
   return {
     sessions: sessions.map((s) => ({
       name: s.name,

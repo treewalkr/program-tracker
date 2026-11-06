@@ -68,14 +68,11 @@ describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
     const weeks: ProgramWeek[] = [
       {
         week: 1,
-        days: [
-          {
-            id: "d1",
-            day: 1,
-            sessions: [
+        sessions: [
               {
                 id: "s1",
                 name: "Week 1 Day 1",
+                seq: 1,
                 order: 0,
                 kind: "lifting",
                 exercises: [
@@ -89,19 +86,14 @@ describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
                 ],
               },
             ],
-          },
-        ],
       },
       {
         week: 2,
-        days: [
-          {
-            id: "d2",
-            day: 1,
-            sessions: [
+        sessions: [
               {
                 id: "s2",
                 name: "Week 2 Day 1",
+                seq: 1,
                 order: 0,
                 kind: "lifting",
                 exercises: [
@@ -124,8 +116,6 @@ describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
                 ],
               },
             ],
-          },
-        ],
       },
     ];
 

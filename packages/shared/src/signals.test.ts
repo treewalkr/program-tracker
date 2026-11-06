@@ -79,19 +79,14 @@ const liftProgram = (activatedAt: string): SignalProgram => ({
   weeks: [
     {
       week: 1,
-      days: [
+      sessions: [
         {
-          id: "d1",
-          day: 1,
-          sessions: [
-            {
-              id: "s1",
-              name: "Day A",
-              order: 0,
-              kind: "lifting",
-              exercises: [],
-            },
-          ],
+          id: "s1",
+          name: "Session A",
+          seq: 1,
+          order: 0,
+          kind: "lifting",
+          exercises: [],
         },
       ],
     },
@@ -124,6 +119,33 @@ describe("adherence counts lifting logs only", () => {
     // if cardio counted (6/6) it would NOT fire — proving the filter
     const onlyLifting = computeSignals(program, lifting, () => "Squat", 3, now);
     expect(onlyLifting.find((s) => s.kind === "adherence")).toBeDefined();
+  });
+
+  test("planned count is the program week's lifting sessions, not cardio or the client's setting", () => {
+    const now = new Date(2026, 9, 22, 12).getTime();
+    const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "lifting" as const, exercises: [] });
+    const program: SignalProgram = {
+      ...liftProgram("2026-10-16"), // 6 days → week 1
+      weeks: [
+        {
+          week: 1,
+          sessions: [
+            lift(1),
+            lift(2),
+            lift(3),
+            lift(4),
+            { id: "c1", name: "Z2", seq: 1, order: 0, kind: "cardio", exercises: [], cardio: { modality: "Bike", durationMin: 30 } },
+          ],
+        },
+      ],
+    };
+    const logs: SignalLog[] = [
+      { programId: "pg-1", date: "2026-10-20", sets: [{ exerciseId: "ex-squat", type: "working", reps: 5 }] },
+    ];
+    // 4 lifting planned (cardio excluded), client setting 6 ignored → 1 of ~4
+    const adherence = computeSignals(program, logs, () => "Squat", 6, now).find((s) => s.kind === "adherence");
+    expect(adherence).toBeDefined();
+    expect(adherence!.evidence).toContain("1 of ~4");
   });
 });
 

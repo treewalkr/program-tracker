@@ -260,51 +260,15 @@ describe("blockPulse & pulseSummary", () => {
     const weeks: ProgramWeek[] = [
       {
         week: 1,
-        days: [
-          {
-            id: "d1",
-            day: 1,
-            sessions: [
-              {
-                id: "s1",
-                name: "S1",
-                order: 0,
-                kind: "lifting",
-                exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
-              },
-            ],
-          },
-          {
-            id: "d2",
-            day: 2,
-            sessions: [
-              {
-                id: "s2",
-                name: "S2",
-                order: 0,
-                kind: "lifting",
-                exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
-              },
-            ],
-          },
+        sessions: [
+          { id: "s2", name: "S2", seq: 2, weekday: 2, order: 0, kind: "lifting", exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
+          { id: "s1", name: "S1", seq: 1, weekday: 1, order: 0, kind: "lifting", exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
         ],
       },
       {
         week: 2,
-        days: [
-          {
-            id: "d3",
-            day: 1,
-            sessions: [
-              {
-                id: "s3",
-                name: "S3",
-                order: 0,
-                kind: "lifting",
-                exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
-              },
-            ],
-          },
+        sessions: [
+          { id: "s3", name: "S3", seq: 1, weekday: 1, order: 0, kind: "lifting", exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
         ],
       },
     ];
@@ -359,7 +323,8 @@ describe("weekSummary", () => {
   ];
   const session = (n: number) => ({
     id: `s-${n}`,
-    name: `Day ${n}`,
+    name: `Session ${n}`,
+    seq: n,
     order: 0,
     kind: "lifting" as const,
     exercises: [],
@@ -370,8 +335,8 @@ describe("weekSummary", () => {
     name: "Summary Block",
     status: "active",
     weeks: [
-      { week: 1, days: [{ id: "d1", day: 1, sessions: [session(1), session(2)] }] },
-      { week: 2, days: [{ id: "d2", day: 1, sessions: [session(3), session(4), session(5)] }] },
+      { week: 1, sessions: [session(1), session(2)] },
+      { week: 2, sessions: [session(3), session(4), session(5)] },
     ],
     createdAt: "2026-09-30T00:00:00.000Z",
     activatedAt: "2026-10-01T00:00:00.000Z",

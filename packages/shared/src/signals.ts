@@ -136,7 +136,7 @@ export function computeSignals(
   program: SignalProgram | null,
   logs: SignalLog[],
   nameOf: (id: string) => string,
-  clientDaysPerWeek?: number | null,
+  clientSessionsPerWeek?: number | null,
   now = Date.now()
 ): Signal[] {
   if (!program || program.status !== "active") return [];
@@ -264,12 +264,14 @@ export function computeSignals(
     }
   }
 
-  // Adherence: sessions logged vs planned per week — planned comes from the CLIENT's
-  // training days when known (a 2-day/week client on a 3-day program is not slacking).
+  // Adherence: lifting sessions logged vs planned per week. Logs count lifting only
+  // (cardio never inflates), so planned is the program week's LIFTING session count;
+  // falls back to the client's sessionsPerWeek when the week has no lifting doc.
   // Suppressed near block end — the block-ending review already brings the trainer in.
   const phaseSignalExists = signals.some((s) => s.kind === "block-ending" || s.kind === "deload-week");
   const weeksRun = Math.max(1, week);
-  const perWeek = clientDaysPerWeek ?? weekSessions(program.weeks, week).length;
+  const plannedLifting = weekSessions(program.weeks, week).filter((s) => s.kind !== "cardio").length;
+  const perWeek = plannedLifting > 0 ? plannedLifting : (clientSessionsPerWeek ?? 0);
   const expected = perWeek * weeksRun;
   const logged = programLogs.filter((l) => l.kind !== "cardio").length;
   if (!phaseSignalExists && expected >= 4 && logged / expected < 0.6) {
