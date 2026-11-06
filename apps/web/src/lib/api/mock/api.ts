@@ -1203,6 +1203,7 @@ export const mockApi: TrainerApi = {
         ...mockProposal(target.draft as any, trimmed),
         parentGenerationId: input.generationId,
         builtGenerationId: null,
+        requestMessageId: trainerRow.id,
       },
       createdAt: new Date().toISOString(),
     };
@@ -1241,7 +1242,9 @@ export const mockApi: TrainerApi = {
       return { messages: structuredClone([err]), generation: structuredClone(pending) };
     }
     state.generations.splice(state.generations.indexOf(pending), 1);
-    const child = reviseDraftInState(state, parent!.id, row.proposal.summary);
+    // History shows the trainer's request, not the proposal summary.
+    const requestText = state.messages.find((m) => m.id === row.proposal!.requestMessageId)?.content ?? row.proposal.summary;
+    const child = reviseDraftInState(state, parent!.id, requestText);
     child.draft = mockApplyProposal(child.draft as any, row.proposal) as any;
     row.proposal.builtGenerationId = child.id;
     const out: ChatMessageDto & { clientId: string } = {
