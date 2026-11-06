@@ -712,6 +712,28 @@ export const mockApi: TrainerApi = {
     return structuredClone(g);
   },
 
+  async savePhasing(generationId, phasing) {
+    await delay(300);
+    const parent = state.generations.find((g) => g.id === generationId);
+    if (!parent || parent.status !== "validated" || !parent.draft) throw new Error("generation is not validated");
+    if (parent.kind === "week") throw new Error("week drafts follow the block's plan");
+    if (JSON.stringify(parent.draft.phasing ?? null) === JSON.stringify(phasing)) throw new Error("phasing is unchanged");
+    const child: GenerationDto = {
+      ...structuredClone(parent),
+      id: uuid(),
+      status: "validated",
+      draft: { ...structuredClone(parent.draft), phasing: structuredClone(phasing) },
+      parentGenerationId: parent.id,
+      revisionMessage: "Block plan edited by you",
+      manualEdit: true,
+      approvedProgramId: null,
+      rejectReason: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(child);
+    return structuredClone(child);
+  },
+
   async reviseGeneration(id, message) {
     const parent = state.generations.find((g) => g.id === id);
     if (!parent || parent.status !== "validated" || !parent.draft) {

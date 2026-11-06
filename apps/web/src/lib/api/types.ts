@@ -123,6 +123,8 @@ export interface AiDraftDto {
   name: string;
   rationale: string;
   clientSummary: string;
+  /** Proposed periodization for the block (week drafts have none). */
+  phasing?: ProgramPhasingDto | null;
   sessions: {
     name: string;
     kind?: SessionKind;
@@ -147,6 +149,8 @@ export interface GenerationDto {
   error: string | null;
   parentGenerationId: string | null;
   revisionMessage: string | null;
+  /** True when the trainer edited this version by hand (no AI), e.g. the block plan. */
+  manualEdit?: boolean;
   instructions: string | null;
   rejectReason: string | null;
   approvedProgramId: string | null;
@@ -354,6 +358,8 @@ export interface TrainerApi {
   generations(clientId: string): Promise<GenerationDto[]>;
   generation(id: string): Promise<GenerationDto>;
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;
+  /** Save an edited block plan as the next draft version (no AI call). */
+  savePhasing(generationId: string, phasing: ProgramPhasingDto): Promise<GenerationDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string, reason?: string): Promise<GenerationDto>;
   cancelGeneration(id: string): Promise<GenerationDto>;
