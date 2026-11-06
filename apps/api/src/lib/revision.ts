@@ -27,6 +27,8 @@ export async function runRevision(
     model?: string;
     effort?: string;
     mockProposal?: ChatProposal;
+    /** Prompt text when it differs from `message` (proposal builds). `message` is what history shows. */
+    feedback?: string;
   } = {}
 ): Promise<RevisionResult> {
   const [parent] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, parentId));
@@ -124,7 +126,7 @@ export async function runRevision(
           direction: parent.direction ?? ctx.programDirection,
           trainerInstructions: "",
           previousDraft: parent.draft!,
-          feedback: trimmedMessage,
+          feedback: opts.feedback ?? trimmedMessage,
           conversation: opts.conversation ?? null,
         });
       } else {
@@ -138,7 +140,7 @@ export async function runRevision(
           trainerInstructions: "",
           direction: parent.direction,
           previousDraft: parent.draft!,
-          feedback: trimmedMessage,
+          feedback: opts.feedback ?? trimmedMessage,
           conversation: opts.conversation ?? null,
         });
       }

@@ -2171,6 +2171,8 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const generation = res.body.generation;
     expect(generation.parentGenerationId).toBe(genId);
     expect(generation.status).toBe("validated");
+    // History keeps the trainer's words, not the proposal-bound prompt
+    expect(generation.revisionMessage).toBe("Add rest to the first exercise");
     expect(res.body.messages).toHaveLength(1);
     expect(res.body.messages[0].kind).toBe("draft");
     expect(res.body.messages[0].generationId).toBe(generation.id);

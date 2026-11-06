@@ -119,9 +119,12 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
         .where(and(eq(chatMessages.clientId, row.clientId), eq(chatMessages.role, "trainer"), lt(chatMessages.createdAt, row.createdAt)))
         .orderBy(desc(chatMessages.createdAt))
         .limit(1);
-      const feedback = proposalToFeedback(request?.content ?? row.proposal.summary, row.proposal);
+      const requestText = request?.content ?? row.proposal.summary;
+      const feedback = proposalToFeedback(requestText, row.proposal);
       const conversation = await loadRevisionConversation(row.proposal.parentGenerationId);
-      const res = await runRevision(row.proposal.parentGenerationId, feedback, {
+      // History shows the trainer's request; the model gets the proposal-bound instruction.
+      const res = await runRevision(row.proposal.parentGenerationId, requestText, {
+        feedback,
         conversation,
         providerId: body.providerId,
         model: body.model,
