@@ -1,10 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
+  import { beforeNavigate } from "$app/navigation";
   import { api } from "$lib/api";
-  import { fmtDuration } from "$lib/format";
   import {
+    addExercise,
+    addSet,
     addSession,
+    moveExercise,
+    removeExercise,
     formatPatternBalance,
     moveSession,
     MOVEMENT_PATTERN_INFO,
@@ -12,11 +16,12 @@
     patternBalance,
     removeSession,
   } from "@pt/shared";
-  import type { ExerciseRole } from "@pt/shared";
   import { EXAMPLE_LEVELS } from "@pt/shared";
   import type { ExerciseDto, ProgramDto, ProgramExampleDto, ProgramSessionDto } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
-  import SessionBlockEditor from "$lib/components/SessionBlockEditor.svelte";
+  import { programSubline, snapshot } from "$lib/programEdit";
+  import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
+  import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
@@ -33,7 +38,14 @@
   let clientName = $state<string | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
   const catalogById = $derived(new Map(catalog.map((e) => [e.id, e])));
-  let editing = $state(false);
+  /** Saved state of the program; edits are live on `program` and compared against this. */
+  let baseline = $state("");
+  let openExercise = $state<string | null>(null);
+  let openSession = $state<string | null>(null);
+  let showPhasing = $state(false);
+  let saveError = $state<string | null>(null);
+  const editable = $derived(program != null && program.status !== "archived");
+  const dirty = $derived(program != null && baseline !== "" && snapshot(program) !== baseline);
   let saving = $state(false);
   let savedAt = $state<string | null>(null);
   let activating = $state(false);
@@ -57,6 +69,7 @@
 
   async function load() {
     program = await api.program(id);
+    baseline = snapshot(program);
     catalog = await api.exercises();
     const mine = await api.examples(id);
     existingExample = mine[0] ?? null;
@@ -97,14 +110,33 @@
   async function save() {
     if (!program || !validation.ok) return;
     saving = true;
+    saveError = null;
     try {
       program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null);
-      savedAt = new Date().toLocaleTimeString();
-      editing = false;
+      baseline = snapshot(program);
+      savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      openExercise = null;
+      openSession = null;
+    } catch (e) {
+      saveError = (e as Error).message;
     } finally {
       saving = false;
     }
   }
+
+  function discard() {
+    if (!program || !baseline) return;
+    const saved = JSON.parse(baseline);
+    program.weeks = saved.weeks;
+    program.phasing = saved.phasing;
+    openExercise = null;
+    openSession = null;
+    saveError = null;
+  }
+
+  beforeNavigate((nav) => {
+    if (dirty && !confirm("Leave without saving your program changes?")) nav.cancel();
+  });
 
   async function activate() {
     if (!program) return;
@@ -133,6 +165,8 @@
   }
 
   onMount(load);
+
+  const DAY_NAMES = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 </script>
 
 <svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
@@ -144,24 +178,12 @@
     <div>
       <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
       <h1>{program.name} <StatusPill status={program.status} /></h1>
-      <p class="sub">
-        v{program.version}
-        {#if program.aiAssisted} · AI-assisted draft{#if program.createdFromProgramId}, built on previous block{/if}{/if}
-        {#if savedAt} · saved {savedAt}{/if}
-      </p>
+      <p class="sub">{programSubline(program, savedAt)}</p>
     </div>
     <div class="actions">
       {#if program.status === "archived"}
         <span class="subtle readonly-note">archived — read only</span>
-      {:else if editing}
-        {#if !validation.ok}
-          <span class="hint gate-error">{validation.message}</span>
-        {/if}
-        <button class="btn ghost" onclick={applyDeload} title="Cut working-set loads ~10%, rounded to 2.5kg">Deload −10%</button>
-        <button class="btn ghost" onclick={() => (editing = false)}>Done</button>
-        <button class="btn primary" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
       {:else}
-        <button class="btn ghost" onclick={() => (editing = true)}>Edit sets</button>
         {#if existingExample}
           <span class="subtle lib-state">In the example library</span>
           <a class="lib-link" href="/examples">View in library →</a>
@@ -226,16 +248,11 @@
 
   {#if program.status === "draft"}
     <p class="hint">
-      Draft — nothing the client sees. Tweak sets, then activate to make it current
-      (previous active program archives automatically).
+      Draft — the client doesn't see it yet. Click any exercise to tweak it, then activate
+      (the previous active program archives automatically).
     </p>
   {:else if program.status === "archived"}
     <p class="hint">Archived block — kept for history. Start a new block from the client page.</p>
-  {:else if editing}
-    <p class="hint">Editing bumps the version on save. Weights stay as prescribed — clients log actuals.</p>
-    {#if !validation.ok}
-      <p class="hint gate-error">{validation.message}</p>
-    {/if}
   {/if}
 
   {#if program.weeks.length > 1}
@@ -259,124 +276,161 @@
         s.exercises.map((e) => ({ movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null }))
       )
     )}
-    <p class="hint">Week {currentWeek.week} balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
+    <div class="week-bar">
+      <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
+      {#if editable}
+        <button class="btn ghost small" onclick={applyDeload} title="Cut this week's working-set loads ~10%, rounded to 2.5kg">Deload week −10%</button>
+        <button class="btn ghost small" aria-expanded={showPhasing} onclick={() => (showPhasing = !showPhasing)}>Block phasing {showPhasing ? "▴" : "▾"}</button>
+      {/if}
+    </div>
 
-    <div class="sessions-grid" class:editing>
+    {#if editable && showPhasing}
+      <PhasingEditor bind:phasing={program.phasing} weeksCount={program.weeks.length} />
+    {/if}
+
+    <div class="sessions-grid">
       {#each currentWeek.days as d, di (d.id)}
+        {@const dayExercises = d.sessions.flatMap((s) =>
+          s.exercises.map((e) => ({ movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null }))
+        )}
         <section class="panel">
           <div class="panel-head">
             <h2>Day {d.day}</h2>
-            {#if editing}
-              <select class="select tiny" bind:value={d.weekday} aria-label="Day weekday">
-                <option value={null}>No weekday</option>
-                <option value={1}>Mon</option>
-                <option value={2}>Tue</option>
-                <option value={3}>Wed</option>
-                <option value={4}>Thu</option>
-                <option value={5}>Fri</option>
-                <option value={6}>Sat</option>
-                <option value={7}>Sun</option>
+            {#if editable}
+              <select class="select weekday" bind:value={d.weekday} aria-label="Day {d.day} weekday">
+                <option value={null}>Any day</option>
+                {#each [1, 2, 3, 4, 5, 6, 7] as wd (wd)}<option value={wd}>{DAY_NAMES[wd]}</option>{/each}
               </select>
             {:else if d.weekday}
-              {@const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
-              <span class="subtle">{dayNames[d.weekday]}</span>
+              <span class="subtle">{DAY_NAMES[d.weekday]}</span>
             {/if}
-            {#if !editing}
-              {@const dayExercises = d.sessions.flatMap((s) =>
-                s.exercises.map((e) => ({
-                  movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
-                }))
-              )}
-              <span class="subtle">{formatPatternBalance(patternBalance(dayExercises))}</span>
-            {/if}
-            <span class="subtle">{d.sessions.reduce((acc, s) => acc + s.exercises.length, 0)} exercises</span>
+            <span class="subtle">{formatPatternBalance(patternBalance(dayExercises))}</span>
           </div>
 
           <div class="panel-body exlist">
-            {#if editing}
-              <div class="session-list-edit">
-                {#each d.sessions as _, si (d.sessions[si].id)}
-                  <SessionBlockEditor
+            {#each d.sessions as s, si (s.id)}
+              <div class="session-block">
+                {#if openSession === s.id}
+                  <SessionHeadEditor
                     bind:session={currentWeek.days[di].sessions[si]}
-                    {catalog}
                     canMoveUp={si > 0}
                     canMoveDown={si < d.sessions.length - 1}
-                    onmoveup={() => {
-                      if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si - 1);
-                    }}
-                    onmovedown={() => {
-                      if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si + 1);
-                    }}
-                    onremove={() => {
-                      if (currentWeek) currentWeek.days[di] = removeSession(currentWeek.days[di], si);
-                    }}
+                    onmoveup={() => { if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si - 1); }}
+                    onmovedown={() => { if (currentWeek) currentWeek.days[di] = moveSession(currentWeek.days[di], si, si + 1); }}
+                    onremove={() => { if (currentWeek) currentWeek.days[di] = removeSession(currentWeek.days[di], si); openSession = null; }}
+                    onclose={() => (openSession = null)}
                   />
-                {/each}
-                <button
-                  type="button"
-                  class="btn ghost small add-sess"
-                  disabled={d.sessions.length >= 4}
-                  onclick={() => {
-                    if (currentWeek) currentWeek.days[di] = addSession(currentWeek.days[di]);
-                  }}
-                >
-                  + Session
-                </button>
-              </div>
-            {:else}
-              {#each d.sessions as s, si (s.id)}
-                <div class="session-block">
+                {:else}
                   <div class="session-header">
                     <h3>{s.name}</h3>
                     <span class="kind-tag">{s.kind}</span>
+                    {#if editable}
+                      <button class="edit-link" onclick={() => { openSession = s.id; openExercise = null; }}>Edit session</button>
+                    {/if}
                   </div>
                   {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
+                {/if}
 
-                  {#if s.kind === "cardio"}
+                {#if s.kind === "cardio"}
+                  {#if s.cardio && openSession !== s.id}
                     <div class="cardio-display">
-                      {#if s.cardio}
-                        <span class="cond-chip">
-                          <Icon name="pulse" />
-                          {[
-                            s.cardio.modality,
-                            s.cardio.durationMin ? `${s.cardio.durationMin} min` : null,
-                            s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null,
-                            s.cardio.intensity || null,
-                            s.cardio.distanceKm ? `${s.cardio.distanceKm} km` : null,
-                            s.cardio.targetRpe ? `RPE ${s.cardio.targetRpe}` : null,
-                          ].filter(Boolean).join(" · ")}
-                        </span>
-                      {/if}
+                      <span class="cond-chip">
+                        <Icon name="pulse" />
+                        {[
+                          s.cardio.modality,
+                          s.cardio.durationMin ? `${s.cardio.durationMin} min` : null,
+                          s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null,
+                          s.cardio.intensity || null,
+                          s.cardio.distanceKm ? `${s.cardio.distanceKm} km` : null,
+                          s.cardio.targetRpe ? `RPE ${s.cardio.targetRpe}` : null,
+                        ].filter(Boolean).join(" · ")}
+                      </span>
                     </div>
-                  {:else}
-                    {#each s.exercises as e, ei (e.id)}
-                      <div class="exblock">
+                  {/if}
+                {:else}
+                  {#each s.exercises as e, ei (e.id)}
+                    {#if openExercise === e.id}
+                      <ExerciseEditor
+                        bind:exercise={currentWeek.days[di].sessions[si].exercises[ei]}
+                        {catalog}
+                        canMoveUp={ei > 0}
+                        canMoveDown={ei < s.exercises.length - 1}
+                        onmoveup={() => { if (currentWeek) currentWeek.days[di].sessions[si] = moveExercise(currentWeek.days[di].sessions[si], ei, ei - 1); }}
+                        onmovedown={() => { if (currentWeek) currentWeek.days[di].sessions[si] = moveExercise(currentWeek.days[di].sessions[si], ei, ei + 1); }}
+                        onremove={() => { if (currentWeek) currentWeek.days[di].sessions[si] = removeExercise(currentWeek.days[di].sessions[si], ei); openExercise = null; }}
+                        onclose={() => (openExercise = null)}
+                      />
+                    {:else}
+                      {@const pattern = catalogById.get(e.exerciseId)?.movementPattern}
+                      <div class="exblock" class:editable>
                         <div class="exhead">
                           {#if e.role}<RoleChip role={e.role} />{/if}
-                          <strong>{e.exerciseName}</strong>
-                          {#if catalogById.get(e.exerciseId)?.movementPattern && catalogById.get(e.exerciseId)!.movementPattern! in MOVEMENT_PATTERN_INFO}
-                            {@const p = catalogById.get(e.exerciseId)!.movementPattern as MovementPattern}
+                          {#if editable}
+                            <button class="exname" onclick={() => { openExercise = e.id; openSession = null; }} title="Edit {e.exerciseName}">{e.exerciseName}</button>
+                          {:else}
+                            <strong>{e.exerciseName}</strong>
+                          {/if}
+                          {#if pattern && pattern in MOVEMENT_PATTERN_INFO}
+                            {@const p = pattern as MovementPattern}
                             <span class="mp-tag" title={MOVEMENT_PATTERN_INFO[p].description}>{MOVEMENT_PATTERN_INFO[p].label}</span>
                           {/if}
-                          {#if e.notes}<span class="subtle">{e.notes}</span>{/if}
                         </div>
+                        {#if e.notes}<p class="subtle exnotes">{e.notes}</p>{/if}
                         <SetChips sets={e.prescribedSets} />
                       </div>
-                      {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
-                    {/each}
+                    {/if}
+                    {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
+                  {/each}
+                  {#if editable && s.exercises.length < 20}
+                    <button
+                      class="add-link"
+                      onclick={() => {
+                        const first = catalog[0];
+                        if (!currentWeek || !first) return;
+                        const sess = addExercise(currentWeek.days[di].sessions[si], first.id, first.name);
+                        const last = sess.exercises.length - 1;
+                        sess.exercises[last] = addSet(sess.exercises[last]);
+                        currentWeek.days[di].sessions[si] = sess;
+                        openExercise = sess.exercises[last].id;
+                        openSession = null;
+                      }}>+ Exercise</button
+                    >
                   {/if}
-                </div>
-                {#if si < d.sessions.length - 1}<hr class="divider" />{/if}
-              {/each}
+                {/if}
+              </div>
+              {#if si < d.sessions.length - 1}<hr class="divider" />{/if}
+            {/each}
+            {#if editable && d.sessions.length < 4}
+              <button
+                class="add-link"
+                onclick={() => {
+                  if (!currentWeek) return;
+                  currentWeek.days[di] = addSession(currentWeek.days[di]);
+                  openSession = currentWeek.days[di].sessions.at(-1)?.id ?? null;
+                  openExercise = null;
+                }}>+ Session</button
+              >
             {/if}
           </div>
         </section>
       {/each}
     </div>
+  {/if}
 
-    {#if editing}
-      <PhasingEditor bind:phasing={program.phasing} weeksCount={program.weeks.length} />
-    {/if}
+  {#if dirty}
+    <div class="savebar" role="region" aria-label="Unsaved changes">
+      <span class="savemsg">
+        {#if !validation.ok}
+          <span class="gate-error">{validation.message}</span>
+        {:else if saveError}
+          <span class="gate-error">Save failed: {saveError}</span>
+        {:else}
+          Unsaved changes · saving makes v{program.version + 1}. Clients log their own actual weights.
+        {/if}
+      </span>
+      <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
+      <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+    </div>
   {/if}
 {/if}
 
@@ -404,7 +458,7 @@
   .readonly-note { margin: 0; }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
-  .week-tabs { display: flex; gap: 6px; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .week-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
   .tab-btn {
     border: none;
     background: none;
@@ -422,11 +476,9 @@
     background: var(--well-2);
   }
 
-  .sessions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .sessions-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 
   .exlist { display: flex; flex-direction: column; gap: 12px; }
-  .session-list-edit { display: flex; flex-direction: column; gap: 16px; }
-  .add-sess { align-self: flex-start; }
   .gate-error { color: var(--bad); }
   .session-block { display: flex; flex-direction: column; gap: 8px; }
   .session-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -472,8 +524,52 @@
   }
   .cond-chip :global(svg) { width: 10px; height: 10px; fill: var(--good); flex: none; }
   .divider { border: none; border-top: 1px solid var(--line); margin: 8px 0; }
+  .week-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
+  .balance { margin: 0 auto 0 0; color: var(--muted); }
+  .weekday { width: auto; padding: 2px 6px; font-size: 12.5px; }
+  .session-header .edit-link { margin-left: auto; }
+  .session-header .kind-tag { margin-left: 0; }
+  .edit-link, .add-link {
+    border: none;
+    background: none;
+    padding: 2px 0;
+    font: 500 12px var(--font-ui);
+    color: var(--accent, #0969da);
+    cursor: pointer;
+  }
+  .edit-link:hover, .add-link:hover { text-decoration: underline; }
+  .add-link { align-self: flex-start; }
+  .sess-notes, .exnotes { margin: 0; font-size: 12.5px; }
+  .exnotes { margin: -4px 0 8px; }
+  .exname {
+    border: none;
+    background: none;
+    padding: 0;
+    font: 600 14px var(--font-ui);
+    color: var(--ink);
+    cursor: pointer;
+    text-align: left;
+  }
+  .exblock.editable { border-radius: var(--radius); margin: 0 -8px; padding: 4px 8px; }
+  .exblock.editable:hover { background: var(--well); }
+  .exname:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+  .savebar {
+    position: sticky;
+    bottom: 12px;
+    z-index: 5;
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  }
+  .savemsg { flex: 1; font-size: 12.5px; color: var(--muted); }
 
   @media (max-width: 980px) {
-    .sessions-grid { grid-template-columns: 1fr; }
+    .sessions-grid { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
