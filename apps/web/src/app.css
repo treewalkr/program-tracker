@@ -254,6 +254,7 @@ table.sheet td {
 table.sheet tr:last-child td { border-bottom: none; }
 table.sheet tbody tr:hover td { background: var(--well); }
 table.sheet .r { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px; }
+table.sheet th.r { font: 600 12px/1.2 var(--font-ui); }
 a.rowlink { color: var(--ink); font-weight: 600; }
 
 /* —— status / data chips: Primer Label ——— */
