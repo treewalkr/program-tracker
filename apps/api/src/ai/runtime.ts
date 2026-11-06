@@ -39,3 +39,17 @@ export function providerRuntime(providerId: string, model?: string) {
     defaultEffort: known?.defaultEffort,
   };
 }
+
+/** Validate a requested effort level against the provider's registry metadata.
+ *  No selection → undefined (provider default applies at call time). */
+export function resolveEffort(
+  rt: { effortLevels?: readonly string[] },
+  effort?: string
+): string | undefined {
+  if (!effort) return undefined;
+  if (!rt.effortLevels?.length)
+    throw new ContextError(400, "provider takes no effort parameter");
+  if (!rt.effortLevels.includes(effort))
+    throw new ContextError(400, `effort "${effort}" not available (levels: ${rt.effortLevels.join(", ")})`);
+  return effort;
+}

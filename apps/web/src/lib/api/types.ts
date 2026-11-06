@@ -137,6 +137,7 @@ export interface GenerationDto {
   direction?: string | null;
   providerId: string;
   model: string;
+  effort?: string | null;
   status: "pending" | "validated" | "failed_validation" | "failed_provider" | "approved" | "rejected" | "cancelled";
   draft: AiDraftDto | null;
   error: string | null;

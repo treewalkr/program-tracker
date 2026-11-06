@@ -17,7 +17,7 @@ storybook-static/
 COMMITS.md
 .DS_Store
 *.log
-*.sql
+/*.sql
 skills-lock.json
 .vite/
 test-results/

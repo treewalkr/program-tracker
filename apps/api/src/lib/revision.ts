@@ -57,6 +57,7 @@ export async function runRevision(
       direction: parent.direction,
       providerId: parent.providerId,
       model: parent.model,
+      effort: parent.effort,
       status: "pending",
       parentGenerationId: parent.id,
       revisionMessage: trimmedMessage,

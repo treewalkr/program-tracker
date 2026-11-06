@@ -170,6 +170,7 @@ export const aiGenerations = pgTable("ai_generations", {
   direction: text("direction"),
   providerId: text("provider_id").notNull(),
   model: text("model").notNull(),
+  effort: text("effort"),
   status: text("status").$type<GenerationStatus>().notNull().default("pending"),
   draft: jsonb("draft").$type<AiProgramDraft>(),
   error: text("error"),

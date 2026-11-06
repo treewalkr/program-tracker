@@ -22,7 +22,7 @@ import {
   weekOf,
 } from "@pt/shared";
 import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
-import { ContextError, providerRuntime } from "../ai/runtime";
+import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import {
   buildGenerationMessages,
   buildWeekMessages,
@@ -71,6 +71,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             focusWeek: currentWeek,
           });
           const rt = providerRuntime(body.providerId ?? "zai", body.model);
+          const effort = resolveEffort(rt, body.effort);
 
           const targetPlan = basedProg.phasing?.weeks?.find((w) => w.week === body.targetWeek);
           const targetDirective = targetPlan?.directive ?? null;
@@ -99,6 +100,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               instructions: body.instructions ?? null,
               providerId: body.providerId ?? "zai",
               model: rt.model,
+              effort,
               status: "pending",
               exampleProgramIds: ctx.examples.map((e) => e.programId),
             })
@@ -119,7 +121,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
                           { role: "system", content: messages.system },
                           { role: "user", content: messages.user },
                         ],
-                        { signal: ac.signal }
+                        { signal: ac.signal, effort }
                       );
                 const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
                 if (parsed.success) {
@@ -186,6 +188,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
 
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
         const rt = providerRuntime(body.providerId ?? "zai", body.model);
+        const effort = resolveEffort(rt, body.effort);
         const messages = buildGenerationMessages({
           ...ctx,
           direction: body.direction ?? null,
@@ -203,6 +206,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             instructions: body.instructions ?? null,
             providerId: body.providerId ?? "zai",
             model: rt.model,
+            effort,
             status: "pending",
             exampleProgramIds: ctx.examples.map((e) => e.programId),
           })
@@ -224,7 +228,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
                         { role: "system", content: messages.system },
                         { role: "user", content: messages.user },
                       ],
-                      { signal: ac.signal }
+                      { signal: ac.signal, effort }
                     );
               const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
               if (parsed.success) {
@@ -299,6 +303,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         basedOnProgramId: t.Optional(t.Union([t.String(), t.Null()])),
         providerId: t.Optional(t.String()),
         model: t.Optional(t.String()),
+        effort: t.Optional(t.String()),
         instructions: t.Optional(t.String({ maxLength: 2000 })),
         direction: t.Optional(t.String({ maxLength: 500 })),
         targetWeek: t.Optional(t.Integer()),
