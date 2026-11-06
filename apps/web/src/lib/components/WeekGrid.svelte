@@ -1,23 +1,5 @@
 <script module lang="ts">
-  import type { ClientDto } from "$lib/api/types";
-
-  export interface WeekEntry {
-    day: number; // 1=Mon … 7=Sun
-    clientId: string;
-    /** Every session on the day, " + "-joined (first one names the cell). */
-    sessionName: string;
-    /** Sessions placed on the day; > 1 shows the count in the cell corner. Defaults to 1. */
-    count?: number;
-    status: "logged" | "due" | "today" | "upcoming";
-  }
-
-  export interface ClientRow {
-    client: ClientDto;
-    program: string | null;
-    entries: Map<number, WeekEntry>;
-    /** This week's cardio progress vs the client target — hidden when unset. */
-    cardio?: { done: number; target: number; unitLabel: string } | null;
-  }
+  export type { ClientRow, WeekEntry } from "$lib/overview";
 </script>
 
 <script lang="ts">
@@ -37,8 +19,11 @@
     currentNames: Record<string, string>;
   }
 
+  import type { ClientRow } from "$lib/overview";
+
   let { rows, weekDates, today, currentNames }: Props = $props();
 
+  const STATE = { logged: "done", today: "today", due: "missed" } as const;
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dayNumberOf = (iso: string) => Number(iso.slice(8, 10));
   const shortName = (sessionName: string) => sessionName.split(" + ")[0].split("—")[0].trim() || "Session";
@@ -48,7 +33,7 @@
   <div class="week-grid">
     <div class="wk-h corner">Client</div>
     {#each weekDates as date, i (date)}
-      <div class="wk-h" class:dim={date < today}>
+      <div class="wk-h" class:dim={date < today} class:now={date === today}>
         {DAY_LABELS[i]}<span class="d">{dayNumberOf(date)}</span>
       </div>
     {/each}
@@ -62,13 +47,20 @@
               {row.client.sessionsPerWeek ?? "—"}/wk · {currentNames[row.client.id]}
             </span>
           {/if}
+          {#if row.unscheduled && row.entries.size > 0}
+            <span class="meta">+{row.unscheduled} any day</span>
+          {/if}
           {#if row.cardio}
             <span class="meta cardio">cardio {row.cardio.done}/{row.cardio.target} {row.cardio.unitLabel}</span>
           {/if}
         </div>
         {#if row.entries.size === 0}
           <div class="wk-cell span">
-            <span class="pill neutral">{row.client.status === "active" ? "no program" : row.client.status}</span>
+            {#if row.program && row.unscheduled}
+              <span class="pill neutral">{row.unscheduled} {row.unscheduled === 1 ? "session" : "sessions"} · any day</span>
+            {:else}
+              <span class="pill neutral">{row.client.status === "active" ? "no program" : row.client.status}</span>
+            {/if}
           </div>
         {:else}
           {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
@@ -80,9 +72,11 @@
                   class="cell {cls}"
                   href={e.status === "logged" ? `/clients/${row.client.id}` : `/clients/${row.client.id}/log`}
                   title={`${row.client.name} — ${e.sessionName}`}
+                  aria-label={`${row.client.name}, ${DAY_LABELS[d - 1]}: ${e.sessionName}${e.status === "upcoming" ? "" : `, ${STATE[e.status]}`}`}
                 >
                   {#if (e.count ?? 1) > 1}<span class="more">{e.count}</span>{/if}
-                  <span class="tag">{shortName(e.sessionName)}{#if e.status === "logged"} ✓{:else if e.status === "today"} · due{:else if e.status === "due"} · missed{/if}</span>
+                  <span class="tag">{shortName(e.sessionName)}</span>
+                  {#if e.status !== "upcoming"}<span class="state">{STATE[e.status]}</span>{/if}
                 </a>
               {:else}
                 <span class="offday">—</span>
@@ -110,6 +104,8 @@
   }
   .wk-h .d { display: block; font: 400 11px/1.6 var(--font-ui); color: var(--faint); }
   .wk-h.dim { color: var(--faint); }
+  .wk-h.now { color: var(--blue); font-weight: 600; }
+  .wk-h.now .d { color: var(--blue); }
   .wk-h.corner { text-align: left; padding-left: 12px; }
   .wk-row { display: contents; }
   .wk-client { padding: 8px 4px 8px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -131,9 +127,11 @@
     border-radius: 4px;
     border: 1px solid var(--line);
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2px;
+    gap: 1px;
+    padding: 3px 2px;
     text-decoration: none;
   }
   .cell:hover { text-decoration: none; filter: brightness(1.05); }
@@ -143,6 +141,11 @@
     text-transform: uppercase;
     text-align: center;
   }
+  .cell .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell .state { font: 400 10px/1.2 var(--font-ui); }
+  .cell.done .state { color: #fff; }
+  .cell.today .state { color: var(--blue); font-weight: 600; }
+  .cell.missed .state { color: var(--bad); }
   .cell.done { background: var(--done-4); border-color: var(--done-4); }
   .cell.done .tag { color: #fff; }
   .cell.today { border-color: var(--blue); border-width: 2px; background: var(--pulse-now-bg); }
