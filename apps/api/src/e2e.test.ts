@@ -2111,7 +2111,10 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(unknown.body.error).toBe("client not found");
   });
 
-  test("chat turn with a change request creates a child generation and records the exchange", async () => {
+  test("chat turn with a change request returns a proposal and no generation", async () => {
+    const gensBefore = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
+    const countBefore = (gensBefore.body as any[]).length;
+
     const reviseMsg = "Swap back squat for safety bar squat";
     const res = await call("POST", "/v1/ai/chat/turn", {
       clientId,
@@ -2119,22 +2122,25 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
       message: reviseMsg,
     });
     expect(res.status).toBe(201);
-    const childGen = res.body.generation;
-    expect(childGen.parentGenerationId).toBe(genId);
-    expect(childGen.revisionMessage).toBe(reviseMsg);
-    expect(childGen.status).toBe("validated");
+    expect(res.body.generation).toBeNull();
 
     expect(res.body.messages).toHaveLength(2);
     const [trainerMsg, aiMsg] = res.body.messages;
     expect(trainerMsg.role).toBe("trainer");
     expect(trainerMsg.kind).toBe("revision");
     expect(trainerMsg.content).toBe(reviseMsg);
-    expect(trainerMsg.generationId).toBe(childGen.id);
+    expect(trainerMsg.generationId).toBeNull();
 
     expect(aiMsg.role).toBe("assistant");
-    expect(aiMsg.kind).toBe("draft");
-    expect(aiMsg.content).toBe(`Applied: ${reviseMsg}\n\n${draftNoticeText(childGen.draft)}`);
-    expect(aiMsg.generationId).toBe(childGen.id);
+    expect(aiMsg.kind).toBe("proposal");
+    expect(aiMsg.generationId).toBeNull();
+    expect(aiMsg.proposal.changes).toHaveLength(1);
+    expect(aiMsg.proposal.parentGenerationId).toBe(genId);
+    expect(aiMsg.proposal.builtGenerationId).toBeNull();
+
+    // Nothing was built: the generation list is untouched
+    const gensAfter = await call("GET", `/v1/ai/generations?clientId=${clientId}`);
+    expect((gensAfter.body as any[]).length).toBe(countBefore);
 
     // Shows in transcript in order
     const list = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
@@ -2142,6 +2148,55 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const lastTwo = list.body.messages.slice(-2);
     expect(lastTwo[0].id).toBe(trainerMsg.id);
     expect(lastTwo[1].id).toBe(aiMsg.id);
+  });
+
+  test("building a proposal creates the next version", async () => {
+    const parent = await call("GET", `/v1/ai/generations/${genId}`);
+    expect(parent.status).toBe(200);
+    const parentRest = parent.body.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds ?? 60;
+
+    const turn = await call("POST", "/v1/ai/chat/turn", {
+      clientId,
+      generationId: genId,
+      message: "Add rest to the first exercise",
+      providerId: "mock",
+    });
+    expect(turn.status).toBe(201);
+    const proposalRow = turn.body.messages[1];
+    expect(proposalRow.kind).toBe("proposal");
+
+    const res = await call("POST", `/v1/ai/chat/proposals/${proposalRow.id}/build`, {});
+    expect(res.status).toBe(201);
+
+    const generation = res.body.generation;
+    expect(generation.parentGenerationId).toBe(genId);
+    expect(generation.status).toBe("validated");
+    expect(res.body.messages).toHaveLength(1);
+    expect(res.body.messages[0].kind).toBe("draft");
+    expect(res.body.messages[0].generationId).toBe(generation.id);
+
+    // The proposal row records the version it produced
+    const list = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    const row = list.body.messages.find((m: any) => m.id === proposalRow.id);
+    expect(row.proposal.builtGenerationId).toBe(generation.id);
+
+    // The mock build applies a +15s rest edit on day 1 slot 1
+    expect(generation.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(parentRest + 15);
+  });
+
+  test("building a proposal twice returns 409", async () => {
+    const list = await call("GET", `/v1/ai/chat?clientId=${clientId}`);
+    const built = list.body.messages.filter((m: any) => m.kind === "proposal" && m.proposal?.builtGenerationId);
+    expect(built.length).toBeGreaterThan(0);
+    const res = await call("POST", `/v1/ai/chat/proposals/${built[0].id}/build`, {});
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("proposal already built");
+  });
+
+  test("building an unknown proposal returns 404", async () => {
+    const res = await call("POST", `/v1/ai/chat/proposals/${crypto.randomUUID()}/build`, {});
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("proposal not found");
   });
 
   test("chat turn with a question replies without drafting", async () => {
@@ -2162,6 +2217,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const [trainerMsg, aiMsg] = res.body.messages;
     expect(trainerMsg.kind).toBe("revision");
     expect(aiMsg.kind).toBe("chat");
+    expect(aiMsg.proposal).toBeNull();
     expect(aiMsg.content).toBe(mockChatReply(question, clientName));
 
     // No version churn: the generation list is untouched
@@ -2263,7 +2319,9 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const reviseMsg = "Pull week 3 volume back 20%";
     const rev = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: parentId, message: reviseMsg, providerId: "mock" });
     expect(rev.status).toBe(201);
-    const childId = rev.body.generation.id;
+    const built = await call("POST", `/v1/ai/chat/proposals/${rev.body.messages[1].id}/build`, { providerId: "mock" });
+    expect(built.status).toBe(201);
+    const childId = built.body.generation.id;
 
     const result = await loadRevisionConversation(childId);
     expect(result).not.toBeNull();
@@ -2298,7 +2356,9 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
 
     const rev = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: parentId, message: "Keep everything, small tweak", providerId: "mock" });
     expect(rev.status).toBe(201);
-    const generation = rev.body.generation;
+    const built = await call("POST", `/v1/ai/chat/proposals/${rev.body.messages[1].id}/build`, { providerId: "mock" });
+    expect(built.status).toBe(201);
+    const generation = built.body.generation;
 
     const after = await call("GET", `/v1/clients/${clientId}`);
     expect(after.status).toBe(200);
@@ -2318,7 +2378,9 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(parentRes.status).toBe(201);
     const rev = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: parentRes.body.id, message: "Add a core finisher", providerId: "mock" });
     expect(rev.status).toBe(201);
-    const childId = rev.body.generation.id;
+    const built = await call("POST", `/v1/ai/chat/proposals/${rev.body.messages[1].id}/build`, { providerId: "mock" });
+    expect(built.status).toBe(201);
+    const childId = built.body.generation.id;
 
     const approved = await call("POST", `/v1/ai/generations/${childId}/approve`, {});
     expect(approved.status).toBe(201);

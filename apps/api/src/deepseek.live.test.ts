@@ -131,15 +131,22 @@ describe.skipIf(!live || !dbUp)("deepseek live (chat refinement)", () => {
 
             expect(res.status).toBe(201);
             const body = (await res.json()) as any;
-            if (body.generation?.status !== "validated") {
-              console.log("T12 turn failed:", body.generation?.error ?? body.error);
-            }
-            // One smart turn: reply always lands, the change request revises.
+            // Propose → build: the turn returns a proposal; Build makes the next version.
             expect(body.messages).toHaveLength(2);
             expect(body.messages[1].content.length).toBeGreaterThan(0);
-            expect(body.generation.status).toBe("validated");
-            expect(body.generation.model).toBe("deepseek-flash");
-            currentId = body.generation.id;
+            expect(body.generation).toBeNull();
+            expect(body.messages[1].kind).toBe("proposal");
+
+            const built = await json("POST", `/v1/ai/chat/proposals/${body.messages[1].id}/build`, {
+              providerId: "deepseek",
+            });
+            expect(built.status).toBe(201);
+            if (built.body.generation?.status !== "validated") {
+              console.log("T12 build failed:", built.body.generation?.error ?? built.body.error);
+            }
+            expect(built.body.generation.status).toBe("validated");
+            expect(built.body.generation.model).toBe("deepseek-flash");
+            currentId = built.body.generation.id;
           }
 
           elapsedMs.sort((a, b) => a - b);

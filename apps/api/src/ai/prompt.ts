@@ -9,6 +9,7 @@ import {
   type WeekSummaryStats,
   type WeekTarget,
   renderPreferenceSignals,
+  rxLabel,
   type PreferenceSignal,
 } from "@pt/shared";
 
@@ -266,23 +267,40 @@ export interface RevisionContext extends GenerationContext {
   conversation?: string | null;
   /**
    * "draft" (default): output is the revised draft JSON.
-   * "smart-turn": output is {reply, draft|null} — draft only when the message
-   * explicitly asks for program changes (one smart turn, card 27tc8).
+   * "proposal": output is {reply, proposal|null} — a change list only; the
+   * draft is built later, when the trainer presses Build.
    */
-  outputContract?: "draft" | "smart-turn";
+  outputContract?: "draft" | "proposal";
 }
 
-/** Output schema spec for smart-turn revisions. */
-const SMART_TURN_SCHEMA_SPEC = `{"reply": string (1-5 sentences, conversational — answers the trainer's message and, when revising, summarizes exactly what changed), "draft": ${DRAFT_SCHEMA_SPEC} | null}`;
+/** Output schema spec for proposal turns (propose → build). */
+const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (session number from DRAFT SLOTS), "slot": number | null (exercise number from DRAFT SLOTS; null only for kind "add"), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s")}]} | null}`;
+
+const PROPOSAL_RULES = [
+  "- This is a CHAT TURN. You do NOT write a new draft in this turn.",
+  '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
+];
+
+/** Numbered slot listing the proposal contract refers to. */
+export function draftSlotsText(d: AiProgramDraft): string {
+  return d.sessions
+    .map((s, di) => {
+      const rows = s.exercises.map(
+        (e, ei) => `  S${ei + 1} ${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`
+      );
+      return [`D${di + 1} ${s.name}`, ...rows].join("\n");
+    })
+    .join("\n");
+}
 
 export function buildRevisionMessages(ctx: RevisionContext): { system: string; user: string } {
-  const smart = ctx.outputContract === "smart-turn";
+  const proposal = ctx.outputContract === "proposal";
   const system = [
     "You are an expert strength & conditioning coach REVISING the draft of the NEXT training block for a client.",
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    smart ? SMART_TURN_SCHEMA_SPEC : DRAFT_SCHEMA_SPEC,
+    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : DRAFT_SCHEMA_SPEC,
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
@@ -299,12 +317,12 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
-    smart
-      ? '- This is a CHAT TURN: the trainer\'s message may be a question or a change request.'
-      : "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
-    smart
-      ? '- If the message explicitly asks to change the program (adjust/add/remove/swap/reorder/volume/intensity/schedule), set "draft" to the full revised program — change only what is asked and what directly follows from it, keep everything else identical. Otherwise set "draft" to null and answer the message in "reply". When in doubt, null.'
-      : "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
+    ...(proposal
+      ? PROPOSAL_RULES
+      : [
+          "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
+          "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
+        ]),
   ].join("\n");
 
   const user = [
@@ -358,6 +376,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "",
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),
+    ...(proposal ? ["", "DRAFT SLOTS (use these numbers in proposal.changes):", draftSlotsText(ctx.previousDraft)] : []),
     "",
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
@@ -369,8 +388,8 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
           "",
         ]
       : []),
-    smart
-      ? `TRAINER MESSAGE (answer it in "reply"; revise the draft in "draft" only if it explicitly asks for changes): ${ctx.feedback}`
+    proposal
+      ? `TRAINER MESSAGE (answer it in "reply"; fill "proposal" only if it asks for changes): ${ctx.feedback}`
       : `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
   ].join("\n");
 
@@ -390,7 +409,7 @@ export interface WeekRevisionContext extends WeekContext {
   /** Recent chat thread for this client, oldest → newest (chat revise only). */
   conversation?: string | null;
   /** See RevisionContext.outputContract. */
-  outputContract?: "draft" | "smart-turn";
+  outputContract?: "draft" | "proposal";
 }
 
 export function buildWeekMessages(ctx: WeekContext): { system: string; user: string } {
@@ -475,13 +494,13 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
 }
 
 export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: string; user: string } {
-  const smart = ctx.outputContract === "smart-turn";
+  const proposal = ctx.outputContract === "proposal";
   const system = [
     `You are an expert strength & conditioning coach REVISING the draft of the NEXT WEEK (week ${ctx.targetWeek} of ${ctx.plannedWeeks}) of the client's CURRENT block.`,
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    smart ? SMART_TURN_SCHEMA_SPEC : DRAFT_SCHEMA_SPEC,
+    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : DRAFT_SCHEMA_SPEC,
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
@@ -497,12 +516,12 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     "- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins (e.g. **Day 1**), and bullet lists for per-day/per-week breakdowns. No headings, no tables.",
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
-    smart
-      ? '- This is a CHAT TURN: the trainer\'s message may be a question or a change request.'
-      : "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
-    smart
-      ? '- If the message explicitly asks to change the program (adjust/add/remove/swap/reorder/volume/intensity/schedule), set "draft" to the full revised program — change only what is asked and what directly follows from it, keep everything else identical. Otherwise set "draft" to null and answer the message in "reply". When in doubt, null.'
-      : "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
+    ...(proposal
+      ? PROPOSAL_RULES
+      : [
+          "- This is a REVISION: the previous draft is provided below. Apply the trainer's feedback exactly.",
+          "- Change only what the feedback requires (and what directly follows from it); keep everything else in the previous draft identical.",
+        ]),
   ].join("\n");
 
   const user = [
@@ -555,6 +574,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "",
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),
+    ...(proposal ? ["", "DRAFT SLOTS (use these numbers in proposal.changes):", draftSlotsText(ctx.previousDraft)] : []),
     "",
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
@@ -566,8 +586,8 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
           "",
         ]
       : []),
-    smart
-      ? `TRAINER MESSAGE (answer it in "reply"; revise the draft in "draft" only if it explicitly asks for changes): ${ctx.feedback}`
+    proposal
+      ? `TRAINER MESSAGE (answer it in "reply"; fill "proposal" only if it asks for changes): ${ctx.feedback}`
       : `TRAINER FEEDBACK (apply this to the previous draft): ${ctx.feedback}`,
   ].join("\n");
 

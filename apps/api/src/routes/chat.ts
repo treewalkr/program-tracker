@@ -1,9 +1,10 @@
 import { Elysia, t } from "elysia";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, lt } from "drizzle-orm";
 import { db, chatMessages } from "@pt/db";
+import { draftNoticeText, proposalToFeedback } from "@pt/shared";
 import { answerChat } from "../lib/chat-qa";
-import { loadRevisionConversation } from "../lib/revision";
-import { runSmartTurn, smartTurnReplyText } from "../lib/smart-turn";
+import { loadRevisionConversation, runRevision } from "../lib/revision";
+import { runProposalTurn } from "../lib/proposal-turn";
 
 export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
   .get(
@@ -43,8 +44,9 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
     }
   )
   /**
-   * One smart turn (card 27tc8): always replies; revises the draft (new
-   * version) only when the message explicitly asks for program changes.
+   * One chat turn on a draft (propose → build): always replies; asks for a
+   * proposal (a slot change list) only when the message asks for changes.
+   * Never builds a draft — the trainer presses Build to get the next version.
    * Without a generationId it is a plain Q&A turn (answerChat).
    */
   .post(
@@ -65,50 +67,96 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
         return status(201, { messages: qa.messages, generation: null });
       }
 
-      // Thread the recent chat history into the prompt. Runs before the
-      // trainer row is inserted, so the current message isn't duplicated.
       const conversation = await loadRevisionConversation(body.generationId);
-      const res = await runSmartTurn(body.generationId, message, {
+      const res = await runProposalTurn(body.generationId, message, {
         conversation,
         providerId: body.providerId ?? undefined,
         model: body.model ?? undefined,
         effort: body.effort,
       });
       if (!res.ok) return status(res.status, { error: res.error });
-      const gen = res.generation;
 
       const [trainerRow] = await db
+        .insert(chatMessages)
+        .values({ trainerId: res.trainerId, clientId: body.clientId, role: "trainer", kind: "revision", content: message, generationId: null })
+        .returning();
+      const [assistantRow] = await db
         .insert(chatMessages)
         .values({
           trainerId: res.trainerId,
           clientId: body.clientId,
-          role: "trainer",
-          kind: "revision",
-          content: message,
-          generationId: gen?.id ?? null,
-        })
-        .returning();
-
-      const draftApplied = gen?.status === "validated";
-      const [assistantRow] = await db
-        .insert(chatMessages)
-        .values({
-          trainerId: trainerRow.trainerId,
-          clientId: body.clientId,
           role: "assistant",
-          kind: draftApplied ? "draft" : "chat",
-          content: smartTurnReplyText(res.reply, gen),
-          generationId: gen?.id ?? null,
+          kind: res.proposal ? "proposal" : "chat",
+          content: res.reply,
+          generationId: null,
+          proposal: res.proposal ? { ...res.proposal, parentGenerationId: res.parentGenerationId, builtGenerationId: null } : null,
         })
         .returning();
-
-      return status(201, { messages: [trainerRow, assistantRow], generation: gen });
+      return status(201, { messages: [trainerRow, assistantRow], generation: null });
     },
     {
       body: t.Object({
         clientId: t.String(),
         generationId: t.Optional(t.Nullable(t.String())),
         message: t.String({ minLength: 1, maxLength: 2000 }),
+        providerId: t.Optional(t.String()),
+        model: t.Optional(t.String()),
+        effort: t.Optional(t.String()),
+      }),
+    }
+  )
+  /** Build a proposal (propose → build): runs one revision bound to the proposal. */
+  .post(
+    "/proposals/:messageId/build",
+    async ({ params, body, status }) => {
+      const [row] = await db.select().from(chatMessages).where(eq(chatMessages.id, params.messageId));
+      if (!row || row.kind !== "proposal" || !row.proposal) return status(404, { error: "proposal not found" });
+      if (row.proposal.builtGenerationId) return status(409, { error: "proposal already built" });
+
+      const [request] = await db
+        .select()
+        .from(chatMessages)
+        .where(and(eq(chatMessages.clientId, row.clientId), eq(chatMessages.role, "trainer"), lt(chatMessages.createdAt, row.createdAt)))
+        .orderBy(desc(chatMessages.createdAt))
+        .limit(1);
+      const feedback = proposalToFeedback(request?.content ?? row.proposal.summary, row.proposal);
+      const conversation = await loadRevisionConversation(row.proposal.parentGenerationId);
+      const res = await runRevision(row.proposal.parentGenerationId, feedback, {
+        conversation,
+        providerId: body.providerId,
+        model: body.model,
+        effort: body.effort,
+        mockProposal: row.proposal,
+      });
+      if (!res.ok) return status(res.status, { error: res.error });
+      const gen = res.generation;
+      const built = gen.status === "validated" && gen.draft;
+      if (built) {
+        await db
+          .update(chatMessages)
+          .set({ proposal: { ...row.proposal, builtGenerationId: gen.id } })
+          .where(eq(chatMessages.id, row.id));
+      }
+      const [assistantRow] = await db
+        .insert(chatMessages)
+        .values({
+          trainerId: row.trainerId,
+          clientId: row.clientId,
+          role: "assistant",
+          kind: built ? "draft" : "error",
+          content: built
+            ? `Built from the proposal.\n\n${draftNoticeText(gen.draft!)}`
+            : gen.status === "cancelled"
+              ? "Build cancelled. The draft is unchanged."
+              : `Build failed: ${gen.error ?? gen.status}`,
+          generationId: gen.id,
+        })
+        .returning();
+      return status(201, { messages: [assistantRow], generation: gen });
+    },
+    {
+      params: t.Object({ messageId: t.String() }),
+      body: t.Object({
         providerId: t.Optional(t.String()),
         model: t.Optional(t.String()),
         effort: t.Optional(t.String()),
