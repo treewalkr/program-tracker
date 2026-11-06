@@ -1,10 +1,43 @@
 import { Elysia, t } from "elysia";
-import { and, asc, desc, eq, lt } from "drizzle-orm";
-import { db, chatMessages } from "@pt/db";
+import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { db, chatMessages, type ChatMessageRow } from "@pt/db";
 import { draftNoticeText, proposalToFeedback } from "@pt/shared";
 import { answerChat } from "../lib/chat-qa";
 import { loadRevisionConversation, runRevision } from "../lib/revision";
 import { runProposalTurn } from "../lib/proposal-turn";
+
+/**
+ * The trainer's request that produced a proposal.
+ * Proposal rows written since the request id was stored carry it, so the lookup
+ * is exact even when both rows land in the same millisecond. Older rows fall
+ * back to the nearest earlier trainer message, compared inside Postgres: a JS
+ * Date bound would truncate the µs-precision timestamptz to milliseconds and
+ * drop the request that is 111µs before the proposal.
+ */
+async function proposalRequestText(row: ChatMessageRow): Promise<string> {
+  const requestId = row.proposal?.requestMessageId;
+  if (requestId) {
+    const [request] = await db
+      .select()
+      .from(chatMessages)
+      .where(and(eq(chatMessages.id, requestId), eq(chatMessages.role, "trainer")));
+    if (request) return request.content;
+  }
+
+  const [previous] = await db
+    .select()
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.clientId, row.clientId),
+        eq(chatMessages.role, "trainer"),
+        lt(chatMessages.createdAt, sql`(select ${chatMessages.createdAt} from ${chatMessages} where ${chatMessages.id} = ${row.id})`)
+      )
+    )
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(1);
+  return previous?.content ?? row.proposal?.summary ?? "";
+}
 
 export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
   .get(
@@ -89,7 +122,14 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
           kind: res.proposal ? "proposal" : "chat",
           content: res.reply,
           generationId: null,
-          proposal: res.proposal ? { ...res.proposal, parentGenerationId: res.parentGenerationId, builtGenerationId: null } : null,
+          proposal: res.proposal
+            ? {
+                ...res.proposal,
+                parentGenerationId: res.parentGenerationId,
+                builtGenerationId: null,
+                requestMessageId: trainerRow.id,
+              }
+            : null,
         })
         .returning();
       return status(201, { messages: [trainerRow, assistantRow], generation: null });
@@ -113,13 +153,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       if (!row || row.kind !== "proposal" || !row.proposal) return status(404, { error: "proposal not found" });
       if (row.proposal.builtGenerationId) return status(409, { error: "proposal already built" });
 
-      const [request] = await db
-        .select()
-        .from(chatMessages)
-        .where(and(eq(chatMessages.clientId, row.clientId), eq(chatMessages.role, "trainer"), lt(chatMessages.createdAt, row.createdAt)))
-        .orderBy(desc(chatMessages.createdAt))
-        .limit(1);
-      const requestText = request?.content ?? row.proposal.summary;
+      const requestText = await proposalRequestText(row);
       const feedback = proposalToFeedback(requestText, row.proposal);
       const conversation = await loadRevisionConversation(row.proposal.parentGenerationId);
       // History shows the trainer's request; the model gets the proposal-bound instruction.
