@@ -113,6 +113,13 @@
       "when": 1793951861542,
       "tag": "0015_chat_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793960000000,
+      "tag": "0016_generation_manual_edit",
+      "breakpoints": true
     }
   ]
 }

@@ -179,6 +179,8 @@ export const aiGenerations = pgTable("ai_generations", {
     onDelete: "set null",
   }),
   revisionMessage: text("revision_message"),
+  /** True when the trainer edited this version by hand (no AI call), e.g. the block plan. */
+  manualEdit: boolean("manual_edit").notNull().default(false),
   instructions: text("instructions"),
   rejectReason: text("reject_reason"),
   approvedProgramId: uuid("approved_program_id").references((): AnyPgColumn => programs.id, {
