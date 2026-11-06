@@ -299,6 +299,9 @@ export interface StoredChatProposal extends ChatProposal {
   parentGenerationId: string;
   /** Set once Build produced a validated version; null until then. */
   builtGenerationId: string | null;
+  /** The trainer message that asked for this change list — its text is the build's history.
+   *  Stored at turn time so a build never has to infer it from timestamps. */
+  requestMessageId?: string | null;
 }
 
 /** Deterministic mock proposal: an "edit" on day 1, slot 1 (+15s rest). */

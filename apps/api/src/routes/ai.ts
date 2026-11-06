@@ -37,6 +37,7 @@ import { toSignalLog, toSignalProgram } from "../lib/signals-service";
 import { toProgramDto } from "./programs";
 import { loadContext } from "../lib/context";
 import { runRevision } from "../lib/revision";
+import { savePhasingEdit } from "../lib/phasing-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 
 export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
@@ -507,6 +508,19 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       return cancelled;
     },
     { params: t.Object({ id: t.String() }) }
+  )
+  /** Save a trainer-edited block plan as the next draft version (no AI call). */
+  .post(
+    "/generations/:id/phasing",
+    async ({ params, body, status }) => {
+      const res = await savePhasingEdit(params.id, body.phasing);
+      if (!res.ok) return status(res.status, { error: res.error, ...(res.issues ? { issues: res.issues } : {}) });
+      return status(201, res.generation);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({ phasing: t.Unknown() }),
+    }
   )
   .post(
     "/generations/:id/revise",

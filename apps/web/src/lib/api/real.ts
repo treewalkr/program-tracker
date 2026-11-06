@@ -123,6 +123,8 @@ export const realApi: TrainerApi = {
   generations: (clientId) =>
     unwrap<GenerationDto[]>(client.v1.ai.generations.get({ query: { clientId } })),
   generation: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).get()),
+  savePhasing: (generationId, phasing) =>
+    unwrap<GenerationDto>(client.v1.ai.generations({ id: generationId }).phasing.post({ phasing })),
   reviseGeneration: (id, message) =>
     unwrap<GenerationDto>(client.v1.ai.generations({ id }).revise.post({ message })),
   approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),

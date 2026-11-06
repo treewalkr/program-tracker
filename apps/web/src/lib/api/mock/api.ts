@@ -127,6 +127,15 @@ const state = {
   examples: [...seedExamples] as ProgramExampleDto[],
 };
 
+/** JSON with object keys sorted — mirrors the api: jsonb does not keep key order, so compare canonically. */
+function canon(v: unknown): string {
+  return JSON.stringify(v, (_k, val) =>
+    val && typeof val === "object" && !Array.isArray(val)
+      ? Object.fromEntries(Object.entries(val as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : val
+  );
+}
+
 function reviseDraftInState(s: typeof state, id: string, message: string): GenerationDto {
   const gen = s.generations.find((g) => g.id === id);
   if (!gen || gen.status !== "validated" || !gen.draft) {
@@ -712,6 +721,28 @@ export const mockApi: TrainerApi = {
     return structuredClone(g);
   },
 
+  async savePhasing(generationId, phasing) {
+    await delay(300);
+    const parent = state.generations.find((g) => g.id === generationId);
+    if (!parent || parent.status !== "validated" || !parent.draft) throw new Error("generation is not validated");
+    if (parent.kind === "week") throw new Error("week drafts follow the block's plan");
+    if (canon(parent.draft.phasing ?? null) === canon(phasing)) throw new Error("phasing is unchanged");
+    const child: GenerationDto = {
+      ...structuredClone(parent),
+      id: uuid(),
+      status: "validated",
+      draft: { ...structuredClone(parent.draft), phasing: structuredClone(phasing) },
+      parentGenerationId: parent.id,
+      revisionMessage: "Block plan edited by you",
+      manualEdit: true,
+      approvedProgramId: null,
+      rejectReason: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(child);
+    return structuredClone(child);
+  },
+
   async reviseGeneration(id, message) {
     const parent = state.generations.find((g) => g.id === id);
     if (!parent || parent.status !== "validated" || !parent.draft) {
@@ -1172,6 +1203,7 @@ export const mockApi: TrainerApi = {
         ...mockProposal(target.draft as any, trimmed),
         parentGenerationId: input.generationId,
         builtGenerationId: null,
+        requestMessageId: trainerRow.id,
       },
       createdAt: new Date().toISOString(),
     };
@@ -1210,7 +1242,9 @@ export const mockApi: TrainerApi = {
       return { messages: structuredClone([err]), generation: structuredClone(pending) };
     }
     state.generations.splice(state.generations.indexOf(pending), 1);
-    const child = reviseDraftInState(state, parent!.id, row.proposal.summary);
+    // History shows the trainer's request, not the proposal summary.
+    const requestText = state.messages.find((m) => m.id === row.proposal!.requestMessageId)?.content ?? row.proposal.summary;
+    const child = reviseDraftInState(state, parent!.id, requestText);
     child.draft = mockApplyProposal(child.draft as any, row.proposal) as any;
     row.proposal.builtGenerationId = child.id;
     const out: ChatMessageDto & { clientId: string } = {
