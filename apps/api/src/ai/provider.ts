@@ -23,6 +23,29 @@ export interface ProviderRuntime {
   /** Z.ai GLM 4.x: skip reasoning so JSON output fits the token budget.
    *  GLM 5.x can't disable thinking — budget "low" is forced regardless. */
   disableThinking?: boolean;
+  /** Set by providerRuntime(); call sites building literal runtimes may omit it. */
+  providerId?: string;
+  effortLevels?: readonly string[];
+  defaultEffort?: string;
+}
+
+/**
+ * Effort selection → provider wire params. Vocabulary is low/high/max everywhere;
+ * deepseek takes `reasoning_effort` (verified live 2026-11-06), Z.ai GLM 5 takes it
+ * as `thinking.budget` (Z.ai error 1210 message names low/high/max). No selection →
+ * undefined → request body identical to pre-effort behavior.
+ */
+function effortParams(
+  rt: ProviderRuntime,
+  effort: string | undefined,
+  thinking: { type: string; budget: string } | undefined
+): Record<string, unknown> {
+  if (!effort) return {};
+  const deepseek = rt.providerId === "deepseek" || /^deepseek/.test(rt.model);
+  if (deepseek) return { reasoning_effort: effort };
+  // glm5 thinking budget follows the selection; other thinking configs stay as-is
+  if (thinking?.type === "enabled") return { thinking: { ...thinking, budget: effort } };
+  return {};
 }
 
 export interface ChatMessage {
@@ -33,7 +56,7 @@ export interface ChatMessage {
 export async function chatJson(
   rt: ProviderRuntime,
   messages: ChatMessage[],
-  opts: { temperature?: number; signal?: AbortSignal } = {}
+  opts: { temperature?: number; signal?: AbortSignal; effort?: string } = {}
 ): Promise<string> {
   // GLM 5.x always thinks and rejects "disabled" (Z.ai error 1210): budget low
   // so the JSON draft still fits; give those models a roomier token cap since
@@ -45,6 +68,7 @@ export async function chatJson(
       ? { type: "disabled" }
       : undefined;
   const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
+  const effort = effortParams(rt, opts.effort, thinking);
   let res: Response;
   try {
     res = await fetch(`${rt.baseUrl}/chat/completions`, {
@@ -61,6 +85,7 @@ export async function chatJson(
         temperature: opts.temperature ?? 0.7,
         max_tokens: maxTokens,
         ...(thinking ? { thinking } : {}),
+        ...effort,
       }),
     });
   } catch (err) {
@@ -90,7 +115,7 @@ export async function chatJson(
 export async function chatText(
   rt: ProviderRuntime,
   messages: ChatMessage[],
-  opts: { temperature?: number } = {}
+  opts: { temperature?: number; effort?: string } = {}
 ): Promise<string> {
   const glm5 = /^glm-5/.test(rt.model);
   const thinking = glm5
@@ -99,6 +124,7 @@ export async function chatText(
       ? { type: "disabled" }
       : undefined;
   const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
+  const effort = effortParams(rt, opts.effort, thinking);
   let res: Response;
   try {
     res = await fetch(`${rt.baseUrl}/chat/completions`, {
@@ -113,6 +139,7 @@ export async function chatText(
         temperature: opts.temperature ?? 0.7,
         max_tokens: maxTokens,
         ...(thinking ? { thinking } : {}),
+        ...effort,
       }),
     });
   } catch (err) {

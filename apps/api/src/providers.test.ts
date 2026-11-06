@@ -101,11 +101,14 @@ describe("providerRuntime (deepseek)", () => {
     process.env.DEEPSEEK_API_KEY = "k";
     const rt = providerRuntime("deepseek");
     expect(rt).toEqual({
+      providerId: "deepseek",
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-flash",
       apiKey: "k",
       maxOutputTokens: 16384,
       disableThinking: undefined,
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "high",
     });
     expect(providerRuntime("deepseek", "deepseek-v4-pro").model).toBe("deepseek-v4-pro");
   });
@@ -168,5 +171,41 @@ describe("chatJson (deepseek request shape)", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
     expect(body.max_tokens).toBe(16384);
     expect("thinking" in body).toBe(false);
+    expect("reasoning_effort" in body).toBe(false); // no selection → byte-identical body
+  });
+
+  test("T8b effort selection shapes provider params (deepseek reasoning_effort, glm5 budget)", async () => {
+    const capture = async (rt: ReturnType<typeof providerRuntime>, effort?: string) => {
+      const origFetch = globalThis.fetch;
+      let body: any;
+      try {
+        globalThis.fetch = (async (_input: any, init?: RequestInit) => {
+          body = JSON.parse(String(init?.body));
+          return new Response(JSON.stringify({ choices: [{ message: { content: "x" } }] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }) as typeof fetch;
+        await chatJson(rt, [{ role: "user", content: "hi" }], effort ? { effort } : {});
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+      return body;
+    };
+
+    process.env.DEEPSEEK_API_KEY = "k";
+    process.env.ZAI_API_KEY = "k";
+    const ds = providerRuntime("deepseek");
+    const glm5 = providerRuntime("zai", "glm-5.3-flash");
+    const glm45 = providerRuntime("zai", "glm-4.5-flash");
+
+    expect((await capture(ds, "max")).reasoning_effort).toBe("max");
+    expect((await capture(glm5, "high")).thinking).toEqual({ type: "enabled", budget: "high" });
+    // glm5 without selection keeps the forced-low budget
+    expect((await capture(glm5)).thinking).toEqual({ type: "enabled", budget: "low" });
+    // glm-4.5 disables thinking and takes no effort param even when one slips through
+    const glm45Body = await capture(glm45, "high");
+    expect(glm45Body.thinking).toEqual({ type: "disabled" });
+    expect("reasoning_effort" in glm45Body).toBe(false);
   });
 });
