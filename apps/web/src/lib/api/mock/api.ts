@@ -127,6 +127,15 @@ const state = {
   examples: [...seedExamples] as ProgramExampleDto[],
 };
 
+/** JSON with object keys sorted — mirrors the api: jsonb does not keep key order, so compare canonically. */
+function canon(v: unknown): string {
+  return JSON.stringify(v, (_k, val) =>
+    val && typeof val === "object" && !Array.isArray(val)
+      ? Object.fromEntries(Object.entries(val as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : val
+  );
+}
+
 function reviseDraftInState(s: typeof state, id: string, message: string): GenerationDto {
   const gen = s.generations.find((g) => g.id === id);
   if (!gen || gen.status !== "validated" || !gen.draft) {
@@ -717,7 +726,7 @@ export const mockApi: TrainerApi = {
     const parent = state.generations.find((g) => g.id === generationId);
     if (!parent || parent.status !== "validated" || !parent.draft) throw new Error("generation is not validated");
     if (parent.kind === "week") throw new Error("week drafts follow the block's plan");
-    if (JSON.stringify(parent.draft.phasing ?? null) === JSON.stringify(phasing)) throw new Error("phasing is unchanged");
+    if (canon(parent.draft.phasing ?? null) === canon(phasing)) throw new Error("phasing is unchanged");
     const child: GenerationDto = {
       ...structuredClone(parent),
       id: uuid(),
