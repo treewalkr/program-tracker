@@ -42,3 +42,37 @@ export function profilePayload(f: ProfileForm) {
 export function profileKey(f: ProfileForm): string {
   return JSON.stringify(profilePayload(f));
 }
+
+/** Sensible starting value per cardio unit, so switching units never yields "120 sessions". */
+export const CARDIO_DEFAULT: Record<Exclude<ProfileForm["cardioUnit"], "none">, number> = {
+  minutes: 120,
+  sessions: 2,
+  zone_minutes: 60,
+};
+
+/**
+ * What stacking the lifting sessions onto the picked days means, stated exactly:
+ * null when every session gets its own day (or no days are picked).
+ */
+export function stackNote(sessions: number, days: number): string | null {
+  const n = Number(sessions);
+  if (days <= 0 || n <= days) return null;
+  const stacked = Math.min(days, n - days);
+  const most = Math.ceil(n / days);
+  const dayWord = stacked === 1 ? "1 day" : `${stacked} days`;
+  return most === 2
+    ? `${dayWord} will hold two sessions`
+    : `${dayWord} will hold more than one session — up to ${most} on one day`;
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function nameError(name: string): string | null {
+  return name.trim() === "" ? "Enter the client's name" : null;
+}
+
+export function emailError(email: string): string | null {
+  const e = email.trim();
+  if (e === "") return "Enter the client's email";
+  return EMAIL.test(e) ? null : "Enter a full email, like ada@gym.com";
+}
