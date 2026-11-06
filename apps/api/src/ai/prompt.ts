@@ -582,10 +582,12 @@ export function draftToText(d: AiProgramDraft): string {
       const exercises = s.exercises
         .map((e) => {
           const name = e.exerciseName ?? e.exerciseId ?? "";
-          const sets = e.prescribedSets.map(
-            (ps) =>
-              `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
-          );
+          const sets = e.prescribedSets.map((ps) => {
+            const amount = ps.durationSeconds != null ? `${ps.durationSeconds}s` : `${ps.reps}${ps.amrap ? "+" : ""} reps`;
+            const rpe = ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : "";
+            const rest = ps.restSeconds != null ? `, rest ${ps.restSeconds}s` : "";
+            return `${amount}${rpe}${rest}`;
+          });
           return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
         })
         .join(", ");

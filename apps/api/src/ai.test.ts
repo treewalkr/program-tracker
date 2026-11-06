@@ -1358,3 +1358,22 @@ describe("revision conversation threading", () => {
     expect(plainWeek.user).not.toContain("CONVERSATION SO FAR");
   });
 });
+
+describe("draftToText shows rest and duration", () => {
+  const withSets = (sets: Array<{ setNumber: number; type: "working"; reps: number; amrap: boolean; durationSeconds?: number; targetRpe?: number; restSeconds?: number }>): AiProgramDraft => ({
+    name: "Block",
+    rationale: "",
+    clientSummary: "",
+    sessions: [{ name: "Day", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: sets }] }],
+  });
+
+  test("prints rest after RPE", () => {
+    const text = draftToText(withSets([{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 120 }]));
+    expect(text).toContain("[5 reps @ RPE 8, rest 120s]");
+  });
+
+  test("prints timed sets in seconds", () => {
+    const text = draftToText(withSets([{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45, targetRpe: 7, restSeconds: 60 }]));
+    expect(text).toContain("[45s @ RPE 7, rest 60s]");
+  });
+});
