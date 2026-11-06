@@ -433,6 +433,12 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .exrow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
 .exrow .ex { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; min-width: 0; }
 
+@media (max-width: 560px) {
+  .exrow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .exrow .ex { align-items: flex-start; flex-wrap: wrap; }
+  .exrow > :last-child { justify-self: start; padding-left: 72px; }
+}
+
 /* —— tabs (orange underline, GitHub-style) — */
 
 .tabs {
