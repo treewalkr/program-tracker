@@ -23,8 +23,8 @@
 	let { title, sub, crumbs, titleSuffix, actions }: Props = $props();
 </script>
 
+{#if crumbs}<Crumbs items={crumbs} />{/if}
 <div class="page-head">
-	{#if crumbs}<Crumbs items={crumbs} />{/if}
 	<h1>
 		{title}
 		{@render titleSuffix?.()}
