@@ -11,7 +11,7 @@
 	}
 </script>
 
-<div class="wd-row" role="group" aria-label="Training weekdays">
+<div class="wd-row" role="group" aria-label="Available days">
 	{#each LABELS as label, i (label)}
 		<ToggleChip on={days.includes(i + 1)} onclick={() => toggle(i + 1)}>{label}</ToggleChip>
 	{/each}
