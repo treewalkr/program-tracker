@@ -4,6 +4,8 @@
   import { api } from "$lib/api";
   import type { ChatMessageDto, ClientDto, ExerciseDto, GenerationDto, ProgramDto } from "$lib/api/types";
   import { applyChatTurn, draftPreviewModel, submitChatTurn } from "$lib/chatRefine";
+  import ProviderPicker from "$lib/components/ProviderPicker.svelte";
+  import type { ProviderDto } from "$lib/api/types";
   import DraftPreview from "$lib/components/DraftPreview.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -28,23 +30,42 @@
   let sendError = $state<string | null>(null);
   let catalogById = $state(new Map<string, ExerciseDto>());
 
+  let providers = $state<ProviderDto[]>([]);
+  let providerId = $state("");
+  let model = $state("");
+  let effort = $state("");
+  /** Pickers follow the target draft's provider once one exists. */
+  let pickersFollowTarget = false;
+
   const preview = $derived(draftPreviewModel(allGens, pendingMessage !== null, catalogById));
+  $effect(() => {
+    const target = preview.target;
+    if (!pickersFollowTarget && target) {
+      pickersFollowTarget = true;
+      providerId = target.providerId;
+      model = target.model;
+      effort = target.effort ?? "";
+    }
+  });
   const firstName = $derived(client?.name.split(" ")[0] ?? "this client");
   const busy = $derived(sending || pendingMessage !== null);
 
   onMount(async () => {
     try {
-      const [detail, gens, msgs, exList] = await Promise.all([
+      const [detail, gens, msgs, exList, providerList] = await Promise.all([
         api.client(id),
         api.generations(id),
         api.chatMessages(id),
         api.exercises(),
+        api.providers(),
       ]);
       client = detail.client;
       current = detail.currentProgram;
       allGens = gens;
       messages = msgs;
       catalogById = new Map(exList.map((e) => [e.id, e]));
+      providers = providerList;
+      if (!providerId && providers.length) providerId = providers[0].id;
     } finally {
       loading = false;
     }
@@ -71,7 +92,14 @@
     }
     draft = "";
     try {
-      const res = await submitChatTurn(api, { clientId: id, target: preview.target, message: trimmed });
+      const res = await submitChatTurn(api, {
+        clientId: id,
+        target: preview.target,
+        message: trimmed,
+        providerId: providerId || undefined,
+        model: model || undefined,
+        effort: effort || undefined,
+      });
       ({ messages, gens: allGens } = applyChatTurn({ messages, gens: allGens }, res));
     } catch (err) {
       draft = trimmed;
@@ -143,7 +171,6 @@
               <div class="msg-row trainer pending">
                 <div class="msg-meta">
                   <span class="role-label">You</span>
-                  <span class="chip-rev">revision</span>
                 </div>
                 <div class="msg-content">
                   <div class="content-text">{pendingMessage}</div>
@@ -154,7 +181,7 @@
                   <span class="role-label">AI</span>
                 </div>
                 <div class="msg-content">
-                  <div class="content-text pending-note">Revising draft v{preview.version} → v{preview.nextVersion}…</div>
+                  <div class="content-text pending-note">Thinking…</div>
                   <div class="pending-skeletons">
                     <Skeleton h="14px" w="100%" />
                     <Skeleton h="14px" w="100%" />
@@ -169,6 +196,13 @@
       <div class="mt-16">
         <Panel title="Message">
           <div class="panel-body composer">
+            <ProviderPicker
+              {providers}
+              bind:providerId
+              bind:model
+              bind:effort
+              idPrefix="chat"
+            />
             <Field label="Message" htmlFor="chat-message">
               <textarea
                 id="chat-message"
@@ -188,36 +222,19 @@
 
             <div class="composer-actions">
               <div class="btn-group">
-                {#if preview.target}
-                  <Button
-                    variant="primary"
-                    onclick={() => turn()}
-                    disabled={!draft.trim() || busy}
-                  >
-                    {pendingMessage !== null ? "Revising…" : "Send"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onclick={() => turn()}
-                    disabled={!draft.trim() || busy}
-                  >
-                    Ask without changing
-                  </Button>
-                {:else}
-                  <Button
-                    variant="primary"
-                    onclick={() => turn()}
-                    disabled={!draft.trim() || busy}
-                  >
-                    {sending ? "Sending…" : "Send"}
-                  </Button>
-                {/if}
+                <Button
+                  variant="primary"
+                  onclick={() => turn()}
+                  disabled={!draft.trim() || busy || !providerId}
+                >
+                  {busy ? "Thinking…" : "Send"}
+                </Button>
               </div>
 
               {#if preview.target}
                 <p class="revise-hint">
-                  Each message revises the draft (v{preview.version} → v{preview.version + 1}). Approve stays on
-                  the review page.
+                  Answers land here; a change request revises the draft (v{preview.version} → v{preview.version + 1}).
+                  Approve stays on the review page.
                 </p>
               {/if}
             </div>
