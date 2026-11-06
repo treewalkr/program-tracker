@@ -3,7 +3,8 @@
   import { api } from "$lib/api";
   import type { ClientDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
-  import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
+  import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
+  import { emptyProfile, profilePayload } from "$lib/clientProfile";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -23,14 +24,24 @@
   let showForm = $state(false);
   let saving = $state(false);
   let search = $state("");
-  let form = $state({
-    name: "",
-    email: "",
-    goals: "",
-    limitations: "",
-    sessionsPerWeek: 3,
-    trainingDays: [] as number[],
-  });
+  let name = $state("");
+  let email = $state("");
+  let profile = $state(emptyProfile());
+  let createError = $state<string | null>(null);
+  const ready = $derived(name.trim() !== "" && /^\S+@\S+\.\S+$/.test(email.trim()));
+
+  function openForm() {
+    showForm = true;
+    createError = null;
+    requestAnimationFrame(() => document.getElementById("f-name")?.focus());
+  }
+  function closeForm() {
+    showForm = false;
+    name = "";
+    email = "";
+    profile = emptyProfile();
+    createError = null;
+  }
 
   const q = $derived(search.trim().toLowerCase());
   const filtered = $derived(
@@ -56,17 +67,14 @@
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
+    if (!ready) return;
     saving = true;
+    createError = null;
     try {
-      const created = await api.createClient({
-        name: form.name,
-        email: form.email,
-        goals: form.goals || null,
-        limitations: form.limitations || null,
-        sessionsPerWeek: Number(form.sessionsPerWeek),
-        trainingDays: form.trainingDays.length ? form.trainingDays : undefined,
-      });
+      const created = await api.createClient({ name: name.trim(), email: email.trim(), ...profilePayload(profile) });
       goto(`/clients/${created.id}`);
+    } catch (err) {
+      createError = (err as Error).message;
     } finally {
       saving = false;
     }
@@ -81,47 +89,40 @@
 
 <PageHead title="Clients" sub={rosterLine}>
   {#snippet actions()}
-    <Button variant={showForm ? "ghost" : "default"} onclick={() => (showForm = !showForm)}>
-      {#snippet icon()}{#if !showForm}<Icon name="plus" />{/if}{/snippet}
-      {#if showForm}Cancel{:else}Add client{/if}
-    </Button>
+    {#if !showForm}
+      <Button onclick={openForm}>
+        {#snippet icon()}<Icon name="plus" />{/snippet}
+        Add client
+      </Button>
+    {/if}
   {/snippet}
 </PageHead>
 
 {#if showForm}
   <div class="mb-18">
   <Panel title="New client">
-    <form class="panel-body grid" onsubmit={submit}>
-      <Field label="Name" htmlFor="f-name">
-        <input class="input" id="f-name" bind:value={form.name} required maxlength="120" />
-      </Field>
-      <Field label="Email" htmlFor="f-email">
-        <input class="input" id="f-email" type="email" bind:value={form.email} required />
-      </Field>
-      <Field label="Lifting sessions a week" htmlFor="f-sessions" hint="cardio sessions don't count">
-        <select class="select" id="f-sessions" bind:value={form.sessionsPerWeek}>
-          {#each [1, 2, 3, 4, 5, 6, 7] as n (n)}<option value={n}>{n}</option>{/each}
-        </select>
-      </Field>
-      <div class="span2">
-        <Field label="Available days" hint="sessions are placed on these days; a day can hold more than one">
-          <WeekdayPicker bind:days={form.trainingDays} />
-        </Field>
-      </div>
-      <div class="span2">
-        <Field label="Goals" htmlFor="f-goals">
-          <textarea class="textarea" id="f-goals" rows="2" bind:value={form.goals} maxlength="2000"></textarea>
-        </Field>
-      </div>
-      <div class="span2">
-        <Field label="Limitations" htmlFor="f-lim" hint="treated as hard constraints by the AI">
-          <textarea class="textarea" id="f-lim" rows="2" bind:value={form.limitations} maxlength="2000"></textarea>
-        </Field>
-      </div>
-      <div class="span2">
-        <Button variant="primary" type="submit" disabled={saving || !form.name || !form.email}>
-          {saving ? "Saving…" : "Save client"}
-        </Button>
+    <form class="panel-body pf" onsubmit={submit} novalidate>
+      <section class="pf-sec">
+        <h3>Client</h3>
+        <div class="who-fields">
+          <Field label="Name" htmlFor="f-name">
+            <input class="input" id="f-name" bind:value={name} required maxlength="120" autocomplete="off" />
+          </Field>
+          <Field label="Email" htmlFor="f-email">
+            <input class="input" id="f-email" type="email" bind:value={email} required maxlength="200" autocomplete="off" />
+          </Field>
+        </div>
+      </section>
+
+      <ClientProfileFields bind:form={profile} idPrefix="f" />
+
+      <div class="pf-foot">
+        <Button variant="primary" type="submit" disabled={saving || !ready}>{saving ? "Adding…" : "Add client"}</Button>
+        <Button variant="ghost" type="button" onclick={closeForm}>Cancel</Button>
+        <span class="subtle" role="status">
+          {#if createError}<span class="err">Couldn't add client: {createError}</span>
+          {:else if !ready}Name and a valid email are required{/if}
+        </span>
       </div>
     </form>
   </Panel>
@@ -172,12 +173,12 @@
 {/if}
 
 <style>
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 160px;
-    gap: 14px;
-  }
-  .span2 { grid-column: 1 / -1; }
+  .pf { display: flex; flex-direction: column; gap: 22px; max-width: 640px; }
+  .pf-sec { display: flex; flex-direction: column; gap: 14px; }
+  .pf-sec h3 { margin: 0; font: 600 11.5px/1 var(--font-ui); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .who-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .pf-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--line-soft); padding-top: 16px; }
+  .pf-foot .err { color: var(--bad); }
   .search { margin-bottom: 12px; max-width: 320px; }
   .row { cursor: pointer; }
   .row.dim td { color: var(--muted); }
@@ -187,7 +188,7 @@
   .clamp { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 340px; }
   .lim { color: var(--warn); }
   @media (max-width: 700px) {
-    .grid { grid-template-columns: minmax(0, 1fr); }
+    .who-fields { grid-template-columns: minmax(0, 1fr); }
     .search { max-width: none; }
     .roster thead { display: none; }
     .roster, .roster tbody, .roster tr, .roster td { display: block; width: 100%; }
