@@ -190,7 +190,14 @@
 {/if}
 
 <style>
-  .newclient { max-width: 720px; margin-bottom: 18px; }
+  .newclient { margin-bottom: 18px; }
+  /* Full column width like the roster below it; on wide screens the form
+     sections pair up (Client | Schedule, Cardio | For the AI). */
+  @media (min-width: 1360px) {
+    .newclient :global(.pf) { max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 40px; align-items: start; }
+    .newclient :global(.pf > .more), .newclient :global(.pf > .pf-foot) { grid-column: 1 / -1; justify-self: stretch; }
+    .newclient :global(.pf > .more) { justify-self: start; }
+  }
   .search { margin-bottom: 12px; max-width: 320px; }
   .row { cursor: pointer; }
   .row.dim td { color: var(--muted); }
