@@ -10,7 +10,7 @@
     <li>
       <span class="lamp {r.lamp}" aria-hidden="true"></span>
       <span class="k">{r.key}</span>
-      <span class="v">{r.value}{#if r.link} <a href={r.link.href}>{r.link.label}</a>{/if}</span>
+      <span class="v">{r.value}{#if r.link}{" "}<a href={r.link.href}>{r.link.label}</a>{/if}</span>
     </li>
   {/each}
 </ul>
