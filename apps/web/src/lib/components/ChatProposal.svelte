@@ -11,6 +11,9 @@
    */
   interface Props {
     proposal: ChatProposalDto;
+    /** Track labels of the draft the proposal targets ("Session 1", "Cardio 1"…),
+     *  indexed by draft position; `change.day` is that 1-based position. */
+    tags?: string[];
     status: "open" | "building" | "built" | "superseded";
     /** mm:ss while building. */
     elapsed?: string | null;
@@ -18,7 +21,7 @@
     onadjust?: () => void;
   }
 
-  let { proposal, status, elapsed = null, onbuild, onadjust }: Props = $props();
+  let { proposal, tags = [], status, elapsed = null, onbuild, onadjust }: Props = $props();
 
   const n = $derived(proposal.changes.length);
 </script>
@@ -33,7 +36,7 @@
       <li>
         <span class="sign" aria-hidden="true">{c.kind === "add" ? "+" : c.kind === "remove" ? "−" : "~"}</span>
         <span>
-          <span class="where">Day {c.day}{c.slot != null ? ` · slot ${c.slot}` : ""} ·</span>
+          <span class="where">{tags[c.day - 1] ?? `Session ${c.day}`}{c.slot != null ? ` · slot ${c.slot}` : ""} ·</span>
           {#if c.kind === "swap"}
             <s class="from">{c.from}</s> → {c.to}
           {:else if c.kind === "add"}

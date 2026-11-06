@@ -6,25 +6,20 @@ import type { ProgramWeek } from "@pt/shared";
 const weeks: ProgramWeek[] = [
   {
     week: 1,
-    days: [
+    sessions: [
       {
-        id: "day-1",
-        day: 1,
+        id: "sess-1",
+        name: "Day A",
+        seq: 1,
         weekday: 1,
-        sessions: [
+        order: 0,
+        kind: "lifting",
+        exercises: [
           {
-            id: "sess-1",
-            name: "Day A",
+            id: "pex-1",
+            exerciseId: "ex-squat",
             order: 0,
-            kind: "lifting",
-            exercises: [
-              {
-                id: "pex-1",
-                exerciseId: "ex-squat",
-                order: 0,
-                prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }],
-              },
-            ],
+            prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }],
           },
         ],
       },
@@ -67,20 +62,20 @@ describe("toReuseInput", () => {
     expect(input.createdFromProgramId).toBe("pg-source");
 
     // cloned weeks: fresh ids, same structure and catalog refs
-    const src = example.program.weeks[0].days[0];
-    const dst = input.weeks[0].days[0];
-    expect(dst.id).not.toBe(src.id);
+    const src = example.program.weeks[0];
+    const dst = input.weeks[0];
     expect(dst.sessions[0].id).not.toBe(src.sessions[0].id);
     expect(dst.sessions[0].exercises[0].id).not.toBe(src.sessions[0].exercises[0].id);
     expect(dst.sessions[0].exercises[0].exerciseId).toBe("ex-squat");
-    expect(dst.weekday).toBe(src.weekday);
+    expect(dst.sessions[0].weekday).toBe(src.sessions[0].weekday);
+    expect(dst.sessions[0].seq).toBe(src.sessions[0].seq);
     expect(input.weeks[0].week).toBe(1);
     expect(dst.sessions[0].exercises[0].prescribedSets).toEqual(
       src.sessions[0].exercises[0].prescribedSets
     );
 
     // source untouched
-    expect(example.program.weeks[0].days[0].id).toBe("day-1");
+    expect(example.program.weeks[0].sessions[0].id).toBe("sess-1");
   });
 
   test("missing phasing reuses as null", () => {

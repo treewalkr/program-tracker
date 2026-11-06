@@ -74,7 +74,7 @@ describe("mockApi examples", () => {
     expect(created.createdFromProgramId).toBe("pg-jonas-a");
     expect(created.status).toBe("draft");
     // cloned weeks carry fresh ids, not the example's
-    expect(created.weeks[0].days[0].id).not.toBe(example.program.weeks[0].days[0].id);
+    expect(created.weeks[0].sessions[0].id).not.toBe(example.program.weeks[0].sessions[0].id);
 
     const listed = await mockApi.programs("cl-maya");
     const fromList = listed.find((p) => p.id === created.id);

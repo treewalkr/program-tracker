@@ -50,7 +50,7 @@ const mkClient = (o: Partial<ClientDto> = {}): ClientDto => ({
   status: "active",
   goals: null,
   limitations: null,
-  daysPerWeek: null,
+  sessionsPerWeek: null,
   ...o,
 });
 const mkLog = (id: string, date: string): SessionLogDto => ({

@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
-  import { weekOf, cardioDone, cardioUnitLabel, cardioWeekTotals } from "@pt/shared";
+  import { weekOf, sessionsByWeekday, cardioDone, cardioUnitLabel, cardioWeekTotals } from "@pt/shared";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekGrid, { type ClientRow, type WeekEntry } from "$lib/components/WeekGrid.svelte";
@@ -67,20 +67,20 @@
           const currentWeekNum = weekOf(prog, logs);
           const clampedWeek = Math.max(1, Math.min(currentWeekNum, prog.weeks.length));
           const currentWeek = prog.weeks.find((w) => w.week === clampedWeek) ?? prog.weeks[0];
-          const sortedTrainingDays = (c.trainingDays ?? []).slice().sort((a, b) => a - b);
           if (currentWeek) {
-            for (let i = 0; i < currentWeek.days.length; i++) {
-              const day = currentWeek.days[i];
-              const weekday = day.weekday ?? sortedTrainingDays[i];
-              if (!weekday) continue;
+            // A weekday may hold several sessions; unscheduled ones have no cell.
+            const byDay = sessionsByWeekday(currentWeek.sessions);
+            for (let weekday = 1; weekday <= 7; weekday++) {
+              const list = byDay.get(weekday) ?? [];
+              if (list.length === 0) continue;
               const date = new Date(monday);
               date.setDate(date.getDate() + (weekday - 1));
               const ds = dateStr(date);
-              const sessionName = day.sessions.map((s) => s.name).join(" + ") || "Session";
               row.entries.set(weekday, {
                 day: weekday,
                 clientId: c.id,
-                sessionName,
+                sessionName: list.map((s) => s.name).join(" + "),
+                count: list.length,
                 status: loggedDates.has(ds) ? "logged" : ds === todayStr ? "today" : weekday < todayDay ? "due" : "upcoming",
               });
             }
@@ -175,7 +175,7 @@
               <tr>
                 <th>Client</th>
                 <th>Status</th>
-                <th class="r">Days</th>
+                <th class="r">Sessions</th>
               </tr>
             </thead>
             <tbody>
@@ -186,7 +186,7 @@
                     <div class="subtle">{currentNames[c.id] ?? "…"}</div>
                   </td>
                   <td><StatusPill status={c.status} /></td>
-                  <td class="r">{c.daysPerWeek ?? "—"} / wk</td>
+                  <td class="r">{c.sessionsPerWeek ?? "—"} / wk</td>
                 </tr>
               {/each}
             </tbody>

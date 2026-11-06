@@ -4,7 +4,10 @@
   export interface WeekEntry {
     day: number; // 1=Mon … 7=Sun
     clientId: string;
+    /** Every session on the day, " + "-joined (first one names the cell). */
     sessionName: string;
+    /** Sessions placed on the day; > 1 shows the count in the cell corner. Defaults to 1. */
+    count?: number;
     status: "logged" | "due" | "today" | "upcoming";
   }
 
@@ -38,7 +41,7 @@
 
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dayNumberOf = (iso: string) => Number(iso.slice(8, 10));
-  const shortName = (sessionName: string) => sessionName.split("—")[0].trim() || "Session";
+  const shortName = (sessionName: string) => sessionName.split(" + ")[0].split("—")[0].trim() || "Session";
 </script>
 
 <div class="week-wrap">
@@ -56,7 +59,7 @@
           <a href={`/clients/${row.client.id}`}>{row.client.name}</a>
           {#if row.program}
             <span class="meta">
-              {row.client.daysPerWeek ?? "—"} d/wk · {currentNames[row.client.id]}
+              {row.client.sessionsPerWeek ?? "—"}/wk · {currentNames[row.client.id]}
             </span>
           {/if}
           {#if row.cardio}
@@ -78,6 +81,7 @@
                   href={e.status === "logged" ? `/clients/${row.client.id}` : `/clients/${row.client.id}/log`}
                   title={`${row.client.name} — ${e.sessionName}`}
                 >
+                  {#if (e.count ?? 1) > 1}<span class="more">{e.count}</span>{/if}
                   <span class="tag">{shortName(e.sessionName)}{#if e.status === "logged"} ✓{:else if e.status === "today"} · due{:else if e.status === "due"} · missed{/if}</span>
                 </a>
               {:else}
@@ -147,5 +151,17 @@
   .cell.missed .tag { color: var(--bad); }
   .cell.next { background: var(--well); }
   .cell.next .tag { color: var(--muted); }
+  .cell { position: relative; }
+  .cell .more {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    font: 500 9px/1 var(--font-mono);
+    opacity: 0.8;
+  }
+  .cell.done .more { color: #fff; }
+  .cell.today .more { color: var(--blue); }
+  .cell.missed .more { color: var(--bad); }
+  .cell.next .more { color: var(--muted); }
   .offday { align-self: center; color: var(--faint); font-size: 11px; }
 </style>

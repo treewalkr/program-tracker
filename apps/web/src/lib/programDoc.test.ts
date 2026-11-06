@@ -6,14 +6,12 @@ describe("validateProgramDoc", () => {
   const validWeeks: ProgramWeekDto[] = [
     {
       week: 1,
-      days: [
-        {
-          id: crypto.randomUUID(),
-          day: 1,
-          sessions: [
+      sessions: [
             {
               id: crypto.randomUUID(),
               name: "Session 1",
+              seq: 1,
+              weekday: 1,
               order: 0,
               kind: "lifting",
               cardio: null,
@@ -32,6 +30,8 @@ describe("validateProgramDoc", () => {
             {
               id: crypto.randomUUID(),
               name: "Session 2",
+              seq: 2,
+              weekday: 1,
               order: 1,
               kind: "lifting",
               cardio: null,
@@ -47,8 +47,6 @@ describe("validateProgramDoc", () => {
                 },
               ],
             },
-          ],
-        },
       ],
     },
   ];
@@ -60,7 +58,7 @@ describe("validateProgramDoc", () => {
 
     // Exercise notes > 1000 chars -> ok: false + message
     const longExNotes: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
-    longExNotes[0].days[0].sessions[0].exercises[0].notes = "a".repeat(1001);
+    longExNotes[0].sessions[0].exercises[0].notes = "a".repeat(1001);
     const exNotesRes = validateProgramDoc(longExNotes);
     expect(exNotesRes.ok).toBe(false);
     if (!exNotesRes.ok) {
@@ -69,7 +67,7 @@ describe("validateProgramDoc", () => {
 
     // Session notes > 2000 chars -> ok: false + message
     const longSessNotes: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
-    longSessNotes[0].days[0].sessions[0].notes = "b".repeat(2001);
+    longSessNotes[0].sessions[0].notes = "b".repeat(2001);
     const sessNotesRes = validateProgramDoc(longSessNotes);
     expect(sessNotesRes.ok).toBe(false);
     if (!sessNotesRes.ok) {
@@ -78,7 +76,7 @@ describe("validateProgramDoc", () => {
 
     // Empty lifting session -> ok: false + contains "lifting session requires at least one exercise"
     const emptyLifting: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
-    emptyLifting[0].days[0].sessions[0].exercises = [];
+    emptyLifting[0].sessions[0].exercises = [];
     const emptyRes = validateProgramDoc(emptyLifting);
     expect(emptyRes.ok).toBe(false);
     if (!emptyRes.ok) {

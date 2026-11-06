@@ -1,6 +1,5 @@
 import {
   aiDraftToDiffSource,
-  applyDefaultWeekdays,
   cardioBehindSignal,
   chainSetCounts,
   computeSignals,
@@ -20,6 +19,8 @@ import {
   ProgramWeeksDocument,
   selectExamples,
   sortExercisesByRole,
+  placeWeeks,
+  sessionKey,
   stampWeeks,
   weekSummary,
   type PreferenceSignal,
@@ -38,7 +39,6 @@ import type {
   KineticChainDto,
   PeriodizationSchemeDto,
   PreferencesDto,
-  ProgramDayDto,
   ProgramDto,
   ProgramExampleDto,
   ProgramPhasingDto,
@@ -53,6 +53,7 @@ import {
   examples as seedExamples,
   exercises,
   logs as seedLogs,
+  patternOf,
   programs as seedPrograms,
   schemes as seedSchemes,
 } from "./data";
@@ -165,6 +166,21 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
   return child;
 }
 
+/** Renumber within-day order 0..n-1 per weekday, keeping relative order. */
+function withCompactOrder(sessions: ProgramSessionDto[]): ProgramSessionDto[] {
+  const next = new Map<number, number>();
+  const rank = [...sessions].sort(
+    (a, b) => (a.weekday ?? 0) - (b.weekday ?? 0) || a.order - b.order || (a.kind === b.kind ? a.seq - b.seq : a.kind === "cardio" ? 1 : -1)
+  );
+  const orderOf = new Map<string, number>();
+  for (const s of rank) {
+    const d = s.weekday ?? 0;
+    orderOf.set(s.id, next.get(d) ?? 0);
+    next.set(d, (next.get(d) ?? 0) + 1);
+  }
+  return sessions.map((s) => ({ ...s, order: orderOf.get(s.id)! }));
+}
+
 const nameOf = (exerciseId: string) =>
   exercises.find((e) => e.id === exerciseId)?.name ?? exerciseId;
 
@@ -173,12 +189,9 @@ function withNames(p: ProgramDto): ProgramDto {
     ...p,
     weeks: p.weeks.map((w) => ({
       ...w,
-      days: w.days.map((d) => ({
-        ...d,
-        sessions: d.sessions.map((s) => ({
-          ...s,
-          exercises: s.exercises.map((e) => ({ ...e, exerciseName: nameOf(e.exerciseId) })),
-        })),
+      sessions: w.sessions.map((s) => ({
+        ...s,
+        exercises: s.exercises.map((e) => ({ ...e, exerciseName: nameOf(e.exerciseId) })),
       })),
     })),
   };
@@ -199,7 +212,7 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
     clientSummary:
       "Same 4-day split you've been running. Squats go up to 65kg on top sets — your last AMRAP at 62.5kg×7 says you're ready. Chin-ups lose a band level, and deadlifts jump to 85kg. Everything else stays familiar.",
     sessions: [
-      { name: "Day 1 — Lower", exercises: [
+      { name: "Lower", exercises: [
         { exerciseId: "ex-squat", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
           { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 180 },
@@ -216,7 +229,7 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
           { setNumber: 3, type: "working", reps: 10, amrap: false, restSeconds: 60 },
         ] },
       ]},
-      { name: "Day 2 — Upper", exercises: [
+      { name: "Upper", exercises: [
         { exerciseId: "ex-landmine", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 2, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
@@ -234,7 +247,7 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
           { setNumber: 3, type: "working", reps: 15, amrap: false, restSeconds: 60 },
         ] },
       ]},
-      { name: "Day 3 — Lower", exercises: [
+      { name: "Lower", exercises: [
         { exerciseId: "ex-dead", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
           { setNumber: 2, type: "working", reps: 5, amrap: false, targetRpe: 8, restSeconds: 210 },
@@ -249,7 +262,7 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
           { setNumber: 2, type: "working", reps: 45, amrap: false, restSeconds: 60 },
         ], notes: "45s holds" },
       ]},
-      { name: "Day 4 — Upper", exercises: [
+      { name: "Upper", exercises: [
         { exerciseId: "ex-incline", role: "primary", prescribedSets: [
           { setNumber: 1, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
           { setNumber: 2, type: "working", reps: 8, amrap: false, targetRpe: 8, restSeconds: 120 },
@@ -280,7 +293,7 @@ function genericDraft(): AiDraftDto {
     name: "Next Block — Draft",
     rationale: "Generic progression: +2.5% on primary lifts, volume held.",
     clientSummary: "Same split, small jumps on the main lifts.",
-    sessions: [{ name: "Day 1", exercises: [{ exerciseId: "ex-squat", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }] }] }],
+    sessions: [{ name: "Full body", exercises: [{ exerciseId: "ex-squat", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpe: 8 }] }] }],
   };
 }
 
@@ -395,7 +408,7 @@ export const mockApi: TrainerApi = {
       programId: input.programId,
       goal: input.goal,
       level: input.level,
-      daysPerWeek: input.daysPerWeek ?? program.weeks[0].days.length,
+      daysPerWeek: input.daysPerWeek ?? Math.max(1, program.weeks[0].sessions.filter((x) => x.kind === "lifting").length),
       note: input.note ?? null,
       createdAt: new Date().toISOString(),
       program: withNames(program),
@@ -701,7 +714,7 @@ export const mockApi: TrainerApi = {
         daysPerWeek: e.daysPerWeek,
         createdAt: e.createdAt,
       })),
-      { goals: client?.goals ?? null, daysPerWeek: client?.daysPerWeek ?? null },
+      { goals: client?.goals ?? null, daysPerWeek: client?.sessionsPerWeek ?? null },
       { excludeProgramId: input.basedOnProgramId ?? null, limit: 2 },
     ).map((m) => m.programId);
     gen.status = "validated";
@@ -795,48 +808,49 @@ export const mockApi: TrainerApi = {
     const gen = state.generations.find((g) => g.id === id);
     if (!gen || !gen.draft) throw new Error("generation not found");
     const client = state.clients.find((c) => c.id === gen.clientId);
-    const templateDays: ProgramDayDto[] = gen.draft.sessions.map((s, si) => {
-      const isCardio = s.kind === "cardio";
-      const exercises = isCardio
-        ? []
-        : sortExercisesByRole(s.exercises).map((e, ei) => ({
-            id: uuid(),
-            exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
-            exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
-            role: e.role,
-            order: ei,
-            prescribedSets: e.prescribedSets,
-            notes: e.notes,
-          }));
+    // Mirrors the API: draft sessions get seq per kind in draft order; code places them.
+    const seq = { lifting: 0, cardio: 0 };
+    const template: ProgramSessionDto[] = gen.draft.sessions.map((s) => {
+      const kind = s.kind === "cardio" ? ("cardio" as const) : ("lifting" as const);
+      const exercises =
+        kind === "cardio"
+          ? []
+          : sortExercisesByRole(s.exercises).map((e, ei) => ({
+              id: uuid(),
+              exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
+              exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
+              role: e.role,
+              order: ei,
+              prescribedSets: e.prescribedSets,
+              notes: e.notes,
+            }));
       return {
         id: uuid(),
-        day: si + 1,
+        name: s.name,
+        seq: ++seq[kind],
         weekday: null,
-        sessions: [
-          {
-            id: uuid(),
-            name: s.name,
-            order: 0,
-            kind: isCardio ? ("cardio" as const) : ("lifting" as const),
-            notes: s.notes,
-            exercises,
-            cardio: isCardio ? s.cardio : null,
-          },
-        ],
+        order: 0,
+        kind,
+        notes: s.notes,
+        exercises,
+        cardio: kind === "cardio" ? s.cardio : null,
       };
     });
 
     if (gen.kind === "week") {
       const targetProg = state.programs.find((p) => p.id === gen.basedOnProgramId);
       if (!targetProg) throw new Error("based-on program not found");
-      const sorted = client?.trainingDays ? [...client.trainingDays].sort((a, b) => a - b) : [];
+      // Keep the old week's placement by session key; new sessions land unscheduled.
       const oldWeek = targetProg.weeks.find((w) => w.week === gen.targetWeek);
-      const newDays: ProgramDayDto[] = templateDays.map((d, i) => ({
-        ...d,
-        weekday: oldWeek?.days[i]?.weekday ?? sorted[i] ?? null,
-      }));
+      const oldAt = new Map((oldWeek?.sessions ?? []).map((s) => [sessionKey(s), s]));
+      const sessions = withCompactOrder(
+        template.map((s) => {
+          const old = oldAt.get(sessionKey(s));
+          return old ? { ...s, weekday: old.weekday ?? null, order: old.order } : { ...s, weekday: null, order: 99 };
+        })
+      );
       targetProg.weeks = targetProg.weeks.map((w) =>
-        w.week === gen.targetWeek ? { ...w, days: newDays } : w
+        w.week === gen.targetWeek ? { ...w, sessions } : w
       );
       targetProg.version += 1;
       gen.status = "approved";
@@ -845,8 +859,7 @@ export const mockApi: TrainerApi = {
     }
 
     const plannedWeeks = 4;
-    const stamped = stampWeeks(templateDays, plannedWeeks);
-    const weeks = applyDefaultWeekdays(stamped, client?.trainingDays);
+    const weeks = placeWeeks(stampWeeks(template, plannedWeeks), client?.trainingDays, patternOf);
     const program: ProgramDto = {
       id: uuid(),
       clientId: gen.clientId,
@@ -1045,7 +1058,7 @@ export const mockApi: TrainerApi = {
       const clientLogs = state.logs
         .filter((l) => l.clientId === client.id)
         .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, sets: l.sets }));
-      signals.push(...computeSignals(current, clientLogs, nameOf, client.daysPerWeek));
+      signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek));
       if (client.cardioTarget) {
         const behind = cardioBehindSignal(
           { programId: current.id, clientId: client.id },

@@ -19,6 +19,7 @@
   } from "$lib/chatRefine";
   import DraftPreview from "$lib/components/DraftPreview.svelte";
   import ChatProposal from "$lib/components/ChatProposal.svelte";
+  import { draftSessionTags } from "$lib/draftReview";
   import VersionStamp from "$lib/components/VersionStamp.svelte";
   import ModelSettings from "$lib/components/ModelSettings.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -64,6 +65,9 @@
   const shown = $derived(view !== null && view <= latest ? view : latest);
   const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById) : null);
   const stamps = $derived(versionStamps(messages, allGens));
+  /** Track labels for the draft a proposal targets (`change.day` = draft position). */
+  const tagsFor = (genId: string | null | undefined) =>
+    draftSessionTags(allGens.find((g) => g.id === genId)?.draft?.sessions ?? []);
   const shownUnproposed = $derived.by(() => {
     if (!vview) return [];
     for (const s of stamps.values()) if (s.generationId === vview.generation.id) return s.unproposed ?? [];
@@ -85,7 +89,7 @@
   const sub = $derived(
     [
       programName ?? "No draft yet",
-      client?.daysPerWeek ? `${client.daysPerWeek} days/week` : null,
+      client?.sessionsPerWeek ? `${client.sessionsPerWeek} sessions/week` : null,
       client?.goals ? `goal ${client.goals}` : null,
     ]
       .filter(Boolean)
@@ -297,7 +301,7 @@
   const starters = $derived([
     `How has ${firstName}'s back squat e1RM moved over the last 4 weeks?`,
     `Which sessions did ${firstName} miss this block?`,
-    `Draft a 6-week block for ${firstName}${client?.daysPerWeek ? `, ${client.daysPerWeek} days a week` : ""}`,
+    `Draft a 6-week block for ${firstName}${client?.sessionsPerWeek ? `, ${client.sessionsPerWeek} sessions a week` : ""}`,
   ]);
 </script>
 
@@ -347,6 +351,7 @@
             <div class="md">{@html renderMarkdown(m.content)}</div>
             <ChatProposal
               proposal={m.proposal}
+              tags={tagsFor(m.proposal.parentGenerationId)}
               status={proposalStatus(m)}
               {elapsed}
               onbuild={() => build(m)}

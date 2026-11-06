@@ -2,7 +2,6 @@ import type {
   ClientDto,
   ExerciseDto,
   PeriodizationSchemeDto,
-  ProgramDayDto,
   ProgramDto,
   ProgramExampleDto,
   ProgramExerciseDto,
@@ -10,7 +9,7 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
 } from "../types";
-import { applyDefaultWeekdays, type CardioLog, type SessionKind, type SetType } from "@pt/shared";
+import { placeSession, placeWeeks, sessionKey, type CardioLog, type SessionKind, type SetType } from "@pt/shared";
 
 export const schemes: PeriodizationSchemeDto[] = [
   {
@@ -80,7 +79,7 @@ export const clients: ClientDto[] = [
     status: "active",
     goals: "First unassisted pull-up and a 60 kg back squat by December.",
     limitations: "Right shoulder impingement — no barbell overhead pressing, no behind-neck work.",
-    daysPerWeek: 4,
+    sessionsPerWeek: 4,
     trainingDays: [1, 2, 4, 5],
   },
   {
@@ -90,7 +89,7 @@ export const clients: ClientDto[] = [
     status: "active",
     goals: "Lean bulk to 80 kg bodyweight, keep visible abs.",
     limitations: null,
-    daysPerWeek: 3,
+    sessionsPerWeek: 3,
     trainingDays: [2, 4, 6],
   },
   {
@@ -100,7 +99,7 @@ export const clients: ClientDto[] = [
     status: "paused",
     goals: "General strength, twice a week is all I can commit to.",
     limitations: "Old left ankle sprain — avoid high-impact jumping.",
-    daysPerWeek: 2,
+    sessionsPerWeek: 2,
     trainingDays: [3, 5],
   },
 ];
@@ -113,59 +112,70 @@ const S = (setNumber: number, reps: number, extra: Partial<ProgramExerciseDto["p
   ...extra,
 });
 
+/** Movement pattern lookup for the placer (mock catalog). */
+export const patternOf = (exerciseId: string) => exercises.find((e) => e.id === exerciseId)?.movementPattern ?? null;
+
+type SessionTemplate = {
+  id?: string;
+  name: string;
+  order?: number;
+  kind?: "lifting" | "cardio";
+  cardio?: { modality: string; durationMin?: number | null; hrZone?: number | null; intensity?: string; distanceKm?: number; targetRpe?: number } | null;
+  exercises?: ProgramExerciseDto[];
+  notes?: string;
+  /** Leave this session unscheduled ("any day") after default placement. */
+  anyDay?: boolean;
+};
+
+/**
+ * Build a program's weeks the way the API does: a flat one-week session list
+ * (seq per kind in template order), stamped across weeks, placed by the
+ * shared placer. Templates are grouped as before only for readability.
+ */
 function makeWeeks(
-  dayTemplates: {
-    day?: number;
-    sessions: {
-      id?: string;
-      name: string;
-      order?: number;
-      kind?: "lifting" | "cardio";
-      cardio?: { modality: string; durationMin?: number | null; hrZone?: number | null; intensity?: string; distanceKm?: number; targetRpe?: number } | null;
-      exercises?: ProgramExerciseDto[];
-      notes?: string;
-    }[];
-  }[],
+  dayTemplates: { sessions: SessionTemplate[] }[],
   plannedWeeks = 4,
   trainingDays?: number[] | null,
-  week2Changes?: (days: ProgramDayDto[]) => ProgramDayDto[]
+  week2Changes?: (sessions: ProgramSessionDto[]) => ProgramSessionDto[]
 ): ProgramWeekDto[] {
-  const week1Days: ProgramDayDto[] = dayTemplates.map((d, di) => ({
-    id: uuid(),
-    day: d.day ?? di + 1,
-    weekday: null,
-    sessions: d.sessions.map((s, si) => ({
+  const seq = { lifting: 0, cardio: 0 };
+  const flat = dayTemplates.flatMap((d) => d.sessions);
+  const week1: ProgramSessionDto[] = flat.map((s) => {
+    const kind = s.kind ?? (s.cardio ? "cardio" : "lifting");
+    return {
       id: s.id ?? uuid(),
       name: s.name,
-      order: s.order ?? si,
-      kind: s.kind ?? (s.cardio ? "cardio" : "lifting"),
+      seq: ++seq[kind],
+      weekday: null,
+      order: 0,
+      kind,
       notes: s.notes,
       exercises: s.exercises ?? [],
       cardio: s.cardio ?? null,
-    })),
-  }));
+    };
+  });
+  const anyDay = new Set(flat.flatMap((s, i) => (s.anyDay ? [sessionKey(week1[i])] : [])));
 
-  const weeks: ProgramWeekDto[] = [{ week: 1, days: week1Days }];
+  const weeks: ProgramWeekDto[] = [{ week: 1, sessions: week1 }];
   for (let w = 2; w <= plannedWeeks; w++) {
-    const baseDays = (w === 2 && week2Changes) ? week2Changes(week1Days) : week1Days;
+    const base = w === 2 && week2Changes ? week2Changes(week1) : week1;
     weeks.push({
       week: w,
-      days: baseDays.map((d) => ({
-        ...d,
+      sessions: base.map((s) => ({
+        ...s,
         id: uuid(),
-        sessions: d.sessions.map((s) => ({
-          ...s,
-          id: uuid(),
-          exercises: s.exercises.map((e) => ({
-            ...e,
-            id: uuid(),
-          })),
-        })),
+        exercises: s.exercises.map((e) => ({ ...e, id: uuid() })),
       })),
     });
   }
 
-  return applyDefaultWeekdays(weeks, trainingDays);
+  const placed = placeWeeks(weeks, trainingDays, patternOf);
+  if (anyDay.size === 0) return placed;
+  return placed.map((wk) => {
+    let next = wk;
+    for (const s of wk.sessions) if (anyDay.has(sessionKey(s))) next = placeSession(next, s.id, null, 99);
+    return next;
+  });
 }
 
 export const programs: ProgramDto[] = [
@@ -199,7 +209,7 @@ export const programs: ProgramDto[] = [
           sessions: [
             {
               id: "ps-maya-1",
-              name: "Day 1 — Lower",
+              name: "Lower — squat",
               exercises: [
                 { id: "pe-maya-1", exerciseId: "ex-squat", role: "primary", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 180 }), S(2, 5, { targetRpe: 8, restSeconds: 180 }), S(3, 5, { amrap: true, targetRpe: 9, restSeconds: 180 })], notes: "2s pause in the hole on last set" },
                 { id: "pe-maya-2", exerciseId: "ex-rdl", role: "strength", order: 1, prescribedSets: [S(1, 8, { targetRpe: 7, restSeconds: 120 }), S(2, 8, { targetRpe: 7, restSeconds: 120 }), S(3, 8, { targetRpe: 7, restSeconds: 120 })] },
@@ -212,7 +222,7 @@ export const programs: ProgramDto[] = [
           sessions: [
             {
               id: "ps-maya-2",
-              name: "Day 2 — Upper",
+              name: "Upper — press & pull",
               exercises: [
                 { id: "pe-maya-4", exerciseId: "ex-landmine", role: "primary", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 120 }), S(2, 8, { targetRpe: 8, restSeconds: 120 }), S(3, 8, { targetRpe: 8, restSeconds: 120 })], notes: "Shoulder-friendly pressing slot" },
                 { id: "pe-maya-5", exerciseId: "ex-pulldown", role: "strength", order: 1, prescribedSets: [S(1, 10, { targetRpe: 8, restSeconds: 90 }), S(2, 10, { targetRpe: 8, restSeconds: 90 }), S(3, 10, { amrap: true, targetRpe: 9, restSeconds: 90 })] },
@@ -221,9 +231,17 @@ export const programs: ProgramDto[] = [
             },
             {
               id: "ps-maya-2b",
-              name: "Cardio — Bike",
+              name: "Zone 2 bike",
               kind: "cardio",
               cardio: { modality: "Bike", durationMin: 20, hrZone: 2 },
+            },
+            {
+              id: "ps-maya-walk",
+              name: "Easy walk",
+              kind: "cardio",
+              cardio: { modality: "Walk", durationMin: 30, hrZone: 1 },
+              notes: "Any day that suits — outdoors if possible.",
+              anyDay: true,
             },
           ],
         },
@@ -231,7 +249,7 @@ export const programs: ProgramDto[] = [
           sessions: [
             {
               id: "ps-maya-3",
-              name: "Day 3 — Lower",
+              name: "Lower — hinge",
               exercises: [
                 { id: "pe-maya-7", exerciseId: "ex-dead", role: "primary", order: 0, prescribedSets: [S(1, 5, { targetRpe: 8, restSeconds: 210 }), S(2, 5, { targetRpe: 8, restSeconds: 210 })] },
                 { id: "pe-maya-8", exerciseId: "ex-bss", role: "strength", order: 1, prescribedSets: [S(1, 10, { targetRpe: 7, restSeconds: 90 }), S(2, 10, { targetRpe: 7, restSeconds: 90 }), S(3, 10, { targetRpe: 7, restSeconds: 90 })] },
@@ -244,7 +262,7 @@ export const programs: ProgramDto[] = [
           sessions: [
             {
               id: "ps-maya-4",
-              name: "Day 4 — Upper",
+              name: "Upper — chin-up focus",
               exercises: [
                 { id: "pe-maya-10", exerciseId: "ex-incline", role: "primary", order: 0, prescribedSets: [S(1, 8, { targetRpe: 8, restSeconds: 120 }), S(2, 8, { targetRpe: 8, restSeconds: 120 }), S(3, 8, { amrap: true, targetRpe: 9, restSeconds: 120 })] },
                 { id: "pe-maya-11", exerciseId: "ex-crow", role: "strength", order: 1, prescribedSets: [S(1, 12, { targetRpe: 7, restSeconds: 90 }), S(2, 12, { targetRpe: 7, restSeconds: 90 }), S(3, 12, { targetRpe: 7, restSeconds: 90 })] },
@@ -256,22 +274,19 @@ export const programs: ProgramDto[] = [
         },
       ],
       6,
-      [1, 2, 4, 6],
-      (d1) => [
-        ...d1.slice(0, 3),
-        {
-          ...d1[3],
-          sessions: [
-            {
-              ...d1[3].sessions[0],
-              exercises: [
-                ...d1[3].sessions[0].exercises,
-                { id: uuid(), exerciseId: "ex-ext", role: "accessory", order: 4, prescribedSets: [S(1, 15, { restSeconds: 60 }), S(2, 15, { restSeconds: 60 })] },
-              ],
-            },
-          ],
-        },
-      ]
+      [1, 2, 4, 5],
+      (w1) =>
+        w1.map((s) =>
+          s.id === "ps-maya-4"
+            ? {
+                ...s,
+                exercises: [
+                  ...s.exercises,
+                  { id: uuid(), exerciseId: "ex-ext", role: "accessory", order: 4, prescribedSets: [S(1, 15, { restSeconds: 60 }), S(2, 15, { restSeconds: 60 })] },
+                ],
+              }
+            : s
+        )
     ),
   },
   {
@@ -355,7 +370,7 @@ export const programs: ProgramDto[] = [
     createdFromProgramId: null,
     createdAt: "2026-09-10T09:00:00Z",
     weeks: makeWeeks(
-      [{ sessions: [{ id: uuid(), name: "Day 1", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-press", order: 0, prescribedSets: [S(1, 12), S(2, 12)] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12), S(2, 12)] }] }] }],
+      [{ sessions: [{ id: uuid(), name: "Full body", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-press", order: 0, prescribedSets: [S(1, 12), S(2, 12)] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12), S(2, 12)] }] }] }],
       1,
       [3, 5]
     ),
@@ -382,14 +397,12 @@ const LOAD_TARGETS: Record<string, number> = {
 };
 for (const p of programs) {
   for (const w of p.weeks) {
-    for (const d of w.days) {
-      for (const s of d.sessions) {
-        for (const e of s.exercises) {
-          const target = LOAD_TARGETS[e.exerciseId];
-          if (!target) continue;
-          for (const ps of e.prescribedSets) {
-            if (ps.type === "working") ps.targetWeightKg = target;
-          }
+    for (const s of w.sessions) {
+      for (const e of s.exercises) {
+        const target = LOAD_TARGETS[e.exerciseId];
+        if (!target) continue;
+        for (const ps of e.prescribedSets) {
+          if (ps.type === "working") ps.targetWeightKg = target;
         }
       }
     }
@@ -550,7 +563,7 @@ export const trainerClient: ClientDto = {
   status: "active",
   goals: "Off-season: sarcoplasmic hypertrophy block, then strength interlude.",
   limitations: null,
-  daysPerWeek: 4,
+  sessionsPerWeek: 4,
   trainingDays: [1, 2, 4, 6],
   cardioTarget: { unit: "minutes", value: 180 },
 };
@@ -596,7 +609,7 @@ export const trainerProgram: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-nat-1", name: "Day 1 — Back / Biceps", order: 0,
+            id: "ps-nat-1", name: "Back / Biceps", order: 0,
             exercises: [
               { id: "pe-nat-1", exerciseId: "ex-latstretch", order: 0, prescribedSets: timed(2, 15), notes: "Static stretch" },
               { id: "pe-nat-2", exerciseId: "ex-scapdep", order: 1, prescribedSets: many(2, 10), notes: "1–2 sets" },
@@ -619,7 +632,7 @@ export const trainerProgram: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-nat-2", name: "Day 2 — Chest / Triceps", order: 0,
+            id: "ps-nat-2", name: "Chest / Triceps", order: 0,
             exercises: [
               { id: "pe-nat-9", exerciseId: "ex-cheststretch", order: 0, prescribedSets: timed(2, 12), notes: "PAILs/RAILs" },
               { id: "pe-nat-10", exerciseId: "ex-cars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
@@ -642,7 +655,7 @@ export const trainerProgram: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-nat-3", name: "Day 3 — Lower", order: 0,
+            id: "ps-nat-3", name: "Lower", order: 0,
             exercises: [
               { id: "pe-nat-17", exerciseId: "ex-hipflex", order: 0, prescribedSets: timed(2, 12) },
               { id: "pe-nat-18", exerciseId: "ex-hipcars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
@@ -665,7 +678,7 @@ export const trainerProgram: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-nat-4", name: "Day 4 — Core / VO2max", order: 0,
+            id: "ps-nat-4", name: "Core / VO2max", order: 0,
             exercises: [
               { id: "pe-nat-25", exerciseId: "ex-deadbug", order: 0, prescribedSets: many(3, 12) },
               { id: "pe-nat-26", exerciseId: "ex-catcamel", order: 1, prescribedSets: many(3, 10) },
@@ -706,7 +719,7 @@ export const trainerProgramDraft: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-natb-1", name: "Day 1 — Upper Push", order: 0,
+            id: "ps-natb-1", name: "Upper Push", order: 0,
             exercises: [
               { id: "pe-natb-1", exerciseId: "ex-pushpress", order: 0, prescribedSets: many(5, 6) },
               { id: "pe-natb-2", exerciseId: "ex-dbbench", order: 1, prescribedSets: range(4, 6, 8) },
@@ -721,7 +734,7 @@ export const trainerProgramDraft: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-natb-2", name: "Day 2 — Upper Pull", order: 0,
+            id: "ps-natb-2", name: "Upper Pull", order: 0,
             exercises: [
               { id: "pe-natb-7", exerciseId: "ex-highpull", order: 0, prescribedSets: many(5, 6) },
               { id: "pe-natb-8", exerciseId: "ex-vbarrow", order: 1, prescribedSets: range(4, 6, 8) },
@@ -736,7 +749,7 @@ export const trainerProgramDraft: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-natb-3", name: "Day 3 — Lower", order: 0,
+            id: "ps-natb-3", name: "Lower", order: 0,
             exercises: [
               { id: "pe-natb-13", exerciseId: "ex-squat", order: 0, prescribedSets: range(4, 6, 8) },
               { id: "pe-natb-14", exerciseId: "ex-press", order: 1, prescribedSets: range(3, 9, 12) },

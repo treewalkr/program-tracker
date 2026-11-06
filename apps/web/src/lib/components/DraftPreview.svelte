@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SlotChange } from "@pt/shared";
   import { changeSummary, type VersionView } from "$lib/chatRefine";
+  import { draftSessionTags } from "$lib/draftReview";
   import SessionCard, { type SlotMark } from "$lib/components/SessionCard.svelte";
   import Icon from "$lib/ui/Icon.svelte";
 
@@ -46,7 +47,10 @@
   const keyOf = (c: SlotChange) => `${c.day}:${c.beforeSlot}:${c.afterSlot}:${c.kind}`;
   const unproposedKeys = $derived(new Set(unproposed.map(keyOf)));
 
-  /** One mark map per day, keyed by the slot in the shown version. */
+  /** "Session N" / "Cardio N" per draft session (drafts carry no weekdays). */
+  const tags = $derived(draftSessionTags(view.sessions));
+
+  /** One mark map per session, keyed by the slot in the shown version. */
   const marksByDay = $derived.by(() => {
     const days: Map<number, SlotMark>[] = view.sessions.map(() => new Map());
     if (!showChanges) return days;
@@ -72,7 +76,7 @@
         <button type="button" disabled><span class="spinner" aria-hidden="true"></span>v{building.next}</button>
       {/if}
     </div>
-    <span class="counter days">{plural(view.sessions.length, "day")}</span>
+    <span class="counter days">{plural(view.sessions.length, "session")}</span>
     {#if view.version !== latest}<span class="pill neutral">older version</span>{/if}
     <button type="button" class="strip-toggle" aria-expanded={open} onclick={() => (open = !open)}>
       {open ? "Hide" : "Show"} draft <Icon name="chevron" />
@@ -102,7 +106,7 @@
     <div class="body" class:dim={building !== null}>
       {#each view.sessions as s, i (i)}
         <div class="session-slot" data-day={i + 1}>
-          <SessionCard name={s.name} kind={s.kind} cardio={s.cardio} exercises={s.exercises} marks={marksByDay[i]} />
+          <SessionCard name={s.name} tag={tags[i]} kind={s.kind} cardio={s.cardio} exercises={s.exercises} marks={marksByDay[i]} />
         </div>
       {/each}
     </div>

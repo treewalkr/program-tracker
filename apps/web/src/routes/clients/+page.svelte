@@ -22,7 +22,7 @@
     email: "",
     goals: "",
     limitations: "",
-    daysPerWeek: 3,
+    sessionsPerWeek: 3,
     trainingDays: [] as number[],
   });
 
@@ -44,7 +44,7 @@
         email: form.email,
         goals: form.goals || null,
         limitations: form.limitations || null,
-        daysPerWeek: Number(form.daysPerWeek),
+        sessionsPerWeek: Number(form.sessionsPerWeek),
         trainingDays: form.trainingDays.length ? form.trainingDays : undefined,
       });
       goto(`/clients/${created.id}`);
@@ -79,13 +79,13 @@
       <Field label="Email" htmlFor="f-email">
         <input class="input" id="f-email" type="email" bind:value={form.email} required />
       </Field>
-      <Field label="Training days per week" htmlFor="f-days">
-        <select class="select" id="f-days" bind:value={form.daysPerWeek}>
-          {#each [1, 2, 3, 4, 5, 6] as d}<option value={d}>{d}</option>{/each}
+      <Field label="Lifting sessions a week" htmlFor="f-sessions" hint="cardio sessions don't count">
+        <select class="select" id="f-sessions" bind:value={form.sessionsPerWeek}>
+          {#each [1, 2, 3, 4, 5, 6, 7] as n (n)}<option value={n}>{n}</option>{/each}
         </select>
       </Field>
       <div class="span2">
-        <Field label="Which days" hint="drives the weekly plan grid">
+        <Field label="Available days" hint="sessions are placed on these days; a day can hold more than one">
           <WeekdayPicker bind:days={form.trainingDays} />
         </Field>
       </div>
@@ -120,14 +120,14 @@
   <section class="panel">
     <table class="sheet">
       <thead>
-        <tr><th>Client</th><th>Status</th><th>Days</th><th>Goal</th><th>Limitations</th></tr>
+        <tr><th>Client</th><th>Status</th><th>Sessions</th><th>Goal</th><th>Limitations</th></tr>
       </thead>
       <tbody>
         {#each filtered as c (c.id)}
           <tr class="rowlink">
             <td><a class="rowlink-name" href={`/clients/${c.id}`}><strong>{c.name}</strong></a><div class="subtle">{c.email}</div></td>
             <td><StatusPill status={c.status} /></td>
-            <td class="r">{c.daysPerWeek ?? "—"} / wk</td>
+            <td class="r">{c.sessionsPerWeek ?? "—"} / wk</td>
             <td class="goal">{c.goals ?? "—"}</td>
             <td>{#if c.limitations}<span class="pill bad">yes</span>{:else}<span class="subtle">none</span>{/if}</td>
           </tr>

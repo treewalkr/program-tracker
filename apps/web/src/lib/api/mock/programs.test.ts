@@ -11,45 +11,43 @@ describe("mockApi.saveProgram", () => {
     const newWeeks: ProgramWeekDto[] = [
       {
         week: 1,
-        days: [
+        sessions: [
           {
             id: crypto.randomUUID(),
-            day: 1,
-            sessions: [
+            name: "Morning Lift",
+            seq: 1,
+            weekday: 1,
+            order: 0,
+            kind: "lifting",
+            cardio: null,
+            exercises: [
               {
                 id: crypto.randomUUID(),
-                name: "Morning Lift",
+                exerciseId: "ex-squat",
+                exerciseName: "Back Squat",
                 order: 0,
-                kind: "lifting",
-                cardio: null,
-                exercises: [
-                  {
-                    id: crypto.randomUUID(),
-                    exerciseId: "ex-squat",
-                    exerciseName: "Back Squat",
-                    order: 0,
-                    prescribedSets: [
-                      { setNumber: 1, type: "working", reps: 5, targetRpe: 8, restSeconds: 120, amrap: false },
-                    ],
-                  },
+                prescribedSets: [
+                  { setNumber: 1, type: "working", reps: 5, targetRpe: 8, restSeconds: 120, amrap: false },
                 ],
               },
+            ],
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Afternoon Lift",
+            seq: 2,
+            weekday: 1,
+            order: 1,
+            kind: "lifting",
+            cardio: null,
+            exercises: [
               {
                 id: crypto.randomUUID(),
-                name: "Afternoon Lift",
-                order: 1,
-                kind: "lifting",
-                cardio: null,
-                exercises: [
-                  {
-                    id: crypto.randomUUID(),
-                    exerciseId: "ex-rdl",
-                    exerciseName: "Romanian Deadlift",
-                    order: 0,
-                    prescribedSets: [
-                      { setNumber: 1, type: "working", reps: 8, targetRpe: 7, restSeconds: 90, amrap: false },
-                    ],
-                  },
+                exerciseId: "ex-rdl",
+                exerciseName: "Romanian Deadlift",
+                order: 0,
+                prescribedSets: [
+                  { setNumber: 1, type: "working", reps: 8, targetRpe: 7, restSeconds: 90, amrap: false },
                 ],
               },
             ],
@@ -61,7 +59,7 @@ describe("mockApi.saveProgram", () => {
     const saved = await mockApi.saveProgram("pg-maya-a", newWeeks);
     expect(saved.version).toBe(oldVersion + 1);
     expect(saved.weeks).toEqual(newWeeks);
-    expect(saved.weeks[0].days[0].sessions.length).toBe(2);
+    expect(saved.weeks[0].sessions.length).toBe(2);
   });
 
   test("saveProgram updates phasing; null clears it; absent leaves it", async () => {
@@ -101,20 +99,15 @@ describe("mockApi.saveProgram", () => {
     const invalidWeeks: ProgramWeekDto[] = [
       {
         week: 1,
-        days: [
+        sessions: [
           {
             id: crypto.randomUUID(),
-            day: 1,
-            sessions: [
-              {
-                id: crypto.randomUUID(),
-                name: "Empty Session",
-                order: 0,
-                kind: "lifting",
-                cardio: null,
-                exercises: [],
-              },
-            ],
+            name: "Empty Session",
+            seq: 1,
+            order: 0,
+            kind: "lifting",
+            cardio: null,
+            exercises: [],
           },
         ],
       },

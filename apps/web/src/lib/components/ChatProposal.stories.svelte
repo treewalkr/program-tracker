@@ -17,7 +17,7 @@
   });
 
   const proposal: ChatProposalDto = {
-    summary: 'Swap the Day 3 primary for a paused back squat.',
+    summary: 'Swap the Session 3 primary for a paused back squat.',
     changes: [
       { day: 3, slot: 2, kind: 'swap', from: 'Front Squat', to: 'Paused Back Squat', detail: '5×5 @RPE 7–8 · rest 180s' },
     ],

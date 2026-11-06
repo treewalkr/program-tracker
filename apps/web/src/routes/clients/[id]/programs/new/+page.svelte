@@ -5,13 +5,14 @@
   import { api } from "$lib/api";
   import type { ClientDto, ExerciseDto, PeriodizationSchemeDto } from "$lib/api/types";
   import {
-    applyDefaultWeekdays,
     EXERCISE_ROLE_INFO,
     EXERCISE_ROLES,
+    MAX_SESSIONS_PER_WEEKDAY,
+    placeSessions,
+    sessionTag,
     sortExercisesByRole,
     stampWeeks,
     type ExerciseRole,
-    type ProgramDay,
     type ProgramSession,
     type SetType,
     type WeekDirective,
@@ -71,21 +72,60 @@
     key: string;
     name: string;
     kind: "lifting" | "cardio";
+    /** Trainer-pinned weekday (null = any day); ignored while `auto`. */
     weekday: number | null;
+    /** Follow the default placement until the trainer picks a day. */
+    auto: boolean;
     cardio: CardioFields;
     exercises: ExRow[];
   }
 
-  let sessions = $state<SessionRow[]>([
-    {
-      key: crypto.randomUUID(),
-      name: "Day 1",
-      kind: "lifting",
-      weekday: null,
-      cardio: { modality: "", durationMin: 30, hrZone: 2, intensity: "", distanceKm: null, targetRpe: null },
-      exercises: [],
-    },
-  ]);
+  const newRow = (): SessionRow => ({
+    key: crypto.randomUUID(),
+    name: "",
+    kind: "lifting",
+    weekday: null,
+    auto: true,
+    cardio: { modality: "", durationMin: 30, hrZone: 2, intensity: "", distanceKm: null, targetRpe: null },
+    exercises: [],
+  });
+
+  let sessions = $state<SessionRow[]>([newRow()]);
+
+  const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  /** seq per kind in list order — "Session 1", "Session 2", "Cardio 1"… */
+  const seqs = $derived.by(() => {
+    const n = { lifting: 0, cardio: 0 };
+    return sessions.map((s) => ++n[s.kind]);
+  });
+
+  /** Default placement of the whole list on the client's available days. */
+  const suggested = $derived.by(() => {
+    const patternOf = (exId: string) => catalog.find((c) => c.id === exId)?.movementPattern ?? null;
+    const draft = sessions.map((s, i) => ({
+      id: s.key,
+      name: s.name || "x",
+      seq: seqs[i],
+      order: 0,
+      kind: s.kind,
+      exercises: s.exercises.map((e, ei) => ({ id: e.key, exerciseId: e.exerciseId, order: ei, prescribedSets: [] })),
+      cardio: null,
+    })) as ProgramSession[];
+    const placed = placeSessions(draft, client?.trainingDays, patternOf);
+    return new Map(placed.map((p) => [p.id, p.weekday ?? null]));
+  });
+
+  const weekdayOf = (s: SessionRow) => (s.auto ? (suggested.get(s.key) ?? null) : s.weekday);
+
+  const overfull = $derived.by(() => {
+    const per = new Map<number, number>();
+    for (const s of sessions) {
+      const d = weekdayOf(s);
+      if (d != null) per.set(d, (per.get(d) ?? 0) + 1);
+    }
+    return [...per].filter(([, n]) => n > MAX_SESSIONS_PER_WEEKDAY).map(([d]) => WEEKDAYS[d - 1]);
+  });
 
   interface CustomWeekRow {
     directive: WeekDirective;
@@ -170,7 +210,7 @@
   }
 
   const canSave = $derived.by(() => {
-    if (name.trim() === "" || sessions.length === 0) return false;
+    if (name.trim() === "" || sessions.length === 0 || overfull.length > 0) return false;
     for (const s of sessions) {
       if (s.kind === "lifting") {
         if (s.exercises.length === 0 || !s.exercises.some((e) => e.sets.length > 0)) return false;
@@ -182,17 +222,8 @@
   });
 
   function addSession() {
-    const sorted = client?.trainingDays ? [...client.trainingDays].sort((a, b) => a - b) : [];
-    const idx = sessions.length;
-    sessions.push({
-      key: crypto.randomUUID(),
-      name: `Day ${idx + 1}`,
-      kind: "lifting",
-      weekday: sorted[idx] ?? null,
-      cardio: { modality: "", durationMin: 30, hrZone: 2, intensity: "", distanceKm: null, targetRpe: null },
-      exercises: [],
-    });
-    sessions = [...sessions];
+    if (sessions.length >= 14) return;
+    sessions = [...sessions, newRow()];
   }
 
   function removeSession(key: string) {
@@ -226,14 +257,21 @@
     sessions = [...sessions];
   }
 
-  function toTemplateDays(): ProgramDay[] {
+  function toTemplateSessions(): ProgramSession[] {
+    const used = new Map<number, number>();
     return sessions.map((s, si) => {
+      const seq = seqs[si];
+      const weekday = weekdayOf(s);
+      const order = used.get(weekday ?? 0) ?? 0;
+      used.set(weekday ?? 0, order + 1);
       let session: ProgramSession;
       if (s.kind === "cardio") {
         session = {
           id: crypto.randomUUID(),
-          name: s.name.trim() || `Cardio ${si + 1}`,
-          order: 0,
+          name: s.name.trim() || `Cardio ${seq}`,
+          seq,
+          weekday,
+          order,
           kind: "cardio",
           exercises: [],
           cardio: {
@@ -248,8 +286,10 @@
       } else {
         session = {
           id: crypto.randomUUID(),
-          name: s.name.trim() || `Day ${si + 1}`,
-          order: 0,
+          name: s.name.trim() || `Session ${seq}`,
+          seq,
+          weekday,
+          order,
           kind: "lifting",
           cardio: null,
           exercises: sortExercisesByRole(s.exercises.map((e) => ({ ...e, role: e.role || undefined }))).map((e, ei) => ({
@@ -275,12 +315,7 @@
           })),
         };
       }
-      return {
-        id: crypto.randomUUID(),
-        day: si + 1,
-        weekday: s.weekday,
-        sessions: [session],
-      };
+      return session;
     });
   }
 
@@ -288,17 +323,8 @@
     saving = true;
     error = null;
     try {
-      const template = toTemplateDays();
       const numWeeks = Number(plannedWeeks) || 4;
-      const stamped = stampWeeks(template, numWeeks);
-      let weeks = applyDefaultWeekdays(stamped, client?.trainingDays);
-      weeks = weeks.map((w) => ({
-        ...w,
-        days: w.days.map((d, i) => ({
-          ...d,
-          weekday: sessions[i]?.weekday !== undefined ? sessions[i].weekday : d.weekday,
-        })),
-      }));
+      const weeks = stampWeeks(toTemplateSessions(), numWeeks);
 
       const program = await api.createProgram({
         clientId: id,
@@ -332,10 +358,6 @@
       selectedSchemeId = schemes[0].id;
     } else {
       schemeMode = "none";
-    }
-    const sorted = client?.trainingDays ? [...client.trainingDays].sort((a, b) => a - b) : [];
-    if (sessions.length > 0 && sessions[0].weekday === null && sorted.length > 0) {
-      sessions[0].weekday = sorted[0];
     }
   });
 </script>
@@ -486,17 +508,23 @@
       {#each sessions as s, si (s.key)}
         <section class="panel">
           <div class="panel-head">
-            <input class="sess-name" value={s.name} oninput={(e) => (s.name = e.currentTarget.value)} maxlength="60" aria-label="Session name" />
-            <select class="select tiny" bind:value={s.weekday} aria-label="Day weekday">
-              <option value={null}>Weekday…</option>
-              <option value={1}>Mon</option>
-              <option value={2}>Tue</option>
-              <option value={3}>Wed</option>
-              <option value={4}>Thu</option>
-              <option value={5}>Fri</option>
-              <option value={6}>Sat</option>
-              <option value={7}>Sun</option>
+            <span class="track">{sessionTag({ kind: s.kind, seq: seqs[si] })}</span>
+            <input class="sess-name" value={s.name} placeholder="Session name" oninput={(e) => (s.name = e.currentTarget.value)} maxlength="60" aria-label="Session name" />
+            <select
+              class="select tiny"
+              value={weekdayOf(s) ?? 0}
+              onchange={(e) => {
+                const v = Number(e.currentTarget.value);
+                s.weekday = v === 0 ? null : v;
+                s.auto = false;
+              }}
+              aria-label="Weekday"
+              title={s.auto ? "Placed on the client's available days — pick a day to pin it" : undefined}
+            >
+              <option value={0}>Any day</option>
+              {#each WEEKDAYS as w, wi (w)}<option value={wi + 1}>{w}</option>{/each}
             </select>
+            {#if s.auto && client?.trainingDays?.length}<span class="auto">auto</span>{/if}
             <select class="select tiny" bind:value={s.kind} aria-label="Session kind">
               <option value="lifting">Lifting</option>
               <option value="cardio">Cardio</option>
@@ -506,7 +534,7 @@
                 <Button variant="ghost" small type="button" onclick={() => addExercise(s)}>+ Exercise</Button>
               {/if}
               {#if sessions.length > 1}
-                <Button variant="danger" small type="button" onclick={() => removeSession(s.key)}>Remove day</Button>
+                <Button variant="danger" small type="button" onclick={() => removeSession(s.key)}>Remove</Button>
               {/if}
             </div>
           </div>
@@ -580,7 +608,8 @@
         </section>
       {/each}
 
-      <Button variant="ghost" class="addday" onclick={addSession}>+ Add another day</Button>
+      <Button variant="ghost" class="addday" onclick={addSession} disabled={sessions.length >= 14}>+ Add session</Button>
+      {#if overfull.length > 0}<p class="error">{overfull.join(", ")} {overfull.length === 1 ? "has" : "have"} more than {MAX_SESSIONS_PER_WEEKDAY} sessions — move one to another day.</p>{/if}
 
       {#if error}<p class="error">{error}</p>{/if}
       <p class="subtle hint">
@@ -613,6 +642,8 @@
     border: none; background: none; color: var(--ink);
     padding: 0; width: 140px;
   }
+  .track { font: 500 11px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
+  .auto { font: 400 11px/1 var(--font-mono); color: var(--faint); }
   .sess-name:focus { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
   .head-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 

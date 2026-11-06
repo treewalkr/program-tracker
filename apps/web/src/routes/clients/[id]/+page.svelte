@@ -5,7 +5,7 @@
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
-  import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart } from "@pt/shared";
+  import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
   import { weekOptions } from "$lib/format";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
@@ -40,14 +40,15 @@
   let form = $state({
     goals: "",
     limitations: "",
-    daysPerWeek: 3,
+    sessionsPerWeek: 3,
     trainingDays: [] as number[],
     cardioUnit: "none" as "none" | "minutes" | "sessions" | "zone_minutes",
     cardioValue: 120,
   });
-  /** Picked weekdays set the count; the count select only shows when no days are picked. */
-  const formDays = $derived(form.trainingDays.length > 0 ? form.trainingDays.length : Number(form.daysPerWeek));
-  const profileDirty = $derived(savedForm !== "" && JSON.stringify({ ...form, daysPerWeek: formDays }) !== savedForm);
+  const formKey = () => JSON.stringify({ ...form, sessionsPerWeek: Number(form.sessionsPerWeek) });
+  const profileDirty = $derived(savedForm !== "" && formKey() !== savedForm);
+  /** More lifting sessions than available days → some days stack. */
+  const stacks = $derived(form.trainingDays.length > 0 && Number(form.sessionsPerWeek) > form.trainingDays.length);
   let catalogById = $state(new Map<string, ExerciseDto>());
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
@@ -122,6 +123,17 @@
     return current.weeks.find((w) => w.week === activeWeekNumber) ?? current.weeks[0];
   });
 
+  /** Current week grouped Mon→Sun, then unscheduled ("Any day") last; empty days dropped. */
+  const weekGroups = $derived.by(() => {
+    if (!currentWeek) return [];
+    const by = sessionsByWeekday(currentWeek.sessions);
+    return [1, 2, 3, 4, 5, 6, 7, 0]
+      .map((day) => ({ day, sessions: by.get(day) ?? [] }))
+      .filter((g) => g.sessions.length > 0);
+  });
+  const weekCardio = $derived(currentWeek ? currentWeek.sessions.filter((s) => s.kind === "cardio").length : 0);
+  const weekDays = $derived(currentWeek ? placedWeekdays(currentWeek.sessions) : []);
+
   const cardioTotals = $derived(cardioWeekTotals(sessionLogRows, isoWeekStart(new Date())));
   const cardioDoneVal = $derived(
     client?.cardioTarget ? cardioDone(client.cardioTarget, cardioTotals) : 0
@@ -162,12 +174,12 @@
     form = {
       goals: detail.client.goals ?? "",
       limitations: detail.client.limitations ?? "",
-      daysPerWeek: detail.client.daysPerWeek ?? 3,
+      sessionsPerWeek: detail.client.sessionsPerWeek ?? 3,
       trainingDays: detail.client.trainingDays ? [...detail.client.trainingDays] : [],
       cardioUnit: detail.client.cardioTarget?.unit ?? "none",
       cardioValue: detail.client.cardioTarget?.value ?? 120,
     };
-    savedForm = JSON.stringify({ ...form, daysPerWeek: formDays });
+    savedForm = formKey();
     latestGen = (await api.generations(id))[0] ?? null;
   }
 
@@ -177,18 +189,18 @@
     try {
       form.goals = form.goals.trim();
       form.limitations = form.limitations.trim();
-      form.daysPerWeek = formDays;
+      form.sessionsPerWeek = Number(form.sessionsPerWeek);
       client = await api.updateClient(id, {
         goals: form.goals || null,
         limitations: form.limitations || null,
-        daysPerWeek: formDays,
+        sessionsPerWeek: form.sessionsPerWeek,
         trainingDays: form.trainingDays,
         cardioTarget:
           form.cardioUnit === "none"
             ? null
             : { unit: form.cardioUnit, value: Number(form.cardioValue) },
       });
-      savedForm = JSON.stringify({ ...form, daysPerWeek: formDays });
+      savedForm = formKey();
       profileSaved = true;
       setTimeout(() => (profileSaved = false), 2500);
     } catch (e) {
@@ -237,7 +249,7 @@
         <StatusPill status={client.status} />
       </div>
       <p class="sub">
-        {client.daysPerWeek ?? "?"} days / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+        {client.sessionsPerWeek ?? "?"} lifting sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
         {#if client.goals} · “{client.goals}”{/if}
       </p>
     </div>
@@ -302,7 +314,7 @@
     value={tab}
     onchange={(t) => setTab(t as typeof tab)}
     items={[
-      { id: 'program', label: 'Program', count: `${currentWeek?.days.length ?? 0} days` },
+      { id: 'program', label: 'Program', count: `${currentWeek?.sessions.length ?? 0} sessions` },
       { id: 'pulse', label: 'Pulse', count: `${pulse.length} wks`, disabled: pulse.length === 0 },
       { id: 'history', label: 'History', count: '8 wks' },
       { id: 'settings', label: 'Settings' },
@@ -338,13 +350,20 @@
               {/each}
             </div>
             {#if currentWeek}
-              {#each currentWeek.days as d, i (d.id)}
-                {@const dayNum = d.weekday ?? sortedDays[i]}
-                {@const when = dayNum ? `${DAY_NAMES[dayNum - 1]}${dayNum === todayNum && !loggedDates.has(todayStr) ? " · due today" : ""}` : undefined}
-                {#each d.sessions as s (s.id)}
+              <p class="week-line">
+                <span class="num">{currentWeek.sessions.length}</span> {currentWeek.sessions.length === 1 ? "session" : "sessions"} / week{#if weekCardio > 0}{" · "}<span class="num">{currentWeek.sessions.length - weekCardio}</span> lifting, <span class="num">{weekCardio}</span> cardio{/if}{#if weekDays.length > 0}{" · "}{weekDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+              </p>
+              {#each weekGroups as g (g.day)}
+                <div class="day-h" class:any={g.day === 0}>
+                  <span class="day-name">{g.day === 0 ? "Any day" : DAY_NAMES[g.day - 1]}</span>
+                  {#if g.day === todayNum && !loggedDates.has(todayStr)}<span class="due">due today</span>{/if}
+                  {#if g.day === 0}<span class="day-note">not placed on the calendar</span>{/if}
+                  {#if g.sessions.length > 1}<span class="day-count"><span class="num">{g.sessions.length}</span> sessions</span>{/if}
+                </div>
+                {#each g.sessions as s (s.id)}
                   <SessionCard
                     name={s.name}
-                    when={when}
+                    tag={sessionTag(s)}
                     kind={s.kind}
                     cardio={s.cardio}
                     exercises={s.exercises.map((e) => ({
@@ -556,23 +575,19 @@
       >
         <section class="pf-sec">
           <h3>Schedule</h3>
-          <Field label="Training days" hint="drives the weekly plan grid">
+          <Field label="Lifting sessions a week" htmlFor="p-sessions" hint="cardio sessions don't count">
+            <select class="select count" id="p-sessions" bind:value={form.sessionsPerWeek}>
+              {#each [1, 2, 3, 4, 5, 6, 7] as n (n)}<option value={n}>{n}</option>{/each}
+            </select>
+          </Field>
+          <Field label="Available days" hint="sessions are placed on these days; a day can hold more than one">
             <div class="days-row">
               <WeekdayPicker bind:days={form.trainingDays} />
-              {#if form.trainingDays.length > 0}
-                <span class="subtle">{formDays} {formDays === 1 ? "day" : "days"} a week</span>
+              {#if stacks}
+                <span class="subtle">Some days will hold two sessions</span>
               {/if}
             </div>
           </Field>
-          {#if form.trainingDays.length === 0}
-            <div class="count-row">
-              <label class="subtle" for="p-days">No fixed days — trains</label>
-              <select class="select count" id="p-days" bind:value={form.daysPerWeek}>
-                {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}<option value={d}>{d}</option>{/each}
-              </select>
-              <span class="subtle">{Number(form.daysPerWeek) === 1 ? "day" : "days"} a week</span>
-            </div>
-          {/if}
           <Field label="Weekly cardio target" hint="resets every Monday">
             <div class="cardio-fields">
               {#if form.cardioUnit !== "none"}
@@ -731,8 +746,21 @@
     letter-spacing: 0.05em;
   }
   .days-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .count-row { display: flex; align-items: center; gap: 8px; margin-top: -6px; font-size: 13px; }
-  .count-row .count { width: auto; }
+  .select.count { width: auto; }
+  .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
+  .day-h {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 12px 14px 0;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .day-h .day-name { font-weight: 600; color: var(--ink); }
+  .day-h .due { color: var(--blue); }
+  .day-h .day-note { color: var(--faint); }
+  .day-h .day-count { margin-left: auto; }
   .pf-foot { display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
   .pf-foot .err { color: var(--bad); }
 

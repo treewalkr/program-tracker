@@ -28,7 +28,7 @@
     status,
     goals: null,
     limitations: null,
-    daysPerWeek: days.length,
+    sessionsPerWeek: days.length,
     trainingDays: days,
   });
 
@@ -44,9 +44,9 @@
       client: client('maya', 'Maya Chen', [1, 2, 4]),
       program: 'Strength Base B',
       entries: new Map([
-        [1, entry(1, 'maya', 'Day 1 — Upper', 'logged')],
-        [2, entry(2, 'maya', 'Day 2 — Lower', 'logged')],
-        [4, entry(4, 'maya', 'Day 3 — Full-body', 'today')],
+        [1, entry(1, 'maya', 'Upper', 'logged')],
+        [2, entry(2, 'maya', 'Lower', 'logged')],
+        [4, { ...entry(4, 'maya', 'Full-body + Zone 2 bike', 'today'), count: 2 }],
       ]),
     },
     {
@@ -73,8 +73,8 @@ const cardioRows: ClientRow[] = [
     client: client('maya', 'Maya Chen', [1, 2, 4]),
     program: 'Strength Base B',
     entries: new Map([
-      [1, entry(1, 'maya', 'Day 1 — Upper', 'logged')],
-      [4, entry(4, 'maya', 'Day 3 — Full-body', 'today')],
+      [1, entry(1, 'maya', 'Upper', 'logged')],
+      [4, entry(4, 'maya', 'Full-body', 'today')],
     ]),
     // mid-week progress vs a 180 min target
     cardio: { done: 75, target: 180, unitLabel: 'min' },

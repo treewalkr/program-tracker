@@ -6,6 +6,7 @@ import {
   normalizePlan,
   planChanges,
   planIndexes,
+  draftSessionTags,
   rationaleByDay,
   reviewChecks,
   validatePlanWeek,
@@ -90,12 +91,27 @@ describe("review checks, rationale, history", () => {
 
   test("reviewChecks", () => {
     expect(reviewChecks(draft, 3, catalog)).toEqual([
-      { tone: "warn", text: "2 days — the client trains 3 days/week" },
+      { tone: "warn", text: "2 lifting sessions — the client lifts 3/week" },
       { tone: "info", text: "Highest prescribed effort: RPE 8" },
       { tone: "info", text: "5 working sets / week" },
       { tone: "warn", text: "Push 2 > pull 1 sets" },
       { tone: "info", text: "Knee 2 · hip 0 sets" },
     ]);
+  });
+
+  test("reviewChecks counts only lifting sessions against sessionsPerWeek", () => {
+    const withCardio: AiDraftDto = { ...draft, sessions: [...draft.sessions, { name: "Bike", kind: "cardio", exercises: [] }] };
+    expect(reviewChecks(withCardio, 2, catalog)[0]).toEqual({ tone: "ok", text: "2 lifting sessions — matches the client's 2/week" });
+  });
+
+  test("draftSessionTags numbers each track in draft order", () => {
+    expect(draftSessionTags([{ kind: "lifting" }, { kind: "cardio" }, {}])).toEqual(["Session 1", "Cardio 1", "Session 2"]);
+  });
+
+  test("rationaleByDay resolves **Session N** / **Cardio N** leads by track", () => {
+    const r = rationaleByDay("**Session 2:** bench.\n\n**Cardio 1:** easy bike.\n\n**Session 1:** squat.", 3, ["lifting", "cardio", "lifting"]);
+    expect(r.days).toEqual([["Squat."], ["Easy bike."], ["Bench."]]);
+    expect(r.general).toEqual([]);
   });
 
   test("rationaleByDay sends **Day N** blocks to their day", () => {

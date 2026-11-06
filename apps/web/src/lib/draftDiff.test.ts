@@ -50,46 +50,34 @@ describe("diffSources", () => {
       weeks: [
         {
           week: 1,
-          days: [
+          sessions: [
             {
-              id: "d1",
-              sessions: [
-                {
-                  id: "s1",
-                  name: "Week 1 Day 1",
-                  exercises: [{ exerciseName: "Squat", prescribedSets: [{ reps: 5, amrap: false }] }],
-                },
-              ],
+              id: "s1",
+              seq: 1,
+              name: "Week 1 Day 1",
+              exercises: [{ exerciseName: "Squat", prescribedSets: [{ reps: 5, amrap: false }] }],
             },
           ],
         },
         {
           week: 2,
-          days: [
+          sessions: [
             {
-              id: "d2",
-              sessions: [
-                {
-                  id: "s2",
-                  name: "Week 2 Day 1",
-                  exercises: [{ exerciseName: "Deadlift", prescribedSets: [{ reps: 3, amrap: false }] }],
-                },
-              ],
+              id: "s2",
+              seq: 1,
+              name: "Week 2 Day 1",
+              exercises: [{ exerciseName: "Deadlift", prescribedSets: [{ reps: 3, amrap: false }] }],
             },
           ],
         },
         {
           week: 3,
-          days: [
+          sessions: [
             {
-              id: "d3",
-              sessions: [
-                {
-                  id: "s3",
-                  name: "Week 3 Day 1",
-                  exercises: [{ exerciseName: "Bench", prescribedSets: [{ reps: 8, amrap: false }] }],
-                },
-              ],
+              id: "s3",
+              seq: 1,
+              name: "Week 3 Day 1",
+              exercises: [{ exerciseName: "Bench", prescribedSets: [{ reps: 8, amrap: false }] }],
             },
           ],
         },

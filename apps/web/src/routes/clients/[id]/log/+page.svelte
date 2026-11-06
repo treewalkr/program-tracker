@@ -4,7 +4,7 @@
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import type { ClientDto, ProgramDto, ProgramSessionDto, SessionLogDto } from "$lib/api/types";
-  import { weekOf, type SetType } from "@pt/shared";
+  import { sessionTag, sessionsByWeekday, weekOf, type SetType } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -79,16 +79,25 @@
     program?.weeks.find((w) => w.week === selectedWeekNumber) ?? program?.weeks[0] ?? null
   );
 
-  const weekSessionsList = $derived.by(() => {
+  const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const todayIso = (new Date().getDay() + 6) % 7 + 1;
+
+  /** The week's sessions grouped Mon→Sun, unscheduled last as "Any day". */
+  const sessionGroups = $derived.by(() => {
     if (!selectedWeek) return [];
-    const list: { id: string; label: string; session: ProgramSessionDto }[] = [];
-    for (const d of selectedWeek.days) {
-      for (const s of d.sessions) {
-        list.push({ id: s.id, label: `Day ${d.day} · ${s.name}`, session: s });
-      }
-    }
-    return list;
+    const by = sessionsByWeekday(selectedWeek.sessions);
+    return [1, 2, 3, 4, 5, 6, 7, 0]
+      .map((day) => ({
+        day,
+        label: day === 0 ? "Any day" : DAY_NAMES[day - 1],
+        items: (by.get(day) ?? []).map((s: ProgramSessionDto) => ({ id: s.id, label: `${sessionTag(s)} · ${s.name}`, session: s })),
+      }))
+      .filter((g) => g.items.length > 0);
   });
+  const weekSessionsList = $derived(sessionGroups.flatMap((g) => g.items));
+  /** Default pick: the first session placed on today's weekday, else the first one. */
+  const defaultSessionId = () =>
+    (sessionGroups.find((g) => g.day === todayIso)?.items[0] ?? weekSessionsList[0])?.id ?? "";
 
   const selectedSession = $derived(
     sessionId ? weekSessionsList.find((ws) => ws.id === sessionId)?.session ?? null : null
@@ -263,7 +272,7 @@
         pastLogs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
       );
       selectedWeekNumber = Math.max(1, Math.min(initialWeek, program.weeks.length));
-      sessionId = weekSessionsList[0]?.id ?? "";
+      sessionId = defaultSessionId();
       loadSession();
     }
   });
@@ -303,8 +312,7 @@
               id="log-week"
               bind:value={selectedWeekNumber}
               onchange={() => {
-                const first = weekSessionsList[0];
-                sessionId = first ? first.id : "";
+                sessionId = defaultSessionId();
                 loadSession();
               }}
             >
@@ -319,8 +327,12 @@
               bind:value={sessionId}
               onchange={loadSession}
             >
-              {#each weekSessionsList as ws (ws.id)}
-                <option value={ws.id}>{ws.label}{ws.session.kind === "cardio" ? " · cardio" : ""}</option>
+              {#each sessionGroups as g (g.day)}
+                <optgroup label={g.label}>
+                  {#each g.items as ws (ws.id)}
+                    <option value={ws.id}>{ws.label}</option>
+                  {/each}
+                </optgroup>
               {/each}
             </select>
             <label class="label" for="log-date">Date</label>

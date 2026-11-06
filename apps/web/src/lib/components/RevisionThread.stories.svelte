@@ -28,7 +28,7 @@
     entries: [
       {
         version: 2,
-        message: 'Swap Day 2 bench for incline DB press; cut one RDL set.',
+        message: 'Swap Session 2 bench for incline DB press; cut one RDL set.',
         createdAt: '2026-10-31T10:15:00Z',
       },
     ],
@@ -42,7 +42,7 @@
     entries: [
       {
         version: 2,
-        message: 'Swap Day 2 bench for incline DB press; cut one RDL set.',
+        message: 'Swap Session 2 bench for incline DB press; cut one RDL set.',
         createdAt: '2026-10-31T10:15:00Z',
       },
       {

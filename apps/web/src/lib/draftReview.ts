@@ -121,7 +121,7 @@ export interface ReviewCheck {
 /** Facts a trainer checks before approving, computed from the draft and catalog. */
 export function reviewChecks(
   draft: AiDraftDto,
-  daysPerWeek: number | null,
+  sessionsPerWeek: number | null,
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>
 ): ReviewCheck[] {
   const sets = { push: 0, pull: 0, knee: 0, hip: 0 };
@@ -139,13 +139,15 @@ export function reviewChecks(
       else if (p === "hip_dominant") sets.hip += n;
     }
   }
-  const days = draft.sessions.length;
+  // Cardio sessions don't count toward the client's lifting sessions per week.
+  const lifting = draft.sessions.filter((s) => s.kind !== "cardio").length;
   const out: ReviewCheck[] = [];
-  if (daysPerWeek != null) {
+  if (sessionsPerWeek != null) {
+    const label = `${lifting} lifting ${lifting === 1 ? "session" : "sessions"}`;
     out.push(
-      days === daysPerWeek
-        ? { tone: "ok", text: `${days} days — matches the client's ${daysPerWeek} days/week` }
-        : { tone: "warn", text: `${days} days — the client trains ${daysPerWeek} days/week` }
+      lifting === sessionsPerWeek
+        ? { tone: "ok", text: `${label} — matches the client's ${sessionsPerWeek}/week` }
+        : { tone: "warn", text: `${label} — the client lifts ${sessionsPerWeek}/week` }
     );
   }
   if (maxRpe > 0) out.push({ tone: "info", text: `Highest prescribed effort: RPE ${maxRpe}` });
@@ -161,18 +163,42 @@ export function reviewChecks(
   return out;
 }
 
+// ---- tracks ----
+
+/** Track label per draft session in draft order: "Session 1", "Session 2", "Cardio 1"… */
+export function draftSessionTags(sessions: readonly { kind?: string | null }[]): string[] {
+  const n = { lifting: 0, cardio: 0 };
+  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.lifting}`));
+}
+
 // ---- rationale ----
 
 /**
- * Rationale split into markdown blocks: those opening with a bold "Day N" lead
- * go to that day (lead removed, first letter capitalised); the rest are general.
+ * Rationale split into markdown blocks: those opening with a bold "Session N" /
+ * "Cardio N" lead (or legacy "Day N" = Nth session in draft order) go to that
+ * session (lead removed, first letter capitalised); the rest are general.
+ * Pass `kinds` (draft session kinds) to resolve track leads; without it every
+ * lead counts as a draft position.
  */
-export function rationaleByDay(text: string, dayCount: number): { days: string[][]; general: string[] } {
+export function rationaleByDay(
+  text: string,
+  dayCount: number,
+  kinds?: readonly (string | null | undefined)[]
+): { days: string[][]; general: string[] } {
   const days: string[][] = Array.from({ length: dayCount }, () => []);
   const general: string[] = [];
+  const indexOf = (lead: string, n: number): number => {
+    if (lead === "Day" || !kinds) return n - 1;
+    const want = lead === "Cardio" ? "cardio" : "lifting";
+    let seen = 0;
+    for (let i = 0; i < kinds.length; i++) {
+      if ((kinds[i] === "cardio" ? "cardio" : "lifting") === want && ++seen === n) return i;
+    }
+    return -1;
+  };
   for (const block of text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)) {
-    const m = block.match(/^\*\*Day (\d+)\b[^*]*\*\*[\s:—-]*/);
-    const day = m ? Number(m[1]) - 1 : -1;
+    const m = block.match(/^\*\*(Day|Session|Cardio) (\d+)\b[^*]*\*\*[\s:—-]*/);
+    const day = m ? indexOf(m[1], Number(m[2])) : -1;
     if (m && day >= 0 && day < dayCount) {
       const rest = block.slice(m[0].length);
       days[day].push(rest.charAt(0).toUpperCase() + rest.slice(1));

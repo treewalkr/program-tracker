@@ -6,6 +6,7 @@
   import {
     ago,
     defaultPlan,
+    draftSessionTags,
     historyEntries,
     planChanges,
     rationaleByDay,
@@ -25,7 +26,7 @@
    * Review an AI draft and decide. Top: what changed since the previous
    * version (read from the drafts), automatic checks, how the draft evolved,
    * and Approve with its reassurance. Then the block plan (editable by hand —
-   * saving creates the next version), then the week: each day beside its own
+   * saving creates the next version), then the week: each session beside its own
    * reasoning, or before/after against any earlier version.
    */
   interface Props {
@@ -83,9 +84,9 @@
   const plan = $derived(draft.phasing ?? null);
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
   const changedWeeks = $derived(new Set(planDelta.map((c) => c.week).filter((w): w is number => w !== null)));
-  const checks = $derived(reviewChecks(draft, client.daysPerWeek, catalogById));
+  const checks = $derived(reviewChecks(draft, client.sessionsPerWeek, catalogById));
   const noDeload = $derived(!isWeek && plan !== null && !(plan.weeks ?? []).some((w) => w.directive === "deload"));
-  const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length));
+  const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length, draft.sessions.map((s) => s.kind)));
 
   const history = $derived(
     historyEntries(chain)
@@ -111,6 +112,9 @@
     }
     return days;
   });
+
+  /** "Session N" / "Cardio N" per draft session — drafts carry no weekdays. */
+  const tags = $derived(draftSessionTags(draft.sessions));
 
   const cards = $derived(
     draft.sessions.map((s) => ({
@@ -240,7 +244,7 @@
             <li>
               <span class="sign" aria-hidden="true">{c.kind === "added" ? "+" : c.kind === "removed" ? "−" : "~"}</span>
               <span>
-                <span class="where">Day {c.day} ·</span>
+                <span class="where">{tags[c.day - 1] ?? `Session ${c.day}`} ·</span>
                 {#if c.kind === "swap"}<s>{c.from}</s> → {c.to}
                 {:else if c.kind === "rx"}{c.exercise} <span class="rx"><s>{c.from}</s> → {c.to}</span>
                 {:else}{changeText(c)} <span class="rx">{c.to ?? c.from}</span>{/if}
@@ -338,7 +342,7 @@
     </select>
     <strong class="count">{plural(compareChanges.length, "change")}</strong>
   {:else}
-    <span class="subtle">{plural(draft.sessions.length, "day")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets</span>
+    <span class="subtle">{plural(draft.sessions.length, "session")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets</span>
   {/if}
   {#if gen.status === "validated" && !newProgram}
     <a class="ask" href={`/clients/${client.id}/chat`}><Icon name="sparkle" />Ask for exercise changes in Draft chat →</a>
@@ -348,13 +352,13 @@
 {#if mode === "sessions" || version < 2}
   {#each cards as s, i (i)}
     <article class="day">
-      <SessionCard name={s.name} kind={s.kind} cardio={s.cardio} exercises={s.exercises} marks={marksByDay[i]} />
+      <SessionCard name={s.name} tag={tags[i]} kind={s.kind} cardio={s.cardio} exercises={s.exercises} marks={marksByDay[i]} />
       <aside class="why">
-        <h4><Icon name="sparkle" />Why this day</h4>
+        <h4><Icon name="sparkle" />Why this session</h4>
         {#if why.days[i].length}
           {#each why.days[i] as b, j (j)}<div class="md">{@html renderMarkdown(b)}</div>{/each}
         {:else}
-          <p class="subtle">No day-specific reasoning in this draft.</p>
+          <p class="subtle">No session-specific reasoning in this draft.</p>
         {/if}
       </aside>
     </article>
@@ -363,7 +367,7 @@
   {#each draft.sessions as s, di (di)}
     {@const rows = compareRows(di + 1)}
     <section class="panel cmp-day">
-      <div class="panel-head"><h2>{s.name}</h2><span class="counter">{rows.length} changed</span></div>
+      <div class="panel-head"><span class="track">{tags[di]}</span><h2>{s.name}</h2><span class="counter">{rows.length} changed</span></div>
       {#if rows.length}
         <table class="cmp">
           <thead><tr><th>v{baseVersion}</th><th>v{version}</th></tr></thead>
@@ -387,7 +391,7 @@
           </tbody>
         </table>
       {:else}
-        <p class="none">No changes on this day.</p>
+        <p class="none">No changes in this session.</p>
       {/if}
     </section>
   {/each}
@@ -480,6 +484,7 @@
   .md :global(ul) { margin: 0 0 8px; padding-left: 18px; }
 
   .cmp-day { margin-bottom: 16px; }
+  .track { font: 500 11px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
   table.cmp { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
   table.cmp th { font: 600 12px/1.2 var(--font-ui); color: var(--muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
   table.cmp td { padding: 8px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }

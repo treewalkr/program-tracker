@@ -27,6 +27,8 @@
    */
   interface Props {
     name: string;
+    /** Track eyebrow ("Session 2" / "Cardio 1"), shown ahead of the name. */
+    tag?: string;
     /** Day pill next to the name ("Thursday · due today"). */
     when?: string;
     kind?: SessionKind;
@@ -43,7 +45,7 @@
     marks?: Map<number, SlotMark>;
   }
 
-  let { name, when, kind = "lifting", cardio = null, exercises = [], marks }: Props = $props();
+  let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks }: Props = $props();
 
   const hasPattern = $derived(
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
@@ -65,6 +67,7 @@
 
 <div class="session">
   <div class="session-head">
+    {#if tag}<span class="track">{tag}</span>{/if}
     <h3>{name}</h3>
     {#if when}<span class="when">{when}</span>{/if}
   </div>
@@ -145,6 +148,11 @@
     color: var(--muted);
     padding: 6px 16px 10px;
     border-top: 1px dashed var(--line);
+  }
+  .track {
+    font: 500 11px/1 var(--font-mono);
+    color: var(--muted);
+    white-space: nowrap;
   }
   .cond-row { border-bottom: none; padding-bottom: 13px; }
 </style>

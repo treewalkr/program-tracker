@@ -131,13 +131,13 @@ export function ledgerRows(i: {
   const profileLink = { href: `/clients/${i.clientId}#settings`, label: "Add on profile" };
   const rows: LedgerRow[] = [];
 
-  const profile = [client.goals ? `Goal ${client.goals}` : "", client.daysPerWeek ? `${client.daysPerWeek} days/week` : ""]
+  const profile = [client.goals ? `Goal ${client.goals}` : "", client.sessionsPerWeek ? `${client.sessionsPerWeek} sessions/week` : ""]
     .filter(Boolean)
     .join(" · ");
   rows.push(
     profile
       ? { key: "Profile", value: profile, lamp: "green" }
-      : { key: "Profile", value: "No goals or training days set", lamp: "gray", link: profileLink }
+      : { key: "Profile", value: "No goals or sessions per week set", lamp: "gray", link: profileLink }
   );
 
   rows.push(
@@ -204,7 +204,7 @@ export function summaryLine(i: {
 }): SummaryBit[] {
   const { client, current, pending, recentLogs: n, rulesOn } = i;
   return [
-    { lamp: client.goals || client.daysPerWeek ? "green" : "gray", text: "Profile" },
+    { lamp: client.goals || client.sessionsPerWeek ? "green" : "gray", text: "Profile" },
     current
       ? { lamp: "green", text: "Active block" }
       : pending

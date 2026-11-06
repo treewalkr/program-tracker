@@ -7,7 +7,6 @@ import type {
   ExerciseRole as Er,
   Phasing,
   PrescribedSet,
-  ProgramDay,
   ProgramWeek,
   SessionKind,
   SetType,
@@ -27,7 +26,6 @@ export type WeekPlan = Wp;
 export type ProgramPhasingDto = Phasing;
 export type SignalDto = Signal;
 export type ProgramWeekDto = ProgramWeek;
-export type ProgramDayDto = ProgramDay;
 export type CardioPrescriptionDto = CardioPrescription;
 export type SessionKindDto = SessionKind;
 export type CardioLogDto = CardioLog;
@@ -40,7 +38,8 @@ export interface ClientDto {
   status: "active" | "paused" | "archived";
   goals: string | null;
   limitations: string | null;
-  daysPerWeek: number | null;
+  /** Lifting sessions per week (cardio doesn't count). */
+  sessionsPerWeek: number | null;
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. */
   trainingDays?: number[];
   /** Standing weekly cardio target — null/undefined = none. */
@@ -60,6 +59,11 @@ export interface ProgramExerciseDto {
 export interface ProgramSessionDto {
   id: string;
   name: string;
+  /** 1-based position on its kind's track ("Session N" / "Cardio N"); stable across weeks. */
+  seq: number;
+  /** ISO 1=Mon…7=Sun; null/absent = unscheduled. */
+  weekday?: number | null;
+  /** Order within its weekday. */
   order: number;
   kind: SessionKind;
   notes?: string;
