@@ -379,7 +379,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .lamp.gray { background: #818b98; }
 .signal .body { flex: 1; min-width: 0; }
 .signal .body strong { font-weight: 600; font-size: 14px; }
-.signal .evi { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.signal .evi { font-size: 13px; color: var(--muted); margin: 2px 0 0; line-height: 1.5; }
 .signal .act { flex: none; margin-top: 2px; }
 @media (max-width: 520px) {
   .signal { flex-wrap: wrap; }
