@@ -52,6 +52,8 @@ export const trainers = pgTable("trainers", {
   /** Set by the platform admin to block sign-in; null = access allowed. */
   disabledAt: timestamp("disabled_at", { withTimezone: true }),
   lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
+  /** Opt-out switch for feedback emails (new items, replies, status changes). */
+  feedbackEmails: boolean("feedback_emails").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

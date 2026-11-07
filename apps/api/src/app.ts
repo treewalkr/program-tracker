@@ -18,6 +18,7 @@ import { clientMessageRoutes } from "./routes/client-messages";
 import { preferenceRoutes } from "./routes/preferences";
 import { chatRoutes } from "./routes/chat";
 import { feedbackRoutes } from "./routes/feedback";
+import { accountRoutes } from "./routes/account";
 import { authRoutes } from "./routes/auth";
 import { adminRoutes } from "./routes/admin";
 import { trainerContext } from "./lib/trainer-context";
@@ -46,6 +47,7 @@ const TAGS = [
   { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
   { name: "preferences", description: "Distilled trainer/client style preferences" },
+  { name: "account", description: "The signed-in trainer's own settings (email notifications)" },
   { name: "feedback", description: "Feedback mode — trainer comments pinned to UI elements, exported for coding agents" },
 ];
 
@@ -123,6 +125,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(chainRoutes)
   .use(promptTemplateRoutes)
   .use(notificationRoutes)
-  .use(feedbackRoutes);
+  .use(feedbackRoutes)
+  .use(accountRoutes);
 
 export type App = typeof app;

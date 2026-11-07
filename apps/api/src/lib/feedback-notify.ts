@@ -1,0 +1,239 @@
+import { eq, inArray } from "drizzle-orm";
+import { db, feedbackComments, feedbackItems, trainers } from "@pt/db";
+import { feedbackHandle, type FeedbackStatus } from "@pt/shared";
+import { adminEmailFromEnv } from "./auth";
+import { emailConfigured, sendEmail, type Email } from "./mailer";
+
+/**
+ * Feedback emails. Policy (who hears about what) is the pure `feedbackEmails`;
+ * `notifyFeedback` loads the facts and sends, fire-and-forget after commit.
+ *
+ * - created → the admin (unless the admin filed it)
+ * - reply   → everyone on the thread (reporter, admin, other repliers) but the author
+ * - status  → the reporter, for accepted / won't fix / done (unless they made the change)
+ * Nobody hears about their own actions, and `feedback_emails = false` opts out.
+ */
+
+export type FeedbackEvent =
+  | { kind: "created"; itemId: string }
+  | { kind: "reply"; itemId: string; commentId: string }
+  | { kind: "status"; itemId: string; commentId: string };
+
+export interface Person {
+  id: string;
+  name: string;
+  email: string;
+  feedbackEmails: boolean;
+}
+
+export interface FeedbackSnapshot {
+  item: {
+    number: number;
+    comment: string;
+    route: string;
+    triageNote: string | null;
+    shippedIn: string | null;
+  };
+  reporter: Person | null;
+  admin: Person | null;
+  /** Authors of replies on the thread, any order. */
+  repliers: Person[];
+  /** Who caused the event: the reporter for created, the comment's author otherwise. */
+  actor: Person | null;
+  /** The reply or status entry behind a reply/status event. */
+  comment: { body: string | null; status: FeedbackStatus | null } | null;
+  appUrl: string;
+}
+
+const EMAILED_STATUSES: FeedbackStatus[] = ["accepted", "wontfix", "done"];
+
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const clip = (s: string, n: number) => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+};
+
+/** Plain text and matching minimal HTML for one message. */
+function compose(
+  snap: FeedbackSnapshot,
+  subject: string,
+  parts: { lead: string; quote?: string; after?: string },
+): Omit<Email, "to"> {
+  const handle = feedbackHandle(snap.item.number);
+  const link = `${snap.appUrl}/feedback#${handle}`;
+  const settings = `${snap.appUrl}/settings`;
+  const text = [
+    parts.lead,
+    ...(parts.quote ? ["", ...parts.quote.split("\n").map((l) => `  ${l}`)] : []),
+    ...(parts.after ? ["", parts.after] : []),
+    "",
+    `Open ${handle}: ${link}`,
+    "",
+    "—",
+    `Program Tracker feedback. Turn these emails off in Settings: ${settings}`,
+  ].join("\n");
+  const html = [
+    `<div style="font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;max-width:560px">`,
+    `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
+    parts.quote
+      ? `<blockquote style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
+      : "",
+    parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
+    `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:6px 14px;border-radius:6px;background:#1f883d;color:#fff;text-decoration:none;font-weight:600">Open ${handle}</a></p>`,
+    `<p style="margin:24px 0 0;font-size:12px;color:#656d76">Program Tracker feedback · <a href="${esc(settings)}" style="color:#656d76">Turn these emails off in Settings</a></p>`,
+    `</div>`,
+  ].join("");
+  return { subject, text, html };
+}
+
+/** Who gets which email for an event. Pure — no DB, no network. */
+export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapshot): Email[] {
+  const handle = feedbackHandle(snap.item.number);
+  const { item, actor } = snap;
+  const actorName = actor?.name ?? "Someone";
+  const to = (people: (Person | null)[]): Person[] => {
+    const seen = new Set<string>();
+    return people.filter((p): p is Person => {
+      if (!p || !p.feedbackEmails || p.id === actor?.id) return false;
+      const key = p.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const send = (people: Person[], msg: Omit<Email, "to">) => people.map((p) => ({ ...msg, to: p.email }));
+
+  if (kind === "created") {
+    return send(
+      to([snap.admin]),
+      compose(snap, `[${handle}] New feedback from ${actorName}: "${clip(item.comment, 60)}"`, {
+        lead: `${actorName} left feedback on ${item.route}:`,
+        quote: item.comment.trim(),
+      }),
+    );
+  }
+
+  if (kind === "reply") {
+    const body = snap.comment?.body?.trim() ?? "";
+    return send(
+      to([snap.reporter, snap.admin, ...snap.repliers]),
+      compose(snap, `[${handle}] ${actorName} replied`, {
+        lead: `${actorName} replied on ${handle} ("${clip(item.comment, 80)}"):`,
+        quote: body,
+      }),
+    );
+  }
+
+  const status = snap.comment?.status;
+  if (!status || !EMAILED_STATUSES.includes(status)) return [];
+  const recipients = to([snap.reporter]);
+  const quote = item.comment.trim();
+  if (status === "accepted") {
+    return send(
+      recipients,
+      compose(snap, `[${handle}] Accepted — on the build list`, {
+        lead: `${actorName} accepted your feedback:`,
+        quote,
+        after: "It's on the build list. You'll get another email when it ships.",
+      }),
+    );
+  }
+  if (status === "wontfix") {
+    return send(
+      recipients,
+      compose(snap, `[${handle}] Won't fix`, {
+        lead: `${actorName} decided not to change this:`,
+        quote,
+        after: item.triageNote ? `Reason: ${item.triageNote}` : "Reply on the item if you want to talk it through.",
+      }),
+    );
+  }
+  const version = item.shippedIn ? `v${item.shippedIn}` : null;
+  return send(
+    recipients,
+    compose(snap, version ? `[${handle}] Shipped in ${version}` : `[${handle}] Done`, {
+      lead: version ? `Your feedback shipped in ${version}:` : `${actorName} marked your feedback done:`,
+      quote,
+      after: "Thanks for pointing it out. Reload the app to get the latest version.",
+    }),
+  );
+}
+
+const appUrl = () =>
+  (process.env.APP_URL ?? process.env.CORS_ORIGINS?.split(",")[0] ?? "http://localhost:5173").trim().replace(/\/+$/, "");
+
+const personColumns = {
+  id: trainers.id,
+  name: trainers.name,
+  email: trainers.email,
+  feedbackEmails: trainers.feedbackEmails,
+};
+
+async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> {
+  const [item] = await db
+    .select({
+      number: feedbackItems.number,
+      comment: feedbackItems.comment,
+      route: feedbackItems.route,
+      triageNote: feedbackItems.triageNote,
+      shippedIn: feedbackItems.shippedIn,
+      trainerId: feedbackItems.trainerId,
+    })
+    .from(feedbackItems)
+    .where(eq(feedbackItems.id, event.itemId));
+  if (!item) return null;
+
+  const thread = await db
+    .select({ id: feedbackComments.id, trainerId: feedbackComments.trainerId, kind: feedbackComments.kind, body: feedbackComments.body, status: feedbackComments.status })
+    .from(feedbackComments)
+    .where(eq(feedbackComments.itemId, event.itemId));
+  const comment = "commentId" in event ? (thread.find((c) => c.id === event.commentId) ?? null) : null;
+
+  const adminEmail = adminEmailFromEnv();
+  const ids = new Set<string>();
+  if (item.trainerId) ids.add(item.trainerId);
+  for (const c of thread) if (c.trainerId) ids.add(c.trainerId);
+  const people = ids.size ? await db.select(personColumns).from(trainers).where(inArray(trainers.id, [...ids])) : [];
+  const byId = new Map(people.map((p) => [p.id, p]));
+  let admin = adminEmail ? (people.find((p) => p.email.toLowerCase() === adminEmail) ?? null) : null;
+  if (adminEmail && !admin) {
+    [admin = null] = await db.select(personColumns).from(trainers).where(eq(trainers.email, adminEmail));
+  }
+
+  const reporter = item.trainerId ? (byId.get(item.trainerId) ?? null) : null;
+  const actorId = event.kind === "created" ? item.trainerId : comment?.trainerId;
+  return {
+    item,
+    reporter,
+    admin,
+    repliers: thread.filter((c) => c.kind === "reply" && c.trainerId).map((c) => byId.get(c.trainerId!)!).filter(Boolean),
+    actor: actorId ? (byId.get(actorId) ?? null) : null,
+    comment: comment ? { body: comment.body, status: comment.status } : null,
+    appUrl: appUrl(),
+  };
+}
+
+const inFlight = new Set<Promise<void>>();
+
+/**
+ * Fire-and-forget: call after the DB commit, never await in a request. With
+ * email unconfigured this returns at once without touching the DB.
+ */
+export function notifyFeedback(event: FeedbackEvent): void {
+  if (!emailConfigured()) return;
+  const run = (async () => {
+    const snap = await snapshot(event);
+    if (!snap) return;
+    for (const email of feedbackEmails(event.kind, snap)) await sendEmail(email);
+  })()
+    .catch((err) => console.error(`email: feedback ${event.kind} notify failed — ${(err as Error).message}`))
+    .finally(() => inFlight.delete(run));
+  inFlight.add(run);
+}
+
+/** Tests: wait for every pending notification to finish. */
+export async function settleFeedbackNotifications(): Promise<void> {
+  while (inFlight.size) await Promise.all([...inFlight]);
+}

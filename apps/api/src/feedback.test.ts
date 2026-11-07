@@ -6,6 +6,7 @@ import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { API_VERSION } from "./lib/build";
+import { settleFeedbackNotifications } from "./lib/feedback-notify";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
 
@@ -264,5 +265,72 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
       expect(await json(res)).toEqual({ error: "admin only" });
     }
     expect((await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" })).status).toBe(200);
+  });
+});
+
+describe.skipIf(!dbUp)("feedback emails", () => {
+  const EMAIL = "fb-ren@example.com";
+  const ENV = { CLOUDFLARE_EMAIL_ACCOUNT_ID: "acc", CLOUDFLARE_EMAIL_TOKEN: "tok", EMAIL_FROM: "PT <fb@pinroj.com>", APP_URL: "https://pt.test" };
+  const saved: Record<string, string | undefined> = {};
+  const origFetch = globalThis.fetch;
+  let sent: { to: string; subject: string }[] = [];
+  let ren = "";
+  let item = "";
+
+  beforeAll(async () => {
+    for (const k of [...Object.keys(ENV), "ADMIN_EMAIL"]) saved[k] = process.env[k];
+    Object.assign(process.env, ENV);
+    const [admin] = await db.select().from(trainers).where(eq(trainers.id, await getDefaultTrainerId()));
+    process.env.ADMIN_EMAIL = admin.email;
+    globalThis.fetch = (async (input: any, init?: RequestInit) => {
+      if (!String(input).startsWith("https://api.cloudflare.com/")) return origFetch(input, init);
+      const b = JSON.parse(String(init?.body));
+      sent.push({ to: b.to, subject: b.subject });
+      return Response.json({ success: true, errors: [], result: { delivered: [b.to], permanent_bounces: [], queued: [] } });
+    }) as typeof fetch;
+    await db.delete(trainers).where(eq(trainers.email, EMAIL));
+    const [row] = await db.insert(trainers).values({ name: "Ren", email: EMAIL }).returning({ id: trainers.id });
+    ren = (await createSession(row.id)).token;
+  });
+  afterAll(async () => {
+    globalThis.fetch = origFetch;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    if (item) await db.delete(feedbackItems).where(eq(feedbackItems.id, item));
+    await db.delete(trainers).where(eq(trainers.email, EMAIL));
+  });
+  const flush = async () => {
+    await settleFeedbackNotifications();
+    const out = sent;
+    sent = [];
+    return out;
+  };
+
+  test("new item, reply and status change each email the other side", async () => {
+    const adminEmail = process.env.ADMIN_EMAIL!;
+    item = (await json(await call("POST", "/v1/feedback", { comment: "Rest timer is too small", context }, ren))).id;
+    expect(await flush()).toEqual([{ to: adminEmail, subject: expect.stringMatching(/^\[FB-\d+\] New feedback from Ren: "Rest timer is too small"$/) }]);
+
+    await call("POST", `/v1/feedback/${item}/comments`, { body: "On which screen?" });
+    expect((await flush()).map((e) => e.to)).toEqual([EMAIL]);
+
+    await call("POST", `/v1/feedback/${item}/comments`, { body: "The log screen" }, ren);
+    expect((await flush()).map((e) => e.to)).toEqual([adminEmail]);
+
+    await call("PATCH", `/v1/feedback/${item}`, { status: "accepted" });
+    const accepted = await flush();
+    expect(accepted.map((e) => e.to)).toEqual([EMAIL]);
+    expect(accepted[0].subject).toMatch(/Accepted — on the build list$/);
+  });
+
+  test("note edits, unchanged status and deletes send nothing", async () => {
+    const noted = await json(await call("PATCH", `/v1/feedback/${item}`, { triageNote: "bigger digits" }));
+    expect(noted.status).toBe("accepted"); // a note alone never moves the status
+    await call("PATCH", `/v1/feedback/${item}`, { status: "accepted" });
+    await call("DELETE", `/v1/feedback/${item}`);
+    item = "";
+    expect(await flush()).toEqual([]);
   });
 });

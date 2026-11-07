@@ -19,6 +19,7 @@ import {
   type FeedbackViewer,
 } from "../lib/feedback";
 import { API_VERSION } from "../lib/build";
+import { notifyFeedback } from "../lib/feedback-notify";
 import { trainerContext } from "../lib/trainer-context";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
@@ -45,7 +46,10 @@ const Context = t.Object({
   appVersion: t.String(),
 });
 
-const Status = t.UnionEnum(FEEDBACK_STATUSES);
+// Literal union, not t.UnionEnum: UnionEnum carries a default (its first
+// value), so an absent optional status would arrive as "new" and a note-only
+// PATCH would silently reopen the item.
+const Status = t.Union(FEEDBACK_STATUSES.map((s) => t.Literal(s)));
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 
 const ADMIN_ONLY = { error: "admin only" } as const;
@@ -123,6 +127,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
           pageShot,
         })
         .returning({ id: feedbackItems.id, number: feedbackItems.number });
+      notifyFeedback({ kind: "created", itemId: row.id });
       return { id: row.id, number: row.number, handle: feedbackHandle(row.number) };
     },
     {
@@ -154,7 +159,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
           .from(feedbackItems)
           .where(eq(feedbackItems.id, params.id))
           .for("update");
-        if (!prev) return false;
+        if (!prev) return null;
         const moved = body.status !== undefined && body.status !== prev.status;
         await tx
           .update(feedbackItems)
@@ -164,12 +169,15 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             updatedAt: new Date(),
           })
           .where(eq(feedbackItems.id, params.id));
-        if (moved) {
-          await tx.insert(feedbackComments).values({ itemId: params.id, trainerId, kind: "status", status: body.status });
-        }
-        return true;
+        if (!moved) return { statusCommentId: null };
+        const [entry] = await tx
+          .insert(feedbackComments)
+          .values({ itemId: params.id, trainerId, kind: "status", status: body.status })
+          .returning({ id: feedbackComments.id });
+        return { statusCommentId: entry.id };
       });
       if (!found) return status(404, NOT_FOUND);
+      if (found.statusCommentId) notifyFeedback({ kind: "status", itemId: params.id, commentId: found.statusCommentId });
       await markSeen(trainerId, params.id);
       return (await getFeedback(params.id, who))!;
     },
@@ -193,6 +201,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         .insert(feedbackComments)
         .values({ itemId: params.id, trainerId, kind: "reply", body: text })
         .returning({ id: feedbackComments.id });
+      notifyFeedback({ kind: "reply", itemId: params.id, commentId: row.id });
       await markSeen(trainerId, params.id);
       const item = (await getFeedback(params.id, who))!;
       return status(201, item.thread.find((c) => c.id === row.id)!);
