@@ -4,13 +4,14 @@
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
   import Note from "$lib/ui/Note.svelte";
+  import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
 
   let { children } = $props();
 
   let clientCount = $state<number | null>(null);
 
-  const groups = [
+  const groups: { label: string; items: { href: string; label: string; icon: IconName }[] }[] = [
     {
       label: "Workspace",
       items: [
@@ -24,8 +25,8 @@
       label: "Library",
       items: [
         { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
-        { href: "/templates", label: "Templates", icon: "layers" },
-        { href: "/examples", label: "Examples", icon: "sparkle" },
+        { href: "/templates", label: "Templates", icon: "file" },
+        { href: "/examples", label: "Examples", icon: "star" },
       ],
     },
   ];
@@ -48,7 +49,7 @@
       <span class="mark" aria-hidden="true">PT</span>
       <span class="name">
         Program Tracker
-        <small>Trainer · {apiMode === "live" ? "live data" : "demo"}</small>
+        <small>Trainer workspace</small>
       </span>
     </a>
 
@@ -63,19 +64,7 @@
             href={item.href}
             title={item.label}
           >
-            {#if item.icon === "grid"}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" /></svg>
-            {:else if item.icon === "users"}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            {:else if item.icon === "dumbbell"}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
-            {:else if item.icon === "gear"}
-              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
-            {:else if item.icon === "comment"}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11h-9l-5 4v-4H4z" /></svg>
-            {:else}
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 7l9 4 9-4zM3 12l9 4 9-4M3 17l9 4 9-4" /></svg>
-            {/if}
+            <Icon name={item.icon} />
             <span class="nav-text">{item.label}</span>
             {#if item.href === "/clients" && clientCount !== null}
               <span class="count">{clientCount}</span>
@@ -85,8 +74,8 @@
       {/each}
     </nav>
 
-    <div class="side-foot">
-      <span class="dot" aria-hidden="true"></span>Trainer
+    <div class="side-foot" class:demo={apiMode !== "live"}>
+      <span class="dot" aria-hidden="true"></span>{apiMode === "live" ? "Live data" : "Demo data"}
     </div>
   </aside>
 
@@ -126,18 +115,21 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 0 8px;
+    padding: 0 8px 4px;
     text-decoration: none;
+    border-radius: var(--radius);
   }
+  .brand:hover { text-decoration: none; }
   .mark {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border-radius: 99px;
-    background: #24292f;
+    background: var(--hover-ink);
     color: #fff;
     display: grid;
     place-items: center;
     font: 600 11px/1 var(--font-ui);
+    letter-spacing: 0.02em;
     flex: none;
   }
   .name {
@@ -146,55 +138,55 @@
   }
   .name small {
     display: block;
-    font: 400 11px/1.7 var(--font-ui);
+    font: 400 12px/1.5 var(--font-ui);
     color: var(--muted);
   }
 
   nav {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
     flex: 1;
   }
   .nav-label {
-    font: 500 12px/1 var(--font-ui);
+    font: 600 11px/1 var(--font-ui);
     color: var(--muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     padding: 0 8px;
-    margin: 4px 0 7px;
+    margin: 0 0 6px;
     white-space: nowrap;
   }
-  .nav-item + .nav-label { margin-top: 12px; }
+  .nav-item + .nav-label { margin-top: 18px; }
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 10px;
     padding: 6px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius);
     text-decoration: none;
     font: 400 14px/1.4 var(--font-ui);
     color: var(--ink);
     white-space: nowrap;
+    transition: background-color 120ms ease-out;
   }
-  .nav-item svg {
+  .nav-item :global(svg) {
     width: 16px;
     height: 16px;
-    stroke: #59636e;
-    fill: none;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    color: var(--muted);
+    stroke-width: 1.6;
     flex: none;
   }
   .nav-item:hover { background: var(--well-2); text-decoration: none; }
+  .nav-item:hover :global(svg) { color: var(--ink); }
   .nav-item.active { background: var(--active); font-weight: 600; }
-  .nav-item.active svg { stroke: var(--ink); }
+  .nav-item.active :global(svg) { color: var(--ink); }
   .count {
     margin-left: auto;
-    font: 400 12px/1 var(--font-ui);
-    color: #59636e;
-    border: 1px solid var(--line);
+    font: 500 12px/18px var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    background: var(--chip-bg);
     border-radius: 99px;
     padding: 0 7px;
     min-width: 20px;
@@ -204,18 +196,25 @@
   .side-foot {
     margin-top: auto;
     border-top: 1px solid var(--line);
-    padding: 14px 8px 0;
-    font: 400 12px/1.6 var(--font-ui);
+    padding: 12px 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 400 12px/1.5 var(--font-ui);
     color: var(--muted);
     white-space: nowrap;
   }
   .side-foot .dot {
-    display: inline-block;
     width: 7px;
     height: 7px;
     border-radius: 99px;
     background: var(--green-btn);
-    margin-right: 6px;
+    flex: none;
+  }
+  .side-foot.demo .dot { background: var(--warn); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-item { transition: none; }
   }
 
   .main {
