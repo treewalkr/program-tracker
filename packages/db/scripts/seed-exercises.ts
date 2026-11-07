@@ -1,113 +1,84 @@
 /**
- * Seed the global exercise library from the open-source WGER API (CC-BY-SA).
- * Data: https://wger.de — attribution requirement satisfied by keeping this
- * notice and the README credit.
+ * Seed the global exercise library from library/exercise-library.json
+ * (free-exercise-db, public domain, plus hand curation — see library/).
  *
- * WGER keeps exercise metadata (muscles/equipment) and translated names in
- * separate endpoints; we join them here.
- *
- * Idempotent: skips exercises whose lowercase name already exists.
- * Run: bun run seed:exercises
+ *   bun run seed:exercises            add missing library names (idempotent)
+ *   bun run seed:exercises --replace  delete EVERY exercise (library + custom),
+ *                                     insert the library, and remap program and
+ *                                     AI-draft references by name / ALIASES.
+ *                                     Aborts (rolls back) if any set log exists
+ *                                     or any reference can't be mapped.
  */
-import { db, exercises } from "../src";
-import type { MuscleGroupValue, EquipmentValue } from "./map-wger";
-import { mapMuscle, mapEquipment, type WgerExercise } from "./map-wger";
-import { classifyExercise } from "./map-patterns";
+import { eq, sql } from "drizzle-orm";
+import { aiGenerations, db, exercises, programs, setLogs } from "../src";
+import { ALIASES, type LibraryEntry } from "../library/curation";
+import library from "../library/exercise-library.json";
 
-const API = "https://wger.de/api/v2";
+const entries = library as LibraryEntry[];
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const aliasByNorm = new Map(Object.entries(ALIASES).map(([from, to]) => [norm(from), to]));
 
-async function fetchAll<T>(path: string, params: Record<string, string>): Promise<T[]> {
-  const out: T[] = [];
-  let url: string | null = `${API}${path}?${new URLSearchParams({ format: "json", ...params })}`;
-  while (url) {
-    const res = await fetch(url, { headers: { "user-agent": "program-tracker/seed" } });
-    if (!res.ok) throw new Error(`wger ${path} failed: ${res.status}`);
-    const json = (await res.json()) as { next: string | null; results: T[] };
-    out.push(...json.results);
-    url = json.next;
+/** Replace every string in `value` found in `map`; collect strings that look like old ids but aren't mapped. */
+function remap(value: unknown, map: Map<string, string>, oldIds: Set<string>, missing: Set<string>): unknown {
+  if (typeof value === "string") {
+    if (map.has(value)) return map.get(value);
+    if (oldIds.has(value)) missing.add(value);
+    return value;
   }
-  return out;
+  if (Array.isArray(value)) return value.map((v) => remap(v, map, oldIds, missing));
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, remap(v, map, oldIds, missing)]));
+  return value;
 }
 
-interface WgerMuscle {
-  id: number;
-  name: string;
-}
-interface WgerEquipment {
-  id: number;
-  name: string;
-}
-interface WgerTranslation {
-  name: string;
-  exercise: number;
-  language: number;
+const toRow = (e: LibraryEntry) => ({ ...e, trainerId: null });
+
+async function addMissing() {
+  const existing = new Set((await db.select({ name: exercises.name }).from(exercises)).map((e) => norm(e.name)));
+  const rows = entries.filter((e) => !existing.has(norm(e.name))).map(toRow);
+  if (rows.length) await db.insert(exercises).values(rows);
+  console.log(`✓ added ${rows.length} exercises (${entries.length - rows.length} already present)`);
 }
 
-const run = async () => {
-  console.log("fetching wger muscle + equipment catalogs…");
-  const [muscles, equipment] = await Promise.all([
-    fetchAll<WgerMuscle>("/muscle", { limit: "100" }),
-    fetchAll<WgerEquipment>("/equipment", { limit: "100" }),
-  ]);
-  const muscleById = new Map(muscles.map((m) => [m.id, m.name]));
-  const equipmentById = new Map(equipment.map((e) => [e.id, e.name]));
+async function replaceAll() {
+  await db.transaction(async (tx) => {
+    const [{ logs }] = await tx.select({ logs: sql<number>`count(*)::int` }).from(setLogs);
+    if (logs > 0) throw new Error(`${logs} set logs reference exercises; refusing to delete`);
 
-  console.log("fetching exercises + english translations…");
-  const [raw, translations] = await Promise.all([
-    fetchAll<WgerExercise>("/exercise", { limit: "100" }),
-    fetchAll<WgerTranslation>("/exercise-translation", { language: "2", limit: "100" }),
-  ]);
-  console.log(`fetched ${raw.length} exercises, ${translations.length} translations`);
+    const old = await tx.select({ id: exercises.id, name: exercises.name }).from(exercises);
+    await tx.delete(exercises);
+    const inserted = await tx.insert(exercises).values(entries.map(toRow)).returning({ id: exercises.id, name: exercises.name });
+    const newIdByName = new Map(inserted.map((e) => [e.name, e.id]));
+    const newIdByNorm = new Map(inserted.map((e) => [norm(e.name), e.id]));
 
-  const nameByExerciseId = new Map<number, string>();
-  for (const tr of translations) {
-    if (!nameByExerciseId.has(tr.exercise)) nameByExerciseId.set(tr.exercise, (tr.name ?? "").trim());
-  }
-
-  const existing = new Set((await db.select().from(exercises)).map((e) => e.name.toLowerCase()));
-
-  let inserted = 0;
-  let skippedUnmapped = 0;
-  for (const ex of raw) {
-    const name = nameByExerciseId.get(ex.id) ?? "";
-    if (name.length < 3) continue;
-    if (existing.has(name.toLowerCase())) continue;
-
-    const mapped = (ex.muscles ?? []).map((id) => mapMuscle(muscleById.get(id) ?? "")).filter(Boolean);
-    if (mapped.length === 0) {
-      skippedUnmapped++;
-      continue;
+    const map = new Map<string, string>();
+    for (const o of old) {
+      const alias = aliasByNorm.get(norm(o.name));
+      const id = alias ? newIdByName.get(alias) : newIdByNorm.get(norm(o.name));
+      if (id) map.set(o.id, id);
     }
-    const secondary = (ex.muscles_secondary ?? [])
-      .map((id) => mapMuscle(muscleById.get(id) ?? ""))
-      .filter(Boolean)
-      .slice(0, 4);
+    const oldIds = new Set(old.map((o) => o.id));
+    const nameOf = new Map(old.map((o) => [o.id, o.name]));
+    const missing = new Set<string>();
 
-    const equip: EquipmentValue =
-      (ex.equipment ?? [])
-        .map((id) => mapEquipment(equipmentById.get(id) ?? ""))
-        .find(Boolean) ?? "bodyweight";
+    const progs = await tx.select({ id: programs.id, sessions: programs.sessions }).from(programs);
+    const gens = await tx.select({ id: aiGenerations.id, draft: aiGenerations.draft }).from(aiGenerations);
+    const progUpdates = progs.map((p) => ({ id: p.id, sessions: remap(p.sessions, map, oldIds, missing) }));
+    const genUpdates = gens.filter((g) => g.draft).map((g) => ({ id: g.id, draft: remap(g.draft, map, oldIds, missing) }));
+    if (missing.size)
+      throw new Error(`unmapped exercises still referenced: ${[...missing].map((id) => nameOf.get(id)).join(", ")} — add them to ALIASES`);
 
-    const { movementPattern, functionalMovement } = classifyExercise(name);
+    for (const p of progUpdates) await tx.update(programs).set({ sessions: p.sessions as never }).where(eq(programs.id, p.id));
+    for (const g of genUpdates) await tx.update(aiGenerations).set({ draft: g.draft as never }).where(eq(aiGenerations.id, g.id));
+    console.log(
+      `✓ replaced ${old.length} exercises with ${inserted.length}; remapped ${progUpdates.length} programs and ${genUpdates.length} AI drafts`
+    );
+  });
+}
 
-    await db.insert(exercises).values({
-      trainerId: null,
-      name,
-      primaryMuscleGroup: mapped[0] as MuscleGroupValue,
-      secondaryMuscleGroups: secondary,
-      equipment: equip,
-      movementPattern,
-      functionalMovement,
-    });
-    existing.add(name.toLowerCase());
-    inserted++;
-  }
-
-  console.log(`✓ seeded ${inserted} exercises (skipped ${skippedUnmapped} without a mappable muscle)`);
-  process.exit(0);
-};
-
-run().catch((err) => {
-  console.error("seed failed:", err);
-  process.exit(1);
-});
+(process.argv.includes("--replace") ? replaceAll() : addMissing())
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("seed failed:", err.message ?? err);
+    process.exit(1);
+  });
