@@ -15,20 +15,20 @@
     "build-storybook": "storybook build"
   },
   "devDependencies": {
-    "@sveltejs/adapter-auto": "^7.0.1",
+    "@storybook/addon-a11y": "^10.6.2",
+    "@storybook/addon-docs": "^10.6.2",
+    "@storybook/addon-svelte-csf": "latest",
+    "@storybook/sveltekit": "^10.6.2",
+    "@sveltejs/adapter-static": "^4.0.1",
     "@sveltejs/kit": "^2.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@types/node": "^24.0.0",
+    "elysia": "^1.4.2",
+    "storybook": "^10.6.2",
     "svelte": "^5.56.1",
     "svelte-check": "^4.6.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "elysia": "^1.4.2",
-    "@types/node": "^24.0.0",
-    "storybook": "^10.6.2",
-    "@storybook/sveltekit": "^10.6.2",
-    "@storybook/addon-svelte-csf": "latest",
-    "@storybook/addon-a11y": "^10.6.2",
-    "@storybook/addon-docs": "^10.6.2"
+    "vite": "^8.0.16"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.9",
