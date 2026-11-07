@@ -9,8 +9,13 @@
     ExerciseDto,
     GenerationDto,
     LlmVerdictDto,
+    CoachingRuleDto,
+    NoteAnchorDto,
     ProviderDto,
   } from "$lib/api/types";
+  import { textAnchor } from "$lib/notes";
+  import NoteEditor from "$lib/components/NoteEditor.svelte";
+  import LearnedRule from "$lib/components/LearnedRule.svelte";
   import {
     applyChatTurn,
     draftPreviewModel,
@@ -58,6 +63,69 @@
       })
       .catch(() => {});
   });
+  /** Selected text in an assistant reply → the floating "Note on this" button. */
+  let selection = $state<{ messageId: string; anchor: NoteAnchorDto; x: number; y: number } | null>(null);
+  /** The open text note (one at a time). */
+  let noteOn = $state<{ messageId: string; anchor: NoteAnchorDto } | null>(null);
+  /** "Remember this for next time?" per built-draft message. */
+  let remember = $state<Record<string, { busy: boolean; rule: CoachingRuleDto | null; error: string | null }>>({});
+
+  function readSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      selection = null;
+      return;
+    }
+    const range = sel.getRangeAt(0).cloneRange();
+    // Anchor on where the selection starts; a drag or triple-click that runs past the reply is clipped to it.
+    const node = range.startContainer;
+    const host = (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>("[data-reply-id]");
+    if (host && !host.contains(range.endContainer)) range.setEnd(host, host.childNodes.length);
+    const m = host ? messages.find((x) => x.id === host.dataset.replyId) : null;
+    const anchor = m ? textAnchor(m.content, range.toString()) : null;
+    if (!m || !anchor) {
+      selection = null;
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    selection = { messageId: m.id, anchor, x: Math.max(8, rect.left), y: rect.bottom + 6 };
+  }
+
+  function noteOnSelection() {
+    if (!selection) return;
+    noteOn = { messageId: selection.messageId, anchor: selection.anchor };
+    selection = null;
+    window.getSelection()?.removeAllRanges();
+  }
+
+  /** Builds made from a chat request can teach a rule. */
+  const teachable = (m: ChatMessageDto) => {
+    const g = m.generationId ? allGens.find((x) => x.id === m.generationId) : null;
+    return !!g?.draft && !!g.parentGenerationId && !!g.revisionMessage;
+  };
+
+  async function rememberThis(m: ChatMessageDto) {
+    if (!m.generationId) return;
+    remember[m.id] = { busy: true, rule: null, error: null };
+    try {
+      const rule = await api.extractChatRule({ generationId: m.generationId });
+      remember[m.id] = { busy: false, rule, error: null };
+    } catch (err) {
+      remember[m.id] = { busy: false, rule: null, error: (err as Error).message || "Could not learn from this" };
+    }
+  }
+
+  $effect(() => {
+    if (!selection) return;
+    const clear = () => (selection = null);
+    window.addEventListener("scroll", clear, true);
+    window.addEventListener("resize", clear);
+    return () => {
+      window.removeEventListener("scroll", clear, true);
+      window.removeEventListener("resize", clear);
+    };
+  });
+
   let loading = $state(true);
   let catalogById = $state(new Map<string, ExerciseDto>());
 
@@ -412,8 +480,26 @@
   </div>
 {/snippet}
 
+{#snippet textNote(m: ChatMessageDto)}
+  {#if noteOn?.messageId === m.id}
+    {#key noteOn.anchor}
+      <div class="text-note">
+        <NoteEditor
+          subjectKind="chat_message"
+          subjectId={m.id}
+          anchor={noteOn.anchor}
+          clientId={id}
+          clientName={firstName}
+          onclose={() => (noteOn = null)}
+        />
+      </div>
+    {/key}
+  {/if}
+{/snippet}
+
 {#snippet thread()}
-  <div class="thread" role="log" aria-live="polite" aria-label="Conversation with AI">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="thread" role="log" aria-live="polite" aria-label="Conversation with AI" onpointerup={() => setTimeout(readSelection)} onkeyup={(e) => e.shiftKey && readSelection()}>
     {#each messages as m (m.id)}
       {#if m.role === "trainer"}
         <div class="you">{m.content}</div>
@@ -423,7 +509,7 @@
           {#if m.kind === "error"}
             <Note tone="bad">{m.content}</Note>
           {:else if m.kind === "proposal" && m.proposal}
-            <div class="md">{@html renderMarkdown(m.content)}</div>
+            <div class="md" data-reply-id={m.id}>{@html renderMarkdown(m.content)}</div>
             <ChatProposal
               proposal={m.proposal}
               tags={tagsFor(m.proposal.parentGenerationId)}
@@ -432,7 +518,8 @@
               onbuild={() => build(m)}
               onadjust={() => adjust(m)}
             />
-            <div class="ai-foot"><Verdict subjectKind="chat_message" subjectId={m.id} initial={verdicts[m.id] ?? null} noun="proposal" /></div>
+            <div class="ai-foot"><Verdict subjectKind="chat_message" subjectId={m.id} initial={verdicts[m.id] ?? null} noun="proposal" clientId={id} clientName={firstName} /></div>
+            {@render textNote(m)}
           {:else if m.kind === "draft"}
             {@const stamp = stamps.get(m.id)}
             {@const text = stripDraftNotice(m.content)}
@@ -440,16 +527,42 @@
             {#if stamp}
               <VersionStamp {stamp} onpick={(c) => pick(c, stamp)} />
             {/if}
+            {#if teachable(m)}
+              {@const r = remember[m.id]}
+              <div class="remember">
+                {#if r?.rule}
+                  <LearnedRule rule={r.rule} clientId={id} clientName={firstName} />
+                {:else}
+                  <button type="button" class="linkish" disabled={r?.busy} onclick={() => rememberThis(m)}>
+                    <Icon name="sparkle" />{r?.busy ? "Learning…" : "Remember this for next time?"}
+                  </button>
+                  {#if r?.error}<span class="remember-err" role="alert">{r.error}</span>{/if}
+                {/if}
+              </div>
+            {/if}
           {:else}
-            <div class="md">{@html renderMarkdown(m.content)}</div>
+            <div class="md" data-reply-id={m.id}>{@html renderMarkdown(m.content)}</div>
             <div class="ai-foot">
-              <Verdict subjectKind="chat_message" subjectId={m.id} initial={verdicts[m.id] ?? null} />
+              <Verdict subjectKind="chat_message" subjectId={m.id} initial={verdicts[m.id] ?? null} clientId={id} clientName={firstName} />
               {#if preview.target}<span class="answer-only">Answer only · draft unchanged</span>{/if}
             </div>
+            {@render textNote(m)}
           {/if}
         </div>
       {/if}
     {/each}
+    {#if selection}
+      <button
+        type="button"
+        class="sel-note"
+        style:left="{selection.x}px"
+        style:top="{selection.y}px"
+        onpointerdown={(e) => e.preventDefault()}
+        onclick={noteOnSelection}
+      >
+        <Icon name="comment" />Note on this
+      </button>
+    {/if}
     {#if sending}
       <div class="ai" role="status">
         <div class="who"><Icon name="sparkle" />AI</div>
@@ -607,6 +720,63 @@
     flex-wrap: wrap;
     gap: 4px 10px;
     margin-top: 6px;
+  }
+  .text-note {
+    margin-top: 8px;
+  }
+  .sel-note {
+    position: fixed;
+    z-index: 30;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    box-shadow: var(--shadow-overlay);
+    font: 500 12px/1.4 var(--font-ui);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .sel-note:hover {
+    background: var(--well);
+  }
+  .sel-note :global(svg) {
+    width: 12px;
+    height: 12px;
+  }
+  .remember {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .linkish {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: 500 12px/1.4 var(--font-ui);
+    color: var(--blue);
+    cursor: pointer;
+  }
+  .linkish:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+  .linkish:disabled {
+    color: var(--muted);
+    cursor: progress;
+  }
+  .linkish :global(svg) {
+    width: 12px;
+    height: 12px;
+  }
+  .remember-err {
+    font-size: 12px;
+    color: var(--bad);
   }
   .answer-only {
     font-size: 12px;
