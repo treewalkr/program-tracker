@@ -67,7 +67,7 @@
   --rpe-mid-chip: #7d5600; /* amber RPE on the chip background */
 
   /* small one-off marks */
-  --blue-line: var(--blue-line); /* hairline around Pulse Blue Tint surfaces */
+  --blue-line: #b6e3ff; /* hairline around Pulse Blue Tint surfaces */
   --tab-on: var(--tab-on);
   --lamp-amber: #bf8700;
   --lamp-gray: #818b98;
