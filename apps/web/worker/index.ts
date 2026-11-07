@@ -7,6 +7,10 @@ interface Env {
   ASSETS: { fetch: (req: Request) => Promise<Response> };
 }
 
+interface Ctx {
+  waitUntil(p: Promise<unknown>): void;
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
@@ -22,5 +26,15 @@ export default {
       body: req.body,
       redirect: "manual",
     });
+  },
+
+  /** Cron (every 10 min): ping the API so Render's free tier never sleeps. */
+  async scheduled(_event: unknown, env: Env, ctx: Ctx): Promise<void> {
+    ctx.waitUntil(
+      fetch(new URL("/health", env.API_ORIGIN)).then(
+        (res) => void res.body?.cancel(),
+        (err) => console.error(`keep-warm ping failed: ${(err as Error).message}`),
+      ),
+    );
   },
 };

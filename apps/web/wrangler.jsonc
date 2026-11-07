@@ -8,6 +8,8 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/v1/*"]
   },
+  // Keeps the free Render API awake (it sleeps after ~15 idle minutes).
+  "triggers": { "crons": ["*/10 * * * *"] },
   "vars": { "API_ORIGIN": "https://program-tracker-api.onrender.com" },
   "routes": [{ "pattern": "pt.pinroj.com", "custom_domain": true }]
 }
