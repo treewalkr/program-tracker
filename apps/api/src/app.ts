@@ -17,6 +17,7 @@ import { clientMessageRoutes } from "./routes/client-messages";
 import { preferenceRoutes } from "./routes/preferences";
 import { chatRoutes } from "./routes/chat";
 import { feedbackRoutes } from "./routes/feedback";
+import { authGuard, authRoutes } from "./routes/auth";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -25,6 +26,7 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
 
 const TAGS = [
   { name: "health", description: "Liveness and provider discovery" },
+  { name: "auth", description: "Google sign-in for the trainer; every other /v1 route needs a session" },
   { name: "ai", description: "AI draft generation, audit trail, and approval gate" },
   { name: "chat", description: "Conversational surface — client Q&A and draft revision over chat" },
   { name: "client-messages", description: "Client-facing weekly messages — AI-drafted, trainer-approved, copy-to-LINE" },
@@ -64,6 +66,9 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .get("/health", () => ({ ok: true, service: "program-tracker-api", time: new Date().toISOString() }), {
     detail: { summary: "Liveness probe", tags: ["health"] },
   })
+  .use(authRoutes)
+  // everything below needs a signed-in trainer
+  .use(authGuard)
   /**
    * Which AI providers are usable right now. API keys are read server-side
    * only — the response carries config, never secrets.
