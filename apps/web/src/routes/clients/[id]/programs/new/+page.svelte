@@ -232,7 +232,7 @@
   }
 
   function addExercise(s: SessionRow) {
-    s.exercises.push({ key: crypto.randomUUID(), exerciseId: catalog[0]?.id ?? "", role: "", sets: [] });
+    s.exercises.push({ key: crypto.randomUUID(), exerciseId: catalog.find((c) => !c.archivedAt)?.id ?? "", role: "", sets: [] });
     sessions = [...sessions];
   }
 
@@ -555,7 +555,7 @@
                 <div class="exblock">
                   <div class="exhead">
                     <select class="select exsel" bind:value={e.exerciseId} aria-label="Exercise">
-                      {#each catalog as ex (ex.id)}
+                      {#each catalog.filter((ex) => !ex.archivedAt || ex.id === e.exerciseId) as ex (ex.id)}
                         <option value={ex.id}>{ex.name}</option>
                       {/each}
                     </select>

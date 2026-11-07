@@ -108,7 +108,7 @@
       {/each}
     </select>
     <select class="select pick" value={exercise.exerciseId} onchange={(e) => pickExercise(e.currentTarget.value)} aria-label="Exercise">
-      {#each catalog as ex (ex.id)}
+      {#each catalog.filter((ex) => !ex.archivedAt || ex.id === exercise.exerciseId) as ex (ex.id)}
         <option value={ex.id}>{ex.name}</option>
       {/each}
     </select>
