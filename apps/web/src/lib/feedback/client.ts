@@ -37,6 +37,9 @@ export const feedbackApi = {
   remove: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).delete()),
   reply: async (id: string, body: string) =>
     normalizeComment(await unwrap<FeedbackComment>(client.v1.feedback({ id }).comments.post({ body }))),
+  /** Stop (or resume) emails about one item, for the signed-in trainer. */
+  setMuted: (id: string, muted: boolean) =>
+    unwrap<{ muted: boolean }>(muted ? client.v1.feedback({ id }).mute.put() : client.v1.feedback({ id }).mute.delete()),
   seen: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).seen.post()),
   unread: async () => (await unwrap<{ count: number }>(client.v1.feedback.unread.get())).count,
   exportMarkdown: async (status: string) =>
