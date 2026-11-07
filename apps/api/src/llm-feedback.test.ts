@@ -204,3 +204,60 @@ describe.skipIf(!dbUp)("implicit LLM feedback", () => {
     expect(fb.comment).toBe("[client] hates lunges");
   });
 });
+
+describe.skipIf(!dbUp)("POST /v1/ai/feedback (explicit)", () => {
+  test("thumbs down with reasons and a comment lands on the reply's call; latest verdict wins", async () => {
+    const clientId = await newClient();
+    const qa = await call("POST", "/v1/ai/chat", { clientId, message: "Why RPE 8?", providerId: "mock" });
+    const reply = qa.body.messages[1];
+
+    const down = await call("POST", "/v1/ai/feedback", {
+      subjectKind: "chat_message",
+      subjectId: reply.id,
+      signal: "thumbs_down",
+      reasonTags: ["off_topic", "too_long"],
+      comment: "  answer the question  ",
+    });
+    expect(down.status).toBe(201);
+    expect(down.body.reasonTags).toEqual(["off_topic", "too_long"]);
+    expect(down.body.comment).toBe("answer the question");
+    const [row] = await feedbackFor(reply.id);
+    expect(row.score).toBe(-1);
+    const [qaCall] = await db.select().from(llmCalls).where(eq(llmCalls.chatMessageId, reply.id));
+    expect(row.callId).toBe(qaCall.id);
+
+    await call("POST", "/v1/ai/feedback", { subjectKind: "chat_message", subjectId: reply.id, signal: "thumbs_up" });
+    const got = await call("GET", `/v1/ai/feedback?subjectIds=${reply.id},${crypto.randomUUID()}`);
+    expect(got.status).toBe(200);
+    expect(got.body.verdicts).toHaveLength(1);
+    expect(got.body.verdicts[0].signal).toBe("thumbs_up");
+    expect(await feedbackFor(reply.id)).toHaveLength(2); // append-only
+  });
+
+  test("UI-side signals: Adjust on a proposal, Copy on a client message", async () => {
+    const clientId = await newClient();
+    const gen = await mockDraft(clientId);
+    const turn = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: gen.id, message: "swap rows for pull-ups", providerId: "mock" });
+    const proposal = turn.body.messages[1];
+    const adj = await call("POST", "/v1/ai/feedback", { subjectKind: "chat_message", subjectId: proposal.id, signal: "proposal_adjusted", comment: "dropped" });
+    expect(adj.status).toBe(201);
+    const [fb] = await feedbackFor(proposal.id);
+    expect(fb.score).toBe(0);
+    expect(fb.comment).toBeNull(); // comments only ride on thumbs
+
+    // an adjusted proposal is not later counted as ignored
+    await call("POST", "/v1/ai/chat/turn", { clientId, generationId: gen.id, message: "swap rows for chin-ups", providerId: "mock" });
+    expect((await feedbackFor(proposal.id)).map((f) => f.signal)).toEqual(["proposal_adjusted"]);
+  });
+
+  test("unknown subjects and bad tags are refused", async () => {
+    const missing = await call("POST", "/v1/ai/feedback", { subjectKind: "generation", subjectId: crypto.randomUUID(), signal: "thumbs_up" });
+    expect(missing.status).toBe(404);
+    const clientId = await newClient();
+    const gen = await mockDraft(clientId);
+    const bad = await call("POST", "/v1/ai/feedback", { subjectKind: "generation", subjectId: gen.id, signal: "thumbs_down", reasonTags: ["rude"] });
+    expect(bad.status).toBe(422);
+    const implicit = await call("POST", "/v1/ai/feedback", { subjectKind: "generation", subjectId: gen.id, signal: "draft_rejected" });
+    expect(implicit.status).toBe(422);
+  });
+});

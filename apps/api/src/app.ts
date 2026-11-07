@@ -4,6 +4,7 @@ import { openapi } from "@elysiajs/openapi";
 import { z } from "zod";
 import { KNOWN_PROVIDERS, AiProviderConfig } from "@pt/shared";
 import { aiRoutes } from "./routes/ai";
+import { llmFeedbackRoutes } from "./routes/llm-feedback";
 import { clientRoutes } from "./routes/clients";
 import { programRoutes } from "./routes/programs";
 import { exampleRoutes } from "./routes/examples";
@@ -112,6 +113,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   })
   .use(adminRoutes)
   .use(aiRoutes)
+  .use(llmFeedbackRoutes)
   .use(clientMessageRoutes)
   .use(preferenceRoutes)
   .use(chatRoutes)
