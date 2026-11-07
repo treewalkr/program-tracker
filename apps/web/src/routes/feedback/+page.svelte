@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { feedbackHandle, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+  import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
   import { feedbackApi, exportUrl, shotUrl } from "$lib/feedback/client";
   import { shortPath } from "$lib/feedback/capture";
   import { fmtDate, fmtDateTime } from "$lib/format";
@@ -39,6 +39,13 @@
   let fresh = $state(new Set<string>());
   /** Handle from `/feedback#FB-012`, flashed once scrolled into view. */
   let flashed = $state<string | null>(null);
+
+  /** New-ticket composer: a ticket written here, not pinned to an element. */
+  let composing = $state(false);
+  let draft = $state("");
+  let draftPage = $state("");
+  let filing = $state(false);
+  let draftField = $state<HTMLTextAreaElement | null>(null);
 
   const counts = $derived(
     items.reduce(
@@ -153,6 +160,60 @@
     }
   }
 
+  async function openComposer() {
+    composing = true;
+    await tick();
+    draftField?.focus();
+  }
+
+  function closeComposer() {
+    composing = false;
+    draft = "";
+    draftPage = "";
+  }
+
+  /** Accepts `/clients/x`, `clients/x` or a full app URL; keeps path + query. */
+  function pagePath(raw: string): string {
+    const v = raw.trim();
+    if (!v) return "";
+    try {
+      const u = new URL(v, location.origin);
+      return u.origin === location.origin ? u.pathname + u.search : v;
+    } catch {
+      return v.startsWith("/") ? v : `/${v}`;
+    }
+  }
+
+  async function fileTicket(e?: SubmitEvent) {
+    e?.preventDefault();
+    const comment = draft.trim();
+    if (!comment || filing) return;
+    filing = true;
+    try {
+      const context = unpinnedContext(pagePath(draftPage), {
+        viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
+        userAgent: navigator.userAgent,
+        appVersion: __APP_VERSION__,
+      });
+      const { id } = await feedbackApi.submit({ comment, context });
+      const item = await feedbackApi.get(id);
+      items = [item, ...items];
+      notes[item.id] = "";
+      closeComposer();
+      filter = isAdmin ? "new" : "all";
+      error = null;
+      const handle = feedbackHandle(item.number);
+      await tick();
+      document.getElementById(handle)?.scrollIntoView({ block: "nearest" });
+      flashed = handle;
+      setTimeout(() => (flashed = null), 2400);
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Could not file the ticket";
+    } finally {
+      filing = false;
+    }
+  }
+
   /** Show a capture at its CSS size: captures are taken at min(dpr, 2)x. */
   function fitShot(img: HTMLImageElement, dpr: number) {
     img.style.width = `${img.naturalWidth / Math.min(Math.max(dpr, 1), 2)}px`;
@@ -179,6 +240,7 @@
       : "What you've pinned to the app in feedback mode, and where each item stands."}
   >
     {#snippet actions()}
+      <Button onclick={openComposer} disabled={composing} aria-controls="new-ticket">New ticket</Button>
       {#if isAdmin}
         <Button href={exportUrl("accepted")} target="_blank" rel="noreferrer">Open export</Button>
         <Button variant="primary" onclick={copyForAgent} disabled={counts.accepted === 0}>
@@ -192,6 +254,38 @@
     <Note tone="bad" role="alert">{error}</Note>
   {/if}
 
+  {#if composing}
+    <form id="new-ticket" class="composer" onsubmit={fileTicket} aria-label="New ticket">
+      <label class="field">
+        <span>What should change?</span>
+        <textarea
+          rows="3"
+          maxlength="5000"
+          bind:this={draftField}
+          bind:value={draft}
+          placeholder="e.g. Let me duplicate last week's program for a client"
+          onkeydown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) fileTicket();
+            if (e.key === "Escape") closeComposer();
+          }}
+        ></textarea>
+      </label>
+      <label class="field page-field">
+        <span>Page <span class="muted">— optional</span></span>
+        <input type="text" bind:value={draftPage} placeholder="/clients" autocomplete="off" spellcheck="false" />
+      </label>
+      <p class="hint muted">
+        Not about one thing on screen. To point at an element, turn on <strong>Feedback</strong> (bottom right) and click it.
+      </p>
+      <div class="actions">
+        <Button type="submit" variant="primary" small disabled={!draft.trim() || filing}>
+          {filing ? "Filing…" : "File ticket"}
+        </Button>
+        <Button type="button" small variant="ghost" onclick={closeComposer}>Cancel</Button>
+      </div>
+    </form>
+  {/if}
+
   <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
 
   <div role="tabpanel" id="panel-{filter}" aria-labelledby="fb-{filter}">
@@ -200,7 +294,7 @@
     {:else if visible.length === 0}
       <EmptyState>
         {#if items.length === 0}
-          No feedback yet. Turn on <strong>Feedback</strong> (bottom right) and click anything in the app.
+          No feedback yet. Use <strong>New ticket</strong>, or turn on <strong>Feedback</strong> (bottom right) and click anything in the app.
         {:else}
           Nothing {filter === "all" ? "here" : STATUS_LABEL[filter as FeedbackStatus].toLowerCase()}.
         {/if}
@@ -235,6 +329,13 @@
               <blockquote>{item.comment}</blockquote>
 
               <dl>
+                {#if !isPinned(c)}
+                  <dt>Page</dt>
+                  <dd>
+                    {#if c.route.path}<a href={c.route.path}>{c.route.path}</a>{:else}<span class="muted">General</span>{/if}
+                    <span class="muted">&nbsp;· filed here, not pinned to an element</span>
+                  </dd>
+                {:else}
                 <dt>Page</dt>
                 <dd>
                   <a href={c.route.path}>{c.route.path}</a>{#if c.target.headings.length}<span class="muted">&nbsp;· {c.target.headings.join(" › ")}</span>{/if}
@@ -253,6 +354,7 @@
                     <code>{c.target.selector}</code>
                   {/if}
                 </dd>
+                {/if}
                 <dt>Device</dt>
                 <dd>{c.viewport.width}×{c.viewport.height} @{c.viewport.dpr}x · build <code>{c.appVersion}</code></dd>
               </dl>
@@ -496,6 +598,54 @@
     outline: none;
     border-color: var(--blue);
     box-shadow: 0 0 0 3px var(--focus);
+  }
+  .composer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font: 500 12px/1.2 var(--font-ui);
+    max-width: var(--measure-form);
+  }
+  .field .muted {
+    font-weight: 400;
+  }
+  .page-field {
+    max-width: 22rem;
+  }
+  .field textarea,
+  .field input {
+    font: 400 14px/1.5 var(--font-ui);
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--ink);
+    background: var(--bg);
+  }
+  .field textarea {
+    resize: vertical;
+  }
+  .field input {
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  .field textarea:focus,
+  .field input:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--focus);
+  }
+  .hint {
+    margin: 0;
+    font-size: 12px;
   }
   .actions {
     display: flex;
