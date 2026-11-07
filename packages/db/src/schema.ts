@@ -3,6 +3,7 @@ import {
   boolean,
   customType,
   date,
+  index,
   integer,
   jsonb,
   numeric,
@@ -393,6 +394,8 @@ export const feedbackItems = pgTable("feedback_items", {
   id: uuid("id").primaryKey().defaultRandom(),
   /** Human handle FB-<number>. */
   number: serial("number").notNull(),
+  /** Who filed it; null for items filed before authorship was recorded. */
+  trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
   status: text("status").$type<FeedbackStatus>().notNull().default("new"),
   /** Trainer's words, verbatim. */
   comment: text("comment").notNull(),
@@ -406,7 +409,7 @@ export const feedbackItems = pgTable("feedback_items", {
   pageShot: bytea("page_shot"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index("feedback_items_trainer_idx").on(t.trainerId)]);
 export type FeedbackItemRow = typeof feedbackItems.$inferSelect;
 
 // ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import {
 const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   id: "u1",
   number: 14,
+  author: { id: "t1", name: "Kai", avatarUrl: null },
   status: "accepted",
   comment: "I can't tell which sets are warm-ups.",
   triageNote: "show warm-up sets with a muted chip",
@@ -102,6 +103,11 @@ describe("feedbackMarkdown", () => {
     expect(md).toContain("Page data at click time");
     const empty = feedbackMarkdown([item({ context: { ...item().context, pageData: {} } })], { imageUrl: () => null });
     expect(empty).not.toContain("Page data at click time");
+  });
+  test("names the reporter", () => {
+    expect(md).toContain("- **Reported by:** Kai");
+    const anon = feedbackMarkdown([item({ author: null })], { imageUrl: () => null });
+    expect(anon).toContain("- **Reported by:** unknown");
   });
   test("multi-line comments stay quoted", () => {
     const out = feedbackMarkdown([item({ comment: "line one\nline two" })], { imageUrl: () => null });

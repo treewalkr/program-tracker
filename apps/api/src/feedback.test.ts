@@ -1,7 +1,10 @@
-import { describe, expect, test } from "bun:test";
-import { db, feedbackItems } from "@pt/db";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { eq, inArray } from "drizzle-orm";
+import { db, feedbackItems, trainers } from "@pt/db";
 import type { FeedbackContext } from "@pt/shared";
 import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
+import { createSession, SESSION_COOKIE } from "./lib/auth";
+import { getDefaultTrainerId } from "./lib/trainer";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
 
@@ -37,15 +40,27 @@ const context: FeedbackContext = {
   appVersion: "abc1234",
 };
 
-const call = async (method: string, path: string, body?: unknown) => {
-  const res = await app.handle(
-    new Request(`http://local${path}`, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
-  );
-  return res;
+/**
+ * No token: AUTH_DISABLED (the preload default) — the oldest trainer, as admin.
+ * With a token: the guard is switched on for that one request.
+ */
+const call = async (method: string, path: string, body?: unknown, token?: string) => {
+  const prev = process.env.AUTH_DISABLED;
+  if (token) process.env.AUTH_DISABLED = "false";
+  try {
+    return await app.handle(
+      new Request(`http://local${path}`, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+    );
+  } finally {
+    process.env.AUTH_DISABLED = prev;
+  }
 };
 const json = async (res: Response) => (await res.json()) as any;
 
@@ -86,6 +101,8 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(item.source).toBe("apps/web/src/lib/components/SetChips.svelte:12:4");
     expect(item.hasElementShot).toBe(true);
     expect(item.hasPageShot).toBe(false);
+    const [me] = await db.select().from(trainers).where(eq(trainers.id, await getDefaultTrainerId()));
+    expect(item.author).toEqual({ id: me.id, name: me.name, avatarUrl: me.avatarUrl });
   });
 
   test("rejects an empty comment", async () => {
@@ -134,5 +151,60 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect((await call("DELETE", `/v1/feedback/${id}`)).status).toBe(200);
     expect((await call("GET", `/v1/feedback/${id}`)).status).toBe(404);
     expect((await call("PATCH", `/v1/feedback/${id}`, { status: "done" })).status).toBe(404);
+  });
+});
+
+describe.skipIf(!dbUp)("feedback visibility", () => {
+  const EMAILS = ["fb-kai@example.com", "fb-mo@example.com"];
+  let kai = "";
+  let mo = "";
+  let kaiItem = "";
+  let adminItem = "";
+
+  beforeAll(async () => {
+    await db.delete(trainers).where(inArray(trainers.email, EMAILS));
+    const rows = await db
+      .insert(trainers)
+      .values([
+        { name: "Kai", email: EMAILS[0] },
+        { name: "Mo", email: EMAILS[1] },
+      ])
+      .returning({ id: trainers.id });
+    kai = (await createSession(rows[0].id)).token;
+    mo = (await createSession(rows[1].id)).token;
+    kaiItem = (await json(await call("POST", "/v1/feedback", { comment: "Kai's note", context }, kai))).id;
+    adminItem = (await json(await call("POST", "/v1/feedback", { comment: "Admin's note", context }))).id;
+  });
+  afterAll(async () => {
+    await db.delete(feedbackItems).where(inArray(feedbackItems.id, [kaiItem, adminItem]));
+    await db.delete(trainers).where(inArray(trainers.email, EMAILS));
+  });
+
+  test("a trainer lists only their own items; the admin lists all", async () => {
+    const mine = await json(await call("GET", "/v1/feedback", undefined, kai));
+    expect(mine.map((i: { id: string }) => i.id)).toEqual([kaiItem]);
+    expect(mine[0].author.name).toBe("Kai");
+    expect(await json(await call("GET", "/v1/feedback", undefined, mo))).toEqual([]);
+    const all = (await json(await call("GET", "/v1/feedback"))).map((i: { id: string }) => i.id);
+    expect(all).toContain(kaiItem);
+    expect(all).toContain(adminItem);
+  });
+
+  test("someone else's item and its screenshot are 404", async () => {
+    expect((await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai)).status).toBe(200);
+    expect((await call("GET", `/v1/feedback/${kaiItem}`, undefined, mo)).status).toBe(404);
+    expect((await call("GET", `/v1/feedback/${adminItem}/shot/element`, undefined, kai)).status).toBe(404);
+  });
+
+  test("triage, delete and export are admin only", async () => {
+    for (const res of [
+      await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" }, kai),
+      await call("DELETE", `/v1/feedback/${kaiItem}`, undefined, kai),
+      await call("GET", "/v1/feedback/export", undefined, kai),
+    ]) {
+      expect(res.status).toBe(403);
+      expect(await json(res)).toEqual({ error: "admin only" });
+    }
+    expect((await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" })).status).toBe(200);
   });
 });

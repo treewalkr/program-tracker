@@ -51,10 +51,19 @@ export interface FeedbackContext {
   appVersion: string;
 }
 
+/** The trainer who filed an item (or wrote a reply). */
+export interface FeedbackAuthor {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface FeedbackItem {
   id: string;
   /** Human handle: FB-<number>. */
   number: number;
+  /** Who filed it; null for items filed before authorship was recorded. */
+  author: FeedbackAuthor | null;
   status: FeedbackStatus;
   comment: string;
   triageNote: string | null;
@@ -151,6 +160,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(
     `- **Viewport:** ${c.viewport.width}×${c.viewport.height} @${c.viewport.dpr}x · ${c.userAgent}`,
   );
+  lines.push(`- **Reported by:** ${item.author?.name ?? "unknown"}`);
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   const el = opts.imageUrl(item, "element");
