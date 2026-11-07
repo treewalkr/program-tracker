@@ -90,7 +90,7 @@
 </div>
 
 <style>
-  .week-wrap { overflow-x: auto; padding: 12px 16px; }
+  .week-wrap { overflow-x: auto; padding: 12px 16px; container-type: inline-size; }
   .week-grid {
     display: grid;
     grid-template-columns: 104px repeat(7, minmax(52px, 1fr));
@@ -162,9 +162,31 @@
     font: 500 9px/1 var(--font-mono);
     opacity: 0.8;
   }
+  /* Keep the session tag clear of the corner count badge. */
+  .cell:has(.more) .tag { padding-right: 8px; }
   .cell.done .more { color: #fff; }
   .cell.today .more { color: var(--blue); }
   .cell.missed .more { color: var(--bad); }
   .cell.next .more { color: var(--muted); }
   .offday { align-self: center; color: var(--faint); font-size: 11px; }
+
+  /* Narrow panels: the client column becomes a label row above its week,
+     so all seven days fit without sideways scrolling. */
+  @container (max-width: 520px) {
+    .week-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
+    .wk-h.corner { display: none; }
+    .wk-h { padding: 4px 2px 6px; }
+    .wk-client {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 10px;
+      padding: 12px 2px 4px;
+      border-top: 1px solid var(--line-soft);
+    }
+    .wk-client .meta { max-width: 100%; }
+    .wk-cell { padding: 4px 2px; }
+    .wk-cell.span { grid-column: 1 / -1; }
+  }
 </style>
