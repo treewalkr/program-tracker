@@ -13,6 +13,16 @@ export interface TrainerAccount {
   lastSignInAt: string | null;
 }
 
+/** LLM dataset counts (real calls only; mock calls are counted apart). */
+export interface LlmDatasetStats {
+  byPurpose: { purpose: string; gold: number; silver: number; negative: number; unlabeled: number }[];
+  attempts: { status: string; n: number }[];
+  mockCalls: number;
+  feedback: { explicit: number; implicit: number };
+  pairs: number;
+  tokens: { in: number; out: number };
+}
+
 /** The API's `{ error }` message, or a fallback. */
 const message = (error: { status: unknown; value: unknown }) =>
   (error.value as { error?: string } | null)?.error ?? `request failed (${String(error.status)})`;
@@ -31,6 +41,11 @@ export const adminApi = {
   },
   async updateTrainer(id: string, body: { name?: string; disabled?: boolean }): Promise<TrainerAccount> {
     const { data, error } = await client.v1.admin.trainers({ id }).patch(body);
+    if (error) throw new Error(message(error));
+    return data;
+  },
+  async llmStats(): Promise<LlmDatasetStats> {
+    const { data, error } = await client.v1.admin["llm-stats"].get();
     if (error) throw new Error(message(error));
     return data;
   },
