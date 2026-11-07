@@ -345,6 +345,14 @@ describe.skipIf(!dbUp)("feedback emails", () => {
     const accepted = await flush();
     expect(accepted.map((e) => e.to)).toEqual([EMAIL]);
     expect(accepted[0].subject).toMatch(/Accepted — on the build list$/);
+
+    // the admin log keeps each send, masked and content-free
+    const { sends } = await json(await call("GET", "/v1/admin/email-log?limit=10"));
+    const mine = sends.filter((s: any) => s.recipient?.name === "Ren");
+    expect(mine.map((s: any) => s.kind)).toEqual(["feedback.status", "feedback.reply"]);
+    expect(mine[0]).toMatchObject({ label: expect.stringMatching(/^FB-\d+ · Accepted$/), error: null, recipient: { email: "f•••@example.com" } });
+    expect(JSON.stringify(sends)).not.toContain(EMAIL);
+    expect(JSON.stringify(sends)).not.toContain("Rest timer");
   });
 
   test("a muted ticket and an event pref stop the email; links carry a token", async () => {

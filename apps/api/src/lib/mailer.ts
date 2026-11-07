@@ -14,6 +14,8 @@ export interface Email {
   html: string;
   /** Extra headers, e.g. List-Unsubscribe. */
   headers?: Record<string, string>;
+  /** What the admin email log records about this send — never the address or body. */
+  log?: { trainerId: string; kind: string; label: string; feedbackItemId?: string };
 }
 
 export type SendResult = { sent: true } | { sent: false; reason: "not_configured" | "provider_error" };

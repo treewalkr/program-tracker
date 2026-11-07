@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
-import { and, count, eq, isNull } from "drizzle-orm";
-import { clients, db, trainers } from "@pt/db";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { clients, db, emailLog, feedbackItems, trainers } from "@pt/db";
 import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
@@ -23,6 +23,12 @@ const toDto = (row: TrainerRow, clientCount: number) => ({
   createdAt: row.createdAt.toISOString(),
   lastSignInAt: row.lastSignInAt?.toISOString() ?? null,
 });
+
+/** `kai.tan@gmail.com` → `k•••@gmail.com`: enough to tell accounts apart, not to copy. */
+export const maskEmail = (email: string) => {
+  const at = email.lastIndexOf("@");
+  return at < 1 ? "•••" : `${email[0]}•••${email.slice(at)}`;
+};
 
 async function clientCounts(): Promise<Map<string, number>> {
   const rows = await db.select({ trainerId: clients.trainerId, n: count() }).from(clients).groupBy(clients.trainerId);
@@ -107,6 +113,43 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
   .get("/llm-stats", () => datasetStats(), {
     detail: { summary: "LLM dataset counts: final calls by purpose and label, attempts by status, feedback, pairs" },
   })
+  /** Recent sends, newest first. No bodies are stored; addresses come back masked. */
+  .get(
+    "/email-log",
+    async ({ query }) => {
+      const rows = await db
+        .select({
+          id: emailLog.id,
+          kind: emailLog.kind,
+          label: emailLog.label,
+          error: emailLog.error,
+          createdAt: emailLog.createdAt,
+          name: trainers.name,
+          email: trainers.email,
+          feedbackNumber: feedbackItems.number,
+        })
+        .from(emailLog)
+        .leftJoin(trainers, eq(trainers.id, emailLog.trainerId))
+        .leftJoin(feedbackItems, eq(feedbackItems.id, emailLog.feedbackItemId))
+        .orderBy(desc(emailLog.createdAt))
+        .limit(query.limit ?? 200);
+      return {
+        sends: rows.map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          label: r.label,
+          error: r.error,
+          sentAt: r.createdAt.toISOString(),
+          recipient: r.email ? { name: r.name ?? "", email: maskEmail(r.email) } : null,
+          feedbackNumber: r.feedbackNumber,
+        })),
+      };
+    },
+    {
+      query: t.Object({ limit: t.Optional(t.Integer({ minimum: 1, maximum: 500 })) }),
+      detail: { summary: "Recent notification emails sent (recipient masked, no content)" },
+    },
+  )
   /** Every email the app sends, rendered by the live templates from sample data. */
   .get("/emails", () => ({ emails: emailPreviews(appUrl(), process.env.EMAIL_FROM?.trim() || undefined) }), {
     detail: { summary: "Preview each notification email" },
