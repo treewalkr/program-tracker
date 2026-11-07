@@ -4,7 +4,8 @@
   import Note from "$lib/ui/Note.svelte";
 
   const ERRORS: Record<string, string> = {
-    not_allowed: "That Google account isn't the trainer on this workspace. Pick the account it was set up for.",
+    not_allowed: "That Google account hasn't been added as a trainer. Ask the platform admin to add your email, or pick another account.",
+    disabled: "Your access has been turned off. Ask the platform admin to turn it back on.",
     unverified: "Google hasn't verified that account's email address yet.",
     cancelled: "Sign-in was cancelled before Google finished.",
     expired: "That sign-in attempt timed out. Start again.",
@@ -40,8 +41,8 @@
 
     <h1>Sign in to your workspace</h1>
     <p class="lede">
-      Program Tracker is a private workspace for one trainer. Use the Google account it was set up for — your first
-      sign-in links it to your clients and programs.
+      Program Tracker is invite-only. Sign in with the Google account your admin added — your first sign-in links it to
+      your workspace.
     </p>
 
     {#if error}
