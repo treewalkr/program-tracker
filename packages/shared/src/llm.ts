@@ -14,6 +14,7 @@ export const LLM_PURPOSES = [
   "client_message",
   "distill",
   "feedback_check",
+  "rule_extract",
 ] as const;
 export type LlmPurpose = (typeof LLM_PURPOSES)[number];
 
@@ -71,7 +72,10 @@ export const LLM_IMPLICIT_SIGNALS = [
 /** Explicit trainer verdicts. */
 export const LLM_EXPLICIT_SIGNALS = ["thumbs_up", "thumbs_down"] as const;
 
-export const LLM_SIGNALS = [...LLM_IMPLICIT_SIGNALS, ...LLM_EXPLICIT_SIGNALS] as const;
+/** An anchored note: critique pinned to one part of an output (§10). */
+export const LLM_NOTE_SIGNAL = "note" as const;
+
+export const LLM_SIGNALS = [...LLM_IMPLICIT_SIGNALS, ...LLM_EXPLICIT_SIGNALS, LLM_NOTE_SIGNAL] as const;
 export type LlmSignal = (typeof LLM_SIGNALS)[number];
 
 /** Signals the web may send through POST /v1/ai/feedback (the rest happen server-side). */
@@ -95,6 +99,7 @@ export const LLM_SIGNAL_SCORE: Record<LlmSignal, -1 | 0 | 1 | null> = {
   chat_cleared: null,
   thumbs_up: 1,
   thumbs_down: -1,
+  note: 0,
 };
 
 /** Days after approval during which program edits still count as feedback on the AI draft. */
@@ -103,3 +108,115 @@ export const PROGRAM_EDIT_FEEDBACK_DAYS = 14;
 /** Dataset label derived from a call's feedback (see the llm_examples view). */
 export const LLM_LABELS = ["gold", "silver", "negative", "unlabeled"] as const;
 export type LlmLabel = (typeof LLM_LABELS)[number];
+
+// ---------------------------------------------------------------------------
+// Detailed feedback + coaching rules (docs/llm-logging-plan.md §10)
+// ---------------------------------------------------------------------------
+
+/** Whether a note should apply again: only this output, this client, or every client. */
+export const NOTE_SCOPES = ["once", "client", "always"] as const;
+export type NoteScope = (typeof NOTE_SCOPES)[number];
+
+export const NOTE_SCOPE_LABELS: Record<NoteScope, string> = {
+  once: "Just this once",
+  client: "This client",
+  always: "All clients",
+};
+
+/** Where a note points: one exercise (or session) of a draft, or a quote in a reply. */
+export type NoteAnchor =
+  | {
+      type: "slot";
+      week?: number | null;
+      /** Session name as shown ("Day A — Lower"). */
+      session: string;
+      /** 0-based position of the session in the draft. */
+      sessionIndex: number;
+      /** 0-based exercise position; absent = the whole session. */
+      exerciseIndex?: number | null;
+      exerciseId?: string | null;
+      exerciseName?: string | null;
+      setIndex?: number | null;
+    }
+  | { type: "text"; quote: string; start: number; end: number };
+
+/** Plain-text pointer for prompts, exports and the UI ("Week 2 · Day A — Lower · #2 Back Squat"). */
+export function anchorText(anchor: NoteAnchor | null | undefined): string {
+  if (!anchor) return "the whole output";
+  if (anchor.type === "text") {
+    const q = anchor.quote.replace(/\s+/g, " ").trim();
+    return `“${q.length > 160 ? `${q.slice(0, 157)}…` : q}”`;
+  }
+  const parts = [
+    anchor.week ? `Week ${anchor.week}` : null,
+    `Session ${anchor.sessionIndex + 1} (${anchor.session})`,
+    anchor.exerciseIndex != null
+      ? `exercise #${anchor.exerciseIndex + 1}${anchor.exerciseName ? ` ${anchor.exerciseName}` : ""}`
+      : null,
+    anchor.setIndex != null ? `set ${anchor.setIndex + 1}` : null,
+  ];
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** A note as a revision request — what "Apply to this draft" sends down the revision path. */
+export function noteRevisionText(note: { anchor: NoteAnchor | null; comment: string | null; correction: string | null }): string {
+  return [
+    `Change ${anchorText(note.anchor)}.`,
+    note.comment ? `Trainer's note: ${note.comment}` : null,
+    note.correction ? `Do this instead: ${note.correction}` : null,
+    "Leave everything else as it is.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Rule categories: the reason vocabulary plus a catch-all for style. */
+export const COACHING_RULE_CATEGORIES = [...LLM_REASON_TAGS, "style"] as const;
+export type CoachingRuleCategory = (typeof COACHING_RULE_CATEGORIES)[number];
+
+export const COACHING_RULE_CATEGORY_LABELS: Record<CoachingRuleCategory, string> = {
+  ...LLM_REASON_LABELS,
+  style: "Style",
+};
+
+/** proposed → (trainer confirms) → active → (trainer retires) → retired. Only active rules reach a prompt. */
+export const COACHING_RULE_STATUSES = ["proposed", "active", "retired"] as const;
+export type CoachingRuleStatus = (typeof COACHING_RULE_STATUSES)[number];
+
+export const COACHING_RULE_SOURCES = ["note", "chat", "manual"] as const;
+export type CoachingRuleSource = (typeof COACHING_RULE_SOURCES)[number];
+
+/** Prompt cap: client rules first, then newest. */
+export const COACHING_RULES_PROMPT_LIMIT = 30;
+
+/** What the rule_extract call returns. */
+export interface ExtractedRule {
+  rule: string;
+  category: CoachingRuleCategory;
+  appliesTo: "client" | "always";
+}
+
+/**
+ * Deterministic stand-in for the rule_extract call (mock provider, demo mode):
+ * the correction becomes the rule, the critique its reason.
+ */
+export function mockExtractRule(input: {
+  anchor: NoteAnchor | null;
+  comment: string | null;
+  correction: string | null;
+  scope: "client" | "always";
+  reasonTags?: readonly string[];
+}): ExtractedRule {
+  const what = input.anchor?.type === "slot" && input.anchor.exerciseName ? input.anchor.exerciseName : null;
+  const comment = input.comment?.trim().replace(/[.\s]+$/, "") || null;
+  const correction = input.correction?.trim().replace(/[.\s]+$/, "") || null;
+  const rule = correction
+    ? `${what ? `Instead of ${what}: ` : "Prefer: "}${correction}${comment ? ` (${comment.toLowerCase()})` : ""}.`
+    : `${what ? `${what}: ` : ""}${comment ?? "Follow the trainer's note"}.`;
+  const tag = input.reasonTags?.find((t): t is LlmReasonTag => (LLM_REASON_TAGS as readonly string[]).includes(t));
+  return {
+    rule: rule.slice(0, 280),
+    category: tag ?? (what ? "wrong_exercise" : "style"),
+    appliesTo: input.scope,
+  };
+}

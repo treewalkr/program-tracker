@@ -218,6 +218,13 @@
       "when": 1795000000000,
       "tag": "0030_feedback_agent_check",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795100000000,
+      "tag": "0031_coaching_rules",
+      "breakpoints": true
     }
   ]
 }

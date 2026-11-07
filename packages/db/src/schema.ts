@@ -37,6 +37,11 @@ import type {
   LlmSignal,
   LlmSubjectKind,
   MovementPattern,
+  NoteAnchor,
+  NoteScope,
+  CoachingRuleCategory,
+  CoachingRuleSource,
+  CoachingRuleStatus,
   Phasing,
   ProgramStatus,
   ProgramWeek,
@@ -593,6 +598,13 @@ export const llmFeedback = pgTable(
     reasonTags: text("reason_tags").array().notNull().default(sql`'{}'::text[]`),
     comment: text("comment"),
     payload: jsonb("payload").$type<Record<string, unknown>>(),
+    /** Detailed notes (§10): the exact part judged. */
+    anchor: jsonb("anchor").$type<NoteAnchor>(),
+    /** What the trainer would do instead. */
+    correction: text("correction"),
+    scope: text("scope").$type<NoteScope>(),
+    /** The rule this note is about: the one it says was broken, or (set once at confirm) the one it produced. */
+    ruleId: uuid("rule_id").references((): AnyPgColumn => coachingRules.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -601,6 +613,33 @@ export const llmFeedback = pgTable(
   ]
 );
 export type LlmFeedbackRow = typeof llmFeedback.$inferSelect;
+
+/**
+ * Standing rules learned from notes (or written by hand). Only `active` rules
+ * reach a prompt, and only after the trainer confirms. client_id null = all
+ * clients; client-scoped rules go with their client.
+ */
+export const coachingRules = pgTable(
+  "coaching_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    category: text("category").$type<CoachingRuleCategory>().notNull().default("style"),
+    status: text("status").$type<CoachingRuleStatus>().notNull().default("proposed"),
+    source: text("source").$type<CoachingRuleSource>().notNull(),
+    sourceFeedbackIds: jsonb("source_feedback_ids").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    appliedCount: integer("applied_count").notNull().default(0),
+    violatedCount: integer("violated_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("coaching_rules_trainer_idx").on(t.trainerId, t.status)]
+);
+export type CoachingRuleRow = typeof coachingRules.$inferSelect;
 
 /** Dataset views (migration 0027) — read-only. */
 export const llmExamples = pgView("llm_examples", {
