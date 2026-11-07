@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
-import { authSessions, db, trainers } from "@pt/db";
+import { eq, inArray } from "drizzle-orm";
+import { clients, db, trainers } from "@pt/db";
 import { assertTestDatabaseUrl } from "./testing/test-db";
-import { checkAllowed, claimTrainer, createSession, SESSION_COOKIE, trainerForToken, type AuthConfig, type GoogleProfile } from "./lib/auth";
+import { claimTrainer, createSession, SESSION_COOKIE, trainerForToken, type AuthConfig, type GoogleProfile } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { app } from "./app";
 
@@ -16,91 +16,145 @@ try {
   console.warn("Postgres unreachable — skipping auth DB tests");
 }
 
+const ADMIN = "boss@example.com";
 const cfg: AuthConfig = {
   clientId: "cid",
   clientSecret: "secret",
   redirectUri: "http://localhost:5173/v1/auth/google/callback",
-  trainerEmail: "coach@example.com",
+  adminEmail: ADMIN,
 };
 
 const profile = (over: Partial<GoogleProfile> = {}): GoogleProfile => ({
-  sub: "google-sub-1",
-  email: "coach@example.com",
+  sub: "sub-admin",
+  email: ADMIN,
   emailVerified: true,
-  name: "Coach Kai",
+  name: "The Boss",
   picture: "https://example.com/p.png",
   ...over,
 });
 
-const get = (path: string, token?: string) =>
+const call = (method: string, path: string, token?: string, body?: unknown) =>
   app.handle(
-    new Request(`http://localhost${path}`, token ? { headers: { cookie: `${SESSION_COOKIE}=${token}` } } : undefined),
+    new Request(`http://localhost${path}`, {
+      method,
+      headers: {
+        ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   );
+const get = (path: string, token?: string) => call("GET", path, token);
 
-describe("allowlist", () => {
-  test("only the verified trainer email gets in", () => {
-    expect(checkAllowed(cfg, profile())).toBeNull();
-    expect(checkAllowed(cfg, profile({ email: "someone@else.com" }))).toBe("not_allowed");
-    expect(checkAllowed(cfg, profile({ emailVerified: false }))).toBe("unverified");
-  });
-});
+const TEST_EMAILS = ["kai@example.com", "mo@example.com", "nobody@example.com"];
 
-describe.skipIf(!dbUp)("google sign-in", () => {
+describe.skipIf(!dbUp)("trainer accounts", () => {
   const env = {
     AUTH_DISABLED: "false",
     GOOGLE_CLIENT_ID: cfg.clientId,
     GOOGLE_CLIENT_SECRET: cfg.clientSecret,
     GOOGLE_REDIRECT_URI: cfg.redirectUri,
-    TRAINER_EMAIL: cfg.trainerEmail,
+    ADMIN_EMAIL: ADMIN,
   };
   const saved = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
-  beforeAll(() => Object.assign(process.env, env));
-  afterAll(() => {
+  let defaultId = "";
+  let defaultBefore: typeof trainers.$inferSelect;
+
+  beforeAll(async () => {
+    Object.assign(process.env, env);
+    defaultId = await getDefaultTrainerId();
+    [defaultBefore] = await db.select().from(trainers).where(eq(trainers.id, defaultId));
+  });
+  afterAll(async () => {
+    await db.update(trainers).set(defaultBefore).where(eq(trainers.id, defaultId));
+    await db.delete(trainers).where(inArray(trainers.email, TEST_EMAILS));
     for (const [k, v] of Object.entries(saved)) {
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
   });
   beforeEach(async () => {
-    await db.delete(trainers).where(eq(trainers.email, "coach@example.com"));
-    await db.delete(trainers).where(eq(trainers.googleSub, "google-sub-1"));
+    await db.delete(trainers).where(inArray(trainers.email, TEST_EMAILS));
   });
 
-  test("first sign-in claims the existing default trainer, later ones reuse it", async () => {
-    const defaultId = await getDefaultTrainerId();
-    const before = await db.select().from(trainers).where(eq(trainers.id, defaultId));
-    try {
-      const claimed = await claimTrainer(profile());
-      expect(claimed).toBe(defaultId);
-      expect(await claimTrainer(profile({ name: "Coach K" }))).toBe(defaultId);
-      const [row] = await db.select().from(trainers).where(eq(trainers.id, defaultId));
-      expect(row.googleSub).toBe("google-sub-1");
-      expect(row.name).toBe("Coach K");
-    } finally {
-      // leave the shared default trainer as other tests expect it
-      await db.update(trainers).set({ ...before[0], googleSub: null, avatarUrl: null }).where(eq(trainers.id, defaultId));
-    }
+  /** Signs the admin in for real: claims the default trainer row. */
+  const adminToken = async () => {
+    const claim = await claimTrainer(cfg, profile());
+    if (!("trainerId" in claim)) throw new Error("admin claim failed");
+    expect(claim.trainerId).toBe(defaultId);
+    return (await createSession(claim.trainerId)).token;
+  };
+
+  test("admin claims the original trainer row; strangers and unverified emails are refused", async () => {
+    expect(await claimTrainer(cfg, profile())).toEqual({ trainerId: defaultId });
+    expect(await claimTrainer(cfg, profile({ name: "Boss 2" }))).toEqual({ trainerId: defaultId });
+    expect(await claimTrainer(cfg, profile({ sub: "x", email: "nobody@example.com" }))).toEqual({ rejection: "not_allowed" });
+    expect(await claimTrainer(cfg, profile({ sub: "y", emailVerified: false }))).toEqual({ rejection: "unverified" });
   });
 
-  test("guard rejects without a session and lets a live session through", async () => {
+  test("admin adds a trainer; that email can then sign in, and only sees its own data", async () => {
+    const admin = await adminToken();
+    const added = await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "Kai@Example.com" });
+    expect(added.status).toBe(201);
+    const kai = await added.json();
+    expect(kai).toMatchObject({ email: "kai@example.com", access: "invited", isAdmin: false });
+    expect((await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).status).toBe(409);
+
+    const claim = await claimTrainer(cfg, profile({ sub: "sub-kai", email: "kai@example.com", name: "Kai K" }));
+    expect(claim).toEqual({ trainerId: kai.id });
+    const kaiToken = (await createSession(kai.id)).token;
+    expect((await (await get("/v1/auth/me", kaiToken)).json()).trainer).toMatchObject({ id: kai.id, isAdmin: false });
+
+    // the admin's clients are invisible to Kai, by list and by id
+    const [adminClient] = await db
+      .insert(clients)
+      .values({ trainerId: defaultId, name: "Admin's client", email: "c@example.com" })
+      .returning();
+    const list = (await (await get("/v1/clients", kaiToken)).json()) as { id: string }[];
+    expect(list.map((c) => c.id)).not.toContain(adminClient.id);
+    expect((await get(`/v1/clients/${adminClient.id}`, kaiToken)).status).toBe(404);
+    expect((await get(`/v1/ai/chat?clientId=${adminClient.id}`, kaiToken)).status).toBe(404);
+    expect((await get(`/v1/clients/${adminClient.id}`, admin)).status).toBe(200);
+
+    // and the console is admin-only
+    expect((await get("/v1/admin/trainers", kaiToken)).status).toBe(403);
+    await db.delete(clients).where(eq(clients.id, adminClient.id));
+  });
+
+  test("disabling a trainer signs them out and blocks the next sign-in", async () => {
+    const admin = await adminToken();
+    const mo = await (await call("POST", "/v1/admin/trainers", admin, { name: "Mo", email: "mo@example.com" })).json();
+    await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }));
+    const moToken = (await createSession(mo.id)).token;
+    expect((await get("/v1/clients", moToken)).status).toBe(200);
+
+    const off = await call("PATCH", `/v1/admin/trainers/${mo.id}`, admin, { disabled: true });
+    expect((await off.json()).access).toBe("disabled");
+    expect(await trainerForToken(moToken)).toBeNull();
+    expect((await get("/v1/clients", moToken)).status).toBe(401);
+    expect(await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }))).toEqual({ rejection: "disabled" });
+
+    expect((await call("PATCH", `/v1/admin/trainers/${mo.id}`, admin, { disabled: false })).status).toBe(200);
+    expect(await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }))).toEqual({ trainerId: mo.id });
+
+    // used accounts can't be deleted; the admin can't be disabled
+    expect((await call("DELETE", `/v1/admin/trainers/${mo.id}`, admin)).status).toBe(409);
+    expect((await call("PATCH", `/v1/admin/trainers/${defaultId}`, admin, { disabled: true })).status).toBe(409);
+  });
+
+  test("an unused invite can be removed", async () => {
+    const admin = await adminToken();
+    const kai = await (await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).json();
+    expect((await call("DELETE", `/v1/admin/trainers/${kai.id}`, admin)).status).toBe(204);
+    expect(await claimTrainer(cfg, profile({ sub: "sub-kai", email: "kai@example.com" }))).toEqual({ rejection: "not_allowed" });
+  });
+
+  test("no session → 401 everywhere but health and auth; forged callback state never signs in", async () => {
     expect((await get("/health")).status).toBe(200);
     expect((await get("/v1/clients")).status).toBe(401);
+    expect((await get("/v1/admin/trainers")).status).toBe(401);
     expect((await get("/v1/auth/me")).status).toBe(401);
-
-    const trainerId = await getDefaultTrainerId();
-    const { token } = await createSession(trainerId);
-    expect((await get("/v1/clients", token)).status).toBe(200);
-    const me = await (await get("/v1/auth/me", token)).json();
-    expect(me.trainer.id).toBe(trainerId);
-
-    await db.delete(authSessions).where(eq(authSessions.trainerId, trainerId));
-    expect(await trainerForToken(token)).toBeNull();
-    expect((await get("/v1/clients", token)).status).toBe(401);
-  });
-
-  test("callback with a mismatched state never signs in", async () => {
     const res = await get("/v1/auth/google/callback?code=x&state=forged");
-    expect([302, 303]).toContain(res.status);
     expect(res.headers.get("location")).toBe("/login?error=expired");
   });
 });
