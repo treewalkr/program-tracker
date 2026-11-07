@@ -162,7 +162,7 @@ components:
 
 Training data gets the seriousness of engineering tooling. The trainer's loop — scan the week, read signals with cited evidence, approve an AI-drafted block — is staged exactly like reviewing a pull request: a contributions-style grid shows activity, a Needs-review queue lists signals with lamp dots and evidence lines, a decision band (changes since the last version as +/−/~ lines, automated checks, and the version history) presents the draft as a diff, and a single green button merges it as a draft. The voice is quiet, dense, credible, and free of decoration; nothing on screen is ornament, everything is evidence or an action.
 
-The visual world is GitHub's Primer, user-pinned on 2026-10-02 from an eight-direction prototype field (`prototypes/direction-g.html` is the spec): white canvas over gray wells, hairline-bordered boxes with counters, code-span set chips, soft-tinted labels, orange-underline tabs, and a contributions-green data ramp — recognizable as this product even with all content removed. The system font stack (system UI sans + `ui-monospace`) is the committed typographic identity, not a placeholder; the app is light-mode only and explicitly refuses the dark-neon athletic-app default.
+The visual world is GitHub's Primer, user-pinned on 2026-10-02 from an eight-direction prototype field (`prototypes/direction-g.html` is the spec): white canvas over gray wells, hairline-bordered boxes with counters, code-span set chips, soft-tinted labels, orange-underline tabs, and a contributions-green data ramp — recognizable as this product even with all content removed. The system font stack (system UI sans + `ui-monospace`) is the committed typographic identity, not a placeholder; light is the default; an opt-in dark theme (sidebar toggle: System → Light → Dark, `$lib/theme.svelte.ts`) mirrors Primer's dark default token-for-token on `:root[data-theme="dark"]` and still refuses the dark-neon athletic-app default.
 
 Density is the aesthetic: a 14px base, 5px control padding, tabular mono figures right-aligned in bordered sheet tables. Color speaks only in two registers — soft tints for status, one GitHub green for the action that advances the review flow.
 
@@ -351,5 +351,5 @@ Reusable UI lives in code, catalogued in Storybook:
 - **Don't** brighten logged week cells past #116329 — the prototype's #4ac26b was deliberately darkened for 4.5:1 contrast on 10px white tags.
 - **Don't** add colored left-edge stripes for emphasis — use a status pill, a lamp, or a full hairline border change instead.
 - **Don't** load webfonts or add display type — the system stacks are the committed identity.
-- **Don't** design dark mode or neon accents; the system is light-only and refuses the dark-neon athletic-app default.
+- **Don't** add neon accents or hard-coded colors — every color is a token with a value in both the light `:root` and the dark `[data-theme="dark"]` block, so dark mode stays Primer-dark, never the dark-neon athletic-app default.
 - **Don't** show a colored signal without its label — the lamp dot always travels with a title and an evidence line.
