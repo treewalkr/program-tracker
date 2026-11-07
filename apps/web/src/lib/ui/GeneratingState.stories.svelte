@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Time-scaled progress state during AI draft generation. Displays provider meta, elapsed timer, capped progress bar, and server survival reassurance.',
+            'Loading state during AI draft generation. Displays a spinner, provider meta, elapsed timer, and server survival reassurance.',
         },
       },
     },
@@ -23,7 +23,6 @@
         startedAt={args.startedAt ?? new Date(Date.now() - 3 * 60_000).toISOString()}
         providerLabel={args.providerLabel ?? 'Z.ai GLM'}
         model={args.model ?? 'glm-5.3-flash'}
-        expectedSeconds={args.expectedSeconds ?? 210}
         {...args}
       />
     </div>
@@ -37,6 +36,5 @@
     startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
     providerLabel: 'Z.ai GLM',
     model: 'glm-5.3-flash',
-    expectedSeconds: 210,
   }}
 />

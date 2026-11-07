@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { DEFAULT_PROVIDER_ID, selectExamples, typicalGenerationSeconds } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, selectExamples } from "@pt/shared";
   import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -584,7 +584,6 @@
         <GeneratingState
           providerLabel={providers.find((p) => p.id === (gen?.providerId ?? providerId))?.label ?? providerId}
           model={gen?.model || model || provider?.model || ""}
-          expectedSeconds={typicalGenerationSeconds(gen?.providerId ?? providerId)}
           startedAt={gen?.createdAt ?? startedAtIso}
         />
         <Button variant="ghost" onclick={cancelRunning} disabled={cancelling}>

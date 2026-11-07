@@ -1,20 +1,16 @@
 <script lang="ts">
-  import { formatElapsed, progressFraction, typicalLabel } from '$lib/generation';
+  import { formatElapsed } from '$lib/generation';
 
   interface Props {
     startedAt: string;
     providerLabel: string;
     model: string;
-    expectedSeconds: number;
   }
 
-  let { startedAt, providerLabel, model, expectedSeconds }: Props = $props();
+  let { startedAt, providerLabel, model }: Props = $props();
 
   let now = $state(Date.now());
   let startedAtMs = $derived(new Date(startedAt).getTime());
-  let elapsedMs = $derived(Math.max(0, now - startedAtMs));
-  let fraction = $derived(progressFraction(elapsedMs, expectedSeconds));
-  let pct = $derived(Math.round(fraction * 100));
 
   $effect(() => {
     now = Date.now();
@@ -25,21 +21,12 @@
   });
 </script>
 
-<div class="generating-state">
-  <h2 class="title">Drafting your next block…</h2>
-  <div class="meta">{providerLabel} · {model} — {typicalLabel(expectedSeconds)}</div>
-
-  <div class="track">
-    <div
-      class="bar"
-      role="progressbar"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      aria-valuenow={pct}
-      aria-label="Draft generation progress"
-      style="width: {pct}%;"
-    ></div>
+<div class="generating-state" aria-busy="true">
+  <div class="heading" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <h2 class="title">Drafting your next block…</h2>
   </div>
+  <div class="meta">{providerLabel} · {model}</div>
 
   <div class="elapsed-row">
     <span class="elapsed mono">{formatElapsed(now - startedAtMs)} elapsed</span>
@@ -56,6 +43,30 @@
     flex-direction: column;
     gap: 12px;
   }
+  .heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 99px;
+    border: 2px solid var(--blue-line);
+    border-top-color: var(--blue);
+    animation: spin 0.9s linear infinite;
+    flex: none;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation-duration: 3s;
+    }
+  }
   .title {
     font-size: 16px;
     font-weight: 600;
@@ -65,20 +76,6 @@
   .meta {
     font-size: 13px;
     color: var(--muted);
-  }
-  .track {
-    width: 100%;
-    height: 8px;
-    background: var(--well-2, #eef1f4);
-    border-radius: 99px;
-    overflow: hidden;
-    margin-top: 4px;
-  }
-  .bar {
-    height: 100%;
-    background: var(--blue, #0969da);
-    border-radius: 99px;
-    transition: width 1s linear;
   }
   .elapsed-row {
     display: flex;
