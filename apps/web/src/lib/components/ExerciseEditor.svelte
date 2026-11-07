@@ -182,8 +182,8 @@
     class="textarea notes"
     rows="1"
     maxlength="1000"
-    placeholder="Coach cue for this exercise (optional)"
-    aria-label="Exercise notes"
+    placeholder="Cue for the client, e.g. 2s pause at the bottom (optional)"
+    aria-label="Cue for the client"
     value={exercise.notes ?? ""}
     oninput={(e) => (exercise.notes = e.currentTarget.value || undefined)}
   ></textarea>
