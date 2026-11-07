@@ -1,6 +1,6 @@
-import { eq, inArray } from "drizzle-orm";
-import { db, feedbackComments, feedbackItems, trainers } from "@pt/db";
-import { feedbackHandle, type FeedbackStatus } from "@pt/shared";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, feedbackComments, feedbackItems, feedbackMutes, trainers } from "@pt/db";
+import { feedbackEmailPrefs, feedbackHandle, type FeedbackEmailPrefs, type FeedbackStatus } from "@pt/shared";
 import { adminEmailFromEnv } from "./auth";
 import { emailConfigured, sendEmail, type Email } from "./mailer";
 
@@ -11,7 +11,10 @@ import { emailConfigured, sendEmail, type Email } from "./mailer";
  * - created → the admin (unless the admin filed it)
  * - reply   → everyone on the thread (reporter, admin, other repliers) but the author
  * - status  → the reporter, for accepted / won't fix / done (unless they made the change)
- * Nobody hears about their own actions, and `feedback_emails = false` opts out.
+ * Nobody hears about their own actions. On top of that each person's own say:
+ * `feedback_emails = false` silences everything, a muted ticket silences that
+ * ticket, and the prefs turn off one kind of event (replies can also be
+ * narrowed to "mine" — tickets the person filed, replied on or moved).
  */
 
 export type FeedbackEvent =
@@ -23,7 +26,13 @@ export interface Person {
   id: string;
   name: string;
   email: string;
+  /** Master switch. */
   feedbackEmails: boolean;
+  prefs: FeedbackEmailPrefs;
+  /** Muted this event's ticket. */
+  muted: boolean;
+  /** Filed this ticket, replied on it or changed its status. */
+  inTicket: boolean;
 }
 
 export interface FeedbackSnapshot {
@@ -93,10 +102,16 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
   const handle = feedbackHandle(snap.item.number);
   const { item, actor } = snap;
   const actorName = actor?.name ?? "Someone";
+  const wants = (p: Person): boolean => {
+    if (!p.feedbackEmails || p.muted) return false;
+    if (kind === "created") return p.prefs.newTickets;
+    if (kind === "reply") return p.prefs.replies === "all" || (p.prefs.replies === "mine" && p.inTicket);
+    return p.prefs.status;
+  };
   const to = (people: (Person | null)[]): Person[] => {
     const seen = new Set<string>();
     return people.filter((p): p is Person => {
-      if (!p || !p.feedbackEmails || p.id === actor?.id) return false;
+      if (!p || p.id === actor?.id || !wants(p)) return false;
       const key = p.email.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
@@ -169,6 +184,7 @@ const personColumns = {
   name: trainers.name,
   email: trainers.email,
   feedbackEmails: trainers.feedbackEmails,
+  prefs: trainers.feedbackEmailPrefs,
 };
 
 async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> {
@@ -195,12 +211,28 @@ async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> 
   const ids = new Set<string>();
   if (item.trainerId) ids.add(item.trainerId);
   for (const c of thread) if (c.trainerId) ids.add(c.trainerId);
-  const people = ids.size ? await db.select(personColumns).from(trainers).where(inArray(trainers.id, [...ids])) : [];
-  const byId = new Map(people.map((p) => [p.id, p]));
-  let admin = adminEmail ? (people.find((p) => p.email.toLowerCase() === adminEmail) ?? null) : null;
-  if (adminEmail && !admin) {
-    [admin = null] = await db.select(personColumns).from(trainers).where(eq(trainers.email, adminEmail));
+  const rows = ids.size ? await db.select(personColumns).from(trainers).where(inArray(trainers.id, [...ids])) : [];
+  if (adminEmail && !rows.some((p) => p.email.toLowerCase() === adminEmail)) {
+    rows.push(...(await db.select(personColumns).from(trainers).where(eq(trainers.email, adminEmail))));
   }
+  const muted = rows.length
+    ? new Set(
+        (
+          await db
+            .select({ trainerId: feedbackMutes.trainerId })
+            .from(feedbackMutes)
+            .where(and(eq(feedbackMutes.itemId, event.itemId), inArray(feedbackMutes.trainerId, rows.map((p) => p.id))))
+        ).map((m) => m.trainerId),
+      )
+    : new Set<string>();
+  const people: Person[] = rows.map((p) => ({
+    ...p,
+    prefs: feedbackEmailPrefs(p.prefs),
+    muted: muted.has(p.id),
+    inTicket: ids.has(p.id),
+  }));
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const admin = adminEmail ? (people.find((p) => p.email.toLowerCase() === adminEmail) ?? null) : null;
 
   const reporter = item.trainerId ? (byId.get(item.trainerId) ?? null) : null;
   const actorId = event.kind === "created" ? item.trainerId : comment?.trainerId;

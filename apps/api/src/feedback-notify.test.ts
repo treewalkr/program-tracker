@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { DEFAULT_FEEDBACK_EMAIL_PREFS, type FeedbackEmailPrefs } from "@pt/shared";
 import { feedbackEmails, type FeedbackSnapshot, type Person } from "./lib/feedback-notify";
 
 const person = (id: string, name: string, over: Partial<Person> = {}): Person => ({
@@ -6,8 +7,12 @@ const person = (id: string, name: string, over: Partial<Person> = {}): Person =>
   name,
   email: `${id}@example.com`,
   feedbackEmails: true,
+  prefs: DEFAULT_FEEDBACK_EMAIL_PREFS,
+  muted: false,
+  inTicket: true,
   ...over,
 });
+const withPrefs = (p: Person, prefs: Partial<FeedbackEmailPrefs>): Person => ({ ...p, prefs: { ...p.prefs, ...prefs } });
 const kai = person("kai", "Kai");
 const boss = person("boss", "Ana");
 const mo = person("mo", "Mo");
@@ -81,5 +86,43 @@ describe("feedbackEmails", () => {
     }
     expect(e.html).not.toContain("<script>");
     expect(e.html).toContain("&lt;script&gt;");
+  });
+
+  test("the master switch off silences every event", () => {
+    const off = (p: Person) => ({ ...p, feedbackEmails: false });
+    expect(feedbackEmails("created", snap({ admin: off(boss) }))).toEqual([]);
+    expect(feedbackEmails("reply", snap({ actor: mo, reporter: off(kai), admin: off(boss), comment: { body: "hi", status: null } }))).toEqual([]);
+    expect(feedbackEmails("status", snap({ actor: boss, reporter: off(kai), comment: { body: null, status: "done" } }))).toEqual([]);
+  });
+
+  test("a muted ticket sends that person nothing, others still hear", () => {
+    const mutedKai = { ...kai, muted: true };
+    expect(feedbackEmails("status", snap({ actor: boss, reporter: mutedKai, comment: { body: null, status: "accepted" } }))).toEqual([]);
+    const reply = feedbackEmails("reply", snap({ actor: mo, reporter: mutedKai, repliers: [mo], comment: { body: "hi", status: null } }));
+    expect(to(reply)).toEqual(["boss@example.com"]);
+    expect(feedbackEmails("created", snap({ admin: { ...boss, muted: true } }))).toEqual([]);
+  });
+
+  test("created needs newTickets", () => {
+    expect(feedbackEmails("created", snap({ admin: withPrefs(boss, { newTickets: false }) }))).toEqual([]);
+    expect(to(feedbackEmails("created", snap({ admin: withPrefs(boss, { replies: "off", status: false }) })))).toEqual([
+      "boss@example.com",
+    ]);
+  });
+
+  test("replies off skips the person; mine needs them in the ticket", () => {
+    const reply = (admin: Person) =>
+      to(feedbackEmails("reply", snap({ actor: kai, admin, comment: { body: "hi", status: null } })));
+    expect(reply(withPrefs(boss, { replies: "off" }))).toEqual([]);
+    expect(reply(withPrefs({ ...boss, inTicket: false }, { replies: "all" }))).toEqual(["boss@example.com"]);
+    expect(reply(withPrefs({ ...boss, inTicket: false }, { replies: "mine" }))).toEqual([]);
+    expect(reply(withPrefs({ ...boss, inTicket: true }, { replies: "mine" }))).toEqual(["boss@example.com"]);
+  });
+
+  test("status needs the status pref; other prefs do not matter", () => {
+    const status = (reporter: Person) =>
+      feedbackEmails("status", snap({ actor: boss, reporter, comment: { body: null, status: "accepted" } }));
+    expect(status(withPrefs(kai, { status: false }))).toEqual([]);
+    expect(to(status(withPrefs(kai, { replies: "off", newTickets: false })))).toEqual(["kai@example.com"]);
   });
 });
