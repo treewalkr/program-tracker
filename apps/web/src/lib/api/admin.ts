@@ -34,6 +34,19 @@ export interface EmailPreview {
   email: { to: string; subject: string; text: string; html: string; headers?: Record<string, string> };
 }
 
+/** One notification email the app tried to send. Recipient address is masked; no content is kept. */
+export interface SentEmail {
+  id: string;
+  kind: string;
+  label: string;
+  /** null = handed to the provider; otherwise why not. */
+  error: string | null;
+  sentAt: string;
+  /** null when the account was removed. */
+  recipient: { name: string; email: string } | null;
+  feedbackNumber: number | null;
+}
+
 /** The API's `{ error }` message, or a fallback. */
 const message = (error: { status: unknown; value: unknown }) =>
   (error.value as { error?: string } | null)?.error ?? `request failed (${String(error.status)})`;
@@ -64,6 +77,11 @@ export const adminApi = {
     const { data, error } = await client.v1.admin.emails.get();
     if (error) throw new Error(message(error));
     return data.emails;
+  },
+  async sentEmails(): Promise<SentEmail[]> {
+    const { data, error } = await client.v1.admin["email-log"].get({ query: {} });
+    if (error) throw new Error(message(error));
+    return data.sends;
   },
   async removeTrainer(id: string): Promise<void> {
     const { error } = await client.v1.admin.trainers({ id }).delete();

@@ -59,6 +59,7 @@
     isAdmin ? [...baseGroups, { label: "Platform", items: [
             { href: "/admin", label: "Trainers", icon: "lock" },
             { href: "/admin/emails", label: "Emails", icon: "mail" },
+            { href: "/admin/emails/sent", label: "Sent emails", icon: "mail" },
           ] }] : baseGroups,
   );
 
@@ -72,7 +73,7 @@
 
   /** Exact for "/" and "/admin", whose sub-pages have their own nav items. */
   const isActive = (href: string) =>
-    href === "/" || href === "/admin" ? page.url.pathname === href : page.url.pathname.startsWith(href);
+    ["/", "/admin", "/admin/emails"].includes(href) ? page.url.pathname === href : page.url.pathname.startsWith(href);
 
   /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
      narrow screens start as the rail and open the full menu over the page. */
