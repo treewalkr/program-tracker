@@ -10,6 +10,7 @@
     session = $bindable(),
     types,
     oncreatetype,
+    ontype,
     nextSeqFor,
     onday,
     onremove,
@@ -20,6 +21,8 @@
     types: SessionTypeDto[];
     /** Saves a new type from the picker and returns it. */
     oncreatetype?: (input: SessionTypeInput) => Promise<SessionTypeDto>;
+    /** After a type is picked (and the session updated) — e.g. to label the same session in other weeks. */
+    ontype?: (type: SessionTypeDto) => void;
     /** Next free number on a kind's track, so a kind switch keeps keys unique. */
     nextSeqFor: (kind: SessionKind) => number;
     /** Move to a weekday (null = any day), appended to that day. Touch/keyboard fallback for the calendar. */
@@ -48,6 +51,7 @@
         onpick={(t) => {
           const switched = t.format === session.kind ? session : switchSessionKind(session, t.format, nextSeqFor(t.format));
           session = { ...switched, typeId: t.id, typeName: t.name };
+          ontype?.(t);
         }}
         oncreate={oncreatetype}
       />

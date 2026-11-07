@@ -19,6 +19,7 @@
     placeSessions,
     removeSession,
     sessionFocus,
+    sessionKey,
     sessionTag,
     sessionsByWeekday,
     type ProgramWeek,
@@ -62,6 +63,18 @@
     const created = await api.createSessionType(input);
     types.push(created);
     return created;
+  }
+  /** A type labels the session for the whole block: copy it to the same session (kind + seq) in every week. */
+  function labelAllWeeks(key: string, t: SessionTypeDto) {
+    if (!program) return;
+    for (const w of program.weeks) {
+      for (const x of w.sessions) {
+        if (sessionKey(x) === key && x.kind === t.format) {
+          x.typeId = t.id;
+          x.typeName = t.name;
+        }
+      }
+    }
   }
   /** Saved state of the program; edits are live on `program` and compared against this. */
   let baseline = $state("");
@@ -393,6 +406,7 @@
                   bind:session={currentWeek.sessions[si]}
                   {types}
                   oncreatetype={addType}
+                  ontype={(t) => labelAllWeeks(sessionKey(currentWeek.sessions[si]), t)}
                   nextSeqFor={(kind) => nextSeq(currentWeek.sessions.filter((x) => x.id !== s.id), kind)}
                   onday={(wd) => place(s.id, wd, 99)}
                   onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); openSession = null; }}
