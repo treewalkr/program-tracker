@@ -173,6 +173,9 @@ code,
   border-color: rgba(31, 35, 40, 0.15);
 }
 .btn.danger:hover { background: var(--bad-bg); border-color: var(--bad-line); }
+/* quiet destructive action beside ghost siblings: red text, no box until hover */
+.btn.ghost.danger { background: transparent; border-color: transparent; box-shadow: none; }
+.btn.ghost.danger:hover { background: var(--bad-bg); border-color: var(--bad-line); }
 
 .input,
 .select,
