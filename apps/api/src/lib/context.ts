@@ -178,13 +178,15 @@ export async function loadContext(
       sets,
       catalog: catalogByTrainer.map((e) => ({ id: e.id, name: e.name })),
     }),
-    catalog: catalogByTrainer.map((e) => ({
+    // Archived/hidden exercises stay resolvable by id but are never offered to the AI.
+    catalog: catalogByTrainer.filter((e) => e.archivedAt === null).map((e) => ({
       id: e.id,
       name: e.name,
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment,
       movementPattern: e.movementPattern,
       functionalMovement: e.functionalMovement,
+      note: e.note,
     })),
   };
 }

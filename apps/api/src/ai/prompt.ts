@@ -50,6 +50,8 @@ export interface CatalogEntry {
   equipment: string;
   movementPattern: string | null;
   functionalMovement: string | null;
+  /** Trainer's coaching note (setup, cues), if any. */
+  note?: string | null;
 }
 
 export interface ExampleProgramSummary {
@@ -247,7 +249,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
           ctx.catalog
             .map(
               (e) =>
-                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
             )
             .join("\n"),
         ]
@@ -397,7 +399,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
           ctx.catalog
             .map(
               (e) =>
-                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
             )
             .join("\n"),
         ]
@@ -509,7 +511,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     ctx.catalog
       .map(
         (e) =>
-          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
       )
       .join("\n"),
     "",
@@ -597,7 +599,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     ctx.catalog
       .map(
         (e) =>
-          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
       )
       .join("\n"),
     ...(ctx.learnedPreferences
@@ -897,7 +899,7 @@ export function buildChatSystem(ctx: ChatContext): string {
           ctx.catalog
             .map(
               (e) =>
-                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})`
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
             )
             .join("\n"),
         ]
