@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { CLIENT_MESSAGE_MAX_CHARS, blockAnchorDate } from "@pt/shared";
+  import { CLIENT_MESSAGE_MAX_CHARS } from "@pt/shared";
+  import { loggedBlockWeeks } from "$lib/messageWeeks";
   import type { ClientDto, ClientMessageDto, ProgramDto, SessionLogDto } from "$lib/api/types";
   import { fmtDate } from "$lib/format";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -52,17 +53,7 @@
   );
 
   /** Block weeks of the current program that have logged sessions. */
-  const loggedWeeks = $derived.by(() => {
-    if (!current) return [] as number[];
-    const anchor = blockAnchorDate(current, signalLogs).slice(0, 10);
-    const weeks = new Set<number>();
-    for (const l of signalLogs) {
-      if (l.programId !== current.id || l.date < anchor) continue;
-      const days = (Date.parse(`${l.date}T00:00:00Z`) - Date.parse(`${anchor}T00:00:00Z`)) / 86400000;
-      weeks.add(Math.max(1, Math.floor(days / 7) + 1));
-    }
-    return [...weeks].sort((a, b) => a - b);
-  });
+  const loggedWeeks = $derived(current ? loggedBlockWeeks(current, signalLogs) : []);
 
   const firstName = $derived(client?.name.split(" ")[0] ?? "");
 
