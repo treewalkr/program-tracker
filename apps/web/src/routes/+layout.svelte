@@ -109,6 +109,7 @@
 
     <div class="side-foot" class:demo={apiMode !== "live"}>
       <span class="dot" aria-hidden="true"></span>{apiMode === "live" ? "Live data" : "Demo data"}
+      <span class="build" title="Build {__APP_VERSION__}">v{__APP_VERSION__}</span>
     </div>
   </aside>
 
@@ -246,6 +247,14 @@
     flex: none;
   }
   .side-foot.demo .dot { background: var(--warn); }
+  .side-foot .build {
+    margin-left: auto;
+    font: 400 11px/1.5 var(--font-mono);
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .who {
     margin-top: auto;
