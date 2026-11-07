@@ -1,26 +1,12 @@
 import { Elysia, t } from "elysia";
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, sessionTypes, type SessionTypeRow } from "@pt/db";
-import { SESSION_TYPE_DEFAULTS, SESSION_TYPE_NAME_MAX, normalizeTypeName } from "@pt/shared";
+import { ensureSessionTypes } from "../lib/session-types";
+import { SESSION_TYPE_NAME_MAX, normalizeTypeName } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 
 const Name = t.String({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX });
 const Format = t.UnionEnum(["lifting", "cardio"]);
-
-/** The trainer's types, seeding the defaults the first time (none yet). */
-export async function ensureSessionTypes(trainerId: string): Promise<SessionTypeRow[]> {
-  const list = () =>
-    db.select().from(sessionTypes).where(eq(sessionTypes.trainerId, trainerId)).orderBy(asc(sessionTypes.createdAt), asc(sessionTypes.name));
-  const existing = await list();
-  if (existing.length > 0) return existing;
-  // one statement, staggered timestamps so the defaults keep their order
-  const now = Date.now();
-  await db
-    .insert(sessionTypes)
-    .values(SESSION_TYPE_DEFAULTS.map((d, i) => ({ trainerId, name: d.name, format: d.format, createdAt: new Date(now + i) })))
-    .onConflictDoNothing();
-  return list();
-}
 
 /** typeId → number of this trainer's programs (any status) with a session of that type. */
 async function usageCounts(trainerId: string, typeId?: string): Promise<Map<string, number>> {
