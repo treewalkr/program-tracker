@@ -25,6 +25,7 @@ import { buildHistory } from "./history";
 import { ensureSeededChains } from "./chains";
 import { ensureSessionTypes } from "./session-types";
 import { toSignalLog, toSignalProgram } from "./signals-service";
+import { loadActiveRules } from "./coaching-rules";
 
 export const HISTORY_WINDOW_DAYS = 56;
 
@@ -174,6 +175,8 @@ export async function loadContext(
     examples,
     programDirection: basedOnProgram?.direction ?? null,
     learnedPreferences: combinePreferenceDocs(trainerDoc, clientDoc),
+    // Trainer-confirmed rules only (proposed/retired never reach a prompt).
+    coachingRules: await loadActiveRules(trainerId, clientId),
     history: buildHistory({
       logs,
       sets,

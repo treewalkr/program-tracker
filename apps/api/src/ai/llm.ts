@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, llmBlobs, llmCalls, type LlmRequestRef } from "@pt/db";
+import { db, coachingRules, llmBlobs, llmCalls, type LlmRequestRef } from "@pt/db";
 import type { LlmCallStatus, LlmPurpose } from "@pt/shared";
 import {
   chatJson,
@@ -78,6 +78,25 @@ export interface CallLlmArgs<T> {
 export const isMockRuntime = (rt: ProviderRuntime) => rt.providerId === "mock" || rt.baseUrl.startsWith("mock://");
 
 export async function callLlm<T = string>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
+  const out = await attemptCalls(args);
+  // Once per call (not per retry attempt) that carried coaching rules in its prompt.
+  const ruleIds = args.context?.ruleIds;
+  if (Array.isArray(ruleIds) && ruleIds.length > 0) await bumpRulesApplied(ruleIds as string[]);
+  return out;
+}
+
+async function bumpRulesApplied(ruleIds: string[]): Promise<void> {
+  try {
+    await db
+      .update(coachingRules)
+      .set({ appliedCount: sql`${coachingRules.appliedCount} + 1` })
+      .where(inArray(coachingRules.id, ruleIds));
+  } catch (err) {
+    console.error("[llm-log] failed to bump coaching rule applied_count:", err);
+  }
+}
+
+async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
   const turnId = args.turnId ?? randomUUID();
   const maxAttempts = args.maxAttempts ?? (args.mode === "json" ? 2 : 1);
   const mock = isMockRuntime(args.rt);
@@ -268,5 +287,8 @@ export async function linkTurn(turnId: string, links: Pick<LlmLinks, "chatMessag
 
 /** Structured prompt inputs: a loadContext() result (examples kept whole, catalog → blob) plus call extras. */
 export function contextSnapshot(ctx: object, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { ...(ctx as Record<string, unknown>), ...extra };
+  const snap: Record<string, unknown> = { ...(ctx as Record<string, unknown>), ...extra };
+  // The rules this prompt carried — callLlm bumps their applied_count.
+  if (Array.isArray(snap.coachingRules)) snap.ruleIds = (snap.coachingRules as { id: string }[]).map((r) => r.id);
+  return snap;
 }

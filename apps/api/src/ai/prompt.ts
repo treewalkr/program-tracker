@@ -11,6 +11,8 @@ import {
   type WeekTarget,
   renderPreferenceSignals,
   rxLabel,
+  anchorText,
+  type NoteAnchor,
   type PreferenceSignal,
 } from "@pt/shared";
 
@@ -79,6 +81,35 @@ export interface GenerationContext {
   trainerInstructions: string;
   direction?: string | null;
   learnedPreferences?: string | null;
+  /** Active coaching rules (trainer-confirmed), client rules first. */
+  coachingRules?: CoachingRulePrompt[];
+}
+
+export interface CoachingRulePrompt {
+  id: string;
+  text: string;
+  /** "client" = this client only; "always" = every client. */
+  scope: "client" | "always";
+}
+
+export const COACHING_RULES_HEADER =
+  "COACHING RULES (confirmed by the trainer — follow strictly; client rules override general ones):";
+
+/** The trainer-confirmed rules, one per line, client rules first and tagged. */
+export function coachingRulesText(rules: CoachingRulePrompt[]): string {
+  return [COACHING_RULES_HEADER, ...rules.map((r) => `- ${r.scope === "client" ? "[this client] " : ""}${r.text}`)].join("\n");
+}
+
+/** LEARNED PREFERENCES then COACHING RULES — every builder renders both, side by side. */
+function guidanceBlocks(ctx: Pick<GenerationContext, "learnedPreferences" | "coachingRules">): string[] {
+  return [
+    ...(ctx.learnedPreferences
+      ? [
+          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
+        ]
+      : []),
+    ...(ctx.coachingRules?.length ? [coachingRulesText(ctx.coachingRules)] : []),
+  ];
 }
 
 const DRAFT_SCHEMA_SPEC = `{
@@ -274,12 +305,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
       : []),
-    ...(ctx.learnedPreferences
-      ? [
-          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
-          "",
-        ]
-      : []),
+    ...guidanceBlocks(ctx).flatMap((b) => [b, ""]),
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
 
@@ -421,12 +447,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
         ]
       : []),
     ...(ctx.sessionTypes?.length ? ["", sessionTypesText(ctx.sessionTypes)] : []),
-    ...(ctx.learnedPreferences
-      ? [
-          "",
-          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
-        ]
-      : []),
+    ...guidanceBlocks(ctx).flatMap((b) => ["", b]),
     "",
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),
@@ -536,12 +557,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
       : []),
-    ...(ctx.learnedPreferences
-      ? [
-          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
-          "",
-        ]
-      : []),
+    ...guidanceBlocks(ctx).flatMap((b) => [b, ""]),
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
 
@@ -621,12 +637,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
       )
       .join("\n"),
     ...(ctx.sessionTypes?.length ? ["", sessionTypesText(ctx.sessionTypes)] : []),
-    ...(ctx.learnedPreferences
-      ? [
-          "",
-          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
-        ]
-      : []),
+    ...guidanceBlocks(ctx).flatMap((b) => ["", b]),
     "",
     "PREVIOUS DRAFT (your earlier output — revise it):",
     draftToText(ctx.previousDraft),
@@ -906,12 +917,7 @@ export function buildChatSystem(ctx: ChatContext): string {
     "",
     draftBlock,
     "",
-    ...(ctx.learnedPreferences
-      ? [
-          `LEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\n${ctx.learnedPreferences}`,
-          "",
-        ]
-      : []),
+    ...guidanceBlocks(ctx).flatMap((b) => [b, ""]),
     `EXERCISE CATALOG (names for reference):`,
     ...(ctx.catalog.length
       ? [
@@ -926,3 +932,49 @@ export function buildChatSystem(ctx: ChatContext): string {
   ].join("\n");
 }
 
+
+// ---------------------------------------------------------------------------
+// Rule extraction (detailed feedback → candidate coaching rule)
+// ---------------------------------------------------------------------------
+
+export interface RuleExtractContext {
+  /** null = trainer-wide scope. */
+  clientName: string | null;
+  scope: "client" | "always";
+  /** Where the note points, or null for a chat revision. */
+  anchor: NoteAnchor | null;
+  /** What the AI wrote at that spot, when known. */
+  subjectText?: string | null;
+  comment: string | null;
+  correction: string | null;
+  reasonTags?: string[];
+  /** Active rules already in force — don't restate them. */
+  existingRules: string[];
+}
+
+export function buildRuleExtractMessages(ctx: RuleExtractContext): { system: string; user: string } {
+  const system = [
+    "You turn one piece of a personal trainer's feedback on an AI-written program or reply into ONE standing coaching rule for future AI drafts.",
+    'Respond with a single JSON object only: {"rule": string, "category": string, "appliesTo": "client" | "always"}.',
+    "Rules:",
+    "- One imperative sentence, at most 200 characters, concrete and checkable (exercise, sets/reps, RPE, rest, structure, tone).",
+    "- Generalise from the specific case only as far as the feedback supports; keep the trainer's numbers and exercise names exactly.",
+    "- Write it in English even when the feedback is in another language.",
+    `- category: one of ignored_limitation, wrong_exercise, volume_off, load_off, invented_number, off_topic, tone, too_long, format, style.`,
+    "- appliesTo: the scope the trainer chose (given below).",
+    "- If an existing rule already says it, return that rule's wording.",
+  ].join("\n");
+
+  const user = [
+    `SCOPE: ${ctx.scope === "client" ? `this client only (${ctx.clientName ?? "client"})` : "all clients"}`,
+    `ABOUT: ${anchorText(ctx.anchor)}`,
+    ...(ctx.subjectText ? [`THE AI WROTE: ${ctx.subjectText}`] : []),
+    `TRAINER SAID: ${ctx.comment || "(nothing)"}`,
+    `DO INSTEAD: ${ctx.correction || "(not given)"}`,
+    ...(ctx.reasonTags?.length ? [`TAGS: ${ctx.reasonTags.join(", ")}`] : []),
+    "",
+    ctx.existingRules.length ? `EXISTING RULES:\n${ctx.existingRules.map((r) => `- ${r}`).join("\n")}` : "EXISTING RULES: none",
+  ].join("\n");
+
+  return { system, user };
+}
