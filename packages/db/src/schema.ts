@@ -9,6 +9,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  pgView,
   primaryKey,
   real,
   serial,
@@ -564,3 +565,38 @@ export const llmFeedback = pgTable(
   ]
 );
 export type LlmFeedbackRow = typeof llmFeedback.$inferSelect;
+
+/** Dataset views (migration 0027) — read-only. */
+export const llmExamples = pgView("llm_examples", {
+  callId: uuid("call_id").notNull(),
+  turnId: uuid("turn_id").notNull(),
+  purpose: text("purpose").$type<LlmPurpose>().notNull(),
+  trainerId: uuid("trainer_id"),
+  clientId: uuid("client_id"),
+  generationId: uuid("generation_id"),
+  chatMessageId: uuid("chat_message_id"),
+  clientMessageId: uuid("client_message_id"),
+  providerId: text("provider_id").notNull(),
+  model: text("model").notNull(),
+  promptVersion: text("prompt_version").notNull(),
+  isMock: boolean("is_mock").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  label: text("label").$type<"gold" | "silver" | "negative" | "unlabeled">().notNull(),
+  signals: text("signals").array().notNull(),
+  reasonTags: text("reason_tags").array().notNull(),
+  comments: text("comments").array().notNull(),
+  editPayload: jsonb("edit_payload").$type<Record<string, unknown>>(),
+}).existing();
+
+export const llmPairs = pgView("llm_pairs", {
+  kind: text("kind").$type<"revision" | "sibling">().notNull(),
+  trainerId: uuid("trainer_id"),
+  clientId: uuid("client_id"),
+  preferredGenerationId: uuid("preferred_generation_id").notNull(),
+  preferredCallId: uuid("preferred_call_id").notNull(),
+  nonPreferredGenerationId: uuid("non_preferred_generation_id").notNull(),
+  nonPreferredCallId: uuid("non_preferred_call_id").notNull(),
+  critique: text("critique"),
+  isMock: boolean("is_mock").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+}).existing();
