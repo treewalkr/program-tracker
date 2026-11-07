@@ -10,6 +10,8 @@ import {
   KINETIC_CHAIN_DEFAULTS,
   KineticChainInput,
   KNOWN_PROVIDERS,
+  normalizeTypeName,
+  SESSION_TYPE_DEFAULTS,
   mockApplyProposal,
   mockChatReply,
   mockDistillPreferences,
@@ -45,6 +47,7 @@ import type {
   ProgramSessionDto,
   ProgramWeekDto,
   SessionLogInput,
+  SessionTypeDto,
   TrainerApi,
 } from "../types";
 import { activeSignals, snoozeUntil } from "../../signals";
@@ -126,6 +129,10 @@ const state = {
   preferences: [...seedPreferences] as PreferencesDto[],
   messages: [] as (ChatMessageDto & { clientId: string })[],
   examples: [...seedExamples] as ProgramExampleDto[],
+  sessionTypes: SESSION_TYPE_DEFAULTS.map((d, i) => ({ id: `st-${i + 1}`, name: d.name, format: d.format, archivedAt: null })) as Omit<
+    SessionTypeDto,
+    "usedIn"
+  >[],
 };
 
 /** JSON with object keys sorted — mirrors the api: jsonb does not keep key order, so compare canonically. */
@@ -184,6 +191,15 @@ function withCompactOrder(sessions: ProgramSessionDto[]): ProgramSessionDto[] {
 /** Programs (any status) whose weeks prescribe the exercise. */
 const mockUsage = (exerciseId: string) =>
   state.programs.filter((p) => JSON.stringify(p).includes(`"exerciseId":"${exerciseId}"`)).length;
+
+const typeUsage = (typeId: string) =>
+  state.programs.filter((p) => JSON.stringify(p).includes(`"typeId":"${typeId}"`)).length;
+const typeDto = (t: Omit<SessionTypeDto, "usedIn">): SessionTypeDto => ({ ...t, usedIn: typeUsage(t.id) });
+function assertTypeNameFree(name: string, exceptId?: string) {
+  if (state.sessionTypes.some((t) => t.id !== exceptId && t.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error(`"${name}" is already a session type`);
+  }
+}
 
 const nameOf = (exerciseId: string) =>
   exercises.find((e) => e.id === exerciseId)?.name ?? exerciseId;
@@ -391,6 +407,44 @@ export const mockApi: TrainerApi = {
   async deleteScheme(id) {
     await delay(200);
     state.schemes = state.schemes.filter((s) => s.id !== id);
+  },
+
+  async sessionTypes() {
+    await delay(120);
+    return state.sessionTypes.map(typeDto);
+  },
+
+  async createSessionType(input) {
+    await delay(200);
+    const name = normalizeTypeName(input.name);
+    assertTypeNameFree(name);
+    const created = { id: `st-${uuid().slice(0, 8)}`, name, format: input.format, archivedAt: null };
+    state.sessionTypes = [...state.sessionTypes, created];
+    return typeDto(created);
+  },
+
+  async patchSessionType(id, input) {
+    await delay(150);
+    const cur = state.sessionTypes.find((t) => t.id === id);
+    if (!cur) throw new Error("session type not found");
+    const next = { ...cur };
+    if (input.name !== undefined) {
+      next.name = normalizeTypeName(input.name);
+      assertTypeNameFree(next.name, id);
+    }
+    if (input.format !== undefined) next.format = input.format;
+    if (input.archived !== undefined) next.archivedAt = input.archived ? (cur.archivedAt ?? new Date().toISOString()) : null;
+    state.sessionTypes = state.sessionTypes.map((t) => (t.id === id ? next : t));
+    return typeDto(next);
+  },
+
+  async deleteSessionType(id) {
+    await delay(150);
+    if (!state.sessionTypes.some((t) => t.id === id)) throw new Error("session type not found");
+    if (state.sessionTypes.length === 1) throw new Error("keep at least one session type");
+    const n = typeUsage(id);
+    if (n) throw new Error(`used in ${n} program${n === 1 ? "" : "s"} — archive it instead`);
+    state.sessionTypes = state.sessionTypes.filter((t) => t.id !== id);
   },
 
   async examples(programId) {

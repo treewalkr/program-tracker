@@ -66,6 +66,9 @@ export interface ProgramSessionDto {
   /** Order within its weekday. */
   order: number;
   kind: SessionKind;
+  /** Trainer's session type; the name is captured when the session is saved. */
+  typeId?: string;
+  typeName?: string;
   notes?: string;
   exercises: ProgramExerciseDto[];
   cardio?: CardioPrescriptionDto | null;
@@ -275,6 +278,24 @@ export interface PeriodizationSchemeDto {
   weeks: WeekPlan[];
 }
 
+/** Trainer-owned label over a fixed format ("lifting" | "cardio"). */
+export interface SessionTypeDto {
+  id: string;
+  name: string;
+  format: SessionKind;
+  /** Set = out of the picker and AI list; programs keep the captured name. */
+  archivedAt: string | null;
+  /** Programs with a session of this type. */
+  usedIn: number;
+}
+
+export interface SessionTypeInput {
+  name: string;
+  format: SessionKind;
+}
+
+export type SessionTypePatch = Partial<SessionTypeInput> & { archived?: boolean };
+
 export interface KineticChainDto {
   id: string;
   name: string;
@@ -314,6 +335,12 @@ export interface TrainerApi {
   schemes(): Promise<PeriodizationSchemeDto[]>;
   createScheme(input: { name: string; weeks: WeekPlan[] }): Promise<PeriodizationSchemeDto>;
   deleteScheme(id: string): Promise<void>;
+  /** Seeds the 6 defaults on a trainer's first read. */
+  sessionTypes(): Promise<SessionTypeDto[]>;
+  createSessionType(input: SessionTypeInput): Promise<SessionTypeDto>;
+  patchSessionType(id: string, input: SessionTypePatch): Promise<SessionTypeDto>;
+  /** Unused types only, never the last one; everything else archives via patchSessionType. */
+  deleteSessionType(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;
   createClient(input: Omit<ClientDto, "id" | "status">): Promise<ClientDto>;

@@ -15,6 +15,7 @@ import type {
   ProviderDto,
   SessionLogDto,
   SessionLogInput,
+  SessionTypeDto,
   SignalDto,
   TrainerApi,
 } from "./types";
@@ -98,6 +99,11 @@ export const realApi: TrainerApi = {
   createExercise: (input) => unwrap<ExerciseDto>(client.v1.exercises.post(input)),
   patchExercise: (id, input) => unwrap<ExerciseDto>(client.v1.exercises({ id }).patch(input)),
   deleteExercise: (id) => unwrap<void>(client.v1.exercises({ id }).delete()),
+
+  sessionTypes: () => unwrap<SessionTypeDto[]>(client.v1["session-types"].get()),
+  createSessionType: (input) => unwrap<SessionTypeDto>(client.v1["session-types"].post(input)),
+  patchSessionType: (id, input) => unwrap<SessionTypeDto>(client.v1["session-types"]({ id }).patch(input)),
+  deleteSessionType: (id) => unwrap<void>(client.v1["session-types"]({ id }).delete()),
 
   history: async (clientId) =>
     (await unwrap<{ history: HistoryEntryDto[] }>(client.v1.logs.history.get({ query: { clientId } }))).history,
