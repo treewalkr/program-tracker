@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { page } from "$app/state";
   import { feedbackHandle, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
   import { feedbackApi, exportUrl, shotUrl } from "$lib/feedback/client";
   import { shortPath } from "$lib/feedback/capture";
-  import { fmtDate } from "$lib/format";
+  import { fmtDate, fmtDateTime } from "$lib/format";
+  import Author from "$lib/feedback/Author.svelte";
+  import Tooltip from "$lib/ui/Tooltip.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -14,6 +17,12 @@
   import Skeleton from "$lib/ui/Skeleton.svelte";
 
   type Filter = FeedbackStatus | "all";
+
+  /** The admin triages; everyone else sees their own items, read-only. */
+  const isAdmin = $derived.by(() => {
+    const session = page.data.session;
+    return session?.kind === "open" || (session?.kind === "signedIn" && session.trainer.isAdmin);
+  });
 
   const STATUS_LABEL: Record<FeedbackStatus, string> = {
     new: "New",
@@ -129,13 +138,17 @@
 <div class="page">
   <PageHead
     title="Feedback"
-    sub="Comments pinned to the app in feedback mode. Accept what should be built — accepted items are what the coding agent reads."
+    sub={isAdmin
+      ? "Comments pinned to the app in feedback mode. Accept what should be built — accepted items are what the coding agent reads."
+      : "What you've pinned to the app in feedback mode, and where each item stands."}
   >
     {#snippet actions()}
-      <Button href={exportUrl("accepted")} target="_blank" rel="noreferrer">Open export</Button>
-      <Button variant="primary" onclick={copyForAgent} disabled={counts.accepted === 0}>
-        {copied ? "Copied" : `Copy ${counts.accepted} for agent`}
-      </Button>
+      {#if isAdmin}
+        <Button href={exportUrl("accepted")} target="_blank" rel="noreferrer">Open export</Button>
+        <Button variant="primary" onclick={copyForAgent} disabled={counts.accepted === 0}>
+          {copied ? "Copied" : `Copy ${counts.accepted} for agent`}
+        </Button>
+      {/if}
     {/snippet}
   </PageHead>
 
@@ -165,7 +178,12 @@
               <div class="meta">
                 <span class="handle">{feedbackHandle(item.number)}</span>
                 <Pill tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Pill>
-                <span class="when">{fmtDate(item.createdAt)}</span>
+                <span class="by"><Author author={item.author} /></span>
+                <Tooltip text={fmtDateTime(item.createdAt)}>
+                  {#snippet children(tipId)}
+                    <time class="when" datetime={item.createdAt} tabindex="0" aria-describedby={tipId}>{fmtDate(item.createdAt)}</time>
+                  {/snippet}
+                </Tooltip>
               </div>
 
               <blockquote>{item.comment}</blockquote>
@@ -204,16 +222,24 @@
                 </figure>
               {/if}
 
-              <label class="triage">
-                <span>Triage note <span class="muted">— your call, read by the agent</span></span>
-                <textarea
-                  rows="2"
-                  bind:value={notes[item.id]}
-                  onblur={() => saveNote(item)}
-                  placeholder="e.g. Yes — show warm-up sets as muted chips"
-                ></textarea>
-              </label>
+              {#if isAdmin}
+                <label class="triage">
+                  <span>Triage note <span class="muted">— your call, read by the agent</span></span>
+                  <textarea
+                    rows="2"
+                    bind:value={notes[item.id]}
+                    onblur={() => saveNote(item)}
+                    placeholder="e.g. Yes — show warm-up sets as muted chips"
+                  ></textarea>
+                </label>
+              {:else if item.triageNote}
+                <div class="team-note">
+                  <span class="label">Note from the team</span>
+                  <p>{item.triageNote}</p>
+                </div>
+              {/if}
 
+              {#if isAdmin}
               <div class="actions">
                 {#if item.status === "new"}
                   <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
@@ -227,6 +253,7 @@
                 <span class="spacer"></span>
                 <ConfirmButton small variant="ghost" class="danger" onconfirm={() => remove(item)} />
               </div>
+              {/if}
             </div>
           </li>
         {/each}
@@ -276,7 +303,7 @@
     object-position: left top;
     border: 1px solid var(--line-soft);
     border-radius: var(--radius);
-    background: #fff;
+    background: var(--surface);
     box-shadow: 0 0 0 4px var(--well);
   }
   figcaption {
@@ -290,8 +317,40 @@
   }
   .meta {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px 8px;
+  }
+  .by {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 16rem;
+  }
+  .when {
+    border-radius: 4px;
+    cursor: default;
+  }
+  .when:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .team-note {
+    max-width: var(--measure-prose);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--well);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .team-note .label {
+    display: block;
+    font: 500 12px/1.2 var(--font-ui);
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .team-note p {
+    margin: 0;
+    white-space: pre-wrap;
   }
   .handle {
     font: 600 13px/1 var(--font-mono);

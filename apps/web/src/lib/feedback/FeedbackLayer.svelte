@@ -155,10 +155,12 @@
     try {
       const { domToPng, domToJpeg } = await import("modern-screenshot");
       const filter = (n: Node) => !isFeedbackUi(n);
+      // Capture on the page canvas so dark-theme shots don't get a white backdrop.
+      const backgroundColor = getComputedStyle(document.body).backgroundColor;
       const url =
         kind === "element"
-          ? await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor: "#ffffff", filter })
-          : await domToJpeg(node, { scale: 1, quality: 0.7, backgroundColor: "#ffffff", filter });
+          ? await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor, filter })
+          : await domToJpeg(node, { scale: 1, quality: 0.7, backgroundColor, filter });
       return url.length < MAX_DATA_URL ? url : undefined;
     } catch {
       // A failed screenshot never blocks the comment itself.
@@ -189,7 +191,7 @@
         // Mark the picked element so the page shot shows what the comment is about.
         const prev = target.style.outline;
         const prevOffset = target.style.outlineOffset;
-        target.style.outline = "3px solid #cf222e";
+        target.style.outline = "3px solid var(--bad)";
         target.style.outlineOffset = "2px";
         try {
           pageShot = await shoot(document.body, "page");
@@ -338,12 +340,12 @@
   }
   .outline.hover {
     outline: 2px solid var(--blue);
-    background: rgba(9, 105, 218, 0.06);
+    background: color-mix(in srgb, var(--blue) 6%, transparent);
   }
   .outline.picked {
     outline: 2px solid var(--blue);
     outline-offset: 2px;
-    background: rgba(9, 105, 218, 0.1);
+    background: color-mix(in srgb, var(--blue) 10%, transparent);
   }
   .tag {
     position: absolute;
@@ -351,7 +353,7 @@
     bottom: 100%;
     margin-bottom: 4px;
     background: var(--hover-ink);
-    color: #fff;
+    color: var(--on-ink);
     font: 500 11px/1 var(--font-mono);
     padding: 4px 6px;
     border-radius: 4px;
@@ -465,7 +467,7 @@
   }
   .bar.on {
     background: var(--hover-ink);
-    color: #fff;
+    color: var(--on-ink);
     border-radius: 99px;
     padding: 6px 6px 6px 14px;
     box-shadow: var(--shadow-overlay);
@@ -500,39 +502,39 @@
     height: 8px;
     border-radius: 99px;
     background: var(--done-2);
-    box-shadow: 0 0 0 3px rgba(74, 194, 107, 0.25);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--done-2) 25%, transparent);
   }
   .title {
     font-weight: 600;
   }
   .seg {
     display: inline-flex;
-    background: rgba(255, 255, 255, 0.12);
+    background: color-mix(in srgb, var(--on-ink) 12%, transparent);
     border-radius: 99px;
     padding: 2px;
   }
   .seg button {
     background: none;
     border: 0;
-    color: rgba(255, 255, 255, 0.75);
+    color: color-mix(in srgb, var(--on-ink) 75%, transparent);
     font: 500 12px/1 var(--font-ui);
     padding: 5px 10px;
     border-radius: 99px;
   }
   .seg button[aria-pressed="true"] {
-    background: #fff;
+    background: var(--on-ink);
     color: var(--hover-ink);
   }
   .status {
-    color: rgba(255, 255, 255, 0.75);
+    color: color-mix(in srgb, var(--on-ink) 75%, transparent);
     min-width: 150px;
   }
   .status strong {
-    color: #fff;
+    color: var(--on-ink);
     font-weight: 600;
   }
   .count {
-    color: #fff;
+    color: var(--on-ink);
     font-weight: 600;
     font-size: 12px;
     text-decoration: underline;
@@ -545,11 +547,11 @@
     height: 26px;
     border-radius: 99px;
     border: 0;
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    background: color-mix(in srgb, var(--on-ink) 12%, transparent);
+    color: var(--on-ink);
   }
   .x:hover {
-    background: rgba(255, 255, 255, 0.24);
+    background: color-mix(in srgb, var(--on-ink) 24%, transparent);
   }
   button:focus-visible,
   a:focus-visible {

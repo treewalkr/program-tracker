@@ -786,7 +786,7 @@
   }
   .sess-name::placeholder { color: var(--muted); font-weight: 400; }
   .sess-name:hover { border-color: var(--line); }
-  .sess-name:focus { background: var(--surface); border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
+  .sess-name:focus { background: var(--surface); border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 
   .sess-body { display: flex; flex-direction: column; gap: 14px; }
   .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }

@@ -92,7 +92,7 @@
     cursor: default;
   }
   .setchip.open {
-    outline: 2px solid var(--accent-emphasis, #0969da);
+    outline: 2px solid var(--blue);
   }
   .words {
     font-weight: 400;

@@ -631,16 +631,16 @@
 
   .limit-panel {
     background: var(--warn-bg);
-    border: 1px solid #d4a72c66;
+    border: 1px solid var(--warn-line);
     border-radius: 6px;
     padding: 13px 15px;
   }
   .limit-panel .side-h { color: var(--warn); }
-  .limit-panel p { margin: 0; font-size: 13px; line-height: 1.5; color: #4d3800; }
+  .limit-panel p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--warn-ink); }
   .goals { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
 
   .heat { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-  .heat i { width: 13px; height: 13px; border-radius: 4px; display: block; border: 1px solid rgba(31, 35, 40, 0.06); }
+  .heat i { width: 13px; height: 13px; border-radius: 4px; display: block; border: 1px solid var(--cell-edge); }
   .heat .h1 { background: var(--done-1); }
   .heat .h2 { background: var(--done-2); }
   .heat .h3 { background: var(--done-3); }
@@ -661,7 +661,7 @@
   .chain-count { color: var(--muted); font-size: 12.5px; }
   .chain-status { color: var(--faint); font-style: italic; font-size: 12px; }
   .bar-track { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; width: 100%; }
-  .bar-fill { height: 100%; background: var(--primary, #0969da); border-radius: 4px; transition: width 0.2s ease; }
+  .bar-fill { height: 100%; background: var(--blue); border-radius: 4px; transition: width 0.2s ease; }
   .chain-row.muted .bar-fill { background: transparent; }
   .chart { padding: 14px 16px 0; border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; }
 
@@ -697,7 +697,7 @@
   .cardio-box .bar i {
     display: block;
     height: 100%;
-    background: var(--primary, #0969da);
+    background: var(--blue);
     border-radius: 4px;
     transition: width 0.2s ease;
   }

@@ -150,7 +150,7 @@
   .cell.z { background: var(--surface); border: 1px dashed var(--line); color: var(--faint); }
   .cell.l1 { background: var(--done-1); color: var(--ink); }
   .cell.l2 { background: var(--done-2); color: var(--ink); }
-  .cell.l3 { background: var(--done-4); color: #fff; }
+  .cell.l3 { background: var(--done-4); color: var(--on-done); }
   .cell.todo { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
   .cell:hover { filter: brightness(1.05); border-color: var(--line-strong); }
   .cell.on { box-shadow: inset 0 0 0 2px var(--hover-ink); }

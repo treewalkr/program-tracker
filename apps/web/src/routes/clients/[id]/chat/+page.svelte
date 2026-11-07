@@ -589,7 +589,7 @@
     width: 13px;
     height: 13px;
     border-radius: 99px;
-    border: 2px solid #b6e3ff;
+    border: 2px solid var(--blue-line);
     border-top-color: var(--blue);
     animation: spin 0.9s linear infinite;
     flex: none;
@@ -613,7 +613,7 @@
   }
   .dock-box:focus-within {
     border-color: var(--blue);
-    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
   .dock textarea {
     display: block;

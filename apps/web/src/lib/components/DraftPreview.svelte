@@ -159,7 +159,7 @@
   }
   .vswitch button[aria-pressed="true"] {
     background: var(--hover-ink);
-    color: #fff;
+    color: var(--on-ink);
   }
   .vswitch button:disabled {
     cursor: default;
@@ -175,7 +175,7 @@
     gap: 10px;
     padding: 9px 16px;
     background: var(--pulse-now-bg);
-    border-bottom: 1px solid #b6e3ff;
+    border-bottom: 1px solid var(--blue-line);
     font-size: 13px;
     flex: none;
   }
@@ -233,7 +233,7 @@
   }
   @keyframes flash {
     0% {
-      background: #ddf4ff;
+      background: var(--pulse-now-bg);
     }
     100% {
       background: transparent;
@@ -266,7 +266,7 @@
     width: 11px;
     height: 11px;
     border-radius: 99px;
-    border: 2px solid #b6e3ff;
+    border: 2px solid var(--blue-line);
     border-top-color: var(--blue);
     animation: spin 0.9s linear infinite;
     display: inline-block;

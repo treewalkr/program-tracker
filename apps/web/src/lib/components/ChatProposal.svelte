@@ -148,7 +148,7 @@
     width: 13px;
     height: 13px;
     border-radius: 99px;
-    border: 2px solid #b6e3ff;
+    border: 2px solid var(--blue-line);
     border-top-color: var(--blue);
     animation: spin 0.9s linear infinite;
     flex: none;

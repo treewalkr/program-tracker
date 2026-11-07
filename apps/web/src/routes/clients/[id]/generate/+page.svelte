@@ -708,7 +708,7 @@
   .starter:hover { border-color: var(--line-strong); background: var(--well); }
 
   .box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-  .box:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
+  .box:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
   .box textarea {
     display: block; width: 100%; border: 0; resize: vertical; min-height: 96px; padding: 12px 14px 4px;
     font: 15px/1.5 var(--font-ui); color: var(--ink); background: transparent; outline: none;

@@ -247,7 +247,7 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
   .setsnote { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
-  .link { border: none; background: none; padding: 0; font: inherit; color: var(--accent, #0969da); cursor: pointer; }
+  .link { border: none; background: none; padding: 0; font: inherit; color: var(--blue); cursor: pointer; }
   .link:hover:not(:disabled) { text-decoration: underline; }
   .link:disabled { color: var(--faint); cursor: default; }
   .notes { width: 100%; min-height: 32px; resize: vertical; font-size: 13px; field-sizing: content; max-height: 160px; }

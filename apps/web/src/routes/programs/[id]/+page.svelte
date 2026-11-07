@@ -622,7 +622,7 @@
     background: none;
     padding: 2px 0;
     font: 500 12px var(--font-ui);
-    color: var(--accent, #0969da);
+    color: var(--blue);
     cursor: pointer;
   }
   .edit-link:hover, .add-link:hover { text-decoration: underline; }

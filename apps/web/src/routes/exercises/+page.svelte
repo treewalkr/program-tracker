@@ -619,7 +619,7 @@
     border-radius: 4px; background: var(--surface); color: var(--muted);
   }
   .fbtn :global(svg) { width: 12px; height: 12px; }
-  .fbtn .n { font: 500 11px/1 var(--font-ui); background: var(--hover-ink); color: #fff; border-radius: 99px; padding: 2px 6px; }
+  .fbtn .n { font: 500 11px/1 var(--font-ui); background: var(--hover-ink); color: var(--on-ink); border-radius: 99px; padding: 2px 6px; }
   .sortsel { width: auto; margin-left: auto; }
   .active-f { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: -4px 0 12px; }
   .active-f .tchip :global(svg) { width: 10px; height: 10px; margin-left: 4px; }
@@ -646,7 +646,7 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   .src { font: 500 11px/1 var(--font-ui); padding: 2px 6px; border-radius: 99px; border: 1px solid var(--line); vertical-align: 1px; margin-left: 6px; }
-  .src.mine { color: var(--blue); border-color: #b6e3ff; background: #ddf4ff; }
+  .src.mine { color: var(--blue); border-color: var(--blue-line); background: var(--pulse-now-bg); }
   .arch-tag {
     font: 500 11px/1 var(--font-ui); padding: 2px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--faint);
     background: var(--well); margin-left: 6px;

@@ -458,7 +458,7 @@
   .meta { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   .plan { margin-top: 16px; }
-  .plan.editing { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
+  .plan.editing { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
   .act-r { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .plan .panel-body { padding: 12px 16px; }
   .legend { margin: 8px 2px 0; font-size: 12px; color: var(--muted); }
@@ -468,7 +468,7 @@
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .seg button { font: 500 13px/1 var(--font-ui); padding: 6px 12px; background: var(--well); border: 0; color: var(--muted); cursor: pointer; }
   .seg button + button { border-left: 1px solid var(--line); }
-  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 #fd8c73; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--tab-on); }
   .seg button:disabled { cursor: default; opacity: 0.6; }
   .base { width: auto; }
   .count { font-size: 13px; }

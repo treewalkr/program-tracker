@@ -143,11 +143,11 @@
   }
   .cell .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cell .state { font: 400 10px/1.2 var(--font-ui); }
-  .cell.done .state { color: #fff; }
+  .cell.done .state { color: var(--on-done); }
   .cell.today .state { color: var(--blue); font-weight: 600; }
   .cell.missed .state { color: var(--bad); }
   .cell.done { background: var(--done-4); border-color: var(--done-4); }
-  .cell.done .tag { color: #fff; }
+  .cell.done .tag { color: var(--on-done); }
   .cell.today { border-color: var(--blue); border-width: 2px; background: var(--pulse-now-bg); }
   .cell.today .tag { color: var(--blue); }
   .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); }
@@ -164,7 +164,7 @@
   }
   /* Keep the session tag clear of the corner count badge. */
   .cell:has(.more) .tag { padding-right: 8px; }
-  .cell.done .more { color: #fff; }
+  .cell.done .more { color: var(--on-done); }
   .cell.today .more { color: var(--blue); }
   .cell.missed .more { color: var(--bad); }
   .cell.next .more { color: var(--muted); }

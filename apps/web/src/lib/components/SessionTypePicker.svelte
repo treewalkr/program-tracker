@@ -281,7 +281,7 @@
   .tp-btn[aria-expanded="true"] {
     background: var(--surface);
     border-color: var(--blue);
-    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
   .tp-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--blue); }
   .tp-dot.cardio { background: var(--good); }

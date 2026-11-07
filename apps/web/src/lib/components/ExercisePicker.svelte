@@ -360,7 +360,7 @@
   .xp-btn[aria-expanded="true"] {
     background: var(--surface);
     border-color: var(--blue);
-    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
   .xp-name { font: 600 14px/1.4 var(--font-ui); white-space: nowrap; }
   .xp-meta {

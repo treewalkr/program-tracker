@@ -90,7 +90,7 @@
     height: 32px;
     border-radius: 99px;
     background: var(--hover-ink);
-    color: #fff;
+    color: var(--on-ink);
     display: grid;
     place-items: center;
     font: 600 12px/1 var(--font-ui);
@@ -107,7 +107,7 @@
   .day {
     border-radius: 2px;
     background: var(--well-2);
-    outline: 1px solid rgba(31, 35, 40, 0.04);
+    outline: 1px solid var(--cell-edge);
     outline-offset: -1px;
   }
   .day[data-level="1"] { background: var(--done-1); }

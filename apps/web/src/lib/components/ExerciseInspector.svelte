@@ -251,14 +251,14 @@
     font: 500 11px/1 var(--font-ui); padding: 2px 6px; border-radius: 99px; border: 1px solid var(--line);
     color: var(--muted); background: var(--surface);
   }
-  .src.mine { color: var(--blue); border-color: #b6e3ff; background: #ddf4ff; }
+  .src.mine { color: var(--blue); border-color: var(--blue-line); background: var(--pulse-now-bg); }
   .iconbtn {
     appearance: none; width: 28px; height: 28px; display: inline-grid; place-items: center; border: 0; border-radius: 6px;
     background: none; color: var(--muted); cursor: pointer;
   }
   .iconbtn:hover { background: var(--well-2); color: var(--ink); }
   .dupe {
-    margin-top: 6px; font-size: 13px; color: #4d3800; background: var(--warn-bg); border: 1px solid var(--warn-line);
+    margin-top: 6px; font-size: 13px; color: var(--warn-ink); background: var(--warn-bg); border: 1px solid var(--warn-line);
     border-radius: 6px; padding: 6px 10px;
   }
   .lockline {
