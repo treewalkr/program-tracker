@@ -17,6 +17,11 @@ import type {
   WeekPlan as Wp,
   WeekSummaryStats,
   LlmReasonTag,
+  NoteAnchor,
+  NoteScope,
+  CoachingRuleCategory,
+  CoachingRuleSource,
+  CoachingRuleStatus,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -338,7 +343,71 @@ export interface LlmVerdictDto {
   signal: "thumbs_up" | "thumbs_down";
   reasonTags: LlmReasonTag[];
   comment: string | null;
+  /** "What instead" from the 👎 tray. */
+  correction?: string | null;
+  scope?: NoteScope;
   createdAt: string;
+}
+
+export type NoteAnchorDto = NoteAnchor;
+export type NoteScopeDto = NoteScope;
+
+/** A note pinned to one part of an AI output. */
+export interface LlmNoteDto {
+  id: string;
+  subjectKind: LlmSubjectKindDto;
+  subjectId: string;
+  anchor: NoteAnchorDto | null;
+  /** Plain-text pointer ("Session 1 (Day A) · exercise #2 Back Squat"). */
+  anchorText: string;
+  comment: string | null;
+  correction: string | null;
+  scope: NoteScopeDto;
+  ruleId: string | null;
+  createdAt: string;
+}
+
+export interface CoachingRuleSourceDto {
+  id: string;
+  anchorText: string;
+  comment: string | null;
+  correction: string | null;
+  createdAt: string;
+}
+
+/** A standing rule for every future draft. Only `active` rules reach a prompt. */
+export interface CoachingRuleDto {
+  id: string;
+  /** null = all clients. */
+  clientId: string | null;
+  clientName: string | null;
+  text: string;
+  category: CoachingRuleCategory;
+  status: CoachingRuleStatus;
+  source: CoachingRuleSource;
+  appliedCount: number;
+  violatedCount: number;
+  createdAt: string;
+  updatedAt: string;
+  /** The notes it was learned from (list endpoint only). */
+  sources?: CoachingRuleSourceDto[];
+}
+
+/** What saving a note (or a worded 👎) returns: a proposed rule when the scope asked for one. */
+export interface LearnedDto {
+  rule: CoachingRuleDto | null;
+  /** Extraction failed; the note itself is saved. */
+  ruleError: string | null;
+}
+
+export interface NoteInput {
+  subjectKind: LlmSubjectKindDto;
+  subjectId: string;
+  anchor: NoteAnchorDto;
+  comment: string;
+  correction?: string;
+  scope?: NoteScopeDto;
+  violatedRuleId?: string;
 }
 
 export interface TrainerApi {
@@ -479,7 +548,10 @@ export interface TrainerApi {
     signal: "thumbs_up" | "thumbs_down";
     reasonTags?: LlmReasonTag[];
     comment?: string;
-  }): Promise<LlmVerdictDto>;
+    correction?: string;
+    scope?: NoteScopeDto;
+    violatedRuleId?: string;
+  }): Promise<LlmVerdictDto & Partial<LearnedDto>>;
   /** Latest verdict per subject (subjects without one are absent). */
   llmVerdicts(subjectIds: string[]): Promise<LlmVerdictDto[]>;
   /** UI-side implicit signals: Adjust on a proposal, Copy on a client message. */
@@ -488,4 +560,25 @@ export interface TrainerApi {
     subjectId: string;
     signal: "proposal_adjusted" | "client_message_copied";
   }): Promise<void>;
+
+  /** Pin a note to part of an output. Scope client/always proposes a rule (never active until confirmed). */
+  addNote(input: NoteInput): Promise<{ note: LlmNoteDto } & LearnedDto>;
+  /** Notes on these subjects, oldest first. */
+  llmNotes(subjectIds: string[]): Promise<LlmNoteDto[]>;
+  /** "Apply to this draft": revise the noted draft with the note as the request. */
+  applyNote(noteId: string): Promise<GenerationDto>;
+
+  coachingRules(): Promise<CoachingRuleDto[]>;
+  /** A hand-written rule — active at once. */
+  createCoachingRule(input: { text: string; category?: CoachingRuleCategory; clientId?: string | null }): Promise<CoachingRuleDto>;
+  updateCoachingRule(
+    id: string,
+    patch: { text?: string; category?: CoachingRuleCategory; clientId?: string | null; status?: "active" | "retired" }
+  ): Promise<CoachingRuleDto>;
+  /** "Keep for: this client / always" on a proposed rule. */
+  confirmCoachingRule(id: string, input: { scope: "client" | "always"; clientId?: string; text?: string }): Promise<CoachingRuleDto>;
+  dismissCoachingRule(id: string): Promise<CoachingRuleDto>;
+  deleteCoachingRule(id: string): Promise<void>;
+  /** "Remember this for next time?" after a chat-built revision. */
+  extractChatRule(input: { generationId: string; scope?: "client" | "always" }): Promise<CoachingRuleDto>;
 }

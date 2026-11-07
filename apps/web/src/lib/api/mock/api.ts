@@ -25,6 +25,9 @@ import {
   sessionKey,
   stampWeeks,
   weekSummary,
+  anchorText,
+  mockExtractRule,
+  noteRevisionText,
   type PreferenceSignal, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
@@ -39,6 +42,12 @@ import type {
   InstructionTemplateDto,
   KineticChainDto,
   LlmVerdictDto,
+  LlmNoteDto,
+  CoachingRuleDto,
+  LearnedDto,
+  LlmSubjectKindDto,
+  NoteAnchorDto,
+  NoteScopeDto,
   PeriodizationSchemeDto,
   PreferencesDto,
   ProgramDto,
@@ -1369,17 +1378,32 @@ export const mockApi: TrainerApi = {
 
   async rateLlmOutput(input) {
     await delay(150);
+    const comment = input.comment?.trim() || null;
+    const correction = input.correction?.trim() || null;
     const verdict: LlmVerdictDto = {
       id: uuid(),
       subjectKind: input.subjectKind,
       subjectId: input.subjectId,
       signal: input.signal,
       reasonTags: [...(input.reasonTags ?? [])],
-      comment: input.comment?.trim() || null,
+      comment,
+      correction,
+      scope: input.scope ?? "once",
       createdAt: new Date().toISOString(),
     };
     verdicts.set(input.subjectId, verdict);
-    return { ...verdict, reasonTags: [...verdict.reasonTags] };
+    if (input.violatedRuleId) markViolated(input.violatedRuleId);
+    const learned = await learnFrom({
+      subjectKind: input.subjectKind,
+      subjectId: input.subjectId,
+      anchor: null,
+      comment,
+      correction,
+      scope: input.scope ?? "once",
+      reasonTags: input.reasonTags,
+      feedbackId: verdict.id,
+    });
+    return { ...verdict, reasonTags: [...verdict.reasonTags], ...learned };
   },
   async llmVerdicts(subjectIds) {
     await delay(80);
@@ -1391,7 +1415,193 @@ export const mockApi: TrainerApi = {
   async recordLlmSignal() {
     // Demo mode keeps no dataset — implicit signals are accepted and dropped.
   },
+
+  async addNote(input) {
+    await delay(200);
+    const comment = input.comment.trim() || null;
+    const correction = input.correction?.trim() || null;
+    if (!comment && !correction) throw new Error("write a note or what to do instead");
+    if (!subjectClientId(input.subjectKind, input.subjectId)) throw new Error("subject not found");
+    if (input.violatedRuleId && !rules.some((r) => r.id === input.violatedRuleId && r.status === "active")) {
+      throw new Error("rule not found");
+    }
+    const note: LlmNoteDto = {
+      id: uuid(),
+      subjectKind: input.subjectKind,
+      subjectId: input.subjectId,
+      anchor: structuredClone(input.anchor),
+      anchorText: anchorText(input.anchor),
+      comment,
+      correction,
+      scope: input.scope ?? "once",
+      ruleId: input.violatedRuleId ?? null,
+      createdAt: new Date().toISOString(),
+    };
+    notes.push(note);
+    if (input.violatedRuleId) markViolated(input.violatedRuleId);
+    const learned = await learnFrom({ ...note, feedbackId: note.id });
+    return { note: structuredClone(note), ...learned };
+  },
+  async llmNotes(subjectIds) {
+    await delay(60);
+    return structuredClone(notes.filter((n) => subjectIds.includes(n.subjectId)));
+  },
+  async applyNote(noteId) {
+    const note = notes.find((n) => n.id === noteId);
+    if (!note) throw new Error("note not found");
+    if (note.subjectKind !== "generation") throw new Error("only notes on a draft can be applied");
+    await delay(900);
+    return structuredClone(reviseDraftInState(state, note.subjectId, noteRevisionText(note)));
+  },
+
+  async coachingRules() {
+    await delay(120);
+    return rules.map((r) => ruleView(r, true));
+  },
+  async createCoachingRule(input) {
+    await delay(150);
+    const text = input.text.trim();
+    if (text.length < 3) throw new Error("rule is too short");
+    const now = new Date().toISOString();
+    const rule: CoachingRuleDto = {
+      id: uuid(),
+      clientId: input.clientId ?? null,
+      clientName: null,
+      text,
+      category: input.category ?? "style",
+      status: "active",
+      source: "manual",
+      appliedCount: 0,
+      violatedCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      sources: [],
+    };
+    rules.unshift(rule);
+    return ruleView(rule);
+  },
+  async updateCoachingRule(id, patch) {
+    await delay(120);
+    const rule = findRule(id);
+    if (patch.text !== undefined) rule.text = patch.text.trim();
+    if (patch.category !== undefined) rule.category = patch.category;
+    if (patch.clientId !== undefined) rule.clientId = patch.clientId;
+    if (patch.status !== undefined) rule.status = patch.status;
+    rule.updatedAt = new Date().toISOString();
+    return ruleView(rule);
+  },
+  async confirmCoachingRule(id, input) {
+    await delay(120);
+    const rule = findRule(id);
+    if (rule.status !== "proposed") throw new Error(`rule is ${rule.status}, not proposed`);
+    const clientId = input.scope === "always" ? null : (input.clientId ?? rule.clientId);
+    if (input.scope === "client" && !clientId) throw new Error("which client? pass clientId");
+    rule.status = "active";
+    rule.clientId = clientId;
+    if (input.text?.trim()) rule.text = input.text.trim();
+    rule.updatedAt = new Date().toISOString();
+    for (const n of notes) if (rule.sources?.some((s) => s.id === n.id) && !n.ruleId) n.ruleId = rule.id;
+    return ruleView(rule);
+  },
+  async dismissCoachingRule(id) {
+    await delay(100);
+    const rule = findRule(id);
+    if (rule.status !== "proposed") throw new Error("only a proposed rule can be dismissed");
+    rule.status = "retired";
+    rule.updatedAt = new Date().toISOString();
+    return ruleView(rule);
+  },
+  async deleteCoachingRule(id) {
+    await delay(100);
+    findRule(id);
+    rules = rules.filter((r) => r.id !== id);
+  },
+  async extractChatRule(input) {
+    await delay(500);
+    const gen = state.generations.find((g) => g.id === input.generationId);
+    if (!gen || !gen.revisionMessage || !gen.parentGenerationId) throw new Error("only a revised draft can teach a rule");
+    const learned = await learnFrom({
+      subjectKind: "generation",
+      subjectId: gen.id,
+      anchor: null,
+      comment: gen.revisionMessage,
+      correction: null,
+      scope: input.scope ?? "client",
+      feedbackId: null,
+      source: "chat",
+    });
+    if (!learned.rule) throw new Error(learned.ruleError ?? "nothing to learn");
+    return learned.rule;
+  },
 };
+
+// ---------------------------------------------------------------------------
+// Demo notes + coaching rules (in memory)
+// ---------------------------------------------------------------------------
+
+const notes: LlmNoteDto[] = [];
+let rules: CoachingRuleDto[] = [];
+
+function findRule(id: string): CoachingRuleDto {
+  const rule = rules.find((r) => r.id === id);
+  if (!rule) throw new Error("rule not found");
+  return rule;
+}
+
+function markViolated(ruleId: string) {
+  const rule = rules.find((r) => r.id === ruleId && r.status === "active");
+  if (rule) rule.violatedCount += 1;
+}
+
+/** A copy with the client's name filled in; sources only on the list. */
+function ruleView(rule: CoachingRuleDto, withSources = false): CoachingRuleDto {
+  const clientName = rule.clientId ? (state.clients.find((c) => c.id === rule.clientId)?.name ?? null) : null;
+  const { sources, ...rest } = structuredClone(rule);
+  return withSources ? { ...rest, clientName, sources: sources ?? [] } : { ...rest, clientName };
+}
+
+function subjectClientId(kind: LlmSubjectKindDto, id: string): string | null {
+  if (kind === "generation") return state.generations.find((g) => g.id === id)?.clientId ?? null;
+  if (kind === "chat_message") return state.messages.find((m) => m.id === id)?.clientId ?? null;
+  return state.clientMessages.find((m) => m.id === id)?.clientId ?? null;
+}
+
+/** Same contract as the API: scope "once" learns nothing; otherwise one proposed rule. */
+async function learnFrom(input: {
+  subjectKind: LlmSubjectKindDto;
+  subjectId: string;
+  anchor: NoteAnchorDto | null;
+  comment: string | null;
+  correction: string | null;
+  scope: NoteScopeDto;
+  reasonTags?: readonly string[];
+  feedbackId: string | null;
+  source?: "note" | "chat";
+}): Promise<LearnedDto> {
+  if (input.scope === "once" || (!input.comment && !input.correction)) return { rule: null, ruleError: null };
+  await delay(500);
+  const extracted = mockExtractRule({ ...input, scope: input.scope });
+  const clientId = input.scope === "client" ? subjectClientId(input.subjectKind, input.subjectId) : null;
+  const now = new Date().toISOString();
+  const rule: CoachingRuleDto = {
+    id: uuid(),
+    clientId,
+    clientName: null,
+    text: extracted.rule,
+    category: extracted.category,
+    status: "proposed",
+    source: input.source ?? "note",
+    appliedCount: 0,
+    violatedCount: 0,
+    createdAt: now,
+    updatedAt: now,
+    sources: input.feedbackId
+      ? [{ id: input.feedbackId, anchorText: anchorText(input.anchor), comment: input.comment, correction: input.correction, createdAt: now }]
+      : [{ id: uuid(), anchorText: "chat revision", comment: input.comment, correction: input.correction, createdAt: now }],
+  };
+  rules.unshift(rule);
+  return { rule: ruleView(rule), ruleError: null };
+}
 
 /** Demo verdicts: latest 👍/👎 per subject, in memory. */
 const verdicts = new Map<string, LlmVerdictDto>();

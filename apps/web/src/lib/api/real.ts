@@ -8,6 +8,9 @@ import type {
   HistoryEntryDto,
   InstructionTemplateDto,
   LlmVerdictDto,
+  LlmNoteDto,
+  CoachingRuleDto,
+  LearnedDto,
   KineticChainDto,
   PeriodizationSchemeDto,
   PreferencesDto,
@@ -216,7 +219,7 @@ export const realApi: TrainerApi = {
     ),
   clearChat: (clientId) => unwrap<void>(client.v1.ai.chat.delete(undefined, { query: { clientId } })),
 
-  rateLlmOutput: (input) => unwrap<LlmVerdictDto>(client.v1.ai.feedback.post(input)),
+  rateLlmOutput: (input) => unwrap<LlmVerdictDto & LearnedDto>(client.v1.ai.feedback.post(input)),
   llmVerdicts: async (subjectIds) =>
     subjectIds.length === 0
       ? []
@@ -228,4 +231,25 @@ export const realApi: TrainerApi = {
   recordLlmSignal: async (input) => {
     await unwrap<unknown>(client.v1.ai.feedback.post(input));
   },
+
+  addNote: (input) => unwrap<{ note: LlmNoteDto } & LearnedDto>(client.v1.ai.feedback.notes.post(input)),
+  llmNotes: async (subjectIds) =>
+    subjectIds.length === 0
+      ? []
+      : (
+          await unwrap<{ notes: LlmNoteDto[] }>(
+            client.v1.ai.feedback.notes.get({ query: { subjectIds: subjectIds.join(",") } })
+          )
+        ).notes,
+  applyNote: (noteId) => unwrap<GenerationDto>(client.v1.ai.feedback.notes({ id: noteId }).apply.post()),
+
+  coachingRules: async () => (await unwrap<{ rules: CoachingRuleDto[] }>(client.v1.ai.rules.get())).rules,
+  createCoachingRule: (input) => unwrap<CoachingRuleDto>(client.v1.ai.rules.post(input)),
+  updateCoachingRule: (id, patch) => unwrap<CoachingRuleDto>(client.v1.ai.rules({ id }).patch(patch)),
+  confirmCoachingRule: (id, input) => unwrap<CoachingRuleDto>(client.v1.ai.rules({ id }).confirm.post(input)),
+  dismissCoachingRule: (id) => unwrap<CoachingRuleDto>(client.v1.ai.rules({ id }).dismiss.post()),
+  deleteCoachingRule: async (id) => {
+    await unwrap<unknown>(client.v1.ai.rules({ id }).delete());
+  },
+  extractChatRule: (input) => unwrap<CoachingRuleDto>(client.v1.ai.rules.extract.post(input)),
 };
