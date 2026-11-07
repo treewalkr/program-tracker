@@ -27,6 +27,7 @@ import type {
   ClientStatus,
   ExampleLevel,
   FeedbackContext,
+  FeedbackEmailPrefs,
   FeedbackStatus,
   FunctionalMovement,
   GenerationStatus,
@@ -61,6 +62,13 @@ export const trainers = pgTable("trainers", {
   lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
   /** Opt-out switch for feedback emails (new items, replies, status changes). */
   feedbackEmails: boolean("feedback_emails").notNull().default(true),
+  /** Which feedback emails, under the master switch above. */
+  feedbackEmailPrefs: jsonb("feedback_email_prefs")
+    .$type<FeedbackEmailPrefs>()
+    .notNull()
+    .default(sql`'{"newTickets":true,"replies":"all","status":true}'::jsonb`),
+  /** Secret for unsubscribe links in emails; created on first email, resettable. */
+  emailToken: text("email_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -444,6 +452,13 @@ export const feedbackReads = pgTable("feedback_reads", {
   trainerId: uuid("trainer_id").notNull().references(() => trainers.id, { onDelete: "cascade" }),
   itemId: uuid("item_id").notNull().references(() => feedbackItems.id, { onDelete: "cascade" }),
   seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+}, (t) => [primaryKey({ columns: [t.trainerId, t.itemId] })]);
+
+/** Tickets a trainer muted: no emails about them, whatever their prefs. */
+export const feedbackMutes = pgTable("feedback_mutes", {
+  trainerId: uuid("trainer_id").notNull().references(() => trainers.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").notNull().references(() => feedbackItems.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.trainerId, t.itemId] })]);
 
 // ---------------------------------------------------------------------------

@@ -123,6 +123,33 @@ export interface FeedbackItem {
   updatedAt: string;
 }
 
+/** Which feedback emails reach a person, under the `feedback_emails` master switch. */
+export const FEEDBACK_REPLY_SCOPES = ["all", "mine", "off"] as const;
+export type FeedbackReplyScope = (typeof FEEDBACK_REPLY_SCOPES)[number];
+
+export interface FeedbackEmailPrefs {
+  /** New tickets from trainers (only the admin is ever sent these). */
+  newTickets: boolean;
+  /** "all" = every ticket you can see; "mine" = tickets you filed, replied on or moved; "off" = none. */
+  replies: FeedbackReplyScope;
+  /** Accepted / won't fix / shipped on tickets you filed. */
+  status: boolean;
+}
+
+export const DEFAULT_FEEDBACK_EMAIL_PREFS: FeedbackEmailPrefs = { newTickets: true, replies: "all", status: true };
+
+/** A stored prefs blob (possibly partial or stale) → full prefs. */
+export function feedbackEmailPrefs(raw: Partial<FeedbackEmailPrefs> | null | undefined): FeedbackEmailPrefs {
+  const p = raw ?? {};
+  return {
+    newTickets: typeof p.newTickets === "boolean" ? p.newTickets : DEFAULT_FEEDBACK_EMAIL_PREFS.newTickets,
+    replies: FEEDBACK_REPLY_SCOPES.includes(p.replies as FeedbackReplyScope)
+      ? (p.replies as FeedbackReplyScope)
+      : DEFAULT_FEEDBACK_EMAIL_PREFS.replies,
+    status: typeof p.status === "boolean" ? p.status : DEFAULT_FEEDBACK_EMAIL_PREFS.status,
+  };
+}
+
 export const feedbackHandle = (n: number) => `FB-${String(n).padStart(3, "0")}`;
 
 export const formatSourceLoc = (loc: FeedbackSourceLoc) => `${loc.file}:${loc.line}:${loc.column}`;
