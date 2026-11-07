@@ -427,6 +427,9 @@
     max-width: calc(var(--page-max) + 80px);
     width: 100%;
     min-width: 0; /* grid child: let content shrink instead of forcing min-content width */
+    /* Pages size their columns to the room left beside the sidebar (wide,
+       rail or drawer), not to the viewport. */
+    container: main / inline-size;
   }
 
   /* layout placement for the global note component */

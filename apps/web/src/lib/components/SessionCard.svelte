@@ -155,4 +155,8 @@
     white-space: nowrap;
   }
   .cond-row { border-bottom: none; padding-bottom: 13px; }
+  /* stacked rows (app.css): a tag that wraps starts flush with the role chip */
+  @container session (max-width: 520px) {
+    .mp-tag { margin-left: 0; }
+  }
 </style>

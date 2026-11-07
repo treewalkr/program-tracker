@@ -443,14 +443,19 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 }
 .session-head .cond svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
 .session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+.session { container: session / inline-size; }
 .session + .session { border-top: 1px solid var(--line); }
 .exrow { display: grid; grid-template-columns: minmax(min(16rem, 55%), 1fr) minmax(0, auto); gap: 12px; align-items: center; }
-.exrow .ex { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; min-width: 0; }
+/* wraps so tags drop a line instead of squeezing the name to a letter per line */
+.exrow .ex { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 500; font-size: 14px; min-width: 0; }
 
-@media (max-width: 560px) {
-  .exrow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-  .exrow .ex { align-items: flex-start; flex-wrap: wrap; }
-  .exrow > :last-child { justify-self: start; padding-left: 72px; }
+/* Sized to the card, not the viewport: the card is narrow beside a sidebar
+   and side column long before the screen is. Set chips drop under the name. */
+@container session (max-width: 520px) {
+  .session-body { gap: 14px; }
+  .exrow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .exrow .ex { align-items: baseline; }
+  .exrow > :last-child { justify-self: start; }
 }
 
 /* —— tabs (orange underline, GitHub-style) — */

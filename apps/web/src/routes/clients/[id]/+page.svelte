@@ -703,8 +703,12 @@
   }
   .cardio-met { margin: 0; font: 600 12px/1.4 var(--font-ui); color: var(--good); }
 
-  @media (max-width: 900px) {
+  /* One column once the program side would drop under ~440px (sidebar open
+     on an iPad, split view). */
+  @container main (max-width: 760px) {
     .two-col { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 900px) {
     .client-top .head-actions { width: 100%; }
   }
 
