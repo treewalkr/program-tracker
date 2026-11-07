@@ -4,6 +4,8 @@ import { assertTestDatabaseUrl, prepareTestDatabase, resolveTestDatabaseUrl, TES
 // file is loaded, then reset it. Nothing can fall back to the live DB.
 const url = resolveTestDatabaseUrl(process.env);
 process.env.DATABASE_URL = url;
+// Route tests run without a session; auth.test.ts switches the guard back on.
+process.env.AUTH_DISABLED = "true";
 const name = assertTestDatabaseUrl(url);
 const ready = await prepareTestDatabase(url);
 
