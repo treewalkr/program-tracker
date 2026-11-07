@@ -28,6 +28,7 @@
   import Note from "$lib/ui/Note.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
 
   const id = $derived(page.params.id ?? "");
 
@@ -96,6 +97,49 @@
       .join(" · ")
   );
 
+  /* Unsent text survives a reload (iPad Safari drops background tabs), per client.
+     The model pick is remembered per device for chats with no draft to follow. */
+  const textKey = (clientId: string) => `pt.chat.text.${clientId}`;
+  const PICK_KEY = "pt.chat.model";
+  type Pick = { providerId: string; model: string; effort: string };
+  /** Client whose saved text is in the composer; guards saving under the wrong id mid-switch. */
+  let textFor = $state("");
+
+  $effect(() => {
+    if (id === textFor) return;
+    textFor = id;
+    draft = readDraft<string>(textKey(id))?.data ?? "";
+    tick().then(autogrow);
+  });
+
+  // Size the composer to restored text once it mounts (it renders after loading).
+  $effect(() => {
+    if (textareaEl) autogrow();
+  });
+
+  $effect(() => {
+    const text = draft;
+    if (!textFor || textFor !== id) return;
+    if (text.trim()) writeDraft(textKey(id), text);
+    else clearDraft(textKey(id));
+  });
+
+  /** Apply the remembered pick only if the provider still offers that model and level. */
+  function restorePick() {
+    const pick = readDraft<Pick>(PICK_KEY)?.data;
+    const p = pick && providers.find((x) => x.id === pick.providerId);
+    if (!pick || !p) return;
+    providerId = p.id;
+    model = pick.model && p.models.includes(pick.model) ? pick.model : "";
+    effort = pick.effort && p.effortLevels?.includes(pick.effort) ? pick.effort : "";
+  }
+
+  $effect(() => {
+    const pick: Pick = { providerId, model, effort };
+    if (!providers.length || !providerId) return;
+    writeDraft(PICK_KEY, pick);
+  });
+
   // Pickers follow the target draft once; a draft on the provider's default
   // model maps to "" so the select shows "(provider default)" instead of blank.
   $effect(() => {
@@ -154,6 +198,7 @@
       messages = msgs;
       catalogById = new Map(exList.map((e) => [e.id, e]));
       providers = providerList;
+      if (!preview.target) restorePick(); // a draft's own settings win (effect above)
       if (!providerId && providers.length) providerId = providers[0].id;
     } finally {
       loading = false;
