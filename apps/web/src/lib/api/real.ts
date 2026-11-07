@@ -93,6 +93,7 @@ export const realApi: TrainerApi = {
   exercises: (q) => unwrap<ExerciseDto[]>(client.v1.exercises.get({ query: q ? { q } : {} })),
   createExercise: (input) => unwrap<ExerciseDto>(client.v1.exercises.post(input)),
   patchExercise: (id, input) => unwrap<ExerciseDto>(client.v1.exercises({ id }).patch(input)),
+  deleteExercise: (id) => unwrap<void>(client.v1.exercises({ id }).delete()),
 
   history: async (clientId) =>
     (await unwrap<{ history: HistoryEntryDto[] }>(client.v1.logs.history.get({ query: { clientId } }))).history,

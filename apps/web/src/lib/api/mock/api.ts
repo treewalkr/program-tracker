@@ -181,6 +181,10 @@ function withCompactOrder(sessions: ProgramSessionDto[]): ProgramSessionDto[] {
   return sessions.map((s) => ({ ...s, order: orderOf.get(s.id)! }));
 }
 
+/** Programs (any status) whose weeks prescribe the exercise. */
+const mockUsage = (exerciseId: string) =>
+  state.programs.filter((p) => JSON.stringify(p).includes(`"exerciseId":"${exerciseId}"`)).length;
+
 const nameOf = (exerciseId: string) =>
   exercises.find((e) => e.id === exerciseId)?.name ?? exerciseId;
 
@@ -552,17 +556,29 @@ export const mockApi: TrainerApi = {
   async exercises(query) {
     await delay(180);
     const q = (query ?? "").toLowerCase();
-    return exercises.filter((e) => !q || e.name.toLowerCase().includes(q));
+    return exercises
+      .filter((e) => !q || e.name.toLowerCase().includes(q))
+      .map((e) => ({ ...e, usedIn: mockUsage(e.id) }));
   },
 
   async createExercise(input) {
     await delay(300);
+    const name = input.name.trim();
+    if (exercises.some((e) => e.name.trim().toLowerCase() === name.toLowerCase())) {
+      throw new Error(`"${name}" is already in the library`);
+    }
     const created: ExerciseDto = {
-      ...input,
+      name,
       id: uuid(),
-      secondaryMuscleGroups: [],
+      primaryMuscleGroup: input.primaryMuscleGroup,
+      secondaryMuscleGroups: (input.secondaryMuscleGroups ?? []).filter((m) => m !== input.primaryMuscleGroup),
+      equipment: input.equipment,
       movementPattern: input.movementPattern ?? null,
       functionalMovement: input.functionalMovement ?? null,
+      note: input.note?.trim() || null,
+      custom: true,
+      archivedAt: null,
+      usedIn: 0,
     };
     exercises.push(created);
     return created;
@@ -572,13 +588,29 @@ export const mockApi: TrainerApi = {
     await delay(200);
     const i = exercises.findIndex((e) => e.id === id);
     if (i === -1) throw new Error("exercise not found");
+    const cur = exercises[i];
+    const { archived, ...rest } = input;
+    if (!cur.custom && (rest.name ?? rest.primaryMuscleGroup ?? rest.secondaryMuscleGroups ?? rest.equipment) !== undefined) {
+      throw new Error("library exercises can't change name, muscles or equipment — duplicate it instead");
+    }
+    const defined = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     const updated: ExerciseDto = {
-      ...exercises[i],
-      ...(input.movementPattern !== undefined ? { movementPattern: input.movementPattern } : {}),
-      ...(input.functionalMovement !== undefined ? { functionalMovement: input.functionalMovement } : {}),
+      ...cur,
+      ...defined,
+      ...(archived !== undefined ? { archivedAt: archived ? (cur.archivedAt ?? new Date().toISOString()) : null } : {}),
+      usedIn: mockUsage(id),
     };
     exercises[i] = updated;
     return updated;
+  },
+
+  async deleteExercise(id) {
+    await delay(200);
+    const i = exercises.findIndex((e) => e.id === id);
+    if (i === -1) throw new Error("exercise not found");
+    if (!exercises[i].custom) throw new Error("library exercises can be hidden, not deleted");
+    if (mockUsage(id)) throw new Error("used in a program — archive it instead");
+    exercises.splice(i, 1);
   },
 
   async history(clientId): Promise<HistoryEntryDto[]> {

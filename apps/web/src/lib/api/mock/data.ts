@@ -48,7 +48,7 @@ export const schemes: PeriodizationSchemeDto[] = [
 
 const uuid = () => crypto.randomUUID();
 
-export const exercises: ExerciseDto[] = [
+export const exercises: ExerciseDto[] = ([
   { id: "ex-squat", name: "Back Squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes", "core"], equipment: "barbell", movementPattern: "knee_dominant", functionalMovement: "squat" },
   { id: "ex-bench", name: "Bench Press", primaryMuscleGroup: "chest", secondaryMuscleGroups: ["triceps", "shoulders"], equipment: "barbell", movementPattern: "horizontal_push", functionalMovement: "push" },
   { id: "ex-row", name: "Barbell Row", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "barbell", movementPattern: "horizontal_pull", functionalMovement: "pull" },
@@ -69,7 +69,13 @@ export const exercises: ExerciseDto[] = [
   { id: "ex-press", name: "Leg Press", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes"], equipment: "machine", movementPattern: "knee_dominant", functionalMovement: "squat" },
   { id: "ex-curl", name: "Dumbbell Curl", primaryMuscleGroup: "biceps", secondaryMuscleGroups: [], equipment: "dumbbell", movementPattern: null, functionalMovement: null },
   { id: "ex-ext", name: "Cable Triceps Extension", primaryMuscleGroup: "triceps", secondaryMuscleGroups: [], equipment: "cable", movementPattern: null, functionalMovement: null },
-];
+] as Omit<ExerciseDto, "note" | "custom" | "archivedAt" | "usedIn">[]).map((e) => ({
+  ...e,
+  note: null,
+  custom: false,
+  archivedAt: null,
+  usedIn: 0,
+}));
 
 export const clients: ClientDto[] = [
   {
@@ -513,7 +519,7 @@ export const examples: ProgramExampleDto[] = [
 // hypertrophy block with mobility prep, rep ranges, pyramids, timed work,
 // failure sets and cardio prescriptions — plus the next strength block as draft.
 // ---------------------------------------------------------------------------
-export const trainerExercises: ExerciseDto[] = [
+export const trainerExercises: ExerciseDto[] = ([
   { id: "ex-latstretch", name: "Lateral Stretch", primaryMuscleGroup: "mobility", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: null, functionalMovement: null },
   { id: "ex-scapdep", name: "Scapular Depression", primaryMuscleGroup: "lats", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: null, functionalMovement: null },
   { id: "ex-pullup", name: "Pull up (Power)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "pull-up bar", movementPattern: "vertical_pull", functionalMovement: "pull" },
@@ -553,7 +559,13 @@ export const trainerExercises: ExerciseDto[] = [
   { id: "ex-walklunge", name: "Walking lunge", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes"], equipment: "bodyweight", movementPattern: "knee_dominant", functionalMovement: "single_leg" },
   { id: "ex-legext", name: "Leg extensions", primaryMuscleGroup: "quads", secondaryMuscleGroups: [], equipment: "machine", movementPattern: "knee_dominant", functionalMovement: "squat" },
   { id: "ex-legcurl", name: "Leg curl", primaryMuscleGroup: "hamstrings", secondaryMuscleGroups: [], equipment: "machine", movementPattern: "hip_dominant", functionalMovement: "bend_lift" },
-];
+] as Omit<ExerciseDto, "note" | "custom" | "archivedAt" | "usedIn">[]).map((e) => ({
+  ...e,
+  note: null,
+  custom: true,
+  archivedAt: null,
+  usedIn: 0,
+}));
 exercises.push(...trainerExercises);
 
 export const trainerClient: ClientDto = {

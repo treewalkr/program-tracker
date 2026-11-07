@@ -95,7 +95,27 @@ export interface ExerciseDto {
   equipment: string;
   movementPattern: string | null;
   functionalMovement: string | null;
+  /** Trainer's setup cues — shown in programs and passed to the AI. */
+  note: string | null;
+  /** false = WGER seed entry: name, muscles and equipment are locked. */
+  custom: boolean;
+  /** Set = archived (custom) or hidden (seed): out of pickers and AI drafts. */
+  archivedAt: string | null;
+  /** Programs that prescribe it. */
+  usedIn: number;
 }
+
+export interface ExerciseInput {
+  name: string;
+  primaryMuscleGroup: string;
+  secondaryMuscleGroups?: string[];
+  equipment: string;
+  movementPattern?: string | null;
+  functionalMovement?: string | null;
+  note?: string | null;
+}
+
+export type ExercisePatch = Partial<ExerciseInput> & { archived?: boolean };
 
 export interface ProviderDto {
   id: string;
@@ -333,17 +353,11 @@ export interface TrainerApi {
   deleteExample(id: string): Promise<void>;
 
   exercises(query?: string): Promise<ExerciseDto[]>;
-  createExercise(input: {
-    name: string;
-    primaryMuscleGroup: string;
-    equipment: string;
-    movementPattern?: string | null;
-    functionalMovement?: string | null;
-  }): Promise<ExerciseDto>;
-  patchExercise(
-    id: string,
-    input: { movementPattern?: string | null; functionalMovement?: string | null }
-  ): Promise<ExerciseDto>;
+  createExercise(input: ExerciseInput): Promise<ExerciseDto>;
+  /** Seed entries take only movementPattern, functionalMovement, note and archived. */
+  patchExercise(id: string, input: ExercisePatch): Promise<ExerciseDto>;
+  /** Unused custom exercises only; everything else archives via patchExercise. */
+  deleteExercise(id: string): Promise<void>;
 
   history(clientId: string): Promise<HistoryEntryDto[]>;
   sessionLogs(clientId: string): Promise<SessionLogDto[]>;
