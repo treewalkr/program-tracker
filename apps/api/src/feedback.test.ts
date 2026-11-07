@@ -255,6 +255,26 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
     expect(await isUnread()).toBe(false);
   });
 
+  test("mute is per viewer, needs visibility, and leaves unread alone", async () => {
+    const get = async (token?: string) => json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, token));
+    expect((await get(kai)).muted).toBe(false);
+    expect((await call("PUT", `/v1/feedback/${kaiItem}/mute`, undefined, kai)).status).toBe(200);
+    expect((await call("PUT", `/v1/feedback/${kaiItem}/mute`, undefined, kai)).status).toBe(200);
+    expect((await get(kai)).muted).toBe(true);
+    expect((await get()).muted).toBe(false);
+    const listed = await json(await call("GET", "/v1/feedback", undefined, kai));
+    expect(listed[0].muted).toBe(true);
+
+    // muted still shows news
+    await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "ping" });
+    expect((await get(kai)).unread).toBe(true);
+
+    expect((await call("PUT", `/v1/feedback/${kaiItem}/mute`, undefined, mo)).status).toBe(404);
+    expect((await call("DELETE", `/v1/feedback/${kaiItem}/mute`, undefined, mo)).status).toBe(404);
+    expect(await json(await call("DELETE", `/v1/feedback/${kaiItem}/mute`, undefined, kai))).toEqual({ muted: false });
+    expect((await get(kai)).muted).toBe(false);
+  });
+
   test("triage, delete and export are admin only", async () => {
     for (const res of [
       await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" }, kai),
@@ -274,6 +294,7 @@ describe.skipIf(!dbUp)("feedback emails", () => {
   const saved: Record<string, string | undefined> = {};
   const origFetch = globalThis.fetch;
   let sent: { to: string; subject: string }[] = [];
+  let lastUnsubscribe: string | undefined;
   let ren = "";
   let item = "";
 
@@ -286,6 +307,7 @@ describe.skipIf(!dbUp)("feedback emails", () => {
       if (!String(input).startsWith("https://api.resend.com/")) return origFetch(input, init);
       const b = JSON.parse(String(init?.body));
       sent.push({ to: b.to[0], subject: b.subject });
+      lastUnsubscribe = b.headers?.["List-Unsubscribe"];
       return Response.json({ id: crypto.randomUUID() });
     }) as typeof fetch;
     await db.delete(trainers).where(eq(trainers.email, EMAIL));
@@ -323,6 +345,25 @@ describe.skipIf(!dbUp)("feedback emails", () => {
     const accepted = await flush();
     expect(accepted.map((e) => e.to)).toEqual([EMAIL]);
     expect(accepted[0].subject).toMatch(/Accepted — on the build list$/);
+  });
+
+  test("a muted ticket and an event pref stop the email; links carry a token", async () => {
+    await call("PUT", `/v1/feedback/${item}/mute`, undefined, ren);
+    await call("POST", `/v1/feedback/${item}/comments`, { body: "Muted?" });
+    expect(await flush()).toEqual([]);
+    await call("DELETE", `/v1/feedback/${item}/mute`, undefined, ren);
+
+    await db.update(trainers).set({ feedbackEmailPrefs: { newTickets: true, replies: "off", status: true } }).where(eq(trainers.email, EMAIL));
+    await call("POST", `/v1/feedback/${item}/comments`, { body: "Replies off?" });
+    expect(await flush()).toEqual([]);
+    await db.update(trainers).set({ feedbackEmailPrefs: { newTickets: true, replies: "all", status: true } }).where(eq(trainers.email, EMAIL));
+
+    const [{ token }] = await db.select({ token: trainers.emailToken }).from(trainers).where(eq(trainers.email, EMAIL));
+    expect(token).toBeTruthy();
+    await call("POST", `/v1/feedback/${item}/comments`, { body: "Back on" });
+    const [mail] = await flush();
+    expect(mail.to).toBe(EMAIL);
+    expect(lastUnsubscribe).toContain(`t=${token}&scope=all`);
   });
 
   test("note edits, unchanged status and deletes send nothing", async () => {

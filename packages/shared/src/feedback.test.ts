@@ -41,6 +41,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   shippedIn: null,
   thread: [],
   unread: false,
+  muted: false,
   createdAt: "2026-11-07T10:00:00.000Z",
   updatedAt: "2026-11-07T10:00:00.000Z",
   ...over,

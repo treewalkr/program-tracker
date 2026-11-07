@@ -1,34 +1,68 @@
 import { Elysia, t } from "elysia";
-import { eq } from "drizzle-orm";
-import { db, trainers } from "@pt/db";
+import { desc, eq } from "drizzle-orm";
+import { db, feedbackItems, feedbackMutes, trainers } from "@pt/db";
+import { feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 
-/** The signed-in trainer's own settings. Today: whether feedback emails reach them. */
+const clip = (s: string, n: number) => {
+  const c = s.replace(/\s+/g, " ").trim();
+  return c.length > n ? `${c.slice(0, n - 1)}…` : c;
+};
+
+/** Master switch, which events, and the muted tickets — what Settings shows. */
+async function notificationSettings(trainerId: string, isAdmin: boolean) {
+  const [row] = await db
+    .select({ feedbackEmails: trainers.feedbackEmails, prefs: trainers.feedbackEmailPrefs })
+    .from(trainers)
+    .where(eq(trainers.id, trainerId));
+  const muted = await db
+    .select({ itemId: feedbackItems.id, number: feedbackItems.number, comment: feedbackItems.comment })
+    .from(feedbackMutes)
+    .innerJoin(feedbackItems, eq(feedbackItems.id, feedbackMutes.itemId))
+    .where(eq(feedbackMutes.trainerId, trainerId))
+    .orderBy(desc(feedbackItems.number));
+  return {
+    feedbackEmails: row?.feedbackEmails ?? true,
+    prefs: feedbackEmailPrefs(row?.prefs),
+    muted: muted.map((m) => ({ ...m, handle: feedbackHandle(m.number), comment: clip(m.comment, 80) })),
+    isAdmin,
+  };
+}
+
+/** The signed-in trainer's own settings: which feedback emails reach them. */
 export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account"] })
   .use(trainerContext)
-  .get(
-    "/notifications",
-    async ({ trainerId }) => {
-      const [row] = await db
-        .select({ feedbackEmails: trainers.feedbackEmails })
-        .from(trainers)
-        .where(eq(trainers.id, trainerId));
-      return { feedbackEmails: row?.feedbackEmails ?? true };
-    },
-    { detail: { summary: "Your email notification settings" } },
-  )
+  .get("/notifications", ({ trainerId, isAdmin }) => notificationSettings(trainerId, isAdmin), {
+    detail: { summary: "Your email notification settings" },
+  })
   .patch(
     "/notifications",
-    async ({ trainerId, body }) => {
-      const [row] = await db
-        .update(trainers)
-        .set({ feedbackEmails: body.feedbackEmails })
-        .where(eq(trainers.id, trainerId))
-        .returning({ feedbackEmails: trainers.feedbackEmails });
-      return { feedbackEmails: row.feedbackEmails };
+    async ({ trainerId, isAdmin, body }) => {
+      const set: Partial<typeof trainers.$inferInsert> = {};
+      if (body.feedbackEmails !== undefined) set.feedbackEmails = body.feedbackEmails;
+      if (body.prefs) {
+        const [row] = await db
+          .select({ prefs: trainers.feedbackEmailPrefs })
+          .from(trainers)
+          .where(eq(trainers.id, trainerId));
+        set.feedbackEmailPrefs = { ...feedbackEmailPrefs(row?.prefs), ...body.prefs };
+      }
+      if (Object.keys(set).length) await db.update(trainers).set(set).where(eq(trainers.id, trainerId));
+      return notificationSettings(trainerId, isAdmin);
     },
     {
-      body: t.Object({ feedbackEmails: t.Boolean() }),
-      detail: { summary: "Turn feedback emails on or off" },
+      body: t.Object({
+        feedbackEmails: t.Optional(t.Boolean()),
+        prefs: t.Optional(
+          t.Partial(
+            t.Object({
+              newTickets: t.Boolean(),
+              replies: t.Union([t.Literal("all"), t.Literal("mine"), t.Literal("off")]),
+              status: t.Boolean(),
+            }),
+          ),
+        ),
+      }),
+      detail: { summary: "Change feedback email settings (master switch and/or per-event prefs)" },
     },
   );

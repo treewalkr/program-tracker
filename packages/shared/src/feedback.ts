@@ -119,6 +119,8 @@ export interface FeedbackItem {
   thread: FeedbackComment[];
   /** Someone else did something on it since the caller last looked. */
   unread: boolean;
+  /** The caller muted emails about it. */
+  muted: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,6 +1,6 @@
 import { Elysia, t, type Static } from "elysia";
-import { eq } from "drizzle-orm";
-import { db, feedbackComments, feedbackItems } from "@pt/db";
+import { and, eq } from "drizzle-orm";
+import { db, feedbackComments, feedbackItems, feedbackMutes } from "@pt/db";
 import {
   FEEDBACK_STATUSES,
   feedbackHandle,
@@ -223,6 +223,27 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       return { ok: true };
     },
     { params: IdParams, detail: { summary: "Mark a feedback item seen" } },
+  )
+  /** Stop emails about one item, for the caller only. Unread dots still work. */
+  .put(
+    "/:id/mute",
+    async ({ params, status, trainerId, who }) => {
+      if (!(await getFeedback(params.id, who))) return status(404, NOT_FOUND);
+      await db.insert(feedbackMutes).values({ trainerId, itemId: params.id }).onConflictDoNothing();
+      return { muted: true };
+    },
+    { params: IdParams, detail: { summary: "Mute emails about a feedback item" } },
+  )
+  .delete(
+    "/:id/mute",
+    async ({ params, status, trainerId, who }) => {
+      if (!(await getFeedback(params.id, who))) return status(404, NOT_FOUND);
+      await db
+        .delete(feedbackMutes)
+        .where(and(eq(feedbackMutes.trainerId, trainerId), eq(feedbackMutes.itemId, params.id)));
+      return { muted: false };
+    },
+    { params: IdParams, detail: { summary: "Unmute emails about a feedback item" } },
   )
   .delete(
     "/:id",

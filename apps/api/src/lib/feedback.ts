@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
-import { db, feedbackComments, feedbackItems, feedbackReads, trainers, type FeedbackItemRow } from "@pt/db";
+import { db, feedbackComments, feedbackItems, feedbackMutes, feedbackReads, trainers, type FeedbackItemRow } from "@pt/db";
 import { FEEDBACK_STATUSES, type FeedbackComment, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
 
 /** Screenshot cap per image, decoded. Keeps a runaway capture out of the DB. */
@@ -34,7 +34,7 @@ const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainer
 
 /**
  * Rows → API items: attaches each thread (one query) and, for a viewer, the
- * unread flag (one more). Unread = someone other than the viewer filed it,
+ * unread and muted flags (two more). Unread = someone other than the viewer filed it,
  * replied or changed its status after the viewer last looked.
  */
 async function hydrate(rows: ListRow[], viewerId: string | null): Promise<FeedbackItem[]> {
@@ -63,6 +63,14 @@ async function hydrate(rows: ListRow[], viewerId: string | null): Promise<Feedba
       .where(and(eq(feedbackReads.trainerId, viewerId), inArray(feedbackReads.itemId, ids)));
     for (const r of reads) seen.set(r.itemId, r.seenAt);
   }
+  const muted = new Set<string>();
+  if (viewerId) {
+    const mutes = await db
+      .select({ itemId: feedbackMutes.itemId })
+      .from(feedbackMutes)
+      .where(and(eq(feedbackMutes.trainerId, viewerId), inArray(feedbackMutes.itemId, ids)));
+    for (const m of mutes) muted.add(m.itemId);
+  }
 
   return rows.map(({ trainerId, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
@@ -82,6 +90,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null): Promise<Feedba
         }),
       ),
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
+      muted: muted.has(r.id),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     };
