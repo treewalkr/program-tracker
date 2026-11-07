@@ -72,6 +72,10 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .get("/health", () => ({ ok: true, service: "program-tracker-api", build: API_BUILD, time: new Date().toISOString() }), {
     detail: { summary: "Liveness probe", tags: ["health"] },
   })
+  /** The API's build id, under /v1 so the web proxy reaches it (it only forwards /v1/*). */
+  .get("/v1/meta", () => ({ build: API_BUILD }), {
+    detail: { summary: "API build id", tags: ["health"] },
+  })
   .use(authRoutes)
   // everything below needs a signed-in trainer and only sees that trainer's data
   .use(trainerContext)

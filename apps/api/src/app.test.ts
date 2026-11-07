@@ -17,3 +17,12 @@ describe("GET /health", () => {
     expect(body.build).toMatch(new RegExp(`^${version.replace(/\./g, "\\.")}(\\+[0-9a-f]{7})?$`));
   });
 });
+
+describe("GET /v1/meta", () => {
+  test("reports the same build as /health, without signing in", async () => {
+    const res = await app.handle(new Request("http://local/v1/meta"));
+    const health = (await (await app.handle(new Request("http://local/health"))).json()) as { build: string };
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ build: health.build });
+  });
+});
