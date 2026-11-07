@@ -1182,7 +1182,7 @@ describe("buildClientMessageMessages", () => {
     expect(user).not.toContain("Maya Chen"); // first name only
     expect(user).toContain("Strength Base A");
     expect(user).toContain("WEEK OF 2026-10-15 · 3/4 sessions (75%)");
-    expect(user).toContain("VOLUME 9540kg (+12% vs last week) · 42 working sets · avg RPE 8.1");
+    expect(user).toContain("VOLUME 9540kg (+12% vs last week) · 42 sets · avg RPE 8.1");
     expect(user).toContain("PR Back Squat 110kg × 5 (est. 1RM 128.3kg, previous best 116.7kg)");
     expect(user).toContain("NEXT WEEK +intensity · target +2.5% intensity");
 
@@ -1202,7 +1202,7 @@ describe("clientMessageStatsText", () => {
     const text = clientMessageStatsText(statsFixture);
     expect(text.split("\n")).toEqual([
       "WEEK OF 2026-10-15 · 3/4 sessions (75%)",
-      "VOLUME 9540kg (+12% vs last week) · 42 working sets · avg RPE 8.1",
+      "VOLUME 9540kg (+12% vs last week) · 42 sets · avg RPE 8.1",
       "PR Back Squat 110kg × 5 (est. 1RM 128.3kg, previous best 116.7kg)",
       "PR Bench Press 80kg × 5 (est. 1RM 93.3kg, previous best 70kg)",
       "NEXT WEEK +intensity · target +2.5% intensity",

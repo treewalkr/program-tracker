@@ -40,7 +40,7 @@ describe("chainsForExercise", () => {
 });
 
 describe("chainSetCounts", () => {
-  test("counts only working sets since the window start", () => {
+  test("counts working and back-off sets since the window start", () => {
     const chains: ChainDef[] = [
       { id: "c-deep", name: "Deep Longitudinal", muscleGroups: ["hamstrings"] },
       { id: "c-lateral", name: "Lateral", muscleGroups: ["quads"] },
@@ -66,7 +66,7 @@ describe("chainSetCounts", () => {
     ];
 
     const counts = chainSetCounts(chains, logs, catalog, "2026-10-15");
-    expect(counts["c-deep"]).toBe(2);
+    expect(counts["c-deep"]).toBe(3);
     expect(counts["c-lateral"]).toBe(0);
   });
 });
@@ -86,7 +86,7 @@ describe("chainBalanceText", () => {
     const textWithZero = chainBalanceText(chains, countsWithZero);
     expect(textWithZero).toContain("untrained: Lateral");
     expect(textWithZero).toBe(
-      "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral"
+      "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 hard sets · untrained: Lateral"
     );
 
     const countsNoZero = {
@@ -97,7 +97,7 @@ describe("chainBalanceText", () => {
     const textNoZero = chainBalanceText(chains, countsNoZero);
     expect(textNoZero).not.toContain("untrained");
     expect(textNoZero).toBe(
-      "Intrinsic 5 · Deep Longitudinal 31 · Lateral 2 working sets"
+      "Intrinsic 5 · Deep Longitudinal 31 · Lateral 2 hard sets"
     );
   });
 });
@@ -358,7 +358,7 @@ describe("weekSummary", () => {
 
   test("weekSummary buckets logs by block week and computes volume, sets, avgRpe, bestE1rm", () => {
     const logs: SignalLog[] = [
-      // Week 1 (2026-10-01 .. 2026-10-07): 1300kg, 3 working sets, avg RPE 8
+      // Week 1 (2026-10-01 .. 2026-10-07): 1700kg, 4 sets incl. the back-off, avg RPE 8
       L("2026-10-02", [
         { exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5, rpe: 8 },
         { exerciseId: "ex-squat", type: "working", weightKg: 100, reps: 5, rpe: 8 },
@@ -375,8 +375,8 @@ describe("weekSummary", () => {
     const w1 = weekSummary({ program: summaryProgram, logs, week: 1, catalog })!;
     expect(w1.weekStart).toBe("2026-10-01");
     expect(w1.sessionsLogged).toBe(1);
-    expect(w1.overallVolume).toBe(1300);
-    expect(w1.sets).toBe(3);
+    expect(w1.overallVolume).toBe(1700);
+    expect(w1.sets).toBe(4);
     expect(w1.avgRpe).toBe(8);
     expect(w1.bestE1rm).toBe(116.7); // squat 100×5
     expect(w1.overallVolumeDelta).toBeNull(); // week 1 has no previous week
@@ -387,7 +387,7 @@ describe("weekSummary", () => {
     expect(w2.sets).toBe(2);
     expect(w2.avgRpe).toBe(9);
     expect(w2.bestE1rm).toBe(128.3); // squat 110×5
-    expect(w2.overallVolumeDelta).toBe(-27); // (950 - 1300) / 1300
+    expect(w2.overallVolumeDelta).toBe(-44); // (950 - 1700) / 1700
   });
 
   test("weekSummary flags PRs only when this week beats a prior week's best in the same program", () => {
@@ -469,5 +469,69 @@ describe("weekSummary", () => {
     expect(
       weekSummary({ program: summaryProgram, logs, week: 3, catalog })
     ).toBeNull();
+  });
+});
+
+describe("back-off sets and timed holds (F02, F15)", () => {
+  // Plank is prescribed as a 45 s hold, so its logged `reps` are seconds.
+  const weeks = [
+    {
+      week: 1,
+      sessions: [
+        {
+          id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+          exercises: [
+            { id: "pe-sq", exerciseId: "ex-squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 3, amrap: false }] },
+            { id: "pe-pl", exerciseId: "ex-plank", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45 }] },
+          ],
+        },
+      ],
+    },
+  ] as unknown as ProgramWeek[];
+  const program: SignalProgram = {
+    id: "prog-t",
+    clientId: "client-1",
+    name: "Meet prep",
+    status: "active",
+    weeks,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+    phasing: { plannedWeeks: 2, phase: "accumulation", weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "+volume" }] },
+  };
+  const L = (date: string, sets: SignalLog["sets"]): SignalLog => ({ programId: "prog-t", date, sets });
+  const logs: SignalLog[] = [
+    L("2026-10-02", [
+      { exerciseId: "ex-squat", type: "working", weightKg: 150, reps: 3, rpe: 8 },
+      { exerciseId: "ex-squat", type: "backoff", weightKg: 137.5, reps: 4, rpe: 7.5 },
+      { exerciseId: "ex-plank", type: "working", weightKg: 10, reps: 45, rpe: 8 },
+    ]),
+    L("2026-10-09", [
+      { exerciseId: "ex-squat", type: "working", weightKg: 150, reps: 3, rpe: 8 },
+      { exerciseId: "ex-plank", type: "working", weightKg: 15, reps: 45, rpe: 8 },
+    ]),
+  ];
+
+  test("blockPulse counts back-offs everywhere; timed holds only in sets and RPE", () => {
+    const w1 = blockPulse(program, logs, Date.parse("2026-10-10T00:00:00Z"))[0];
+    expect(w1.sets).toBe(3);
+    expect(w1.reps).toBe(7); // 3 + 4, not + 45 seconds
+    expect(w1.overallVolume).toBe(1000); // 450 + 550, no plank "tonnage"
+    expect(w1.avgRpe).toBe(7.8); // (8 + 7.5 + 8) / 3
+    expect(w1.bestE1rm).toBe(165);
+  });
+
+  test("weekSummary matches, and a heavier plank is not a PR", () => {
+    const catalog = [{ id: "ex-squat", name: "Squat" }, { id: "ex-plank", name: "Plank" }];
+    const w1 = weekSummary({ program, logs, week: 1, catalog })!;
+    expect(w1.overallVolume).toBe(1000);
+    expect(w1.sets).toBe(3);
+    const w2 = weekSummary({ program, logs, week: 2, catalog })!;
+    expect(w2.prs.map((p) => p.exerciseId)).not.toContain("ex-plank");
+  });
+
+  test("chainSetCounts counts back-off sets", () => {
+    const chains: ChainDef[] = [{ id: "c-front", name: "Front", muscleGroups: ["quads"] }];
+    const catalog: ChainCatalogEntry[] = [{ id: "ex-squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: [] }];
+    expect(chainSetCounts(chains, logs, catalog, "2026-10-01")["c-front"]).toBe(3);
   });
 });

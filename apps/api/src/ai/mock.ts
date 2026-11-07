@@ -95,7 +95,7 @@ export function mockClientMessage(stats: WeekSummaryStats): AiClientMessageDraft
       ? `${stats.sessionsLogged} of ${stats.sessionsPlanned} sessions`
       : `${stats.sessionsLogged} sessions`;
   lines.push(
-    `Strong week — ${sessions} logged and ${stats.overallVolume}kg lifted across ${stats.sets} working sets.`
+    `Strong week — ${sessions} logged and ${stats.overallVolume}kg lifted across ${stats.sets} sets.`
   );
   if (stats.prs.length > 0) {
     const pr = stats.prs[0];

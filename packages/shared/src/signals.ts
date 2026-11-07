@@ -1,7 +1,7 @@
 import { estimate1rm, weekSessions } from "./domain";
 import type { CardioTarget } from "./domain";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
-import { blockPulse, daysIntoBlock, pulseSummary, weekOf } from "./metrics";
+import { blockPulse, daysIntoBlock, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
 /**
@@ -48,7 +48,7 @@ function rpeCreep(logs: SignalLog[], nameOf: (id: string) => string): Signal | n
   for (const log of logs.sort((a, b) => a.date.localeCompare(b.date))) {
     const week = log.date.slice(0, 10);
     for (const s of log.sets) {
-      if (s.type !== "working" || !s.weightKg || !s.rpe) continue;
+      if (!s.weightKg || !s.rpe) continue;
       const key = `${s.exerciseId}@${s.weightKg}`;
       let entry = byWeight.get(key);
       if (!entry) {
@@ -90,12 +90,12 @@ function rpeCreep(logs: SignalLog[], nameOf: (id: string) => string): Signal | n
 }
 
 /** e1RM flat across recent weeks while peak was earlier in the block. */
-function stall(logs: SignalLog[], nameOf: (id: string) => string): Signal | null {
+function stall(logs: SignalLog[], nameOf: (id: string) => string, timed: Set<string>): Signal | null {
   const weeklyBest = new Map<string, Map<string, number>>();
   for (const log of logs) {
     const week = log.date.slice(0, 10);
     for (const s of log.sets) {
-      if (s.type !== "working" || !s.weightKg || s.reps > 12) continue;
+      if (!s.weightKg || s.reps > 12 || timed.has(s.exerciseId)) continue;
       const e1rm = estimate1rm(s.weightKg, s.reps);
       const per = weeklyBest.get(s.exerciseId) ?? new Map<string, number>();
       per.set(week, Math.max(per.get(week) ?? 0, e1rm));
@@ -289,7 +289,7 @@ export function computeSignals(
 
   const creep = rpeCreep(programLogs, nameOf);
   if (creep) signals.push({ ...creep, ...owner });
-  const stalled = stall(programLogs, nameOf);
+  const stalled = stall(programLogs, nameOf, timedExerciseIds(program));
   if (stalled) signals.push({ ...stalled, ...owner });
 
   return signals;

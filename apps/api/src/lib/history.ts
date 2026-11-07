@@ -6,14 +6,16 @@ export interface HistoryInput {
   logs: SessionLogRow[];
   sets: SetLogRow[];
   catalog: { id: string; name: string }[];
-  /** Max recent working sets listed per exercise. */
+  /** Max recent sets listed per exercise. */
   perExercise?: number;
+  /** Exercises prescribed as timed holds — their `reps` are seconds (see loadTimedExerciseIds). */
+  timedExerciseIds?: Set<string>;
 }
 
 const DEFAULT_PER_EXERCISE = 6;
 
 /**
- * Group logged working sets per exercise: recent set strings (oldest→newest)
+ * Group logged sets (working and back-off) per exercise: recent set strings (oldest→newest)
  * plus best estimated 1RM. Shared by the AI prompt context and the trainer
  * history endpoint.
  */
@@ -22,6 +24,7 @@ export function buildHistory({
   sets,
   catalog,
   perExercise = DEFAULT_PER_EXERCISE,
+  timedExerciseIds,
 }: HistoryInput): ExerciseHistoryEntry[] {
   const logIds = new Set(logs.map((l) => l.id));
   const nameById = new Map(catalog.map((e) => [e.id, e.name]));
@@ -30,15 +33,15 @@ export function buildHistory({
 
   for (const set of sets) {
     if (!logIds.has(set.sessionLogId)) continue;
-    if (set.type !== "working") continue;
     const name = nameById.get(set.exerciseId);
     if (!name) continue; // exercise outside trainer's catalog — ignore
 
     const weight = set.weightKg ? Number(set.weightKg) : 0;
     const rpe = set.rpe ? Number(set.rpe) : null;
+    const timed = timedExerciseIds?.has(set.exerciseId) ?? false;
     const entry = byExercise.get(set.exerciseId) ?? { name, sets: [], best: 0 };
-    entry.sets.push(`${weight ? `${weight}kg × ` : ""}${set.reps}${rpe !== null ? ` @ RPE ${rpe}` : ""}`);
-    entry.best = Math.max(entry.best, estimate1rm(weight, set.reps));
+    entry.sets.push(`${weight ? `${weight}kg × ` : ""}${set.reps}${timed ? " s" : ""}${rpe !== null ? ` @ RPE ${rpe}` : ""}`);
+    if (!timed) entry.best = Math.max(entry.best, estimate1rm(weight, set.reps));
     byExercise.set(set.exerciseId, entry);
   }
 

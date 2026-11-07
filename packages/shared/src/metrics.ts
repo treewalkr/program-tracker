@@ -2,7 +2,7 @@ import { estimate1rm } from "./domain";
 import type { CardioLog, Phasing, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
 /**
- * Block pulse: weekly volume & intensity computed from logged working sets.
+ * Block pulse: weekly volume & intensity computed from logged working + back-off sets.
  * Pure functions over (program, logs) — same pattern as the signal engine.
  * Web DTOs and API rows both fit the minimal input shapes structurally.
  */
@@ -43,7 +43,8 @@ export interface WeekMetrics {
   directive: WeekDirective | null;
   /** Target from phasing.weeks[w].target ?? null */
   target: WeekTarget | null;
-  /** Σ kg × reps of working sets with a load. Bodyweight work counts in sets/reps only. */
+  /** Σ kg × reps of working + back-off sets with a load. Bodyweight work counts in
+   *  sets/reps only; timed holds count in sets and RPE only. */
   overallVolume: number;
   sets: number;
   reps: number;
@@ -90,6 +91,23 @@ export function weekOf(program: SignalProgram, logs: SignalLog[], now = Date.now
   return Math.max(1, Math.floor(days / 7) + 1);
 }
 
+/**
+ * Exercises this program prescribes as timed holds. Logged sets carry no
+ * duration field, so their `reps` are seconds: they count as hard sets (and
+ * their RPE counts), but never toward reps, tonnage, or e1RM.
+ */
+export function timedExerciseIds(program: Pick<SignalProgram, "weeks">): Set<string> {
+  const ids = new Set<string>();
+  for (const w of program.weeks ?? []) {
+    for (const s of w.sessions ?? []) {
+      for (const e of s.exercises ?? []) {
+        if (e.prescribedSets.some((ps) => ps.durationSeconds != null)) ids.add(e.exerciseId);
+      }
+    }
+  }
+  return ids;
+}
+
 function dateKey(iso: string): number {
   return new Date(iso).getTime();
 }
@@ -102,6 +120,7 @@ export function blockPulse(
   const ph = program.phasing;
   if (!ph) return [];
   const start = program.activatedAt ? dateKey(program.activatedAt) : null;
+  const timed = timedExerciseIds(program);
   const weeks = new Map<number, { overallVolume: number; sets: number; reps: number; rpeSum: number; rpeN: number; best: number }>();
 
   for (const log of logs) {
@@ -111,14 +130,14 @@ export function blockPulse(
     const week = Math.max(1, Math.floor(days / 7) + 1);
     const entry = weeks.get(week) ?? { overallVolume: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, best: 0 };
     for (const s of log.sets) {
-      if (s.type !== "working") continue;
       entry.sets += 1;
-      entry.reps += s.reps;
-      if (s.weightKg) entry.overallVolume += s.weightKg * s.reps;
       if (s.rpe) {
         entry.rpeSum += s.rpe;
         entry.rpeN += 1;
       }
+      if (timed.has(s.exerciseId)) continue;
+      entry.reps += s.reps;
+      if (s.weightKg) entry.overallVolume += s.weightKg * s.reps;
       if (s.weightKg && s.reps) entry.best = Math.max(entry.best, estimate1rm(s.weightKg, s.reps));
     }
     weeks.set(week, entry);
@@ -226,7 +245,7 @@ export interface WeekSummaryStats {
   sessionsPlanned: number | null;
   /** round(logged / planned * 100); null when planned is null/0. */
   adherencePct: number | null;
-  /** Σ kg × reps of working sets with a load (matches blockPulse). */
+  /** Σ kg × reps of working + back-off sets with a load, timed holds excluded (matches blockPulse). */
   overallVolume: number;
   /** % vs week-1, only when week-1 has logged volume > 0. */
   overallVolumeDelta: number | null;
@@ -267,6 +286,7 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
     (l) => l.programId === program.id && l.date >= weekStart && l.date < weekEnd
   );
   if (inWindow.length === 0) return null;
+  const timed = timedExerciseIds(program);
 
   let overallVolume = 0;
   let sets = 0;
@@ -276,13 +296,13 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
   const weekBest = new Map<string, { weightKg: number; reps: number; e1rm: number }>();
   for (const log of inWindow) {
     for (const s of log.sets) {
-      if (s.type !== "working") continue;
       sets += 1;
-      if (s.weightKg) overallVolume += s.weightKg * s.reps;
       if (s.rpe) {
         rpeSum += s.rpe;
         rpeN += 1;
       }
+      if (timed.has(s.exerciseId)) continue;
+      if (s.weightKg) overallVolume += s.weightKg * s.reps;
       if (s.weightKg && s.reps) {
         const e1rm = estimate1rm(s.weightKg, s.reps);
         bestE1rm = Math.max(bestE1rm, e1rm);
@@ -303,11 +323,11 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
     if (log.date < anchor || log.date >= weekStart) continue;
     if (log.date >= prevWeekStart) {
       for (const s of log.sets) {
-        if (s.type === "working" && s.weightKg) prevWeekVolume += s.weightKg * s.reps;
+        if (s.weightKg && !timed.has(s.exerciseId)) prevWeekVolume += s.weightKg * s.reps;
       }
     }
     for (const s of log.sets) {
-      if (s.type !== "working" || !s.weightKg || !s.reps) continue;
+      if (!s.weightKg || !s.reps || timed.has(s.exerciseId)) continue;
       const e1rm = estimate1rm(s.weightKg, s.reps);
       priorBest.set(s.exerciseId, Math.max(priorBest.get(s.exerciseId) ?? 0, e1rm));
     }
@@ -413,7 +433,6 @@ export function chainSetCounts(
   for (const log of logs) {
     if (log.date < since) continue;
     for (const s of log.sets) {
-      if (s.type !== "working") continue;
       const matchedChains = exerciseChainIds.get(s.exerciseId);
       if (matchedChains) {
         for (const cid of matchedChains) {
@@ -425,11 +444,11 @@ export function chainSetCounts(
   return counts;
 }
 
-/** "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 · … working sets · untrained: Lateral" —
+/** "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 · … hard sets · untrained: Lateral" —
  *  the " · untrained: A, B" suffix appears only when ≥1 chain has 0 sets. */
 export function chainBalanceText(chains: ChainDef[], counts: Record<string, number>): string {
   const parts = chains.map((c) => `${c.name} ${counts[c.id] ?? 0}`);
-  const base = `${parts.join(" · ")} working sets`;
+  const base = `${parts.join(" · ")} hard sets`;
   const untrained = chains
     .filter((c) => (counts[c.id] ?? 0) === 0)
     .map((c) => c.name);

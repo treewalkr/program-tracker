@@ -1070,7 +1070,7 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
     expect(unknownRes.body.error).toBe("chain not found");
   });
 
-  test("GET /v1/chains/week counts working sets", async () => {
+  test("GET /v1/chains/week counts working and back-off sets", async () => {
     const badClient = await call("GET", "/v1/chains/week?clientId=not-a-uuid");
     expect(badClient.status).toBe(422);
 
@@ -1146,7 +1146,7 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
     for (const c of weekRes.body.chains) {
       const hasOverlap = c.muscleGroups.some((g: string) => g === "quads" || g === "glutes");
       if (hasOverlap) {
-        expect(c.sets).toBe(3);
+        expect(c.sets).toBe(4);
       } else {
         expect(c.sets).toBe(0);
       }

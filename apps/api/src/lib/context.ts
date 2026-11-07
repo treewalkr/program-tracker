@@ -24,7 +24,7 @@ import { periodizationContext, type ExampleProgramSummary } from "../ai/prompt";
 import { buildHistory } from "./history";
 import { ensureSeededChains } from "./chains";
 import { ensureSessionTypes } from "./session-types";
-import { toSignalLog, toSignalProgram } from "./signals-service";
+import { loadTimedExerciseIds, toSignalLog, toSignalProgram } from "./signals-service";
 import { loadActiveRules } from "./coaching-rules";
 
 export const HISTORY_WINDOW_DAYS = 56;
@@ -87,8 +87,7 @@ export async function loadContext(
       .map((s) => ({ exerciseId: s.exerciseId, type: s.type })),
   }));
   const counts = chainSetCounts(chains, structuredLogs, catalogByTrainer, since);
-  const totalWorkingSets = sets.filter((s) => s.type === "working").length;
-  const chainBalance = totalWorkingSets === 0 ? null : chainBalanceText(chains, counts);
+  const chainBalance = sets.length === 0 ? null : chainBalanceText(chains, counts);
 
   // Auto-injected periodization context — derived, never trainer-editable.
   let periodization: string | null = null;
@@ -181,6 +180,7 @@ export async function loadContext(
       logs,
       sets,
       catalog: catalogByTrainer.map((e) => ({ id: e.id, name: e.name })),
+      timedExerciseIds: await loadTimedExerciseIds(logs),
     }),
     // Archived types stay on old sessions but are never offered to the AI.
     sessionTypes: (await ensureSessionTypes(trainerId))

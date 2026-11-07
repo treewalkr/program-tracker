@@ -282,7 +282,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0
@@ -428,7 +428,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0
@@ -538,7 +538,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0
@@ -622,7 +622,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0
@@ -787,7 +787,7 @@ export function clientMessageStatsText(stats: WeekSummaryStats): string {
       (stats.overallVolumeDelta != null
         ? ` (${stats.overallVolumeDelta >= 0 ? "+" : ""}${stats.overallVolumeDelta}% vs last week)`
         : "") +
-      ` · ${stats.sets} working sets` +
+      ` · ${stats.sets} sets` +
       (stats.avgRpe != null ? ` · avg RPE ${stats.avgRpe}` : "")
   );
   if (stats.prs.length > 0) {
@@ -908,7 +908,7 @@ export function buildChatSystem(ctx: ChatContext): string {
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working sets, last 8 weeks):\n${ctx.chainBalance}`
+      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
     ctx.history.length > 0

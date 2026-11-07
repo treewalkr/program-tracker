@@ -331,7 +331,7 @@ function genericDraft(): AiDraftDto {
 function cannedClientMessage(stats: NonNullable<ClientMessageDto["stats"]>): string {
   const lines: string[] = [];
   lines.push(
-    `Great week — ${stats.sessionsLogged} sessions logged, ${stats.overallVolume}kg lifted over ${stats.sets} working sets.`
+    `Great week — ${stats.sessionsLogged} sessions logged, ${stats.overallVolume}kg lifted over ${stats.sets} sets.`
   );
   if (stats.prs.length > 0) {
     const pr = stats.prs[0];

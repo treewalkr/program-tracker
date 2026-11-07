@@ -11,7 +11,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { cardioBehindSignal, computeSignals } from "@pt/shared";
+import { cardioBehindSignal, computeSignals, timedExerciseIds } from "@pt/shared";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
 /**
@@ -32,6 +32,15 @@ export function toSignalProgram(p: ProgramRow): SignalProgram {
     createdAt: p.createdAt.toISOString(),
     phasing: p.phasing ?? null,
   };
+}
+
+/** Union of timed-hold exercises across the programs these logs belong to —
+ *  history spans programs, and logged sets carry no duration of their own. */
+export async function loadTimedExerciseIds(logs: { programId: string }[]): Promise<Set<string>> {
+  const ids = [...new Set(logs.map((l) => l.programId))];
+  if (ids.length === 0) return new Set();
+  const rows = await db.select().from(programs).where(inArray(programs.id, ids));
+  return new Set(rows.flatMap((p) => [...timedExerciseIds(toSignalProgram(p))]));
 }
 
 /** numeric columns come back as strings — convert at this boundary. */

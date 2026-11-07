@@ -243,7 +243,7 @@
                 {stats.adherencePct != null ? ` (${stats.adherencePct}% adherence)` : ""}
               </p>
               <p>
-                {stats.overallVolume}kg lifted · {stats.sets} working sets
+                {stats.overallVolume}kg lifted · {stats.sets} sets
                 {stats.avgRpe != null ? ` · avg RPE ${stats.avgRpe}` : ""}
                 {stats.overallVolumeDelta != null
                   ? ` · ${stats.overallVolumeDelta >= 0 ? "+" : ""}${stats.overallVolumeDelta}% vs last week`

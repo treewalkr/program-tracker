@@ -230,3 +230,47 @@ describe("week-ending signal", () => {
     expect(computeSignals(inactiveProgram, [], () => "Bench", null, now)).toHaveLength(0);
   });
 });
+
+describe("rpe creep and stall see every set (F02, F15)", () => {
+  const program: SignalProgram = {
+    id: "pg-1",
+    clientId: "cl-1",
+    name: "Block",
+    status: "active",
+    weeks: [
+      {
+        week: 1,
+        sessions: [
+          {
+            id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+            exercises: [
+              { id: "pe-pl", exerciseId: "ex-plank", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45 }] },
+            ],
+          },
+        ],
+      },
+    ] as unknown as SignalProgram["weeks"],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+  };
+  const L = (date: string, sets: SignalLog["sets"]): SignalLog => ({ programId: "pg-1", date, sets });
+  const name = (id: string) => id;
+  const now = Date.parse("2026-11-05T12:00:00Z");
+
+  test("back-off RPE climbing at the same load raises rpe creep", () => {
+    const logs = [
+      L("2026-10-05", [{ exerciseId: "ex-squat", type: "backoff", weightKg: 137.5, reps: 4, rpe: 7.5 }]),
+      L("2026-11-02", [
+        { exerciseId: "ex-squat", type: "backoff", weightKg: 137.5, reps: 4, rpe: 9.5 },
+        { exerciseId: "ex-squat", type: "backoff", weightKg: 137.5, reps: 4, rpe: 10 },
+      ]),
+    ];
+    expect(computeSignals(program, logs, name, null, now).map((s) => s.kind)).toContain("rpe-creep");
+  });
+
+  test("a timed hold never reads as a stalled lift", () => {
+    const hold = (date: string, kg: number) => L(date, [{ exerciseId: "ex-plank", type: "working", weightKg: kg, reps: 10 }]);
+    const logs = [hold("2026-10-05", 20), hold("2026-10-12", 15), hold("2026-10-19", 15), hold("2026-10-26", 15), hold("2026-11-02", 15)];
+    expect(computeSignals(program, logs, name, null, now).map((s) => s.kind)).not.toContain("stall");
+  });
+});
