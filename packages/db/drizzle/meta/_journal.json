@@ -127,6 +127,13 @@
       "when": 1793970000000,
       "tag": "0017_sessions_per_week",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793990000000,
+      "tag": "0019_feedback_items",
+      "breakpoints": true
     }
   ]
 }
