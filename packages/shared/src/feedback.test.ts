@@ -25,6 +25,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
       tag: "span",
       text: "4×8",
       html: '<span class="chip">4×8</span>',
+      headings: ["Ann", "Week 3"],
       selector: "main > section > span.chip",
       rect: { x: 1, y: 2, width: 30, height: 20 },
     },
@@ -90,6 +91,7 @@ describe("feedbackMarkdown", () => {
     expect(md).toContain("`apps/web/src/lib/components/SetChips.svelte:12:4`");
     expect(md).toContain("`apps/web/src/lib/components/SessionCard.svelte:40:6`");
     expect(md).toContain("390×844 @3x");
+    expect(md).toContain('Under heading:** "Ann" › "Week 3"');
     expect(md).toContain("Triage note (owner):** show warm-up sets");
   });
   test("links only screenshots that exist", () => {

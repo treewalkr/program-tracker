@@ -37,6 +37,8 @@ export interface FeedbackContext {
     text: string;
     /** outerHTML, truncated. */
     html: string;
+    /** Nearest headings above the element, outermost first (page title → panel title). */
+    headings: string[];
     /** CSS selector path from the nearest id/landmark. */
     selector: string;
     rect: { x: number; y: number; width: number; height: number };
@@ -144,6 +146,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     );
   }
   lines.push(`- **Element:** \`<${c.target.tag}>\` · selector \`${c.target.selector}\``);
+  if (c.target.headings.length) lines.push(`- **Under heading:** ${c.target.headings.map((h) => `"${h}"`).join(" › ")}`);
   if (c.target.text) lines.push(`- **Visible text:** "${c.target.text}"`);
   lines.push(
     `- **Viewport:** ${c.viewport.width}×${c.viewport.height} @${c.viewport.dpr}x · ${c.userAgent}`,

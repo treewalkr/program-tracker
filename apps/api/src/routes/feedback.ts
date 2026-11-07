@@ -24,6 +24,7 @@ const Context = t.Object({
     tag: t.String(),
     text: t.String(),
     html: t.String(),
+    headings: t.Array(t.String()),
     selector: t.String(),
     rect: t.Object({ x: t.Number(), y: t.Number(), width: t.Number(), height: t.Number() }),
   }),

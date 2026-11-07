@@ -27,6 +27,7 @@ const context: FeedbackContext = {
     tag: "span",
     text: "4×8",
     html: "<span>4×8</span>",
+    headings: ["Ann"],
     selector: "main > span",
     rect: { x: 0, y: 0, width: 10, height: 10 },
   },
