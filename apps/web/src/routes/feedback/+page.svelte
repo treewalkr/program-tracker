@@ -8,6 +8,7 @@
   import Author from "$lib/feedback/Author.svelte";
   import Thread from "$lib/feedback/Thread.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
+  import MuteToggle from "$lib/feedback/MuteToggle.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -324,6 +325,7 @@
                     <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
                   {/snippet}
                 </Tooltip>
+                <MuteToggle {item} onchange={(muted) => (items = items.map((i) => (i.id === item.id ? { ...i, muted } : i)))} />
               </div>
 
               <blockquote>{item.comment}</blockquote>

@@ -5,6 +5,7 @@
   import { feedbackHandle, type FeedbackItem } from "@pt/shared";
   import Pill from "$lib/ui/Pill.svelte";
   import Author from "./Author.svelte";
+  import MuteToggle from "./MuteToggle.svelte";
   import Thread from "./Thread.svelte";
   import { feedbackApi } from "./client";
   import { locateTarget } from "./locate";
@@ -242,6 +243,7 @@
       <span class="handle">{feedbackHandle(item.number)}</span>
       <Pill tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Pill>
       <Author author={item.author} />
+      <MuteToggle {item} onchange={(muted) => (items = items.map((i) => (i.id === item.id ? { ...i, muted } : i)))} />
       <a class="more" href="/feedback#{feedbackHandle(item.number)}">Open in Feedback</a>
     </div>
     <blockquote>{item.comment}</blockquote>
