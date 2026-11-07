@@ -89,8 +89,12 @@
     gap: 12px;
     align-items: flex-end;
   }
-  .picker > :global(.field) {
+  /* Field renders a bare div; stretch each so the selects share one width. */
+  .picker > :global(div) {
     flex: 1 1 160px;
     min-width: 0;
+  }
+  .picker :global(.select) {
+    min-height: 32px;
   }
 </style>
