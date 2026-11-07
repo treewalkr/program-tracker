@@ -1,6 +1,6 @@
 import adapter from '@sveltejs/adapter-auto';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { execSync } from 'node:child_process';
 
 /** Git SHA stamped on feedback items so an agent knows which build was reviewed. */
@@ -12,9 +12,13 @@ const appVersion = (() => {
 	}
 })();
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	define: { __APP_VERSION__: JSON.stringify(appVersion) },
-	server: { allowedHosts: ['.ts.net'] },
+	server: {
+		host: true,
+		allowedHosts: ['.ts.net'],
+		proxy: { '/v1': process.env.API_PROXY_TARGET ?? loadEnv(mode, process.cwd(), '').PUBLIC_API_URL ?? 'http://localhost:4000' }
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {
@@ -29,4 +33,4 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	]
-});
+}));

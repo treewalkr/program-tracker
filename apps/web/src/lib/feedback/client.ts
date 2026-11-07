@@ -1,4 +1,4 @@
-import { PUBLIC_API_URL } from "$env/static/public";
+import { apiBase } from "$lib/api/base";
 import type { FeedbackContext, FeedbackItem, FeedbackStatus } from "@pt/shared";
 import { client } from "$lib/api/treaty";
 
@@ -32,7 +32,7 @@ export const feedbackApi = {
     String(await unwrap<unknown>(client.v1.feedback.export.get({ query: { status, format: "md" } }))),
 };
 
-const base = PUBLIC_API_URL ?? "http://localhost:4000";
+const base = apiBase;
 export const shotUrl = (id: string, kind: "element" | "page") => `${base}/v1/feedback/${id}/shot/${kind}`;
 export const exportUrl = (status: string, format: "md" | "json" = "md") =>
   `${base}/v1/feedback/export?status=${encodeURIComponent(status)}&format=${format}`;

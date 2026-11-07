@@ -58,6 +58,10 @@ services:
     command: >-
       sh -c 'printf "PUBLIC_API_URL=http://localhost:4000\nPUBLIC_API_MODE=live\n" > apps/web/.env
       && exec bun run --filter @pt/web dev -- --host 0.0.0.0 --port 5173 --strictPort'
+    environment:
+      TZ: Asia/Bangkok
+      # browser calls /v1 same-origin; vite proxies it to the api service
+      API_PROXY_TARGET: http://api:4000
     restart: unless-stopped
     ports:
       - "5173:5173"
