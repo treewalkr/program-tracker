@@ -108,6 +108,6 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
     detail: { summary: "LLM dataset counts: final calls by purpose and label, attempts by status, feedback, pairs" },
   })
   /** Every email the app sends, rendered by the live templates from sample data. */
-  .get("/emails", () => ({ emails: emailPreviews(appUrl()) }), {
+  .get("/emails", () => ({ emails: emailPreviews(appUrl(), process.env.EMAIL_FROM?.trim() || undefined) }), {
     detail: { summary: "Preview each notification email" },
   });

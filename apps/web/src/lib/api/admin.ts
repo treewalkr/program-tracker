@@ -30,6 +30,7 @@ export interface EmailPreview {
   title: string;
   trigger: string;
   recipients: string;
+  from: string;
   email: { to: string; subject: string; text: string; html: string; headers?: Record<string, string> };
 }
 

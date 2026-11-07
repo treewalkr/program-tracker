@@ -17,10 +17,13 @@ export interface EmailPreview {
   trigger: string;
   /** Who gets it (before each person's own settings and mutes). */
   recipients: string;
+  /** Sender as configured (EMAIL_FROM), or the production default. */
+  from: string;
   email: Email;
 }
 
 const PREVIEW_TOKEN = "preview";
+const DEFAULT_FROM = "Program Tracker <feedback@pinroj.com>";
 
 const person = (id: string, name: string, email: string): Person => ({
   id,
@@ -72,7 +75,7 @@ interface Case {
 }
 
 /** One preview per email variant. Pure. */
-export function emailPreviews(appUrl: string): EmailPreview[] {
+export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview[] {
   const toAdmin = "The admin, unless they filed it themselves.";
   const toReporter = "The trainer who filed the ticket, unless they made the change.";
   const cases: Case[] = [
@@ -140,6 +143,6 @@ export function emailPreviews(appUrl: string): EmailPreview[] {
   return cases.map(({ kind, snap: s, ...meta }) => {
     const [email] = feedbackEmails(kind, s);
     if (!email) throw new Error(`email preview ${meta.id} rendered nothing`);
-    return { ...meta, email };
+    return { ...meta, from, email };
   });
 }
