@@ -5,6 +5,8 @@ export interface SessionTrainer {
   name: string;
   email: string;
   avatarUrl: string | null;
+  /** The platform admin — sees the trainer accounts console. */
+  isAdmin: boolean;
 }
 
 /** `signedOut` = the API answered 401; `open` = auth is off server-side (AUTH_DISABLED). */
