@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  feedbackFixPrompt,
   feedbackHandle,
   feedbackMarkdown,
   snapshotJson,
@@ -42,6 +43,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   thread: [],
   unread: false,
   muted: false,
+  agentCheck: null,
   createdAt: "2026-11-07T10:00:00.000Z",
   updatedAt: "2026-11-07T10:00:00.000Z",
   ...over,
@@ -149,5 +151,43 @@ describe("feedbackMarkdown", () => {
   test("multi-line comments stay quoted", () => {
     const out = feedbackMarkdown([item({ comment: "line one\nline two" })], { imageUrl: () => null });
     expect(out).toContain("> line one\n> line two");
+  });
+});
+
+describe("feedbackFixPrompt", () => {
+  const check = {
+    verdict: "ready" as const,
+    summary: "Mute warm-up chips.",
+    plan: ["Open SetChips.svelte", "Add a muted class for warm-ups"],
+    questions: [],
+    risk: "low" as const,
+    model: "m",
+    checkedAt: "2026-11-07T11:00:00.000Z",
+    basis: "x",
+    stale: false,
+  };
+  const url = (i: FeedbackItem, k: string) => `https://pt.example/v1/feedback/${i.id}/shot/${k}`;
+
+  test("wraps the ticket in instructions, with the check's plan", () => {
+    const p = feedbackFixPrompt(item({ agentCheck: check }), { imageUrl: url });
+    expect(p.startsWith("Fix feedback ticket FB-014")).toBe(true);
+    expect(p).toContain("outranks the comment");
+    expect(p).toContain("1. Open SetChips.svelte\n2. Add a muted class for warm-ups");
+    expect(p).toContain("## FB-014 · accepted");
+    expect(p).toContain("https://pt.example/v1/feedback/u1/shot/element");
+    expect(p).toContain("ask me to attach the image");
+    expect(p).not.toContain("**Agent check:**");
+  });
+
+  test("lists open questions; leaves out a stale check and the screenshot note when there is none", () => {
+    const asks = feedbackFixPrompt(
+      item({ agentCheck: { ...check, verdict: "needs_info", plan: [], questions: ["Which chip?"] } }),
+      { imageUrl: url },
+    );
+    expect(asks).toContain("stop and ask me instead of guessing:\n- Which chip?");
+
+    const stale = feedbackFixPrompt(item({ agentCheck: { ...check, stale: true } }), { imageUrl: () => null });
+    expect(stale).not.toContain("Suggested plan");
+    expect(stale).not.toContain("attach the image");
   });
 });

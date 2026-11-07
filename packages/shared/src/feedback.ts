@@ -332,3 +332,34 @@ export function feedbackMarkdown(items: FeedbackItem[], opts: FeedbackMarkdownOp
   ];
   return [...head, "", ...items.map((i) => `${feedbackItemMarkdown(i, opts)}\n`)].join("\n");
 }
+
+/**
+ * One ticket as a paste-ready prompt for a coding agent working in this repo:
+ * how to work, the readiness check's plan or open questions, then the ticket.
+ */
+export function feedbackFixPrompt(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
+  const check = item.agentCheck && !item.agentCheck.stale ? item.agentCheck : null;
+  const shots = Boolean(opts.imageUrl(item, "element") || opts.imageUrl(item, "page"));
+  const lines = [
+    `Fix feedback ticket ${feedbackHandle(item.number)} in this repo (SvelteKit web app in \`apps/web\`, Elysia API in \`apps/api\`, Drizzle schema in \`packages/db\`, shared types in \`packages/shared\`).`,
+    "",
+    "How to work:",
+    "- The quoted comment is the trainer's words. The **Triage note** is the owner's decision and outranks the comment.",
+    "- Start at **Source**; follow **Rendered via** if the change belongs in a parent component.",
+    "- Keep the change small and limited to this ticket. Follow the repo's conventions (see CLAUDE.md / AGENTS.md).",
+    "- Run the relevant tests and the typecheck before you finish.",
+    "- Finish with what you changed and how to check it in the UI.",
+  ];
+  if (shots)
+    lines.push("- Screenshot links need a signed-in session. If you can't open them, ask me to attach the image.");
+  if (check?.plan.length) {
+    lines.push("", "Suggested plan (from an automated readiness check — verify it against the code):");
+    check.plan.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
+  }
+  if (check?.questions.length) {
+    lines.push("", "Open questions — if the code doesn't answer them, stop and ask me instead of guessing:");
+    for (const q of check.questions) lines.push(`- ${q}`);
+  }
+  lines.push("", "---", "", feedbackItemMarkdown({ ...item, agentCheck: null }, opts));
+  return lines.join("\n");
+}
