@@ -90,6 +90,12 @@
     setTimeout(() => (flashed = null), 2400);
   }
 
+  /** Opens the item's page and points at its element (handled by the feedback layer). */
+  const showMeHref = (item: FeedbackItem) => {
+    const path = item.context.route.path;
+    return `${path}${path.includes("?") ? "&" : "?"}fbshow=${item.id}`;
+  };
+
   /** Marks an unread item seen once at least half of it has been on screen. */
   function seenWhenVisible(node: HTMLElement, item: FeedbackItem) {
     if (!item.unread) return;
@@ -230,7 +236,12 @@
 
               <dl>
                 <dt>Page</dt>
-                <dd><a href={c.route.path}>{c.route.path}</a>{#if c.target.headings.length}<span class="muted">&nbsp;· {c.target.headings.join(" › ")}</span>{/if}</dd>
+                <dd>
+                  <a href={c.route.path}>{c.route.path}</a>{#if c.target.headings.length}<span class="muted">&nbsp;· {c.target.headings.join(" › ")}</span>{/if}
+                  {#if !c.route.path.startsWith("/feedback")}
+                    <a class="show-me" href={showMeHref(item)}>Show me</a>
+                  {/if}
+                </dd>
                 <dt>Source</dt>
                 <dd>
                   {#if item.source}
@@ -456,6 +467,11 @@
   }
   .muted {
     color: var(--muted);
+  }
+  .show-me {
+    margin-left: 8px;
+    font-weight: 600;
+    white-space: nowrap;
   }
   .triage {
     display: flex;

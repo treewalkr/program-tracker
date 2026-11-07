@@ -135,6 +135,9 @@ export function htmlOf(el: Element, max = 2000): string {
   return html.length > max ? `${html.slice(0, max)}… [truncated]` : html;
 }
 
+/** The element's visible text as captured on a feedback item (squashed, capped). */
+export const textOf = (el: Element): string => squash((el as HTMLElement).innerText ?? el.textContent, 300);
+
 export interface PageInfo {
   path: string;
   routeId: string | null;
@@ -150,7 +153,7 @@ export function buildContext(el: Element, page: PageInfo, appVersion: string): F
       source: sourceOf(el),
       chain: chainOf(el),
       tag: el.tagName.toLowerCase(),
-      text: squash((el as HTMLElement).innerText ?? el.textContent, 300),
+      text: textOf(el),
       html: htmlOf(el),
       headings: headingsOf(el),
       selector: cssPath(el),

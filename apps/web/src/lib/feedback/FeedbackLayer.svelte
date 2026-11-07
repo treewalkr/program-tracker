@@ -4,6 +4,8 @@
   import { feedbackMode } from "./mode.svelte";
   import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
   import { feedbackApi } from "./client";
+  import TicketPins from "./TicketPins.svelte";
+  import { feedbackHandle, type FeedbackItem } from "@pt/shared";
 
   /**
    * Feedback mode overlay, mounted once in the root layout. While picking,
@@ -25,6 +27,10 @@
   let error = $state<string | null>(null);
   let toast = $state<string | null>(null);
   let textarea = $state<HTMLTextAreaElement>();
+  /** Existing-item pins: which popover is open, which items could not be placed. */
+  let pinOpen = $state<string | null>(null);
+  let unplaced = $state<FeedbackItem[]>([]);
+  let showUnplaced = $state(false);
 
   /** The review page is where feedback gets triaged — never pick there. */
   const onReviewPage = $derived(page.url.pathname.startsWith("/feedback"));
@@ -135,7 +141,9 @@
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopImmediatePropagation();
-      if (selected) close();
+      if (pinOpen) pinOpen = null;
+      else if (showUnplaced) showUnplaced = false;
+      else if (selected) close();
       else exit();
     };
     document.addEventListener("keydown", onKey, true);
@@ -229,6 +237,17 @@
 </script>
 
 <div class="fb" data-feedback-ui>
+  <TicketPins
+    active={feedbackMode.on && !onReviewPage}
+    bind:openId={pinOpen}
+    bind:unplaced
+    reload={feedbackMode.sent}
+    onopen={() => {
+      close();
+      showUnplaced = false;
+    }}
+  />
+
   {#if picking && hovered && hoverRect && hovered !== selected}
     <div class="outline hover" style={box(hoverRect)} aria-hidden="true">
       <span class="tag" class:below={hoverRect.top < 24}>{hoverLabel}</span>
@@ -307,6 +326,29 @@
       </span>
       {#if feedbackMode.sent}
         <a class="count" href="/feedback" title="Review feedback">{feedbackMode.sent} sent</a>
+      {/if}
+      {#if unplaced.length && !onReviewPage}
+        <button
+          type="button"
+          class="count unplaced-btn"
+          aria-expanded={showUnplaced}
+          title="Open feedback on this page whose element could not be found"
+          onclick={() => (showUnplaced = !showUnplaced)}
+        >
+          {unplaced.length} not placed
+        </button>
+        {#if showUnplaced}
+          <ul class="unplaced">
+            {#each unplaced as u (u.id)}
+              <li>
+                <a href="/feedback#{feedbackHandle(u.number)}">
+                  <code>{feedbackHandle(u.number)}</code>
+                  <span>{u.comment}</span>
+                </a>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       {/if}
       <button type="button" class="x" onclick={exit} aria-label="Leave feedback mode">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
@@ -539,6 +581,53 @@
     font-size: 12px;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+  .unplaced-btn {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .unplaced {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: 320px;
+    max-height: 50vh;
+    overflow: auto;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow-overlay);
+  }
+  .unplaced a {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: var(--ink);
+    font: 400 13px/1.4 var(--font-ui);
+    text-decoration: none;
+  }
+  .unplaced a:hover {
+    background: var(--well-2);
+  }
+  .unplaced code {
+    font: 600 12px/1 var(--font-mono);
+    flex: none;
+  }
+  .unplaced span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .x {
     display: grid;
