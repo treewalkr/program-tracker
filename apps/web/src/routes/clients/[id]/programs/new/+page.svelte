@@ -1,26 +1,35 @@
 <script lang="ts">
   import { uuid } from "$lib/uuid";
-  import { onMount } from "svelte";
+  import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
-  import type { ClientDto, ExerciseDto, PeriodizationSchemeDto } from "$lib/api/types";
+  import type {
+    CardioPrescriptionDto,
+    ClientDto,
+    ExerciseDto,
+    ExerciseInput,
+    PeriodizationSchemeDto,
+    PrescribedSetDto,
+    ProgramExerciseDto,
+  } from "$lib/api/types";
   import {
-    EXERCISE_ROLE_INFO,
-    EXERCISE_ROLES,
     MAX_SESSIONS_PER_WEEKDAY,
+    defaultCardio,
     placeSessions,
     sessionTag,
     sortExercisesByRole,
     stampWeeks,
-    type ExerciseRole,
     type ProgramSession,
-    type SetType,
     type WeekDirective,
     type WeekMetric,
     type WeekPlan,
   } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
+  import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
+  import DirChip from "$lib/components/DirChip.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -33,6 +42,12 @@
 
   let client = $state<ClientDto | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
+  /** New exercise from the picker: save to the library, keep the catalog in sync. */
+  async function addToLibrary(input: ExerciseInput) {
+    const created = await api.createExercise(input);
+    catalog.push(created);
+    return created;
+  }
 
   let name = $state("");
   let description = $state("");
@@ -44,31 +59,6 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
 
-  interface SetRow {
-    setNumber: number;
-    type: SetType;
-    reps: number;
-    repsTo: number | null;
-    targetRpe: number | null;
-    restSeconds: number;
-    targetWeightKg: number | null;
-    durationSec: number | null;
-    failure: boolean;
-  }
-  interface ExRow {
-    key: string;
-    exerciseId: string;
-    role: ExerciseRole | "";
-    sets: SetRow[];
-  }
-  interface CardioFields {
-    modality: string;
-    durationMin: number | null;
-    hrZone: number | null;
-    intensity: string;
-    distanceKm: number | null;
-    targetRpe: number | null;
-  }
   interface SessionRow {
     key: string;
     name: string;
@@ -77,8 +67,8 @@
     weekday: number | null;
     /** Follow the default placement until the trainer picks a day. */
     auto: boolean;
-    cardio: CardioFields;
-    exercises: ExRow[];
+    cardio: CardioPrescriptionDto;
+    exercises: ProgramExerciseDto[];
   }
 
   const newRow = (): SessionRow => ({
@@ -87,7 +77,7 @@
     kind: "lifting",
     weekday: null,
     auto: true,
-    cardio: { modality: "", durationMin: 30, hrZone: 2, intensity: "", distanceKm: null, targetRpe: null },
+    cardio: defaultCardio(),
     exercises: [],
   });
 
@@ -110,7 +100,7 @@
       seq: seqs[i],
       order: 0,
       kind: s.kind,
-      exercises: s.exercises.map((e, ei) => ({ id: e.key, exerciseId: e.exerciseId, order: ei, prescribedSets: [] })),
+      exercises: s.exercises.map((e, ei) => ({ id: e.id, exerciseId: e.exerciseId, order: ei, prescribedSets: [] })),
       cardio: null,
     })) as ProgramSession[];
     const placed = placeSessions(draft, client?.trainingDays, patternOf);
@@ -143,6 +133,91 @@
     { directive: "transition", metric: "", deltaPercent: null },
   ]);
   let schemeName = $state("");
+
+  // —— local draft: every field is kept on this device until Save ——————————
+  interface DraftForm {
+    name: string;
+    description: string;
+    plannedWeeks: number;
+    phase: string;
+    nextPhase: string;
+    usePhasing: boolean;
+    schemeMode: "saved" | "custom" | "none";
+    selectedSchemeId: string;
+    customWeeks: CustomWeekRow[];
+    schemeName: string;
+    sessions: SessionRow[];
+  }
+  const draftKey = $derived(`pt.draft.new-program.${id}`);
+  /** Off until the page has loaded (and restored), and again once saved. */
+  let autosave = $state(false);
+  /** The form as loaded; matching it means there's nothing worth keeping. */
+  let baseline = "";
+  let restoredAt = $state<string | null>(null);
+  let keptAt = $state<string | null>(null);
+  let defaults: DraftForm | null = null;
+
+  const formSnapshot = (): DraftForm =>
+    $state.snapshot({
+      name, description, plannedWeeks, phase, nextPhase, usePhasing,
+      schemeMode, selectedSchemeId, customWeeks, schemeName, sessions,
+    });
+
+  function applyForm(f: DraftForm) {
+    name = f.name;
+    description = f.description;
+    plannedWeeks = f.plannedWeeks;
+    phase = f.phase;
+    nextPhase = f.nextPhase;
+    usePhasing = f.usePhasing;
+    schemeName = f.schemeName;
+    customWeeks = f.customWeeks;
+    sessions = f.sessions.length > 0 ? f.sessions : [newRow()];
+    if (f.schemeMode === "saved" && !schemes.some((x) => x.id === f.selectedSchemeId)) {
+      schemeMode = schemes.length > 0 ? "saved" : "none";
+      selectedSchemeId = schemes[0]?.id ?? "";
+    } else {
+      schemeMode = f.schemeMode;
+      selectedSchemeId = f.selectedSchemeId;
+    }
+  }
+
+  function persist() {
+    if (!autosave) return;
+    const form = formSnapshot();
+    const json = JSON.stringify(form);
+    if (json === baseline && !restoredAt) {
+      clearDraft(draftKey);
+      keptAt = null;
+    } else {
+      keptAt = writeDraft(draftKey, form);
+    }
+  }
+
+  let persistTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (!autosave) return;
+    JSON.stringify(formSnapshot()); // track every field, deeply
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(persist, 400);
+    return () => clearTimeout(persistTimer);
+  });
+
+  /** Throw the kept draft away and go back to a blank program. */
+  function startOver() {
+    clearDraft(draftKey);
+    if (defaults) applyForm(structuredClone(defaults));
+    sessions = [newRow()];
+    restoredAt = null;
+    keptAt = null;
+    baseline = JSON.stringify(formSnapshot());
+  }
+
+  const clock = (iso: string) => {
+    const d = new Date(iso);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    return d.toLocaleString(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  };
   let savingScheme = $state(false);
   const DIRECTIVES: WeekDirective[] = ["base", "+volume", "+intensity", "deload", "transition", "test"];
   const METRICS: { value: WeekMetric; label: string }[] = [
@@ -210,52 +285,55 @@
     else schemeMode = "none";
   }
 
-  const canSave = $derived.by(() => {
-    if (name.trim() === "" || sessions.length === 0 || overfull.length > 0) return false;
-    for (const s of sessions) {
-      if (s.kind === "lifting") {
-        if (s.exercises.length === 0 || !s.exercises.some((e) => e.sets.length > 0)) return false;
-      } else {
-        if (!s.cardio.modality.trim()) return false;
-      }
+  /** Session label as the trainer sees it: their name, else the track tag. */
+  const labelOf = (s: SessionRow, i: number) => s.name.trim() || sessionTag({ kind: s.kind, seq: seqs[i] });
+
+  /** First thing standing between the trainer and Save — shown beside the disabled button. */
+  const blocker = $derived.by<string | null>(() => {
+    if (name.trim() === "") return "Name the program to save it.";
+    if (overfull.length > 0) return `${overfull.join(", ")} ${overfull.length === 1 ? "has" : "have"} too many sessions.`;
+    for (const [i, s] of sessions.entries()) {
+      if (s.kind === "lifting" && s.exercises.length === 0) return `${labelOf(s, i)} needs an exercise.`;
+      if (s.kind === "cardio" && !s.cardio.modality.trim()) return `${labelOf(s, i)} needs a modality.`;
     }
-    return true;
+    return null;
   });
 
+  const MAX_SESSIONS = 14;
+
   function addSession() {
-    if (sessions.length >= 14) return;
-    sessions = [...sessions, newRow()];
+    if (sessions.length < MAX_SESSIONS) sessions.push(newRow());
   }
 
   function removeSession(key: string) {
     sessions = sessions.filter((s) => s.key !== key);
-    sessions = [...sessions];
   }
 
+  const newSet = (setNumber: number): PrescribedSetDto => ({
+    setNumber,
+    type: "working",
+    reps: 8,
+    amrap: false,
+    targetWeightKg: null,
+    targetRpe: 8,
+    restSeconds: 150,
+  });
+
+  /** New exercises start as 3 identical working sets — the editor's one-row mode. */
   function addExercise(s: SessionRow) {
-    s.exercises.push({ key: uuid(), exerciseId: catalog.find((c) => !c.archivedAt)?.id ?? "", role: "", sets: [] });
-    sessions = [...sessions];
-  }
-
-  function addSet(e: ExRow, type: SetRow["type"] = "working") {
-    e.sets.push({
-      setNumber: e.sets.length + 1,
-      type,
-      reps: 8,
-      repsTo: null,
-      targetRpe: 8,
-      restSeconds: 150,
-      targetWeightKg: null,
-      durationSec: null,
-      failure: false,
+    const ex = catalog.find((c) => !c.archivedAt);
+    s.exercises.push({
+      id: uuid(),
+      exerciseId: ex?.id ?? "",
+      exerciseName: ex?.name,
+      order: s.exercises.length,
+      prescribedSets: [1, 2, 3].map(newSet),
     });
-    sessions = [...sessions];
   }
 
-  function removeSet(e: ExRow, i: number) {
-    e.sets.splice(i, 1);
-    e.sets.forEach((s2, j) => (s2.setNumber = j + 1));
-    sessions = [...sessions];
+  function moveExercise(s: SessionRow, from: number, to: number) {
+    const [ex] = s.exercises.splice(from, 1);
+    s.exercises.splice(to, 0, ex);
   }
 
   function toTemplateSessions(): ProgramSession[] {
@@ -279,7 +357,7 @@
             modality: s.cardio.modality.trim() || "Cardio",
             durationMin: s.cardio.durationMin != null && s.cardio.durationMin > 0 ? Number(s.cardio.durationMin) : null,
             hrZone: s.cardio.hrZone != null && s.cardio.hrZone >= 1 && s.cardio.hrZone <= 5 ? Number(s.cardio.hrZone) : null,
-            intensity: s.cardio.intensity.trim() || undefined,
+            intensity: s.cardio.intensity?.trim() || undefined,
             distanceKm: s.cardio.distanceKm != null && s.cardio.distanceKm > 0 ? Number(s.cardio.distanceKm) : undefined,
             targetRpe: s.cardio.targetRpe != null && s.cardio.targetRpe >= 1 ? Number(s.cardio.targetRpe) : undefined,
           },
@@ -293,26 +371,11 @@
           order,
           kind: "lifting",
           cardio: null,
-          exercises: sortExercisesByRole(s.exercises.map((e) => ({ ...e, role: e.role || undefined }))).map((e, ei) => ({
+          exercises: sortExercisesByRole($state.snapshot(s.exercises)).map((e, ei) => ({
+            ...e,
             id: uuid(),
-            exerciseId: e.exerciseId,
-            exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name,
-            role: e.role,
+            exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name ?? e.exerciseName,
             order: ei,
-            prescribedSets: e.sets.map((ps, pi) => {
-              const lo = Math.min(Number(ps.reps), Number(ps.repsTo ?? ps.reps));
-              return {
-                setNumber: pi + 1,
-                type: ps.type,
-                reps: ps.failure ? 0 : ps.repsTo != null ? Number(ps.repsTo) : Number(ps.reps),
-                repsMin: !ps.failure && ps.repsTo != null ? lo : undefined,
-                amrap: ps.failure,
-                durationSeconds: ps.durationSec != null && ps.durationSec > 0 ? Number(ps.durationSec) : undefined,
-                targetWeightKg: ps.targetWeightKg === null ? undefined : Number(ps.targetWeightKg),
-                targetRpe: ps.targetRpe ?? undefined,
-                restSeconds: ps.restSeconds,
-              };
-            }),
           })),
         };
       }
@@ -341,6 +404,9 @@
             }
           : null,
       });
+      autosave = false;
+      clearTimeout(persistTimer);
+      clearDraft(draftKey);
       await goto(`/programs/${program.id}`);
     } catch (err) {
       error = (err as Error).message;
@@ -360,43 +426,84 @@
     } else {
       schemeMode = "none";
     }
+    await tick(); // let derived fields (scheme weeks → plannedWeeks) settle first
+    defaults = formSnapshot();
+    const kept = readDraft<DraftForm>(draftKey);
+    if (kept) {
+      applyForm(kept.data);
+      restoredAt = kept.savedAt;
+    }
+    await tick();
+    baseline = JSON.stringify(formSnapshot());
+    autosave = true;
   });
 </script>
 
 <svelte:head><title>New program · Program Tracker</title></svelte:head>
+<svelte:window
+  onpagehide={persist}
+  onvisibilitychange={() => {
+    if (document.visibilityState === "hidden") persist();
+  }}
+/>
 
 {#if client === null}
   <Skeleton h="140px" />
 {:else}
   <PageHead
     title="Write a program by hand"
-    sub="Saved as draft — nothing goes live until you activate it."
+    sub="Saved as a draft. Nothing goes live until you activate it."
     crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "New program" }]}
   >
     {#snippet actions()}
-      <Button variant="primary" onclick={save} disabled={saving || !canSave}>
+      {#if blocker && !saving}<span class="blocker" id="np-blocker">{blocker}</span>{/if}
+      <Button
+        variant="primary"
+        onclick={save}
+        disabled={saving || blocker !== null}
+        aria-describedby={blocker ? "np-blocker" : undefined}
+      >
         {saving ? "Saving…" : "Save as draft"}
       </Button>
     {/snippet}
   </PageHead>
 
+  {#if error}<p class="error save-error" role="alert">{error}</p>{/if}
+
+  {#if restoredAt}
+    <div class="kept restored" role="status">
+      <Icon name="check" />
+      <span>Picked up where you left off — unsaved work from <span class="num">{clock(restoredAt)}</span>.</span>
+      <ConfirmButton label="Start over" confirmLabel="Discard it?" variant="danger" class="ghost" small onconfirm={startOver} />
+    </div>
+  {:else if keptAt}
+    <p class="kept" role="status">Kept on this device as you type · <span class="num">{clock(keptAt)}</span></p>
+  {/if}
+
   <div class="cols">
     <Panel title="Basics">
-      <div class="panel-body stack">
-        <Field label="Name" htmlFor="np-name">
-          <input class="input" id="np-name" placeholder="e.g. Strength Base B" bind:value={name} maxlength="120" />
-        </Field>
-        <Field label="Description" hint="optional" htmlFor="np-desc">
-          <input class="input" id="np-desc" placeholder="Focus, notes to self…" bind:value={description} maxlength="300" />
-        </Field>
+      <div class="panel-body basics-body">
+        <div class="stack ident">
+          <Field label="Name" htmlFor="np-name">
+            <input class="input" id="np-name" placeholder="e.g. Strength Base B" bind:value={name} maxlength="120" />
+          </Field>
+          <Field label="Description" hint="optional" htmlFor="np-desc">
+            <input class="input" id="np-desc" placeholder="Focus, notes to self…" bind:value={description} maxlength="300" />
+          </Field>
+        </div>
+
         <div class="phasing">
-          <label class="label">
+          <label class="check">
             <input type="checkbox" bind:checked={usePhasing} />
-            Periodization plan <span class="subtle">— powers phase-change reminders</span>
+            <span>
+              <span class="check-title">Periodization plan</span>
+              <span class="subtle">Week directives and phase-change reminders.</span>
+            </span>
           </label>
+
           {#if usePhasing}
-            <div class="phasing-grid">
-              <div style="grid-column: 1 / -1">
+            <div class="stack plan">
+              <div class="plan-scheme">
                 <Field label="Progression scheme" htmlFor="np-scheme">
                   <select
                     class="select"
@@ -405,22 +512,24 @@
                     onchange={(e) => onSchemeSelect(e.currentTarget.value)}
                   >
                     {#each schemes as s (s.id)}
-                      <option value={s.id}>{s.name} — {s.weeks.map((w) => w.directive).join(" → ")}</option>
+                      <option value={s.id}>{s.name}</option>
                     {/each}
-                    <option value="custom">Custom — define week directives</option>
+                    <option value="custom">Custom — set each week</option>
                     <option value="none">None — no week directives</option>
                   </select>
                 </Field>
+
                 {#if schemeMode === "saved" && selectedScheme}
                   <div class="scheme-chips">
                     {#each selectedScheme.weeks as w (w.week)}
-                      <span class="dir {w.directive === '+volume' ? 'vol' : w.directive === '+intensity' ? 'int' : w.directive === 'transition' ? 'tr' : ''}">{weekPlanLabel(w)}</span>
+                      <DirChip directive={w.directive}>{weekPlanLabel(w)}</DirChip>
                     {/each}
                   </div>
-                  <div class="scheme-manage">
+                  <div class="scheme-meta">
+                    <span class="subtle nowrap" title="Block length comes from the scheme"><span class="num">{activeWeekPlans.length}</span>-week block</span>
                     <ConfirmButton
                       label="Delete scheme"
-                      confirmLabel="Really delete scheme?"
+                      confirmLabel="Really delete?"
                       variant="danger"
                       class="ghost"
                       small
@@ -432,12 +541,12 @@
                     {#each customWeeks as w, i (i)}
                       <div class="week-row">
                         <span class="wk">W{i + 1}</span>
-                        <select class="select tiny" bind:value={w.directive}>
+                        <select class="select tiny" bind:value={w.directive} aria-label="Week {i + 1} directive">
                           {#each DIRECTIVES as opt (opt)}
                             <option value={opt}>{opt}</option>
                           {/each}
                         </select>
-                        <select class="select tiny" bind:value={w.metric}>
+                        <select class="select tiny" bind:value={w.metric} aria-label="Week {i + 1} target">
                           <option value="">No target</option>
                           {#each METRICS as m (m.value)}
                             <option value={m.value}>{m.label}</option>
@@ -450,6 +559,7 @@
                             min="-100"
                             max="200"
                             placeholder="±%"
+                            aria-label="Week {i + 1} change, percent"
                             bind:value={w.deltaPercent}
                           />
                         {/if}
@@ -458,46 +568,45 @@
                           small
                           disabled={customWeeks.length <= 2}
                           onclick={() => (customWeeks = customWeeks.filter((_, j) => j !== i))}
-                          aria-label="Remove week"
+                          aria-label="Remove week {i + 1}"
                         >{#snippet icon()}<Icon name="x" />{/snippet}</Button>
                       </div>
                     {/each}
+                    <Button
+                      variant="ghost"
+                      small
+                      class="self-start"
+                      onclick={() => customWeeks.push({ directive: "+volume", metric: "overall_volume", deltaPercent: 5 })}
+                    >+ Add week</Button>
                     <div class="save-row">
-                      <Button variant="ghost" small type="button" onclick={() => (customWeeks = [...customWeeks, { directive: "+volume", metric: "overall_volume", deltaPercent: 5 }])}>+ Add week</Button>
-                      <input class="input" style="flex:1" placeholder="Scheme name — e.g. 5-week peaking wave" bind:value={schemeName} />
+                      <input class="input" placeholder="Scheme name, e.g. 5-week peak" aria-label="Scheme name" bind:value={schemeName} />
                       <Button
                         small
-                        type="button"
                         disabled={savingScheme || !schemeName.trim() || customWeeks.length < 2}
                         onclick={saveScheme}
-                      >{savingScheme ? "Saving…" : "Save as scheme"}</Button>
+                      >{savingScheme ? "Saving…" : "Save scheme"}</Button>
                     </div>
                   </div>
                 {/if}
               </div>
+
+              <div class="stack plan-side">
               {#if activeWeekPlans.length === 0}
-                <div>
-                  <Field label="Block length" htmlFor="np-weeks">
-                    <select class="select" id="np-weeks" bind:value={plannedWeeks}>
-                      {#each [3, 4, 5, 6, 8] as w}<option value={w}>{w} weeks</option>{/each}
-                    </select>
-                  </Field>
-                </div>
-              {:else}
-                <div>
-                  <p class="label">Block length <span class="subtle">— from scheme</span></p>
-                  <p class="derived-val">{activeWeekPlans.length} weeks</p>
-                </div>
+                <Field label="Block length" htmlFor="np-weeks">
+                  <select class="select" id="np-weeks" bind:value={plannedWeeks}>
+                    {#each [3, 4, 5, 6, 8] as w (w)}<option value={w}>{w} weeks</option>{/each}
+                  </select>
+                </Field>
               {/if}
-              <div>
+
+              <div class="pair">
                 <Field label="This phase" htmlFor="np-phase">
                   <input class="input" id="np-phase" bind:value={phase} maxlength="40" />
                 </Field>
-              </div>
-              <div>
                 <Field label="Next phase" htmlFor="np-next">
                   <input class="input" id="np-next" bind:value={nextPhase} maxlength="40" />
                 </Field>
+              </div>
               </div>
             </div>
           {/if}
@@ -507,112 +616,120 @@
 
     <div class="builder-col">
       {#each sessions as s, si (s.key)}
-        <section class="panel">
-          <div class="panel-head">
-            <span class="track">{sessionTag({ kind: s.kind, seq: seqs[si] })}</span>
-            <input class="sess-name" value={s.name} placeholder="Session name" oninput={(e) => (s.name = e.currentTarget.value)} maxlength="60" aria-label="Session name" />
-            <select
-              class="select tiny"
-              value={weekdayOf(s) ?? 0}
-              onchange={(e) => {
-                const v = Number(e.currentTarget.value);
-                s.weekday = v === 0 ? null : v;
-                s.auto = false;
-              }}
-              aria-label="Weekday"
-              title={s.auto ? "Placed on the client's available days — pick a day to pin it" : undefined}
-            >
-              <option value={0}>Any day</option>
-              {#each WEEKDAYS as w, wi (w)}<option value={wi + 1}>{w}</option>{/each}
-            </select>
-            {#if s.auto && client?.trainingDays?.length}<span class="auto">auto</span>{/if}
-            <select class="select tiny" bind:value={s.kind} aria-label="Session kind">
-              <option value="lifting">Lifting</option>
-              <option value="cardio">Cardio</option>
-            </select>
-            <div class="head-actions">
-              {#if s.kind === "lifting"}
-                <Button variant="ghost" small type="button" onclick={() => addExercise(s)}>+ Exercise</Button>
-              {/if}
-              {#if sessions.length > 1}
-                <Button variant="danger" small type="button" onclick={() => removeSession(s.key)}>Remove</Button>
+        {@const tag = sessionTag({ kind: s.kind, seq: seqs[si] })}
+        <section class="panel" aria-label={labelOf(s, si)}>
+          <div class="panel-head sess-head">
+            <span class="track" class:cardio={s.kind === "cardio"}>{tag}</span>
+            <input
+              class="sess-name"
+              bind:value={s.name}
+              placeholder="Add a name"
+              maxlength="60"
+              aria-label="{tag} name"
+            />
+            {#if sessions.length > 1}
+              <ConfirmButton
+                label="Remove"
+                confirmLabel="Remove {tag}?"
+                variant="danger"
+                class="ghost"
+                small
+                onconfirm={() => removeSession(s.key)}
+              />
+            {/if}
+          </div>
+
+          <div class="panel-body sess-body">
+            <div class="meta">
+              <label class="f">
+                <span>Kind</span>
+                <select class="select" bind:value={s.kind}>
+                  <option value="lifting">Lifting</option>
+                  <option value="cardio">Cardio</option>
+                </select>
+              </label>
+              <label class="f">
+                <span>Day</span>
+                <select
+                  class="select"
+                  value={weekdayOf(s) ?? 0}
+                  onchange={(e) => {
+                    const v = Number(e.currentTarget.value);
+                    s.weekday = v === 0 ? null : v;
+                    s.auto = false;
+                  }}
+                >
+                  <option value={0}>Any day</option>
+                  {#each WEEKDAYS as w, wi (w)}<option value={wi + 1}>{w}</option>{/each}
+                </select>
+              </label>
+              {#if s.auto && client?.trainingDays?.length}
+                <p class="subtle placed">Placed on {client.name.split(" ")[0]}'s training days. Pick a day to pin it.</p>
               {/if}
             </div>
-          </div>
-          <div class="panel-body exlist">
+
             {#if s.kind === "cardio"}
-              <div class="cardio-fields">
-                <input class="input" placeholder="Modality (e.g. Bike, Run, Rower) *" bind:value={s.cardio.modality} maxlength="80" aria-label="Modality" />
-                <div class="cardio-grid">
-                  <label class="mini">Duration <input class="input tnum" type="number" min="1" max="300" bind:value={s.cardio.durationMin} placeholder="30" /> min</label>
-                  <label class="mini">Zone <input class="input tnum" type="number" min="1" max="5" bind:value={s.cardio.hrZone} placeholder="1-5" /></label>
-                  <label class="mini">Intensity <input class="input" bind:value={s.cardio.intensity} placeholder="easy, tempo…" maxlength="60" /></label>
-                  <label class="mini">Distance <input class="input tnum" type="number" min="0" step="0.5" bind:value={s.cardio.distanceKm} placeholder="km" /> km</label>
-                  <label class="mini">RPE <input class="input tnum" type="number" min="1" max="10" bind:value={s.cardio.targetRpe} placeholder="1-10" /></label>
-                </div>
+              <div class="cardio">
+                <label class="f grow">
+                  <span>Modality</span>
+                  <input class="input" placeholder="Bike, Run, Rower…" bind:value={s.cardio.modality} maxlength="80" />
+                </label>
+                <label class="f">
+                  <span>Minutes</span>
+                  <input class="input num" type="number" min="1" max="300" bind:value={s.cardio.durationMin} />
+                </label>
+                <label class="f">
+                  <span>HR zone</span>
+                  <input class="input num" type="number" min="1" max="5" bind:value={s.cardio.hrZone} />
+                </label>
+                <label class="f">
+                  <span>km</span>
+                  <input class="input num" type="number" min="0" step="0.5" placeholder="—" bind:value={s.cardio.distanceKm} />
+                </label>
+                <label class="f">
+                  <span>RPE</span>
+                  <input class="input num" type="number" min="1" max="10" placeholder="—" bind:value={s.cardio.targetRpe} />
+                </label>
+                <label class="f grow">
+                  <span>Intensity</span>
+                  <input class="input" placeholder="easy, 85% FTP…" bind:value={s.cardio.intensity} maxlength="60" />
+                </label>
               </div>
+            {:else if s.exercises.length === 0}
+              <EmptyState>
+                No exercises yet.
+                {#snippet actions()}
+                  <Button small onclick={() => addExercise(s)}>+ Add exercise</Button>
+                {/snippet}
+              </EmptyState>
             {:else}
-              {#each s.exercises as e (e.key)}
-                <div class="exblock">
-                  <div class="exhead">
-                    <select class="select exsel" bind:value={e.exerciseId} aria-label="Exercise">
-                      {#each catalog.filter((ex) => !ex.archivedAt || ex.id === e.exerciseId) as ex (ex.id)}
-                        <option value={ex.id}>{ex.name}</option>
-                      {/each}
-                    </select>
-                    <select class="select tiny" bind:value={e.role} aria-label="Exercise role" title="Session slot for this exercise">
-                      <option value="">Role…</option>
-                      {#each EXERCISE_ROLES as r (r)}
-                        <option value={r} title={EXERCISE_ROLE_INFO[r].description}>{EXERCISE_ROLE_INFO[r].label}</option>
-                      {/each}
-                    </select>
-                    <div class="head-actions">
-                      <Button variant="ghost" small type="button" onclick={() => addSet(e, "working")}>+ set</Button>
-                      <Button
-                        variant="danger"
-                        small
-                        type="button"
-                        onclick={() => {
-                          s.exercises = s.exercises.filter((x) => x.key !== e.key);
-                          sessions = [...sessions];
-                        }}
-                      >Remove</Button>
-                    </div>
-                  </div>
-                  {#if e.sets.length === 0}
-                    <p class="subtle nosets">No sets yet — add a working set.</p>
-                  {:else}
-                    <div class="setrows">
-                      {#each e.sets as ps, pi (pi)}
-                        <div class="setrow">
-                          <span class="setno">{ps.setNumber}</span>
-                          <select class="select tiny" bind:value={ps.type} aria-label="Set type">
-                            <option value="working">working</option>
-                            <option value="backoff">backoff</option>
-                          </select>
-                          <label class="mini"><input class="input tnum" type="number" min="1" max="100" bind:value={ps.reps} disabled={ps.failure || ps.durationSec != null} /> {ps.durationSec != null ? "reps" : "reps"}</label>
-                          <label class="mini" title="Upper bound of a rep range (e.g. 6–10)"><input class="input tnum" type="number" min="1" max="100" bind:value={ps.repsTo} placeholder="to" disabled={ps.failure || ps.durationSec != null} /> –</label>
-                          <label class="mini" title="Timed set in seconds (e.g. 60 = 1 min)"><input class="input tnum" type="number" min="5" step="15" bind:value={ps.durationSec} placeholder="sec" disabled={ps.failure} /></label>
-                          <label class="mini chk" title="To failure"><input type="checkbox" bind:checked={ps.failure} /> max</label>
-                          <label class="mini"><input class="input tnum" type="number" min="0" step="2.5" bind:value={ps.targetWeightKg} placeholder="—" /> kg</label>
-                          <label class="mini"><input class="input tnum" type="number" min="1" max="10" step="0.5" bind:value={ps.targetRpe} /> RPE</label>
-                          <label class="mini"><input class="input tnum" type="number" min="0" step="15" bind:value={ps.restSeconds} /> s rest</label>
-                          <button type="button" class="setx" onclick={() => removeSet(e, pi)} aria-label="Remove set"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></button>
-                        </div>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              {/each}
+              <div class="exlist">
+                {#each s.exercises as e, ei (e.id)}
+                  <ExerciseEditor
+                    bind:exercise={s.exercises[ei]}
+                    {catalog}
+                    oncreate={addToLibrary}
+                    canMoveUp={ei > 0}
+                    canMoveDown={ei < s.exercises.length - 1}
+                    onmoveup={() => moveExercise(s, ei, ei - 1)}
+                    onmovedown={() => moveExercise(s, ei, ei + 1)}
+                    onremove={() => s.exercises.splice(ei, 1)}
+                  />
+                {/each}
+                <Button small class="self-start" onclick={() => addExercise(s)}>+ Add exercise</Button>
+              </div>
             {/if}
           </div>
         </section>
       {/each}
 
-      <Button variant="ghost" class="addday" onclick={addSession} disabled={sessions.length >= 14}>+ Add session</Button>
-      {#if overfull.length > 0}<p class="error">{overfull.join(", ")} {overfull.length === 1 ? "has" : "have"} more than {MAX_SESSIONS_PER_WEEKDAY} sessions — move one to another day.</p>{/if}
-
-      {#if error}<p class="error">{error}</p>{/if}
+      <div class="builder-foot">
+        <Button onclick={addSession} disabled={sessions.length >= MAX_SESSIONS}>+ Add session</Button>
+        {#if sessions.length >= MAX_SESSIONS}<span class="subtle">{MAX_SESSIONS} sessions is the weekly limit.</span>{/if}
+      </div>
+      {#if overfull.length > 0}
+        <p class="error">{overfull.join(", ")} {overfull.length === 1 ? "has" : "have"} more than {MAX_SESSIONS_PER_WEEKDAY} sessions. Move one to another day.</p>
+      {/if}
       <p class="subtle hint">
         Prefer help? <a href={`/clients/${id}/generate`}>Generate with AI</a> instead.
       </p>
@@ -621,54 +738,91 @@
 {/if}
 
 <style>
-  .cols { display: grid; grid-template-columns: 4fr 8fr; gap: 18px; align-items: start; }
-  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .cols { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .stack :global(.label) { margin-bottom: 6px; }
 
-  .phasing { border-top: 1px solid var(--line); padding-top: 12px; }
-  .phasing > .label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-  .phasing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-  .scheme-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-  .scheme-manage { margin-top: 6px; }
-  .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-  .week-row { display: flex; align-items: center; gap: 8px; }
-  .week-row .select { flex: 1; }
-  .tiny-num { width: 60px; padding: 3px 6px; font-family: var(--font-mono); font-size: 12.5px; }
-  .wk { font: 500 12px var(--font-mono); width: 28px; color: var(--muted); }
-  .save-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-  .derived-val { margin: 6px 0 0; font: 600 14px var(--font-mono); }
-
-  .builder-col { display: flex; flex-direction: column; gap: 18px; }
-  .sess-name {
-    font: 600 14px/1.3 var(--font-ui);
-    border: none; background: none; color: var(--ink);
-    padding: 0; width: 140px;
+  .blocker { font-size: 13px; color: var(--muted); }
+  .save-error { margin: -8px 0 16px; }
+  .kept { margin: -8px 0 16px; font-size: 12px; color: var(--muted); }
+  .kept.restored {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 6px 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--well);
+    font-size: 13px;
+    color: var(--ink);
   }
-  .track { font: 500 11px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
-  .auto { font: 400 11px/1 var(--font-mono); color: var(--faint); }
-  .sess-name:focus { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
-  .head-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+  .kept.restored > :global(svg) { width: 14px; height: 14px; flex: none; color: var(--good); }
+  .kept.restored > span { flex: 1; min-width: 0; }
 
-  .exlist { display: flex; flex-direction: column; gap: 12px; }
-  .cardio-fields { display: flex; flex-direction: column; gap: 10px; }
-  .cardio-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .mini.chk { cursor: pointer; }
-  .exblock { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
-  .exhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-  .exsel { width: auto; min-width: 200px; font-weight: 600; }
-  .nosets { margin: 0; }
-
-  .setrows { display: flex; flex-direction: column; gap: 6px; }
-  .setrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .setno { width: 16px; text-align: right; color: var(--faint); font-family: var(--font-mono); font-size: 12px; }
+  /* —— basics —— */
+  .basics-body { display: flex; flex-direction: column; gap: 14px; }
+  .phasing { border-top: 1px solid var(--line-soft); padding-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .check { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+  .check input { margin-top: 3px; }
+  .check > span { display: flex; flex-direction: column; gap: 2px; }
+  .check-title { font: 500 14px var(--font-ui); color: var(--ink); }
+  .scheme-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .scheme-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 6px; }
+  .nowrap { white-space: nowrap; }
+  .scheme-meta .num { font-family: var(--font-mono); color: var(--ink); }
+  .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .week-row { display: flex; align-items: center; gap: 6px; }
+  .week-row .select { flex: 1; min-width: 0; }
+  .tiny-num { width: 60px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
+  .wk { font: 500 12px var(--font-mono); width: 24px; color: var(--muted); }
+  .save-row { display: flex; gap: 8px; align-items: center; }
+  .save-row .input { flex: 1; min-width: 0; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .select.tiny { width: auto; padding: 3px 6px; font-size: 12.5px; }
-  .mini { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-  .mini .input { width: 58px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
-  .setx { border: none; background: none; color: var(--faint); cursor: pointer; padding: 2px; display: inline-flex; }
-  .setx svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
-  .setx:hover { color: var(--bad); }
 
-  :global(.addday) { align-self: flex-start; }
+  /* —— sessions —— */
+  .builder-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .sess-head { flex-wrap: nowrap; }
+  .track { font: 500 12px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
+  .track.cardio { color: var(--good); }
+  .sess-name {
+    flex: 1;
+    min-width: 0;
+    font: 600 14px/1.3 var(--font-ui);
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 3px 8px;
+    margin-left: -4px;
+  }
+  .sess-name::placeholder { color: var(--muted); font-weight: 400; }
+  .sess-name:hover { border-color: var(--line); }
+  .sess-name:focus { background: var(--surface); border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
+
+  .sess-body { display: flex; flex-direction: column; gap: 14px; }
+  .meta, .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .f.grow { flex: 1; min-width: 160px; }
+  .f .select { width: auto; min-width: 112px; }
+  .f .input { font-size: 14px; }
+  .num { width: 72px; text-align: right; font-family: var(--font-mono); }
+  .placed { margin: 0 0 7px; }
+  /* exercises are ruled rows, not boxes inside the session box */
+  .exlist { display: flex; flex-direction: column; gap: 14px; }
+  .exlist > :global(.exedit) { padding-top: 14px; border-top: 1px solid var(--line-soft); }
+  .sess-body :global(.empty) { padding: 18px; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+  .builder-foot { display: flex; align-items: center; gap: 10px; }
+  :global(.self-start) { align-self: flex-start; }
   .hint { margin: 0; }
 
-  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+  @media (max-width: 1180px) {
+    .cols { grid-template-columns: minmax(0, 1fr); }
+  }
+  /* stacked but roomy: identity on one row, the plan below it in two columns */
+  @media (min-width: 761px) and (max-width: 1180px) {
+    .ident { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+    .plan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 24px; align-items: start; }
+  }
 </style>
