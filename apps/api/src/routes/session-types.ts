@@ -2,11 +2,15 @@ import { Elysia, t } from "elysia";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db, sessionTypes, type SessionTypeRow } from "@pt/db";
 import { ensureSessionTypes } from "../lib/session-types";
-import { SESSION_TYPE_NAME_MAX, normalizeTypeName } from "@pt/shared";
+import { SESSION_KINDS, SESSION_TYPE_NAME_MAX, normalizeTypeName, type SessionKind } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 
 const Name = t.String({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX });
-const Format = t.UnionEnum(["lifting", "cardio"]);
+// A plain string checked in the handler: t.UnionEnum fills an absent optional
+// field with its first member, which would turn a partial PATCH into a format change.
+const Format = t.String({ maxLength: 20 });
+const isFormat = (f: string): f is SessionKind => (SESSION_KINDS as readonly string[]).includes(f);
+const badFormat = { error: "format must be lifting or cardio" };
 
 /** typeId → number of this trainer's programs (any status) with a session of that type. */
 async function usageCounts(trainerId: string, typeId?: string): Promise<Map<string, number>> {
@@ -58,6 +62,7 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
     async ({ body, status, trainerId }) => {
       const name = normalizeTypeName(body.name);
       if (!name) return status(422, { error: "name is required" });
+      if (!isFormat(body.format)) return status(422, badFormat);
       await ensureSessionTypes(trainerId); // a first create must not skip the defaults
       if (await nameTaken(trainerId, name)) return status(409, taken(name));
       const [created] = await db.insert(sessionTypes).values({ trainerId, name, format: body.format }).returning();
@@ -82,7 +87,10 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
         if (await nameTaken(trainerId, name, existing.id)) return status(409, taken(name));
         updates.name = name;
       }
-      if (body.format !== undefined) updates.format = body.format;
+      if (body.format !== undefined) {
+        if (!isFormat(body.format)) return status(422, badFormat);
+        updates.format = body.format;
+      }
       if (body.archived !== undefined) updates.archivedAt = body.archived ? (existing.archivedAt ?? new Date()) : null;
 
       const [row] = Object.keys(updates).length

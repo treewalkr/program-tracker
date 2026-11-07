@@ -73,6 +73,14 @@ describe.skipIf(!dbUp)("session types", () => {
     expect(restored.body.archivedAt).toBeNull();
   });
 
+  test("a partial patch leaves the format alone", async () => {
+    const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "cardio" });
+    const res = await call("PATCH", `/v1/session-types/${made.id}`, { archived: true });
+    expect(res.body.format).toBe("cardio");
+    const renamed = await call("PATCH", `/v1/session-types/${made.id}`, { name: uniq() });
+    expect(renamed.body.format).toBe("cardio");
+  });
+
   test("used types report usage and archive instead of delete; unused delete for good", async () => {
     const { body: used } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
     await programTyped(used.id);
