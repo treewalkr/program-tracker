@@ -34,9 +34,9 @@ Live mode is private to one trainer, who signs in with Google. Set four vars in
 - The first sign-in is the sign-up: it links that Google account to the existing
   trainer row, so every client and program stays put.
 - Sessions are httpOnly cookies that last 30 days. The DB stores only a hash of each token.
-- Google accepts plain `http` only for `localhost`. On another device (e.g. Tailscale),
-  serve the web app over https and register that origin's
-  `/v1/auth/google/callback` too.
+- Google accepts plain `http` only for `localhost`. To sign in from another device
+  (e.g. Tailscale), serve the web app over https, then point `GOOGLE_REDIRECT_URI` at
+  `https://<that-host>/v1/auth/google/callback` and register that URI in Google.
 - Demo (mock) mode needs no sign-in.
 
 API reference lives at `/openapi` (Scalar) when the api is running.
