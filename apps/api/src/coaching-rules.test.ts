@@ -261,8 +261,7 @@ describe.skipIf(!dbUp)("detailed notes", () => {
     const clientId = await newClient("Signal Client");
     const gen = await mockDraft(clientId);
     const n = await note(gen);
-    const [trainer] = await db.select().from(trainers).limit(1);
-    const signals = await gatherPreferenceSignals(trainer.id, clientId);
+    const signals = await gatherPreferenceSignals(gen.trainerId, clientId);
     const noteSignal = signals.find((s) => s.kind === "note");
     expect(noteSignal?.text).toContain("Too heavy after a deload week");
     expect(noteSignal?.text).toContain("→ instead: Belt squat 3×8 @ RPE 7");
