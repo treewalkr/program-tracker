@@ -4,7 +4,6 @@ import { mockChatReply } from "@pt/shared";
 import { chatText, ProviderError, type ChatMessage as ProviderChatMessage } from "../ai/provider";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import { buildChatSystem, draftToText, type ChatDraftContext } from "../ai/prompt";
-import { getDefaultTrainerId } from "../lib/trainer";
 import { loadContext } from "../lib/context";
 
 const CHAT_HISTORY_LIMIT = 20;
@@ -16,6 +15,7 @@ const CHAT_HISTORY_LIMIT = 20;
  * row. Provider failures write an error row and report 502.
  */
 export async function answerChat(
+  trainerId: string,
   body: { clientId: string; message: string; providerId?: string; model?: string; effort?: string }
 ): Promise<
   | { ok: true; messages: [ChatMessageRow, ChatMessageRow] }
@@ -23,8 +23,6 @@ export async function answerChat(
 > {
   const message = body.message.trim();
   if (!message) return { ok: false, status: 422, error: "message must not be empty" };
-
-  const trainerId = await getDefaultTrainerId();
 
   let ctx;
   let rt: ReturnType<typeof providerRuntime> | null = null;

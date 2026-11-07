@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, programs } from "@pt/db";
 import { Phasing, ProgramWeeksDocument } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 
 /** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema. */
 const WeeksDoc = ProgramWeeksDocument;
@@ -22,8 +22,8 @@ function parsePhasing(raw: unknown): { ok: true; value: Phasing | null } | { ok:
 }
 
 export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["programs"] })
-  .get("/", async ({ query }) => {
-    const trainerId = await getDefaultTrainerId();
+  .use(trainerContext)
+  .get("/", async ({ query, trainerId }) => {
     const rows = query.clientId
       ? await db
           .select()
@@ -48,8 +48,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
   )
   .post(
     "/",
-    async ({ body, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ body, status, trainerId }) => {
       const parsed = WeeksDoc.safeParse(body.weeks);
       if (!parsed.success) {
         return status(422, { error: "invalid weeks document", issues: z.treeifyError(parsed.error) });

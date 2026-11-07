@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, clients, trainerPreferences } from "@pt/db";
 import { mockDistillPreferences } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { gatherPreferenceSignals } from "../lib/preferences";
 import { buildDistillMessages } from "../ai/prompt";
 import {
@@ -15,8 +15,8 @@ export const preferenceRoutes = new Elysia({
   prefix: "/v1/ai/preferences",
   tags: ["preferences"],
 })
-  .get("/", async () => {
-    const trainerId = await getDefaultTrainerId();
+  .use(trainerContext)
+  .get("/", async ({ trainerId }) => {
     const rows = await db
       .select()
       .from(trainerPreferences)
@@ -44,8 +44,7 @@ export const preferenceRoutes = new Elysia({
   })
   .post(
     "/distill",
-    async ({ body, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ body, status, trainerId }) => {
       let clientName: string | null = null;
       const targetClientId = body.clientId ?? null;
 
@@ -161,8 +160,7 @@ export const preferenceRoutes = new Elysia({
   )
   .delete(
     "/:id",
-    async ({ params, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ params, status, trainerId }) => {
       const [existing] = await db
         .select()
         .from(trainerPreferences)

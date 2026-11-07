@@ -1,12 +1,12 @@
 import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db, clients, programs } from "@pt/db";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
-  .get("/", async () => {
-    const trainerId = await getDefaultTrainerId();
+  .use(trainerContext)
+  .get("/", async ({ trainerId }) => {
     return db.select().from(clients).where(eq(clients.trainerId, trainerId));
   })
   .get(
@@ -31,8 +31,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
   )
   .post(
     "/",
-    async ({ body, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ body, status, trainerId }) => {
       const [created] = await db
         .insert(clients)
         .values({ ...body, trainerId })

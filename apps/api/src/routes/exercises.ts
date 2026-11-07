@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exercises, setLogs, type ExerciseRow } from "@pt/db";
 import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 
 // Plain strings checked with zod in the handler: t.UnionEnum fills an absent
 // optional field with its first member (turning a partial PATCH into an edit),
@@ -82,11 +82,11 @@ async function nameTaken(trainerId: string, name: string, exceptId?: string) {
 }
 
 export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exercises"] })
+  .use(trainerContext)
   /** Search the seed library + this trainer's custom exercises (archived included, flagged). */
   .get(
     "/",
-    async ({ query }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ query, trainerId }) => {
       const where = query.q ? and(visibleTo(trainerId), ilike(exercises.name, `%${query.q}%`)) : visibleTo(trainerId);
       const [rows, uses] = await Promise.all([
         db.select().from(exercises).where(where).orderBy(exercises.name).limit(5000),
@@ -98,10 +98,9 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
   )
   .post(
     "/",
-    async ({ body, status }) => {
+    async ({ body, status, trainerId }) => {
       const bad = invalidField(body);
       if (bad) return status(422, { error: `invalid ${bad}` });
-      const trainerId = await getDefaultTrainerId();
       const name = body.name.trim();
       if (await nameTaken(trainerId, name)) return status(409, { error: `"${name}" is already in the library` });
       const [created] = await db
@@ -137,10 +136,9 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
    */
   .patch(
     "/:id",
-    async ({ params, body, status }) => {
+    async ({ params, body, status, trainerId }) => {
       const bad = invalidField(body);
       if (bad) return status(422, { error: `invalid ${bad}` });
-      const trainerId = await getDefaultTrainerId();
       const [existing] = await db
         .select()
         .from(exercises)
@@ -202,8 +200,7 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
    */
   .delete(
     "/:id",
-    async ({ params, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ params, status, trainerId }) => {
       const [existing] = await db
         .select()
         .from(exercises)

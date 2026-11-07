@@ -5,6 +5,7 @@ import { draftNoticeText, proposalToFeedback } from "@pt/shared";
 import { answerChat } from "../lib/chat-qa";
 import { loadRevisionConversation, runRevision } from "../lib/revision";
 import { runProposalTurn } from "../lib/proposal-turn";
+import { trainerContext } from "../lib/trainer-context";
 
 /**
  * The trainer's request that produced a proposal.
@@ -40,6 +41,7 @@ async function proposalRequestText(row: ChatMessageRow): Promise<string> {
 }
 
 export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
+  .use(trainerContext)
   .get(
     "/",
     async ({ query }) => {
@@ -61,8 +63,8 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
    */
   .post(
     "/",
-    async ({ body, status }) => {
-      const res = await answerChat(body);
+    async ({ body, status, trainerId }) => {
+      const res = await answerChat(trainerId, body);
       if (!res.ok) return status(res.status as 422 | 400 | 404 | 502, { error: res.error });
       return status(201, { messages: res.messages });
     },
@@ -84,12 +86,12 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
    */
   .post(
     "/turn",
-    async ({ body, status }) => {
+    async ({ body, status, trainerId }) => {
       const message = body.message.trim();
       if (!message) return status(422, { error: "message must not be empty" });
 
       if (!body.generationId) {
-        const qa = await answerChat({
+        const qa = await answerChat(trainerId, {
           clientId: body.clientId,
           message,
           providerId: body.providerId,

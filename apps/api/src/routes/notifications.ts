@@ -1,16 +1,16 @@
 import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db, signalSnoozes } from "@pt/db";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { computeTrainerSignals } from "../lib/signals-service";
 
 export const notificationRoutes = new Elysia({ prefix: "/v1/notifications", tags: ["notifications"] })
+  .use(trainerContext)
   /**
    * Signals are derived state — computed on read by the shared rule engine,
    * never stored as truth. Snoozed rows (until in the future) are filtered out.
    */
-  .get("/", async () => {
-    const trainerId = await getDefaultTrainerId();
+  .get("/", async ({ trainerId }) => {
     const signals = await computeTrainerSignals(trainerId);
     const snoozed = await db
       .select()
@@ -24,8 +24,7 @@ export const notificationRoutes = new Elysia({ prefix: "/v1/notifications", tags
   })
   .put(
     "/:signalId/snooze",
-    async ({ params, body, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ params, body, status, trainerId }) => {
       const until = new Date(body.until);
       if (Number.isNaN(until.getTime())) {
         return status(422, { error: "until must be an ISO timestamp" });

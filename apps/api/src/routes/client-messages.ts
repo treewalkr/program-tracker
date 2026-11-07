@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -16,7 +16,7 @@ import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
 import { buildClientMessageMessages } from "../ai/prompt";
 import { mockClientMessage } from "../ai/mock";
 import { ContextError, providerRuntime } from "../ai/runtime";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { toSignalLog, toSignalProgram } from "../lib/signals-service";
 
 /**
@@ -25,10 +25,10 @@ import { toSignalLog, toSignalProgram } from "../lib/signals-service";
  * pastes the approved text themselves (Q6: LINE, copy-paste).
  */
 export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", tags: ["client-messages"] })
+  .use(trainerContext)
   .post(
     "/generate",
-    async ({ body, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ body, status, trainerId }) => {
       try {
         const [client] = await db.select().from(clients).where(eq(clients.id, body.clientId));
         if (!client) return status(404, { error: "client not found" });
@@ -151,15 +151,13 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
   )
   .get(
     "/",
-    async ({ query }) => {
-      const rows = query.clientId
-        ? await db
-            .select()
-            .from(clientMessages)
-            .where(eq(clientMessages.clientId, query.clientId))
-            .orderBy(desc(clientMessages.createdAt))
-        : await db.select().from(clientMessages).orderBy(desc(clientMessages.createdAt));
-      return rows;
+    async ({ query, trainerId }) => {
+      const mine = eq(clientMessages.trainerId, trainerId);
+      return db
+        .select()
+        .from(clientMessages)
+        .where(query.clientId ? and(mine, eq(clientMessages.clientId, query.clientId)) : mine)
+        .orderBy(desc(clientMessages.createdAt));
     },
     { query: t.Object({ clientId: t.Optional(t.String()) }) }
   )

@@ -31,7 +31,7 @@ import {
 import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
 import { buildHistory } from "../lib/history";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { ensureSeededChains } from "../lib/chains";
 import { toSignalLog, toSignalProgram } from "../lib/signals-service";
 import { toProgramDto } from "./programs";
@@ -41,10 +41,10 @@ import { savePhasingEdit } from "../lib/phasing-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 
 export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
+  .use(trainerContext)
   .post(
     "/generate",
-    async ({ body, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ body, status, trainerId }) => {
       try {
         if (body.targetWeek !== undefined && body.targetWeek !== null) {
           if (!body.basedOnProgramId) {
@@ -313,15 +313,13 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   )
   .get(
     "/generations",
-    async ({ query }) => {
-      const rows = query.clientId
-        ? await db
-            .select()
-            .from(aiGenerations)
-            .where(eq(aiGenerations.clientId, query.clientId))
-            .orderBy(desc(aiGenerations.createdAt))
-        : await db.select().from(aiGenerations).orderBy(desc(aiGenerations.createdAt));
-      return rows;
+    async ({ query, trainerId }) => {
+      const mine = eq(aiGenerations.trainerId, trainerId);
+      return db
+        .select()
+        .from(aiGenerations)
+        .where(query.clientId ? and(mine, eq(aiGenerations.clientId, query.clientId)) : mine)
+        .orderBy(desc(aiGenerations.createdAt));
     },
     { query: t.Object({ clientId: t.Optional(t.String()) }) }
   )
@@ -337,8 +335,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   /** Approve: draft → real draft-status Program (never client-visible until trainer activates). */
   .post(
     "/generations/:id/approve",
-    async ({ params, status }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ params, status, trainerId }) => {
       const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, params.id));
       if (!gen) return status(404, { error: "generation not found" });
       if (gen.status !== "validated") return status(409, { error: `generation is ${gen.status}, not validated` });

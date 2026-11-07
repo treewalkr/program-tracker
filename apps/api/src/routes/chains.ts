@@ -3,7 +3,7 @@ import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, exercises, kineticChains, sessionLogs, setLogs } from "@pt/db";
 import { chainSetCounts, KineticChainInput } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { ensureSeededChains } from "../lib/chains";
 
 function getWeekStart(now = new Date()): string {
@@ -17,15 +17,14 @@ function getWeekStart(now = new Date()): string {
 }
 
 export const chainRoutes = new Elysia({ prefix: "/v1/chains", tags: ["chains"] })
-  .get("/", async () => {
-    const trainerId = await getDefaultTrainerId();
+  .use(trainerContext)
+  .get("/", async ({ trainerId }) => {
     const chains = await ensureSeededChains(trainerId);
     return { chains };
   })
   .get(
     "/week",
-    async ({ query }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ query, trainerId }) => {
       const chains = await ensureSeededChains(trainerId);
       const weekStart = getWeekStart();
 
@@ -85,7 +84,7 @@ export const chainRoutes = new Elysia({ prefix: "/v1/chains", tags: ["chains"] }
   )
   .put(
     "/:id",
-    async ({ params, body, status }) => {
+    async ({ params, body, status, trainerId }) => {
       const parsed = KineticChainInput.safeParse(body);
       if (!parsed.success) {
         return status(422, {
@@ -93,7 +92,6 @@ export const chainRoutes = new Elysia({ prefix: "/v1/chains", tags: ["chains"] }
           issues: z.treeifyError(parsed.error),
         });
       }
-      const trainerId = await getDefaultTrainerId();
       const [updated] = await db
         .update(kineticChains)
         .set({

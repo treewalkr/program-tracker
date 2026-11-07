@@ -3,11 +3,11 @@ import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, promptTemplates } from "@pt/db";
 import { InstructionTemplateInput } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 
 export const promptTemplateRoutes = new Elysia({ prefix: "/v1/ai/prompt-templates", tags: ["prompt-templates"] })
-  .get("/", async () => {
-    const trainerId = await getDefaultTrainerId();
+  .use(trainerContext)
+  .get("/", async ({ trainerId }) => {
     const rows = await db
       .select()
       .from(promptTemplates)
@@ -17,7 +17,7 @@ export const promptTemplateRoutes = new Elysia({ prefix: "/v1/ai/prompt-template
   })
   .post(
     "/",
-    async ({ body, status }) => {
+    async ({ body, status, trainerId }) => {
       const parsed = InstructionTemplateInput.safeParse(body);
       if (!parsed.success) {
         return status(422, {
@@ -25,7 +25,6 @@ export const promptTemplateRoutes = new Elysia({ prefix: "/v1/ai/prompt-template
           issues: z.treeifyError(parsed.error),
         });
       }
-      const trainerId = await getDefaultTrainerId();
       const [created] = await db
         .insert(promptTemplates)
         .values({ trainerId, ...parsed.data })

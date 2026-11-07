@@ -3,11 +3,11 @@ import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, periodizationSchemes } from "@pt/db";
 import { PeriodizationSchemeInput } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 
 export const schemeRoutes = new Elysia({ prefix: "/v1/schemes", tags: ["schemes"] })
-  .get("/", async () => {
-    const trainerId = await getDefaultTrainerId();
+  .use(trainerContext)
+  .get("/", async ({ trainerId }) => {
     const rows = await db
       .select()
       .from(periodizationSchemes)
@@ -17,12 +17,11 @@ export const schemeRoutes = new Elysia({ prefix: "/v1/schemes", tags: ["schemes"
   })
   .post(
     "/",
-    async ({ body, status }) => {
+    async ({ body, status, trainerId }) => {
       const parsed = PeriodizationSchemeInput.safeParse(body);
       if (!parsed.success) {
         return status(422, { error: "invalid scheme", issues: z.treeifyError(parsed.error) });
       }
-      const trainerId = await getDefaultTrainerId();
       const [created] = await db
         .insert(periodizationSchemes)
         .values({ trainerId, name: parsed.data.name, weeks: parsed.data.weeks })

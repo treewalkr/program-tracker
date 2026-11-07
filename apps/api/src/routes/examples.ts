@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, programExamples, programs } from "@pt/db";
 import { ProgramExampleInput, ProgramExamplePatch } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 
 /** Example rows always travel with the live program they reference. */
@@ -34,17 +34,17 @@ async function findJoined(id: string) {
 }
 
 export const exampleRoutes = new Elysia({ prefix: "/v1/examples", tags: ["examples"] })
+  .use(trainerContext)
   .get(
     "/",
-    async ({ query }) => {
-      const trainerId = await getDefaultTrainerId();
+    async ({ query, trainerId }) => {
       return { examples: await listJoined(trainerId, query.programId) };
     },
     { query: t.Object({ programId: t.Optional(t.String()) }) },
   )
   .post(
     "/",
-    async ({ body, status }) => {
+    async ({ body, status, trainerId }) => {
       const parsed = ProgramExampleInput.safeParse(body);
       if (!parsed.success) {
         return status(422, {
@@ -52,7 +52,6 @@ export const exampleRoutes = new Elysia({ prefix: "/v1/examples", tags: ["exampl
           issues: z.treeifyError(parsed.error),
         });
       }
-      const trainerId = await getDefaultTrainerId();
 
       const [programRow] = await db.select().from(programs).where(eq(programs.id, parsed.data.programId));
       if (!programRow) return status(404, { error: "program not found" });

@@ -1,9 +1,9 @@
 import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
-import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
+import { db, clients, sessionLogs, setLogs, exercises, programs } from "@pt/db";
 import { CardioLog, SessionKind, SetType } from "@pt/shared";
-import { getDefaultTrainerId } from "../lib/trainer";
+import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
 import { queueSignalsForOutbox } from "../lib/signals-service";
 
@@ -78,8 +78,12 @@ function serializeSets(rows: typeof setLogs.$inferSelect[]) {
   }));
 }
 
-async function loadSessionWithSets(clientId?: string, from?: string, to?: string) {
-  const conds = [];
+/** Logs carry no trainer_id — scope them through the trainer's clients. */
+const ofTrainer = (trainerId: string) =>
+  inArray(sessionLogs.clientId, db.select({ id: clients.id }).from(clients).where(eq(clients.trainerId, trainerId)));
+
+async function loadSessionWithSets(trainerId: string, clientId?: string, from?: string, to?: string) {
+  const conds = [ofTrainer(trainerId)];
   if (clientId) conds.push(eq(sessionLogs.clientId, clientId));
   if (from) conds.push(gte(sessionLogs.date, from));
   if (to) conds.push(lte(sessionLogs.date, to));
@@ -97,6 +101,7 @@ async function loadSessionWithSets(clientId?: string, from?: string, to?: string
 }
 
 export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
+  .use(trainerContext)
   /** Log a completed session on behalf of a client (trainer-entered in MVP). */
   .post(
     "/sessions",
@@ -167,7 +172,7 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   )
   .get(
     "/sessions",
-    async ({ query }) => loadSessionWithSets(query.clientId, query.from, query.to),
+    async ({ query, trainerId }) => loadSessionWithSets(trainerId, query.clientId, query.from, query.to),
     {
       query: t.Object({
         clientId: t.Optional(t.String()),
@@ -179,9 +184,9 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   /** Per-exercise history — same shape the AI prompt consumes. */
   .get(
     "/history",
-    async ({ query, status }) => {
+    async ({ query, status, trainerId }) => {
       const since = new Date(Date.now() - 56 * 86400_000).toISOString().slice(0, 10);
-      const conds = [gte(sessionLogs.date, since)];
+      const conds = [ofTrainer(trainerId), gte(sessionLogs.date, since)];
       if (query.clientId) conds.push(eq(sessionLogs.clientId, query.clientId));
       const logs = await db.select().from(sessionLogs).where(and(...conds));
       if (logs.length === 0) return { history: [] };
@@ -190,7 +195,6 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
         .from(setLogs)
         .where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)));
 
-      const trainerId = await getDefaultTrainerId();
       const catalog = (await db.select().from(exercises)).filter(
         (e) => e.trainerId === null || e.trainerId === trainerId
       );
