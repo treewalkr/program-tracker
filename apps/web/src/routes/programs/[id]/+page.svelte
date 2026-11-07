@@ -25,7 +25,7 @@
     type SessionKind,
   } from "@pt/shared";
   import { EXAMPLE_LEVELS } from "@pt/shared";
-  import type { ExerciseDto, ProgramDto, ProgramExampleDto, ProgramSessionDto } from "$lib/api/types";
+  import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
   import { programSubline, snapshot } from "$lib/programEdit";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
@@ -50,6 +50,12 @@
   let placeAllWeeks = $state(true);
   let selected = $state<string | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
+  /** New exercise from the picker: save to the library, keep the catalog in sync. */
+  async function addToLibrary(input: ExerciseInput) {
+    const created = await api.createExercise(input);
+    catalog.push(created);
+    return created;
+  }
   const catalogById = $derived(new Map(catalog.map((e) => [e.id, e])));
   /** Saved state of the program; edits are live on `program` and compared against this. */
   let baseline = $state("");
@@ -416,6 +422,7 @@
                     <ExerciseEditor
                       bind:exercise={currentWeek.sessions[si].exercises[ei]}
                       {catalog}
+                      oncreate={addToLibrary}
                       canMoveUp={ei > 0}
                       canMoveDown={ei < s.exercises.length - 1}
                       onmoveup={() => { if (currentWeek) currentWeek.sessions[si] = moveExercise(currentWeek.sessions[si], ei, ei - 1); }}

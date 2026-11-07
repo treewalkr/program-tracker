@@ -15,7 +15,8 @@
 		| 'lock'
 		| 'bolt'
 		| 'pulse'
-		| 'chevron';
+		| 'chevron'
+		| 'search';
 </script>
 
 <script lang="ts">
@@ -69,6 +70,7 @@
 		bolt: { d: 'M13 2 3 14h7l-1 8 10-12h-7l1-8z', filled: true },
 		pulse: { d: 'M12 6l7 12H5z', filled: true },
 		chevron: { d: 'm6 9 6 6 6-6' },
+		search: { d: 'm20 20-4.2-4.2', circle: { cx: 11, cy: 11, r: 7 } },
 	};
 
 	const icon = $derived(ICONS[name]);
