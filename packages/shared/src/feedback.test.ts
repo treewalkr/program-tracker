@@ -98,6 +98,11 @@ describe("feedbackMarkdown", () => {
     expect(md).toContain("](feedback/FB-014.png)");
     expect(md).not.toContain("Page screenshot");
   });
+  test("page data block only when there is data", () => {
+    expect(md).toContain("Page data at click time");
+    const empty = feedbackMarkdown([item({ context: { ...item().context, pageData: {} } })], { imageUrl: () => null });
+    expect(empty).not.toContain("Page data at click time");
+  });
   test("multi-line comments stay quoted", () => {
     const out = feedbackMarkdown([item({ comment: "line one\nline two" })], { imageUrl: () => null });
     expect(out).toContain("> line one\n> line two");

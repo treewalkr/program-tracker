@@ -156,19 +156,25 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   const el = opts.imageUrl(item, "element");
   const pg = opts.imageUrl(item, "page");
   if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
-  if (pg) lines.push(`- **Page screenshot:** ![${feedbackHandle(item.number)} page](${pg})`);
+  if (pg) lines.push(`- **Page screenshot (element outlined in red):** ![${feedbackHandle(item.number)} page](${pg})`);
   lines.push("");
   lines.push("<details><summary>Element HTML</summary>");
   lines.push("");
   lines.push(fence("html", c.target.html));
   lines.push("");
   lines.push("</details>");
-  lines.push("");
-  lines.push("<details><summary>Page data at click time</summary>");
-  lines.push("");
-  lines.push(fence("json", JSON.stringify(c.pageData, null, 2)));
-  lines.push("");
-  lines.push("</details>");
+  const hasData =
+    c.pageData !== null &&
+    c.pageData !== undefined &&
+    !(typeof c.pageData === "object" && Object.keys(c.pageData as object).length === 0);
+  if (hasData) {
+    lines.push("");
+    lines.push("<details><summary>Page data at click time</summary>");
+    lines.push("");
+    lines.push(fence("json", JSON.stringify(c.pageData, null, 2)));
+    lines.push("");
+    lines.push("</details>");
+  }
   return lines.join("\n");
 }
 
