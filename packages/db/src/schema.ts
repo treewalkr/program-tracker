@@ -45,6 +45,19 @@ export const trainers = pgTable("trainers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  /** Google account id (`sub`) — set on first Google sign-in. */
+  googleSub: text("google_sub").unique(),
+  avatarUrl: text("avatar_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Signed-in browser sessions. `id` is the sha256 of the cookie token, never the token itself. */
+export const authSessions = pgTable("auth_sessions", {
+  id: text("id").primaryKey(),
+  trainerId: uuid("trainer_id")
+    .notNull()
+    .references(() => trainers.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
