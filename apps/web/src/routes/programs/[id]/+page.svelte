@@ -382,7 +382,7 @@
         {@const sessExercises = s.exercises.map((e) => ({ movementPattern: patternOf(e.exerciseId) }))}
         <section class="panel" class:sel={selected === s.id} id="sess-{s.id}">
           <div class="panel-head">
-            <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}{#if s.typeName} · <span class="stype">{s.typeName}</span>{/if}</span>
+            <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}{#if s.typeName}{" · "}<span class="stype">{s.typeName}</span>{/if}</span>
             {#if s.kind === "lifting"}<span class="subtle">{formatPatternBalance(patternBalance(sessExercises))}</span>{/if}
           </div>
 
