@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { parseFrom, sendEmail } from "./lib/mailer";
 
-const ENV = ["CLOUDFLARE_EMAIL_ACCOUNT_ID", "CLOUDFLARE_EMAIL_TOKEN", "EMAIL_FROM"];
+const ENV = ["RESEND_API_KEY", "EMAIL_FROM"];
 let saved: Record<string, string | undefined>;
 const origFetch = globalThis.fetch;
 const email = { to: "kai@example.com", subject: "Hi", text: "hello", html: "<p>hello</p>" };
@@ -19,8 +19,7 @@ afterEach(() => {
 });
 
 const configure = () => {
-  process.env.CLOUDFLARE_EMAIL_ACCOUNT_ID = "acc123";
-  process.env.CLOUDFLARE_EMAIL_TOKEN = "tok-not-real";
+  process.env.RESEND_API_KEY = "re_not_real";
   process.env.EMAIL_FROM = "Program Tracker <feedback@pinroj.com>";
 };
 
@@ -37,7 +36,7 @@ describe("mailer", () => {
     expect(called).toBe(false);
   });
 
-  test("sends the Cloudflare REST shape", async () => {
+  test("sends the Resend REST shape", async () => {
     configure();
     let url = "";
     let headers: Headers | undefined;
@@ -46,14 +45,14 @@ describe("mailer", () => {
       url = String(input);
       headers = new Headers(init?.headers);
       body = JSON.parse(String(init?.body));
-      return Response.json({ success: true, errors: [], result: { delivered: ["kai@example.com"], permanent_bounces: [], queued: [] } });
+      return Response.json({ id: "49a3999c-0ce1-4ea6-ab68-afcd6dc2e794" });
     }) as unknown as typeof fetch;
     expect(await sendEmail(email)).toEqual({ sent: true });
-    expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/acc123/email/sending/send");
-    expect(headers?.get("authorization")).toBe("Bearer tok-not-real");
+    expect(url).toBe("https://api.resend.com/emails");
+    expect(headers?.get("authorization")).toBe("Bearer re_not_real");
     expect(body).toEqual({
-      to: "kai@example.com",
-      from: { address: "feedback@pinroj.com", name: "Program Tracker" },
+      from: "Program Tracker <feedback@pinroj.com>",
+      to: ["kai@example.com"],
       subject: "Hi",
       text: "hello",
       html: "<p>hello</p>",
@@ -64,7 +63,7 @@ describe("mailer", () => {
     configure();
     globalThis.fetch = (async () =>
       Response.json(
-        { success: false, errors: [{ code: 10102, message: "email.sending.error.authentication.forbidden" }], result: null },
+        { statusCode: 403, name: "validation_error", message: "The pinroj.com domain is not verified." },
         { status: 403 },
       )) as unknown as typeof fetch;
     expect(await sendEmail(email)).toEqual({ sent: false, reason: "provider_error" });

@@ -270,7 +270,7 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
 
 describe.skipIf(!dbUp)("feedback emails", () => {
   const EMAIL = "fb-ren@example.com";
-  const ENV = { CLOUDFLARE_EMAIL_ACCOUNT_ID: "acc", CLOUDFLARE_EMAIL_TOKEN: "tok", EMAIL_FROM: "PT <fb@pinroj.com>", APP_URL: "https://pt.test" };
+  const ENV = { RESEND_API_KEY: "re_test", EMAIL_FROM: "PT <fb@pinroj.com>", APP_URL: "https://pt.test" };
   const saved: Record<string, string | undefined> = {};
   const origFetch = globalThis.fetch;
   let sent: { to: string; subject: string }[] = [];
@@ -283,10 +283,10 @@ describe.skipIf(!dbUp)("feedback emails", () => {
     const [admin] = await db.select().from(trainers).where(eq(trainers.id, await getDefaultTrainerId()));
     process.env.ADMIN_EMAIL = admin.email;
     globalThis.fetch = (async (input: any, init?: RequestInit) => {
-      if (!String(input).startsWith("https://api.cloudflare.com/")) return origFetch(input, init);
+      if (!String(input).startsWith("https://api.resend.com/")) return origFetch(input, init);
       const b = JSON.parse(String(init?.body));
-      sent.push({ to: b.to, subject: b.subject });
-      return Response.json({ success: true, errors: [], result: { delivered: [b.to], permanent_bounces: [], queued: [] } });
+      sent.push({ to: b.to[0], subject: b.subject });
+      return Response.json({ id: crypto.randomUUID() });
     }) as typeof fetch;
     await db.delete(trainers).where(eq(trainers.email, EMAIL));
     const [row] = await db.insert(trainers).values({ name: "Ren", email: EMAIL }).returning({ id: trainers.id });
