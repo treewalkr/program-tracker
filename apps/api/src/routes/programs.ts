@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, programs } from "@pt/db";
 import { Phasing, ProgramWeeksDocument } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
+import { recordProgramEdit } from "../lib/llm-feedback";
 
 /** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema. */
 const WeeksDoc = ProgramWeeksDocument;
@@ -90,7 +91,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
    *  An absent phasing leaves it untouched; explicit null clears it. */
   .put(
     "/:id",
-    async ({ params, body, status }) => {
+    async ({ params, body, status, trainerId }) => {
       const parsed = WeeksDoc.safeParse(body.weeks);
       if (!parsed.success) {
         return status(422, { error: "invalid weeks document", issues: z.treeifyError(parsed.error) });
@@ -115,6 +116,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         .set(update)
         .where(eq(programs.id, params.id))
         .returning();
+      await recordProgramEdit(trainerId, current, updated);
       return toProgramDto(updated);
     },
     {

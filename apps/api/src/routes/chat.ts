@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { db, chatMessages, type ChatMessageRow } from "@pt/db";
 import { draftNoticeText, proposalToFeedback } from "@pt/shared";
 import { answerChat } from "../lib/chat-qa";
@@ -7,6 +7,7 @@ import { loadRevisionConversation, runRevision } from "../lib/revision";
 import { runProposalTurn } from "../lib/proposal-turn";
 import { trainerContext } from "../lib/trainer-context";
 import { linkTurn } from "../ai/llm";
+import { recordFeedback, recordIgnoredProposals } from "../lib/llm-feedback";
 
 /**
  * The trainer's request that produced a proposal.
@@ -49,7 +50,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       const messages = await db
         .select()
         .from(chatMessages)
-        .where(eq(chatMessages.clientId, query.clientId))
+        .where(and(eq(chatMessages.clientId, query.clientId), isNull(chatMessages.hiddenAt)))
         .orderBy(asc(chatMessages.createdAt));
       return { messages };
     },
@@ -90,6 +91,9 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
     async ({ body, status, trainerId }) => {
       const message = body.message.trim();
       if (!message) return status(422, { error: "message must not be empty" });
+
+      // Moving on without building or adjusting an open proposal is a weak "no".
+      await recordIgnoredProposals(trainerId, body.clientId);
 
       if (!body.generationId) {
         const qa = await answerChat(trainerId, {
@@ -177,6 +181,14 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
           .update(chatMessages)
           .set({ proposal: { ...row.proposal, builtGenerationId: gen.id } })
           .where(eq(chatMessages.id, row.id));
+        await recordFeedback({
+          trainerId: row.trainerId,
+          clientId: row.clientId,
+          subjectKind: "chat_message",
+          subjectId: row.id,
+          signal: "proposal_built",
+          payload: { builtGenerationId: gen.id, changes: row.proposal.changes.length },
+        });
       }
       const [assistantRow] = await db
         .insert(chatMessages)
@@ -206,8 +218,25 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
   )
   .delete(
     "/",
-    async ({ query, status }) => {
-      await db.delete(chatMessages).where(eq(chatMessages.clientId, query.clientId));
+    async ({ query, status, trainerId }) => {
+      // Soft delete: gone from the thread and from model context, kept for the LLM dataset.
+      const hidden = await db
+        .update(chatMessages)
+        .set({ hiddenAt: new Date() })
+        .where(and(eq(chatMessages.clientId, query.clientId), isNull(chatMessages.hiddenAt)))
+        .returning({ id: chatMessages.id, createdAt: chatMessages.createdAt });
+      if (hidden.length > 0) {
+        const last = hidden.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+        await recordFeedback({
+          trainerId,
+          clientId: query.clientId,
+          subjectKind: "chat_message",
+          subjectId: last.id,
+          signal: "chat_cleared",
+          callId: null,
+          payload: { hiddenCount: hidden.length },
+        });
+      }
       return status(204);
     },
     {

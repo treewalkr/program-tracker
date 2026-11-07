@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type ChatMessageRow } from "@pt/db";
 import { mockChatReply } from "@pt/shared";
 import { type ChatMessage as ProviderChatMessage } from "../ai/provider";
@@ -90,7 +90,8 @@ export async function answerChat(
       and(
         eq(chatMessages.clientId, body.clientId),
         ne(chatMessages.kind, "error"),
-        ne(chatMessages.id, trainerRow.id)
+        ne(chatMessages.id, trainerRow.id),
+        isNull(chatMessages.hiddenAt)
       )
     )
     .orderBy(desc(chatMessages.createdAt))

@@ -12,6 +12,7 @@ import {
 } from "@pt/db";
 import { AiClientMessageDraft, CLIENT_MESSAGE_MAX_CHARS, weekSummary } from "@pt/shared";
 import { callLlm } from "../ai/llm";
+import { recordFeedback } from "../lib/llm-feedback";
 import { buildClientMessageMessages } from "../ai/prompt";
 import { mockClientMessage } from "../ai/mock";
 import { ContextError, providerRuntime } from "../ai/runtime";
@@ -168,7 +169,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
   /** Approve: the trainer's (possibly edited) text becomes the final text. */
   .post(
     "/:id/approve",
-    async ({ params, body, status }) => {
+    async ({ params, body, status, trainerId }) => {
       const [row] = await db.select().from(clientMessages).where(eq(clientMessages.id, params.id));
       if (!row) return status(404, { error: "client message not found" });
       if (row.status !== "validated") {
@@ -183,6 +184,17 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
         .set({ status: "approved", finalText: (body.text ?? row.draft.message).trim() })
         .where(eq(clientMessages.id, row.id))
         .returning();
+      const draftText = row.draft.message.trim();
+      const edited = updated.finalText !== draftText;
+      await recordFeedback({
+        trainerId,
+        clientId: row.clientId,
+        subjectKind: "client_message",
+        subjectId: row.id,
+        signal: "client_message_approved",
+        score: edited ? 0 : 1,
+        payload: edited ? { edited, draft: draftText, final: updated.finalText } : { edited },
+      });
       return updated;
     },
     {
@@ -194,7 +206,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
   )
   .post(
     "/:id/reject",
-    async ({ params, status }) => {
+    async ({ params, status, trainerId }) => {
       const [row] = await db.select().from(clientMessages).where(eq(clientMessages.id, params.id));
       if (!row) return status(404, { error: "client message not found" });
       const [updated] = await db
@@ -202,6 +214,13 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
         .set({ status: "rejected" })
         .where(eq(clientMessages.id, params.id))
         .returning();
+      await recordFeedback({
+        trainerId,
+        clientId: row.clientId,
+        subjectKind: "client_message",
+        subjectId: row.id,
+        signal: "client_message_rejected",
+      });
       return updated;
     },
     { params: t.Object({ id: t.String() }) }

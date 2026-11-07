@@ -10,6 +10,7 @@ import {
   sessionLogs,
   setLogs,
   trainerPreferences,
+  type AiGenerationRow,
 } from "@pt/db";
 import {
   AiProgramDraft,
@@ -20,9 +21,11 @@ import {
   combinePreferenceDocs,
   pulseSummary,
   weekOf,
+  type ProgramWeek,
 } from "@pt/shared";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "../lib/settle-generation";
+import { draftToWeekDiff, recordFeedback, recordRegenerated } from "../lib/llm-feedback";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import {
   buildGenerationMessages,
@@ -41,6 +44,26 @@ import { loadContext } from "../lib/context";
 import { runRevision } from "../lib/revision";
 import { savePhasingEdit } from "../lib/phasing-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
+
+/** Approve verdict: unedited when the approved week matches the AI draft, else edited with the diff. */
+async function recordApproval(
+  trainerId: string,
+  gen: AiGenerationRow,
+  week: ProgramWeek | undefined,
+  programId: string
+): Promise<void> {
+  if (!gen.draft) return;
+  const diff = await draftToWeekDiff(trainerId, gen.draft, week).catch(() => []);
+  const edited = diff.length > 0 || gen.manualEdit;
+  await recordFeedback({
+    trainerId,
+    clientId: gen.clientId,
+    subjectKind: "generation",
+    subjectId: gen.id,
+    signal: edited ? "draft_approved_edited" : "draft_approved_unedited",
+    payload: { programId, diff, manualEdit: gen.manualEdit },
+  });
+}
 
 export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   .use(trainerContext)
@@ -110,6 +133,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             })
             .returning();
 
+          await recordRegenerated(trainerId, body.clientId, "week", generation.id);
           const ac = registerGeneration(generation.id);
           try {
             const out = await callLlm({
@@ -170,6 +194,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           })
           .returning();
 
+        await recordRegenerated(trainerId, body.clientId, "block", generation.id);
         const ac = registerGeneration(generation.id);
         try {
           // Call + validate, with exactly one retry on validation failure.
@@ -311,6 +336,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           .update(aiGenerations)
           .set({ status: "approved", approvedProgramId: prog.id })
           .where(eq(aiGenerations.id, gen.id));
+        await recordApproval(trainerId, gen, parsedDoc.data.find((w) => w.week === gen.targetWeek), prog.id);
         return status(201, toProgramDto(updatedProgram));
       }
 
@@ -370,6 +396,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         .update(aiGenerations)
         .set({ status: "approved", approvedProgramId: program.id })
         .where(eq(aiGenerations.id, gen.id));
+      await recordApproval(trainerId, gen, finalWeeks[0], program.id);
       const { sessions, ...rest } = program;
       return status(201, { ...rest, weeks: sessions });
     },
@@ -377,7 +404,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   )
   .post(
     "/generations/:id/reject",
-    async ({ params, body, status }) => {
+    async ({ params, body, status, trainerId }) => {
       const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, params.id));
       if (!gen) return status(404, { error: "generation not found" });
       const reason = body?.reason?.trim() || null;
@@ -386,6 +413,14 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         .set(reason ? { status: "rejected", rejectReason: reason } : { status: "rejected" })
         .where(eq(aiGenerations.id, params.id))
         .returning();
+      await recordFeedback({
+        trainerId,
+        clientId: gen.clientId,
+        subjectKind: "generation",
+        subjectId: gen.id,
+        signal: "draft_rejected",
+        comment: reason,
+      });
       return updated;
     },
     {

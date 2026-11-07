@@ -1,9 +1,10 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
 import { AiProgramDraft, mockApplyProposal, mockReviseDraft, weekOf, type ChatProposal } from "@pt/shared";
 import { toSignalProgram } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
+import { recordFeedback } from "./llm-feedback";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import {
   REVISION_CONVERSATION_LIMIT,
@@ -93,6 +94,17 @@ export async function runRevision(
       exampleProgramIds: parent.exampleProgramIds ?? [],
     })
     .returning();
+
+  // A revision request is a critique of the parent draft.
+  await recordFeedback({
+    trainerId: parent.trainerId,
+    clientId: parent.clientId,
+    subjectKind: "generation",
+    subjectId: parent.id,
+    signal: "draft_revised",
+    comment: trimmedMessage,
+    payload: { childGenerationId: generation.id, fromProposal: Boolean(opts.mockProposal || opts.feedback) },
+  });
 
   const ac = registerGeneration(generation.id);
   try {
@@ -210,7 +222,8 @@ export async function loadRevisionConversation(generationId: string): Promise<st
     .where(
       and(
         eq(chatMessages.clientId, generation.clientId),
-        inArray(chatMessages.kind, ["chat", "revision", "proposal"])
+        inArray(chatMessages.kind, ["chat", "revision", "proposal"]),
+        isNull(chatMessages.hiddenAt)
       )
     )
     .orderBy(desc(chatMessages.createdAt))
