@@ -80,6 +80,10 @@ export const exercises = pgTable("exercises", {
   equipment: text("equipment").notNull(),
   movementPattern: text("movement_pattern").$type<MovementPattern>(),
   functionalMovement: text("functional_movement").$type<FunctionalMovement>(),
+  /** Trainer's setup cues — shown in programs and passed to the AI. */
+  note: text("note"),
+  /** Set = archived (custom) or hidden (seed): out of pickers and AI catalogs; programs and logs keep it. */
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
