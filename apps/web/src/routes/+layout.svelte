@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "@fontsource-variable/noto-sans-thai";
   import "../app.css";
   import { page } from "$app/state";
   import { onMount } from "svelte";

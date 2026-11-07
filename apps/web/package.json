@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.9",
+    "@fontsource-variable/noto-sans-thai": "^5.3.0",
     "@pt/api": "workspace:*",
     "@pt/shared": "workspace:*",
     "marked": "^18.1.3",
