@@ -181,7 +181,7 @@
                 <span class="by"><Author author={item.author} /></span>
                 <Tooltip text={fmtDateTime(item.createdAt)}>
                   {#snippet children(tipId)}
-                    <time class="when" datetime={item.createdAt} tabindex="0" aria-describedby={tipId}>{fmtDate(item.createdAt)}</time>
+                    <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
                   {/snippet}
                 </Tooltip>
               </div>
@@ -326,7 +326,11 @@
     min-width: 0;
     max-width: 16rem;
   }
-  .when {
+  button.when {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
     border-radius: 4px;
     cursor: default;
   }

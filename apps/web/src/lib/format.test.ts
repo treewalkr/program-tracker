@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { weekOptions, weekPlanLabel } from "./format";
+import { fmtDateTime, weekOptions, weekPlanLabel } from "./format";
 
 describe("weekPlanLabel", () => {
   test("weekPlanLabel renders directive and quantified target", () => {
@@ -25,5 +25,25 @@ describe("weekPlanLabel", () => {
 
     const optsClamped = weekOptions(weeks, 9);
     expect(optsClamped.find((o) => o.isCurrent)?.label).toBe("W4");
+  });
+});
+
+describe("fmtDateTime", () => {
+  const withTz = (tz: string, fn: () => void) => {
+    const prev = process.env.TZ;
+    process.env.TZ = tz;
+    try {
+      fn();
+    } finally {
+      process.env.TZ = prev;
+    }
+  };
+
+  test("full local stamp with weekday, seconds and offset", () => {
+    withTz("Asia/Bangkok", () => expect(fmtDateTime("2026-11-07T07:39:42.000Z")).toBe("Sat 7 Nov 2026, 14:39:42 GMT+7"));
+  });
+  test("half-hour and zero offsets", () => {
+    withTz("Asia/Kolkata", () => expect(fmtDateTime("2026-11-07T00:00:05.000Z")).toBe("Sat 7 Nov 2026, 05:30:05 GMT+5:30"));
+    withTz("UTC", () => expect(fmtDateTime("2026-01-02T03:04:05.000Z")).toBe("Fri 2 Jan 2026, 03:04:05 GMT"));
   });
 });

@@ -8,6 +8,23 @@ export function fmtDate(iso: string): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * "Sat 7 Nov 2026, 14:39:42 GMT+7" — the full local stamp for tooltips.
+ * Hand-built like `fmtDate` so it reads the same in every locale.
+ */
+export function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  const off = -d.getTimezoneOffset();
+  const abs = Math.abs(off);
+  const zone =
+    off === 0 ? "GMT" : `GMT${off > 0 ? "+" : "-"}${Math.floor(abs / 60)}${abs % 60 ? `:${pad2(abs % 60)}` : ""}`;
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  return `${WEEKDAYS[d.getDay()]} ${fmtDate(iso)}, ${time} ${zone}`;
+}
+
 /** Compact duration: 45 → "45s", 60 → "1:00", 90 → "1:30". */
 export function fmtDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
