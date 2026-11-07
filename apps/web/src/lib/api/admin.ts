@@ -23,6 +23,16 @@ export interface LlmDatasetStats {
   tokens: { in: number; out: number };
 }
 
+/** One notification email, rendered from sample data by the live templates. */
+export interface EmailPreview {
+  id: string;
+  group: "New tickets" | "Replies" | "Status changes";
+  title: string;
+  trigger: string;
+  recipients: string;
+  email: { to: string; subject: string; text: string; html: string; headers?: Record<string, string> };
+}
+
 /** The API's `{ error }` message, or a fallback. */
 const message = (error: { status: unknown; value: unknown }) =>
   (error.value as { error?: string } | null)?.error ?? `request failed (${String(error.status)})`;
@@ -48,6 +58,11 @@ export const adminApi = {
     const { data, error } = await client.v1.admin["llm-stats"].get();
     if (error) throw new Error(message(error));
     return data;
+  },
+  async emails(): Promise<EmailPreview[]> {
+    const { data, error } = await client.v1.admin.emails.get();
+    if (error) throw new Error(message(error));
+    return data.emails;
   },
   async removeTrainer(id: string): Promise<void> {
     const { error } = await client.v1.admin.trainers({ id }).delete();

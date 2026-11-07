@@ -4,6 +4,8 @@ import { clients, db, trainers } from "@pt/db";
 import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
+import { appUrl } from "../lib/email-links";
+import { emailPreviews } from "../lib/email-previews";
 
 type TrainerRow = typeof trainers.$inferSelect;
 
@@ -104,4 +106,8 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
   )
   .get("/llm-stats", () => datasetStats(), {
     detail: { summary: "LLM dataset counts: final calls by purpose and label, attempts by status, feedback, pairs" },
+  })
+  /** Every email the app sends, rendered by the live templates from sample data. */
+  .get("/emails", () => ({ emails: emailPreviews(appUrl()) }), {
+    detail: { summary: "Preview each notification email" },
   });

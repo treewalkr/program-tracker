@@ -14,6 +14,7 @@
 		| 'gear'
 		| 'comment'
 		| 'lock'
+		| 'mail'
 		| 'bolt'
 		| 'pulse'
 		| 'chevron'
@@ -78,6 +79,7 @@
 			circle: { cx: 12, cy: 12, r: 3 },
 		},
 		comment: { d: 'M4 5h16v11h-9l-5 4v-4H4z' },
+		mail: { d: 'm3 7 9 6 9-6', rect: { x: 3, y: 5, w: 18, h: 14, rx: 2 } },
 		lock: { d: 'M8 10V7a4 4 0 0 1 8 0v3', rect: { x: 4, y: 10, w: 16, h: 10, rx: 2 } },
 		bolt: { d: 'M13 2 3 14h7l-1 8 10-12h-7l1-8z', filled: true },
 		pulse: { d: 'M12 6l7 12H5z', filled: true },

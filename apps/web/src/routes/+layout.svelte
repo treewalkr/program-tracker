@@ -55,7 +55,10 @@
     },
   ];
   const groups = $derived<NavGroup[]>(
-    isAdmin ? [...baseGroups, { label: "Platform", items: [{ href: "/admin", label: "Trainers", icon: "lock" }] }] : baseGroups,
+    isAdmin ? [...baseGroups, { label: "Platform", items: [
+            { href: "/admin", label: "Trainers", icon: "lock" },
+            { href: "/admin/emails", label: "Emails", icon: "mail" },
+          ] }] : baseGroups,
   );
 
   /** Utility destinations sit at the foot of the sidebar, apart from the daily work. */
@@ -66,8 +69,9 @@
   const live = apiMode === "live";
   const modeLabel = live ? "Live data" : "Demo data";
 
+  /** Exact for "/" and "/admin", whose sub-pages have their own nav items. */
   const isActive = (href: string) =>
-    href === "/" ? page.url.pathname === "/" : page.url.pathname.startsWith(href);
+    href === "/" || href === "/admin" ? page.url.pathname === href : page.url.pathname.startsWith(href);
 
   /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
      narrow screens start as the rail and open the full menu over the page. */
