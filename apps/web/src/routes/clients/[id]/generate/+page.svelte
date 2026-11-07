@@ -221,6 +221,12 @@
     gen = child;
   }
 
+  /** A note applied as a revision: the new version becomes the one under review. */
+  function showRevision(child: GenerationDto) {
+    allGens = [child, ...allGens.filter((g) => g.id !== child.id)];
+    gen = child;
+  }
+
   async function approve() {
     if (!gen) return;
     approving = true;
@@ -633,6 +639,7 @@
     onreject={reject}
     onreset={reset}
     onsaveplan={savePlan}
+    onrevised={showRevision}
   />
 {/if}
 

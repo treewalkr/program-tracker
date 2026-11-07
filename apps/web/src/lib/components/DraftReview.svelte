@@ -1,7 +1,8 @@
 <script lang="ts">
   import { effortSummary } from "$lib/effort";
   import { diffDraftSlots, sortExercisesByRole, type SlotChange } from "@pt/shared";
-  import type { ClientDto, ExerciseDto, GenerationDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
+  import type { ClientDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
+  import { api } from "$lib/api";
   import { revisionChain } from "$lib/generation";
   import { renderMarkdown } from "$lib/chatRefine";
   import {
@@ -19,6 +20,7 @@
   import BlockPlanEditor from "./BlockPlanEditor.svelte";
   import StatusPill from "./StatusPill.svelte";
   import Verdict from "./Verdict.svelte";
+  import NoteEditor from "./NoteEditor.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -46,6 +48,8 @@
     onreset: () => void;
     /** Persist an edited plan; resolves once the new version is the page's `gen`. */
     onsaveplan: (phasing: ProgramPhasingDto) => Promise<void>;
+    /** A note was applied: show this new version. Without it, notes can't be applied. */
+    onrevised?: (child: GenerationDto) => Promise<void> | void;
   }
 
   let {
@@ -62,6 +66,7 @@
     onreject,
     onreset,
     onsaveplan,
+    onrevised,
   }: Props = $props();
 
   let rejectOpen = $state(false);
@@ -72,6 +77,26 @@
   let week = $state(1);
   let mode = $state<"sessions" | "compare">("sessions");
   let base = $state<number | null>(null);
+  /** Open note editor: draft session index + exercise slot (1-based; null = whole session). */
+  let noteAt = $state<{ day: number; slot: number | null } | null>(null);
+  let notes = $state<LlmNoteDto[]>([]);
+
+  $effect(() => {
+    const id = gen.id;
+    let live = true;
+    notes = [];
+    api
+      .llmNotes([id])
+      .then((found) => {
+        if (live) notes = found;
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  });
+
+
 
   const draft = $derived(gen.draft!);
   const chain = $derived(revisionChain(gens, gen.id));
@@ -82,6 +107,39 @@
   const decided = $derived(newProgram !== null || gen.status === "rejected" || gen.status === "approved");
   const canEdit = $derived(gen.status === "validated" && !newProgram && !isWeek);
 
+  /** Noted slots per session (0 = the session itself), for the row marks. */
+  const notedByDay = $derived(
+    draft.sessions.map(
+      (_, i) =>
+        new Set(
+          notes.flatMap((n) =>
+            n.anchor?.type === "slot" && n.anchor.sessionIndex === i ? [n.anchor.exerciseIndex != null ? n.anchor.exerciseIndex + 1 : 0] : []
+          )
+        )
+    )
+  );
+
+  function anchorFor(day: number, slot: number | null): NoteAnchorDto {
+    const s = draft.sessions[day];
+    const ex = slot != null ? s.exercises[slot - 1] : null;
+    return {
+      type: "slot",
+      week: isWeek ? gen.targetWeek : null,
+      session: s.name,
+      sessionIndex: day,
+      exerciseIndex: slot != null ? slot - 1 : null,
+      exerciseId: ex?.exerciseId ?? null,
+      exerciseName: ex?.exerciseName ?? null,
+    };
+  }
+
+  const canApply = $derived(gen.status === "validated" && !newProgram && !!onrevised);
+
+  async function applyNote(note: LlmNoteDto) {
+    const child = await api.applyNote(note.id);
+    if (child.status !== "validated") throw new Error(child.error ?? `Revision ${child.status}`);
+    await onrevised?.(child);
+  }
   const slotChanges = $derived(prev?.draft ? diffDraftSlots(prev.draft, draft) : []);
   const plan = $derived(draft.phasing ?? null);
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
@@ -210,7 +268,7 @@
     </p>
     <div class="rv-rate">
       <span>How was v{version}?</span>
-      <Verdict subjectKind="generation" subjectId={gen.id} noun="draft" />
+      <Verdict subjectKind="generation" subjectId={gen.id} noun="draft" clientId={client.id} clientName={firstName} />
     </div>
   </div>
   <div class="rv-actions">{@render actions()}</div>
@@ -358,7 +416,34 @@
 {#if mode === "sessions" || version < 2}
   {#each cards as s, i (i)}
     <article class="day">
-      <SessionCard name={s.name} tag={tags[i]} kind={s.kind} cardio={s.cardio} exercises={s.exercises} marks={marksByDay[i]} />
+      <div class="day-main">
+        <SessionCard
+          name={s.name}
+          tag={tags[i]}
+          kind={s.kind}
+          cardio={s.cardio}
+          exercises={s.exercises}
+          marks={marksByDay[i]}
+          noted={notedByDay[i]}
+          onnote={editing ? undefined : (slot) => (noteAt = { day: i, slot })}
+        />
+        {#if noteAt?.day === i}
+          {#key noteAt.slot}
+            <div class="note-slot">
+              <NoteEditor
+                subjectKind="generation"
+                subjectId={gen.id}
+                anchor={anchorFor(i, noteAt.slot)}
+                clientId={client.id}
+                clientName={firstName}
+                onapply={canApply ? applyNote : undefined}
+                onsaved={(n) => (notes = [...notes, n])}
+                onclose={() => (noteAt = null)}
+              />
+            </div>
+          {/key}
+        {/if}
+      </div>
       <aside class="why">
         <h4><Icon name="sparkle" />Why this session</h4>
         {#if why.days[i].length}
@@ -484,6 +569,8 @@
 
   .day { display: grid; grid-template-columns: minmax(0, 1fr) 300px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
   .day :global(.session-body) { padding-left: 24px; }
+  .day-main { min-width: 0; }
+  .note-slot { padding: 0 14px 14px 24px; }
   .why { border-left: 1px solid var(--line); background: var(--well); padding: 12px 16px; font-size: 13px; line-height: 1.55; }
   .why h4 { font: 600 12px/1 var(--font-ui); color: var(--muted); margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
   .why h4 :global(svg) { width: 13px; height: 13px; }

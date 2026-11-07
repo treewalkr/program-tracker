@@ -43,9 +43,13 @@
     }[];
     /** Change marks keyed by exercise `slot` (chat draft preview). */
     marks?: Map<number, SlotMark>;
+    /** Shows a quiet "Note" on each row and the session head; slot null = the whole session. */
+    onnote?: (slot: number | null) => void;
+    /** Slots (and 0 for the session) that already carry a note. */
+    noted?: ReadonlySet<number>;
   }
 
-  let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks }: Props = $props();
+  let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks, onnote, noted }: Props = $props();
 
   const hasPattern = $derived(
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
@@ -70,6 +74,11 @@
     {#if tag}<span class="track">{tag}</span>{/if}
     <h3>{name}</h3>
     {#if when}<span class="when">{when}</span>{/if}
+    {#if onnote}
+      <button type="button" class="note-btn head-note" class:noted={noted?.has(0)} aria-label="Note on {name}" title="Note on this session" onclick={() => onnote(null)}>
+        <Icon name="comment" /><span>Note</span>
+      </button>
+    {/if}
   </div>
   {#if kind === "cardio" || (cardio && exercises.length === 0)}
     <div class="session-head cond-row">
@@ -86,6 +95,12 @@
             {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
               {@const info = MOVEMENT_PATTERN_INFO[e.movementPattern as MovementPattern]}
               <span class="mp-tag" title={info.description}>{info.label}</span>
+            {/if}
+            {#if onnote && e.slot != null}
+              {@const slot = e.slot}
+              <button type="button" class="note-btn" class:noted={noted?.has(slot)} aria-label="Note on {e.name || 'this exercise'}" title="Note on this exercise" onclick={() => onnote(slot)}>
+                <Icon name="comment" /><span>Note</span>
+              </button>
             {/if}
           </div>
           <SetChips sets={e.sets} />
@@ -155,6 +170,33 @@
     white-space: nowrap;
   }
   .cond-row { border-bottom: none; padding-bottom: 13px; }
+
+  /* Quiet until the row is hovered or focused; always there on touch, and once a note exists. */
+  .note-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border: 1px solid transparent;
+    border-radius: 99px;
+    background: none;
+    font: 500 11px/1.4 var(--font-ui);
+    color: var(--faint);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms, background-color 120ms;
+  }
+  .note-btn :global(svg) { width: 12px; height: 12px; }
+  .head-note { margin-left: auto; }
+  .exrow:hover .note-btn,
+  .exrow:focus-within .note-btn,
+  .session-head:hover .note-btn,
+  .note-btn:focus-visible { opacity: 1; }
+  .note-btn:hover { background: var(--well-2); color: var(--ink); }
+  .note-btn.noted { opacity: 1; color: var(--blue); }
+  .note-btn.noted span { display: none; }
+  @media (hover: none) { .note-btn { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
   /* stacked rows (app.css): a tag that wraps starts flush with the role chip */
   @container session (max-width: 520px) {
     .mp-tag { margin-left: 0; }

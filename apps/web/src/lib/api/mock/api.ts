@@ -1429,7 +1429,7 @@ export const mockApi: TrainerApi = {
       id: uuid(),
       subjectKind: input.subjectKind,
       subjectId: input.subjectId,
-      anchor: structuredClone(input.anchor),
+      anchor: JSON.parse(JSON.stringify(input.anchor)) as NoteAnchorDto, // may be a $state proxy
       anchorText: anchorText(input.anchor),
       comment,
       correction,
