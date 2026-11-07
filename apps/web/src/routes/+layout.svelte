@@ -13,6 +13,8 @@
 
   const bare = $derived(page.url.pathname === "/login");
   const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
+  /** AUTH_DISABLED ("open") runs as admin server-side too. */
+  const isAdmin = $derived(trainer?.isAdmin || data.session.kind === "open");
 
   async function signOut() {
     await authApi.signOut();
@@ -21,7 +23,8 @@
 
   let clientCount = $state<number | null>(null);
 
-  const groups: { label: string; items: { href: string; label: string; icon: IconName }[] }[] = [
+  type NavGroup = { label: string; items: { href: string; label: string; icon: IconName }[] };
+  const baseGroups: NavGroup[] = [
     {
       label: "Workspace",
       items: [
@@ -40,6 +43,9 @@
       ],
     },
   ];
+  const groups = $derived<NavGroup[]>(
+    isAdmin ? [...baseGroups, { label: "Platform", items: [{ href: "/admin", label: "Trainers", icon: "lock" }] }] : baseGroups,
+  );
 
   const isActive = (href: string) =>
     href === "/" ? page.url.pathname === "/" : page.url.pathname.startsWith(href);
