@@ -16,6 +16,7 @@ next block with AI assistance, and log workouts against the assigned program.
 bun install
 bun run db:up          # postgres via docker compose
 bun run db:migrate
+bun run db:seed        # exercise library (packages/db/seed/exercises.sql); safe to re-run
 cp .env.example .env   # add ZAI_API_KEY
 cp apps/web/.env.example apps/web/.env
 bun run dev            # api :4000 + web :5173

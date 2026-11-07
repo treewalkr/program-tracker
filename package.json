@@ -17,6 +17,7 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "bun run --filter @pt/db migrate",
+    "db:seed": "bun run --filter @pt/db seed:exercises",
     "db:generate": "bun run --filter @pt/db generate",
     "db:studio": "bun run --filter @pt/db studio"
   },

@@ -27,7 +27,8 @@ services:
 
   migrate:
     <<: *app
-    command: bun run --filter @pt/db migrate
+    # migrate, then add any missing library exercises (idempotent)
+    command: sh -c 'bun run --filter @pt/db migrate && bun run --filter @pt/db seed:exercises'
     restart: "no"
     depends_on:
       postgres:

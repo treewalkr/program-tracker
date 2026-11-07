@@ -2,13 +2,15 @@
  * Seed the global exercise library from library/exercise-library.json
  * (free-exercise-db, public domain, plus hand curation — see library/).
  *
- *   bun run seed:exercises            add missing library names (idempotent)
+ *   bun run seed:exercises            run seed/exercises.sql: add missing library
+ *                                     names (idempotent)
  *   bun run seed:exercises --replace  delete EVERY exercise (library + custom),
  *                                     insert the library, and remap program and
  *                                     AI-draft references by name / ALIASES.
  *                                     Aborts (rolls back) if any set log exists
  *                                     or any reference can't be mapped.
  */
+import { readFileSync } from "node:fs";
 import { eq, sql } from "drizzle-orm";
 import { aiGenerations, db, exercises, programs, setLogs } from "../src";
 import { ALIASES, type LibraryEntry } from "../library/curation";
@@ -34,10 +36,10 @@ function remap(value: unknown, map: Map<string, string>, oldIds: Set<string>, mi
 const toRow = (e: LibraryEntry) => ({ ...e, trainerId: null });
 
 async function addMissing() {
-  const existing = new Set((await db.select({ name: exercises.name }).from(exercises)).map((e) => norm(e.name)));
-  const rows = entries.filter((e) => !existing.has(norm(e.name))).map(toRow);
-  if (rows.length) await db.insert(exercises).values(rows);
-  console.log(`✓ added ${rows.length} exercises (${entries.length - rows.length} already present)`);
+  const count = async () => (await db.select({ n: sql<number>`count(*)::int` }).from(exercises))[0].n;
+  const before = await count();
+  await db.execute(sql.raw(readFileSync(new URL("../seed/exercises.sql", import.meta.url), "utf8")));
+  console.log(`✓ added ${(await count()) - before} exercises from seed/exercises.sql`);
 }
 
 async function replaceAll() {
