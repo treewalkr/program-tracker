@@ -285,8 +285,12 @@
     }
   }
 
+  // Return adds a line: on iPad's on-screen keyboard it is the only way to, and an accidental
+  // send costs an AI call. A hardware keyboard sends with ⌘/Ctrl+Return.
+  const modKey = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl";
+
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.isComposing) {
       e.preventDefault();
       send();
     }
@@ -315,6 +319,7 @@
         onkeydown={onKeydown}
         rows="2"
         maxlength="2000"
+        enterkeyhint="enter"
         aria-label="Message to AI"
         placeholder={preview.target
           ? "Ask about the numbers, or describe a change to the draft"
@@ -322,7 +327,7 @@
       ></textarea>
       <div class="dock-row">
         <ModelSettings {providers} bind:providerId bind:model bind:effort />
-        <span class="kbd">⏎ send · ⇧⏎ new line</span>
+        <span class="kbd">{modKey} ⏎ send</span>
         <button type="button" class="btn small send" disabled={!draft.trim() || busy || !providerId} onclick={send}>
           Send
         </button>
@@ -331,9 +336,10 @@
     {#if sendError}
       <div class="send-error"><Note tone="bad">{sendError}</Note></div>
     {/if}
-    {#if preview.target && !openProposalId}
-      <p class="dock-hint">Change requests come back as a proposal. Nothing is rebuilt until you press Build.</p>
-    {/if}
+    <p class="dock-hint">
+      Return adds a new line. Tap Send, or press {modKey} Return on a keyboard.
+      {#if preview.target && !openProposalId}Change requests come back as a proposal. Nothing is rebuilt until you press Build.{/if}
+    </p>
   </div>
 {/snippet}
 
