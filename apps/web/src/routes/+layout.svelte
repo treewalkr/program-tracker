@@ -38,6 +38,7 @@
       label: "Library",
       items: [
         { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
+        { href: "/session-types", label: "Session types", icon: "layers" },
         { href: "/templates", label: "Templates", icon: "file" },
         { href: "/examples", label: "Examples", icon: "star" },
       ],
