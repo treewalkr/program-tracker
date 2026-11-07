@@ -17,7 +17,8 @@
 		| 'pulse'
 		| 'chevron'
 		| 'search'
-		| 'sidebar';
+		| 'sidebar'
+		| 'signout';
 </script>
 
 <script lang="ts">
@@ -72,6 +73,7 @@
 		pulse: { d: 'M12 6l7 12H5z', filled: true },
 		chevron: { d: 'm6 9 6 6 6-6' },
 		search: { d: 'm20 20-4.2-4.2', circle: { cx: 11, cy: 11, r: 7 } },
+		signout: { d: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', d2: 'M10 17l-5-5 5-5M5 12h11' },
 		sidebar: { d: 'M9 4v16', rect: { x: 3, y: 4, w: 18, h: 16, rx: 2 } },
 	};
 

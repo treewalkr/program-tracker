@@ -30,8 +30,6 @@
       items: [
         { href: "/", label: "Overview", icon: "grid" },
         { href: "/clients", label: "Clients", icon: "users" },
-        { href: "/settings", label: "Settings", icon: "gear" },
-        { href: "/feedback", label: "Feedback", icon: "comment" },
       ],
     },
     {
@@ -47,6 +45,14 @@
   const groups = $derived<NavGroup[]>(
     isAdmin ? [...baseGroups, { label: "Platform", items: [{ href: "/admin", label: "Trainers", icon: "lock" }] }] : baseGroups,
   );
+
+  /** Utility destinations sit at the foot of the sidebar, apart from the daily work. */
+  const utility: NavGroup["items"] = [
+    { href: "/feedback", label: "Feedback", icon: "comment" },
+    { href: "/settings", label: "Settings", icon: "gear" },
+  ];
+  const live = apiMode === "live";
+  const modeLabel = live ? "Live data" : "Demo data";
 
   const isActive = (href: string) =>
     href === "/" ? page.url.pathname === "/" : page.url.pathname.startsWith(href);
@@ -94,6 +100,22 @@
   });
 </script>
 
+{#snippet navItem(item: NavGroup["items"][number])}
+  <a
+    class="nav-item"
+    class:active={isActive(item.href)}
+    aria-current={isActive(item.href) ? "page" : undefined}
+    href={item.href}
+    title={item.label}
+  >
+    <Icon name={item.icon} />
+    <span class="nav-text">{item.label}</span>
+    {#if item.href === "/clients" && clientCount !== null}
+      <span class="count">{clientCount}</span>
+    {/if}
+  </a>
+{/snippet}
+
 <svelte:window onkeydown={(e) => { if (e.key === "Escape" && drawerOpen) drawerOpen = false; }} />
 
 {#if bare}
@@ -122,42 +144,44 @@
       </button>
     </div>
 
-    <nav aria-label="Primary">
+    <nav class="nav" aria-label="Primary">
       {#each groups as group (group.label)}
         <div class="nav-label">{group.label}</div>
         {#each group.items as item (item.href)}
-          <a
-            class="nav-item"
-            class:active={isActive(item.href)}
-            aria-current={isActive(item.href) ? "page" : undefined}
-            href={item.href}
-            title={item.label}
-          >
-            <Icon name={item.icon} />
-            <span class="nav-text">{item.label}</span>
-            {#if item.href === "/clients" && clientCount !== null}
-              <span class="count">{clientCount}</span>
-            {/if}
-          </a>
+          {@render navItem(item)}
         {/each}
       {/each}
     </nav>
 
-    {#if trainer}
-      <div class="who">
-        {#if trainer.avatarUrl}
-          <img src={trainer.avatarUrl} alt="" referrerpolicy="no-referrer" />
-        {/if}
-        <span class="who-text">
-          <span class="who-name">{trainer.name}</span>
-          <button type="button" class="sign-out" onclick={signOut}>Sign out</button>
-        </span>
-      </div>
-    {/if}
+    <div class="foot">
+      <nav class="nav" aria-label="Help and settings">
+        {#each utility as item (item.href)}
+          {@render navItem(item)}
+        {/each}
+      </nav>
 
-    <div class="side-foot" class:demo={apiMode !== "live"}>
-      <span class="dot" aria-hidden="true"></span>{apiMode === "live" ? "Live data" : "Demo data"}
-      <span class="build" title="Build {__APP_VERSION__}">v{__APP_VERSION__}</span>
+      <div class="account" class:demo={!live}>
+        {#if trainer}
+          <span class="avatar" title="{trainer.name} · {modeLabel}">
+            {#if trainer.avatarUrl}
+              <img src={trainer.avatarUrl} alt="" referrerpolicy="no-referrer" />
+            {:else}
+              <span class="initial" aria-hidden="true">{trainer.name.trim().charAt(0).toUpperCase() || "?"}</span>
+            {/if}
+            <span class="status" aria-hidden="true"></span>
+          </span>
+          <span class="account-text">
+            <span class="account-name">{trainer.name}</span>
+            <span class="account-meta" title="Build {__APP_VERSION__}">{modeLabel} · v{__APP_VERSION__}</span>
+          </span>
+          <button type="button" class="sign-out" aria-label="Sign out" title="Sign out" onclick={signOut}>
+            <Icon name="signout" />
+          </button>
+        {:else}
+          <span class="mode-dot" title="{modeLabel} · v{__APP_VERSION__}" aria-hidden="true"></span>
+          <span class="account-meta mode" title="Build {__APP_VERSION__}">{modeLabel} · v{__APP_VERSION__}</span>
+        {/if}
+      </div>
     </div>
   </aside>
 
@@ -254,17 +278,16 @@
     color: var(--muted);
   }
 
-  nav {
+  .nav {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    flex: 1;
   }
   .nav-label {
-    font: 600 11px/1 var(--font-ui);
+    font: 500 11px/1 var(--font-ui);
     color: var(--muted);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     padding: 0 8px;
     margin: 0 0 6px;
     white-space: nowrap;
@@ -274,7 +297,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 8px;
+    min-height: 32px;
+    padding: 0 8px;
     border-radius: var(--radius);
     text-decoration: none;
     font: 400 14px/1.4 var(--font-ui);
@@ -305,69 +329,94 @@
     text-align: center;
   }
 
-  .side-foot {
+  /* Foot: utility links, then one account row that also carries the data mode and build. */
+  .foot {
     margin-top: auto;
-    border-top: 1px solid var(--line);
-    padding: 12px 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .account {
     display: flex;
     align-items: center;
-    gap: 7px;
-    font: 400 12px/1.5 var(--font-ui);
-    color: var(--muted);
-    white-space: nowrap;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px 0 0 8px;
+    border-top: 1px solid var(--line);
   }
-  .side-foot .dot {
-    width: 7px;
-    height: 7px;
+  .avatar {
+    position: relative;
+    flex: none;
+    width: 28px;
+    height: 28px;
+  }
+  .avatar img,
+  .initial {
+    width: 28px;
+    height: 28px;
+    border-radius: 99px;
+    display: block;
+  }
+  .initial {
+    display: grid;
+    place-items: center;
+    background: var(--muted);
+    color: #fff;
+    font: 600 12px/1 var(--font-ui);
+  }
+  /* Data mode rides on the avatar so it survives the collapsed rail. */
+  .status,
+  .mode-dot {
+    width: 9px;
+    height: 9px;
     border-radius: 99px;
     background: var(--green-btn);
     flex: none;
   }
-  .side-foot.demo .dot { background: var(--warn); }
-  .side-foot .build {
-    margin-left: auto;
-    font: 400 11px/1.5 var(--font-mono);
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .status {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    box-shadow: 0 0 0 2px var(--well);
   }
-
-  .who {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 8px;
-    min-width: 0;
-  }
-  .who img {
-    width: 24px;
-    height: 24px;
-    border-radius: 99px;
-    flex: none;
-  }
-  .who-text { display: flex; flex-direction: column; min-width: 0; }
-  .who-name {
+  .mode-dot { width: 7px; height: 7px; }
+  .account.demo .status,
+  .account.demo .mode-dot { background: var(--warn); }
+  .account-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+  .account-name {
     font: 500 13px/1.3 var(--font-ui);
     color: var(--ink);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .account-meta {
+    font: 400 11px/1.4 var(--font-ui);
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .account-meta.mode { font-size: 12px; }
   .sign-out {
-    all: unset;
-    font: 400 12px/1.4 var(--font-ui);
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    background: none;
     color: var(--muted);
     cursor: pointer;
-    width: fit-content;
+    transition: background-color 120ms ease-out;
   }
-  .sign-out:hover { color: var(--blue); text-decoration: underline; }
-  .sign-out:focus-visible { border-radius: 3px; box-shadow: 0 0 0 3px var(--focus); }
-  .who + .side-foot { margin-top: 0; }
+  .sign-out :global(svg) { width: 16px; height: 16px; stroke-width: 1.6; }
+  .sign-out:hover { background: var(--well-2); color: var(--ink); }
 
   @media (prefers-reduced-motion: reduce) {
-    .nav-item, .side-toggle { transition: none; }
+    .nav-item, .side-toggle, .sign-out { transition: none; }
   }
 
   .main {
@@ -396,9 +445,9 @@
   .rail .brand { padding: 0; justify-content: center; }
   .rail .name { display: none; }
   .rail .nav-label { visibility: hidden; height: 8px; margin: 0; padding: 0; }
-  .rail .nav-text, .rail .count, .rail .side-foot, .rail .who-text { display: none; }
-  .rail .who { justify-content: center; padding: 0; }
-  .rail .nav-item { justify-content: center; padding: 8px 0; }
+  .rail .nav-text, .rail .count, .rail .account-text, .rail .account-meta { display: none; }
+  .rail .account { flex-direction: column; gap: 8px; padding: 12px 0 0; }
+  .rail .nav-item { justify-content: center; padding: 0; min-height: 36px; }
 
   /* Narrow screens: the open menu floats over the page instead of squeezing it. */
   .shell.drawer { grid-template-columns: 56px 1fr; }
