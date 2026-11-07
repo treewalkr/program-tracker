@@ -124,7 +124,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
                           { role: "user", content: messages.user },
                         ],
                         { signal: ac.signal, effort }
-                      );
+                      ).then((r) => r.content);
                 const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
                 if (parsed.success) {
                   draft = parsed.data;
@@ -231,7 +231,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
                         { role: "user", content: messages.user },
                       ],
                       { signal: ac.signal, effort }
-                    );
+                    ).then((r) => r.content);
               const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
               if (parsed.success) {
                 draft = parsed.data;

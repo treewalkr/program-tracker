@@ -154,13 +154,23 @@ describe("chatJson (deepseek request shape)", () => {
         url = String(input);
         headers = new Headers(init?.headers);
         body = JSON.parse(String(init?.body));
-        return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"ok":true}', reasoning_content: "think" }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 12, completion_tokens: 5, prompt_cache_hit_tokens: 8, completion_tokens_details: { reasoning_tokens: 3 } },
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }) as typeof fetch;
       const out = await chatJson(rt, [{ role: "user", content: "Say JSON." }]);
-      expect(out).toBe('{"ok":true}');
+      expect(out.content).toBe('{"ok":true}');
+      expect(out.reasoning).toBe("think");
+      expect(out.finishReason).toBe("stop");
+      expect(out.usage).toEqual({ tokensIn: 12, tokensOut: 5, tokensReasoning: 3, tokensCached: 8 });
+      expect(out.latencyMs).toBeGreaterThanOrEqual(0);
     } finally {
       globalThis.fetch = origFetch;
     }

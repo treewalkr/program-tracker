@@ -111,7 +111,7 @@ export async function answerChat(
     reply = mockChatReply(message, ctx.client.name);
   } else {
     try {
-      reply = (await chatText(rt!, providerMessages, effort ? { effort } : {})).trim().slice(0, 4000);
+      reply = (await chatText(rt!, providerMessages, effort ? { effort } : {})).content.trim().slice(0, 4000);
     } catch (err) {
       if (err instanceof ProviderError) {
         await db.insert(chatMessages).values({

@@ -40,7 +40,7 @@ describe.skipIf(!live)("deepseek live (chatJson)", () => {
     "T10 deepseek live: chatJson returns a valid AiClientMessageDraft",
     async () => {
       const rt = providerRuntime("deepseek");
-      const raw = await chatJson(
+      const { content: raw } = await chatJson(
         rt,
         [
           { role: "system", content: 'Respond with a single JSON object only: {"message": string}.' },

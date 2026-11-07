@@ -96,10 +96,12 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
             const raw =
               (body.providerId ?? "zai") === "mock"
                 ? JSON.stringify(mockClientMessage(stats))
-                : await chatJson(rt, [
-                    { role: "system", content: messages.system },
-                    { role: "user", content: messages.user },
-                  ]);
+                : (
+                    await chatJson(rt, [
+                      { role: "system", content: messages.system },
+                      { role: "user", content: messages.user },
+                    ])
+                  ).content;
             const parsed = AiClientMessageDraft.safeParse(JSON.parse(extractJsonObject(raw)));
             if (parsed.success) {
               draft = parsed.data;

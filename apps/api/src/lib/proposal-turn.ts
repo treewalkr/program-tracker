@@ -132,7 +132,7 @@ export async function runProposalTurn(
           { role: "user", content: messages.user },
         ],
         { effort: effort ?? undefined }
-      );
+      ).then((r) => r.content);
       const out = ProposalTurnOutput.safeParse(JSON.parse(extractJsonObject(raw)));
       if (out.success) {
         parsed = out.data;

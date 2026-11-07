@@ -106,7 +106,7 @@ export const preferenceRoutes = new Elysia({
               { role: "system", content: messages.system },
               { role: "user", content: messages.user },
             ])
-          ).trim();
+          ).content.trim();
           if (!document) {
             return status(502, { error: "distill returned no content" });
           }

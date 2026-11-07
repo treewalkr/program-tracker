@@ -8,7 +8,8 @@ export class ProviderError extends Error {
   constructor(
     message: string,
     public readonly status?: number,
-    public readonly body?: string
+    public readonly body?: string,
+    public readonly meta: ProviderErrorMeta = {}
   ) {
     super(message);
     this.name = "ProviderError";
@@ -51,18 +52,70 @@ export interface ChatMessage {
   content: string;
 }
 
-export async function chatJson(
-  rt: ProviderRuntime,
-  messages: ChatMessage[],
-  opts: { temperature?: number; signal?: AbortSignal; effort?: string } = {}
-): Promise<string> {
+export interface ProviderUsage {
+  tokensIn: number | null;
+  tokensOut: number | null;
+  tokensReasoning: number | null;
+  tokensCached: number | null;
+}
+
+/** One completion: the text plus what the log needs (usage, truncation, timing). */
+export interface ProviderResult {
+  content: string;
+  /** Thinking text when the provider returns it (deepseek `reasoning_content`, GLM). */
+  reasoning: string | null;
+  usage: ProviderUsage | null;
+  finishReason: string | null;
+  latencyMs: number;
+}
+
+/** Response metadata a ProviderError may carry (e.g. "no content" after a length cut-off). */
+export interface ProviderErrorMeta {
+  latencyMs?: number;
+  finishReason?: string | null;
+  usage?: ProviderUsage | null;
+  reasoning?: string | null;
+}
+
+export interface CompletionOpts {
+  temperature?: number;
+  signal?: AbortSignal;
+  effort?: string;
+}
+
+/** Wire params a call is sent with — shared by the request and the log row. */
+export function completionParams(rt: ProviderRuntime, opts: { temperature?: number } = {}) {
   // GLM 5.x always thinks and rejects "disabled" (Z.ai error 1210): budget low
   // so the JSON draft still fits; give those models a roomier token cap since
   // reasoning shares it.
   const glm5 = /^glm-5/.test(rt.model);
-  const thinking = glm5 ? { type: "enabled", budget: "low" } : undefined;
-  const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
-  const effort = effortParams(rt, opts.effort, thinking);
+  return {
+    temperature: opts.temperature ?? 0.7,
+    maxTokens: glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens,
+    thinking: glm5 ? { type: "enabled", budget: "low" } : undefined,
+  };
+}
+
+function toUsage(u: Record<string, any> | undefined): ProviderUsage | null {
+  if (!u || typeof u !== "object") return null;
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+  return {
+    tokensIn: num(u.prompt_tokens),
+    tokensOut: num(u.completion_tokens),
+    tokensReasoning: num(u.completion_tokens_details?.reasoning_tokens),
+    tokensCached: num(u.prompt_tokens_details?.cached_tokens) ?? num(u.prompt_cache_hit_tokens),
+  };
+}
+
+async function chatCompletion(
+  rt: ProviderRuntime,
+  messages: ChatMessage[],
+  opts: CompletionOpts & { json: boolean }
+): Promise<ProviderResult> {
+  const p = completionParams(rt, opts);
+  const effort = effortParams(rt, opts.effort, p.thinking);
+  const started = performance.now();
+  const elapsed = () => Math.round(performance.now() - started);
   let res: Response;
   try {
     res = await fetch(`${rt.baseUrl}/chat/completions`, {
@@ -75,16 +128,18 @@ export async function chatJson(
       body: JSON.stringify({
         model: rt.model,
         messages,
-        response_format: { type: "json_object" },
-        temperature: opts.temperature ?? 0.7,
-        max_tokens: maxTokens,
-        ...(thinking ? { thinking } : {}),
+        ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+        temperature: p.temperature,
+        max_tokens: p.maxTokens,
+        ...(p.thinking ? { thinking: p.thinking } : {}),
         ...effort,
       }),
     });
   } catch (err) {
     if ((err as Error)?.name === "AbortError") throw err;
-    throw new ProviderError(`network error calling provider: ${(err as Error).message}`);
+    throw new ProviderError(`network error calling provider: ${(err as Error).message}`, undefined, undefined, {
+      latencyMs: elapsed(),
+    });
   }
 
   if (!res.ok) {
@@ -95,64 +150,33 @@ export async function chatJson(
     } catch {
       // body wasn't JSON — keep the raw slice
     }
-    throw new ProviderError(`provider returned ${res.status}: ${detail}`, res.status, body.slice(0, 500));
+    throw new ProviderError(`provider returned ${res.status}: ${detail}`, res.status, body.slice(0, 500), {
+      latencyMs: elapsed(),
+    });
   }
 
   const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string; reasoning_content?: string }; finish_reason?: string }[];
+    usage?: Record<string, any>;
   };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new ProviderError("provider returned no content", 200, JSON.stringify(json).slice(0, 500));
-  return content;
+  const choice = json.choices?.[0];
+  const meta = {
+    latencyMs: elapsed(),
+    finishReason: choice?.finish_reason ?? null,
+    usage: toUsage(json.usage),
+    reasoning: choice?.message?.reasoning_content || null,
+  };
+  const content = choice?.message?.content;
+  if (!content) throw new ProviderError("provider returned no content", 200, JSON.stringify(json).slice(0, 500), meta);
+  return { content, ...meta };
 }
 
-export async function chatText(
-  rt: ProviderRuntime,
-  messages: ChatMessage[],
-  opts: { temperature?: number; effort?: string } = {}
-): Promise<string> {
-  const glm5 = /^glm-5/.test(rt.model);
-  const thinking = glm5 ? { type: "enabled", budget: "low" } : undefined;
-  const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
-  const effort = effortParams(rt, opts.effort, thinking);
-  let res: Response;
-  try {
-    res = await fetch(`${rt.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${rt.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: rt.model,
-        messages,
-        temperature: opts.temperature ?? 0.7,
-        max_tokens: maxTokens,
-        ...(thinking ? { thinking } : {}),
-        ...effort,
-      }),
-    });
-  } catch (err) {
-    throw new ProviderError(`network error calling provider: ${(err as Error).message}`);
-  }
+export function chatJson(rt: ProviderRuntime, messages: ChatMessage[], opts: CompletionOpts = {}): Promise<ProviderResult> {
+  return chatCompletion(rt, messages, { ...opts, json: true });
+}
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    let detail = body.slice(0, 200);
-    try {
-      detail = (JSON.parse(body) as { error?: { message?: string } }).error?.message ?? detail;
-    } catch {
-      // body wasn't JSON — keep the raw slice
-    }
-    throw new ProviderError(`provider returned ${res.status}: ${detail}`, res.status, body.slice(0, 500));
-  }
-
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new ProviderError("provider returned no content", 200, JSON.stringify(json).slice(0, 500));
-  return content;
+export function chatText(rt: ProviderRuntime, messages: ChatMessage[], opts: CompletionOpts = {}): Promise<ProviderResult> {
+  return chatCompletion(rt, messages, { ...opts, json: false });
 }
 
 /** LLMs sometimes wrap JSON in fences or prose; extract the outermost JSON object. */
