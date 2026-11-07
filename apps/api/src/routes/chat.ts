@@ -6,6 +6,7 @@ import { answerChat } from "../lib/chat-qa";
 import { loadRevisionConversation, runRevision } from "../lib/revision";
 import { runProposalTurn } from "../lib/proposal-turn";
 import { trainerContext } from "../lib/trainer-context";
+import { linkTurn } from "../ai/llm";
 
 /**
  * The trainer's request that produced a proposal.
@@ -134,6 +135,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
             : null,
         })
         .returning();
+      await linkTurn(res.turnId, { chatMessageId: assistantRow.id });
       return status(201, { messages: [trainerRow, assistantRow], generation: null });
     },
     {

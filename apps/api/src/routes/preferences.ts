@@ -5,10 +5,7 @@ import { mockDistillPreferences } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { gatherPreferenceSignals } from "../lib/preferences";
 import { buildDistillMessages } from "../ai/prompt";
-import {
-  chatText,
-  ProviderError,
-} from "../ai/provider";
+import { callLlm } from "../ai/llm";
 import { ContextError, providerRuntime } from "../ai/runtime";
 
 export const preferenceRoutes = new Elysia({
@@ -86,42 +83,39 @@ export const preferenceRoutes = new Elysia({
 
       const previousDocument = existing?.document ?? null;
       const providerId = body.providerId ?? "zai";
-      let document: string;
-      let effectiveModel: string;
 
-      if (providerId === "mock") {
-        document = mockDistillPreferences(signals);
-        effectiveModel = body.model ?? "mock-distill-v1";
-      } else {
-        try {
-          const rt = providerRuntime(providerId, body.model);
-          effectiveModel = rt.model;
-          const messages = buildDistillMessages({
-            clientName,
-            previousDocument,
-            signals,
-          });
-          document = (
-            await chatText(rt, [
-              { role: "system", content: messages.system },
-              { role: "user", content: messages.user },
-            ])
-          ).content.trim();
-          if (!document) {
-            return status(502, { error: "distill returned no content" });
-          }
-          if (document.length > 4000) {
-            document = document.slice(0, 4000);
-          }
-        } catch (err) {
-          if (err instanceof ProviderError) {
-            return status(502, { error: err.message });
-          }
-          if (err instanceof ContextError) {
-            return status(err.status, { error: err.message });
-          }
-          throw err;
-        }
+      let rt: ReturnType<typeof providerRuntime>;
+      try {
+        rt = providerRuntime(providerId, providerId === "mock" ? undefined : body.model);
+      } catch (err) {
+        if (err instanceof ContextError) return status(err.status, { error: err.message });
+        throw err;
+      }
+      if (providerId === "mock") rt = { ...rt, model: body.model ?? "mock-distill-v1" };
+      const effectiveModel = rt.model;
+      const messages = buildDistillMessages({ clientName, previousDocument, signals });
+      const out = await callLlm({
+        purpose: "distill",
+        builder: "buildDistillMessages",
+        links: { trainerId, clientId: targetClientId },
+        context: { clientName, previousDocument, previousPreferenceId: existing?.id ?? null, signals },
+        messages: [
+          { role: "system", content: messages.system },
+          { role: "user", content: messages.user },
+        ],
+        rt,
+        mode: "text",
+        mock: () => mockDistillPreferences(signals),
+      });
+      if (!out.ok) {
+        return status(502, { error: out.kind === "provider" ? out.error.message : "distill failed" });
+      }
+      let document = out.data.trim();
+      if (!document) {
+        return status(502, { error: "distill returned no content" });
+      }
+      if (document.length > 4000) {
+        document = document.slice(0, 4000);
       }
 
       if (existing) {

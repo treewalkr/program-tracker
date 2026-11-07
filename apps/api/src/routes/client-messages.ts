@@ -1,6 +1,5 @@
 import { Elysia, t } from "elysia";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
 import {
   db,
   clientMessages,
@@ -12,7 +11,7 @@ import {
   type SetLogRow,
 } from "@pt/db";
 import { AiClientMessageDraft, CLIENT_MESSAGE_MAX_CHARS, weekSummary } from "@pt/shared";
-import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
+import { callLlm } from "../ai/llm";
 import { buildClientMessageMessages } from "../ai/prompt";
 import { mockClientMessage } from "../ai/mock";
 import { ContextError, providerRuntime } from "../ai/runtime";
@@ -89,42 +88,32 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
         });
 
         // Call + validate, with exactly one retry on validation failure.
-        let draft: z.infer<typeof AiClientMessageDraft> | null = null;
-        let validationError: string | null = null;
-        for (let attempt = 0; attempt < 2 && !draft; attempt++) {
-          try {
-            const raw =
-              (body.providerId ?? "zai") === "mock"
-                ? JSON.stringify(mockClientMessage(stats))
-                : (
-                    await chatJson(rt, [
-                      { role: "system", content: messages.system },
-                      { role: "user", content: messages.user },
-                    ])
-                  ).content;
-            const parsed = AiClientMessageDraft.safeParse(JSON.parse(extractJsonObject(raw)));
-            if (parsed.success) {
-              draft = parsed.data;
-            } else {
-              validationError = z.prettifyError(parsed.error);
-            }
-          } catch (err) {
-            if (err instanceof ProviderError) {
-              const [failed] = await db
-                .update(clientMessages)
-                .set({ status: "failed_provider", error: err.message })
-                .where(eq(clientMessages.id, row.id))
-                .returning();
-              return status(502, failed);
-            }
-            validationError = `parse failure: ${(err as Error).message}`;
-          }
-        }
+        const out = await callLlm({
+          purpose: "client_message",
+          builder: "buildClientMessageMessages",
+          links: { trainerId, clientId: body.clientId, clientMessageId: row.id },
+          context: {
+            clientName: client.name,
+            programId: program.id,
+            programVersion: program.version,
+            programName: program.name,
+            week: body.week,
+            stats,
+          },
+          messages: [
+            { role: "system", content: messages.system },
+            { role: "user", content: messages.user },
+          ],
+          rt,
+          mode: "json",
+          schema: AiClientMessageDraft,
+          mock: () => JSON.stringify(mockClientMessage(stats)),
+        });
 
-        if (draft) {
+        if (out.ok) {
           const [updated] = await db
             .update(clientMessages)
-            .set({ status: "validated", draft, error: null })
+            .set({ status: "validated", draft: out.data, error: null })
             .where(eq(clientMessages.id, row.id))
             .returning();
           return status(201, updated);
@@ -132,7 +121,11 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
 
         const [failed] = await db
           .update(clientMessages)
-          .set({ status: "failed_validation", error: validationError })
+          .set(
+            out.kind === "provider"
+              ? { status: "failed_provider", error: out.error.message }
+              : { status: "failed_validation", error: out.kind === "validation" ? out.error : "aborted" }
+          )
           .where(eq(clientMessages.id, row.id))
           .returning();
         return status(502, failed);

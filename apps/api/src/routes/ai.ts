@@ -21,7 +21,8 @@ import {
   pulseSummary,
   weekOf,
 } from "@pt/shared";
-import { chatJson, extractJsonObject, ProviderError } from "../ai/provider";
+import { callLlm, contextSnapshot } from "../ai/llm";
+import { settleGeneration } from "../lib/settle-generation";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import {
   buildGenerationMessages,
@@ -75,6 +76,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           const rt = providerRuntime(body.providerId ?? "zai", body.model);
           const effort = resolveEffort(rt, body.effort);
 
+          const targetWeek = body.targetWeek;
           const targetPlan = basedProg.phasing?.weeks?.find((w) => w.week === body.targetWeek);
           const targetDirective = targetPlan?.directive ?? null;
           const target = targetPlan?.target ?? null;
@@ -110,79 +112,33 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
 
           const ac = registerGeneration(generation.id);
           try {
-            let draft: z.infer<typeof AiProgramDraft> | null = null;
-            let validationError: string | null = null;
-            for (let attempt = 0; attempt < 2 && !draft; attempt++) {
-              try {
-                const raw =
-                  (body.providerId ?? "zai") === "mock"
-                    ? JSON.stringify(mockWeekDraft(body.targetWeek, targetDirective))
-                    : await chatJson(
-                        rt,
-                        [
-                          { role: "system", content: messages.system },
-                          { role: "user", content: messages.user },
-                        ],
-                        { signal: ac.signal, effort }
-                      ).then((r) => r.content);
-                const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
-                if (parsed.success) {
-                  draft = parsed.data;
-                } else {
-                  validationError = z.prettifyError(parsed.error);
-                }
-              } catch (err) {
-                if ((err as Error)?.name === "AbortError") {
-                  break;
-                }
-                if (err instanceof ProviderError) {
-                  const [failed] = await db
-                    .update(aiGenerations)
-                    .set({ status: "failed_provider", error: err.message })
-                    .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
-                    .returning();
-                  if (!failed) {
-                    const [row] = await db
-                      .select()
-                      .from(aiGenerations)
-                      .where(eq(aiGenerations.id, generation.id));
-                    return status(200, row);
-                  }
-                  return status(502, failed);
-                }
-                validationError = `parse failure: ${(err as Error).message}`;
-              }
-            }
-
-            if (draft) {
-              const [updated] = await db
-                .update(aiGenerations)
-                .set({ status: "validated", draft, error: null })
-                .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
-                .returning();
-              if (!updated) {
-                const [row] = await db
-                  .select()
-                  .from(aiGenerations)
-                  .where(eq(aiGenerations.id, generation.id));
-                return status(200, row);
-              }
-              return status(201, updated);
-            }
-
-            const [failed] = await db
-              .update(aiGenerations)
-              .set({ status: "failed_validation", error: validationError })
-              .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
-              .returning();
-            if (!failed) {
-              const [row] = await db
-                .select()
-                .from(aiGenerations)
-                .where(eq(aiGenerations.id, generation.id));
-              return status(200, row);
-            }
-            return status(502, failed);
+            const out = await callLlm({
+              purpose: "week_generate",
+              builder: "buildWeekMessages",
+              links: { trainerId, clientId: body.clientId, generationId: generation.id },
+              context: contextSnapshot(ctx, {
+                basedOnProgramId: basedProg.id,
+                basedOnProgramVersion: basedProg.version,
+                targetWeek: body.targetWeek,
+                plannedWeeks,
+                targetDirective,
+                target,
+                direction: ctx.programDirection,
+                trainerInstructions: body.instructions ?? "",
+              }),
+              messages: [
+                { role: "system", content: messages.system },
+                { role: "user", content: messages.user },
+              ],
+              rt,
+              effort,
+              signal: ac.signal,
+              mode: "json",
+              schema: AiProgramDraft,
+              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective)),
+            });
+            const { code, row } = await settleGeneration(generation.id, out);
+            return status(code, row);
           } finally {
             deregisterGeneration(generation.id);
           }
@@ -217,80 +173,28 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         const ac = registerGeneration(generation.id);
         try {
           // Call + validate, with exactly one retry on validation failure.
-          let draft: z.infer<typeof AiProgramDraft> | null = null;
-          let validationError: string | null = null;
-          for (let attempt = 0; attempt < 2 && !draft; attempt++) {
-            try {
-              const raw =
-                (body.providerId ?? "zai") === "mock"
-                  ? JSON.stringify(MOCK_DRAFT)
-                  : await chatJson(
-                      rt,
-                      [
-                        { role: "system", content: messages.system },
-                        { role: "user", content: messages.user },
-                      ],
-                      { signal: ac.signal, effort }
-                    ).then((r) => r.content);
-              const parsed = AiProgramDraft.safeParse(JSON.parse(extractJsonObject(raw)));
-              if (parsed.success) {
-                draft = parsed.data;
-              } else {
-                validationError = z.prettifyError(parsed.error);
-              }
-            } catch (err) {
-              if ((err as Error)?.name === "AbortError") {
-                break;
-              }
-              if (err instanceof ProviderError) {
-                // Persist the audit trail — a pending-forever row would lie.
-                const [failed] = await db
-                  .update(aiGenerations)
-                  .set({ status: "failed_provider", error: err.message })
-                  .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
-                  .returning();
-                if (!failed) {
-                  const [row] = await db
-                    .select()
-                    .from(aiGenerations)
-                    .where(eq(aiGenerations.id, generation.id));
-                  return status(200, row);
-                }
-                return status(502, failed);
-              }
-              validationError = `parse failure: ${(err as Error).message}`;
-            }
-          }
-
-          if (draft) {
-            const [updated] = await db
-              .update(aiGenerations)
-              .set({ status: "validated", draft, error: null })
-              .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
-              .returning();
-            if (!updated) {
-              const [row] = await db
-                .select()
-                .from(aiGenerations)
-                .where(eq(aiGenerations.id, generation.id));
-              return status(200, row);
-            }
-            return status(201, updated);
-          }
-
-          const [failed] = await db
-            .update(aiGenerations)
-            .set({ status: "failed_validation", error: validationError })
-            .where(and(eq(aiGenerations.id, generation.id), eq(aiGenerations.status, "pending")))
-            .returning();
-          if (!failed) {
-            const [row] = await db
-              .select()
-              .from(aiGenerations)
-              .where(eq(aiGenerations.id, generation.id));
-            return status(200, row);
-          }
-          return status(502, failed);
+          const out = await callLlm({
+            purpose: "block_generate",
+            builder: "buildGenerationMessages",
+            links: { trainerId, clientId: body.clientId, generationId: generation.id },
+            context: contextSnapshot(ctx, {
+              basedOnProgramId: body.basedOnProgramId ?? null,
+              direction: body.direction ?? null,
+              trainerInstructions: body.instructions ?? "",
+            }),
+            messages: [
+              { role: "system", content: messages.system },
+              { role: "user", content: messages.user },
+            ],
+            rt,
+            effort,
+            signal: ac.signal,
+            mode: "json",
+            schema: AiProgramDraft,
+            mock: () => JSON.stringify(MOCK_DRAFT),
+          });
+          const { code, row } = await settleGeneration(generation.id, out);
+          return status(code, row);
         } finally {
           deregisterGeneration(generation.id);
         }

@@ -1,7 +1,8 @@
 import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type ChatMessageRow } from "@pt/db";
 import { mockChatReply } from "@pt/shared";
-import { chatText, ProviderError, type ChatMessage as ProviderChatMessage } from "../ai/provider";
+import { type ChatMessage as ProviderChatMessage } from "../ai/provider";
+import { callLlm, contextSnapshot, linkTurn } from "../ai/llm";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import { buildChatSystem, draftToText, type ChatDraftContext } from "../ai/prompt";
 import { loadContext } from "../lib/context";
@@ -36,7 +37,9 @@ export async function answerChat(
 
     ctx = await loadContext(trainerId, body.clientId, current?.id ?? null);
 
-    if (body.providerId !== "mock") {
+    if (body.providerId === "mock") {
+      rt = providerRuntime("mock");
+    } else {
       rt = providerRuntime(body.providerId ?? "zai", body.model);
       effort = resolveEffort(rt, body.effort);
     }
@@ -106,27 +109,35 @@ export async function answerChat(
     { role: "user", content: message },
   ];
 
-  let reply: string;
-  if (body.providerId === "mock") {
-    reply = mockChatReply(message, ctx.client.name);
-  } else {
-    try {
-      reply = (await chatText(rt!, providerMessages, effort ? { effort } : {})).content.trim().slice(0, 4000);
-    } catch (err) {
-      if (err instanceof ProviderError) {
-        await db.insert(chatMessages).values({
-          trainerId,
-          clientId: body.clientId,
-          role: "assistant",
-          kind: "error",
-          content: err.message.slice(0, 4000),
-          generationId: null,
-        });
-        return { ok: false, status: 502, error: err.message };
-      }
-      throw err;
-    }
+  const out = await callLlm({
+    purpose: "chat_qa",
+    builder: "buildChatSystem",
+    links: { trainerId, clientId: body.clientId, generationId: latestGen?.id ?? null },
+    context: contextSnapshot(ctx, {
+      latestGenerationId: latestGen?.id ?? null,
+      latestDraft,
+      historyMessageIds: historyRows.map((r) => r.id),
+      message,
+    }),
+    messages: providerMessages,
+    rt: rt!,
+    effort,
+    mode: "text",
+    mock: () => mockChatReply(message, ctx.client.name),
+  });
+  if (!out.ok) {
+    const error = out.kind === "provider" ? out.error.message : out.kind === "validation" ? out.error : "aborted";
+    await db.insert(chatMessages).values({
+      trainerId,
+      clientId: body.clientId,
+      role: "assistant",
+      kind: "error",
+      content: error.slice(0, 4000),
+      generationId: null,
+    });
+    return { ok: false, status: 502, error };
   }
+  const reply = out.data.trim().slice(0, 4000);
 
   const [assistantRow] = await db
     .insert(chatMessages)
@@ -139,6 +150,7 @@ export async function answerChat(
       generationId: null,
     })
     .returning();
+  await linkTurn(out.turnId, { chatMessageId: assistantRow.id });
 
   return { ok: true, messages: [trainerRow, assistantRow] };
 }
