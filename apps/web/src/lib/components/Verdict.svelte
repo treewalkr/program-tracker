@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { LLM_REASON_LABELS, LLM_REASON_TAGS, type LlmReasonTag } from '@pt/shared';
+	import { LLM_REASON_LABELS, LLM_REASON_TAGS, NOTE_SCOPES, NOTE_SCOPE_LABELS, type LlmReasonTag } from '@pt/shared';
 	import { api } from '$lib/api';
-	import type { LlmSubjectKindDto, LlmVerdictDto } from '$lib/api/types';
+	import type { CoachingRuleDto, LlmSubjectKindDto, LlmVerdictDto, NoteScopeDto } from '$lib/api/types';
+	import LearnedRule from './LearnedRule.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import ToggleChip from '$lib/ui/ToggleChip.svelte';
@@ -20,9 +21,12 @@
 		initial?: LlmVerdictDto | null;
 		/** What is being rated, for the accessible names ("reply", "draft"…). */
 		noun?: string;
+		/** The client the output is about — enables "This client" as a scope. */
+		clientId?: string | null;
+		clientName?: string | null;
 	}
 
-	let { subjectKind, subjectId, initial, noun = 'reply' }: Props = $props();
+	let { subjectKind, subjectId, initial, noun = 'reply', clientId = null, clientName = null }: Props = $props();
 
 	let verdict = $state<LlmVerdictDto | null>(untrack(() => initial ?? null));
 	let open = $state(false);
@@ -30,6 +34,11 @@
 	let error = $state<string | null>(null);
 	let tags = $state<LlmReasonTag[]>([]);
 	let comment = $state('');
+	let correction = $state('');
+	let scope = $state<NoteScopeDto>('once');
+	/** A rule proposed from the last 👎 (waits for Keep / Dismiss). */
+	let learned = $state<CoachingRuleDto | null>(null);
+	const worded = $derived(comment.trim().length > 0 || correction.trim().length > 0);
 
 	$effect(() => {
 		if (initial !== undefined) {
@@ -55,12 +64,22 @@
 		saving = true;
 		error = null;
 		try {
-			verdict = await api.rateLlmOutput({
+			const res = await api.rateLlmOutput({
 				subjectKind,
 				subjectId,
 				signal,
-				...(signal === 'thumbs_down' ? { reasonTags: [...tags], comment: comment.trim() || undefined } : {}),
+				...(signal === 'thumbs_down'
+					? {
+							reasonTags: [...tags],
+							comment: comment.trim() || undefined,
+							correction: correction.trim() || undefined,
+							...(worded ? { scope } : {}),
+						}
+					: {}),
 			});
+			const { rule, ruleError: _, ...rest } = res;
+			verdict = rest;
+			learned = rule ?? null;
 			open = false;
 		} catch (err) {
 			error = (err as Error).message || 'Not saved';
@@ -82,6 +101,8 @@
 		}
 		tags = verdict?.signal === 'thumbs_down' ? [...verdict.reasonTags] : [];
 		comment = verdict?.signal === 'thumbs_down' ? (verdict.comment ?? '') : '';
+		correction = verdict?.signal === 'thumbs_down' ? (verdict.correction ?? '') : '';
+		scope = 'once';
 		error = null;
 		open = true;
 	}
@@ -94,7 +115,11 @@
 	const isDown = $derived(verdict?.signal === 'thumbs_down');
 	const summary = $derived(
 		isDown && !open
-			? [...(verdict?.reasonTags ?? []).map((t) => LLM_REASON_LABELS[t]), verdict?.comment ? `“${verdict.comment}”` : null]
+			? [
+					...(verdict?.reasonTags ?? []).map((t) => LLM_REASON_LABELS[t]),
+					verdict?.comment ? `“${verdict.comment}”` : null,
+					verdict?.correction ? `→ ${verdict.correction}` : null,
+				]
 					.filter(Boolean)
 					.join(' · ')
 			: ''
@@ -143,7 +168,8 @@
 			</div>
 			<input
 				class="input note"
-				placeholder="Note for the next draft (optional)"
+				placeholder="What was wrong (optional)"
+				aria-label="What was wrong"
 				maxlength={2000}
 				bind:value={comment}
 				onkeydown={(e) => {
@@ -151,12 +177,38 @@
 					if (e.key === 'Escape') open = false;
 				}}
 			/>
+			<input
+				class="input note"
+				placeholder="What instead (optional)"
+				aria-label="What instead"
+				maxlength={2000}
+				bind:value={correction}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') void save('thumbs_down');
+					if (e.key === 'Escape') open = false;
+				}}
+			/>
+			{#if worded}
+				<div class="scope" role="group" aria-label="Should it apply again?">
+					<span class="ask">Apply again?</span>
+					{#each NOTE_SCOPES as s (s)}
+						{#if s !== 'client' || clientId}
+							<ToggleChip on={scope === s} onclick={() => (scope = s)}>
+								{s === 'client' && clientName ? clientName : NOTE_SCOPE_LABELS[s]}
+							</ToggleChip>
+						{/if}
+					{/each}
+				</div>
+			{/if}
 			<div class="actions">
-				<Button small disabled={saving} onclick={() => save('thumbs_down')}>{saving ? 'Saving…' : 'Save'}</Button>
+				<Button small disabled={saving} onclick={() => save('thumbs_down')}>{saving ? (worded && scope !== 'once' ? 'Saving · learning…' : 'Saving…') : 'Save'}</Button>
 				<Button small variant="ghost" onclick={() => (open = false)}>Cancel</Button>
 				{#if error}<span class="err" role="alert">{error}</span>{/if}
 			</div>
 		</div>
+	{/if}
+	{#if learned && !open}
+		{#key learned.id}<LearnedRule rule={learned} {clientId} {clientName} />{/key}
 	{/if}
 </div>
 
@@ -241,6 +293,15 @@
 	.note {
 		width: 100%;
 		font-size: 13px;
+	}
+	.scope {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+	.scope .ask {
+		margin-right: 4px;
 	}
 	.actions {
 		display: flex;
