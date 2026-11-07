@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
   import Note from "$lib/ui/Note.svelte";
+  import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
 
   let { children } = $props();
 
@@ -16,6 +17,7 @@
         { href: "/", label: "Overview", icon: "grid" },
         { href: "/clients", label: "Clients", icon: "users" },
         { href: "/settings", label: "Settings", icon: "gear" },
+        { href: "/feedback", label: "Feedback", icon: "comment" },
       ],
     },
     {
@@ -69,6 +71,8 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
             {:else if item.icon === "gear"}
               <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+            {:else if item.icon === "comment"}
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11h-9l-5 4v-4H4z" /></svg>
             {:else}
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 7l9 4 9-4zM3 12l9 4 9-4M3 17l9 4 9-4" /></svg>
             {/if}
@@ -95,6 +99,8 @@
     {@render children()}
   </main>
 </div>
+
+<FeedbackLayer />
 
 <style>
   .shell {
