@@ -1,6 +1,6 @@
 import { and, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type ChatMessageRow } from "@pt/db";
-import { mockChatReply } from "@pt/shared";
+import { mockChatReply, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { type ChatMessage as ProviderChatMessage } from "../ai/provider";
 import { callLlm, contextSnapshot, linkTurn } from "../ai/llm";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
@@ -40,7 +40,7 @@ export async function answerChat(
     if (body.providerId === "mock") {
       rt = providerRuntime("mock");
     } else {
-      rt = providerRuntime(body.providerId ?? "zai", body.model);
+      rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
       effort = resolveEffort(rt, body.effort);
     }
   } catch (err) {

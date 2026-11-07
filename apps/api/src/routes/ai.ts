@@ -21,8 +21,7 @@ import {
   combinePreferenceDocs,
   pulseSummary,
   weekOf,
-  type ProgramWeek,
-} from "@pt/shared";
+  type ProgramWeek, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "../lib/settle-generation";
 import { draftToWeekDiff, recordFeedback, recordRegenerated } from "../lib/llm-feedback";
@@ -96,7 +95,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId, {
             focusWeek: currentWeek,
           });
-          const rt = providerRuntime(body.providerId ?? "zai", body.model);
+          const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
           const effort = resolveEffort(rt, body.effort);
 
           const targetWeek = body.targetWeek;
@@ -125,7 +124,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               targetWeek: body.targetWeek,
               direction: ctx.programDirection,
               instructions: body.instructions ?? null,
-              providerId: body.providerId ?? "zai",
+              providerId: body.providerId ?? DEFAULT_PROVIDER_ID,
               model: rt.model,
               effort,
               status: "pending",
@@ -169,7 +168,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         }
 
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
-        const rt = providerRuntime(body.providerId ?? "zai", body.model);
+        const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
         const effort = resolveEffort(rt, body.effort);
         const messages = buildGenerationMessages({
           ...ctx,
@@ -186,7 +185,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             kind: "block",
             direction: body.direction ?? null,
             instructions: body.instructions ?? null,
-            providerId: body.providerId ?? "zai",
+            providerId: body.providerId ?? DEFAULT_PROVIDER_ID,
             model: rt.model,
             effort,
             status: "pending",

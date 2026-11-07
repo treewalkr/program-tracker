@@ -41,19 +41,6 @@ export const AiProviderConfig = z.object({
 export type AiProviderConfig = z.infer<typeof AiProviderConfig>;
 
 export const KNOWN_PROVIDERS = {
-  zai: {
-    id: "zai",
-    label: "Z.ai GLM",
-    baseUrl: "https://api.z.ai/api/paas/v4",
-    apiKeyEnvVar: "ZAI_API_KEY",
-    maxOutputTokens: 8192,
-    effortLevels: ["low", "high", "max"],
-    defaultEffort: "low", // glm-5 budget low is the shipped default; max maps to the provider's top budget
-    models: [
-      "glm-5.3-flash", // default
-      "glm-5.3",
-    ],
-  },
   deepseek: {
     id: "deepseek",
     label: "DeepSeek",
@@ -68,6 +55,19 @@ export const KNOWN_PROVIDERS = {
       "deepseek-v4-pro",
     ],
   },
+  zai: {
+    id: "zai",
+    label: "Z.ai GLM",
+    baseUrl: "https://api.z.ai/api/paas/v4",
+    apiKeyEnvVar: "ZAI_API_KEY",
+    maxOutputTokens: 8192,
+    effortLevels: ["low", "high", "max"],
+    defaultEffort: "low", // glm-5 budget low is the shipped default; max maps to the provider's top budget
+    models: [
+      "glm-5.3-flash", // default
+      "glm-5.3",
+    ],
+  },
   /** Canned draft, no network, no key. For tests and UI development. */
   mock: {
     id: "mock",
@@ -78,6 +78,9 @@ export const KNOWN_PROVIDERS = {
     models: ["mock-draft-v1"],
   },
 } as const satisfies Record<string, AiProviderConfig>;
+
+/** Provider used when a request names none; listed first so pickers start on it. */
+export const DEFAULT_PROVIDER_ID = "deepseek" satisfies keyof typeof KNOWN_PROVIDERS;
 
 /** Rough wall-clock seconds one generation takes, for UI expectation-setting. */
 export const TYPICAL_GENERATION_SECONDS: Record<string, number> = {

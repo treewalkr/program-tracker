@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { selectExamples, typicalGenerationSeconds } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, selectExamples, typicalGenerationSeconds } from "@pt/shared";
   import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -38,7 +38,7 @@
   let current = $state<ProgramDto | null>(null);
   let catalogById = $state(new Map<string, ExerciseDto>());
   let providers = $state<ProviderDto[]>([]);
-  let providerId = $state("zai");
+  let providerId = $state<string>(DEFAULT_PROVIDER_ID);
   let model = $state("");
   let effort = $state("");
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);

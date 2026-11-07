@@ -10,7 +10,7 @@ import {
   setLogs,
   type SetLogRow,
 } from "@pt/db";
-import { AiClientMessageDraft, CLIENT_MESSAGE_MAX_CHARS, weekSummary } from "@pt/shared";
+import { AiClientMessageDraft, CLIENT_MESSAGE_MAX_CHARS, weekSummary, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { callLlm } from "../ai/llm";
 import { recordFeedback } from "../lib/llm-feedback";
 import { buildClientMessageMessages } from "../ai/prompt";
@@ -66,7 +66,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
         });
         if (!stats) return status(422, { error: `week ${body.week} has no logged sessions` });
 
-        const rt = providerRuntime(body.providerId ?? "zai", body.model);
+        const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
 
         const [row] = await db
           .insert(clientMessages)
@@ -75,7 +75,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
             clientId: body.clientId,
             programId: program.id,
             week: body.week,
-            providerId: body.providerId ?? "zai",
+            providerId: body.providerId ?? DEFAULT_PROVIDER_ID,
             model: rt.model,
             status: "pending",
             stats,

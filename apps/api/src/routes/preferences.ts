@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, clients, trainerPreferences } from "@pt/db";
-import { mockDistillPreferences } from "@pt/shared";
+import { mockDistillPreferences, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { gatherPreferenceSignals } from "../lib/preferences";
 import { buildDistillMessages } from "../ai/prompt";
@@ -82,7 +82,7 @@ export const preferenceRoutes = new Elysia({
         );
 
       const previousDocument = existing?.document ?? null;
-      const providerId = body.providerId ?? "zai";
+      const providerId = body.providerId ?? DEFAULT_PROVIDER_ID;
 
       let rt: ReturnType<typeof providerRuntime>;
       try {

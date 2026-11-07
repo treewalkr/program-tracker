@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  DEFAULT_PROVIDER_ID,
   AiClientMessageDraft,
   ChatMessage,
   CLIENT_MESSAGE_MAX_CHARS,
@@ -22,8 +23,9 @@ import {
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
-  test("T1 KNOWN_PROVIDERS registers deepseek between zai and mock", () => {
-    expect(Object.keys(KNOWN_PROVIDERS)).toEqual(["zai", "deepseek", "mock"]);
+  test("T1 KNOWN_PROVIDERS registers deepseek first — the default provider", () => {
+    expect(Object.keys(KNOWN_PROVIDERS)).toEqual(["deepseek", "zai", "mock"]);
+    expect(DEFAULT_PROVIDER_ID).toBe("deepseek");
     const parsed = AiProviderConfig.parse(KNOWN_PROVIDERS.deepseek);
     expect(parsed.models[0]).toBe("deepseek-flash");
     expect(parsed.baseUrl).toBe("https://api.deepseek.com");

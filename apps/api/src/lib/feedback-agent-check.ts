@@ -4,6 +4,7 @@ import { db, feedbackItems } from "@pt/db";
 import { shotMime } from "./feedback";
 import {
   AGENT_VERDICTS,
+  DEFAULT_PROVIDER_ID,
   agentCheckBasis,
   feedbackItemMarkdown,
   type FeedbackAgentCheck,
@@ -73,12 +74,8 @@ async function elementShot(id: string): Promise<string | null> {
   return row?.shot ? `data:${shotMime(row.shot)};base64,${row.shot.toString("base64")}` : null;
 }
 
-/** Provider for checks: FEEDBACK_CHECK_PROVIDER, else the first one with a key. */
-export function defaultCheckProvider(): string {
-  if (process.env.FEEDBACK_CHECK_PROVIDER) return process.env.FEEDBACK_CHECK_PROVIDER;
-  if (process.env.DEEPSEEK_API_KEY) return "deepseek";
-  return "zai";
-}
+/** Provider for checks: FEEDBACK_CHECK_PROVIDER, else the app default. */
+export const defaultCheckProvider = (): string => process.env.FEEDBACK_CHECK_PROVIDER || DEFAULT_PROVIDER_ID;
 
 export type AgentCheckResult =
   | { ok: true; check: FeedbackAgentCheck }

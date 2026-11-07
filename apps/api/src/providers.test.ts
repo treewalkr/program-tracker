@@ -46,7 +46,7 @@ describe("GET /v1/ai/providers (deepseek)", () => {
   test("T3 providers route lists deepseek with its default model", async () => {
     const { status, body } = await call("GET", "/v1/ai/providers");
     expect(status).toBe(200);
-    expect(body.providers.map((p: any) => p.id)).toEqual(["zai", "deepseek", "mock"]);
+    expect(body.providers.map((p: any) => p.id)).toEqual(["deepseek", "zai", "mock"]);
     const deepseek = body.providers.find((p: any) => p.id === "deepseek");
     expect(deepseek.label).toBe("DeepSeek");
     expect(deepseek.model).toBe("deepseek-flash");

@@ -25,8 +25,7 @@ import {
   sessionKey,
   stampWeeks,
   weekSummary,
-  type PreferenceSignal,
-} from "@pt/shared";
+  type PreferenceSignal, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
@@ -747,7 +746,7 @@ export const mockApi: TrainerApi = {
       kind: isWeek ? "week" : "block",
       targetWeek: input.targetWeek ?? null,
       direction: input.direction ?? basedOn?.direction ?? null,
-      providerId: input.providerId ?? "zai",
+      providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
       model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-5.3-flash",
       effort: input.effort ?? null,
       status: "pending",
@@ -1121,7 +1120,7 @@ export const mockApi: TrainerApi = {
         ? state.clients.find((c) => c.id === clientId)?.name ?? null
         : null,
       document,
-      providerId: input.providerId ?? "zai",
+      providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
       model: input.model ?? "glm-5.3-flash",
       updatedAt: new Date().toISOString(),
     };
