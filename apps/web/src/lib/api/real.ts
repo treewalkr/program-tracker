@@ -18,6 +18,8 @@ import type {
   SignalDto,
   TrainerApi,
 } from "./types";
+import { browser } from "$app/environment";
+import { toLogin } from "./auth";
 import { client } from "./treaty";
 
 /**
@@ -45,6 +47,8 @@ async function unwrap<T>(
     const value = error.value as { error?: string } | string | null;
     const message = typeof value === "string" ? value : value?.error;
     const code = typeof error.status === "number" ? error.status : "unknown";
+    // session expired mid-use — back to sign-in, then here again
+    if (code === 401 && browser) window.location.assign(toLogin(new URL(window.location.href)));
     throw new Error(message ?? `request failed: ${code}`);
   }
   return datesToIso(data) as T;
