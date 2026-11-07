@@ -15,7 +15,6 @@
     ProgramExerciseDto,
   } from "$lib/api/types";
   import {
-    MAX_SESSIONS_PER_WEEKDAY,
     defaultCardio,
     placeSessions,
     sessionTag,
@@ -63,10 +62,6 @@
     key: string;
     name: string;
     kind: "lifting" | "cardio";
-    /** Trainer-pinned weekday (null = any day); ignored while `auto`. */
-    weekday: number | null;
-    /** Follow the default placement until the trainer picks a day. */
-    auto: boolean;
     cardio: CardioPrescriptionDto;
     exercises: ProgramExerciseDto[];
   }
@@ -75,15 +70,11 @@
     key: uuid(),
     name: "",
     kind: "lifting",
-    weekday: null,
-    auto: true,
     cardio: defaultCardio(),
     exercises: [],
   });
 
   let sessions = $state<SessionRow[]>([newRow()]);
-
-  const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   /** seq per kind in list order — "Session 1", "Session 2", "Cardio 1"… */
   const seqs = $derived.by(() => {
@@ -91,8 +82,11 @@
     return sessions.map((s) => ++n[s.kind]);
   });
 
-  /** Default placement of the whole list on the client's available days. */
-  const suggested = $derived.by(() => {
+  /**
+   * Days aren't picked here: sessions are spread over the client's training
+   * days on save, and the trainer rearranges them on the program's calendar.
+   */
+  const placement = $derived.by(() => {
     const patternOf = (exId: string) => catalog.find((c) => c.id === exId)?.movementPattern ?? null;
     const draft = sessions.map((s, i) => ({
       id: s.key,
@@ -107,16 +101,6 @@
     return new Map(placed.map((p) => [p.id, p.weekday ?? null]));
   });
 
-  const weekdayOf = (s: SessionRow) => (s.auto ? (suggested.get(s.key) ?? null) : s.weekday);
-
-  const overfull = $derived.by(() => {
-    const per = new Map<number, number>();
-    for (const s of sessions) {
-      const d = weekdayOf(s);
-      if (d != null) per.set(d, (per.get(d) ?? 0) + 1);
-    }
-    return [...per].filter(([, n]) => n > MAX_SESSIONS_PER_WEEKDAY).map(([d]) => WEEKDAYS[d - 1]);
-  });
 
   interface CustomWeekRow {
     directive: WeekDirective;
@@ -291,7 +275,6 @@
   /** First thing standing between the trainer and Save — shown beside the disabled button. */
   const blocker = $derived.by<string | null>(() => {
     if (name.trim() === "") return "Name the program to save it.";
-    if (overfull.length > 0) return `${overfull.join(", ")} ${overfull.length === 1 ? "has" : "have"} too many sessions.`;
     for (const [i, s] of sessions.entries()) {
       if (s.kind === "lifting" && s.exercises.length === 0) return `${labelOf(s, i)} needs an exercise.`;
       if (s.kind === "cardio" && !s.cardio.modality.trim()) return `${labelOf(s, i)} needs a modality.`;
@@ -340,7 +323,7 @@
     const used = new Map<number, number>();
     return sessions.map((s, si) => {
       const seq = seqs[si];
-      const weekday = weekdayOf(s);
+      const weekday = placement.get(s.key) ?? null;
       const order = used.get(weekday ?? 0) ?? 0;
       used.set(weekday ?? 0, order + 1);
       let session: ProgramSession;
@@ -627,6 +610,10 @@
               maxlength="60"
               aria-label="{tag} name"
             />
+            <select class="select kind" bind:value={s.kind} aria-label="{tag} kind">
+              <option value="lifting">Lifting</option>
+              <option value="cardio">Cardio</option>
+            </select>
             {#if sessions.length > 1}
               <ConfirmButton
                 label="Remove"
@@ -640,33 +627,6 @@
           </div>
 
           <div class="panel-body sess-body">
-            <div class="meta">
-              <label class="f">
-                <span>Kind</span>
-                <select class="select" bind:value={s.kind}>
-                  <option value="lifting">Lifting</option>
-                  <option value="cardio">Cardio</option>
-                </select>
-              </label>
-              <label class="f">
-                <span>Day</span>
-                <select
-                  class="select"
-                  value={weekdayOf(s) ?? 0}
-                  onchange={(e) => {
-                    const v = Number(e.currentTarget.value);
-                    s.weekday = v === 0 ? null : v;
-                    s.auto = false;
-                  }}
-                >
-                  <option value={0}>Any day</option>
-                  {#each WEEKDAYS as w, wi (w)}<option value={wi + 1}>{w}</option>{/each}
-                </select>
-              </label>
-              {#if s.auto && client?.trainingDays?.length}
-                <p class="subtle placed">Placed on {client.name.split(" ")[0]}'s training days. Pick a day to pin it.</p>
-              {/if}
-            </div>
 
             {#if s.kind === "cardio"}
               <div class="cardio">
@@ -727,9 +687,13 @@
         <Button onclick={addSession} disabled={sessions.length >= MAX_SESSIONS}>+ Add session</Button>
         {#if sessions.length >= MAX_SESSIONS}<span class="subtle">{MAX_SESSIONS} sessions is the weekly limit.</span>{/if}
       </div>
-      {#if overfull.length > 0}
-        <p class="error">{overfull.join(", ")} {overfull.length === 1 ? "has" : "have"} more than {MAX_SESSIONS_PER_WEEKDAY} sessions. Move one to another day.</p>
-      {/if}
+      <p class="subtle hint">
+        {#if client.trainingDays?.length}
+          Sessions land on {client.name.split(" ")[0]}'s training days. Rearrange them on the calendar after saving.
+        {:else}
+          Sessions start unscheduled. Place them on the calendar after saving.
+        {/if}
+      </p>
       <p class="subtle hint">
         Prefer help? <a href={`/clients/${id}/generate`}>Generate with AI</a> instead.
       </p>
@@ -801,16 +765,15 @@
   .sess-name:focus { background: var(--surface); border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
 
   .sess-body { display: flex; flex-direction: column; gap: 14px; }
-  .meta, .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .kind { width: auto; flex: none; padding: 3px 28px 3px 8px; font-size: 12.5px; }
+  .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
   .f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .f.grow { flex: 1; min-width: 160px; }
-  .f .select { width: auto; min-width: 112px; }
   .f .input { font-size: 14px; }
   .num { width: 72px; text-align: right; font-family: var(--font-mono); }
-  .placed { margin: 0 0 7px; }
   /* exercises are ruled rows, not boxes inside the session box */
   .exlist { display: flex; flex-direction: column; gap: 14px; }
-  .exlist > :global(.exedit) { padding-top: 14px; border-top: 1px solid var(--line-soft); }
+  .exlist > :global(.exedit + .exedit) { padding-top: 14px; border-top: 1px solid var(--line-soft); }
   .sess-body :global(.empty) { padding: 18px; border: 1px dashed var(--line); border-radius: var(--radius); }
 
   .builder-foot { display: flex; align-items: center; gap: 10px; }
