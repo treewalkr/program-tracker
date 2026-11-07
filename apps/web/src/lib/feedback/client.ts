@@ -1,5 +1,5 @@
 import { apiBase } from "$lib/api/base";
-import type { FeedbackContext, FeedbackItem, FeedbackStatus } from "@pt/shared";
+import type { FeedbackComment, FeedbackContext, FeedbackItem, FeedbackStatus } from "@pt/shared";
 import { client } from "$lib/api/treaty";
 
 /**
@@ -18,7 +18,13 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
 
 /** Eden revives ISO dates into Date objects; FeedbackItem models them as strings. */
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : (v as string));
-const normalize = (i: FeedbackItem): FeedbackItem => ({ ...i, createdAt: iso(i.createdAt), updatedAt: iso(i.updatedAt) });
+const normalizeComment = (c: FeedbackComment): FeedbackComment => ({ ...c, createdAt: iso(c.createdAt) });
+const normalize = (i: FeedbackItem): FeedbackItem => ({
+  ...i,
+  thread: i.thread.map(normalizeComment),
+  createdAt: iso(i.createdAt),
+  updatedAt: iso(i.updatedAt),
+});
 
 export const feedbackApi = {
   submit: (body: { comment: string; context: FeedbackContext; elementShot?: string; pageShot?: string }) =>
@@ -27,7 +33,12 @@ export const feedbackApi = {
     (await unwrap<FeedbackItem[]>(client.v1.feedback.get({ query: { status: status?.join(",") } }))).map(normalize),
   triage: async (id: string, patch: { status?: FeedbackStatus; triageNote?: string | null }) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).patch(patch))),
+  get: async (id: string) => normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).get())),
   remove: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).delete()),
+  reply: async (id: string, body: string) =>
+    normalizeComment(await unwrap<FeedbackComment>(client.v1.feedback({ id }).comments.post({ body }))),
+  seen: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).seen.post()),
+  unread: async () => (await unwrap<{ count: number }>(client.v1.feedback.unread.get())).count,
   exportMarkdown: async (status: string) =>
     String(await unwrap<unknown>(client.v1.feedback.export.get({ query: { status, format: "md" } }))),
 };

@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { feedbackHandle, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
   import { feedbackApi, exportUrl, shotUrl } from "$lib/feedback/client";
   import { shortPath } from "$lib/feedback/capture";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import Author from "$lib/feedback/Author.svelte";
+  import Thread from "$lib/feedback/Thread.svelte";
+  import { feedbackUnread } from "$lib/feedback/unread.svelte";
+  import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
@@ -24,19 +27,6 @@
     return session?.kind === "open" || (session?.kind === "signedIn" && session.trainer.isAdmin);
   });
 
-  const STATUS_LABEL: Record<FeedbackStatus, string> = {
-    new: "New",
-    accepted: "Accepted",
-    done: "Done",
-    wontfix: "Won't fix",
-  };
-  const STATUS_TONE: Record<FeedbackStatus, "good" | "warn" | "bad" | "neutral"> = {
-    new: "warn",
-    accepted: "good",
-    done: "neutral",
-    wontfix: "neutral",
-  };
-
   let items = $state<FeedbackItem[]>([]);
   let loaded = $state(false);
   let error = $state<string | null>(null);
@@ -45,6 +35,10 @@
   /** Triage-note drafts keyed by item id; saved on blur. */
   let notes = $state<Record<string, string>>({});
   let busy = $state<Record<string, boolean>>({});
+  /** Items that had unread activity when the page opened; stay marked for this visit. */
+  let fresh = $state(new Set<string>());
+  /** Handle from `/feedback#FB-012`, flashed once scrolled into view. */
+  let flashed = $state<string | null>(null);
 
   const counts = $derived(
     items.reduce(
@@ -66,6 +60,9 @@
     try {
       items = await feedbackApi.list();
       notes = Object.fromEntries(items.map((i) => [i.id, i.triageNote ?? ""]));
+      fresh = new Set(items.filter((i) => i.unread).map((i) => i.id));
+      // Reporters follow their own few items: show them all at once.
+      if (!isAdmin) filter = "all";
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not load feedback";
@@ -74,7 +71,40 @@
     }
   }
 
-  onMount(load);
+  onMount(async () => {
+    await load();
+    await jumpToHash();
+  });
+
+  /** `/feedback#FB-012` (email links, pins): show All, scroll to it, flash it. */
+  async function jumpToHash() {
+    const handle = /^#(FB-\d+)$/.exec(location.hash)?.[1];
+    if (!handle || !items.some((i) => feedbackHandle(i.number) === handle)) return;
+    filter = "all";
+    await tick();
+    document.getElementById(handle)?.scrollIntoView({
+      block: "start",
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+    flashed = handle;
+    setTimeout(() => (flashed = null), 2400);
+  }
+
+  /** Marks an unread item seen once at least half of it has been on screen. */
+  function seenWhenVisible(node: HTMLElement, item: FeedbackItem) {
+    if (!item.unread) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        items = items.map((i) => (i.id === item.id ? { ...i, unread: false } : i));
+        feedbackUnread.markSeen(item.id);
+      },
+      { threshold: 0.5 },
+    );
+    io.observe(node);
+    return { destroy: () => io.disconnect() };
+  }
 
   function replace(next: FeedbackItem) {
     items = items.map((i) => (i.id === next.id ? next : i));
@@ -173,11 +203,21 @@
       <ol class="list">
         {#each visible as item (item.id)}
           {@const c = item.context}
-          <li class="item" aria-busy={busy[item.id] ?? false}>
+          <li
+            class="item"
+            class:fresh={fresh.has(item.id)}
+            class:flash={flashed === feedbackHandle(item.number)}
+            id={feedbackHandle(item.number)}
+            aria-busy={busy[item.id] ?? false}
+            use:seenWhenVisible={item}
+          >
             <div class="body">
               <div class="meta">
                 <span class="handle">{feedbackHandle(item.number)}</span>
-                <Pill tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Pill>
+                <Pill tone={STATUS_TONE[item.status]}>
+                  {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
+                </Pill>
+                {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
                 <span class="by"><Author author={item.author} /></span>
                 <Tooltip text={fmtDateTime(item.createdAt)}>
                   {#snippet children(tipId)}
@@ -222,6 +262,8 @@
                 </figure>
               {/if}
 
+              <Thread {item} />
+
               {#if isAdmin}
                 <label class="triage">
                   <span>Triage note <span class="muted">— your call, read by the agent</span></span>
@@ -245,7 +287,11 @@
                   <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
                   <Button small onclick={() => triage(item, { status: "wontfix" })}>Won't fix</Button>
                 {:else if item.status === "accepted"}
-                  <Button small onclick={() => triage(item, { status: "done" })}>Mark done</Button>
+                  <Button
+                    small
+                    title="Mark it done once the change is live — stamps the running version"
+                    onclick={() => triage(item, { status: "done" })}>Mark done</Button
+                  >
                   <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Back to new</Button>
                 {:else}
                   <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Reopen</Button>
@@ -286,6 +332,21 @@
   }
   .item[aria-busy="true"] {
     opacity: 0.6;
+  }
+  .item {
+    scroll-margin-top: 16px;
+    transition: box-shadow 0.4s ease;
+  }
+  .item.fresh {
+    border-left: 3px solid var(--blue);
+    padding-left: 14px;
+  }
+  .item.flash {
+    box-shadow: 0 0 0 3px var(--focus);
+  }
+  .news {
+    font: 600 12px/1 var(--font-ui);
+    color: var(--blue);
   }
   .shot {
     margin: 0;

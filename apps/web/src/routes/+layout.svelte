@@ -2,12 +2,13 @@
   import "../app.css";
   import { page } from "$app/state";
   import { onMount } from "svelte";
-  import { goto } from "$app/navigation";
+  import { afterNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
   import { authApi } from "$lib/api/auth";
   import Note from "$lib/ui/Note.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
+  import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { theme, syncThemeAttribute, type ThemePref } from "$lib/theme.svelte";
 
   let { children, data } = $props();
@@ -100,6 +101,11 @@
     drawerOpen = false;
   });
 
+  // Unread feedback badge: cheap count, refreshed on every navigation (no polling).
+  afterNavigate(() => {
+    if (!bare) feedbackUnread.refresh();
+  });
+
   onMount(async () => {
     if (bare) return;
     try {
@@ -116,12 +122,17 @@
     class:active={isActive(item.href)}
     aria-current={isActive(item.href) ? "page" : undefined}
     href={item.href}
-    title={item.label}
+    title={item.href === "/feedback" && feedbackUnread.count
+      ? `${item.label} — ${feedbackUnread.count} unread`
+      : item.label}
   >
     <Icon name={item.icon} />
     <span class="nav-text">{item.label}</span>
     {#if item.href === "/clients" && clientCount !== null}
       <span class="count">{clientCount}</span>
+    {/if}
+    {#if item.href === "/feedback" && feedbackUnread.count > 0}
+      <span class="unread" aria-label="{feedbackUnread.count} unread">{feedbackUnread.count}</span>
     {/if}
   </a>
 {/snippet}
@@ -345,6 +356,17 @@
     cursor: pointer;
   }
   .nav-item.active :global(svg) { color: var(--ink); }
+  .unread {
+    margin-left: auto;
+    font: 600 11px/18px var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--on-ink);
+    background: var(--blue);
+    border-radius: 99px;
+    padding: 0 6px;
+    min-width: 18px;
+    text-align: center;
+  }
   .count {
     margin-left: auto;
     font: 500 12px/18px var(--font-mono);
@@ -479,6 +501,19 @@
   .rail .nav-text, .rail .count, .rail .account-text, .rail .account-meta { display: none; }
   .rail .account { flex-direction: column; gap: 8px; padding: 12px 0 0; }
   .rail .nav-item { justify-content: center; padding: 0; min-height: 36px; }
+  /* On the icon rail the unread count shrinks to a dot on the icon. */
+  .rail .nav-item { position: relative; }
+  .rail .unread {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    width: 8px;
+    height: 8px;
+    min-width: 0;
+    padding: 0;
+    font-size: 0;
+    box-shadow: 0 0 0 2px var(--well);
+  }
 
   /* Narrow screens: the open menu floats over the page instead of squeezing it. */
   .shell.drawer { grid-template-columns: 56px 1fr; }

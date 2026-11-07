@@ -9,8 +9,8 @@
 <span class="author" class:unknown={!author}>
   {#if author?.avatarUrl}
     <img src={author.avatarUrl} alt="" referrerpolicy="no-referrer" />
-  {:else}
-    <span class="mini"><Avatar name={author?.name ?? "?"} /></span>
+  {:else if author}
+    <span class="mini"><Avatar name={author.name} /></span>
   {/if}
   <span class="name">{author?.name ?? "Unknown"}</span>
 </span>
