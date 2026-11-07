@@ -1513,3 +1513,47 @@ describe("draftToText shows rest and duration", () => {
     expect(text).toContain("[45s @ RPE 7, rest 60s]");
   });
 });
+
+describe("session types in AI drafts", () => {
+  const types = [
+    { id: "t-str", name: "Strength", format: "lifting" as const },
+    { id: "t-z2", name: "Zone 2", format: "cardio" as const },
+  ];
+
+  test("prompt lists the trainer's types by format and the schema offers \"type\"", () => {
+    const { system, user } = buildGenerationMessages({
+      client: { name: "Ada", goals: null, limitations: null, sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      sessionTypes: [{ name: "Strength", format: "lifting" }, { name: "Zone 2", format: "cardio" }],
+      trainerInstructions: "",
+    });
+    const all = system + user;
+    expect(all).toContain("SESSION TYPES (label every session");
+    expect(all).toContain("- lifting: Strength");
+    expect(all).toContain("- cardio: Zone 2");
+    expect(all).toContain('"type"?: string');
+  });
+
+  test("a draft type resolves case-insensitively when its format matches; others are dropped", () => {
+    const d: AiProgramDraft = {
+      ...draft,
+      sessions: [
+        { ...draft.sessions[0], type: "strength" },
+        { name: "Easy ride", kind: "cardio", type: "Zone 2", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] },
+        { ...draft.sessions[0], name: "Wrong format", type: "Zone 2" },
+        { ...draft.sessions[0], name: "Unknown", type: "Yoga" },
+      ],
+    };
+    const { weeks } = draftToWeeks(d, catalog, 1, null, types);
+    const byName = new Map(weeks[0].sessions.map((s) => [s.name, s]));
+    expect(byName.get(draft.sessions[0].name)).toMatchObject({ typeId: "t-str", typeName: "Strength" });
+    expect(byName.get("Easy ride")).toMatchObject({ typeId: "t-z2", typeName: "Zone 2" });
+    expect(byName.get("Wrong format")?.typeId).toBeUndefined();
+    expect(byName.get("Unknown")?.typeId).toBeUndefined();
+    expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
+  });
+});

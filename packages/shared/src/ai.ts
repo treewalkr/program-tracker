@@ -122,6 +122,8 @@ export const DraftSession = z
   .object({
     name: z.string().min(1).max(160),
     kind: SessionKind.default("lifting"),
+    /** Name of one of the trainer's session types; resolved on approval, unknown names are dropped. */
+    type: z.string().max(40).optional(),
     cardio: CardioPrescription.nullable().optional(),
     exercises: z.array(DraftExerciseRef).max(20).default([]),
     notes: z.string().max(2000).optional(),

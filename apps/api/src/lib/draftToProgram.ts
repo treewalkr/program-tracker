@@ -1,4 +1,5 @@
 import {
+  findSessionType,
   MAX_SESSIONS_PER_WEEKDAY,
   placeSessions,
   placeWeeks,
@@ -7,7 +8,7 @@ import {
   sortExercisesByRole,
   stampWeeks,
 } from "@pt/shared";
-import type { AiProgramDraft, DraftExerciseRef, ProgramSession, ProgramWeek } from "@pt/shared";
+import type { AiProgramDraft, DraftExerciseRef, ProgramSession, ProgramWeek, SessionTypeLike } from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
@@ -57,7 +58,9 @@ export function resolveRef(
  *  kind's track in draft order (lifting "Session N", cardio "Cardio N"). */
 export function draftTemplateSessions(
   draft: AiProgramDraft,
-  catalog: CatalogLike[]
+  catalog: CatalogLike[],
+  /** Trainer's session types: a draft `type` naming one of the right format becomes typeId/typeName. */
+  types: SessionTypeLike[] = []
 ): { sessions: ProgramSession[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
   const nameById = new Map(catalog.map((c) => [c.id, c.name]));
@@ -99,6 +102,7 @@ export function draftTemplateSessions(
         });
 
     const kind = isCardio ? ("cardio" as const) : ("lifting" as const);
+    const type = findSessionType(types, s.type);
     return {
       id: crypto.randomUUID(),
       name: s.name,
@@ -106,6 +110,7 @@ export function draftTemplateSessions(
       weekday: null,
       order: 0,
       kind,
+      ...(type && type.format === kind ? { typeId: type.id, typeName: type.name } : {}),
       notes: s.notes,
       exercises,
       cardio: isCardio ? s.cardio : null,
@@ -119,9 +124,10 @@ export function draftToWeeks(
   draft: AiProgramDraft,
   catalog: CatalogLike[],
   plannedWeeks = 4,
-  trainingDays?: number[] | null
+  trainingDays?: number[] | null,
+  types: SessionTypeLike[] = []
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types);
   const weeks = placeWeeks(stampWeeks(sessions, plannedWeeks), trainingDays, patternLookup(catalog));
   return { weeks, createdNames, unresolvable };
 }
@@ -141,9 +147,10 @@ export function replaceWeek(
   weekNumber: number,
   draft: AiProgramDraft,
   catalog: CatalogLike[],
-  trainingDays?: number[] | null
+  trainingDays?: number[] | null,
+  types: SessionTypeLike[] = []
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types);
   const oldWeek = weeks.find((w) => w.week === weekNumber);
   const oldAt = new Map(
     (oldWeek?.sessions ?? []).map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }])

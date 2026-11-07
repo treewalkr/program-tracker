@@ -23,6 +23,7 @@ import { ContextError } from "../ai/runtime";
 import { periodizationContext, type ExampleProgramSummary } from "../ai/prompt";
 import { buildHistory } from "./history";
 import { ensureSeededChains } from "./chains";
+import { ensureSessionTypes } from "./session-types";
 import { toSignalLog, toSignalProgram } from "./signals-service";
 
 export const HISTORY_WINDOW_DAYS = 56;
@@ -178,6 +179,10 @@ export async function loadContext(
       sets,
       catalog: catalogByTrainer.map((e) => ({ id: e.id, name: e.name })),
     }),
+    // Archived types stay on old sessions but are never offered to the AI.
+    sessionTypes: (await ensureSessionTypes(trainerId))
+      .filter((t) => t.archivedAt === null)
+      .map((t) => ({ name: t.name, format: t.format })),
     // Archived/hidden exercises stay resolvable by id but are never offered to the AI.
     catalog: catalogByTrainer.filter((e) => e.archivedAt === null).map((e) => ({
       id: e.id,

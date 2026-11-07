@@ -4,6 +4,7 @@ import {
   cardioUnitLabel,
   type AiProgramDraft,
   type CardioTarget,
+  type SessionKind,
   type Phasing,
   type WeekDirective,
   type WeekSummaryStats,
@@ -73,6 +74,8 @@ export interface GenerationContext {
   examples?: ExampleProgramSummary[];
   history: ExerciseHistoryEntry[];
   catalog: CatalogEntry[];
+  /** The trainer's live session types — drafts label each session with one. */
+  sessionTypes?: { name: string; format: SessionKind }[];
   trainerInstructions: string;
   direction?: string | null;
   learnedPreferences?: string | null;
@@ -102,6 +105,7 @@ const DRAFT_SCHEMA_SPEC = `{
     {
       "name": string,
       "kind"?: "lifting" | "cardio", // defaults to "lifting"
+      "type"?: string,              // one of SESSION TYPES whose format matches kind (e.g. "Mobility"); omit if none fits
       "cardio"?: {                   // required if kind is "cardio"; omit/null for lifting
         "modality": string,          // "Bike", "Run", "Rower", etc.
         "durationMin"?: number,      // 1-300
@@ -188,6 +192,17 @@ function cardioTargetLine(target: CardioTarget): string {
   return `CARDIO TARGET (per week): ${target.value} ${label} — prescribe the week's cardio sessions so their ${unitPhrase} add up to it.`;
 }
 
+/** SESSION TYPES section: the trainer's labels, grouped by the format they need. */
+export function sessionTypesText(types: GenerationContext["sessionTypes"]): string {
+  if (!types?.length) return "SESSION TYPES: none — omit \"type\".";
+  const of = (f: SessionKind) => types.filter((t) => t.format === f).map((t) => t.name).join(", ") || "none";
+  return [
+    "SESSION TYPES (label every session with the one that fits; its format must match the session kind):",
+    `- lifting: ${of("lifting")}`,
+    `- cardio: ${of("cardio")}`,
+  ].join("\n");
+}
+
 export function buildGenerationMessages(ctx: GenerationContext) {
   const system = [
     "You are an expert strength & conditioning coach drafting the NEXT training block for a client.",
@@ -255,6 +270,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
         ]
       : []),
     "",
+    ...(ctx.sessionTypes?.length ? [sessionTypesText(ctx.sessionTypes), ""] : []),
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
       : []),
@@ -404,6 +420,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
             .join("\n"),
         ]
       : []),
+    ...(ctx.sessionTypes?.length ? ["", sessionTypesText(ctx.sessionTypes)] : []),
     ...(ctx.learnedPreferences
       ? [
           "",
@@ -515,6 +532,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
       )
       .join("\n"),
     "",
+    ...(ctx.sessionTypes?.length ? [sessionTypesText(ctx.sessionTypes), ""] : []),
     ...(ctx.direction
       ? [`STANDING DIRECTION (block-level — applies to every generation of this block): ${ctx.direction}`, ""]
       : []),
@@ -602,6 +620,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
           `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
       )
       .join("\n"),
+    ...(ctx.sessionTypes?.length ? ["", sessionTypesText(ctx.sessionTypes)] : []),
     ...(ctx.learnedPreferences
       ? [
           "",

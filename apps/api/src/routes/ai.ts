@@ -30,6 +30,7 @@ import {
 } from "../ai/prompt";
 import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
+import { ensureSessionTypes } from "../lib/session-types";
 import { buildHistory } from "../lib/history";
 import { trainerContext } from "../lib/trainer-context";
 import { ensureSeededChains } from "../lib/chains";
@@ -366,7 +367,8 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           gen.targetWeek,
           gen.draft,
           catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-          client?.trainingDays
+          client?.trainingDays,
+          await ensureSessionTypes(trainerId)
         );
         if (unresolvable.length > 0) {
           return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
@@ -412,7 +414,8 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         gen.draft,
         catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
         gen.draft.phasing?.plannedWeeks ?? 4,
-        client?.trainingDays
+        client?.trainingDays,
+        await ensureSessionTypes(trainerId)
       );
       if (unresolvable.length > 0) {
         return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
