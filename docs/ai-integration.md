@@ -149,6 +149,18 @@ delivery surface is a copy button: the trainer pastes into LINE by hand. No
 Messaging API, no client LINE ids, no delivery/read tracking — nothing is ever
 sent automatically.
 
+## Logging (`ai/llm.ts`, `llm_*` tables)
+
+Every provider attempt goes through `callLlm()`; the seven call sites (block/week generate, revision, week revision, proposal turn, chat Q&A, client message, distill) never call `provider.ts` directly. The mock provider takes the same path with `is_mock = true`.
+
+- **`llm_calls`**: one row per HTTP attempt, append-only. It holds the purpose, links (trainer, client, generation, chat message, client message), provider, model, effort, temperature, max tokens, `prompt_version` (`<builder>:<hash of prompt.ts>`), `app_build`, the attempt number, the structured `context` the prompt was built from, `response_raw`, `reasoning`, `parsed`, the status (`ok · provider_error · parse_error · validation_error · aborted`), tokens, latency and finish reason. Attempts of one user action share a `turn_id`. The only update is `linkTurn()`, which attaches a reply row created after the call.
+- **`llm_blobs`**: prompt messages stored by sha256. Calls reference them in order (`request_blob_ids`), so the system prompt and the catalog are stored once. The catalog in `context` is stored as a blob too.
+- **`llm_feedback`**: every verdict, insert-only. Implicit signals are written by the routes: approve unedited/edited (with the draft→week diff), reject, revise, regenerate, program edited ≤14 days after approval, proposal built/ignored, client message approved (with draft vs final)/rejected, chat cleared. Explicit 👍/👎, reason chips and a comment come from `POST /v1/ai/feedback`, which also takes Adjust (proposal) and Copy (client message) from the UI. Vocabulary lives in `@pt/shared` `llm.ts`.
+- **Never fails the request**: log writes are wrapped in try/catch and `console.error`.
+- **Clear chat** sets `chat_messages.hidden_at`. Hidden rows leave the thread and the model's history, but stay in the dataset.
+- **Client deletion** keeps the log. FKs become null, and a `BEFORE DELETE` trigger replaces the client's name with `[client]` in their calls' blobs, responses, context and feedback.
+- **Datasets**: the `llm_examples` view labels each turn's final call (gold / silver / negative / unlabeled), and `llm_pairs` pairs approved drafts with the drafts they replaced. `bun run llm:export --format sft|dpo|eval|fewshot` writes pseudonymized JSONL to `llm-export/` (client names become `Client-<hash6>`, emails are dropped). `bun run llm:prune` blanks `response_raw`/`reasoning` on unlabeled ok calls older than 180 days. Counts by purpose and label are on the admin page (`GET /v1/admin/llm-stats`).
+
 ## Safety rules (non-negotiable)
 
 1. Limitations reach the prompt verbatim, labelled "LIMITATIONS (hard constraints)".
