@@ -97,7 +97,7 @@ export interface ExerciseDto {
   functionalMovement: string | null;
   /** Trainer's setup cues — shown in programs and passed to the AI. */
   note: string | null;
-  /** false = WGER seed entry: name, muscles and equipment are locked. */
+  /** false = library seed entry: name, muscles and equipment are locked. */
   custom: boolean;
   /** Set = archived (custom) or hidden (seed): out of pickers and AI drafts. */
   archivedAt: string | null;

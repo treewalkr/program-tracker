@@ -69,7 +69,7 @@ export const clients = pgTable("clients", {
 
 export const exercises = pgTable("exercises", {
   id: uuid("id").primaryKey().defaultRandom(),
-  /** null = global seed library (WGER import); non-null = trainer custom. */
+  /** null = global seed library (packages/db/library); non-null = trainer custom. */
   trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   primaryMuscleGroup: text("primary_muscle_group").notNull(),

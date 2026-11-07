@@ -372,7 +372,7 @@
 
 <PageHead
   title="Exercise library"
-  sub={loading ? "Loading…" : `${seedCount} from WGER · ${mineCount} of yours. Tagged patterns feed balance checks and AI drafts.`}
+  sub={loading ? "Loading…" : `${seedCount} in the library · ${mineCount} of yours. Tagged patterns feed balance checks and AI drafts.`}
 >
   {#snippet actions()}
     <Button variant="primary" onclick={() => openNew()} title="New exercise (n)">

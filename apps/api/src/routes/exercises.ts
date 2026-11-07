@@ -59,7 +59,7 @@ const toDto = (row: ExerciseRow, usedIn: number) => ({
   movementPattern: row.movementPattern,
   functionalMovement: row.functionalMovement,
   note: row.note,
-  /** false = WGER seed entry (name, muscles and equipment are locked). */
+  /** false = library seed entry (name, muscles and equipment are locked). */
   custom: row.trainerId !== null,
   archivedAt: row.archivedAt?.toISOString() ?? null,
   usedIn,

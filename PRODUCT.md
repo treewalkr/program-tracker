@@ -36,7 +36,7 @@ The AI never touches anything the client sees: AI drafts a full next block with 
   - Learning loop: trainer feedback is distilled into learned preferences, and programs marked as examples are retrieved into generation prompts. Both are browsable and editable.
   - Client messages: AI drafts a message, the trainer approves it, then copies it in one tap.
   - Logging and evidence: lifting and cardio session logging, block-pulse metrics (tonnage, sets, avg RPE, best e1RM, week targets), and needs-review signals with snooze. Signal kinds: block ending, deload week, transition due, week ending, RPE creep, stall, off-plan, adherence and cardio behind.
-  - Exercise catalog: seeded from WGER plus trainer-custom exercises, with movement-pattern taxonomy, pattern balance and kinetic-chain balance (chain map editable in settings).
+  - Exercise catalog: seeded from a curated public-domain library (free-exercise-db) plus trainer-custom exercises, with movement-pattern taxonomy, pattern balance and kinetic-chain balance (chain map editable in settings).
   - Also: instruction templates and the provider/model picker.
 - Constraints: SvelteKit 2 + Svelte 5 runes SPA frontend, ElysiaJS/Bun API (Eden Treaty end-to-end), Drizzle + Postgres, zod-gated payloads. Monorepo: apps/web, apps/api, packages/db, packages/shared.
 - Explicitly deferred: freestyle (non-prescribed) logging in the UI (the API already accepts a log with no program session); browsing version history of approved programs (only draft versions are browsable).

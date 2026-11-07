@@ -16,7 +16,7 @@
   import Icon from "$lib/ui/Icon.svelte";
 
   /**
-   * Side panel that creates or edits one exercise. Seed (WGER) entries lock
+   * Side panel that creates or edits one exercise. Library (seed) entries lock
    * name, muscles and equipment. Save enables only after a change. Mount it
    * inside `{#key}` so each exercise starts from a fresh form.
    */
@@ -87,7 +87,7 @@
 <aside class="panel insp" aria-label={exercise ? `Edit ${exercise.name}` : "New exercise"}>
   <div class="panel-head">
     <h2>{exercise ? exercise.name : "New exercise"}</h2>
-    {#if exercise}<span class="src" class:mine={exercise.custom}>{exercise.custom ? "Mine" : "WGER"}</span>{/if}
+    {#if exercise}<span class="src" class:mine={exercise.custom}>{exercise.custom ? "Mine" : "Library"}</span>{/if}
     <button type="button" class="iconbtn" aria-label="Close" onclick={onclose}><Icon name="x" /></button>
   </div>
 
@@ -103,7 +103,7 @@
 
     {#if locked}
       <p class="lockline">
-        <Icon name="lock" />WGER library entry. You can tag its pattern and add a note. To change the name, muscles or equipment,
+        <Icon name="lock" />Library entry. You can tag its pattern and add a note. To change the name, muscles or equipment,
         duplicate it into your exercises.
       </p>
     {/if}
