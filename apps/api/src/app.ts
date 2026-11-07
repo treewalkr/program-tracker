@@ -17,7 +17,9 @@ import { clientMessageRoutes } from "./routes/client-messages";
 import { preferenceRoutes } from "./routes/preferences";
 import { chatRoutes } from "./routes/chat";
 import { feedbackRoutes } from "./routes/feedback";
-import { authGuard, authRoutes } from "./routes/auth";
+import { authRoutes } from "./routes/auth";
+import { adminRoutes } from "./routes/admin";
+import { trainerContext } from "./lib/trainer-context";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -26,7 +28,8 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
 
 const TAGS = [
   { name: "health", description: "Liveness and provider discovery" },
-  { name: "auth", description: "Google sign-in for the trainer; every other /v1 route needs a session" },
+  { name: "auth", description: "Google sign-in for invited trainers; every other /v1 route needs a session" },
+  { name: "admin", description: "Platform admin console — invite, disable and remove trainer accounts" },
   { name: "ai", description: "AI draft generation, audit trail, and approval gate" },
   { name: "chat", description: "Conversational surface — client Q&A and draft revision over chat" },
   { name: "client-messages", description: "Client-facing weekly messages — AI-drafted, trainer-approved, copy-to-LINE" },
@@ -67,8 +70,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
     detail: { summary: "Liveness probe", tags: ["health"] },
   })
   .use(authRoutes)
-  // everything below needs a signed-in trainer
-  .use(authGuard)
+  // everything below needs a signed-in trainer and only sees that trainer's data
+  .use(trainerContext)
   /**
    * Which AI providers are usable right now. API keys are read server-side
    * only — the response carries config, never secrets.
@@ -98,6 +101,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
       tags: ["health"],
     },
   })
+  .use(adminRoutes)
   .use(aiRoutes)
   .use(clientMessageRoutes)
   .use(preferenceRoutes)
