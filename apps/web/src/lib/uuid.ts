@@ -1,0 +1,10 @@
+/**
+ * crypto.randomUUID only exists in secure contexts (https/localhost); over plain
+ * http on another device (e.g. Tailscale from an iPad) it is undefined.
+ */
+export const uuid = (): string =>
+	typeof crypto.randomUUID === "function"
+		? crypto.randomUUID()
+		: "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+				(+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16)
+			);

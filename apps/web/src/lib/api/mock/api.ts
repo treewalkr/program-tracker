@@ -58,7 +58,7 @@ import {
   schemes as seedSchemes,
 } from "./data";
 
-const uuid = () => crypto.randomUUID();
+import { uuid } from "$lib/uuid";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const seedTemplates: InstructionTemplateDto[] = [

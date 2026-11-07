@@ -46,7 +46,7 @@ export const schemes: PeriodizationSchemeDto[] = [
   },
 ];
 
-const uuid = () => crypto.randomUUID();
+import { uuid } from "$lib/uuid";
 
 export const exercises: ExerciseDto[] = ([
   { id: "ex-squat", name: "Back Squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes", "core"], equipment: "barbell", movementPattern: "knee_dominant", functionalMovement: "squat" },

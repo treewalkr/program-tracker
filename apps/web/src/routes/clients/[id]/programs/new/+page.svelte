@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { uuid } from "$lib/uuid";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -81,7 +82,7 @@
   }
 
   const newRow = (): SessionRow => ({
-    key: crypto.randomUUID(),
+    key: uuid(),
     name: "",
     kind: "lifting",
     weekday: null,
@@ -232,7 +233,7 @@
   }
 
   function addExercise(s: SessionRow) {
-    s.exercises.push({ key: crypto.randomUUID(), exerciseId: catalog.find((c) => !c.archivedAt)?.id ?? "", role: "", sets: [] });
+    s.exercises.push({ key: uuid(), exerciseId: catalog.find((c) => !c.archivedAt)?.id ?? "", role: "", sets: [] });
     sessions = [...sessions];
   }
 
@@ -267,7 +268,7 @@
       let session: ProgramSession;
       if (s.kind === "cardio") {
         session = {
-          id: crypto.randomUUID(),
+          id: uuid(),
           name: s.name.trim() || `Cardio ${seq}`,
           seq,
           weekday,
@@ -285,7 +286,7 @@
         };
       } else {
         session = {
-          id: crypto.randomUUID(),
+          id: uuid(),
           name: s.name.trim() || `Session ${seq}`,
           seq,
           weekday,
@@ -293,7 +294,7 @@
           kind: "lifting",
           cardio: null,
           exercises: sortExercisesByRole(s.exercises.map((e) => ({ ...e, role: e.role || undefined }))).map((e, ei) => ({
-            id: crypto.randomUUID(),
+            id: uuid(),
             exerciseId: e.exerciseId,
             exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name,
             role: e.role,
