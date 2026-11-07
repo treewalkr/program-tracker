@@ -408,3 +408,25 @@ export const feedbackItems = pgTable("feedback_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type FeedbackItemRow = typeof feedbackItems.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Session types — trainer-owned labels over the fixed formats (see @pt/shared sessionTypes)
+// ---------------------------------------------------------------------------
+
+export const sessionTypes = pgTable(
+  "session_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** "lifting" (exercises + sets) or "cardio" (cardio prescription). */
+    format: text("format").$type<SessionKind>().notNull(),
+    /** Set = out of the picker and AI list; programs keep the captured name. */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("session_types_trainer_name_idx").on(t.trainerId, sql`lower(${t.name})`)]
+);
+export type SessionTypeRow = typeof sessionTypes.$inferSelect;
