@@ -14,3 +14,6 @@ function commit(): string | null {
 
 /** "0.1.3+42a93f5" — the root package.json version plus the commit. */
 export const API_BUILD = buildId(rootPackage.version, commit());
+
+/** "0.1.3" — the release this API runs; stamped on feedback marked done. */
+export const API_VERSION: string = rootPackage.version;

@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
-import { db, feedbackItems } from "@pt/db";
+import { db, feedbackComments, feedbackItems } from "@pt/db";
 import {
   FEEDBACK_STATUSES,
   feedbackHandle,
@@ -8,7 +8,17 @@ import {
   formatSourceLoc,
   type FeedbackContext,
 } from "@pt/shared";
-import { decodeShot, getFeedback, listFeedback, parseStatuses, shotMime } from "../lib/feedback";
+import {
+  decodeShot,
+  getFeedback,
+  listFeedback,
+  markSeen,
+  parseStatuses,
+  shotMime,
+  unreadCount,
+  type FeedbackViewer,
+} from "../lib/feedback";
+import { API_VERSION } from "../lib/build";
 import { trainerContext } from "../lib/trainer-context";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
@@ -48,13 +58,17 @@ const NOT_FOUND = { error: "feedback not found" } as const;
 export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedback"] })
   .use(trainerContext)
   .resolve(({ trainerId, isAdmin }) => ({
-    /** `ownerId` scope for queries: null = everything (admin). */
-    scope: isAdmin ? null : trainerId,
+    /** Query scope: the admin sees everything, a trainer their own items. */
+    who: { ownerId: isAdmin ? null : trainerId, viewerId: trainerId } satisfies FeedbackViewer,
   }))
   /** List items (no image bytes). `?status=new,accepted` filters. */
-  .get("/", async ({ query, scope }) => listFeedback(parseStatuses(query.status), "newest", scope), {
+  .get("/", async ({ query, who }) => listFeedback(parseStatuses(query.status), "newest", who), {
     query: t.Object({ status: t.Optional(t.String()) }),
     detail: { summary: "List feedback items" },
+  })
+  /** Sidebar badge: visible items with news from someone else since you last looked. */
+  .get("/unread", async ({ who }) => ({ count: await unreadCount(who) }), {
+    detail: { summary: "Count unread feedback items" },
   })
   /**
    * Agent-facing export. Markdown by default — self-contained items with
@@ -123,21 +137,41 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
   )
   .get(
     "/:id",
-    async ({ params, status, scope }) => (await getFeedback(params.id, scope)) ?? status(404, NOT_FOUND),
+    async ({ params, status, who }) => (await getFeedback(params.id, who)) ?? status(404, NOT_FOUND),
     { params: IdParams, detail: { summary: "Get one feedback item" } },
   )
-  /** Triage: the admin sets status and/or a note. */
+  /**
+   * Triage: the admin sets status and/or a note. A status change also lands
+   * in the thread; done stamps the live version, leaving done clears it.
+   */
   .patch(
     "/:id",
-    async ({ params, body, status, isAdmin }) => {
+    async ({ params, body, status, isAdmin, trainerId, who }) => {
       if (!isAdmin) return status(403, ADMIN_ONLY);
-      const [row] = await db
-        .update(feedbackItems)
-        .set({ ...body, updatedAt: new Date() })
-        .where(eq(feedbackItems.id, params.id))
-        .returning({ id: feedbackItems.id });
-      if (!row) return status(404, NOT_FOUND);
-      return (await getFeedback(row.id))!;
+      const found = await db.transaction(async (tx) => {
+        const [prev] = await tx
+          .select({ status: feedbackItems.status })
+          .from(feedbackItems)
+          .where(eq(feedbackItems.id, params.id))
+          .for("update");
+        if (!prev) return false;
+        const moved = body.status !== undefined && body.status !== prev.status;
+        await tx
+          .update(feedbackItems)
+          .set({
+            ...body,
+            ...(moved ? { shippedIn: body.status === "done" ? API_VERSION : null } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(feedbackItems.id, params.id));
+        if (moved) {
+          await tx.insert(feedbackComments).values({ itemId: params.id, trainerId, kind: "status", status: body.status });
+        }
+        return true;
+      });
+      if (!found) return status(404, NOT_FOUND);
+      await markSeen(trainerId, params.id);
+      return (await getFeedback(params.id, who))!;
     },
     {
       params: IdParams,
@@ -147,6 +181,37 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       }),
       detail: { summary: "Triage a feedback item" },
     },
+  )
+  /** Reply on an item's thread — its reporter or the admin. */
+  .post(
+    "/:id/comments",
+    async ({ params, body, status, trainerId, who }) => {
+      if (!(await getFeedback(params.id, who))) return status(404, NOT_FOUND);
+      const text = body.body.trim();
+      if (!text) return status(422, { error: "reply is empty" });
+      const [row] = await db
+        .insert(feedbackComments)
+        .values({ itemId: params.id, trainerId, kind: "reply", body: text })
+        .returning({ id: feedbackComments.id });
+      await markSeen(trainerId, params.id);
+      const item = (await getFeedback(params.id, who))!;
+      return status(201, item.thread.find((c) => c.id === row.id)!);
+    },
+    {
+      params: IdParams,
+      body: t.Object({ body: t.String({ minLength: 1, maxLength: 5000 }) }),
+      detail: { summary: "Reply on a feedback item" },
+    },
+  )
+  /** The caller has looked at this item: clears it from their unread count. */
+  .post(
+    "/:id/seen",
+    async ({ params, status, trainerId, who }) => {
+      if (!(await getFeedback(params.id, who))) return status(404, NOT_FOUND);
+      await markSeen(trainerId, params.id);
+      return { ok: true };
+    },
+    { params: IdParams, detail: { summary: "Mark a feedback item seen" } },
   )
   .delete(
     "/:id",
@@ -162,8 +227,8 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
   )
   .get(
     "/:id/shot/:kind",
-    async ({ params, status, scope }) => {
-      if (!(await getFeedback(params.id, scope))) return status(404, { error: "screenshot not found" });
+    async ({ params, status, who }) => {
+      if (!(await getFeedback(params.id, who))) return status(404, { error: "screenshot not found" });
       const col = params.kind === "element" ? feedbackItems.elementShot : feedbackItems.pageShot;
       const [row] = await db.select({ shot: col }).from(feedbackItems).where(eq(feedbackItems.id, params.id));
       if (!row?.shot) return status(404, { error: "screenshot not found" });

@@ -58,6 +58,18 @@ export interface FeedbackAuthor {
   avatarUrl: string | null;
 }
 
+/** One thread entry: a reply, or a status change made by `author`. */
+export interface FeedbackComment {
+  id: string;
+  kind: "reply" | "status";
+  author: FeedbackAuthor | null;
+  /** Reply text; null for status entries. */
+  body: string | null;
+  /** Status moved to; null for replies. */
+  status: FeedbackStatus | null;
+  createdAt: string;
+}
+
 export interface FeedbackItem {
   id: string;
   /** Human handle: FB-<number>. */
@@ -73,6 +85,12 @@ export interface FeedbackItem {
   context: FeedbackContext;
   hasElementShot: boolean;
   hasPageShot: boolean;
+  /** App version live when it was marked done (e.g. `0.1.3`); null otherwise. */
+  shippedIn: string | null;
+  /** Replies and status changes, oldest first. */
+  thread: FeedbackComment[];
+  /** Someone else did something on it since the caller last looked. */
+  unread: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,10 +181,24 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(`- **Reported by:** ${item.author?.name ?? "unknown"}`);
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
+  if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
   const el = opts.imageUrl(item, "element");
   const pg = opts.imageUrl(item, "page");
   if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
   if (pg) lines.push(`- **Page screenshot (element outlined in red):** ![${feedbackHandle(item.number)} page](${pg})`);
+  if (item.thread.length) {
+    lines.push("");
+    lines.push("**Thread** (oldest first — clarifications from the reporter and the owner):");
+    lines.push("");
+    for (const c of item.thread) {
+      const who = c.author?.name ?? "unknown";
+      lines.push(
+        c.kind === "status"
+          ? `- _${who} marked it ${c.status} (${c.createdAt.slice(0, 10)})_`
+          : `- **${who}** (${c.createdAt.slice(0, 10)}): ${(c.body ?? "").trim().split("\n").join("\n  ")}`,
+      );
+    }
+  }
   lines.push("");
   lines.push("<details><summary>Element HTML</summary>");
   lines.push("");

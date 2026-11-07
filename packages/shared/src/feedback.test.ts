@@ -37,6 +37,9 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   },
   hasElementShot: true,
   hasPageShot: false,
+  shippedIn: null,
+  thread: [],
+  unread: false,
   createdAt: "2026-11-07T10:00:00.000Z",
   updatedAt: "2026-11-07T10:00:00.000Z",
   ...over,
@@ -103,6 +106,24 @@ describe("feedbackMarkdown", () => {
     expect(md).toContain("Page data at click time");
     const empty = feedbackMarkdown([item({ context: { ...item().context, pageData: {} } })], { imageUrl: () => null });
     expect(empty).not.toContain("Page data at click time");
+  });
+  test("carries the thread and the shipped version", () => {
+    const out = feedbackMarkdown(
+      [
+        item({
+          shippedIn: "0.1.3",
+          thread: [
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z" },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z" },
+          ],
+        }),
+      ],
+      { imageUrl: () => null },
+    );
+    expect(out).toContain("- **Shipped in:** v0.1.3");
+    expect(out).toContain("- **Ana** (2026-11-07): Which screen?\n  The log one?");
+    expect(out).toContain("- _Ana marked it done (2026-11-08)_");
+    expect(md).not.toContain("**Thread**");
   });
   test("names the reporter", () => {
     expect(md).toContain("- **Reported by:** Kai");

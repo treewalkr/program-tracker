@@ -407,10 +407,33 @@ export const feedbackItems = pgTable("feedback_items", {
   context: jsonb("context").$type<FeedbackContext>().notNull(),
   elementShot: bytea("element_shot"),
   pageShot: bytea("page_shot"),
+  /** App version that was live when the item was marked done. */
+  shippedIn: text("shipped_in"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_items_trainer_idx").on(t.trainerId)]);
 export type FeedbackItemRow = typeof feedbackItems.$inferSelect;
+
+/** A feedback item's thread: replies, plus one entry per status change. */
+export const feedbackComments = pgTable("feedback_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  itemId: uuid("item_id").notNull().references(() => feedbackItems.id, { onDelete: "cascade" }),
+  trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+  kind: text("kind").$type<"reply" | "status">().notNull(),
+  /** Reply text; null for status entries. */
+  body: text("body"),
+  /** Status moved to; null for replies. */
+  status: text("status").$type<FeedbackStatus>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("feedback_comments_item_idx").on(t.itemId, t.createdAt)]);
+export type FeedbackCommentRow = typeof feedbackComments.$inferSelect;
+
+/** When each trainer last looked at each item — drives the unread count. */
+export const feedbackReads = pgTable("feedback_reads", {
+  trainerId: uuid("trainer_id").notNull().references(() => trainers.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").notNull().references(() => feedbackItems.id, { onDelete: "cascade" }),
+  seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+}, (t) => [primaryKey({ columns: [t.trainerId, t.itemId] })]);
 
 // ---------------------------------------------------------------------------
 // Session types — trainer-owned labels over the fixed formats (see @pt/shared sessionTypes)

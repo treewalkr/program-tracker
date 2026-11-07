@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
-import { db, feedbackItems, trainers, type FeedbackItemRow } from "@pt/db";
-import { FEEDBACK_STATUSES, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+import { db, feedbackComments, feedbackItems, feedbackReads, trainers, type FeedbackItemRow } from "@pt/db";
+import { FEEDBACK_STATUSES, type FeedbackComment, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
 
 /** Screenshot cap per image, decoded. Keeps a runaway capture out of the DB. */
 export const MAX_SHOT_BYTES = 4 * 1024 * 1024;
@@ -13,26 +13,80 @@ const listColumns = {
   status: feedbackItems.status,
   comment: feedbackItems.comment,
   triageNote: feedbackItems.triageNote,
+  trainerId: feedbackItems.trainerId,
   route: feedbackItems.route,
   source: feedbackItems.source,
   context: feedbackItems.context,
+  shippedIn: feedbackItems.shippedIn,
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
   hasElementShot: sql<boolean>`${feedbackItems.elementShot} is not null`,
   hasPageShot: sql<boolean>`${feedbackItems.pageShot} is not null`,
 };
 
-type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot" | "trainerId"> & {
+type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot"> & {
   author: FeedbackItem["author"];
   hasElementShot: boolean;
   hasPageShot: boolean;
 };
 
-export const toFeedbackItem = (r: ListRow): FeedbackItem => ({
-  ...r,
-  createdAt: r.createdAt.toISOString(),
-  updatedAt: r.updatedAt.toISOString(),
-});
+const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainers.avatarUrl };
+
+/**
+ * Rows → API items: attaches each thread (one query) and, for a viewer, the
+ * unread flag (one more). Unread = someone other than the viewer filed it,
+ * replied or changed its status after the viewer last looked.
+ */
+async function hydrate(rows: ListRow[], viewerId: string | null): Promise<FeedbackItem[]> {
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+  const comments = await db
+    .select({
+      id: feedbackComments.id,
+      itemId: feedbackComments.itemId,
+      trainerId: feedbackComments.trainerId,
+      kind: feedbackComments.kind,
+      body: feedbackComments.body,
+      status: feedbackComments.status,
+      createdAt: feedbackComments.createdAt,
+      author: authorColumns,
+    })
+    .from(feedbackComments)
+    .leftJoin(trainers, eq(trainers.id, feedbackComments.trainerId))
+    .where(inArray(feedbackComments.itemId, ids))
+    .orderBy(asc(feedbackComments.createdAt));
+  const seen = new Map<string, Date>();
+  if (viewerId) {
+    const reads = await db
+      .select({ itemId: feedbackReads.itemId, seenAt: feedbackReads.seenAt })
+      .from(feedbackReads)
+      .where(and(eq(feedbackReads.trainerId, viewerId), inArray(feedbackReads.itemId, ids)));
+    for (const r of reads) seen.set(r.itemId, r.seenAt);
+  }
+
+  return rows.map(({ trainerId, ...r }) => {
+    const mine = comments.filter((c) => c.itemId === r.id);
+    let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
+    for (const c of mine) if (c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
+    const seenAt = seen.get(r.id);
+    return {
+      ...r,
+      thread: mine.map(
+        (c): FeedbackComment => ({
+          id: c.id,
+          kind: c.kind,
+          author: c.author,
+          body: c.body,
+          status: c.status,
+          createdAt: c.createdAt.toISOString(),
+        }),
+      ),
+      unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    };
+  });
+}
 
 /**
  * `data:image/png;base64,…` (or bare base64) → bytes. Null when absent;
@@ -64,9 +118,15 @@ export function parseStatuses(raw: string | undefined): FeedbackStatus[] | null 
 }
 
 /**
- * Who may see what: the admin sees everything (`ownerId` null), a trainer
- * only the items they filed.
+ * Who is asking. `ownerId` scopes what they may see (null = everything, the
+ * admin); `viewerId` is whose unread state to compute (null = none, e.g. export).
  */
+export interface FeedbackViewer {
+  ownerId: string | null;
+  viewerId: string | null;
+}
+const EVERYTHING: FeedbackViewer = { ownerId: null, viewerId: null };
+
 const visibleTo = (ownerId: string | null): SQL | undefined =>
   ownerId ? eq(feedbackItems.trainerId, ownerId) : undefined;
 
@@ -77,16 +137,30 @@ const selectItems = () =>
 export async function listFeedback(
   statuses: FeedbackStatus[] | null,
   order: "newest" | "oldest" = "newest",
-  ownerId: string | null = null,
+  who: FeedbackViewer = EVERYTHING,
 ): Promise<FeedbackItem[]> {
   const rows = await selectItems()
-    .where(and(statuses ? inArray(feedbackItems.status, statuses) : undefined, visibleTo(ownerId)))
+    .where(and(statuses ? inArray(feedbackItems.status, statuses) : undefined, visibleTo(who.ownerId)))
     .orderBy(order === "newest" ? desc(feedbackItems.number) : asc(feedbackItems.number));
-  return rows.map(toFeedbackItem);
+  return hydrate(rows, who.viewerId);
 }
 
-/** One item, or null when it does not exist or `ownerId` may not see it. */
-export async function getFeedback(id: string, ownerId: string | null = null): Promise<FeedbackItem | null> {
-  const [row] = await selectItems().where(and(eq(feedbackItems.id, id), visibleTo(ownerId)));
-  return row ? toFeedbackItem(row) : null;
+/** One item, or null when it does not exist or `who` may not see it. */
+export async function getFeedback(id: string, who: FeedbackViewer = EVERYTHING): Promise<FeedbackItem | null> {
+  const [row] = await selectItems().where(and(eq(feedbackItems.id, id), visibleTo(who.ownerId)));
+  return row ? ((await hydrate([row], who.viewerId))[0] ?? null) : null;
+}
+
+/** How many visible items are unread for the viewer — the sidebar badge. */
+export async function unreadCount(who: FeedbackViewer): Promise<number> {
+  return (await listFeedback(null, "newest", who)).filter((i) => i.unread).length;
+}
+
+/** Marks an item seen by `trainerId` now. */
+export async function markSeen(trainerId: string, itemId: string): Promise<void> {
+  const now = new Date();
+  await db
+    .insert(feedbackReads)
+    .values({ trainerId, itemId, seenAt: now })
+    .onConflictDoUpdate({ target: [feedbackReads.trainerId, feedbackReads.itemId], set: { seenAt: now } });
 }

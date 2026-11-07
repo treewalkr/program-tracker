@@ -5,6 +5,7 @@ import type { FeedbackContext } from "@pt/shared";
 import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
+import { API_VERSION } from "./lib/build";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
 
@@ -194,6 +195,63 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
     expect((await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai)).status).toBe(200);
     expect((await call("GET", `/v1/feedback/${kaiItem}`, undefined, mo)).status).toBe(404);
     expect((await call("GET", `/v1/feedback/${adminItem}/shot/element`, undefined, kai)).status).toBe(404);
+  });
+
+  test("reporter and admin talk on the thread; strangers cannot", async () => {
+    const res = await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "  It's the log screen.  " }, kai);
+    expect(res.status).toBe(201);
+    const reply = await json(res);
+    expect(reply).toMatchObject({ kind: "reply", body: "It's the log screen.", status: null });
+    expect(reply.author.name).toBe("Kai");
+
+    expect((await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "Got it" })).status).toBe(201);
+    expect((await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "me too" }, mo)).status).toBe(404);
+    expect((await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "   " }, kai)).status).toBe(422);
+
+    const item = await json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai));
+    expect(item.thread.map((c: { body: string }) => c.body)).toEqual(["It's the log screen.", "Got it"]);
+  });
+
+  test("status changes land in the thread; done stamps the version", async () => {
+    await call("PATCH", `/v1/feedback/${adminItem}`, { triageNote: "note only" });
+    let item = await json(await call("GET", `/v1/feedback/${adminItem}`));
+    expect(item.thread).toEqual([]);
+
+    item = await json(await call("PATCH", `/v1/feedback/${adminItem}`, { status: "done" }));
+    expect(item.shippedIn).toBe(API_VERSION);
+    expect(item.thread.at(-1)).toMatchObject({ kind: "status", status: "done", body: null });
+
+    item = await json(await call("PATCH", `/v1/feedback/${adminItem}`, { status: "done" }));
+    expect(item.thread.filter((c: { kind: string }) => c.kind === "status")).toHaveLength(1);
+
+    item = await json(await call("PATCH", `/v1/feedback/${adminItem}`, { status: "new" }));
+    expect(item.shippedIn).toBeNull();
+    expect(item.thread.map((c: { status: string }) => c.status)).toEqual(["done", "new"]);
+  });
+
+  test("unread follows the other side's activity", async () => {
+    const unread = async (token?: string) => (await json(await call("GET", "/v1/feedback/unread", undefined, token))).count;
+    const isUnread = async (token?: string) =>
+      (await json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, token))).unread;
+
+    // The admin replied last (previous test), so Kai has news; the admin does not.
+    expect(await isUnread(kai)).toBe(true);
+    expect(await unread(kai)).toBe(1);
+    expect(await isUnread()).toBe(false);
+
+    expect((await call("POST", `/v1/feedback/${kaiItem}/seen`, undefined, kai)).status).toBe(200);
+    expect(await unread(kai)).toBe(0);
+    expect((await call("POST", `/v1/feedback/${kaiItem}/seen`, undefined, mo)).status).toBe(404);
+
+    // Kai's own reply is not news to Kai, but is to the admin.
+    await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "Thanks!" }, kai);
+    expect(await isUnread(kai)).toBe(false);
+    expect(await isUnread()).toBe(true);
+
+    // An admin status change is news to Kai again.
+    await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" });
+    expect(await isUnread(kai)).toBe(true);
+    expect(await isUnread()).toBe(false);
   });
 
   test("triage, delete and export are admin only", async () => {
