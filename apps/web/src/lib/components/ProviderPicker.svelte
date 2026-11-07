@@ -7,8 +7,8 @@
    * Provider / model / thinking-effort selection (card 27tc8). Provider name
    * only in the first dropdown — the model belongs to the model dropdown.
    * Selectors hide when they'd have nothing to choose: single-model providers
-   * skip the model select, providers without effortLevels (and glm-4.x, whose
-   * thinking is disabled) skip the effort select. "" effort = provider default.
+   * skip the model select, providers without effortLevels skip the
+   * effort select. "" effort = provider default.
    * The default option is labelled "(provider default)" / "(default)" and the
    * matching entry is not listed twice.
    */
@@ -28,12 +28,7 @@
 
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   const showModel = $derived((provider?.models.length ?? 0) > 1);
-  // glm-4.x keeps thinking disabled — no effort selector for those models
-  const effortLevels = $derived(
-    provider?.effortLevels?.length && !/^glm-4/.test(model || provider.model)
-      ? provider.effortLevels
-      : null
-  );
+  const effortLevels = $derived(provider?.effortLevels?.length ? provider.effortLevels : null);
 
   function onProviderChange() {
     // switching provider invalidates the model and effort selections

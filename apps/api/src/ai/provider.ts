@@ -20,9 +20,6 @@ export interface ProviderRuntime {
   model: string;
   apiKey: string;
   maxOutputTokens: number;
-  /** Z.ai GLM 4.x: skip reasoning so JSON output fits the token budget.
-   *  GLM 5.x can't disable thinking — budget "low" is forced regardless. */
-  disableThinking?: boolean;
   /** Set by providerRuntime(); call sites building literal runtimes may omit it. */
   providerId?: string;
   effortLevels?: readonly string[];
@@ -61,13 +58,9 @@ export async function chatJson(
 ): Promise<string> {
   // GLM 5.x always thinks and rejects "disabled" (Z.ai error 1210): budget low
   // so the JSON draft still fits; give those models a roomier token cap since
-  // reasoning shares it. 4.x honors disabled and skips reasoning entirely.
+  // reasoning shares it.
   const glm5 = /^glm-5/.test(rt.model);
-  const thinking = glm5
-    ? { type: "enabled", budget: "low" }
-    : rt.disableThinking
-      ? { type: "disabled" }
-      : undefined;
+  const thinking = glm5 ? { type: "enabled", budget: "low" } : undefined;
   const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
   const effort = effortParams(rt, opts.effort, thinking);
   let res: Response;
@@ -119,11 +112,7 @@ export async function chatText(
   opts: { temperature?: number; effort?: string } = {}
 ): Promise<string> {
   const glm5 = /^glm-5/.test(rt.model);
-  const thinking = glm5
-    ? { type: "enabled", budget: "low" }
-    : rt.disableThinking
-      ? { type: "disabled" }
-      : undefined;
+  const thinking = glm5 ? { type: "enabled", budget: "low" } : undefined;
   const maxTokens = glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens;
   const effort = effortParams(rt, opts.effort, thinking);
   let res: Response;

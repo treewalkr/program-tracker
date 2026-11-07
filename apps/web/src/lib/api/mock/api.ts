@@ -96,7 +96,7 @@ const seedPreferences: PreferencesDto[] = [
     document:
       "Rules:\n- Prefer free-weight compound movements first in every session; machines only as accessories.\n- Cap main-lift top sets at RPE 8; progress by 2.5 kg when all target reps are hit.\n- 4-week blocks: 3 accumulation weeks, then a deload at ~60% volume.",
     providerId: "zai",
-    model: "glm-4.5-flash",
+    model: "glm-5.3-flash",
     updatedAt: "2026-10-20T08:00:00Z",
   },
 ];
@@ -747,7 +747,7 @@ export const mockApi: TrainerApi = {
       targetWeek: input.targetWeek ?? null,
       direction: input.direction ?? basedOn?.direction ?? null,
       providerId: input.providerId ?? "zai",
-      model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-4.5-flash",
+      model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-5.3-flash",
       effort: input.effort ?? null,
       status: "pending",
       draft: null,
@@ -1121,7 +1121,7 @@ export const mockApi: TrainerApi = {
         : null,
       document,
       providerId: input.providerId ?? "zai",
-      model: input.model ?? "glm-4.5-flash",
+      model: input.model ?? "glm-5.3-flash",
       updatedAt: new Date().toISOString(),
     };
     state.preferences.unshift(row);

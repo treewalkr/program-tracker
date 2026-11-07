@@ -22,7 +22,7 @@
       <GeneratingState
         startedAt={args.startedAt ?? new Date(Date.now() - 3 * 60_000).toISOString()}
         providerLabel={args.providerLabel ?? 'Z.ai GLM'}
-        model={args.model ?? 'glm-4.5-flash'}
+        model={args.model ?? 'glm-5.3-flash'}
         expectedSeconds={args.expectedSeconds ?? 210}
         {...args}
       />
@@ -36,7 +36,7 @@
   args={{
     startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
     providerLabel: 'Z.ai GLM',
-    model: 'glm-4.5-flash',
+    model: 'glm-5.3-flash',
     expectedSeconds: 210,
   }}
 />

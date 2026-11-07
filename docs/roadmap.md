@@ -142,7 +142,7 @@ Treaty client (D1) replaced the hand-written fetch inside the `TrainerApi` seam.
 
 ## Phase 5 — Real-world hardening (post-MVP)
 
-- [ ] Real Z.ai key e2e run (prompt quality check on actual GLM-4.5-Flash output)
+- [ ] Real Z.ai key e2e run (prompt quality check on actual GLM-5.3-Flash output)
 - [ ] Deploy (single VPS + Docker Compose; API + web + Postgres), backups
 - [ ] Error monitoring, request logging, rate limits
 - [ ] Prompt tuning from real trainer feedback (progression conservatism etc.)

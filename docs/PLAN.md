@@ -13,7 +13,7 @@ track results, and generate the **next consecutive program block with AI assista
 - Trainer builds a program → assigns it to a client → client trains → trainer logs the
   results → AI drafts the next block from the logged history → trainer reviews, edits,
   approves → new program goes live. Repeat every mesocycle.
-- AI default: **Z.ai GLM-4.5-Flash** (free tier, OpenAI-compatible API). Any
+- AI default: **Z.ai GLM-5.3-Flash** (OpenAI-compatible API). Any
   OpenAI-compatible provider (OpenAI, Groq, OpenRouter…) can be added by config.
 - **The AI never touches anything the client can see.** It only produces a *draft*; a
   human trainer approves it. (Professional liability sits with the trainer.)

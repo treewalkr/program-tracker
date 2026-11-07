@@ -32,7 +32,7 @@ Nothing imports from `apps/*`. `shared` imports nothing internal.
                                   │
                                   ├─ zod validation on every write (shared schemas)
                                   └─ AI calls (fetch, OpenAI-compatible)
-                                        ├─ zai     glm-4.5-flash  (default)
+                                        ├─ zai     glm-5.3-flash  (default)
                                         ├─ openai  any model
                                         └─ mock    canned draft (no network, no key)
 ```

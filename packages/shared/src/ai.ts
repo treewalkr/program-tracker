@@ -26,11 +26,6 @@ export const AiProviderConfig = z.object({
   /** Max output tokens for program generation. */
   maxOutputTokens: z.number().int().min(256).max(32768).default(8192),
   /**
-   * Z.ai GLM 4.x are thinking models: without this, reasoning eats the token
-   * budget and `content` comes back empty (or truncated) for structured JSON.
-   */
-  disableThinking: z.boolean().optional(),
-  /**
    * Reasoning-effort levels the trainer may pick for this provider's models
    * (UI selector; absent = the provider takes no effort parameter).
    */
@@ -52,13 +47,11 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.z.ai/api/paas/v4",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
-    disableThinking: true,
     effortLevels: ["low", "high", "max"],
     defaultEffort: "low", // glm-5 budget low is the shipped default; max maps to the provider's top budget
     models: [
-      "glm-4.5-flash", // default — free tier
-      "glm-5.3-flash",
-      "glm-5.3"
+      "glm-5.3-flash", // default
+      "glm-5.3",
     ],
   },
   deepseek: {

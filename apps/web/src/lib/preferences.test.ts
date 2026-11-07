@@ -9,7 +9,7 @@ function pref(partial: Partial<PreferencesDto> = {}): PreferencesDto {
     clientName: null,
     document: "doc",
     providerId: "zai",
-    model: "glm-4.5-flash",
+    model: "glm-5.3-flash",
     updatedAt: "2026-10-31T00:00:00Z",
     ...partial,
   };

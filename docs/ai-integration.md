@@ -13,7 +13,7 @@ Every provider speaks the OpenAI chat-completions dialect — one HTTP client
 
 | Provider id | Default model | Key env var | Notes |
 |---|---|---|---|
-| `zai` | `glm-4.5-flash` (first of `models`) | `ZAI_API_KEY` | **default**; free tier; 200K context |
+| `zai` | `glm-5.3-flash` (first of `models`) | `ZAI_API_KEY` | **default**; `glm-5.3` also listed; always thinks — effort low/high/max sets the thinking budget |
 | `deepseek` | `deepseek-flash` (first of `models`) | `DEEPSEEK_API_KEY` | OpenAI-compatible; `deepseek-v4-pro` also listed; both support reasoning effort none/low/high/max ("none" = thinking off); JSON mode needs "json" in the prompt (all JSON prompts already say it) |
 | `mock` | canned draft | — (always "configured") | keyless tests + UI dev |
 

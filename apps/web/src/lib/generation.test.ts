@@ -18,7 +18,7 @@ function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
     kind: "block",
     targetWeek: null,
     providerId: "zai",
-    model: "glm-4.5-flash",
+    model: "glm-5.3-flash",
     status: "pending",
     draft: null,
     error: null,

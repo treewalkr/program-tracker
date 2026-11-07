@@ -106,7 +106,6 @@ describe("providerRuntime (deepseek)", () => {
       model: "deepseek-flash",
       apiKey: "k",
       maxOutputTokens: 16384,
-      disableThinking: undefined,
       effortLevels: ["none", "low", "high", "max"],
       defaultEffort: "high",
     });
@@ -197,16 +196,11 @@ describe("chatJson (deepseek request shape)", () => {
     process.env.ZAI_API_KEY = "k";
     const ds = providerRuntime("deepseek");
     const glm5 = providerRuntime("zai", "glm-5.3-flash");
-    const glm45 = providerRuntime("zai", "glm-4.5-flash");
 
     expect((await capture(ds, "max")).reasoning_effort).toBe("max");
     expect((await capture(ds, "none")).reasoning_effort).toBe("none"); // thinking off
     expect((await capture(glm5, "high")).thinking).toEqual({ type: "enabled", budget: "high" });
     // glm5 without selection keeps the forced-low budget
     expect((await capture(glm5)).thinking).toEqual({ type: "enabled", budget: "low" });
-    // glm-4.5 disables thinking and takes no effort param even when one slips through
-    const glm45Body = await capture(glm45, "high");
-    expect(glm45Body.thinking).toEqual({ type: "disabled" });
-    expect("reasoning_effort" in glm45Body).toBe(false);
   });
 });

@@ -34,7 +34,6 @@ export function providerRuntime(providerId: string, model?: string) {
     model: model ?? defaultModel,
     apiKey,
     maxOutputTokens: known?.maxOutputTokens ?? 8192,
-    disableThinking: known?.disableThinking,
     effortLevels: known?.effortLevels,
     defaultEffort: known?.defaultEffort,
   };

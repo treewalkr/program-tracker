@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Provider / model / thinking-effort selection. Provider dropdown shows the provider name only; model select hides on single-model providers; effort select hides when the provider takes no effort parameter (glm-4.x thinking is disabled). Empty selection = provider default.',
+            'Provider / model / thinking-effort selection. Provider dropdown shows the provider name only; model select hides on single-model providers; effort select hides when the provider takes no effort parameter. Empty selection = provider default.',
         },
       },
     },
