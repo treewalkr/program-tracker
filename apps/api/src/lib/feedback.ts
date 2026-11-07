@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems, feedbackMutes, feedbackReads, trainers, type FeedbackItemRow } from "@pt/db";
-import { FEEDBACK_STATUSES, type FeedbackComment, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+import { agentCheckBasis, FEEDBACK_STATUSES, type FeedbackComment, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
 
 /** Screenshot cap per image, decoded. Keeps a runaway capture out of the DB. */
 export const MAX_SHOT_BYTES = 4 * 1024 * 1024;
@@ -18,6 +18,7 @@ const listColumns = {
   source: feedbackItems.source,
   context: feedbackItems.context,
   shippedIn: feedbackItems.shippedIn,
+  agentCheck: feedbackItems.agentCheck,
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
   hasElementShot: sql<boolean>`${feedbackItems.elementShot} is not null`,
@@ -37,7 +38,7 @@ const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainer
  * unread and muted flags (two more). Unread = someone other than the viewer filed it,
  * replied or changed its status after the viewer last looked.
  */
-async function hydrate(rows: ListRow[], viewerId: string | null): Promise<FeedbackItem[]> {
+async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean): Promise<FeedbackItem[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
   const comments = await db
@@ -72,23 +73,28 @@ async function hydrate(rows: ListRow[], viewerId: string | null): Promise<Feedba
     for (const m of mutes) muted.add(m.itemId);
   }
 
-  return rows.map(({ trainerId, ...r }) => {
+  return rows.map(({ trainerId, agentCheck, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
     for (const c of mine) if (c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
     const seenAt = seen.get(r.id);
+    const thread = mine.map(
+      (c): FeedbackComment => ({
+        id: c.id,
+        kind: c.kind,
+        author: c.author,
+        body: c.body,
+        status: c.status,
+        createdAt: c.createdAt.toISOString(),
+      }),
+    );
     return {
       ...r,
-      thread: mine.map(
-        (c): FeedbackComment => ({
-          id: c.id,
-          kind: c.kind,
-          author: c.author,
-          body: c.body,
-          status: c.status,
-          createdAt: c.createdAt.toISOString(),
-        }),
-      ),
+      thread,
+      agentCheck:
+        admin && agentCheck
+          ? { ...agentCheck, stale: agentCheck.basis !== agentCheckBasis({ comment: r.comment, triageNote: r.triageNote, thread }) }
+          : null,
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),
       createdAt: r.createdAt.toISOString(),
@@ -151,13 +157,13 @@ export async function listFeedback(
   const rows = await selectItems()
     .where(and(statuses ? inArray(feedbackItems.status, statuses) : undefined, visibleTo(who.ownerId)))
     .orderBy(order === "newest" ? desc(feedbackItems.number) : asc(feedbackItems.number));
-  return hydrate(rows, who.viewerId);
+  return hydrate(rows, who.viewerId, who.ownerId === null);
 }
 
 /** One item, or null when it does not exist or `who` may not see it. */
 export async function getFeedback(id: string, who: FeedbackViewer = EVERYTHING): Promise<FeedbackItem | null> {
   const [row] = await selectItems().where(and(eq(feedbackItems.id, id), visibleTo(who.ownerId)));
-  return row ? ((await hydrate([row], who.viewerId))[0] ?? null) : null;
+  return row ? ((await hydrate([row], who.viewerId, who.ownerId === null))[0] ?? null) : null;
 }
 
 /** How many visible items are unread for the viewer — the sidebar badge. */

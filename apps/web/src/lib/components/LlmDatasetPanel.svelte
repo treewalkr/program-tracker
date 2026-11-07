@@ -23,6 +23,7 @@
 		chat_qa: 'Chat answer',
 		client_message: 'Client message',
 		distill: 'Preference distill',
+		feedback_check: 'Feedback agent check',
 	};
 
 	const n = new Intl.NumberFormat();
