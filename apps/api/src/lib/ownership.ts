@@ -5,7 +5,9 @@ import {
   chatMessages,
   clientMessages,
   clients,
+  coachingRules,
   db,
+  llmFeedback,
   periodizationSchemes,
   programExamples,
   programs,
@@ -33,6 +35,8 @@ const NOUN = new Map<Owned, string>([
   [periodizationSchemes, "scheme"],
   [promptTemplates, "template"],
   [sessionTypes, "session type"],
+  [coachingRules, "rule"],
+  [llmFeedback, "note"],
 ]);
 
 /** Route prefix → the table its `:id` / `:messageId` param points into. */
@@ -46,6 +50,8 @@ const PATH_OWNERS: [prefix: string, table: Owned][] = [
   ["/v1/schemes/", periodizationSchemes],
   ["/v1/ai/prompt-templates/", promptTemplates],
   ["/v1/session-types/", sessionTypes],
+  ["/v1/ai/rules/", coachingRules],
+  ["/v1/ai/feedback/notes/", llmFeedback],
 ];
 
 /** Query/body field → the table it references. */

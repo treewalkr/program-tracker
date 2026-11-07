@@ -23,6 +23,8 @@ import {
   type LlmPurpose,
   type LlmSignal,
   type LlmSubjectKind,
+  type NoteAnchor,
+  type NoteScope,
   type ProgramWeek,
 } from "@pt/shared";
 
@@ -46,6 +48,11 @@ export interface FeedbackInput {
   reasonTags?: string[];
   comment?: string | null;
   payload?: Record<string, unknown> | null;
+  /** Detailed notes (§10). */
+  anchor?: NoteAnchor | null;
+  correction?: string | null;
+  scope?: NoteScope | null;
+  ruleId?: string | null;
 }
 
 export async function recordFeedback(input: FeedbackInput): Promise<LlmFeedbackRow | null> {
@@ -64,6 +71,10 @@ export async function recordFeedback(input: FeedbackInput): Promise<LlmFeedbackR
         reasonTags: input.reasonTags ?? [],
         comment: input.comment?.trim() || null,
         payload: input.payload ?? null,
+        anchor: input.anchor ?? null,
+        correction: input.correction?.trim() || null,
+        scope: input.scope ?? null,
+        ruleId: input.ruleId ?? null,
       })
       .returning();
     return row;

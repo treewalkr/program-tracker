@@ -1,9 +1,20 @@
 import { Elysia, t, type Static } from "elysia";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, llmFeedback } from "@pt/db";
-import { LLM_EXPLICIT_SIGNALS, type LlmClientSignal, type LlmReasonTag } from "@pt/shared";
+import {
+  LLM_EXPLICIT_SIGNALS,
+  LLM_NOTE_SIGNAL,
+  noteRevisionText,
+  type LlmClientSignal,
+  type LlmReasonTag,
+  type NoteAnchor,
+  type NoteScope,
+} from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordFeedback, subjectOwner } from "../lib/llm-feedback";
+import { activeRuleOf, afterNote, toNoteDto, toRuleDto } from "../lib/notes";
+import { runRevision } from "../lib/revision";
+import { ContextError } from "../ai/runtime";
 
 // Written-out literal unions (not built from the shared arrays) so the types
 // survive Eden; the `satisfies` lines keep them in step with @pt/shared.
@@ -25,8 +36,29 @@ const ReasonTag = t.Union([
   t.Literal("too_long"),
   t.Literal("format"),
 ]);
+const Scope = t.Union([t.Literal("once"), t.Literal("client"), t.Literal("always")]);
+const Anchor = t.Union([
+  t.Object({
+    type: t.Literal("slot"),
+    week: t.Optional(t.Nullable(t.Integer({ minimum: 1 }))),
+    session: t.String({ maxLength: 200 }),
+    sessionIndex: t.Integer({ minimum: 0 }),
+    exerciseIndex: t.Optional(t.Nullable(t.Integer({ minimum: 0 }))),
+    exerciseId: t.Optional(t.Nullable(t.String({ maxLength: 100 }))),
+    exerciseName: t.Optional(t.Nullable(t.String({ maxLength: 200 }))),
+    setIndex: t.Optional(t.Nullable(t.Integer({ minimum: 0 }))),
+  }),
+  t.Object({
+    type: t.Literal("text"),
+    quote: t.String({ minLength: 1, maxLength: 2000 }),
+    start: t.Integer({ minimum: 0 }),
+    end: t.Integer({ minimum: 0 }),
+  }),
+]);
 true satisfies LlmClientSignal extends Static<typeof Signal> ? true : false;
 true satisfies LlmReasonTag extends Static<typeof ReasonTag> ? true : false;
+true satisfies NoteScope extends Static<typeof Scope> ? true : false;
+true satisfies Static<typeof Anchor> extends NoteAnchor ? true : false;
 
 const toVerdict = (r: typeof llmFeedback.$inferSelect) => ({
   id: r.id,
@@ -35,6 +67,8 @@ const toVerdict = (r: typeof llmFeedback.$inferSelect) => ({
   signal: r.signal as "thumbs_up" | "thumbs_down",
   reasonTags: r.reasonTags as LlmReasonTag[],
   comment: r.comment,
+  correction: r.correction,
+  scope: r.scope ?? "once",
   createdAt: r.createdAt.toISOString(),
 });
 
@@ -51,6 +85,9 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
       const owner = await subjectOwner(body.subjectKind, body.subjectId);
       if (!owner || owner.trainerId !== trainerId) return status(404, { error: "subject not found" });
       const explicit = body.signal === "thumbs_up" || body.signal === "thumbs_down";
+      if (explicit && body.violatedRuleId && !(await activeRuleOf(trainerId, body.violatedRuleId))) {
+        return status(404, { error: "rule not found" });
+      }
       const row = await recordFeedback({
         trainerId,
         clientId: owner.clientId,
@@ -59,9 +96,19 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
         signal: body.signal,
         reasonTags: explicit ? (body.reasonTags ?? []) : [],
         comment: explicit ? (body.comment ?? null) : null,
+        correction: explicit ? (body.correction ?? null) : null,
+        scope: explicit && (body.comment || body.correction) ? (body.scope ?? "once") : null,
+        ruleId: explicit ? (body.violatedRuleId ?? null) : null,
       });
       if (!row) return status(500, { error: "feedback not saved" });
-      return status(201, toVerdict(row));
+      const learned = explicit
+        ? await afterNote(row, { trainerId, violatedRuleId: body.violatedRuleId, reasonTags: body.reasonTags })
+        : { rule: null, ruleError: null };
+      return status(201, {
+        ...toVerdict(row),
+        rule: learned.rule ? toRuleDto(learned.rule) : null,
+        ruleError: learned.ruleError,
+      });
     },
     {
       body: t.Object({
@@ -70,8 +117,103 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
         signal: Signal,
         reasonTags: t.Optional(t.Array(ReasonTag, { maxItems: 9, uniqueItems: true })),
         comment: t.Optional(t.String({ maxLength: 2000 })),
+        /** "What instead" — the trainer's correction. */
+        correction: t.Optional(t.String({ maxLength: 2000 })),
+        /** Should it apply again? Anything but "once" proposes a coaching rule. */
+        scope: t.Optional(Scope),
+        violatedRuleId: t.Optional(t.String({ format: "uuid" })),
       }),
-      detail: { summary: "Rate an AI output (thumbs, reasons, comment) or record a UI-side signal" },
+      detail: { summary: "Rate an AI output (thumbs, reasons, comment, what instead) or record a UI-side signal" },
+    }
+  )
+  /** A note pinned to one part of an output (an exercise, a session, a quoted sentence). */
+  .post(
+    "/notes",
+    async ({ body, status, trainerId }) => {
+      const owner = await subjectOwner(body.subjectKind, body.subjectId);
+      if (!owner || owner.trainerId !== trainerId) return status(404, { error: "subject not found" });
+      if (!body.comment.trim() && !body.correction?.trim()) return status(422, { error: "write a note or what to do instead" });
+      if (body.violatedRuleId && !(await activeRuleOf(trainerId, body.violatedRuleId))) {
+        return status(404, { error: "rule not found" });
+      }
+      const row = await recordFeedback({
+        trainerId,
+        clientId: owner.clientId,
+        subjectKind: body.subjectKind,
+        subjectId: body.subjectId,
+        signal: LLM_NOTE_SIGNAL,
+        reasonTags: body.reasonTags ?? [],
+        comment: body.comment,
+        correction: body.correction ?? null,
+        scope: body.scope ?? "once",
+        anchor: body.anchor,
+        ruleId: body.violatedRuleId ?? null,
+      });
+      if (!row) return status(500, { error: "note not saved" });
+      const learned = await afterNote(row, { trainerId, violatedRuleId: body.violatedRuleId });
+      return status(201, {
+        note: toNoteDto(row),
+        rule: learned.rule ? toRuleDto(learned.rule) : null,
+        ruleError: learned.ruleError,
+      });
+    },
+    {
+      body: t.Object({
+        subjectKind: SubjectKind,
+        subjectId: t.String({ format: "uuid" }),
+        anchor: Anchor,
+        comment: t.String({ maxLength: 2000 }),
+        correction: t.Optional(t.String({ maxLength: 2000 })),
+        scope: t.Optional(Scope),
+        reasonTags: t.Optional(t.Array(ReasonTag, { maxItems: 9, uniqueItems: true })),
+        violatedRuleId: t.Optional(t.String({ format: "uuid" })),
+      }),
+      detail: { summary: "Pin a note to part of an AI output; scope client/always proposes a coaching rule" },
+    }
+  )
+  .get(
+    "/notes",
+    async ({ query, trainerId }) => {
+      const ids = query.subjectIds.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 200);
+      if (ids.length === 0) return { notes: [] };
+      const rows = await db
+        .select()
+        .from(llmFeedback)
+        .where(
+          and(
+            eq(llmFeedback.trainerId, trainerId),
+            inArray(llmFeedback.subjectId, ids),
+            eq(llmFeedback.signal, LLM_NOTE_SIGNAL)
+          )
+        )
+        .orderBy(llmFeedback.createdAt);
+      return { notes: rows.map(toNoteDto) };
+    },
+    {
+      query: t.Object({ subjectIds: t.String({ maxLength: 8000 }) }),
+      detail: { summary: "Notes pinned to these subjects, oldest first" },
+    }
+  )
+  /** "Apply to this draft": the note (anchor as text) goes down the normal revision path. */
+  .post(
+    "/notes/:id/apply",
+    async ({ params, status }) => {
+      const [note] = await db.select().from(llmFeedback).where(eq(llmFeedback.id, params.id));
+      if (!note || note.signal !== LLM_NOTE_SIGNAL) return status(404, { error: "note not found" });
+      if (note.subjectKind !== "generation") return status(422, { error: "only notes on a draft can be applied" });
+      try {
+        const res = await runRevision(note.subjectId, noteRevisionText(note));
+        if (!res.ok) return status(res.status, { error: res.error });
+        const code = res.generation.status === "validated" ? 201 : res.generation.status === "cancelled" ? 200 : 502;
+        return status(code, res.generation);
+      } catch (err) {
+        if (err instanceof ContextError) return status(err.status as 400, { error: err.message });
+        throw err;
+      }
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      detail: { summary: "Revise the noted draft with the note as the request" },
     }
   )
   .get(
