@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
-import { db, trainers, llmCalls, llmExamples, llmPairs } from "@pt/db";
+import { db, clients, trainers, llmCalls, llmExamples, llmPairs } from "@pt/db";
 import { datasetStats, exportRecords, makePseudonymizer, pruneUnlabeled } from "./lib/llm-dataset";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
@@ -34,6 +34,15 @@ async function setup(name: string) {
   return { clientId: client.body.id as string, email, gen: gen.body, genCall };
 }
 
+/**
+ * Exports pseudonymize every client name in the DB — including names other
+ * test files create (e.g. "Same Millisecond Client" turns "Same" into an
+ * alias). Compare exported text against the raw text run through the same
+ * pseudonymizer, never against the raw text itself.
+ */
+const anonymized = async (raw: string | null) =>
+  makePseudonymizer(await db.select({ id: clients.id, name: clients.name }).from(clients)).text(raw ?? "");
+
 describe("makePseudonymizer", () => {
   test("full and first names become a stable alias; emails vanish", () => {
     const anon = makePseudonymizer([{ id: "c1", name: "Maya Chen" }]);
@@ -56,7 +65,8 @@ describe.skipIf(!dbUp)("llm datasets", () => {
     expect(ex.label).toBe("gold");
 
     const records = (await exportRecords("sft", { includeMock: true, purposes: ["block_generate"] })) as any[];
-    const mine = records.find((r) => r.messages.at(-1).content === genCall.responseRaw);
+    const expected = await anonymized(genCall.responseRaw);
+    const mine = records.find((r) => r.messages.at(-1).content === expected);
     expect(mine).toBeDefined();
     expect(mine.messages.map((m: any) => m.role)).toEqual(["system", "user", "assistant"]);
     const json = JSON.stringify(records);
@@ -67,7 +77,7 @@ describe.skipIf(!dbUp)("llm datasets", () => {
 
     // mock calls stay out unless asked for
     const real = (await exportRecords("sft", { purposes: ["block_generate"] })) as any[];
-    expect(real.find((r) => r.messages.at(-1).content === genCall.responseRaw)).toBeUndefined();
+    expect(real.find((r) => r.messages.at(-1).content === expected)).toBeUndefined();
   });
 
   test("sft: an edit after approval makes a silver example whose target is the trainer's week", async () => {
@@ -103,9 +113,10 @@ describe.skipIf(!dbUp)("llm datasets", () => {
     expect(childCall.requestBlobIds).toEqual([]);
     await db.update(llmCalls).set({ requestBlobIds: genCall.requestBlobIds }).where(eq(llmCalls.id, childCall.id));
     const records = (await exportRecords("dpo", { includeMock: true })) as any[];
-    const pair = records.find((r) => r.preferred_output[0].content === childCall.responseRaw);
+    const preferred = await anonymized(childCall.responseRaw);
+    const pair = records.find((r) => r.preferred_output[0].content === preferred);
     expect(pair).toBeDefined();
-    expect(pair.non_preferred_output[0].content).toBe(genCall.responseRaw);
+    expect(pair.non_preferred_output[0].content).toBe(await anonymized(genCall.responseRaw));
     expect(pair.metadata).toEqual({ kind: "revision", critique: "less volume", purpose: "revision" });
   });
 
@@ -117,7 +128,7 @@ describe.skipIf(!dbUp)("llm datasets", () => {
     const neg = evals.find((r) => r.call_id === genCall.id);
     expect(neg.label).toBe("negative");
     expect(neg.expected).toBeNull();
-    expect(neg.rejected).toBe(genCall.responseRaw);
+    expect(neg.rejected).toBe(await anonymized(genCall.responseRaw));
     expect(neg.comments).toEqual(["too much volume"]);
     expect(neg.prompt_version).toMatch(/^buildGenerationMessages:/);
     expect(neg.context.client.name).toMatch(/^Client-/);
