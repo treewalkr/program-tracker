@@ -502,6 +502,9 @@
 
       {#if chainWeekData}
         <Panel title="Chains trained this week" count={`week of ${chainWeekData.weekStart}`}>
+          {#snippet act()}
+            <Button small variant="ghost" href="/chains">Edit chains</Button>
+          {/snippet}
           <div class="chains-list">
             {#each chainWeekData.chains as c (c.id)}
               {@const isZero = c.sets === 0}

@@ -48,6 +48,7 @@
       items: [
         { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
         { href: "/session-types", label: "Session types", icon: "layers" },
+        { href: "/chains", label: "Kinetic chains", icon: "link" },
         { href: "/templates", label: "Templates", icon: "file" },
         { href: "/examples", label: "Examples", icon: "star" },
       ],
