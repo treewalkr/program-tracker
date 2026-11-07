@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+  import { feedbackFixPrompt, feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
   import { feedbackApi, exportUrl, shotUrl } from "$lib/feedback/client";
   import { shortPath } from "$lib/feedback/capture";
   import { fmtDate, fmtDateTime } from "$lib/format";
@@ -35,6 +35,8 @@
   let filter = $state<Filter>("new");
   /** Which copy button just copied: the whole accepted list or the agent-ready subset. */
   let copied = $state<"accepted" | "ready" | null>(null);
+  /** Item whose fix prompt was just copied. */
+  let copiedPrompt = $state<string | null>(null);
   /** Triage-note drafts keyed by item id; saved on blur. */
   let notes = $state<Record<string, string>>({});
   let busy = $state<Record<string, boolean>>({});
@@ -224,6 +226,23 @@
   /** Show a capture at its CSS size: captures are taken at min(dpr, 2)x. */
   function fitShot(img: HTMLImageElement, dpr: number) {
     img.style.width = `${img.naturalWidth / Math.min(Math.max(dpr, 1), 2)}px`;
+  }
+
+  /** One ticket as a paste-ready prompt for a coding agent, screenshots as absolute links. */
+  async function copyPrompt(item: FeedbackItem) {
+    try {
+      const prompt = feedbackFixPrompt(item, {
+        imageUrl: (i, kind) =>
+          (kind === "element" ? i.hasElementShot : i.hasPageShot)
+            ? new URL(shotUrl(i.id, kind), location.origin).href
+            : null,
+      });
+      await navigator.clipboard.writeText(prompt);
+      copiedPrompt = item.id;
+      setTimeout(() => (copiedPrompt = copiedPrompt === item.id ? null : copiedPrompt), 2000);
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Could not copy the prompt";
+    }
   }
 
   async function copyForAgent(which: "accepted" | "ready") {
@@ -429,6 +448,14 @@
                   <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Reopen</Button>
                 {/if}
                 <span class="spacer"></span>
+                {#if item.status === "new" || item.status === "accepted"}
+                  <Button
+                    small
+                    variant="ghost"
+                    title="Copy this ticket as a ready-to-paste prompt for a coding agent"
+                    onclick={() => copyPrompt(item)}>{copiedPrompt === item.id ? "Copied" : "Copy fix prompt"}</Button
+                  >
+                {/if}
                 <ConfirmButton small variant="ghost" class="danger" onconfirm={() => remove(item)} />
                 </div>
               </div>
