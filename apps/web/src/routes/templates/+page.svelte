@@ -35,6 +35,7 @@
   let editName = $state("");
   let editContent = $state("");
   let savingEdit = $state(false);
+  let listError = $state<string | null>(null);
 
   async function load() {
     templates = await api.instructionTemplates();
@@ -95,19 +96,27 @@
   async function saveEdit(id: string) {
     if (!editName.trim() || !editContent.trim()) return;
     savingEdit = true;
+    listError = null;
     try {
       await api.updateInstructionTemplate(id, { name: editName.trim(), content: editContent.trim() });
       editingId = null;
       await load();
+    } catch (e) {
+      listError = (e as Error).message;
     } finally {
       savingEdit = false;
     }
   }
 
   async function remove(id: string) {
-    await api.deleteInstructionTemplate(id);
-    if (editingId === id) editingId = null;
-    await load();
+    listError = null;
+    try {
+      await api.deleteInstructionTemplate(id);
+      if (editingId === id) editingId = null;
+      await load();
+    } catch (e) {
+      listError = (e as Error).message;
+    }
   }
 
   onMount(async () => {
@@ -121,8 +130,7 @@
 
 <PageHead
   title="Instruction templates"
-  sub={`Standing rules the AI applies when drafting blocks. Reusable across every client.
-      Use headings like Rules: Steps: Constraints: — they land in the prompt exactly as written.`}
+  sub="Standing rules the AI applies to every block it drafts, for every client. Write them as headed lists (Rules:, Steps:, Constraints:) — they land in the prompt exactly as written."
 >
 </PageHead>
 
@@ -148,10 +156,13 @@
           maxlength="4000"
         ></textarea>
       </Field>
-      {#if error}<p class="err">{error}</p>{/if}
-      <Button variant="primary" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
-        {saving ? "Saving…" : "Create template"}
-      </Button>
+      {#if error}<p class="err" role="alert">{error}</p>{/if}
+      <div class="form-foot">
+        <Button variant="primary" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
+          {saving ? "Saving…" : "Create template"}
+        </Button>
+        <span class="subtle mono">{newContent.length}/4000</span>
+      </div>
     </form>
   </Panel>
 
@@ -159,8 +170,9 @@
     {#if !loaded}
       <div class="panel-body"><Skeleton h="120px" /></div>
     {:else if templates.length === 0}
-      <EmptyState>No templates yet — create one on the left.</EmptyState>
+      <EmptyState>No templates yet. Write your first standing rule in New template.</EmptyState>
     {:else}
+      {#if listError}<div class="list-err"><Note tone="bad">{listError}</Note></div>{/if}
       <div class="list">
         {#each templates as t (t.id)}
           <div class="item">
@@ -173,21 +185,23 @@
                 }}
               >
                 <input class="input" bind:value={editName} maxlength="80" aria-label="Template name" />
-                <textarea class="textarea" rows="7" bind:value={editContent} maxlength="4000" aria-label="Template body"></textarea>
+                <textarea class="textarea mono-body" rows="9" bind:value={editContent} maxlength="4000" aria-label="Template body"></textarea>
                 <div class="row-actions">
-                  <Button small type="submit" disabled={savingEdit}>Save</Button>
+                  <Button variant="primary" small type="submit" disabled={savingEdit || !editName.trim() || !editContent.trim()}>
+                    {savingEdit ? "Saving…" : "Save"}
+                  </Button>
                   <Button variant="ghost" small type="button" onclick={() => (editingId = null)}>Cancel</Button>
                 </div>
               </form>
             {:else}
               <div class="item-head">
-                <strong>{t.name}</strong>
-                <span class="subtle">{fmtDate(t.updatedAt)}</span>
+                <h3>{t.name}</h3>
+                <span class="subtle">Updated {fmtDate(t.updatedAt)}</span>
               </div>
               <pre class="body">{t.content}</pre>
               <div class="row-actions">
-                <Button variant="ghost" small onclick={() => startEdit(t)}>Edit</Button>
-                <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => remove(t.id)} small />
+                <Button small onclick={() => startEdit(t)}>Edit</Button>
+                <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => remove(t.id)} small variant="ghost" class="danger" />
               </div>
             {/if}
           </div>
@@ -199,87 +213,122 @@
 
 <div class="prefs">
   <Panel title="Learned preferences" count={prefs.length}>
-  <div class="panel-body">
-    {#if trainerPref}
-      <div class="pref-row">
-        <div class="item-head">
-          <strong>Trainer-wide style</strong>
-          <span class="subtle">{trainerPref.providerId} · {trainerPref.model} · {fmtDate(trainerPref.updatedAt)}</span>
-        </div>
-        <pre class="body">{trainerPref.document}</pre>
-        <div class="row-actions">
-          <Button variant="ghost" small onclick={() => distill(null)} disabled={distilling}>
-            {distilling ? "Distilling…" : "Re-distill"}
-          </Button>
-          <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => removePref(trainerPref!.id)} small />
-        </div>
-      </div>
-    {:else}
-      <EmptyState>Nothing distilled yet — distill captures your instructions, revision notes, reject reasons, and post-approval edits into one standing document.</EmptyState>
-    {/if}
+    <div class="panel-body">
+      <p class="lede">
+        Distilling reads your instructions, revision notes, reject reasons, and post-approval edits, and writes
+        them up as one standing style document the AI follows.
+      </p>
 
-    {#if !trainerPref}
-      <Button variant="primary" onclick={() => distill(null)} disabled={distilling}>
-        {distilling ? "Distilling…" : "Distill trainer style"}
-      </Button>
-    {/if}
+      <section class="pref-group" aria-labelledby="pref-trainer">
+        <h3 id="pref-trainer">Trainer-wide style</h3>
+        {#if trainerPref}
+          <div class="pref-row">
+            <div class="item-head">
+              <span class="subtle">Updated {fmtDate(trainerPref.updatedAt)}</span>
+              <span class="subtle mono">{trainerPref.providerId} · {trainerPref.model}</span>
+            </div>
+            <pre class="body">{trainerPref.document}</pre>
+            <div class="row-actions">
+              <Button small onclick={() => distill(null)} disabled={distilling}>
+                {distilling ? "Distilling…" : "Re-distill"}
+              </Button>
+              <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => removePref(trainerPref!.id)} small variant="ghost" class="danger" />
+            </div>
+          </div>
+        {:else}
+          <div class="pref-empty">
+            <p>Nothing distilled yet.</p>
+            <Button variant="primary" small onclick={() => distill(null)} disabled={distilling}>
+              {distilling ? "Distilling…" : "Distill trainer style"}
+            </Button>
+          </div>
+        {/if}
+      </section>
 
-    {#each clientPrefs as cp (cp.id)}
-      <div class="pref-row">
-        <div class="item-head">
-          <strong>{cp.clientName ?? "Client"}</strong>
-          <span class="subtle">{cp.providerId} · {cp.model} · {fmtDate(cp.updatedAt)}</span>
-        </div>
-        <pre class="body">{cp.document}</pre>
-        <div class="row-actions">
-          <Button variant="ghost" small onclick={() => distill(cp.clientId!)} disabled={distillingClient}>
-            {distillingClient ? "Distilling…" : "Re-distill"}
-          </Button>
-          <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => removePref(cp.id)} small />
-        </div>
-      </div>
-    {/each}
-
-    <div class="picker">
-      <select id="p-client" class="select" bind:value={pickedClientId}>
-        <option value="" disabled selected>Distill for a client…</option>
-        {#each clients as c (c.id)}
-          <option value={c.id}>{c.name}</option>
+      <section class="pref-group" aria-labelledby="pref-clients">
+        <h3 id="pref-clients">Per-client style</h3>
+        {#each clientPrefs as cp (cp.id)}
+          <div class="pref-row">
+            <div class="item-head">
+              <strong>{cp.clientName ?? "Client"}</strong>
+              <span class="subtle"
+                >Updated {fmtDate(cp.updatedAt)} · <span class="mono">{cp.providerId} · {cp.model}</span></span
+              >
+            </div>
+            <pre class="body">{cp.document}</pre>
+            <div class="row-actions">
+              <Button small onclick={() => distill(cp.clientId!)} disabled={distillingClient}>
+                {distillingClient ? "Distilling…" : "Re-distill"}
+              </Button>
+              <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => removePref(cp.id)} small variant="ghost" class="danger" />
+            </div>
+          </div>
         {/each}
-      </select>
-      <Button onclick={() => pickedClient && distill(pickedClient.id)} disabled={!pickedClient || distillingClient}>
-        {distillingClient ? "Distilling…" : `Distill for ${pickedClient?.name ?? "client"}`}
-      </Button>
-    </div>
 
-    {#if prefError}<Note tone="bad">{prefError}</Note>{/if}
-  </div>
+        <div class="picker">
+          <select class="select" bind:value={pickedClientId} aria-label="Client to distill for">
+            <option value="" disabled>Choose a client…</option>
+            {#each clients as c (c.id)}
+              <option value={c.id}>{c.name}</option>
+            {/each}
+          </select>
+          <Button small onclick={() => pickedClient && distill(pickedClient.id)} disabled={!pickedClient || distillingClient}>
+            {distillingClient ? "Distilling…" : "Distill for client"}
+          </Button>
+        </div>
+      </section>
+
+      {#if prefError}<Note tone="bad">{prefError}</Note>{/if}
+    </div>
   </Panel>
 </div>
 
 <style>
-  .cols { display: grid; grid-template-columns: 5fr 7fr; gap: 18px; align-items: start; }
-  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .cols { display: grid; grid-template-columns: minmax(300px, 5fr) 7fr; gap: 18px; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .form-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
   .list { display: flex; flex-direction: column; }
-  .item { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .list-err { padding: 12px 16px 0; }
+  .item { padding: 16px; border-bottom: 1px solid var(--line); }
   .item:last-child { border-bottom: none; }
-  .item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .item-head h3 { font-size: 14px; }
 
   .body {
-    margin: 0 0 8px;
-    font: 12px/1.6 var(--font-mono);
-    color: var(--muted);
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    background: var(--well);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    font: 12px/1.65 var(--font-mono);
+    color: var(--ink);
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
+  .mono-body { font: 12px/1.65 var(--font-mono); }
 
-  .row-actions { display: flex; gap: 8px; }
+  .row-actions { display: flex; gap: 8px; align-items: center; }
 
   .prefs { margin-top: 18px; }
-  .pref-row { padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .pref-row:first-child { padding-top: 0; }
-  .pref-row:last-of-type { border-bottom: none; }
-  .picker { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .lede { margin: 0 0 18px; color: var(--muted); max-width: var(--measure-prose); }
+  .pref-group + .pref-group { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .pref-group h3 { margin-bottom: 10px; }
+  .pref-row { padding: 0 0 14px; }
+  .pref-row + .pref-row { padding-top: 14px; border-top: 1px dashed var(--line-soft); }
+  .pref-empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    color: var(--muted);
+  }
+  .pref-empty p { margin: 0; }
+  .picker { display: flex; gap: 8px; align-items: center; }
+  .picker .select { width: auto; min-width: 220px; max-width: 320px; }
 
   @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
 </style>
