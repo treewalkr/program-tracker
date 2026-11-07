@@ -21,6 +21,7 @@ import { chatRoutes } from "./routes/chat";
 import { feedbackRoutes } from "./routes/feedback";
 import { accountRoutes } from "./routes/account";
 import { authRoutes } from "./routes/auth";
+import { emailRoutes } from "./routes/email";
 import { adminRoutes } from "./routes/admin";
 import { trainerContext } from "./lib/trainer-context";
 import { API_BUILD } from "./lib/build";
@@ -48,6 +49,7 @@ const TAGS = [
   { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
   { name: "preferences", description: "Distilled trainer/client style preferences" },
+  { name: "email", description: "Public unsubscribe links from feedback emails (token in the link, no session)" },
   { name: "account", description: "The signed-in trainer's own settings (email notifications)" },
   { name: "feedback", description: "Feedback mode — trainer comments pinned to UI elements, exported for coding agents" },
 ];
@@ -80,6 +82,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
     detail: { summary: "API build id", tags: ["health"] },
   })
   .use(authRoutes)
+  // public: the token in an email's unsubscribe link is the credential
+  .use(emailRoutes)
   // everything below needs a signed-in trainer and only sees that trainer's data
   .use(trainerContext)
   /**

@@ -12,6 +12,8 @@ export interface Email {
   subject: string;
   text: string;
   html: string;
+  /** Extra headers, e.g. List-Unsubscribe. */
+  headers?: Record<string, string>;
 }
 
 export type SendResult = { sent: true } | { sent: false; reason: "not_configured" | "provider_error" };
@@ -53,7 +55,7 @@ export async function sendEmail(e: Email): Promise<SendResult> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${cfg.apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: cfg.from, to: [e.to], subject: e.subject, text: e.text, html: e.html }),
+      body: JSON.stringify({ from: cfg.from, to: [e.to], subject: e.subject, text: e.text, html: e.html, ...(e.headers ? { headers: e.headers } : {}) }),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { name?: string; message?: string } | null;

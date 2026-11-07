@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems, feedbackMutes, trainers } from "@pt/db";
 import { feedbackEmailPrefs, feedbackHandle, type FeedbackEmailPrefs, type FeedbackStatus } from "@pt/shared";
 import { adminEmailFromEnv } from "./auth";
+import { appUrl, ensureEmailToken, unsubscribeUrl, type EmailEvent, type UnsubscribeScope } from "./email-links";
 import { emailConfigured, sendEmail, type Email } from "./mailer";
 
 /**
@@ -33,10 +34,13 @@ export interface Person {
   muted: boolean;
   /** Filed this ticket, replied on it or changed its status. */
   inTicket: boolean;
+  /** Secret for their unsubscribe links; null = not made yet (links left out). */
+  token: string | null;
 }
 
 export interface FeedbackSnapshot {
   item: {
+    id: string;
     number: number;
     comment: string;
     route: string;
@@ -64,15 +68,30 @@ const clip = (s: string, n: number) => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
-/** Plain text and matching minimal HTML for one message. */
-function compose(
-  snap: FeedbackSnapshot,
-  subject: string,
-  parts: { lead: string; quote?: string; after?: string },
-): Omit<Email, "to"> {
+const EVENT_PREF: Record<FeedbackEvent["kind"], { pref: EmailEvent; label: string }> = {
+  created: { pref: "newTickets", label: "new-ticket" },
+  reply: { pref: "replies", label: "reply" },
+  status: { pref: "status", label: "status" },
+};
+
+interface Parts {
+  lead: string;
+  quote?: string;
+  after?: string;
+}
+
+/** Plain text and matching minimal HTML for one recipient — the links carry their token. */
+function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person, subject: string, parts: Parts): Email {
   const handle = feedbackHandle(snap.item.number);
   const link = `${snap.appUrl}/feedback#${handle}`;
   const settings = `${snap.appUrl}/settings`;
+  const unsub = (scope: UnsubscribeScope) => (to.token ? unsubscribeUrl(snap.appUrl, to.token, scope) : null);
+  const footer = [
+    { label: `Mute ${handle}`, href: unsub({ kind: "ticket", itemId: snap.item.id }) },
+    { label: `Stop ${EVENT_PREF[kind].label} emails`, href: unsub({ kind: "event", event: EVENT_PREF[kind].pref }) },
+    { label: "Unsubscribe from all", href: unsub({ kind: "all" }) },
+    { label: "Manage in Settings", href: settings },
+  ].filter((l): l is { label: string; href: string } => l.href !== null);
   const text = [
     parts.lead,
     ...(parts.quote ? ["", ...parts.quote.split("\n").map((l) => `  ${l}`)] : []),
@@ -81,8 +100,10 @@ function compose(
     `Open ${handle}: ${link}`,
     "",
     "—",
-    `Program Tracker feedback. Turn these emails off in Settings: ${settings}`,
+    "Program Tracker feedback.",
+    ...footer.map((l) => `${l.label}: ${l.href}`),
   ].join("\n");
+  const muted = "color:#656d76";
   const html = [
     `<div style="font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;max-width:560px">`,
     `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
@@ -91,10 +112,38 @@ function compose(
       : "",
     parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
     `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:6px 14px;border-radius:6px;background:#1f883d;color:#fff;text-decoration:none;font-weight:600">Open ${handle}</a></p>`,
-    `<p style="margin:24px 0 0;font-size:12px;color:#656d76">Program Tracker feedback · <a href="${esc(settings)}" style="color:#656d76">Turn these emails off in Settings</a></p>`,
+    `<p style="margin:24px 0 0;font-size:12px;${muted}">Program Tracker feedback · ${footer
+      .map((l) => `<a href="${esc(l.href)}" style="${muted}">${esc(l.label)}</a>`)
+      .join(" · ")}</p>`,
     `</div>`,
   ].join("");
-  return { subject, text, html };
+  const all = unsub({ kind: "all" });
+  const headers = all ? { "List-Unsubscribe": `<${all}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined;
+  return { to: to.email, subject, text, html, ...(headers ? { headers } : {}) };
+}
+
+/** Who hears about an event, once each. Pure. */
+export function feedbackRecipients(kind: FeedbackEvent["kind"], snap: FeedbackSnapshot): Person[] {
+  const { actor } = snap;
+  const wants = (p: Person): boolean => {
+    if (!p.feedbackEmails || p.muted) return false;
+    if (kind === "created") return p.prefs.newTickets;
+    if (kind === "reply") return p.prefs.replies === "all" || (p.prefs.replies === "mine" && p.inTicket);
+    return p.prefs.status;
+  };
+  const seen = new Set<string>();
+  const filter = (people: (Person | null)[]) =>
+    people.filter((p): p is Person => {
+      if (!p || p.id === actor?.id || !wants(p)) return false;
+      const key = p.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  if (kind === "created") return filter([snap.admin]);
+  if (kind === "reply") return filter([snap.reporter, snap.admin, ...snap.repliers]);
+  const status = snap.comment?.status;
+  return status && EMAILED_STATUSES.includes(status) ? filter([snap.reporter]) : [];
 }
 
 /** Who gets which email for an event. Pure — no DB, no network. */
@@ -102,82 +151,47 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
   const handle = feedbackHandle(snap.item.number);
   const { item, actor } = snap;
   const actorName = actor?.name ?? "Someone";
-  const wants = (p: Person): boolean => {
-    if (!p.feedbackEmails || p.muted) return false;
-    if (kind === "created") return p.prefs.newTickets;
-    if (kind === "reply") return p.prefs.replies === "all" || (p.prefs.replies === "mine" && p.inTicket);
-    return p.prefs.status;
-  };
-  const to = (people: (Person | null)[]): Person[] => {
-    const seen = new Set<string>();
-    return people.filter((p): p is Person => {
-      if (!p || p.id === actor?.id || !wants(p)) return false;
-      const key = p.email.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-  const send = (people: Person[], msg: Omit<Email, "to">) => people.map((p) => ({ ...msg, to: p.email }));
+  const send = (subject: string, parts: Parts) =>
+    feedbackRecipients(kind, snap).map((p) => compose(snap, kind, p, subject, parts));
 
   if (kind === "created") {
-    return send(
-      to([snap.admin]),
-      compose(snap, `[${handle}] New feedback from ${actorName}: "${clip(item.comment, 60)}"`, {
-        lead: item.route ? `${actorName} left feedback on ${item.route}:` : `${actorName} filed a ticket:`,
-        quote: item.comment.trim(),
-      }),
-    );
+    return send(`[${handle}] New feedback from ${actorName}: "${clip(item.comment, 60)}"`, {
+      lead: item.route ? `${actorName} left feedback on ${item.route}:` : `${actorName} filed a ticket:`,
+      quote: item.comment.trim(),
+    });
   }
 
   if (kind === "reply") {
-    const body = snap.comment?.body?.trim() ?? "";
-    return send(
-      to([snap.reporter, snap.admin, ...snap.repliers]),
-      compose(snap, `[${handle}] ${actorName} replied`, {
-        lead: `${actorName} replied on ${handle} ("${clip(item.comment, 80)}"):`,
-        quote: body,
-      }),
-    );
+    return send(`[${handle}] ${actorName} replied`, {
+      lead: `${actorName} replied on ${handle} ("${clip(item.comment, 80)}"):`,
+      quote: snap.comment?.body?.trim() ?? "",
+    });
   }
 
-  const status = snap.comment?.status;
-  if (!status || !EMAILED_STATUSES.includes(status)) return [];
-  const recipients = to([snap.reporter]);
   const quote = item.comment.trim();
+  const status = snap.comment?.status;
   if (status === "accepted") {
-    return send(
-      recipients,
-      compose(snap, `[${handle}] Accepted — on the build list`, {
-        lead: `${actorName} accepted your feedback:`,
-        quote,
-        after: "It's on the build list. You'll get another email when it ships.",
-      }),
-    );
+    return send(`[${handle}] Accepted — on the build list`, {
+      lead: `${actorName} accepted your feedback:`,
+      quote,
+      after: "It's on the build list. You'll get another email when it ships.",
+    });
   }
   if (status === "wontfix") {
-    return send(
-      recipients,
-      compose(snap, `[${handle}] Won't fix`, {
-        lead: `${actorName} decided not to change this:`,
-        quote,
-        after: item.triageNote ? `Reason: ${item.triageNote}` : "Reply on the item if you want to talk it through.",
-      }),
-    );
-  }
-  const version = item.shippedIn ? `v${item.shippedIn}` : null;
-  return send(
-    recipients,
-    compose(snap, version ? `[${handle}] Shipped in ${version}` : `[${handle}] Done`, {
-      lead: version ? `Your feedback shipped in ${version}:` : `${actorName} marked your feedback done:`,
+    return send(`[${handle}] Won't fix`, {
+      lead: `${actorName} decided not to change this:`,
       quote,
-      after: "Thanks for pointing it out. Reload the app to get the latest version.",
-    }),
-  );
+      after: item.triageNote ? `Reason: ${item.triageNote}` : "Reply on the item if you want to talk it through.",
+    });
+  }
+  if (status !== "done") return [];
+  const version = item.shippedIn ? `v${item.shippedIn}` : null;
+  return send(version ? `[${handle}] Shipped in ${version}` : `[${handle}] Done`, {
+    lead: version ? `Your feedback shipped in ${version}:` : `${actorName} marked your feedback done:`,
+    quote,
+    after: "Thanks for pointing it out. Reload the app to get the latest version.",
+  });
 }
-
-const appUrl = () =>
-  (process.env.APP_URL ?? process.env.CORS_ORIGINS?.split(",")[0] ?? "http://localhost:5173").trim().replace(/\/+$/, "");
 
 const personColumns = {
   id: trainers.id,
@@ -185,11 +199,13 @@ const personColumns = {
   email: trainers.email,
   feedbackEmails: trainers.feedbackEmails,
   prefs: trainers.feedbackEmailPrefs,
+  token: trainers.emailToken,
 };
 
 async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> {
   const [item] = await db
     .select({
+      id: feedbackItems.id,
       number: feedbackItems.number,
       comment: feedbackItems.comment,
       route: feedbackItems.route,
@@ -258,6 +274,8 @@ export function notifyFeedback(event: FeedbackEvent): void {
   const run = (async () => {
     const snap = await snapshot(event);
     if (!snap) return;
+    // links need each recipient's token: make any missing ones first
+    for (const p of feedbackRecipients(event.kind, snap)) p.token ??= await ensureEmailToken(p.id);
     for (const email of feedbackEmails(event.kind, snap)) await sendEmail(email);
   })()
     .catch((err) => console.error(`email: feedback ${event.kind} notify failed — ${(err as Error).message}`))

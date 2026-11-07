@@ -72,4 +72,16 @@ describe("mailer", () => {
     }) as unknown as typeof fetch;
     expect(await sendEmail(email)).toEqual({ sent: false, reason: "provider_error" });
   });
+
+  test("passes extra headers through", async () => {
+    configure();
+    let body: any;
+    globalThis.fetch = (async (_: any, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({ id: "x" });
+    }) as unknown as typeof fetch;
+    const headers = { "List-Unsubscribe": "<https://pt.test/u>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+    await sendEmail({ ...email, headers });
+    expect(body.headers).toEqual(headers);
+  });
 });

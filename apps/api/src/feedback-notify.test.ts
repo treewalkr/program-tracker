@@ -10,6 +10,7 @@ const person = (id: string, name: string, over: Partial<Person> = {}): Person =>
   prefs: DEFAULT_FEEDBACK_EMAIL_PREFS,
   muted: false,
   inTicket: true,
+  token: `tok-${id}`,
   ...over,
 });
 const withPrefs = (p: Person, prefs: Partial<FeedbackEmailPrefs>): Person => ({ ...p, prefs: { ...p.prefs, ...prefs } });
@@ -18,7 +19,7 @@ const boss = person("boss", "Ana");
 const mo = person("mo", "Mo");
 
 const snap = (over: Partial<FeedbackSnapshot> = {}): FeedbackSnapshot => ({
-  item: { number: 12, comment: "Warm-up sets look like work sets.", route: "/clients/c1", triageNote: null, shippedIn: null },
+  item: { id: "11111111-2222-3333-4444-555555555555", number: 12, comment: "Warm-up sets look like work sets.", route: "/clients/c1", triageNote: null, shippedIn: null },
   reporter: kai,
   admin: boss,
   repliers: [],
@@ -124,5 +125,43 @@ describe("feedbackEmails", () => {
       feedbackEmails("status", snap({ actor: boss, reporter, comment: { body: null, status: "accepted" } }));
     expect(status(withPrefs(kai, { status: false }))).toEqual([]);
     expect(to(status(withPrefs(kai, { replies: "off", newTickets: false })))).toEqual(["kai@example.com"]);
+  });
+
+  test("each recipient's footer carries their own unsubscribe links", () => {
+    const out = feedbackEmails("reply", snap({ actor: mo, repliers: [mo], comment: { body: "hi", status: null } }));
+    const kaiMail = out.find((e) => e.to === "kai@example.com")!;
+    const bossMail = out.find((e) => e.to === "boss@example.com")!;
+    const base = "https://pt.test/v1/email/unsubscribe?t=tok-kai&scope=";
+    for (const body of [kaiMail.text, kaiMail.html.replaceAll("&amp;", "&")]) {
+      expect(body).toContain(`${base}ticket%3A11111111-2222-3333-4444-555555555555`);
+      expect(body).toContain(`${base}event%3Areplies`);
+      expect(body).toContain(`${base}all`);
+      expect(body).toContain("https://pt.test/settings");
+      expect(body).not.toContain("tok-boss");
+    }
+    expect(kaiMail.text).toContain("Mute FB-012: ");
+    expect(kaiMail.html).toContain("Mute FB-012</a> · <a");
+    expect(kaiMail.html).toContain(">Stop reply emails</a>");
+    expect(kaiMail.html).toContain(">Unsubscribe from all</a>");
+    expect(kaiMail.html).toContain(">Manage in Settings</a>");
+    expect(bossMail.text).toContain("t=tok-boss&scope=all");
+    expect(kaiMail.headers).toEqual({
+      "List-Unsubscribe": `<${base}all>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+  });
+
+  test("the stop link names the event that triggered the email", () => {
+    const [created] = feedbackEmails("created", snap());
+    expect(created.text).toContain("Stop new-ticket emails: https://pt.test/v1/email/unsubscribe?t=tok-boss&scope=event%3AnewTickets");
+    const [status] = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "done" } }));
+    expect(status.text).toContain("Stop status emails: https://pt.test/v1/email/unsubscribe?t=tok-kai&scope=event%3Astatus");
+  });
+
+  test("no token yet: only the Settings link, no list headers", () => {
+    const [e] = feedbackEmails("created", snap({ admin: { ...boss, token: null } }));
+    expect(e.text).not.toContain("/v1/email/unsubscribe");
+    expect(e.text).toContain("Manage in Settings: https://pt.test/settings");
+    expect(e.headers).toBeUndefined();
   });
 });
