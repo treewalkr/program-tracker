@@ -442,6 +442,9 @@ export const ProgramSession = z
     /** 0-indexed order among the sessions placed on the same weekday. */
     order: z.number().int().min(0),
     kind: SessionKind.default("lifting"),
+    /** Trainer's session type (see sessionTypes.ts); the name is captured at write time like exerciseName. */
+    typeId: z.string().min(1).max(64).optional(),
+    typeName: z.string().min(1).max(40).optional(),
     notes: z.string().max(2000).optional(),
     exercises: z.array(ProgramExercise).max(20).default([]),
     cardio: CardioPrescription.nullable().optional(),
