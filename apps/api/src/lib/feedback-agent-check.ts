@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, feedbackItems } from "@pt/db";
+import { shotMime } from "./feedback";
 import {
   AGENT_VERDICTS,
   agentCheckBasis,
@@ -38,7 +39,7 @@ Judge whether the agent can fix this ticket without a human:
 
 Rules:
 - Comments may be in Thai or English. Write your answer in English.
-- Screenshots exist but you cannot see them; don't count them as missing information.
+- When an image is attached, it is the screenshot of the element the trainer clicked. Use it to understand what they mean (layout, spacing, colour, text). The fixing agent will see the same screenshot.
 - Never invent requirements. If you have to guess what the trainer wants, it is not "ready".
 - plan: 1–6 concrete steps naming files or components when known; empty unless verdict is "ready".
 - questions: what to ask the reporter or owner; empty when verdict is "ready".
@@ -64,6 +65,12 @@ function mockVerdict(item: FeedbackItem): Verdict {
     questions: ["What should it look like or do instead?"],
     risk: "medium",
   };
+}
+
+/** The element screenshot as a data URL, or null. */
+async function elementShot(id: string): Promise<string | null> {
+  const [row] = await db.select({ shot: feedbackItems.elementShot }).from(feedbackItems).where(eq(feedbackItems.id, id));
+  return row?.shot ? `data:${shotMime(row.shot)};base64,${row.shot.toString("base64")}` : null;
 }
 
 /** Provider for checks: FEEDBACK_CHECK_PROVIDER, else the first one with a key. */
@@ -92,7 +99,9 @@ export async function runAgentCheck(
   }
 
   const ticket = feedbackItemMarkdown({ ...item, agentCheck: null }, { imageUrl: () => null });
-  const shots = [item.hasElementShot && "element", item.hasPageShot && "full page"].filter(Boolean);
+  // The element screenshot only: it is what the comment is about, and the
+  // full page costs far more tokens for little extra signal.
+  const shot = item.hasElementShot ? await elementShot(item.id) : null;
   const out = await callLlm<Verdict>({
     purpose: "feedback_check",
     builder: "AGENT_CHECK_SYSTEM",
@@ -102,7 +111,8 @@ export async function runAgentCheck(
       { role: "system", content: AGENT_CHECK_SYSTEM },
       {
         role: "user",
-        content: `${ticket}\n\n${shots.length ? `(Screenshots attached for the agent: ${shots.join(", ")}.)` : "(No screenshots.)"}`,
+        content: `${ticket}\n\n${shot ? "(The element screenshot is attached.)" : "(No screenshot.)"}`,
+        ...(shot ? { images: [shot] } : {}),
       },
     ],
     rt,

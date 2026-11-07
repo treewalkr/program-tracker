@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
-import { db, feedbackItems, trainers } from "@pt/db";
+import { desc, eq, inArray } from "drizzle-orm";
+import { db, feedbackItems, llmBlobs, llmCalls, trainers } from "@pt/db";
 import type { FeedbackContext } from "@pt/shared";
 import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
@@ -144,6 +144,20 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     const item = await json(res);
     expect(item.agentCheck).toMatchObject({ verdict: "ready", risk: "low", questions: [], stale: false, model: "mock-draft-v1" });
     expect(item.agentCheck.plan.length).toBeGreaterThan(0);
+
+    // The element screenshot rides along by hash; its bytes never reach the log.
+    const [logged] = await db
+      .select({ context: llmCalls.context, refs: llmCalls.requestBlobIds })
+      .from(llmCalls)
+      .where(eq(llmCalls.purpose, "feedback_check"))
+      .orderBy(desc(llmCalls.createdAt))
+      .limit(1);
+    expect(logged.context.images).toEqual([{ message: 1, sha256: expect.any(String), bytes: expect.any(Number) }]);
+    const blobs = await db
+      .select({ content: llmBlobs.content })
+      .from(llmBlobs)
+      .where(inArray(llmBlobs.sha256, logged.refs.map((r) => r.sha)));
+    expect(blobs.some((b) => b.content.includes(PNG_B64))).toBe(false);
 
     const ready = await (await call("GET", "/v1/feedback/export?ready=true")).text();
     expect(ready).toContain(`## ${handle} · accepted`);
