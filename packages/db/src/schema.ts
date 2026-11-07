@@ -48,6 +48,9 @@ export const trainers = pgTable("trainers", {
   /** Google account id (`sub`) — set on first Google sign-in. */
   googleSub: text("google_sub").unique(),
   avatarUrl: text("avatar_url"),
+  /** Set by the platform admin to block sign-in; null = access allowed. */
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
