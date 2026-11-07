@@ -18,7 +18,10 @@
 		| 'chevron'
 		| 'search'
 		| 'sidebar'
-		| 'signout';
+		| 'signout'
+		| 'sun'
+		| 'moon'
+		| 'monitor';
 </script>
 
 <script lang="ts">
@@ -75,6 +78,12 @@
 		search: { d: 'm20 20-4.2-4.2', circle: { cx: 11, cy: 11, r: 7 } },
 		signout: { d: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', d2: 'M10 17l-5-5 5-5M5 12h11' },
 		sidebar: { d: 'M9 4v16', rect: { x: 3, y: 4, w: 18, h: 16, rx: 2 } },
+		sun: {
+			d: 'M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41',
+			circle: { cx: 12, cy: 12, r: 4 },
+		},
+		moon: { d: 'M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z' },
+		monitor: { d: 'M8 21h8M12 17v4', rect: { x: 3, y: 4, w: 18, h: 13, rx: 2 } },
 	};
 
 	const icon = $derived(ICONS[name]);
