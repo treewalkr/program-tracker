@@ -1,13 +1,14 @@
-import { and, eq, gt, isNull, type SQL } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { authSessions, db, trainers } from "@pt/db";
 
 /**
- * Google sign-in for the single trainer.
+ * Google sign-in for invited trainers.
  *
- * Exactly one Google account (TRAINER_EMAIL) may sign in. Its first sign-in
- * "signs up" by claiming the existing trainer row, so all data stays attached.
- * Sessions are opaque random tokens in an httpOnly cookie; the DB keeps only
- * their sha256.
+ * The platform admin (ADMIN_EMAIL) can always sign in; their first sign-in
+ * claims the original single-tenant trainer row so existing data stays put.
+ * Everyone else needs a trainer row the admin created for their email, and
+ * that row must not be disabled. Sessions are opaque random tokens in an
+ * httpOnly cookie; the DB keeps only their sha256.
  */
 
 export const SESSION_COOKIE = "pt_session";
@@ -22,7 +23,8 @@ export interface AuthConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
-  trainerEmail: string;
+  /** The platform admin's Google email (lowercased). */
+  adminEmail: string;
 }
 
 /** Auth is on unless AUTH_DISABLED=true (tests, local hacking). */
@@ -33,10 +35,17 @@ export function authConfig(): AuthConfig | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  const trainerEmail = process.env.TRAINER_EMAIL?.trim().toLowerCase();
-  if (!clientId || !clientSecret || !redirectUri || !trainerEmail) return null;
-  return { clientId, clientSecret, redirectUri, trainerEmail };
+  const adminEmail = adminEmailFromEnv();
+  if (!clientId || !clientSecret || !redirectUri || !adminEmail) return null;
+  return { clientId, clientSecret, redirectUri, adminEmail };
 }
+
+/** ADMIN_EMAIL, falling back to the older single-trainer TRAINER_EMAIL. */
+export function adminEmailFromEnv(): string | null {
+  return (process.env.ADMIN_EMAIL ?? process.env.TRAINER_EMAIL)?.trim().toLowerCase() || null;
+}
+
+export const isAdminEmail = (email: string) => email.toLowerCase() === adminEmailFromEnv();
 
 /** Cookies are Secure whenever the app is served over https. */
 export const secureCookies = (cfg: AuthConfig | null) => cfg?.redirectUri.startsWith("https://") ?? false;
@@ -68,7 +77,6 @@ export function googleAuthUrl(cfg: AuthConfig, state: string, codeChallenge: str
     state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
-    login_hint: cfg.trainerEmail,
     prompt: "select_account",
   }).toString();
   return url.toString();
@@ -121,44 +129,49 @@ export async function fetchGoogleProfile(cfg: AuthConfig, code: string, codeVeri
 // Trainer + sessions
 // ---------------------------------------------------------------------------
 
-export type SignInRejection = "unverified" | "not_allowed";
-
-export function checkAllowed(cfg: AuthConfig, profile: GoogleProfile): SignInRejection | null {
-  if (!profile.emailVerified) return "unverified";
-  if (profile.email !== cfg.trainerEmail) return "not_allowed";
-  return null;
-}
+export type SignInRejection = "unverified" | "not_allowed" | "disabled";
 
 /**
- * Find or create the trainer for an allowed Google profile. Order:
- * linked google_sub → matching email → the one unlinked trainer (the
- * single-tenant default row) → a fresh row. Profile name/photo refresh each time.
+ * Resolve the trainer for a Google profile, or why they can't sign in.
+ * Order: linked google_sub → invited (unlinked) row with this email → for
+ * the admin only, the original trainer row if still unlinked, else a fresh
+ * row. Name/photo refresh on every sign-in.
  */
-export async function claimTrainer(profile: GoogleProfile): Promise<string> {
+export async function claimTrainer(
+  cfg: AuthConfig,
+  profile: GoogleProfile,
+): Promise<{ trainerId: string } | { rejection: SignInRejection }> {
+  if (!profile.emailVerified) return { rejection: "unverified" };
+  const admin = profile.email === cfg.adminEmail;
+
+  const select = () =>
+    db.select({ id: trainers.id, disabledAt: trainers.disabledAt, googleSub: trainers.googleSub }).from(trainers);
+  const [linked] = await select().where(eq(trainers.googleSub, profile.sub)).limit(1);
+  const [invited] = linked ? [] : await select().where(and(eq(trainers.email, profile.email), isNull(trainers.googleSub))).limit(1);
+  const [original] =
+    linked || invited || !admin ? [] : await select().orderBy(trainers.createdAt).limit(1);
+  const target = linked ?? invited ?? (original && !original.googleSub ? original : undefined);
+
   const patch = {
     googleSub: profile.sub,
     email: profile.email,
     avatarUrl: profile.picture,
+    lastSignInAt: new Date(),
     ...(profile.name ? { name: profile.name } : {}),
   };
 
-  const first = async (where: SQL | undefined) =>
-    (await db.select({ id: trainers.id }).from(trainers).where(where).orderBy(trainers.createdAt).limit(1))[0];
-
-  const target =
-    (await first(eq(trainers.googleSub, profile.sub))) ??
-    (await first(eq(trainers.email, profile.email))) ??
-    (await first(isNull(trainers.googleSub)));
-
   if (target) {
-    await db.update(trainers).set(patch).where(eq(trainers.id, target.id));
-    return target.id;
+    // the admin can't be locked out of their own console
+    if (target.disabledAt && !admin) return { rejection: "disabled" };
+    await db.update(trainers).set(admin ? { ...patch, disabledAt: null } : patch).where(eq(trainers.id, target.id));
+    return { trainerId: target.id };
   }
+  if (!admin) return { rejection: "not_allowed" };
   const [created] = await db
     .insert(trainers)
     .values({ ...patch, name: profile.name ?? profile.email })
     .returning({ id: trainers.id });
-  return created.id;
+  return { trainerId: created.id };
 }
 
 /** New session for a trainer; returns the raw cookie token. */
@@ -174,21 +187,29 @@ export interface SessionTrainer {
   name: string;
   email: string;
   avatarUrl: string | null;
+  isAdmin: boolean;
 }
 
-/** The signed-in trainer for a cookie token, or null when missing/expired. */
+/** The signed-in trainer for a cookie token, or null when missing, expired or disabled. */
 export async function trainerForToken(token: string | undefined): Promise<SessionTrainer | null> {
   if (!token) return null;
   const [row] = await db
     .select({ id: trainers.id, name: trainers.name, email: trainers.email, avatarUrl: trainers.avatarUrl })
     .from(authSessions)
     .innerJoin(trainers, eq(trainers.id, authSessions.trainerId))
-    .where(and(eq(authSessions.id, await sha256(token)), gt(authSessions.expiresAt, new Date())))
+    .where(
+      and(eq(authSessions.id, await sha256(token)), gt(authSessions.expiresAt, new Date()), isNull(trainers.disabledAt)),
+    )
     .limit(1);
-  return row ?? null;
+  return row ? { ...row, isAdmin: isAdminEmail(row.email) } : null;
 }
 
 export async function deleteSession(token: string | undefined): Promise<void> {
   if (!token) return;
   await db.delete(authSessions).where(eq(authSessions.id, await sha256(token)));
+}
+
+/** Sign a trainer out everywhere (used when the admin disables them). */
+export async function deleteTrainerSessions(trainerId: string): Promise<void> {
+  await db.delete(authSessions).where(eq(authSessions.trainerId, trainerId));
 }

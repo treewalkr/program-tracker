@@ -1,12 +1,12 @@
 import { db, trainers } from "@pt/db";
 
 /**
- * Single-tenant for now: resolve (or lazily seed) the default trainer.
- * When multi-trainer auth lands, this helper dies and routes take the
- * trainer id from the session instead.
+ * The oldest trainer, lazily seeded. Only used when AUTH_DISABLED=true
+ * (tests, local hacking) — signed-in requests take the trainer from the
+ * session via `trainerContext`.
  */
 export async function getDefaultTrainerId(): Promise<string> {
-  const existing = await db.select().from(trainers).limit(1);
+  const existing = await db.select().from(trainers).orderBy(trainers.createdAt).limit(1);
   if (existing.length > 0) return existing[0].id;
 
   const [created] = await db

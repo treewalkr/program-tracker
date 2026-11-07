@@ -4,7 +4,6 @@ import {
   SESSION_COOKIE,
   authConfig,
   authDisabled,
-  checkAllowed,
   claimTrainer,
   createSession,
   deleteSession,
@@ -24,7 +23,7 @@ const safeReturnTo = (v: string | undefined) => (v && v.startsWith("/") && !v.st
 const loginError = (code: string) => `/login?error=${code}`;
 
 /**
- * Google sign-in for the single trainer. The browser navigates to
+ * Google sign-in for invited trainers. The browser navigates to
  * /v1/auth/google (not Eden — it's a redirect), Google calls back, and the
  * API sets an httpOnly session cookie before sending the trainer home.
  */
@@ -82,9 +81,9 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
       let trainerId: string;
       try {
         const profile = await fetchGoogleProfile(cfg, query.code, pending.verifier);
-        const rejection = checkAllowed(cfg, profile);
-        if (rejection) return redirect(loginError(rejection));
-        trainerId = await claimTrainer(profile);
+        const claim = await claimTrainer(cfg, profile);
+        if ("rejection" in claim) return redirect(loginError(claim.rejection));
+        trainerId = claim.trainerId;
       } catch (err) {
         console.error("[auth] google callback failed:", err);
         return redirect(loginError("google_failed"));
@@ -119,17 +118,3 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
     },
     { detail: { summary: "Sign out" } },
   );
-
-/**
- * Every route registered after this plugin needs a live session. Lifted to
- * the parent (`scoped`) so `app.use(authGuard)` guards what follows it.
- */
-export const authGuard = new Elysia({ name: "auth-guard" }).onBeforeHandle(
-  { as: "scoped" },
-  async ({ cookie, status }) => {
-    if (authDisabled()) return;
-    if (!(await trainerForToken(cookie[SESSION_COOKIE]?.value as string | undefined))) {
-      return status(401, { error: "signed out" });
-    }
-  },
-);
