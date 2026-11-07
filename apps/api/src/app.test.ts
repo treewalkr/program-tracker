@@ -6,3 +6,14 @@ describe("app config", () => {
     expect(app.config.serve?.idleTimeout === 255).toBe(true);
   });
 });
+
+describe("GET /health", () => {
+  test("reports the build: root package version + commit", async () => {
+    const res = await app.handle(new Request("http://local/health"));
+    const body = (await res.json()) as { ok: boolean; build: string };
+    const { version } = (await import("../../../package.json")).default;
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.build).toMatch(new RegExp(`^${version.replace(/\./g, "\\.")}(\\+[0-9a-f]{7})?$`));
+  });
+});

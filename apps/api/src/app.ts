@@ -21,6 +21,7 @@ import { feedbackRoutes } from "./routes/feedback";
 import { authRoutes } from "./routes/auth";
 import { adminRoutes } from "./routes/admin";
 import { trainerContext } from "./lib/trainer-context";
+import { API_BUILD } from "./lib/build";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -68,7 +69,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
       mapJsonSchema: { zod: z.toJSONSchema },
     }),
   )
-  .get("/health", () => ({ ok: true, service: "program-tracker-api", time: new Date().toISOString() }), {
+  .get("/health", () => ({ ok: true, service: "program-tracker-api", build: API_BUILD, time: new Date().toISOString() }), {
     detail: { summary: "Liveness probe", tags: ["health"] },
   })
   .use(authRoutes)
