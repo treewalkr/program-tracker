@@ -42,8 +42,14 @@ export const feedbackApi = {
     unwrap<{ muted: boolean }>(muted ? client.v1.feedback({ id }).mute.put() : client.v1.feedback({ id }).mute.delete()),
   seen: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).seen.post()),
   unread: async () => (await unwrap<{ count: number }>(client.v1.feedback.unread.get())).count,
-  exportMarkdown: async (status: string) =>
-    String(await unwrap<unknown>(client.v1.feedback.export.get({ query: { status, format: "md" } }))),
+  exportMarkdown: async (status: string, opts: { ready?: boolean } = {}) =>
+    String(
+      await unwrap<unknown>(
+        client.v1.feedback.export.get({ query: { status, format: "md", ...(opts.ready ? { ready: "true" } : {}) } }),
+      ),
+    ),
+  /** Admin: ask the LLM whether a coding agent could fix this item unattended. */
+  agentCheck: async (id: string) => normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id })["agent-check"].post({}))),
 };
 
 const base = apiBase;

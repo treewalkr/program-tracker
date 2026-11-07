@@ -9,6 +9,7 @@
   import Thread from "$lib/feedback/Thread.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
+  import AgentCheck from "$lib/feedback/AgentCheck.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -32,7 +33,8 @@
   let loaded = $state(false);
   let error = $state<string | null>(null);
   let filter = $state<Filter>("new");
-  let copied = $state(false);
+  /** Which copy button just copied: the whole accepted list or the agent-ready subset. */
+  let copied = $state<"accepted" | "ready" | null>(null);
   /** Triage-note drafts keyed by item id; saved on blur. */
   let notes = $state<Record<string, string>>({});
   let busy = $state<Record<string, boolean>>({});
@@ -53,6 +55,10 @@
       (acc, i) => ((acc[i.status] += 1), acc),
       { new: 0, accepted: 0, done: 0, wontfix: 0 } as Record<FeedbackStatus, number>,
     ),
+  );
+  /** Accepted items whose current agent check says ready — the unattended queue. */
+  const agentReady = $derived(
+    items.filter((i) => i.status === "accepted" && i.agentCheck?.verdict === "ready" && !i.agentCheck.stale).length,
   );
   const visible = $derived(filter === "all" ? items : items.filter((i) => i.status === filter));
   const tabs = $derived([
@@ -220,11 +226,11 @@
     img.style.width = `${img.naturalWidth / Math.min(Math.max(dpr, 1), 2)}px`;
   }
 
-  async function copyForAgent() {
+  async function copyForAgent(which: "accepted" | "ready") {
     try {
-      await navigator.clipboard.writeText(await feedbackApi.exportMarkdown("accepted"));
-      copied = true;
-      setTimeout(() => (copied = false), 2000);
+      await navigator.clipboard.writeText(await feedbackApi.exportMarkdown("accepted", { ready: which === "ready" }));
+      copied = which;
+      setTimeout(() => (copied = null), 2000);
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not copy export";
     }
@@ -244,8 +250,13 @@
       <Button onclick={openComposer} disabled={composing} aria-controls="new-ticket">New ticket</Button>
       {#if isAdmin}
         <Button href={exportUrl("accepted")} target="_blank" rel="noreferrer">Open export</Button>
-        <Button variant="primary" onclick={copyForAgent} disabled={counts.accepted === 0}>
-          {copied ? "Copied" : `Copy ${counts.accepted} for agent`}
+        {#if agentReady}
+          <Button onclick={() => copyForAgent("ready")} title="Accepted items the agent check found ready to fix unattended">
+            {copied === "ready" ? "Copied" : `Copy ${agentReady} agent-ready`}
+          </Button>
+        {/if}
+        <Button variant="primary" onclick={() => copyForAgent("accepted")} disabled={counts.accepted === 0}>
+          {copied === "accepted" ? "Copied" : `Copy ${counts.accepted} for agent`}
         </Button>
       {/if}
     {/snippet}
@@ -400,6 +411,9 @@
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
                   ></textarea>
                 </label>
+                {#if item.status === "new" || item.status === "accepted"}
+                  <AgentCheck {item} onchange={replace} />
+                {/if}
                 <div class="actions">
                 {#if item.status === "new"}
                   <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
