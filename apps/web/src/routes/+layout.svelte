@@ -2,12 +2,22 @@
   import "../app.css";
   import { page } from "$app/state";
   import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
+  import { authApi } from "$lib/api/auth";
   import Note from "$lib/ui/Note.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
 
-  let { children } = $props();
+  let { children, data } = $props();
+
+  const bare = $derived(page.url.pathname === "/login");
+  const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
+
+  async function signOut() {
+    await authApi.signOut();
+    await goto("/login", { invalidateAll: true });
+  }
 
   let clientCount = $state<number | null>(null);
 
@@ -35,6 +45,7 @@
     href === "/" ? page.url.pathname === "/" : page.url.pathname.startsWith(href);
 
   onMount(async () => {
+    if (bare) return;
     try {
       clientCount = (await api.clients()).length;
     } catch {
@@ -43,6 +54,9 @@
   });
 </script>
 
+{#if bare}
+  {@render children()}
+{:else}
 <div class="shell">
   <aside class="side">
     <a class="brand" href="/">
@@ -74,6 +88,18 @@
       {/each}
     </nav>
 
+    {#if trainer}
+      <div class="who">
+        {#if trainer.avatarUrl}
+          <img src={trainer.avatarUrl} alt="" referrerpolicy="no-referrer" />
+        {/if}
+        <span class="who-text">
+          <span class="who-name">{trainer.name}</span>
+          <button type="button" class="sign-out" onclick={signOut}>Sign out</button>
+        </span>
+      </div>
+    {/if}
+
     <div class="side-foot" class:demo={apiMode !== "live"}>
       <span class="dot" aria-hidden="true"></span>{apiMode === "live" ? "Live data" : "Demo data"}
     </div>
@@ -90,6 +116,7 @@
 </div>
 
 <FeedbackLayer />
+{/if}
 
 <style>
   .shell {
@@ -213,6 +240,39 @@
   }
   .side-foot.demo .dot { background: var(--warn); }
 
+  .who {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 8px;
+    min-width: 0;
+  }
+  .who img {
+    width: 24px;
+    height: 24px;
+    border-radius: 99px;
+    flex: none;
+  }
+  .who-text { display: flex; flex-direction: column; min-width: 0; }
+  .who-name {
+    font: 500 13px/1.3 var(--font-ui);
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sign-out {
+    all: unset;
+    font: 400 12px/1.4 var(--font-ui);
+    color: var(--muted);
+    cursor: pointer;
+    width: fit-content;
+  }
+  .sign-out:hover { color: var(--blue); text-decoration: underline; }
+  .sign-out:focus-visible { border-radius: 3px; box-shadow: 0 0 0 3px var(--focus); }
+  .who + .side-foot { margin-top: 0; }
+
   @media (prefers-reduced-motion: reduce) {
     .nav-item { transition: none; }
   }
@@ -239,7 +299,8 @@
     .brand { padding: 0; justify-content: center; }
     .name { display: none; }
     .nav-label { visibility: hidden; height: 8px; margin: 0; padding: 0; }
-    .nav-text, .count, .side-foot { display: none; }
+    .nav-text, .count, .side-foot, .who-text { display: none; }
+    .who { justify-content: center; padding: 0; }
     .nav-item { justify-content: center; padding: 8px 0; }
     .main { padding: 20px 16px 56px; }
   }
