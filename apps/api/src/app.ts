@@ -10,6 +10,7 @@ import { exampleRoutes } from "./routes/examples";
 import { logRoutes } from "./routes/logs";
 import { exerciseRoutes } from "./routes/exercises";
 import { schemeRoutes } from "./routes/schemes";
+import { sessionTypeRoutes } from "./routes/session-types";
 import { chainRoutes } from "./routes/chains";
 import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
@@ -40,6 +41,7 @@ const TAGS = [
   { name: "logs", description: "Session logging and history aggregation" },
   { name: "exercises", description: "Exercise catalog" },
   { name: "schemes", description: "Periodization scheme library" },
+  { name: "session-types", description: "Trainer-owned session type labels over the lifting/cardio formats" },
   { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
   { name: "preferences", description: "Distilled trainer/client style preferences" },
@@ -112,6 +114,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(logRoutes)
   .use(exerciseRoutes)
   .use(schemeRoutes)
+  .use(sessionTypeRoutes)
   .use(chainRoutes)
   .use(promptTemplateRoutes)
   .use(notificationRoutes)

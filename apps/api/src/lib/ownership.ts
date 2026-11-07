@@ -10,6 +10,7 @@ import {
   programExamples,
   programs,
   promptTemplates,
+  sessionTypes,
 } from "@pt/db";
 
 /**
@@ -31,6 +32,7 @@ const NOUN = new Map<Owned, string>([
   [programExamples, "example"],
   [periodizationSchemes, "scheme"],
   [promptTemplates, "template"],
+  [sessionTypes, "session type"],
 ]);
 
 /** Route prefix → the table its `:id` / `:messageId` param points into. */
@@ -43,6 +45,7 @@ const PATH_OWNERS: [prefix: string, table: Owned][] = [
   ["/v1/examples/", programExamples],
   ["/v1/schemes/", periodizationSchemes],
   ["/v1/ai/prompt-templates/", promptTemplates],
+  ["/v1/session-types/", sessionTypes],
 ];
 
 /** Query/body field → the table it references. */
