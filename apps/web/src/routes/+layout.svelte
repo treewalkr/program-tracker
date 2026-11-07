@@ -143,6 +143,7 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    overflow-x: hidden; /* overflow-y alone makes x auto too; hidden nowrap labels must not add a sideways bar */
     overflow-y: auto;
   }
 
@@ -311,7 +312,8 @@
 
   @media (max-width: 860px) {
     .shell { grid-template-columns: 56px 1fr; }
-    .side { padding: 16px 8px; gap: 14px; }
+    .side { padding: 16px 8px; gap: 14px; scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
+    .side::-webkit-scrollbar { display: none; }
     .brand { padding: 0; justify-content: center; }
     .name { display: none; }
     .nav-label { visibility: hidden; height: 8px; margin: 0; padding: 0; }
