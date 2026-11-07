@@ -50,7 +50,21 @@ function effortParams(
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  /** Image data URLs sent with a user message (vision models only). */
+  images?: string[];
 }
+
+/** OpenAI-style wire form: text-only messages stay a string, images become content parts. */
+export const wireMessage = ({ role, content, images }: ChatMessage) =>
+  images?.length
+    ? {
+        role,
+        content: [
+          ...images.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+          { type: "text" as const, text: content },
+        ],
+      }
+    : { role, content };
 
 export interface ProviderUsage {
   tokensIn: number | null;
@@ -127,7 +141,7 @@ async function chatCompletion(
       },
       body: JSON.stringify({
         model: rt.model,
-        messages,
+        messages: messages.map(wireMessage),
         ...(opts.json ? { response_format: { type: "json_object" } } : {}),
         temperature: p.temperature,
         max_tokens: p.maxTokens,

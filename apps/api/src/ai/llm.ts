@@ -171,7 +171,12 @@ function prepareRequest(args: CallLlmArgs<unknown>): PreparedRequest {
     return sha;
   };
   const refs = args.messages.map((m) => ({ role: m.role, sha: put(m.content) }));
-  const context = { ...(args.context ?? {}) };
+  const context: Record<string, unknown> = { ...(args.context ?? {}) };
+  // Images are referenced by hash and size only — the bytes stay out of the log.
+  const images = args.messages.flatMap((m, message) =>
+    (m.images ?? []).map((url) => ({ message, sha256: sha256(url), bytes: Buffer.byteLength(url) })),
+  );
+  if (images.length) context.images = images;
   if (Array.isArray(context.catalog)) {
     const list = context.catalog;
     context.catalog = { blob: put(JSON.stringify(list)), count: list.length };

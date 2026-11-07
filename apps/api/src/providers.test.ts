@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { app } from "./app";
 import { ContextError, providerRuntime } from "./ai/runtime";
-import { chatJson } from "./ai/provider";
+import { chatJson, wireMessage } from "./ai/provider";
 
 /**
  * Provider-seam coverage for the `deepseek` registry entry.
@@ -212,5 +212,21 @@ describe("chatJson (deepseek request shape)", () => {
     expect((await capture(glm5, "high")).thinking).toEqual({ type: "enabled", budget: "high" });
     // glm5 without selection keeps the forced-low budget
     expect((await capture(glm5)).thinking).toEqual({ type: "enabled", budget: "low" });
+  });
+});
+
+describe("wireMessage (vision)", () => {
+  test("text-only messages stay a plain string", () => {
+    expect(wireMessage({ role: "user", content: "hi" })).toEqual({ role: "user", content: "hi" });
+    expect(wireMessage({ role: "user", content: "hi", images: [] })).toEqual({ role: "user", content: "hi" });
+  });
+  test("images become image_url parts ahead of the text", () => {
+    expect(wireMessage({ role: "user", content: "what is this?", images: ["data:image/png;base64,AAA"] })).toEqual({
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "data:image/png;base64,AAA" } },
+        { type: "text", text: "what is this?" },
+      ],
+    });
   });
 });
