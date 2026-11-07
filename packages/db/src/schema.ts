@@ -5,10 +5,12 @@ import {
   date,
   index,
   integer,
+  smallint,
   jsonb,
   numeric,
   pgTable,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -27,6 +29,10 @@ import type {
   FeedbackStatus,
   FunctionalMovement,
   GenerationStatus,
+  LlmCallStatus,
+  LlmPurpose,
+  LlmSignal,
+  LlmSubjectKind,
   MovementPattern,
   Phasing,
   ProgramStatus,
@@ -249,6 +255,8 @@ export const chatMessages = pgTable("chat_messages", {
   }),
   /** Proposal turn payload (kind "proposal"); null for every other kind. */
   proposal: jsonb("proposal").$type<StoredChatProposal>(),
+  /** Set by "Clear chat": hidden from the thread, kept for the LLM dataset. */
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type ChatMessageRow = typeof chatMessages.$inferSelect;
@@ -458,3 +466,101 @@ export const sessionTypes = pgTable(
   (t) => [uniqueIndex("session_types_trainer_name_idx").on(t.trainerId, sql`lower(${t.name})`)]
 );
 export type SessionTypeRow = typeof sessionTypes.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// LLM interaction log (docs/llm-logging-plan.md) — append-only
+// ---------------------------------------------------------------------------
+
+/** Content-addressed prompt text: each message is stored once, calls reference the hash. */
+export const llmBlobs = pgTable("llm_blobs", {
+  sha256: text("sha256").primaryKey(),
+  content: text("content").notNull(),
+  bytes: integer("bytes").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export interface LlmRequestRef {
+  role: "system" | "user" | "assistant";
+  sha: string;
+}
+
+/** One row per provider HTTP attempt (mock included, flagged). */
+export const llmCalls = pgTable(
+  "llm_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Groups the attempts (and calls) of one user action. */
+    turnId: uuid("turn_id").notNull(),
+    purpose: text("purpose").$type<LlmPurpose>().notNull(),
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    generationId: uuid("generation_id").references(() => aiGenerations.id, { onDelete: "set null" }),
+    chatMessageId: uuid("chat_message_id").references(() => chatMessages.id, { onDelete: "set null" }),
+    clientMessageId: uuid("client_message_id").references(() => clientMessages.id, { onDelete: "set null" }),
+    providerId: text("provider_id").notNull(),
+    model: text("model").notNull(),
+    effort: text("effort"),
+    temperature: real("temperature"),
+    maxTokens: integer("max_tokens"),
+    jsonMode: boolean("json_mode").notNull(),
+    /** `<builder>:<hash of the prompt module source>` — evals by prompt version. */
+    promptVersion: text("prompt_version").notNull(),
+    /** API build that made the call ("0.1.3+42a93f5"). */
+    appBuild: text("app_build"),
+    attempt: integer("attempt").notNull().default(1),
+    /** The exact messages, in order, as blob references. */
+    requestBlobIds: jsonb("request_blob_ids").$type<LlmRequestRef[]>().notNull(),
+    /** Structured inputs, so a new prompt builder can re-render this case. */
+    context: jsonb("context").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    responseRaw: text("response_raw"),
+    reasoning: text("reasoning"),
+    parsed: jsonb("parsed"),
+    status: text("status").$type<LlmCallStatus>().notNull(),
+    error: text("error"),
+    httpStatus: integer("http_status"),
+    finishReason: text("finish_reason"),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    tokensReasoning: integer("tokens_reasoning"),
+    tokensCached: integer("tokens_cached"),
+    latencyMs: integer("latency_ms"),
+    isMock: boolean("is_mock").notNull().default(false),
+    /** Set when retention pruned response_raw/reasoning. */
+    prunedAt: timestamp("pruned_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("llm_calls_trainer_idx").on(t.trainerId, t.createdAt),
+    index("llm_calls_purpose_idx").on(t.purpose, t.status),
+    index("llm_calls_generation_idx").on(t.generationId),
+    index("llm_calls_turn_idx").on(t.turnId),
+    index("llm_calls_chat_message_idx").on(t.chatMessageId),
+    index("llm_calls_client_message_idx").on(t.clientMessageId),
+  ]
+);
+export type LlmCallRow = typeof llmCalls.$inferSelect;
+
+/** Every verdict on an LLM output, explicit (thumbs) or implicit (approve, reject, …). Insert-only. */
+export const llmFeedback = pgTable(
+  "llm_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+    callId: uuid("call_id").references(() => llmCalls.id, { onDelete: "set null" }),
+    subjectKind: text("subject_kind").$type<LlmSubjectKind>().notNull(),
+    /** No FK: the subject row may be deleted; the verdict stays. */
+    subjectId: uuid("subject_id").notNull(),
+    signal: text("signal").$type<LlmSignal>().notNull(),
+    score: smallint("score"),
+    reasonTags: text("reason_tags").array().notNull().default(sql`'{}'::text[]`),
+    comment: text("comment"),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("llm_feedback_subject_idx").on(t.subjectKind, t.subjectId),
+    index("llm_feedback_call_idx").on(t.callId),
+  ]
+);
+export type LlmFeedbackRow = typeof llmFeedback.$inferSelect;
