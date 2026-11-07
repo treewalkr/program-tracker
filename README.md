@@ -24,6 +24,21 @@ bun run dev            # api :4000 + web :5173
 
 Or run the whole stack in Docker: `docker compose up -d`
 
+## Sign-in
+
+Live mode is private to one trainer, who signs in with Google. Set four vars in
+`.env` (or `.env.local` for Docker): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_REDIRECT_URI` and `TRAINER_EMAIL` (see `.env.example`).
+
+- Only `TRAINER_EMAIL` gets in, and its Google email must be verified.
+- The first sign-in is the sign-up: it links that Google account to the existing
+  trainer row, so every client and program stays put.
+- Sessions are httpOnly cookies that last 30 days. The DB stores only a hash of each token.
+- Google accepts plain `http` only for `localhost`. On another device (e.g. Tailscale),
+  serve the web app over https and register that origin's
+  `/v1/auth/google/callback` too.
+- Demo (mock) mode needs no sign-in.
+
 API reference lives at `/openapi` (Scalar) when the api is running.
 
 ## Tests
