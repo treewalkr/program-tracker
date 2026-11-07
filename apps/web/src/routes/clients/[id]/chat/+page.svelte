@@ -555,6 +555,7 @@
     border-top: 1px solid var(--line);
   }
   .dock-box {
+    container-type: inline-size; /* the chat column is narrow beside the draft; size the row to it, not the viewport */
     border: 1px solid var(--line);
     border-radius: 6px;
     background: var(--surface);
@@ -590,6 +591,18 @@
     font: 500 11px/1 var(--font-mono);
     color: var(--muted);
     margin-left: auto;
+    white-space: nowrap;
+  }
+  .send {
+    flex: none;
+  }
+  @container (max-width: 480px) {
+    .kbd {
+      display: none;
+    }
+    .send {
+      margin-left: auto;
+    }
   }
   .dock-hint {
     margin: 8px 2px 0;

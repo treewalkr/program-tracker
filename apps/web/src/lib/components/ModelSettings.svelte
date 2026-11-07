@@ -42,6 +42,7 @@
 <style>
   .ms {
     position: relative;
+    min-width: 0; /* shrink in a narrow composer row instead of pushing Send out */
   }
   .ms-btn {
     font: 400 12px/1 var(--font-ui);
@@ -55,6 +56,12 @@
     cursor: pointer;
     padding: 5px 6px;
     white-space: nowrap;
+    max-width: 100%;
+  }
+  .ms-btn span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .ms-btn:hover,
   .ms-btn[aria-expanded="true"] {
