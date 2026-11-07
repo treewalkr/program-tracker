@@ -25,15 +25,28 @@
 
 {#if crumbs}<Crumbs items={crumbs} />{/if}
 <div class="page-head">
-	<h1>
-		{title}
-		{@render titleSuffix?.()}
-	</h1>
-	{#if sub}<p class="sub">{sub}</p>{/if}
+	<div class="head-text">
+		<h1>
+			{title}
+			{@render titleSuffix?.()}
+		</h1>
+		{#if sub}<p class="sub">{sub}</p>{/if}
+	</div>
 	{#if actions}<div class="head-actions">{@render actions()}</div>{/if}
 </div>
 
 <style>
+	/* Title + context line wrap inside their own box, so actions keep the
+	   top-right slot instead of dropping to an orphaned row. */
+	.head-text {
+		flex: 1 1 0;
+		min-width: min(14rem, 100%);
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 4px 16px;
+	}
+	.sub { margin: 0; }
 	h1 {
 		display: flex;
 		align-items: center;
