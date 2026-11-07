@@ -1,6 +1,9 @@
-import { db, aiGenerations, clients, programs } from "@pt/db";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { db, aiGenerations, clients, llmFeedback, programs } from "@pt/db";
+import { and, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import {
+  anchorText,
+  LLM_EXPLICIT_SIGNALS,
+  LLM_NOTE_SIGNAL,
   diffRowsToText,
   diffSources,
   aiDraftToDiffSource,
@@ -24,7 +27,8 @@ export async function gatherPreferenceSignals(
     .limit(200);
 
   const rows = rowsDesc.reverse();
-  if (rows.length === 0) return [];
+  const notes = await gatherNoteSignals(trainerId, clientId);
+  if (rows.length === 0) return notes;
 
   const trainerClients = await db
     .select({ id: clients.id, name: clients.name })
@@ -102,5 +106,41 @@ export async function gatherPreferenceSignals(
     }
   }
 
-  return signals;
+  // Explicit notes interleave by time with the generation-derived signals.
+  return [...signals, ...notes].sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/** Explicit comments + corrections (notes and 👍/👎 with words) → `note` signals. */
+async function gatherNoteSignals(trainerId: string, clientId: string | null): Promise<PreferenceSignal[]> {
+  const rows = await db
+    .select()
+    .from(llmFeedback)
+    .where(
+      and(
+        eq(llmFeedback.trainerId, trainerId),
+        clientId ? eq(llmFeedback.clientId, clientId) : undefined,
+        inArray(llmFeedback.signal, [...LLM_EXPLICIT_SIGNALS, LLM_NOTE_SIGNAL]),
+        or(isNotNull(llmFeedback.comment), isNotNull(llmFeedback.correction))
+      )
+    )
+    .orderBy(desc(llmFeedback.createdAt))
+    .limit(100);
+  if (rows.length === 0) return [];
+  const names = new Map(
+    (await db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.trainerId, trainerId))).map((c) => [c.id, c.name])
+  );
+  return rows.reverse().map((r) => ({
+    kind: "note" as const,
+    clientName: r.clientId ? (names.get(r.clientId) ?? null) : null,
+    at: r.createdAt.toISOString(),
+    text: [
+      r.signal === "thumbs_down" ? "👎" : r.signal === "thumbs_up" ? "👍" : null,
+      r.anchor ? `on ${anchorText(r.anchor)}:` : null,
+      r.comment,
+      r.correction ? `→ instead: ${r.correction}` : null,
+      r.scope && r.scope !== "once" ? `(scope: ${r.scope})` : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  }));
 }

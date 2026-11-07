@@ -1,4 +1,4 @@
-export const PREFERENCE_SIGNAL_KINDS = ["instruction", "revision", "reject", "approved-diff"] as const;
+export const PREFERENCE_SIGNAL_KINDS = ["instruction", "revision", "reject", "approved-diff", "note"] as const;
 export type PreferenceSignalKind = (typeof PREFERENCE_SIGNAL_KINDS)[number];
 
 export interface PreferenceSignal {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, gte, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import {
   db,
   aiGenerations,
@@ -13,7 +13,7 @@ import {
   programs,
   type LlmCallRow,
 } from "@pt/db";
-import type { LlmLabel, LlmPurpose } from "@pt/shared";
+import { anchorText, type LlmLabel, type LlmPurpose, type NoteAnchor } from "@pt/shared";
 
 /**
  * Reusable datasets over the LLM log (docs/llm-logging-plan.md §7): SFT and
@@ -181,6 +181,8 @@ export async function exportRecords(format: ExportFormat, f: ExportFilter = {}):
   const calls = await callsById(examples.map((e) => e.callId));
   const blobs = format === "sft" ? await blobsFor([...calls.values()]) : new Map<string, string>();
 
+  const notes = format === "sft" ? new Map<string, ExportNote[]>() : await notesByCall(examples.map((e) => e.callId));
+
   const out: unknown[] = [];
   for (const ex of examples) {
     const call = calls.get(ex.callId);
@@ -198,6 +200,7 @@ export async function exportRecords(format: ExportFormat, f: ExportFilter = {}):
           label: ex.label,
           reason_tags: ex.reasonTags,
           comments: ex.comments,
+          notes: notes.get(ex.callId) ?? [],
         })
       );
       continue;
@@ -209,13 +212,44 @@ export async function exportRecords(format: ExportFormat, f: ExportFilter = {}):
       if (messages.length === 0) continue; // mock turns without a rendered prompt
       out.push(anon.deep({ messages: [...messages, { role: "assistant", content: target }] }));
     } else {
-      out.push(anon.deep(fewshotRecord(ex, call, target)));
+      out.push(anon.deep(fewshotRecord(ex, call, target, notes.get(ex.callId) ?? [])));
     }
   }
   return out;
 }
 
-function fewshotRecord(ex: typeof llmExamples.$inferSelect, call: LlmCallRow, target: string) {
+interface ExportNote {
+  anchor: NoteAnchor | null;
+  anchor_text: string;
+  comment: string | null;
+  correction: string | null;
+  scope: string | null;
+}
+
+/** Detailed feedback (anchor + correction) per call, oldest first. */
+async function notesByCall(callIds: string[]): Promise<Map<string, ExportNote[]>> {
+  const out = new Map<string, ExportNote[]>();
+  if (callIds.length === 0) return out;
+  const rows = await db
+    .select()
+    .from(llmFeedback)
+    .where(
+      and(
+        inArray(llmFeedback.callId, callIds),
+        or(isNotNull(llmFeedback.anchor), isNotNull(llmFeedback.correction))
+      )
+    )
+    .orderBy(llmFeedback.createdAt);
+  for (const r of rows) {
+    if (!r.callId) continue;
+    const list = out.get(r.callId) ?? [];
+    list.push({ anchor: r.anchor ?? null, anchor_text: anchorText(r.anchor), comment: r.comment, correction: r.correction, scope: r.scope });
+    out.set(r.callId, list);
+  }
+  return out;
+}
+
+function fewshotRecord(ex: typeof llmExamples.$inferSelect, call: LlmCallRow, target: string, notes: ExportNote[] = []) {
   const ctx = call.context as Record<string, any>;
   const client = ctx.client ?? {};
   const situation = [
@@ -237,7 +271,14 @@ function fewshotRecord(ex: typeof llmExamples.$inferSelect, call: LlmCallRow, ta
   ]
     .filter(Boolean)
     .join(" ");
-  return { purpose: ex.purpose, label: ex.label, situation, accepted_output: target, why };
+  return {
+    purpose: ex.purpose,
+    label: ex.label,
+    situation,
+    accepted_output: target,
+    why,
+    ...(notes.length ? { notes: notes.map((n) => ({ on: n.anchor_text, anchor: n.anchor, comment: n.comment, correction: n.correction })) } : {}),
+  };
 }
 
 async function exportDpo(f: ExportFilter, anon: Pseudonymizer): Promise<unknown[]> {
