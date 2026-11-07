@@ -9,6 +9,8 @@ import {
   type MuscleGroup as MG,
 } from "@pt/shared";
 import { ALIASES, type LibraryEntry } from "./curation";
+import { readFileSync } from "node:fs";
+import { toSeedSql } from "./build";
 import lib from "./exercise-library.json";
 
 const library = lib as LibraryEntry[];
@@ -120,5 +122,10 @@ describe("exercise library", () => {
   test("every alias points at a library exercise", () => {
     const names = new Set(library.map((e) => e.name));
     expect(Object.values(ALIASES).filter((n) => !names.has(n))).toEqual([]);
+  });
+
+  test("seed/exercises.sql is regenerated from the library", () => {
+    const sql = readFileSync(new URL("../seed/exercises.sql", import.meta.url), "utf8");
+    expect(sql).toBe(toSeedSql(library));
   });
 });
