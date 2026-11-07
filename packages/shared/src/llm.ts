@@ -13,6 +13,7 @@ export const LLM_PURPOSES = [
   "chat_qa",
   "client_message",
   "distill",
+  "feedback_check",
 ] as const;
 export type LlmPurpose = (typeof LLM_PURPOSES)[number];
 

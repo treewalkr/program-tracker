@@ -26,6 +26,7 @@ import type {
   CardioTarget,
   ClientStatus,
   ExampleLevel,
+  FeedbackAgentCheck,
   FeedbackContext,
   FeedbackEmailPrefs,
   FeedbackStatus,
@@ -428,6 +429,8 @@ export const feedbackItems = pgTable("feedback_items", {
   pageShot: bytea("page_shot"),
   /** App version that was live when the item was marked done. */
   shippedIn: text("shipped_in"),
+  /** Last LLM readiness check for an unattended coding agent. */
+  agentCheck: jsonb("agent_check").$type<FeedbackAgentCheck>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_items_trainer_idx").on(t.trainerId)]);

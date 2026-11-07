@@ -98,6 +98,37 @@ export interface FeedbackComment {
   createdAt: string;
 }
 
+/** An LLM's call on whether a coding agent could fix the ticket unattended. */
+export const AGENT_VERDICTS = ["ready", "needs_info", "not_for_agent"] as const;
+export type AgentVerdict = (typeof AGENT_VERDICTS)[number];
+
+export interface FeedbackAgentCheck {
+  verdict: AgentVerdict;
+  /** One sentence: what to change, or why it can't be done yet. */
+  summary: string;
+  /** Concrete steps for the fixing agent; empty unless ready. */
+  plan: string[];
+  /** What to ask the reporter or owner before an agent can start. */
+  questions: string[];
+  risk: "low" | "medium" | "high";
+  model: string;
+  checkedAt: string;
+  /** Fingerprint of the ticket text it judged — see `agentCheckBasis`. */
+  basis: string;
+}
+
+/**
+ * What an agent check depends on: the comment, the triage note and the
+ * replies. When any changes, the stored check is stale.
+ */
+export function agentCheckBasis(item: Pick<FeedbackItem, "comment" | "triageNote" | "thread">): string {
+  const text = [item.comment, item.triageNote ?? "", ...item.thread.filter((c) => c.kind === "reply").map((c) => c.body ?? "")]
+    .join("\u0000");
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, "0");
+}
+
 export interface FeedbackItem {
   id: string;
   /** Human handle: FB-<number>. */
@@ -121,6 +152,8 @@ export interface FeedbackItem {
   unread: boolean;
   /** The caller muted emails about it. */
   muted: boolean;
+  /** Admin only: last agent-readiness check, `stale` once the ticket changed after it. */
+  agentCheck: (FeedbackAgentCheck & { stale: boolean }) | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -241,6 +274,12 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
+  const check = item.agentCheck;
+  if (check && !check.stale) {
+    lines.push(`- **Agent check:** ${check.verdict.replace(/_/g, " ")} · ${check.risk} risk — ${check.summary}`);
+    for (const step of check.plan) lines.push(`  - ${step}`);
+    for (const q of check.questions) lines.push(`  - Open question: ${q}`);
+  }
   const el = opts.imageUrl(item, "element");
   const pg = opts.imageUrl(item, "page");
   if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
