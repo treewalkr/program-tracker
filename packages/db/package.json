@@ -14,7 +14,8 @@
     "seed:exercises": "bun run scripts/seed-exercises.ts",
     "backfill:patterns": "bun run scripts/backfill-patterns.ts",
     "migrate:sessions": "bun run scripts/migrate-sessions.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "library:build": "bun run library/build.ts"
   },
   "dependencies": {
     "@pt/shared": "workspace:*",
