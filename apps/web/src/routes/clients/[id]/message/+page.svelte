@@ -7,6 +7,7 @@
   import { fmtDate } from "$lib/format";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import CopyButton from "$lib/components/CopyButton.svelte";
+  import Verdict from "$lib/components/Verdict.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -109,6 +110,13 @@
     } finally {
       drafting = false;
     }
+  }
+
+  /** Copying the approved text is the trainer actually using it — a positive signal. */
+  function copied(messageId: string) {
+    void api
+      .recordLlmSignal({ subjectKind: "client_message", subjectId: messageId, signal: "client_message_copied" })
+      .catch(() => {});
   }
 
   async function approve() {
@@ -230,6 +238,7 @@
                 {approving ? "Approving…" : "Approve"}
               </Button>
               <ConfirmButton label="Reject" onconfirm={reject} />
+              <span class="rate"><Verdict subjectKind="client_message" subjectId={draftMsg.id} noun="draft message" /></span>
             </div>
           </div>
         </Panel>
@@ -286,8 +295,9 @@
       <div class="edit-note">final message · week {draftMsg.week}</div>
       <p class="final-text">{draftMsg.finalText}</p>
       <div class="final-actions">
-        <CopyButton text={draftMsg.finalText ?? ""} />
+        <CopyButton text={draftMsg.finalText ?? ""} oncopy={() => copied(draftMsg!.id)} />
         <Button small onclick={draft} disabled={drafting}>{drafting ? "Drafting…" : "Draft another"}</Button>
+        <span class="rate"><Verdict subjectKind="client_message" subjectId={draftMsg.id} noun="draft message" /></span>
       </div>
     </div>
   {:else if draftMsg?.status === "rejected"}
@@ -308,7 +318,7 @@
               {#if m.status === "approved" && m.finalText}
                 <div class="hist-final">
                   <p class="final-text">{m.finalText}</p>
-                  <CopyButton text={m.finalText} />
+                  <CopyButton text={m.finalText} oncopy={() => copied(m.id)} />
                 </div>
               {:else if m.error}
                 <p class="subtle hist-err">{m.error}</p>
@@ -374,8 +384,14 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: 8px;
     margin-top: 14px;
+  }
+  .rate {
+    margin-left: auto;
+    align-self: center;
   }
 
   .stats p {
@@ -412,6 +428,7 @@
   }
   .final-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     margin-top: 12px;

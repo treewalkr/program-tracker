@@ -3,7 +3,14 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import type { SlotChange } from "@pt/shared";
-  import type { ChatMessageDto, ClientDto, ExerciseDto, GenerationDto, ProviderDto } from "$lib/api/types";
+  import type {
+    ChatMessageDto,
+    ClientDto,
+    ExerciseDto,
+    GenerationDto,
+    LlmVerdictDto,
+    ProviderDto,
+  } from "$lib/api/types";
   import {
     applyChatTurn,
     draftPreviewModel,
@@ -28,6 +35,7 @@
   import Note from "$lib/ui/Note.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import Verdict from "$lib/components/Verdict.svelte";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
 
   const id = $derived(page.params.id ?? "");
@@ -35,6 +43,21 @@
   let client = $state<ClientDto | null>(null);
   let allGens = $state<GenerationDto[]>([]);
   let messages = $state<ChatMessageDto[]>([]);
+  /** Latest 👍/👎 per rateable assistant reply (null = not rated yet). */
+  let verdicts = $state<Record<string, LlmVerdictDto | null>>({});
+  const rateable = (m: ChatMessageDto) => m.role === "assistant" && (m.kind === "chat" || m.kind === "proposal");
+
+  $effect(() => {
+    const missing = messages.filter((m) => rateable(m) && !(m.id in verdicts)).map((m) => m.id);
+    if (missing.length === 0) return;
+    for (const mid of missing) verdicts[mid] = null;
+    api
+      .llmVerdicts(missing)
+      .then((found) => {
+        for (const v of found) verdicts[v.subjectId] = v;
+      })
+      .catch(() => {});
+  });
   let loading = $state(true);
   let catalogById = $state(new Map<string, ExerciseDto>());
 
@@ -298,6 +321,7 @@
 
   /** Adjust: put the request that produced this proposal back in the composer. */
   function adjust(m: ChatMessageDto) {
+    void api.recordLlmSignal({ subjectKind: "chat_message", subjectId: m.id, signal: "proposal_adjusted" }).catch(() => {});
     const i = messages.findIndex((x) => x.id === m.id);
     for (let j = i - 1; j >= 0; j--) {
       if (messages[j].role === "trainer") {
@@ -408,6 +432,7 @@
               onbuild={() => build(m)}
               onadjust={() => adjust(m)}
             />
+            <div class="ai-foot"><Verdict subjectKind="chat_message" subjectId={m.id} initial={verdicts[m.id] ?? null} noun="proposal" /></div>
           {:else if m.kind === "draft"}
             {@const stamp = stamps.get(m.id)}
             {@const text = stripDraftNotice(m.content)}
@@ -417,7 +442,10 @@
             {/if}
           {:else}
             <div class="md">{@html renderMarkdown(m.content)}</div>
-            {#if preview.target}<div class="answer-only">Answer only · draft unchanged</div>{/if}
+            <div class="ai-foot">
+              <Verdict subjectKind="chat_message" subjectId={m.id} initial={verdicts[m.id] ?? null} />
+              {#if preview.target}<span class="answer-only">Answer only · draft unchanged</span>{/if}
+            </div>
           {/if}
         </div>
       {/if}
@@ -573,9 +601,16 @@
     width: 13px;
     height: 13px;
   }
-  .answer-only {
+  .ai-foot {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 4px 10px;
     margin-top: 6px;
+  }
+  .answer-only {
     font-size: 12px;
+    line-height: 26px;
     color: var(--muted);
   }
   .working {

@@ -18,6 +18,7 @@
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import BlockPlanEditor from "./BlockPlanEditor.svelte";
   import StatusPill from "./StatusPill.svelte";
+  import Verdict from "./Verdict.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -207,6 +208,10 @@
       <span>from {current ? `“${current.name}” + 8 weeks of logs` : "cold start"}</span>
       {#if gen.exampleProgramIds.length > 0}<span>· shaped by {plural(gen.exampleProgramIds.length, "example program")}</span>{/if}
     </p>
+    <div class="rv-rate">
+      <span>How was v{version}?</span>
+      <Verdict subjectKind="generation" subjectId={gen.id} noun="draft" />
+    </div>
   </div>
   <div class="rv-actions">{@render actions()}</div>
 </div>
@@ -419,6 +424,8 @@
   .mono { font-family: var(--font-mono); color: var(--ink); }
   .rv-actions { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .rv-rate { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .rv-rate > span { line-height: 26px; }
   .lock, .paused { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
   .lock :global(svg) { width: 13px; height: 13px; }
   .vtag { font: 600 12px/1 var(--font-mono); padding: 3px 7px; border-radius: 99px; background: var(--good-bg); color: var(--good); border: 1px solid var(--good-line); }

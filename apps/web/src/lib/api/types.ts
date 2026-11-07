@@ -16,6 +16,7 @@ import type {
   WeekMetric as Wm,
   WeekPlan as Wp,
   WeekSummaryStats,
+  LlmReasonTag,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -326,6 +327,20 @@ export interface ChatMessageDto {
   createdAt: string;
 }
 
+/** What a trainer verdict judges. */
+export type LlmSubjectKindDto = "chat_message" | "generation" | "client_message";
+
+/** The latest 👍/👎 on an AI output. */
+export interface LlmVerdictDto {
+  id: string;
+  subjectKind: LlmSubjectKindDto;
+  subjectId: string;
+  signal: "thumbs_up" | "thumbs_down";
+  reasonTags: LlmReasonTag[];
+  comment: string | null;
+  createdAt: string;
+}
+
 export interface TrainerApi {
   /** The API's build id ("0.1.3+42a93f5"); in demo mode, the web build. */
   apiBuild(): Promise<string>;
@@ -456,4 +471,21 @@ export interface TrainerApi {
     opts: { providerId?: string; model?: string; effort?: string }
   ): Promise<{ messages: ChatMessageDto[]; generation: GenerationDto }>;
   clearChat(clientId: string): Promise<void>;
+
+  /** 👍/👎 on an AI output, with optional reason chips and a comment. Latest verdict wins. */
+  rateLlmOutput(input: {
+    subjectKind: LlmSubjectKindDto;
+    subjectId: string;
+    signal: "thumbs_up" | "thumbs_down";
+    reasonTags?: LlmReasonTag[];
+    comment?: string;
+  }): Promise<LlmVerdictDto>;
+  /** Latest verdict per subject (subjects without one are absent). */
+  llmVerdicts(subjectIds: string[]): Promise<LlmVerdictDto[]>;
+  /** UI-side implicit signals: Adjust on a proposal, Copy on a client message. */
+  recordLlmSignal(input: {
+    subjectKind: LlmSubjectKindDto;
+    subjectId: string;
+    signal: "proposal_adjusted" | "client_message_copied";
+  }): Promise<void>;
 }

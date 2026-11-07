@@ -7,6 +7,7 @@ import type {
   GenerationDto,
   HistoryEntryDto,
   InstructionTemplateDto,
+  LlmVerdictDto,
   KineticChainDto,
   PeriodizationSchemeDto,
   PreferencesDto,
@@ -214,4 +215,17 @@ export const realApi: TrainerApi = {
       client.v1.ai.chat.proposals({ messageId }).build.post(opts)
     ),
   clearChat: (clientId) => unwrap<void>(client.v1.ai.chat.delete(undefined, { query: { clientId } })),
+
+  rateLlmOutput: (input) => unwrap<LlmVerdictDto>(client.v1.ai.feedback.post(input)),
+  llmVerdicts: async (subjectIds) =>
+    subjectIds.length === 0
+      ? []
+      : (
+          await unwrap<{ verdicts: LlmVerdictDto[] }>(
+            client.v1.ai.feedback.get({ query: { subjectIds: subjectIds.join(",") } })
+          )
+        ).verdicts,
+  recordLlmSignal: async (input) => {
+    await unwrap<unknown>(client.v1.ai.feedback.post(input));
+  },
 };

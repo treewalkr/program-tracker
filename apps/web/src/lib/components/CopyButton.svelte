@@ -6,9 +6,11 @@
 	interface Props {
 		text: string;
 		label?: string;
+		/** Called after a successful copy. */
+		oncopy?: () => void;
 	}
 
-	let { text, label = 'Copy' }: Props = $props();
+	let { text, label = 'Copy', oncopy }: Props = $props();
 
 	let copied = $state(false);
 	let failed = $state<string | null>(null);
@@ -25,6 +27,7 @@
 			copied = true;
 			clearTimeout(timer);
 			timer = setTimeout(() => (copied = false), 2000);
+			oncopy?.();
 		} catch (err) {
 			copied = false;
 			failed = (err as Error).message || 'Copy failed';

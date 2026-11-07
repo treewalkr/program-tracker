@@ -39,6 +39,7 @@ import type {
   HistoryEntryDto,
   InstructionTemplateDto,
   KineticChainDto,
+  LlmVerdictDto,
   PeriodizationSchemeDto,
   PreferencesDto,
   ProgramDto,
@@ -1366,4 +1367,32 @@ export const mockApi: TrainerApi = {
     await delay(200);
     state.messages = state.messages.filter((m) => m.clientId !== clientId);
   },
+
+  async rateLlmOutput(input) {
+    await delay(150);
+    const verdict: LlmVerdictDto = {
+      id: uuid(),
+      subjectKind: input.subjectKind,
+      subjectId: input.subjectId,
+      signal: input.signal,
+      reasonTags: [...(input.reasonTags ?? [])],
+      comment: input.comment?.trim() || null,
+      createdAt: new Date().toISOString(),
+    };
+    verdicts.set(input.subjectId, verdict);
+    return { ...verdict, reasonTags: [...verdict.reasonTags] };
+  },
+  async llmVerdicts(subjectIds) {
+    await delay(80);
+    return subjectIds.flatMap((id) => {
+      const v = verdicts.get(id);
+      return v ? [{ ...v, reasonTags: [...v.reasonTags] }] : [];
+    });
+  },
+  async recordLlmSignal() {
+    // Demo mode keeps no dataset — implicit signals are accepted and dropped.
+  },
 };
+
+/** Demo verdicts: latest 👍/👎 per subject, in memory. */
+const verdicts = new Map<string, LlmVerdictDto>();
