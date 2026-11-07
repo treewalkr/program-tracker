@@ -14,6 +14,7 @@ const appVersion = (() => {
 
 export default defineConfig({
 	define: { __APP_VERSION__: JSON.stringify(appVersion) },
+	server: { allowedHosts: ['.ts.net'] },
 	plugins: [
 		sveltekit({
 			compilerOptions: {
