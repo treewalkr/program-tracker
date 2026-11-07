@@ -327,6 +327,8 @@ export interface ChatMessageDto {
 }
 
 export interface TrainerApi {
+  /** The API's build id ("0.1.3+42a93f5"); in demo mode, the web build. */
+  apiBuild(): Promise<string>;
   providers(): Promise<ProviderDto[]>;
   instructionTemplates(): Promise<InstructionTemplateDto[]>;
   createInstructionTemplate(input: { name: string; content: string }): Promise<InstructionTemplateDto>;

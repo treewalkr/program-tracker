@@ -343,6 +343,9 @@ function cannedClientMessage(stats: NonNullable<ClientMessageDto["stats"]>): str
 }
 
 export const mockApi: TrainerApi = {
+  async apiBuild() {
+    return __APP_VERSION__; // no separate API in demo mode
+  },
   async providers() {
     await delay(150);
     return Object.values(KNOWN_PROVIDERS).map((p) => ({

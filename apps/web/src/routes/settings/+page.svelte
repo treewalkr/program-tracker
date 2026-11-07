@@ -10,6 +10,10 @@
   import Button from "$lib/ui/Button.svelte";
   import KineticChainEditor from "$lib/components/KineticChainEditor.svelte";
 
+  const webBuild = __APP_VERSION__;
+  /** undefined while loading, null if the API didn't answer. */
+  let apiBuild = $state<string | null | undefined>(undefined);
+
   let chains = $state<KineticChainDto[] | null>(null);
   let loadError = $state<string | null>(null);
   /** Chain ids with unsaved picks. */
@@ -43,7 +47,13 @@
     else if (!confirm(`Leave without saving ${dirty.size === 1 ? "a chain" : `${dirty.size} chains`}?`)) nav.cancel();
   });
 
-  onMount(load);
+  onMount(() => {
+    load();
+    api.apiBuild().then(
+      (b) => (apiBuild = b),
+      () => (apiBuild = null)
+    );
+  });
 </script>
 
 <svelte:head><title>Settings · Program Tracker</title></svelte:head>
@@ -75,6 +85,24 @@
   </Panel>
 {/if}
 
+<div class="about-wrap">
+  <Panel title="About">
+    <dl class="about">
+      <dt>App</dt>
+      <dd>{webBuild}</dd>
+      <dt>API</dt>
+      <dd>
+        {#if apiBuild === undefined}<Skeleton w="110px" h="14px" />{:else}{apiBuild ?? "not reachable"}{/if}
+      </dd>
+    </dl>
+    {#if apiBuild && apiBuild !== webBuild}
+      <div class="pad mismatch">
+        <Note tone="warn">The app and the API are on different builds. A deploy may still be rolling out — reload in a few minutes.</Note>
+      </div>
+    {/if}
+  </Panel>
+</div>
+
 <style>
   .lede {
     margin: 0;
@@ -86,4 +114,18 @@
   }
   .lede em { font-style: normal; color: var(--ink); }
   .pad { padding: 16px; }
+  .pad.mismatch { padding-top: 0; }
+
+  .about-wrap { margin-top: 16px; }
+
+  .about {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 6px 12px;
+    margin: 0;
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+  .about dt { color: var(--muted); }
+  .about dd { margin: 0; font-family: var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
 </style>

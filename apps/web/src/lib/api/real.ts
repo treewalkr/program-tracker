@@ -57,6 +57,7 @@ async function unwrap<T>(
 
 /** Wire-up against the running Elysia API via Eden Treaty. Enabled via PUBLIC_API_MODE=live. */
 export const realApi: TrainerApi = {
+  apiBuild: async () => (await unwrap<{ build: string }>(client.v1.meta.get())).build,
   providers: async () =>
     (await unwrap<{ providers: ProviderDto[] }>(client.v1.ai.providers.get())).providers,
   clients: () => unwrap<ClientDto[]>(client.v1.clients.get()),
