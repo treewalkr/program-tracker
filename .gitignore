@@ -15,6 +15,7 @@ storybook-static/
 
 # misc
 /feedback/
+/llm-export/
 COMMITS.md
 .DS_Store
 *.log

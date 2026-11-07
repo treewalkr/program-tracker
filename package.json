@@ -16,6 +16,8 @@
     "seed:exercises": "bun run --filter @pt/db seed:exercises",
     "backfill:patterns": "bun run --filter @pt/db backfill:patterns",
     "feedback:export": "bun run apps/api/scripts/feedback-export.ts",
+    "llm:export": "bun run apps/api/scripts/llm-export.ts",
+    "llm:prune": "bun run apps/api/scripts/llm-prune.ts",
     "release": "bun run scripts/release.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

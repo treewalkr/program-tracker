@@ -3,6 +3,7 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import { clients, db, trainers } from "@pt/db";
 import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
 import { trainerContext } from "../lib/trainer-context";
+import { datasetStats } from "../lib/llm-dataset";
 
 type TrainerRow = typeof trainers.$inferSelect;
 
@@ -100,4 +101,7 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
       return status(204);
     },
     { params: t.Object({ id: t.String({ format: "uuid" }) }), detail: { summary: "Remove an unused invite" } },
-  );
+  )
+  .get("/llm-stats", () => datasetStats(), {
+    detail: { summary: "LLM dataset counts: final calls by purpose and label, attempts by status, feedback, pairs" },
+  });
