@@ -1,8 +1,18 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mockApi } from "./api";
 import type { ProgramWeekDto, ProgramPhasingDto } from "../types";
 
 describe("mockApi.saveProgram", () => {
+  // The mock store is shared across test files; put Maya's seed block back so
+  // later files (e.g. generations.test.ts) see the original weeks and phasing.
+  let seed: Awaited<ReturnType<typeof mockApi.program>>;
+  beforeAll(async () => {
+    seed = structuredClone(await mockApi.program("pg-maya-a"));
+  });
+  afterAll(async () => {
+    await mockApi.saveProgram("pg-maya-a", seed.weeks, seed.phasing ?? null);
+  });
+
   test("saveProgram bumps version and replaces weeks", async () => {
     const original = await mockApi.program("pg-maya-a");
     const oldVersion = original.version;
