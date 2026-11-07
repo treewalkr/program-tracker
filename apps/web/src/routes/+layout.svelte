@@ -52,6 +52,7 @@
         { href: "/chains", label: "Kinetic chains", icon: "link" },
         { href: "/templates", label: "Templates", icon: "file" },
         { href: "/examples", label: "Examples", icon: "star" },
+        { href: "/rules", label: "Coaching rules", icon: "list-check" },
       ],
     },
   ];
