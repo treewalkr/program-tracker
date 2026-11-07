@@ -46,6 +46,8 @@
   let trigger = $state<HTMLButtonElement>();
   let search = $state<HTMLInputElement>();
   let listEl = $state<HTMLUListElement>();
+  /** Open toward whichever side has room for the 300px popover. */
+  let alignLeft = $state(false);
 
   const current = $derived(types.find((t) => t.id === value) ?? null);
   /** Archived types stay out of the picker unless already chosen. */
@@ -68,6 +70,8 @@
   async function show() {
     query = "";
     createError = "";
+    const r = trigger?.getBoundingClientRect();
+    alignLeft = !!r && r.right < 316;
     open = true;
     await tick();
     active = Math.max(0, flat.findIndex((t) => t.id === value));
@@ -168,7 +172,7 @@
   </button>
 
   {#if open}
-    <div class="tp-pop">
+    <div class="tp-pop" class:left={alignLeft}>
       <div class="tp-search">
         <Icon name="search" />
         <input
@@ -233,7 +237,6 @@
           >
             <span class="tp-check"><Icon name="plus" /></span>
             <span class="tp-opt-name">New {FORMAT_LABEL[f].toLowerCase()} type “<strong>{typed}</strong>”</span>
-            <span class="tp-hint">{FORMAT_HINT[f]}</span>
           </li>
         {/each}
       </ul>
@@ -309,6 +312,7 @@
     z-index: 20;
     overflow: hidden;
   }
+  .tp-pop.left { right: auto; left: 0; }
 
   .tp-search {
     display: flex;
@@ -375,7 +379,6 @@
   .tp-create.first { border-top: 1px solid var(--line-soft); border-radius: 0 0 var(--radius) var(--radius); margin-top: 4px; padding-top: 7px; }
   .tp-create.alone { border-top: none; margin-top: 0; }
   .tp-create strong { font-weight: 600; }
-  .tp-hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
   .tp-err { margin: 0; padding: 6px 12px; font-size: 12px; color: var(--bad); }
   .tp-empty { margin: 0; padding: 14px 12px; text-align: center; font-size: 13px; color: var(--muted); }
@@ -387,10 +390,6 @@
     font-size: 12px;
   }
 
-  @media (max-width: 600px) {
-    .tp-pop { right: auto; left: 0; }
-    .tp-hint { display: none; }
-  }
   @media (prefers-reduced-motion: reduce) {
     .tp-btn { transition: none; }
   }
