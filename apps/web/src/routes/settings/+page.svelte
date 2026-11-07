@@ -9,6 +9,7 @@
   import Note from "$lib/ui/Note.svelte";
   import Button from "$lib/ui/Button.svelte";
   import KineticChainEditor from "$lib/components/KineticChainEditor.svelte";
+  import { accountApi } from "$lib/account";
 
   const webBuild = __APP_VERSION__;
   /** undefined while loading, null if the API didn't answer. */
@@ -41,6 +42,26 @@
     dirty = next;
   }
 
+  /** Feedback email switch: undefined while loading, null if the API didn't answer. */
+  let feedbackEmails = $state<boolean | null | undefined>(undefined);
+  let emailSaving = $state(false);
+  let emailError = $state<string | null>(null);
+
+  async function setFeedbackEmails(on: boolean) {
+    const prev = feedbackEmails;
+    feedbackEmails = on;
+    emailSaving = true;
+    emailError = null;
+    try {
+      feedbackEmails = (await accountApi.setNotifications({ feedbackEmails: on })).feedbackEmails;
+    } catch (err) {
+      feedbackEmails = prev;
+      emailError = (err as Error).message || "Could not save";
+    } finally {
+      emailSaving = false;
+    }
+  }
+
   beforeNavigate((nav) => {
     if (dirty.size === 0) return;
     if (nav.type === "leave") nav.cancel();
@@ -49,6 +70,10 @@
 
   onMount(() => {
     load();
+    accountApi.notifications().then(
+      (n) => (feedbackEmails = n.feedbackEmails),
+      () => (feedbackEmails = null),
+    );
     api.apiBuild().then(
       (b) => (apiBuild = b),
       () => (apiBuild = null)
@@ -86,6 +111,33 @@
 {/if}
 
 <div class="about-wrap">
+  <Panel title="Email">
+    <div class="email">
+      {#if feedbackEmails === undefined}
+        <Skeleton w="260px" h="18px" />
+      {:else if feedbackEmails === null}
+        <p class="muted">Email settings aren't available right now.</p>
+      {:else}
+        <label class="switch">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={feedbackEmails}
+            disabled={emailSaving}
+            onchange={(e) => setFeedbackEmails(e.currentTarget.checked)}
+          />
+          <span>
+            <strong>Email me about feedback</strong>
+            <span class="muted">Replies and status changes on your feedback items — and, for the admin, new items.</span>
+          </span>
+        </label>
+        {#if emailError}<p class="err" role="alert">{emailError}</p>{/if}
+      {/if}
+    </div>
+  </Panel>
+</div>
+
+<div class="about-wrap">
   <Panel title="About">
     <dl class="about">
       <dt>App</dt>
@@ -117,6 +169,14 @@
   .pad.mismatch { padding-top: 0; }
 
   .about-wrap { margin-top: 16px; }
+
+  .email { padding: 14px 16px; font-size: 13px; }
+  .email .muted { color: var(--muted); margin: 0; }
+  .switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+  .switch input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--blue); flex: none; }
+  .switch > span { display: flex; flex-direction: column; gap: 2px; }
+  .switch strong { font-weight: 600; color: var(--ink); }
+  .email .err { margin: 8px 0 0; color: var(--bad); font-size: 12px; }
 
   .about {
     display: grid;

@@ -1,4 +1,4 @@
-import { Elysia, t } from "elysia";
+import { Elysia, t, type Static } from "elysia";
 import { eq } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems } from "@pt/db";
 import {
@@ -49,7 +49,9 @@ const Context = t.Object({
 // Literal union, not t.UnionEnum: UnionEnum carries a default (its first
 // value), so an absent optional status would arrive as "new" and a note-only
 // PATCH would silently reopen the item.
-const Status = t.Union(FEEDBACK_STATUSES.map((s) => t.Literal(s)));
+const Status = t.Union([t.Literal("new"), t.Literal("accepted"), t.Literal("done"), t.Literal("wontfix")]);
+// Keeps the literal list in step with FEEDBACK_STATUSES.
+true satisfies (typeof FEEDBACK_STATUSES)[number] extends Static<typeof Status> ? true : false;
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 
 const ADMIN_ONLY = { error: "admin only" } as const;
