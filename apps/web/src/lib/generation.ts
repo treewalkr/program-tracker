@@ -4,12 +4,6 @@ export const STALE_PENDING_MS = 15 * 60_000;
 export const POLL_INTERVAL_MS = 5_000;
 export type GeneratePhase = "form" | "generating" | "review" | "failed";
 
-export function progressFraction(elapsedMs: number, expectedSeconds: number): number {
-  const safeSeconds = Math.max(1, expectedSeconds);
-  const fraction = elapsedMs / 1000 / safeSeconds;
-  return Math.min(0.9, Math.max(0, fraction));
-}
-
 export function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -21,15 +15,6 @@ export function formatElapsed(ms: number): string {
     return `${hours}:${padMin}:${padSec}`;
   }
   return `${minutes}:${padSec}`;
-}
-
-export function typicalLabel(seconds: number): string {
-  if (seconds < 60) {
-    return `≈${seconds}s`;
-  }
-  const mins = seconds / 60;
-  const formatted = mins.toFixed(1).replace(/\.0$/, "");
-  return `≈${formatted} min`;
 }
 
 export function isLivePending(g: GenerationDto | null | undefined, now = Date.now()): boolean {

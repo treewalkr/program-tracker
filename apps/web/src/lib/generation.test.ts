@@ -5,9 +5,7 @@ import {
   generationPhase,
   isLivePending,
   latestValidatedDraft,
-  progressFraction,
   revisionChain,
-  typicalLabel,
 } from "./generation";
 
 function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
@@ -34,22 +32,10 @@ function mockGen(partial: Partial<GenerationDto> = {}): GenerationDto {
 }
 
 describe("generation helpers", () => {
-  test("progressFraction scales with expected duration and caps at 90%", () => {
-    expect(progressFraction(0, 210)).toBe(0);
-    expect(progressFraction(105_000, 210)).toBe(0.5);
-    expect(progressFraction(600_000, 210)).toBe(0.9);
-    expect(progressFraction(100_000, 0)).toBe(0.9);
-    expect(progressFraction(-5_000, 210)).toBe(0);
-  });
-
-  test("formatElapsed and typicalLabel format durations", () => {
+  test("formatElapsed formats durations", () => {
     expect(formatElapsed(0)).toBe("0:00");
     expect(formatElapsed(65_000)).toBe("1:05");
     expect(formatElapsed(3_723_000)).toBe("1:02:03");
-
-    expect(typicalLabel(45)).toBe("≈45s");
-    expect(typicalLabel(210)).toBe("≈3.5 min");
-    expect(typicalLabel(240)).toBe("≈4 min");
   });
 
   test("generationPhase resumes fresh pending, blocks stale pending", () => {
