@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { effortSummary } from "$lib/effort";
   import { diffDraftSlots, sortExercisesByRole, type SlotChange } from "@pt/shared";
   import type { ClientDto, ExerciseDto, GenerationDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
   import { revisionChain } from "$lib/generation";
@@ -198,7 +199,7 @@
       {#if gen.manualEdit}
         <span>plan edited by you · sessions by <span class="mono">{gen.model}</span></span>
       {:else}
-        <span>drafted by <span class="mono">{gen.model}</span>{gen.effort ? ` (${gen.effort} effort)` : ""}</span>
+        <span>drafted by <span class="mono">{gen.model}</span>{gen.effort ? ` (${effortSummary(gen.effort)})` : ""}</span>
       {/if}
       <span>·</span>
       <span>{ago(gen.createdAt)}</span>

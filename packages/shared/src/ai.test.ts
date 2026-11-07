@@ -38,7 +38,7 @@ describe("KNOWN_PROVIDERS", () => {
     const mock = AiProviderConfig.parse(KNOWN_PROVIDERS.mock);
     expect(zai.effortLevels).toEqual(["low", "high", "max"]);
     expect(zai.defaultEffort).toBe("low");
-    expect(deepseek.effortLevels).toEqual(["low", "high", "max"]);
+    expect(deepseek.effortLevels).toEqual(["none", "low", "high", "max"]);
     expect(deepseek.defaultEffort).toBe("high");
     expect(mock.effortLevels).toBeUndefined();
     expect(mock.defaultEffort).toBeUndefined();

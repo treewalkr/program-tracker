@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ProviderDto } from "$lib/api/types";
   import Field from "$lib/ui/Field.svelte";
+  import { effortName } from "$lib/effort";
 
   /**
    * Provider / model / thinking-effort selection (card 27tc8). Provider name
@@ -71,10 +72,10 @@
   {#if effortLevels}
     <Field label="Thinking" htmlFor="{idPrefix}-effort">
       <select class="select" id="{idPrefix}-effort" bind:value={effort}>
-        <option value="">{provider?.defaultEffort ?? effortLevels[0]} (default)</option>
+        <option value="">{effortName(provider?.defaultEffort ?? effortLevels[0])} (default)</option>
         {#each effortLevels as lvl (lvl)}
           {#if lvl !== (provider?.defaultEffort ?? effortLevels[0])}
-            <option value={lvl}>{lvl}</option>
+            <option value={lvl}>{effortName(lvl)}</option>
           {/if}
         {/each}
       </select>

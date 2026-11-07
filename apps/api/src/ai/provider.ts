@@ -30,7 +30,8 @@ export interface ProviderRuntime {
 }
 
 /**
- * Effort selection → provider wire params. Vocabulary is low/high/max everywhere;
+ * Effort selection → provider wire params. Vocabulary is low/high/max everywhere,
+ * plus "none" (thinking off) on deepseek;
  * deepseek takes `reasoning_effort` (verified live 2026-11-06), Z.ai GLM 5 takes it
  * as `thinking.budget` (Z.ai error 1210 message names low/high/max). No selection →
  * undefined → request body identical to pre-effort behavior.

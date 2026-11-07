@@ -2,6 +2,7 @@
   import type { ProviderDto } from "$lib/api/types";
   import ProviderPicker from "./ProviderPicker.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import { effortSummary } from "$lib/effort";
 
   /** One-line model summary that opens the provider/model/effort picker in a popover. Escape, the close button or a tap outside closes it. */
   let {
@@ -45,7 +46,7 @@
     title="Change model"
     onclick={() => (open = !open)}
   >
-    <b>{label}</b>{#if effortLabel}<span> · {effortLabel} effort</span>{/if}
+    <b>{label}</b>{#if effortLabel}<span> · {effortSummary(effortLabel)}</span>{/if}
     <Icon name="chevron" />
   </button>
   {#if open}

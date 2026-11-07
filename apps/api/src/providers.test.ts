@@ -107,7 +107,7 @@ describe("providerRuntime (deepseek)", () => {
       apiKey: "k",
       maxOutputTokens: 16384,
       disableThinking: undefined,
-      effortLevels: ["low", "high", "max"],
+      effortLevels: ["none", "low", "high", "max"],
       defaultEffort: "high",
     });
     expect(providerRuntime("deepseek", "deepseek-v4-pro").model).toBe("deepseek-v4-pro");
@@ -200,6 +200,7 @@ describe("chatJson (deepseek request shape)", () => {
     const glm45 = providerRuntime("zai", "glm-4.5-flash");
 
     expect((await capture(ds, "max")).reasoning_effort).toBe("max");
+    expect((await capture(ds, "none")).reasoning_effort).toBe("none"); // thinking off
     expect((await capture(glm5, "high")).thinking).toEqual({ type: "enabled", budget: "high" });
     // glm5 without selection keeps the forced-low budget
     expect((await capture(glm5)).thinking).toEqual({ type: "enabled", budget: "low" });

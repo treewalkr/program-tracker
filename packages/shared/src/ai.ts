@@ -67,7 +67,8 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
     maxOutputTokens: 16384,
-    effortLevels: ["low", "high", "max"],
+    // "none" switches thinking off (reasoning_effort: none, api-docs.deepseek.com/guides/thinking_mode)
+    effortLevels: ["none", "low", "high", "max"],
     defaultEffort: "high",
     models: [
       "deepseek-flash", // default — V4.1-Flash
