@@ -461,6 +461,24 @@ export const feedbackMutes = pgTable("feedback_mutes", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.trainerId, t.itemId] })]);
 
+/**
+ * One row per notification email the app tried to send. Deliberately thin:
+ * no address and no body — the recipient is a trainer id (address is joined
+ * and masked on read), the label names the event, not its content.
+ */
+export const emailLog = pgTable("email_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+  /** e.g. `feedback.reply` */
+  kind: text("kind").notNull(),
+  /** Content-free description, e.g. `FB-12 · Accepted`. */
+  label: text("label").notNull(),
+  feedbackItemId: uuid("feedback_item_id").references(() => feedbackItems.id, { onDelete: "set null" }),
+  /** null = delivered to the provider; otherwise why it wasn't. */
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("email_log_created_at_idx").on(t.createdAt)]);
+
 // ---------------------------------------------------------------------------
 // Session types — trainer-owned labels over the fixed formats (see @pt/shared sessionTypes)
 // ---------------------------------------------------------------------------
