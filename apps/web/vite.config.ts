@@ -1,8 +1,19 @@
 import adapter from '@sveltejs/adapter-auto';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { execSync } from 'node:child_process';
+
+/** Git SHA stamped on feedback items so an agent knows which build was reviewed. */
+const appVersion = (() => {
+	try {
+		return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+	} catch {
+		return 'unknown';
+	}
+})();
 
 export default defineConfig({
+	define: { __APP_VERSION__: JSON.stringify(appVersion) },
 	plugins: [
 		sveltekit({
 			compilerOptions: {

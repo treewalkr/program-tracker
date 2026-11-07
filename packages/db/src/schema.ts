@@ -1,12 +1,14 @@
 import {
   type AnyPgColumn,
   boolean,
+  customType,
   date,
   integer,
   jsonb,
   numeric,
   pgTable,
   primaryKey,
+  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -20,6 +22,8 @@ import type {
   CardioTarget,
   ClientStatus,
   ExampleLevel,
+  FeedbackContext,
+  FeedbackStatus,
   FunctionalMovement,
   GenerationStatus,
   MovementPattern,
@@ -360,3 +364,31 @@ export const clientMessages = pgTable("client_messages", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type ClientMessageRow = typeof clientMessages.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Feedback mode — trainer comments pinned to a UI element (see @pt/shared feedback)
+// ---------------------------------------------------------------------------
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+export const feedbackItems = pgTable("feedback_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** Human handle FB-<number>. */
+  number: serial("number").notNull(),
+  status: text("status").$type<FeedbackStatus>().notNull().default("new"),
+  /** Trainer's words, verbatim. */
+  comment: text("comment").notNull(),
+  /** Owner's triage decision; outranks the comment for the coding agent. */
+  triageNote: text("triage_note"),
+  route: text("route").notNull(),
+  /** `file:line:column` of the clicked element. */
+  source: text("source"),
+  context: jsonb("context").$type<FeedbackContext>().notNull(),
+  elementShot: bytea("element_shot"),
+  pageShot: bytea("page_shot"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type FeedbackItemRow = typeof feedbackItems.$inferSelect;

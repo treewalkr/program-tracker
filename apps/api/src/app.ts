@@ -16,6 +16,7 @@ import { notificationRoutes } from "./routes/notifications";
 import { clientMessageRoutes } from "./routes/client-messages";
 import { preferenceRoutes } from "./routes/preferences";
 import { chatRoutes } from "./routes/chat";
+import { feedbackRoutes } from "./routes/feedback";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .split(",")
@@ -37,6 +38,7 @@ const TAGS = [
   { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
   { name: "preferences", description: "Distilled trainer/client style preferences" },
+  { name: "feedback", description: "Feedback mode — trainer comments pinned to UI elements, exported for coding agents" },
 ];
 
 // Bun's max idle timeout — a held chat-revise POST (deepseek + one validation
@@ -103,6 +105,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(schemeRoutes)
   .use(chainRoutes)
   .use(promptTemplateRoutes)
-  .use(notificationRoutes);
+  .use(notificationRoutes)
+  .use(feedbackRoutes);
 
 export type App = typeof app;

@@ -46,6 +46,23 @@ Point at another test database with `TEST_DATABASE_URL` (the name must still end
 
 When Postgres is down, the DB-backed tests are skipped; pure unit tests still run.
 
+## Feedback mode
+
+A review tool for the trainer. Click **Feedback** (bottom right) and every element
+becomes pickable: click one, write a comment, send. Each item stores the route, the
+element's source file and line, the component chain, nearest headings, viewport,
+build SHA, and screenshots of the element and the page.
+
+Element source comes from Svelte's dev-build metadata, so it needs the dev server
+(as `docker compose` runs it). A production build saves the selector and text only.
+
+1. **Triage** at `/feedback`: write a triage note, then **Accept** or **Won't fix**.
+2. **Hand to an agent**: `bun run feedback:export` writes accepted items to
+   `feedback/feedback.md`, `feedback/feedback.json` and `feedback/shots/` (gitignored).
+   Use `--status new,accepted` or `--status all` to widen it.
+3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`.
+4. **Close the loop**: mark the item **Done** once it ships.
+
 ## Docs
 
 Start with [docs/PLAN.md](docs/PLAN.md) — then
