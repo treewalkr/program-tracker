@@ -51,6 +51,39 @@
   const isActive = (href: string) =>
     href === "/" ? page.url.pathname === "/" : page.url.pathname.startsWith(href);
 
+  /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
+     narrow screens start as the rail and open the full menu over the page. */
+  const RAIL_KEY = "pt.sidebar.rail";
+  const narrowQuery = window.matchMedia("(max-width: 860px)");
+  let narrow = $state(narrowQuery.matches);
+  let collapsed = $state(localStorage.getItem(RAIL_KEY) === "1");
+  let drawerOpen = $state(false);
+  const rail = $derived(narrow ? !drawerOpen : collapsed);
+  const sideOpen = $derived(!rail);
+
+  function toggleSide() {
+    if (narrow) drawerOpen = !drawerOpen;
+    else {
+      collapsed = !collapsed;
+      localStorage.setItem(RAIL_KEY, collapsed ? "1" : "0");
+    }
+  }
+
+  $effect(() => {
+    const onChange = (e: MediaQueryListEvent) => {
+      narrow = e.matches;
+      drawerOpen = false;
+    };
+    narrowQuery.addEventListener("change", onChange);
+    return () => narrowQuery.removeEventListener("change", onChange);
+  });
+
+  // Close the narrow-screen drawer after navigating.
+  $effect(() => {
+    void page.url.pathname;
+    drawerOpen = false;
+  });
+
   onMount(async () => {
     if (bare) return;
     try {
@@ -61,18 +94,33 @@
   });
 </script>
 
+<svelte:window onkeydown={(e) => { if (e.key === "Escape" && drawerOpen) drawerOpen = false; }} />
+
 {#if bare}
   {@render children()}
 {:else}
-<div class="shell">
-  <aside class="side">
-    <a class="brand" href="/">
-      <span class="mark" aria-hidden="true">PT</span>
-      <span class="name">
-        Program Tracker
-        <small>Trainer workspace</small>
-      </span>
-    </a>
+<div class="shell" class:rail class:drawer={narrow && drawerOpen}>
+  <aside class="side" id="sidebar">
+    <div class="brand-row">
+      <a class="brand" href="/">
+        <span class="mark" aria-hidden="true">PT</span>
+        <span class="name">
+          Program Tracker
+          <small>Trainer workspace</small>
+        </span>
+      </a>
+      <button
+        type="button"
+        class="side-toggle"
+        aria-controls="sidebar"
+        aria-expanded={sideOpen}
+        aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
+        title={sideOpen ? "Collapse menu" : "Expand menu"}
+        onclick={toggleSide}
+      >
+        <Icon name="sidebar" />
+      </button>
+    </div>
 
     <nav aria-label="Primary">
       {#each groups as group (group.label)}
@@ -113,6 +161,10 @@
     </div>
   </aside>
 
+  {#if narrow && drawerOpen}
+    <button type="button" class="scrim" aria-label="Close menu" onclick={() => (drawerOpen = false)}></button>
+  {/if}
+
   <main class="main">
     {#if apiMode === "mock"}
       <Note tone="warn" role="note" class="demo-banner">
@@ -146,6 +198,30 @@
     overflow-x: hidden; /* overflow-y alone makes x auto too; hidden nowrap labels must not add a sideways bar */
     overflow-y: auto;
   }
+
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .side-toggle {
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color 120ms ease-out;
+  }
+  .side-toggle :global(svg) { width: 16px; height: 16px; stroke-width: 1.6; }
+  .side-toggle:hover { background: var(--well-2); color: var(--ink); }
+  .side-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
 
   .brand {
     display: flex;
@@ -291,10 +367,11 @@
   .who + .side-foot { margin-top: 0; }
 
   @media (prefers-reduced-motion: reduce) {
-    .nav-item { transition: none; }
+    .nav-item, .side-toggle { transition: none; }
   }
 
   .main {
+    grid-column: 2; /* stays put when the narrow-screen menu floats out of the grid */
     /* Anchored to the sidebar: centering left a dead strip between nav and
        content on wide screens. Extra width falls to the right edge. */
     padding: 28px 40px 64px;
@@ -310,16 +387,39 @@
     max-width: 100%;
   }
 
+  /* Icon rail: chosen on wide screens, the default on narrow ones. */
+  .shell.rail { grid-template-columns: 56px 1fr; }
+  .rail .side { padding: 16px 8px; gap: 14px; scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
+  .rail .side::-webkit-scrollbar { display: none; }
+  .rail .brand-row { flex-direction: column; gap: 10px; }
+  .rail .side-toggle { margin-left: 0; }
+  .rail .brand { padding: 0; justify-content: center; }
+  .rail .name { display: none; }
+  .rail .nav-label { visibility: hidden; height: 8px; margin: 0; padding: 0; }
+  .rail .nav-text, .rail .count, .rail .side-foot, .rail .who-text { display: none; }
+  .rail .who { justify-content: center; padding: 0; }
+  .rail .nav-item { justify-content: center; padding: 8px 0; }
+
+  /* Narrow screens: the open menu floats over the page instead of squeezing it. */
+  .shell.drawer { grid-template-columns: 56px 1fr; }
+  .drawer .side {
+    position: fixed;
+    left: 0;
+    width: 236px;
+    z-index: 40;
+    box-shadow: 0 8px 24px rgba(31, 35, 40, 0.18);
+  }
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    border: 0;
+    padding: 0;
+    background: rgba(31, 35, 40, 0.25);
+    cursor: default;
+  }
+
   @media (max-width: 860px) {
-    .shell { grid-template-columns: 56px 1fr; }
-    .side { padding: 16px 8px; gap: 14px; scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
-    .side::-webkit-scrollbar { display: none; }
-    .brand { padding: 0; justify-content: center; }
-    .name { display: none; }
-    .nav-label { visibility: hidden; height: 8px; margin: 0; padding: 0; }
-    .nav-text, .count, .side-foot, .who-text { display: none; }
-    .who { justify-content: center; padding: 0; }
-    .nav-item { justify-content: center; padding: 8px 0; }
     .main { padding: 20px 16px 56px; }
   }
 </style>

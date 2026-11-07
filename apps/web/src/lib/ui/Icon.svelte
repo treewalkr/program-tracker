@@ -16,7 +16,8 @@
 		| 'bolt'
 		| 'pulse'
 		| 'chevron'
-		| 'search';
+		| 'search'
+		| 'sidebar';
 </script>
 
 <script lang="ts">
@@ -71,6 +72,7 @@
 		pulse: { d: 'M12 6l7 12H5z', filled: true },
 		chevron: { d: 'm6 9 6 6 6-6' },
 		search: { d: 'm20 20-4.2-4.2', circle: { cx: 11, cy: 11, r: 7 } },
+		sidebar: { d: 'M9 4v16', rect: { x: 3, y: 4, w: 18, h: 16, rx: 2 } },
 	};
 
 	const icon = $derived(ICONS[name]);
