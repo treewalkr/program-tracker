@@ -5,9 +5,8 @@
  *   bun run release 0.2.0      explicit version (must be newer)
  *   bun run release --current  tag the current version as-is (no bump commit)
  *
- * Never pushes. Prints what to do next, including a warning when the release
- * carries DB migrations — run them on Supabase before pushing, because Render
- * deploys the API as soon as main is pushed.
+ * Never pushes. Pushing main is the deploy: CI tests, migrates Supabase,
+ * deploys the web Worker, then the API on Render (.github/workflows/ci.yml).
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -74,11 +73,9 @@ sh(`git log --reverse --pretty=format:'%h %ad %s' --date=format:'%Y-%m-%d %H:%M:
 console.log(`\n${notes}\n`);
 console.log(`Tagged ${tag} (${sh("git rev-parse --short HEAD")}). Nothing pushed.\n`);
 console.log("Next:");
-let step = 1;
+console.log("  git push --follow-tags origin main");
+console.log("  CI then tests, migrates Supabase, deploys the web Worker and the API (Render).");
 if (migrations.length) {
   const shown = migrations.length > 3 ? [...migrations.slice(-3), `+${migrations.length - 3} earlier`] : migrations;
-  console.log(`  ${step++}. Migrate Supabase FIRST (migrate skips ones already applied) — new: ${shown.join(", ")}`);
-  console.log("     set -a && source .env.production && set +a && bun run db:migrate");
+  console.log(`  This release adds migrations (${shown.join(", ")}) — CI runs them before the API deploys.`);
 }
-console.log(`  ${step++}. git push --follow-tags   (Render deploys the API)`);
-console.log(`  ${step++}. Web: build apps/web with PUBLIC_API_MODE=live, then bunx wrangler deploy`);

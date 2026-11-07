@@ -95,9 +95,9 @@ the sidebar footer, `GET /health` (`build`) and every feedback item.
    `chore: release v0.1.4`, and tags `v0.1.4` with notes from the `feat:`/`fix:` commits.
    Use `bun run release 0.2.0` for an explicit version, or `--current` to tag the
    current version without a bump. It never pushes.
-2. **Migrate Supabase first** when the release adds files in `packages/db/drizzle/`
-   (the script warns). Render deploys the API as soon as `main` is pushed.
-3. `git push --follow-tags`, then deploy the web with `bunx wrangler deploy`.
+2. `git push --follow-tags origin main` is the deploy. CI runs the tests, migrates
+   Supabase, deploys the web Worker, then the API on Render, in that order
+   (`.github/workflows/ci.yml`).
 
 ## Docs
 
