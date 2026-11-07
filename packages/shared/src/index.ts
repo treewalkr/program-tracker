@@ -8,3 +8,4 @@ export * from "./diff";
 export * from "./slots";
 export * from "./preferences";
 export * from "./examples";
+export * from "./feedback";
