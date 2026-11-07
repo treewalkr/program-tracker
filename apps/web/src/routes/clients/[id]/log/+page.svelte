@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
+  import { localIso } from "$lib/overview";
   import type { ClientDto, ProgramDto, ProgramSessionDto, SessionLogDto } from "$lib/api/types";
   import { sessionTag, sessionsByWeekday, weekOf, type SetType } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
@@ -32,7 +33,7 @@
   let exerciseNames = $state(new Map<string, string>());
   let selectedWeekNumber = $state<number>(1);
   let sessionId = $state<string>("");
-  let date = $state(new Date().toISOString().slice(0, 10));
+  let date = $state(localIso(new Date()));
   let energy = $state<number>(7);
   let notes = $state("");
   let saving = $state(false);

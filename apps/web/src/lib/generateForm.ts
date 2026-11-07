@@ -1,3 +1,4 @@
+import { localIso } from "./overview";
 import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, SessionLogDto } from "./api/types";
 
 /** Pure derivations for the generate form: titles, the "What the AI reads" ledger, and the request body. */
@@ -55,7 +56,7 @@ export function pendingProgram(gens: GenerationDto[], programs: ProgramDto[]): P
 }
 
 export function recentLogCount(logs: SessionLogDto[], now: Date = new Date()): number {
-  const since = new Date(now.getTime() - LOG_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const since = localIso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - LOG_WINDOW_DAYS));
   return logs.filter((l) => l.date >= since).length;
 }
 

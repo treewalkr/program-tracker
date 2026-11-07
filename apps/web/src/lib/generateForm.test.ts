@@ -182,6 +182,18 @@ test("recentLogCount counts only the last 56 days", () => {
   expect(recentLogCount(logs, new Date("2026-11-06T12:00:00Z"))).toBe(2);
 });
 
+test("recentLogCount window edge is the local calendar day, not UTC", () => {
+  const logs = [mkLog("b", "2026-09-11"), mkLog("c", "2026-09-10")];
+  // bun test runs in UTC; pin a zone east of Greenwich, where 00:30 local is still yesterday in UTC
+  const tz = process.env.TZ;
+  process.env.TZ = "Asia/Bangkok";
+  try {
+    expect(recentLogCount(logs, new Date(2026, 10, 6, 0, 30))).toBe(1);
+  } finally {
+    process.env.TZ = tz;
+  }
+});
+
 describe("composeRequest", () => {
   const tpl = [mkTpl("a", "rule a")];
 

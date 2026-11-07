@@ -10,6 +10,7 @@
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
   import { weekOptions } from "$lib/format";
+  import { localIso } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
@@ -58,7 +59,7 @@
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localIso(new Date());
   const todayNum = isoDay(new Date());
   const sortedDays = $derived([...(client?.trainingDays ?? [])].sort((a, b) => a - b));
 
