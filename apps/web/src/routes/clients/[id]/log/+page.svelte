@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
@@ -12,6 +12,16 @@
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
+  import {
+    cellNumber,
+    isBlank,
+    rowFilled,
+    serverFieldErrors,
+    toLoggedSet,
+    validateRows,
+    type Cell,
+    type FieldErrors,
+  } from "$lib/logSheet";
 
   const id = $derived(page.params.id ?? "");
 
@@ -29,6 +39,7 @@
   let oneClickBusy = $state(false);
   let savedCount = $state(0);
   let error = $state<string | null>(null);
+  let fieldErrors = $state<FieldErrors>({});
 
   interface Row {
     key: string;
@@ -44,14 +55,21 @@
     prescribedWeight: number | null;
     targetRpe: number | null;
     lastWeight: number | null;
-    weight: string;
-    reps: string;
-    rpe: string;
+    weight: Cell;
+    reps: Cell;
+    rpe: Cell;
   }
 
   let rows = $state<Row[]>([]);
 
-  let cardioForm = $state({
+  let cardioForm = $state<{
+    modality: string;
+    durationMin: Cell;
+    hrZone: string;
+    intensity: string;
+    distanceKm: Cell;
+    rpe: Cell;
+  }>({
     modality: "",
     durationMin: "",
     hrZone: "",
@@ -72,7 +90,7 @@
     return map;
   });
 
-  const doneCount = $derived(rows.filter((r) => r.reps !== "").length);
+  const doneCount = $derived(rows.filter((r) => !isBlank(r.reps)).length);
   const prefillable = $derived(rows.length > 0 && doneCount < rows.length);
 
   const selectedWeek = $derived(
@@ -107,6 +125,7 @@
   function loadSession() {
     savedCount = 0;
     error = null;
+    fieldErrors = {};
     if (!program || !sessionId) {
       rows = [];
       return;
@@ -155,14 +174,14 @@
   /** Fill every empty row: weight from prescription (else last time), reps + RPE from prescription. */
   function prefill() {
     for (const r of rows) {
-      if (r.weight === "" && (r.prescribedWeight ?? r.lastWeight) != null) {
-        r.weight = String(r.prescribedWeight ?? r.lastWeight);
+      if (isBlank(r.weight) && (r.prescribedWeight ?? r.lastWeight) != null) {
+        r.weight = r.prescribedWeight ?? r.lastWeight;
       }
-      if (r.reps === "") {
+      if (isBlank(r.reps)) {
         const target = r.prescribedDuration ?? r.prescribedReps;
-        if (target != null && target > 0) r.reps = String(target);
+        if (target != null && target > 0) r.reps = target;
       }
-      if (r.rpe === "") r.rpe = r.targetRpe != null ? String(r.targetRpe) : "";
+      if (isBlank(r.rpe) && r.targetRpe != null) r.rpe = r.targetRpe;
     }
   }
 
@@ -172,7 +191,7 @@
       await saveCardio();
       return;
     }
-    await save(rows.filter((r) => r.reps !== "" || r.weight !== ""));
+    await save(rows.filter(rowFilled));
   }
 
   async function saveCardio() {
@@ -193,11 +212,11 @@
         kind: "cardio",
         cardio: {
           modality: cardioForm.modality.trim(),
-          durationMin: cardioForm.durationMin === "" ? null : Number(cardioForm.durationMin),
-          hrZone: cardioForm.hrZone === "" ? null : Number(cardioForm.hrZone),
+          durationMin: cellNumber(cardioForm.durationMin) ?? null,
+          hrZone: cellNumber(cardioForm.hrZone) ?? null,
           intensity: cardioForm.intensity.trim() === "" ? undefined : cardioForm.intensity.trim(),
-          distanceKm: cardioForm.distanceKm === "" ? undefined : Number(cardioForm.distanceKm),
-          rpe: cardioForm.rpe === "" ? undefined : Number(cardioForm.rpe),
+          distanceKm: cellNumber(cardioForm.distanceKm),
+          rpe: cellNumber(cardioForm.rpe),
         },
         sets: [],
       });
@@ -216,6 +235,12 @@
       error = "Enter at least one set — weight and reps.";
       return;
     }
+    fieldErrors = validateRows(filled);
+    if (Object.keys(fieldErrors).length > 0) {
+      error = "Fix the highlighted cells, then save.";
+      await focusFirstInvalid();
+      return;
+    }
     saving = true;
     error = null;
     try {
@@ -226,25 +251,33 @@
         date,
         perceivedEnergy: energy,
         notes: notes || undefined,
-        sets: filled.map((r) => ({
-          programExerciseId: r.programExerciseId,
-          exerciseId: r.exerciseId,
-          setNumber: r.setNumber,
-          type: r.type,
-          weightKg: r.weight === "" ? undefined : Number(r.weight),
-          reps: Number(r.reps || r.prescribedReps || 0),
-          rpe: r.rpe === "" ? undefined : Number(r.rpe),
-        })),
+        sets: filled.map(toLoggedSet),
       });
       const count = filled.length;
       notes = "";
       loadSession();
       savedCount = count;
     } catch (err) {
-      error = (err as Error).message;
+      fieldErrors = serverFieldErrors((err as { issues?: unknown }).issues, filled);
+      const flagged = Object.keys(fieldErrors).length > 0;
+      error = flagged ? "Fix the highlighted cells, then save." : (err as Error).message;
+      if (flagged) await focusFirstInvalid();
     } finally {
       saving = false;
     }
+  }
+
+  /** Put the trainer on the first flagged cell — it may be far up the sheet. */
+  async function focusFirstInvalid() {
+    await tick();
+    document.querySelector<HTMLInputElement>('.sheet [aria-invalid="true"]')?.focus();
+  }
+
+  /** Editing a flagged cell clears its flag; the rest stay until the next save. */
+  function clearCell(key: string, field: "weight" | "reps" | "rpe") {
+    if (!fieldErrors[key]?.[field]) return;
+    const { [field]: _, ...rest } = fieldErrors[key];
+    fieldErrors = { ...fieldErrors, [key]: rest };
   }
 
   /** One click: session happened exactly as prescribed. */
@@ -392,7 +425,8 @@
           </thead>
           <tbody>
             {#each rows as r (r.key)}
-              <tr class:filled={r.reps !== ""}>
+              {@const fe = fieldErrors[r.key]}
+              <tr class:filled={!isBlank(r.reps)}>
                 <td>
                   <strong>{r.exerciseName}</strong>
                 </td>
@@ -401,9 +435,9 @@
                   {fmtSet({ reps: r.prescribedReps ?? 0, repsMin: r.prescribedMin ?? undefined, amrap: r.prescribedAmrap, durationSeconds: r.prescribedDuration ?? undefined, targetWeightKg: r.prescribedWeight })}{#if r.targetRpe != null} @ {r.targetRpe}{/if}
                 </td>
                 <td class="num pre">{r.lastWeight ?? "—"}</td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, kg`} placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} /></td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, reps`} placeholder={r.prescribedDuration != null ? String(r.prescribedDuration) : r.prescribedReps === 0 && r.prescribedAmrap ? "max" : String(r.prescribedReps ?? "")} bind:value={r.reps} /></td>
-                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" min="1" max="10" step="0.5" aria-label={`${r.exerciseName} set ${r.setNumber}, RPE`} placeholder="—" bind:value={r.rpe} /></td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" step="0.5" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, kg`} placeholder={r.prescribedWeight != null ? String(r.prescribedWeight) : r.lastWeight != null ? String(r.lastWeight) : "—"} bind:value={r.weight} aria-invalid={fe?.weight ? true : undefined} aria-describedby={fe?.weight ? `${r.key}-weight-err` : undefined} oninput={() => clearCell(r.key, "weight")} />{#if fe?.weight}<span class="cell-err" id={`${r.key}-weight-err`}>{fe.weight}</span>{/if}</td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="numeric" min="0" aria-label={`${r.exerciseName} set ${r.setNumber}, reps`} placeholder={r.prescribedDuration != null ? String(r.prescribedDuration) : r.prescribedReps === 0 && r.prescribedAmrap ? "max" : String(r.prescribedReps ?? "")} bind:value={r.reps} aria-invalid={fe?.reps ? true : undefined} aria-describedby={fe?.reps ? `${r.key}-reps-err` : undefined} oninput={() => clearCell(r.key, "reps")} />{#if fe?.reps}<span class="cell-err" id={`${r.key}-reps-err`}>{fe.reps}</span>{/if}</td>
+                <td class="cell"><input class="input tnum" type="number" inputmode="decimal" min="1" max="10" step="0.5" aria-label={`${r.exerciseName} set ${r.setNumber}, RPE`} placeholder="—" bind:value={r.rpe} aria-invalid={fe?.rpe ? true : undefined} aria-describedby={fe?.rpe ? `${r.key}-rpe-err` : undefined} oninput={() => clearCell(r.key, "rpe")} />{#if fe?.rpe}<span class="cell-err" id={`${r.key}-rpe-err`}>{fe.rpe}</span>{/if}</td>
               </tr>
             {/each}
           </tbody>
@@ -470,6 +504,8 @@
   td.cell { width: 84px; }
   .tnum { text-align: right; font-family: var(--font-mono); padding: 5px 8px; }
   tr.filled td { background: var(--well); }
+  td.cell .input[aria-invalid="true"] { border-color: var(--bad); }
+  .cell-err { display: block; margin-top: 3px; font-size: 11px; line-height: 1.2; color: var(--bad); text-align: right; }
 
   .foot {
     display: grid;

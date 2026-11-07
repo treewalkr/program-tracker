@@ -49,12 +49,14 @@ async function unwrap<T>(
 ): Promise<T> {
   const { data, error } = await p;
   if (error) {
-    const value = error.value as { error?: string } | string | null;
+    const value = error.value as { error?: string; issues?: unknown } | string | null;
     const message = typeof value === "string" ? value : value?.error;
     const code = typeof error.status === "number" ? error.status : "unknown";
     // session expired mid-use — back to sign-in, then here again
     if (code === 401 && browser) window.location.assign(toLogin(new URL(window.location.href)));
-    throw new Error(message ?? `request failed: ${code}`);
+    // validation detail rides along so forms can point at the offending field
+    const issues = typeof value === "object" && value ? value.issues : undefined;
+    throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code, issues });
   }
   return datesToIso(data) as T;
 }
