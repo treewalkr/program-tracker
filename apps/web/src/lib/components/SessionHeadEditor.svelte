@@ -1,18 +1,25 @@
 <script lang="ts">
-  import type { ProgramSessionDto } from "$lib/api/types";
+  import type { ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { defaultCardio, switchSessionKind, type SessionKind } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
+  import SessionTypePicker from "./SessionTypePicker.svelte";
 
-  /** Inline editor for a session's name, kind, notes and cardio prescription.
+  /** Inline editor for a session's name, type (which sets its kind), notes and cardio prescription.
    *  Placement (day, order) lives on the week calendar, not here. */
   let {
     session = $bindable(),
+    types,
+    oncreatetype,
     nextSeqFor,
     onday,
     onremove,
     onclose,
   }: {
     session: ProgramSessionDto;
+    /** Trainer's session types for the picker. */
+    types: SessionTypeDto[];
+    /** Saves a new type from the picker and returns it. */
+    oncreatetype?: (input: SessionTypeInput) => Promise<SessionTypeDto>;
     /** Next free number on a kind's track, so a kind switch keeps keys unique. */
     nextSeqFor: (kind: SessionKind) => number;
     /** Move to a weekday (null = any day), appended to that day. Touch/keyboard fallback for the calendar. */
@@ -32,16 +39,19 @@
       <span>Session name</span>
       <input class="input" maxlength="160" bind:value={session.name} />
     </label>
-    <label class="f">
-      <span>Kind</span>
-      <select class="select" value={session.kind} onchange={(e) => {
-        const kind = e.currentTarget.value as SessionKind;
-        session = switchSessionKind(session, kind, nextSeqFor(kind));
-      }}>
-        <option value="lifting">Lifting</option>
-        <option value="cardio">Cardio</option>
-      </select>
-    </label>
+    <div class="f">
+      <span>Type</span>
+      <SessionTypePicker
+        value={session.typeId}
+        format={session.kind}
+        {types}
+        onpick={(t) => {
+          const switched = t.format === session.kind ? session : switchSessionKind(session, t.format, nextSeqFor(t.format));
+          session = { ...switched, typeId: t.id, typeName: t.name };
+        }}
+        oncreate={oncreatetype}
+      />
+    </div>
     <label class="f">
       <span>Day</span>
       <select class="select" value={String(session.weekday ?? 0)} onchange={(e) => onday(Number(e.currentTarget.value) || null)}>

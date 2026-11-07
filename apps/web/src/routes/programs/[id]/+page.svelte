@@ -25,7 +25,7 @@
     type SessionKind,
   } from "@pt/shared";
   import { EXAMPLE_LEVELS } from "@pt/shared";
-  import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto } from "$lib/api/types";
+  import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
   import { programSubline, snapshot } from "$lib/programEdit";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
@@ -57,6 +57,12 @@
     return created;
   }
   const catalogById = $derived(new Map(catalog.map((e) => [e.id, e])));
+  let types = $state<SessionTypeDto[]>([]);
+  async function addType(input: SessionTypeInput) {
+    const created = await api.createSessionType(input);
+    types.push(created);
+    return created;
+  }
   /** Saved state of the program; edits are live on `program` and compared against this. */
   let baseline = $state("");
   let openExercise = $state<string | null>(null);
@@ -133,7 +139,7 @@
   async function load() {
     program = await api.program(id);
     baseline = snapshot(program);
-    catalog = await api.exercises();
+    [catalog, types] = await Promise.all([api.exercises(), api.sessionTypes()]);
     const mine = await api.examples(id);
     existingExample = mine[0] ?? null;
     if (!existingExample) marking = false;
@@ -376,7 +382,7 @@
         {@const sessExercises = s.exercises.map((e) => ({ movementPattern: patternOf(e.exerciseId) }))}
         <section class="panel" class:sel={selected === s.id} id="sess-{s.id}">
           <div class="panel-head">
-            <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}</span>
+            <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}{#if s.typeName} · <span class="stype">{s.typeName}</span>{/if}</span>
             {#if s.kind === "lifting"}<span class="subtle">{formatPatternBalance(patternBalance(sessExercises))}</span>{/if}
           </div>
 
@@ -385,6 +391,8 @@
               {#if openSession === s.id}
                 <SessionHeadEditor
                   bind:session={currentWeek.sessions[si]}
+                  {types}
+                  oncreatetype={addType}
                   nextSeqFor={(kind) => nextSeq(currentWeek.sessions.filter((x) => x.id !== s.id), kind)}
                   onday={(wd) => place(s.id, wd, 99)}
                   onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); openSession = null; }}
@@ -591,6 +599,7 @@
   .scope button + button { border-left: none; border-radius: 0 var(--radius) var(--radius) 0; }
   .scope button.on { background: var(--well-2); color: var(--ink); font-weight: 600; }
   .eyebrow { font: 500 11.5px var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; margin-right: auto; }
+  .stype { color: var(--ink); }
   .panel.sel { border-color: var(--focus); }
   .panel { scroll-margin-top: 16px; }
   .session-header .edit-link { margin-left: auto; }

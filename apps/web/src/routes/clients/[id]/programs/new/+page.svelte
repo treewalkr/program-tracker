@@ -13,6 +13,8 @@
     PeriodizationSchemeDto,
     PrescribedSetDto,
     ProgramExerciseDto,
+    SessionTypeDto,
+    SessionTypeInput,
   } from "$lib/api/types";
   import {
     defaultCardio,
@@ -27,6 +29,7 @@
   } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
+  import SessionTypePicker from "$lib/components/SessionTypePicker.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
@@ -48,6 +51,14 @@
     return created;
   }
 
+  let types = $state<SessionTypeDto[]>([]);
+  /** New type from the picker: save it, keep every session's picker in sync. */
+  async function addType(input: SessionTypeInput) {
+    const created = await api.createSessionType(input);
+    types.push(created);
+    return created;
+  }
+
   let name = $state("");
   let description = $state("");
   let plannedWeeks = $state(4);
@@ -62,6 +73,8 @@
     key: string;
     name: string;
     kind: "lifting" | "cardio";
+    /** Trainer's session type; picking one sets `kind` to its format. */
+    typeId?: string;
     cardio: CardioPrescriptionDto;
     exercises: ProgramExerciseDto[];
   }
@@ -326,6 +339,8 @@
       const weekday = placement.get(s.key) ?? null;
       const order = used.get(weekday ?? 0) ?? 0;
       used.set(weekday ?? 0, order + 1);
+      const type = types.find((t) => t.id === s.typeId && t.format === s.kind);
+      const typed = type ? { typeId: type.id, typeName: type.name } : {};
       let session: ProgramSession;
       if (s.kind === "cardio") {
         session = {
@@ -335,6 +350,7 @@
           weekday,
           order,
           kind: "cardio",
+          ...typed,
           exercises: [],
           cardio: {
             modality: s.cardio.modality.trim() || "Cardio",
@@ -353,6 +369,7 @@
           weekday,
           order,
           kind: "lifting",
+          ...typed,
           cardio: null,
           exercises: sortExercisesByRole($state.snapshot(s.exercises)).map((e, ei) => ({
             ...e,
@@ -401,8 +418,7 @@
   onMount(async () => {
     const detail = await api.client(id);
     client = detail.client;
-    catalog = await api.exercises();
-    schemes = await api.schemes();
+    [catalog, schemes, types] = await Promise.all([api.exercises(), api.schemes(), api.sessionTypes()]);
     if (schemes.length > 0) {
       schemeMode = "saved";
       selectedSchemeId = schemes[0].id;
@@ -610,10 +626,18 @@
               maxlength="60"
               aria-label="{tag} name"
             />
-            <select class="select kind" bind:value={s.kind} aria-label="{tag} kind">
-              <option value="lifting">Lifting</option>
-              <option value="cardio">Cardio</option>
-            </select>
+            <SessionTypePicker
+              small
+              value={s.typeId}
+              format={s.kind}
+              {types}
+              label="{tag} type"
+              onpick={(t) => {
+                s.typeId = t.id;
+                s.kind = t.format;
+              }}
+              oncreate={addType}
+            />
             {#if sessions.length > 1}
               <ConfirmButton
                 label="Remove"
@@ -765,7 +789,6 @@
   .sess-name:focus { background: var(--surface); border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15); }
 
   .sess-body { display: flex; flex-direction: column; gap: 14px; }
-  .kind { width: auto; flex: none; padding: 3px 28px 3px 8px; font-size: 12.5px; }
   .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
   .f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .f.grow { flex: 1; min-width: 160px; }
