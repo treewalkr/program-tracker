@@ -314,6 +314,7 @@
           >
             <div class="body">
               <div class="meta">
+                {#if fresh.has(item.id)}<span class="lamp" aria-hidden="true"></span>{/if}
                 <span class="handle">{feedbackHandle(item.number)}</span>
                 <Pill tone={STATUS_TONE[item.status]}>
                   {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
@@ -325,10 +326,11 @@
                     <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
                   {/snippet}
                 </Tooltip>
+                <span class="spacer"></span>
                 <MuteToggle {item} onchange={(muted) => (items = items.map((i) => (i.id === item.id ? { ...i, muted } : i)))} />
               </div>
 
-              <blockquote>{item.comment}</blockquote>
+              <p class="comment">{item.comment}</p>
 
               <dl>
                 {#if !isPinned(c)}
@@ -379,7 +381,16 @@
 
               <Thread {item} />
 
-              {#if isAdmin}
+              {#if !isAdmin && item.triageNote}
+                <div class="team-note">
+                  <span class="label">Note from the team</span>
+                  <p>{item.triageNote}</p>
+                </div>
+              {/if}
+            </div>
+
+            {#if isAdmin}
+              <div class="triage-box">
                 <label class="triage">
                   <span>Triage note <span class="muted">— your call, read by the agent</span></span>
                   <textarea
@@ -389,15 +400,7 @@
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
                   ></textarea>
                 </label>
-              {:else if item.triageNote}
-                <div class="team-note">
-                  <span class="label">Note from the team</span>
-                  <p>{item.triageNote}</p>
-                </div>
-              {/if}
-
-              {#if isAdmin}
-              <div class="actions">
+                <div class="actions">
                 {#if item.status === "new"}
                   <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
                   <Button small onclick={() => triage(item, { status: "wontfix" })}>Won't fix</Button>
@@ -413,9 +416,9 @@
                 {/if}
                 <span class="spacer"></span>
                 <ConfirmButton small variant="ghost" class="danger" onconfirm={() => remove(item)} />
+                </div>
               </div>
-              {/if}
-            </div>
+            {/if}
           </li>
         {/each}
       </ol>
@@ -424,12 +427,13 @@
 </div>
 
 <style>
+  /* The shell pads the page; this column only caps the reading width. */
   .page {
-    max-width: var(--page-max);
-    padding: 24px 32px 96px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    max-width: 960px;
+    padding-bottom: 32px;
+  }
+  .page > :global(.note) {
+    margin-bottom: 16px;
   }
   .list {
     list-style: none;
@@ -442,8 +446,8 @@
   .item {
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 16px;
     background: var(--surface);
+    overflow: hidden;
   }
   .item[aria-busy="true"] {
     opacity: 0.6;
@@ -452,9 +456,13 @@
     scroll-margin-top: 16px;
     transition: box-shadow 0.4s ease;
   }
-  .item.fresh {
-    border-left: 3px solid var(--blue);
-    padding-left: 14px;
+  /* New activity: a lamp beside the handle plus the label — never an edge stripe. */
+  .lamp {
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--blue);
+    flex: none;
   }
   .item.flash {
     box-shadow: 0 0 0 3px var(--focus);
@@ -477,10 +485,15 @@
     max-height: 280px;
     object-fit: contain;
     object-position: left top;
+    border-radius: 4px;
+    background: var(--surface);
+  }
+  .shot > img {
+    box-sizing: content-box;
+    padding: 6px;
+    background: var(--well);
     border: 1px solid var(--line-soft);
     border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: 0 0 0 4px var(--well);
   }
   figcaption {
     font-size: 12px;
@@ -488,8 +501,9 @@
   .body {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
+    padding: 14px 16px 16px;
   }
   .meta {
     display: flex;
@@ -539,13 +553,13 @@
     font-size: 12px;
     color: var(--muted);
   }
-  blockquote {
+  /* The comment is the ticket's headline. */
+  .comment {
     margin: 0;
-    padding: 2px 0 2px 12px;
-    border-left: 3px solid var(--line-strong);
-    font-size: 15px;
-    line-height: 1.5;
+    font: 500 15px/1.5 var(--font-ui);
+    color: var(--ink);
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
     max-width: var(--measure-prose);
   }
   dl {
@@ -577,6 +591,15 @@
     font-weight: 600;
     white-space: nowrap;
   }
+  /* Admin-only triage sits in the box footer, apart from what the reporter wrote. */
+  .triage-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line-soft);
+    background: var(--well);
+  }
   .triage {
     display: flex;
     flex-direction: column;
@@ -605,6 +628,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    margin-bottom: 8px;
     padding: 16px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -657,9 +681,24 @@
   .spacer {
     flex: 1;
   }
-  @media (max-width: 760px) {
-    .page {
-      padding: 16px 16px 96px;
+  @media (max-width: 520px) {
+    dl {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    dd + dt {
+      margin-top: 6px;
+    }
+    .body {
+      padding: 12px;
+    }
+    .triage-box {
+      padding: 12px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .item {
+      transition: none;
     }
   }
 </style>
