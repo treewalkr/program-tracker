@@ -109,7 +109,7 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
     return send(
       to([snap.admin]),
       compose(snap, `[${handle}] New feedback from ${actorName}: "${clip(item.comment, 60)}"`, {
-        lead: `${actorName} left feedback on ${item.route}:`,
+        lead: item.route ? `${actorName} left feedback on ${item.route}:` : `${actorName} filed a ticket:`,
         quote: item.comment.trim(),
       }),
     );

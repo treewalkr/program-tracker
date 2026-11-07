@@ -51,6 +51,34 @@ export interface FeedbackContext {
   appVersion: string;
 }
 
+/**
+ * Filed from the Feedback page's composer rather than by clicking an element:
+ * the target is empty and the route (if any) is what the reporter typed.
+ */
+export const isPinned = (c: FeedbackContext): boolean => c.target.selector !== "";
+
+/** Context for a ticket written on the Feedback page, not pinned to an element. */
+export function unpinnedContext(
+  path: string,
+  env: { viewport: FeedbackContext["viewport"]; userAgent: string; appVersion: string },
+): FeedbackContext {
+  return {
+    route: { path, id: null, params: {} },
+    target: {
+      source: null,
+      chain: [],
+      tag: "",
+      text: "",
+      html: "",
+      headings: [],
+      selector: "",
+      rect: { x: 0, y: 0, width: 0, height: 0 },
+    },
+    pageData: null,
+    ...env,
+  };
+}
+
 /** The trainer who filed an item (or wrote a reply). */
 export interface FeedbackAuthor {
   id: string;
@@ -163,16 +191,18 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push("");
   lines.push(`> ${item.comment.trim().split("\n").join("\n> ")}`);
   lines.push("");
-  lines.push(`- **Route:** \`${c.route.path}\`${c.route.id ? ` (route \`${c.route.id}\`)` : ""}`);
+  const pinned = isPinned(c);
+  if (!pinned) lines.push("- **Filed as:** a general ticket from the Feedback page — not pinned to an element");
+  if (c.route.path) lines.push(`- **Route:** \`${c.route.path}\`${c.route.id ? ` (route \`${c.route.id}\`)` : ""}`);
   const params = Object.entries(c.route.params);
   if (params.length) lines.push(`- **Params:** ${params.map(([k, v]) => `${k}=\`${v}\``).join(", ")}`);
-  lines.push(`- **Source:** ${item.source ? `\`${item.source}\`` : "unknown (no dev metadata)"}`);
+  if (pinned) lines.push(`- **Source:** ${item.source ? `\`${item.source}\`` : "unknown (no dev metadata)"}`);
   if (c.target.chain.length) {
     lines.push(
       `- **Rendered via:** ${c.target.chain.map((e) => `\`${formatSourceLoc(e)}\``).join(" ← ")}`,
     );
   }
-  lines.push(`- **Element:** \`<${c.target.tag}>\` · selector \`${c.target.selector}\``);
+  if (pinned) lines.push(`- **Element:** \`<${c.target.tag}>\` · selector \`${c.target.selector}\``);
   if (c.target.headings.length) lines.push(`- **Under heading:** ${c.target.headings.map((h) => `"${h}"`).join(" › ")}`);
   if (c.target.text) lines.push(`- **Visible text:** "${c.target.text}"`);
   lines.push(
@@ -199,12 +229,14 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       );
     }
   }
-  lines.push("");
-  lines.push("<details><summary>Element HTML</summary>");
-  lines.push("");
-  lines.push(fence("html", c.target.html));
-  lines.push("");
-  lines.push("</details>");
+  if (pinned) {
+    lines.push("");
+    lines.push("<details><summary>Element HTML</summary>");
+    lines.push("");
+    lines.push(fence("html", c.target.html));
+    lines.push("");
+    lines.push("</details>");
+  }
   const hasData =
     c.pageData !== null &&
     c.pageData !== undefined &&

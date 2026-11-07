@@ -4,6 +4,7 @@ import {
   feedbackMarkdown,
   snapshotJson,
   toRepoPath,
+  unpinnedContext,
   type FeedbackItem,
 } from "./feedback";
 
@@ -129,6 +130,20 @@ describe("feedbackMarkdown", () => {
     expect(md).toContain("- **Reported by:** Kai");
     const anon = feedbackMarkdown([item({ author: null })], { imageUrl: () => null });
     expect(anon).toContain("- **Reported by:** unknown");
+  });
+  test("unpinned tickets skip element details", () => {
+    const env = { viewport: { width: 1280, height: 900, dpr: 1 }, userAgent: "Safari", appVersion: "0.1.2" };
+    const ctx = unpinnedContext("", env);
+    const out = feedbackMarkdown([item({ source: null, route: "", context: ctx, hasElementShot: false })], {
+      imageUrl: () => null,
+    });
+    expect(out).toContain("not pinned to an element");
+    expect(out).not.toContain("**Route:**");
+    expect(out).not.toContain("**Source:**");
+    expect(out).not.toContain("**Element:**");
+    expect(out).not.toContain("Element HTML");
+    const withPage = feedbackMarkdown([item({ context: unpinnedContext("/clients", env) })], { imageUrl: () => null });
+    expect(withPage).toContain("- **Route:** `/clients`");
   });
   test("multi-line comments stay quoted", () => {
     const out = feedbackMarkdown([item({ comment: "line one\nline two" })], { imageUrl: () => null });
