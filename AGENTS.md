@@ -13,6 +13,11 @@
 - **`svelte5-best-practices`** — Svelte 5 runes, snippets, and SvelteKit patterns; consult when writing or reviewing Svelte components
 - **`impeccable`** — UI design and polish; consult to avoid generic "AI slop" design — every screen must feel intentional and bespoke (design direction in `BRIEF.md`)
 
+## Planning & Delegation
+
+- **Plan mode** — plan on Opus: `medium` effort for normal tasks, `high` for complex ones
+- **Build** — after the plan is approved, hand the implementation to `delegate_task` at `medium` effort
+
 # Commit Rules
 
 ## Frequency
