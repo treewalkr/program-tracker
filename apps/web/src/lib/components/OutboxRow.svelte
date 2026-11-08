@@ -32,6 +32,9 @@
   const failure = $derived(m.attempts.findLast((a) => !a.ok)?.error);
   const okAttempt = $derived(m.attempts.find((a) => a.ok));
   const tries = $derived(m.attempts.length);
+  /** Labels usually name the kind already ("FB-12 · Reply"); repeat it only when they don't. */
+  const kind = $derived(KIND[m.kind] ?? m.kind);
+  const showKind = $derived(!m.label.toLowerCase().includes(kind.toLowerCase()));
 
   const clock = (iso: string) =>
     new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -42,7 +45,7 @@
   const fact = $derived.by(() => {
     switch (m.status) {
       case "queued":
-        return `waiting ${span(now - Date.parse(m.createdAt))}`;
+        return "in queue";
       case "sending":
         return "handing to provider";
       case "retrying":
@@ -82,7 +85,7 @@
       {:else}
         <span>{m.label}</span>
       {/if}
-      <span class="kind">{KIND[m.kind] ?? m.kind}</span>
+      {#if showKind}<span class="kind">{kind}</span>{/if}
     </div>
     <div class="meta">
       {#if tries > 1 || m.status === "retrying"}
@@ -245,18 +248,18 @@
     align-items: baseline;
     justify-content: flex-end;
     gap: 12px;
-    font: 400 12px/1.4 var(--font-mono);
+    font: 400 12px/1.4 var(--font-ui);
     font-variant-numeric: tabular-nums;
     color: var(--muted);
     white-space: nowrap;
   }
   .tries {
+    font-family: var(--font-mono);
     padding: 1px 6px;
     border-radius: var(--radius);
     background: var(--chip-bg);
     color: var(--ink);
   }
-  .state { font-family: var(--font-ui); }
   .state.retrying { color: var(--warn); }
   .state.dead { color: var(--bad); }
   .meta time { min-width: 7ch; text-align: right; color: var(--faint); }
@@ -367,13 +370,14 @@
       gap: 2px;
       padding: 8px 12px 10px 4px;
     }
+    /* status and recipient share the first line; the label and meta follow */
     .toggle {
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas: "status chev" "who chev";
-      gap: 6px 8px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      padding-block: 0;
     }
-    .status { grid-area: status; }
-    .who { grid-area: who; flex-wrap: wrap; gap: 0 8px; }
+    .sent { padding-left: 0; }
+    .who { flex-wrap: wrap; gap: 0 8px; }
     .chev { grid-area: chev; }
     .what, .meta { padding-left: 8px; }
     .what { flex-wrap: wrap; gap: 0 8px; }
