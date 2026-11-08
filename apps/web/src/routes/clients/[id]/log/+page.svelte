@@ -107,6 +107,8 @@
   const prefillable = $derived(rows.some((r) => !r.skipped && isBlank(r.reps) && r.rx));
   const labels = $derived(rowLabels(rows, nameOf));
   const blocks = $derived(blocksOf(rows));
+  /** A card's unique name for its buttons: "Bench back-off", "Row (2nd)". */
+  const blockName = (b: { rows: Row[] }) => (labels.get(b.rows[0].key) ?? "").replace(/ (extra )?set \d+/, "");
 
   const selectedWeek = $derived(
     program?.weeks.find((w) => w.week === selectedWeekNumber) ?? program?.weeks[0] ?? null
@@ -565,12 +567,13 @@
               </div>
               <div class="blk-act">
                 {#if swapped}
-                  <Button variant="ghost" small type="button" onclick={() => swap(b.programExerciseId, head.slotExerciseId)}>Undo swap</Button>
+                  <Button variant="ghost" small type="button" aria-label={`Undo swap on ${blockName(b)}`} onclick={() => swap(b.programExerciseId, head.slotExerciseId)}>Undo swap</Button>
                 {/if}
                 <Button
                   variant="ghost"
                   small
                   type="button"
+                  aria-label={`Swap ${blockName(b)}`}
                   aria-expanded={swapOpen === b.programExerciseId}
                   onclick={() => (swapOpen = swapOpen === b.programExerciseId ? null : b.programExerciseId)}
                 >Swap</Button>
@@ -579,7 +582,7 @@
                   small
                   type="button"
                   disabled={b.rows[b.rows.length - 1].setNumber >= MAX_SETS}
-                  aria-label={`Add a set to ${nameOf(head.exerciseId)}`}
+                  aria-label={`Add a set to ${blockName(b)}`}
                   onclick={() => addSet(b.programExerciseId)}
                 >
                   {#snippet icon()}<Icon name="plus" />{/snippet}
@@ -603,6 +606,7 @@
               {@const fe = fieldErrors[r.key]}
               {@const label = labels.get(r.key) ?? r.key}
               {@const p = rxCell(r)}
+              {@const last = isSwapped(r) ? null : r.last}
               <div class="set" class:skipped={r.skipped} class:filled={!r.skipped && !isBlank(r.reps)} class:extra={r.extra}>
                 <div class="meta">
                   <span class="m-set">
@@ -610,8 +614,8 @@
                     {#if r.extra}<span class="tag">extra</span>{:else if r.type === "backoff"}<span class="tag">back-off</span>{/if}
                   </span>
                   <span class="m-rx tnum">{fmtRx(r)}</span>
-                  <span class="m-last tnum" title={r.last ? `Last done ${fmtDay(r.last.date)}${r.last.rpe != null ? ` @ RPE ${r.last.rpe}` : ""}` : "Not logged yet in this slot"}>
-                    <span class="mob">last&nbsp;</span>{fmtLast(r.last, r.timed)}
+                  <span class="m-last tnum" title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
+                    <span class="mob">last&nbsp;</span>{fmtLast(last, r.timed)}
                   </span>
                 </div>
                 {#if r.skipped}
