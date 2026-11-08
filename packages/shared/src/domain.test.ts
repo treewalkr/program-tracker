@@ -80,6 +80,38 @@ describe("PrescribedSet", () => {
   });
 });
 
+describe("PrescribedSet prescription model (F22)", () => {
+  const base = { setNumber: 1, reps: 5 };
+
+  test("%1RM, RPE range, RIR and tempo are optional extras", () => {
+    const s = PrescribedSet.parse({ ...base, percent1rm: 75, targetRpeMin: 7, targetRpe: 8, targetRir: 2, tempo: "3-1-1-0" });
+    expect([s.percent1rm, s.targetRpeMin, s.targetRpe, s.targetRir, s.tempo]).toEqual([75, 7, 8, 2, "3-1-1-0"]);
+    expect(() => PrescribedSet.parse({ ...base, percent1rm: 0 })).toThrow();
+    expect(() => PrescribedSet.parse({ ...base, percent1rm: 111 })).toThrow();
+    expect(() => PrescribedSet.parse({ ...base, targetRir: 11 })).toThrow();
+  });
+
+  test("an RPE range needs its upper bound and must not be inverted", () => {
+    expect(() => PrescribedSet.parse({ ...base, targetRpeMin: 9, targetRpe: 8 })).toThrow();
+    expect(() => PrescribedSet.parse({ ...base, targetRpeMin: 7 })).toThrow();
+    expect(() => PrescribedSet.parse({ ...base, targetRpeMin: 8, targetRpe: 8 })).not.toThrow();
+  });
+
+  test("stop RPE belongs to AMRAP sets only", () => {
+    expect(PrescribedSet.parse({ setNumber: 1, reps: 0, amrap: true, stopRpe: 9 }).stopRpe).toBe(9);
+    expect(() => PrescribedSet.parse({ ...base, stopRpe: 9 })).toThrow();
+  });
+
+  test("tempo is four phases: digits or X, dashed or packed", () => {
+    for (const t of ["3-1-1-0", "31X0", "2-0-x-1", "4010"]) {
+      expect(() => PrescribedSet.parse({ ...base, tempo: t })).not.toThrow();
+    }
+    for (const t of ["3-1-1", "31X", "3-11-0", "slow", "3–1–1–0", "3-1-10"]) {
+      expect(() => PrescribedSet.parse({ ...base, tempo: t })).toThrow();
+    }
+  });
+});
+
 describe("PrescribedSet coach formats", () => {
   test("rep range: repsMin lower bound, reps upper bound", () => {
     const s = PrescribedSet.parse({ setNumber: 1, reps: 10, repsMin: 6 });

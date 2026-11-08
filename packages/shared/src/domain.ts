@@ -413,6 +413,9 @@ export function formatPatternBalance(b: PatternBalance): string {
   return parts.length ? parts.join(" · ") : "no exercises";
 }
 
+/** Four tempo phases, each a digit (seconds) or X (explosive): "3-1-1-0" or "31X0". */
+export const TEMPO_PATTERN = /^(?:[0-9xX](?:-[0-9xX]){3}|[0-9xX]{4})$/;
+
 /** A single prescribed set within a program exercise. */
 export const PrescribedSet = z
   .object({
@@ -429,8 +432,19 @@ export const PrescribedSet = z
     durationSeconds: z.number().int().min(1).max(3600).optional(),
     /** Load target. Absent/null = auto-regulate by RPE (or bodyweight). */
     targetWeightKg: z.number().min(0).max(600).nullable().optional(),
-    /** Target rate of perceived exertion, 1–10. */
+    /** Load as a % of the client's 1RM for this exercise (resolved by `resolveLoadKg`).
+     *  When the client has that 1RM it wins over `targetWeightKg` (the fallback). */
+    percent1rm: z.number().min(1).max(110).optional(),
+    /** Target rate of perceived exertion, 1–10. With `targetRpeMin`, the range's upper bound. */
     targetRpe: z.number().min(1).max(10).optional(),
+    /** Lower bound of an RPE range (e.g. 7–8). */
+    targetRpeMin: z.number().min(1).max(10).optional(),
+    /** Reps in reserve, 0–10. */
+    targetRir: z.number().min(0).max(10).optional(),
+    /** Tempo: eccentric, bottom pause, concentric, top pause — "3-1-1-0" or "31X0" (X = explosive). */
+    tempo: z.string().regex(TEMPO_PATTERN, "tempo must be 4 phases, e.g. 3-1-1-0 or 31X0").optional(),
+    /** AMRAP only: stop the set at this RPE instead of going to failure. */
+    stopRpe: z.number().min(1).max(10).optional(),
     /** Planned rest after this set, in seconds. */
     restSeconds: z.number().int().min(0).max(600).optional(),
   })
@@ -439,6 +453,14 @@ export const PrescribedSet = z
   })
   .refine((s) => s.repsMin === undefined || s.repsMin <= s.reps, {
     message: "repsMin must be ≤ reps (reps is the range's upper bound)",
+  })
+  .refine((s) => s.targetRpeMin === undefined || (s.targetRpe !== undefined && s.targetRpeMin <= s.targetRpe), {
+    message: "targetRpeMin needs targetRpe and must be ≤ it (targetRpe is the range's upper bound)",
+    path: ["targetRpeMin"],
+  })
+  .refine((s) => s.stopRpe === undefined || s.amrap, {
+    message: "stopRpe is for AMRAP sets only",
+    path: ["stopRpe"],
   });
 export type PrescribedSet = z.infer<typeof PrescribedSet>;
 
