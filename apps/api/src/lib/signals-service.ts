@@ -37,9 +37,17 @@ export function toSignalProgram(p: ProgramRow): SignalProgram {
 /** Union of timed-hold exercises across the programs these logs belong to —
  *  history spans programs, and logged sets carry no duration of their own. */
 export async function loadTimedExerciseIds(logs: { programId: string }[]): Promise<Set<string>> {
+  return timedIdsOf(await loadLogPrograms(logs));
+}
+
+/** The programs these logs belong to (deduped). */
+export async function loadLogPrograms(logs: { programId: string }[]): Promise<ProgramRow[]> {
   const ids = [...new Set(logs.map((l) => l.programId))];
-  if (ids.length === 0) return new Set();
-  const rows = await db.select().from(programs).where(inArray(programs.id, ids));
+  if (ids.length === 0) return [];
+  return db.select().from(programs).where(inArray(programs.id, ids));
+}
+
+export function timedIdsOf(rows: ProgramRow[]): Set<string> {
   return new Set(rows.flatMap((p) => [...timedExerciseIds(toSignalProgram(p))]));
 }
 
