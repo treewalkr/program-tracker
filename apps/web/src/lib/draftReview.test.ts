@@ -14,7 +14,7 @@ import {
   type PlanWeek,
   weekTargetLabel,
 } from "./draftReview";
-import { DELOAD_VOLUME_DELTA_PERCENT } from "@pt/shared";
+import { DELOAD_VOLUME_DELTA_PERCENT, formatPatternBalance, sessionsPatternBalance } from "@pt/shared";
 import type { AiDraftDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 const plan: ProgramPhasingDto = {
@@ -121,6 +121,17 @@ describe("review checks, rationale, history", () => {
       { tone: "warn", text: "Push 2 > pull 1 sets" },
       { tone: "info", text: "Knee 2 · hip 0 sets" },
     ]);
+  });
+
+  test("program header and draft review agree on the same week's balance (F21)", () => {
+    const backoff = { ...set(7), type: "backoff" as const };
+    const week = { ...draft, sessions: [...draft.sessions, { name: "Day 3", exercises: [{ exerciseId: "row", exerciseName: "Row", prescribedSets: [set(8), set(8), backoff] }] }] };
+    const patternOf = (id: string) => catalog.get(id)?.movementPattern ?? null;
+    const b = sessionsPatternBalance(week.sessions, patternOf);
+    expect(formatPatternBalance(b)).toBe("push 2 · pull 4 · knee 2 sets");
+    const texts = reviewChecks(week, null, catalog).map((c) => c.text);
+    expect(texts).toContain(`Pull ${b.pull} ≥ push ${b.push} sets`);
+    expect(texts).toContain(`Knee ${b.knee} · hip ${b.hip} sets`);
   });
 
   test("reviewChecks counts only lifting sessions against sessionsPerWeek", () => {
