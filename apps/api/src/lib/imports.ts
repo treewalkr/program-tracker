@@ -5,9 +5,11 @@ import {
   ImportChunk,
   buildImportResult,
   chunkLines,
+  glossaryAbbreviations,
   importLines,
   matchExercise,
   numberedLines,
+  type GlossaryTerm,
   type ImportChunkOutcome,
   type ImportResult,
 } from "@pt/shared";
@@ -15,6 +17,7 @@ import { callLlm, type LlmOutcome } from "../ai/llm";
 import { buildImportMessages } from "../ai/prompt";
 import { mockImportContent } from "../ai/mock";
 import type { ProviderRuntime } from "../ai/provider";
+import { loadGlossary } from "./vocabulary";
 
 /**
  * Paste import (docs/paste-import-plan.md §1). The paste is split into chunks
@@ -26,18 +29,24 @@ import type { ProviderRuntime } from "../ai/provider";
 const outcomeError = (out: LlmOutcome<unknown>): string =>
   out.ok ? "" : out.kind === "provider" ? out.error.message : out.kind === "validation" ? out.error : "cancelled";
 
-/** Every chunk of the row's text through callLlm, in parallel. Null when the read was cancelled. */
+/**
+ * Every chunk of the row's text through callLlm, in parallel, with the
+ * trainer's effective glossary in the prompt (global only when there is no
+ * trainer — the eval). Null when the read was cancelled.
+ */
 export async function extractChunks(
   row: { id: string; trainerId: string | null; clientId: string | null; text: string },
   rt: ProviderRuntime,
   effort: string | undefined,
   signal: AbortSignal,
+  glossary?: GlossaryTerm[],
 ): Promise<ImportChunkOutcome[] | null> {
   const lines = importLines(row.text);
+  const terms = glossary ?? (await loadGlossary(row.trainerId));
   const turnId = randomUUID();
   const outcomes = await Promise.all(
     chunkLines(lines).map(async (range): Promise<ImportChunkOutcome | null> => {
-      const messages = buildImportMessages({ numbered: numberedLines(lines, range.from, range.to), ...range });
+      const messages = buildImportMessages({ numbered: numberedLines(lines, range.from, range.to), ...range, glossary: terms });
       const out = await callLlm({
         purpose: "program_import",
         builder: "buildImportMessages",
@@ -82,13 +91,23 @@ async function matchContext(trainerId: string) {
   return { catalog, aliases };
 }
 
-/** Chunk outcomes → the stored review result: checks, block grouping, exercise matching. */
-export async function importResult(trainerId: string, text: string, outcomes: ImportChunkOutcome[]): Promise<ImportResult> {
-  const result = buildImportResult(text, outcomes);
+/**
+ * Chunk outcomes → the stored review result: checks, block grouping, new
+ * words, and exercise matching with the trainer's glossary shorthand.
+ */
+export async function importResult(
+  trainerId: string,
+  text: string,
+  outcomes: ImportChunkOutcome[],
+  glossary?: GlossaryTerm[],
+): Promise<ImportResult> {
+  const terms = glossary ?? (await loadGlossary(trainerId));
+  const result = buildImportResult(text, outcomes, terms);
   const { catalog, aliases } = await matchContext(trainerId);
+  const abbreviations = glossaryAbbreviations(terms);
   for (const w of result.weeks)
     for (const d of w.days)
-      for (const s of d.sessions) for (const e of s.exercises) e.match = matchExercise(e, catalog, aliases);
+      for (const s of d.sessions) for (const e of s.exercises) e.match = matchExercise(e, catalog, aliases, abbreviations);
   return result;
 }
 

@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { and, eq, isNull } from "drizzle-orm";
-import { db, exerciseAliases, exercises, glossaryTerms, trainers } from "@pt/db";
+import { readFileSync } from "node:fs";
+import { clients, db, exerciseAliases, exercises, glossaryTerms, trainers } from "@pt/db";
 import { DEFAULT_GLOSSARY } from "@pt/shared";
 import { assertTestDatabaseUrl, vocabularySeedStatements } from "./testing/test-db";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { app } from "./app";
+import { buildImportMessages } from "./ai/prompt";
+import { loadGlossary } from "./lib/vocabulary";
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
 
@@ -154,5 +157,50 @@ describe.skipIf(!dbUp)("/v1/vocabulary aliases and glossary", () => {
     expect((await call("DELETE", `/v1/vocabulary/glossary/${theirs.id}`)).status).toBe(404);
     expect((await call("GET", "/v1/vocabulary/glossary")).body.some((g: any) => g.id === theirs.id)).toBe(false);
     expect(trainerId).not.toBe(otherTrainerId);
+  });
+});
+
+describe.skipIf(!dbUp)("import prompt vocabulary", () => {
+  test("carries the trainer's own terms, not another trainer's", async () => {
+    const trainerId = await getDefaultTrainerId();
+    const [other] = await db
+      .insert(trainers)
+      .values({ name: "ZZ Vocab Prompt", email: `zz-vocab-p-${crypto.randomUUID()}@example.com` })
+      .returning();
+    const [mine] = await db.insert(glossaryTerms).values({ trainerId, term: "ZZMINE", meaning: "my word", kind: "technique" }).returning();
+    await db.insert(glossaryTerms).values({ trainerId: other.id, term: "ZZTHEIRS", meaning: "their word", kind: "technique" });
+    try {
+      const { system } = buildImportMessages({ numbered: "L1: x", from: 1, to: 1, glossary: await loadGlossary(trainerId) });
+      expect(system).toContain("ZZMINE = my word");
+      expect(system).toContain("RPE = rate of perceived exertion, 1–10");
+      expect(system).not.toContain("ZZTHEIRS");
+      // without a trainer (the eval): the global seed only
+      const eval_ = buildImportMessages({ numbered: "L1: x", from: 1, to: 1, glossary: await loadGlossary(null) }).system;
+      expect(eval_).toContain("BB = barbell");
+      expect(eval_).not.toContain("ZZMINE");
+    } finally {
+      await db.delete(glossaryTerms).where(eq(glossaryTerms.id, mine.id));
+      await db.delete(trainers).where(eq(trainers.id, other.id));
+    }
+  });
+});
+
+describe.skipIf(!dbUp)("imports read with the trainer's glossary", () => {
+  test("new words already in the glossary aren't offered; a saved term applies from the next read", async () => {
+    const text = readFileSync(new URL("../../../packages/shared/fixtures/import/week11-12.txt", import.meta.url), "utf8");
+    const trainerId = await getDefaultTrainerId();
+    const [client] = await db.insert(clients).values({ trainerId, name: "ZZ Vocab Import" }).returning();
+    try {
+      const first = await call("POST", "/v1/ai/imports", { clientId: client.id, text, providerId: "mock" });
+      const terms = first.body.result.newTerms.map((t: any) => t.term);
+      expect(terms).toContain("Supinate");
+      expect(terms).not.toContain("SA"); // global seed
+      const added = await call("POST", "/v1/vocabulary/glossary", { term: "Supinate", meaning: "palms-up grip", kind: "technique" });
+      const second = await call("POST", "/v1/ai/imports", { clientId: client.id, text, providerId: "mock" });
+      expect(second.body.result.newTerms.map((t: any) => t.term)).not.toContain("Supinate");
+      await call("DELETE", `/v1/vocabulary/glossary/${added.body.id}`);
+    } finally {
+      await db.delete(clients).where(eq(clients.id, client.id));
+    }
   });
 });

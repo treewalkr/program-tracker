@@ -6,6 +6,7 @@ import { trainerContext } from "../lib/trainer-context";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 import { extractChunks, importResult, recentImports, settleImport } from "../lib/imports";
+import { loadGlossary } from "../lib/vocabulary";
 
 /** Paste notes → a stored, resumable, cancellable import (docs/paste-import-plan.md §1). */
 export const importRoutes = new Elysia({ prefix: "/v1/ai/imports", tags: ["ai"] })
@@ -37,12 +38,14 @@ export const importRoutes = new Elysia({ prefix: "/v1/ai/imports", tags: ["ai"] 
 
         const ac = registerGeneration(row.id);
         try {
-          const outcomes = await extractChunks(row, rt, effort, ac.signal);
+          // one glossary for the prompt and the result: a term saved mid-read applies from the next read
+          const glossary = await loadGlossary(trainerId);
+          const outcomes = await extractChunks(row, rt, effort, ac.signal, glossary);
           if (outcomes === null) {
             const [current] = await db.select().from(aiImports).where(eq(aiImports.id, row.id));
             return status(200, current);
           }
-          const result = await importResult(trainerId, text, outcomes);
+          const result = await importResult(trainerId, text, outcomes, glossary);
           const { code, row: settled } = await settleImport(row.id, result, outcomes.every((o) => !o.ok));
           return status(code, settled);
         } finally {
