@@ -1,0 +1,23 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`formFromImport every imported exercise gets a suggested role, in the notes' order 1`] = `
+[
+  "Push Press: primary",
+  "Dumbbell Bench Press: secondary",
+  "Bench Press: strength",
+  "Crossover / Dip: strength",
+  "Push-Up: strength",
+  "Triceps Rope Pushdown: accessory",
+  "Power High Pull: accessory",
+  "V-Bar Row: primary",
+  "Lat Pulldown: strength",
+  "Rear Delt Row: strength",
+  "Inverted Row: strength",
+  "Biceps Rope Curl: accessory",
+  "Back Squat: primary",
+  "Leg Press: strength",
+  "Walking Lunge: strength",
+  "Leg Extension: accessory",
+  "Leg Curl: accessory",
+]
+`;

@@ -108,6 +108,24 @@ describe("formFromImport", () => {
     expect(form.sessions[0].exercises[3]).toMatchObject({ exerciseId: "new:Crossover / Dip" });
   });
 
+  test("every imported exercise gets a suggested role, in the notes' order", () => {
+    const r = result();
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey });
+    for (const s of form.sessions.filter((s) => s.kind === "lifting")) {
+      expect(s.exercises.every((e) => !!e.role)).toBe(true);
+      expect(s.exercises.map((e) => e.order)).toEqual(s.exercises.map((_, i) => i));
+    }
+    expect(form.sessions.flatMap((s) => s.exercises.map((e) => `${e.exerciseName}: ${e.role}`))).toMatchSnapshot();
+  });
+
+  test("catalog patterns steer the suggestion", () => {
+    const r = result();
+    const catalog = [{ id: "bench", name: "Bench Press", primaryMuscleGroup: "core", equipment: "barbell", movementPattern: "anti_extension" }];
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey, catalog });
+    const bench = form.sessions.flatMap((s) => s.exercises).find((e) => e.exerciseId === "bench");
+    expect(bench?.role).toBe("core");
+  });
+
   test("Week 11 keeps its cardio sessions, with the wording in intensity", () => {
     const r = result();
     const form = formFromImport(r, 0, BASE, { choices: {}, resolve, newKey });

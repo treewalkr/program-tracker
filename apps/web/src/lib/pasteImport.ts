@@ -9,6 +9,7 @@ import {
 } from "@pt/shared";
 import type { DraftForm, SessionRow } from "./programForm";
 import { fmtSet } from "./format";
+import { suggestRoleIn } from "./roleLabels";
 
 /**
  * Paste notes review (docs/paste-import-plan.md §5): pure helpers between a
@@ -117,6 +118,8 @@ export function formFromImport(
     choices: Record<string, ChoiceState>;
     resolve: (choice: MatchChoice) => { exerciseId: string; exerciseName: string };
     newKey: () => string;
+    /** Catalog fields for the suggested roles (pattern, muscle); names alone otherwise. */
+    catalog?: Parameters<typeof suggestRoleIn>[2];
   },
 ): DraftForm {
   const wi = templateWeekIndex(r, block);
@@ -132,22 +135,24 @@ export function formFromImport(
           exercises: [],
         };
       }
+      const rows = s.exercises.map((ex, ei) => {
+        const { exerciseId, exerciseName } = opts.resolve(choiceFor(opts.choices, exerciseKey(wi, di, si, ei), ex));
+        return {
+          id: opts.newKey(),
+          exerciseId,
+          exerciseName,
+          order: ei,
+          prescribedSets: structuredClone(ex.sets),
+          ...(ex.note ? { notes: ex.note } : {}),
+        };
+      });
+      // every imported exercise gets a suggested role; the trainer can change it
       return {
         key: opts.newKey(),
         name: s.name.slice(0, 60),
         kind: "lifting",
         cardio: defaultCardio(),
-        exercises: s.exercises.map((ex, ei) => {
-          const { exerciseId, exerciseName } = opts.resolve(choiceFor(opts.choices, exerciseKey(wi, di, si, ei), ex));
-          return {
-            id: opts.newKey(),
-            exerciseId,
-            exerciseName,
-            order: ei,
-            prescribedSets: structuredClone(ex.sets),
-            ...(ex.note ? { notes: ex.note } : {}),
-          };
-        }),
+        exercises: rows.map((row, i) => ({ ...row, role: suggestRoleIn(rows, i, opts.catalog ?? []) })),
       };
     }),
   );

@@ -342,6 +342,7 @@
       const form = formFromImport(result_, block, base(), {
         choices: choices_,
         newKey: uuid,
+        catalog,
         resolve: (c) =>
           c.kind === "catalog"
             ? { exerciseId: c.exerciseId, exerciseName: c.exerciseName }
