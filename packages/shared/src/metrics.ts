@@ -148,6 +148,20 @@ export function timedExerciseIds(program: Pick<SignalProgram, "weeks">): Set<str
   return ids;
 }
 
+/** Program-exercise (slot) ids prescribed as timed holds: a set logged against one is
+ *  in seconds even when the logger swapped in an exercise the program doesn't list. */
+export function timedSlotIds(program: Pick<SignalProgram, "weeks">): Set<string> {
+  const ids = new Set<string>();
+  for (const w of program.weeks ?? []) {
+    for (const s of w.sessions ?? []) {
+      for (const e of s.exercises ?? []) {
+        if (e.id && e.prescribedSets.some((ps) => ps.durationSeconds != null)) ids.add(e.id);
+      }
+    }
+  }
+  return ids;
+}
+
 export function blockPulse(
   program: SignalProgram,
   logs: SignalLog[],

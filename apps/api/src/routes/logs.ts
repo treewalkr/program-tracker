@@ -5,7 +5,7 @@ import { db, clients, sessionLogs, setLogs, exercises, programs } from "@pt/db";
 import { CardioLog, SessionKind, SetType } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
-import { loadTimedExerciseIds, queueSignalsForOutbox } from "../lib/signals-service";
+import { loadLogPrograms, queueSignalsForOutbox, timedIdsOf, timedSlotIdsOf } from "../lib/signals-service";
 
 const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
 
@@ -202,12 +202,14 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
         (e) => e.trainerId === null || e.trainerId === trainerId
       );
 
+      const logPrograms = await loadLogPrograms(logs);
       return {
         history: buildHistory({
           logs,
           sets,
           catalog: catalog.map((e) => ({ id: e.id, name: e.name })),
-          timedExerciseIds: await loadTimedExerciseIds(logs),
+          timedExerciseIds: timedIdsOf(logPrograms),
+          timedSlotIds: timedSlotIdsOf(logPrograms),
         }),
       };
     },

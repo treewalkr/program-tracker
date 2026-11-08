@@ -30,6 +30,19 @@ test("timed holds read as seconds and never get an e1RM (F15)", () => {
   expect(plank.bestE1rm).toBe(0);
 });
 
+test("a hold swapped into a timed slot still reads as seconds", () => {
+  const swapped = { ...set("ex-side", "working", null, 45, "7"), programExerciseId: "pe-plank" } as unknown as SetLogRow;
+  const [side] = buildHistory({
+    logs,
+    sets: [swapped],
+    catalog: [...catalog, { id: "ex-side", name: "Side Plank" }],
+    timedExerciseIds: new Set(["ex-plank"]),
+    timedSlotIds: new Set(["pe-plank"]),
+  });
+  expect(side.recentSets).toEqual(["45 s @ RPE 7"]);
+  expect(side.bestE1rm).toBe(0);
+});
+
 // ---------------------------------------------------------------------------
 // Dated training log for AI grounding (F11)
 // ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { cardioBehindSignal, computeSignals, timedExerciseIds, weekOf } from "@pt/shared";
+import { cardioBehindSignal, computeSignals, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
 /**
@@ -45,12 +45,6 @@ export async function currentBlockWeek(p: ProgramRow, now = Date.now()): Promise
   return weekOf(toSignalProgram(p), rows.map((r) => ({ programId: p.id, date: r.date, sets: [] })), now);
 }
 
-/** Union of timed-hold exercises across the programs these logs belong to —
- *  history spans programs, and logged sets carry no duration of their own. */
-export async function loadTimedExerciseIds(logs: { programId: string }[]): Promise<Set<string>> {
-  return timedIdsOf(await loadLogPrograms(logs));
-}
-
 /** The programs these logs belong to (deduped). */
 export async function loadLogPrograms(logs: { programId: string }[]): Promise<ProgramRow[]> {
   const ids = [...new Set(logs.map((l) => l.programId))];
@@ -58,8 +52,15 @@ export async function loadLogPrograms(logs: { programId: string }[]): Promise<Pr
   return db.select().from(programs).where(inArray(programs.id, ids));
 }
 
+/** Union of timed-hold exercises across these programs — history spans
+ *  programs, and logged sets carry no duration of their own. */
 export function timedIdsOf(rows: ProgramRow[]): Set<string> {
   return new Set(rows.flatMap((p) => [...timedExerciseIds(toSignalProgram(p))]));
+}
+
+/** Timed program-exercise slots across these programs (see timedSlotIds). */
+export function timedSlotIdsOf(rows: ProgramRow[]): Set<string> {
+  return new Set(rows.flatMap((p) => [...timedSlotIds(toSignalProgram(p))]));
 }
 
 /** numeric columns come back as strings — convert at this boundary. */

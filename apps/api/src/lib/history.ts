@@ -8,11 +8,18 @@ export interface HistoryInput {
   catalog: { id: string; name: string }[];
   /** Max recent sets listed per exercise. */
   perExercise?: number;
-  /** Exercises prescribed as timed holds — their `reps` are seconds (see loadTimedExerciseIds). */
+  /** Exercises prescribed as timed holds — their `reps` are seconds (see timedIdsOf). */
   timedExerciseIds?: Set<string>;
+  /** Program-exercise slots prescribed as timed holds (covers swapped-in exercises). */
+  timedSlotIds?: Set<string>;
 }
 
 const DEFAULT_PER_EXERCISE = 6;
+
+/** A set's `reps` are seconds when its exercise or the slot it was logged against is timed. */
+function isTimedSet(set: { exerciseId: string; programExerciseId?: string | null }, ids?: Set<string>, slots?: Set<string>): boolean {
+  return (ids?.has(set.exerciseId) ?? false) || (set.programExerciseId != null && (slots?.has(set.programExerciseId) ?? false));
+}
 
 /**
  * Group logged sets (working and back-off) per exercise: recent set strings (oldest→newest)
@@ -25,6 +32,7 @@ export function buildHistory({
   catalog,
   perExercise = DEFAULT_PER_EXERCISE,
   timedExerciseIds,
+  timedSlotIds,
 }: HistoryInput): ExerciseHistoryEntry[] {
   const logIds = new Set(logs.map((l) => l.id));
   const nameById = new Map(catalog.map((e) => [e.id, e.name]));
@@ -38,7 +46,7 @@ export function buildHistory({
 
     const weight = set.weightKg ? Number(set.weightKg) : 0;
     const rpe = set.rpe ? Number(set.rpe) : null;
-    const timed = timedExerciseIds?.has(set.exerciseId) ?? false;
+    const timed = isTimedSet(set, timedExerciseIds, timedSlotIds);
     const entry = byExercise.get(set.exerciseId) ?? { name, sets: [], best: 0 };
     entry.sets.push(`${weight ? `${weight}kg × ` : ""}${set.reps}${timed ? " s" : ""}${rpe !== null ? ` @ RPE ${rpe}` : ""}`);
     if (!timed) entry.best = Math.max(entry.best, estimate1rm(weight, set.reps));
@@ -71,10 +79,13 @@ export function estimateTokens(text: string): number {
 
 export interface TrainingLogInput {
   logs: Pick<SessionLogRow, "id" | "date" | "kind" | "cardio" | "programSessionId">[];
-  sets: Pick<SetLogRow, "sessionLogId" | "exerciseId" | "setNumber" | "type" | "weightKg" | "reps" | "rpe">[];
+  sets: (Pick<SetLogRow, "sessionLogId" | "exerciseId" | "setNumber" | "type" | "weightKg" | "reps" | "rpe"> &
+    Partial<Pick<SetLogRow, "programExerciseId">>)[];
   catalog: { id: string; name: string }[];
   /** Exercises prescribed as timed holds — their `reps` are seconds. */
   timedExerciseIds?: Set<string>;
+  /** Program-exercise slots prescribed as timed holds (covers swapped-in exercises). */
+  timedSlotIds?: Set<string>;
   /** programSessionId → "Session 2 (Upper)"; unknown/null ids read as Freestyle/Cardio. */
   sessionLabels?: Map<string, string>;
   budgetTokens?: number;
@@ -143,6 +154,7 @@ export function renderTrainingLog({
   sets,
   catalog,
   timedExerciseIds,
+  timedSlotIds,
   sessionLabels,
   budgetTokens = HISTORY_TOKEN_BUDGET,
 }: TrainingLogInput): string {
@@ -157,7 +169,7 @@ export function renderTrainingLog({
       weight: set.weightKg ? Number(set.weightKg) : 0,
       reps: set.reps,
       rpe: set.rpe != null ? Number(set.rpe) : null,
-      timed: timedExerciseIds?.has(set.exerciseId) ?? false,
+      timed: isTimedSet(set, timedExerciseIds, timedSlotIds),
     };
     setsByLog.set(set.sessionLogId, [...(setsByLog.get(set.sessionLogId) ?? []), parsed]);
   }

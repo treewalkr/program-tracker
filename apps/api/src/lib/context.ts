@@ -24,7 +24,7 @@ import { periodizationContext, type ExampleProgramSummary } from "../ai/prompt";
 import { buildHistory, renderTrainingLog, sessionLabelsFor } from "./history";
 import { ensureSeededChains } from "./chains";
 import { ensureSessionTypes } from "./session-types";
-import { loadLogPrograms, timedIdsOf, toSignalLog, toSignalProgram } from "./signals-service";
+import { loadLogPrograms, timedIdsOf, timedSlotIdsOf, toSignalLog, toSignalProgram } from "./signals-service";
 import { loadActiveRules } from "./coaching-rules";
 
 export const HISTORY_WINDOW_DAYS = 56;
@@ -105,6 +105,7 @@ export async function loadContext(
 
   const logPrograms = await loadLogPrograms(logs);
   const timedExerciseIds = timedIdsOf(logPrograms);
+  const timedSlotIds = timedSlotIdsOf(logPrograms);
   const catalogForHistory = catalogByTrainer.map((e) => ({ id: e.id, name: e.name }));
 
   const prefRows = await db
@@ -189,13 +190,14 @@ export async function loadContext(
     learnedPreferences: combinePreferenceDocs(trainerDoc, clientDoc),
     // Trainer-confirmed rules only (proposed/retired never reach a prompt).
     coachingRules: await loadActiveRules(trainerId, clientId),
-    history: buildHistory({ logs, sets, catalog: catalogForHistory, timedExerciseIds }),
+    history: buildHistory({ logs, sets, catalog: catalogForHistory, timedExerciseIds, timedSlotIds }),
     // Dated, per-session, every set + cardio — what the prompts actually render (F11).
     trainingLog: renderTrainingLog({
       logs,
       sets,
       catalog: catalogForHistory,
       timedExerciseIds,
+      timedSlotIds,
       sessionLabels: sessionLabelsFor(logPrograms),
     }),
     // Archived types stay on old sessions but are never offered to the AI.
