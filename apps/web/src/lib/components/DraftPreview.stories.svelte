@@ -2,7 +2,7 @@
   import { defineMeta } from '@storybook/addon-svelte-csf';
   import DraftPreview from './DraftPreview.svelte';
   import { versionView } from '$lib/chatRefine';
-  import { diffDraftSlots, unproposedChanges } from '@pt/shared';
+  import { diffDrafts, unproposedChanges } from '@pt/shared';
   import type { AiDraftDto, GenerationDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -72,7 +72,7 @@
   const latestView = versionView(gens, v2.id, 2, catalogById)!;
   const firstView = versionView(gens, v2.id, 1, catalogById)!;
   // Pretend the proposal only asked for day A: day B's edit is a surprise.
-  const surprise = unproposedChanges(diffDraftSlots(v1.draft!, v2.draft!), {
+  const surprise = unproposedChanges(diffDrafts(v1.draft!, v2.draft!), {
     changes: [{ day: 1, slot: 1, kind: 'edit' }],
   });
   const href = '/clients/cl-maya/generate';

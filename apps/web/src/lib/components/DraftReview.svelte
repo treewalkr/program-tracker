@@ -1,6 +1,6 @@
 <script lang="ts">
   import { effortSummary } from "$lib/effort";
-  import { diffDraftSlots, sortExercisesByRole, type SlotChange } from "@pt/shared";
+  import { diffDrafts, sortExercisesByRole, type SlotChange } from "@pt/shared";
   import type { ClientDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
   import { api } from "$lib/api";
   import { revisionChain } from "$lib/generation";
@@ -140,7 +140,8 @@
     if (child.status !== "validated") throw new Error(child.error ?? `Revision ${child.status}`);
     await onrevised?.(child);
   }
-  const slotChanges = $derived(prev?.draft ? diffDraftSlots(prev.draft, draft) : []);
+  /** Every change since the previous version; plan changes are listed from planDelta (they carry the week). */
+  const slotChanges = $derived(prev?.draft ? diffDrafts(prev.draft, draft).filter((c) => c.kind !== "plan") : []);
   const plan = $derived(draft.phasing ?? null);
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
   const changedWeeks = $derived(new Set(planDelta.map((c) => c.week).filter((w): w is number => w !== null)));
@@ -153,7 +154,7 @@
       .map((h, i) => {
         const before = i > 0 ? chain[i - 1].draft : null;
         const after = h.generation.draft;
-        const n = before && after ? diffDraftSlots(before, after).length + planChanges(before.phasing ?? null, after.phasing ?? null).length : 0;
+        const n = before && after ? diffDrafts(before, after).length : 0;
         return { ...h, changes: n };
       })
       .reverse()
@@ -161,7 +162,8 @@
 
   const baseVersion = $derived(base !== null && base < version ? base : Math.max(1, version - 1));
   const baseGen = $derived(chain[baseVersion - 1] ?? null);
-  const compareChanges = $derived(baseGen?.draft ? diffDraftSlots(baseGen.draft, draft) : []);
+  const compareAll = $derived(baseGen?.draft ? diffDrafts(baseGen.draft, draft) : []);
+  const compareChanges = $derived(compareAll.filter((c) => c.kind !== "plan"));
 
   /** Slot marks for the sessions view, keyed per day by the slot in this version. */
   const marksByDay = $derived.by(() => {
@@ -311,6 +313,7 @@
                 <span class="where">{tags[c.day - 1] ?? `Session ${c.day}`} ·</span>
                 {#if c.kind === "swap"}<s>{c.from}</s> → {c.to}
                 {:else if c.kind === "rx"}{c.exercise} <span class="rx"><s>{c.from}</s> → {c.to}</span>
+                {:else if c.kind === "session" || c.kind === "cardio"}{c.kind === "cardio" ? `${c.exercise} cardio` : "Session"} <span class="rx">{#if c.from}<s>{c.from}</s> → {/if}{c.to}</span>
                 {:else}{changeText(c)} <span class="rx">{c.to ?? c.from}</span>{/if}
               </span>
             </li>
@@ -404,7 +407,7 @@
         <option value={i + 1}>v{i + 1}{i === 0 ? " — first draft" : g.revisionMessage ? ` — “${g.revisionMessage.slice(0, 28)}${g.revisionMessage.length > 28 ? "…" : ""}”` : ""}</option>
       {/each}
     </select>
-    <strong class="count">{plural(compareChanges.length, "change")}</strong>
+    <strong class="count">{plural(compareAll.length, "change")}</strong>
   {:else}
     <span class="subtle">{plural(draft.sessions.length, "session")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets</span>
   {/if}
@@ -468,12 +471,14 @@
                 <td class="before">
                   {#if c.kind === "added"}<span class="subtle">— new slot</span>
                   {:else if c.kind === "swap"}<s>{c.from}</s>
+                  {:else if c.kind === "session" || c.kind === "cardio"}{c.kind === "cardio" ? "Cardio" : "Session"} <span class="rx">{c.from ?? "—"}</span>
                   {:else if c.kind === "removed"}<s>{c.exercise}</s> <span class="rx">{c.from}</span>
                   {:else}{c.exercise} <span class="rx">{c.from}</span>{/if}
                 </td>
                 <td class="after">
                   {#if c.kind === "removed"}<span class="subtle">removed</span>
                   {:else if c.kind === "swap"}<strong>{c.to}</strong>
+                  {:else if c.kind === "session" || c.kind === "cardio"}{c.kind === "cardio" ? "Cardio" : "Session"} <span class="rx"><mark>{c.to}</mark></span>
                   {:else if c.kind === "added"}<strong>{c.exercise}</strong> <span class="rx">{c.to}</span>
                   {:else}<strong>{c.exercise}</strong> <span class="rx"><mark>{c.to}</mark></span>{/if}
                 </td>

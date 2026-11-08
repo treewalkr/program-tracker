@@ -28,3 +28,118 @@ test("unproposedChanges", () => {
   const extra = unproposedChanges(diffDraftSlots(before, after), { changes: [{ day: 1, slot: 1, kind: "swap" }] });
   expect(extra.map((c) => c.exercise)).toEqual(["RDL"]);
 });
+
+// ---- F04: the full diff (docs/exact-revisions-plan.md §A) ----
+
+import { diffDrafts, planChanges, rxParts } from "./slots";
+
+const phasing = (w4Target: boolean, nextPhase: string | null = "build") => ({
+  plannedWeeks: 4,
+  phase: "accumulation",
+  nextPhase,
+  weeks: [
+    { week: 1, directive: "base" as const },
+    { week: 2, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 5 } },
+    { week: 3, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 5 } },
+    w4Target
+      ? { week: 4, directive: "deload" as const, target: { metric: "overall_volume" as const, deltaPercent: -40 } }
+      : { week: 4, directive: "deload" as const },
+  ],
+});
+const lift = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "lifting" as const, exercises });
+const cardio = (name: string, rx: Record<string, unknown>) => ({ name, kind: "cardio" as const, cardio: { modality: "Stationary Bike", durationMin: 30, hrZone: 3, targetRpe: 4, ...rx }, exercises: [] });
+const ranged = (repsMin: number, reps: number, extra: Record<string, unknown> = {}) => ({ reps, repsMin, targetRpe: 8, restSeconds: 180, ...extra });
+
+const v1 = (): SlotDiffDraft => ({
+  phasing: phasing(true),
+  sessions: [
+    lift("Lower A", [ex("Squat", [ranged(4, 5), ranged(4, 5), ranged(4, 5)]), ex("RDL")]),
+    cardio("Tempo Ride", {}),
+  ],
+});
+
+test("rxParts renders rep ranges, loads and back-off sets", () => {
+  expect(rxParts([ranged(4, 5), ranged(4, 5), ranged(4, 5)]).volume).toBe("3×4–5");
+  expect(rxParts([ranged(5, 5)]).volume).toBe("1×5");
+  expect(rxParts([{ reps: 5, targetWeightKg: 100 }]).load).toBe("100 kg");
+  expect(rxParts([{ reps: 5, targetWeightKg: 95 }, { reps: 5, targetWeightKg: 100 }]).load).toBe("95–100 kg");
+  expect(rxParts([{ reps: 5 }]).load).toBeNull();
+  expect(rxParts([{ reps: 3 }, { reps: 3 }, { reps: 8, type: "backoff" }]).volume).toBe("2×3 + 1×8 back-off");
+  expect(rxLabel([{ reps: 5, targetWeightKg: 100, targetRpe: 8, restSeconds: 180 }])).toBe("1×5 @RPE 8 · 100 kg · rest 180s");
+});
+
+test("F04: rep range 4–5 → 5 is an rx change", () => {
+  const after = v1();
+  after.sessions[0].exercises[0] = ex("Squat", [ranged(5, 5), ranged(5, 5), ranged(5, 5)]);
+  expect(diffDrafts(v1(), after)).toEqual([
+    { day: 1, beforeSlot: 1, afterSlot: 1, kind: "rx", exercise: "Squat", from: "3×4–5", to: "3×5" },
+  ]);
+});
+
+test("load and set type changes are rx changes", () => {
+  const before = draft([ex("Bench", [{ reps: 5, targetWeightKg: 80 }, { reps: 5, targetWeightKg: 80 }])]);
+  const heavier = draft([ex("Bench", [{ reps: 5, targetWeightKg: 85 }, { reps: 5, targetWeightKg: 85 }])]);
+  expect(diffDrafts(before, heavier).map((c) => [c.kind, c.from, c.to])).toEqual([["rx", "80 kg", "85 kg"]]);
+  const backoff = draft([ex("Bench", [{ reps: 5, targetWeightKg: 80 }, { reps: 5, targetWeightKg: 80, type: "backoff" }])]);
+  expect(diffDrafts(before, backoff).map((c) => [c.kind, c.from, c.to])).toEqual([["rx", "2×5", "1×5 + 1×5 back-off"]]);
+});
+
+test("F04: cardio zone, RPE and modality changes surface", () => {
+  const after = v1();
+  after.sessions[1] = cardio("Tempo Ride", { modality: "Bike", hrZone: 4, targetRpe: 3 });
+  expect(diffDrafts(v1(), after)).toEqual([
+    {
+      day: 2,
+      beforeSlot: null,
+      afterSlot: null,
+      kind: "cardio",
+      exercise: "Tempo Ride",
+      from: "Stationary Bike, Z3, RPE 4",
+      to: "Bike, Z4, RPE 3",
+    },
+  ]);
+});
+
+test("session rename and kind/type changes surface", () => {
+  const after = v1();
+  after.sessions[0] = { ...after.sessions[0], name: "Lower B", type: "Strength" } as (typeof after.sessions)[number];
+  expect(diffDrafts(v1(), after)).toEqual([
+    { day: 1, beforeSlot: null, afterSlot: null, kind: "session", exercise: "Lower B", from: "Lower A, no type", to: "Lower B, Strength" },
+  ]);
+});
+
+test("added and removed sessions surface as session changes", () => {
+  const before = v1();
+  const after = v1();
+  after.sessions.pop();
+  expect(diffDrafts(before, after)).toEqual([
+    { day: 2, beforeSlot: null, afterSlot: null, kind: "session", exercise: "Tempo Ride", from: "Tempo Ride", to: "removed" },
+  ]);
+  expect(diffDrafts(after, before)).toEqual([
+    { day: 2, beforeSlot: null, afterSlot: null, kind: "session", exercise: "Tempo Ride", from: null, to: "added · Tempo Ride" },
+  ]);
+});
+
+test("F04: phasing — W4 deload target dropped, next block build → deload", () => {
+  const after = v1();
+  after.phasing = phasing(false, "deload");
+  expect(diffDrafts(v1(), after)).toEqual([
+    { day: 0, week: null, beforeSlot: null, afterSlot: null, kind: "plan", exercise: "Next block", from: "build", to: "deload" },
+    { day: 0, week: 4, beforeSlot: null, afterSlot: null, kind: "plan", exercise: "W4 target", from: "-40% volume", to: "no target" },
+  ]);
+});
+
+test("planChanges lives in shared", () => {
+  expect(planChanges(phasing(true), phasing(false))).toEqual([{ week: 4, where: "W4 target", from: "-40% volume", to: "no target" }]);
+});
+
+test("F04: an exercise-only proposal covers none of the off-proposal changes", () => {
+  const after = v1();
+  after.phasing = phasing(false, "deload");
+  after.sessions[0].exercises[0] = ex("Squat", [ranged(5, 5), ranged(5, 5), ranged(5, 5)]);
+  after.sessions[0].exercises[1] = ex("RDL", [set(5, 7, 150)]);
+  after.sessions[0].name = "Lower B";
+  after.sessions[1] = cardio("Tempo Ride", { modality: "Bike", hrZone: 4, targetRpe: 3 });
+  const extra = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 1, slot: 2, kind: "edit" }] });
+  expect(extra.map((c) => c.kind).sort()).toEqual(["cardio", "plan", "plan", "rx", "session"]);
+});

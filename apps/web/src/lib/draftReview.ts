@@ -1,16 +1,12 @@
+import { weekTargetLabel, planChanges, type PlanChange } from "@pt/shared";
 import type { AiDraftDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 // ---- block plan ----
 
 export type PlanWeek = NonNullable<ProgramPhasingDto["weeks"]>[number];
 
-/** "+5% volume", "−40% volume", "+2.5% load"; "" without a target. */
-export function weekTargetLabel(w: PlanWeek): string {
-  if (!w.target) return "";
-  const metric = { overall_volume: "volume", rep_volume: "rep volume", intensity: "load" }[w.target.metric];
-  const sign = w.target.deltaPercent > 0 ? "+" : "";
-  return `${sign}${w.target.deltaPercent}% ${metric}`;
-}
+// Plan diff helpers live in @pt/shared (slots.ts) so the API diff uses them too.
+export { weekTargetLabel, planChanges, type PlanChange };
 
 /**
  * Volume and load index per week, chained from each week's % target (week 1 = 100).
@@ -24,48 +20,6 @@ export function planIndexes(ph: ProgramPhasingDto): { vol: number; load: number 
     if (w.target && w.target.metric === "intensity") load *= 1 + w.target.deltaPercent / 100;
     return { vol, load };
   });
-}
-
-export interface PlanChange {
-  /** 1-based week, or null for phase-level changes. */
-  week: number | null;
-  where: string;
-  from: string | null;
-  to: string;
-}
-
-/** Plan edits from `a` to `b` (phase names, weeks added/removed, directive, target, note). */
-export function planChanges(a: ProgramPhasingDto | null | undefined, b: ProgramPhasingDto | null | undefined): PlanChange[] {
-  const out: PlanChange[] = [];
-  if (!a && !b) return out;
-  if (!a && b) return [{ week: null, where: "Block plan", from: null, to: `added · ${b.weeks?.length ?? b.plannedWeeks} weeks` }];
-  if (a && !b) return [{ week: null, where: "Block plan", from: `${a.weeks?.length ?? a.plannedWeeks} weeks`, to: "removed" }];
-  const x = a!;
-  const y = b!;
-  if (x.phase !== y.phase) out.push({ week: null, where: "Phase", from: x.phase, to: y.phase });
-  if ((x.nextPhase ?? "") !== (y.nextPhase ?? "")) out.push({ week: null, where: "Next block", from: x.nextPhase || "—", to: y.nextPhase || "—" });
-  const xw = x.weeks ?? [];
-  const yw = y.weeks ?? [];
-  const n = Math.max(xw.length, yw.length);
-  for (let i = 0; i < n; i++) {
-    const p = xw[i];
-    const q = yw[i];
-    const week = i + 1;
-    if (!p && q) {
-      out.push({ week, where: `W${week}`, from: null, to: `added · ${q.directive}${q.target ? ` · ${weekTargetLabel(q)}` : ""}` });
-      continue;
-    }
-    if (p && !q) {
-      out.push({ week, where: `W${week}`, from: `${p.directive}${p.target ? ` · ${weekTargetLabel(p)}` : ""}`, to: "removed" });
-      continue;
-    }
-    if (p.directive !== q.directive) out.push({ week, where: `W${week}`, from: p.directive, to: q.directive });
-    if (weekTargetLabel(p) !== weekTargetLabel(q)) {
-      out.push({ week, where: `W${week} target`, from: weekTargetLabel(p) || "no target", to: weekTargetLabel(q) || "no target" });
-    }
-    if ((p.note ?? "") !== (q.note ?? "")) out.push({ week, where: `W${week} note`, from: null, to: "edited" });
-  }
-  return out;
 }
 
 /** Inline guidance for one week: "err" blocks saving, "warn" does not. */

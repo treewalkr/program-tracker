@@ -6,35 +6,82 @@
 export interface SlotDiffSet {
   reps: number;
   amrap?: boolean;
+  /** Lower bound of a rep range (`reps` is the upper bound). */
+  repsMin?: number | null;
   durationSeconds?: number | null;
+  targetWeightKg?: number | null;
   targetRpe?: number | null;
   restSeconds?: number | null;
+  /** "working" (default) or "backoff". */
+  type?: string | null;
 }
 export interface SlotDiffExercise {
   exerciseId?: string | null;
   exerciseName?: string | null;
   prescribedSets: SlotDiffSet[];
 }
+/** Cardio prescription fields the diff compares (fits CardioPrescription). */
+export interface SlotDiffCardio {
+  modality: string;
+  durationMin?: number | null;
+  hrZone?: number | null;
+  intensity?: string | null;
+  distanceKm?: number | null;
+  targetRpe?: number | null;
+}
+export interface SlotDiffSession {
+  name: string;
+  kind?: string | null;
+  type?: string | null;
+  cardio?: SlotDiffCardio | null;
+  exercises: SlotDiffExercise[];
+}
+/** Block plan fields the diff compares (fits Phasing and web ProgramPhasingDto). */
+export interface PlanLike {
+  plannedWeeks: number;
+  phase: string;
+  nextPhase?: string | null;
+  weeks?: {
+    week: number;
+    directive: string;
+    target?: { metric: string; deltaPercent: number } | null;
+    note?: string | null;
+  }[];
+}
 export interface SlotDiffDraft {
-  sessions: { name: string; exercises: SlotDiffExercise[] }[];
+  sessions: SlotDiffSession[];
+  phasing?: PlanLike | null;
 }
 
-export type SlotChangeKind = "swap" | "rx" | "added" | "removed";
+/**
+ * swap/rx/added/removed: one exercise slot.
+ * session: a session's name/kind/type changed, or the whole session was added/removed.
+ * cardio: a cardio prescription field changed.
+ * plan: a block plan (phasing) change.
+ */
+export type SlotChangeKind = "swap" | "rx" | "added" | "removed" | "session" | "cardio" | "plan";
 
 export interface SlotChange {
-  /** 1-based session index (same in both drafts). */
+  /** 1-based session index (same in both drafts); 0 for "plan". */
   day: number;
-  /** 1-based exercise index in the BEFORE draft; null for "added". */
+  /** 1-based exercise index in the BEFORE draft; null for "added" and session/cardio/plan. */
   beforeSlot: number | null;
-  /** 1-based exercise index in the AFTER draft; null for "removed". */
+  /** 1-based exercise index in the AFTER draft; null for "removed" and session/cardio/plan. */
   afterSlot: number | null;
   kind: SlotChangeKind;
-  /** Exercise name after the change (before, for "removed"). */
+  /**
+   * Exercise name after the change (before, for "removed"); the session name
+   * for session/cardio; the plan area ("Phase", "W4 target") for plan.
+   */
   exercise: string;
-  /** swap: old name · rx: old prescription parts · added: null · removed: old prescription. */
+  /** swap: old name · rx: old prescription parts · added: null · removed: old prescription ·
+   *  session/cardio: old values of the changed fields (null when the session/cardio was added) · plan: old value. */
   from: string | null;
-  /** swap: new name · rx: new prescription parts · added: new prescription · removed: null. */
+  /** swap: new name · rx: new prescription parts · added: new prescription · removed: null ·
+   *  session/cardio: new values of the changed fields · plan: new value. */
   to: string | null;
+  /** plan only: 1-based week, or null for block-level changes. */
+  week?: number | null;
 }
 
 const exKey = (e: SlotDiffExercise) => (e.exerciseId ?? e.exerciseName ?? "").toLowerCase();
@@ -47,27 +94,43 @@ function range(values: number[], prefix: string, suffix: string): string | null 
   return lo === hi ? `${prefix}${lo}${suffix}` : `${prefix}${lo}–${hi}${suffix}`;
 }
 
+const setVolume = (s: SlotDiffSet) =>
+  s.durationSeconds != null
+    ? `${s.durationSeconds}s`
+    : `${s.repsMin != null && s.repsMin < s.reps ? `${s.repsMin}–${s.reps}` : s.reps}${s.amrap ? "+" : ""}`;
+
+function volumeOf(sets: SlotDiffSet[]): string {
+  const each = sets.map(setVolume);
+  return new Set(each).size === 1 ? `${sets.length}×${each[0]}` : each.join("/");
+}
+
 /**
  * Prescription split into comparable parts, e.g.
- * { volume: "5×5", rpe: "RPE 7–8", rest: "rest 180s" }.
- * volume: "<sets>×<reps|Ns>" when every set matches, else per-set joined by "/".
+ * { volume: "3×4–5", load: "100 kg", rpe: "RPE 7–8", rest: "rest 180s" }.
+ * volume: "<sets>×<reps|min–max|Ns>" when every set matches, else per-set joined
+ * by "/"; back-off sets follow as "+ 1×8 back-off".
  */
-export function rxParts(sets: SlotDiffSet[]): { volume: string; rpe: string | null; rest: string | null } {
-  const each = sets.map((s) => (s.durationSeconds != null ? `${s.durationSeconds}s` : `${s.reps}${s.amrap ? "+" : ""}`));
-  const volume = new Set(each).size === 1 ? `${sets.length}×${each[0]}` : each.join("/");
+export function rxParts(sets: SlotDiffSet[]): { volume: string; load: string | null; rpe: string | null; rest: string | null } {
+  const working = sets.filter((s) => s.type !== "backoff");
+  const backoff = sets.filter((s) => s.type === "backoff");
+  const volume = [working.length ? volumeOf(working) : null, backoff.length ? `${volumeOf(backoff)} back-off` : null]
+    .filter(Boolean)
+    .join(" + ");
+  const loads = sets.map((s) => s.targetWeightKg).filter((v): v is number => v != null);
   const rpes = sets.map((s) => s.targetRpe).filter((v): v is number => v != null);
   const rests = sets.map((s) => s.restSeconds).filter((v): v is number => v != null);
   return {
     volume,
+    load: range(loads, "", " kg"),
     rpe: range(rpes, "RPE ", ""),
     rest: range(rests, "rest ", "s"),
   };
 }
 
-/** "5×5 @RPE 7–8 · rest 180s" — one-line prescription label. */
+/** "5×5 @RPE 7–8 · 100 kg · rest 180s" — one-line prescription label. */
 export function rxLabel(sets: SlotDiffSet[]): string {
   const p = rxParts(sets);
-  return `${p.volume}${p.rpe ? ` @${p.rpe}` : ""}${p.rest ? ` · ${p.rest}` : ""}`;
+  return `${p.volume}${p.rpe ? ` @${p.rpe}` : ""}${p.load ? ` · ${p.load}` : ""}${p.rest ? ` · ${p.rest}` : ""}`;
 }
 
 /** Only the parts that differ: ["rest 120s", "rest 150s"]; null when identical. */
@@ -76,7 +139,7 @@ function rxDelta(a: SlotDiffSet[], b: SlotDiffSet[]): [string, string] | null {
   const pb = rxParts(b);
   const from: string[] = [];
   const to: string[] = [];
-  for (const k of ["volume", "rpe", "rest"] as const) {
+  for (const k of ["volume", "load", "rpe", "rest"] as const) {
     if (pa[k] !== pb[k]) {
       from.push(pa[k] ?? `no ${k}`);
       to.push(pb[k] ?? `no ${k}`);
@@ -102,13 +165,41 @@ function lcsPairs(a: string[], b: string[]): [number, number][] {
   return pairs;
 }
 
+/** One step of an exercise alignment: [beforeIndex, afterIndex], either side null. */
+export type AlignStep = [number | null, number | null];
+
 /**
- * Slot-by-slot changes from `before` to `after`, per session, in after-order.
- * Exercises are aligned by catalog id (else name) with an LCS; between two
- * aligned anchors, unmatched before/after exercises pair up in order as
- * "swap", leftovers are "removed" / "added". Aligned exercises whose sets,
- * RPE or rest differ are "rx". Sessions only in `after` are all "added";
- * sessions only in `before` are all "removed".
+ * Exercise alignment of one session, in order. Exercises are aligned by
+ * catalog id (else name) with an LCS; between two aligned anchors, unmatched
+ * before/after exercises pair up in order (a swap), leftovers stand alone
+ * (removed: [i, null], then added: [null, j]).
+ */
+export function alignExercises(A: SlotDiffExercise[], B: SlotDiffExercise[]): AlignStep[] {
+  const pairs = lcsPairs(A.map(exKey), B.map(exKey));
+  const anchors: [number, number][] = [[-1, -1], ...pairs, [A.length, B.length]];
+  const out: AlignStep[] = [];
+  for (let k = 0; k < anchors.length - 1; k++) {
+    const [a0, b0] = anchors[k];
+    const [a1, b1] = anchors[k + 1];
+    const gapA: number[] = [];
+    const gapB: number[] = [];
+    for (let i = a0 + 1; i < a1; i++) gapA.push(i);
+    for (let j = b0 + 1; j < b1; j++) gapB.push(j);
+    const n = Math.min(gapA.length, gapB.length);
+    for (let x = 0; x < n; x++) out.push([gapA[x], gapB[x]]);
+    for (let x = n; x < gapA.length; x++) out.push([gapA[x], null]);
+    for (let x = n; x < gapB.length; x++) out.push([null, gapB[x]]);
+    if (k < pairs.length) out.push(pairs[k]);
+  }
+  return out;
+}
+
+/**
+ * Exercise slot changes from `before` to `after`, per session, in after-order
+ * (see alignExercises). Gap pairs are "swap"; aligned exercises whose name
+ * changed are "swap" too, and whose volume, load, RPE or rest differ are "rx".
+ * Sessions only in `after` are all "added"; sessions only in `before` are all
+ * "removed". Session, cardio and plan changes are in diffDrafts.
  */
 export function diffDraftSlots(before: SlotDiffDraft, after: SlotDiffDraft): SlotChange[] {
   const out: SlotChange[] = [];
@@ -116,37 +207,162 @@ export function diffDraftSlots(before: SlotDiffDraft, after: SlotDiffDraft): Slo
   for (let d = 0; d < days; d++) {
     const A = before.sessions[d]?.exercises ?? [];
     const B = after.sessions[d]?.exercises ?? [];
-    const pairs = lcsPairs(A.map(exKey), B.map(exKey));
-    const anchors: [number, number][] = [[-1, -1], ...pairs, [A.length, B.length]];
-    for (let k = 0; k < anchors.length - 1; k++) {
-      const [a0, b0] = anchors[k];
-      const [a1, b1] = anchors[k + 1];
-      const gapA: number[] = [];
-      const gapB: number[] = [];
-      for (let i = a0 + 1; i < a1; i++) gapA.push(i);
-      for (let j = b0 + 1; j < b1; j++) gapB.push(j);
-      const n = Math.min(gapA.length, gapB.length);
-      for (let x = 0; x < n; x++) {
-        const ea = A[gapA[x]];
-        const eb = B[gapB[x]];
-        out.push({ day: d + 1, beforeSlot: gapA[x] + 1, afterSlot: gapB[x] + 1, kind: "swap", exercise: exName(eb), from: exName(ea), to: exName(eb) });
-      }
-      for (let x = n; x < gapA.length; x++) {
-        const ea = A[gapA[x]];
-        out.push({ day: d + 1, beforeSlot: gapA[x] + 1, afterSlot: null, kind: "removed", exercise: exName(ea), from: rxLabel(ea.prescribedSets), to: null });
-      }
-      for (let x = n; x < gapB.length; x++) {
-        const eb = B[gapB[x]];
-        out.push({ day: d + 1, beforeSlot: null, afterSlot: gapB[x] + 1, kind: "added", exercise: exName(eb), from: null, to: rxLabel(eb.prescribedSets) });
-      }
-      if (k < pairs.length) {
-        const [i, j] = pairs[k];
-        const delta = rxDelta(A[i].prescribedSets, B[j].prescribedSets);
-        const nameChanged = exName(A[i]) !== exName(B[j]);
-        if (nameChanged) out.push({ day: d + 1, beforeSlot: i + 1, afterSlot: j + 1, kind: "swap", exercise: exName(B[j]), from: exName(A[i]), to: exName(B[j]) });
-        if (delta) out.push({ day: d + 1, beforeSlot: i + 1, afterSlot: j + 1, kind: "rx", exercise: exName(B[j]), from: delta[0], to: delta[1] });
+    const day = d + 1;
+    for (const [i, j] of alignExercises(A, B)) {
+      if (i != null && j != null) {
+        const ea = A[i];
+        const eb = B[j];
+        const matched = exKey(ea) === exKey(eb);
+        if (!matched || exName(ea) !== exName(eb)) {
+          out.push({ day, beforeSlot: i + 1, afterSlot: j + 1, kind: "swap", exercise: exName(eb), from: exName(ea), to: exName(eb) });
+        }
+        if (!matched) continue;
+        const delta = rxDelta(ea.prescribedSets, eb.prescribedSets);
+        if (delta) out.push({ day, beforeSlot: i + 1, afterSlot: j + 1, kind: "rx", exercise: exName(eb), from: delta[0], to: delta[1] });
+      } else if (i != null) {
+        const ea = A[i];
+        out.push({ day, beforeSlot: i + 1, afterSlot: null, kind: "removed", exercise: exName(ea), from: rxLabel(ea.prescribedSets), to: null });
+      } else if (j != null) {
+        const eb = B[j];
+        out.push({ day, beforeSlot: null, afterSlot: j + 1, kind: "added", exercise: exName(eb), from: null, to: rxLabel(eb.prescribedSets) });
       }
     }
+  }
+  return out;
+}
+
+// ---- session, cardio and plan changes ----
+
+const CARDIO_FIELDS: { key: keyof SlotDiffCardio; label: (v: string | number) => string; none: string }[] = [
+  { key: "modality", label: (v) => `${v}`, none: "no modality" },
+  { key: "durationMin", label: (v) => `${v} min`, none: "no duration" },
+  { key: "hrZone", label: (v) => `Z${v}`, none: "no zone" },
+  { key: "intensity", label: (v) => `${v}`, none: "no intensity" },
+  { key: "distanceKm", label: (v) => `${v} km`, none: "no distance" },
+  { key: "targetRpe", label: (v) => `RPE ${v}`, none: "no RPE" },
+];
+
+/** "Bike · 30 min · Z3 · RPE 4" — one-line cardio label. */
+export function cardioLabel(c: SlotDiffCardio): string {
+  return CARDIO_FIELDS.filter((f) => c[f.key] != null && c[f.key] !== "")
+    .map((f) => f.label(c[f.key] as string | number))
+    .join(" · ");
+}
+
+/** Only the cardio fields that differ, as ["Z3, RPE 4", "Z4, RPE 3"]; null when identical. */
+function cardioDelta(a: SlotDiffCardio, b: SlotDiffCardio): [string, string] | null {
+  const from: string[] = [];
+  const to: string[] = [];
+  for (const f of CARDIO_FIELDS) {
+    const x = a[f.key] ?? null;
+    const y = b[f.key] ?? null;
+    if (x === y) continue;
+    from.push(x == null || x === "" ? f.none : f.label(x));
+    to.push(y == null || y === "" ? f.none : f.label(y));
+  }
+  return from.length ? [from.join(", "), to.join(", ")] : null;
+}
+
+/** Session-level changes on one day: name/kind/type, cardio prescription, or the whole session added/removed. */
+function sessionChanges(day: number, a: SlotDiffSession | undefined, b: SlotDiffSession | undefined): SlotChange[] {
+  const base = { day, beforeSlot: null, afterSlot: null };
+  if (!a && b) return [{ ...base, kind: "session", exercise: b.name, from: null, to: `added · ${b.name}` }];
+  if (a && !b) return [{ ...base, kind: "session", exercise: a.name, from: a.name, to: "removed" }];
+  if (!a || !b) return [];
+  const out: SlotChange[] = [];
+  const from: string[] = [];
+  const to: string[] = [];
+  const field = (x: string | null | undefined, y: string | null | undefined, none: string) => {
+    if ((x ?? "") === (y ?? "")) return;
+    from.push(x || none);
+    to.push(y || none);
+  };
+  field(a.name, b.name, "no name");
+  field(a.kind ?? "lifting", b.kind ?? "lifting", "lifting");
+  field(a.type, b.type, "no type");
+  if (from.length) out.push({ ...base, kind: "session", exercise: b.name, from: from.join(", "), to: to.join(", ") });
+  const ca = a.cardio ?? null;
+  const cb = b.cardio ?? null;
+  if (ca && cb) {
+    const delta = cardioDelta(ca, cb);
+    if (delta) out.push({ ...base, kind: "cardio", exercise: b.name, from: delta[0], to: delta[1] });
+  } else if (ca || cb) {
+    out.push({ ...base, kind: "cardio", exercise: b.name, from: ca ? cardioLabel(ca) : null, to: cb ? cardioLabel(cb) : "no cardio" });
+  }
+  return out;
+}
+
+export type PlanWeekLike = NonNullable<PlanLike["weeks"]>[number];
+
+/** "+5% volume", "-40% volume", "+2.5% load"; "" without a target. */
+export function weekTargetLabel(w: PlanWeekLike): string {
+  if (!w.target) return "";
+  const metric = ({ overall_volume: "volume", rep_volume: "rep volume", intensity: "load" } as Record<string, string>)[w.target.metric] ?? w.target.metric;
+  const sign = w.target.deltaPercent > 0 ? "+" : "";
+  return `${sign}${w.target.deltaPercent}% ${metric}`;
+}
+
+export interface PlanChange {
+  /** 1-based week, or null for phase-level changes. */
+  week: number | null;
+  where: string;
+  from: string | null;
+  to: string;
+}
+
+/** Block plan edits from `a` to `b` (phase names, length, weeks added/removed, directive, target, note). */
+export function planChanges(a: PlanLike | null | undefined, b: PlanLike | null | undefined): PlanChange[] {
+  const out: PlanChange[] = [];
+  if (!a && !b) return out;
+  if (!a && b) return [{ week: null, where: "Block plan", from: null, to: `added · ${b.weeks?.length ?? b.plannedWeeks} weeks` }];
+  if (a && !b) return [{ week: null, where: "Block plan", from: `${a.weeks?.length ?? a.plannedWeeks} weeks`, to: "removed" }];
+  const x = a!;
+  const y = b!;
+  if (x.phase !== y.phase) out.push({ week: null, where: "Phase", from: x.phase, to: y.phase });
+  if ((x.nextPhase ?? "") !== (y.nextPhase ?? "")) out.push({ week: null, where: "Next block", from: x.nextPhase || "—", to: y.nextPhase || "—" });
+  const xw = x.weeks ?? [];
+  const yw = y.weeks ?? [];
+  // Added/removed weeks already say the length changed.
+  if (xw.length === yw.length && x.plannedWeeks !== y.plannedWeeks) {
+    out.push({ week: null, where: "Planned weeks", from: `${x.plannedWeeks}`, to: `${y.plannedWeeks}` });
+  }
+  const n = Math.max(xw.length, yw.length);
+  for (let i = 0; i < n; i++) {
+    const p = xw[i];
+    const q = yw[i];
+    const week = i + 1;
+    if (!p && q) {
+      out.push({ week, where: `W${week}`, from: null, to: `added · ${q.directive}${q.target ? ` · ${weekTargetLabel(q)}` : ""}` });
+      continue;
+    }
+    if (p && !q) {
+      out.push({ week, where: `W${week}`, from: `${p.directive}${p.target ? ` · ${weekTargetLabel(p)}` : ""}`, to: "removed" });
+      continue;
+    }
+    if (p.directive !== q.directive) out.push({ week, where: `W${week}`, from: p.directive, to: q.directive });
+    if (weekTargetLabel(p) !== weekTargetLabel(q)) {
+      out.push({ week, where: `W${week} target`, from: weekTargetLabel(p) || "no target", to: weekTargetLabel(q) || "no target" });
+    }
+    if ((p.note ?? "") !== (q.note ?? "")) out.push({ week, where: `W${week} note`, from: null, to: "edited" });
+  }
+  return out;
+}
+
+/**
+ * Every change from `before` to `after`: per session (in day order) its
+ * session/cardio changes then its exercise slot changes, then block plan
+ * changes (kind "plan", day 0).
+ */
+export function diffDrafts(before: SlotDiffDraft, after: SlotDiffDraft): SlotChange[] {
+  const slots = diffDraftSlots(before, after);
+  const out: SlotChange[] = [];
+  const days = Math.max(before.sessions.length, after.sessions.length);
+  for (let d = 0; d < days; d++) {
+    out.push(...sessionChanges(d + 1, before.sessions[d], after.sessions[d]));
+    out.push(...slots.filter((c) => c.day === d + 1));
+  }
+  for (const p of planChanges(before.phasing ?? null, after.phasing ?? null)) {
+    out.push({ day: 0, week: p.week, beforeSlot: null, afterSlot: null, kind: "plan", exercise: p.where, from: p.from, to: p.to });
   }
   return out;
 }
@@ -161,7 +377,8 @@ export interface ProposalChangeRef {
 /**
  * Changes the proposal did not ask for. A proposal change at (day, slot)
  * covers every swap/rx/removed change at that day + beforeSlot; each "add"
- * covers one "added" change on its day.
+ * covers one "added" change on its day. Session and plan changes are never
+ * covered; neither are cardio changes (proposals address exercise slots).
  */
 export function unproposedChanges(changes: SlotChange[], proposal: { changes: ProposalChangeRef[] }): SlotChange[] {
   const covered = new Set(
@@ -170,6 +387,7 @@ export function unproposedChanges(changes: SlotChange[], proposal: { changes: Pr
   const addsLeft = new Map<number, number>();
   for (const p of proposal.changes) if (p.kind === "add") addsLeft.set(p.day, (addsLeft.get(p.day) ?? 0) + 1);
   return changes.filter((c) => {
+    if (c.kind === "session" || c.kind === "plan" || c.kind === "cardio") return true;
     if (c.kind === "added") {
       const left = addsLeft.get(c.day) ?? 0;
       if (left > 0) {

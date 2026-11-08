@@ -324,6 +324,23 @@ describe("versionStamps", () => {
     expect(stamp.unproposed![0].kind).toBe("rx");
   });
 
+  test("version stamp counts plan and cardio changes (full diff)", () => {
+    const base = draftR([exR("Squat")]);
+    const parentDraft: AiDraftDto = {
+      ...base,
+      phasing: { phase: "accumulation", nextPhase: "build", plannedWeeks: 2, weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "deload", target: { metric: "overall_volume", deltaPercent: -40 } }] },
+      sessions: [...base.sessions, { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", hrZone: 3 }, exercises: [] }],
+    };
+    const childDraft = structuredClone(parentDraft);
+    childDraft.phasing!.weeks![1] = { week: 2, directive: "deload" };
+    childDraft.sessions[1].cardio = { modality: "Bike", hrZone: 4 };
+    const parent = gen({ draft: parentDraft });
+    const child = gen({ parentGenerationId: parent.id, draft: childDraft });
+    const draftRow: ChatMessageDto = { ...msg("m-full"), role: "assistant", kind: "draft", generationId: child.id };
+    const stamp = versionStamps([draftRow], [child, parent]).get("m-full")!;
+    expect(stamp.changes.map((c) => c.kind)).toEqual(["cardio", "plan"]);
+  });
+
   test("legacy draft rows produce stamps without a proposal check", () => {
     const parent = gen({ draft: draftR([exR("Squat")]) });
     const child = gen({ parentGenerationId: parent.id, draft: draftR([exR("Paused Squat")]) });

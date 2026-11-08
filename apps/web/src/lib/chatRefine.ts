@@ -10,7 +10,7 @@ import type {
   TrainerApi,
 } from "./api/types";
 import { latestValidatedDraft, revisionChain } from "./generation";
-import { diffDraftSlots, sortExercisesByRole, unproposedChanges, type SlotChange } from "@pt/shared";
+import { diffDrafts, sortExercisesByRole, unproposedChanges, type SlotChange } from "@pt/shared";
 import type { ChatProposalDto } from "./api/types";
 
 // ---- turn submission (what Send does) ----
@@ -228,7 +228,7 @@ export function versionStamps(messages: ChatMessageDto[], gens: GenerationDto[])
     const gen = byId.get(m.generationId);
     if (!gen?.draft) continue;
     const parent = gen.parentGenerationId ? byId.get(gen.parentGenerationId) : undefined;
-    const changes = parent?.draft ? diffDraftSlots(parent.draft, gen.draft) : [];
+    const changes = parent?.draft ? diffDrafts(parent.draft, gen.draft) : [];
     const proposal = proposalFor.get(gen.id);
     out.set(m.id, {
       messageId: m.id,
@@ -297,7 +297,7 @@ export function versionView(
       slot: e.slot,
     })),
   }));
-  return { version, generation: gen, sessions, changes: prev ? diffDraftSlots(prev, gen.draft) : [] };
+  return { version, generation: gen, sessions, changes: prev ? diffDrafts(prev, gen.draft) : [] };
 }
 
 /** "Day 2 · 5 changes" style counts for the draft pane summary. */
@@ -306,12 +306,18 @@ export function changeSummary(changes: SlotChange[]): string {
   const rx = changes.filter((c) => c.kind === "rx").length;
   const added = changes.filter((c) => c.kind === "added").length;
   const removed = changes.filter((c) => c.kind === "removed").length;
+  const sessions = changes.filter((c) => c.kind === "session").length;
+  const cardio = changes.filter((c) => c.kind === "cardio").length;
+  const plan = changes.filter((c) => c.kind === "plan").length;
   const p = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
   return [
     swaps && `${p(swaps, "exercise")} swapped or renamed`,
     rx && p(rx, "prescription edit"),
     added && `${added} added`,
     removed && `${removed} removed`,
+    sessions && p(sessions, "session edit"),
+    cardio && p(cardio, "cardio edit"),
+    plan && p(plan, "block plan edit"),
   ]
     .filter(Boolean)
     .join(" · ");

@@ -6,9 +6,10 @@
 
   /**
    * Evidence line under every chat turn that produced a draft version: the
-   * version tag, how many slots changed (read from the drafts, not the AI's
-   * reply) and — for versions built from a proposal — whether anything
-   * changed that the proposal did not ask for. Opens to the change list;
+   * version tag, how many things changed (exercise slots, sessions, cardio
+   * and the block plan, read from the drafts, not the AI's reply) and, for
+   * versions built from a proposal, whether anything changed that the
+   * proposal did not ask for. Opens to the change list;
    * opens by itself when there are unrequested changes.
    */
   interface Props {
@@ -40,7 +41,7 @@
     <span class="chev"><Icon name="chevron" /></span>
   </summary>
   {#if n === 0}
-    <p class="none">No exercise changes.</p>
+    <p class="none">No changes.</p>
   {:else}
     <ul class="changes">
       {#each stamp.changes as c, i (i)}
@@ -48,13 +49,16 @@
           <button type="button" class="row" class:unasked={isExtra(c)} onclick={() => onpick?.(c)}>
             <span class="sign" aria-hidden="true">{c.kind === "added" ? "+" : c.kind === "removed" ? "−" : "~"}</span>
             <span class="what">
-              <span class="where">Day {c.day} ·</span>
+              <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
               {#if c.kind === "swap"}
                 <s class="from">{c.from}</s> → {c.to}
               {:else if c.kind === "rx"}
                 {c.exercise} <span class="rx"><s class="from">{c.from}</s> → {c.to}</span>
               {:else if c.kind === "added"}
                 {c.exercise} <span class="rx">{c.to}</span>
+              {:else if c.kind === "session" || c.kind === "cardio" || c.kind === "plan"}
+                {c.kind === "cardio" ? `${c.exercise} cardio` : c.kind === "plan" ? c.exercise : "Session"}
+                <span class="rx">{#if c.from}<s class="from">{c.from}</s> → {/if}{c.to}</span>
               {:else}
                 <s class="from">{c.exercise}</s> removed
               {/if}
