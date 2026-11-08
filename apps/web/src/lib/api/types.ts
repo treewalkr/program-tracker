@@ -10,6 +10,7 @@ import type {
   ProgramWeek,
   SessionKind,
   SetType,
+  SlotChange,
   Signal,
   StoredChatProposal,
   WeekDirective as Wd,
@@ -184,6 +185,8 @@ export interface GenerationDto {
   revisionMessage: string | null;
   /** True when the trainer edited this version by hand (no AI), e.g. the block plan. */
   manualEdit?: boolean;
+  /** Proposal builds: the AI's changes outside the proposal, reverted before storing; null otherwise. */
+  discardedChanges?: SlotChange[] | null;
   instructions: string | null;
   rejectReason: string | null;
   approvedProgramId: string | null;

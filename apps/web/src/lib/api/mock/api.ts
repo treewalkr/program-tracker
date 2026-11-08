@@ -13,6 +13,8 @@ import {
   normalizeTypeName,
   SESSION_TYPE_DEFAULTS,
   mockApplyProposal,
+  scopeToProposal,
+  diffDrafts,
   mockChatReply,
   mockDistillPreferences,
   mockProposal,
@@ -1356,14 +1358,19 @@ export const mockApi: TrainerApi = {
     // History shows the trainer's request, not the proposal summary.
     const requestText = state.messages.find((m) => m.id === row.proposal!.requestMessageId)?.content ?? row.proposal.summary;
     const child = reviseDraftInState(state, parent!.id, requestText);
-    child.draft = mockApplyProposal(child.draft as any, row.proposal) as any;
+    // Same as the API: keep only the proposed changes, list the rest.
+    const scoped = scopeToProposal(parent!.draft as any, mockApplyProposal(child.draft as any, row.proposal), row.proposal);
+    child.draft = scoped.draft as any;
+    child.discardedChanges = scoped.discarded;
     row.proposal.builtGenerationId = child.id;
+    const n = diffDrafts(parent!.draft as any, child.draft as any).length;
+    const d = scoped.discarded.length;
     const out: ChatMessageDto & { clientId: string } = {
       id: uuid(),
       clientId: row.clientId,
       role: "assistant" as const,
       kind: "draft" as const,
-      content: `Built from the proposal.\n\n${draftNoticeText(child.draft as any)}`,
+      content: `Built from the proposal: ${n} ${n === 1 ? "change" : "changes"}.${d ? ` The AI also changed ${d} ${d === 1 ? "thing" : "things"} outside the proposal. Kept as before.` : ""}\n\n${draftNoticeText(child.draft as any)}`,
       generationId: child.id,
       createdAt: new Date().toISOString(),
     };

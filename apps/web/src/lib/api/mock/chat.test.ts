@@ -146,6 +146,9 @@ describe("mock: propose → build", () => {
       expect(built.generation.parentGenerationId).toBe(parent!.id);
       expect(built.generation.status).toBe("validated");
       expect(built.messages[0].kind).toBe("draft");
+      // Like the API: the build is scoped to the proposal, nothing discarded here.
+      expect(built.generation.discardedChanges).toEqual([]);
+      expect(built.messages[0].content).toStartWith("Built from the proposal: 1 change.");
 
       await expect(mockApi.buildProposal(turn.messages[1].id, {})).rejects.toThrow(
         "proposal already built"

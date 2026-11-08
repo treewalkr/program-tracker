@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
-import { db, chatMessages, type ChatMessageRow } from "@pt/db";
-import { draftNoticeText, proposalToFeedback } from "@pt/shared";
+import { db, aiGenerations, chatMessages, type ChatMessageRow } from "@pt/db";
+import { diffDrafts, draftNoticeText, proposalToFeedback } from "@pt/shared";
 import { answerChat } from "../lib/chat-qa";
 import { loadRevisionConversation, runRevision } from "../lib/revision";
 import { runProposalTurn } from "../lib/proposal-turn";
@@ -40,6 +40,12 @@ async function proposalRequestText(row: ChatMessageRow): Promise<string> {
     .orderBy(desc(chatMessages.createdAt))
     .limit(1);
   return previous?.content ?? row.proposal?.summary ?? "";
+}
+
+async function parentDraftOf(id: string | null) {
+  if (!id) return null;
+  const [parent] = await db.select({ draft: aiGenerations.draft }).from(aiGenerations).where(eq(aiGenerations.id, id));
+  return parent?.draft ?? null;
 }
 
 export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
@@ -172,6 +178,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
         model: body.model,
         effort: body.effort,
         mockProposal: row.proposal,
+        scope: row.proposal,
       });
       if (!res.ok) return status(res.status, { error: res.error });
       const gen = res.generation;
@@ -190,6 +197,18 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
           payload: { builtGenerationId: gen.id, changes: row.proposal.changes.length },
         });
       }
+      let builtText = "";
+      if (built) {
+        // Count from the stored (scoped) draft, not from the proposal's length.
+        const parentDraft = await parentDraftOf(gen.parentGenerationId);
+        const n = parentDraft ? diffDrafts(parentDraft, gen.draft!).length : row.proposal.changes.length;
+        const d = gen.discardedChanges?.length ?? 0;
+        builtText = [
+          `Built from the proposal: ${n} ${n === 1 ? "change" : "changes"}.`,
+          d ? ` The AI also changed ${d} ${d === 1 ? "thing" : "things"} outside the proposal. Kept as before.` : "",
+          `\n\n${draftNoticeText(gen.draft!)}`,
+        ].join("");
+      }
       const [assistantRow] = await db
         .insert(chatMessages)
         .values({
@@ -198,7 +217,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
           role: "assistant",
           kind: built ? "draft" : "error",
           content: built
-            ? `Built from the proposal.\n\n${draftNoticeText(gen.draft!)}`
+            ? builtText
             : gen.status === "cancelled"
               ? "Build cancelled. The draft is unchanged."
               : `Build failed: ${gen.error ?? gen.status}`,

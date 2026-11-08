@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
-import { AiProgramDraft, mockApplyProposal, mockReviseDraft, weekOf, type ChatProposal } from "@pt/shared";
+import { AiProgramDraft, mockApplyProposal, mockReviseDraft, scopeToProposal, weekOf, type ChatProposal, type SlotChange } from "@pt/shared";
 import { toSignalProgram } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
@@ -30,6 +30,11 @@ export async function runRevision(
     mockProposal?: ChatProposal;
     /** Prompt text when it differs from `message` (proposal builds). `message` is what history shows. */
     feedback?: string;
+    /**
+     * Proposal builds: keep only the changes this proposal asked for
+     * (scopeToProposal) and store the rest as `discardedChanges`.
+     */
+    scope?: ChatProposal;
   } = {}
 ): Promise<RevisionResult> {
   const [parent] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, parentId));
@@ -192,11 +197,24 @@ export async function runRevision(
       mock: () =>
         JSON.stringify(
           opts.mockProposal
-            ? mockApplyProposal(mockReviseDraft(parent.draft!, trimmedMessage), opts.mockProposal)
+            ? mockApplyProposal(mockReviseDraft(parent.draft!, trimmedMessage), opts.mockProposal, {
+                // Opt-in for tests: the mock also makes off-proposal edits (see mockApplyProposal).
+                rogue: process.env.MOCK_ROGUE_BUILD === "1",
+              })
             : mockReviseDraft(parent.draft!, trimmedMessage)
         ),
     });
-    const { row } = await settleGeneration(generation.id, out);
+    let settled = out;
+    let discardedChanges: SlotChange[] | undefined;
+    if (out.ok && opts.scope) {
+      const scoped = scopeToProposal(parent.draft!, out.data, opts.scope);
+      const valid = AiProgramDraft.safeParse(scoped.draft);
+      settled = valid.success
+        ? { ...out, data: valid.data }
+        : { turnId: out.turnId, callId: out.callId, attempts: out.attempts, ok: false, kind: "validation", error: `scoped draft invalid: ${valid.error.message}` };
+      discardedChanges = scoped.discarded;
+    }
+    const { row } = await settleGeneration(generation.id, settled, { discardedChanges });
     return { ok: true, generation: row };
   } finally {
     deregisterGeneration(generation.id);

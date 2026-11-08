@@ -22,6 +22,7 @@ import { sql } from "drizzle-orm";
 import type {
   AiClientMessageDraft,
   AiProgramDraft,
+  SlotChange,
   CardioLog,
   CardioTarget,
   ClientStatus,
@@ -230,6 +231,8 @@ export const aiGenerations = pgTable("ai_generations", {
   revisionMessage: text("revision_message"),
   /** True when the trainer edited this version by hand (no AI call), e.g. the block plan. */
   manualEdit: boolean("manual_edit").notNull().default(false),
+  /** Proposal builds: the AI's changes outside the proposal, reverted before storing (null = not a scoped build). */
+  discardedChanges: jsonb("discarded_changes").$type<SlotChange[]>(),
   instructions: text("instructions"),
   rejectReason: text("reject_reason"),
   approvedProgramId: uuid("approved_program_id").references((): AnyPgColumn => programs.id, {

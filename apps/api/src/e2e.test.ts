@@ -2151,6 +2151,50 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(generation.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(parentRest + 15);
   });
 
+  test("a proposal build keeps off-proposal AI edits out and lists them (F04)", async () => {
+    const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    expect(g.status).toBe(201);
+    const parentDraft = g.body.draft;
+    const turn = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: g.body.id, message: "More rest on the first lift", providerId: "mock" });
+    expect(turn.status).toBe(201);
+
+    process.env.MOCK_ROGUE_BUILD = "1";
+    let res;
+    try {
+      res = await call("POST", `/v1/ai/chat/proposals/${turn.body.messages[1].id}/build`, { providerId: "mock" });
+    } finally {
+      delete process.env.MOCK_ROGUE_BUILD;
+    }
+    expect(res.status).toBe(201);
+    const gen = res.body.generation;
+    expect(gen.status).toBe("validated");
+    // The rogue mock moved phasing and cardio; the stored draft keeps the parent's.
+    expect(gen.draft.phasing).toEqual(parentDraft.phasing);
+    const cardioIdx = parentDraft.sessions.findIndex((s: any) => s.kind === "cardio");
+    expect(gen.draft.sessions[cardioIdx]).toEqual(parentDraft.sessions[cardioIdx]);
+    // The proposed edit landed.
+    expect(gen.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(
+      (parentDraft.sessions[0].exercises[0].prescribedSets[0].restSeconds ?? 60) + 15
+    );
+    expect(gen.discardedChanges.map((c: any) => c.kind)).toContain("plan");
+    expect(gen.discardedChanges.map((c: any) => c.kind)).toContain("cardio");
+    // The confirmation names the exact count and the discarded ones.
+    expect(res.body.messages[0].content).toStartWith("Built from the proposal: 1 change.");
+    expect(res.body.messages[0].content).toContain(`The AI also changed ${gen.discardedChanges.length} things outside the proposal. Kept as before.`);
+
+    const stored = await call("GET", `/v1/ai/generations/${gen.id}`);
+    expect(stored.body.discardedChanges).toEqual(gen.discardedChanges);
+  });
+
+  test("a clean proposal build discards nothing", async () => {
+    const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    const turn = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: g.body.id, message: "More rest on the first lift", providerId: "mock" });
+    const res = await call("POST", `/v1/ai/chat/proposals/${turn.body.messages[1].id}/build`, { providerId: "mock" });
+    expect(res.status).toBe(201);
+    expect(res.body.generation.discardedChanges).toEqual([]);
+    expect(res.body.messages[0].content).not.toContain("outside the proposal");
+  });
+
   test("a proposal build keeps the trainer's request when both rows share a millisecond", async () => {
     const c = await call("POST", "/v1/clients", { name: "Same Millisecond Client", email: `same-ms-${Date.now()}@test.dev`, sessionsPerWeek: 2 });
     expect(c.status).toBe(201);

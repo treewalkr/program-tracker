@@ -313,9 +313,23 @@ export function mockProposal(draft: AiProgramDraft, message: string): ChatPropos
   };
 }
 
-/** Mock build: applies each "edit" as +15s rest on that slot; other kinds are ignored. */
-export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal): AiProgramDraft {
+/**
+ * Mock build: applies each "edit" as +15s rest on that slot; other kinds are ignored.
+ * `rogue` also makes the off-proposal edits a live model made in F04 (next block →
+ * "deload", last week's target dropped, first cardio session one zone harder), so
+ * tests can prove the build scope reverts them.
+ */
+export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal, opts: { rogue?: boolean } = {}): AiProgramDraft {
   const next = structuredClone(draft);
+  if (opts.rogue) {
+    if (next.phasing) {
+      next.phasing.nextPhase = "deload";
+      const last = next.phasing.weeks?.at(-1);
+      if (last) delete last.target;
+    }
+    const cardio = next.sessions.find((s) => s.cardio)?.cardio;
+    if (cardio) cardio.hrZone = Math.min(5, (cardio.hrZone ?? 2) + 1);
+  }
   for (const c of proposal.changes) {
     if (c.kind !== "edit" || c.slot == null) continue;
     const ex = next.sessions[c.day - 1]?.exercises[c.slot - 1];

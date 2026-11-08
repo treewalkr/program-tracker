@@ -215,6 +215,8 @@ export interface VersionStamp {
   changes: SlotChange[];
   /** Changes outside the proposal; null when the version was not built from a proposal. */
   unproposed: SlotChange[] | null;
+  /** The AI's changes outside the proposal that the build reverted (kept as before). */
+  discarded: SlotChange[];
 }
 
 /** One stamp per assistant "draft" row whose generation has a validated draft. Keyed by message id. */
@@ -236,6 +238,7 @@ export function versionStamps(messages: ChatMessageDto[], gens: GenerationDto[])
       version: revisionChain(gens, gen.id).length,
       changes,
       unproposed: proposal ? unproposedChanges(changes, proposal) : null,
+      discarded: gen.discardedChanges ?? [],
     });
   }
   return out;

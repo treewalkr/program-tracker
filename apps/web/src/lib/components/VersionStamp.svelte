@@ -23,8 +23,30 @@
   const n = $derived(stamp.changes.length);
   const extra = $derived(stamp.unproposed ?? []);
   const isExtra = (c: SlotChange) => extra.includes(c);
+  /** Changes the AI made outside the proposal that the build reverted. */
+  const kept = $derived(stamp.discarded ?? []);
   const plural = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
 </script>
+
+{#snippet what(c: SlotChange)}
+  <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
+  {#if c.kind === "swap"}
+    <s class="from">{c.from}</s> → {c.to}
+  {:else if c.kind === "rx"}
+    {c.exercise} <span class="rx"><s class="from">{c.from}</s> → {c.to}</span>
+  {:else if c.kind === "added"}
+    {c.exercise} <span class="rx">{c.to}</span>
+  {:else if c.kind === "session" || c.kind === "cardio" || c.kind === "plan"}
+    {c.kind === "cardio" ? `${c.exercise} cardio` : c.kind === "plan" ? c.exercise : "Session"}
+    <span class="rx">{#if c.from}<s class="from">{c.from}</s> → {/if}{c.to}</span>
+  {:else}
+    <s class="from">{c.exercise}</s> removed
+  {/if}
+{/snippet}
+
+{#snippet sign(c: SlotChange)}
+  <span class="sign" aria-hidden="true">{c.kind === "added" ? "+" : c.kind === "removed" ? "−" : "~"}</span>
+{/snippet}
 
 <details class="stamp" open={extra.length > 0}>
   <summary>
@@ -38,6 +60,9 @@
         <Pill tone="good">Built as proposed</Pill>
       {/if}
     {/if}
+    {#if kept.length > 0}
+      <Pill tone="neutral">{kept.length} outside the proposal kept as before</Pill>
+    {/if}
     <span class="chev"><Icon name="chevron" /></span>
   </summary>
   {#if n === 0}
@@ -47,27 +72,31 @@
       {#each stamp.changes as c, i (i)}
         <li>
           <button type="button" class="row" class:unasked={isExtra(c)} onclick={() => onpick?.(c)}>
-            <span class="sign" aria-hidden="true">{c.kind === "added" ? "+" : c.kind === "removed" ? "−" : "~"}</span>
+            {@render sign(c)}
             <span class="what">
-              <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
-              {#if c.kind === "swap"}
-                <s class="from">{c.from}</s> → {c.to}
-              {:else if c.kind === "rx"}
-                {c.exercise} <span class="rx"><s class="from">{c.from}</s> → {c.to}</span>
-              {:else if c.kind === "added"}
-                {c.exercise} <span class="rx">{c.to}</span>
-              {:else if c.kind === "session" || c.kind === "cardio" || c.kind === "plan"}
-                {c.kind === "cardio" ? `${c.exercise} cardio` : c.kind === "plan" ? c.exercise : "Session"}
-                <span class="rx">{#if c.from}<s class="from">{c.from}</s> → {/if}{c.to}</span>
-              {:else}
-                <s class="from">{c.exercise}</s> removed
-              {/if}
+              {@render what(c)}
               {#if isExtra(c)}<span class="tag-unasked">not in proposal</span>{/if}
             </span>
           </button>
         </li>
       {/each}
     </ul>
+  {/if}
+  {#if kept.length > 0}
+    <details class="kept">
+      <summary>
+        The AI also changed {plural(kept.length, "thing")} outside the proposal. Kept as before.
+        <span class="chev"><Icon name="chevron" /></span>
+      </summary>
+      <ul class="changes">
+        {#each kept as c, i (i)}
+          <li class="row static">
+            {@render sign(c)}
+            <span class="what">{@render what(c)}</span>
+          </li>
+        {/each}
+      </ul>
+    </details>
   {/if}
 </details>
 
@@ -109,7 +138,7 @@
     width: 13px;
     height: 13px;
   }
-  .stamp[open] .chev {
+  .stamp[open] > summary .chev {
     transform: rotate(180deg);
   }
   .vtag {
@@ -171,6 +200,37 @@
     color: var(--warn);
     margin-left: 4px;
     white-space: nowrap;
+  }
+  .kept {
+    border-top: 1px solid var(--line-soft);
+  }
+  .kept > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .kept > summary::-webkit-details-marker {
+    display: none;
+  }
+  .kept > summary:hover {
+    color: var(--ink);
+  }
+  .kept[open] > summary .chev {
+    transform: rotate(180deg);
+  }
+  .row.static {
+    cursor: default;
+    color: var(--muted);
+  }
+  .row.static:hover {
+    background: none;
+  }
+  .row.static .sign {
+    color: var(--muted);
   }
   @media (prefers-reduced-motion: reduce) {
     .chev {

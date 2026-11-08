@@ -341,6 +341,17 @@ describe("versionStamps", () => {
     expect(stamp.changes.map((c) => c.kind)).toEqual(["cardio", "plan"]);
   });
 
+  test("version stamp carries the discarded changes of a scoped build", () => {
+    const parent = gen({ draft: draftR([exR("Squat")]) });
+    const discarded = [{ day: 0, week: 4, beforeSlot: null, afterSlot: null, kind: "plan" as const, exercise: "W4 target", from: "-40% volume", to: "no target" }];
+    const child = gen({ parentGenerationId: parent.id, draft: draftR([exR("Squat", [setR(5, 7, 150)])]), discardedChanges: discarded });
+    const draftRow: ChatMessageDto = { ...msg("m-scoped"), role: "assistant", kind: "draft", generationId: child.id };
+    const stamp = versionStamps([draftRow], [child, parent]).get("m-scoped")!;
+    expect(stamp.discarded).toEqual(discarded);
+    const legacy = versionStamps([draftRow], [{ ...child, discardedChanges: null }, parent]).get("m-scoped")!;
+    expect(legacy.discarded).toEqual([]);
+  });
+
   test("legacy draft rows produce stamps without a proposal check", () => {
     const parent = gen({ draft: draftR([exR("Squat")]) });
     const child = gen({ parentGenerationId: parent.id, draft: draftR([exR("Paused Squat")]) });

@@ -1,19 +1,21 @@
 import { and, eq } from "drizzle-orm";
 import { db, aiGenerations, type AiGenerationRow } from "@pt/db";
-import type { AiProgramDraft, GenerationStatus } from "@pt/shared";
+import type { AiProgramDraft, GenerationStatus, SlotChange } from "@pt/shared";
 import type { LlmOutcome } from "../ai/llm";
 
 /**
  * Write a draft call's outcome onto its pending generation. Only a row still
  * pending is touched — a cancel that landed mid-call wins, and that row comes
- * back unchanged with 200.
+ * back unchanged with 200. `discardedChanges` (scoped proposal builds) is
+ * stored with a validated draft.
  */
 export async function settleGeneration(
   id: string,
-  out: LlmOutcome<AiProgramDraft>
+  out: LlmOutcome<AiProgramDraft>,
+  extra: { discardedChanges?: SlotChange[] } = {}
 ): Promise<{ code: 200 | 201 | 502; row: AiGenerationRow }> {
-  const set: { status: GenerationStatus; draft?: AiProgramDraft; error: string | null } = out.ok
-    ? { status: "validated", draft: out.data, error: null }
+  const set: { status: GenerationStatus; draft?: AiProgramDraft; error: string | null; discardedChanges?: SlotChange[] } = out.ok
+    ? { status: "validated", draft: out.data, error: null, ...(extra.discardedChanges ? { discardedChanges: extra.discardedChanges } : {}) }
     : out.kind === "provider"
       ? { status: "failed_provider", error: out.error.message }
       : { status: "failed_validation", error: out.kind === "validation" ? out.error : null };

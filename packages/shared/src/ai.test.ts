@@ -19,6 +19,7 @@ import {
   AiGeneration,
   GenerationStatus,
   GENERATION_STATUSES,
+  scopeToProposal,
   type AiProgramDraft,
 } from "./index";
 
@@ -229,6 +230,25 @@ describe("chat proposals", () => {
   test("mockApplyProposal adds 15s rest to the edited slot", () => {
     const next = mockApplyProposal(draft, mockProposal(draft, "x"));
     expect(next.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(135);
+  });
+  test("mockApplyProposal rogue mode also edits phasing and cardio, which the scope reverts", () => {
+    const withExtras: AiProgramDraft = {
+      ...structuredClone(draft),
+      phasing: { plannedWeeks: 2, phase: "accumulation", nextPhase: "build", weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "deload", target: { metric: "overall_volume", deltaPercent: -40 } }] },
+      sessions: [...structuredClone(draft.sessions), { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", hrZone: 3 }, exercises: [] }],
+    };
+    const proposal = mockProposal(withExtras, "x");
+    const rogue = mockApplyProposal(withExtras, proposal, { rogue: true });
+    expect(rogue.phasing!.nextPhase).toBe("deload");
+    expect(rogue.phasing!.weeks![1].target).toBeUndefined();
+    expect(rogue.sessions.at(-1)!.cardio!.hrZone).toBe(4);
+    const { draft: scoped, discarded } = scopeToProposal(withExtras, rogue, proposal);
+    expect(scoped.phasing).toEqual(withExtras.phasing);
+    expect(scoped.sessions.at(-1)).toEqual(withExtras.sessions.at(-1));
+    expect(scoped.sessions[0].exercises[0]).toEqual(rogue.sessions[0].exercises[0]);
+    expect(discarded.map((c) => c.kind)).toEqual(["cardio", "plan", "plan"]);
+    // Plain mode leaves phasing and cardio alone
+    expect(mockApplyProposal(withExtras, proposal).phasing).toEqual(withExtras.phasing);
   });
   test("proposalToFeedback lists each change", () => {
     const text = proposalToFeedback("swap it", { summary: "s", changes: [{ day: 3, slot: 2, kind: "swap", from: "Front Squat", to: "Paused Back Squat", detail: "5×5 @RPE 7–8 · rest 180s" }] });
