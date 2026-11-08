@@ -2,7 +2,8 @@
   import "@fontsource-variable/noto-sans-thai";
   import "../app.css";
   import { page } from "$app/state";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import { fade } from "svelte/transition";
   import { afterNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
   import { authApi } from "$lib/api/auth";
@@ -84,14 +85,29 @@
   let narrow = $state(narrowQuery.matches);
   let collapsed = $state(localStorage.getItem(RAIL_KEY) === "1");
   let drawerOpen = $state(false);
-  const rail = $derived(narrow ? !drawerOpen : collapsed);
+  /* Holds the drawer layout while it retracts into the rail; cleared on animationend. */
+  let drawerClosing = $state(false);
+  const drawerShown = $derived(narrow && (drawerOpen || drawerClosing));
+  const rail = $derived(narrow ? !drawerShown : collapsed);
   /* Gym-floor routes give phones the full width: the rail hides (≤640px) and a
      menu button in the page corner opens the same drawer. */
   const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
   const sideOpen = $derived(!rail);
 
+  function closeDrawer() {
+    if (!drawerOpen) return;
+    drawerOpen = false;
+    drawerClosing = true;
+  }
+
   function toggleSide() {
-    if (narrow) drawerOpen = !drawerOpen;
+    if (narrow) {
+      if (drawerOpen) closeDrawer();
+      else {
+        drawerClosing = false;
+        drawerOpen = true;
+      }
+    }
     else {
       collapsed = !collapsed;
       localStorage.setItem(RAIL_KEY, collapsed ? "1" : "0");
@@ -102,6 +118,7 @@
     const onChange = (e: MediaQueryListEvent) => {
       narrow = e.matches;
       drawerOpen = false;
+      drawerClosing = false;
     };
     narrowQuery.addEventListener("change", onChange);
     return () => narrowQuery.removeEventListener("change", onChange);
@@ -110,7 +127,7 @@
   // Close the narrow-screen drawer after navigating.
   $effect(() => {
     void page.url.pathname;
-    drawerOpen = false;
+    untrack(closeDrawer);
   });
 
   // Unread feedback badge: cheap count, refreshed on every navigation (no polling).
@@ -149,13 +166,19 @@
   </a>
 {/snippet}
 
-<svelte:window onkeydown={(e) => { if (e.key === "Escape" && drawerOpen) drawerOpen = false; }} />
+<svelte:window onkeydown={(e) => { if (e.key === "Escape") closeDrawer(); }} />
 
 {#if bare}
   {@render children()}
 {:else}
-<div class="shell" class:rail class:focus={focusRoute} class:drawer={narrow && drawerOpen}>
-  <aside class="side" id="sidebar">
+<div class="shell" class:rail class:focus={focusRoute} class:drawer={drawerShown} class:closing={drawerClosing}>
+  <aside
+    class="side"
+    id="sidebar"
+    onanimationend={(e) => {
+      if (e.target === e.currentTarget && drawerClosing) drawerClosing = false;
+    }}
+  >
     <div class="brand-row">
       <a class="brand" href="/">
         <span class="mark" aria-hidden="true">PT</span>
@@ -219,7 +242,14 @@
   </aside>
 
   {#if narrow && drawerOpen}
-    <button type="button" class="scrim" aria-label="Close menu" onclick={() => (drawerOpen = false)}></button>
+    <button
+      type="button"
+      class="scrim"
+      aria-label="Close menu"
+      onclick={closeDrawer}
+      in:fade={{ duration: 200 }}
+      out:fade={{ duration: 160 }}
+    ></button>
   {/if}
 
   <main class="main">
@@ -529,6 +559,29 @@
     width: 236px;
     z-index: 40;
     box-shadow: var(--shadow-overlay);
+    /* The rail unfolds: the clip edge starts at the rail's 56px and pulls out to
+       full width. Icons sit at x=20 in both layouts, so they hold still while
+       the labels are uncovered. The end inset goes negative to let the shadow out. */
+    --rail-w: 56px;
+    animation: drawer-unfold 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .drawer.closing .side {
+    animation: drawer-retract 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  @keyframes drawer-unfold {
+    from { clip-path: inset(0 calc(100% - var(--rail-w)) 0 0); }
+    to { clip-path: inset(0 -32px 0 0); }
+  }
+  @keyframes drawer-retract {
+    from { clip-path: inset(0 -32px 0 0); }
+    to { clip-path: inset(0 calc(100% - var(--rail-w)) 0 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* No travel: the open menu crossfades in and out over the rail. */
+    .drawer .side { animation: drawer-fade-in 120ms ease-out; }
+    .drawer.closing .side { animation: drawer-fade-out 100ms ease-in forwards; }
+    @keyframes drawer-fade-in { from { opacity: 0; } }
+    @keyframes drawer-fade-out { to { opacity: 0; } }
   }
   .scrim {
     position: fixed;
@@ -549,6 +602,7 @@
     .shell.focus.rail { grid-template-columns: 0 1fr; }
     .shell.focus.rail .side { display: none; }
     .shell.focus.drawer { grid-template-columns: 0 1fr; }
+    .shell.focus.drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
     .shell.focus .main { padding: 12px 12px 56px; }
     .focus-menu {
       display: grid;
