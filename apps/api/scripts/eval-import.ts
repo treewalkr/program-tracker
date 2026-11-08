@@ -7,7 +7,8 @@
  * extraction) it reads the text exactly as POST /v1/ai/imports does — chunks
  * in parallel through callLlm, purpose program_import, so the calls land in
  * llm_calls — then reports number-check failures, coverage, set accuracy
- * against the expectation, and latency.
+ * against the expectation, latency, and the new words each fixture offers
+ * (against the global glossary — the eval has no trainer).
  *
  * Usage: bun run eval:import [--provider deepseek] [--model deepseek-flash]
  *        [--effort max] [--only week11-12,table]
@@ -19,6 +20,7 @@ import { parseArgs } from "node:util";
 import { DEFAULT_PROVIDER_ID, WEEK11_12_EXTRACTION, buildImportResult } from "@pt/shared";
 import { providerRuntime, resolveEffort } from "../src/ai/runtime";
 import { extractChunks } from "../src/lib/imports";
+import { loadGlossary } from "../src/lib/vocabulary";
 import { expectedFromExtraction, scoreResult, type Expected } from "../src/lib/import-eval";
 
 const { values } = parseArgs({
@@ -47,7 +49,10 @@ const expectedFor = (name: string): Expected =>
     ? expectedFromExtraction(WEEK11_12_EXTRACTION)
     : (JSON.parse(readFileSync(join(DIR, `${name}.expected.json`), "utf8")) as Expected);
 
+// no trainer: the global glossary seed, as in the prompt
+const glossary = await loadGlossary(null);
 const rows: Record<string, string | number>[] = [];
+const newTerms: string[] = [];
 const totals = { correct: 0, expected: 0, sessionsCorrect: 0, sessionsExpected: 0, numberFlags: 0 };
 for (const name of names) {
   const text = readFileSync(join(DIR, `${name}.txt`), "utf8");
@@ -57,13 +62,17 @@ for (const name of names) {
     rt,
     effort,
     new AbortController().signal,
+    glossary,
   );
   const ms = Math.round(performance.now() - started);
   if (!outcomes) {
     rows.push({ fixture: name, error: "aborted" });
     continue;
   }
-  const s = scoreResult(buildImportResult(text, outcomes), expectedFor(name));
+  const result = buildImportResult(text, outcomes, glossary);
+  const s = scoreResult(result, expectedFor(name));
+  const words = (result.newTerms ?? []).map((t) => (t.meaning ? `${t.term} (${t.meaning})` : t.term));
+  newTerms.push(`  ${name}: ${words.length ? words.join(", ") : "—"}`);
   rows.push({
     fixture: name,
     sets: `${s.correct}/${s.expected}`,
@@ -80,6 +89,8 @@ for (const name of names) {
 }
 console.log();
 console.table(rows);
+console.log("new words:");
+for (const l of newTerms) console.log(l);
 console.log(
   `total — sets ${totals.correct}/${totals.expected} · sessions ${totals.sessionsCorrect}/${totals.sessionsExpected} · number flags ${totals.numberFlags}`,
 );
