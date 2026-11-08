@@ -119,8 +119,8 @@ const CHAIN_IDS = [
   "chain-intrinsic",
   "chain-deep-longitudinal",
   "chain-lateral",
-  "chain-posterior-spiral",
-  "chain-anterior-spiral",
+  "chain-posterior-oblique",
+  "chain-anterior-oblique",
 ];
 
 const seedChains: KineticChainDto[] = KINETIC_CHAIN_DEFAULTS.map((c, i) => ({

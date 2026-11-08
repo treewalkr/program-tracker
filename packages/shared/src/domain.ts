@@ -55,17 +55,24 @@ export const KineticChainInput = z.object({
 });
 export type KineticChainInput = z.infer<typeof KineticChainInput>;
 
-/** Seed defaults — the fixed five, in the trainer's order. */
+/**
+ * Seed defaults — the fixed five, in the trainer's order. Groups follow the
+ * sling anatomy (Vleeming; Myers): the inner unit is the deep core, the
+ * anterior oblique sling is the obliques with the contralateral adductors,
+ * the lateral sling is glute med/min with the adductors and QL, the posterior
+ * oblique sling is glute max with the contralateral lat. Muscle groups are
+ * coarse, so these are approximations; counts are descriptive, not a score.
+ */
 export const KINETIC_CHAIN_DEFAULTS: {
   name: string;
   muscleGroups: ChainMuscleGroup[];
   sortOrder: number;
 }[] = [
-  { name: "Intrinsic", muscleGroups: ["core", "back", "traps"], sortOrder: 1 },
+  { name: "Intrinsic", muscleGroups: ["core"], sortOrder: 1 },
   { name: "Deep Longitudinal", muscleGroups: ["back", "hamstrings", "calves"], sortOrder: 2 },
-  { name: "Lateral", muscleGroups: ["core", "glutes", "quads"], sortOrder: 3 },
-  { name: "Posterior Spiral", muscleGroups: ["glutes", "back", "hamstrings"], sortOrder: 4 },
-  { name: "Anterior Spiral", muscleGroups: ["core", "quads", "chest"], sortOrder: 5 },
+  { name: "Lateral", muscleGroups: ["glutes", "adductors", "core"], sortOrder: 3 },
+  { name: "Posterior Oblique", muscleGroups: ["glutes", "back"], sortOrder: 4 },
+  { name: "Anterior Oblique", muscleGroups: ["obliques", "adductors"], sortOrder: 5 },
 ];
 
 export const EQUIPMENT = [

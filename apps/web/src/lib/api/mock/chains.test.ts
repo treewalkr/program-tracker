@@ -9,15 +9,15 @@ describe("mockApi.chains", () => {
       "Intrinsic",
       "Deep Longitudinal",
       "Lateral",
-      "Posterior Spiral",
-      "Anterior Spiral",
+      "Posterior Oblique",
+      "Anterior Oblique",
     ]);
     expect(chains.map((c) => c.id)).toEqual([
       "chain-intrinsic",
       "chain-deep-longitudinal",
       "chain-lateral",
-      "chain-posterior-spiral",
-      "chain-anterior-spiral",
+      "chain-posterior-oblique",
+      "chain-anterior-oblique",
     ]);
     for (const c of chains) {
       expect(c.id.startsWith("chain-")).toBe(true);

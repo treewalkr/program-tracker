@@ -1086,8 +1086,8 @@ describe.skipIf(!dbUp)("kinetic chains", () => {
       "Intrinsic",
       "Deep Longitudinal",
       "Lateral",
-      "Posterior Spiral",
-      "Anterior Spiral",
+      "Posterior Oblique",
+      "Anterior Oblique",
     ]);
     for (const c of body.chains) {
       expect(c.muscleGroups.length).toBeGreaterThan(0);

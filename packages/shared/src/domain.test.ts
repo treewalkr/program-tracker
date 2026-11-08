@@ -861,8 +861,8 @@ describe("KINETIC_CHAIN_DEFAULTS", () => {
       "Intrinsic",
       "Deep Longitudinal",
       "Lateral",
-      "Posterior Spiral",
-      "Anterior Spiral",
+      "Posterior Oblique",
+      "Anterior Oblique",
     ]);
     expect(KINETIC_CHAIN_DEFAULTS.map((c) => c.sortOrder)).toEqual([1, 2, 3, 4, 5]);
     for (const chain of KINETIC_CHAIN_DEFAULTS) {
@@ -873,6 +873,17 @@ describe("KINETIC_CHAIN_DEFAULTS", () => {
         KineticChainInput.parse({ muscleGroups: chain.muscleGroups })
       ).not.toThrow();
     }
+  });
+});
+
+describe("KINETIC_CHAIN_DEFAULTS follow the sling anatomy (F20)", () => {
+  const groups = (name: string) => [...KINETIC_CHAIN_DEFAULTS.find((c) => c.name === name)!.muscleGroups].sort();
+  test("inner unit, slings and deep longitudinal", () => {
+    expect(groups("Intrinsic")).toEqual(["core"]);
+    expect(groups("Anterior Oblique")).toEqual(["adductors", "obliques"]);
+    expect(groups("Lateral")).toEqual(["adductors", "core", "glutes"]);
+    expect(groups("Posterior Oblique")).toEqual(["back", "glutes"]);
+    expect(groups("Deep Longitudinal")).toEqual(["back", "calves", "hamstrings"]);
   });
 });
 
