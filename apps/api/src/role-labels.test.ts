@@ -4,6 +4,7 @@ import { db, roleLabels, trainers } from "@pt/db";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { app } from "./app";
+import { checkDraftRoles } from "./lib/settle-generation";
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
 
@@ -107,5 +108,38 @@ describe.skipIf(!dbUp)("role labels", () => {
     expect((await call("DELETE", `/v1/vocabulary/role-labels/${theirs.id}`)).status).toBe(404);
     expect((await call("GET", "/v1/vocabulary/role-labels")).body.some((l: any) => l.id === theirs.id)).toBe(false);
     expect((await call("PATCH", "/v1/vocabulary/role-labels/not-a-thing", { description: "x" })).status).toBe(404);
+  });
+
+  test("draft check: missing/unknown/archived labels get a suggestion; two Primaries get a note", async () => {
+    const trainerId = await getDefaultTrainerId();
+    const { body: mine } = await call("POST", "/v1/vocabulary/role-labels", { name: uniq(), description: "mine" });
+    const { body: old } = await call("POST", "/v1/vocabulary/role-labels", { name: uniq(), description: "old" });
+    await call("DELETE", `/v1/vocabulary/role-labels/${old.id}`);
+    const sets = [{ setNumber: 1, type: "working" as const, amrap: false, reps: 5 }];
+    const draft = {
+      name: "D",
+      rationale: "Why.",
+      clientSummary: "",
+      sessions: [
+        {
+          name: "Lower",
+          kind: "lifting" as const,
+          exercises: [
+            { exerciseName: "Back Squat", role: "primary" as const, prescribedSets: sets },
+            { exerciseName: "Deadlift", role: "primary" as const, prescribedSets: sets },
+            { exerciseName: "Plank", prescribedSets: sets },
+            { exerciseName: "Box Jump", role: `label:${crypto.randomUUID()}` as const, prescribedSets: sets },
+            { exerciseName: "Leg Curl", role: old.key, prescribedSets: sets },
+            { exerciseName: "Nordic", role: mine.key, prescribedSets: sets },
+          ],
+        },
+      ],
+    };
+    const fixed = await checkDraftRoles(trainerId, draft);
+    expect(fixed.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "power", "accessory", mine.key]);
+    expect(fixed.rationale).toContain("Role check: Lower has more than one Primary lift");
+    // a revision that kept the note doesn't get it twice
+    const again = await checkDraftRoles(trainerId, fixed);
+    expect(again.rationale.match(/Role check/g)).toHaveLength(1);
   });
 });

@@ -9,7 +9,7 @@ import {
   sortExercisesByRole,
   stampWeeks,
 } from "@pt/shared";
-import type { AiProgramDraft, DraftExerciseRef, PlacementDaysInput, ProgramSession, ProgramWeek, SessionTypeLike } from "@pt/shared";
+import type { AiProgramDraft, DraftExerciseRef, PlacementDaysInput, ProgramSession, ProgramWeek, RoleRank, SessionTypeLike } from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
@@ -62,7 +62,9 @@ export function draftTemplateSessions(
   draft: AiProgramDraft,
   catalog: CatalogLike[],
   /** Trainer's session types: a draft `type` naming one of the right format becomes typeId/typeName. */
-  types: SessionTypeLike[] = []
+  types: SessionTypeLike[] = [],
+  /** The trainer's role labels (loadRoleLabels) — exercises sort by their ranks; absent = built-ins. */
+  labels?: readonly RoleRank[]
 ): { sessions: ProgramSession[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
   const nameById = new Map(catalog.map((c) => [c.id, c.name]));
@@ -75,7 +77,7 @@ export function draftTemplateSessions(
     const isCardio = s.kind === "cardio";
     const exercises = isCardio
       ? []
-      : sortExercisesByRole(s.exercises ?? []).flatMap((ref, ei) => {
+      : sortExercisesByRole(s.exercises ?? [], labels).flatMap((ref, ei) => {
           const res = resolveRef(ref, byId, byName);
           if (res.kind === "unresolvable") {
             unresolvable.push(res.ref);
@@ -128,9 +130,10 @@ export function draftToWeeks(
   plannedWeeks = 4,
   /** Client availability (trainingDays, cardioDays, longRunDay) or bare training days. */
   days?: PlacementDaysInput,
-  types: SessionTypeLike[] = []
+  types: SessionTypeLike[] = [],
+  labels?: readonly RoleRank[]
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types, labels);
   // AI weekdays that pass the placement rules stay; the rest are re-placed.
   const weeks = placeWeeks(stampWeeks(sessions, plannedWeeks), days, patternLookup(catalog), { keepWeekdays: true });
   return { weeks, createdNames, unresolvable };
@@ -153,9 +156,10 @@ export function replaceWeek(
   draft: AiProgramDraft,
   catalog: CatalogLike[],
   days?: PlacementDaysInput,
-  types: SessionTypeLike[] = []
+  types: SessionTypeLike[] = [],
+  labels?: readonly RoleRank[]
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types, labels);
   const oldWeek = weeks.find((w) => w.week === weekNumber);
   const oldAt = new Map(
     (oldWeek?.sessions ?? []).map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }])
