@@ -1338,6 +1338,13 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     expect(cardioRow.sets).toEqual([]);
     expect(liftingRow).toBeDefined();
     expect(liftingRow.cardio).toBeNull();
+
+    const mine = await call("GET", `/v1/logs/sessions?programId=${programId}`);
+    expect(mine.body.length).toBe(list.body.filter((l: any) => l.programId === programId).length);
+    expect(mine.body.length).toBeGreaterThan(0);
+    // someone else's (or no) program is not found — the ownership guard checks query ids too
+    const none = await call("GET", `/v1/logs/sessions?programId=${crypto.randomUUID()}`);
+    expect(none.status).toBe(404);
   });
 
   test("cardio log with sets is a 422", async () => {

@@ -83,7 +83,7 @@ used in `exampleProgramIds`.
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/v1/logs/sessions` | see below |
-| GET | `/v1/logs/sessions?clientId=&from=&to=` | logs with their sets, newest first, max 200 |
+| GET | `/v1/logs/sessions?clientId=&programId=&from=&to=` | logs with their sets, newest first, max 200; `programId` keeps one program's logs |
 | GET | `/v1/logs/history?clientId=` | per-exercise 8-week aggregation: `recentSets[]`, `bestE1rm` — same shape the AI consumes |
 
 `POST /v1/logs/sessions` body — lifting (default `kind`) or cardio:

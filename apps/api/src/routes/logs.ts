@@ -82,9 +82,10 @@ function serializeSets(rows: typeof setLogs.$inferSelect[]) {
 const ofTrainer = (trainerId: string) =>
   inArray(sessionLogs.clientId, db.select({ id: clients.id }).from(clients).where(eq(clients.trainerId, trainerId)));
 
-async function loadSessionWithSets(trainerId: string, clientId?: string, from?: string, to?: string) {
+async function loadSessionWithSets(trainerId: string, clientId?: string, from?: string, to?: string, programId?: string) {
   const conds = [ofTrainer(trainerId)];
   if (clientId) conds.push(eq(sessionLogs.clientId, clientId));
+  if (programId) conds.push(eq(sessionLogs.programId, programId));
   if (from) conds.push(gte(sessionLogs.date, from));
   if (to) conds.push(lte(sessionLogs.date, to));
   const logs = await db
@@ -175,10 +176,13 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   )
   .get(
     "/sessions",
-    async ({ query, trainerId }) => loadSessionWithSets(trainerId, query.clientId, query.from, query.to),
+    async ({ query, trainerId }) =>
+      loadSessionWithSets(trainerId, query.clientId, query.from, query.to, query.programId),
     {
       query: t.Object({
         clientId: t.Optional(t.String()),
+        /** Only this program's logs — the program page shows them per session. */
+        programId: t.Optional(t.String()),
         from: t.Optional(t.String()),
         to: t.Optional(t.String()),
       }),
