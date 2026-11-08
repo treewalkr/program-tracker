@@ -34,6 +34,8 @@ export interface ClientContext {
   /** ISO weekday the long run is pinned to. */
   longRunDay?: number | null;
   cardioTarget?: CardioTarget | null;
+  /** Recorded 1RMs with catalog names, for %1RM prescriptions. */
+  oneRepMaxes?: { exerciseId: string; name: string; kg: number; date: string }[] | null;
 }
 
 export interface ProgramSummary {
@@ -140,6 +142,10 @@ const DRAFT_SCHEMA_SPEC = `{
           "metric": "overall_volume" | "rep_volume" | "intensity",
           "deltaPercent": number     // % vs previous week, e.g. 5 for +5%
         },
+        "progression"?: {            // how this week's sets change vs the week before
+          "kind": "kg" | "percent" | "sets", // kg: add to targetWeightKg · percent: add %1RM points · sets: add/remove working sets
+          "amount": number           // e.g. 2.5 (kg), 2.5 (points), 1 (set); negative to cut
+        },
         "note"?: string
       }
     ]?
@@ -168,12 +174,17 @@ const DRAFT_SCHEMA_SPEC = `{
             {
               "setNumber": number,  // 1-indexed, sequential
               "type": "working" | "backoff",
-              "reps": number,       // target reps; 0 only for timed/failure sets
+              "reps": number,       // target reps; 0 only for timed or open-ended AMRAP sets
               "repsMin": number?,   // lower bound of a rep range (reps = upper bound)
-              "amrap": boolean,     // true = reps is the minimum, go to failure
+              "amrap": boolean,     // true = AMRAP: reps is the minimum; stop at stopRpe
+              "stopRpe": number?,   // AMRAP only: end the set at this RPE (e.g. 9), never "to failure"
               "durationSeconds": number?, // timed sets; reps = 0
               "targetWeightKg": number?,  // load target — progress from last logged loads
-              "targetRpe": number?, // 1-10
+              "percent1rm": number?, // load as % of the client's 1RM (1-110); only for lifts in CLIENT 1RMs
+              "targetRpe": number?, // 1-10; the top of the range when targetRpeMin is set
+              "targetRpeMin": number?, // bottom of an RPE range, e.g. 7 for RPE 7-8
+              "targetRir": number?, // reps in reserve, 0-10
+              "tempo": string?,     // "3-1-1-0" or "31X0": eccentric, pause, concentric, top (X = explosive)
               "restSeconds": number?
             }
           ],
@@ -194,6 +205,16 @@ const GOLD_STANDARD_RULE =
 
 const CARDIO_TARGET_RULE =
   "- When a CARDIO TARGET is given, the week's cardio prescriptions must add up to it.";
+
+const PRESCRIPTION_RULE =
+  "- Prescription detail: for lifts listed in CLIENT 1RMs you may prescribe percent1rm instead of (or alongside) targetWeightKg; use targetRpeMin + targetRpe for RPE ranges, targetRir for reps in reserve, and tempo where tempo or pauses matter (e.g. comp-style pauses). An AMRAP set (amrap true) states stopRpe, never an RPE paired with going to failure.";
+
+/** The CLIENT 1RMs line; empty when none are recorded. */
+function oneRepMaxLines(client: ClientContext): string[] {
+  if (!client.oneRepMaxes?.length) return [];
+  const list = client.oneRepMaxes.map((m) => `${m.name} [${m.exerciseId}] ${m.kg} kg (${m.date})`).join("; ");
+  return [`CLIENT 1RMs (for percent1rm): ${list}`];
+}
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -271,6 +292,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     ROLE_RULE,
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     DELOAD_RULE,
     CARDIO_TARGET_RULE,
@@ -289,6 +311,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...oneRepMaxLines(ctx.client),
     ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
     "",
     ctx.previousProgram
@@ -411,6 +434,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     ROLE_RULE,
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
     DELOAD_RULE,
     CARDIO_TARGET_RULE,
@@ -435,6 +459,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...oneRepMaxLines(ctx.client),
     ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
     "",
     ctx.previousProgram
@@ -524,6 +549,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     ROLE_RULE,
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    PRESCRIPTION_RULE,
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
     DELOAD_RULE,
@@ -541,6 +567,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...oneRepMaxLines(ctx.client),
     "",
     ctx.previousProgram
       ? [
@@ -601,6 +628,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     ROLE_RULE,
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
+    PRESCRIPTION_RULE,
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
     DELOAD_RULE,
@@ -624,6 +652,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...oneRepMaxLines(ctx.client),
     "",
     ctx.previousProgram
       ? [
@@ -936,6 +965,7 @@ export function buildChatSystem(ctx: ChatContext): string {
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
+    ...oneRepMaxLines(ctx.client),
     ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
     "",
     ctx.previousProgram

@@ -868,6 +868,27 @@ describe("bindPendingExercises", () => {
   });
 });
 
+describe("prescription model in the prompts (F22/F23/F28)", () => {
+  const ctxBase = { previousProgram: null, periodization: null, chainBalance: null, history: [], catalog: [], trainerInstructions: "" };
+
+  test("the schema lists %1RM, RPE ranges, RIR, tempo, stop RPE and week progression", () => {
+    const { system } = buildGenerationMessages({ ...ctxBase, client: { name: "Maya", sessionsPerWeek: 3 } });
+    for (const field of ['"percent1rm"', '"targetRpeMin"', '"targetRir"', '"tempo"', '"stopRpe"', '"progression"']) {
+      expect(system).toContain(field);
+    }
+    expect(system).toContain("AMRAP");
+    expect(system).not.toContain("go to failure");
+  });
+
+  test("the client's 1RMs reach every draft prompt, and are absent when none are recorded", () => {
+    const client = { name: "Maya", sessionsPerWeek: 3, oneRepMaxes: [{ exerciseId: "sq-id", name: "Back Squat", kg: 140, date: "2026-10-01" }] };
+    const line = "CLIENT 1RMs (for percent1rm): Back Squat [sq-id] 140 kg (2026-10-01)";
+    expect(buildGenerationMessages({ ...ctxBase, client }).user).toContain(line);
+    expect(buildWeekMessages({ ...ctxBase, client, targetWeek: 2, plannedWeeks: 4, weekDirective: null } as never).user).toContain(line);
+    expect(buildGenerationMessages({ ...ctxBase, client: { name: "Maya" } }).user).not.toContain("CLIENT 1RMs");
+  });
+});
+
 describe("cardio target prompt context", () => {
   const ctxBase = {
     previousProgram: null,

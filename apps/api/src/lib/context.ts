@@ -173,6 +173,12 @@ export async function loadContext(
       trainingDays: client.trainingDays ?? null,
       cardioDays: client.cardioDays ?? null,
       longRunDay: client.longRunDay ?? null,
+      oneRepMaxes: Object.entries(client.oneRepMaxes ?? {}).map(([exerciseId, m]) => ({
+        exerciseId,
+        name: catalogByTrainer.find((e) => e.id === exerciseId)?.name ?? exerciseId,
+        kg: m.kg,
+        date: m.date,
+      })),
       cardioTarget: client.cardioTarget ?? null,
     },
     previousProgram: previous,
