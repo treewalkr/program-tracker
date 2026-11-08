@@ -195,3 +195,8 @@ export function startedOnError(date: string, today: string = localIso(new Date()
 export function basicsInvalid(f: ProfileForm): boolean {
   return !!(bodyweightError(f.bodyweightKg) || heightError(f.heightCm) || birthDateError(f.birthDate) || startedOnError(f.startedOn));
 }
+
+/** A phone field's value for the API: trimmed, empty → null. */
+export function phonePayload(phone: string): string | null {
+  return phone.trim() || null;
+}

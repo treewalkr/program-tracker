@@ -5,7 +5,7 @@
   import { api, apiMode } from "$lib/api";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
-  import { basicsInvalid, emailError, emptyProfile, nameError, profilePayload } from "$lib/clientProfile";
+  import { basicsInvalid, emailError, emptyProfile, nameError, phonePayload, profilePayload } from "$lib/clientProfile";
   import { clearNewClientDraft, newClientDraftKey, readNewClientDraft, saveNewClientDraft } from "$lib/newClientDraft";
   import Button from "$lib/ui/Button.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
@@ -19,6 +19,7 @@
   let saving = $state(false);
   let name = $state("");
   let email = $state("");
+  let phone = $state("");
   let profile = $state(emptyProfile());
   let createError = $state<string | null>(null);
   /** Set by a submit attempt: shows every field error at once. */
@@ -37,7 +38,7 @@
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     if (!autosave) return;
-    const draft = $state.snapshot({ name, email, profile });
+    const draft = $state.snapshot({ name, email, phone, profile });
     clearTimeout(saveTimer);
     // No teardown clear: a save still pending when the page closes must land.
     saveTimer = setTimeout(() => saveNewClientDraft(draftKey, draft), 300);
@@ -46,6 +47,7 @@
   function reset() {
     name = "";
     email = "";
+    phone = "";
     profile = emptyProfile();
     createError = null;
     attempted = false;
@@ -84,7 +86,7 @@
     saving = true;
     createError = null;
     try {
-      const created = await api.createClient({ name: name.trim(), email: email.trim() || null, ...profilePayload(profile) });
+      const created = await api.createClient({ name: name.trim(), email: email.trim() || null, phone: phonePayload(phone), ...profilePayload(profile) });
       autosave = false;
       clearTimeout(saveTimer);
       clearNewClientDraft(draftKey);
@@ -101,6 +103,7 @@
     if (draft) {
       name = draft.name;
       email = draft.email;
+      phone = draft.phone;
       profile = draft.profile;
       restored = true;
     }
@@ -134,7 +137,7 @@
     <form class="panel-body pf" onsubmit={submit} novalidate>
       <section class="pf-sec">
         <h3>Client</h3>
-        <ClientIdentityFields bind:name bind:email idPrefix="f" showAll={attempted} />
+        <ClientIdentityFields bind:name bind:email bind:phone idPrefix="f" showAll={attempted} />
       </section>
 
       <ClientProfileFields bind:form={profile} idPrefix="f" collapsible />

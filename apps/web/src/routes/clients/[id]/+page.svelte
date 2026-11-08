@@ -1,6 +1,6 @@
 <script lang="ts">
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import { basicsInvalid, emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
+  import { basicsInvalid, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -46,8 +46,9 @@
   let form = $state<ProfileForm>(emptyProfile());
   let idName = $state("");
   let idEmail = $state("");
+  let idPhone = $state("");
   let idAttempted = $state(false);
-  const idKey = () => JSON.stringify([idName.trim(), idEmail.trim()]);
+  const idKey = () => JSON.stringify([idName.trim(), idEmail.trim(), idPhone.trim()]);
   let savedId = $state("");
   const profileDirty = $derived(savedForm !== "" && (profileKey(form) !== savedForm || idKey() !== savedId));
   let catalogById = $state(new Map<string, ExerciseDto>());
@@ -194,6 +195,7 @@
     savedForm = profileKey(form);
     idName = detail.client.name;
     idEmail = detail.client.email ?? "";
+    idPhone = detail.client.phone ?? "";
     savedId = idKey();
     latestGen = (await api.generations(id))[0] ?? null;
   }
@@ -211,11 +213,12 @@
     saving = true;
     saveProfileError = null;
     try {
-      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim() || null, ...profilePayload(form) });
+      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim() || null, phone: phonePayload(idPhone), ...profilePayload(form) });
       form = profileFromClient(client);
       savedForm = profileKey(form);
       idName = client.name;
       idEmail = client.email ?? "";
+      idPhone = client.phone ?? "";
       savedId = idKey();
       profileSaved = true;
       setTimeout(() => (profileSaved = false), 2500);
@@ -619,7 +622,7 @@
       >
         <section class="pf-sec">
           <h3>Client</h3>
-          <ClientIdentityFields bind:name={idName} bind:email={idEmail} idPrefix="p" showAll={idAttempted} />
+          <ClientIdentityFields bind:name={idName} bind:email={idEmail} bind:phone={idPhone} idPrefix="p" showAll={idAttempted} />
         </section>
 
         <ClientProfileFields bind:form idPrefix="p" catalog={catalogList} />

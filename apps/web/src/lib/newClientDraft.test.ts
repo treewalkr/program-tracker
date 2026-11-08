@@ -25,10 +25,10 @@ describe("newClientDraft", () => {
   test("round-trips a touched form; empty form removes the key", () => {
     const s = mem();
     const k = newClientDraftKey("mock", null);
-    const d = { name: "Ana", email: "", profile: { ...emptyProfile(), goals: "Run 10k" } };
+    const d = { name: "Ana", email: "", phone: "+66 81 234 5678", profile: { ...emptyProfile(), goals: "Run 10k" } };
     saveNewClientDraft(k, d, s);
     expect(readNewClientDraft(k, s)).toEqual(d);
-    saveNewClientDraft(k, { name: " ", email: "", profile: emptyProfile() }, s);
+    saveNewClientDraft(k, { name: " ", email: "", phone: " ", profile: emptyProfile() }, s);
     expect(s.m.has(k)).toBe(false);
   });
 
@@ -58,6 +58,7 @@ describe("newClientDraft", () => {
     s.setItem("old", JSON.stringify({ v: 1, savedAt: "x", data: { name: "Ana", email: "", profile: old } }));
     const restored = readNewClientDraft("old", s);
     expect(restored?.name).toBe("Ana");
+    expect(restored?.phone).toBe("");
     expect(restored?.profile).toEqual({ ...emptyProfile(), ...old } as typeof restored.profile);
     expect(restored?.profile).toMatchObject({ experience: "", birthDate: "", sex: "", bodyweightKg: null, heightCm: null });
   });

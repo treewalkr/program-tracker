@@ -7,6 +7,7 @@ import {
   emptyProfile,
   heightError,
   nameError,
+  phonePayload,
   profileFromClient,
   profileKey,
   profilePayload,
@@ -144,4 +145,9 @@ test("basics range errors match the API limits", () => {
   expect(startedOnError("1999-12-31", "2026-11-08")).not.toBeNull();
   expect(basicsInvalid({ ...emptyProfile(), heightCm: 300 })).toBe(true);
   expect(basicsInvalid(emptyProfile())).toBe(false);
+});
+
+test("phone is trimmed; blank is null", () => {
+  expect(phonePayload("  +66 81 234 5678 ")).toBe("+66 81 234 5678");
+  expect(phonePayload("   ")).toBeNull();
 });

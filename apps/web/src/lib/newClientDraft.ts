@@ -11,6 +11,8 @@ export const NEW_CLIENT_DRAFT_PREFIX = "pt.newClientDraft.";
 export interface NewClientDraft {
   name: string;
   email: string;
+  /** Absent in drafts saved before the phone field; restored as "". */
+  phone: string;
   profile: ProfileForm;
 }
 
@@ -30,7 +32,7 @@ export function newClientDraftKey(mode: string, trainerId: string | null | undef
 }
 
 export function isEmptyNewClient(d: NewClientDraft): boolean {
-  return d.name.trim() === "" && d.email.trim() === "" && profileKey(d.profile) === profileKey(emptyProfile());
+  return d.name.trim() === "" && d.email.trim() === "" && d.phone.trim() === "" && profileKey(d.profile) === profileKey(emptyProfile());
 }
 
 const isNums = (v: unknown) => Array.isArray(v) && v.every((n) => typeof n === "number");
@@ -77,8 +79,9 @@ export function readNewClientDraft(key: string, s: Store | null = session()): Ne
   if (!raw) return null;
   const d = readDraft<Partial<NewClientDraft>>(key, s)?.data;
   const profile = d ? restoreProfile(d.profile) : null;
-  if (d && typeof d.name === "string" && typeof d.email === "string" && profile) {
-    return { name: d.name, email: d.email, profile };
+  const phone = d?.phone ?? "";
+  if (d && typeof d.name === "string" && typeof d.email === "string" && typeof phone === "string" && profile) {
+    return { name: d.name, email: d.email, phone, profile };
   }
   clearDraft(key, s);
   return null;
