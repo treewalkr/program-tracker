@@ -266,4 +266,8 @@ describe("chat proposals", () => {
     expect(text).toContain("- Day 3, slot 2 (swap): Front Squat → Paused Back Squat — 5×5 @RPE 7–8 · rest 180s");
     expect(text.startsWith("Apply exactly these changes")).toBe(true);
   });
+  test("proposalToFeedback names the areas the build must not touch", () => {
+    const text = proposalToFeedback("swap it", { summary: "s", changes: [{ day: 1, slot: 1, kind: "swap", from: "A", to: "B", detail: "3×5" }] });
+    expect(text).toContain("Do not change: the block plan / phasing (weeks, targets, next block), cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.");
+  });
 });

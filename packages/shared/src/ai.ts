@@ -362,5 +362,6 @@ export function proposalToFeedback(message: string, proposal: ChatProposal): str
     `Trainer request: ${message}`,
     "Changes:",
     ...lines,
+    "Do not change: the block plan / phasing (weeks, targets, next block), cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.",
   ].join("\n");
 }
