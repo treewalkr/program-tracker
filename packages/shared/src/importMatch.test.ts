@@ -62,6 +62,12 @@ describe("matchExercise", () => {
     expect(matchExercise({ sourceName: "back squat", name: "Squat" }, CATALOG).exerciseId).toBe("squat");
   });
 
+  test("same name up to punctuation and shorthand is exact", () => {
+    const catalog = [...CATALOG, { id: "pull", name: "Pull-Up" }, { id: "bbrow", name: "Barbell Row" }];
+    expect(matchExercise({ sourceName: "Pull up", name: "Pull Up" }, catalog)).toMatchObject({ kind: "exact", exerciseId: "pull" });
+    expect(matchExercise({ sourceName: "BB row", name: "x" }, catalog)).toMatchObject({ kind: "exact", exerciseId: "bbrow" });
+  });
+
   test("fuzzy: shorthand and typos, top candidates offered", () => {
     const sa = matchExercise({ sourceName: "SA Row", name: "Single-Arm Row" }, CATALOG);
     expect(sa).toMatchObject({ kind: "fuzzy", exerciseId: "sa-row" });

@@ -113,6 +113,12 @@ export function matchExercise(
     const hit = catalog.find((c) => c.name.toLowerCase() === n.trim().toLowerCase());
     if (hit) return { kind: "exact", exerciseId: hit.id, exerciseName: hit.name };
   }
+  // …and the same name up to case, punctuation and gym shorthand ("Pull up" = "Pull-Up", "BB Row" = "Barbell Row")
+  for (const n of [ex.name, ex.sourceName]) {
+    const key = expandAbbreviations(n);
+    const hit = key ? catalog.find((c) => expandAbbreviations(c.name) === key) : undefined;
+    if (hit) return { kind: "exact", exerciseId: hit.id, exerciseName: hit.name };
+  }
 
   // 3. fuzzy — shorthand expanded, typo-tolerant; the top 3 are offered
   const ranked = catalog
