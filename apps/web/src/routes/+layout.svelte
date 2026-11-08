@@ -64,7 +64,7 @@
           {
             label: "Email",
             items: [
-              { href: "/admin/emails/templates", label: "Templates", icon: "mail" },
+              { href: "/admin/emails/templates", label: "Email templates", icon: "mail" },
               { href: "/admin/emails/outbox", label: "Outbox", icon: "send" },
             ],
           },
