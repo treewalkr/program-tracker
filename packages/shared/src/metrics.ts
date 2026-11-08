@@ -63,32 +63,52 @@ export interface WeekMetrics {
   plannedOnly: boolean;
 }
 
-/** Block anchor (activatedAt ?? first log ?? createdAt) — the date every
- *  block-week window derives from. */
+/** Block anchor: the earlier of `activatedAt` and the program's first log
+ *  (logs backfilled before activation belong to the block), else `createdAt`.
+ *  Every block-week window — pulse, week summary, signals, adherence, the
+ *  overview grid — derives from this one date. */
 export function blockAnchorDate(program: SignalProgram, logs: SignalLog[]): string {
-  const programLogs = logs.filter((l) => l.programId === program.id);
-  return (
-    program.activatedAt ??
-    programLogs.map((l) => l.date).sort()[0] ??
-    program.createdAt
-  );
+  const firstLog = logs
+    .filter((l) => l.programId === program.id)
+    .map((l) => l.date)
+    .sort()[0];
+  const activated = program.activatedAt ?? null;
+  if (firstLog && (!activated || firstLog.slice(0, 10) < activated.slice(0, 10))) return firstLog;
+  return activated ?? firstLog ?? program.createdAt;
 }
 
-/** Fractional days since the block anchor (activatedAt ?? first log ?? createdAt) —
- *  the same anchor weekOf uses; weekOf is refactored onto the shared private anchor. */
+const DAY_MS = 86_400_000;
+const dayNumber = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) / DAY_MS;
+
+/** Runtime-local calendar date (YYYY-MM-DD) of an epoch-ms instant. */
+export function localDateOf(now: number): string {
+  const d = new Date(now);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Whole calendar days from the block anchor's day to `date`'s day. */
+export function blockDayOfDate(program: SignalProgram, logs: SignalLog[], date: string): number {
+  return dayNumber(date) - dayNumber(blockAnchorDate(program, logs));
+}
+
+/** 1-indexed block week of a calendar date (YYYY-MM-DD or ISO timestamp).
+ *  Week 1 starts on the anchor's day; dates before it clamp to week 1. */
+export function blockWeekOfDate(program: SignalProgram, logs: SignalLog[], date: string): number {
+  return Math.max(1, Math.floor(blockDayOfDate(program, logs, date) / 7) + 1);
+}
+
+/** Whole calendar days since the block anchor, up to today (runtime-local). */
 export function daysIntoBlock(
   program: SignalProgram,
   logs: SignalLog[],
   now = Date.now()
 ): number {
-  const start = blockAnchorDate(program, logs);
-  return (now - new Date(start).getTime()) / 86400_000;
+  return blockDayOfDate(program, logs, localDateOf(now));
 }
 
-/** 1-indexed block week derived from first activation (or first log / creation). */
+/** 1-indexed block week containing today — same buckets as the logs. */
 export function weekOf(program: SignalProgram, logs: SignalLog[], now = Date.now()): number {
-  const days = daysIntoBlock(program, logs, now);
-  return Math.max(1, Math.floor(days / 7) + 1);
+  return blockWeekOfDate(program, logs, localDateOf(now));
 }
 
 /**
@@ -108,10 +128,6 @@ export function timedExerciseIds(program: Pick<SignalProgram, "weeks">): Set<str
   return ids;
 }
 
-function dateKey(iso: string): number {
-  return new Date(iso).getTime();
-}
-
 export function blockPulse(
   program: SignalProgram,
   logs: SignalLog[],
@@ -119,15 +135,12 @@ export function blockPulse(
 ): WeekMetrics[] {
   const ph = program.phasing;
   if (!ph) return [];
-  const start = program.activatedAt ? dateKey(program.activatedAt) : null;
   const timed = timedExerciseIds(program);
   const weeks = new Map<number, { overallVolume: number; sets: number; reps: number; rpeSum: number; rpeN: number; best: number }>();
 
   for (const log of logs) {
     if (log.programId !== program.id) continue;
-    if (start != null && dateKey(log.date) < start) continue;
-    const days = (dateKey(log.date) - (start ?? dateKey(log.date) - 7 * 86400_000)) / 86400_000;
-    const week = Math.max(1, Math.floor(days / 7) + 1);
+    const week = blockWeekOfDate(program, logs, log.date);
     const entry = weeks.get(week) ?? { overallVolume: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, best: 0 };
     for (const s of log.sets) {
       entry.sets += 1;
@@ -280,11 +293,10 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
   const { program, logs, week, catalog } = input;
   const anchor = blockAnchorDate(program, logs).slice(0, 10);
   const weekStart = addDaysIso(anchor, (week - 1) * 7);
-  const weekEnd = addDaysIso(anchor, week * 7);
 
-  const inWindow = logs.filter(
-    (l) => l.programId === program.id && l.date >= weekStart && l.date < weekEnd
-  );
+  const programLogs = logs.filter((l) => l.programId === program.id);
+  const weekOfLog = (l: SignalLog) => blockWeekOfDate(program, programLogs, l.date);
+  const inWindow = programLogs.filter((l) => weekOfLog(l) === week);
   if (inWindow.length === 0) return null;
   const timed = timedExerciseIds(program);
 
@@ -317,11 +329,10 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
   // Prior best e1RM per exercise across earlier weeks of the same program.
   const priorBest = new Map<string, number>();
   let prevWeekVolume = 0;
-  const prevWeekStart = addDaysIso(anchor, (week - 2) * 7);
-  for (const log of logs) {
-    if (log.programId !== program.id) continue;
-    if (log.date < anchor || log.date >= weekStart) continue;
-    if (log.date >= prevWeekStart) {
+  for (const log of programLogs) {
+    const w = weekOfLog(log);
+    if (w >= week) continue;
+    if (w === week - 1) {
       for (const s of log.sets) {
         if (s.weightKg && !timed.has(s.exerciseId)) prevWeekVolume += s.weightKg * s.reps;
       }

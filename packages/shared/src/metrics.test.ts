@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  blockAnchorDate,
   blockPulse,
+  blockWeekOfDate,
   chainBalanceText,
   chainSetCounts,
   chainsForExercise,
@@ -293,7 +295,7 @@ describe("blockPulse & pulseSummary", () => {
       activatedAt: "2026-10-10T00:00:00.000Z",
     };
     const now1 = new Date("2026-10-15T12:00:00.000Z").getTime();
-    expect(daysIntoBlock(pActivated, [], now1)).toBeCloseTo(5.5, 4);
+    expect(daysIntoBlock(pActivated, [], now1)).toBe(5); // whole calendar days
     expect(weekOf(pActivated, [], now1)).toBe(1);
 
     const now2 = new Date("2026-10-24T00:00:00.000Z").getTime();
@@ -533,5 +535,67 @@ describe("back-off sets and timed holds (F02, F15)", () => {
     const chains: ChainDef[] = [{ id: "c-front", name: "Front", muscleGroups: ["quads"] }];
     const catalog: ChainCatalogEntry[] = [{ id: "ex-squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: [] }];
     expect(chainSetCounts(chains, logs, catalog, "2026-10-01")["c-front"]).toBe(3);
+  });
+});
+
+describe("one block-week model (F05)", () => {
+  const program: SignalProgram = {
+    id: "pg-w",
+    clientId: "c1",
+    name: "Backfilled block",
+    status: "active",
+    weeks: [],
+    createdAt: "2026-10-01T09:00:00.000Z",
+    activatedAt: "2026-11-02T03:00:00.000Z",
+    phasing: { plannedWeeks: 4, phase: "accumulation", weeks: [{ week: 1, directive: "base" }] },
+  };
+  const L = (date: string, sets: SignalLog["sets"] = []): SignalLog => ({ programId: "pg-w", date, sets });
+
+  test("anchor is the earlier of activation and the first program log, else createdAt", () => {
+    expect(blockAnchorDate(program, [L("2026-10-19"), L("2026-10-26")])).toBe("2026-10-19");
+    expect(blockAnchorDate(program, [L("2026-11-05")])).toBe("2026-11-02T03:00:00.000Z");
+    expect(blockAnchorDate({ ...program, activatedAt: null }, [])).toBe("2026-10-01T09:00:00.000Z");
+    // Another program's log never moves the anchor.
+    expect(blockAnchorDate(program, [{ ...L("2026-09-01"), programId: "other" }])).toBe("2026-11-02T03:00:00.000Z");
+  });
+
+  test("blockWeekOfDate buckets calendar days from the anchor day", () => {
+    const logs = [L("2026-10-19")];
+    expect(blockWeekOfDate(program, logs, "2026-10-19")).toBe(1);
+    expect(blockWeekOfDate(program, logs, "2026-10-25")).toBe(1);
+    expect(blockWeekOfDate(program, logs, "2026-10-26")).toBe(2);
+    expect(blockWeekOfDate(program, logs, "2026-11-08T23:30:00.000Z")).toBe(3);
+    // Before the anchor clamps to week 1.
+    expect(blockWeekOfDate(program, logs, "2026-10-01")).toBe(1);
+  });
+
+  test("weekOf uses the same calendar-day buckets as the logs", () => {
+    const logs = [L("2026-10-19")];
+    // Sunday evening of week 3 — still week 3, not a fractional-day rollover.
+    expect(weekOf(program, logs, Date.parse("2026-11-08T22:00:00Z"))).toBe(3);
+    expect(weekOf(program, logs, Date.parse("2026-11-09T00:30:00Z"))).toBe(4);
+  });
+
+  test("pulse counts logs dated before activation", () => {
+    const logs = [
+      L("2026-10-20", [{ exerciseId: "ex-sq", type: "working", weightKg: 100, reps: 5 }]),
+      L("2026-10-27", [{ exerciseId: "ex-sq", type: "working", weightKg: 100, reps: 5 }]),
+      L("2026-11-03", [{ exerciseId: "ex-sq", type: "working", weightKg: 105, reps: 5 }]),
+    ];
+    const pulse = blockPulse(program, logs, Date.parse("2026-11-04T12:00:00Z"));
+    expect(pulse.slice(0, 3).map((w) => w.overallVolume)).toEqual([500, 500, 525]);
+    expect(pulse.slice(0, 3).every((w) => !w.plannedOnly)).toBe(true);
+  });
+
+  test("weekSummary sees the backfilled weeks too", () => {
+    const logs = [
+      L("2026-10-20", [{ exerciseId: "ex-sq", type: "working", weightKg: 100, reps: 5 }]),
+      L("2026-11-03", [{ exerciseId: "ex-sq", type: "working", weightKg: 105, reps: 5 }]),
+    ];
+    const w1 = weekSummary({ program, logs, week: 1, catalog: [] })!;
+    expect(w1.weekStart).toBe("2026-10-20");
+    expect(w1.overallVolume).toBe(500);
+    const w3 = weekSummary({ program, logs, week: 3, catalog: [{ id: "ex-sq", name: "Squat" }] })!;
+    expect(w3.prs.map((p) => p.exerciseName)).toEqual(["Squat"]);
   });
 });
