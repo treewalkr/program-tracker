@@ -1,6 +1,8 @@
 import { Elysia, t } from "elysia";
-import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
-import { clients, db, emailLog, feedbackItems, sessionLogs, trainers } from "@pt/db";
+import { and, asc, count, desc, eq, inArray, isNull, max, min } from "drizzle-orm";
+import { clients, db, emailLog, feedbackItems, programs, sessionLogs, trainers, type ProgramRow } from "@pt/db";
+import { weekOf } from "@pt/shared";
+import { toSignalProgram } from "../lib/signals-service";
 import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
@@ -34,6 +36,50 @@ async function clientCounts(): Promise<Map<string, number>> {
   const rows = await db.select({ trainerId: clients.trainerId, n: count() }).from(clients).groupBy(clients.trainerId);
   return new Map(rows.map((r) => [r.trainerId, Number(r.n)]));
 }
+
+/** A program's place in its block: `week` clamped to the plan, `rawWeek` as counted. */
+export interface ActiveProgramme {
+  row: ProgramRow;
+  week: number;
+  rawWeek: number;
+  of: number;
+}
+
+/**
+ * Each client's active program with its block week, keyed by clientId.
+ * Two queries total: the programs, then each program's first log — the only
+ * log that moves the block anchor (blockAnchorDate).
+ */
+async function activeProgrammes(clientIds?: string[]): Promise<Map<string, ActiveProgramme>> {
+  if (clientIds && clientIds.length === 0) return new Map();
+  const rows = await db
+    .select()
+    .from(programs)
+    .where(
+      clientIds
+        ? and(eq(programs.status, "active"), inArray(programs.clientId, clientIds))
+        : eq(programs.status, "active"),
+    );
+  if (rows.length === 0) return new Map();
+  const firsts = await db
+    .select({ programId: sessionLogs.programId, first: min(sessionLogs.date) })
+    .from(sessionLogs)
+    .where(inArray(sessionLogs.programId, rows.map((p) => p.id)))
+    .groupBy(sessionLogs.programId);
+  const firstOf = new Map(firsts.map((f) => [f.programId, f.first]));
+  const out = new Map<string, ActiveProgramme>();
+  for (const p of rows) {
+    if (!p.clientId) continue;
+    const first = firstOf.get(p.id);
+    const rawWeek = weekOf(toSignalProgram(p), first ? [{ programId: p.id, date: first, sets: [] }] : []);
+    const of = Math.max(1, p.phasing?.plannedWeeks ?? p.sessions.length);
+    out.set(p.clientId, { row: p, week: Math.min(rawWeek, of), rawWeek, of });
+  }
+  return out;
+}
+
+const programmeRef = (a: ActiveProgramme | undefined) =>
+  a ? { id: a.row.id, name: a.row.name, week: a.week, of: a.of, over: a.rawWeek > a.of } : null;
 
 /**
  * Platform admin console. Only the ADMIN_EMAIL account gets past the 403.
@@ -122,12 +168,15 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
         .from(sessionLogs)
         .groupBy(sessionLogs.clientId)
         .as("last");
-      const rows = await db
-        .select({ client: clients, trainer: trainers, lastSessionAt: last.at })
-        .from(clients)
-        .innerJoin(trainers, eq(trainers.id, clients.trainerId))
-        .leftJoin(last, eq(last.clientId, clients.id))
-        .orderBy(asc(trainers.name), asc(clients.name));
+      const [rows, active] = await Promise.all([
+        db
+          .select({ client: clients, trainer: trainers, lastSessionAt: last.at })
+          .from(clients)
+          .innerJoin(trainers, eq(trainers.id, clients.trainerId))
+          .leftJoin(last, eq(last.clientId, clients.id))
+          .orderBy(asc(trainers.name), asc(clients.name)),
+        activeProgrammes(),
+      ]);
       return {
         clients: rows.map(({ client: c, trainer: t, lastSessionAt }) => ({
           id: c.id,
@@ -137,6 +186,7 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
           clientSince: c.startedOn ?? c.createdAt.toISOString().slice(0, 10),
           lastSessionAt: lastSessionAt ?? null,
           trainer: { id: t.id, name: t.name, access: accessOf(t) as "invited" | "active" | "disabled" },
+          programme: programmeRef(active.get(c.id)),
         })),
       };
     },

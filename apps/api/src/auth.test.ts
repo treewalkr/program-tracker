@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
-import { clients, db, trainers } from "@pt/db";
+import { clients, db, exercises, programs, trainers } from "@pt/db";
+import type { ProgramWeek } from "@pt/shared";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { claimTrainer, createSession, SESSION_COOKIE, trainerForToken, type AuthConfig, type GoogleProfile } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
@@ -146,6 +147,53 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
       expect((await get("/v1/admin/clients", kaiToken)).status).toBe(403);
     } finally {
       await db.delete(clients).where(inArray(clients.id, [mine.id, theirs.id]));
+    }
+  });
+
+  test("the admin's client directory shows each client's active programme and block week", async () => {
+    const admin = await adminToken();
+    const kai = (await (await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).json()) as { id: string };
+    const [client] = await db
+      .insert(clients)
+      .values({ trainerId: kai.id, name: "ZZ Kai programmed", email: "p@example.com", birthDate: "1990-01-01", goals: "secret goal" })
+      .returning();
+    const [ex] = await db
+      .insert(exercises)
+      .values({ trainerId: kai.id, name: "ZZ Kai squat", primaryMuscleGroup: "quads", equipment: "barbell" })
+      .returning();
+    const week = (n: number): ProgramWeek => ({
+      week: n,
+      sessions: [
+        {
+          id: crypto.randomUUID(),
+          name: `Lower ${n}`,
+          seq: 1,
+          weekday: 1,
+          order: 0,
+          kind: "lifting",
+          exercises: [{ id: crypto.randomUUID(), exerciseId: ex.id, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    });
+    // activated 15 days ago → week 3 of 4
+    const [program] = await db
+      .insert(programs)
+      .values({
+        trainerId: kai.id,
+        clientId: client.id,
+        name: "ZZ Strength block",
+        status: "active",
+        sessions: [1, 2, 3, 4].map(week),
+        activatedAt: new Date(Date.now() - 15 * 86_400_000),
+      })
+      .returning();
+    try {
+      const { clients: rows } = (await (await get("/v1/admin/clients", admin)).json()) as { clients: Record<string, unknown>[] };
+      expect(rows.find((r) => r.id === client.id)?.programme).toEqual({ id: program.id, name: "ZZ Strength block", week: 3, of: 4, over: false });
+    } finally {
+      await db.delete(programs).where(eq(programs.id, program.id));
+      await db.delete(exercises).where(eq(exercises.id, ex.id));
+      await db.delete(clients).where(eq(clients.id, client.id));
     }
   });
 
