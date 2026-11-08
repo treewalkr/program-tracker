@@ -90,6 +90,16 @@ describe("validateRows", () => {
     expect(errs.c?.reps).toBe("Whole reps only");
     expect(errs.d).toBeUndefined();
   });
+
+  test("a set with no prescription needs its reps entered", () => {
+    const errs = validateRows([row({ key: "x", prescribedReps: null, weight: 60 }), row({ key: "y", weight: 60 })]);
+    expect(errs.x?.reps).toBe("Enter reps");
+    expect(errs.y).toBeUndefined();
+  });
+
+  test("skipped rows are not validated", () => {
+    expect(validateRows([row({ key: "s", reps: -4, skipped: true })])).toEqual({});
+  });
 });
 
 describe("serverFieldErrors", () => {

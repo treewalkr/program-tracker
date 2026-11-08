@@ -69,7 +69,9 @@ export function validateRows(rows: SheetRow[]): FieldErrors {
   const out: FieldErrors = {};
   const put = (key: string, field: SheetField, msg: string) => ((out[key] ??= {})[field] = msg);
   for (const r of rows) {
+    if (r.skipped) continue;
     const reps = cellNumber(r.reps);
+    if (reps === undefined && r.prescribedReps == null && rowFilled(r)) put(r.key, "reps", "Enter reps");
     if (reps !== undefined) {
       if (!Number.isFinite(reps) || reps < 0 || reps > 200) put(r.key, "reps", MSG.reps);
       else if (!Number.isInteger(reps)) put(r.key, "reps", "Whole reps only");
