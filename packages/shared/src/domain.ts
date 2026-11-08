@@ -91,6 +91,9 @@ export const MOVEMENT_PATTERNS = [
   "anti_lateral_flexion",
   "trunk_flexion",
   "anti_trunk_flexion",
+  "anti_extension",
+  "carry",
+  "isolation",
 ] as const;
 export const MovementPattern = z.enum(MOVEMENT_PATTERNS);
 export type MovementPattern = z.infer<typeof MovementPattern>;
@@ -138,13 +141,13 @@ export const MOVEMENT_PATTERN_INFO: Record<
   knee_dominant: {
     label: "knee",
     name: "Knee-dominant",
-    description: "Squatting patterns — knee-flexion-biased leg work.",
+    description: "Knee-driven leg work — squats, lunges, leg press, Nordic curls.",
     core: false,
   },
   hip_dominant: {
     label: "hip",
     name: "Hip-dominant",
-    description: "Hinging patterns — deadlifts, good mornings, hip thrusts, curls.",
+    description: "Hinging patterns — deadlifts, good mornings, hip thrusts, glute-ham raises.",
     core: false,
   },
   rotation: {
@@ -168,7 +171,7 @@ export const MOVEMENT_PATTERN_INFO: Record<
   anti_lateral_flexion: {
     label: "anti-lat",
     name: "Anti-lateral flexion",
-    description: "Resisting sideways bend — side planks, suitcase carries.",
+    description: "Resisting sideways bend — side planks, Copenhagen planks.",
     core: true,
   },
   trunk_flexion: {
@@ -178,10 +181,28 @@ export const MOVEMENT_PATTERN_INFO: Record<
     core: true,
   },
   anti_trunk_flexion: {
-    label: "anti-trunk",
+    label: "anti-flex",
     name: "Anti-trunk flexion",
-    description: "Resisting trunk flexion — planks, rollouts.",
+    description: "Resisting trunk flexion — holding a neutral spine against a forward pull, e.g. back-extension holds.",
     core: true,
+  },
+  anti_extension: {
+    label: "anti-ext",
+    name: "Anti-extension",
+    description: "Resisting trunk extension — planks, rollouts, dead bugs, hollow holds.",
+    core: true,
+  },
+  carry: {
+    label: "carry",
+    name: "Carry",
+    description: "Loaded carries — farmer's, suitcase, overhead and yoke walks.",
+    core: false,
+  },
+  isolation: {
+    label: "iso",
+    name: "Isolation",
+    description: "Single-joint work — curls, lateral raises, triceps extensions, calf raises.",
+    core: false,
   },
 };
 

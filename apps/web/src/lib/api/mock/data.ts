@@ -61,7 +61,7 @@ export const exercises: ExerciseDto[] = ([
   { id: "ex-incline", name: "Incline Dumbbell Press", primaryMuscleGroup: "chest", secondaryMuscleGroups: ["shoulders"], equipment: "dumbbell", movementPattern: "horizontal_push", functionalMovement: "push" },
   { id: "ex-crow", name: "Seated Cable Row", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "cable", movementPattern: "horizontal_pull", functionalMovement: "pull" },
   { id: "ex-facepull", name: "Face Pull", primaryMuscleGroup: "shoulders", secondaryMuscleGroups: ["back"], equipment: "cable", movementPattern: "horizontal_pull", functionalMovement: "pull" },
-  { id: "ex-plank", name: "Plank", primaryMuscleGroup: "core", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: "anti_trunk_flexion", functionalMovement: null },
+  { id: "ex-plank", name: "Plank", primaryMuscleGroup: "core", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: "anti_extension", functionalMovement: null },
   { id: "ex-hlr", name: "Hanging Leg Raise", primaryMuscleGroup: "core", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: "trunk_flexion", functionalMovement: null },
   { id: "ex-chin", name: "Chin-up", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "bodyweight", movementPattern: "vertical_pull", functionalMovement: "pull" },
   { id: "ex-split", name: "Split Squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes"], equipment: "bodyweight", movementPattern: "knee_dominant", functionalMovement: "single_leg" },

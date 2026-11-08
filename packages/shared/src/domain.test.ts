@@ -738,7 +738,7 @@ describe("AiProgramDraft (full LLM payload)", () => {
 });
 
 describe("Movement taxonomy", () => {
-  test("movement pattern enum has exactly the 12 pinned values", () => {
+  test("movement pattern enum has exactly the 15 pinned values", () => {
     expect(MOVEMENT_PATTERNS).toEqual([
       "vertical_push",
       "vertical_pull",
@@ -752,10 +752,23 @@ describe("Movement taxonomy", () => {
       "anti_lateral_flexion",
       "trunk_flexion",
       "anti_trunk_flexion",
+      "anti_extension",
+      "carry",
+      "isolation",
     ]);
     expect(Object.keys(MOVEMENT_PATTERN_INFO)).toEqual([...MOVEMENT_PATTERNS]);
     const coreCount = MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core).length;
-    expect(coreCount).toBe(6);
+    expect(coreCount).toBe(7);
+  });
+
+  test("core descriptions follow McGill: planks and rollouts resist extension (F19)", () => {
+    expect(MOVEMENT_PATTERN_INFO.anti_extension.core).toBe(true);
+    expect(MOVEMENT_PATTERN_INFO.anti_extension.description).toMatch(/plank/i);
+    expect(MOVEMENT_PATTERN_INFO.anti_extension.description).toMatch(/rollout/i);
+    expect(MOVEMENT_PATTERN_INFO.anti_trunk_flexion.description).not.toMatch(/plank|rollout/i);
+    expect(MOVEMENT_PATTERN_INFO.anti_lateral_flexion.description).not.toMatch(/carr/i);
+    expect(MOVEMENT_PATTERN_INFO.carry.description).toMatch(/suitcase/i);
+    expect(MOVEMENT_PATTERN_INFO.hip_dominant.description).not.toMatch(/curl/i);
   });
 
   test("functional movement enum has exactly the 7 pinned values", () => {

@@ -27,11 +27,12 @@ export const patternShort = (k: string) =>
 export const functionalName = (k: string | null) =>
   k && k in FUNCTIONAL_MOVEMENT_INFO ? FUNCTIONAL_MOVEMENT_INFO[k as keyof typeof FUNCTIONAL_MOVEMENT_INFO].label : "Untagged";
 
-/** Map row groups: Upper (push/pull), Lower (knee/hip), Core. */
+/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation). */
 export const PATTERN_GROUPS: { label: string; patterns: MovementPattern[] }[] = [
   { label: "Upper", patterns: MOVEMENT_PATTERNS.filter((p) => /push|pull/.test(p)) },
   { label: "Lower", patterns: MOVEMENT_PATTERNS.filter((p) => p === "knee_dominant" || p === "hip_dominant") },
   { label: "Core", patterns: MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core) },
+  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation") },
 ];
 
 /** The "untagged" filter value for the pattern axis. */

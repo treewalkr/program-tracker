@@ -14,7 +14,9 @@ import {
   visibleRows,
   formFrom,
   NONE,
+  PATTERN_GROUPS,
 } from "./exerciseLibrary";
+import { MOVEMENT_PATTERNS } from "@pt/shared";
 
 const ex = (over: Partial<ExerciseDto>): ExerciseDto => ({
   id: crypto.randomUUID(),
@@ -64,7 +66,7 @@ describe("coverage map", () => {
     expect(c.cells.get("knee_dominant|barbell")).toBeUndefined(); // archived doesn't count
     expect(c.placed).toBe(2);
     expect(c.live).toBe(3);
-    expect(c.gaps).toBe(12 * 9 - 1);
+    expect(c.gaps).toBe(15 * 9 - 1);
   });
 
   test("a cell click sets filters; clicking it again clears them", () => {
@@ -102,5 +104,13 @@ describe("edit rules", () => {
   test("copies get a free name", () => {
     expect(copyName(list, "Pendlay Row")).toBe("Pendlay Row (mine)");
     expect(copyName([...list, ex({ name: "Pendlay Row (mine)" })], "Pendlay Row")).toBe("Pendlay Row (mine 2)");
+  });
+});
+
+describe("coverage rows", () => {
+  test("every movement pattern has exactly one row group", () => {
+    const rows = PATTERN_GROUPS.flatMap((g) => g.patterns);
+    expect([...rows].sort()).toEqual([...MOVEMENT_PATTERNS].sort());
+    expect(PATTERN_GROUPS.find((g) => g.patterns.includes("carry"))?.label).toBe("Other");
   });
 });
