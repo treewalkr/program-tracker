@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { diffDraftSlots, rxLabel, unproposedChanges, type SlotDiffDraft } from "./slots";
+import { diffDraftSlots, rxLabel, unproposedChanges, type SlotDiffDraft, type SlotDiffSet } from "./slots";
 
 const set = (reps: number, rpe: number, rest: number) => ({ reps, targetRpe: rpe, restSeconds: rest });
-const ex = (name: string, sets = [set(5, 7, 120)]) => ({ exerciseName: name, prescribedSets: sets });
+const ex = (name: string, sets: SlotDiffSet[] = [set(5, 7, 120)]) => ({ exerciseName: name, prescribedSets: sets });
 const draft = (...days: ReturnType<typeof ex>[][]): SlotDiffDraft => ({ sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })) });
 
 test("rxLabel", () => {

@@ -209,8 +209,8 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
       rationale: "Rationale",
       clientSummary: "Summary",
       sessions: [
-        { name: "Day 1", exercises: [] },
-        { name: "Day 2", exercises: [] },
+        { name: "Day 1", kind: "lifting", exercises: [] },
+        { name: "Day 2", kind: "lifting", exercises: [] },
       ],
     };
     expect(draftNoticeText(draftSample)).toBe(

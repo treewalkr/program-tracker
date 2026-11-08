@@ -352,6 +352,7 @@ describe("weekly prompts: learned preferences", () => {
       sessions: [
         {
           name: "Day 1",
+          kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ],
@@ -393,7 +394,7 @@ describe("weekly prompts: learned preferences", () => {
       periodization: null,
       chainBalance: null,
       history: [],
-      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell" }],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPattern: null, functionalMovement: null }],
       trainerInstructions: "",
     };
 
@@ -408,6 +409,7 @@ describe("weekly prompts: learned preferences", () => {
       sessions: [
         {
           name: "Day 1",
+          kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ],
@@ -432,6 +434,7 @@ describe("buildRevisionMessages", () => {
       sessions: [
         {
           name: "Day A",
+          kind: "lifting",
           exercises: [
             {
               exerciseName: "Bench Press",
@@ -458,7 +461,7 @@ describe("buildRevisionMessages", () => {
       periodization: null,
       chainBalance: null,
       history: [],
-      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell" }],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPattern: null, functionalMovement: null }],
       trainerInstructions: "",
       previousDraft,
       feedback,
@@ -480,6 +483,7 @@ describe("buildRevisionMessages", () => {
       sessions: [
         {
           name: "Day A",
+          kind: "lifting",
           exercises: [
             {
               exerciseName: "Bench Press",
@@ -544,6 +548,7 @@ describe("buildRevisionMessages", () => {
       sessions: [
         {
           name: "Day 1",
+          kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ],
@@ -588,6 +593,7 @@ describe("buildRevisionMessages", () => {
       sessions: [
         {
           name: "Day 1",
+          kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ],
@@ -654,6 +660,7 @@ const draft: AiProgramDraft = {
   sessions: [
     {
       name: "Day A",
+      kind: "lifting",
       exercises: [
         { exerciseId: "11111111-1111-1111-1111-111111111111", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] },
         { exerciseName: "Cable Crunch", prescribedSets: [{ setNumber: 1, reps: 12, type: "working", amrap: false }] },
@@ -696,14 +703,14 @@ describe("draftToWeeks", () => {
   });
 
   test("name refs that exactly match the catalog reuse the catalog id", () => {
-    const d2 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseName: "back squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] }] };
+    const d2 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseName: "back squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }] }] };
     const { createdNames, weeks } = draftToWeeks(d2, catalog);
     expect(createdNames).toEqual([]);
     expect(weeks[0].sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
   });
 
   test("bogus id without name is unresolvable, not silently dropped", () => {
-    const d3 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] }] };
+    const d3 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }] }] };
     const { unresolvable } = draftToWeeks(d3, catalog);
     expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
   });
@@ -715,6 +722,7 @@ describe("draftToWeeks", () => {
       sessions: [
         {
           name: "Day A",
+          kind: "lifting",
           exercises: [
             { exerciseName: "Cable Crunch", role: "core", prescribedSets: sets },
             { exerciseName: "Lateral Raise", prescribedSets: sets },
@@ -841,6 +849,7 @@ describe("draftToWeeks", () => {
       ...draft,
       sessions: Array.from({ length: 15 }, (_, i) => ({
         name: `Day ${i + 1}`,
+        kind: "lifting",
         exercises: [
           {
             exerciseName: `Breach Lift ${i + 1}`,
@@ -1158,6 +1167,7 @@ describe("example library few-shot", () => {
       sessions: [
         {
           name: "Day A",
+          kind: "lifting",
           exercises: [
             {
               exerciseName: "Bench Press",
@@ -1317,6 +1327,7 @@ describe("buildChatSystem", () => {
       sessions: [
         {
           name: "Day 1",
+          kind: "lifting",
           exercises: [
             {
               exerciseName: "Squat",
@@ -1489,6 +1500,7 @@ describe("revision conversation threading", () => {
       sessions: [
         {
           name: "Day A",
+          kind: "lifting",
           exercises: [
             { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           ],
@@ -1540,6 +1552,7 @@ describe("revision conversation threading", () => {
       sessions: [
         {
           name: "Day A",
+          kind: "lifting",
           exercises: [
             { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           ],

@@ -422,7 +422,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
   });
 
   test("cancel marks a pending generation cancelled", async () => {
-    const trainerId = (await trainers.findFirst?.())?.id ?? (await db.select().from(trainers).limit(1))[0].id;
+    const trainerId = (await db.select().from(trainers).limit(1))[0].id;
     const [pendingGen] = await db
       .insert(aiGenerations)
       .values({
@@ -448,7 +448,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
   });
 
   test("cancel 409s for non-pending and 404s for unknown ids", async () => {
-    const trainerId = (await trainers.findFirst?.())?.id ?? (await db.select().from(trainers).limit(1))[0].id;
+    const trainerId = (await db.select().from(trainers).limit(1))[0].id;
     const [pendingGen] = await db
       .insert(aiGenerations)
       .values({
@@ -1612,7 +1612,7 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     const [elapsedProgram] = await db
       .insert(programs)
       .values({
-        trainerId: (await trainers.findFirst?.())?.id ?? (await db.select().from(trainers).limit(1))[0].id,
+        trainerId: (await db.select().from(trainers).limit(1))[0].id,
         clientId,
         name: "Elapsed Block",
         status: "active",

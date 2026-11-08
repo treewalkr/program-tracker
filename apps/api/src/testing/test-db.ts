@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import { exercises } from "@pt/db/schema";
+import type { FunctionalMovement, MovementPattern } from "@pt/shared";
 import { runMigrations } from "@pt/db/migrate";
 
 export const DEFAULT_TEST_DATABASE_URL =
@@ -37,8 +38,8 @@ export const TEST_EXERCISE_FIXTURES: ReadonlyArray<{
   primaryMuscleGroup: string;
   secondaryMuscleGroups: string[];
   equipment: string;
-  movementPattern: string;
-  functionalMovement: string;
+  movementPattern: MovementPattern;
+  functionalMovement: FunctionalMovement;
 }> = [
   {
     name: "Back Squat",

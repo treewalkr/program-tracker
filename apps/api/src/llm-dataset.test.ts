@@ -49,7 +49,7 @@ describe("makePseudonymizer", () => {
     const out = anon.text("Maya Chen (maya@x.dev): Maya's squat. Mayan ruins.");
     expect(out).not.toContain("Maya Chen");
     expect(out).toMatch(/^Client-[0-9a-f]{6} \(\[email\]\): Client-[0-9a-f]{6}'s squat\. Mayan ruins\.$/);
-    expect(anon.deep({ client: { name: "Maya Chen", email: "maya@x.dev" } })).toEqual({
+    expect<unknown>(anon.deep({ client: { name: "Maya Chen", email: "maya@x.dev" } })).toEqual({
       client: { name: anon.text("Maya Chen") },
     });
   });

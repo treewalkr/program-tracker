@@ -96,14 +96,14 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
     const admin = await adminToken();
     const added = await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "Kai@Example.com" });
     expect(added.status).toBe(201);
-    const kai = await added.json();
+    const kai = (await added.json()) as { id: string };
     expect(kai).toMatchObject({ email: "kai@example.com", access: "invited", isAdmin: false });
     expect((await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).status).toBe(409);
 
     const claim = await claimTrainer(cfg, profile({ sub: "sub-kai", email: "kai@example.com", name: "Kai K" }));
     expect(claim).toEqual({ trainerId: kai.id });
     const kaiToken = (await createSession(kai.id)).token;
-    expect((await (await get("/v1/auth/me", kaiToken)).json()).trainer).toMatchObject({ id: kai.id, isAdmin: false });
+    expect(((await (await get("/v1/auth/me", kaiToken)).json()) as { trainer: unknown }).trainer).toMatchObject({ id: kai.id, isAdmin: false });
 
     // the admin's clients are invisible to Kai, by list and by id
     const [adminClient] = await db
@@ -123,13 +123,13 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
 
   test("disabling a trainer signs them out and blocks the next sign-in", async () => {
     const admin = await adminToken();
-    const mo = await (await call("POST", "/v1/admin/trainers", admin, { name: "Mo", email: "mo@example.com" })).json();
+    const mo = (await (await call("POST", "/v1/admin/trainers", admin, { name: "Mo", email: "mo@example.com" })).json()) as { id: string };
     await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }));
     const moToken = (await createSession(mo.id)).token;
     expect((await get("/v1/clients", moToken)).status).toBe(200);
 
     const off = await call("PATCH", `/v1/admin/trainers/${mo.id}`, admin, { disabled: true });
-    expect((await off.json()).access).toBe("disabled");
+    expect(((await off.json()) as { access: string }).access).toBe("disabled");
     expect(await trainerForToken(moToken)).toBeNull();
     expect((await get("/v1/clients", moToken)).status).toBe(401);
     expect(await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }))).toEqual({ rejection: "disabled" });
@@ -144,7 +144,7 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
 
   test("an unused invite can be removed", async () => {
     const admin = await adminToken();
-    const kai = await (await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).json();
+    const kai = (await (await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).json()) as { id: string };
     expect((await call("DELETE", `/v1/admin/trainers/${kai.id}`, admin)).status).toBe(204);
     expect(await claimTrainer(cfg, profile({ sub: "sub-kai", email: "kai@example.com" }))).toEqual({ rejection: "not_allowed" });
   });
