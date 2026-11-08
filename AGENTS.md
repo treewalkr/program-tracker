@@ -19,7 +19,8 @@
 - **Build** — after the plan is approved, hand the implementation to `delegate_task` (Claude Opus) at `medium` effort; review its result (re-run tests, spot-check) before reporting
 - **Worktrees** — complex or conflict-prone work (dirty main, overlapping files) goes on a new branch in a git worktree
 - **Handback** — when done, suggest merging to main; if merging now is risky, suggest a PR instead
-- **Push or release** — when commits on main are ready, recommend one with a reason: **release** (`bun run release`, then `git push --follow-tags origin main`) for batches of user-visible features/UI; **push** for small fixes, internal or docs-only changes. Pushing main deploys to production via CI
+- **Push or release** — when commits on main are ready, recommend one with a reason: **release** for batches of user-visible features/UI; **push** for small fixes, internal or docs-only changes. Pushing main deploys to production via CI
+  - **Release steps:** `bun run changelog:draft` → rewrite the `[draft]` lines in `CHANGELOG.md` › Unreleased for trainers (plain language, merge related lines, drop internal ones) → commit `docs: changelog for vX.Y.Z` → `bun run release` (refuses an empty or drafted Unreleased; stamps it with the version and date) → `git push --follow-tags origin main`
 
 # Commit Rules
 
