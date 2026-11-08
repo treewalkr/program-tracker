@@ -150,6 +150,7 @@ describe("selectExamples matching rules (F24)", () => {
     const powerlifting = ex("pl", "Powerlifting meet prep", "advanced", 4);
     const picked = selectExamples([powerlifting], {
       goals: "Novice hypertrophy — build muscle",
+      level: "beginner",
       daysPerWeek: 3,
     });
     expect(picked).toEqual([]);
@@ -159,14 +160,14 @@ describe("selectExamples matching rules (F24)", () => {
     const exactDays = ex("exact", "gymnastics floor work", "intermediate", 4);
     const nearDays = ex("near", "marathon running stamina", "intermediate", 3);
     expect(
-      selectExamples([exactDays, nearDays], { goals: "lean bulk", daysPerWeek: 4 })
+      selectExamples([exactDays, nearDays], { goals: "lean bulk", level: "intermediate", daysPerWeek: 4 })
     ).toEqual([]);
   });
 
   it("selects nothing when the client has no goals", () => {
     const e = ex("e", "lean bulk", "intermediate", 4);
-    expect(selectExamples([e], { goals: null, daysPerWeek: 4 })).toEqual([]);
-    expect(selectExamples([e], { goals: "  ", daysPerWeek: 4 })).toEqual([]);
+    expect(selectExamples([e], { goals: null, level: "intermediate", daysPerWeek: 4 })).toEqual([]);
+    expect(selectExamples([e], { goals: "  ", level: "intermediate", daysPerWeek: 4 })).toEqual([]);
   });
 
   it("ignores stopwords when matching goals", () => {
@@ -181,5 +182,36 @@ describe("selectExamples matching rules (F24)", () => {
     const muscle = ex("m", "Add muscle", null, null);
     expect(selectExamples([strength], { goals: "get stronger — strength focus" }).map((x) => x.programId)).toEqual(["s"]);
     expect(selectExamples([muscle], { goals: "build muscle" }).map((x) => x.programId)).toEqual(["m"]);
+  });
+
+  it("ranks the same level above an adjacent level when goal and days tie", () => {
+    const adjacent = ex("adjacent", "hypertrophy block", "advanced", 4);
+    const same = ex("same", "hypertrophy block", "intermediate", 4);
+    const picked = selectExamples([adjacent, same], {
+      goals: "hypertrophy",
+      level: "intermediate",
+      daysPerWeek: 4,
+    });
+    expect(picked.map((x) => x.programId)).toEqual(["same", "adjacent"]);
+  });
+
+  it("excludes beginner vs advanced even when the goal overlaps", () => {
+    const advanced = ex("adv", "hypertrophy block", "advanced", 3);
+    const beginner = ex("beg", "hypertrophy block", "beginner", 3);
+    expect(selectExamples([advanced], { goals: "hypertrophy", level: "beginner", daysPerWeek: 3 })).toEqual([]);
+    expect(selectExamples([beginner], { goals: "hypertrophy", level: "advanced", daysPerWeek: 3 })).toEqual([]);
+  });
+
+  it("treats a missing level on either side as neutral", () => {
+    const untagged = ex("untagged", "hypertrophy block", null, 4);
+    const tagged = ex("tagged", "hypertrophy block", "advanced", 4);
+    // client without a level: the advanced example is not excluded and ties the untagged one
+    expect(
+      selectExamples([untagged, tagged], { goals: "hypertrophy", level: null, daysPerWeek: 4 }).map((x) => x.programId)
+    ).toEqual(["untagged", "tagged"]);
+    // example without a level vs a beginner client: kept, scores no level bonus
+    expect(
+      selectExamples([untagged], { goals: "hypertrophy", level: "beginner", daysPerWeek: 4 }).map((x) => x.programId)
+    ).toEqual(["untagged"]);
   });
 });

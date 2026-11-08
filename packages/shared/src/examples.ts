@@ -34,6 +34,8 @@ export interface ExampleRetrievalTags {
 export interface ExampleTarget {
   goals?: string | null;
   daysPerWeek?: number | null;
+  /** The client's experience — same three values as an example's level. */
+  level?: ExampleLevel | null;
 }
 
 /** Filler words that say nothing about what a program is for. Two goals
@@ -49,6 +51,8 @@ export const GOAL_STOPWORDS: ReadonlySet<string> = new Set([
   "phase", "routine", "workout", "workouts", "goal", "goals", "week", "weeks",
   "day", "days", "session", "sessions",
 ]);
+
+const LEVEL_RANK: Record<ExampleLevel, number> = { beginner: 0, intermediate: 1, advanced: 2 };
 
 function words(s: string): Set<string> {
   const matches = s.toLowerCase().match(/[a-z0-9]+/g);
@@ -68,12 +72,13 @@ function words(s: string): Set<string> {
  * Eligibility (all must hold):
  * - the goals share at least one word — lowercase [a-z0-9]+ runs ≥ 3 chars,
  *   minus GOAL_STOPWORDS. No target goals → nothing matches;
+ * - levels are not two steps apart (beginner ↔ advanced is excluded);
  * - `programId !== opts.excludeProgramId`.
  *
  * Score = 2 × distinct shared goal words
- * *       + days/week: exact +2, ±1 +1, else 0 (null on either side → 0).
- * Days only rank eligible examples; they never qualify one alone. level
- * never scores.
+ *       + level: same +2, adjacent 0 (null on either side → 0)
+ *       + days/week: exact +2, ±1 +1, else 0 (null on either side → 0).
+ * Days and level only rank eligible examples; they never qualify one alone.
  * Sorts score desc then stable (caller passes newest-first), caps at
  * `opts.limit` (default 2).
  */
@@ -107,6 +112,13 @@ export function selectExamples<T extends ExampleRetrievalTags & { programId?: st
     }
     if (sharedCount === 0) continue;
 
+    let levelScore = 0;
+    if (target.level != null && ex.level != null) {
+      const gap = Math.abs(LEVEL_RANK[target.level] - LEVEL_RANK[ex.level]);
+      if (gap >= 2) continue;
+      if (gap === 0) levelScore = 2;
+    }
+
     let daysScore = 0;
     if (target.daysPerWeek != null && ex.daysPerWeek != null) {
       const diff = Math.abs(target.daysPerWeek - ex.daysPerWeek);
@@ -117,7 +129,7 @@ export function selectExamples<T extends ExampleRetrievalTags & { programId?: st
       }
     }
 
-    scored.push({ item: ex, score: 2 * sharedCount + daysScore, index: i });
+    scored.push({ item: ex, score: 2 * sharedCount + levelScore + daysScore, index: i });
   }
 
   scored.sort((a, b) => {
