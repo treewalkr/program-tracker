@@ -23,6 +23,9 @@
 
   type Cell = { id: OutboxFilter; label: string; n: number; dot: string; tone?: "warn" | "bad" };
 
+  /** "4 min" → number in figures, unit in small type. */
+  const lagParts = $derived(lag === null ? null : (span(lag).match(/^(\S+)\s(.+)$/)?.slice(1) ?? [span(lag), ""]));
+
   const cells = $derived.by<Cell[]>(() => {
     const failed: Cell = { id: "failed", label: "Failed", n: counts.dead, dot: "red", tone: counts.dead ? "bad" : undefined };
     const sent: Cell = { id: "sent", label: "Sent · 24 h", n: counts.sent24h, dot: "green" };
@@ -37,7 +40,7 @@
   });
 </script>
 
-<div class="health" role="group" aria-label="Outbox health — press a count to filter the list">
+<div class="health" class:log={source === "log"} role="group" aria-label="Outbox health — press a count to filter the list">
   {#each cells as c (c.id)}
     <button
       type="button"
@@ -52,36 +55,34 @@
   {#if source === "outbox"}
     <div class="cell lag" class:late={lag !== null && lag > LAG_WARN}>
       <span class="label">Oldest waiting</span>
-      <span class="n">{lag === null ? "—" : span(lag)}</span>
+      <span class="n">
+        {#if lagParts}{lagParts[0]}<span class="unit">{" "}{lagParts[1]}</span>{:else}—{/if}
+      </span>
     </div>
   {/if}
 </div>
 
 <style>
-  /* Each cell draws its right and bottom hairline as a 1px shadow into its
-     margin, so wrapped rows keep a clean grid at any width. The strip runs
-     1px past the panel's right edge and clips it, so the last column's line
-     never doubles the panel border; the bottom line separates what follows
-     (and is clipped too when nothing does). */
+  /* Hairline grid: the 1px gaps show the line colour behind the cells. The
+     panel draws the outer edge; the strip's own bottom line separates it
+     from what follows. Six across, three by two in a narrow main column —
+     both fill every row, so no stray gap shows. */
   .health {
-    display: flex;
-    flex-wrap: wrap;
-    margin-right: -1px;
-    clip-path: inset(0 1px 0 0);
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
   }
-  .health:last-child {
-    margin-bottom: -1px;
-    clip-path: inset(0 1px 1px 0);
-  }
+  .health.log { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .health:last-child { border-bottom: none; }
   .cell {
-    flex: 1 1 120px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+    min-width: 0;
     padding: 12px 16px;
-    margin: 0 1px 1px 0;
-    box-shadow: 1px 0 0 var(--line-soft), 0 1px 0 var(--line-soft);
     background: var(--surface);
     border: none;
     font: inherit;
@@ -96,8 +97,9 @@
   button.cell:hover { background: var(--row-hover); }
   button.cell[aria-pressed="true"] {
     background: var(--well);
-    box-shadow: inset 0 -2px 0 var(--tab-on), 1px 0 0 var(--line-soft), 0 1px 0 var(--line-soft);
+    box-shadow: inset 0 -2px 0 var(--tab-on);
   }
+  button.cell:focus-visible { outline-offset: -2px; }
   button.cell[aria-pressed="true"] .label { color: var(--ink); font-weight: 600; }
   .label {
     display: inline-flex;
@@ -125,6 +127,11 @@
   }
   .n.warn { color: var(--warn); }
   .n.bad { color: var(--bad); }
+  .unit {
+    white-space: pre;
+    font: 500 12px/1 var(--font-ui);
+    color: var(--muted);
+  }
   .lag .n { color: var(--muted); }
   .lag.late .n { color: var(--warn); }
   .lag.late .label::after {
@@ -132,11 +139,9 @@
     color: var(--warn);
   }
 
-  @media (max-width: 560px) {
-    .cell {
-      flex-basis: 30%;
-      padding: 10px 12px;
-    }
+  @container main (max-width: 720px) {
+    .health:not(.log) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cell { padding: 10px 12px; }
     .n { font-size: 16px; }
   }
   @media (prefers-reduced-motion: reduce) {

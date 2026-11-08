@@ -138,7 +138,7 @@
     color: var(--faint);
   }
 
-  @media (max-width: 560px) {
+  @container main (max-width: 600px) {
     .activity { padding: 10px 12px 8px; }
     .cells { gap: 2px; }
     .cell { height: 16px; }
