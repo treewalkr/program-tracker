@@ -95,7 +95,17 @@
 
   const attention = $derived(isOutbox ? all.filter((m) => m.status === "dead" || m.status === "retrying") : []);
   const shown = $derived(all.filter((m) => inFilter(m, filter) && matches(m, query)));
-  const groups = $derived(groupByDay(shown, now));
+  /** Rows rendered so far; a new filter or search starts the page over. */
+  const PAGE = 25;
+  let limit = $derived.by(() => {
+    void filter;
+    void query;
+    return PAGE;
+  });
+  const groups = $derived(groupByDay(shown.slice(0, limit), now));
+  const more = $derived(shown.length - limit);
+  /** Day headers count the whole day, not just the rows rendered so far. */
+  const dayTotals = $derived(new Map(groupByDay(shown, now).map((g) => [g.key, g.messages.length])));
 
   const tab = $derived(tabOf(filter));
   const tabs = $derived([
@@ -192,7 +202,7 @@
 
 <PageHead title="Email outbox" {sub}>
   {#snippet actions()}
-    {#if apiMode === "live" && !demo && snap}
+    {#if apiMode === "live" && !demo && all.length}
       <Button href="?demo" variant="ghost" small>Preview with sample data</Button>
     {/if}
   {/snippet}
@@ -207,7 +217,7 @@
   <SkeletonPanel />
 {:else if !all.length && !isOutbox}
   <p class="quiet">
-    <Icon name="mail" />
+    <Icon name="mail" size={16} />
     <span>Nothing sent yet. Emails show here once a new ticket, reply or status change notifies someone.</span>
     <a href="?demo">Preview with sample data</a>
   </p>
@@ -219,7 +229,7 @@
     </section>
 
     {#if attention.length}
-      <Panel title="Needs attention" count={attention.length}>
+      <Panel title="Needs attention" count={attention.length} class="attention">
         {#each attention as m (m.id)}
           <SignalRow severity={m.status === "dead" ? "urgent" : "attention"} evidence={evidence(m)}>
             {#snippet title()}
@@ -244,7 +254,7 @@
       </Panel>
     {/if}
 
-    <Panel title="Messages" count={shown.length === all.length ? all.length : `${shown.length} of ${all.length}`}>
+    <Panel class="messages" title="Messages" count={shown.length === all.length ? all.length : `${shown.length} of ${all.length}`}>
       <div class="bar">
         <Tabs items={tabs} value={tab} idPrefix="outbox" label="Filter messages" onchange={(id) => (filter = id as OutboxFilter)} />
         <input
@@ -270,11 +280,17 @@
           </p>
         {:else}
           {#each groups as g (g.key)}
-            <h3 class="day">{g.label} <span class="day-n">{g.messages.length}</span></h3>
+            <h3 class="day">{g.label} <span class="day-n">{dayTotals.get(g.key) ?? g.messages.length}</span></h3>
             {#each g.messages as m (m.id)}
               <OutboxRow message={m} {now} />
             {/each}
           {/each}
+          {#if more > 0}
+            <div class="more">
+              <Button small onclick={() => (limit += PAGE)}>Show {Math.min(more, PAGE)} more</Button>
+              <span>{more} older not shown</span>
+            </div>
+          {/if}
         {/if}
       </div>
     </Panel>
@@ -342,6 +358,16 @@
     margin: 8px 0;
   }
 
+  .more {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
   .scope {
     margin: 0;
     padding: 8px 16px;
@@ -397,10 +423,14 @@
     white-space: nowrap;
   }
 
-  @media (max-width: 560px) {
+  /* The main column is the container (layout: `container: main`), so these
+     follow the space the page actually gets, not the window. */
+  @container main (max-width: 600px) {
+    :global(.attention .signal) { flex-wrap: wrap; row-gap: 0; }
+    :global(.attention .signal .act) { flex: 1 1 100%; margin: 4px 0 0 20px; }
     .bar { padding: 0 8px; }
     .search { width: 100%; margin: 8px 0 0; order: -1; }
-    .bar :global(.tabs) { flex-wrap: nowrap; overflow-x: auto; gap: 0; }
+    .bar :global(.tabs) { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: 0; }
     .bar :global(.tabs button) { padding: 8px 10px; flex: none; }
   }
 </style>
