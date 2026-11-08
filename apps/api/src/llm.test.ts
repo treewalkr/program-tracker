@@ -129,6 +129,35 @@ describe.skipIf(!dbUp)("callLlm logging", () => {
     expect(rows[0].requestBlobIds).toEqual(rows[1].requestBlobIds);
   });
 
+  test("no effort picked → the provider's default effort is sent and logged; an explicit pick wins", async () => {
+    const sent: unknown[] = [];
+    globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+      sent.push(JSON.parse(String(init?.body)).reasoning_effort);
+      const body = { choices: [{ message: { content: '{"answer": 1}' }, finish_reason: "stop" }] };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const rt: ProviderRuntime = { ...fakeRt, providerId: "deepseek", model: "deepseek-flash", defaultEffort: "max" };
+    const run = (effort?: string) =>
+      callLlm({
+        purpose: "chat_qa",
+        builder: "testBuilder",
+        links: {},
+        messages: [{ role: "user", content: `effort ${Date.now()} ${effort}` }],
+        rt,
+        effort,
+        mode: "json",
+        schema: Answer,
+      });
+
+    const byDefault = await run();
+    const picked = await run("low");
+    expect(sent).toEqual(["max", "low"]);
+    const [row] = await db.select().from(llmCalls).where(eq(llmCalls.turnId, byDefault.turnId));
+    expect(row.effort).toBe("max");
+    const [pickedRow] = await db.select().from(llmCalls).where(eq(llmCalls.turnId, picked.turnId));
+    expect(pickedRow.effort).toBe("low");
+  });
+
   test("schema failures log validation_error with the zod message", async () => {
     stubProvider([{ content: '{"answer": "nope"}' }, { content: '{"answer": "still nope"}' }]);
     const out = await callLlm({

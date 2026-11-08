@@ -107,7 +107,7 @@ describe("providerRuntime (deepseek)", () => {
       apiKey: "k",
       maxOutputTokens: 16384,
       effortLevels: ["none", "low", "high", "max"],
-      defaultEffort: "high",
+      defaultEffort: "max",
     });
     expect(providerRuntime("deepseek", "deepseek-v4-pro").model).toBe("deepseek-v4-pro");
   });

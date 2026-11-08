@@ -49,7 +49,7 @@ export const KNOWN_PROVIDERS = {
     maxOutputTokens: 16384,
     // "none" switches thinking off (reasoning_effort: none, api-docs.deepseek.com/guides/thinking_mode)
     effortLevels: ["none", "low", "high", "max"],
-    defaultEffort: "high",
+    defaultEffort: "max", // sent on every call that picks none (callLlm)
     models: [
       "deepseek-flash", // default — V4.1-Flash
       "deepseek-v4-pro",

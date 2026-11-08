@@ -41,7 +41,7 @@ describe("KNOWN_PROVIDERS", () => {
     expect(zai.effortLevels).toEqual(["low", "high", "max"]);
     expect(zai.defaultEffort).toBe("low");
     expect(deepseek.effortLevels).toEqual(["none", "low", "high", "max"]);
-    expect(deepseek.defaultEffort).toBe("high");
+    expect(deepseek.defaultEffort).toBe("max");
     expect(mock.effortLevels).toBeUndefined();
     expect(mock.defaultEffort).toBeUndefined();
   });

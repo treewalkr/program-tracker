@@ -77,6 +77,10 @@ export interface CallLlmArgs<T> {
 
 export const isMockRuntime = (rt: ProviderRuntime) => rt.providerId === "mock" || rt.baseUrl.startsWith("mock://");
 
+/** The effort actually sent: the caller's pick, else the provider's registry default. */
+const effectiveEffort = (args: Pick<CallLlmArgs<unknown>, "effort" | "rt">): string | undefined =>
+  args.effort ?? args.rt.defaultEffort ?? undefined;
+
 export async function callLlm<T = string>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
   const out = await attemptCalls(args);
   // Once per call (not per retry attempt) that carried coaching rules in its prompt.
@@ -100,7 +104,7 @@ async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
   const turnId = args.turnId ?? randomUUID();
   const maxAttempts = args.maxAttempts ?? (args.mode === "json" ? 2 : 1);
   const mock = isMockRuntime(args.rt);
-  const effort = args.effort ?? undefined;
+  const effort = effectiveEffort(args);
   const prepared = prepareRequest(args);
   let lastCallId: string | null = null;
   let validationError = "unknown error";
@@ -231,7 +235,7 @@ async function writeCall(prep: PreparedRequest, args: CallLlmArgs<unknown>, o: C
         clientMessageId: args.links.clientMessageId ?? null,
         providerId: args.rt.providerId ?? (o.mock ? "mock" : "unknown"),
         model: args.rt.model,
-        effort: args.effort ?? null,
+        effort: effectiveEffort(args) ?? null,
         temperature: params.temperature,
         maxTokens: o.mock ? null : params.maxTokens,
         jsonMode: args.mode === "json",

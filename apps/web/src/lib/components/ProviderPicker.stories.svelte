@@ -23,7 +23,7 @@
     models: ['deepseek-flash', 'deepseek-v4-pro'],
     configured: true,
     effortLevels: ['low', 'high', 'max'],
-    defaultEffort: 'high',
+    defaultEffort: 'max',
   };
   const mock: ProviderDto = {
     id: 'mock',
