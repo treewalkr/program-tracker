@@ -1,7 +1,7 @@
 import { estimate1rm, weekSessions } from "./domain";
 import type { CardioTarget } from "./domain";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
-import { blockPulse, daysIntoBlock, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
+import { blockPulse, blockWeekOfDate, daysIntoBlock, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
 /**
@@ -42,49 +42,50 @@ export interface Signal {
   targetWeek?: number;
 }
 
-/** Same load getting harder: avg RPE at identical weight, latest vs earliest week. */
-function rpeCreep(programId: string, logs: SignalLog[], nameOf: (id: string) => string): Signal | null {
-  const byWeight = new Map<string, { weeks: Map<string, { rpeSum: number; n: number }> }>();
-  for (const log of logs.sort((a, b) => a.date.localeCompare(b.date))) {
-    const week = log.date.slice(0, 10);
+/** Same work getting harder: avg RPE at identical load AND reps, latest vs
+ *  earliest block week. Matching reps keeps double progression (+1 rep at the
+ *  same load) from reading as fatigue. */
+function rpeCreep(program: SignalProgram, logs: SignalLog[], nameOf: (id: string) => string): Signal | null {
+  const byWork = new Map<string, Map<number, { rpeSum: number; n: number }>>();
+  for (const log of logs) {
+    const week = blockWeekOfDate(program, logs, log.date);
     for (const s of log.sets) {
-      if (!s.weightKg || !s.rpe) continue;
-      const key = `${s.exerciseId}@${s.weightKg}`;
-      let entry = byWeight.get(key);
-      if (!entry) {
-        entry = { weeks: new Map() };
-        byWeight.set(key, entry);
-      }
-      const w = entry.weeks.get(week) ?? { rpeSum: 0, n: 0 };
+      if (!s.weightKg || !s.rpe || !s.reps) continue;
+      const key = `${s.exerciseId}@${s.weightKg}x${s.reps}`;
+      const weeks = byWork.get(key) ?? new Map<number, { rpeSum: number; n: number }>();
+      const w = weeks.get(week) ?? { rpeSum: 0, n: 0 };
       w.rpeSum += s.rpe;
       w.n += 1;
-      entry.weeks.set(week, w);
+      weeks.set(week, w);
+      byWork.set(key, weeks);
     }
   }
 
-  let worst: { exId: string; ex: string; weight: number; delta: number } | null = null;
-  for (const [key, entry] of byWeight) {
-    const weeks = [...entry.weeks.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    if (weeks.length < 2) continue;
-    const first = weeks[0][1];
-    const last = weeks[weeks.length - 1][1];
+  let worst: { exId: string; ex: string; weight: number; reps: number; from: number; to: number; delta: number } | null = null;
+  for (const [key, weeks] of byWork) {
+    const sorted = [...weeks.entries()].sort((a, b) => a[0] - b[0]);
+    if (sorted.length < 2) continue;
+    const [fromWeek, first] = sorted[0];
+    const [toWeek, last] = sorted[sorted.length - 1];
     if (last.n < 2 || first.n < 1) continue;
-    const delta = (last.rpeSum / last.n) - (first.rpeSum / first.n);
+    const delta = last.rpeSum / last.n - first.rpeSum / first.n;
     if (delta >= 1.5 && (!worst || delta > worst.delta)) {
-      const [exId, weight] = key.split("@");
-      worst = { exId, ex: nameOf(exId), weight: Number(weight), delta };
+      const [exId, work] = key.split("@");
+      const [weight, reps] = work.split("x").map(Number);
+      worst = { exId, ex: nameOf(exId), weight, reps, from: fromWeek, to: toWeek, delta };
     }
   }
   if (!worst) return null;
+  const d = worst.delta.toFixed(1);
   return {
-    id: `rpe-creep:${programId}:${worst.exId}`,
+    id: `rpe-creep:${program.id}:${worst.exId}`,
     kind: "rpe-creep",
     severity: "attention",
     title: `Fatigue signal — ${worst.ex}`,
-    evidence: `${worst.weight} kg now rates +${worst.delta.toFixed(1)} RPE vs first week at the same load.`,
+    evidence: `${worst.weight} kg × ${worst.reps} rates +${d} RPE in week ${worst.to} vs week ${worst.from} at the same load and reps.`,
     programId: "",
     clientId: null,
-    prefillNote: `Fatigue is building: ${worst.ex} at ${worst.weight} kg rates ~+${worst.delta.toFixed(1)} RPE higher than at block start. Consider a deload or a lighter week before progressing.`,
+    prefillNote: `Fatigue is building: ${worst.ex} at ${worst.weight} kg × ${worst.reps} rates ~+${d} RPE higher in week ${worst.to} than in week ${worst.from}. Consider a deload or a lighter week before progressing.`,
     templateHint: "tpl-block-structure",
   };
 }
@@ -297,7 +298,7 @@ export function computeSignals(
     });
   }
 
-  const creep = rpeCreep(program.id, programLogs, nameOf);
+  const creep = rpeCreep(program, programLogs, nameOf);
   if (creep) signals.push({ ...creep, ...owner });
   const stalled = stall(program.id, programLogs, nameOf, timedExerciseIds(program));
   if (stalled) signals.push({ ...stalled, ...owner });

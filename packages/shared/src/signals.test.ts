@@ -414,3 +414,29 @@ describe("signal ids are scoped to program and exercise (F16)", () => {
   });
 });
 
+describe("rpe creep compares matched load and reps by block week (F17)", () => {
+  const p = squatProgram([null, null, null, null, null]);
+  const creep = (logs: SignalLog[]) => kinds(p, logs, NOW_W5).find((s) => s.kind === "rpe-creep");
+
+  test("double progression (+1 rep at the same load) is not fatigue", () => {
+    expect(creep([SL("2026-10-02", [[140, 5, 7], [140, 5, 7]]), SL("2026-10-23", [[140, 6, 8.5], [140, 6, 9]])])).toBeUndefined();
+  });
+
+  test("same load and reps rating harder fires, with weeks in the evidence", () => {
+    const s = creep([SL("2026-10-02", [[140, 5, 7]]), SL("2026-10-23", [[140, 5, 8.5], [140, 5, 9]])]);
+    expect(s).toBeDefined();
+    expect(s!.evidence).toBe("140 kg × 5 rates +1.8 RPE in week 4 vs week 1 at the same load and reps.");
+  });
+
+  test("buckets by block week, not by day", () => {
+    // Week 1 has a light day (RPE 6) and a normal day (8.5, 8.5): week avg 7.7.
+    // Week 4 at 9 → +1.3, below the 1.5 bar. Day-bucketing would read 6 → 9 = +3.
+    const logs = [
+      SL("2026-10-02", [[140, 5, 6]]),
+      SL("2026-10-04", [[140, 5, 8.5], [140, 5, 8.5]]),
+      SL("2026-10-23", [[140, 5, 9], [140, 5, 9]]),
+    ];
+    expect(creep(logs)).toBeUndefined();
+  });
+});
+
