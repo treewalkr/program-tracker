@@ -26,6 +26,7 @@
   import Avatar from "$lib/ui/Avatar.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import { slotSwaps } from "$lib/logSheet";
 
   const id = $derived(page.params.id ?? "");
 
@@ -86,6 +87,11 @@
   const fmtVolume = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
   const doneWeeks = $derived(pulse.filter((w) => !w.plannedOnly && w.overallVolume > 0));
   const maxVolume = $derived(Math.max(...doneWeeks.map((w) => w.overallVolume), 1));
+  /** Slots logged under another exercise than the program prescribes (the logger's Swap). */
+  const swaps = $derived(current ? slotSwaps(current, sessionLogRows).slice(0, 10) : []);
+  const exName = (id: string) => catalogById.get(id)?.name ?? id;
+  const shortDay = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const maxChainSets = $derived(Math.max(...(chainWeekData?.chains.map((c) => c.sets) ?? [0]), 1));
   const heatLevel = (w: WeekMetrics) => (w.plannedOnly ? 0 : Math.max(1, Math.ceil((4 * w.overallVolume) / maxVolume)));
   const pulseSummary = $derived.by(() => {
@@ -555,6 +561,20 @@
       {:else}
         <EmptyState>No logged sets in the last 8 weeks.</EmptyState>
       {/if}
+      {#if swaps.length > 0}
+        <div class="panel-body swaps">
+          <h3 class="swaps-title">Swaps <span class="counter">{swaps.length}</span></h3>
+          <ul>
+            {#each swaps as sw, i (i)}
+              <li>
+                <span class="swaps-day tnum">{shortDay(sw.date)}</span>
+                <span><s>{exName(sw.fromExerciseId)}</s> → <strong>{exName(sw.toExerciseId)}</strong></span>
+                <span class="subtle tnum">{sw.sets} {sw.sets === 1 ? "set" : "sets"}</span>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
     </Panel>
   {:else}
     <Panel class="narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" title="Profile">
@@ -673,6 +693,12 @@
   .lift { font-weight: 500; }
   .unit { font-size: 12px; color: var(--faint); margin-left: 3px; font-weight: 400; }
   td.sets { max-width: 340px; }
+  .swaps { border-top: 1px solid var(--line); }
+  .swaps-title { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font: 600 14px/1.3 var(--font-ui); }
+  .swaps ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .swaps li { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+  .swaps s { color: var(--muted); text-decoration-color: var(--line-strong); }
+  .swaps-day { min-width: 52px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
 
   .narrow { max-width: var(--measure-form); }
   .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
