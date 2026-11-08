@@ -5,12 +5,16 @@
  *   bun run release 0.2.0      explicit version (must be newer)
  *   bun run release --current  tag the current version as-is (no bump commit)
  *
+ * Before a bump, CHANGELOG.md › Unreleased must be written (no [draft] lines —
+ * see `bun run changelog:draft`); it is stamped with the version and date and
+ * committed with the bump. --current leaves the changelog alone.
+ *
  * Never pushes. Pushing main is the deploy: CI tests, migrates Supabase,
  * deploys the web Worker, then the API on Render (.github/workflows/ci.yml).
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { nextVersion, releaseNotes } from "./release-lib";
+import { nextVersion, releaseNotes, stampChangelog, unreleasedProblem } from "./release-lib";
 
 const sh = (cmd: string) => execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const fail = (msg: string): never => {
@@ -39,6 +43,12 @@ const version = (() => {
 const tag = `v${version}`;
 if (sh(`git tag --list ${tag}`)) fail(`${tag} already exists`);
 
+const changelog = tagOnly ? "" : readFileSync("CHANGELOG.md", "utf8");
+if (!tagOnly) {
+  const problem = unreleasedProblem(changelog);
+  if (problem) fail(problem);
+}
+
 const lastTag = (() => {
   try {
     return sh("git describe --tags --abbrev=0 --match 'v*'");
@@ -61,8 +71,10 @@ if (!tagOnly) {
     if (next === text) fail(`${file} has no "version" field`);
     writeFileSync(file, next);
   }
+  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local calendar day
+  writeFileSync("CHANGELOG.md", stampChangelog(changelog, version, today));
   sh("bun install"); // keeps bun.lock's workspace versions in step
-  sh(`git add ${PACKAGES.join(" ")} bun.lock`);
+  sh(`git add ${PACKAGES.join(" ")} bun.lock CHANGELOG.md`);
   sh(`git commit -q -m "chore: release ${tag}"`);
 }
 
