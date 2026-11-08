@@ -14,6 +14,9 @@ import {
   renderPreferenceSignals,
   rxLabel,
   anchorText,
+  EXPERIENCE_LABEL,
+  type ClientExperience,
+  type ClientSex,
   type NoteAnchor,
   type PreferenceSignal,
 } from "@pt/shared";
@@ -36,6 +39,13 @@ export interface ClientContext {
   cardioTarget?: CardioTarget | null;
   /** Recorded 1RMs with catalog names, for %1RM prescriptions. */
   oneRepMaxes?: { exerciseId: string; name: string; kg: number; date: string }[] | null;
+  /** Client basics. Phone and start date are admin-only and never reach the AI. */
+  experience?: ClientExperience | null;
+  /** Whole years, from the date of birth (context.ts) — the prompt never sees the date itself. */
+  age?: number | null;
+  sex?: ClientSex | null;
+  bodyweightKg?: number | null;
+  heightCm?: number | null;
 }
 
 export interface ProgramSummary {
@@ -210,6 +220,20 @@ const PRESCRIPTION_RULE =
   "- Prescription detail: for lifts listed in CLIENT 1RMs you may prescribe percent1rm instead of (or alongside) targetWeightKg; use targetRpeMin + targetRpe for RPE ranges, targetRir for reps in reserve, and tempo where tempo or pauses matter (e.g. comp-style pauses). An AMRAP set (amrap true) states stopRpe, never an RPE paired with going to failure.";
 
 /** The CLIENT 1RMs line; empty when none are recorded. */
+/** `PROFILE: intermediate (1–3 yrs training), 34 yrs, female, 72 kg bodyweight, 168 cm` — set parts only. */
+function profileLines(client: ClientContext): string[] {
+  const parts = [
+    client.experience
+      ? `${client.experience} (${EXPERIENCE_LABEL[client.experience].band} training)`
+      : null,
+    client.age != null ? `${client.age} yrs` : null,
+    client.sex ?? null,
+    client.bodyweightKg != null ? `${client.bodyweightKg} kg bodyweight` : null,
+    client.heightCm != null ? `${client.heightCm} cm` : null,
+  ].filter((p): p is string => p !== null);
+  return parts.length ? [`PROFILE: ${parts.join(", ")}`] : [];
+}
+
 function oneRepMaxLines(client: ClientContext): string[] {
   if (!client.oneRepMaxes?.length) return [];
   const list = client.oneRepMaxes.map((m) => `${m.name} [${m.exerciseId}] ${m.kg} kg (${m.date})`).join("; ");
@@ -307,6 +331,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
 
   const user = [
     `CLIENT: ${ctx.client.name}`,
+    ...profileLines(ctx.client),
     ctx.client.goals ? `GOALS: ${ctx.client.goals}` : "GOALS: not specified",
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
@@ -455,6 +480,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
 
   const user = [
     `CLIENT: ${ctx.client.name}`,
+    ...profileLines(ctx.client),
     ctx.client.goals ? `GOALS: ${ctx.client.goals}` : "GOALS: not specified",
     ctx.client.limitations
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`

@@ -10,6 +10,7 @@ import {
   trainerPreferences,
 } from "@pt/db";
 import {
+  ageOn,
   blockPulse,
   chainBalanceText,
   chainSetCounts,
@@ -180,6 +181,12 @@ export async function loadContext(
         date: m.date,
       })),
       cardioTarget: client.cardioTarget ?? null,
+      // Basics for the AI. Phone and start date stay out of every prompt.
+      experience: client.experience ?? null,
+      age: client.birthDate ? ageOn(client.birthDate, new Date().toISOString().slice(0, 10)) : null,
+      sex: client.sex ?? null,
+      bodyweightKg: client.bodyweightKg ?? null,
+      heightCm: client.heightCm ?? null,
     },
     previousProgram: previous,
     periodization,
