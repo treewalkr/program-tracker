@@ -202,7 +202,7 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
       if (!note || note.signal !== LLM_NOTE_SIGNAL) return status(404, { error: "note not found" });
       if (note.subjectKind !== "generation") return status(422, { error: "only notes on a draft can be applied" });
       try {
-        const res = await runRevision(note.subjectId, noteRevisionText(note));
+        const res = await runRevision(note.subjectId, noteRevisionText(note), { lockPhasing: true });
         if (!res.ok) return status(res.status, { error: res.error });
         const code = res.generation.status === "validated" ? 201 : res.generation.status === "cancelled" ? 200 : 502;
         return status(code, res.generation);

@@ -14,6 +14,7 @@ import {
   SESSION_TYPE_DEFAULTS,
   mockApplyProposal,
   scopeToProposal,
+  lockPhasing,
   diffDrafts,
   mockChatReply,
   mockDistillPreferences,
@@ -160,6 +161,8 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
   if (!gen || gen.status !== "validated" || !gen.draft) {
     throw new Error("generation is not validated");
   }
+  // Same as the API's free-text revise: the block plan stays unless the message is about it.
+  const locked = lockPhasing(gen.draft as any, mockReviseDraft(gen.draft as any, message), message);
   const child: GenerationDto = {
     id: uuid(),
     clientId: gen.clientId,
@@ -170,7 +173,8 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
     providerId: gen.providerId,
     model: gen.model,
     status: "validated",
-    draft: mockReviseDraft(gen.draft as any, message) as any,
+    draft: locked.draft as any,
+    discardedChanges: locked.discarded,
     error: null,
     parentGenerationId: gen.id,
     revisionMessage: message,

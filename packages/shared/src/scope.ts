@@ -62,3 +62,40 @@ export function scopeToProposal(
 
   return { draft, discarded };
 }
+
+// ---------------------------------------------------------------------------
+// Free-text revisions: phasing lock (plan §D)
+// ---------------------------------------------------------------------------
+
+/**
+ * Words that put a revision message "about the block plan": plan / phase /
+ * phasing, deload, periodisation (any spelling), mesocycle, taper, next block,
+ * block length, and a numbered week ("week 4", "W4", "6 weeks"). Plain "block"
+ * and "this week" are left out on purpose: "block pull" is an exercise and
+ * "this week felt heavy" is about load, not the plan.
+ */
+const PLAN_WORDS =
+  /\b(plan|phas(e|es|ing)|deload\w*|periodi[sz]\w*|mesocycle\w*|taper\w*|next block|block (length|plan)|weeks? ?\d+|w\d+|\d+ ?weeks?)\b/i;
+
+/** True when a free-text revision message asks about the block plan (see PLAN_WORDS). */
+export function mentionsPlan(message: string): boolean {
+  return PLAN_WORDS.test(message);
+}
+
+/**
+ * Free-text revision guard: keeps `parent`'s phasing on `revised` unless
+ * `message` is about the plan. `discarded` lists the plan changes reverted.
+ */
+export function lockPhasing(
+  parent: AiProgramDraft,
+  revised: AiProgramDraft,
+  message: string
+): { draft: AiProgramDraft; discarded: SlotChange[] } {
+  if (mentionsPlan(message)) return { draft: revised, discarded: [] };
+  const discarded = diffDrafts({ sessions: [], phasing: parent.phasing }, { sessions: [], phasing: revised.phasing });
+  if (!discarded.length) return { draft: revised, discarded };
+  const draft = structuredClone(revised);
+  if (parent.phasing) draft.phasing = structuredClone(parent.phasing);
+  else delete draft.phasing;
+  return { draft, discarded };
+}

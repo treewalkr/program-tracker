@@ -150,3 +150,45 @@ test("a proposed cardio edit takes the built cardio prescription", () => {
   expect(draft.sessions[2].cardio!.durationMin).toBe(40);
   expect(discarded).toEqual([]);
 });
+
+// ---- free-text revisions: phasing lock (plan §D) ----
+
+import { lockPhasing, mentionsPlan } from "./scope";
+
+test("mentionsPlan: block plan words count, exercise talk does not", () => {
+  for (const m of [
+    "Make week 4 a deload",
+    "Drop the W4 target",
+    "Lengthen the block plan to 6 weeks",
+    "Change the phase to intensification",
+    "Rework the phasing",
+    "periodise this as undulating",
+    "Next block should be a peak",
+    "add a taper",
+  ]) expect([m, mentionsPlan(m)]).toEqual([m, true]);
+  for (const m of [
+    "Swap back squat for front squat",
+    "More rest on the bench",
+    "Make the tempo ride zone 2",
+    "Add a block pull",
+    "This week felt heavy, lower the RPE",
+    "Explain the plank",
+  ]) expect([m, mentionsPlan(m)]).toEqual([m, false]);
+});
+
+test("lockPhasing keeps the parent's plan unless the message is about it", () => {
+  const p = parent();
+  const revised = parent();
+  revised.sessions[0].exercises[0] = ex("Front Squat");
+  delete revised.phasing!.weeks![3].target;
+  const locked = lockPhasing(p, revised, "Swap the squat");
+  expect(locked.draft.phasing).toEqual(p.phasing);
+  expect(locked.draft.sessions).toEqual(revised.sessions);
+  expect(locked.discarded.map((c) => c.exercise)).toEqual(["W4 target"]);
+  const asked = lockPhasing(p, revised, "Drop the week 4 target");
+  expect(asked.draft.phasing).toEqual(revised.phasing);
+  expect(asked.discarded).toEqual([]);
+  const noPlan = structuredClone(p);
+  delete noPlan.phasing;
+  expect("phasing" in lockPhasing(noPlan, revised, "Swap the squat").draft).toBe(false);
+});

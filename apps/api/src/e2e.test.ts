@@ -476,6 +476,29 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(list.body.some((g: any) => g.id === body.id)).toBe(true);
   });
 
+  test("free-text revise keeps the block plan unless the message is about it (F04)", async () => {
+    const parent = await call("GET", `/v1/ai/generations/${revisionChildId}`);
+    const revise = async (message: string) => {
+      process.env.MOCK_ROGUE = "1";
+      try {
+        return await call("POST", `/v1/ai/generations/${revisionChildId}/revise`, { message });
+      } finally {
+        delete process.env.MOCK_ROGUE;
+      }
+    };
+    const locked = await revise("more rest on the bench");
+    expect(locked.status).toBe(201);
+    expect(locked.body.draft.phasing).toEqual(parent.body.draft.phasing);
+    expect(locked.body.discardedChanges.map((c: any) => c.kind)).toContain("plan");
+    // The rogue mock's cardio edit is not phasing: it stays and shows in the diff.
+    expect(locked.body.draft.sessions).not.toEqual(parent.body.draft.sessions);
+
+    const asked = await revise("make week 4 a lighter deload");
+    expect(asked.status).toBe(201);
+    expect(asked.body.draft.phasing).not.toEqual(parent.body.draft.phasing);
+    expect(asked.body.discardedChanges).toEqual([]);
+  });
+
   test("revise error paths: 404 unknown id, 409 non-validated, 422 blank message", async () => {
     const notFound = await call("POST", `/v1/ai/generations/${crypto.randomUUID()}/revise`, {
       message: "some note",
@@ -2158,12 +2181,12 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     const turn = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: g.body.id, message: "More rest on the first lift", providerId: "mock" });
     expect(turn.status).toBe(201);
 
-    process.env.MOCK_ROGUE_BUILD = "1";
+    process.env.MOCK_ROGUE = "1";
     let res;
     try {
       res = await call("POST", `/v1/ai/chat/proposals/${turn.body.messages[1].id}/build`, { providerId: "mock" });
     } finally {
-      delete process.env.MOCK_ROGUE_BUILD;
+      delete process.env.MOCK_ROGUE;
     }
     expect(res.status).toBe(201);
     const gen = res.body.generation;

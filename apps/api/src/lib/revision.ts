@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
-import { AiProgramDraft, mockApplyProposal, mockReviseDraft, scopeToProposal, weekOf, type ChatProposal, type SlotChange } from "@pt/shared";
+import { AiProgramDraft, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, weekOf, type ChatProposal, type SlotChange } from "@pt/shared";
 import { toSignalProgram } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
@@ -35,6 +35,12 @@ export async function runRevision(
      * (scopeToProposal) and store the rest as `discardedChanges`.
      */
     scope?: ChatProposal;
+    /**
+     * Free-text revisions: keep the parent's block plan unless `message` is
+     * about it (lockPhasing / mentionsPlan); reverted plan edits are stored
+     * as `discardedChanges`.
+     */
+    lockPhasing?: boolean;
   } = {}
 ): Promise<RevisionResult> {
   const [parent] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, parentId));
@@ -196,12 +202,12 @@ export async function runRevision(
       schema: AiProgramDraft,
       mock: () =>
         JSON.stringify(
-          opts.mockProposal
-            ? mockApplyProposal(mockReviseDraft(parent.draft!, trimmedMessage), opts.mockProposal, {
-                // Opt-in for tests: the mock also makes off-proposal edits (see mockApplyProposal).
-                rogue: process.env.MOCK_ROGUE_BUILD === "1",
-              })
-            : mockReviseDraft(parent.draft!, trimmedMessage)
+          mockApplyProposal(
+            mockReviseDraft(parent.draft!, trimmedMessage),
+            opts.mockProposal ?? { summary: "", changes: [] },
+            // Opt-in for tests: the mock also edits phasing and cardio unasked (see mockApplyProposal).
+            { rogue: process.env.MOCK_ROGUE === "1" }
+          )
         ),
     });
     let settled = out;
@@ -213,6 +219,10 @@ export async function runRevision(
         ? { ...out, data: valid.data }
         : { turnId: out.turnId, callId: out.callId, attempts: out.attempts, ok: false, kind: "validation", error: `scoped draft invalid: ${valid.error.message}` };
       discardedChanges = scoped.discarded;
+    } else if (out.ok && opts.lockPhasing) {
+      const locked = lockPhasing(parent.draft!, out.data, trimmedMessage);
+      settled = { ...out, data: locked.draft };
+      discardedChanges = locked.discarded;
     }
     const { row } = await settleGeneration(generation.id, settled, { discardedChanges });
     return { ok: true, generation: row };

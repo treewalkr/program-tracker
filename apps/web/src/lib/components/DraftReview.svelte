@@ -143,6 +143,8 @@
   /** Every change since the previous version; plan changes are listed from planDelta (they carry the week). */
   const slotChanges = $derived(prev?.draft ? diffDrafts(prev.draft, draft).filter((c) => c.kind !== "plan") : []);
   const plan = $derived(draft.phasing ?? null);
+  /** AI edits the server reverted (outside the proposal, or plan edits nobody asked for). */
+  const kept = $derived(gen.discardedChanges ?? []);
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
   const changedWeeks = $derived(new Set(planDelta.map((c) => c.week).filter((w): w is number => w !== null)));
   const checks = $derived(reviewChecks(draft, client.sessionsPerWeek, catalogById));
@@ -325,6 +327,16 @@
         </ul>
         {#if slotChanges.length > 5}<p class="subtle m0 mt6">+ {slotChanges.length - 5} more — see Compare below</p>{/if}
         <p class="subtle m0 mt10">{gen.manualEdit ? `Plan only — sessions are identical to v${version - 1}.` : "Read from the drafts, not from the AI's description."}</p>
+      {/if}
+      {#if kept.length}
+        <details class="kept mt6">
+          <summary class="subtle">The AI also changed {plural(kept.length, "thing")} it wasn't asked to. Kept as before.</summary>
+          <ul class="chg">
+            {#each kept as c, i (i)}
+              <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{c.kind === "plan" ? c.exercise : tags[c.day - 1] ?? `Session ${c.day}`} ·</span> {#if c.kind !== "plan"}{c.exercise} {/if}<span class="rx">{#if c.from}<s>{c.from}</s> → {/if}{c.to}</span></span></li>
+            {/each}
+          </ul>
+        </details>
       {/if}
     {:else}
       <h3>First draft</h3>
@@ -534,6 +546,8 @@
   .band h3 .counter { font-weight: 400; }
   .chg, .checks, .hist { list-style: none; margin: 0; padding: 0; font-size: 13px; }
   .chg { display: grid; gap: 4px; }
+  .kept > summary { cursor: pointer; }
+  .kept .chg { margin-top: 6px; color: var(--muted); }
   .chg li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 6px; }
   .sign { font: 700 13px/1.45 var(--font-mono); color: var(--blue); }
   .where { color: var(--muted); }

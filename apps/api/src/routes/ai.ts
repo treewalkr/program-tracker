@@ -464,7 +464,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     "/generations/:id/revise",
     async ({ params, body, status }) => {
       try {
-        const res = await runRevision(params.id, body.message);
+        const res = await runRevision(params.id, body.message, { lockPhasing: true });
         if (!res.ok) {
           return status(res.status, { error: res.error });
         }
