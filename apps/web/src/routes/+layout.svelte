@@ -14,6 +14,8 @@
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { syncThemeAttribute } from "$lib/theme.svelte";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
+  import { whatsNew } from "$lib/whatsNew.svelte";
+  import VersionLink from "$lib/components/VersionLink.svelte";
 
   let { children, data } = $props();
 
@@ -268,14 +270,14 @@
           </span>
           <span class="account-text">
             <span class="account-name">{trainer.name}</span>
-            <span class="account-meta" title="Build {__APP_VERSION__}">{modeLabel} · v{__APP_VERSION__}</span>
+            <span class="account-meta">{modeLabel} · <VersionLink build={__APP_VERSION__} fresh={whatsNew.unseen} /></span>
           </span>
           <button type="button" class="sign-out" aria-label="Sign out" title="Sign out" onclick={signOut}>
             <Icon name="signout" />
           </button>
         {:else}
           <span class="mode-dot" title="{modeLabel} · v{__APP_VERSION__}" aria-hidden="true"></span>
-          <span class="account-meta mode" title="Build {__APP_VERSION__}">{modeLabel} · v{__APP_VERSION__}</span>
+          <span class="account-meta mode">{modeLabel} · <VersionLink build={__APP_VERSION__} fresh={whatsNew.unseen} /></span>
         {/if}
       </div>
     </div>
