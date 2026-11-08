@@ -36,12 +36,26 @@ export interface ExampleTarget {
   daysPerWeek?: number | null;
 }
 
+/** Filler words that say nothing about what a program is for. Two goals
+ *  sharing only these ("strength and power" / "mobility and balance") are
+ *  not a match. */
+export const GOAL_STOPWORDS: ReadonlySet<string> = new Set([
+  "and", "the", "for", "with", "from", "into", "onto", "over", "per", "via",
+  "your", "our", "their",
+  "this", "that", "these", "those", "some", "more", "less", "all", "any",
+  "get", "getting", "build", "building", "improve", "improving", "increase",
+  "maintain", "general", "overall", "basic", "new", "better", "focus", "focused",
+  "program", "programs", "programme", "training", "train", "plan", "block",
+  "phase", "routine", "workout", "workouts", "goal", "goals", "week", "weeks",
+  "day", "days", "session", "sessions",
+]);
+
 function words(s: string): Set<string> {
   const matches = s.toLowerCase().match(/[a-z0-9]+/g);
   if (!matches) return new Set();
   const set = new Set<string>();
   for (const m of matches) {
-    if (m.length >= 3) {
+    if (m.length >= 3 && !GOAL_STOPWORDS.has(m)) {
       set.add(m);
     }
   }
@@ -49,13 +63,19 @@ function words(s: string): Set<string> {
 }
 
 /**
- * Deterministic few-shot retrieval. Score: goalScore + daysScore where
- * goalScore = 2 × distinct shared words (lowercase [a-z0-9]+ runs ≥ 3 chars,
- * deduped per side) and daysScore = exact days/week +2 / ±1 +1 / else 0
- * (null on either side → 0). level never scores (the client has no level —
- * it reaches the model via the prompt header line). Keeps score > 0 only,
- * sorts score desc then stable (caller passes newest-first), excludes
- * `opts.excludeProgramId`, caps at `opts.limit` (default 2).
+ * Deterministic few-shot retrieval.
+ *
+ * Eligibility (all must hold):
+ * - the goals share at least one word — lowercase [a-z0-9]+ runs ≥ 3 chars,
+ *   minus GOAL_STOPWORDS. No target goals → nothing matches;
+ * - `programId !== opts.excludeProgramId`.
+ *
+ * Score = 2 × distinct shared goal words
+ * *       + days/week: exact +2, ±1 +1, else 0 (null on either side → 0).
+ * Days only rank eligible examples; they never qualify one alone. level
+ * never scores.
+ * Sorts score desc then stable (caller passes newest-first), caps at
+ * `opts.limit` (default 2).
  */
 export function selectExamples<T extends ExampleRetrievalTags & { programId?: string | null }>(
   examples: readonly T[],
@@ -66,6 +86,7 @@ export function selectExamples<T extends ExampleRetrievalTags & { programId?: st
   if (limit <= 0) return [];
 
   const targetWords = target.goals ? words(target.goals) : new Set<string>();
+  if (targetWords.size === 0) return [];
 
   const scored: { item: T; score: number; index: number }[] = [];
 
@@ -76,7 +97,7 @@ export function selectExamples<T extends ExampleRetrievalTags & { programId?: st
     }
 
     let sharedCount = 0;
-    if (targetWords.size > 0 && ex.goal) {
+    if (ex.goal) {
       const exWords = words(ex.goal);
       for (const w of targetWords) {
         if (exWords.has(w)) {
@@ -84,7 +105,7 @@ export function selectExamples<T extends ExampleRetrievalTags & { programId?: st
         }
       }
     }
-    const goalScore = 2 * sharedCount;
+    if (sharedCount === 0) continue;
 
     let daysScore = 0;
     if (target.daysPerWeek != null && ex.daysPerWeek != null) {
@@ -96,10 +117,7 @@ export function selectExamples<T extends ExampleRetrievalTags & { programId?: st
       }
     }
 
-    const score = goalScore + daysScore;
-    if (score > 0) {
-      scored.push({ item: ex, score, index: i });
-    }
+    scored.push({ item: ex, score: 2 * sharedCount + daysScore, index: i });
   }
 
   scored.sort((a, b) => {
