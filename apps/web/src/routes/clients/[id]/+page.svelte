@@ -528,7 +528,7 @@
       </Panel>
 
       {#if chainWeekData}
-        <Panel title="Chains trained this week" count={`week of ${chainWeekData.weekStart}`}>
+        <Panel title="Sets touching each chain" count={`week of ${chainWeekData.weekStart}`}>
           {#snippet act()}
             <Button small variant="ghost" href="/chains">Edit chains</Button>
           {/snippet}
@@ -539,9 +539,9 @@
                 <div class="chain-info">
                   <span class="chain-name">{c.name}</span>
                   {#if isZero}
-                    <span class="chain-status">not trained this week</span>
+                    <span class="chain-status">no sets this week</span>
                   {:else}
-                    <span class="chain-count">{c.sets} {c.sets === 1 ? "working set" : "working sets"}</span>
+                    <span class="chain-count">{c.sets} {c.sets === 1 ? "set touching" : "sets touching"}</span>
                   {/if}
                 </div>
                 <div class="bar-track">
@@ -553,6 +553,7 @@
               </div>
             {/each}
           </div>
+          <p class="pulse-sub">A set counts toward every chain its muscle groups overlap. Descriptive only — not a balance score.</p>
         </Panel>
       {/if}
     </div>

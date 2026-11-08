@@ -58,8 +58,9 @@
 {:else}
   <Panel title="Kinetic chains" count={chains ? (dirty.size ? `${dirty.size} unsaved` : `${chains.length} chains`) : undefined}>
     <p class="lede">
-      Working sets on these muscle groups count toward the chain in each client's
-      <em>Chains trained this week</em> panel. A group can belong to more than one chain.
+      Sets on these muscle groups count toward the chain in each client's
+      <em>Sets touching each chain</em> panel. A group can belong to more than one chain.
+      The counts describe where the work lands; they are not a balance score.
     </p>
     {#if chains === null}
       <div class="pad"><Skeleton h="200px" /></div>

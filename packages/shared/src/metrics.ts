@@ -503,7 +503,7 @@ export function chainsForExercise(exercise: ChainCatalogEntry, chains: ChainDef[
   return matched;
 }
 
-/** Working sets per chain id for logs with date >= since (date-only ISO strings, client-local). */
+/** Sets (working + back-off) touching each chain id, for logs with date >= since (date-only ISO strings, client-local). */
 export function chainSetCounts(
   chains: ChainDef[],
   logs: { date: string; sets: { exerciseId: string; type: string }[] }[],
@@ -533,16 +533,11 @@ export function chainSetCounts(
   return counts;
 }
 
-/** "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 · … hard sets · untrained: Lateral" —
- *  the " · untrained: A, B" suffix appears only when ≥1 chain has 0 sets. */
+/** "sets touching each chain: Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 · none touching: Lateral".
+ *  Descriptive only — a set touches a chain when its exercise's muscle groups overlap the
+ *  chain's; sling set counts are not an evidence-based load metric, so this is no balance score. */
 export function chainBalanceText(chains: ChainDef[], counts: Record<string, number>): string {
-  const parts = chains.map((c) => `${c.name} ${counts[c.id] ?? 0}`);
-  const base = `${parts.join(" · ")} hard sets`;
-  const untrained = chains
-    .filter((c) => (counts[c.id] ?? 0) === 0)
-    .map((c) => c.name);
-  if (untrained.length > 0) {
-    return `${base} · untrained: ${untrained.join(", ")}`;
-  }
-  return base;
+  const base = `sets touching each chain: ${chains.map((c) => `${c.name} ${counts[c.id] ?? 0}`).join(" · ")}`;
+  const none = chains.filter((c) => (counts[c.id] ?? 0) === 0).map((c) => c.name);
+  return none.length > 0 ? `${base} · none touching: ${none.join(", ")}` : base;
 }

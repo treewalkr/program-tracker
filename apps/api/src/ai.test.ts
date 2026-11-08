@@ -236,13 +236,13 @@ describe("buildGenerationMessages", () => {
       client: { name: "Maya", sessionsPerWeek: 2 },
       previousProgram: null,
       periodization: null,
-      chainBalance: "Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral",
+      chainBalance: "sets touching each chain: Deep Longitudinal 31 · Lateral 0 · none touching: Lateral",
       history: [],
       catalog: [],
       trainerInstructions: "",
     });
-    expect(withBalance.user).toContain("KINETIC CHAIN BALANCE");
-    expect(withBalance.user).toContain("Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral");
+    expect(withBalance.user).toContain("KINETIC CHAINS (descriptive, not a balance score");
+    expect(withBalance.user).toContain("sets touching each chain: Deep Longitudinal 31 · Lateral 0 · none touching: Lateral");
     expect(withBalance.system).toContain("five kinetic chains");
 
     const noBalance = buildGenerationMessages({
@@ -254,7 +254,7 @@ describe("buildGenerationMessages", () => {
       catalog: [],
       trainerInstructions: "",
     });
-    expect(noBalance.user).toContain("no logged training to balance yet");
+    expect(noBalance.user).toContain("KINETIC CHAINS: no logged training yet.");
   });
 
   test("buildGenerationMessages includes the standing direction line", () => {
@@ -497,15 +497,15 @@ describe("buildRevisionMessages", () => {
       client: { name: "Ada", sessionsPerWeek: 3 },
       previousProgram: null,
       periodization: null,
-      chainBalance: "Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral",
+      chainBalance: "sets touching each chain: Deep Longitudinal 31 · Lateral 0 · none touching: Lateral",
       history: [],
       catalog: [],
       trainerInstructions: "",
       previousDraft,
       feedback: "more lateral chain",
     });
-    expect(withBalance.user).toContain("KINETIC CHAIN BALANCE");
-    expect(withBalance.user).toContain("Deep Longitudinal 31 · Lateral 0 working sets · untrained: Lateral");
+    expect(withBalance.user).toContain("KINETIC CHAINS (descriptive, not a balance score");
+    expect(withBalance.user).toContain("sets touching each chain: Deep Longitudinal 31 · Lateral 0 · none touching: Lateral");
     expect(withBalance.system).toContain("five kinetic chains");
 
     const noBalance = buildRevisionMessages({
@@ -519,7 +519,7 @@ describe("buildRevisionMessages", () => {
       previousDraft,
       feedback: "more lateral chain",
     });
-    expect(noBalance.user).toContain("no logged training to balance yet");
+    expect(noBalance.user).toContain("KINETIC CHAINS: no logged training yet.");
   });
 
   test("learned preferences section lands in generation and revision prompts", () => {
@@ -1120,7 +1120,7 @@ describe("example library few-shot", () => {
       "When GOLD-STANDARD EXAMPLE PROGRAMS are provided, treat them as the trainer's gold standard",
     );
     // rule sits right after the kinetic-chain rule
-    const chainIdx = system.indexOf("Spread volume across the trainer's five kinetic chains");
+    const chainIdx = system.indexOf("Read the trainer's five kinetic chains descriptively");
     const goldIdx = system.indexOf("When GOLD-STANDARD EXAMPLE PROGRAMS are provided");
     expect(chainIdx).toBeGreaterThan(-1);
     expect(goldIdx).toBeGreaterThan(chainIdx);

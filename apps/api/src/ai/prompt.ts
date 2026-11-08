@@ -275,7 +275,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     DELOAD_RULE,
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
-    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     GOLD_STANDARD_RULE,
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -307,8 +307,8 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
-      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+      ? `KINETIC CHAINS (descriptive, not a balance score; working + back-off sets touching each of the trainer's five chains, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAINS: no logged training yet.",
     "",
     trainingLogBlock(ctx),
     "",
@@ -415,7 +415,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     DELOAD_RULE,
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
-    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     GOLD_STANDARD_RULE,
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -453,8 +453,8 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
-      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+      ? `KINETIC CHAINS (descriptive, not a balance score; working + back-off sets touching each of the trainer's five chains, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAINS: no logged training yet.",
     "",
     trainingLogBlock(ctx),
     "",
@@ -527,7 +527,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
     DELOAD_RULE,
-    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     WEEK_STABILITY_RULE,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -562,8 +562,8 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
-      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+      ? `KINETIC CHAINS (descriptive, not a balance score; working + back-off sets touching each of the trainer's five chains, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAINS: no logged training yet.",
     "",
     trainingLogBlock(ctx),
     "",
@@ -604,7 +604,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
     DELOAD_RULE,
-    "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
+    "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     WEEK_STABILITY_RULE,
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
@@ -645,8 +645,8 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
-      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+      ? `KINETIC CHAINS (descriptive, not a balance score; working + back-off sets touching each of the trainer's five chains, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAINS: no logged training yet.",
     "",
     trainingLogBlock(ctx),
     "",
@@ -950,8 +950,8 @@ export function buildChatSystem(ctx: ChatContext): string {
       : "PERIODIZATION CONTEXT: none (no phasing on the current program).",
     "",
     ctx.chainBalance
-      ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
-      : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
+      ? `KINETIC CHAINS (descriptive, not a balance score; working + back-off sets touching each of the trainer's five chains, last 8 weeks):\n${ctx.chainBalance}`
+      : "KINETIC CHAINS: no logged training yet.",
     "",
     trainingLogBlock(ctx),
     "",

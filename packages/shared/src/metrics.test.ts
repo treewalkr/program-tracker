@@ -75,33 +75,21 @@ describe("chainSetCounts", () => {
 });
 
 describe("chainBalanceText", () => {
-  test("names every chain and flags untrained", () => {
+  test("lists sets touching each chain, descriptively (F20)", () => {
     const chains: ChainDef[] = [
       { id: "c-1", name: "Intrinsic", muscleGroups: ["core"] },
       { id: "c-2", name: "Deep Longitudinal", muscleGroups: ["back"] },
       { id: "c-3", name: "Lateral", muscleGroups: ["quads"] },
     ];
-    const countsWithZero = {
-      "c-1": 5,
-      "c-2": 31,
-      "c-3": 0,
-    };
-    const textWithZero = chainBalanceText(chains, countsWithZero);
-    expect(textWithZero).toContain("untrained: Lateral");
-    expect(textWithZero).toBe(
-      "Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 hard sets · untrained: Lateral"
-    );
+    const textWithZero = chainBalanceText(chains, { "c-1": 5, "c-2": 31, "c-3": 0 });
+    expect(textWithZero).toBe("sets touching each chain: Intrinsic 5 · Deep Longitudinal 31 · Lateral 0 · none touching: Lateral");
 
-    const countsNoZero = {
-      "c-1": 5,
-      "c-2": 31,
-      "c-3": 2,
-    };
-    const textNoZero = chainBalanceText(chains, countsNoZero);
-    expect(textNoZero).not.toContain("untrained");
-    expect(textNoZero).toBe(
-      "Intrinsic 5 · Deep Longitudinal 31 · Lateral 2 hard sets"
-    );
+    const textNoZero = chainBalanceText(chains, { "c-1": 5, "c-2": 31, "c-3": 2 });
+    expect(textNoZero).toBe("sets touching each chain: Intrinsic 5 · Deep Longitudinal 31 · Lateral 2");
+    for (const t of [textWithZero, textNoZero]) {
+      expect(t).not.toContain("hard sets");
+      expect(t).not.toContain("untrained");
+    }
   });
 });
 
