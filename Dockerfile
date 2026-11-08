@@ -8,6 +8,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY packages/db/package.json packages/db/
-RUN bun install --frozen-lockfile
+# cache mount keeps downloaded packages across lockfile changes
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 
 COPY . .
