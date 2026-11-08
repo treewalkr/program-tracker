@@ -18,6 +18,7 @@
   } from "$lib/api/types";
   import {
     defaultCardio,
+    oneRepMaxKg,
     placeSessions,
     sessionTag,
     sortExercisesByRole,
@@ -692,6 +693,7 @@
                   <ExerciseEditor
                     bind:exercise={s.exercises[ei]}
                     {catalog}
+                    oneRepMaxKg={oneRepMaxKg(client.oneRepMaxes, e.exerciseId)}
                     oncreate={addToLibrary}
                     canMoveUp={ei > 0}
                     canMoveDown={ei < s.exercises.length - 1}

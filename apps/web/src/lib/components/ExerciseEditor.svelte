@@ -3,14 +3,21 @@
   import { EXERCISE_ROLES, EXERCISE_ROLE_INFO, type ExerciseRole } from "@pt/shared";
   import {
     isUniform,
+    loadCell,
     parseRange,
     patchAll,
     repsLabel,
+    rpeCell,
     setMode,
+    withLoad,
     withMode,
+    withRir,
+    withRpe,
     withSetCount,
+    withTempo,
     type SetMode,
   } from "$lib/programEdit";
+  import { resolveLoadKg } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import ExercisePicker from "./ExercisePicker.svelte";
 
@@ -29,8 +36,11 @@
     onremove,
     onclose,
     oncreate,
+    oneRepMaxKg = null,
   }: {
     exercise: ProgramExerciseDto;
+    /** The client's 1RM for this exercise — "75%" loads show their kg; null = none on file. */
+    oneRepMaxKg?: number | null;
     catalog: ExerciseDto[];
     canMoveUp: boolean;
     canMoveDown: boolean;
@@ -48,7 +58,15 @@
   const sets = $derived(exercise.prescribedSets);
   const mode = $derived(setMode(sets[0]));
   const uniform = $derived(isUniform(sets));
-
+  // svelte-ignore state_referenced_locally
+  let showMore = $state(exercise.prescribedSets.some((s) => s.tempo || s.targetRir != null));
+  /** "75% of 140 kg = 105 kg" per distinct %1RM in the exercise. */
+  const percentNote = $derived.by(() => {
+    const pcts = [...new Set(sets.map((s) => s.percent1rm).filter((p): p is number => p != null))];
+    if (pcts.length === 0) return null;
+    if (oneRepMaxKg == null) return "No 1RM on file for this lift: add it in the client's Settings to see the kg.";
+    return pcts.map((p) => `${p}% = ${resolveLoadKg({ percent1rm: p }, oneRepMaxKg)} kg`).join(" · ") + ` (1RM ${oneRepMaxKg} kg, rounded to 2.5)`;
+  });
   const MODES: { id: SetMode; label: string; title: string }[] = [
     { id: "reps", label: "Reps", title: "Rep target or range, e.g. 8 or 6–10" },
     { id: "timed", label: "Timed", title: "Hold or carry for a number of seconds" },
@@ -75,8 +93,6 @@
     const v = num(raw);
     return v && v >= 1 ? { ...s, durationSeconds: Math.round(v) } : s;
   };
-  const kg = (s: PrescribedSetDto, raw: string) => ({ ...s, targetWeightKg: num(raw) });
-  const rpe = (s: PrescribedSetDto, raw: string) => ({ ...s, targetRpe: num(raw) ?? undefined });
   const rest = (s: PrescribedSetDto, raw: string) => ({ ...s, restSeconds: num(raw) ?? undefined });
 
   function pickExercise(ex: ExerciseDto) {
@@ -91,8 +107,12 @@
   {:else}
     <td><input class="input cell" inputmode="numeric" aria-label={mode === "max" ? "Minimum reps" : "Reps"} placeholder={mode === "max" ? "any" : ""} value={mode === "max" ? (s.reps || "") : repsLabel(s)} onchange={(e) => apply((x) => reps(x, e.currentTarget.value || "0"))} /></td>
   {/if}
-  <td><input class="input cell" type="number" min="0" step="2.5" placeholder="—" aria-label="Load kg" value={s.targetWeightKg ?? ""} onchange={(e) => apply((x) => kg(x, e.currentTarget.value))} /></td>
-  <td><input class="input cell" type="number" min="1" max="10" step="0.5" placeholder="—" aria-label="RPE" value={s.targetRpe ?? ""} onchange={(e) => apply((x) => rpe(x, e.currentTarget.value))} /></td>
+  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label="Load: kg, or % of 1RM like 75%" value={loadCell(s)} onchange={(e) => apply((x) => withLoad(x, e.currentTarget.value))} /></td>
+  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label={mode === "max" ? "Stop at RPE" : "RPE, or a range like 7–8"} value={rpeCell(s, mode)} onchange={(e) => apply((x) => withRpe(x, e.currentTarget.value, mode))} /></td>
+  {#if showMore}
+    <td><input class="input cell" type="number" min="0" max="10" step="0.5" placeholder="—" aria-label="Reps in reserve" value={s.targetRir ?? ""} onchange={(e) => apply((x) => withRir(x, e.currentTarget.value))} /></td>
+    <td><input class="input cell tempo" maxlength="7" placeholder="3-1-1-0" aria-label="Tempo: eccentric, pause, concentric, top" value={s.tempo ?? ""} onchange={(e) => apply((x) => withTempo(x, e.currentTarget.value))} /></td>
+  {/if}
   <td><input class="input cell" type="number" min="0" max="600" step="15" placeholder="—" aria-label="Rest seconds" value={s.restSeconds ?? ""} onchange={(e) => apply((x) => rest(x, e.currentTarget.value))} /></td>
 {/snippet}
 
@@ -134,8 +154,9 @@
         <th class:l={split}>{split ? "Set" : "Sets"}</th>
         {#if split}<th class="l inset">Type</th>{/if}
         <th>{mode === "timed" ? "Seconds" : mode === "max" ? "Min reps" : "Reps"}</th>
-        <th>kg</th>
-        <th>RPE</th>
+        <th title="kg, or % of 1RM like 75%">Load</th>
+        <th title={mode === "max" ? "End the set at this RPE" : "One value or a range like 7–8"}>{mode === "max" ? "Stop RPE" : "RPE"}</th>
+        {#if showMore}<th title="Reps in reserve">RIR</th><th title="Eccentric, pause, concentric, top; X = explosive">Tempo</th>{/if}
         <th>Rest s</th>
         {#if split}<th><span class="sr">Remove</span></th>{/if}
       </tr>
@@ -167,6 +188,8 @@
   </table>
   </div>
 
+  {#if percentNote}<p class="setsnote pct" role="status">{percentNote}</p>{/if}
+
   <p class="setsnote">
     {#if split}
       <button type="button" class="link" disabled={sets.length >= 20} onclick={() => (exercise.prescribedSets = withSetCount(sets, sets.length + 1))}>+ Set</button>
@@ -176,6 +199,7 @@
       {sets.length} identical {sets.length === 1 ? "set" : "sets"} ·
       <button type="button" class="link" onclick={() => (split = true)}>Set each one separately</button>
     {/if}
+    {#if !showMore && mode !== "timed"}· <button type="button" class="link" onclick={() => (showMore = true)}>+ RIR, tempo</button>{/if}
   </p>
 
   <textarea
@@ -241,6 +265,8 @@
   .cell::-webkit-inner-spin-button,
   .cell::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .cell.type { width: auto; text-align: left; font-family: var(--font-ui); }
+  .cell.tempo { width: 76px; }
+  .setsnote.pct { margin: -6px 0 0; font-variant-numeric: tabular-nums; }
   .x { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 0 4px; }
   .x:hover:not(:disabled) { color: var(--bad); }
   .x:disabled { opacity: 0.3; cursor: default; }

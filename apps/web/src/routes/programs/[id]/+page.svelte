@@ -24,6 +24,8 @@
     sessionKey,
     sessionTag,
     sessionsByWeekday,
+    oneRepMaxKg,
+    type OneRepMaxes,
     type ProgramWeek,
     type SessionKind,
   } from "@pt/shared";
@@ -52,6 +54,8 @@
   /** The client's run days and long-run day, for Auto-place (placement.ts). */
   let cardioDays = $state<number[] | null>(null);
   let longRunDay = $state<number | null>(null);
+  /** The client's 1RMs: %1RM sets show (and plan) their kg. */
+  let oneRepMaxes = $state<OneRepMaxes | null>(null);
   /** Placement edits apply to every week (the block's template) unless narrowed to this week. */
   let placeAllWeeks = $state(true);
   let selected = $state<string | null>(null);
@@ -167,6 +171,7 @@
       trainingDays = detail.client.trainingDays ?? [];
       cardioDays = detail.client.cardioDays ?? null;
       longRunDay = detail.client.longRunDay ?? null;
+      oneRepMaxes = detail.client.oneRepMaxes ?? null;
     }
   }
 
@@ -443,6 +448,7 @@
                     <ExerciseEditor
                       bind:exercise={currentWeek.sessions[si].exercises[ei]}
                       {catalog}
+                      oneRepMaxKg={oneRepMaxKg(oneRepMaxes, e.exerciseId)}
                       oncreate={addToLibrary}
                       canMoveUp={ei > 0}
                       canMoveDown={ei < s.exercises.length - 1}
@@ -467,7 +473,7 @@
                         {/if}
                       </div>
                       {#if e.notes}<p class="subtle exnotes">{e.notes}</p>{/if}
-                      <SetChips sets={e.prescribedSets} />
+                      <SetChips sets={e.prescribedSets} oneRepMaxKg={oneRepMaxKg(oneRepMaxes, e.exerciseId)} />
                     </div>
                   {/if}
                   {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
