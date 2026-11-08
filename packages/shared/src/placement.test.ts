@@ -10,7 +10,7 @@ import {
   nextSeq,
   type ProgramSession,
 } from "./domain";
-import { placeSessions, placeWeeks, sessionFocus } from "./placement";
+import { cardioLoad, placeSessions, placeWeeks, placementConflicts, sessionFocus } from "./placement";
 
 const set = { setNumber: 1, type: "working" as const, reps: 5, amrap: false };
 const ex = (id: string) => ({ id: `e-${id}-${Math.random()}`, exerciseId: id, order: 0, prescribedSets: [set] });
@@ -159,5 +159,141 @@ describe("migrateLegacyWeek", () => {
   test("flat weeks pass through", () => {
     const flat = { week: 1, sessions: [lift(1, ["squat"])] };
     expect(migrateLegacyWeek(flat)).toBe(flat);
+  });
+});
+
+// ---- concurrent training (F03, F26) ----
+
+const run = (seq: number, name: string, durationMin: number, hrZone: number, intensity?: string): ProgramSession => ({
+  id: `C${seq}`,
+  name,
+  seq,
+  order: 0,
+  kind: "cardio",
+  exercises: [],
+  cardio: { modality: "Run", durationMin, hrZone, ...(intensity ? { intensity } : {}) },
+});
+
+/** Priya: 2 lifting days (heavy lower + full body), 4 runs, Sunday long run. */
+const priya = () => [
+  { ...lift(1, ["squat", "dl"]), name: "Lower — heavy squat" },
+  { ...lift(2, ["squat", "dl", "bench", "row"]), name: "Full body" },
+  run(1, "Easy run", 40, 2),
+  run(2, "Tempo run", 30, 3, "tempo"),
+  run(3, "Easy run", 35, 2),
+  run(4, "Long run", 80, 2),
+];
+const priyaDays = { trainingDays: [1, 2, 4, 5], cardioDays: [2, 3, 5, 7], longRunDay: 7 };
+
+describe("cardioLoad", () => {
+  test("long by duration or name, hard by zone or intensity, else easy", () => {
+    expect(cardioLoad(run(1, "Long run", 80, 2))).toBe("long");
+    expect(cardioLoad(run(1, "Sunday long", 50, 2))).toBe("long");
+    expect(cardioLoad(run(1, "Tempo run", 30, 3))).toBe("hard");
+    expect(cardioLoad(run(1, "Run", 30, 3, "threshold"))).toBe("hard");
+    expect(cardioLoad(run(1, "Hills", 30, 4))).toBe("hard");
+    expect(cardioLoad(run(1, "Easy run", 40, 2))).toBe("easy");
+    expect(cardioLoad(lift(1, ["squat"]))).toBeNull();
+  });
+});
+
+describe("placeSessions — Priya's concurrent week", () => {
+  const out = placeSessions(priya(), priyaDays, patternOf);
+
+  test("heavy lower is never Monday (the day after the Sunday long run)", () => {
+    expect(dayOf(out, "L1")).not.toBe(1);
+  });
+
+  test("tempo and long run are on different days", () => {
+    expect(dayOf(out, "C2")).not.toBe(dayOf(out, "C4"));
+  });
+
+  test("the easy runs are on different days", () => {
+    expect(dayOf(out, "C1")).not.toBe(dayOf(out, "C3"));
+  });
+
+  test("Sunday is used: the long run sits on the long-run day", () => {
+    expect(dayOf(out, "C4")).toBe(7);
+  });
+
+  test("heavy lower is neither the day after nor the day before a key run", () => {
+    const lower = dayOf(out, "L1")!;
+    for (const k of [dayOf(out, "C2")!, dayOf(out, "C4")!]) {
+      expect((lower - k + 7) % 7).not.toBe(1);
+      expect((k - lower + 7) % 7).toBeGreaterThan(1);
+    }
+  });
+
+  test("the result breaks no placement rule", () => {
+    expect(placementConflicts(out, priyaDays, patternOf)).toEqual([]);
+  });
+
+  test("everything is scheduled and lifting stays on lifting days", () => {
+    expect(out.every((s) => s.weekday != null)).toBe(true);
+    expect(priyaDays.trainingDays).toContain(dayOf(out, "L1")!);
+    expect(priyaDays.trainingDays).toContain(dayOf(out, "L2")!);
+  });
+
+  test("lays the week out: Tue lower + easy, Wed easy, Thu full body, Fri tempo, Sun long", () => {
+    expect(["L1", "L2", "C1", "C2", "C3", "C4"].map((id) => dayOf(out, id))).toEqual([2, 4, 3, 5, 2, 7]);
+  });
+});
+
+describe("placeSessions — key runs", () => {
+  test("two key runs never share a day when there is another day", () => {
+    const out = placeSessions([run(1, "Tempo", 30, 3, "tempo"), run(2, "Intervals", 30, 5)], { trainingDays: [2], cardioDays: [4] });
+    expect(dayOf(out, "C1")).not.toBe(dayOf(out, "C2"));
+  });
+
+  test("heavy lower is not placed the day after a hard run", () => {
+    const out = placeSessions([lift(1, ["squat", "dl"]), run(1, "Intervals", 30, 5)], { trainingDays: [3, 5], cardioDays: [2, 4] }, patternOf);
+    const gap = (dayOf(out, "L1")! - dayOf(out, "C1")! + 7) % 7;
+    expect(gap).not.toBe(1);
+  });
+
+  test("cardio may use cardioDays beyond the lifting days", () => {
+    const out = placeSessions([lift(1, ["squat"]), run(1, "Easy", 30, 2)], { trainingDays: [1], cardioDays: [6] }, patternOf);
+    expect(dayOf(out, "C1")).toBe(6);
+  });
+
+  test("lifting never goes on a cardio-only day", () => {
+    const out = placeSessions([lift(1, ["squat"]), lift(2, ["bench"])], { trainingDays: [1], cardioDays: [3, 5] }, patternOf);
+    expect(out.map((s) => s.weekday)).toEqual([1, 1]);
+  });
+});
+
+describe("placeSessions — AI weekdays", () => {
+  test("keeps AI weekdays that pass the rules", () => {
+    const ai = priya().map((s, i) => ({ ...s, weekday: [2, 4, 3, 5, 2, 7][i] }));
+    const out = placeSessions(ai, priyaDays, patternOf, { keepWeekdays: true });
+    expect(out.map((s) => [s.id, s.weekday])).toEqual(ai.map((s) => [s.id, s.weekday]));
+  });
+
+  test("re-places the AI weekdays that break a rule and keeps the rest", () => {
+    // Heavy lower on Monday (day after the long run) and tempo stacked on the long run.
+    const ai = priya().map((s, i) => ({ ...s, weekday: [1, 4, 3, 7, 2, 7][i] }));
+    const out = placeSessions(ai, priyaDays, patternOf, { keepWeekdays: true });
+    expect(dayOf(out, "L1")).not.toBe(1);
+    expect(dayOf(out, "C2")).not.toBe(7);
+    expect([dayOf(out, "L2"), dayOf(out, "C1"), dayOf(out, "C3"), dayOf(out, "C4")]).toEqual([4, 3, 2, 7]);
+    expect(placementConflicts(out, priyaDays, patternOf)).toEqual([]);
+  });
+
+  test("without keepWeekdays the given weekdays are ignored", () => {
+    const ai = priya().map((s) => ({ ...s, weekday: 6 }));
+    const out = placeSessions(ai, priyaDays, patternOf);
+    expect(out.some((s) => s.weekday === 6)).toBe(false);
+  });
+});
+
+describe("placementConflicts", () => {
+  test("names each broken rule", () => {
+    const week = priya().map((s, i) => ({ ...s, weekday: [6, 4, 3, 5, 3, 5][i] }));
+    const rules = placementConflicts(week, priyaDays, patternOf).map((c) => c.rule);
+    expect([...new Set(rules)].sort()).toEqual(["key-runs-same-day", "long-run-day", "lower-after-key", "off-day"]);
+  });
+
+  test("unscheduled sessions conflict with nothing", () => {
+    expect(placementConflicts(priya(), priyaDays, patternOf)).toEqual([]);
   });
 });
