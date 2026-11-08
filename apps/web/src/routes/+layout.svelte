@@ -88,7 +88,19 @@
   /* Holds the drawer layout while it retracts into the rail; cleared on animationend. */
   let drawerClosing = $state(false);
   const drawerShown = $derived(narrow && (drawerOpen || drawerClosing));
-  const rail = $derived(narrow ? !drawerShown : collapsed);
+  /* Wide-screen collapse: the column shrinks first with the full menu still laid
+     out (labels clipped by the narrowing edge), then the rail layout takes over. */
+  let railSettling = $state(false);
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  const rail = $derived(narrow ? !drawerShown : collapsed && !railSettling);
+  /* Grid column width, separate from the layout so the column can animate first. */
+  const slim = $derived(narrow || collapsed);
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function settleRail() {
+    clearTimeout(settleTimer);
+    railSettling = false;
+  }
   /* Gym-floor routes give phones the full width: the rail hides (≤640px) and a
      menu button in the page corner opens the same drawer. */
   const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
@@ -111,12 +123,18 @@
     else {
       collapsed = !collapsed;
       localStorage.setItem(RAIL_KEY, collapsed ? "1" : "0");
+      settleRail();
+      if (collapsed && !reducedMotion.matches) {
+        railSettling = true;
+        settleTimer = setTimeout(settleRail, 400); // in case transitionend never fires
+      }
     }
   }
 
   $effect(() => {
     const onChange = (e: MediaQueryListEvent) => {
       narrow = e.matches;
+      settleRail();
       drawerOpen = false;
       drawerClosing = false;
     };
@@ -171,7 +189,14 @@
 {#if bare}
   {@render children()}
 {:else}
-<div class="shell" class:rail class:focus={focusRoute} class:drawer={drawerShown} class:closing={drawerClosing}>
+<div
+  class="shell"
+  class:rail
+  class:slim
+  ontransitionend={(e) => {
+    if (e.target === e.currentTarget && e.propertyName === "grid-template-columns") settleRail();
+  }}
+  class:focus={focusRoute} class:drawer={drawerShown} class:closing={drawerClosing}>
   <aside
     class="side"
     id="sidebar"
@@ -283,6 +308,12 @@
     grid-template-columns: 236px 1fr;
     min-height: 100vh;
   }
+  /* Wide screens: the column eases between menu and rail and the page rides
+     along. Expanding decelerates out; collapsing is quicker. */
+  @media (min-width: 861px) and (prefers-reduced-motion: no-preference) {
+    .shell { transition: grid-template-columns 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+    .shell.slim { transition-duration: 200ms; }
+  }
 
   .side {
     background: var(--well);
@@ -344,6 +375,7 @@
     flex: none;
   }
   .name {
+    white-space: nowrap; /* no rewrapping while the column animates */
     font: 600 14px/1.2 var(--font-ui);
     color: var(--ink);
   }
@@ -526,7 +558,7 @@
   }
 
   /* Icon rail: chosen on wide screens, the default on narrow ones. */
-  .shell.rail { grid-template-columns: 56px 1fr; }
+  .shell.slim { grid-template-columns: 56px 1fr; }
   .rail .side { padding: 16px 8px; gap: 14px; scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
   .rail .side::-webkit-scrollbar { display: none; }
   .rail .brand-row { flex-direction: column; gap: 10px; }
@@ -552,7 +584,6 @@
   }
 
   /* Narrow screens: the open menu floats over the page instead of squeezing it. */
-  .shell.drawer { grid-template-columns: 56px 1fr; }
   .drawer .side {
     position: fixed;
     left: 0;
@@ -599,9 +630,8 @@
 
   .focus-menu { display: none; }
   @media (max-width: 640px) {
-    .shell.focus.rail { grid-template-columns: 0 1fr; }
+    .shell.focus.slim { grid-template-columns: 0 1fr; }
     .shell.focus.rail .side { display: none; }
-    .shell.focus.drawer { grid-template-columns: 0 1fr; }
     .shell.focus.drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
     .shell.focus .main { padding: 12px 12px 56px; }
     .focus-menu {
