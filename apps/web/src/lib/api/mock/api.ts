@@ -933,7 +933,7 @@ export const mockApi: TrainerApi = {
         id: uuid(),
         name: s.name,
         seq: ++seq[kind],
-        weekday: null,
+        weekday: s.weekday ?? null,
         order: 0,
         kind,
         notes: s.notes,
@@ -964,7 +964,8 @@ export const mockApi: TrainerApi = {
     }
 
     const plannedWeeks = 4;
-    const weeks = placeWeeks(stampWeeks(template, plannedWeeks), client?.trainingDays, patternOf);
+    // AI weekdays that pass the placement rules stay; the rest are re-placed.
+    const weeks = placeWeeks(stampWeeks(template, plannedWeeks), client, patternOf, { keepWeekdays: true });
     const program: ProgramDto = {
       id: uuid(),
       clientId: gen.clientId,

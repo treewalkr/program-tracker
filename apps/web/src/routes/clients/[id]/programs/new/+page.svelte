@@ -110,7 +110,7 @@
       exercises: s.exercises.map((e, ei) => ({ id: e.id, exerciseId: e.exerciseId, order: ei, prescribedSets: [] })),
       cardio: null,
     })) as ProgramSession[];
-    const placed = placeSessions(draft, client?.trainingDays, patternOf);
+    const placed = placeSessions(draft, client, patternOf);
     return new Map(placed.map((p) => [p.id, p.weekday ?? null]));
   });
 

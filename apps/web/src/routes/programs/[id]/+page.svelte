@@ -47,6 +47,9 @@
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
   let trainingDays = $state<number[]>([]);
+  /** The client's run days and long-run day, for Auto-place (placement.ts). */
+  let cardioDays = $state<number[] | null>(null);
+  let longRunDay = $state<number | null>(null);
   /** Placement edits apply to every week (the block's template) unless narrowed to this week. */
   let placeAllWeeks = $state(true);
   let selected = $state<string | null>(null);
@@ -126,7 +129,7 @@
     // Each week on its own: the rules are deterministic, so identical weeks land identically.
     program.weeks = ($state.snapshot(program.weeks) as ProgramWeek[]).map((w) => ({
       ...w,
-      sessions: placeSessions(w.sessions, trainingDays, patternOf),
+      sessions: placeSessions(w.sessions, { trainingDays, cardioDays, longRunDay }, patternOf),
     }));
   }
 
@@ -160,6 +163,8 @@
       const detail = await api.client(program.clientId);
       clientName = detail.client.name;
       trainingDays = detail.client.trainingDays ?? [];
+      cardioDays = detail.client.cardioDays ?? null;
+      longRunDay = detail.client.longRunDay ?? null;
     }
   }
 
@@ -378,7 +383,7 @@
         {/if}
         <span class="grow"></span>
         {#if trainingDays.length > 0}
-          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's available days (keeps heavy lower days apart), for every week">Auto-place</button>
+          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's lifting and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
         {/if}
         {#if currentWeek.sessions.length < 14}
           <button class="btn ghost small" onclick={() => addNewSession("lifting")}>+ Lifting session</button>
