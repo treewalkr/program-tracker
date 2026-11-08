@@ -599,3 +599,41 @@ describe("one block-week model (F05)", () => {
     expect(w3.prs.map((p) => p.exerciseName)).toEqual(["Squat"]);
   });
 });
+
+describe("e1RM per lift (F27)", () => {
+  const program: SignalProgram = {
+    id: "pg-e",
+    clientId: "c1",
+    name: "PL block",
+    status: "active",
+    weeks: [],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+    phasing: { plannedWeeks: 3, phase: "accumulation", weeks: [] },
+  };
+  const L = (date: string, sets: SignalLog["sets"]): SignalLog => ({ programId: "pg-e", date, sets });
+  const logs = [
+    L("2026-10-02", [
+      { exerciseId: "ex-dl", type: "working", weightKg: 192.5, reps: 2 },
+      { exerciseId: "ex-sq", type: "working", weightKg: 140, reps: 5 },
+    ]),
+    L("2026-10-09", [
+      { exerciseId: "ex-dl", type: "working", weightKg: 190, reps: 2 },
+      { exerciseId: "ex-sq", type: "working", weightKg: 145, reps: 5 },
+    ]),
+  ];
+
+  test("each week keeps the best e1RM of every lift and names the top one", () => {
+    const [w1, w2] = blockPulse(program, logs, Date.parse("2026-10-10T00:00:00Z"));
+    expect(w1.e1rmByExercise).toEqual({ "ex-dl": 205.3, "ex-sq": 163.3 });
+    expect(w1.topE1rmExerciseId).toBe("ex-dl");
+    expect(w2.e1rmByExercise["ex-sq"]).toBe(169.2);
+    expect(w2.bestE1rm).toBe(202.7);
+  });
+
+  test("e1rmDelta follows the top lift against its own previous week", () => {
+    const w2 = blockPulse(program, logs, Date.parse("2026-10-10T00:00:00Z"))[1];
+    expect(w2.topE1rmExerciseId).toBe("ex-dl");
+    expect(w2.e1rmDelta).toBe(-1); // 202.7 vs 205.3
+  });
+});

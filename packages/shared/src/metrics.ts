@@ -49,11 +49,17 @@ export interface WeekMetrics {
   sets: number;
   reps: number;
   avgRpe: number | null;
+  /** Best e1RM of the week's top lift (max of `e1rmByExercise`). */
   bestE1rm: number;
+  /** Best e1RM per exercise this week (loaded, non-timed sets only). */
+  e1rmByExercise: Record<string, number>;
+  /** Exercise behind `bestE1rm`; null when nothing loaded was logged. */
+  topE1rmExerciseId: string | null;
   /** % change vs previous logged week. */
   overallVolumeDelta: number | null;
   /** % change of Σ reps */
   repsDelta: number | null;
+  /** % change of the top lift's e1RM vs the same lift's previous week. */
   e1rmDelta: number | null;
   /** Actual % on the target's metric */
   targetDelta: number | null;
@@ -136,12 +142,12 @@ export function blockPulse(
   const ph = program.phasing;
   if (!ph) return [];
   const timed = timedExerciseIds(program);
-  const weeks = new Map<number, { overallVolume: number; sets: number; reps: number; rpeSum: number; rpeN: number; best: number }>();
+  const weeks = new Map<number, { overallVolume: number; sets: number; reps: number; rpeSum: number; rpeN: number; byEx: Record<string, number> }>();
 
   for (const log of logs) {
     if (log.programId !== program.id) continue;
     const week = blockWeekOfDate(program, logs, log.date);
-    const entry = weeks.get(week) ?? { overallVolume: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, best: 0 };
+    const entry = weeks.get(week) ?? { overallVolume: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, byEx: {} };
     for (const s of log.sets) {
       entry.sets += 1;
       if (s.rpe) {
@@ -151,7 +157,9 @@ export function blockPulse(
       if (timed.has(s.exerciseId)) continue;
       entry.reps += s.reps;
       if (s.weightKg) entry.overallVolume += s.weightKg * s.reps;
-      if (s.weightKg && s.reps) entry.best = Math.max(entry.best, estimate1rm(s.weightKg, s.reps));
+      if (s.weightKg && s.reps) {
+        entry.byEx[s.exerciseId] = Math.max(entry.byEx[s.exerciseId] ?? 0, estimate1rm(s.weightKg, s.reps));
+      }
     }
     weeks.set(week, entry);
   }
@@ -164,6 +172,8 @@ export function blockPulse(
     const weekPlan = ph.weeks?.find((x) => x.week === w);
     const directive = weekPlan?.directive ?? null;
     const target = weekPlan?.target ?? null;
+    const byEx = e?.byEx ?? {};
+    const top = Object.entries(byEx).sort((a, b) => b[1] - a[1])[0] ?? null;
     const metric: WeekMetrics = {
       week: w,
       directive,
@@ -172,7 +182,9 @@ export function blockPulse(
       sets: e?.sets ?? 0,
       reps: e?.reps ?? 0,
       avgRpe: e && e.rpeN > 0 ? Math.round((e.rpeSum / e.rpeN) * 10) / 10 : null,
-      bestE1rm: e?.best ?? 0,
+      bestE1rm: top?.[1] ?? 0,
+      e1rmByExercise: byEx,
+      topE1rmExerciseId: top?.[0] ?? null,
       overallVolumeDelta: null,
       repsDelta: null,
       e1rmDelta: null,
@@ -183,7 +195,8 @@ export function blockPulse(
     if (prev && !metric.plannedOnly && !prev.plannedOnly) {
       if (prev.overallVolume > 0) metric.overallVolumeDelta = Math.round(((metric.overallVolume - prev.overallVolume) / prev.overallVolume) * 100);
       if (prev.reps > 0) metric.repsDelta = Math.round(((metric.reps - prev.reps) / prev.reps) * 100);
-      if (prev.bestE1rm > 0) metric.e1rmDelta = Math.round(((metric.bestE1rm - prev.bestE1rm) / prev.bestE1rm) * 100);
+      const prevTop = metric.topE1rmExerciseId ? prev.e1rmByExercise[metric.topE1rmExerciseId] : undefined;
+      if (prevTop) metric.e1rmDelta = Math.round(((metric.bestE1rm - prevTop) / prevTop) * 100);
 
       if (target) {
         if (target.metric === "overall_volume") {

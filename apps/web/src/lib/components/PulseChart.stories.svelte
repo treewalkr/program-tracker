@@ -30,6 +30,8 @@
     reps: Math.round(volume / 30),
     avgRpe: null,
     bestE1rm: 0,
+    e1rmByExercise: {},
+    topE1rmExerciseId: null,
     overallVolumeDelta: null,
     repsDelta: null,
     e1rmDelta: null,
