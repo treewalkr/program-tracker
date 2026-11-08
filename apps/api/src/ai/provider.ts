@@ -181,7 +181,13 @@ async function chatCompletion(
     reasoning: choice?.message?.reasoning_content || null,
   };
   const content = choice?.message?.content;
-  if (!content) throw new ProviderError("provider returned no content", 200, JSON.stringify(json).slice(0, 500), meta);
+  if (!content) {
+    const message =
+      choice?.finish_reason === "length"
+        ? `ran out of tokens while thinking (used all ${p.maxTokens}) — try a lower effort`
+        : "provider returned no content";
+    throw new ProviderError(message, 200, JSON.stringify(json).slice(0, 500), meta);
+  }
   return { content, ...meta };
 }
 

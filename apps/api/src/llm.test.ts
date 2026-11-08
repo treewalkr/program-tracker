@@ -194,6 +194,49 @@ describe.skipIf(!dbUp)("callLlm logging", () => {
     expect(row.jsonMode).toBe(false);
   });
 
+  test("empty content cut off at the token limit explains it as a provider error", async () => {
+    stubProvider([{ body: { choices: [{ message: { content: "", reasoning_content: "thinking…" }, finish_reason: "length" }] } }]);
+    const out = await callLlm({
+      purpose: "chat_qa",
+      builder: "testBuilder",
+      links: {},
+      messages: [{ role: "user", content: "x" }],
+      rt: fakeRt,
+      mode: "json",
+      schema: Answer,
+    });
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.kind).toBe("provider");
+    if (out.kind === "provider") {
+      expect(out.error.message).toContain("ran out of tokens");
+      expect(out.error.message).toContain("lower effort");
+    }
+    const [row] = await db.select().from(llmCalls).where(eq(llmCalls.turnId, out.turnId));
+    expect(row.finishReason).toBe("length");
+  });
+
+  test("JSON cut off at the token limit is not retried", async () => {
+    stubProvider([{ body: { choices: [{ message: { content: '{"answer": ' }, finish_reason: "length" }] } }]);
+    const out = await callLlm({
+      purpose: "chat_qa",
+      builder: "testBuilder",
+      links: {},
+      messages: [{ role: "user", content: "x" }],
+      rt: fakeRt,
+      mode: "json",
+      schema: Answer,
+    });
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.kind).toBe("validation");
+    expect(out.attempts).toBe(1);
+    if (out.kind === "validation") expect(out.error).toContain("cut off at the token limit");
+    const rows = await db.select().from(llmCalls).where(eq(llmCalls.turnId, out.turnId));
+    expect(rows.map((r) => r.status)).toEqual(["parse_error"]);
+    expect(rows[0].error).toContain("cut off at the token limit");
+  });
+
   test("a failed log write never fails the call", async () => {
     stubProvider([{ content: "plain answer" }]);
     const errors: unknown[] = [];

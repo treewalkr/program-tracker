@@ -142,12 +142,15 @@ async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
     }
 
     const parsed = parseContent(args, result.content);
+    // A cut-off answer won't fit on a retry either — say why and stop.
+    const cutOff = !parsed.ok && result.finishReason === "length";
+    const error = parsed.ok ? null : cutOff ? "response cut off at the token limit — try a lower effort" : parsed.error;
     lastCallId = await writeCall(prepared, args, {
       turnId,
       attempt,
       mock,
       status: parsed.status,
-      error: parsed.ok ? null : parsed.error,
+      error,
       responseRaw: result.content,
       parsed: parsed.ok && args.mode === "json" ? parsed.data : null,
       meta: result,
@@ -155,6 +158,7 @@ async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
     if (parsed.ok) {
       return { ok: true, data: parsed.data as T, content: result.content, turnId, callId: lastCallId, attempts: attempt };
     }
+    if (cutOff) return { ok: false, kind: "validation", error: error!, turnId, callId: lastCallId, attempts: attempt };
     validationError = parsed.error;
   }
   return { ok: false, kind: "validation", error: validationError, turnId, callId: lastCallId, attempts: maxAttempts };
