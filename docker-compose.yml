@@ -1,6 +1,7 @@
+# api and web reuse the image migrate builds — one build instead of three
 x-app: &app
-  build: .
   image: program-tracker:local
+  pull_policy: never
   environment:
     DATABASE_URL: postgres://pt:pt_dev_password@postgres:5432/program_tracker
     # Calendar logic (week starts, "today", cardio deadlines) runs in local time.
@@ -27,6 +28,7 @@ services:
 
   migrate:
     <<: *app
+    build: .
     # migrate, then add any missing library exercises (idempotent)
     command: sh -c 'bun run --filter @pt/db migrate && bun run --filter @pt/db seed:exercises'
     restart: "no"
