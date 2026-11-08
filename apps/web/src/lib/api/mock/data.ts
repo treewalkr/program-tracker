@@ -434,6 +434,8 @@ export interface StoredLog {
   sessionLogId: string;
   clientId: string;
   programId: string;
+  /** The program session it was logged against; absent = freestyle. */
+  programSessionId?: string | null;
   date: string;
   kind?: SessionKind;
   cardio?: CardioLog | null;

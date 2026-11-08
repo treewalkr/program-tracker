@@ -27,9 +27,11 @@
     type OneRepMaxes,
     type ProgramWeek,
     type SessionKind,
+    type SignalProgram,
   } from "@pt/shared";
   import { EXAMPLE_LEVELS } from "@pt/shared";
-  import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
+  import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
+  import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
   import { programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
@@ -50,6 +52,8 @@
 
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
+  /** This program's logs — shown under each session next to what was planned. */
+  let logs = $state<SessionLogDto[]>([]);
   let trainingDays = $state<number[]>([]);
   /** The client's run days and long-run day, for Auto-place (placement.ts). */
   let cardioDays = $state<number[] | null>(null);
@@ -118,6 +122,19 @@
     const by = sessionsByWeekday(currentWeek.sessions);
     return [1, 2, 3, 4, 5, 6, 7, 0].flatMap((d) => by.get(d)!.map((s) => ({ s, day: d })));
   });
+  const logView = $derived(program ? programLogView(program as SignalProgram, logs) : null);
+  const timedIds = $derived(timedIdsOfWeek(currentWeek));
+  const isTimed = (e: { id: string; exerciseId: string }) => timedIds.has(e.id) || timedIds.has(e.exerciseId);
+  const logsOf = (sid: string) => logView?.bySession.get(sid) ?? [];
+  const weekLogCount = (w: ProgramWeek, wi: number) =>
+    w.sessions.reduce((n, s) => n + logsOf(s.id).length, 0) + (logView?.otherByWeek.get(wi)?.length ?? 0);
+  const nameOf = (exerciseId: string) => catalogById.get(exerciseId)?.name ?? "Exercise";
+  const cardioLine = (c: SessionLogDto["cardio"]) =>
+    c
+      ? [c.modality, c.durationMin ? `${c.durationMin} min` : null, c.hrZone ? `Z${c.hrZone}` : null, c.distanceKm ? `${c.distanceKm} km` : null, c.rpe ? `RPE ${c.rpe}` : null]
+          .filter(Boolean)
+          .join(" · ")
+      : "";
   const liftingCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "lifting").length;
   const indexOf = (sid: string) => currentWeek?.sessions.findIndex((x) => x.id === sid) ?? -1;
 
@@ -175,6 +192,7 @@
       cardioDays = detail.client.cardioDays ?? null;
       longRunDay = detail.client.longRunDay ?? null;
       oneRepMaxes = detail.client.oneRepMaxes ?? null;
+      logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
     }
   }
 
@@ -363,6 +381,7 @@
           onclick={() => (currentWeekIndex = wi)}
         >
           W{w.week}
+          {#if weekLogCount(w, wi) > 0}<span class="tab-logs" title="{weekLogCount(w, wi)} logged">{weekLogCount(w, wi)}</span>{/if}
         </button>
       {/each}
     </div>
@@ -442,6 +461,21 @@
                 </div>
                 {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
               {/if}
+              {#if logsOf(s.id).length > 0}
+                <div class="logged">
+                  <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}</span>
+                  {#each logsOf(s.id) as l (l.id)}
+                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLine(l.cardio)}</span>{/if}
+                    {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
+                    {@const extras = s.kind === "lifting" ? extraSets(l, s.exercises) : []}
+                    {#if extras.length > 0}
+                      <p class="subtle log-notes">
+                        Also logged ({logDateLabel(l.date)}): {extras.map((x) => `${nameOf(x.exerciseId)} ${loggedSetLabel(x, false)}`).join(" · ")}
+                      </p>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
 
               {#if s.kind === "cardio"}
                 {#if s.cardio && openSession !== s.id}
@@ -492,6 +526,15 @@
                       </div>
                       {#if e.notes}<p class="subtle exnotes">{e.notes}</p>{/if}
                       <SetChips sets={e.prescribedSets} oneRepMaxKg={oneRepMaxKg(oneRepMaxes, e.exerciseId)} />
+                      {#each logsOf(s.id) as l (l.id)}
+                        {@const done = setsForExercise(l, e)}
+                        {#if done.length > 0}
+                          <div class="logline">
+                            <span class="log-date">{logDateLabel(l.date)}</span>
+                            {#each done as d, di (di)}<span class="log-chip">{loggedSetLabel(d, isTimed(e))}</span>{/each}
+                          </div>
+                        {/if}
+                      {/each}
                     </div>
                   {/if}
                   {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
@@ -517,6 +560,24 @@
         </section>
       {/each}
     </div>
+
+    {#if (logView?.otherByWeek.get(weekIndex)?.length ?? 0) > 0}
+      <section class="panel other-logs">
+        <div class="panel-head"><span class="eyebrow">Also logged in week {currentWeek.week}</span></div>
+        <div class="panel-body exlist">
+          {#each logView?.otherByWeek.get(weekIndex) ?? [] as l (l.id)}
+            <div class="logline">
+              <span class="log-date">{logDateLabel(l.date)}</span>
+              {#if l.kind === "cardio"}
+                <span class="log-chip">{cardioLine(l.cardio)}</span>
+              {:else}
+                {#each l.sets as d, di (di)}<span class="log-chip">{nameOf(d.exerciseId)} {loggedSetLabel(d, false)}</span>{/each}
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
   {/if}
 
   {#if dirty}
@@ -651,6 +712,29 @@
   .edit-link:hover, .add-link:hover { text-decoration: underline; }
   .add-link { align-self: flex-start; }
   .sess-notes, .exnotes { margin: 0; font-size: 12.5px; }
+
+  /* What was done, under what was planned */
+  .tab-logs {
+    margin-left: 6px;
+    font: 600 10.5px/1 var(--font-mono, ui-monospace, monospace);
+    padding: 2px 5px;
+    border-radius: 99px;
+    background: var(--good-bg, var(--well-2));
+    color: var(--good, var(--ink));
+  }
+  .logged { display: flex; flex-direction: column; gap: 4px; }
+  .logged-tag { display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px var(--font-ui); color: var(--good, var(--muted)); }
+  .log-notes { margin: 0; font-size: 12px; white-space: pre-line; }
+  .logline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; margin-top: 6px; }
+  .log-date { font: 500 11px var(--font-ui); color: var(--muted); min-width: 72px; }
+  .log-chip {
+    font: 500 11.5px/1.5 var(--font-mono, ui-monospace, monospace);
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--well);
+    color: var(--ink);
+  }
+  .other-logs { margin-top: 18px; }
   .exnotes { margin: -4px 0 8px; }
   .exname {
     border: none;

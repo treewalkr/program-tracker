@@ -824,15 +824,15 @@ export const mockApi: TrainerApi = {
     }));
   },
 
-  async sessionLogs(clientId) {
+  async sessionLogs(clientId, programId) {
     await delay(250);
     return state.logs
-      .filter((l) => l.clientId === clientId)
+      .filter((l) => l.clientId === clientId && (!programId || l.programId === programId))
       .map((l) => ({
         id: l.sessionLogId,
         clientId: l.clientId,
         programId: l.programId,
-        programSessionId: null,
+        programSessionId: l.programSessionId ?? null,
         date: l.date,
         kind: l.kind ?? "lifting",
         cardio: l.cardio ?? null,
@@ -848,6 +848,7 @@ export const mockApi: TrainerApi = {
       sessionLogId: uuid(),
       clientId: input.clientId,
       programId: input.programId,
+      programSessionId: input.programSessionId ?? null,
       date: input.date,
       kind: input.kind ?? "lifting",
       cardio: input.cardio ?? null,
@@ -1131,6 +1132,7 @@ export const mockApi: TrainerApi = {
           sessionLogId: uuid(),
           clientId: row.clientId,
           programId: program.id,
+          programSessionId: l.programSessionId,
           date: l.date,
           kind: "lifting",
           cardio: null,

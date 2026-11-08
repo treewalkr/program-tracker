@@ -599,7 +599,8 @@ export interface TrainerApi {
   deleteExercise(id: string): Promise<void>;
 
   history(clientId: string): Promise<HistoryEntryDto[]>;
-  sessionLogs(clientId: string): Promise<SessionLogDto[]>;
+  /** A client's logs, newest first; `programId` keeps one program's. */
+  sessionLogs(clientId: string, programId?: string): Promise<SessionLogDto[]>;
   logSession(input: SessionLogInput): Promise<unknown>;
 
   generate(input: {
