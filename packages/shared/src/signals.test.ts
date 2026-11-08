@@ -274,3 +274,63 @@ describe("rpe creep and stall see every set (F02, F15)", () => {
     expect(computeSignals(program, logs, name, null, now).map((s) => s.kind)).not.toContain("stall");
   });
 });
+
+describe("+intensity off-plan reads main lifts, not the overall max (F27)", () => {
+  const ex = (exerciseId: string, role?: string) => ({
+    id: `pe-${exerciseId}`, exerciseId, role, order: 0,
+    prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
+  });
+  const make = (roles: boolean): SignalProgram => ({
+    id: "pg-i",
+    clientId: "cl-1",
+    name: "PL",
+    status: "active",
+    weeks: [
+      {
+        week: 1,
+        sessions: [
+          {
+            id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+            exercises: [ex("ex-sq", roles ? "primary" : undefined), ex("ex-dl", roles ? "power" : undefined), ex("ex-curl", roles ? "accessory" : undefined)],
+          },
+        ],
+      },
+    ] as unknown as SignalProgram["weeks"],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+    phasing: { plannedWeeks: 4, phase: "accumulation", weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "+intensity" }] },
+  });
+  const L = (date: string, sets: SignalLog["sets"]): SignalLog => ({ programId: "pg-i", date, sets });
+  const set = (exerciseId: string, weightKg: number, reps: number) => ({ exerciseId, type: "working" as const, weightKg, reps });
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  const offPlan = (p: SignalProgram, logs: SignalLog[]) =>
+    computeSignals(p, logs, (id) => id.replace("ex-", ""), null, now).find((s) => s.id.startsWith("offplan-int"));
+
+  test("squat up while the heavier deadlift dips → silent", () => {
+    const logs = [
+      L("2026-10-02", [set("ex-dl", 192.5, 2), set("ex-sq", 140, 5)]),
+      L("2026-10-09", [set("ex-dl", 190, 2), set("ex-sq", 145, 5)]),
+    ];
+    expect(offPlan(make(true), logs)).toBeUndefined();
+  });
+
+  test("main lifts flat → fires even when an accessory improved, and names the lifts", () => {
+    const logs = [
+      L("2026-10-02", [set("ex-dl", 192.5, 2), set("ex-sq", 140, 5), set("ex-curl", 20, 10)]),
+      L("2026-10-09", [set("ex-dl", 192.5, 2), set("ex-sq", 140, 5), set("ex-curl", 25, 10)]),
+    ];
+    const s = offPlan(make(true), logs);
+    expect(s).toBeDefined();
+    expect(s!.evidence).toContain("sq 163 → 163");
+    expect(s!.evidence).toContain("dl 205 → 205");
+    expect(s!.evidence).not.toContain("curl");
+  });
+
+  test("without roles any loaded lift counts", () => {
+    const logs = [
+      L("2026-10-02", [set("ex-dl", 192.5, 2), set("ex-curl", 20, 10)]),
+      L("2026-10-09", [set("ex-dl", 192.5, 2), set("ex-curl", 25, 10)]),
+    ];
+    expect(offPlan(make(false), logs)).toBeUndefined();
+  });
+});

@@ -1,7 +1,7 @@
 import { estimate1rm, weekSessions } from "./domain";
 import type { CardioTarget } from "./domain";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
-import { blockPulse, daysIntoBlock, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
+import { blockPulse, daysIntoBlock, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
 /**
@@ -239,14 +239,22 @@ export function computeSignals(
           prefillNote: `Week ${week} should add volume but last week came in flat — draft this week's sessions with one extra working set on the main lifts.`,
         });
       }
-      if (directive === "+intensity" && prev.bestE1rm > 0 && cur.bestE1rm <= prev.bestE1rm * 1.01) {
+      // Main lifts (role power/primary, else every loaded non-timed lift) logged in
+      // both weeks; the rule fires only when none of them moved more than 1 %.
+      const main = mainLiftIds(program);
+      const compared = Object.keys(cur.e1rmByExercise)
+        .filter((id) => (main ? main.has(id) : true) && (prev.e1rmByExercise[id] ?? 0) > 0)
+        .map((id) => ({ id, now: cur.e1rmByExercise[id], before: prev.e1rmByExercise[id] }))
+        .sort((x, y) => y.now - x.now);
+      if (directive === "+intensity" && compared.length > 0 && compared.every((c) => c.now <= c.before * 1.01)) {
+        const lifts = compared.map((c) => `${nameOf(c.id)} ${Math.round(c.before)} → ${Math.round(c.now)}`).join(", ");
         signals.push({
           ...owner,
           id: `offplan-int:${program.id}:w${week}`,
           kind: "off-plan",
           severity: "attention",
-          title: `Planned +intensity — best e1RM didn't move`,
-          evidence: `Week ${week} directive is +intensity, best e1RM is ${Math.round(cur.bestE1rm)} vs ${Math.round(prev.bestE1rm)} last week. Repeat the loads, or consider the early transition.`,
+          title: `Planned +intensity — main lifts' e1RM didn't move`,
+          evidence: `Week ${week} directive is +intensity, but no main lift's e1RM rose more than 1 % on last week (${lifts} kg). Repeat the loads, or consider the early transition.`,
           prefillNote: `Week ${week} should push intensity but loads stalled — draft sessions that repeat last week's loads with a rep target bump instead.`,
         });
       }

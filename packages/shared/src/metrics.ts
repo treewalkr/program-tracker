@@ -117,6 +117,20 @@ export function weekOf(program: SignalProgram, logs: SignalLog[], now = Date.now
   return blockWeekOfDate(program, logs, localDateOf(now));
 }
 
+/** Exercises the program marks as its main lifts (role power or primary);
+ *  null when no exercise carries one of those roles. */
+export function mainLiftIds(program: Pick<SignalProgram, "weeks">): Set<string> | null {
+  const ids = new Set<string>();
+  for (const w of program.weeks ?? []) {
+    for (const s of w.sessions ?? []) {
+      for (const e of s.exercises ?? []) {
+        if (e.role === "power" || e.role === "primary") ids.add(e.exerciseId);
+      }
+    }
+  }
+  return ids.size > 0 ? ids : null;
+}
+
 /**
  * Exercises this program prescribes as timed holds. Logged sets carry no
  * duration field, so their `reps` are seconds: they count as hard sets (and
