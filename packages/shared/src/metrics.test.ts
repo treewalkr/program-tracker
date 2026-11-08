@@ -7,6 +7,7 @@ import {
   chainSetCounts,
   chainsForExercise,
   daysIntoBlock,
+  pulseCellSets,
   pulseSummary,
   weekOf,
   weekSessions,
@@ -635,5 +636,76 @@ describe("e1RM per lift (F27)", () => {
     const w2 = blockPulse(program, logs, Date.parse("2026-10-10T00:00:00Z"))[1];
     expect(w2.topE1rmExerciseId).toBe("ex-dl");
     expect(w2.e1rmDelta).toBe(-1); // 202.7 vs 205.3
+  });
+});
+
+describe("pulseCellSets drill-down", () => {
+  const weeks = [
+    {
+      week: 1,
+      sessions: [
+        {
+          id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+          exercises: [
+            { id: "pe-pl", exerciseId: "ex-plank", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45 }] },
+          ],
+        },
+      ],
+    },
+  ] as unknown as ProgramWeek[];
+  const program: SignalProgram = {
+    id: "pg-d",
+    clientId: "c1",
+    name: "Block",
+    status: "active",
+    weeks,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    activatedAt: "2026-10-01T00:00:00.000Z",
+    phasing: { plannedWeeks: 2, phase: "accumulation", weeks: [] },
+  };
+  const L = (date: string, sets: SignalLog["sets"]): SignalLog => ({ programId: "pg-d", date, sets });
+  const logs = [
+    L("2026-10-03", [
+      { exerciseId: "ex-sq", type: "working", weightKg: 150, reps: 3, rpe: 8 },
+      { exerciseId: "ex-sq", type: "backoff", weightKg: 137.5, reps: 4, rpe: null },
+      { exerciseId: "ex-plank", type: "working", weightKg: 10, reps: 45, rpe: 7 },
+      { exerciseId: "ex-pullup", type: "working", weightKg: null, reps: 8, rpe: 9 },
+    ]),
+    L("2026-10-02", [{ exerciseId: "ex-dl", type: "working", weightKg: 180, reps: 3, rpe: 8 }]),
+    L("2026-10-09", [{ exerciseId: "ex-sq", type: "working", weightKg: 155, reps: 3, rpe: 9 }]),
+    { ...L("2026-10-03", [{ exerciseId: "ex-sq", type: "working", weightKg: 999, reps: 1 }]), programId: "other" },
+  ];
+  const now = Date.parse("2026-10-10T00:00:00Z");
+  const w1 = blockPulse(program, logs, now)[0];
+
+  test("sets cell lists every set of the week, oldest first, with type and timed flag", () => {
+    const rows = pulseCellSets(program, logs, 1, "sets");
+    expect(rows).toHaveLength(w1.sets);
+    expect(rows.map((r) => r.date)).toEqual(["2026-10-02", "2026-10-03", "2026-10-03", "2026-10-03", "2026-10-03"]);
+    expect(rows[2]).toMatchObject({ exerciseId: "ex-sq", type: "backoff", weightKg: 137.5, reps: 4, rpe: null, timed: false });
+    expect(rows[3].timed).toBe(true);
+  });
+
+  test("volume cell lists the loaded, non-timed sets that sum to the volume", () => {
+    const rows = pulseCellSets(program, logs, 1, "volume");
+    expect(rows.map((r) => r.exerciseId)).toEqual(["ex-dl", "ex-sq", "ex-sq"]);
+    expect(rows.reduce((t, r) => t + (r.weightKg ?? 0) * r.reps, 0)).toBe(w1.overallVolume);
+  });
+
+  test("rpe cell lists the sets that carry an RPE", () => {
+    const rows = pulseCellSets(program, logs, 1, "rpe");
+    expect(rows).toHaveLength(4);
+    expect(rows.every((r) => r.rpe != null)).toBe(true);
+  });
+
+  test("e1rm cell ranks loaded sets by e1RM, the top one matching the headline", () => {
+    const rows = pulseCellSets(program, logs, 1, "e1rm");
+    expect(rows.map((r) => r.exerciseId)).toEqual(["ex-dl", "ex-sq", "ex-sq"]);
+    expect(rows[0].e1rm).toBe(w1.bestE1rm);
+  });
+
+  test("other weeks and other programs stay out", () => {
+    expect(pulseCellSets(program, logs, 2, "sets").map((r) => r.weightKg)).toEqual([155]);
+    expect(pulseCellSets(program, logs, 3, "sets")).toEqual([]);
   });
 });

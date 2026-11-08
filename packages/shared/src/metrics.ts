@@ -234,6 +234,57 @@ export function blockPulse(
   return out;
 }
 
+/** A Pulse cell the trainer can open to see the sets behind it. */
+export type PulseCell = "volume" | "sets" | "rpe" | "e1rm";
+
+export interface PulseCellSet {
+  date: string;
+  exerciseId: string;
+  type: SetType;
+  weightKg: number | null;
+  /** Seconds when `timed`. */
+  reps: number;
+  rpe: number | null;
+  /** Timed hold: counts in sets and RPE only. */
+  timed: boolean;
+  /** Epley estimate for loaded, non-timed sets; null otherwise. */
+  e1rm: number | null;
+}
+
+/** The logged sets behind one Pulse cell of block week `week` — the same
+ *  buckets and filters `blockPulse` uses, so the list always adds up.
+ *  Oldest first; the e1RM cell is ranked by e1RM instead. */
+export function pulseCellSets(
+  program: SignalProgram,
+  logs: SignalLog[],
+  week: number,
+  cell: PulseCell
+): PulseCellSet[] {
+  const timedIds = timedExerciseIds(program);
+  const programLogs = logs
+    .filter((l) => l.programId === program.id && blockWeekOfDate(program, logs, l.date) === week)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const rows: PulseCellSet[] = programLogs.flatMap((log) =>
+    log.sets.map((s) => {
+      const timed = timedIds.has(s.exerciseId);
+      return {
+        date: log.date.slice(0, 10),
+        exerciseId: s.exerciseId,
+        type: s.type,
+        weightKg: s.weightKg ?? null,
+        reps: s.reps,
+        rpe: s.rpe ?? null,
+        timed,
+        e1rm: !timed && s.weightKg && s.reps ? estimate1rm(s.weightKg, s.reps) : null,
+      };
+    })
+  );
+  if (cell === "sets") return rows;
+  if (cell === "rpe") return rows.filter((r) => r.rpe != null && r.rpe > 0);
+  if (cell === "volume") return rows.filter((r) => !r.timed && (r.weightKg ?? 0) > 0);
+  return rows.filter((r) => r.e1rm != null).sort((a, b) => b.e1rm! - a.e1rm!);
+}
+
 /** One-line summary for AI context and signal evidence: "weekly overall volume 1.8t → 2.3t (+28%) · best e1RM 77 → 84". */
 export function pulseSummary(pulse: WeekMetrics[]): string | null {
   const logged = pulse.filter((w) => !w.plannedOnly && (w.overallVolume > 0 || w.bestE1rm > 0));
