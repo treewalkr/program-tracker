@@ -13,6 +13,7 @@
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { syncThemeAttribute } from "$lib/theme.svelte";
+  import { roleLabels } from "$lib/roleLabelStore.svelte";
 
   let { children, data } = $props();
 
@@ -153,6 +154,11 @@
   // Unread feedback badge: cheap count, refreshed on every navigation (no polling).
   afterNavigate(() => {
     if (!bare) feedbackUnread.refresh();
+  });
+
+  // The trainer's role labels, once — every picker and chip reads the shared store.
+  $effect(() => {
+    if (!bare) roleLabels.load();
   });
 
   onMount(async () => {
