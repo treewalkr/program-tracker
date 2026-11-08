@@ -437,7 +437,8 @@
     <section class="panel"><EmptyState>No active program — log sessions once a program is running.</EmptyState></section>
   {:else}
     {@const prog = program}
-    <form onsubmit={submit}>
+    <!-- novalidate: the sheet validates itself; a native bubble on a cell in a hidden phone card would block Save silently. -->
+    <form onsubmit={submit} novalidate>
       <Panel title="Session">
         {#snippet act()}
           <div class="head-controls">
