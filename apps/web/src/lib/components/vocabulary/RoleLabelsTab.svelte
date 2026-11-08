@@ -192,7 +192,7 @@
   .rows { list-style: none; margin: 0; padding: 0 0 6px; }
   .row {
     display: grid;
-    grid-template-columns: 64px minmax(110px, 180px) minmax(160px, 1fr) auto;
+    grid-template-columns: 88px minmax(110px, 180px) minmax(160px, 1fr) auto;
     align-items: center;
     gap: 12px;
     min-height: 40px;
