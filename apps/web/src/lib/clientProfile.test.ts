@@ -63,3 +63,12 @@ test("profileFromClient lists the client's 1RMs as editable rows", () => {
   expect(profileFromClient(c).oneRepMaxes).toEqual([{ exerciseId: "sq", kg: 140, date: "2026-10-01" }]);
   expect(profileFromClient({ ...c, oneRepMaxes: null }).oneRepMaxes).toEqual([]);
 });
+
+test("1RM dates revived by the API client stay YYYY-MM-DD and survive a re-save", () => {
+  const base = { id: "c", name: "P", email: "p@x.io", status: "active" as const, goals: null, limitations: null, sessionsPerWeek: 2 };
+  for (const date of ["2026-11-08T00:00:00.000Z", new Date("2026-11-08T00:00:00.000Z")] as unknown as string[]) {
+    const f = profileFromClient({ ...base, oneRepMaxes: { sq: { kg: 140, date } } });
+    expect(f.oneRepMaxes).toEqual([{ exerciseId: "sq", kg: 140, date: "2026-11-08" }]);
+    expect(profilePayload(f).oneRepMaxes).toEqual({ sq: { kg: 140, date: "2026-11-08" } });
+  }
+});

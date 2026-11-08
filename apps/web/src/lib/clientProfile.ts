@@ -33,12 +33,17 @@ export function profileFromClient(c: ClientDto): ProfileForm {
     trainingDays: c.trainingDays ? [...c.trainingDays] : [],
     cardioDays: c.cardioDays ? [...c.cardioDays] : [],
     longRunDay: c.longRunDay ?? null,
-    oneRepMaxes: Object.entries(c.oneRepMaxes ?? {}).map(([exerciseId, m]) => ({ exerciseId, kg: m.kg, date: m.date })),
+    oneRepMaxes: Object.entries(c.oneRepMaxes ?? {}).map(([exerciseId, m]) => ({ exerciseId, kg: m.kg, date: calendarDate(m.date) })),
     cardioUnit: c.cardioTarget?.unit ?? "none",
     cardioValue: c.cardioTarget?.value ?? 120,
     goals: c.goals ?? "",
     limitations: c.limitations ?? "",
   };
+}
+
+/** The API client revives date strings into Dates (or full ISO strings); a 1RM date is a UTC calendar day. */
+function calendarDate(d: string | Date): string {
+  return (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
 }
 
 /** API fields for a profile: trimmed text, empty → null, "no cardio target" → null. */
