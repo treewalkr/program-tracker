@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CardioPrescription, PrescribedSet } from "./domain";
+import { ImportNewTerm, filterNewTerms, type GlossaryTerm } from "./vocabulary";
 
 /**
  * Paste notes (docs/paste-import-plan.md): a trainer's plain-text program →
@@ -105,6 +106,8 @@ export const ImportChunk = z.object({
   weeks: z.array(ImportWeek).max(30).default([]),
   /** Lines deliberately left out, with why ("cardio heading", "chit-chat"). */
   skipped: z.array(z.object({ line, reason: z.string().max(200) })).max(500).default([]),
+  /** Shorthand and technique words met in the lines that the prompt's vocabulary block lacks. */
+  newTerms: z.array(ImportNewTerm).max(100).optional(),
 });
 export type ImportChunk = z.infer<typeof ImportChunk>;
 
@@ -250,6 +253,8 @@ export interface ImportResult {
   defaultBlock: number;
   /** Blocks alternate A, B, A, B — both are kept as notes, one is drafted. */
   alternating: boolean;
+  /** Words the trainer may add to their glossary (filterNewTerms). Absent on imports before v1.1. */
+  newTerms?: ImportNewTerm[];
 }
 
 /** ai_imports.status — settle only ever moves a pending row. */
@@ -670,7 +675,12 @@ export function splitRestartedDays(weeks: LocatedWeek[]): (LocatedWeek & { resta
   });
 }
 
-export function buildImportResult(text: string, outcomes: ImportChunkOutcome[]): ImportResult {
+export function buildImportResult(
+  text: string,
+  outcomes: ImportChunkOutcome[],
+  /** The trainer's effective glossary — terms already in it aren't offered as new. */
+  glossary: Pick<GlossaryTerm, "term">[] = [],
+): ImportResult {
   const lines = importLines(text);
   const ok = outcomes.flatMap((o) => (o.ok ? [o.data] : []));
   const unread = outcomes.flatMap((o) => (o.ok ? [] : [{ from: o.from, to: o.to, error: o.error }]));
@@ -723,5 +733,6 @@ export function buildImportResult(text: string, outcomes: ImportChunkOutcome[]):
     blocks,
     defaultBlock: Math.max(0, blocks.length - 1),
     alternating,
+    newTerms: filterNewTerms(ok.flatMap((c) => c.newTerms ?? []), lines, glossary),
   };
 }

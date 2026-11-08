@@ -234,6 +234,14 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
  * fixture's items whose line is in range and still reads as the fixture
  * does. Any other text comes back empty, so the review shows it as unused.
  */
+/** Words the mock reports as new when its chunk has them (known ones are filtered by the glossary later). */
+const MOCK_NEW_TERMS: { term: string; meaning: string | null }[] = [
+  { term: "SA", meaning: "single arm" },
+  { term: "Supinate", meaning: "palms-up grip" },
+  { term: "Asymmetrical", meaning: null },
+  { term: "PAILs/RAILs", meaning: null },
+];
+
 export function mockImportExtraction(lines: string[], from: number, to: number): ImportChunk {
   const has = (line: number | null | undefined, text: string) =>
     line != null && line >= from && line <= to && (lines[line - 1] ?? "").toLowerCase().includes(text.toLowerCase());
@@ -248,5 +256,9 @@ export function mockImportExtraction(lines: string[], from: number, to: number):
     });
     return has(w.line, w.label ?? "") && days.length > 0 ? [{ ...w, days }] : [];
   });
-  return structuredClone({ weeks, skipped: [] });
+  const newTerms = MOCK_NEW_TERMS.flatMap((t) => {
+    const at = lines.slice(from - 1, to).findIndex((l) => l.split(/[\s(),]+/).includes(t.term));
+    return at >= 0 ? [{ ...t, line: from + at }] : [];
+  });
+  return structuredClone({ weeks, skipped: [], newTerms });
 }
