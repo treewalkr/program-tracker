@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Session-slot chip for an exercise — Power / Primary / Str / Aux / Core in the trainer’s own shorthand. Neutral well pill; the primary lift reads in default ink. Hover for the full description.',
+            'Role chip for an exercise — Power / Primary / Secondary / Str / Aux / Core, or one of the trainer’s own labels, in their shorthand. Neutral well pill; the primary lift reads in default ink. Hover for the meaning.',
         },
       },
     },
@@ -19,11 +19,12 @@
 
 <Story name="Power" args={{ role: 'power' }} />
 <Story name="Primary" args={{ role: 'primary' }} />
+<Story name="Secondary" args={{ role: 'secondary' }} />
 <Story name="Strength" args={{ role: 'strength' }} />
-<Story name="Accessory" args={{ role: 'accessory' }} />
+<Story name="Auxiliary" args={{ role: 'accessory' }} />
 <Story name="Core" args={{ role: 'core' }} />
 
-<Story name="Session order" asChild>
+<Story name="Label order" asChild>
   <div style="display: flex; flex-wrap: wrap; gap: 5px;">
     {#each EXERCISE_ROLES as role (role)}
       <RoleChip {role} />
@@ -35,6 +36,7 @@
   <div class="session" style="max-width: 420px;">
     <div class="session-body">
       <div class="exrow"><div class="ex"><RoleChip role="primary" /> Back Squat</div></div>
+      <div class="exrow"><div class="ex"><RoleChip role="secondary" /> Bench Press</div></div>
       <div class="exrow"><div class="ex"><RoleChip role="strength" /> Romanian Deadlift</div></div>
       <div class="exrow"><div class="ex"><RoleChip role="accessory" /> Leg Curl</div></div>
       <div class="exrow"><div class="ex"><RoleChip role="core" /> Plank</div></div>
