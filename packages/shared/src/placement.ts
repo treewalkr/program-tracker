@@ -92,6 +92,12 @@ export function cardioLoad(s: Pick<ProgramSession, "kind" | "name" | "cardio">):
 const normDays = (days?: readonly number[] | null) =>
   [...new Set(days ?? [])].filter((d) => Number.isInteger(d) && d >= 1 && d <= 7).sort((a, b) => a - b);
 
+/** The days each kind may use: lifting on trainingDays, cardio on cardioDays ∪ trainingDays (+ long-run day). */
+export function placementDayPools(input: PlacementDaysInput): { lifting: number[]; cardio: number[] } {
+  const { lifting, cardio } = resolveDays(input);
+  return { lifting, cardio };
+}
+
 function resolveDays(input: PlacementDaysInput) {
   const d: PlacementDays = Array.isArray(input) ? { trainingDays: input as readonly number[] } : ((input ?? {}) as PlacementDays);
   const lifting = normDays(d.trainingDays);

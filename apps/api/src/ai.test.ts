@@ -13,7 +13,7 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import { ProgramWeeksDocument, type AiProgramDraft } from "@pt/shared";
+import { AiProgramDraft, ProgramWeeksDocument } from "@pt/shared";
 
 describe("extractJsonObject", () => {
   test("passes through clean JSON", () => {
@@ -780,6 +780,36 @@ describe("draftToWeeks", () => {
     expect(tags(weeks[1])).toEqual(w1);
     expect(tags(weeks[2])).toEqual(w1);
     expect(weeks[1].sessions[0].id).not.toBe(weeks[0].sessions[0].id);
+  });
+
+  test("AI weekdays that pass the rules are kept; the rest are re-placed (F26)", () => {
+    const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
+    const patterned = [
+      { ...catalog[0], movementPattern: "knee_dominant" },
+      { ...catalog[1], movementPattern: "horizontal_push" },
+    ];
+    const d: AiProgramDraft = {
+      ...draft,
+      sessions: [
+        // Monday is the day after the Sunday long run: must move.
+        { name: "Heavy lower", kind: "lifting", weekday: 1, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] },
+        { name: "Upper", kind: "lifting", weekday: 4, exercises: [{ exerciseId: catalog[1].id, prescribedSets: sets }] },
+        { name: "Easy run", kind: "cardio", weekday: 3, cardio: { modality: "Run", durationMin: 40, hrZone: 2 }, exercises: [] },
+        { name: "Long run", kind: "cardio", weekday: 7, cardio: { modality: "Run", durationMin: 80, hrZone: 2 }, exercises: [] },
+      ],
+    };
+    const { weeks } = draftToWeeks(d, patterned, 2, { trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 });
+    const dayOf = (name: string) => weeks[0].sessions.find((s) => s.name === name)!.weekday;
+    expect([dayOf("Upper"), dayOf("Easy run"), dayOf("Long run")]).toEqual([4, 3, 7]);
+    expect(dayOf("Heavy lower")).not.toBe(1);
+    expect(weeks[1].sessions.find((s) => s.name === "Heavy lower")!.weekday).toBe(dayOf("Heavy lower"));
+  });
+
+  test("a weekday outside 1–7 doesn't fail the draft", () => {
+    const session = { name: "A", weekday: 9, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] };
+    const parsed = AiProgramDraft.safeParse({ ...draft, sessions: [session] });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.sessions[0].weekday ?? null).toBeNull();
   });
 
   test("no training days → every session unscheduled", () => {

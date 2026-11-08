@@ -294,7 +294,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           gen.targetWeek,
           gen.draft,
           catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-          client?.trainingDays,
+          client,
           await ensureSessionTypes(trainerId)
         );
         if (unresolvable.length > 0) {
@@ -342,7 +342,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         gen.draft,
         catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
         gen.draft.phasing?.plannedWeeks ?? 4,
-        client?.trainingDays,
+        client,
         await ensureSessionTypes(trainerId)
       );
       if (unresolvable.length > 0) {

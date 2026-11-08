@@ -3,12 +3,13 @@ import {
   MAX_SESSIONS_PER_WEEKDAY,
   placeSessions,
   placeWeeks,
+  placementDayPools,
   sessionKey,
   sessionsInSeqOrder,
   sortExercisesByRole,
   stampWeeks,
 } from "@pt/shared";
-import type { AiProgramDraft, DraftExerciseRef, ProgramSession, ProgramWeek, SessionTypeLike } from "@pt/shared";
+import type { AiProgramDraft, DraftExerciseRef, PlacementDaysInput, ProgramSession, ProgramWeek, SessionTypeLike } from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
@@ -54,8 +55,9 @@ export function resolveRef(
   return { kind: "unresolvable", ref: ref.exerciseId ?? "<no ref>" };
 }
 
-/** Draft sessions → a one-week, unplaced session template. `seq` numbers each
- *  kind's track in draft order (lifting "Session N", cardio "Cardio N"). */
+/** Draft sessions → a one-week session template carrying the AI's suggested
+ *  weekdays (unchecked; placement decides). `seq` numbers each kind's track in
+ *  draft order (lifting "Session N", cardio "Cardio N"). */
 export function draftTemplateSessions(
   draft: AiProgramDraft,
   catalog: CatalogLike[],
@@ -107,7 +109,7 @@ export function draftTemplateSessions(
       id: crypto.randomUUID(),
       name: s.name,
       seq: ++seq[kind],
-      weekday: null,
+      weekday: s.weekday ?? null,
       order: 0,
       kind,
       ...(type && type.format === kind ? { typeId: type.id, typeName: type.name } : {}),
@@ -124,11 +126,13 @@ export function draftToWeeks(
   draft: AiProgramDraft,
   catalog: CatalogLike[],
   plannedWeeks = 4,
-  trainingDays?: number[] | null,
+  /** Client availability (trainingDays, cardioDays, longRunDay) or bare training days. */
+  days?: PlacementDaysInput,
   types: SessionTypeLike[] = []
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
   const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types);
-  const weeks = placeWeeks(stampWeeks(sessions, plannedWeeks), trainingDays, patternLookup(catalog));
+  // AI weekdays that pass the placement rules stay; the rest are re-placed.
+  const weeks = placeWeeks(stampWeeks(sessions, plannedWeeks), days, patternLookup(catalog), { keepWeekdays: true });
   return { weeks, createdNames, unresolvable };
 }
 
@@ -137,9 +141,10 @@ export function draftToWeeks(
  * session/exercise ids). Placement:
  *  - a new session whose `kind:seq` existed in the old week takes that session's
  *    weekday and within-day order (the trainer's calendar survives a regen);
- *  - an unmatched session goes where `placeSessions` would put it on the
- *    client's training days if that day still has room (< 4 after the matched
- *    ones), else the least-loaded training day with room, else unscheduled (null).
+ *  - an unmatched session goes where `placeSessions` would put it (keeping an
+ *    AI weekday that passes the rules) if that day still has room (< 4 after
+ *    the matched ones), else the least-loaded day its kind may use with room,
+ *    else unscheduled (null).
  *  Never more than MAX_SESSIONS_PER_WEEKDAY on a day. Other weeks pass through untouched.
  */
 export function replaceWeek(
@@ -147,7 +152,7 @@ export function replaceWeek(
   weekNumber: number,
   draft: AiProgramDraft,
   catalog: CatalogLike[],
-  trainingDays?: number[] | null,
+  days?: PlacementDaysInput,
   types: SessionTypeLike[] = []
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
   const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types);
@@ -156,7 +161,7 @@ export function replaceWeek(
     (oldWeek?.sessions ?? []).map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }])
   );
   const ideal = new Map(
-    placeSessions(sessions, trainingDays, patternLookup(catalog)).map((s) => [s.id, s.weekday ?? null])
+    placeSessions(sessions, days, patternLookup(catalog), { keepWeekdays: true }).map((s) => [s.id, s.weekday ?? null])
   );
 
   const load = new Map<number, number>();
@@ -171,11 +176,11 @@ export function replaceWeek(
       unmatched.push(s);
     }
   }
-  const days = [...new Set(trainingDays ?? [])].sort((a, b) => a - b);
+  const pools = placementDayPools(days);
   const hasRoom = (d: number) => (load.get(d) ?? 0) < MAX_SESSIONS_PER_WEEKDAY;
   for (const s of unmatched) {
     const want = ideal.get(s.id) ?? null;
-    const open = days.filter(hasRoom);
+    const open = (s.kind === "cardio" ? pools.cardio : pools.lifting).filter(hasRoom);
     const d =
       want != null && hasRoom(want)
         ? want
