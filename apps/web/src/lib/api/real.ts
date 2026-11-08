@@ -1,10 +1,12 @@
 import type {
+  AliasDto,
   ChainWeekDto,
   ChatMessageDto,
   ClientMessageDto,
   ClientDto,
   ExerciseDto,
   GenerationDto,
+  GlossaryTermDto,
   HistoryEntryDto,
   ImportDto,
   ImportSummaryDto,
@@ -162,6 +164,17 @@ export const realApi: TrainerApi = {
   cancelImport: (id) => unwrap<ImportDto>(client.v1.ai.imports({ id }).cancel.post()),
   saveAliases: async (items) => {
     await unwrap<unknown>(client.v1.vocabulary.aliases.post({ items }));
+  },
+  aliases: () => unwrap<AliasDto[]>(client.v1.vocabulary.aliases.get()),
+  patchAlias: (id, exerciseId) => unwrap<AliasDto>(client.v1.vocabulary.aliases({ id }).patch({ exerciseId })),
+  deleteAlias: async (id) => {
+    await unwrap<unknown>(client.v1.vocabulary.aliases({ id }).delete());
+  },
+  glossary: () => unwrap<GlossaryTermDto[]>(client.v1.vocabulary.glossary.get()),
+  createGlossaryTerm: (input) => unwrap<GlossaryTermDto>(client.v1.vocabulary.glossary.post(input)),
+  patchGlossaryTerm: (id, patch) => unwrap<GlossaryTermDto>(client.v1.vocabulary.glossary({ id }).patch(patch)),
+  deleteGlossaryTerm: async (id) => {
+    await unwrap<unknown>(client.v1.vocabulary.glossary({ id }).delete());
   },
   roleLabels: () => unwrap<RoleLabelDto[]>(client.v1.vocabulary["role-labels"].get()),
   createRoleLabel: (input) => unwrap<RoleLabelDto>(client.v1.vocabulary["role-labels"].post(input)),

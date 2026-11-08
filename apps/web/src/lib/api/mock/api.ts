@@ -50,11 +50,16 @@ import {
   mockImportExtraction,
   normalizeAlias,
   type ImportChunkOutcome,
-  type MatchAlias,
+  DEFAULT_GLOSSARY,
+  glossaryAbbreviations,
+  mergeGlossary,
+  type GlossaryRowLike,
 } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
+  AliasDto,
+  GlossaryTermDto,
   ChainWeekDto,
   ChatMessageDto,
   ClientDto,
@@ -151,6 +156,29 @@ const seedChains: KineticChainDto[] = KINETIC_CHAIN_DEFAULTS.map((c, i) => ({
   sortOrder: c.sortOrder,
 }));
 
+interface MockAliasRow {
+  id: string;
+  alias: string;
+  exerciseId: string;
+  /** null = global. */
+  trainerId: string | null;
+  source: string;
+}
+
+/** A few global seed aliases (migration 0041) onto the demo library, by name; missing names skipped. */
+const MOCK_GLOBAL_ALIASES: [alias: string, exercise: string][] = [
+  ["squat", "Back Squat"],
+  ["bench", "Bench Press"],
+  ["bb row", "Barbell Row"],
+  ["rdl", "Romanian Deadlift"],
+  ["ohp", "Overhead Press"],
+  ["bss", "Bulgarian Split Squat"],
+  ["lat pull down", "Lat Pulldown"],
+  ["low row", "Seated Cable Row"],
+  ["seated row", "Seated Cable Row"],
+  ["chinup", "Chin-up"],
+];
+
 /** Mutable in-memory demo state. Reset by reloading the page module. */
 const state = {
   clients: [...seedClients],
@@ -161,7 +189,8 @@ const state = {
   chains: seedChains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] })),
   generations: [] as GenerationDto[],
   imports: [] as ImportDto[],
-  aliases: [] as MatchAlias[],
+  aliases: [] as MockAliasRow[],
+  glossary: DEFAULT_GLOSSARY.map((g, i) => ({ ...g, id: `gl-${i + 1}`, trainerId: null })) as GlossaryRowLike[],
   clientMessages: [] as ClientMessageDto[],
   preferences: [...seedPreferences] as PreferencesDto[],
   messages: [] as (ChatMessageDto & { clientId: string })[],
@@ -241,6 +270,40 @@ function assertTypeNameFree(name: string, exceptId?: string) {
     throw new Error(`"${name}" is already a session type`);
   }
 }
+
+// —— aliases and glossary: mirrors /v1/vocabulary ———————————————————————————
+const GLOBAL_READ_ONLY = "global entries are read-only — override it to make your own";
+state.aliases = MOCK_GLOBAL_ALIASES.flatMap(([alias, name], i) => {
+  const ex = exercises.find((e) => e.name === name);
+  return ex ? [{ id: `al-${i + 1}`, alias, exerciseId: ex.id, trainerId: null, source: "seed" }] : [];
+});
+function aliasDtos(): AliasDto[] {
+  return state.aliases
+    .flatMap((a) => {
+      const ex = exercises.find((e) => e.id === a.exerciseId);
+      if (!ex) return [];
+      const scope = a.trainerId === null ? ("global" as const) : ("personal" as const);
+      return [{ id: a.id, alias: a.alias, exerciseId: a.exerciseId, exerciseName: ex.name, source: a.source, scope }];
+    })
+    .sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global") || a.alias.localeCompare(b.alias));
+}
+function personalAlias(id: string) {
+  const row = state.aliases.find((a) => a.id === id);
+  if (!row) throw new Error("alias not found");
+  if (row.trainerId === null) throw new Error(GLOBAL_READ_ONLY);
+  return row;
+}
+function personalTerm(id: string) {
+  const row = state.glossary.find((g) => g.id === id);
+  if (!row) throw new Error("term not found");
+  if (row.trainerId === null) throw new Error(GLOBAL_READ_ONLY);
+  return row;
+}
+function assertTermFree(term: string, exceptId?: string) {
+  const clash = state.glossary.find((g) => g.trainerId !== null && g.id !== exceptId && g.term.toLowerCase() === term.toLowerCase());
+  if (clash) throw new Error(`"${clash.term}" is already in your glossary`);
+}
+const glossaryDto = (id: string): GlossaryTermDto => structuredClone(mergeGlossary(state.glossary).find((g) => g.id === id)!);
 
 // —— role labels: mirrors /v1/vocabulary/role-labels ————————————————————————
 const cleanText = (v: string) => v.trim().replace(/\s+/g, " ");
@@ -986,11 +1049,13 @@ export const mockApi: TrainerApi = {
       outcomes.push({ ...c, ok: true, data: mockImportExtraction(lines, c.from, c.to) });
       row.chunksDone++;
     }
-    const result = buildImportResult(text, outcomes);
+    const glossary = mergeGlossary(state.glossary);
+    const result = buildImportResult(text, outcomes, glossary);
     const catalog = exercises.filter((e) => !e.archivedAt);
+    const abbreviations = glossaryAbbreviations(glossary);
     for (const w of result.weeks)
       for (const d of w.days)
-        for (const se of d.sessions) for (const e of se.exercises) e.match = matchExercise(e, catalog, state.aliases);
+        for (const se of d.sessions) for (const e of se.exercises) e.match = matchExercise(e, catalog, state.aliases, abbreviations);
     Object.assign(row, { status: "done", result, updatedAt: new Date().toISOString() });
     return structuredClone(row);
   },
@@ -1100,9 +1165,72 @@ export const mockApi: TrainerApi = {
     await delay(150);
     for (const i of items) {
       const alias = normalizeAlias(i.alias);
-      state.aliases = state.aliases.filter((a) => a.alias !== alias);
-      state.aliases.push({ alias, exerciseId: i.exerciseId, trainerId: "me" });
+      if (!alias) throw new Error("alias is empty");
+      if (!exercises.some((e) => e.id === i.exerciseId)) throw new Error("exercise not found");
+      const mine = state.aliases.find((a) => a.trainerId !== null && a.alias === alias);
+      if (mine) Object.assign(mine, { exerciseId: i.exerciseId, source: i.source });
+      else state.aliases.push({ id: uuid(), alias, exerciseId: i.exerciseId, trainerId: "me", source: i.source });
     }
+  },
+
+  async aliases() {
+    await delay(120);
+    return aliasDtos();
+  },
+
+  async patchAlias(id, exerciseId) {
+    await delay(150);
+    const row = personalAlias(id);
+    if (!exercises.some((e) => e.id === exerciseId)) throw new Error("exercise not found");
+    Object.assign(row, { exerciseId, source: "manual" });
+    return aliasDtos().find((a) => a.id === id)!;
+  },
+
+  async deleteAlias(id) {
+    await delay(150);
+    personalAlias(id);
+    state.aliases = state.aliases.filter((a) => a.id !== id);
+  },
+
+  async glossary() {
+    await delay(120);
+    return structuredClone(mergeGlossary(state.glossary));
+  },
+
+  async createGlossaryTerm(input) {
+    await delay(150);
+    const term = cleanText(input.term);
+    const meaning = cleanText(input.meaning);
+    if (!term) throw new Error("term is required");
+    if (!meaning) throw new Error("say what it means");
+    assertTermFree(term);
+    const id = uuid();
+    state.glossary.push({ id, trainerId: "me", term, meaning, kind: input.kind });
+    return glossaryDto(id);
+  },
+
+  async patchGlossaryTerm(id, patch) {
+    await delay(150);
+    const row = personalTerm(id);
+    const next = { ...row };
+    if (patch.term !== undefined) {
+      next.term = cleanText(patch.term);
+      if (!next.term) throw new Error("term is required");
+      assertTermFree(next.term, id);
+    }
+    if (patch.meaning !== undefined) {
+      next.meaning = cleanText(patch.meaning);
+      if (!next.meaning) throw new Error("say what it means");
+    }
+    if (patch.kind !== undefined) next.kind = patch.kind;
+    Object.assign(row, next);
+    return glossaryDto(id);
+  },
+
+  async deleteGlossaryTerm(id) {
+    await delay(150);
+    personalTerm(id);
+    state.glossary = state.glossary.filter((g) => g.id !== id);
   },
 
   async cancelGeneration(id) {

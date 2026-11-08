@@ -27,6 +27,10 @@ import type {
   ImportResult,
   ImportStatus,
   RoleLabel,
+  GlossaryKind,
+  GlossaryTerm,
+  GlossaryTermInput,
+  VocabularyAlias,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -273,6 +277,18 @@ export interface RoleLabelPatch {
   chip?: string;
   description?: string;
   rank?: number;
+}
+
+/** An alias (as written → exercise) with its exercise's name; global ones are read-only. */
+export type AliasDto = VocabularyAlias;
+
+/** A glossary term in the trainer's effective glossary; global ones are read-only. */
+export type GlossaryTermDto = GlossaryTerm;
+
+export interface GlossaryTermPatch {
+  term?: string;
+  meaning?: string;
+  kind?: GlossaryKind;
 }
 
 export interface AliasInput {
@@ -595,6 +611,16 @@ export interface TrainerApi {
   cancelImport(id: string): Promise<ImportDto>;
   /** Save personal aliases (as written → exercise) from confirmed matches. */
   saveAliases(items: AliasInput[]): Promise<void>;
+  /** Personal aliases first, then the global ones. */
+  aliases(): Promise<AliasDto[]>;
+  /** Point a personal alias at another exercise. */
+  patchAlias(id: string, exerciseId: string): Promise<AliasDto>;
+  deleteAlias(id: string): Promise<void>;
+  /** The effective glossary: personal terms, then global ones not overridden. */
+  glossary(): Promise<GlossaryTermDto[]>;
+  createGlossaryTerm(input: GlossaryTermInput): Promise<GlossaryTermDto>;
+  patchGlossaryTerm(id: string, patch: GlossaryTermPatch): Promise<GlossaryTermDto>;
+  deleteGlossaryTerm(id: string): Promise<void>;
   /** Built-ins + the trainer's own labels, by rank (archived flagged). */
   roleLabels(): Promise<RoleLabelDto[]>;
   createRoleLabel(input: RoleLabelInput): Promise<RoleLabelDto>;
