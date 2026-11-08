@@ -26,6 +26,18 @@ describe("mockApi cardio", () => {
     }
   });
 
+  test("notifications raise cardio-behind for a client without a program (F18)", async () => {
+    const c = await mockApi.createClient({ name: "ZZ-TEST Runner", email: "zz-runner@example.com", goals: null, limitations: null, sessionsPerWeek: null });
+    await mockApi.updateClient(c.id, { cardioTarget: { unit: "sessions", value: 3 } });
+    const s = (await mockApi.notifications()).find((x) => x.id === `cardio-behind:${c.id}`);
+    if (isoWeekday() >= 4) {
+      expect(s).toBeDefined();
+      expect(s!.programId).toBeNull();
+    } else {
+      expect(s).toBeUndefined();
+    }
+  });
+
   test("logSession stores a cardio log; sessionLogs returns kind and cardio", async () => {
     const before = await mockApi.sessionLogs("cl-nat");
     expect(before.some((l) => l.kind === "cardio" && l.cardio?.durationMin === 35)).toBe(true);

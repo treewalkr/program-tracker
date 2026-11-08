@@ -1159,17 +1159,18 @@ export const mockApi: TrainerApi = {
       if (client.status === "archived") continue;
       const current =
         state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
-      if (!current) continue;
       const clientLogs = state.logs
         .filter((l) => l.clientId === client.id)
         .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, sets: l.sets }));
-      signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek));
+      if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek));
+      // Cardio targets are a client attribute — checked with or without a program (F18).
       if (client.cardioTarget) {
         const behind = cardioBehindSignal(
-          { programId: current.id, clientId: client.id },
+          { programId: current?.id ?? null, clientId: client.id },
           client.cardioTarget,
           clientLogs,
-          Date.now()
+          Date.now(),
+          client.createdAt ?? null
         );
         if (behind) signals.push(behind);
       }
