@@ -272,24 +272,26 @@ export function computeSignals(
     }
   }
 
-  // Adherence: lifting sessions logged vs planned per week. Logs count lifting only
-  // (cardio never inflates), so planned is the program week's LIFTING session count;
-  // falls back to the client's sessionsPerWeek when the week has no lifting doc.
+  // Adherence: lifting sessions logged vs sessions DUE SO FAR. Logs count lifting only
+  // (cardio never inflates), so the weekly rate is the program week's LIFTING session
+  // count, falling back to the client's sessionsPerWeek when the week has no lifting doc.
+  // Due = rate × elapsed days ÷ 7 from the block anchor — nothing is due before it,
+  // and the rule waits a full week before judging.
   // Suppressed near block end — the block-ending review already brings the trainer in.
   const phaseSignalExists = signals.some((s) => s.kind === "block-ending" || s.kind === "deload-week");
-  const weeksRun = Math.max(1, week);
+  const elapsedDays = daysIntoBlock(program, programLogs, now);
   const plannedLifting = weekSessions(program.weeks, week).filter((s) => s.kind !== "cardio").length;
   const perWeek = plannedLifting > 0 ? plannedLifting : (clientSessionsPerWeek ?? 0);
-  const expected = perWeek * weeksRun;
+  const expected = (perWeek * elapsedDays) / 7;
   const logged = programLogs.filter((l) => l.kind !== "cardio").length;
-  if (!phaseSignalExists && expected >= 4 && logged / expected < 0.6) {
+  if (!phaseSignalExists && elapsedDays >= 7 && expected > 0 && logged / expected < 0.6) {
     signals.push({
       ...owner,
       id: `adherence:${program.id}`,
       kind: "adherence",
       severity: "attention",
       title: "Low adherence — check in",
-      evidence: `${logged} of ~${expected} planned sessions logged since the block started.`,
+      evidence: `${logged} of ~${Math.round(expected)} lifting sessions due so far (${perWeek}/week over ${elapsedDays} days since the block started).`,
       altHref: `/clients/${program.clientId}`,
       altLabel: "Review client",
     });

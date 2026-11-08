@@ -122,21 +122,21 @@ describe("adherence counts lifting logs only", () => {
   });
 
   test("planned count is the program week's lifting sessions, not cardio or the client's setting", () => {
-    const now = new Date(2026, 9, 22, 12).getTime();
+    // F07: the rule waits a full week, so judge on day 7 (week 2, same 4 + cardio doc).
+    const now = new Date(2026, 9, 23, 12).getTime();
     const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "lifting" as const, exercises: [] });
+    const sessions = [
+      lift(1),
+      lift(2),
+      lift(3),
+      lift(4),
+      { id: "c1", name: "Z2", seq: 1, order: 0, kind: "cardio" as const, exercises: [], cardio: { modality: "Bike", durationMin: 30 } },
+    ];
     const program: SignalProgram = {
-      ...liftProgram("2026-10-16"), // 6 days → week 1
+      ...liftProgram("2026-10-16"), // 7 days → week 2
       weeks: [
-        {
-          week: 1,
-          sessions: [
-            lift(1),
-            lift(2),
-            lift(3),
-            lift(4),
-            { id: "c1", name: "Z2", seq: 1, order: 0, kind: "cardio", exercises: [], cardio: { modality: "Bike", durationMin: 30 } },
-          ],
-        },
+        { week: 1, sessions },
+        { week: 2, sessions },
       ],
     };
     const logs: SignalLog[] = [
@@ -332,5 +332,36 @@ describe("+intensity off-plan reads main lifts, not the overall max (F27)", () =
       L("2026-10-09", [set("ex-dl", 192.5, 2), set("ex-curl", 25, 10)]),
     ];
     expect(offPlan(make(false), logs)).toBeUndefined();
+  });
+});
+
+describe("adherence counts only sessions due so far (F07)", () => {
+  const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "lifting" as const, exercises: [] });
+  const program = (activatedAt: string): SignalProgram => ({
+    ...liftProgram(activatedAt),
+    weeks: [1, 2, 3].map((week) => ({ week, sessions: [lift(1), lift(2), lift(3), lift(4)] })),
+  });
+  const log = (date: string): SignalLog => ({ programId: "pg-1", date, sets: [{ exerciseId: "ex-squat", type: "working", reps: 5 }] });
+  const adherence = (p: SignalProgram, logs: SignalLog[], now: number) =>
+    computeSignals(p, logs, () => "Squat", 4, now).find((s) => s.kind === "adherence");
+
+  test("silent on activation day and for the first six days", () => {
+    expect(adherence(program("2026-11-08T05:00:00.000Z"), [], Date.parse("2026-11-08T08:00:00Z"))).toBeUndefined();
+    expect(adherence(program("2026-11-02T05:00:00.000Z"), [], Date.parse("2026-11-08T08:00:00Z"))).toBeUndefined();
+  });
+
+  test("pro-rates expected by elapsed days once a week has passed", () => {
+    // 10 days × 4/week ÷ 7 = 5.7 due; 3 logged = 0.53 < 0.6 → fires
+    const s = adherence(program("2026-10-29T05:00:00.000Z"), [log("2026-10-30"), log("2026-11-01"), log("2026-11-04")], Date.parse("2026-11-08T08:00:00Z"));
+    expect(s).toBeDefined();
+    expect(s!.evidence).toContain("3 of ~6");
+    // 4 logged = 0.7 → silent (old rule expected 4 × 2 weeks = 8 → 0.5 → fired)
+    expect(adherence(program("2026-10-29T05:00:00.000Z"), [log("2026-10-30"), log("2026-11-01"), log("2026-11-04"), log("2026-11-06")], Date.parse("2026-11-08T08:00:00Z"))).toBeUndefined();
+  });
+
+  test("backfilled logs before activation move the start, and count", () => {
+    // Activated today, but 5 sessions logged over the last 2 weeks: due = 4 × 14/7 = 8 → 5/8 = 0.63 → silent.
+    const logs = ["2026-10-25", "2026-10-28", "2026-11-01", "2026-11-04", "2026-11-06"].map(log);
+    expect(adherence(program("2026-11-08T05:00:00.000Z"), logs, Date.parse("2026-11-08T08:00:00Z"))).toBeUndefined();
   });
 });
