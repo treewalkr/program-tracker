@@ -69,6 +69,27 @@ describe.skipIf(!dbUp)("implicit LLM feedback", () => {
     expect(payload.weeks[0].rows.some((r: any) => r.change === "removed")).toBe(true);
   });
 
+  test("moving a session after approval is recorded as a trainer edit", async () => {
+    const clientId = await newClient();
+    const gen = await mockDraft(clientId);
+    const approved = await call("POST", `/v1/ai/generations/${gen.id}/approve`);
+    expect(approved.status).toBe(201);
+
+    const weeks = structuredClone(approved.body.weeks);
+    const s = weeks[0].sessions[0];
+    const from = s.weekday;
+    const used = new Set(weeks[0].sessions.map((x: any) => x.weekday));
+    s.weekday = [1, 2, 3, 4, 5, 6, 7].find((d) => !used.has(d))!;
+    s.order = 0;
+    const put = await call("PUT", `/v1/programs/${approved.body.id}`, { weeks });
+    expect(put.status).toBe(200);
+
+    const edit = (await feedbackFor(gen.id)).find((f) => f.signal === "program_edited_after_approval")!;
+    const rows = (edit.payload as any).weeks[0].rows;
+    const DAY = ["unscheduled", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    expect(rows).toContainEqual({ exercise: s.name, change: "changed", detail: `session moved ${DAY[from ?? 0]} → ${DAY[s.weekday]}` });
+  });
+
   test("reject (with reason), revise and regenerate each judge the draft", async () => {
     const clientId = await newClient();
     const first = await mockDraft(clientId);

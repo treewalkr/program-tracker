@@ -133,11 +133,13 @@ async function exerciseNames(trainerId: string): Promise<Map<string, string>> {
   return new Map(rows.filter((r) => r.trainerId === null || r.trainerId === trainerId).map((r) => [r.id, r.name]));
 }
 
-function weekSource(week: ProgramWeek | undefined, names: Map<string, string>): DiffSource | null {
+/** `withWeekdays` false leaves placement out, so the diff ignores session moves. */
+function weekSource(week: ProgramWeek | undefined, names: Map<string, string>, withWeekdays = true): DiffSource | null {
   if (!week) return null;
   return {
     sessions: week.sessions.map((s) => ({
       name: s.name,
+      ...(withWeekdays ? { weekday: s.weekday ?? null } : {}),
       exercises: s.exercises.map((e) => ({
         name: names.get(e.exerciseId) ?? e.exerciseName ?? e.exerciseId,
         sets: setsOf(e.prescribedSets),
@@ -148,13 +150,14 @@ function weekSource(week: ProgramWeek | undefined, names: Map<string, string>): 
 
 const changed = (rows: DiffRow[]) => rows.filter((r) => r.change !== "kept");
 
-/** AI draft vs the week the trainer approved into. */
+/** AI draft vs the week the trainer approved into. Weekdays are left out: approval
+ *  re-places sessions by the placement rules, so a move here is the system's, not an edit. */
 export async function draftToWeekDiff(
   trainerId: string,
   draft: AiProgramDraft,
   week: ProgramWeek | undefined
 ): Promise<DiffRow[]> {
-  return changed(diffSources(aiDraftToDiffSource(draft), weekSource(week, await exerciseNames(trainerId))));
+  return changed(diffSources(aiDraftToDiffSource(draft), weekSource(week, await exerciseNames(trainerId), false)));
 }
 
 /** Every changed week between two versions of a program. */

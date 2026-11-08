@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   diffRowsToText,
+  diffSources,
   aiDraftToDiffSource,
   programWeeksToDiffSource,
   type DiffRow,
@@ -125,6 +126,7 @@ describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
       sessions: [
         {
           name: "Week 2 Day 1",
+          weekday: null,
           exercises: [
             { name: "Squat", sets: "5/5+" },
             { name: "b0000000-0000-4000-8000-000000000002", sets: "12" },
@@ -139,9 +141,36 @@ describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
       sessions: [
         {
           name: "Week 1 Day 1",
+          weekday: null,
           exercises: [{ name: "Old Squat", sets: "10" }],
         },
       ],
     });
+  });
+});
+
+describe("diffSources sees moved sessions", () => {
+  const src = (weekday: number | null | undefined, name = "Day 1") => ({
+    sessions: [{ name, ...(weekday !== undefined ? { weekday } : {}), exercises: [{ name: "Squat", sets: "5/5" }] }],
+  });
+
+  test("a session moved to another weekday is a change", () => {
+    expect(diffSources(src(1), src(3))).toContainEqual({ exercise: "Day 1", change: "changed", detail: "session moved Mon → Wed" });
+  });
+
+  test("unscheduling a session is a change", () => {
+    expect(diffSources(src(2), src(null))).toContainEqual({ exercise: "Day 1", change: "changed", detail: "session moved Tue → unscheduled" });
+  });
+
+  test("no weekday suggestion on one side is not a move", () => {
+    expect(diffSources(src(undefined), src(3)).filter((r) => r.change !== "kept")).toEqual([]);
+    expect(diffSources(src(4), src(4)).filter((r) => r.change !== "kept")).toEqual([]);
+  });
+
+  test("sources carry weekdays: AI suggestions when given, program placement always", () => {
+    const draft = { name: "D", rationale: "", clientSummary: "", sessions: [{ name: "A", kind: "lifting", weekday: 5, exercises: [] }, { name: "B", kind: "lifting", weekday: null, exercises: [] }] } as unknown as AiProgramDraft;
+    expect(aiDraftToDiffSource(draft).sessions.map((s) => s.weekday)).toEqual([5, undefined]);
+    const weeks = [{ week: 1, sessions: [{ id: "s", name: "A", seq: 1, order: 0, kind: "lifting", exercises: [] }] }] as unknown as ProgramWeek[];
+    expect(programWeeksToDiffSource(weeks).sessions[0].weekday).toBeNull();
   });
 });

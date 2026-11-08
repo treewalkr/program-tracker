@@ -10,6 +10,8 @@ export interface DiffRow {
 export interface DiffSource {
   sessions: {
     name: string;
+    /** ISO weekday (1=Mon…7=Sun), null = unscheduled, undefined = unknown (an AI draft without a suggestion). */
+    weekday?: number | null;
     exercises: { name: string; sets: string }[];
   }[];
 }
@@ -28,6 +30,7 @@ export function aiDraftToDiffSource(d: AiProgramDraft): DiffSource {
   return {
     sessions: d.sessions.map((s) => ({
       name: s.name,
+      ...(s.weekday != null ? { weekday: s.weekday } : {}),
       exercises: s.exercises.map((e) => ({
         name: e.exerciseName ?? e.exerciseId ?? "",
         sets: setsOf(e.prescribedSets),
@@ -43,6 +46,7 @@ export function programWeeksToDiffSource(weeks: ProgramWeek[], weekNumber?: numb
   return {
     sessions: sessions.map((s) => ({
       name: s.name,
+      weekday: s.weekday ?? null,
       exercises: s.exercises.map((e) => ({
         name: e.exerciseName ?? e.exerciseId,
         sets: setsOf(e.prescribedSets),
@@ -99,5 +103,24 @@ export function diffSources(before: DiffSource | null, after: DiffSource | null)
     }
   }
 
+  rows.push(...sessionMoves(before, after));
+  return rows;
+}
+
+const DAY = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const dayLabel = (d: number | null) => (d == null ? "unscheduled" : DAY[d] ?? `day ${d}`);
+
+/** Sessions (matched by name) whose weekday changed. Skipped when either side has no known weekday. */
+export function sessionMoves(before: DiffSource, after: DiffSource): DiffRow[] {
+  const rows: DiffRow[] = [];
+  const seen = new Set<string>();
+  for (const a of after.sessions) {
+    const k = a.name.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const b = before.sessions.find((x) => x.name.toLowerCase() === k);
+    if (!b || b.weekday === undefined || a.weekday === undefined || b.weekday === a.weekday) continue;
+    rows.push({ exercise: a.name, change: "changed", detail: `session moved ${dayLabel(b.weekday)} → ${dayLabel(a.weekday)}` });
+  }
   return rows;
 }
