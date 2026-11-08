@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
-import { aiImports, db, exerciseAliases, exercises, type AiImportRow } from "@pt/db";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { aiImports, clients, db, exerciseAliases, exercises, programs, sessionLogs, setLogs, type AiImportRow } from "@pt/db";
 import {
   ImportChunk,
+  addDays,
+  buildHistory as buildImportHistory,
   buildImportResult,
+  isIsoDate,
+  type HistorySkip,
   chunkLines,
   glossaryAbbreviations,
   importLines,
@@ -155,3 +159,134 @@ export const recentImports = (trainerId: string, clientId: string) =>
     .where(and(eq(aiImports.trainerId, trainerId), eq(aiImports.clientId, clientId)))
     .orderBy(desc(aiImports.createdAt))
     .limit(5);
+
+// ---------------------------------------------------------------------------
+// History import (docs/history-import-plan.md §3)
+// ---------------------------------------------------------------------------
+
+export type SaveHistoryOutcome =
+  | { ok: true; programs: { id: string; name: string }[]; sessions: number; sets: number; skipped: HistorySkip[] }
+  | { ok: false; status: 409 | 422; error: string; ids?: string[] };
+
+/** Today on the server, plus a day of slack for trainers ahead of UTC. */
+const latestAllowedDate = () => addDays(new Date().toISOString().slice(0, 10), 1);
+
+/**
+ * Save an import's logged numbers: one archived program per block with
+ * logged sessions, plus their session and set logs, in one transaction. The
+ * plan is built here from the stored result — the web only sends dates and
+ * exercise picks. No signal outbox: this is past training.
+ */
+export async function saveImportHistory(
+  trainerId: string,
+  row: AiImportRow,
+  input: { weekStarts: string[]; exercises: Record<string, string> },
+): Promise<SaveHistoryOutcome> {
+  if (row.status !== "done" || !row.result) return { ok: false, status: 422, error: `import is ${row.status}, not done` };
+  if (row.historyProgramIds) return { ok: false, status: 409, error: "history already saved — undo it first" };
+  const result = row.result;
+  if (input.weekStarts.length !== result.weeks.length) {
+    return { ok: false, status: 422, error: `expected ${result.weeks.length} week starts, got ${input.weekStarts.length}` };
+  }
+  const latest = latestAllowedDate();
+  if (input.weekStarts.some((d) => !isIsoDate(d))) return { ok: false, status: 422, error: "week starts must be YYYY-MM-DD" };
+  if (input.weekStarts.some((d) => d > latest)) return { ok: false, status: 422, error: "a week starts after today" };
+
+  const ids = [...new Set(Object.values(input.exercises))];
+  const known = ids.length
+    ? await db
+        .select({ id: exercises.id, name: exercises.name })
+        .from(exercises)
+        .where(and(inArray(exercises.id, ids), or(isNull(exercises.trainerId), eq(exercises.trainerId, trainerId))))
+    : [];
+  const missing = ids.filter((id) => !known.some((k) => k.id === id));
+  if (missing.length) return { ok: false, status: 422, error: "unknown exercises", ids: missing };
+
+  const [client] = await db.select({ trainingDays: clients.trainingDays }).from(clients).where(eq(clients.id, row.clientId));
+  const plan = buildImportHistory(result, {
+    weekStarts: input.weekStarts,
+    trainingDays: client?.trainingDays ?? null,
+    exerciseIds: input.exercises,
+    exerciseNames: Object.fromEntries(known.map((k) => [k.id, k.name])),
+    today: latest,
+  });
+  if (plan.programs.length === 0) return { ok: false, status: 422, error: "nothing to save — no logged numbers could be used" };
+
+  const savedOn = new Date().toISOString().slice(0, 10);
+  const saved = await db.transaction(async (tx) => {
+    // lock the import: a double click can't save twice
+    const [locked] = await tx
+      .select({ historyProgramIds: aiImports.historyProgramIds })
+      .from(aiImports)
+      .where(eq(aiImports.id, row.id))
+      .for("update");
+    if (locked?.historyProgramIds) return null;
+    const out: { id: string; name: string }[] = [];
+    for (const p of plan.programs) {
+      const [program] = await tx
+        .insert(programs)
+        .values({
+          trainerId,
+          clientId: row.clientId,
+          name: p.name,
+          description: `Imported from notes on ${savedOn}`,
+          status: "archived",
+          sessions: p.weeks,
+          activatedAt: new Date(`${p.activatedAt}T00:00:00Z`),
+        })
+        .returning({ id: programs.id, name: programs.name });
+      out.push(program);
+      for (const l of p.logs) {
+        const [log] = await tx
+          .insert(sessionLogs)
+          .values({
+            clientId: row.clientId,
+            programId: program.id,
+            programSessionId: l.programSessionId,
+            date: l.date,
+            kind: "lifting",
+            notes: l.notes,
+          })
+          .returning({ id: sessionLogs.id });
+        await tx.insert(setLogs).values(
+          l.sets.map((s) => ({
+            sessionLogId: log.id,
+            programExerciseId: s.programExerciseId,
+            exerciseId: s.exerciseId,
+            setNumber: s.setNumber,
+            weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
+            reps: s.reps,
+          })),
+        );
+      }
+    }
+    await tx.update(aiImports).set({ historyProgramIds: out.map((p) => p.id), updatedAt: new Date() }).where(eq(aiImports.id, row.id));
+    return out;
+  });
+  if (!saved) return { ok: false, status: 409, error: "history already saved — undo it first" };
+
+  const logs = plan.programs.flatMap((p) => p.logs);
+  return {
+    ok: true,
+    programs: saved,
+    sessions: logs.length,
+    sets: logs.reduce((n, l) => n + l.sets.length, 0),
+    skipped: plan.skipped,
+  };
+}
+
+/** Undo a history save: its programs go (their logs cascade) and the import can be saved again. */
+export async function undoImportHistory(trainerId: string, row: AiImportRow): Promise<{ removed: number } | null> {
+  const ids = row.historyProgramIds;
+  if (!ids) return null;
+  return db.transaction(async (tx) => {
+    const removed = ids.length
+      ? await tx
+          .delete(programs)
+          .where(and(inArray(programs.id, ids), eq(programs.trainerId, trainerId)))
+          .returning({ id: programs.id })
+      : [];
+    await tx.update(aiImports).set({ historyProgramIds: null, updatedAt: new Date() }).where(eq(aiImports.id, row.id));
+    return { removed: removed.length };
+  });
+}
