@@ -147,7 +147,7 @@
   const kept = $derived(gen.discardedChanges ?? []);
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
   const changedWeeks = $derived(new Set(planDelta.map((c) => c.week).filter((w): w is number => w !== null)));
-  const checks = $derived(reviewChecks(draft, client.sessionsPerWeek, catalogById));
+  const checks = $derived(reviewChecks(draft, client.sessionsPerWeek, catalogById, client));
   const noDeload = $derived(!isWeek && plan !== null && !(plan.weeks ?? []).some((w) => w.directive === "deload"));
   const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length, draft.sessions.map((s) => s.kind)));
 

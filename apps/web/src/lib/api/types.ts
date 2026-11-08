@@ -168,6 +168,8 @@ export interface AiDraftDto {
   sessions: {
     name: string;
     kind?: SessionKind;
+    /** AI-suggested ISO weekday; kept on approval when it passes the placement rules. */
+    weekday?: number | null;
     notes?: string;
     exercises: DraftExerciseRef[];
     cardio?: CardioPrescriptionDto | null;

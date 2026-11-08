@@ -1,4 +1,11 @@
-import { weekTargetLabel, planChanges, type PlanChange } from "@pt/shared";
+import {
+  weekTargetLabel,
+  planChanges,
+  placementConflicts,
+  type PlanChange,
+  type PlacementDaysInput,
+  type ProgramSession,
+} from "@pt/shared";
 import type { AiDraftDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 // ---- block plan ----
@@ -76,7 +83,9 @@ export interface ReviewCheck {
 export function reviewChecks(
   draft: AiDraftDto,
   sessionsPerWeek: number | null,
-  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+  /** Client availability; when given, AI weekdays are checked against the placement rules. */
+  days?: PlacementDaysInput
 ): ReviewCheck[] {
   const sets = { push: 0, pull: 0, knee: 0, hip: 0 };
   let total = 0;
@@ -114,7 +123,34 @@ export function reviewChecks(
     );
   }
   if (sets.knee + sets.hip > 0) out.push({ tone: "info", text: `Knee ${sets.knee} · hip ${sets.hip} sets` });
+  if (days !== undefined) out.push(...weekdayChecks(draft, days, catalogById));
   return out;
+}
+
+/** AI weekdays vs the placement rules: each break is re-placed on approval (F03, F26). */
+function weekdayChecks(
+  draft: AiDraftDto,
+  days: PlacementDaysInput,
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>
+): ReviewCheck[] {
+  if (!draft.sessions.some((s) => s.weekday != null)) return [];
+  const seq = { lifting: 0, cardio: 0 };
+  const sessions = draft.sessions.map((s, i) => {
+    const kind = s.kind === "cardio" ? ("cardio" as const) : ("lifting" as const);
+    return {
+      id: `d${i}`,
+      name: s.name,
+      seq: ++seq[kind],
+      order: 0,
+      kind,
+      weekday: s.weekday ?? null,
+      exercises: s.exercises.map((e, ei) => ({ id: `d${i}e${ei}`, exerciseId: e.exerciseId ?? "", order: ei, prescribedSets: e.prescribedSets })),
+      cardio: s.cardio ?? null,
+    } as ProgramSession;
+  });
+  const conflicts = placementConflicts(sessions, days, (id) => catalogById.get(id)?.movementPattern);
+  if (conflicts.length === 0) return [{ tone: "ok", text: "AI weekdays follow the client's schedule rules" }];
+  return conflicts.map((c) => ({ tone: "warn" as const, text: `Weekday conflict: ${c.text} — approval re-places it` }));
 }
 
 // ---- tracks ----

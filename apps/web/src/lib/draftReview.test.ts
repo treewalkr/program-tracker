@@ -104,6 +104,27 @@ describe("review checks, rationale, history", () => {
     expect(reviewChecks(withCardio, 2, catalog)[0]).toEqual({ tone: "ok", text: "2 lifting sessions — matches the client's 2/week" });
   });
 
+  test("reviewChecks lists AI weekdays that break a placement rule (F03, F26)", () => {
+    const priya: AiDraftDto = {
+      ...draft,
+      sessions: [
+        { ...draft.sessions[0], name: "Heavy lower", weekday: 1, exercises: [{ exerciseId: "sq", prescribedSets: [set(7)] }] },
+        { name: "Tempo run", kind: "cardio", weekday: 7, exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 3, intensity: "tempo" } },
+        { name: "Long run", kind: "cardio", weekday: 7, exercises: [], cardio: { modality: "Run", durationMin: 80, hrZone: 2 } },
+      ],
+    };
+    const days = { trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 };
+    const warns = reviewChecks(priya, null, catalog, days).filter((c) => c.tone === "warn").map((c) => c.text);
+    expect(warns).toEqual([
+      'Weekday conflict: "Tempo run" and "Long run" are both key runs on Sun — approval re-places it',
+      'Weekday conflict: Heavy lower "Heavy lower" on Mon is the day after "Tempo run" — approval re-places it',
+      'Weekday conflict: Heavy lower "Heavy lower" on Mon is the day after "Long run" — approval re-places it',
+    ]);
+    const fine = { ...priya, sessions: priya.sessions.map((s, i) => ({ ...s, weekday: [2, 5, 7][i] })) };
+    expect(reviewChecks(fine, null, catalog, days).at(-1)).toEqual({ tone: "ok", text: "AI weekdays follow the client's schedule rules" });
+    expect(reviewChecks(draft, null, catalog, days).some((c) => c.text.includes("weekday"))).toBe(false);
+  });
+
   test("draftSessionTags numbers each track in draft order", () => {
     expect(draftSessionTags([{ kind: "lifting" }, { kind: "cardio" }, {}])).toEqual(["Session 1", "Cardio 1", "Session 2"]);
   });
