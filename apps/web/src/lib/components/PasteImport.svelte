@@ -500,9 +500,9 @@
           <span class="subtle">a number not on its line, an unusual value, or no sets in the text</span>
         </li>
         <li>
-          <span class="lamp" class:amber={summary.toConfirm > 0} class:green={summary.toConfirm === 0} aria-hidden="true"></span>
-          <span><b class="num">{summary.toConfirm}</b> {summary.toConfirm === 1 ? "match" : "matches"} to confirm</span>
-          <span class="subtle">a name read as a library exercise — confirming saves it for next time</span>
+          <span class="lamp green" aria-hidden="true"></span>
+          <span><b class="num">{summary.matched}</b> {summary.matched === 1 ? "name" : "names"} matched</span>
+          <span class="subtle">accepted — tap Change on any that's wrong; saved for next time</span>
         </li>
         <li>
           <span class="lamp" class:amber={summary.unused > 0} class:green={summary.unused === 0} aria-hidden="true"></span>
@@ -632,11 +632,13 @@
                       {#if c.exerciseName.toLowerCase() !== ex.sourceName.toLowerCase()}
                         <span class="as-written" title="As written">“{ex.sourceName}”</span>
                       {/if}
-                      {#if changing !== key && !(ex.match?.kind === "fuzzy" && !confirmed)}
+                      {#if changing !== key}
                         {#if c.kind === "new"}
                           <Pill>new exercise</Pill>
                         {:else if confirmed}
                           <span class="subtle fine">saved as yours</span>
+                        {:else if ex.match?.kind === "fuzzy"}
+                          <span class="subtle fine">matched</span>
                         {:else if ex.match?.kind === "alias"}
                           <span class="subtle fine">your name for it</span>
                         {/if}
@@ -654,15 +656,6 @@
                           oncreate={(input) => createAndChoose(key, input)}
                         />
                         <Button small variant="ghost" onclick={() => (changing = null)}>Done</Button>
-                      </div>
-                    {:else if ex.match?.kind === "fuzzy" && !confirmed}
-                      <div class="match ask">
-                        <span>Is “{ex.sourceName}” <b>{ex.match.exerciseName}</b>?</span>
-                        <span class="match-acts">
-                          <Button small onclick={() => choose(key, { kind: "catalog", exerciseId: ex.match!.exerciseId!, exerciseName: ex.match!.exerciseName })}>Yes</Button>
-                          <Button small variant="ghost" onclick={() => (changing = key)}>Change</Button>
-                          <Button small variant="ghost" onclick={() => choose(key, { kind: "new", exerciseName: ex.name })}>New exercise</Button>
-                        </span>
                       </div>
                     {/if}
 
@@ -815,9 +808,6 @@
   }
   .lref:hover, .lref.hot { color: var(--blue); border-color: var(--blue-line); background: var(--pulse-now-bg); }
 
-  .match { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 13px; }
-  .match.ask { background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); padding: 5px 6px 5px 10px; justify-content: space-between; }
-  .match-acts { display: flex; gap: 4px; flex-wrap: wrap; }
   .change { display: flex; align-items: center; gap: 8px; }
   .change :global(.picker), .change :global(> :first-child) { flex: 1; min-width: 0; }
   .linkish { background: none; border: 0; padding: 0; color: var(--muted); font: 12px var(--font-ui); cursor: pointer; }

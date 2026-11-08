@@ -50,7 +50,7 @@ export type MatchChoice =
 
 export interface ChoiceState {
   choice: MatchChoice;
-  /** The trainer accepted or changed it — saved as a personal alias on "Use this". */
+  /** The trainer picked it — saved as a personal alias on "Use this". */
   confirmed: boolean;
 }
 
@@ -81,7 +81,10 @@ export function newExerciseNames(r: ImportResult, block: number, choices: Record
   return [...seen.values()];
 }
 
-/** Personal aliases to save: the matches the trainer accepted or changed, as written → exercise. */
+/**
+ * Personal aliases to save, as written → exercise: the trainer's picks, and
+ * the fuzzy matches they let stand (accepted by default) — next time they're exact.
+ */
 export function aliasesToSave(
   r: ImportResult,
   block: number,
@@ -91,8 +94,9 @@ export function aliasesToSave(
   const out = new Map<string, { alias: string; exerciseId: string; source: "import" }>();
   for (const { key, ex } of templateExercises(r, block)) {
     const state = choices[key];
-    if (!state?.confirmed) continue;
-    const id = state.choice.kind === "catalog" ? state.choice.exerciseId : createdIds.get(state.choice.exerciseName.trim().toLowerCase());
+    const picked = state?.confirmed ? state.choice : ex.match?.kind === "fuzzy" ? choiceFor(choices, key, ex) : null;
+    if (!picked) continue;
+    const id = picked.kind === "catalog" ? picked.exerciseId : createdIds.get(picked.exerciseName.trim().toLowerCase());
     if (id) out.set(ex.sourceName.trim().toLowerCase(), { alias: ex.sourceName.trim(), exerciseId: id, source: "import" });
   }
   return [...out.values()];
@@ -164,8 +168,8 @@ export interface FlagSummary {
   info: number;
   /** What stops "Use this" (program limits). */
   blocking: string[];
-  /** Fuzzy matches the trainer hasn't confirmed yet. */
-  toConfirm: number;
+  /** Fuzzy matches accepted by default — the trainer hasn't picked another. */
+  matched: number;
   /** Lines in the whole paste nothing used. */
   unused: number;
   /** Lines in chunks that couldn't be read. */
@@ -193,7 +197,7 @@ export function flagSummary(r: ImportResult, block: number, choices: Record<stri
     amber: flags.filter((f) => f.level === "warn").length,
     info: flags.filter((f) => f.level === "info").length,
     blocking,
-    toConfirm: templateExercises(r, block).filter(({ key, ex }) => ex.match?.kind === "fuzzy" && !choices[key]?.confirmed).length,
+    matched: templateExercises(r, block).filter(({ key, ex }) => ex.match?.kind === "fuzzy" && !choices[key]?.confirmed).length,
     unused: r.unused.length,
     unread: r.unread.reduce((n, u) => n + (u.to - u.from + 1), 0),
   };

@@ -147,7 +147,7 @@ describe("matches", () => {
     expect(new Set(names.map((s) => s.toLowerCase())).size).toBe(names.length);
   });
 
-  test("only confirmed choices become aliases, keyed by the name as written", () => {
+  test("picks and the fuzzy matches let stand become aliases, keyed by the name as written", () => {
     const r = result();
     const items = templateExercises(r, 1);
     const squat = items.find(({ ex }) => ex.line === 56)!;
@@ -157,25 +157,31 @@ describe("matches", () => {
       [dip.key]: { choice: { kind: "new", exerciseName: "Crossover / Dip" }, confirmed: true },
     };
     expect(aliasesToSave(r, 1, choices, new Map([["crossover / dip", "dip-id"]]))).toEqual([
+      { alias: "Incline bench press", exerciseId: "bench", source: "import" },
       { alias: "Crossover / Dip", exerciseId: "dip-id", source: "import" },
       { alias: "Squat", exerciseId: "squat", source: "import" },
     ]);
-    expect(aliasesToSave(r, 1, {})).toEqual([]);
+    // untouched: the fuzzy matches are accepted by default
+    expect(aliasesToSave(r, 1, {}).map((a) => a.alias).sort()).toEqual(["Incline bench press", "Squat"]);
+    // changed to a new exercise that wasn't created → nothing to point at
+    expect(aliasesToSave(r, 1, { [squat.key]: { choice: { kind: "new", exerciseName: "Squat" }, confirmed: true } }).map((a) => a.alias)).toEqual([
+      "Incline bench press",
+    ]);
   });
 });
 
 describe("flags and lines", () => {
-  test("summarizes the block: amber, info, matches to confirm, nothing blocking", () => {
+  test("summarizes the block: amber, info, matches accepted, nothing blocking", () => {
     const r = result();
     const s = flagSummary(r, 0);
-    expect(s.amber).toBe(1); // Lateral Stretch has no prescription
+    expect(s.amber).toBe(0); // Lateral Stretch has no numbers — fine for a stretch
     expect(s.info).toBeGreaterThan(0);
     expect(s.blocking).toEqual([]);
     expect(s.unused).toBe(0);
     const w12 = flagSummary(r, 1);
-    expect(w12.toConfirm).toBe(2); // Incline bench press → Bench Press?, Squat → Back Squat?
+    expect(w12.matched).toBe(2); // Incline bench press → Bench Press, Squat → Back Squat
     const key = templateExercises(r, 1).find(({ ex }) => ex.line === 56)!.key;
-    expect(flagSummary(r, 1, { [key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true } }).toConfirm).toBe(1);
+    expect(flagSummary(r, 1, { [key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true } }).matched).toBe(1);
   });
 
   test("maps lines to items and back", () => {
@@ -192,7 +198,7 @@ describe("flags and lines", () => {
     const states = lineStates(r, LINES);
     expect(states[1]).toBe("blank");
     expect(states[13]).toBe("blank"); // ————
-    expect(states[3]).toBe("flagged"); // no prescription
+    expect(states[3]).toBe("used"); // a stretch with no numbers is fine
     expect(states[4]).toBe("info"); // 1-2 sets
     expect(states[6]).toBe("used");
     r.unused = [7];
