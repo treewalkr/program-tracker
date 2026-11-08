@@ -21,7 +21,7 @@
   const q = $derived(search.trim().toLowerCase());
   const filtered = $derived(
     (clients ?? [])
-      .filter((c) => q === "" || c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q))
+      .filter((c) => q === "" || c.name.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q))
       .sort((a, b) => RANK[a.status] - RANK[b.status] || a.name.localeCompare(b.name))
   );
   const activeCount = $derived((clients ?? []).filter((c) => c.status === "active").length);
@@ -89,7 +89,7 @@
                 <a class="rowlink-name" href={`/clients/${c.id}`}>{c.name}</a>
                 {#if c.status !== "active"}<StatusPill status={c.status} />{/if}
               </div>
-              <div class="subtle">{c.email}</div>
+              {#if c.email}<div class="subtle">{c.email}</div>{/if}
             </td>
             <td class="sched">
               {#if c.sessionsPerWeek}<span class="num">{c.sessionsPerWeek}</span> lifting / wk{:else}<span class="subtle">not set</span>{/if}

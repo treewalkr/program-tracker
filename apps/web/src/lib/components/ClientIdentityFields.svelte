@@ -33,7 +33,7 @@
     />
     {#if nErr}<p class="ferr" id="{idPrefix}-name-err">{nErr}</p>{/if}
   </Field>
-  <Field label="Email" htmlFor="{idPrefix}-email" hint="required">
+  <Field label="Email" htmlFor="{idPrefix}-email" hint="optional">
     <input
       class="input"
       id="{idPrefix}-email"
@@ -42,7 +42,6 @@
       bind:value={email}
       maxlength="200"
       autocomplete="off"
-      aria-required="true"
       aria-invalid={eErr ? "true" : undefined}
       aria-describedby={eErr ? `${idPrefix}-email-err` : undefined}
       onblur={() => (touched.email = true)}

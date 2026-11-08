@@ -79,7 +79,7 @@
     saving = true;
     createError = null;
     try {
-      const created = await api.createClient({ name: name.trim(), email: email.trim(), ...profilePayload(profile) });
+      const created = await api.createClient({ name: name.trim(), email: email.trim() || null, ...profilePayload(profile) });
       autosave = false;
       clearTimeout(saveTimer);
       clearNewClientDraft(draftKey);

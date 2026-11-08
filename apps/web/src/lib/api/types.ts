@@ -42,7 +42,8 @@ export type WeekSummaryStatsDto = WeekSummaryStats;
 export interface ClientDto {
   id: string;
   name: string;
-  email: string;
+  /** Optional — null when the trainer left it blank. Display/search only. */
+  email: string | null;
   status: "active" | "paused" | "archived";
   goals: string | null;
   limitations: string | null;

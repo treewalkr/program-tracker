@@ -193,7 +193,7 @@
     form = profileFromClient(detail.client);
     savedForm = profileKey(form);
     idName = detail.client.name;
-    idEmail = detail.client.email;
+    idEmail = detail.client.email ?? "";
     savedId = idKey();
     latestGen = (await api.generations(id))[0] ?? null;
   }
@@ -206,11 +206,11 @@
     saving = true;
     saveProfileError = null;
     try {
-      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim(), ...profilePayload(form) });
+      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim() || null, ...profilePayload(form) });
       form = profileFromClient(client);
       savedForm = profileKey(form);
       idName = client.name;
-      idEmail = client.email;
+      idEmail = client.email ?? "";
       savedId = idKey();
       profileSaved = true;
       setTimeout(() => (profileSaved = false), 2500);
