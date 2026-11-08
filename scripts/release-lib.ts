@@ -30,3 +30,96 @@ export function releaseNotes(version: string, subjects: string[]): string {
   if (!feats.length && !fixes.length) out.push("", "Maintenance only.");
   return out.join("\n");
 }
+
+// ── CHANGELOG.md ────────────────────────────────────────────────────────────
+
+export const DRAFT = "[draft]";
+const UNRELEASED = /^## Unreleased\s*$/;
+const SECTION_ORDER = ["New", "Improved", "Fixed"];
+
+/** Lines of the `## Unreleased` body: [start, end) indexes into `lines`, start after the heading. */
+function unreleasedRange(lines: string[]): [number, number] {
+  const head = lines.findIndex((l) => UNRELEASED.test(l));
+  if (head < 0) throw new Error("CHANGELOG.md has no `## Unreleased` section");
+  let end = head + 1;
+  while (end < lines.length && !lines[end].startsWith("## ")) end++;
+  return [head + 1, end];
+}
+
+/** Sections (`### Kind` → bullet lines) of a body; bullets above any `###` go under "". */
+function bodySections(body: string[]): Map<string, string[]> {
+  const sections = new Map<string, string[]>();
+  let kind = "";
+  for (const line of body) {
+    const h = /^### (.+?)\s*$/.exec(line);
+    if (h) {
+      kind = h[1];
+      if (!sections.has(kind)) sections.set(kind, []);
+    } else if (line.trim()) {
+      if (!sections.has(kind)) sections.set(kind, []);
+      sections.get(kind)!.push(line);
+    }
+  }
+  return sections;
+}
+
+function renderBody(sections: Map<string, string[]>): string[] {
+  const rank = (k: string) => (k === "" ? -1 : SECTION_ORDER.includes(k) ? SECTION_ORDER.indexOf(k) : SECTION_ORDER.length);
+  const kinds = [...sections.keys()].filter((k) => sections.get(k)!.length).sort((a, b) => rank(a) - rank(b));
+  const out: string[] = [""];
+  for (const k of kinds) {
+    if (k) out.push(`### ${k}`);
+    out.push(...sections.get(k)!, "");
+  }
+  return out;
+}
+
+/** One commit subject → draft text: type prefix dropped, first letter capitalised. */
+function draftText(subject: string, type: string): string | null {
+  const m = new RegExp(`^${type}(\\([^)]*\\))?!?:\\s*(.+)$`).exec(subject);
+  if (!m) return null;
+  return m[2].charAt(0).toUpperCase() + m[2].slice(1);
+}
+
+/**
+ * Fill `## Unreleased` with draft lines from feat/fix subjects (New / Fixed), each marked `[draft]`.
+ * Earlier `[draft]` lines are replaced; hand-written lines (no `[draft]`) are kept as they are.
+ */
+export function draftChangelog(changelog: string, subjects: string[]): string {
+  const lines = changelog.split("\n");
+  const [start, end] = unreleasedRange(lines);
+  const sections = bodySections(lines.slice(start, end));
+  for (const [k, items] of sections) sections.set(k, items.filter((l) => !l.includes(DRAFT)));
+  const add = (kind: string, type: string) => {
+    const drafts = subjects.map((s) => draftText(s, type)).filter((t): t is string => !!t);
+    if (!drafts.length) return;
+    sections.set(kind, [...(sections.get(kind) ?? []), ...drafts.map((t) => `- ${DRAFT} ${t}`)]);
+  };
+  add("New", "feat");
+  add("Fixed", "fix");
+  return [...lines.slice(0, start), ...renderBody(sections), ...lines.slice(end)].join("\n");
+}
+
+/** Why `## Unreleased` isn't ready to release, or null when it is. */
+export function unreleasedProblem(changelog: string): string | null {
+  const lines = changelog.split("\n");
+  const [start, end] = unreleasedRange(lines);
+  const body = lines.slice(start, end);
+  if (!body.some((l) => /^\s*[-*] /.test(l))) {
+    return "## Unreleased in CHANGELOG.md is empty — run `bun run changelog:draft`, edit it, and commit";
+  }
+  if (body.some((l) => l.includes(DRAFT))) {
+    return "## Unreleased in CHANGELOG.md still has [draft] lines — rewrite them for trainers and drop the marker";
+  }
+  return null;
+}
+
+/** Rename `## Unreleased` to `## vX.Y.Z — date` and open a fresh empty Unreleased above it. */
+export function stampChangelog(changelog: string, version: string, date: string): string {
+  const problem = unreleasedProblem(changelog);
+  if (problem) throw new Error(problem);
+  const lines = changelog.split("\n");
+  const head = lines.findIndex((l) => UNRELEASED.test(l));
+  lines.splice(head, 1, "## Unreleased", "", `## v${version} — ${date}`);
+  return lines.join("\n");
+}

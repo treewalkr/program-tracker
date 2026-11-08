@@ -21,6 +21,7 @@
     "llm:prune": "bun run apps/api/scripts/llm-prune.ts",
     "eval:import": "bun run apps/api/scripts/eval-import.ts",
     "release": "bun run scripts/release.ts",
+    "changelog:draft": "bun run scripts/changelog-draft.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "bun run --filter @pt/db migrate",
