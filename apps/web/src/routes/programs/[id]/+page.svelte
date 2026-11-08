@@ -368,7 +368,13 @@
     </div>
 
     {#if editable && showPhasing}
-      <PhasingEditor bind:phasing={program.phasing} weeksCount={program.weeks.length} />
+      <PhasingEditor
+        bind:phasing={program.phasing}
+        weeksCount={program.weeks.length}
+        weeks={program.weeks}
+        {oneRepMaxes}
+        onapply={(next) => { if (program) program.weeks = $state.snapshot(next) as ProgramWeek[]; }}
+      />
     {/if}
 
     {#if editable}
