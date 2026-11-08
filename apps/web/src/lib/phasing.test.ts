@@ -54,3 +54,53 @@ describe("phasing", () => {
     expect(phasingToRows(null)).toEqual([]);
   });
 });
+
+import { progressionPreview } from "./phasing";
+import type { ProgramWeekDto } from "./api/types";
+
+describe("progression rules (F23)", () => {
+  test("rows carry a week's progression rule and round-trip it; incomplete rules drop", () => {
+    const p: ProgramPhasingDto = {
+      plannedWeeks: 2,
+      phase: "acc",
+      nextPhase: null,
+      weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "+intensity", progression: { kind: "kg", amount: 2.5 } }],
+    };
+    const rows = phasingToRows(p);
+    expect(rows[1]).toMatchObject({ progKind: "kg", progAmount: 2.5 });
+    expect(rowsToPhasing(rows, "acc", "", 2)).toEqual(p);
+    const partial = [rows[0], { ...rows[1], progAmount: null }];
+    expect(rowsToPhasing(partial, "acc", "", 2)?.weeks?.[1].progression).toBeUndefined();
+    const zero = [rows[0], { ...rows[1], progAmount: 0 }];
+    expect(rowsToPhasing(zero, "acc", "", 2)?.weeks?.[1].progression).toBeUndefined();
+  });
+
+  test("progressionPreview: what each generated week changes vs the saved one, and its planned volume", () => {
+    const w1: ProgramWeekDto = {
+      week: 1,
+      sessions: [
+        { id: "s1", name: "Lower", seq: 1, order: 0, kind: "lifting", exercises: [
+          { id: "e1", exerciseId: "sq", exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] },
+        ] },
+      ],
+    };
+    const w2 = { ...structuredClone(w1), week: 2 };
+    const phasing: ProgramPhasingDto = {
+      plannedWeeks: 3,
+      phase: "acc",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+intensity", progression: { kind: "kg", amount: 2.5 } },
+        { week: 3, directive: "+intensity", progression: { kind: "kg", amount: 2.5 } },
+      ],
+    };
+    const { weeks, rows } = progressionPreview([w1, w2], phasing, null);
+    expect(weeks).toHaveLength(3);
+    expect(rows.map((r) => [r.week, r.rule, r.isNew, r.planned])).toEqual([
+      [2, "+2.5 kg", false, 513],
+      [3, "+2.5 kg", true, 525],
+    ]);
+    expect(rows[0].changes.map((c) => [c.exercise, c.from, c.to])).toEqual([["Squat", "100 kg", "102.5 kg"]]);
+    expect(rows[1].changes).toEqual([]);
+  });
+});
