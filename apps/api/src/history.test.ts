@@ -1,6 +1,6 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { SessionLogRow, SetLogRow } from "@pt/db";
-import { buildHistory } from "./lib/history";
+import { buildHistory, estimateTokens, HISTORY_TOKEN_BUDGET, renderTrainingLog } from "./lib/history";
 
 const logs = [{ id: "log-1" }] as SessionLogRow[];
 const set = (exerciseId: string, type: string, weightKg: string | null, reps: number, rpe: string | null = null) =>
@@ -28,4 +28,141 @@ test("timed holds read as seconds and never get an e1RM (F15)", () => {
   });
   expect(plank.recentSets).toEqual(["10kg × 45 s @ RPE 8"]);
   expect(plank.bestE1rm).toBe(0);
+});
+
+// ---------------------------------------------------------------------------
+// Dated training log for AI grounding (F11)
+// ---------------------------------------------------------------------------
+
+type LogFixture = Parameters<typeof renderTrainingLog>[0]["logs"][number];
+type SetFixture = Parameters<typeof renderTrainingLog>[0]["sets"][number];
+
+const lifting = (id: string, date: string, programSessionId: string | null = null): LogFixture => ({
+  id,
+  date,
+  kind: "lifting",
+  cardio: null,
+  programSessionId,
+});
+const cardioLog = (id: string, date: string, cardio: LogFixture["cardio"], programSessionId: string | null = null): LogFixture => ({
+  id,
+  date,
+  kind: "cardio",
+  cardio,
+  programSessionId,
+});
+const s = (
+  sessionLogId: string,
+  exerciseId: string,
+  setNumber: number,
+  weightKg: string | null,
+  reps: number,
+  rpe: string | null = null,
+  type: "working" | "backoff" = "working"
+): SetFixture => ({ sessionLogId, exerciseId, setNumber, type, weightKg, reps, rpe });
+
+const logCatalog = [
+  { id: "ex-squat", name: "Squat" },
+  { id: "ex-bench", name: "Bench" },
+  { id: "ex-plank", name: "Plank" },
+  { id: "ex-pullup", name: "Pull-up" },
+];
+const sessionLabels = new Map([
+  ["ps-1", "Session 1 (Lower)"],
+  ["ps-2", "Session 2 (Upper)"],
+  ["pc-1", "Cardio 1"],
+]);
+
+describe("renderTrainingLog", () => {
+  test("renders every set, dated and grouped per session, newest first, with back-offs, holds and cardio", () => {
+    const text = renderTrainingLog({
+      logs: [
+        lifting("a", "2026-10-22", "ps-1"),
+        cardioLog("c", "2026-11-04", { modality: "Run", durationMin: 30, hrZone: 2, rpe: 6, distanceKm: 5.2 }, "pc-1"),
+        lifting("b", "2026-11-05", "ps-2"),
+      ],
+      sets: [
+        s("a", "ex-squat", 1, "140", 5, "7"),
+        s("a", "ex-plank", 1, "10", 45, "8"),
+        s("a", "ex-pullup", 1, null, 8, "8"),
+        // back-off logged before the working set still renders after it
+        s("b", "ex-squat", 3, "137.5", 4, "9.5", "backoff"),
+        s("b", "ex-squat", 1, "140", 5, "9"),
+        s("b", "ex-squat", 2, "140", 5, "9"),
+        s("b", "ex-bench", 1, "107.5", 3, "9"),
+      ],
+      catalog: logCatalog,
+      timedExerciseIds: new Set(["ex-plank"]),
+      sessionLabels,
+    });
+    expect(text).toBe(
+      [
+        "2026-11-05 Session 2 (Upper): Squat 140×5@9, 140×5@9, 137.5×4@9.5 (back-off); Bench 107.5×3@9",
+        "2026-11-04 Cardio 1: Run 30 min, zone 2, RPE 6, 5.2 km",
+        "2026-10-22 Session 1 (Lower): Squat 140×5@7; Plank 10kg×45s@8; Pull-up bw×8@8",
+      ].join("\n")
+    );
+  });
+
+  test("freestyle logs and sparse cardio still render; empty logs render nothing", () => {
+    const text = renderTrainingLog({
+      logs: [lifting("f", "2026-11-01"), cardioLog("r", "2026-11-02", { modality: "Bike", intensity: "easy" })],
+      sets: [s("f", "ex-bench", 1, "100", 5)],
+      catalog: logCatalog,
+    });
+    expect(text).toBe(["2026-11-02 Cardio: Bike easy", "2026-11-01 Freestyle: Bench 100×5"].join("\n"));
+    expect(renderTrainingLog({ logs: [], sets: [], catalog: logCatalog })).toBe("");
+  });
+
+  test("the default budget is an explicit named constant", () => {
+    expect(HISTORY_TOKEN_BUDGET).toBeGreaterThanOrEqual(2000);
+    expect(estimateTokens("x".repeat(400))).toBe(100);
+  });
+
+  test("over budget: newest weeks stay verbatim, older weeks become per-lift best/total summaries", () => {
+    const logs = [
+      lifting("w3", "2026-11-05", "ps-1"), // week of 2026-11-02
+      lifting("w2", "2026-10-28", "ps-1"), // week of 2026-10-26
+      cardioLog("w2c", "2026-10-29", { modality: "Run", durationMin: 25, distanceKm: 4 }),
+      lifting("w1a", "2026-10-19", "ps-1"), // week of 2026-10-19
+      lifting("w1b", "2026-10-22", "ps-2"),
+    ];
+    const sets = [
+      s("w3", "ex-squat", 1, "140", 5, "9"),
+      s("w3", "ex-squat", 2, "140", 5, "9"),
+      ...[1, 2, 3, 4, 5, 6].map((n) => s("w2", "ex-squat", n, "140", 5, "8.5")),
+      s("w2", "ex-squat", 7, "137.5", 4, "9", "backoff"),
+      s("w1a", "ex-squat", 1, "140", 5, "7"),
+      s("w1a", "ex-squat", 2, "150", 3, "8"),
+      s("w1a", "ex-plank", 1, "10", 45, "8"),
+      s("w1b", "ex-bench", 1, "100", 5, "7"),
+      s("w1b", "ex-bench", 2, "100", 5, "7"),
+    ];
+    const full = renderTrainingLog({ logs, sets, catalog: logCatalog, timedExerciseIds: new Set(["ex-plank"]), sessionLabels });
+    const newest = "2026-11-05 Session 1 (Lower): Squat 140×5@9, 140×5@9";
+    const expected = [
+      newest,
+      "Week of 2026-10-26 (summary): 1 lifting session, 1 cardio; Squat best 140×5@8.5, 7 sets, 4750 kg; cardio 25 min, 4 km",
+      "Week of 2026-10-19 (summary): 2 lifting sessions; Squat best 150×3@8, 2 sets, 1150 kg; Plank best 10kg×45s@8, 1 set; Bench best 100×5@7, 2 sets, 1000 kg",
+    ].join("\n");
+    // Budget fits the newest week verbatim plus summaries of the older two — not more.
+    const text = renderTrainingLog({
+      logs,
+      sets,
+      catalog: logCatalog,
+      timedExerciseIds: new Set(["ex-plank"]),
+      sessionLabels,
+      budgetTokens: estimateTokens(expected),
+    });
+    expect(full.split("\n")).toHaveLength(5);
+    expect(text).toBe(expected);
+  });
+
+  test("when even summaries overflow, the oldest weeks are dropped with a note", () => {
+    const logs = [lifting("n", "2026-11-05"), lifting("o", "2026-10-01")];
+    const sets = [s("n", "ex-squat", 1, "140", 5, "9"), s("o", "ex-squat", 1, "120", 5, "7")];
+    const newest = "2026-11-05 Freestyle: Squat 140×5@9";
+    const text = renderTrainingLog({ logs, sets, catalog: logCatalog, budgetTokens: estimateTokens(newest) });
+    expect(text).toBe([newest, "(1 older week omitted — over the context budget)"].join("\n"));
+  });
 });
