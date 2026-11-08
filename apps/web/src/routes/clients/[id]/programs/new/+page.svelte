@@ -6,13 +6,11 @@
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type {
-    CardioPrescriptionDto,
     ClientDto,
     ExerciseDto,
     ExerciseInput,
     PeriodizationSchemeDto,
     PrescribedSetDto,
-    ProgramExerciseDto,
     SessionTypeDto,
     SessionTypeInput,
   } from "$lib/api/types";
@@ -29,6 +27,7 @@
     type WeekPlan,
   } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
+  import type { CustomWeekRow, DraftForm, SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import SessionTypePicker from "$lib/components/SessionTypePicker.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
@@ -70,16 +69,6 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
 
-  interface SessionRow {
-    key: string;
-    name: string;
-    kind: "lifting" | "cardio";
-    /** Trainer's session type; picking one sets `kind` to its format. */
-    typeId?: string;
-    cardio: CardioPrescriptionDto;
-    exercises: ProgramExerciseDto[];
-  }
-
   const newRow = (): SessionRow => ({
     key: uuid(),
     name: "",
@@ -116,12 +105,6 @@
   });
 
 
-  interface CustomWeekRow {
-    directive: WeekDirective;
-    metric: WeekMetric | "";
-    deltaPercent: number | null;
-  }
-
   let schemeMode = $state<"saved" | "custom" | "none">("saved");
   let selectedSchemeId = $state<string>("");
   let customWeeks = $state<CustomWeekRow[]>([
@@ -133,19 +116,6 @@
   let schemeName = $state("");
 
   // —— local draft: every field is kept on this device until Save ——————————
-  interface DraftForm {
-    name: string;
-    description: string;
-    plannedWeeks: number;
-    phase: string;
-    nextPhase: string;
-    usePhasing: boolean;
-    schemeMode: "saved" | "custom" | "none";
-    selectedSchemeId: string;
-    customWeeks: CustomWeekRow[];
-    schemeName: string;
-    sessions: SessionRow[];
-  }
   const draftKey = $derived(`pt.draft.new-program.${id}`);
   /** Off until the page has loaded (and restored), and again once saved. */
   let autosave = $state(false);
