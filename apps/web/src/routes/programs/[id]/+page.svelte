@@ -231,7 +231,10 @@
   }
 
   beforeNavigate((nav) => {
-    if (dirty && !confirm("Leave without saving your program changes?")) nav.cancel();
+    if (!dirty) return;
+    // Closing or reloading the tab: cancel() raises the browser's own prompt; confirm() is blocked there.
+    if (nav.type === "leave") nav.cancel();
+    else if (!confirm("Leave without saving your program changes?")) nav.cancel();
   });
 
   async function activate() {
