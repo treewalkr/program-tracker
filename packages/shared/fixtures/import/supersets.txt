@@ -1,0 +1,5 @@
+Day 1 Upper
+A1 DB bench press 3x10
+A2 Chest supported row 3x10
+B1 Lateral raise 3x15
+B2 Face pull 3x15

@@ -28,7 +28,7 @@ const outcomeError = (out: LlmOutcome<unknown>): string =>
 
 /** Every chunk of the row's text through callLlm, in parallel. Null when the read was cancelled. */
 export async function extractChunks(
-  row: Pick<AiImportRow, "id" | "trainerId" | "clientId" | "text">,
+  row: { id: string; trainerId: string | null; clientId: string | null; text: string },
   rt: ProviderRuntime,
   effort: string | undefined,
   signal: AbortSignal,

@@ -1,0 +1,4 @@
+Exercise            Sets  Reps  Load
+Squat               4     6     100kg
+Bench press         4     8     70kg
+Barbell row         3     10    60kg
