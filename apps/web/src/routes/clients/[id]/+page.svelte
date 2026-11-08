@@ -8,6 +8,8 @@
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
+  import { pulseCellSets, type PulseCell } from "@pt/shared";
+  import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
   import { weekOptions } from "$lib/format";
   import { localIso } from "$lib/overview";
@@ -52,6 +54,14 @@
   let signals = $state<SignalDto[]>([]);
   let pulse = $state<WeekMetrics[]>([]);
   let pulseWeek = $state(0);
+  /** The Pulse cell whose sets are open below the table. */
+  let drill = $state<{ week: number; cell: PulseCell } | null>(null);
+  const drillRows = $derived(drill && current ? pulseCellSets(current, sessionLogRows, drill.week, drill.cell) : []);
+  const liftName = (exerciseId: string) => catalogById.get(exerciseId)?.name ?? "Unknown exercise";
+  const openDrill = (week: number, cell: PulseCell) => {
+    drill = drill?.week === week && drill.cell === cell ? null : { week, cell };
+  };
+  const isOpen = (week: number, cell: PulseCell) => drill?.week === week && drill.cell === cell;
   let loggedDates = $state<Set<string>>(new Set());
   let dismissedNow = $state<string[]>([]);
   let snoozing = $state<string | null>(null);
@@ -162,6 +172,7 @@
     historyEntries = await api.history(id);
     const logs = await api.sessionLogs(id);
     sessionLogRows = logs;
+    drill = null;
     if (cur) {
       const sigs = await api.notifications();
       signals = sigs.filter((s) => s.clientId === id);
@@ -231,6 +242,10 @@
 </script>
 
 <svelte:head><title>{client?.name ?? "Client"} · Program Tracker</title></svelte:head>
+
+{#snippet cellBtn(week: number, cell: PulseCell, text: string, label: string)}
+  <button type="button" class="cell-btn" aria-label={label} aria-expanded={isOpen(week, cell)} aria-controls="pulse-drill" onclick={() => openDrill(week, cell)}>{text}</button>
+{/snippet}
 
 {#if client === null}
   <Skeleton h="140px" />
@@ -490,13 +505,16 @@
                     {/if}
                   </td>
                   <td class="r">
-                    {#if w.plannedOnly}<span class="subtle">{fmtVolume(w.overallVolume)} plan</span>{:else if w.overallVolume > 0}{fmtVolume(w.overallVolume)}{:else}—{/if}
+                    {#if w.plannedOnly}<span class="subtle">{fmtVolume(w.overallVolume)} plan</span>{:else if w.overallVolume > 0}{@render cellBtn(w.week, "volume", fmtVolume(w.overallVolume), `Week ${w.week} overall volume: show the sets`)}{:else}—{/if}
                     {#if w.overallVolumeDelta != null && w.overallVolume > 0}<span class="delta {w.overallVolumeDelta < 0 ? 'down' : 'up'}">{w.overallVolumeDelta >= 0 ? "+" : ""}{w.overallVolumeDelta}%</span>{/if}
                   </td>
-                  <td class="r">{#if w.plannedOnly}<span class="subtle">{w.sets}</span>{:else}{w.sets}{/if}</td>
-                  <td class="r">{w.avgRpe ?? "—"}</td>
+                  <td class="r">{#if w.plannedOnly}<span class="subtle">{w.sets}</span>{:else if w.sets > 0}{@render cellBtn(w.week, "sets", String(w.sets), `Week ${w.week} sets: show the sets`)}{:else}0{/if}</td>
+                  <td class="r">{#if !w.plannedOnly && w.avgRpe != null}{@render cellBtn(w.week, "rpe", String(w.avgRpe), `Week ${w.week} average RPE: show the rated sets`)}{:else}—{/if}</td>
                   <td class="r">
-                    {w.bestE1rm > 0 ? `${Math.round(w.bestE1rm)} kg` : "—"}
+                    {#if w.bestE1rm > 0 && w.topE1rmExerciseId}
+                      <span class="top-lift">{liftName(w.topE1rmExerciseId)}</span>
+                      {@render cellBtn(w.week, "e1rm", `${Math.round(w.bestE1rm)} kg`, `Week ${w.week} best e1RM, ${liftName(w.topE1rmExerciseId)}: show the sets`)}
+                    {:else}—{/if}
                     {#if w.e1rmDelta != null && w.bestE1rm > 0}<span class="delta {w.e1rmDelta < 0 ? 'down' : 'up'}">{w.e1rmDelta >= 0 ? "+" : ""}{w.e1rmDelta}%</span>{/if}
                   </td>
                 </tr>
@@ -504,6 +522,9 @@
             </tbody>
           </table>
         </div>
+        {#if drill}
+          <PulseDrill id="pulse-drill" rows={drillRows} cell={drill.cell} week={drill.week} nameOf={liftName} onclose={() => (drill = null)} />
+        {/if}
         {#if pulseSummary}<p class="pulse-sub">{pulseSummary}</p>{/if}
       </Panel>
 
@@ -673,6 +694,20 @@
   .heat-l { font: 400 11px/1 var(--font-ui); color: var(--faint); margin-right: 6px; }
 
   .pulse-now td { background: var(--pulse-now-bg); }
+  .cell-btn {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline dotted var(--faint);
+    text-underline-offset: 3px;
+  }
+  .cell-btn:hover { color: var(--blue); text-decoration-color: currentColor; }
+  .cell-btn[aria-expanded="true"] { color: var(--blue); text-decoration: underline solid; }
+  .cell-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+  .top-lift { font: 400 11.5px/1 var(--font-ui); color: var(--muted); margin-right: 6px; white-space: nowrap; }
   .pulse-future td { color: var(--faint); }
   .pulse-sub { font: 400 13px/1.5 var(--font-ui); color: var(--muted); margin: 0; padding: 8px 16px 12px; }
   .pulse-stack { display: flex; flex-direction: column; gap: 16px; }
