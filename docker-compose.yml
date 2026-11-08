@@ -1,6 +1,8 @@
 # api and web reuse the image migrate builds — one build instead of three
 x-app: &app
   image: program-tracker:local
+  # tini as PID 1 forwards SIGTERM so containers stop in well under a second
+  init: true
   pull_policy: never
   environment:
     DATABASE_URL: postgres://pt:pt_dev_password@postgres:5432/program_tracker
@@ -38,7 +40,8 @@ services:
 
   api:
     <<: *app
-    command: bun run --filter @pt/api start
+    working_dir: /app/apps/api
+    command: bun src/index.ts
     develop:
       # `docker compose watch` — code syncs in (bun.lock changes still need `up --build`)
       watch:
@@ -63,9 +66,10 @@ services:
     # $env/static/public only picks up PUBLIC_* from apps/web/.env, so write it
     # before starting vite; PUBLIC_API_URL must be host-reachable (published port),
     # not the docker-internal service name.
+    working_dir: /app/apps/web
     command: >-
-      sh -c 'printf "PUBLIC_API_URL=http://localhost:4000\nPUBLIC_API_MODE=live\n" > apps/web/.env
-      && exec bun run --filter @pt/web dev -- --host 0.0.0.0 --port 5173 --strictPort'
+      sh -c 'printf "PUBLIC_API_URL=http://localhost:4000\nPUBLIC_API_MODE=live\n" > .env
+      && exec bun --bun vite dev --host 0.0.0.0 --port 5173 --strictPort'
     develop:
       # vite HMR picks up synced files; no restart needed
       watch:
