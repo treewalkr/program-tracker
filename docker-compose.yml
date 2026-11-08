@@ -39,6 +39,12 @@ services:
   api:
     <<: *app
     command: bun run --filter @pt/api start
+    develop:
+      # `docker compose watch` — code syncs in (bun.lock changes still need `up --build`)
+      watch:
+        - { action: sync+restart, path: ./apps/api/src, target: /app/apps/api/src }
+        - { action: sync+restart, path: ./packages/db/src, target: /app/packages/db/src }
+        - { action: sync+restart, path: ./packages/shared/src, target: /app/packages/shared/src }
     restart: unless-stopped
     ports:
       - "4000:4000"
@@ -60,6 +66,12 @@ services:
     command: >-
       sh -c 'printf "PUBLIC_API_URL=http://localhost:4000\nPUBLIC_API_MODE=live\n" > apps/web/.env
       && exec bun run --filter @pt/web dev -- --host 0.0.0.0 --port 5173 --strictPort'
+    develop:
+      # vite HMR picks up synced files; no restart needed
+      watch:
+        - { action: sync, path: ./apps/web/src, target: /app/apps/web/src }
+        - { action: sync, path: ./apps/web/static, target: /app/apps/web/static }
+        - { action: sync, path: ./packages/shared/src, target: /app/packages/shared/src }
     environment:
       TZ: Asia/Bangkok
       # browser calls /v1 same-origin; vite proxies it to the api service
