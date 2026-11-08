@@ -4,6 +4,7 @@ import {
   buildChatSystem,
   buildDistillMessages,
   buildGenerationMessages,
+  buildImportMessages,
   buildRevisionMessages,
   buildWeekMessages,
   buildWeekRevisionMessages,
@@ -13,7 +14,9 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import { AiProgramDraft, DELOAD_RULES, ProgramWeeksDocument } from "@pt/shared";
+import { AiProgramDraft, DELOAD_RULES, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
+import { readFileSync } from "node:fs";
+import { mockImportContent } from "./ai/mock";
 
 describe("extractJsonObject", () => {
   test("passes through clean JSON", () => {
@@ -1712,5 +1715,25 @@ describe("client PROFILE line", () => {
     for (const user of userBlocks({ name: "Ada", experience: null, age: null, sex: null })) {
       expect(user).not.toContain("PROFILE:");
     }
+  });
+});
+
+describe("buildImportMessages", () => {
+  test("numbered lines in, the ImportChunk rules out", () => {
+    const lines = importLines("Week 11\n\nSA Row 6-10 reps x 3 sets - 10(20kg)");
+    const { system, user } = buildImportMessages({ numbered: numberedLines(lines, 1, 3), from: 1, to: 3 });
+    expect(user).toBe("LINES 1–3:\nL1: Week 11\nL2: \nL3: SA Row 6-10 reps x 3 sets - 10(20kg)");
+    expect(system).toContain("JSON object only");
+    expect(system).toContain("SA → Single-Arm");
+    expect(system).toContain("Never translate");
+    expect(system).toContain("prescription null");
+    // the example output shape the prompt describes is what the schema accepts
+    expect(ImportChunk.safeParse(WEEK11_12_EXTRACTION).success).toBe(true);
+  });
+
+  test("mock content is the fixture extraction for the chunk", () => {
+    const text = readFileSync(new URL("../../../packages/shared/fixtures/import/week11-12.txt", import.meta.url), "utf8");
+    const parsed = ImportChunk.parse(JSON.parse(mockImportContent(importLines(text), 1, 36)));
+    expect(parsed.weeks.map((w) => w.label)).toEqual(["Week 11"]);
   });
 });

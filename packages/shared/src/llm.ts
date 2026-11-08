@@ -15,6 +15,7 @@ export const LLM_PURPOSES = [
   "distill",
   "feedback_check",
   "rule_extract",
+  "program_import",
 ] as const;
 export type LlmPurpose = (typeof LLM_PURPOSES)[number];
 

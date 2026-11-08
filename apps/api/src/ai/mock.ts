@@ -1,4 +1,4 @@
-import { mockChatReply, type AiProgramDraft } from "@pt/shared";
+import { mockChatReply, mockImportExtraction, type AiProgramDraft } from "@pt/shared";
 
 /**
  * Canned draft for the "mock" provider — keyless pipeline testing and UI dev.
@@ -132,4 +132,10 @@ export function mockGroundedChatReply(message: string, clientName: string | null
   const base = mockChatReply(message, clientName);
   const latest = trainingLog?.split("\n")[0];
   return latest ? `${base} Latest logged: ${latest}` : base;
+}
+
+/** Canned paste-import extraction: the Week 11–12 fixture's items on lines from…to
+ *  (packages/shared/fixtures/import). Other text reads as nothing found. */
+export function mockImportContent(lines: string[], from: number, to: number): string {
+  return JSON.stringify(mockImportExtraction(lines, from, to));
 }

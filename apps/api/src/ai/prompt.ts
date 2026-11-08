@@ -1074,3 +1074,44 @@ export function buildRuleExtractMessages(ctx: RuleExtractContext): { system: str
 
   return { system, user };
 }
+
+// ---------------------------------------------------------------------------
+// Paste import (docs/paste-import-plan.md §1): numbered lines → ImportChunk JSON
+// ---------------------------------------------------------------------------
+
+export interface ImportPromptContext {
+  /** The chunk's lines as "L12: text", numbered across the whole paste. */
+  numbered: string;
+  from: number;
+  to: number;
+}
+
+/** Shorthand the model expands in `name`. Version 1.1 replaces it with the trainer's glossary. */
+export const IMPORT_ABBREVIATIONS_TEXT = "BB → Barbell, DB → Dumbbell, KB → Kettlebell, SA → Single-Arm, SL → Single-Leg, OVH → Overhead, RDL → Romanian Deadlift";
+
+export function buildImportMessages(ctx: ImportPromptContext): { system: string; user: string } {
+  const system = [
+    "You read a personal trainer's training notes, pasted as numbered lines, and turn them into structured JSON. You never invent anything: every value you output must be written in its line.",
+    "Respond with a single JSON object only, this shape (? = optional; omit a field the text does not give):",
+    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}]}]}]}]}], "skipped": [{"line": number, "reason": string}]}`,
+    "Structure:",
+    '- A "Week N" header starts a week (label as written, its line). No week headers → one week with label null and line null.',
+    '- A "Day N …" header starts a day: label = the header as written. Its lifting exercises form one session (kind "lifting") whose name is the focus after "Day N" ("Day 1 Back/Biceps" → "Back/Biceps", or the whole label when there is none) and whose line is the header line.',
+    '- A cardio line ("Cardio Zone 2-3 : 40-60 mins", "Long run 10 km") is its own session in that day: kind "cardio", exercises [], line = that line, a short name, cardio filled from the line. Ranges: the upper value in hrZone/durationMin, the lower in hrZoneLow/durationMinLow.',
+    "Exercises:",
+    "- sourceName = the exercise name exactly as written, typos included, without the parenthesized tags and without the numbers that follow it.",
+    `- name = the same exercise with shorthand expanded and typos fixed (${IMPORT_ABBREVIATIONS_TEXT}). Don't swap it for a different exercise.`,
+    '- A parenthesized technique tag right after the name ("(Power)", "(PAILs/RAILs)", "(Kinesis)", "(Static Stretch)", "(Pyramid)") goes in variation. Equipment notes ("machine", "(machine)") go in equipment.',
+    '- The prescription is the part before " - "; what was actually done (actuals) comes after it. Never fill a prescription from the actuals.',
+    '- "6-10 reps" → repsLow 6, reps 10. "1-2 sets" → setsLow 1, sets 2. "10/8/6/5 reps" → repsList [10,8,6,5] and sets 4. "10-15 sec" → secondsLow 10, seconds 15; "1 min" → seconds 60. "failure" / "max" → failure true. "3-5 rounds" or "20 steps" → reps with unit "rounds"/"steps".',
+    "- A line with an exercise but no sets or reps → prescription null. Never guess a number.",
+    '- actuals: one entry per logged set, in order: "10(20kg)" → {"reps": 10, "kg": 20}; "10,10" → two sets of 10 reps; "12kg x 3 sets 25, 25, 25" → three sets of 25 reps at 12 kg; "10(12kg) x 3sets" → three sets of 10 at 12 kg.',
+    "- A number that is part of the exercise name (\"Incline 45 degrees Bench press\") is never reps, sets or load.",
+    "Coverage and language:",
+    "- Every non-blank line must be referenced by a week, day, session or exercise \"line\", or listed in skipped with a short reason. Lines with no letters or digits (separators) can be left out.",
+    "- Never translate. Copy notes, names and labels exactly as written (Thai stays Thai).",
+  ].join("\n");
+
+  const user = [`LINES ${ctx.from}–${ctx.to}:`, ctx.numbered].join("\n");
+  return { system, user };
+}
