@@ -64,9 +64,9 @@
   });
 </script>
 
-<svelte:head><title>Notification emails · Program Tracker</title></svelte:head>
+<svelte:head><title>Email templates · Program Tracker</title></svelte:head>
 
-<PageHead title="Notification emails" sub="Every email the app sends, rendered by the live templates with sample data" />
+<PageHead title="Email templates" sub="What each email says and when it sends, rendered by the live templates with sample data" />
 
 {#if apiMode !== "live"}
   <Note tone="warn">Emails are rendered by the server — switch to the live API to see them.</Note>
@@ -80,7 +80,7 @@
 {:else}
   {@const from = sender(selected.from)}
   <div class="layout">
-    <nav class="list" aria-label="Emails">
+    <nav class="list" aria-label="Templates">
       {#each groups as g (g.name)}
         <h2>{g.name}</h2>
         <ul>

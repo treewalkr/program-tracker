@@ -57,11 +57,19 @@
     },
   ];
   const groups = $derived<NavGroup[]>(
-    isAdmin ? [...baseGroups, { label: "Platform", items: [
-            { href: "/admin", label: "Trainers", icon: "lock" },
-            { href: "/admin/emails/templates", label: "Emails", icon: "mail" },
-            { href: "/admin/emails/outbox", label: "Outbox", icon: "mail" },
-          ] }] : baseGroups,
+    isAdmin
+      ? [
+          ...baseGroups,
+          { label: "Platform", items: [{ href: "/admin", label: "Trainers", icon: "lock" }] },
+          {
+            label: "Email",
+            items: [
+              { href: "/admin/emails/templates", label: "Templates", icon: "mail" },
+              { href: "/admin/emails/outbox", label: "Outbox", icon: "send" },
+            ],
+          },
+        ]
+      : baseGroups,
   );
 
   /** Utility destinations sit at the foot of the sidebar, apart from the daily work. */
