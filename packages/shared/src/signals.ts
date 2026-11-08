@@ -1,7 +1,7 @@
 import { estimate1rm, weekSessions } from "./domain";
 import type { CardioTarget } from "./domain";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
-import { blockPulse, blockWeekOfDate, daysIntoBlock, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
+import { blockPulse, blockWeekOfDate, daysIntoBlock, localDateOf, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
 /**
@@ -28,8 +28,9 @@ export interface Signal {
   severity: "info" | "attention" | "urgent";
   title: string;
   evidence: string;
-  /** Owning program/client — lets the API partition a trainer-wide feed. */
-  programId: string;
+  /** Owning program/client — lets the API partition a trainer-wide feed.
+   *  Null for client-level signals raised without an active program (cardio). */
+  programId: string | null;
   clientId: string | null;
   /** Pre-filled note for the generate flow, when the signal warrants a new block. */
   prefillNote?: string;
@@ -329,19 +330,29 @@ export function computeSignals(
 }
 
 /** Cardio pace check, merged by each signal caller next to computeSignals.
- *  Fires when a client with a weekly target is under 60% of pro-rata pace
- *  on Thursday or later — same 0.6 threshold as the adherence rule. */
+ *  The target is a weekly client attribute, so it runs with or without an
+ *  active program (`owner.programId` null). Pace is pro-rated from the later of
+ *  the ISO week's Monday and the client's creation day (today counts), and the
+ *  rule fires when done < 0.6 × target × elapsed/7 — no rounding — on Thursday
+ *  or later. Nothing is due on the day the client was created. */
 export function cardioBehindSignal(
-  owner: { programId: string; clientId: string | null },
+  owner: { programId: string | null; clientId: string | null },
   target: CardioTarget,
   logs: CardioCountLog[],
-  now: number = Date.now()
+  now: number = Date.now(),
+  clientCreatedAt?: string | null
 ): Signal | null {
   const isoWeekday = (new Date(now).getDay() + 6) % 7 + 1; // 1=Mon … 7=Sun
   if (isoWeekday < 4) return null; // only Thu–Sun
+  const today = localDateOf(now);
+  const weekStart = isoWeekStart(new Date(now));
+  const created = clientCreatedAt ? localDateOf(Date.parse(clientCreatedAt)) : null;
+  if (created === today) return null;
+  const start = created && created > weekStart ? created : weekStart;
+  const elapsedDays = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000) + 1;
   const label = cardioUnitLabel(target.unit);
-  const done = cardioDone(target, cardioWeekTotals(logs, isoWeekStart(new Date(now))));
-  const expected = Math.round(0.6 * target.value * (isoWeekday / 7));
+  const done = cardioDone(target, cardioWeekTotals(logs, weekStart));
+  const expected = 0.6 * target.value * (elapsedDays / 7);
   if (done >= expected) return null;
   const dayName = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][isoWeekday - 1];
   return {
@@ -349,7 +360,7 @@ export function cardioBehindSignal(
     kind: "cardio-behind",
     severity: "attention",
     title: "Cardio behind weekly target",
-    evidence: `${done} of ${target.value} ${label} logged this week — pace expects ≥ ${expected} by ${dayName}.`,
+    evidence: `${done} of ${target.value} ${label} logged this week — pace expects ≥ ${Math.ceil(expected)} by ${dayName}.`,
     programId: owner.programId,
     clientId: owner.clientId,
     altHref: `/clients/${owner.clientId}`,

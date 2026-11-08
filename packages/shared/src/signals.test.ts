@@ -25,8 +25,8 @@ describe("cardioBehindSignal", () => {
     expect(signal!.kind).toBe("cardio-behind");
     expect(signal!.severity).toBe("attention");
     expect(signal!.title).toBe("Cardio behind weekly target");
-    // Math.round(0.6 * 150 * 4 / 7) = Math.round(51.43) = 51
-    expect(signal!.evidence).toBe("30 of 150 min logged this week — pace expects ≥ 51 by Thu.");
+    // 0.6 × 150 × 4/7 = 51.43, no rounding down (F18) → shown as ≥ 52
+    expect(signal!.evidence).toBe("30 of 150 min logged this week — pace expects ≥ 52 by Thu.");
     expect(signal!.programId).toBe("pg-1");
     expect(signal!.clientId).toBe("cl-1");
     expect(signal!.altHref).toBe("/clients/cl-1");
@@ -37,7 +37,7 @@ describe("cardioBehindSignal", () => {
     const logs = [cardioLog("2026-10-27", 30)];
     const signal = cardioBehindSignal(owner, { unit: "minutes", value: 150 }, logs, FRI);
     expect(signal).toBeDefined();
-    expect(signal!.evidence).toBe("30 of 150 min logged this week — pace expects ≥ 64 by Fri.");
+    expect(signal!.evidence).toBe("30 of 150 min logged this week — pace expects ≥ 65 by Fri.");
   });
 
   test("silent before Thursday", () => {
@@ -46,7 +46,7 @@ describe("cardioBehindSignal", () => {
   });
 
   test("silent at/above the Thursday threshold", () => {
-    const logs = [cardioLog("2026-10-27", 51)]; // expected 51 → at pace
+    const logs = [cardioLog("2026-10-27", 52)]; // 52 ≥ 51.43 → at pace (51 is now behind: F18 drops the rounding)
     expect(cardioBehindSignal(owner, { unit: "minutes", value: 150 }, logs, THU)).toBeNull();
   });
 
@@ -55,15 +55,49 @@ describe("cardioBehindSignal", () => {
       cardioLog("2026-10-25", 120), // last week — excluded by window
       cardioLog("2026-10-26", 30, 2),
     ];
-    // 30 min × zone 2 = 60 zone-min ≥ round(0.6·150·4/7) = 51 → at pace, silent
+    // 30 min × zone 2 = 60 zone-min ≥ 0.6·150·4/7 = 51.43 → at pace, silent
     expect(cardioBehindSignal(owner, { unit: "zone_minutes", value: 150 }, logs, THU)).toBeNull();
   });
 
   test("zone_minutes picks up the hrZone weighting", () => {
-    const logs = [cardioLog("2026-10-26", 20, 2)]; // 40 zone-min < 51 → behind
+    const logs = [cardioLog("2026-10-26", 20, 2)]; // 40 zone-min < 51.43 → behind
     const signal = cardioBehindSignal(owner, { unit: "zone_minutes", value: 150 }, logs, THU);
     expect(signal).toBeDefined();
-    expect(signal!.evidence).toBe("40 of 150 zone-min logged this week — pace expects ≥ 51 by Thu.");
+    expect(signal!.evidence).toBe("40 of 150 zone-min logged this week — pace expects ≥ 52 by Thu.");
+  });
+});
+
+describe("cardioBehindSignal is pro-rated from the client's start (F18)", () => {
+  const SAT = new Date(2026, 9, 31, 12).getTime();
+  const SUN = new Date(2026, 10, 1, 12).getTime();
+  const sessions = { unit: "sessions" as const, value: 4 };
+
+  test("2 of 4 sessions on Sunday is behind (no rounding down to 2)", () => {
+    const logs = [cardioLog("2026-10-27", 30), cardioLog("2026-10-29", 30)];
+    const s = cardioBehindSignal(owner, sessions, logs, SUN);
+    expect(s).toBeDefined();
+    expect(s!.evidence).toBe("2 of 4 sessions logged this week — pace expects ≥ 3 by Sun.");
+  });
+
+  test("silent on the day the client was created", () => {
+    expect(cardioBehindSignal(owner, sessions, [], THU, new Date(2026, 9, 29, 9).toISOString())).toBeNull();
+  });
+
+  test("pace counts only the days since the client was created", () => {
+    const createdWed = new Date(2026, 9, 28, 9).toISOString();
+    // Wed..Sat = 4 days: 0.6 × 150 × 4/7 = 51.4 → 45 is behind, 52 is not.
+    const minutes = { unit: "minutes" as const, value: 150 };
+    const behind = cardioBehindSignal(owner, minutes, [cardioLog("2026-10-29", 45)], SAT, createdWed);
+    expect(behind!.evidence).toBe("45 of 150 min logged this week — pace expects ≥ 52 by Sat.");
+    expect(cardioBehindSignal(owner, minutes, [cardioLog("2026-10-29", 52)], SAT, createdWed)).toBeNull();
+    // A client created in an earlier week gets the whole week.
+    expect(cardioBehindSignal(owner, minutes, [cardioLog("2026-10-29", 52)], SAT, "2026-09-01T00:00:00.000Z")).toBeDefined();
+  });
+
+  test("works without a program (programId null)", () => {
+    const s = cardioBehindSignal({ programId: null, clientId: "cl-1" }, sessions, [], SUN);
+    expect(s?.programId).toBeNull();
+    expect(s?.id).toBe("cardio-behind:cl-1");
   });
 });
 
