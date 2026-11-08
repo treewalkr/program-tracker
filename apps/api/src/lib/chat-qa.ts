@@ -1,11 +1,12 @@
 import { and, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type ChatMessageRow } from "@pt/db";
-import { mockChatReply, DEFAULT_PROVIDER_ID } from "@pt/shared";
+import { DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { type ChatMessage as ProviderChatMessage } from "../ai/provider";
 import { callLlm, contextSnapshot, linkTurn } from "../ai/llm";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import { buildChatSystem, draftToText, type ChatDraftContext } from "../ai/prompt";
 import { loadContext } from "../lib/context";
+import { mockGroundedChatReply } from "../ai/mock";
 
 const CHAT_HISTORY_LIMIT = 20;
 
@@ -124,7 +125,7 @@ export async function answerChat(
     rt: rt!,
     effort,
     mode: "text",
-    mock: () => mockChatReply(message, ctx.client.name),
+    mock: () => mockGroundedChatReply(message, ctx.client.name, ctx.trainingLog),
   });
   if (!out.ok) {
     const error = out.kind === "provider" ? out.error.message : out.kind === "validation" ? out.error : "aborted";

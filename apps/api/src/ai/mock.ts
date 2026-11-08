@@ -1,4 +1,4 @@
-import type { AiProgramDraft } from "@pt/shared";
+import { mockChatReply, type AiProgramDraft } from "@pt/shared";
 
 /**
  * Canned draft for the "mock" provider — keyless pipeline testing and UI dev.
@@ -119,4 +119,12 @@ export function mockClientMessage(stats: WeekSummaryStats): AiClientMessageDraft
     lines.push(`That wraps the block — great way to finish it. I'll have your next program ready shortly.`);
   }
   return { message: lines.join("\n") };
+}
+
+/** Mock chat reply, grounded like a real answer: cites the newest dated
+ *  TRAINING LOG entry when there is one (unchanged canned text otherwise). */
+export function mockGroundedChatReply(message: string, clientName: string | null, trainingLog?: string | null): string {
+  const base = mockChatReply(message, clientName);
+  const latest = trainingLog?.split("\n")[0];
+  return latest ? `${base} Latest logged: ${latest}` : base;
 }

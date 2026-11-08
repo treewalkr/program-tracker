@@ -21,10 +21,10 @@ import {
 } from "@pt/shared";
 import { ContextError } from "../ai/runtime";
 import { periodizationContext, type ExampleProgramSummary } from "../ai/prompt";
-import { buildHistory } from "./history";
+import { buildHistory, renderTrainingLog, sessionLabelsFor } from "./history";
 import { ensureSeededChains } from "./chains";
 import { ensureSessionTypes } from "./session-types";
-import { loadTimedExerciseIds, toSignalLog, toSignalProgram } from "./signals-service";
+import { loadLogPrograms, timedIdsOf, toSignalLog, toSignalProgram } from "./signals-service";
 import { loadActiveRules } from "./coaching-rules";
 
 export const HISTORY_WINDOW_DAYS = 56;
@@ -74,7 +74,8 @@ export async function loadContext(
   const logs = await db
     .select()
     .from(sessionLogs)
-    .where(and(eq(sessionLogs.clientId, clientId), gte(sessionLogs.date, since)));
+    .where(and(eq(sessionLogs.clientId, clientId), gte(sessionLogs.date, since)))
+    .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt));
   const sets = logs.length
     ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
     : [];
@@ -101,6 +102,10 @@ export async function loadContext(
     const summary = pulseSummary(blockPulse(program, signalLogs));
     periodization = periodizationContext(ph, week, summary);
   }
+
+  const logPrograms = await loadLogPrograms(logs);
+  const timedExerciseIds = timedIdsOf(logPrograms);
+  const catalogForHistory = catalogByTrainer.map((e) => ({ id: e.id, name: e.name }));
 
   const prefRows = await db
     .select()
@@ -176,11 +181,14 @@ export async function loadContext(
     learnedPreferences: combinePreferenceDocs(trainerDoc, clientDoc),
     // Trainer-confirmed rules only (proposed/retired never reach a prompt).
     coachingRules: await loadActiveRules(trainerId, clientId),
-    history: buildHistory({
+    history: buildHistory({ logs, sets, catalog: catalogForHistory, timedExerciseIds }),
+    // Dated, per-session, every set + cardio — what the prompts actually render (F11).
+    trainingLog: renderTrainingLog({
       logs,
       sets,
-      catalog: catalogByTrainer.map((e) => ({ id: e.id, name: e.name })),
-      timedExerciseIds: await loadTimedExerciseIds(logs),
+      catalog: catalogForHistory,
+      timedExerciseIds,
+      sessionLabels: sessionLabelsFor(logPrograms),
     }),
     // Archived types stay on old sessions but are never offered to the AI.
     sessionTypes: (await ensureSessionTypes(trainerId))
