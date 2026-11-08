@@ -260,7 +260,11 @@
   const matchedExamples = $derived(
     selectExamples(
       examples,
-      { goals: client?.goals ?? null, daysPerWeek: client?.sessionsPerWeek ?? null },
+      {
+        goals: client?.goals ?? null,
+        daysPerWeek: client?.sessionsPerWeek ?? null,
+        level: client?.experience ?? null,
+      },
       { excludeProgramId: current?.id ?? null, limit: 2 }
     )
   );

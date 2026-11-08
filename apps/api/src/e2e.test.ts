@@ -1818,18 +1818,21 @@ describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
 describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
   let matchClientId = "";
   let coldClientId = "";
+  let daysOnlyClientId = "";
+  let beginnerClientId = "";
   let programId = "";
 
   test("seed matching + non-matching clients and a marked example", async () => {
     const found = await call("GET", "/v1/exercises?q=squat");
     const squatId = found.body[0].id;
 
-    const mk = async (name: string, goals: string, sessionsPerWeek: number) => {
+    const mk = async (name: string, goals: string, sessionsPerWeek: number, experience?: string) => {
       const c = await call("POST", "/v1/clients", {
         name,
         email: `exgen-${name}-${Date.now()}@test.dev`,
         goals,
         sessionsPerWeek,
+        ...(experience ? { experience } : {}),
       });
       expect(c.status).toBe(201);
       return c.body.id as string;
@@ -1838,6 +1841,10 @@ describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
     matchClientId = await mk("Matcher", "lean bulk strength", 4);
     // no shared words and 2 days vs 4 → zero score
     coldClientId = await mk("Cold", "marathon endurance running", 2);
+    // same 4 days but no shared goal word → days alone never qualify
+    daysOnlyClientId = await mk("DaysOnly", "marathon endurance running", 4);
+    // shares "lean bulk" but beginner vs the advanced tag below → excluded
+    beginnerClientId = await mk("Beginner", "lean bulk strength", 4, "beginner");
 
     const p = await call("POST", "/v1/programs", {
       name: "Few-shot Gold Block",
@@ -1873,7 +1880,7 @@ describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
     const marked = await call("POST", "/v1/examples", {
       programId,
       goal: "lean bulk hypertrophy block",
-      level: "intermediate",
+      level: "advanced",
       daysPerWeek: 4,
     });
     expect(marked.status).toBe(201);
@@ -1894,6 +1901,12 @@ describe.skipIf(!dbUp)("example few-shot generation wiring", () => {
     });
     expect(cold.status).toBe(201);
     expect(cold.body.exampleProgramIds).toEqual([]);
+
+    for (const clientId of [daysOnlyClientId, beginnerClientId]) {
+      const none = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+      expect(none.status).toBe(201);
+      expect(none.body.exampleProgramIds).toEqual([]);
+    }
 
     const child = await call("POST", `/v1/ai/generations/${gen.body.id}/revise`, {
       message: "trim one set per session",

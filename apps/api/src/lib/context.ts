@@ -122,8 +122,10 @@ export async function loadContext(
     .filter((r) => r.clientId === clientId)
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]?.document ?? null;
 
-  // Gold-standard few-shot retrieval — the trainer's example library, ranked
-  // by goal-word overlap + sessions/week proximity, capped at 2 positive matches.
+  // Gold-standard few-shot retrieval — the trainer's example library. An
+  // example needs a shared goal word (stopwords ignored) and a level within one
+  // step of the client's experience; it ranks by goal overlap, same level and
+  // sessions/week proximity, capped at 2.
   const exampleRows = await db
     .select({ example: programExamples, program: programs })
     .from(programExamples)
@@ -138,7 +140,7 @@ export async function loadContext(
       daysPerWeek: example.daysPerWeek,
       createdAt: example.createdAt,
     })),
-    { goals: client.goals, daysPerWeek: client.sessionsPerWeek },
+    { goals: client.goals, daysPerWeek: client.sessionsPerWeek, level: client.experience ?? null },
     { excludeProgramId: basedOnProgramId, limit: 2 },
   );
   const examples: ExampleProgramSummary[] = matched.flatMap((m) => {

@@ -870,7 +870,11 @@ export const mockApi: TrainerApi = {
         daysPerWeek: e.daysPerWeek,
         createdAt: e.createdAt,
       })),
-      { goals: client?.goals ?? null, daysPerWeek: client?.sessionsPerWeek ?? null },
+      {
+        goals: client?.goals ?? null,
+        daysPerWeek: client?.sessionsPerWeek ?? null,
+        level: client?.experience ?? null,
+      },
       { excludeProgramId: input.basedOnProgramId ?? null, limit: 2 },
     ).map((m) => m.programId);
     gen.status = "validated";
