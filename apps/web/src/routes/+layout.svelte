@@ -60,7 +60,7 @@
     isAdmin ? [...baseGroups, { label: "Platform", items: [
             { href: "/admin", label: "Trainers", icon: "lock" },
             { href: "/admin/emails", label: "Emails", icon: "mail" },
-            { href: "/admin/emails/sent", label: "Sent emails", icon: "mail" },
+            { href: "/admin/emails/sent", label: "Outbox", icon: "mail" },
           ] }] : baseGroups,
   );
 
