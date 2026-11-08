@@ -219,7 +219,6 @@ const CARDIO_TARGET_RULE =
 const PRESCRIPTION_RULE =
   "- Prescription detail: for lifts listed in CLIENT 1RMs you may prescribe percent1rm instead of (or alongside) targetWeightKg; use targetRpeMin + targetRpe for RPE ranges, targetRir for reps in reserve, and tempo where tempo or pauses matter (e.g. comp-style pauses). An AMRAP set (amrap true) states stopRpe, never an RPE paired with going to failure.";
 
-/** The CLIENT 1RMs line; empty when none are recorded. */
 /** `PROFILE: intermediate (1–3 yrs training), 34 yrs, female, 72 kg bodyweight, 168 cm` — set parts only. */
 function profileLines(client: ClientContext): string[] {
   const parts = [
@@ -234,6 +233,7 @@ function profileLines(client: ClientContext): string[] {
   return parts.length ? [`PROFILE: ${parts.join(", ")}`] : [];
 }
 
+/** The CLIENT 1RMs line; empty when none are recorded. */
 function oneRepMaxLines(client: ClientContext): string[] {
   if (!client.oneRepMaxes?.length) return [];
   const list = client.oneRepMaxes.map((m) => `${m.name} [${m.exerciseId}] ${m.kg} kg (${m.date})`).join("; ");
