@@ -14,6 +14,11 @@ const OneRepMaxesBody = t.Record(
   { maxProperties: 200 }
 );
 
+/** Optional client email — `""` is accepted and stored as NULL. */
+const EmailBody = t.Optional(t.Union([t.String({ format: "email" }), t.Literal(""), t.Null()]));
+const normEmail = <B extends { email?: string | null }>(body: B): B =>
+  body.email === "" ? { ...body, email: null } : body;
+
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
   .use(trainerContext)
   .get("/", async ({ trainerId }) => {
@@ -44,14 +49,14 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     async ({ body, status, trainerId }) => {
       const [created] = await db
         .insert(clients)
-        .values({ ...body, trainerId })
+        .values({ ...normEmail(body), trainerId })
         .returning();
       return status(201, created);
     },
     {
       body: t.Object({
         name: t.String({ minLength: 1, maxLength: 120 }),
-        email: t.String({ format: "email" }),
+        email: EmailBody,
         goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         sessionsPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
@@ -80,7 +85,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     async ({ params, body, status }) => {
       const [updated] = await db
         .update(clients)
-        .set(body)
+        .set(normEmail(body))
         .where(eq(clients.id, params.id))
         .returning();
       if (!updated) return status(404, { error: "client not found" });
@@ -90,7 +95,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
       params: t.Object({ id: t.String() }),
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
-        email: t.Optional(t.String({ format: "email" })),
+        email: EmailBody,
         goals: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         limitations: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
         sessionsPerWeek: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
