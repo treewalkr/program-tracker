@@ -1,3 +1,4 @@
+import type { ClientExperience, ClientStatus } from "@pt/shared";
 import { client } from "./treaty";
 
 export interface TrainerAccount {
@@ -11,6 +12,19 @@ export interface TrainerAccount {
   clientCount: number;
   createdAt: string;
   lastSignInAt: string | null;
+}
+
+/** One client in the admin's read-only directory — no contact details or client notes. */
+export interface AdminClient {
+  id: string;
+  name: string;
+  status: ClientStatus;
+  experience: ClientExperience | null;
+  /** YYYY-MM-DD: the trainer's "client since", else the day the client was added. */
+  clientSince: string;
+  /** YYYY-MM-DD of the latest logged session; null = never logged. */
+  lastSessionAt: string | null;
+  trainer: { id: string; name: string; access: TrainerAccount["access"] };
 }
 
 /** LLM dataset counts (real calls only; mock calls are counted apart). */
@@ -67,6 +81,11 @@ export const adminApi = {
     const { data, error } = await client.v1.admin.trainers({ id }).patch(body);
     if (error) throw new Error(message(error));
     return data;
+  },
+  async clients(): Promise<AdminClient[]> {
+    const { data, error } = await client.v1.admin.clients.get();
+    if (error) throw new Error(message(error));
+    return data.clients;
   },
   async llmStats(): Promise<LlmDatasetStats> {
     const { data, error } = await client.v1.admin["llm-stats"].get();
