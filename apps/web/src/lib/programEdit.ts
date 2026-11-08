@@ -107,9 +107,14 @@ export function repsLabel(s: PrescribedSetDto): string {
   return s.repsMin != null && s.repsMin !== s.reps ? `${s.repsMin}–${s.reps}` : `${s.reps}`;
 }
 
-/** Stable snapshot used to detect unsaved edits. */
+/** Stable snapshot used to detect unsaved edits. Keys are sorted: Postgres jsonb
+ *  reorders them, so a saved program read back must still match the editor's copy. */
 export function snapshot(p: Pick<ProgramDto, "weeks" | "phasing">): string {
-  return JSON.stringify({ weeks: p.weeks, phasing: p.phasing ?? null });
+  return JSON.stringify({ weeks: p.weeks, phasing: p.phasing ?? null }, (_key, value) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map((k) => [k, value[k]]))
+      : value
+  );
 }
 
 /** Sub-line under the title: version, origin, and save time — never contradicting the status pill. */

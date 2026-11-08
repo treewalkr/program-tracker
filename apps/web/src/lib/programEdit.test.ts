@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
-import { isUniform, parseRange, patchAll, programSubline, setMode, withMode, withSetCount } from "./programEdit";
+import { isUniform, parseRange, patchAll, programSubline, setMode, snapshot, withMode, withSetCount } from "./programEdit";
 
 const set = (o: Partial<PrescribedSetDto> = {}): PrescribedSetDto => ({
   setNumber: 1,
@@ -96,5 +96,18 @@ describe("prescription cells (F22)", () => {
     expect(withRir(set(), "2").targetRir).toBe(2);
     expect(withRir(set({ targetRir: 2 }), "").targetRir).toBeUndefined();
     expect(withRir(set(), "14").targetRir).toBe(10);
+  });
+});
+
+describe("snapshot", () => {
+  test("ignores key order, so a saved program read back from jsonb is not dirty (F31)", () => {
+    const edited = { weeks: [], phasing: { plannedWeeks: 2, phase: "acc", nextPhase: null, weeks: [{ week: 2, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 6 } }] } };
+    const fromDb = { weeks: [], phasing: { nextPhase: null, phase: "acc", plannedWeeks: 2, weeks: [{ week: 2, target: { deltaPercent: 6, metric: "overall_volume" as const }, directive: "+volume" as const }] } };
+    expect(snapshot(edited)).toBe(snapshot(fromDb));
+  });
+
+  test("still sees a real change", () => {
+    const a = { weeks: [], phasing: { plannedWeeks: 2, phase: "acc" } };
+    expect(snapshot(a)).not.toBe(snapshot({ ...a, phasing: { ...a.phasing, phase: "int" } }));
   });
 });
