@@ -1,6 +1,8 @@
 import {
   BUILTIN_ROLE_LABELS,
   DELOAD_RULES,
+  GLOSSARY_PROMPT_LIMIT,
+  type GlossaryTerm,
   type RoleLabel,
   cardioLabel,
   cardioUnitLabel,
@@ -1099,16 +1101,21 @@ export interface ImportPromptContext {
   numbered: string;
   from: number;
   to: number;
+  /** The trainer's effective glossary, personal terms first (loadGlossary). */
+  glossary: Pick<GlossaryTerm, "term" | "meaning">[];
 }
 
-/** Shorthand the model expands in `name`. Version 1.1 replaces it with the trainer's glossary. */
-export const IMPORT_ABBREVIATIONS_TEXT = "BB → Barbell, DB → Dumbbell, KB → Kettlebell, SA → Single-Arm, SL → Single-Leg, OVH → Overhead, RDL → Romanian Deadlift";
+/** "TERM = meaning" lines, at most GLOSSARY_PROMPT_LIMIT, in the order given (personal first). */
+export function importVocabularyText(glossary: Pick<GlossaryTerm, "term" | "meaning">[]): string {
+  const lines = glossary.slice(0, GLOSSARY_PROMPT_LIMIT).map((g) => `${g.term} = ${g.meaning}`);
+  return lines.length ? lines.join("\n") : "(none yet)";
+}
 
 export function buildImportMessages(ctx: ImportPromptContext): { system: string; user: string } {
   const system = [
     "You read a personal trainer's training notes, pasted as numbered lines, and turn them into structured JSON. You never invent anything: every value you output must be written in its line.",
     "Respond with a single JSON object only, this shape (? = optional; omit a field the text does not give):",
-    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}]}]}]}]}], "skipped": [{"line": number, "reason": string}]}`,
+    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}]}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
     "Trainers write notes in many styles (day numbers or weekday names, \"4x8\" or \"3 sets of 10\", bullets, tables, copied chat messages, Thai or English). Read what each line means, not its exact wording.",
     "Structure:",
     '- A week header ("Week 3", "WEEK 1", "สัปดาห์ 2") starts a week: label as written, its line. No week headers → one week with label null and line null.',
@@ -1119,7 +1126,7 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
     "- Copied chat: ignore the timestamp and the speaker's name at the start of a line; read the message. Greetings, replies and questions are not training — skip them.",
     "Exercises:",
     "- sourceName = the exercise name exactly as written, typos included, without bullets, list markers (\"A1\", \"1.\"), parenthesized tags and the numbers that follow it.",
-    `- name = the same exercise with shorthand expanded and typos fixed (${IMPORT_ABBREVIATIONS_TEXT}). Don't swap it for a different exercise.`,
+    `- name = the same exercise with shorthand expanded and typos fixed — expand abbreviations as THIS TRAINER'S VOCABULARY below says. Don't swap it for a different exercise.`,
     '- A parenthesized technique tag right after the name ("(Power)", "(PAILs/RAILs)", "(Kinesis)", "(Static Stretch)", "(Pyramid)") goes in variation. Equipment ("machine", "(machine)", "เครื่อง", "cable") goes in equipment.',
     '- notes = every other instruction on the line, copied as written: load or intensity ("@ 60kg", "70%", "185 lb", "@ RPE 8"), tempo ("tempo 3-1-1"), rest ("rest 90s"), sides ("each leg", "/side", "ขาละข้าง"), cues ("slow eccentric"). Never drop them.',
     '- A group header ("Circuit – 3 rounds, 60s rest", "Superset x3", "EMOM 8 min", "Finisher: AMRAP 10 min") is not an exercise: copy its text into the notes of each exercise in the group (the lines under it, up to a blank line or the next header) and reference its line by skipping it with reason "group header". Never turn its rounds or minutes into sets.',
@@ -1136,6 +1143,11 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
     "Coverage and language:",
     "- Every non-blank line must be referenced by a week, day, session or exercise \"line\", or listed in skipped with a short reason. Lines with no letters or digits (separators) can be left out.",
     "- Never translate. Copy notes, names and labels exactly as written (Thai stays Thai).",
+    "New words:",
+    '- newTerms = shorthand, abbreviations and technique words you met in the lines that are NOT in THIS TRAINER\'S VOCABULARY: term exactly as written, the line it is on, and a short meaning only if you are confident, else null. List each once. No exercise names, no ordinary words. None → [].',
+    "",
+    "THIS TRAINER'S VOCABULARY (TERM = meaning):",
+    importVocabularyText(ctx.glossary),
   ].join("\n");
 
   const user = [`LINES ${ctx.from}–${ctx.to}:`, ctx.numbered].join("\n");

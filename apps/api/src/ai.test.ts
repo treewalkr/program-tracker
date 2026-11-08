@@ -14,7 +14,7 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import { AiProgramDraft, DELOAD_RULES, mergeRoleLabels, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
+import { AiProgramDraft, DEFAULT_GLOSSARY, DELOAD_RULES, mergeRoleLabels, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
 import { readFileSync } from "node:fs";
 import { mockImportContent } from "./ai/mock";
 
@@ -1750,14 +1750,30 @@ describe("client PROFILE line", () => {
 describe("buildImportMessages", () => {
   test("numbered lines in, the ImportChunk rules out", () => {
     const lines = importLines("Week 11\n\nSA Row 6-10 reps x 3 sets - 10(20kg)");
-    const { system, user } = buildImportMessages({ numbered: numberedLines(lines, 1, 3), from: 1, to: 3 });
+    const glossary = [
+      { term: "LPD", meaning: "lat pulldown" },
+      ...DEFAULT_GLOSSARY,
+    ];
+    const { system, user } = buildImportMessages({ numbered: numberedLines(lines, 1, 3), from: 1, to: 3, glossary });
     expect(user).toBe("LINES 1–3:\nL1: Week 11\nL2: \nL3: SA Row 6-10 reps x 3 sets - 10(20kg)");
     expect(system).toContain("JSON object only");
-    expect(system).toContain("SA → Single-Arm");
+    // the trainer's vocabulary replaces the hard-coded shorthand list, personal terms first
+    expect(system).toContain("THIS TRAINER'S VOCABULARY (TERM = meaning):\nLPD = lat pulldown\nBB = barbell");
+    expect(system).toContain("SA = single arm");
+    expect(system).toContain("expand abbreviations as THIS TRAINER'S VOCABULARY below says");
+    expect(system).toContain('"newTerms": [{"term": string, "line": number, "meaning": string|null}]');
     expect(system).toContain("Never translate");
     expect(system).toContain("prescription null");
     // the example output shape the prompt describes is what the schema accepts
     expect(ImportChunk.safeParse(WEEK11_12_EXTRACTION).success).toBe(true);
+  });
+
+  test("the vocabulary block holds at most 200 terms", () => {
+    const glossary = Array.from({ length: 250 }, (_, i) => ({ term: `T${i}`, meaning: "m" }));
+    const { system } = buildImportMessages({ numbered: "L1: x", from: 1, to: 1, glossary });
+    expect(system).toContain("T199 = m");
+    expect(system).not.toContain("T200 = m");
+    expect(buildImportMessages({ numbered: "L1: x", from: 1, to: 1, glossary: [] }).system).toContain("(TERM = meaning):\n(none yet)");
   });
 
   test("mock content is the fixture extraction for the chunk", () => {
