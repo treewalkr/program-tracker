@@ -3,6 +3,7 @@ import {
   boolean,
   customType,
   date,
+  doublePrecision,
   index,
   integer,
   smallint,
@@ -58,6 +59,7 @@ import type {
   StoredChatProposal,
   WeekPlan,
   WeekSummaryStats,
+  BuiltinRole,
 } from "@pt/shared";
 
 // ---------------------------------------------------------------------------
@@ -328,6 +330,37 @@ export const exerciseAliases = pgTable(
   (t) => [unique("exercise_aliases_trainer_alias_key").on(t.trainerId, t.alias).nullsNotDistinct()]
 );
 export type ExerciseAliasRow = typeof exerciseAliases.$inferSelect;
+
+/**
+ * Role labels (docs/role-labels-plan.md). A row with builtin_key overrides a
+ * built-in's chip/description/rank for that trainer (key and name stay
+ * fixed); a row without one is the trainer's own label, stored on program
+ * exercises as `label:<id>`. trainer_id null = global (none yet).
+ */
+export const roleLabels = pgTable(
+  "role_labels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "cascade" }),
+    builtinKey: text("builtin_key").$type<BuiltinRole>(),
+    name: text("name").notNull(),
+    /** Chip text; null = the name. */
+    chip: text("chip"),
+    /** Required for the trainer's own labels (the app checks); null on an override = the built-in's. */
+    description: text("description"),
+    /** Sort position; built-in defaults are 100, 200, … */
+    rank: doublePrecision("rank").notNull(),
+    /** Set = out of the picker and AI list; programs still render it. */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("role_labels_trainer_name_idx").on(t.trainerId, sql`lower(${t.name})`),
+    uniqueIndex("role_labels_trainer_builtin_idx").on(t.trainerId, t.builtinKey).where(sql`${t.builtinKey} is not null`),
+  ]
+);
+export type RoleLabelRow = typeof roleLabels.$inferSelect;
 
 export const chatMessages = pgTable("chat_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
