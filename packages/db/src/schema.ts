@@ -15,6 +15,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -36,6 +37,9 @@ import type {
   FeedbackStatus,
   FunctionalMovement,
   GenerationStatus,
+  AliasSource,
+  ImportResult,
+  ImportStatus,
   LlmCallStatus,
   LlmPurpose,
   LlmSignal,
@@ -272,6 +276,58 @@ export type ProgramRow = typeof programs.$inferSelect;
 export type SessionLogRow = typeof sessionLogs.$inferSelect;
 export type SetLogRow = typeof setLogs.$inferSelect;
 export type AiGenerationRow = typeof aiGenerations.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Paste import (docs/paste-import-plan.md) — stored so a long read survives a
+// dropped connection and can be cancelled; settle only moves a pending row.
+// ---------------------------------------------------------------------------
+
+export const aiImports = pgTable(
+  "ai_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** The paste as sent (≤ 20,000 characters). */
+    text: text("text").notNull(),
+    providerId: text("provider_id").notNull(),
+    model: text("model").notNull(),
+    effort: text("effort"),
+    status: text("status").$type<ImportStatus>().notNull().default("pending"),
+    chunksTotal: integer("chunks_total").notNull().default(0),
+    chunksDone: integer("chunks_done").notNull().default(0),
+    /** Null until done. */
+    result: jsonb("result").$type<ImportResult>(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ai_imports_client_idx").on(t.clientId, t.createdAt)]
+);
+export type AiImportRow = typeof aiImports.$inferSelect;
+
+/** A name as a trainer writes it → one exercise. trainer_id null = global (seeded, admin-only). */
+export const exerciseAliases = pgTable(
+  "exercise_aliases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "cascade" }),
+    /** normalizeAlias(): lowercase, trimmed, punctuation removed, single spaces. */
+    alias: text("alias").notNull(),
+    exerciseId: uuid("exercise_id")
+      .notNull()
+      .references(() => exercises.id, { onDelete: "cascade" }),
+    source: text("source").$type<AliasSource>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("exercise_aliases_trainer_alias_key").on(t.trainerId, t.alias).nullsNotDistinct()]
+);
+export type ExerciseAliasRow = typeof exerciseAliases.$inferSelect;
 
 export const chatMessages = pgTable("chat_messages", {
   id: uuid("id").primaryKey().defaultRandom(),

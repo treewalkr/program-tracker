@@ -245,6 +245,14 @@ export interface ImportResult {
   alternating: boolean;
 }
 
+/** ai_imports.status — settle only ever moves a pending row. */
+export const IMPORT_STATUSES = ["pending", "done", "failed", "cancelled"] as const;
+export type ImportStatus = (typeof IMPORT_STATUSES)[number];
+
+/** exercise_aliases.source. */
+export const ALIAS_SOURCES = ["import", "manual", "seed"] as const;
+export type AliasSource = (typeof ALIAS_SOURCES)[number];
+
 export type ImportChunkOutcome = ImportChunkRange & ({ ok: true; data: ImportChunk } | { ok: false; error: string });
 
 // ---------------------------------------------------------------------------
