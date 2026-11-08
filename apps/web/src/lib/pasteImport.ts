@@ -23,6 +23,9 @@ export const exerciseKey = (w: number, d: number, s: number, e: number) => `w${w
 
 // —— blocks ————————————————————————————————————————————————————————————
 
+/** False when the read found no session at all (not a program) — there is nothing to review. */
+export const hasTraining = (r: ImportResult): boolean => r.weeks.some((w) => w.days.some((d) => d.sessions.length > 0));
+
 /** The week a block drafts from: its latest. */
 export const templateWeekIndex = (r: ImportResult, block: number): number => r.blocks[block]?.weeks.at(-1) ?? 0;
 

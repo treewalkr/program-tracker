@@ -15,6 +15,7 @@ import {
   defaultChoice,
   flagSummary,
   formFromImport,
+  hasTraining,
   itemsByLine,
   lineOfItem,
   lineStates,
@@ -61,6 +62,24 @@ let n = 0;
 const newKey = () => `k${++n}`;
 const resolve = (c: MatchChoice) =>
   c.kind === "catalog" ? { exerciseId: c.exerciseId, exerciseName: c.exerciseName } : { exerciseId: `new:${c.exerciseName}`, exerciseName: c.exerciseName };
+
+describe("hasTraining", () => {
+  test("a read with no sessions has nothing to review", () => {
+    const empty = buildImportResult("You read a trainer's notes\nRespond with JSON", [
+      { from: 1, to: 2, ok: true, data: { weeks: [], skipped: [{ line: 1, reason: "not training" }, { line: 2, reason: "not training" }] } },
+    ]);
+    expect(hasTraining(empty)).toBe(false);
+    const daysOnly = buildImportResult("Day 1", [
+      { from: 1, to: 1, ok: true, data: { weeks: [{ label: null, line: null, days: [{ label: "Day 1", line: 1, sessions: [] }] }], skipped: [] } },
+    ]);
+    expect(hasTraining(daysOnly)).toBe(false);
+  });
+
+  test("the fixture has training", () => {
+    const r = buildImportResult(FIXTURE, chunkLines(LINES).map((c) => ({ ...c, ok: true as const, data: mockImportExtraction(LINES, c.from, c.to) })));
+    expect(hasTraining(r)).toBe(true);
+  });
+});
 
 describe("blocks", () => {
   test("labels each block with its weeks and the template week's lifting days", () => {

@@ -24,6 +24,7 @@
     exerciseKey,
     flagSummary,
     formFromImport,
+    hasTraining,
     itemsByLine,
     lineOfItem,
     lineStates,
@@ -113,7 +114,13 @@
   function settle(r: ImportDto) {
     row = r;
     importId = r.id;
-    if (r.status === "done" && r.result) {
+    if (r.status === "done" && r.result && !hasTraining(r.result)) {
+      // read fine, but no training in it — back to the notes, never a blank review
+      phase = "write";
+      notice = "No training found in these notes, so there's nothing to draft. Paste a program with exercises, sets or reps.";
+      importId = null;
+      keep();
+    } else if (r.status === "done" && r.result) {
       phase = "review";
       block = r.result.defaultBlock;
       choices = {};
@@ -671,6 +678,14 @@
       {/each}
     </section>
   </div>
+{:else}
+  <!-- never a blank page: a review with nothing to show falls back here -->
+  <section class="panel compose" role="status">
+    <div class="panel-body stack">
+      <p>There's nothing to review for these notes.</p>
+      <div><Button variant="primary" onclick={editText}>Back to your notes</Button></div>
+    </div>
+  </section>
 {/if}
 
 <style>
