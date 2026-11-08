@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import {
   aiGenerations,
+  aiImports,
   chatMessages,
   clientMessages,
   clients,
@@ -29,6 +30,7 @@ const NOUN = new Map<Owned, string>([
   [clients, "client"],
   [programs, "program"],
   [aiGenerations, "generation"],
+  [aiImports, "import"],
   [chatMessages, "proposal"],
   [clientMessages, "client message"],
   [programExamples, "example"],
@@ -44,6 +46,7 @@ const PATH_OWNERS: [prefix: string, table: Owned][] = [
   ["/v1/clients/", clients],
   ["/v1/programs/", programs],
   ["/v1/ai/generations/", aiGenerations],
+  ["/v1/ai/imports/", aiImports],
   ["/v1/ai/chat/proposals/", chatMessages],
   ["/v1/client-messages/", clientMessages],
   ["/v1/examples/", programExamples],

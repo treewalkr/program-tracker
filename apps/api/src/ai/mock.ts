@@ -135,7 +135,10 @@ export function mockGroundedChatReply(message: string, clientName: string | null
 }
 
 /** Canned paste-import extraction: the Week 11–12 fixture's items on lines from…to
- *  (packages/shared/fixtures/import). Other text reads as nothing found. */
+ *  (packages/shared/fixtures/import). Other text reads as nothing found; a chunk
+ *  with a "mock: unreadable" line returns invalid output (a chunk that fails). */
+export const MOCK_UNREADABLE = "mock: unreadable";
 export function mockImportContent(lines: string[], from: number, to: number): string {
+  if (lines.slice(from - 1, to).some((l) => l.includes(MOCK_UNREADABLE))) return "not json";
   return JSON.stringify(mockImportExtraction(lines, from, to));
 }
