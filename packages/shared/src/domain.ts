@@ -354,25 +354,30 @@ export const EXERCISE_ROLES = ["power", "primary", "strength", "accessory", "cor
 export const ExerciseRole = z.enum(EXERCISE_ROLES);
 export type ExerciseRole = z.infer<typeof ExerciseRole>;
 
-/** Chip label (the trainer's shorthand) and tooltip copy per role; also fed to the AI prompt. */
-export const EXERCISE_ROLE_INFO: Record<ExerciseRole, { label: string; description: string }> = {
+/** Full name (pickers), chip label (the trainer's shorthand) and tooltip copy per role; the copy is also fed to the AI prompt. */
+export const EXERCISE_ROLE_INFO: Record<ExerciseRole, { name: string; label: string; description: string }> = {
   power: {
+    name: "Power",
     label: "Power",
     description: "Explosive, low-rep work done fresh — jumps, throws, Olympic lift variations.",
   },
   primary: {
+    name: "Primary",
     label: "Primary",
     description: "The main lift the session is built around — the heaviest compound movement.",
   },
   strength: {
+    name: "Secondary",
     label: "Str",
     description: "Secondary compound strength work that supports the primary lift.",
   },
   accessory: {
+    name: "Accessory",
     label: "Aux",
     description: "Isolation or higher-rep assistance work for hypertrophy, weak points and balance.",
   },
   core: {
+    name: "Core",
     label: "Core",
     description: "Trunk and anti-movement work, typically closing the session.",
   },
