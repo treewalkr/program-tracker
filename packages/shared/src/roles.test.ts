@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { sortExercisesByRole } from "./domain";
+import { DraftExerciseRef } from "./ai";
+import type { ExerciseRole } from "./domain";
 import {
   BUILTIN_ROLE_LABELS,
+  fixDraftRoles,
   isKnownRole,
   mergeRoleLabels,
   rankAfter,
@@ -147,5 +150,54 @@ describe("suggestRole", () => {
 
   test("isolation pattern wins over a compound-sounding name", () => {
     expect(suggestRole(ex("Leg Press Calf Raise", { movementPattern: "isolation" }), [], 0)).toBe("accessory");
+  });
+});
+
+describe("fixDraftRoles", () => {
+  const sets = (r: number) => [{ setNumber: 1, type: "working" as const, amrap: false, reps: r }];
+  const draft = (exercises: { exerciseName: string; role?: any; reps?: number }[]) => ({
+    name: "d",
+    rationale: "why",
+    clientSummary: "",
+    sessions: [{ name: "Lower", kind: "lifting", exercises: exercises.map((e) => ({ exerciseName: e.exerciseName, role: e.role, prescribedSets: sets(e.reps ?? 5) })) }],
+  });
+
+  test("missing and unknown labels are filled by suggestRole; known ones stay", () => {
+    const merged = mergeRoleLabels([row({})]);
+    const out = fixDraftRoles(
+      draft([
+        { exerciseName: "Back Squat" },
+        { exerciseName: "Leg Curl", role: `label:${id2}` },
+        { exerciseName: "Box Jump", role: `label:${id1}` },
+      ]),
+      merged
+    );
+    expect(out.draft.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "accessory", `label:${id1}`]);
+    expect(out.filled).toBe(2);
+    expect(out.notes).toEqual([]);
+  });
+
+  test("catalog hints feed the suggestion", () => {
+    const d = { ...draft([{ exerciseName: "Thing" }]), sessions: [{ name: "A", exercises: [{ exerciseId: "x", role: undefined as ExerciseRole | undefined, prescribedSets: sets(10) }] }] };
+    const out = fixDraftRoles(d, BUILTIN_ROLE_LABELS, () => ({ movementPattern: "anti_extension" }));
+    expect(out.draft.sessions[0].exercises[0].role).toBe("core");
+  });
+
+  test("two Primaries in a session → a note, not a change", () => {
+    const out = fixDraftRoles(
+      draft([
+        { exerciseName: "Squat", role: "primary" },
+        { exerciseName: "Deadlift", role: "primary" },
+      ]),
+      BUILTIN_ROLE_LABELS
+    );
+    expect(out.draft.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary"]);
+    expect(out.notes).toHaveLength(1);
+    expect(out.notes[0]).toContain("Lower");
+  });
+
+  test("the draft gate drops an unknown role instead of failing", () => {
+    const parsed = DraftExerciseRef.parse({ exerciseName: "Squat", role: "warmup", prescribedSets: sets(5) });
+    expect(parsed.role).toBeUndefined();
   });
 });

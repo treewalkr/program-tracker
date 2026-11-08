@@ -203,3 +203,53 @@ export function suggestRole(exercise: RoleHints, sessionExercises: readonly Role
 export const suggestRoles = (session: readonly RoleHints[]): BuiltinRole[] =>
   session.map((e, i) => suggestRole(e, session, i));
 
+
+// ---------------------------------------------------------------------------
+// Draft checks — every AI draft exercise ends with a known label
+// ---------------------------------------------------------------------------
+
+interface DraftLike {
+  rationale: string;
+  sessions: {
+    name: string;
+    kind?: string;
+    exercises?: {
+      exerciseId?: string;
+      exerciseName?: string;
+      role?: ExerciseRole;
+      prescribedSets: readonly { reps?: number | null; type?: string | null }[];
+    }[];
+  }[];
+}
+
+/**
+ * A missing or unknown (or archived) label → suggestRole; a lifting session
+ * with more than one Primary keeps them, with an info note for the trainer.
+ * `hintsFor` supplies catalog fields (pattern, muscle, equipment) by id.
+ */
+export function fixDraftRoles<D extends DraftLike>(
+  draft: D,
+  labels: readonly RoleLabel[],
+  hintsFor: (exerciseId: string | undefined) => Omit<RoleHints, "name" | "prescribedSets"> | undefined = () => undefined
+): { draft: D; notes: string[]; filled: number } {
+  const notes: string[] = [];
+  let filled = 0;
+  const sessions = draft.sessions.map((s) => {
+    if (!s.exercises?.length) return s;
+    const hints: RoleHints[] = s.exercises.map((e) => ({
+      ...hintsFor(e.exerciseId),
+      name: e.exerciseName ?? "",
+      prescribedSets: e.prescribedSets,
+    }));
+    const exercises = s.exercises.map((e, i) => {
+      if (isKnownRole(e.role, labels)) return e;
+      filled++;
+      return { ...e, role: suggestRole(hints[i], hints, i) };
+    });
+    if (exercises.filter((e) => e.role === "primary").length > 1) {
+      notes.push(`${s.name} has more than one Primary lift — usually one leads the session.`);
+    }
+    return { ...s, exercises };
+  });
+  return { draft: { ...draft, sessions }, notes, filled };
+}

@@ -105,8 +105,9 @@ export const DraftExerciseRef = z
   .object({
     exerciseId: z.string().uuid().optional(),
     exerciseName: z.string().min(1).max(160).optional(),
-    /** Session slot; the prompt asks for one on every exercise, the gate tolerates its absence. */
-    role: ExerciseRole.optional(),
+    /** Label; the prompt asks for one on every exercise. An unknown value is dropped
+     *  here and filled by suggestRole when the draft is settled (fixDraftRoles). */
+    role: ExerciseRole.optional().catch(undefined),
     prescribedSets: z.array(PrescribedSet).min(1).max(20),
     notes: z.string().max(1000).optional(),
   })
