@@ -31,7 +31,7 @@ describe("KNOWN_PROVIDERS", () => {
     expect(parsed.models[0]).toBe("deepseek-flash");
     expect(parsed.baseUrl).toBe("https://api.deepseek.com");
     expect(parsed.apiKeyEnvVar).toBe("DEEPSEEK_API_KEY");
-    expect(parsed.maxOutputTokens).toBe(16384);
+    expect(parsed.maxOutputTokens).toBe(65536);
   });
 
   test("T1b effort levels use one vocabulary, mock takes none", () => {

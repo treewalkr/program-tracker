@@ -105,7 +105,7 @@ describe("providerRuntime (deepseek)", () => {
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-flash",
       apiKey: "k",
-      maxOutputTokens: 16384,
+      maxOutputTokens: 65536,
       effortLevels: ["none", "low", "high", "max"],
       defaultEffort: "max",
     });
@@ -178,7 +178,7 @@ describe("chatJson (deepseek request shape)", () => {
     expect(headers?.get("authorization")).toBe("Bearer k");
     expect(body.model).toBe("deepseek-flash");
     expect(body.response_format).toEqual({ type: "json_object" });
-    expect(body.max_tokens).toBe(16384);
+    expect(body.max_tokens).toBe(65536);
     expect("thinking" in body).toBe(false);
     expect("reasoning_effort" in body).toBe(false); // no selection → byte-identical body
   });

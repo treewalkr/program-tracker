@@ -24,7 +24,7 @@ export const AiProviderConfig = z.object({
   /** API key is injected server-side from env — never serialized to clients. */
   apiKeyEnvVar: z.string().min(1),
   /** Max output tokens for program generation. */
-  maxOutputTokens: z.number().int().min(256).max(32768).default(8192),
+  maxOutputTokens: z.number().int().min(256).max(65536).default(8192),
   /**
    * Reasoning-effort levels the trainer may pick for this provider's models
    * (UI selector; absent = the provider takes no effort parameter).
@@ -46,7 +46,7 @@ export const KNOWN_PROVIDERS = {
     label: "DeepSeek",
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
-    maxOutputTokens: 16384,
+    maxOutputTokens: 65536,
     // "none" switches thinking off (reasoning_effort: none, api-docs.deepseek.com/guides/thinking_mode)
     effortLevels: ["none", "low", "high", "max"],
     defaultEffort: "max", // sent on every call that picks none (callLlm)
