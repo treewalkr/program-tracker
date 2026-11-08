@@ -10,7 +10,7 @@
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
-  import { theme, syncThemeAttribute, type ThemePref } from "$lib/theme.svelte";
+  import { syncThemeAttribute } from "$lib/theme.svelte";
 
   let { children, data } = $props();
 
@@ -27,13 +27,6 @@
   let clientCount = $state<number | null>(null);
 
   syncThemeAttribute();
-  const THEME_UI: Record<ThemePref, { label: string; icon: IconName }> = {
-    system: { label: "System theme", icon: "monitor" },
-    light: { label: "Light theme", icon: "sun" },
-    dark: { label: "Dark theme", icon: "moon" },
-  };
-  const themeUi = $derived(THEME_UI[theme.pref]);
-  const nextTheme = $derived(THEME_UI[theme.pref === "system" ? "light" : theme.pref === "light" ? "dark" : "system"]);
 
   type NavGroup = { label: string; items: { href: string; label: string; icon: IconName }[] };
   const baseGroups: NavGroup[] = [
@@ -198,16 +191,6 @@
         {#each utility as item (item.href)}
           {@render navItem(item)}
         {/each}
-        <button
-          type="button"
-          class="nav-item theme-toggle"
-          title="{themeUi.label} — switch to {nextTheme.label.toLowerCase()}"
-          aria-label="{themeUi.label}. Switch to {nextTheme.label.toLowerCase()}"
-          onclick={theme.cycle}
-        >
-          <Icon name={themeUi.icon} />
-          <span class="nav-text">{themeUi.label}</span>
-        </button>
       </nav>
 
       <div class="account" class:demo={!live}>
@@ -378,14 +361,6 @@
   .nav-item:hover { background: var(--well-2); text-decoration: none; }
   .nav-item:hover :global(svg) { color: var(--ink); }
   .nav-item.active { background: var(--active); font-weight: 600; }
-  .theme-toggle {
-    appearance: none;
-    width: 100%;
-    border: 0;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-  }
   .nav-item.active :global(svg) { color: var(--ink); }
   .unread {
     margin-left: auto;

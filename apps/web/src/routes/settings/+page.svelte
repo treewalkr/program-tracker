@@ -6,9 +6,17 @@
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Button from "$lib/ui/Button.svelte";
+  import Icon, { type IconName } from "$lib/ui/Icon.svelte";
+  import { theme, type ThemePref } from "$lib/theme.svelte";
   import { accountApi, type NotificationPatch, type NotificationSettings } from "$lib/account";
   import { feedbackApi } from "$lib/feedback/client";
   import type { FeedbackReplyScope } from "@pt/shared";
+
+  const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
+    { value: "system", label: "System", icon: "monitor" },
+    { value: "light", label: "Light", icon: "sun" },
+    { value: "dark", label: "Dark", icon: "moon" },
+  ];
 
   const webBuild = __APP_VERSION__;
   /** undefined while loading, null if the API didn't answer. */
@@ -77,9 +85,32 @@
 
 <svelte:head><title>Settings · Program Tracker</title></svelte:head>
 
-<PageHead title="Settings" sub="Your email and this app's version" />
+<PageHead title="Settings" sub="Appearance, your email and this app's version" />
 
-<div>
+<Panel title="Appearance">
+  <div class="appearance">
+    <div class="theme-pick" role="radiogroup" aria-label="Theme">
+      {#each THEMES as t (t.value)}
+        <label class="theme-opt" class:on={theme.pref === t.value}>
+          <input
+            type="radio"
+            name="theme"
+            value={t.value}
+            checked={theme.pref === t.value}
+            onchange={() => theme.set(t.value)}
+          />
+          <Icon name={t.icon} />
+          <span>{t.label}</span>
+        </label>
+      {/each}
+    </div>
+    <p class="muted">
+      {theme.pref === "system" ? "Matches your device setting." : "Saved for this browser."}
+    </p>
+  </div>
+</Panel>
+
+<div class="section">
   <Panel title="Email">
     <div class="email">
       {#if notif === undefined}
@@ -201,7 +232,37 @@
   .pad { padding: 16px; }
   .pad.mismatch { padding-top: 0; }
 
-  .about-wrap { margin-top: 16px; }
+  .about-wrap,
+  .section { margin-top: 16px; }
+
+  .appearance { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 14px 16px; font-size: 13px; }
+  .appearance .muted { color: var(--muted); margin: 0; }
+  .theme-pick {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    background: var(--well-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .theme-opt {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: calc(var(--radius) - 2px);
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color 120ms ease-out, color 120ms ease-out;
+  }
+  .theme-opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .theme-opt :global(svg) { width: 14px; height: 14px; stroke-width: 1.6; }
+  .theme-opt:hover { color: var(--ink); }
+  .theme-opt.on { background: var(--well); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+  .theme-opt:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 1px; }
+  @media (prefers-reduced-motion: reduce) { .theme-opt { transition: none; } }
 
   .email { padding: 14px 16px; font-size: 13px; }
   .email .muted { color: var(--muted); margin: 0; }
