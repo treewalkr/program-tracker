@@ -404,7 +404,7 @@
         />
       {:else if plan}
         <BlockPlanStrip phasing={plan} bind:selected={week} changed={changedWeeks} />
-        <p class="legend">Bars: volume index chained from each week's target (W1 = 100). Load index under each week.</p>
+        <p class="legend">Bars: volume index chained from each week's target (W1 = 100). Load index under each week; a deload week drops load 10 %.</p>
       {:else}
         <p class="subtle m0">This draft has no block plan.</p>
       {/if}

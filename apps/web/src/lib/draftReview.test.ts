@@ -39,7 +39,31 @@ describe("block plan helpers", () => {
 
   test("planIndexes chains volume and load from the targets", () => {
     const idx = planIndexes(plan).map((x) => [Math.round(x.vol), +x.load.toFixed(1)]);
-    expect(idx).toEqual([[100, 100], [105, 100], [105, 102.5], [63, 102.5]]);
+    expect(idx).toEqual([[100, 100], [105, 100], [105, 102.5], [63, 92.3]]);
+  });
+
+  test("planIndexes uses a deload week's intensity target instead of the deload rule", () => {
+    const ph: ProgramPhasingDto = {
+      ...plan,
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "deload", target: { metric: "intensity", deltaPercent: -5 } },
+      ],
+    };
+    expect(planIndexes(ph).map((x) => [Math.round(x.vol), +x.load.toFixed(1)])).toEqual([[100, 100], [100, 95]]);
+  });
+
+  test("planIndexes resumes from pre-deload values after a deload", () => {
+    const ph: ProgramPhasingDto = {
+      ...plan,
+      weeks: [
+        ...plan.weeks!,
+        { week: 5, directive: "deload", target: { metric: "overall_volume", deltaPercent: -50 } },
+        { week: 6, directive: "+volume", target: { metric: "overall_volume", deltaPercent: 5 } },
+      ],
+    };
+    const idx = planIndexes(ph).map((x) => [+x.vol.toFixed(1), +x.load.toFixed(1)]);
+    expect(idx.slice(3)).toEqual([[63, 92.3], [52.5, 92.3], [110.3, 102.5]]);
   });
 
   test("planChanges lists directive, target, note and phase edits", () => {

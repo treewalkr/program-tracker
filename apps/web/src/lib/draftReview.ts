@@ -1,4 +1,5 @@
 import {
+  DELOAD_LOAD_FACTOR,
   DELOAD_VOLUME_DELTA_PERCENT,
   hardSetCount,
   sessionsPatternBalance,
@@ -22,14 +23,24 @@ export { weekTargetLabel, planChanges, type PlanChange };
 /**
  * Volume and load index per week, chained from each week's % target (week 1 = 100).
  * Volume targets (overall/rep) move `vol`; intensity targets move `load`.
+ * A deload week without an intensity target drops load by the deload rule
+ * (×DELOAD_LOAD_FACTOR). A deload is a one-week dip: the next week resumes from
+ * the last pre-deload values, so back-to-back deloads each dip from that baseline.
  */
 export function planIndexes(ph: ProgramPhasingDto): { vol: number; load: number }[] {
+  // Trim float noise (100 × 1.025 × 0.9 = 92.24999…) so display rounding is honest.
+  const clean = (n: number) => +n.toPrecision(12);
   let vol = 100;
   let load = 100;
   return (ph.weeks ?? []).map((w) => {
-    if (w.target && w.target.metric !== "intensity") vol *= 1 + w.target.deltaPercent / 100;
-    if (w.target && w.target.metric === "intensity") load *= 1 + w.target.deltaPercent / 100;
-    return { vol, load };
+    const volTarget = w.target && w.target.metric !== "intensity" ? 1 + w.target.deltaPercent / 100 : 1;
+    const loadTarget = w.target && w.target.metric === "intensity" ? 1 + w.target.deltaPercent / 100 : null;
+    if (w.directive === "deload") {
+      return { vol: clean(vol * volTarget), load: clean(load * (loadTarget ?? DELOAD_LOAD_FACTOR)) };
+    }
+    vol *= volTarget;
+    load *= loadTarget ?? 1;
+    return { vol: clean(vol), load: clean(load) };
   });
 }
 

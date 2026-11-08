@@ -4,7 +4,8 @@
 
   /**
    * The block's weeks as a row of tiles: directive, % target, and a bar for the
-   * volume index chained from the targets (week 1 = 100). Tiles are buttons —
+   * volume index chained from the targets (week 1 = 100). A deload week dips
+   * load 10 % and the following week resumes from pre-deload values. Tiles are buttons —
    * picking one shows its note. `changed` outlines weeks edited since the
    * previous version.
    */
