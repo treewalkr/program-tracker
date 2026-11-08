@@ -306,6 +306,8 @@ export const aiImports = pgTable(
     /** Null until done. */
     result: jsonb("result").$type<ImportResult>(),
     error: text("error"),
+    /** History import (v2): the archived programs saved from this import's logged numbers; null = not saved. */
+    historyProgramIds: uuid("history_program_ids").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
