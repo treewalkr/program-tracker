@@ -103,6 +103,6 @@ export function nameError(name: string): string | null {
 
 export function emailError(email: string): string | null {
   const e = email.trim();
-  if (e === "") return "Enter the client's email";
+  if (e === "") return null; // optional
   return EMAIL.test(e) ? null : "Enter a full email, like ada@gym.com";
 }

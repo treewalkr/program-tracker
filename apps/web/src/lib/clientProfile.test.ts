@@ -26,7 +26,8 @@ test("stack note states the real count", () => {
 test("identity errors name what to fix", () => {
   expect(nameError("  ")).toBe("Enter the client's name");
   expect(nameError("Ada")).toBeNull();
-  expect(emailError("")).toBe("Enter the client's email");
+  expect(emailError("")).toBeNull();
+  expect(emailError("   ")).toBeNull();
   expect(emailError("test@")).toBe("Enter a full email, like ada@gym.com");
   expect(emailError(" ada@gym.com ")).toBeNull();
 });
