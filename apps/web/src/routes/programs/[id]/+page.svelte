@@ -8,6 +8,8 @@
     addSet,
     addSession,
     applyPlacementToAllWeeks,
+    DELOAD_RULES,
+    deloadWeek,
     moveExercise,
     removeExercise,
     formatPatternBalance,
@@ -236,18 +238,10 @@
     }
   }
 
-  /** Deload: cut every working-set load target by ~10% on viewed week only, rounded to the 2.5kg grid. */
+  /** Deload the viewed week with the shared rule (deloadWeek): half the sets, −10 % loads, RPE ≤ 6, no AMRAP. */
   function applyDeload() {
     if (!currentWeek) return;
-    for (const s of currentWeek.sessions) {
-      for (const e of s.exercises) {
-        for (const ps of e.prescribedSets) {
-          if (ps.type === "working" && ps.targetWeightKg != null) {
-            ps.targetWeightKg = Math.max(0, Math.round((ps.targetWeightKg * 0.9) / 2.5) * 2.5);
-          }
-        }
-      }
-    }
+    setWeek(deloadWeek($state.snapshot(currentWeek) as ProgramWeek));
   }
 
   onMount(load);
@@ -363,7 +357,7 @@
     <div class="week-bar">
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
       {#if editable}
-        <button class="btn ghost small" onclick={applyDeload} title="Cut this week's working-set loads ~10%, rounded to 2.5kg">Deload week −10%</button>
+        <button class="btn ghost small" onclick={applyDeload} title={`Deload week ${currentWeek.week}: ${DELOAD_RULES}`}>Deload this week</button>
         <button class="btn ghost small" aria-expanded={showPhasing} onclick={() => (showPhasing = !showPhasing)}>Block phasing {showPhasing ? "▴" : "▾"}</button>
       {/if}
     </div>
