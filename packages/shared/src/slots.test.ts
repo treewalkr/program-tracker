@@ -181,7 +181,8 @@ test("diffDrafts sees tempo, %1RM, RIR and stop-RPE edits", () => {
   const rx = (a: Record<string, unknown>, b: Record<string, unknown>) => diffDrafts(d(a), d(b)).map((c) => [c.from, c.to]);
   expect(rx({ tempo: "3-1-1-0" }, { tempo: "2-0-1-0" })).toEqual([["tempo 3-1-1-0", "tempo 2-0-1-0"]]);
   expect(rx({ percent1rm: 75 }, { percent1rm: 77.5 })).toEqual([["75% 1RM", "77.5% 1RM"]]);
-  expect(rx({}, { targetRir: 2 })).toEqual([["no rir", "RIR 2"]]);
+  expect(rx({}, { targetRir: 2 })).toEqual([["no RIR", "RIR 2"]]);
+  expect(rx({ targetWeightKg: 65 }, { percent1rm: 75 })).toEqual([["65 kg, no %1RM", "no load, 75% 1RM"]]);
   expect(rx({ stopRpe: 9 }, { stopRpe: 8 })).toEqual([["stop @ RPE 9", "stop @ RPE 8"]]);
 });
 

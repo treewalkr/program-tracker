@@ -126,6 +126,17 @@ export interface RxParts {
   rest: string | null;
 }
 const RX_KEYS = ["volume", "load", "pct", "rpe", "rir", "stop", "tempo", "rest"] as const;
+/** What an absent part reads as in a change ("no load" → "100 kg"). */
+const RX_NONE: Record<(typeof RX_KEYS)[number], string> = {
+  volume: "no volume",
+  load: "no load",
+  pct: "no %1RM",
+  rpe: "no rpe",
+  rir: "no RIR",
+  stop: "no stop RPE",
+  tempo: "no tempo",
+  rest: "no rest",
+};
 
 const hasRpeRange = (sets: SlotDiffSet[]) => sets.some((s) => s.targetRpeMin != null && s.targetRpe != null);
 const rpeToken = (s: SlotDiffSet) =>
@@ -182,8 +193,8 @@ function rxDelta(a: SlotDiffSet[], b: SlotDiffSet[]): [string, string] | null {
   const to: string[] = [];
   for (const k of RX_KEYS) {
     if (pa[k] !== pb[k]) {
-      from.push(pa[k] ?? `no ${k}`);
-      to.push(pb[k] ?? `no ${k}`);
+      from.push(pa[k] ?? RX_NONE[k]);
+      to.push(pb[k] ?? RX_NONE[k]);
     } else if (k === "rpe" && pa.rpe && hasRpeRange(a) !== hasRpeRange(b)) {
       // Same text, different meaning: a ramp of single RPEs vs an RPE range on every set.
       from.push(`${pa.rpe} ${hasRpeRange(a) ? "range" : "ramp"}`);
