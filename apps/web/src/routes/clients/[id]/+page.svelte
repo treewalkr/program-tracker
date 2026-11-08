@@ -8,7 +8,7 @@
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
-  import { pulseCellSets, type PulseCell } from "@pt/shared";
+  import { oneRepMaxKg, plannedVolume, pulseCellSets, type PulseCell } from "@pt/shared";
   import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
   import { weekOptions } from "$lib/format";
@@ -97,6 +97,10 @@
   const fmtVolume = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
   const doneWeeks = $derived(pulse.filter((w) => !w.plannedOnly && w.overallVolume > 0));
   const maxVolume = $derived(Math.max(...doneWeeks.map((w) => w.overallVolume), 1));
+  /** Planned tonnage per program week from resolved loads (%1RM via the client's 1RMs); null = no loads to plan from. */
+  const plannedByWeek = $derived(
+    new Map((current?.weeks ?? []).map((w) => [w.week, plannedVolume(w.sessions, client?.oneRepMaxes)] as const))
+  );
   /** Slots logged under another exercise than the program prescribes (the logger's Swap). */
   const swaps = $derived(current ? slotSwaps(current, sessionLogRows).slice(0, 10) : []);
   const exName = (id: string) => catalogById.get(id)?.name ?? id;
@@ -381,6 +385,7 @@
                       role: e.role,
                       movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
                       sets: e.prescribedSets,
+                      oneRepMaxKg: oneRepMaxKg(client?.oneRepMaxes, e.exerciseId),
                     }))}
                   />
                 {/each}
@@ -504,7 +509,7 @@
                     {/if}
                   </td>
                   <td class="r">
-                    {#if w.plannedOnly}<span class="subtle">{fmtVolume(w.overallVolume)} plan</span>{:else if w.overallVolume > 0}{@render cellBtn(w.week, "volume", fmtVolume(w.overallVolume), `Week ${w.week} overall volume: show the sets`)}{:else}—{/if}
+                    {#if w.plannedOnly}{@const planned = plannedByWeek.get(w.week) ?? null}<span class="subtle" title={planned == null ? "No prescribed loads to plan from" : "Planned: prescribed kg × reps"}>{planned == null ? "—" : `${fmtVolume(planned)} plan`}</span>{:else if w.overallVolume > 0}{@render cellBtn(w.week, "volume", fmtVolume(w.overallVolume), `Week ${w.week} overall volume: show the sets`)}{:else}—{/if}
                     {#if w.overallVolumeDelta != null && w.overallVolume > 0}<span class="delta {w.overallVolumeDelta < 0 ? 'down' : 'up'}">{w.overallVolumeDelta >= 0 ? "+" : ""}{w.overallVolumeDelta}%</span>{/if}
                   </td>
                   <td class="r">{#if w.plannedOnly}<span class="subtle">{w.sets}</span>{:else if w.sets > 0}{@render cellBtn(w.week, "sets", String(w.sets), `Week ${w.week} sets: show the sets`)}{:else}0{/if}</td>
