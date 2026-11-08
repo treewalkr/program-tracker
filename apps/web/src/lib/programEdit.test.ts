@@ -62,3 +62,39 @@ test("subline never says draft", () => {
   const p = { version: 1, aiAssisted: true, createdFromProgramId: null } as unknown as ProgramDto;
   expect(programSubline(p, null)).toBe("v1 · AI-assisted");
 });
+
+import { loadCell, rpeCell, withLoad, withRir, withRpe, withTempo } from "./programEdit";
+
+describe("prescription cells (F22)", () => {
+  test("load takes kg or a %1RM; one replaces the other", () => {
+    expect(withLoad(set({ targetWeightKg: 100 }), "75%")).toMatchObject({ percent1rm: 75, targetWeightKg: undefined });
+    expect(withLoad(set({ percent1rm: 75 }), "102.5")).toMatchObject({ targetWeightKg: 102.5, percent1rm: undefined });
+    expect(withLoad(set({ targetWeightKg: 100 }), "")).toMatchObject({ targetWeightKg: null, percent1rm: undefined });
+    expect(withLoad(set({ targetWeightKg: 100 }), "abc").targetWeightKg).toBe(100);
+    expect([loadCell(set({ percent1rm: 75 })), loadCell(set({ targetWeightKg: 80 })), loadCell(set())]).toEqual(["75%", "80", ""]);
+  });
+
+  test("RPE takes a single value or a range; on AMRAP it is the stop RPE", () => {
+    expect(withRpe(set(), "7-8", "reps")).toMatchObject({ targetRpeMin: 7, targetRpe: 8 });
+    expect(withRpe(set({ targetRpeMin: 7, targetRpe: 8 }), "9", "reps")).toMatchObject({ targetRpe: 9, targetRpeMin: undefined });
+    expect(withRpe(set({ amrap: true, reps: 0 }), "9", "max")).toMatchObject({ stopRpe: 9, targetRpe: undefined });
+    expect(rpeCell(set({ targetRpeMin: 7, targetRpe: 8 }), "reps")).toBe("7–8");
+    expect(rpeCell(set({ amrap: true, reps: 0, stopRpe: 9 }), "max")).toBe("9");
+  });
+
+  test("switching to Max moves the RPE to the stop; switching back restores it", () => {
+    const max = withMode(set({ targetRpe: 9 }), "max");
+    expect([max.stopRpe, max.targetRpe]).toEqual([9, undefined]);
+    const back = withMode(max, "reps");
+    expect([back.targetRpe, back.stopRpe]).toEqual([9, undefined]);
+  });
+
+  test("tempo uppercases and drops invalid input; RIR clamps to 0–10", () => {
+    expect(withTempo(set(), "3-1-x-0").tempo).toBe("3-1-X-0");
+    expect(withTempo(set({ tempo: "31X0" }), "slow").tempo).toBe("31X0");
+    expect(withTempo(set({ tempo: "31X0" }), "").tempo).toBeUndefined();
+    expect(withRir(set(), "2").targetRir).toBe(2);
+    expect(withRir(set({ targetRir: 2 }), "").targetRir).toBeUndefined();
+    expect(withRir(set(), "14").targetRir).toBe(10);
+  });
+});
