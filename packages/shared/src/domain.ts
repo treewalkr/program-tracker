@@ -454,6 +454,7 @@ export function sortExercisesByRole<T extends { role?: string | null }>(
   });
 }
 
+/** Hard sets per movement-pattern bucket. Core overlaps nothing else; unclassified = untagged exercises. */
 export interface PatternBalance {
   push: number;
   pull: number;
@@ -463,8 +464,17 @@ export interface PatternBalance {
   unclassified: number;
 }
 
+/**
+ * Hard sets in a prescription: every prescribed set. Set types are only
+ * working and back-off (warm-ups are handled in the room), so all count.
+ */
+export function hardSetCount(sets: readonly { type?: SetType }[] | null | undefined): number {
+  return sets?.length ?? 0;
+}
+
+/** Hard sets per movement pattern — the one balance count for the program page and draft review. */
 export function patternBalance(
-  list: readonly { movementPattern?: string | null }[]
+  list: readonly { movementPattern?: string | null; sets: readonly { type?: SetType }[] | null | undefined }[]
 ): PatternBalance {
   const result: PatternBalance = {
     push: 0,
@@ -475,31 +485,52 @@ export function patternBalance(
     unclassified: 0,
   };
   for (const item of list) {
+    const n = hardSetCount(item.sets);
     const p = item.movementPattern;
     if (!p) {
-      result.unclassified++;
+      result.unclassified += n;
       continue;
     }
     if (p === "vertical_push" || p === "horizontal_push") {
-      result.push++;
+      result.push += n;
     } else if (p === "vertical_pull" || p === "horizontal_pull") {
-      result.pull++;
+      result.pull += n;
     } else if (p === "knee_dominant") {
-      result.knee++;
+      result.knee += n;
     } else if (p === "hip_dominant") {
-      result.hip++;
+      result.hip += n;
     }
     if (MOVEMENT_PATTERN_INFO[p as MovementPattern]?.core) {
-      result.core++;
+      result.core += n;
     }
   }
   return result;
 }
 
+/** Pattern balance over sessions whose exercises are catalog refs (a program week, an AI draft). */
+export function sessionsPatternBalance(
+  sessions: readonly {
+    exercises: readonly { exerciseId?: string | null; prescribedSets: readonly { type?: SetType }[] }[];
+  }[],
+  patternOf: (exerciseId: string) => string | null | undefined
+): PatternBalance {
+  return patternBalance(
+    sessions.flatMap((s) =>
+      s.exercises.map((e) => ({
+        movementPattern: e.exerciseId ? patternOf(e.exerciseId) : null,
+        sets: e.prescribedSets,
+      }))
+    )
+  );
+}
+
+/** "push 12 · pull 8 · core 4 sets · 3 untagged sets" — short enough for a session subtitle. */
 export function formatPatternBalance(b: PatternBalance): string {
   const parts = (["push", "pull", "knee", "hip", "core"] as const).filter((k) => b[k] > 0).map((k) => `${k} ${b[k]}`);
-  if (b.unclassified > 0) parts.push(`${b.unclassified} untagged`);
-  return parts.length ? parts.join(" · ") : "no exercises";
+  const out: string[] = [];
+  if (parts.length) out.push(`${parts.join(" · ")} sets`);
+  if (b.unclassified > 0) out.push(`${b.unclassified} untagged ${b.unclassified === 1 ? "set" : "sets"}`);
+  return out.length ? out.join(" · ") : "no exercises";
 }
 
 /** Four tempo phases, each a digit (seconds) or X (explosive): "3-1-1-0" or "31X0". */

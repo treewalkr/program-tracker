@@ -28,6 +28,8 @@ import {
   MOVEMENT_PATTERNS,
   newSet,
   patternBalance,
+  hardSetCount,
+  sessionsPatternBalance,
   Phasing,
   PrescribedSet,
   Program,
@@ -867,41 +869,62 @@ describe("Movement taxonomy", () => {
 });
 
 describe("patternBalance", () => {
+  const w = { type: "working" as const };
+  const b = { type: "backoff" as const };
+  const ex = (movementPattern: string | null, n: number) => ({ movementPattern, sets: Array.from({ length: n }, () => w) });
   const tagged8Plus1Null = [
-    { movementPattern: "vertical_push" as const },
-    { movementPattern: "horizontal_push" as const },
-    { movementPattern: "vertical_pull" as const },
-    { movementPattern: "horizontal_pull" as const },
-    { movementPattern: "knee_dominant" as const },
-    { movementPattern: "knee_dominant" as const },
-    { movementPattern: "hip_dominant" as const },
-    { movementPattern: "anti_rotation" as const },
-    { movementPattern: null },
+    ex("vertical_push", 3),
+    ex("horizontal_push", 4),
+    ex("vertical_pull", 3),
+    ex("horizontal_pull", 3),
+    ex("knee_dominant", 5),
+    ex("knee_dominant", 3),
+    ex("hip_dominant", 3),
+    ex("anti_rotation", 2),
+    ex(null, 2),
   ];
 
-  test("tallies push/pull/knee/hip/core and unclassified", () => {
-    const balance = patternBalance(tagged8Plus1Null);
-    expect(balance).toEqual({
-      push: 2,
-      pull: 2,
-      knee: 2,
-      hip: 1,
-      core: 1,
-      unclassified: 1,
-    });
+  test("tallies hard sets per pattern, not exercises", () => {
+    expect(patternBalance(tagged8Plus1Null)).toEqual({ push: 7, pull: 6, knee: 8, hip: 3, core: 2, unclassified: 2 });
   });
 
-  test("formatPatternBalance renders non-zero counts and untagged", () => {
-    const withUnclassified = patternBalance(tagged8Plus1Null);
-    expect(formatPatternBalance(withUnclassified)).toBe(
-      "push 2 · pull 2 · knee 2 · hip 1 · core 1 · 1 untagged"
-    );
-    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, core: 0, unclassified: 0 })).toBe("knee 2");
+  test("back-off sets count as hard sets", () => {
+    const bench = { movementPattern: "horizontal_push", sets: [w, w, w, b, b] };
+    expect(hardSetCount(bench.sets)).toBe(5);
+    expect(patternBalance([bench]).push).toBe(5);
+  });
 
-    const zeroUnclassified = patternBalance(tagged8Plus1Null.slice(0, 8));
-    expect(formatPatternBalance(zeroUnclassified)).toBe(
-      "push 2 · pull 2 · knee 2 · hip 1 · core 1"
+  test("untagged and core exercises add their set counts", () => {
+    const balance = patternBalance([ex(null, 3), ex(null, 1), ex("anti_extension", 4)]);
+    expect(balance.unclassified).toBe(4);
+    expect(balance.core).toBe(4);
+  });
+
+  test("an exercise with no sets adds nothing", () => {
+    expect(patternBalance([ex("vertical_push", 0)]).push).toBe(0);
+  });
+
+  test("formatPatternBalance names the unit", () => {
+    expect(formatPatternBalance(patternBalance(tagged8Plus1Null))).toBe(
+      "push 7 · pull 6 · knee 8 · hip 3 · core 2 sets · 2 untagged sets"
     );
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, core: 0, unclassified: 0 })).toBe("knee 2 sets");
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 0, hip: 0, core: 0, unclassified: 1 })).toBe("1 untagged set");
+    expect(formatPatternBalance(patternBalance(tagged8Plus1Null.slice(0, 8)))).toBe(
+      "push 7 · pull 6 · knee 8 · hip 3 · core 2 sets"
+    );
+    expect(formatPatternBalance(patternBalance([]))).toBe("no exercises");
+  });
+
+  test("sessionsPatternBalance resolves patterns by exercise id across sessions", () => {
+    const patterns: Record<string, string> = { bench: "horizontal_push", row: "horizontal_pull" };
+    const sessions = [
+      { exercises: [{ exerciseId: "bench", prescribedSets: [w, w, b] }, { exerciseId: "row", prescribedSets: [w, w] }] },
+      { exercises: [{ exerciseId: "mystery", prescribedSets: [w] }, { exerciseId: null, prescribedSets: [w, w] }] },
+    ];
+    expect(sessionsPatternBalance(sessions, (id) => patterns[id] ?? null)).toEqual({
+      push: 3, pull: 2, knee: 0, hip: 0, core: 0, unclassified: 3,
+    });
   });
 });
 

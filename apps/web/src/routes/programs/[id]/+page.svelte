@@ -15,7 +15,7 @@
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
     nextSeq,
-    patternBalance,
+    sessionsPatternBalance,
     placeSession,
     placeSessions,
     removeSession,
@@ -369,11 +369,8 @@
   {/if}
 
   {#if currentWeek}
-    {@const weekExercises = currentWeek.sessions.flatMap((s) =>
-      s.exercises.map((e) => ({ movementPattern: patternOf(e.exerciseId) }))
-    )}
     <div class="week-bar">
-      <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
+      <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(sessionsPatternBalance(currentWeek.sessions, patternOf))}</p>
       {#if editable}
         <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${DELOAD_RULES}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
         <button class="btn ghost small" aria-expanded={showPhasing} onclick={() => (showPhasing = !showPhasing)}>Block phasing {showPhasing ? "▴" : "▾"}</button>
@@ -417,11 +414,10 @@
     <div class="sessions-grid">
       {#each ordered as { s, day } (s.id)}
         {@const si = indexOf(s.id)}
-        {@const sessExercises = s.exercises.map((e) => ({ movementPattern: patternOf(e.exerciseId) }))}
         <section class="panel" class:sel={selected === s.id} id="sess-{s.id}">
           <div class="panel-head">
             <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}{#if s.typeName}{" · "}<span class="stype">{s.typeName}</span>{/if}</span>
-            {#if s.kind === "lifting"}<span class="subtle">{formatPatternBalance(patternBalance(sessExercises))}</span>{/if}
+            {#if s.kind === "lifting"}<span class="subtle">{formatPatternBalance(sessionsPatternBalance([s], patternOf))}</span>{/if}
           </div>
 
           <div class="panel-body exlist">
