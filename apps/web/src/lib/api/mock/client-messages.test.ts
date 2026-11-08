@@ -51,9 +51,10 @@ describe("mockApi client messages", () => {
       mockApi.generateClientMessage({
         clientId: "cl-maya",
         programId: "pg-maya-a",
-        week: 6,
+        // Block weeks anchor on the first log (42 days ago), so weeks 1–6 are logged.
+        week: 7,
       })
-    ).rejects.toThrow("week 6 has no logged sessions");
+    ).rejects.toThrow("week 7 has no logged sessions");
 
     expect(
       mockApi.generateClientMessage({
