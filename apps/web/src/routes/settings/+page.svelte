@@ -212,14 +212,21 @@
 
 <div class="about-wrap">
   <Panel title="About">
-    <dl class="about">
-      <dt>App</dt>
-      <dd>{webBuild}</dd>
-      <dt>API</dt>
-      <dd>
-        {#if apiBuild === undefined}<Skeleton w="110px" h="14px" />{:else}{apiBuild ?? "not reachable"}{/if}
-      </dd>
-    </dl>
+    <div class="about">
+      <span class="label">Version</span>
+      <span class="ver">{webBuild}</span>
+      <span class="api" aria-live="polite">
+        {#if apiBuild === undefined}
+          <Skeleton w="90px" h="12px" />
+        {:else if apiBuild === null}
+          <span class="dot bad" aria-hidden="true"></span>API not reachable
+        {:else if apiBuild !== webBuild}
+          <span class="dot warn" aria-hidden="true"></span>API on <span class="mono">{apiBuild}</span>
+        {:else}
+          <span class="dot good" aria-hidden="true"></span>API connected
+        {/if}
+      </span>
+    </div>
     {#if apiBuild && apiBuild !== webBuild}
       <div class="pad mismatch">
         <Note tone="warn">The app and the API are on different builds. A deploy may still be rolling out — reload in a few minutes.</Note>
@@ -305,13 +312,26 @@
   .email .err { margin: 8px 0 0; color: var(--bad); font-size: 12px; }
 
   .about {
-    display: grid;
-    grid-template-columns: 64px 1fr;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
     gap: 6px 12px;
-    margin: 0;
     padding: 14px 16px;
     font-size: 13px;
   }
-  .about dt { color: var(--muted); }
-  .about dd { margin: 0; font-family: var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+  .about .label { color: var(--muted); }
+  .about .ver { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+  .about .api {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .about .mono { font-family: var(--font-mono); color: var(--warn-ink); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .dot.good { background: var(--good); }
+  .dot.warn { background: var(--warn); }
+  .dot.bad { background: var(--bad); }
 </style>
