@@ -25,6 +25,13 @@ describe("normalization", () => {
     expect(expandAbbreviations("Dbl")).toBe("dbl"); // only whole words
   });
 
+  test("expands with a given glossary instead of the default", () => {
+    const mine = { sa: "single arm", lpd: "lat pulldown" };
+    expect(expandAbbreviations("LPD wide", mine)).toBe("lat pulldown wide");
+    expect(expandAbbreviations("BB row", mine)).toBe("bb row"); // not in this glossary
+    expect(expandAbbreviations("constructor")).toBe("constructor"); // no prototype keys
+  });
+
   test("edit distance counts a swapped pair once", () => {
     expect(editDistance("bicpes", "biceps")).toBe(1);
     expect(editDistance("row", "rows")).toBe(1);
@@ -33,7 +40,7 @@ describe("normalization", () => {
 });
 
 describe("matchExercise", () => {
-  test("alias first, personal over global", () => {
+  test("a personal alias comes first and beats a global one", () => {
     const aliases = [
       { alias: "sa row", exerciseId: "curl", trainerId: null },
       { alias: "sa row", exerciseId: "sa-row", trainerId: "t1" },
@@ -43,7 +50,20 @@ describe("matchExercise", () => {
       exerciseId: "sa-row",
       exerciseName: "Single-Arm Dumbbell Row",
     });
-    expect(matchExercise({ sourceName: "SA row", name: "x" }, CATALOG, aliases.slice(0, 1)).exerciseId).toBe("curl");
+    // a personal alias even beats an exact catalog name
+    expect(
+      matchExercise({ sourceName: "Bench Press", name: "Bench Press" }, CATALOG, [{ alias: "bench press", exerciseId: "curl", trainerId: "t1" }]),
+    ).toMatchObject({ kind: "alias", exerciseId: "curl" });
+  });
+
+  test("a global alias beats fuzzy but loses to an exact catalog name", () => {
+    const global = [{ alias: "sa row", exerciseId: "curl", trainerId: null }];
+    expect(matchExercise({ sourceName: "SA row", name: "x" }, CATALOG, global)).toMatchObject({ kind: "alias", exerciseId: "curl" });
+    // without the alias the same name is only a fuzzy match
+    expect(matchExercise({ sourceName: "SA row", name: "x" }, CATALOG).kind).toBe("fuzzy");
+    // the trainer's own "Bench Press" wins over a seed alias of the same words
+    const seed = [{ alias: "bench press", exerciseId: "curl", trainerId: null }];
+    expect(matchExercise({ sourceName: "Bench press", name: "Bench Press" }, CATALOG, seed)).toMatchObject({ kind: "exact", exerciseId: "bench" });
   });
 
   test("an alias to an exercise outside the catalog is ignored", () => {
@@ -83,6 +103,15 @@ describe("matchExercise", () => {
     expect(matchExercise({ sourceName: "Push press", name: "Push Press" }, catalog).kind).toBe("new");
     expect(matchExercise({ sourceName: "Leg press", name: "Leg Press" }, catalog).kind).toBe("new");
     expect(matchExercise({ sourceName: "Squat", name: "Squat" }, CATALOG)).toMatchObject({ kind: "fuzzy", exerciseId: "squat" });
+  });
+
+  test("matching uses the trainer's glossary", () => {
+    const catalog = [{ id: "lpd", name: "Lat Pulldown" }];
+    expect(matchExercise({ sourceName: "LPD", name: "LPD" }, catalog).kind).toBe("new");
+    expect(matchExercise({ sourceName: "LPD", name: "LPD" }, catalog, [], { lpd: "lat pulldown" })).toMatchObject({
+      kind: "exact",
+      exerciseId: "lpd",
+    });
   });
 
   test("nothing close → a new exercise named as expanded", () => {

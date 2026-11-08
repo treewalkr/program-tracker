@@ -2,12 +2,20 @@ import type { ImportMatch } from "./import";
 
 /**
  * Exercise matching for paste import (docs/paste-import-plan.md §3):
- * alias (personal, then global) → exact catalog name → fuzzy → new.
- * Pure, so the API and the web's mock adapter match the same way.
+ * personal alias → exact catalog name → global alias → fuzzy → new, so a
+ * global alias never beats the trainer's own exercise. Pure, so the API and
+ * the web's mock adapter match the same way.
  */
 
-/** Gym shorthand expanded before fuzzy matching. Version 1.1 replaces this with the glossary. */
-export const IMPORT_ABBREVIATIONS: Record<string, string> = {
+/** Lowercase word → its expansion, normalized (normalizeAlias). */
+export type AbbreviationMap = Record<string, string>;
+
+/**
+ * Default gym shorthand — the global glossary seed's abbreviations. The API
+ * passes the trainer's effective glossary instead (glossaryAbbreviations);
+ * this stays as the fallback for tests, the mock and the eval.
+ */
+export const IMPORT_ABBREVIATIONS: AbbreviationMap = {
   bb: "barbell",
   db: "dumbbell",
   kb: "kettlebell",
@@ -31,10 +39,10 @@ export function normalizeAlias(s: string): string {
 }
 
 /** normalizeAlias, then shorthand expanded word by word. */
-export function expandAbbreviations(s: string): string {
+export function expandAbbreviations(s: string, abbreviations: AbbreviationMap = IMPORT_ABBREVIATIONS): string {
   return normalizeAlias(s)
     .split(" ")
-    .map((w) => IMPORT_ABBREVIATIONS[w] ?? w)
+    .map((w) => (Object.hasOwn(abbreviations, w) ? abbreviations[w] : w))
     .join(" ");
 }
 
@@ -59,9 +67,9 @@ const tokenMatch = (a: string, b: string) => a === b || (Math.min(a.length, b.le
  * how much of the candidate is the query, and whole-string edit similarity.
  * Coverage weighs most: "Push press" must not land on "Bench Press".
  */
-export function nameSimilarity(query: string, candidate: string): number {
-  const q = expandAbbreviations(query);
-  const c = expandAbbreviations(candidate);
+export function nameSimilarity(query: string, candidate: string, abbreviations: AbbreviationMap = IMPORT_ABBREVIATIONS): number {
+  const q = expandAbbreviations(query, abbreviations);
+  const c = expandAbbreviations(candidate, abbreviations);
   if (!q || !c) return 0;
   const qt = q.split(" ");
   const ct = c.split(" ");
@@ -99,14 +107,17 @@ export function matchExercise(
   ex: { sourceName: string; name: string },
   catalog: MatchCatalogEntry[],
   aliases: MatchAlias[] = [],
+  abbreviations: AbbreviationMap = IMPORT_ABBREVIATIONS,
 ): ImportMatch {
   const byId = new Map(catalog.map((c) => [c.id, c]));
-
-  // 1. alias — a personal one overrides a global one
   const key = normalizeAlias(ex.sourceName);
-  const hits = aliases.filter((a) => a.alias === key && byId.has(a.exerciseId));
-  const alias = hits.find((a) => a.trainerId !== null) ?? hits[0];
-  if (alias) return { kind: "alias", exerciseId: alias.exerciseId, exerciseName: byId.get(alias.exerciseId)!.name };
+  const aliasHit = (personal: boolean) =>
+    aliases.find((a) => a.alias === key && (a.trainerId !== null) === personal && byId.has(a.exerciseId));
+  const viaAlias = (a: MatchAlias): ImportMatch => ({ kind: "alias", exerciseId: a.exerciseId, exerciseName: byId.get(a.exerciseId)!.name });
+
+  // 1. the trainer's own alias
+  const personal = aliasHit(true);
+  if (personal) return viaAlias(personal);
 
   // 2. exact catalog name (case-insensitive, like the draft flow's resolveRef): name, then as written
   for (const n of [ex.name, ex.sourceName]) {
@@ -115,17 +126,21 @@ export function matchExercise(
   }
   // …and the same name up to case, punctuation and gym shorthand ("Pull up" = "Pull-Up", "BB Row" = "Barbell Row")
   for (const n of [ex.name, ex.sourceName]) {
-    const key = expandAbbreviations(n);
-    const hit = key ? catalog.find((c) => expandAbbreviations(c.name) === key) : undefined;
+    const key = expandAbbreviations(n, abbreviations);
+    const hit = key ? catalog.find((c) => expandAbbreviations(c.name, abbreviations) === key) : undefined;
     if (hit) return { kind: "exact", exerciseId: hit.id, exerciseName: hit.name };
   }
 
-  // 3. fuzzy — shorthand expanded, typo-tolerant; the top 3 are offered
+  // 3. a global (seed) alias — after exact names, so it never beats the trainer's own exercise
+  const global = aliasHit(false);
+  if (global) return viaAlias(global);
+
+  // 4. fuzzy — shorthand expanded, typo-tolerant; the top 3 are offered
   const ranked = catalog
     .map((c) => ({
       exerciseId: c.id,
       name: c.name,
-      score: Math.max(nameSimilarity(ex.sourceName, c.name), nameSimilarity(ex.name, c.name)),
+      score: Math.max(nameSimilarity(ex.sourceName, c.name, abbreviations), nameSimilarity(ex.name, c.name, abbreviations)),
     }))
     .filter((c) => c.score >= FUZZY_MIN_SCORE)
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
@@ -134,6 +149,6 @@ export function matchExercise(
     return { kind: "fuzzy", exerciseId: ranked[0].exerciseId, exerciseName: ranked[0].name, candidates: ranked };
   }
 
-  // 4. new custom exercise, named as the LLM expanded it
+  // 5. new custom exercise, named as the LLM expanded it
   return { kind: "new", exerciseName: ex.name.trim() };
 }
