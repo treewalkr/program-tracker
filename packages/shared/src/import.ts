@@ -70,10 +70,15 @@ export const ImportCardio = z.object({
 });
 export type ImportCardio = z.infer<typeof ImportCardio>;
 
+/** Blank or missing → "" (header-less notes); buildImportResult fills "Day N" / "Session N". */
+const heading = (max: number) =>
+  z.string().max(max).nullish().transform((v) => v?.trim() ?? "");
+
 export const ImportSession = z.object({
-  name: z.string().min(1).max(160),
+  name: heading(160),
   kind: z.enum(["lifting", "cardio"]),
-  line,
+  /** Null when the notes have no session heading; buildImportResult anchors it. */
+  line: line.nullish(),
   cardio: ImportCardio.nullish(),
   exercises: z.array(ImportExercise).max(60).default([]),
 });
@@ -81,8 +86,9 @@ export type ImportSession = z.infer<typeof ImportSession>;
 
 export const ImportDay = z.object({
   /** The day header as written ("Day 1 Back/Biceps"). */
-  label: z.string().min(1).max(160),
-  line,
+  label: heading(160),
+  /** Null when the notes have no day header; buildImportResult anchors it. */
+  line: line.nullish(),
   sessions: z.array(ImportSession).max(20).default([]),
 });
 export type ImportDay = z.infer<typeof ImportDay>;
@@ -514,7 +520,22 @@ function reviewExercise(ex: ImportExercise, lines: string[]): ReviewExercise {
   };
 }
 
-function reviewSession(s: ImportSession, lines: string[]): ReviewSession {
+type LocatedSession = Omit<ImportSession, "line"> & { line: number };
+type LocatedDay = Omit<ImportDay, "line" | "sessions"> & { line: number; sessions: LocatedSession[] };
+type LocatedWeek = Omit<ImportWeek, "days"> & { days: LocatedDay[] };
+
+/** Header-less notes leave days and sessions without a line: anchor them to their first exercise, else the chunk start. */
+function locate(c: ImportChunk, from: number): LocatedWeek[] {
+  return c.weeks.map((w) => ({
+    ...w,
+    days: w.days.map((d) => {
+      const sessions = d.sessions.map((s) => ({ ...s, line: s.line ?? s.exercises[0]?.line ?? d.line ?? from }));
+      return { ...d, line: d.line ?? sessions[0]?.line ?? from, sessions };
+    }),
+  }));
+}
+
+function reviewSession(s: LocatedSession, lines: string[]): ReviewSession {
   const flags: ImportFlag[] = [];
   if (s.kind === "cardio") {
     const mapped = mapCardio(s.cardio);
@@ -596,10 +617,10 @@ export function groupBlocks(weeks: { days: { sessions: { exercises: { sourceName
 // Chunks → result
 // ---------------------------------------------------------------------------
 
-function mergeWeeks(chunks: ImportChunk[]): ImportWeek[] {
-  const out: ImportWeek[] = [];
-  for (const c of chunks) {
-    for (const w of c.weeks) {
+function mergeWeeks(chunks: LocatedWeek[][]): LocatedWeek[] {
+  const out: LocatedWeek[] = [];
+  for (const weeks of chunks) {
+    for (const w of weeks) {
       const last = out.at(-1);
       // header-less text read in several chunks is still one week
       if (last && last.label === null && w.label === null && w.line === null) last.days.push(...structuredClone(w.days));
@@ -613,7 +634,7 @@ export function buildImportResult(text: string, outcomes: ImportChunkOutcome[]):
   const lines = importLines(text);
   const ok = outcomes.flatMap((o) => (o.ok ? [o.data] : []));
   const unread = outcomes.flatMap((o) => (o.ok ? [] : [{ from: o.from, to: o.to, error: o.error }]));
-  const weeks: ReviewWeek[] = mergeWeeks(ok).map((w) => {
+  const weeks: ReviewWeek[] = mergeWeeks(outcomes.flatMap((o) => (o.ok ? [locate(o.data, o.from)] : []))).map((w) => {
     const flags: ImportFlag[] = [];
     if (w.days.length > IMPORT_LIMITS.daysPerWeek) {
       flags.push({ level: "warn", code: "limit", blocking: true, message: `${w.days.length} days — more than ${IMPORT_LIMITS.daysPerWeek} in a week` });
@@ -622,14 +643,14 @@ export function buildImportResult(text: string, outcomes: ImportChunkOutcome[]):
       label: w.label,
       line: w.line,
       flags,
-      days: w.days.map((d) => ({
-        label: d.label,
+      days: w.days.map((d, di) => ({
+        label: d.label || `Day ${di + 1}`,
         line: d.line,
         flags:
           d.sessions.length > IMPORT_LIMITS.sessionsPerDay
             ? [{ level: "warn", code: "limit", blocking: true, message: `${d.sessions.length} sessions — more than ${IMPORT_LIMITS.sessionsPerDay} in a day` }]
             : [],
-        sessions: d.sessions.map((s) => reviewSession(s, lines)),
+        sessions: d.sessions.map((s, si) => reviewSession({ ...s, name: s.name || `Session ${si + 1}` }, lines)),
       })),
     };
   });

@@ -235,8 +235,8 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
  * does. Any other text comes back empty, so the review shows it as unused.
  */
 export function mockImportExtraction(lines: string[], from: number, to: number): ImportChunk {
-  const has = (line: number | null, text: string) =>
-    line !== null && line >= from && line <= to && (lines[line - 1] ?? "").toLowerCase().includes(text.toLowerCase());
+  const has = (line: number | null | undefined, text: string) =>
+    line != null && line >= from && line <= to && (lines[line - 1] ?? "").toLowerCase().includes(text.toLowerCase());
   const weeks = WEEK11_12_EXTRACTION.weeks.flatMap((w) => {
     const days = w.days.flatMap((d) => {
       const sessions = d.sessions.flatMap((s) => {

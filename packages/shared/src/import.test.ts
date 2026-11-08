@@ -269,6 +269,36 @@ describe("mapping", () => {
   });
 });
 
+describe("header-less text", () => {
+  test("a blank or missing day label and session name parse and get a fallback", () => {
+    const raw = {
+      weeks: [
+        {
+          label: null,
+          line: null,
+          days: [
+            { label: "", line: 1, sessions: [{ name: "", kind: "lifting", line: 1, exercises: [] }] },
+            {
+              label: null,
+              line: null,
+              sessions: [{ name: null, kind: "lifting", line: null, exercises: [{ line: 2, sourceName: "Bench", name: "Bench", prescription: { sets: 5, reps: 5 } }] }],
+            },
+          ],
+        },
+      ],
+      skipped: [],
+    };
+    const data = ImportChunk.parse(raw);
+    const r = buildImportResult("Squat 5x5\nBench 5x5", [{ from: 1, to: 2, ok: true, data }]);
+    expect(r.weeks[0].days.map((d) => d.label)).toEqual(["Day 1", "Day 2"]);
+    expect(r.weeks[0].days.map((d) => d.sessions[0].name)).toEqual(["Session 1", "Session 1"]);
+    // no day or session line → anchored to the first exercise
+    expect(r.weeks[0].days[1].line).toBe(2);
+    expect(r.weeks[0].days[1].sessions[0].line).toBe(2);
+    expect(r.unused).toEqual([]);
+  });
+});
+
 describe("coverage and limits", () => {
   test("unreferenced lines are unused; skipped lines and separators are not; unread chunks are not", () => {
     const text = "Week 1\nDay 1 Legs\nSquat 5x5\nchit chat\n————\nsee you\nWeek 2\nDay 1\nBench 5x5";
