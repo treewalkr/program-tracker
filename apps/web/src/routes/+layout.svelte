@@ -58,7 +58,13 @@
     isAdmin
       ? [
           ...baseGroups,
-          { label: "Platform", items: [{ href: "/admin", label: "Trainers", icon: "lock" }] },
+          {
+            label: "Platform",
+            items: [
+              { href: "/admin", label: "Trainers", icon: "lock" },
+              { href: "/admin/clients", label: "All clients", icon: "users" },
+            ],
+          },
           {
             label: "Email",
             items: [
