@@ -1,6 +1,7 @@
 <script module lang="ts">
 	export type IconName =
 		| 'plus'
+		| 'minus'
 		| 'x'
 		| 'check'
 		| 'sparkle'
@@ -56,6 +57,7 @@
 
 	const ICONS: Record<IconName, IconDef> = {
 		plus: { d: 'M12 5v14M5 12h14' },
+		minus: { d: 'M5 12h14' },
 		x: { d: 'M6 6l12 12M18 6 6 18' },
 		check: { d: 'M20 6 9 17l-5-5' },
 		sparkle: {
