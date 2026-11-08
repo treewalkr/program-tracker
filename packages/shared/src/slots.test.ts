@@ -153,3 +153,40 @@ test("a cardio edit (slot null) covers that day's cardio change only", () => {
   const wrongDay = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 1, slot: null, kind: "edit" }] });
   expect(wrongDay.map((c) => c.kind)).toEqual(["cardio", "plan"]);
 });
+
+// ---- F22/F23: the prescription model in the diff ----
+
+test("rxParts and rxLabel carry %1RM, RPE ranges, RIR, tempo and stop RPE", () => {
+  const p = rxParts([
+    { reps: 5, percent1rm: 75, targetRpeMin: 7, targetRpe: 8, targetRir: 2, tempo: "3-1-1-0" },
+    { reps: 5, percent1rm: 80, targetRpeMin: 7, targetRpe: 8, targetRir: 2, tempo: "3-1-1-0" },
+  ]);
+  expect([p.pct, p.rpe, p.rir, p.tempo, p.stop]).toEqual(["75–80% 1RM", "RPE 7–8", "RIR 2", "tempo 3-1-1-0", null]);
+  expect(rxParts([{ reps: 5, targetRpeMin: 7, targetRpe: 8 }, { reps: 5, targetRpeMin: 8, targetRpe: 9 }]).rpe).toBe("RPE 7–8/8–9");
+  expect(rxLabel([{ reps: 0, amrap: true, stopRpe: 9, targetWeightKg: 90 }])).toBe("1×0+ · stop @ RPE 9 · 90 kg");
+  expect(rxLabel([{ reps: 5, percent1rm: 75, targetRir: 2, tempo: "31X0", restSeconds: 120 }])).toBe("1×5 · RIR 2 · 75% 1RM · tempo 31X0 · rest 120s");
+});
+
+test("an RPE range is not the same as a ramp of single RPEs", () => {
+  const ramp = [{ reps: 5, targetRpe: 7 }, { reps: 5, targetRpe: 8 }];
+  const range = [{ reps: 5, targetRpeMin: 7, targetRpe: 8 }, { reps: 5, targetRpeMin: 7, targetRpe: 8 }];
+  const d = (sets: object[]) => ({ sessions: [lift("Lower A", [ex("Squat", sets as never)])] });
+  expect(diffDrafts(d(ramp), d(range))).toEqual([
+    { day: 1, beforeSlot: 1, afterSlot: 1, kind: "rx", exercise: "Squat", from: "RPE 7–8 ramp", to: "RPE 7–8 range" },
+  ]);
+});
+
+test("diffDrafts sees tempo, %1RM, RIR and stop-RPE edits", () => {
+  const d = (extra: Record<string, unknown>) => ({ sessions: [lift("Lower A", [ex("Squat", [{ reps: 5, amrap: true, ...extra }])])] });
+  const rx = (a: Record<string, unknown>, b: Record<string, unknown>) => diffDrafts(d(a), d(b)).map((c) => [c.from, c.to]);
+  expect(rx({ tempo: "3-1-1-0" }, { tempo: "2-0-1-0" })).toEqual([["tempo 3-1-1-0", "tempo 2-0-1-0"]]);
+  expect(rx({ percent1rm: 75 }, { percent1rm: 77.5 })).toEqual([["75% 1RM", "77.5% 1RM"]]);
+  expect(rx({}, { targetRir: 2 })).toEqual([["no rir", "RIR 2"]]);
+  expect(rx({ stopRpe: 9 }, { stopRpe: 8 })).toEqual([["stop @ RPE 9", "stop @ RPE 8"]]);
+});
+
+test("planChanges sees a week's progression rule", () => {
+  const a = { plannedWeeks: 2, phase: "acc", weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "+intensity" }] };
+  const b = { ...a, weeks: [a.weeks[0], { ...a.weeks[1], progression: { kind: "kg", amount: 2.5 } }] };
+  expect(planChanges(a, b)).toEqual([{ week: 2, where: "W2 progression", from: "no progression", to: "+2.5 kg" }]);
+});

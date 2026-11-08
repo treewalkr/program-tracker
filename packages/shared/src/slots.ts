@@ -1,3 +1,6 @@
+import type { WeekProgression } from "./domain";
+import { progressionLabel } from "./progression";
+
 // ---------------------------------------------------------------------------
 // Slot diff between two draft versions (chat page change lists)
 // ---------------------------------------------------------------------------
@@ -11,6 +14,13 @@ export interface SlotDiffSet {
   durationSeconds?: number | null;
   targetWeightKg?: number | null;
   targetRpe?: number | null;
+  /** Lower bound of an RPE range (`targetRpe` is the upper bound). */
+  targetRpeMin?: number | null;
+  percent1rm?: number | null;
+  targetRir?: number | null;
+  tempo?: string | null;
+  /** AMRAP: stop at this RPE. */
+  stopRpe?: number | null;
   restSeconds?: number | null;
   /** "working" (default) or "backoff". */
   type?: string | null;
@@ -45,6 +55,7 @@ export interface PlanLike {
     week: number;
     directive: string;
     target?: { metric: string; deltaPercent: number } | null;
+    progression?: { kind: string; amount: number } | null;
     note?: string | null;
   }[];
 }
@@ -104,33 +115,63 @@ function volumeOf(sets: SlotDiffSet[]): string {
   return new Set(each).size === 1 ? `${sets.length}×${each[0]}` : each.join("/");
 }
 
+export interface RxParts {
+  volume: string;
+  load: string | null;
+  pct: string | null;
+  rpe: string | null;
+  rir: string | null;
+  stop: string | null;
+  tempo: string | null;
+  rest: string | null;
+}
+const RX_KEYS = ["volume", "load", "pct", "rpe", "rir", "stop", "tempo", "rest"] as const;
+
+const hasRpeRange = (sets: SlotDiffSet[]) => sets.some((s) => s.targetRpeMin != null && s.targetRpe != null);
+const rpeToken = (s: SlotDiffSet) =>
+  s.targetRpe == null ? null : s.targetRpeMin != null && s.targetRpeMin < s.targetRpe ? `${s.targetRpeMin}–${s.targetRpe}` : `${s.targetRpe}`;
+
+/** "RPE 7–8": a ramp of single RPEs across sets collapses to lo–hi; per-set ranges stay per set when they differ. */
+function rpeOf(sets: SlotDiffSet[]): string | null {
+  if (!hasRpeRange(sets)) return range(sets.map((s) => s.targetRpe).filter((v): v is number => v != null), "RPE ", "");
+  const tokens = sets.map(rpeToken).filter((t): t is string => t != null);
+  const unique = [...new Set(tokens)];
+  return unique.length === 1 ? `RPE ${unique[0]}` : `RPE ${tokens.join("/")}`;
+}
+
 /**
  * Prescription split into comparable parts, e.g.
- * { volume: "3×4–5", load: "100 kg", rpe: "RPE 7–8", rest: "rest 180s" }.
+ * { volume: "3×4–5", load: "100 kg", pct: "75% 1RM", rpe: "RPE 7–8", rir: "RIR 2",
+ *   stop: "stop @ RPE 9", tempo: "tempo 3-1-1-0", rest: "rest 180s" }.
  * volume: "<sets>×<reps|min–max|Ns>" when every set matches, else per-set joined
  * by "/"; back-off sets follow as "+ 1×8 back-off".
  */
-export function rxParts(sets: SlotDiffSet[]): { volume: string; load: string | null; rpe: string | null; rest: string | null } {
+export function rxParts(sets: SlotDiffSet[]): RxParts {
   const working = sets.filter((s) => s.type !== "backoff");
   const backoff = sets.filter((s) => s.type === "backoff");
   const volume = [working.length ? volumeOf(working) : null, backoff.length ? `${volumeOf(backoff)} back-off` : null]
     .filter(Boolean)
     .join(" + ");
-  const loads = sets.map((s) => s.targetWeightKg).filter((v): v is number => v != null);
-  const rpes = sets.map((s) => s.targetRpe).filter((v): v is number => v != null);
-  const rests = sets.map((s) => s.restSeconds).filter((v): v is number => v != null);
+  const nums = (pick: (s: SlotDiffSet) => number | null | undefined) =>
+    sets.map(pick).filter((v): v is number => v != null);
+  const tempos = [...new Set(sets.map((s) => s.tempo).filter((v): v is string => !!v))];
   return {
     volume,
-    load: range(loads, "", " kg"),
-    rpe: range(rpes, "RPE ", ""),
-    rest: range(rests, "rest ", "s"),
+    load: range(nums((s) => s.targetWeightKg), "", " kg"),
+    pct: range(nums((s) => s.percent1rm), "", "% 1RM"),
+    rpe: rpeOf(sets),
+    rir: range(nums((s) => s.targetRir), "RIR ", ""),
+    stop: range(nums((s) => s.stopRpe), "stop @ RPE ", ""),
+    tempo: tempos.length ? `tempo ${tempos.join("/")}` : null,
+    rest: range(nums((s) => s.restSeconds), "rest ", "s"),
   };
 }
 
-/** "5×5 @RPE 7–8 · 100 kg · rest 180s" — one-line prescription label. */
+/** "5×5 @RPE 7–8 · RIR 2 · 75% 1RM · 100 kg · tempo 3-1-1-0 · rest 180s" — one-line prescription label. */
 export function rxLabel(sets: SlotDiffSet[]): string {
   const p = rxParts(sets);
-  return `${p.volume}${p.rpe ? ` @${p.rpe}` : ""}${p.load ? ` · ${p.load}` : ""}${p.rest ? ` · ${p.rest}` : ""}`;
+  const tail = [p.stop, p.rir, p.pct, p.load, p.tempo, p.rest].filter(Boolean).map((t) => ` · ${t}`).join("");
+  return `${p.volume}${p.rpe ? ` @${p.rpe}` : ""}${tail}`;
 }
 
 /** Only the parts that differ: ["rest 120s", "rest 150s"]; null when identical. */
@@ -139,10 +180,14 @@ function rxDelta(a: SlotDiffSet[], b: SlotDiffSet[]): [string, string] | null {
   const pb = rxParts(b);
   const from: string[] = [];
   const to: string[] = [];
-  for (const k of ["volume", "load", "rpe", "rest"] as const) {
+  for (const k of RX_KEYS) {
     if (pa[k] !== pb[k]) {
       from.push(pa[k] ?? `no ${k}`);
       to.push(pb[k] ?? `no ${k}`);
+    } else if (k === "rpe" && pa.rpe && hasRpeRange(a) !== hasRpeRange(b)) {
+      // Same text, different meaning: a ramp of single RPEs vs an RPE range on every set.
+      from.push(`${pa.rpe} ${hasRpeRange(a) ? "range" : "ramp"}`);
+      to.push(`${pb.rpe} ${hasRpeRange(b) ? "range" : "ramp"}`);
     }
   }
   return from.length ? [from.join(", "), to.join(", ")] : null;
@@ -343,6 +388,8 @@ export function planChanges(a: PlanLike | null | undefined, b: PlanLike | null |
     if (weekTargetLabel(p) !== weekTargetLabel(q)) {
       out.push({ week, where: `W${week} target`, from: weekTargetLabel(p) || "no target", to: weekTargetLabel(q) || "no target" });
     }
+    const prog = (w: PlanWeekLike) => (w.progression ? progressionLabel(w.progression as WeekProgression) : "no progression");
+    if (prog(p) !== prog(q)) out.push({ week, where: `W${week} progression`, from: prog(p), to: prog(q) });
     if ((p.note ?? "") !== (q.note ?? "")) out.push({ week, where: `W${week} note`, from: null, to: "edited" });
   }
   return out;
