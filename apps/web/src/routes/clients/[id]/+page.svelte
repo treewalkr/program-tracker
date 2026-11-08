@@ -104,6 +104,7 @@
   /** Slots logged under another exercise than the program prescribes (the logger's Swap). */
   const swaps = $derived(current ? slotSwaps(current, sessionLogRows).slice(0, 10) : []);
   const exName = (id: string) => catalogById.get(id)?.name ?? id;
+  const catalogList = $derived([...catalogById.values()]);
   const shortDay = (iso: string) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const maxChainSets = $derived(Math.max(...(chainWeekData?.chains.map((c) => c.sets) ?? [0]), 1));
@@ -616,7 +617,7 @@
           <ClientIdentityFields bind:name={idName} bind:email={idEmail} idPrefix="p" showAll={idAttempted} />
         </section>
 
-        <ClientProfileFields bind:form idPrefix="p" />
+        <ClientProfileFields bind:form idPrefix="p" catalog={catalogList} />
 
         <div class="pf-foot">
           <Button variant="primary" type="submit" disabled={saving || !profileDirty}>{saving ? "Saving…" : "Save profile"}</Button>

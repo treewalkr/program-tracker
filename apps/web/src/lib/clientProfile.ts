@@ -8,14 +8,23 @@ export interface ProfileForm {
   cardioDays: number[];
   /** ISO weekday the long run is pinned to; null = the placer decides. */
   longRunDay: number | null;
+  /** 1RM rows being edited; rows without an exercise, kg or date are dropped on save. */
+  oneRepMaxes: OneRepMaxRow[];
   cardioUnit: "none" | "minutes" | "sessions" | "zone_minutes";
   cardioValue: number;
   goals: string;
   limitations: string;
 }
 
+export interface OneRepMaxRow {
+  exerciseId: string;
+  kg: number | null;
+  /** YYYY-MM-DD the 1RM was tested or set. */
+  date: string;
+}
+
 export function emptyProfile(): ProfileForm {
-  return { sessionsPerWeek: 3, trainingDays: [], cardioDays: [], longRunDay: null, cardioUnit: "none", cardioValue: 120, goals: "", limitations: "" };
+  return { sessionsPerWeek: 3, trainingDays: [], cardioDays: [], longRunDay: null, oneRepMaxes: [], cardioUnit: "none", cardioValue: 120, goals: "", limitations: "" };
 }
 
 export function profileFromClient(c: ClientDto): ProfileForm {
@@ -24,6 +33,7 @@ export function profileFromClient(c: ClientDto): ProfileForm {
     trainingDays: c.trainingDays ? [...c.trainingDays] : [],
     cardioDays: c.cardioDays ? [...c.cardioDays] : [],
     longRunDay: c.longRunDay ?? null,
+    oneRepMaxes: Object.entries(c.oneRepMaxes ?? {}).map(([exerciseId, m]) => ({ exerciseId, kg: m.kg, date: m.date })),
     cardioUnit: c.cardioTarget?.unit ?? "none",
     cardioValue: c.cardioTarget?.value ?? 120,
     goals: c.goals ?? "",
@@ -43,7 +53,19 @@ export function profilePayload(f: ProfileForm) {
     cardioTarget: f.cardioUnit === "none" ? null : { unit: f.cardioUnit, value: Number(f.cardioValue) },
     cardioDays: f.cardioDays.length ? [...f.cardioDays].sort((a, b) => a - b) : null,
     longRunDay: f.longRunDay == null ? null : Number(f.longRunDay),
+    oneRepMaxes: oneRepMaxPayload(f.oneRepMaxes),
   };
+}
+
+/** Complete rows as exerciseId → { kg, date }; null when there are none. */
+function oneRepMaxPayload(rows: OneRepMaxRow[]): Record<string, { kg: number; date: string }> | null {
+  const out: Record<string, { kg: number; date: string }> = {};
+  for (const r of rows) {
+    const kg = Number(r.kg);
+    if (!r.exerciseId || r.kg == null || !(kg > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) continue;
+    out[r.exerciseId] = { kg, date: r.date };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 /** Comparable snapshot for dirty tracking (ignores whitespace-only edits). */

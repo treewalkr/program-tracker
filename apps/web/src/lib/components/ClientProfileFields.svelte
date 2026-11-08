@@ -2,17 +2,26 @@
   import { CARDIO_DEFAULT, stackNote, type ProfileForm } from "$lib/clientProfile";
   import Field from "$lib/ui/Field.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
+  import ExercisePicker from "$lib/components/ExercisePicker.svelte";
+  import type { ExerciseDto } from "$lib/api/types";
+  import { localIso } from "$lib/overview";
 
   /**
    * Schedule + "For the AI" sections of a client profile. The parent owns the
    * form and its save. `collapsible` tucks the optional cardio target and AI
    * notes behind "More details" (new-client form); Settings shows everything.
+   * With a `catalog`, the client's 1RMs are editable too (they resolve %1RM sets).
    */
   let {
     form = $bindable(),
     idPrefix,
     collapsible = false,
-  }: { form: ProfileForm; idPrefix: string; collapsible?: boolean } = $props();
+    catalog = null,
+  }: { form: ProfileForm; idPrefix: string; collapsible?: boolean; catalog?: ExerciseDto[] | null } = $props();
+
+  function addOneRepMax() {
+    form.oneRepMaxes.push({ exerciseId: "", kg: null, date: localIso(new Date()) });
+  }
 
   // svelte-ignore state_referenced_locally
   let expanded = $state(!collapsible || form.cardioUnit !== "none" || form.goals.trim() !== "" || form.limitations.trim() !== "");
@@ -53,6 +62,27 @@
       {#each WEEKDAYS as day, i (day)}<option value={i + 1}>{day}</option>{/each}
     </select>
   </Field>
+  {#if catalog}
+    <fieldset class="fs">
+      <legend class="label">1RMs <span class="subtle">— sets prescribed as a % of 1RM show their kg from these</span></legend>
+      {#if form.oneRepMaxes.length}
+        <div class="orm-list">
+          {#each form.oneRepMaxes as r, i (i)}
+            <div class="orm-row">
+              <ExercisePicker value={r.exerciseId} {catalog} label="1RM {i + 1} exercise" onpick={(ex) => (r.exerciseId = ex.id)} />
+              <span class="orm-kg">
+                <input class="input tnum" type="number" inputmode="decimal" min="1" max="600" step="0.5" placeholder="—" aria-label="1RM {i + 1} kg" bind:value={r.kg} />
+                <span class="subtle">kg</span>
+              </span>
+              <input class="input orm-date" type="date" aria-label="1RM {i + 1} tested on" bind:value={r.date} />
+              <button type="button" class="orm-x" aria-label="Remove 1RM {i + 1}" onclick={() => form.oneRepMaxes.splice(i, 1)}>×</button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      <button type="button" class="orm-add" onclick={addOneRepMax}>+ Add a 1RM</button>
+    </fieldset>
+  {/if}
 </section>
 
 {#if !expanded}
@@ -95,6 +125,16 @@
   .days-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .note { font-size: 12.5px; color: var(--warn); }
   .select.count { width: auto; }
+  .orm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .orm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .orm-row :global(.xp) { flex: 1 1 220px; min-width: 0; }
+  .orm-kg { display: inline-flex; align-items: center; gap: 6px; }
+  .orm-kg .input { width: 84px; text-align: right; }
+  .orm-date { width: auto; }
+  .orm-x { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .orm-x:hover { color: var(--bad); }
+  .orm-add { border: none; background: none; padding: 0; font: 500 13px var(--font-ui); color: var(--blue); cursor: pointer; }
+  .orm-add:hover { text-decoration: underline; }
   .cardio-fields { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cardio-fields .select { width: auto; }
   .cardio-fields .input { width: 96px; }

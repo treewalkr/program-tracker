@@ -3,7 +3,7 @@ import { emailError, emptyProfile, nameError, profileFromClient, profileKey, pro
 
 test("payload trims text, sorts days and nulls an absent cardio target", () => {
   const f = { ...emptyProfile(), goals: "  Squat 140 ", limitations: "   ", trainingDays: [5, 1], sessionsPerWeek: "4" as unknown as number };
-  expect(profilePayload(f)).toEqual({ goals: "Squat 140", limitations: null, sessionsPerWeek: 4, trainingDays: [1, 5], cardioTarget: null, cardioDays: null, longRunDay: null });
+  expect(profilePayload(f)).toEqual({ goals: "Squat 140", limitations: null, sessionsPerWeek: 4, trainingDays: [1, 5], cardioTarget: null, cardioDays: null, longRunDay: null, oneRepMaxes: null });
 });
 
 test("cardio target carries unit and numeric value", () => {
@@ -41,4 +41,24 @@ test("profileFromClient reads run days and the long run day", () => {
   const c = { id: "c", name: "P", email: "p@x.io", status: "active" as const, goals: null, limitations: null, sessionsPerWeek: 2, cardioDays: [3, 7], longRunDay: 7 };
   expect(profileFromClient(c)).toMatchObject({ cardioDays: [3, 7], longRunDay: 7 });
   expect(profileFromClient({ ...c, cardioDays: null, longRunDay: null })).toMatchObject({ cardioDays: [], longRunDay: null });
+});
+
+test("1RM rows become exerciseId → { kg, date }; incomplete rows drop out; none = null", () => {
+  const f = {
+    ...emptyProfile(),
+    oneRepMaxes: [
+      { exerciseId: "sq", kg: "140" as unknown as number, date: "2026-10-01" },
+      { exerciseId: "", kg: 100, date: "2026-10-01" },
+      { exerciseId: "bp", kg: null, date: "2026-10-01" },
+      { exerciseId: "dl", kg: 180, date: "" },
+    ],
+  };
+  expect(profilePayload(f).oneRepMaxes).toEqual({ sq: { kg: 140, date: "2026-10-01" } });
+  expect(profilePayload(emptyProfile()).oneRepMaxes).toBeNull();
+});
+
+test("profileFromClient lists the client's 1RMs as editable rows", () => {
+  const c = { id: "c", name: "P", email: "p@x.io", status: "active" as const, goals: null, limitations: null, sessionsPerWeek: 2, oneRepMaxes: { sq: { kg: 140, date: "2026-10-01" } } };
+  expect(profileFromClient(c).oneRepMaxes).toEqual([{ exerciseId: "sq", kg: 140, date: "2026-10-01" }]);
+  expect(profileFromClient({ ...c, oneRepMaxes: null }).oneRepMaxes).toEqual([]);
 });
