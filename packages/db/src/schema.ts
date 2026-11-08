@@ -105,6 +105,10 @@ export const clients = pgTable("clients", {
   trainingDays: jsonb("training_days").$type<number[]>(),
   /** Standing weekly cardio target {unit, value} — null = none. */
   cardioTarget: jsonb("cardio_target").$type<CardioTarget>(),
+  /** ISO weekdays available for cardio — null = trainingDays. */
+  cardioDays: jsonb("cardio_days").$type<number[]>(),
+  /** ISO weekday the long run is pinned to — null = placer decides. */
+  longRunDay: integer("long_run_day"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -245,6 +245,18 @@ export const Client = z.object({
     .optional(),
   /** Standing weekly cardio target — resets every ISO week (cardio.ts math). */
   cardioTarget: CardioTarget.nullable().optional(),
+  /** ISO weekdays the client can run / do cardio; null/absent = trainingDays.
+   *  Cardio may go on these or on trainingDays (placement.ts). */
+  cardioDays: z
+    .array(z.number().int().min(1).max(7))
+    .max(7)
+    .refine((days) => new Set(days).size === days.length, {
+      message: "cardioDays must be unique",
+    })
+    .nullable()
+    .optional(),
+  /** ISO weekday the long run is pinned to; null/absent = placer decides. */
+  longRunDay: z.number().int().min(1).max(7).nullable().optional(),
   createdAt: z.string(),
 });
 export type Client = z.infer<typeof Client>;

@@ -232,6 +232,13 @@
       "when": 1795200000000,
       "tag": "0032_generation_discarded_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795400000000,
+      "tag": "0034_client_cardio_days",
+      "breakpoints": true
     }
   ]
 }

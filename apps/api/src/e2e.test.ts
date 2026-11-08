@@ -1250,6 +1250,16 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     expect(bad.status).toBe(422);
   });
 
+  test("client PATCH sets and clears cardioDays and longRunDay", async () => {
+    const set = await call("PATCH", `/v1/clients/${clientId}`, { cardioDays: [2, 3, 5, 7], longRunDay: 7 });
+    expect(set.status).toBe(200);
+    expect([set.body.cardioDays, set.body.longRunDay]).toEqual([[2, 3, 5, 7], 7]);
+    expect((await call("PATCH", `/v1/clients/${clientId}`, { longRunDay: 8 })).status).toBe(422);
+    expect((await call("PATCH", `/v1/clients/${clientId}`, { cardioDays: [2, 2] })).status).toBe(422);
+    const cleared = await call("PATCH", `/v1/clients/${clientId}`, { cardioDays: null, longRunDay: null });
+    expect([cleared.body.cardioDays, cleared.body.longRunDay]).toEqual([null, null]);
+  });
+
   test("active program for the cardio client", async () => {
     squatId = (await call("GET", "/v1/exercises?q=squat")).body[0].id;
     const prog = await call("POST", "/v1/programs", {
