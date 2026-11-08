@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ageOn, EXPERIENCE_LABEL } from "./client";
+import { ageOn, birthDateError, EXPERIENCE_LABEL, startedOnError, startedOnMax } from "./client";
 import { CLIENT_EXPERIENCES } from "./domain";
 
 describe("ageOn", () => {
@@ -33,5 +33,21 @@ describe("EXPERIENCE_LABEL", () => {
       expect(EXPERIENCE_LABEL[level].band.length).toBeGreaterThan(0);
     }
     expect(EXPERIENCE_LABEL.intermediate).toEqual({ label: "Intermediate", band: "1–3 yrs" });
+  });
+});
+
+describe("basics date checks", () => {
+  test("birth date between 1900 and today", () => {
+    expect(birthDateError("1992-03-14", "2026-11-08")).toBeNull();
+    expect(birthDateError("2026-11-08", "2026-11-08")).toBeNull();
+    expect(birthDateError("2026-11-09", "2026-11-08")).not.toBeNull();
+    expect(birthDateError("1899-12-31", "2026-11-08")).not.toBeNull();
+  });
+
+  test("client since between 2000 and a year from today", () => {
+    expect(startedOnMax("2026-11-08")).toBe("2027-11-08");
+    expect(startedOnError("2027-11-08", "2026-11-08")).toBeNull();
+    expect(startedOnError("2027-11-09", "2026-11-08")).not.toBeNull();
+    expect(startedOnError("1999-12-31", "2026-11-08")).not.toBeNull();
   });
 });
