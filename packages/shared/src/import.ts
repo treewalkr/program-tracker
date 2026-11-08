@@ -176,7 +176,8 @@ export type ImportFlagCode =
   | "no_prescription"
   | "no_sets"
   | "no_reps"
-  | "limit";
+  | "limit"
+  | "split";
 
 export interface ImportFlag {
   /** warn = amber (check it); info = a note on how it was mapped. */
@@ -404,12 +405,21 @@ const DEFAULT_TIMED_SECONDS = 30;
 const range = (lo: number | null | undefined, hi: number, unit: string) => (lo != null && lo < hi ? `${fmt(lo)}–${fmt(hi)}${unit}` : `${fmt(hi)}${unit}`);
 
 /** Sets for one exercise, plus the approximation notes and flags the mapping produced. */
-export function mapPrescription(p: ImportPrescription | null): { sets: PrescribedSet[]; notes: string[]; flags: ImportFlag[] } {
+/** Stretches, mobility and warm-up drills: no numbers is normal — everyone knows how long to hold them. */
+export const isMobilityName = (name: string): boolean =>
+  /\b(stretch\w*|mobility|mobilit\w*|foam roll\w*|warm[ -]?up|activation|cars|pails|rails|breathing|release|cool[ -]?down)\b/i.test(name);
+
+export function mapPrescription(
+  p: ImportPrescription | null,
+  name = "",
+): { sets: PrescribedSet[]; notes: string[]; flags: ImportFlag[] } {
   const notes: string[] = [];
   const flags: ImportFlag[] = [];
   const base = { type: "working" as const, amrap: false };
   if (!p) {
-    flags.push({ level: "warn", code: "no_prescription", message: `No sets/reps in the text — set to 1 × ${DEFAULT_TIMED_SECONDS}s` });
+    if (!isMobilityName(name)) {
+      flags.push({ level: "warn", code: "no_prescription", message: `No sets/reps in the text — set to 1 × ${DEFAULT_TIMED_SECONDS}s` });
+    }
     return { sets: [{ ...base, setNumber: 1, reps: 0, durationSeconds: DEFAULT_TIMED_SECONDS }], notes, flags };
   }
 
@@ -506,7 +516,7 @@ function reviewExercise(ex: ImportExercise, lines: string[]): ReviewExercise {
   const check = new NumberCheck(numberTokens(text, nameSpan(text, ex.sourceName)));
   if (ex.prescription) checkPrescription(ex.prescription, check);
   checkActuals(ex.actuals ?? [], check);
-  const mapped = mapPrescription(ex.prescription);
+  const mapped = mapPrescription(ex.prescription, `${ex.sourceName} ${ex.name} ${ex.variation ?? ""}`);
   const note = [ex.variation, ex.equipment, ex.notes, ...mapped.notes]
     .map((s) => s?.trim())
     .filter((s): s is string => !!s)
@@ -630,12 +640,45 @@ function mergeWeeks(chunks: LocatedWeek[][]): LocatedWeek[] {
   return out;
 }
 
+const dayNumber = (label: string): number | null => {
+  const m = /^\s*day\s*(\d+)/i.exec(label);
+  return m ? Number(m[1]) : null;
+};
+
+/**
+ * Notes that number their days again ("Day 1 … Day 4", then "Day 1 … Day 3")
+ * without a week header hold several weeks or phases: split there, so no
+ * week runs past seven days. Each split is said in an info flag.
+ */
+export function splitRestartedDays(weeks: LocatedWeek[]): (LocatedWeek & { restartedAt?: number })[] {
+  return weeks.flatMap((w) => {
+    const parts: LocatedDay[][] = [[]];
+    let prev: number | null = null;
+    for (const d of w.days) {
+      const n = dayNumber(d.label);
+      if (n !== null && prev !== null && n <= prev && parts.at(-1)!.length > 0) parts.push([]);
+      parts.at(-1)!.push(d);
+      if (n !== null) prev = n;
+    }
+    if (parts.length === 1) return [w];
+    return parts.map((days, i) => ({
+      label: w.label ? `${w.label} (part ${i + 1})` : `Part ${i + 1}`,
+      line: i === 0 ? w.line : days[0].line,
+      days,
+      ...(i > 0 ? { restartedAt: days[0].line } : {}),
+    }));
+  });
+}
+
 export function buildImportResult(text: string, outcomes: ImportChunkOutcome[]): ImportResult {
   const lines = importLines(text);
   const ok = outcomes.flatMap((o) => (o.ok ? [o.data] : []));
   const unread = outcomes.flatMap((o) => (o.ok ? [] : [{ from: o.from, to: o.to, error: o.error }]));
-  const weeks: ReviewWeek[] = mergeWeeks(outcomes.flatMap((o) => (o.ok ? [locate(o.data, o.from)] : []))).map((w) => {
+  const weeks: ReviewWeek[] = splitRestartedDays(mergeWeeks(outcomes.flatMap((o) => (o.ok ? [locate(o.data, o.from)] : [])))).map((w) => {
     const flags: ImportFlag[] = [];
+    if (w.restartedAt !== undefined) {
+      flags.push({ level: "info", code: "split", message: `Day numbers start again at line ${w.restartedAt} — read as a new part` });
+    }
     if (w.days.length > IMPORT_LIMITS.daysPerWeek) {
       flags.push({ level: "warn", code: "limit", blocking: true, message: `${w.days.length} days — more than ${IMPORT_LIMITS.daysPerWeek} in a week` });
     }

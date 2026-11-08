@@ -128,10 +128,10 @@ describe("fixture → result", () => {
     expect(jaccard(weekExerciseNames(r.weeks[0]), weekExerciseNames(r.weeks[1]))).toBeLessThan(0.6);
   });
 
-  test("no value of the correct extraction is flagged amber, except the line with no prescription", () => {
+  test("no value of the correct extraction is flagged amber — a stretch with no numbers included", () => {
     const amber = exercises(r).filter((e) => warns(e).length > 0);
-    expect(amber.map((e) => e.line)).toEqual([4]);
-    expect(warns(byLine(r, 4))).toEqual(["No sets/reps in the text — set to 1 × 30s"]);
+    expect(amber.map((e) => e.line)).toEqual([]);
+    expect(byLine(r, 4).flags).toEqual([]);
     expect(r.weeks.flatMap((w) => w.days.flatMap((d) => d.sessions.flatMap((s) => warns(s))))).toEqual([]);
   });
 
@@ -386,5 +386,52 @@ describe("mock extraction", () => {
 
   test("other text comes back empty", () => {
     expect(mockImportExtraction(["Week 1", "Squat 5x5"], 1, 2).weeks).toEqual([]);
+  });
+});
+
+describe("no prescription", () => {
+  test("a stretch or mobility drill with no numbers is not flagged", () => {
+    for (const n of ["Lateral Stretch", "Hip CARs", "Foam rolling", "Warm up", "Chest (PAILs/RAILs)"]) {
+      expect(mapPrescription(null, n).flags).toEqual([]);
+    }
+  });
+  test("a lift with no numbers is still flagged", () => {
+    expect(mapPrescription(null, "Bench Press").flags.map((f) => f.code)).toEqual(["no_prescription"]);
+  });
+});
+
+describe("day numbers starting again", () => {
+  const day = (n: number, line: number, name: string) => ({
+    label: `Day ${n} ${name}`,
+    line,
+    sessions: [{ name, kind: "lifting" as const, line, exercises: [{ line: line + 1, sourceName: name, name, prescription: { sets: 3, reps: 5 } }] }],
+  });
+  const text = Array.from({ length: 14 }, (_, i) => (i % 2 === 0 ? `Day ${i}` : "Squat 3x5")).join("\n");
+
+  test("Day 1–2, then Day 1–2 again → two parts, the second flagged", () => {
+    const data = ImportChunk.parse({
+      weeks: [{ label: null, line: null, days: [day(1, 1, "A"), day(2, 3, "B"), day(1, 5, "C"), day(2, 7, "D")] }],
+      skipped: [],
+    });
+    const r = buildImportResult(text, [{ from: 1, to: 14, ok: true, data }]);
+    expect(r.weeks.map((w) => [w.label, w.line, w.days.length])).toEqual([
+      ["Part 1", null, 2],
+      ["Part 2", 5, 2],
+    ]);
+    expect(r.weeks[0].flags).toEqual([]);
+    expect(r.weeks[1].flags.map((f) => [f.level, f.message])).toEqual([["info", "Day numbers start again at line 5 — read as a new part"]]);
+    expect(r.blocks).toEqual([{ weeks: [0] }, { weeks: [1] }]);
+  });
+
+  test("a labelled week keeps its label; days counting up are not split", () => {
+    const data = ImportChunk.parse({
+      weeks: [
+        { label: "Week 3", line: 1, days: [day(1, 1, "A"), day(1, 3, "B")] },
+        { label: "Week 4", line: 5, days: [day(1, 5, "A"), day(2, 7, "B"), day(3, 9, "C")] },
+      ],
+      skipped: [],
+    });
+    const r = buildImportResult(text, [{ from: 1, to: 14, ok: true, data }]);
+    expect(r.weeks.map((w) => w.label)).toEqual(["Week 3 (part 1)", "Week 3 (part 2)", "Week 4"]);
   });
 });
