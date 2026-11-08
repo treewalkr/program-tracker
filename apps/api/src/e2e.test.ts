@@ -1565,6 +1565,26 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     expect(body.phasing).toEqual(pre.body.phasing);
   });
 
+  test("a backfilled log before activation moves the current week (F05)", async () => {
+    const d = new Date(Date.now() - 8 * 86_400_000);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const log = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date,
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+    });
+    expect(log.status).toBe(201);
+    // The block now anchors 8 days back → week 2 is current, week 3 is next —
+    // the same week the week-ending signal and the client page compute.
+    const stale = await call("POST", "/v1/ai/generate", { clientId, basedOnProgramId: programId, targetWeek: 2, providerId: "mock" });
+    expect(stale.status).toBe(422);
+    expect(stale.body.error).toBe("target week must be the upcoming week (week 2 + 1)");
+    const next = await call("POST", "/v1/ai/generate", { clientId, basedOnProgramId: programId, targetWeek: 3, providerId: "mock" });
+    expect(next.status).toBe(201);
+    expect(next.body.targetWeek).toBe(3);
+  });
+
   test("weekly approve rejects a stale target week", async () => {
     // Program where weekNow has advanced past targetWeek
     // Create an active program activated 25 days ago (weekNow = 4)

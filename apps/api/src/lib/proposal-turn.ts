@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, aiGenerations, clients, programs } from "@pt/db";
-import { ChatProposal, mockChatReply, mockProposal, weekOf } from "@pt/shared";
-import { toSignalProgram } from "./signals-service";
+import { ChatProposal, mockChatReply, mockProposal } from "@pt/shared";
+import { currentBlockWeek } from "./signals-service";
 import { callLlm, contextSnapshot, type LlmOutcome } from "../ai/llm";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import { buildRevisionMessages, buildWeekRevisionMessages } from "../ai/prompt";
@@ -109,7 +109,7 @@ export async function runProposalTurn(
       ? await db.select().from(programs).where(eq(programs.id, parent.basedOnProgramId))
       : [null];
     const focusWeek = basedProg
-      ? weekOf(toSignalProgram(basedProg), [])
+      ? await currentBlockWeek(basedProg)
       : (parent.targetWeek ? parent.targetWeek - 1 : 1);
     const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
       focusWeek,

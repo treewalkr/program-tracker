@@ -20,7 +20,6 @@ import {
   chainSetCounts,
   combinePreferenceDocs,
   pulseSummary,
-  weekOf,
   type ProgramWeek, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "../lib/settle-generation";
@@ -37,7 +36,7 @@ import { ensureSessionTypes } from "../lib/session-types";
 import { buildHistory } from "../lib/history";
 import { trainerContext } from "../lib/trainer-context";
 import { ensureSeededChains } from "../lib/chains";
-import { toSignalLog, toSignalProgram } from "../lib/signals-service";
+import { currentBlockWeek, toSignalLog } from "../lib/signals-service";
 import { toProgramDto } from "./programs";
 import { loadContext } from "../lib/context";
 import { runRevision } from "../lib/revision";
@@ -87,7 +86,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           if (body.targetWeek > basedProg.sessions.length) {
             return status(422, { error: "target week is beyond the block" });
           }
-          const currentWeek = weekOf(toSignalProgram(basedProg), []);
+          const currentWeek = await currentBlockWeek(basedProg);
           if (body.targetWeek !== currentWeek + 1) {
             return status(422, { error: `target week must be the upcoming week (week ${currentWeek} + 1)` });
           }
@@ -281,7 +280,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         if (!prog) return status(404, { error: "program not found" });
         if (prog.status !== "active") return status(409, { error: "program is not active" });
 
-        const weekNow = weekOf(toSignalProgram(prog), []);
+        const weekNow = await currentBlockWeek(prog);
         if (
           !gen.targetWeek ||
           gen.targetWeek > prog.sessions.length ||

@@ -11,7 +11,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { cardioBehindSignal, computeSignals, timedExerciseIds } from "@pt/shared";
+import { cardioBehindSignal, computeSignals, timedExerciseIds, weekOf } from "@pt/shared";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
 /**
@@ -32,6 +32,17 @@ export function toSignalProgram(p: ProgramRow): SignalProgram {
     createdAt: p.createdAt.toISOString(),
     phasing: p.phasing ?? null,
   };
+}
+
+/** Current block week of a program, anchored like every other block window
+ *  (the earlier of activation and the first log) — so weekly generation
+ *  targets the same week the signals and the client page show. */
+export async function currentBlockWeek(p: ProgramRow, now = Date.now()): Promise<number> {
+  const rows = await db
+    .select({ date: sessionLogs.date })
+    .from(sessionLogs)
+    .where(eq(sessionLogs.programId, p.id));
+  return weekOf(toSignalProgram(p), rows.map((r) => ({ programId: p.id, date: r.date, sets: [] })), now);
 }
 
 /** Union of timed-hold exercises across the programs these logs belong to —

@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
-import { AiProgramDraft, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, weekOf, type ChatProposal, type SlotChange } from "@pt/shared";
-import { toSignalProgram } from "./signals-service";
+import { AiProgramDraft, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
+import { currentBlockWeek } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
 import { recordFeedback } from "./llm-feedback";
@@ -134,7 +134,7 @@ export async function runRevision(
           ? await db.select().from(programs).where(eq(programs.id, parent.basedOnProgramId))
           : [null];
         const focusWeek = basedProg
-          ? weekOf(toSignalProgram(basedProg), [])
+          ? await currentBlockWeek(basedProg)
           : (parent.targetWeek ? parent.targetWeek - 1 : 1);
         const ctx = await loadContext(parent.trainerId, parent.clientId, parent.basedOnProgramId, {
           focusWeek,
