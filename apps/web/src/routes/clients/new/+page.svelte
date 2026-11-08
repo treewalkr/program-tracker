@@ -3,9 +3,10 @@
   import { page } from "$app/state";
   import { afterNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
+  import type { ExerciseDto } from "$lib/api/types";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
-  import { emailError, emptyProfile, nameError, profilePayload } from "$lib/clientProfile";
+  import { basicsInvalid, emailError, emptyProfile, nameError, phonePayload, profilePayload } from "$lib/clientProfile";
   import { clearNewClientDraft, newClientDraftKey, readNewClientDraft, saveNewClientDraft } from "$lib/newClientDraft";
   import Button from "$lib/ui/Button.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
@@ -19,7 +20,10 @@
   let saving = $state(false);
   let name = $state("");
   let email = $state("");
+  let phone = $state("");
   let profile = $state(emptyProfile());
+  /** Exercise catalog for the 1RM rows — they appear once it loads; the rest of the form works without it. */
+  let catalog = $state<ExerciseDto[] | null>(null);
   let createError = $state<string | null>(null);
   /** Set by a submit attempt: shows every field error at once. */
   let attempted = $state(false);
@@ -37,7 +41,7 @@
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     if (!autosave) return;
-    const draft = $state.snapshot({ name, email, profile });
+    const draft = $state.snapshot({ name, email, phone, profile });
     clearTimeout(saveTimer);
     // No teardown clear: a save still pending when the page closes must land.
     saveTimer = setTimeout(() => saveNewClientDraft(draftKey, draft), 300);
@@ -46,6 +50,7 @@
   function reset() {
     name = "";
     email = "";
+    phone = "";
     profile = emptyProfile();
     createError = null;
     attempted = false;
@@ -76,10 +81,15 @@
       document.getElementById(nameError(name) ? "f-name" : "f-email")?.focus();
       return;
     }
+    if (basicsInvalid(profile)) {
+      attempted = true;
+      document.querySelector<HTMLElement>('.newclient [aria-invalid="true"]')?.focus();
+      return;
+    }
     saving = true;
     createError = null;
     try {
-      const created = await api.createClient({ name: name.trim(), email: email.trim() || null, ...profilePayload(profile) });
+      const created = await api.createClient({ name: name.trim(), email: email.trim() || null, phone: phonePayload(phone), ...profilePayload(profile) });
       autosave = false;
       clearTimeout(saveTimer);
       clearNewClientDraft(draftKey);
@@ -92,10 +102,15 @@
   }
 
   onMount(() => {
+    api.exercises().then(
+      (list) => (catalog = list),
+      () => {} // no catalog → no 1RM rows; they can be added later on the Profile tab
+    );
     const draft = readNewClientDraft(draftKey);
     if (draft) {
       name = draft.name;
       email = draft.email;
+      phone = draft.phone;
       profile = draft.profile;
       restored = true;
     }
@@ -129,10 +144,10 @@
     <form class="panel-body pf" onsubmit={submit} novalidate>
       <section class="pf-sec">
         <h3>Client</h3>
-        <ClientIdentityFields bind:name bind:email idPrefix="f" showAll={attempted} />
+        <ClientIdentityFields bind:name bind:email bind:phone idPrefix="f" showAll={attempted} />
       </section>
 
-      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible />
+      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible {catalog} />
 
       <div class="pf-foot">
         <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
@@ -140,6 +155,7 @@
         <span class="subtle" role="status" aria-live="polite">
           {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
           {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
+          {:else if attempted && basicsInvalid(profile)}<span class="err">Fix the basics marked above to continue</span>
           {:else}Opens their page next — no program is created yet{/if}
         </span>
       </div>
@@ -149,7 +165,7 @@
 
 <style>
   :global(.note.draft-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-  /* On wide screens the form sections pair up (Client | Schedule, Cardio | For the AI). */
+  /* On wide screens the form sections pair up (Client | Basics, Schedule | Cardio, For the AI). */
   @media (min-width: 1360px) {
     .newclient :global(.pf) { max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 40px; align-items: start; }
     .newclient :global(.pf > .more), .newclient :global(.pf > .pf-foot) { grid-column: 1 / -1; justify-self: stretch; }

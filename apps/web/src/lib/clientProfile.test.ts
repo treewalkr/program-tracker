@@ -1,9 +1,39 @@
 import { expect, test } from "bun:test";
-import { emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, stackNote } from "./clientProfile";
+import {
+  basicsInvalid,
+  basicsSummary,
+  birthDateError,
+  bodyweightError,
+  emailError,
+  emptyProfile,
+  heightError,
+  nameError,
+  phonePayload,
+  profileFromClient,
+  profileKey,
+  profilePayload,
+  stackNote,
+  startedOnError,
+} from "./clientProfile";
 
 test("payload trims text, sorts days and nulls an absent cardio target", () => {
-  const f = { ...emptyProfile(), goals: "  Squat 140 ", limitations: "   ", trainingDays: [5, 1], sessionsPerWeek: "4" as unknown as number };
-  expect(profilePayload(f)).toEqual({ goals: "Squat 140", limitations: null, sessionsPerWeek: 4, trainingDays: [1, 5], cardioTarget: null, cardioDays: null, longRunDay: null, oneRepMaxes: null });
+  const f = { ...emptyProfile("2026-11-08"), goals: "  Squat 140 ", limitations: "   ", trainingDays: [5, 1], sessionsPerWeek: "4" as unknown as number };
+  expect(profilePayload(f)).toEqual({
+    goals: "Squat 140",
+    limitations: null,
+    sessionsPerWeek: 4,
+    trainingDays: [1, 5],
+    cardioTarget: null,
+    cardioDays: null,
+    longRunDay: null,
+    oneRepMaxes: null,
+    experience: null,
+    birthDate: null,
+    sex: null,
+    bodyweightKg: null,
+    heightCm: null,
+    startedOn: "2026-11-08",
+  });
 });
 
 test("cardio target carries unit and numeric value", () => {
@@ -71,4 +101,63 @@ test("1RM dates revived by the API client stay YYYY-MM-DD and survive a re-save"
     expect(f.oneRepMaxes).toEqual([{ exerciseId: "sq", kg: 140, date: "2026-11-08" }]);
     expect(profilePayload(f).oneRepMaxes).toEqual({ sq: { kg: 140, date: "2026-11-08" } });
   }
+});
+
+test("a new profile starts the client today; basics start unset", () => {
+  expect(emptyProfile("2026-11-08")).toMatchObject({ experience: "", birthDate: "", sex: "", bodyweightKg: null, heightCm: null, startedOn: "2026-11-08" });
+});
+
+test("basics round-trip; dates stay calendar days even when revived into Dates", () => {
+  const client = {
+    id: "c1",
+    name: "Ada",
+    email: null,
+    status: "active" as const,
+    goals: null,
+    limitations: null,
+    sessionsPerWeek: 3,
+    experience: "intermediate" as const,
+    birthDate: new Date("1992-03-14T00:00:00.000Z") as unknown as string,
+    sex: "female" as const,
+    bodyweightKg: 72.5,
+    heightCm: 168,
+    startedOn: "2026-01-05",
+  };
+  const f = profileFromClient(client);
+  expect(f).toMatchObject({ experience: "intermediate", birthDate: "1992-03-14", sex: "female", bodyweightKg: 72.5, heightCm: 168, startedOn: "2026-01-05" });
+  expect(profilePayload(f)).toMatchObject({ experience: "intermediate", birthDate: "1992-03-14", sex: "female", bodyweightKg: 72.5, heightCm: 168, startedOn: "2026-01-05" });
+});
+
+test("an existing client without a start date shows it empty, and empty basics save as null", () => {
+  const f = profileFromClient({ id: "c1", name: "Ada", email: null, status: "active", goals: null, limitations: null, sessionsPerWeek: 3 });
+  expect(f.startedOn).toBe("");
+  const blank = { ...f, bodyweightKg: "" as unknown as number };
+  expect(profilePayload(blank)).toMatchObject({ experience: null, birthDate: null, sex: null, bodyweightKg: null, heightCm: null, startedOn: null });
+});
+
+test("basics range errors match the API limits", () => {
+  expect(bodyweightError(null)).toBeNull();
+  expect(bodyweightError(72)).toBeNull();
+  expect(bodyweightError(19)).toBe("Bodyweight must be 20–400 kg");
+  expect(heightError(251)).toBe("Height must be 80–250 cm");
+  expect(heightError(168)).toBeNull();
+  expect(birthDateError("", "2026-11-08")).toBeNull();
+  expect(birthDateError("2026-11-09", "2026-11-08")).not.toBeNull();
+  expect(startedOnError("1999-12-31", "2026-11-08")).not.toBeNull();
+  expect(basicsInvalid({ ...emptyProfile(), heightCm: 300 })).toBe(true);
+  expect(basicsInvalid(emptyProfile())).toBe(false);
+});
+
+test("phone is trimmed; blank is null", () => {
+  expect(phonePayload("  +66 81 234 5678 ")).toBe("+66 81 234 5678");
+  expect(phonePayload("   ")).toBeNull();
+});
+
+test("header basics list only what's set", () => {
+  const base = { id: "c1", name: "Ada", email: null, status: "active" as const, goals: null, limitations: null, sessionsPerWeek: 3 };
+  expect(
+    basicsSummary({ ...base, experience: "intermediate", birthDate: "1992-03-14", sex: "female", bodyweightKg: 72, heightCm: 168 }, "2026-11-08")
+  ).toEqual(["Intermediate", "34 yrs", "Female", "72 kg"]);
+  expect(basicsSummary({ ...base, sex: "male" }, "2026-11-08")).toEqual(["Male"]);
+  expect(basicsSummary(base, "2026-11-08")).toEqual([]);
 });

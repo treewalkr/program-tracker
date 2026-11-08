@@ -1,4 +1,15 @@
+import {
+  BODYWEIGHT_KG_RANGE,
+  EXPERIENCE_LABEL,
+  HEIGHT_CM_RANGE,
+  ageOn,
+  birthDateError as birthDateRangeError,
+  startedOnError as startedOnRangeError,
+  type ClientExperience,
+  type ClientSex,
+} from "@pt/shared";
 import type { ClientDto } from "./api/types";
+import { localIso } from "./overview";
 
 /** Editable client profile shared by the new-client form and the Settings tab. */
 export interface ProfileForm {
@@ -14,6 +25,15 @@ export interface ProfileForm {
   cardioValue: number;
   goals: string;
   limitations: string;
+  /** Basics — "" / null = not set. */
+  experience: ClientExperience | "";
+  /** YYYY-MM-DD, or "". */
+  birthDate: string;
+  sex: ClientSex | "";
+  bodyweightKg: number | null;
+  heightCm: number | null;
+  /** YYYY-MM-DD the client started, or "". Admin-only. */
+  startedOn: string;
 }
 
 export interface OneRepMaxRow {
@@ -23,8 +43,25 @@ export interface OneRepMaxRow {
   date: string;
 }
 
-export function emptyProfile(): ProfileForm {
-  return { sessionsPerWeek: 3, trainingDays: [], cardioDays: [], longRunDay: null, oneRepMaxes: [], cardioUnit: "none", cardioValue: 120, goals: "", limitations: "" };
+/** A blank profile for a new client; "client since" starts at today's local date. */
+export function emptyProfile(today: string = localIso(new Date())): ProfileForm {
+  return {
+    sessionsPerWeek: 3,
+    trainingDays: [],
+    cardioDays: [],
+    longRunDay: null,
+    oneRepMaxes: [],
+    cardioUnit: "none",
+    cardioValue: 120,
+    goals: "",
+    limitations: "",
+    experience: "",
+    birthDate: "",
+    sex: "",
+    bodyweightKg: null,
+    heightCm: null,
+    startedOn: today,
+  };
 }
 
 export function profileFromClient(c: ClientDto): ProfileForm {
@@ -38,11 +75,17 @@ export function profileFromClient(c: ClientDto): ProfileForm {
     cardioValue: c.cardioTarget?.value ?? 120,
     goals: c.goals ?? "",
     limitations: c.limitations ?? "",
+    experience: c.experience ?? "",
+    birthDate: c.birthDate ? calendarDate(c.birthDate) : "",
+    sex: c.sex ?? "",
+    bodyweightKg: c.bodyweightKg ?? null,
+    heightCm: c.heightCm ?? null,
+    startedOn: c.startedOn ? calendarDate(c.startedOn) : "",
   };
 }
 
-/** The API client revives date strings into Dates (or full ISO strings); a 1RM date is a UTC calendar day. */
-function calendarDate(d: string | Date): string {
+/** The API client revives date strings into Dates (or full ISO strings); a calendar day is its UTC date. */
+export function calendarDate(d: string | Date): string {
   return (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
 }
 
@@ -59,7 +102,22 @@ export function profilePayload(f: ProfileForm) {
     cardioDays: f.cardioDays.length ? [...f.cardioDays].sort((a, b) => a - b) : null,
     longRunDay: f.longRunDay == null ? null : Number(f.longRunDay),
     oneRepMaxes: oneRepMaxPayload(f.oneRepMaxes),
+    experience: f.experience || null,
+    birthDate: isDay(f.birthDate) ? f.birthDate : null,
+    sex: f.sex || null,
+    bodyweightKg: positiveOrNull(f.bodyweightKg),
+    heightCm: positiveOrNull(f.heightCm),
+    startedOn: isDay(f.startedOn) ? f.startedOn : null,
   };
+}
+
+const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+
+/** A number input's value (number, "" or null) as a positive number, or null. */
+function positiveOrNull(v: number | string | null): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return n > 0 ? n : null;
 }
 
 /** Complete rows as exerciseId → { kg, date }; null when there are none. */
@@ -110,4 +168,47 @@ export function emailError(email: string): string | null {
   const e = email.trim();
   if (e === "") return null; // optional
   return EMAIL.test(e) ? null : "Enter a full email, like ada@gym.com";
+}
+
+/** Out-of-range basics, matching the API's limits. Empty values are fine (all optional). */
+function rangeError(v: number | string | null, range: { min: number; max: number }, what: string, unit: string): string | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return n >= range.min && n <= range.max ? null : `${what} must be ${range.min}–${range.max} ${unit}`;
+}
+
+export function bodyweightError(kg: number | string | null): string | null {
+  return rangeError(kg, BODYWEIGHT_KG_RANGE, "Bodyweight", "kg");
+}
+
+export function heightError(cm: number | string | null): string | null {
+  return rangeError(cm, HEIGHT_CM_RANGE, "Height", "cm");
+}
+
+export function birthDateError(date: string, today: string = localIso(new Date())): string | null {
+  return isDay(date) ? birthDateRangeError(date, today) : null;
+}
+
+export function startedOnError(date: string, today: string = localIso(new Date())): string | null {
+  return isDay(date) ? startedOnRangeError(date, today) : null;
+}
+
+/** True when any basics field would be refused by the API. */
+export function basicsInvalid(f: ProfileForm): boolean {
+  return !!(bodyweightError(f.bodyweightKg) || heightError(f.heightCm) || birthDateError(f.birthDate) || startedOnError(f.startedOn));
+}
+
+/** A phone field's value for the API: trimmed, empty → null. */
+export function phonePayload(phone: string): string | null {
+  return phone.trim() || null;
+}
+
+/** The set basics for the client header: "Intermediate", "34 yrs", "Female", "72 kg". */
+export function basicsSummary(c: ClientDto, today: string = localIso(new Date())): string[] {
+  const parts: string[] = [];
+  if (c.experience) parts.push(EXPERIENCE_LABEL[c.experience].label);
+  if (c.birthDate) parts.push(`${ageOn(calendarDate(c.birthDate), today)} yrs`);
+  if (c.sex) parts.push(c.sex === "female" ? "Female" : "Male");
+  if (c.bodyweightKg != null) parts.push(`${c.bodyweightKg} kg`);
+  return parts;
 }

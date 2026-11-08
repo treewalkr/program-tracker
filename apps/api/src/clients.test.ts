@@ -59,3 +59,66 @@ describe.skipIf(!dbUp)("optional client email", () => {
     expect((await call("PATCH", `/v1/clients/${id}`, { email: "" })).body.email).toBeNull();
   });
 });
+
+describe.skipIf(!dbUp)("client basics", () => {
+  const ids: string[] = [];
+  afterAll(async () => {
+    if (ids.length) await db.delete(clients).where(inArray(clients.id, ids));
+  });
+
+  const basics = {
+    experience: "intermediate",
+    birthDate: "1992-03-14",
+    sex: "female",
+    bodyweightKg: 72.5,
+    heightCm: 168,
+    startedOn: "2026-01-05",
+    phone: "  +66 81 234 5678 ",
+  };
+
+  test("create stores every basic; dates stay calendar days; phone is trimmed", async () => {
+    const { status, body } = await call("POST", "/v1/clients", { name: "Basics", ...basics });
+    expect(status).toBe(201);
+    ids.push(body.id);
+    expect(body).toMatchObject({ ...basics, phone: "+66 81 234 5678" });
+    const read = await call("GET", `/v1/clients/${body.id}`);
+    expect(read.body.client.birthDate).toBe("1992-03-14");
+    expect(read.body.client.startedOn).toBe("2026-01-05");
+  });
+
+  test("a client without basics reads them as null", async () => {
+    const { body } = await call("POST", "/v1/clients", { name: "Bare" });
+    ids.push(body.id);
+    for (const key of Object.keys(basics)) expect(body[key]).toBeNull();
+  });
+
+  test("update sets and clears basics; a blank phone is null", async () => {
+    const id = ids[0];
+    const patched = await call("PATCH", `/v1/clients/${id}`, { experience: "advanced", heightCm: null, phone: "  " });
+    expect(patched.status).toBe(200);
+    expect(patched.body).toMatchObject({ experience: "advanced", heightCm: null, phone: null, sex: "female" });
+  });
+
+  test("out-of-range values are refused", async () => {
+    const bad = [
+      { experience: "elite" },
+      { sex: "other" },
+      { bodyweightKg: 19 },
+      { bodyweightKg: 401 },
+      { heightCm: 79 },
+      { heightCm: 251 },
+      { birthDate: "1899-12-31" },
+      { birthDate: "2999-01-01" },
+      { birthDate: "14/03/1992" },
+      { startedOn: "1999-12-31" },
+      { startedOn: "2999-01-01" },
+      { phone: "1".repeat(41) },
+    ];
+    for (const fields of bad) {
+      const res = await call("POST", "/v1/clients", { name: "Bad", ...fields });
+      expect([res.status, fields]).toEqual([422, fields]);
+    }
+    const patch = await call("PATCH", `/v1/clients/${ids[0]}`, { birthDate: "2999-01-01" });
+    expect(patch.status).toBe(422);
+  });
+});

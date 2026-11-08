@@ -1,6 +1,6 @@
 <script lang="ts">
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import { emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
+  import { basicsInvalid, basicsSummary, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -46,8 +46,9 @@
   let form = $state<ProfileForm>(emptyProfile());
   let idName = $state("");
   let idEmail = $state("");
+  let idPhone = $state("");
   let idAttempted = $state(false);
-  const idKey = () => JSON.stringify([idName.trim(), idEmail.trim()]);
+  const idKey = () => JSON.stringify([idName.trim(), idEmail.trim(), idPhone.trim()]);
   let savedId = $state("");
   const profileDirty = $derived(savedForm !== "" && (profileKey(form) !== savedForm || idKey() !== savedId));
   let catalogById = $state(new Map<string, ExerciseDto>());
@@ -72,6 +73,7 @@
   const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1;
   const todayStr = localIso(new Date());
   const todayNum = isoDay(new Date());
+  const basics = $derived(client ? basicsSummary(client) : []);
   const sortedDays = $derived([...(client?.trainingDays ?? [])].sort((a, b) => a - b));
 
   function setTab(t: typeof tab) {
@@ -194,6 +196,7 @@
     savedForm = profileKey(form);
     idName = detail.client.name;
     idEmail = detail.client.email ?? "";
+    idPhone = detail.client.phone ?? "";
     savedId = idKey();
     latestGen = (await api.generations(id))[0] ?? null;
   }
@@ -203,14 +206,20 @@
       idAttempted = true;
       return;
     }
+    if (basicsInvalid(form)) {
+      saveProfileError = "fix the basics marked above";
+      document.querySelector<HTMLElement>('#panel-settings [aria-invalid="true"]')?.focus();
+      return;
+    }
     saving = true;
     saveProfileError = null;
     try {
-      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim() || null, ...profilePayload(form) });
+      client = await api.updateClient(id, { name: idName.trim(), email: idEmail.trim() || null, phone: phonePayload(idPhone), ...profilePayload(form) });
       form = profileFromClient(client);
       savedForm = profileKey(form);
       idName = client.name;
       idEmail = client.email ?? "";
+      idPhone = client.phone ?? "";
       savedId = idKey();
       profileSaved = true;
       setTimeout(() => (profileSaved = false), 2500);
@@ -264,7 +273,7 @@
         <StatusPill status={client.status} />
       </div>
       <p class="sub">
-        {client.sessionsPerWeek ?? "?"} lifting sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+        {#each basics as part (part)}{part}{" · "}{/each}{client.sessionsPerWeek ?? "?"} lifting sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
         {#if client.goals} · “{client.goals}”{/if}
       </p>
     </div>
@@ -614,7 +623,7 @@
       >
         <section class="pf-sec">
           <h3>Client</h3>
-          <ClientIdentityFields bind:name={idName} bind:email={idEmail} idPrefix="p" showAll={idAttempted} />
+          <ClientIdentityFields bind:name={idName} bind:email={idEmail} bind:phone={idPhone} idPrefix="p" showAll={idAttempted} />
         </section>
 
         <ClientProfileFields bind:form idPrefix="p" catalog={catalogList} />

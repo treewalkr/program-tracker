@@ -245,6 +245,16 @@ export const CLIENT_STATUSES = ["active", "paused", "archived"] as const;
 export const ClientStatus = z.enum(CLIENT_STATUSES);
 export type ClientStatus = z.infer<typeof ClientStatus>;
 
+/** Client training experience — fed to the AI as context. */
+export const CLIENT_EXPERIENCES = ["beginner", "intermediate", "advanced"] as const;
+export const ClientExperience = z.enum(CLIENT_EXPERIENCES);
+export type ClientExperience = z.infer<typeof ClientExperience>;
+
+/** Client sex — null/absent = not specified. */
+export const CLIENT_SEXES = ["female", "male"] as const;
+export const ClientSex = z.enum(CLIENT_SEXES);
+export type ClientSex = z.infer<typeof ClientSex>;
+
 /** Weekly cardio target units — one fixed progress formula per unit (cardio.ts). */
 export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "zone_minutes"] as const;
 export const CardioTargetUnit = z.enum(CARDIO_TARGET_UNITS);

@@ -1671,3 +1671,33 @@ describe("session types in AI drafts", () => {
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
   });
 });
+
+describe("client PROFILE line", () => {
+  const base = { previousProgram: null, periodization: null, chainBalance: null, history: [], catalog: [], trainerInstructions: "" };
+  const draft: AiProgramDraft = { name: "Block 1", rationale: "r", clientSummary: "s", sessions: [] } as unknown as AiProgramDraft;
+  const userBlocks = (client: Parameters<typeof buildGenerationMessages>[0]["client"]) => [
+    buildGenerationMessages({ ...base, client }).user,
+    buildRevisionMessages({ ...base, client, previousDraft: draft, feedback: "more rows" } as Parameters<typeof buildRevisionMessages>[0]).user,
+  ];
+
+  test("all set: one PROFILE line right after CLIENT in both user blocks", () => {
+    const client = { name: "Ada", experience: "intermediate", age: 34, sex: "female", bodyweightKg: 72, heightCm: 168 } as const;
+    for (const user of userBlocks(client)) {
+      const lines = user.split("\n");
+      expect(lines[0]).toBe("CLIENT: Ada");
+      expect(lines[1]).toBe("PROFILE: intermediate (1–3 yrs training), 34 yrs, female, 72 kg bodyweight, 168 cm");
+    }
+  });
+
+  test("partial: unset parts are left out", () => {
+    for (const user of userBlocks({ name: "Ada", age: 41, heightCm: 180 })) {
+      expect(user).toContain("PROFILE: 41 yrs, 180 cm\n");
+    }
+  });
+
+  test("none: no PROFILE line", () => {
+    for (const user of userBlocks({ name: "Ada", experience: null, age: null, sex: null })) {
+      expect(user).not.toContain("PROFILE:");
+    }
+  });
+});

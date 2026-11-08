@@ -87,6 +87,13 @@ export const clients: ClientDto[] = [
     limitations: "Right shoulder impingement — no barbell overhead pressing, no behind-neck work.",
     sessionsPerWeek: 4,
     trainingDays: [1, 2, 4, 5],
+    experience: "beginner",
+    birthDate: "1994-06-21",
+    sex: "female",
+    bodyweightKg: 58,
+    heightCm: 162,
+    startedOn: "2026-03-02",
+    phone: "+66 81 234 5678",
   },
   {
     id: "cl-jonas",
@@ -97,6 +104,12 @@ export const clients: ClientDto[] = [
     limitations: null,
     sessionsPerWeek: 3,
     trainingDays: [2, 4, 6],
+    experience: "intermediate",
+    birthDate: "1989-11-02",
+    sex: "male",
+    bodyweightKg: 76.5,
+    heightCm: 181,
+    startedOn: "2025-09-15",
   },
   {
     id: "cl-priya",
@@ -107,6 +120,8 @@ export const clients: ClientDto[] = [
     limitations: "Old left ankle sprain — avoid high-impact jumping.",
     sessionsPerWeek: 2,
     trainingDays: [3, 5],
+    experience: "advanced",
+    birthDate: "1981-02-09",
   },
 ];
 

@@ -1,17 +1,19 @@
 <script lang="ts">
   import { emailError, nameError } from "$lib/clientProfile";
   import Field from "$lib/ui/Field.svelte";
+  import { PHONE_MAX } from "@pt/shared";
 
   /**
-   * Name + email with per-field validation. Errors show once a field is left
+   * Name, email and phone (contact details) with per-field validation. Errors show once a field is left
    * (blur) or when the parent sets `showAll` after a submit attempt.
    */
   let {
     name = $bindable(),
     email = $bindable(),
+    phone = $bindable(),
     idPrefix,
     showAll = false,
-  }: { name: string; email: string; idPrefix: string; showAll?: boolean } = $props();
+  }: { name: string; email: string; phone: string; idPrefix: string; showAll?: boolean } = $props();
 
   let touched = $state({ name: false, email: false });
   const nErr = $derived(touched.name || showAll ? nameError(name) : null);
@@ -47,6 +49,9 @@
       onblur={() => (touched.email = true)}
     />
     {#if eErr}<p class="ferr" id="{idPrefix}-email-err">{eErr}</p>{/if}
+  </Field>
+  <Field label="Phone" htmlFor="{idPrefix}-phone" hint="optional">
+    <input class="input" id="{idPrefix}-phone" type="tel" inputmode="tel" bind:value={phone} maxlength={PHONE_MAX} autocomplete="off" />
   </Field>
 </div>
 
