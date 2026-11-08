@@ -24,13 +24,33 @@ describe("classifyExercise", () => {
     });
 
     expect(classifyExercise("Plank")).toEqual({
-      movementPattern: "anti_trunk_flexion",
+      movementPattern: "anti_extension",
       functionalMovement: null,
     });
 
     expect(classifyExercise("Suitcase Carry")).toEqual({
-      movementPattern: "anti_lateral_flexion",
+      movementPattern: "carry",
       functionalMovement: "locomotion",
+    });
+
+    expect(classifyExercise("Farmer's Walk")).toEqual({
+      movementPattern: "carry",
+      functionalMovement: "locomotion",
+    });
+
+    expect(classifyExercise("Nordic Curl")).toEqual({
+      movementPattern: "knee_dominant",
+      functionalMovement: null,
+    });
+
+    expect(classifyExercise("Lying Leg Curl")).toEqual({
+      movementPattern: "isolation",
+      functionalMovement: null,
+    });
+
+    expect(classifyExercise("Dumbbell Lateral Raise")).toEqual({
+      movementPattern: "isolation",
+      functionalMovement: null,
     });
 
     expect(classifyExercise("Zzz Unknown")).toEqual({

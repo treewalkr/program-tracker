@@ -13,6 +13,21 @@ interface PatternRule {
 
 const PATTERN_RULES: PatternRule[] = [
   {
+    keywords: ["nordic"],
+    movementPattern: "knee_dominant",
+    functionalMovement: null,
+  },
+  {
+    keywords: ["carry", "farmer", "yoke"],
+    movementPattern: "carry",
+    functionalMovement: "locomotion",
+  },
+  {
+    keywords: ["curl", "lateral raise", "front raise", "calf raise", "triceps extension", "pushdown", "triceps kickback"],
+    movementPattern: "isolation",
+    functionalMovement: null,
+  },
+  {
     keywords: ["upright row"],
     movementPattern: "vertical_pull",
     functionalMovement: "pull",
@@ -104,13 +119,10 @@ const PATTERN_RULES: PatternRule[] = [
       "hip thrust",
       "glute bridge",
       "bridge",
-      "leg curl",
-      "hamstring curl",
-      "kickback",
       "pull-through",
       "pull through",
       "hip raise",
-      "nordic",
+      "kickback",
     ],
     movementPattern: "hip_dominant",
     functionalMovement: "bend_lift",
@@ -155,13 +167,8 @@ const PATTERN_RULES: PatternRule[] = [
   },
   {
     keywords: ["plank", "rollout", "ab wheel"],
-    movementPattern: "anti_trunk_flexion",
+    movementPattern: "anti_extension",
     functionalMovement: null,
-  },
-  {
-    keywords: ["carry", "farmer"],
-    movementPattern: null,
-    functionalMovement: "locomotion",
   },
   {
     keywords: ["sled push"],
