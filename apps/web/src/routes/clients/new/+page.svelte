@@ -39,8 +39,8 @@
     if (!autosave) return;
     const draft = $state.snapshot({ name, email, profile });
     clearTimeout(saveTimer);
+    // No teardown clear: a save still pending when the page closes must land.
     saveTimer = setTimeout(() => saveNewClientDraft(draftKey, draft), 300);
-    return () => clearTimeout(saveTimer);
   });
 
   function reset() {
