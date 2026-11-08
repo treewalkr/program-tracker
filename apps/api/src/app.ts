@@ -5,6 +5,7 @@ import { z } from "zod";
 import { KNOWN_PROVIDERS, AiProviderConfig } from "@pt/shared";
 import { aiRoutes } from "./routes/ai";
 import { importRoutes, vocabularyRoutes } from "./routes/imports";
+import { roleLabelRoutes } from "./routes/role-labels";
 import { llmFeedbackRoutes } from "./routes/llm-feedback";
 import { coachingRuleRoutes } from "./routes/coaching-rules";
 import { clientRoutes } from "./routes/clients";
@@ -121,6 +122,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(aiRoutes)
   .use(importRoutes)
   .use(vocabularyRoutes)
+  .use(roleLabelRoutes)
   .use(llmFeedbackRoutes)
   .use(coachingRuleRoutes)
   .use(clientMessageRoutes)

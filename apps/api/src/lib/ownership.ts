@@ -13,8 +13,10 @@ import {
   programExamples,
   programs,
   promptTemplates,
+  roleLabels,
   sessionTypes,
 } from "@pt/db";
+import { isBuiltinRole } from "@pt/shared";
 
 /**
  * Tenant isolation in one place. Every id a request names — the `:id` in the
@@ -39,10 +41,12 @@ const NOUN = new Map<Owned, string>([
   [sessionTypes, "session type"],
   [coachingRules, "rule"],
   [llmFeedback, "note"],
+  [roleLabels, "label"],
 ]);
 
-/** Route prefix → the table its `:id` / `:messageId` param points into. */
-const PATH_OWNERS: [prefix: string, table: Owned][] = [
+/** Route prefix → the table its `:id` / `:messageId` param points into;
+ *  `skip` exempts ids that aren't rows (a built-in role label's key). */
+const PATH_OWNERS: [prefix: string, table: Owned, skip?: (id: unknown) => boolean][] = [
   ["/v1/clients/", clients],
   ["/v1/programs/", programs],
   ["/v1/ai/generations/", aiGenerations],
@@ -55,6 +59,7 @@ const PATH_OWNERS: [prefix: string, table: Owned][] = [
   ["/v1/session-types/", sessionTypes],
   ["/v1/ai/rules/", coachingRules],
   ["/v1/ai/feedback/notes/", llmFeedback],
+  ["/v1/vocabulary/role-labels/", roleLabels, isBuiltinRole],
 ];
 
 /** Query/body field → the table it references. */
@@ -88,8 +93,11 @@ export async function foreignReference(
 ): Promise<string | null> {
   const params = fieldsOf(req.params);
   const pathId = params.id ?? params.messageId;
-  const pathTable = PATH_OWNERS.find(([prefix]) => req.route.startsWith(prefix))?.[1];
-  if (pathTable && pathId !== undefined && !(await owns(pathTable, pathId, trainerId))) return notFound(pathTable);
+  const owner = PATH_OWNERS.find(([prefix]) => req.route.startsWith(prefix));
+  const pathTable = owner?.[1];
+  if (pathTable && pathId !== undefined && !owner?.[2]?.(pathId) && !(await owns(pathTable, pathId, trainerId))) {
+    return notFound(pathTable);
+  }
 
   for (const source of [fieldsOf(req.query), fieldsOf(req.body)]) {
     for (const [field, table] of FIELD_OWNERS) {
