@@ -19,6 +19,7 @@ export * from "./progression";
 export * from "./client";
 export * from "./import";
 export * from "./importFixture";
+export * from "./importHistory";
 export * from "./importMatch";
 export * from "./roles";
 export * from "./vocabulary";
