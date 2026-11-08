@@ -63,11 +63,12 @@
   });
 
   const meta = $derived.by(() => {
-    if (!programme) return "";
-    const parts = [`Week ${programme.week} of ${programme.of}${programme.over ? " · past the plan" : ""}`];
+    if (!programme) return [];
+    const parts = [`Week ${programme.week} of ${programme.of}`];
+    if (programme.over) parts.push("past the plan");
     if (programme.activatedAt) parts.push(`activated ${shortDay(programme.activatedAt, today)}`);
     if (programme.aiAssisted) parts.push("AI-assisted");
-    return parts.join(" · ");
+    return parts;
   });
 
   const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -145,7 +146,7 @@
 
     {#if programme}
       <Panel title={programme.name} count={`v${programme.version}`} class="programme">
-        <p class="meta" class:over={programme.over}>{meta}</p>
+        <p class="meta" class:over={programme.over}>{#each meta as part, i (part)}{#if i > 0}{" · "}{/if}<span class="seg">{part}</span>{/each}</p>
         {#each weekGroups as g (g.day)}
           <div class="day-h" class:any={g.day === 0}>
             <span class="day-name">{g.day === 0 ? "Any day" : DAY_NAMES[g.day - 1]}</span>
@@ -176,14 +177,20 @@
   :global(.note.sample-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
   .layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
   .layout > :global(.panel) { margin: 0; }
-  @media (max-width: 900px) {
+  /* Sized to the room beside the sidebar, not the window. */
+  @container main (max-width: 860px) {
     .layout { grid-template-columns: minmax(0, 1fr); }
   }
 
-  .facts { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; margin: 0; padding: 14px 16px; font-size: 14px; }
+  .facts { display: grid; grid-template-columns: minmax(0, 10em) minmax(0, 1fr); gap: 10px 16px; margin: 0; padding: 14px 16px; font-size: 14px; }
   .facts dt { color: var(--muted); font-size: 13px; }
   .facts dd { margin: 0; color: var(--ink); }
-  .aside { color: var(--muted); font-size: 12px; margin-left: 4px; }
+  .aside { color: var(--muted); font-size: 12px; margin-left: 4px; white-space: nowrap; }
+  @container main (max-width: 420px) {
+    .facts { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .facts dt { font-size: 12px; }
+    .facts dd + dt { margin-top: 10px; }
+  }
   .unset { color: var(--faint); }
   .tnum { font-variant-numeric: tabular-nums; }
   .last.none { color: var(--muted); }
@@ -191,6 +198,7 @@
 
   .meta { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
   .meta.over { color: var(--warn); }
+  .meta .seg { white-space: nowrap; }
   .day-h {
     display: flex;
     align-items: baseline;
