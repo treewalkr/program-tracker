@@ -135,7 +135,7 @@
       height: 44px;
       border-radius: 0;
       text-align: center;
-      font-size: 17px; /* ≥16px: iOS won't zoom the page on focus */
+      font-size: 16px; /* ≥16px: iOS won't zoom the page on focus */
       font-weight: 600;
       padding: 0 4px;
     }

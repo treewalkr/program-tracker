@@ -893,7 +893,7 @@
     .pg-count { flex: 0 0 auto; font-size: 13px; color: var(--muted); }
 
     .blk-head { padding: 14px 14px 8px; }
-    .blk-title h3 { font-size: 17px; }
+    .blk-title h3 { font-size: 16px; }
     .blk-act { width: 100%; }
     .blk-act :global(.btn) {
       min-height: 44px;
