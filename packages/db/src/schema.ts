@@ -60,6 +60,7 @@ import type {
   WeekPlan,
   WeekSummaryStats,
   BuiltinRole,
+  GlossaryKind,
 } from "@pt/shared";
 
 // ---------------------------------------------------------------------------
@@ -361,6 +362,29 @@ export const roleLabels = pgTable(
   ]
 );
 export type RoleLabelRow = typeof roleLabels.$inferSelect;
+
+/**
+ * Glossary (vocabulary, paste import v1.1): shorthand, techniques and
+ * equipment words, printed into the import prompt; abbreviation-kind terms
+ * also expand names for matching. trainer_id null = global (seeded); a
+ * personal term with the same lower(term) overrides it.
+ */
+export const glossaryTerms = pgTable(
+  "glossary_terms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "cascade" }),
+    /** As written ("CARs"); unique and matched case-insensitively. */
+    term: text("term").notNull(),
+    /** ≤ 200 chars (check constraint). */
+    meaning: text("meaning").notNull(),
+    kind: text("kind").$type<GlossaryKind>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("glossary_terms_trainer_term_idx").on(t.trainerId, sql`lower(${t.term})`)]
+);
+export type GlossaryTermRow = typeof glossaryTerms.$inferSelect;
 
 export const chatMessages = pgTable("chat_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
