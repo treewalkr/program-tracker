@@ -84,6 +84,9 @@
   let collapsed = $state(localStorage.getItem(RAIL_KEY) === "1");
   let drawerOpen = $state(false);
   const rail = $derived(narrow ? !drawerOpen : collapsed);
+  /* Gym-floor routes give phones the full width: the rail hides (≤640px) and a
+     menu button in the page corner opens the same drawer. */
+  const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
   const sideOpen = $derived(!rail);
 
   function toggleSide() {
@@ -150,7 +153,7 @@
 {#if bare}
   {@render children()}
 {:else}
-<div class="shell" class:rail class:drawer={narrow && drawerOpen}>
+<div class="shell" class:rail class:focus={focusRoute} class:drawer={narrow && drawerOpen}>
   <aside class="side" id="sidebar">
     <div class="brand-row">
       <a class="brand" href="/">
@@ -229,6 +232,18 @@
   {/if}
 
   <main class="main">
+    {#if focusRoute && !drawerOpen}
+      <button
+        type="button"
+        class="focus-menu"
+        aria-controls="sidebar"
+        aria-expanded="false"
+        aria-label="Open menu"
+        onclick={toggleSide}
+      >
+        <Icon name="sidebar" />
+      </button>
+    {/if}
     {#if apiMode === "mock"}
       <Note tone="warn" role="note" class="demo-banner">
         Demo mode — every number on screen is mock data. Nothing is saved.
@@ -544,5 +559,27 @@
 
   @media (max-width: 860px) {
     .main { padding: 20px 16px 56px; }
+  }
+
+  .focus-menu { display: none; }
+  @media (max-width: 640px) {
+    .shell.focus.rail { grid-template-columns: 0 1fr; }
+    .shell.focus.rail .side { display: none; }
+    .shell.focus.drawer { grid-template-columns: 0 1fr; }
+    .shell.focus .main { padding: 12px 12px 56px; }
+    .focus-menu {
+      display: grid;
+      place-items: center;
+      float: right;
+      width: 44px;
+      height: 44px;
+      margin: -4px -4px 0 8px;
+      color: var(--muted);
+      background: var(--well);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .focus-menu :global(svg) { width: 18px; height: 18px; }
   }
 </style>
