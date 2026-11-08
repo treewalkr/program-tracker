@@ -1,6 +1,8 @@
 import {
   BODYWEIGHT_KG_RANGE,
+  EXPERIENCE_LABEL,
   HEIGHT_CM_RANGE,
+  ageOn,
   birthDateError as birthDateRangeError,
   startedOnError as startedOnRangeError,
   type ClientExperience,
@@ -199,4 +201,14 @@ export function basicsInvalid(f: ProfileForm): boolean {
 /** A phone field's value for the API: trimmed, empty → null. */
 export function phonePayload(phone: string): string | null {
   return phone.trim() || null;
+}
+
+/** The set basics for the client header: "Intermediate", "34 yrs", "Female", "72 kg". */
+export function basicsSummary(c: ClientDto, today: string = localIso(new Date())): string[] {
+  const parts: string[] = [];
+  if (c.experience) parts.push(EXPERIENCE_LABEL[c.experience].label);
+  if (c.birthDate) parts.push(`${ageOn(calendarDate(c.birthDate), today)} yrs`);
+  if (c.sex) parts.push(c.sex === "female" ? "Female" : "Male");
+  if (c.bodyweightKg != null) parts.push(`${c.bodyweightKg} kg`);
+  return parts;
 }

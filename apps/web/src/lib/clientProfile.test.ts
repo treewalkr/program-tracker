@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   basicsInvalid,
+  basicsSummary,
   birthDateError,
   bodyweightError,
   emailError,
@@ -150,4 +151,13 @@ test("basics range errors match the API limits", () => {
 test("phone is trimmed; blank is null", () => {
   expect(phonePayload("  +66 81 234 5678 ")).toBe("+66 81 234 5678");
   expect(phonePayload("   ")).toBeNull();
+});
+
+test("header basics list only what's set", () => {
+  const base = { id: "c1", name: "Ada", email: null, status: "active" as const, goals: null, limitations: null, sessionsPerWeek: 3 };
+  expect(
+    basicsSummary({ ...base, experience: "intermediate", birthDate: "1992-03-14", sex: "female", bodyweightKg: 72, heightCm: 168 }, "2026-11-08")
+  ).toEqual(["Intermediate", "34 yrs", "Female", "72 kg"]);
+  expect(basicsSummary({ ...base, sex: "male" }, "2026-11-08")).toEqual(["Male"]);
+  expect(basicsSummary(base, "2026-11-08")).toEqual([]);
 });

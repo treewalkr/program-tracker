@@ -1,6 +1,6 @@
 <script lang="ts">
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import { basicsInvalid, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
+  import { basicsInvalid, basicsSummary, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -73,6 +73,7 @@
   const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1;
   const todayStr = localIso(new Date());
   const todayNum = isoDay(new Date());
+  const basics = $derived(client ? basicsSummary(client) : []);
   const sortedDays = $derived([...(client?.trainingDays ?? [])].sort((a, b) => a - b));
 
   function setTab(t: typeof tab) {
@@ -272,7 +273,7 @@
         <StatusPill status={client.status} />
       </div>
       <p class="sub">
-        {client.sessionsPerWeek ?? "?"} lifting sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+        {#each basics as part (part)}{part}{" · "}{/each}{client.sessionsPerWeek ?? "?"} lifting sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
         {#if client.goals} · “{client.goals}”{/if}
       </p>
     </div>
