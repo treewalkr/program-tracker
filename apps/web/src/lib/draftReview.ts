@@ -6,6 +6,7 @@ import {
   type PlanChange,
   type PlacementDaysInput,
   type ProgramSession,
+  type ProgressionKind,
 } from "@pt/shared";
 import type { AiDraftDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
@@ -30,10 +31,29 @@ export function planIndexes(ph: ProgramPhasingDto): { vol: number; load: number 
   });
 }
 
+/** Default step per progression kind: one plate jump, 2.5 %1RM points, one set. */
+export const PROGRESSION_STEP: Record<ProgressionKind, number> = { kg: 2.5, percent: 2.5, sets: 1 };
+
+/** Set or clear (empty kind) a week's progression rule; a new kind starts at its default step. */
+export function setProgression(w: PlanWeek, kind: ProgressionKind | "") {
+  if (!kind) {
+    delete w.progression;
+    return;
+  }
+  w.progression = { kind, amount: PROGRESSION_STEP[kind] };
+}
+
 /** Inline guidance for one week: "err" blocks saving, "warn" does not. */
 export function validatePlanWeek(w: PlanWeek): { kind: "err" | "warn"; text: string } | null {
   if (w.target && (!Number.isFinite(w.target.deltaPercent) || w.target.deltaPercent < -100 || w.target.deltaPercent > 200)) {
     return { kind: "err", text: "Target must be between −100% and +200%." };
+  }
+  const p = w.progression;
+  if (p && (!Number.isFinite(p.amount) || p.amount === 0 || Math.abs(p.amount) > 50)) {
+    return { kind: "err", text: "Progression must be a non-zero step between −50 and +50." };
+  }
+  if (p && p.kind === "sets" && !Number.isInteger(p.amount)) {
+    return { kind: "err", text: "A sets progression adds whole sets." };
   }
   if (w.directive === "deload" && w.target && w.target.metric !== "intensity" && w.target.deltaPercent > 0) {
     return { kind: "warn", text: "A deload usually cuts volume." };

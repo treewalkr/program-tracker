@@ -10,6 +10,8 @@ import {
   rationaleByDay,
   reviewChecks,
   validatePlanWeek,
+  setProgression,
+  type PlanWeek,
   weekTargetLabel,
 } from "./draftReview";
 import { DELOAD_VOLUME_DELTA_PERCENT } from "@pt/shared";
@@ -63,6 +65,26 @@ describe("block plan helpers", () => {
     expect(validatePlanWeek({ week: 1, directive: "+volume" })?.kind).toBe("warn");
     expect(validatePlanWeek({ week: 1, directive: "base", target: { metric: "intensity", deltaPercent: 250 } })?.kind).toBe("err");
     expect(validatePlanWeek(plan.weeks![1])).toBeNull();
+  });
+
+  test("validatePlanWeek blocks a progression the API would reject", () => {
+    const w = (kind: "kg" | "percent" | "sets", amount: number) => ({ week: 2, directive: "base" as const, progression: { kind, amount } });
+    expect(validatePlanWeek(w("kg", 2.5))).toBeNull();
+    expect(validatePlanWeek(w("kg", 0))?.kind).toBe("err");
+    expect(validatePlanWeek(w("kg", Number.NaN))?.kind).toBe("err");
+    expect(validatePlanWeek(w("percent", 60))?.kind).toBe("err");
+    expect(validatePlanWeek(w("sets", 1.5))?.kind).toBe("err");
+    expect(validatePlanWeek(w("sets", -1))).toBeNull();
+  });
+
+  test("setProgression picks a default step and clears with an empty kind", () => {
+    const w: PlanWeek = { week: 2, directive: "base" };
+    setProgression(w, "kg");
+    expect(w.progression).toEqual({ kind: "kg", amount: 2.5 });
+    setProgression(w, "sets");
+    expect(w.progression).toEqual({ kind: "sets", amount: 1 });
+    setProgression(w, "");
+    expect(w.progression).toBeUndefined();
   });
 
   test("normalizePlan renumbers weeks and trims names; defaultPlan ends with a deload", () => {
