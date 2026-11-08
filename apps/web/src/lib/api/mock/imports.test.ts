@@ -15,6 +15,15 @@ describe("mockApi imports (mirrors /v1/ai/imports with the mock provider)", () =
     await expect(mockApi.cancelImport(row.id)).rejects.toThrow("not pending");
   }, 10_000);
 
+  test("new words skip the glossary; a term added applies from the next read", async () => {
+    const first = await mockApi.createImport({ clientId: "cl-maya", text: FIXTURE });
+    expect(first.result!.newTerms!.map((t) => t.term)).toEqual(["Supinate", "Asymmetrical"]);
+    const added = await mockApi.createGlossaryTerm({ term: "Supinate", meaning: "palms-up grip", kind: "technique" });
+    const second = await mockApi.createImport({ clientId: "cl-maya", text: FIXTURE });
+    expect(second.result!.newTerms!.map((t) => t.term)).toEqual(["Asymmetrical"]);
+    await mockApi.deleteGlossaryTerm(added.id);
+  }, 15_000);
+
   test("other text reads as unused lines; blank text is refused", async () => {
     const row = await mockApi.createImport({ clientId: "cl-maya", text: "Squat 5x5\nBench 3x8" });
     expect(row.result!.unused).toEqual([1, 2]);

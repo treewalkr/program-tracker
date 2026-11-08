@@ -38,6 +38,7 @@
   } from "$lib/pasteImport";
   import ModelSettings from "./ModelSettings.svelte";
   import ExercisePicker from "./ExercisePicker.svelte";
+  import NewWordsPanel from "./NewWordsPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Counter from "$lib/ui/Counter.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -672,6 +673,10 @@
       {/each}
     </section>
   </div>
+
+  {#key row?.id}
+    <NewWordsPanel terms={result.newTerms} onjump={(line) => jump(line, "src")} />
+  {/key}
 {:else}
   <!-- never a blank page: a review with nothing to show falls back here -->
   <section class="panel compose" role="status">

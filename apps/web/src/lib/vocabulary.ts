@@ -93,6 +93,8 @@ export interface NewWordRow {
   line: number;
   /** The suggested meaning, editable; "" when the model wasn't sure. */
   meaning: string;
+  /** The read suggested a meaning (labelled "suggested"). */
+  suggested: boolean;
   kind: GlossaryKind;
   status: "open" | "saving" | "added" | "dismissed";
   error?: string;
@@ -102,7 +104,14 @@ export interface NewWordRow {
 export const guessKind = (term: string): GlossaryKind => (/^[A-Z]{2,5}s?$/.test(term.trim()) ? "abbreviation" : "technique");
 
 export const newWordRows = (terms: readonly ImportNewTerm[] | undefined): NewWordRow[] =>
-  (terms ?? []).map((t) => ({ term: t.term, line: t.line, meaning: t.meaning ?? "", kind: guessKind(t.term), status: "open" }));
+  (terms ?? []).map((t) => ({
+    term: t.term,
+    line: t.line,
+    meaning: t.meaning ?? "",
+    suggested: !!t.meaning,
+    kind: guessKind(t.term),
+    status: "open",
+  }));
 
 /** Rows still on screen — dismissed ones hide for this import only. */
 export const shownNewWords = (rows: readonly NewWordRow[]): NewWordRow[] => rows.filter((r) => r.status !== "dismissed");

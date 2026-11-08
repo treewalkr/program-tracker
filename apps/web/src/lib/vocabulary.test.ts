@@ -104,8 +104,8 @@ describe("new words panel", () => {
       { term: "Supinate", line: 8, meaning: null },
     ]);
     expect(rows).toEqual([
-      { term: "LPD", line: 3, meaning: "lat pulldown", kind: "abbreviation", status: "open" },
-      { term: "Supinate", line: 8, meaning: "", kind: "technique", status: "open" },
+      { term: "LPD", line: 3, meaning: "lat pulldown", suggested: true, kind: "abbreviation", status: "open" },
+      { term: "Supinate", line: 8, meaning: "", suggested: false, kind: "technique", status: "open" },
     ]);
     expect(newWordRows(undefined)).toEqual([]);
     expect(guessKind("KBs")).toBe("abbreviation");
