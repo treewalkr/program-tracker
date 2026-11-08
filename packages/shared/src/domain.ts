@@ -14,8 +14,10 @@ export const MUSCLE_GROUPS = [
   "quads",
   "hamstrings",
   "glutes",
+  "adductors",
   "calves",
   "core",
+  "obliques",
   "traps",
   "cardio",
   "full_body",
@@ -33,8 +35,10 @@ export const CHAIN_MUSCLE_GROUPS = [
   "quads",
   "hamstrings",
   "glutes",
+  "adductors",
   "calves",
   "core",
+  "obliques",
   "traps",
 ] as const; // MUSCLE_GROUPS minus "cardio" | "full_body"
 export const ChainMuscleGroup = z.enum(CHAIN_MUSCLE_GROUPS);
@@ -44,7 +48,7 @@ export const KineticChainInput = z.object({
   muscleGroups: z
     .array(ChainMuscleGroup)
     .min(1)
-    .max(12)
+    .max(CHAIN_MUSCLE_GROUPS.length)
     .refine((gs) => new Set(gs).size === gs.length, {
       message: "muscleGroups must be unique",
     }),

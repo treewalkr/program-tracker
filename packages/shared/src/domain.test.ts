@@ -8,6 +8,7 @@ import {
   CardioPrescription,
   CardioTarget,
   CHAIN_MUSCLE_GROUPS,
+  MUSCLE_GROUPS,
   ChainMuscleGroup,
   Client,
   defaultCardio,
@@ -876,6 +877,14 @@ describe("KINETIC_CHAIN_DEFAULTS", () => {
 });
 
 describe("KineticChainInput", () => {
+  test("accepts adductors and obliques, and every chain group at once (F20)", () => {
+    expect(MUSCLE_GROUPS).toContain("adductors");
+    expect(MUSCLE_GROUPS).toContain("obliques");
+    expect(CHAIN_MUSCLE_GROUPS).toEqual(MUSCLE_GROUPS.filter((g) => g !== "cardio" && g !== "full_body"));
+    expect(KineticChainInput.safeParse({ muscleGroups: ["obliques", "adductors"] }).success).toBe(true);
+    expect(KineticChainInput.safeParse({ muscleGroups: [...CHAIN_MUSCLE_GROUPS] }).success).toBe(true);
+  });
+
   test("rejects empty, duplicate, cardio, full_body", () => {
     expect(KineticChainInput.safeParse({ muscleGroups: [] }).success).toBe(false);
     expect(
