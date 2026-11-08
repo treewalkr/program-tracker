@@ -117,6 +117,44 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.sets).toHaveLength(2);
   });
 
+  test("a swapped slot and an extra set keep their program slot", async () => {
+    const programExerciseId = crypto.randomUUID();
+    const { status, body } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId,
+      date: new Date().toISOString().slice(0, 10),
+      sets: [
+        { programExerciseId, exerciseId: benchId, setNumber: 1, type: "working", weightKg: 60, reps: 8 },
+        { programExerciseId, exerciseId: benchId, setNumber: 2, type: "working", reps: 6 },
+      ],
+    });
+    expect(status).toBe(201);
+    expect(body.sets.map((s: any) => [s.programExerciseId, s.exerciseId, s.setNumber, s.rpe])).toEqual([
+      [programExerciseId, benchId, 1, null],
+      [programExerciseId, benchId, 2, null],
+    ]);
+  });
+
+  test("an exercise from another trainer's catalog is a 422", async () => {
+    const [other] = await db
+      .insert(trainers)
+      .values({ name: "ZZ-TEST Other", email: `zz-other-${Date.now()}@test.dev` })
+      .returning();
+    const [foreign] = await db
+      .insert(exercises)
+      .values({ name: "ZZ-TEST Foreign Lift", primaryMuscleGroup: "chest", equipment: "barbell", trainerId: other.id })
+      .returning();
+    const { status, body } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: foreign.id, setNumber: 1, type: "working", reps: 5 }],
+    });
+    expect(status).toBe(422);
+    expect(body.ids).toEqual([foreign.id]);
+  });
+
   test("history aggregates e1RM and set strings", async () => {
     const { body } = await call("GET", `/v1/logs/history?clientId=${clientId}`);
     const squat = body.history.find((h: any) => h.exerciseId === squatId);

@@ -105,7 +105,7 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   /** Log a completed session on behalf of a client (trainer-entered in MVP). */
   .post(
     "/sessions",
-    async ({ body, status }) => {
+    async ({ body, status, trainerId }) => {
       const parsed = SessionLogInput.safeParse(body);
       if (!parsed.success) {
         return status(422, { error: "invalid log", issues: z.treeifyError(parsed.error) });
@@ -121,7 +121,10 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       const exerciseIds = [...new Set(input.sets.map((s) => s.exerciseId))];
       if (exerciseIds.length > 0) {
         const known = await db.select().from(exercises).where(inArray(exercises.id, exerciseIds));
-        const knownIds = new Set(known.map((e) => e.id));
+        // A swap may pick any exercise — but only from this trainer's catalog (seed or own).
+        const knownIds = new Set(
+          known.filter((e) => e.trainerId === null || e.trainerId === trainerId).map((e) => e.id)
+        );
         const missing = exerciseIds.filter((id) => !knownIds.has(id));
         if (missing.length) return status(422, { error: "unknown exercises", ids: missing });
       }
