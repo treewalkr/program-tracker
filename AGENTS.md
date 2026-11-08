@@ -15,10 +15,11 @@
 
 ## Planning & Delegation
 
-- **Plan mode** — plan on Opus: `medium` effort for normal tasks, `high` for complex ones
-- **Build** — after the plan is approved, hand the implementation to `delegate_task` at `medium` effort
+- **Plan mode** — plan on Opus: `medium` effort for normal tasks, `high` for complex ones; for big features write the plan to `docs/<topic>-plan.md` and ask the open decisions
+- **Build** — after the plan is approved, hand the implementation to `delegate_task` (Claude Opus) at `medium` effort; review its result (re-run tests, spot-check) before reporting
 - **Worktrees** — complex or conflict-prone work (dirty main, overlapping files) goes on a new branch in a git worktree
 - **Handback** — when done, suggest merging to main; if merging now is risky, suggest a PR instead
+- **Push or release** — when commits on main are ready, recommend one with a reason: **release** (`bun run release`, then `git push --follow-tags origin main`) for batches of user-visible features/UI; **push** for small fixes, internal or docs-only changes. Pushing main deploys to production via CI
 
 # Commit Rules
 
