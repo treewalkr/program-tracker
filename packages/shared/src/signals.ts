@@ -90,44 +90,66 @@ function rpeCreep(program: SignalProgram, logs: SignalLog[], nameOf: (id: string
   };
 }
 
-/** e1RM flat across recent weeks while peak was earlier in the block. */
-function stall(programId: string, logs: SignalLog[], nameOf: (id: string) => string, timed: Set<string>): Signal | null {
-  const weeklyBest = new Map<string, Map<string, number>>();
+/** Heaviest prescribed load for `exerciseId` in block week `week`; null when the
+ *  week isn't in the doc or prescribes the exercise without a load target. */
+function prescribedLoad(program: SignalProgram, exerciseId: string, week: number): number | null {
+  const loads = weekSessions(program.weeks, week)
+    .flatMap((s) => s.exercises ?? [])
+    .filter((e) => e.exerciseId === exerciseId)
+    .flatMap((e) => e.prescribedSets.map((ps) => ps.targetWeightKg ?? null));
+  if (loads.length === 0 || loads.some((l) => l == null)) return null;
+  return Math.max(...(loads as number[]));
+}
+
+/** e1RM flat across recent block weeks while the peak was earlier in the block.
+ *  Planned flat ≠ athlete stall: when the prescription held the load flat (or
+ *  lower) from the peak week on, the plateau is the plan and nothing fires. */
+function stall(program: SignalProgram, logs: SignalLog[], nameOf: (id: string) => string, timed: Set<string>): Signal | null {
+  const weeklyBest = new Map<string, Map<number, number>>();
   for (const log of logs) {
-    const week = log.date.slice(0, 10);
+    const week = blockWeekOfDate(program, logs, log.date);
     for (const s of log.sets) {
-      if (!s.weightKg || s.reps > 12 || timed.has(s.exerciseId)) continue;
+      if (!s.weightKg || !s.reps || s.reps > 12 || timed.has(s.exerciseId)) continue;
       const e1rm = estimate1rm(s.weightKg, s.reps);
-      const per = weeklyBest.get(s.exerciseId) ?? new Map<string, number>();
+      const per = weeklyBest.get(s.exerciseId) ?? new Map<number, number>();
       per.set(week, Math.max(per.get(week) ?? 0, e1rm));
       weeklyBest.set(s.exerciseId, per);
     }
   }
   for (const [exId, weeks] of weeklyBest) {
-    const sorted = [...weeks.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const sorted = [...weeks.entries()].sort((a, b) => a[0] - b[0]);
     if (sorted.length < 4) continue;
     let peakIdx = 0;
     let peak = 0;
-    sorted.forEach(([week, v], i) => {
+    sorted.forEach(([, v], i) => {
       if (v > peak) {
         peak = v;
         peakIdx = i;
       }
     });
-    // True stall: peak happened ≥ 3 weeks ago and nothing since has beaten it.
+    // True stall: peak happened ≥ 3 logged weeks ago and nothing since has beaten it.
     if (peakIdx > sorted.length - 4) continue;
     const last2 = sorted.slice(-2).map(([, v]) => v);
     if (Math.max(...last2) > peak * 1.01) continue;
+
+    const peakWeek = sorted[peakIdx][0];
+    const lastWeek = sorted[sorted.length - 1][0];
+    const planned: (number | null)[] = [];
+    for (let w = peakWeek; w <= lastWeek; w++) planned.push(prescribedLoad(program, exId, w));
+    const hasTargets = planned.every((l) => l != null);
+    const planProgressed = hasTargets && planned.slice(1).some((l) => l! > planned[0]!);
+    if (hasTargets && !planProgressed) continue;
+
     const name = nameOf(exId);
     return {
-      id: `stall:${programId}:${exId}`,
+      id: `stall:${program.id}:${exId}`,
       kind: "stall",
       severity: "attention",
       title: `${name} plateaued`,
-      evidence: `Best estimated 1RM has not moved in the last 2 weeks (peak ${Math.round(peak)} kg).`,
+      evidence: `Best estimated 1RM has not moved in the last 2 weeks (peak ${Math.round(peak)} kg in week ${peakWeek}).`,
       programId: "",
       clientId: null,
-      prefillNote: `${name} has stalled — estimated 1RM flat for 2 weeks. Change the stimulus in the next block: new rep range, exercise variation, or intensity technique.`,
+      prefillNote: `${name} has stalled — estimated 1RM flat for 2 weeks${planProgressed ? " while the plan asked for heavier loads" : ""}. Change the stimulus in the next block: new rep range, exercise variation, or intensity technique.`,
     };
   }
   return null;
@@ -300,7 +322,7 @@ export function computeSignals(
 
   const creep = rpeCreep(program, programLogs, nameOf);
   if (creep) signals.push({ ...creep, ...owner });
-  const stalled = stall(program.id, programLogs, nameOf, timedExerciseIds(program));
+  const stalled = stall(program, programLogs, nameOf, timedExerciseIds(program));
   if (stalled) signals.push({ ...stalled, ...owner });
 
   return signals;

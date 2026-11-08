@@ -440,3 +440,27 @@ describe("rpe creep compares matched load and reps by block week (F17)", () => {
   });
 });
 
+describe("stall buckets by block week and respects planned-flat loads (F17)", () => {
+  const stall = (p: SignalProgram, logs: SignalLog[], now = NOW_W5) => kinds(p, logs, now).find((s) => s.kind === "stall");
+  const weekly = (loads: number[]) =>
+    ["2026-10-02", "2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30"].slice(0, loads.length).map((d, i) => SL(d, [[loads[i], 5]]));
+
+  test("several sessions inside two weeks are not four weeks of data", () => {
+    const logs = ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-09"].map((d, i) => SL(d, [[i === 0 ? 145 : 140, 5]]));
+    expect(stall(squatProgram([null, null, null, null, null]), logs, Date.parse("2026-10-10T12:00:00Z"))).toBeUndefined();
+  });
+
+  test("planned flat loads are the plan, not a stall", () => {
+    expect(stall(squatProgram([140, 140, 140, 140, 140]), weekly([140, 140, 140, 140, 140]))).toBeUndefined();
+  });
+
+  test("fires when the plan progressed and the athlete did not", () => {
+    const s = stall(squatProgram([140, 142.5, 145, 147.5, 150]), weekly([140, 140, 140, 140, 140]));
+    expect(s).toBeDefined();
+    expect(s!.evidence).toBe("Best estimated 1RM has not moved in the last 2 weeks (peak 163 kg in week 1).");
+  });
+
+  test("fires when the plan carries no load target", () => {
+    expect(stall(squatProgram([null, null, null, null, null]), weekly([140, 140, 140, 140, 140]))).toBeDefined();
+  });
+});
