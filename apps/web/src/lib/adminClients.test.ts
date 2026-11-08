@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { filterClients, lastSessionLabel, sampleAdminClients, shortDay, trainersOf } from "./adminClients";
+import { filterClients, lastSessionLabel, programmeLabel, sampleAdminClientDetail, sampleAdminClients, shortDay, trainersOf } from "./adminClients";
 
 const TODAY = "2026-11-09";
 const rows = sampleAdminClients(TODAY);
@@ -40,4 +40,36 @@ describe("lastSessionLabel", () => {
 
 test("shortDay adds the year outside the current one", () => {
   expect(shortDay("2025-03-12", TODAY)).toBe("12 Mar 2025");
+});
+
+describe("programmes", () => {
+  test("most active clients have one; paused, archived and brand-new clients don't", () => {
+    const by = new Map(rows.map((r) => [r.id, r]));
+    expect(rows.filter((r) => r.status !== "active").every((r) => r.programme === null)).toBe(true);
+    expect(by.get("c-5")?.programme).toBeNull();
+    const active = rows.filter((r) => r.status === "active");
+    expect(active.filter((r) => r.programme).length).toBeGreaterThan(active.length / 2);
+  });
+  test("programmeLabel reads the block week, flagging overruns", () => {
+    expect(programmeLabel({ week: 3, of: 8, over: false })).toBe("Wk 3 of 8");
+    expect(programmeLabel({ week: 8, of: 8, over: true })).toBe("Wk 8 of 8 · over");
+  });
+});
+
+describe("sampleAdminClientDetail", () => {
+  test("unknown id → null", () => expect(sampleAdminClientDetail("nope", TODAY)).toBeNull());
+  test("carries the row, basics and this week with exercise names", () => {
+    const d = sampleAdminClientDetail("c-1", TODAY)!;
+    expect(d.client).toMatchObject({ id: "c-1", name: "Dana Whitfield", trainer: { id: "t-alex" }, age: 34, trainingDays: [1, 3, 5] });
+    expect(d.client).not.toHaveProperty("birthDate");
+    expect(d.programme).toMatchObject({ name: "Strength Base A", week: 3, of: 6 });
+    expect(d.programme!.thisWeek.week).toBe(3);
+    const names = d.programme!.thisWeek.sessions.flatMap((s) => s.exercises.map((e) => e.exerciseName));
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).toContain("Back Squat");
+    expect(names.every((n) => n && !n.startsWith("ex-"))).toBe(true);
+  });
+  test("an active client can have no programme", () => {
+    expect(sampleAdminClientDetail("c-12", TODAY)?.programme).toBeNull();
+  });
 });

@@ -1,4 +1,4 @@
-import type { ClientExperience, ClientStatus } from "@pt/shared";
+import type { ClientExperience, ClientSex, ClientStatus, ProgramWeek } from "@pt/shared";
 import { client } from "./treaty";
 
 export interface TrainerAccount {
@@ -25,6 +25,48 @@ export interface AdminClient {
   /** YYYY-MM-DD of the latest logged session; null = never logged. */
   lastSessionAt: string | null;
   trainer: { id: string; name: string; access: TrainerAccount["access"] };
+  /** The client's active programme; null = none active. */
+  programme: AdminProgrammeRef | null;
+}
+
+/** An active programme's place in its block: `week` is clamped to `of`; `over` = past the plan. */
+export interface AdminProgrammeRef {
+  id: string;
+  name: string;
+  week: number;
+  of: number;
+  over: boolean;
+}
+
+/** One client, read-only: basics and this week of the active programme. Age only — never the birth date. */
+export interface AdminClientDetail {
+  client: {
+    id: string;
+    name: string;
+    status: ClientStatus;
+    experience: ClientExperience | null;
+    age: number | null;
+    sex: ClientSex | null;
+    bodyweightKg: number | null;
+    heightCm: number | null;
+    sessionsPerWeek: number | null;
+    /** ISO weekdays, 1 = Mon … 7 = Sun. */
+    trainingDays: number[] | null;
+    /** YYYY-MM-DD. */
+    clientSince: string;
+    /** YYYY-MM-DD; null = never logged. */
+    lastSessionAt: string | null;
+    trainer: AdminClient["trainer"];
+  };
+  programme:
+    | (AdminProgrammeRef & {
+        version: number;
+        aiAssisted: boolean;
+        /** YYYY-MM-DD of the first activation; null = never stamped. */
+        activatedAt: string | null;
+        thisWeek: ProgramWeek;
+      })
+    | null;
 }
 
 /** LLM dataset counts (real calls only; mock calls are counted apart). */
@@ -94,6 +136,23 @@ export const adminApi = {
       clientSince: calendarDay(c.clientSince),
       lastSessionAt: c.lastSessionAt == null ? null : calendarDay(c.lastSessionAt),
     }));
+  },
+  /** null = no such client. */
+  async client(id: string): Promise<AdminClientDetail | null> {
+    const { data, error } = await client.v1.admin.clients({ id }).get();
+    if (error) {
+      if (error.status === 404) return null;
+      throw new Error(message(error));
+    }
+    const { client: c, programme: p } = data;
+    return {
+      client: {
+        ...c,
+        clientSince: calendarDay(c.clientSince),
+        lastSessionAt: c.lastSessionAt == null ? null : calendarDay(c.lastSessionAt),
+      },
+      programme: p && { ...p, activatedAt: p.activatedAt == null ? null : calendarDay(p.activatedAt) },
+    };
   },
   async llmStats(): Promise<LlmDatasetStats> {
     const { data, error } = await client.v1.admin["llm-stats"].get();
