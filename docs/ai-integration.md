@@ -149,9 +149,21 @@ delivery surface is a copy button: the trainer pastes into LINE by hand. No
 Messaging API, no client LINE ids, no delivery/read tracking — nothing is ever
 sent automatically.
 
+## Paste import (`POST /v1/ai/imports`, purpose `program_import`)
+
+The LLM reads, code decides. A pasted plan is normalized, numbered (`L1: …`, numbers global to the paste) and split into chunks at week headers (`week|wk|สัปดาห์ N`; without headers, ~60-line chunks at blank or separator lines). Chunks are read **in parallel** through `callLlm` (`buildImportMessages`, JSON mode, `ImportChunk` zod schema, one retry on a bad parse, temperature 0) — each response stays under the token cap and latency stays near one chunk's. Effort is the trainer's pick from the provider picker, otherwise the provider default (`max` on deepseek); lowering it was rejected for this feature. All chunk calls of one import share a `turn_id`, and `context.importId` + the chunk's line range are logged.
+
+The prompt asks for names as written (`sourceName`) plus an expanded `name` (BB → Barbell, DB → Dumbbell, KB → Kettlebell, SA → Single-Arm, OVH → Overhead…), tags in parentheses as `variation`, equipment notes as `equipment`, the prescription from before ` - ` and the actuals after it, `prescription: null` rather than a guess, notes copied untranslated, and every line either referenced or `skipped` with a reason.
+
+Everything after the model is pure code in `@pt/shared` (`import.ts`, `importMatch.ts`): the number checks (present on the line, not part of the name, not used twice), plausibility, coverage, approximation of ranges, program limits, block grouping and exercise matching against the trainer's aliases and catalog — see [domain-model.md](domain-model.md#paste-import-and-exercise-aliases). Failures are flags on the item (amber in the review), never dropped values.
+
+The import row is stored (`ai_imports`) so a long read survives a dropped connection or reload: progress is per chunk (`chunks_done`), the client polls `GET /v1/ai/imports/:id`, cancel goes through the same cancellation registry as generation, and settling only moves a `pending` row. A chunk that fails is reported as unread; the rest are kept.
+
+The mock provider returns the hand-written extraction of `packages/shared/fixtures/import/week11-12.txt` for the chunk it is asked about, so CI never calls a model. `bun run eval:import [--provider … --model … --effort … --only …]` runs the fixtures (the Week 11–12 log plus variants: `4x8 @ 60kg`, `3 sets of 10 @ RPE 8`, `70% x 5`, A1/A2 supersets, a table, Thai, bullets, no headers) against a real provider and reports set accuracy, number-check flags, unused/unread lines and latency — run it on every prompt change.
+
 ## Logging (`ai/llm.ts`, `llm_*` tables)
 
-Every provider attempt goes through `callLlm()`; the call sites (block/week generate, revision, week revision, proposal turn, chat Q&A, client message, distill, feedback check, rule extract) never call `provider.ts` directly. The mock provider takes the same path with `is_mock = true`.
+Every provider attempt goes through `callLlm()`; the call sites (block/week generate, revision, week revision, proposal turn, chat Q&A, client message, distill, feedback check, rule extract, program import) never call `provider.ts` directly. The mock provider takes the same path with `is_mock = true`.
 
 - **`llm_calls`**: one row per HTTP attempt, append-only. It holds the purpose, links (trainer, client, generation, chat message, client message), provider, model, effort, temperature, max tokens, `prompt_version` (`<builder>:<hash of prompt.ts>`), `app_build`, the attempt number, the structured `context` the prompt was built from, `response_raw`, `reasoning`, `parsed`, the status (`ok · provider_error · parse_error · validation_error · aborted`), tokens, latency and finish reason. Attempts of one user action share a `turn_id`. The only update is `linkTurn()`, which attaches a reply row created after the call.
 - **`llm_blobs`**: prompt messages stored by sha256. Calls reference them in order (`request_blob_ids`), so the system prompt and the catalog are stored once. The catalog in `context` is stored as a blob too.

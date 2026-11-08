@@ -12,7 +12,9 @@ trainers ──< clients ──< programs >────── (self-ref: created
     │           │                    └── exercises[] ──▶ exercises.id
     │           ├──< session_logs ──< set_logs ──▶ exercises.id
     │           └──< ai_generations (audit: draft + status trail)
+    │           ├──< ai_imports (paste notes: text, status, chunk progress, checked result)
     ├──< exercises (trainer_id = custom exercises; NULL = global seed)
+    ├──< exercise_aliases (name as written → exercise; trainer_id NULL = global)
     ├──< prompt_templates        (planned — Phase L2)
     └──< periodization_schemes   (planned — Phase L2)
 
@@ -257,3 +259,14 @@ overview grid). Progress is computed on read by the shared pure functions
 A `cardio-behind` signal (shared `cardioBehindSignal`) fires when a client with a
 target is under 60% of pro-rata pace (`0.6 × value × weekday/7`) on Thursday or later.
 The AI prompt carries the target so drafts prescribe cardio consistent with it.
+
+## Paste import and exercise aliases
+
+A trainer's plain-text program becomes a draft through `ai_imports` (migration 0039). The row keeps the pasted `text`, the provider/model/effort, `status` (`pending · done · failed · cancelled`), `chunks_total` / `chunks_done`, and the checked `result` (`ImportResult`, `packages/shared/src/import.ts`). Nothing is created from it directly: "Use this" fills the new-program form, and the trainer saves a normal draft program.
+
+The LLM output (`ImportChunk`) is checked in code before anyone sees it. Every number in a prescription or in the logged actuals has to be on its source line (1 min may justify 60 s; a pyramid's set count is its list length); a number inside the exercise name can't be reps, sets or load, and one occurrence can't fill two prescription fields. Values outside plausible ranges, lines nothing used, and exercises with no prescription are flagged amber. Ranges the program model can't hold (`1-2 sets`, `10-15 sec`, `Zone 2-3`, `40-60 min`) use the upper value and keep the wording in the exercise note (or cardio intensity). Mapping onto `PrescribedSet`: `6-10` → `reps 10, repsMin 6`; `10/8/6/5` → one set per value; timed → `durationSeconds` with `reps 0`; failure → `amrap` with `reps 0`; rounds and steps → `reps` with the unit in the note. The UI says "values found in your text", never "verified".
+
+Weeks are grouped into blocks when consecutive weeks share exercise names (Jaccard ≥ 0.6 after normalizing); the latest block is the default and its latest week is the template.
+
+`exercise_aliases` maps a name as a trainer writes it (normalized: lowercase, no punctuation, single spaces) to one exercise. `trainer_id` NULL means global, set means personal — the same scoping as `exercises`; personal wins over global. One alias per trainer (global included): `UNIQUE NULLS NOT DISTINCT (trainer_id, alias)` (Postgres ≥ 15). Matching order for an imported exercise: alias → exact catalog name → fuzzy (shorthand like BB/DB/KB/SA/OVH expanded, typo-tolerant tokens, top 3 offered) → new custom exercise. Accepting or changing a match in the review saves a personal alias (`source: import`).
+

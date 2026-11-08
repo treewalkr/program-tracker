@@ -187,6 +187,24 @@ pending → validated ──approve──▶ approved  (+ program created in dra
 `providerId` values: `zai` (default, needs `ZAI_API_KEY`), `openai`
 (`OPENAI_API_KEY`), `mock` (canned draft — for tests and UI development, no key).
 
+## Paste import (notes → draft)
+
+Trainer pastes a plain-text program; it is read into a reviewable result that fills the new-program editor. Design: `docs/paste-import-plan.md`.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/v1/ai/imports` | `{clientId, text ≤ 20,000 chars, providerId?, model?, effort?}`. Inserts a `pending` `ai_imports` row, splits the text into chunks (week headers, else ~60 lines at blank/separator lines), reads them in parallel (`callLlm`, purpose `program_import`, temperature 0, effort = the pick or the provider default — `max` on deepseek), then checks, matches and groups in code and settles the row. **201** `done` (with `result`); **502** `failed` when no chunk could be read; **200** unchanged when a cancel landed first; **422** text over the limit or with nothing to read; **400** unconfigured provider/model/effort. Blocks like `/generate` — poll `GET /:id` if the connection drops |
+| GET | `/v1/ai/imports?clientId=` | the client's 5 most recent imports, newest first, without `text`/`result` (`preview` = first 120 chars) |
+| GET | `/v1/ai/imports/:id` | the row: `status`, `chunksDone` / `chunksTotal` (progress), `result` once done |
+| POST | `/v1/ai/imports/:id/cancel` | `pending` → `cancelled` and aborts in-flight calls (cancellation registry); **409** if not pending |
+| POST | `/v1/vocabulary/aliases` | `{items: [{alias, exerciseId, source: "import" \| "manual"}]}` (1–200) → **201** `{aliases}`. Upserts the trainer's personal aliases on the normalized alias (lowercase, punctuation removed, single spaces); the exercise must be global or the trainer's own (**404** otherwise). Global (`trainer_id` null) aliases are seed-only |
+
+Import status: `pending → done | failed | cancelled`. Settling only touches a `pending` row, so a cancel always wins. A chunk that fails is listed in `result.unread`; the other chunks are kept. Every id (client, import) is ownership-checked like the rest of the API (404 for another trainer's).
+
+`result` (`ImportResult`, `@pt/shared` `import.ts`): `weeks → days → sessions → exercises`, each exercise with its source `line`, `sourceName` (as written), `name` (expanded), the raw `prescription`/`actuals`, the mapped `sets: PrescribedSet[]`, a combined `note`, `flags` (`warn` = amber, `info` = how a range was approximated; `blocking` for program limits) and `match` (`alias · exact · fuzzy · new`, with up to 3 fuzzy candidates); plus `skipped`, `unused` lines, `unread` chunks, `blocks` (weeks grouped by Jaccard ≥ 0.6 on exercise names), `defaultBlock` (the latest) and `alternating`.
+
+`mock` reads the Week 11–12 sample (`packages/shared/fixtures/import/week11-12.txt`) from a hand-written extraction; other text reads as unused lines. A line containing `mock: unreadable` makes its chunk fail (tests).
+
 ### Error envelope
 
 ```json
