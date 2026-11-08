@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { afterNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
+  import type { ExerciseDto } from "$lib/api/types";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import { basicsInvalid, emailError, emptyProfile, nameError, phonePayload, profilePayload } from "$lib/clientProfile";
@@ -21,6 +22,8 @@
   let email = $state("");
   let phone = $state("");
   let profile = $state(emptyProfile());
+  /** Exercise catalog for the 1RM rows — they appear once it loads; the rest of the form works without it. */
+  let catalog = $state<ExerciseDto[] | null>(null);
   let createError = $state<string | null>(null);
   /** Set by a submit attempt: shows every field error at once. */
   let attempted = $state(false);
@@ -99,6 +102,10 @@
   }
 
   onMount(() => {
+    api.exercises().then(
+      (list) => (catalog = list),
+      () => {} // no catalog → no 1RM rows; they can be added later on the Profile tab
+    );
     const draft = readNewClientDraft(draftKey);
     if (draft) {
       name = draft.name;
@@ -140,7 +147,7 @@
         <ClientIdentityFields bind:name bind:email bind:phone idPrefix="f" showAll={attempted} />
       </section>
 
-      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible />
+      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible {catalog} />
 
       <div class="pf-foot">
         <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
