@@ -6,4 +6,11 @@ apps/web/.env
 apps/web/.svelte-kit
 **/.DS_Store
 .zcodeignore
-.impeccable/
+.impeccable/# not needed in the image — keeps the build context small and stops doc edits busting COPY . .
+docs
+prototypes
+*.sql
+**/*.md
+apps/web/build
+apps/web/storybook-static
+**/*.log
