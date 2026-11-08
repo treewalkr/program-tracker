@@ -971,11 +971,32 @@ export const WeekTarget = z.object({
 });
 export type WeekTarget = z.infer<typeof WeekTarget>;
 
+export const PROGRESSION_KINDS = ["kg", "percent", "sets"] as const;
+export const ProgressionKind = z.enum(PROGRESSION_KINDS);
+export type ProgressionKind = z.infer<typeof ProgressionKind>;
+
+/** How a week's prescriptions change vs the week before (progression.ts):
+ *  kg → add to kg targets; percent → add %1RM points (scale kg-only targets);
+ *  sets → add/remove working sets per exercise. */
+export const WeekProgression = z
+  .object({
+    kind: ProgressionKind,
+    amount: z.number().min(-50).max(50),
+  })
+  .refine((p) => p.amount !== 0, { message: "progression amount must not be 0", path: ["amount"] })
+  .refine((p) => p.kind !== "sets" || Number.isInteger(p.amount), {
+    message: "a sets progression adds whole sets",
+    path: ["amount"],
+  });
+export type WeekProgression = z.infer<typeof WeekProgression>;
+
 /** One week of a periodization scheme: what this week should do. */
 export const WeekPlan = z.object({
   week: z.number().int().min(1).max(26),
   directive: WeekDirective,
   target: WeekTarget.optional(),
+  /** Rule that generates this week's prescriptions from the week before ("Apply progression"). */
+  progression: WeekProgression.optional(),
   note: z.string().max(500).optional(),
 });
 export type WeekPlan = z.infer<typeof WeekPlan>;
