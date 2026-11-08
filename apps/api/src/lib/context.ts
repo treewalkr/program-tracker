@@ -171,6 +171,8 @@ export async function loadContext(
       limitations: client.limitations,
       sessionsPerWeek: client.sessionsPerWeek,
       trainingDays: client.trainingDays ?? null,
+      cardioDays: client.cardioDays ?? null,
+      longRunDay: client.longRunDay ?? null,
       cardioTarget: client.cardioTarget ?? null,
     },
     previousProgram: previous,

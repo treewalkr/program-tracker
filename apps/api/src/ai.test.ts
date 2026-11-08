@@ -46,7 +46,7 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain('Lifting sessions (kind "lifting") per week: exactly 3.');
   });
 
-  test("session-structure rules: lifting count, separate cardio, focus names, weekdays as context only", () => {
+  test("session-structure rules: lifting count, separate cardio, focus names, weekdays", () => {
     const base = {
       previousProgram: null,
       periodization: null,
@@ -61,11 +61,18 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("Cardio sessions never count toward the lifting session number and do not use up a training day");
     expect(system).toContain('unit "sessions" → exactly that many cardio sessions');
     expect(system).toContain('never by weekday or "Day N"');
-    expect(system).toContain("For context only, the client can train on Mon, Wed, Fri; sessions may share a day.");
+    expect(system).toContain('Give every session a "weekday" (1=Mon … 7=Sun). Lifting only on Mon, Wed, Fri; cardio on Mon, Wed, Fri. Sessions may share a day.');
+    expect(system).toContain("never two key runs on one day");
+
+    const runner = buildGenerationMessages({
+      ...base,
+      client: { name: "Priya", sessionsPerWeek: 2, trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 },
+    });
+    expect(runner.system).toContain("Lifting only on Mon, Tue, Thu, Fri; cardio on Mon, Tue, Wed, Thu, Fri, Sun; the long run on Sun.");
 
     const noDays = buildGenerationMessages({ ...base, client: { name: "Ada", sessionsPerWeek: 3 } });
     expect(noDays.system).toContain("Do not assign weekdays: the app places sessions on the calendar.");
-    expect(noDays.system).not.toContain("For context only");
+    expect(noDays.system).not.toContain('Give every session a "weekday"');
 
     // No client setting → fall back to the previous program's LIFTING session count (cardio excluded)
     const fallback = buildGenerationMessages({

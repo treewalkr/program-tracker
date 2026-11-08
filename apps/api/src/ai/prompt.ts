@@ -23,8 +23,12 @@ export interface ClientContext {
   limitations?: string | null;
   /** Lifting sessions per week (cardio does not count). */
   sessionsPerWeek?: number | null;
-  /** Available ISO weekdays (1=Mon…7=Sun) — context only; code places sessions. */
+  /** Available ISO weekdays (1=Mon…7=Sun) for lifting; the AI suggests weekdays, code checks them. */
   trainingDays?: number[] | null;
+  /** Extra ISO weekdays available for cardio (null = trainingDays). */
+  cardioDays?: number[] | null;
+  /** ISO weekday the long run is pinned to. */
+  longRunDay?: number | null;
   cardioTarget?: CardioTarget | null;
 }
 
@@ -136,10 +140,11 @@ const DRAFT_SCHEMA_SPEC = `{
       }
     ]?
   },
-  "sessions": [                     // one week: the lifting sessions, then any cardio sessions (no weekdays — the app schedules them)
+  "sessions": [                     // one week: the lifting sessions, then any cardio sessions
     {
       "name": string,
       "kind"?: "lifting" | "cardio", // defaults to "lifting"
+      "weekday"?: number,           // 1=Mon … 7=Sun, from the client's days (see the weekday rule); sessions may share a day
       "type"?: string,              // one of SESSION TYPES whose format matches kind (e.g. "Mobility"); omit if none fits
       "cardio"?: {                   // required if kind is "cardio"; omit/null for lifting
         "modality": string,          // "Bike", "Run", "Rower", etc.
@@ -204,10 +209,21 @@ function sessionStructureRules(client: ClientContext, previous: ProgramSummary |
     `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous)}. List them in the order they should be trained.`,
     '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the lifting session number and do not use up a training day. List cardio sessions after the lifting ones.',
     '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
-    `- Do not assign weekdays: the app places sessions on the calendar.${
-      days.length ? ` For context only, the client can train on ${days.map((d) => WEEKDAY_NAMES[d - 1]).join(", ")}; sessions may share a day.` : ""
-    }`,
+    weekdayRule(client, days),
   ];
+}
+
+const dayList = (days: number[]) => days.map((d) => WEEKDAY_NAMES[d - 1]).join(", ");
+
+/** Weekday placement: the AI proposes, the app keeps what passes these rules (F03, F26). */
+function weekdayRule(client: ClientContext, days: number[]): string {
+  const cardio = [...new Set([...days, ...(client.cardioDays ?? []), ...(client.longRunDay ? [client.longRunDay] : [])])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
+  if (days.length === 0 && cardio.length === 0) return "- Do not assign weekdays: the app places sessions on the calendar.";
+  const long = client.longRunDay && client.longRunDay >= 1 && client.longRunDay <= 7 ? WEEKDAY_NAMES[client.longRunDay - 1] : null;
+  return [
+    `- Give every session a "weekday" (1=Mon … 7=Sun). Lifting only on ${days.length ? dayList(days) : "no day (leave lifting weekday out)"}; cardio on ${dayList(cardio)}${long ? `; the long run on ${long}` : ""}. Sessions may share a day.`,
+    "  Concurrent-training rules (the app keeps weekdays that follow them and re-places the rest): key runs are the long run (≥ 60 min) and hard runs (tempo, threshold, intervals, zone ≥ 4) — never two key runs on one day; heavy lower-body lifting is never the day after a key run and at least 48 h before one; easy runs go on different days where possible.",
+  ].join("\n");
 }
 
 const WEEK_STABILITY_RULE =
