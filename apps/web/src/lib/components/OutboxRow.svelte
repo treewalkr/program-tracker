@@ -154,7 +154,7 @@
 
   .line {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(15rem, 0.75fr);
     align-items: center;
     gap: 4px 16px;
     padding: 8px 16px 8px 8px;
@@ -256,6 +256,7 @@
     background: var(--chip-bg);
     color: var(--ink);
   }
+  .state { font-family: var(--font-ui); }
   .state.retrying { color: var(--warn); }
   .state.dead { color: var(--bad); }
   .meta time { min-width: 7ch; text-align: right; color: var(--faint); }
@@ -280,7 +281,7 @@
   .timeline li {
     position: relative;
     display: grid;
-    grid-template-columns: 12px 9ch minmax(0, 1fr) auto;
+    grid-template-columns: 12px max-content minmax(0, 1fr) auto;
     align-items: baseline;
     gap: 8px;
     padding: 3px 0;
@@ -309,6 +310,7 @@
   .end .mark { border-color: var(--bad); }
   .pending .mark { border-style: dashed; }
   .timeline time, .ms {
+    white-space: nowrap;
     font: 400 12px/1.4 var(--font-mono);
     font-variant-numeric: tabular-nums;
     color: var(--muted);

@@ -137,7 +137,7 @@
       flex-basis: 30%;
       padding: 10px 12px;
     }
-    .n { font-size: 17px; }
+    .n { font-size: 16px; }
   }
   @media (prefers-reduced-motion: reduce) {
     button.cell { transition: none; }
