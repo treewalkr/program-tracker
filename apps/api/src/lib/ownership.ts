@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import {
   aiGenerations,
@@ -8,6 +8,8 @@ import {
   clients,
   coachingRules,
   db,
+  exerciseAliases,
+  glossaryTerms,
   llmFeedback,
   periodizationSchemes,
   programExamples,
@@ -42,11 +44,14 @@ const NOUN = new Map<Owned, string>([
   [coachingRules, "rule"],
   [llmFeedback, "note"],
   [roleLabels, "label"],
+  [exerciseAliases, "alias"],
+  [glossaryTerms, "term"],
 ]);
 
 /** Route prefix → the table its `:id` / `:messageId` param points into;
- *  `skip` exempts ids that aren't rows (a built-in role label's key). */
-const PATH_OWNERS: [prefix: string, table: Owned, skip?: (id: unknown) => boolean][] = [
+ *  `skip` exempts ids that aren't rows (a built-in role label's key);
+ *  `global` lets a global (null-trainer) row through — its handler answers 403 to a write. */
+const PATH_OWNERS: [prefix: string, table: Owned, skip?: ((id: unknown) => boolean) | null, global?: "global"][] = [
   ["/v1/clients/", clients],
   ["/v1/programs/", programs],
   ["/v1/ai/generations/", aiGenerations],
@@ -60,6 +65,8 @@ const PATH_OWNERS: [prefix: string, table: Owned, skip?: (id: unknown) => boolea
   ["/v1/ai/rules/", coachingRules],
   ["/v1/ai/feedback/notes/", llmFeedback],
   ["/v1/vocabulary/role-labels/", roleLabels, isBuiltinRole],
+  ["/v1/vocabulary/aliases/", exerciseAliases, null, "global"],
+  ["/v1/vocabulary/glossary/", glossaryTerms, null, "global"],
 ];
 
 /** Query/body field → the table it references. */
@@ -73,12 +80,12 @@ const FIELD_OWNERS: [field: string, table: Owned][] = [
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function owns(table: Owned, id: unknown, trainerId: string): Promise<boolean> {
+async function owns(table: Owned, id: unknown, trainerId: string, global = false): Promise<boolean> {
   if (typeof id !== "string" || !UUID.test(id)) return false;
   const rows = await db
     .select({ id: table.id })
     .from(table as PgTable)
-    .where(and(eq(table.id, id), eq(table.trainerId, trainerId)))
+    .where(and(eq(table.id, id), global ? or(eq(table.trainerId, trainerId), isNull(table.trainerId)) : eq(table.trainerId, trainerId)))
     .limit(1);
   return rows.length > 0;
 }
@@ -95,7 +102,7 @@ export async function foreignReference(
   const pathId = params.id ?? params.messageId;
   const owner = PATH_OWNERS.find(([prefix]) => req.route.startsWith(prefix));
   const pathTable = owner?.[1];
-  if (pathTable && pathId !== undefined && !owner?.[2]?.(pathId) && !(await owns(pathTable, pathId, trainerId))) {
+  if (pathTable && pathId !== undefined && !owner?.[2]?.(pathId) && !(await owns(pathTable, pathId, trainerId, owner?.[3] === "global"))) {
     return notFound(pathTable);
   }
 

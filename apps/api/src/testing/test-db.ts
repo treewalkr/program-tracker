@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
@@ -59,6 +60,19 @@ export const TEST_EXERCISE_FIXTURES: ReadonlyArray<{
   },
 ];
 
+/**
+ * The seed INSERTs of migration 0041 (global glossary and aliases). The reset
+ * truncates every table, so they run again after it; idempotent (ON CONFLICT
+ * DO NOTHING), and an alias whose exercise is missing is skipped.
+ */
+export function vocabularySeedStatements(): string[] {
+  const file = readFileSync(new URL("../../../../packages/db/drizzle/0041_vocabulary.sql", import.meta.url), "utf8");
+  return file
+    .split("--> statement-breakpoint")
+    .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
+    .filter((s) => s.startsWith("INSERT"));
+}
+
 function isUnreachable(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
   return code === "ECONNREFUSED" || code === "CONNECT_TIMEOUT";
@@ -88,6 +102,7 @@ export async function prepareTestDatabase(url: string): Promise<boolean> {
       await target.unsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
     }
     await drizzle(target).insert(exercises).values(TEST_EXERCISE_FIXTURES.map((f) => ({ ...f, trainerId: null })));
+    for (const statement of vocabularySeedStatements()) await target.unsafe(statement);
     return true;
   } catch (err) {
     if (isUnreachable(err)) return false;
