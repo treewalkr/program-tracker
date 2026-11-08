@@ -77,10 +77,18 @@ export async function computeTrainerSignals(
     .from(programs)
     .where(and(eq(programs.trainerId, trainerId), eq(programs.status, "active")));
   const scoped = active.filter((p) => p.clientId && (!onlyClientId || p.clientId === onlyClientId));
-  if (scoped.length === 0) return [];
 
-  const clientIds = [...new Set(scoped.map((p) => p.clientId!))];
-  const clientRows = await db.select().from(clients).where(inArray(clients.id, clientIds));
+  // Cardio targets are a client attribute: clients without an active program
+  // still get the cardio pace check (F18).
+  const clientRows = (
+    await db
+      .select()
+      .from(clients)
+      .where(onlyClientId ? and(eq(clients.trainerId, trainerId), eq(clients.id, onlyClientId)) : eq(clients.trainerId, trainerId))
+  ).filter((c) => scoped.some((p) => p.clientId === c.id) || (c.cardioTarget && c.status !== "archived"));
+  if (clientRows.length === 0) return [];
+
+  const clientIds = clientRows.map((c) => c.id);
   const logRows = await db.select().from(sessionLogs).where(inArray(sessionLogs.clientId, clientIds));
   const setRows = logRows.length
     ? await db
@@ -103,26 +111,31 @@ export async function computeTrainerSignals(
   }
 
   const signals: Signal[] = [];
-  for (const program of scoped) {
-    const client = clientRows.find((c) => c.id === program.clientId);
-    const programLogs = logRows
-      .filter((l) => l.programId === program.id)
+  const now = Date.now();
+  for (const client of clientRows) {
+    // One active program per client.
+    const program = scoped.find((p) => p.clientId === client.id) ?? null;
+    const clientLogs = logRows
+      .filter((l) => l.clientId === client.id)
       .map((l) => toSignalLog(l, setsByLog.get(l.id) ?? []));
-    signals.push(
-      ...computeSignals(
-        toSignalProgram(program),
-        programLogs,
-        nameOf,
-        client?.sessionsPerWeek ?? undefined
-      )
-    );
-    // One active program per client — no per-client dedupe needed here.
-    if (client?.cardioTarget) {
+    if (program) {
+      signals.push(
+        ...computeSignals(
+          toSignalProgram(program),
+          clientLogs.filter((l) => l.programId === program.id),
+          nameOf,
+          client.sessionsPerWeek ?? undefined,
+          now
+        )
+      );
+    }
+    if (client.cardioTarget) {
       const behind = cardioBehindSignal(
-        { programId: program.id, clientId: program.clientId },
+        { programId: program?.id ?? null, clientId: client.id },
         client.cardioTarget,
-        programLogs,
-        Date.now()
+        clientLogs,
+        now,
+        client.createdAt.toISOString()
       );
       if (behind) signals.push(behind);
     }

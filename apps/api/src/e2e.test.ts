@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
-import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises } from "@pt/db";
+import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises, clients } from "@pt/db";
 import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
@@ -1358,6 +1358,8 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
   });
 
   test("notifications include cardio-behind when behind", async () => {
+    // F18: nothing is due on the client's first day — age the client a month.
+    await db.update(clients).set({ createdAt: new Date(Date.now() - 30 * 86_400_000) }).where(eq(clients.id, clientId));
     const feed = await call("GET", "/v1/notifications");
     expect(feed.status).toBe(200);
     // target 150 min; only this week's cardio logs count. weekday-dependent —
@@ -1369,6 +1371,34 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
       expect(find()).toBeDefined();
     } else {
       expect(find()).toBeUndefined();
+    }
+  });
+});
+
+describe.skipIf(!dbUp)("cardio-behind without an active program (F18)", () => {
+  test("a client with a cardio target and no program still gets the signal", async () => {
+    const created = await call("POST", "/v1/clients", {
+      name: "ZZ-TEST No Program Runner",
+      email: `cardio-noprog-${Date.now()}@test.dev`,
+    });
+    expect(created.status).toBe(201);
+    const clientId = created.body.id;
+    await call("PATCH", `/v1/clients/${clientId}`, { cardioTarget: { unit: "sessions", value: 4 } });
+
+    const find = async () =>
+      (await call("GET", "/v1/notifications")).body.signals.find((s: any) => s.id === `cardio-behind:${clientId}`);
+    // Created today → nothing due yet.
+    expect(await find()).toBeUndefined();
+
+    await db.update(clients).set({ createdAt: new Date(Date.now() - 30 * 86_400_000) }).where(eq(clients.id, clientId));
+    const wd = (new Date().getDay() + 6) % 7 + 1;
+    const signal = await find();
+    if (wd >= 4) {
+      expect(signal).toBeDefined();
+      expect(signal.programId).toBeNull();
+      expect(signal.clientId).toBe(clientId);
+    } else {
+      expect(signal).toBeUndefined();
     }
   });
 });
