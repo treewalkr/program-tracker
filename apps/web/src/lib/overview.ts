@@ -1,4 +1,4 @@
-import { cardioDone, cardioUnitLabel, cardioWeekTotals, sessionsByWeekday, weekOf } from "@pt/shared";
+import { blockAnchorDate, cardioDone, cardioUnitLabel, cardioWeekTotals, sessionsByWeekday, weekOf } from "@pt/shared";
 import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
 
 export interface WeekEntry {
@@ -55,8 +55,11 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n ==
 /**
  * One training-week row: the current program week's sessions on their
  * weekdays, each day marked logged / today / due (missed) / upcoming.
- * A session counts as logged when a log this week names it, wherever in the
- * week it happened; logs without a session id fall back to the planned date.
+ * Logs match by calendar date, not by the program week picked in the logger
+ * (F08): a session counts as logged when a log in this calendar week names the
+ * same slot (kind + session number) in any program week. Logs without a
+ * resolvable session fall back to the planned date. Days before the block
+ * anchor or before the client was created get no cell — nothing was due (F07).
  */
 export function buildWeekRow(
   client: ClientDto,
@@ -76,11 +79,20 @@ export function buildWeekRow(
   }
   if (!program || !program.weeks?.length) return row;
 
-  const weekNum = Math.max(1, Math.min(weekOf(program, logs, now), program.weeks.length));
+  const programLogs = logs.filter((l) => l.programId === program.id);
+  const weekNum = Math.max(1, Math.min(weekOf(program, programLogs, now), program.weeks.length));
   const week = program.weeks.find((w) => w.week === weekNum) ?? program.weeks[0];
-  const thisWeek = logs.filter((l) => l.programId === program.id && l.date.slice(0, 10) >= weekDates[0] && l.date.slice(0, 10) <= weekDates[6]);
-  const loggedIds = new Set(thisWeek.map((l) => l.programSessionId).filter(Boolean));
-  const loggedDates = new Set(thisWeek.filter((l) => !l.programSessionId).map((l) => l.date.slice(0, 10)));
+  const anchorDay = blockAnchorDate(program, programLogs).slice(0, 10);
+  const clientDay = client.createdAt ? localIso(new Date(client.createdAt)) : null;
+  const startDay = clientDay && clientDay > anchorDay ? clientDay : anchorDay;
+
+  const slot = (s: { kind?: string | null; seq: number }) => `${s.kind ?? "lifting"}:${s.seq}`;
+  const slotById = new Map(program.weeks.flatMap((w) => w.sessions.map((s) => [s.id, slot(s)] as const)));
+  const thisWeek = programLogs.filter((l) => l.date.slice(0, 10) >= weekDates[0] && l.date.slice(0, 10) <= weekDates[6]);
+  const loggedSlots = new Set(thisWeek.map((l) => (l.programSessionId ? slotById.get(l.programSessionId) : undefined)).filter(Boolean));
+  const loggedDates = new Set(
+    thisWeek.filter((l) => !l.programSessionId || !slotById.has(l.programSessionId)).map((l) => l.date.slice(0, 10))
+  );
 
   const byDay = sessionsByWeekday(week.sessions);
   row.unscheduled = byDay.get(0)?.length ?? 0;
@@ -88,7 +100,8 @@ export function buildWeekRow(
     const list = byDay.get(day) ?? [];
     if (list.length === 0) continue;
     const date = weekDates[day - 1];
-    const logged = list.every((s) => loggedIds.has(s.id)) || loggedDates.has(date);
+    const logged = list.every((s) => loggedSlots.has(slot(s))) || loggedDates.has(date);
+    if (!logged && date < startDay) continue;
     row.entries.set(day, {
       day,
       clientId: client.id,

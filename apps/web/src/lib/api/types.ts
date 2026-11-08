@@ -51,6 +51,8 @@ export interface ClientDto {
   trainingDays?: number[];
   /** Standing weekly cardio target — null/undefined = none. */
   cardioTarget?: { unit: "minutes" | "sessions" | "zone_minutes"; value: number } | null;
+  /** ISO timestamp; absent on older mock fixtures. */
+  createdAt?: string;
 }
 
 export interface ProgramExerciseDto {
