@@ -1338,6 +1338,45 @@ describe("buildChatSystem", () => {
   });
 });
 
+describe("dated training log in prompts (F11)", () => {
+  const base = {
+    client: { name: "Priya", sessionsPerWeek: 2, cardioTarget: { unit: "sessions" as const, value: 4 } },
+    previousProgram: null,
+    periodization: null,
+    chainBalance: null,
+    history: [],
+    catalog: [],
+  };
+  const log = [
+    "2026-11-07 Cardio 2: Run 35 min, zone 2, 6.1 km",
+    "2026-11-05 Session 2 (Upper): Squat 140×5@9, 137.5×4@9.5 (back-off)",
+  ].join("\n");
+
+  test("chat context carries the dated log and requires dated citations", () => {
+    const sys = buildChatSystem({ ...base, trainingLog: log, latestDraft: null });
+    expect(sys).toContain(`TRAINING LOG (dated, newest first — every logged set and cardio session, last 8 weeks):\n${log}`);
+    expect(sys).toContain('cite dated evidence from the TRAINING LOG, e.g. "Nov 5: 140×5 @ 9"');
+    expect(sys).not.toContain("RECENT TRAINING LOGS");
+  });
+
+  test("with logged data the chat is told never to claim no completed sessions or a cold start", () => {
+    const sys = buildChatSystem({ ...base, trainingLog: log, latestDraft: null });
+    expect(sys).toContain("The TRAINING LOG has entries: never say there are no completed sessions");
+    expect(sys).not.toContain("cold start");
+  });
+
+  test("an empty log says so plainly", () => {
+    const sys = buildChatSystem({ ...base, trainingLog: "", latestDraft: null });
+    expect(sys).toContain("TRAINING LOG: nothing logged in the last 8 weeks.");
+    expect(sys).not.toContain("The TRAINING LOG has entries");
+  });
+
+  test("drafting prompts use the dated log too", () => {
+    const { user } = buildGenerationMessages({ ...base, trainingLog: log, trainerInstructions: "" });
+    expect(user).toContain(`TRAINING LOG (dated, newest first — every logged set and cardio session, last 8 weeks):\n${log}`);
+  });
+});
+
 describe("chatJson abort handling", () => {
   test("chatJson surfaces AbortError unwrapped when the signal is aborted", async () => {
     const ac = new AbortController();

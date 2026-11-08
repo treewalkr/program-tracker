@@ -76,6 +76,9 @@ export interface GenerationContext {
   /** Gold-standard programs retrieved from the trainer's example library (few-shot). */
   examples?: ExampleProgramSummary[];
   history: ExerciseHistoryEntry[];
+  /** Dated per-session log (renderTrainingLog), newest first. When set (even ""),
+   *  it replaces the per-exercise `history` block. */
+  trainingLog?: string | null;
   catalog: CatalogEntry[];
   /** The trainer's live session types — drafts label each session with one. */
   sessionTypes?: { name: string; format: SessionKind }[];
@@ -286,9 +289,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
-    ctx.history.length > 0
-      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
-      : "RECENT TRAINING LOGS: none.",
+    trainingLogBlock(ctx),
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
     ...(ctx.catalog.length
@@ -433,9 +434,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
       ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
-    ctx.history.length > 0
-      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
-      : "RECENT TRAINING LOGS: none.",
+    trainingLogBlock(ctx),
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
     ...(ctx.catalog.length
@@ -543,9 +542,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
       ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
-    ctx.history.length > 0
-      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
-      : "RECENT TRAINING LOGS: none.",
+    trainingLogBlock(ctx),
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
     ctx.catalog
@@ -627,9 +624,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
       ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
-    ctx.history.length > 0
-      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
-      : "RECENT TRAINING LOGS: none.",
+    trainingLogBlock(ctx),
     "",
     `EXERCISE CATALOG (use these exerciseId values when possible):`,
     ctx.catalog
@@ -707,6 +702,21 @@ function examplesToText(examples: ExampleProgramSummary[]): string {
         .map((line) => `  ${line}`),
     ]),
   ].join("\n");
+}
+
+export const TRAINING_LOG_HEADER =
+  "TRAINING LOG (dated, newest first — every logged set and cardio session, last 8 weeks):";
+
+/** The dated training log when loaded, else the legacy per-exercise summary. */
+function trainingLogBlock(ctx: Pick<GenerationContext, "history" | "trainingLog">): string {
+  if (ctx.trainingLog != null) {
+    return ctx.trainingLog
+      ? `${TRAINING_LOG_HEADER}\n${ctx.trainingLog}`
+      : "TRAINING LOG: nothing logged in the last 8 weeks.";
+  }
+  return ctx.history.length > 0
+    ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
+    : "RECENT TRAINING LOGS: none.";
 }
 
 function historyToText(h: ExerciseHistoryEntry[]): string {
@@ -872,6 +882,12 @@ export function buildChatSystem(ctx: ChatContext): string {
     "You are the trainer's assistant inside their strength & conditioning app, chatting about ONE client.",
     "Answer only about this client — profile, current program, logged numbers, progress, and AI drafts. This is not a general assistant: for anything else, point the trainer to the right part of their app.",
     "Ground every claim in the CONTEXT below and quote actual numbers. If the context does not cover it, say so plainly — never invent data.",
+    'When answering about training, cite dated evidence from the TRAINING LOG, e.g. "Nov 5: 140×5 @ 9" — and use every set it lists (back-offs and cardio included), not just the latest.',
+    ...(ctx.trainingLog
+      ? [
+          "The TRAINING LOG has entries: never say there are no completed sessions, no logs, or that the client is starting from scratch — read the log.",
+        ]
+      : []),
     "LIMITATIONS are hard constraints: never suggest movements that conflict with them.",
     'If the trainer wants the latest draft changed, tell them to send the message with "Revise draft" — that creates the next draft version; you cannot change drafts yourself.',
     "Keep replies short and concrete.",
@@ -903,7 +919,7 @@ export function buildChatSystem(ctx: ChatContext): string {
           "CURRENT PROGRAM (the block you are following up):",
           programToText(ctx.previousProgram),
         ].join("\n")
-      : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
+      : "CURRENT PROGRAM: none active.",
     "",
     ctx.periodization
       ? `PERIODIZATION CONTEXT (read-only, derived from the current block's logs):\n${ctx.periodization}`
@@ -913,9 +929,7 @@ export function buildChatSystem(ctx: ChatContext): string {
       ? `KINETIC CHAIN BALANCE (the trainer's five chains; working + back-off sets, last 8 weeks):\n${ctx.chainBalance}`
       : "KINETIC CHAIN BALANCE: no logged training to balance yet.",
     "",
-    ctx.history.length > 0
-      ? ["RECENT TRAINING LOGS (last 8 weeks, oldest → newest):", historyToText(ctx.history)].join("\n")
-      : "RECENT TRAINING LOGS: none.",
+    trainingLogBlock(ctx),
     "",
     draftBlock,
     "",
