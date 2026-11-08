@@ -26,6 +26,8 @@ import type {
   CardioLog,
   CardioTarget,
   OneRepMaxes,
+  ClientExperience,
+  ClientSex,
   ClientStatus,
   ExampleLevel,
   FeedbackAgentCheck,
@@ -112,6 +114,16 @@ export const clients = pgTable("clients", {
   longRunDay: integer("long_run_day"),
   /** Current 1RMs, exerciseId → { kg, date } — null = none recorded. Drives %1RM loads. */
   oneRepMaxes: jsonb("one_rep_maxes").$type<OneRepMaxes>(),
+  /** Client basics — all optional. Dates are calendar days (string mode, no TZ shift). */
+  experience: text("experience").$type<ClientExperience>(),
+  birthDate: date("birth_date", { mode: "string" }),
+  sex: text("sex").$type<ClientSex>(),
+  bodyweightKg: real("bodyweight_kg"),
+  heightCm: real("height_cm"),
+  /** Day the client started with this trainer. Admin-only — never sent to the AI. */
+  startedOn: date("started_on", { mode: "string" }),
+  /** Contact phone. Admin-only — never sent to the AI. */
+  phone: text("phone"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
