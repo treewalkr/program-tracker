@@ -59,6 +59,18 @@ export interface ClientDto {
   longRunDay?: number | null;
   /** exerciseId → { kg, date }; null/absent = none recorded. %1RM sets resolve against it. */
   oneRepMaxes?: OneRepMaxes | null;
+  /** Client basics — all optional; null/absent = not set. Dates are YYYY-MM-DD calendar days
+   *  (the API client may revive them into Dates — read them through `calendarDate`). */
+  experience?: "beginner" | "intermediate" | "advanced" | null;
+  birthDate?: string | null;
+  /** null/absent = not specified. */
+  sex?: "female" | "male" | null;
+  bodyweightKg?: number | null;
+  heightCm?: number | null;
+  /** Day the client started. Admin-only — never sent to the AI. */
+  startedOn?: string | null;
+  /** Contact phone. Admin-only — never sent to the AI. */
+  phone?: string | null;
   /** ISO timestamp; absent on older mock fixtures. */
   createdAt?: string;
 }
