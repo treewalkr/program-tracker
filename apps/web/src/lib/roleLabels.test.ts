@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { BUILTIN_ROLE_LABELS, mergeRoleLabels } from "@pt/shared";
-import { canCreateLabel, groupRoleLabels, roleDisplay, searchRoleLabels } from "./roleLabels";
+import { canCreateLabel, groupRoleLabels, roleDisplay, searchRoleLabels, suggestRoleIn } from "./roleLabels";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const gone = "22222222-2222-4222-8222-222222222222";
@@ -57,5 +57,23 @@ describe("roleDisplay", () => {
     expect(roleDisplay(`label:${id}`, labels)).toMatchObject({ chip: "Spd", description: "Fast, light reps." });
     expect(roleDisplay(`label:${gone}`, labels)).toMatchObject({ chip: "Old" });
     expect(roleDisplay("label:33333333-3333-4333-8333-333333333333", labels).chip).toBe("Label");
+  });
+});
+
+describe("suggestRoleIn", () => {
+  const catalog = [
+    { id: "sq", name: "Back Squat", primaryMuscleGroup: "quads", equipment: "barbell", movementPattern: "knee_dominant" },
+    { id: "pl", name: "Plank", primaryMuscleGroup: "core", equipment: "bodyweight", movementPattern: "anti_extension" },
+    { id: "rdl", name: "Romanian Deadlift", primaryMuscleGroup: "hamstrings", equipment: "barbell", movementPattern: "hip_dominant" },
+  ];
+  const five = [{ reps: 5, type: "working" }];
+  test("reads the catalog for the session's exercises", () => {
+    const session = [
+      { exerciseId: "sq", prescribedSets: five },
+      { exerciseId: "rdl", prescribedSets: five },
+      { exerciseId: "pl", prescribedSets: [{ reps: 0 }] },
+      { exerciseId: "x", exerciseName: "Cable Curl", prescribedSets: [{ reps: 12 }] },
+    ];
+    expect(session.map((_, i) => suggestRoleIn(session, i, catalog))).toEqual(["primary", "secondary", "core", "accessory"]);
   });
 });

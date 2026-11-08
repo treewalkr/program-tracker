@@ -460,6 +460,7 @@
                   {#if openExercise === e.id}
                     <ExerciseEditor
                       bind:exercise={currentWeek.sessions[si].exercises[ei]}
+                      session={s.exercises}
                       {catalog}
                       oneRepMaxKg={oneRepMaxKg(oneRepMaxes, e.exerciseId)}
                       oncreate={addToLibrary}

@@ -1,4 +1,15 @@
-import { ROLE_CATEGORIES, ROLE_CATEGORY_NAMES, resolveRole, type RoleLabel } from "@pt/shared";
+import {
+  ROLE_CATEGORIES,
+  ROLE_CATEGORY_NAMES,
+  resolveRole,
+  suggestRole,
+  type BuiltinRole,
+  type Equipment,
+  type MovementPattern,
+  type MuscleGroup,
+  type RoleHints,
+  type RoleLabel,
+} from "@pt/shared";
 
 /**
  * Role picker helpers (docs/role-labels-plan.md): search, grouping and how a
@@ -44,4 +55,26 @@ export function groupRoleLabels(labels: readonly RoleLabel[]): { label: string; 
 export function canCreateLabel(labels: readonly RoleLabel[], typed: string): boolean {
   const name = typed.trim().replace(/\s+/g, " ").toLowerCase();
   return name.length > 0 && !labels.some((l) => !l.archived && l.name.toLowerCase() === name);
+}
+
+/** Catalog fields suggestRole reads (ExerciseDto keeps them as plain strings). */
+type CatalogHint = { id: string; name: string; primaryMuscleGroup: string; equipment: string; movementPattern: string | null };
+type Slot = { exerciseId: string; exerciseName?: string; prescribedSets?: readonly { reps?: number | null; type?: string | null }[] };
+
+/** An exercise as suggestRole sees it: catalog fields when the id is known, its name otherwise. */
+export function roleHints(e: Slot, catalog: readonly CatalogHint[]): RoleHints {
+  const c = catalog.find((x) => x.id === e.exerciseId);
+  return {
+    name: c?.name ?? e.exerciseName ?? "",
+    movementPattern: (c?.movementPattern ?? null) as MovementPattern | null,
+    primaryMuscleGroup: (c?.primaryMuscleGroup ?? null) as MuscleGroup | null,
+    equipment: (c?.equipment ?? null) as Equipment | null,
+    prescribedSets: e.prescribedSets,
+  };
+}
+
+/** suggestRole for `session[index]`, reading the catalog. */
+export function suggestRoleIn(session: readonly Slot[], index: number, catalog: readonly CatalogHint[]): BuiltinRole {
+  const hints = session.map((e) => roleHints(e, catalog));
+  return suggestRole(hints[index], hints, index);
 }

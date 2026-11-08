@@ -708,6 +708,7 @@
                 {#each s.exercises as e, ei (e.id)}
                   <ExerciseEditor
                     bind:exercise={s.exercises[ei]}
+                    session={s.exercises}
                     {catalog}
                     oneRepMaxKg={oneRepMaxKg(client.oneRepMaxes, e.exerciseId)}
                     oncreate={addToLibrary}

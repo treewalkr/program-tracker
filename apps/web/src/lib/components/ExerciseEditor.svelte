@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ExerciseDto, ExerciseInput, PrescribedSetDto, ProgramExerciseDto } from "$lib/api/types";
-  import { EXERCISE_ROLES, EXERCISE_ROLE_INFO, type ExerciseRole } from "@pt/shared";
+  import { suggestRoleIn } from "$lib/roleLabels";
   import {
     isUniform,
     loadCell,
@@ -20,6 +20,7 @@
   import { resolveLoadKg } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import ExercisePicker from "./ExercisePicker.svelte";
+  import RolePicker from "./RolePicker.svelte";
 
   /**
    * Inline editor for one exercise, opened from the read view. Identical sets
@@ -37,8 +38,11 @@
     onclose,
     oncreate,
     oneRepMaxKg = null,
+    session,
   }: {
     exercise: ProgramExerciseDto;
+    /** The session's exercises (this one included) — picking an exercise with no role suggests one from its place. */
+    session?: ProgramExerciseDto[];
     /** The client's 1RM for this exercise — "75%" loads show their kg; null = none on file. */
     oneRepMaxKg?: number | null;
     catalog: ExerciseDto[];
@@ -98,6 +102,13 @@
   function pickExercise(ex: ExerciseDto) {
     exercise.exerciseId = ex.id;
     exercise.exerciseName = ex.name;
+    if (!exercise.role) {
+      const found = (session ?? []).findIndex((e) => e.id === exercise.id);
+      const list = found === -1 ? [...(session ?? []), exercise] : session!;
+      const at = found === -1 ? list.length - 1 : found;
+      const slots = list.map((e, i) => (i === at ? { ...e, exerciseId: ex.id, exerciseName: ex.name } : e));
+      exercise.role = suggestRoleIn(slots, at, catalog);
+    }
   }
 </script>
 
@@ -118,22 +129,7 @@
 
 <div class="exedit" class:inline={!onclose}>
   <div class="head">
-    <span class="rolepick" class:unset={!exercise.role} class:primary={exercise.role === "primary"}>
-      <select
-        value={exercise.role ?? ""}
-        onchange={(e) => {
-          const v = e.currentTarget.value;
-          exercise.role = EXERCISE_ROLES.includes(v as ExerciseRole) ? (v as ExerciseRole) : undefined;
-        }}
-        aria-label="Role"
-        title={exercise.role ? EXERCISE_ROLE_INFO[exercise.role].description : "The slot this exercise fills in the session"}
-      >
-        <option value="">No role</option>
-        {#each EXERCISE_ROLES as r (r)}
-          <option value={r}>{EXERCISE_ROLE_INFO[r].name}</option>
-        {/each}
-      </select>
-    </span>
+    <RolePicker value={exercise.role} onpick={(r) => (exercise.role = r)} />
     <ExercisePicker value={exercise.exerciseId} {catalog} onpick={pickExercise} {oncreate} />
     <div class="seg" role="radiogroup" aria-label="Set mode">
       {#each MODES as m (m.id)}
@@ -239,38 +235,6 @@
   /* inline: a ruled row inside its session, no box of its own */
   .exedit.inline { border: none; border-radius: 0; background: none; padding: 0; margin: 0; }
   .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  /* role: a pill like RoleChip that opens — dashed while unset, ink for the primary lift */
-  .rolepick { position: relative; display: inline-flex; flex: none; color: var(--muted); }
-  .rolepick select {
-    appearance: none;
-    min-width: 96px;
-    font: 500 12.5px/1 var(--font-ui);
-    color: inherit;
-    background: var(--well);
-    border: 1px solid var(--line);
-    border-radius: 99px;
-    padding: 5px 26px 5px 11px;
-    cursor: pointer;
-    transition: border-color 120ms ease, background-color 120ms ease;
-  }
-  .rolepick select:hover { border-color: var(--line-strong); background: var(--surface); }
-  .rolepick select:focus-visible { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
-  .rolepick::after {
-    content: "";
-    position: absolute;
-    right: 11px;
-    top: 50%;
-    width: 5px;
-    height: 5px;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: translateY(-70%) rotate(45deg);
-    pointer-events: none;
-  }
-  .rolepick.unset select { background: transparent; border-style: dashed; }
-  .rolepick.primary { color: var(--ink); }
-  .rolepick.primary select { border-color: var(--line-strong); }
-  .rolepick option { color: var(--ink); }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   .seg button {
     border: none;
