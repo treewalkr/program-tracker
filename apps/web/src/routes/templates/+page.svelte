@@ -130,7 +130,7 @@
 
 <PageHead
   title="Instruction templates"
-  sub="Standing rules the AI applies to every block it drafts, for every client. Write them as headed lists (Rules:, Steps:, Constraints:) — they land in the prompt exactly as written."
+  sub="Reusable rules you switch on per draft, under Rules on a client's Generate page. Keep them true for any client — one client's equipment or injuries belong in that client's Limitations, which always apply. Write them as headed lists (Rules:, Steps:, Constraints:) — they land in the prompt exactly as written."
 >
 </PageHead>
 
