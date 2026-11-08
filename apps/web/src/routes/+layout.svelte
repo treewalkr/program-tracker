@@ -7,6 +7,7 @@
   import { afterNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
   import { authApi } from "$lib/api/auth";
+  import { clearAllNewClientDrafts } from "$lib/newClientDraft";
   import Note from "$lib/ui/Note.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
@@ -21,6 +22,7 @@
   const isAdmin = $derived(trainer?.isAdmin || data.session.kind === "open");
 
   async function signOut() {
+    clearAllNewClientDrafts();
     await authApi.signOut();
     await goto("/login", { invalidateAll: true });
   }
