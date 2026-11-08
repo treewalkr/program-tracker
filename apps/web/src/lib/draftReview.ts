@@ -1,5 +1,7 @@
 import {
   DELOAD_VOLUME_DELTA_PERCENT,
+  hardSetCount,
+  sessionsPatternBalance,
   weekTargetLabel,
   planChanges,
   placementConflicts,
@@ -108,19 +110,14 @@ export function reviewChecks(
   /** Client availability; when given, AI weekdays are checked against the placement rules. */
   days?: PlacementDaysInput
 ): ReviewCheck[] {
-  const sets = { push: 0, pull: 0, knee: 0, hip: 0 };
+  // Same count as the program page's week balance header (F21).
+  const sets = sessionsPatternBalance(draft.sessions, (id) => catalogById.get(id)?.movementPattern);
   let total = 0;
   let maxRpe = 0;
   for (const s of draft.sessions) {
     for (const e of s.exercises) {
-      const n = e.prescribedSets.length;
-      total += n;
+      total += hardSetCount(e.prescribedSets);
       for (const ps of e.prescribedSets) if (ps.targetRpe != null) maxRpe = Math.max(maxRpe, ps.targetRpe);
-      const p = e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern : null;
-      if (p === "vertical_push" || p === "horizontal_push") sets.push += n;
-      else if (p === "vertical_pull" || p === "horizontal_pull") sets.pull += n;
-      else if (p === "knee_dominant") sets.knee += n;
-      else if (p === "hip_dominant") sets.hip += n;
     }
   }
   // Cardio sessions don't count toward the client's lifting sessions per week.
