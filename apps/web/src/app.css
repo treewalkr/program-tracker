@@ -532,6 +532,10 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   white-space: nowrap;
 }
 .session-head .cond svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
+/* A cardio-only card's line is the whole body: let it wrap on a narrow card
+   instead of pushing the page sideways. */
+.cond-row .cond { white-space: normal; min-width: 0; line-height: 1.35; align-items: flex-start; }
+.cond-row .cond svg { margin-top: 3px; }
 .session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
 .session { container: session / inline-size; }
 .session + .session { border-top: 1px solid var(--line); }
