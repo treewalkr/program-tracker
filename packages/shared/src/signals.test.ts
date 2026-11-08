@@ -365,3 +365,52 @@ describe("adherence counts only sessions due so far (F07)", () => {
     expect(adherence(program("2026-11-08T05:00:00.000Z"), logs, Date.parse("2026-11-08T08:00:00Z"))).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// RPE creep and stall: identity (F16) and science (F17)
+// ---------------------------------------------------------------------------
+
+/** 5-week program; `loads[w-1]` is the squat's prescribed load in week w (null = none). */
+const squatProgram = (loads: (number | null)[]): SignalProgram => ({
+  id: "pg-s",
+  clientId: "cl-1",
+  name: "Squat block",
+  status: "active",
+  weeks: loads.map((load, i) => ({
+    week: i + 1,
+    sessions: [
+      {
+        id: `s${i}`, name: "S1", seq: 1, order: 0, kind: "lifting",
+        exercises: [
+          {
+            id: `pe${i}`, exerciseId: "ex-squat", order: 0, role: "primary",
+            prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, ...(load != null ? { targetWeightKg: load } : {}) }],
+          },
+        ],
+      },
+    ],
+  })) as unknown as SignalProgram["weeks"],
+  createdAt: "2026-10-01T00:00:00.000Z",
+  activatedAt: "2026-10-01T00:00:00.000Z",
+});
+const SL = (date: string, sets: [number, number, number?][]): SignalLog => ({
+  programId: "pg-s",
+  date,
+  sets: sets.map(([weightKg, reps, rpe]) => ({ exerciseId: "ex-squat", type: "working" as const, weightKg, reps, rpe: rpe ?? null })),
+});
+const kinds = (p: SignalProgram, logs: SignalLog[], now: number) =>
+  computeSignals(p, logs, () => "Squat", null, now);
+const NOW_W5 = Date.parse("2026-11-01T12:00:00Z"); // week 5 of a block anchored Oct 1
+
+describe("signal ids are scoped to program and exercise (F16)", () => {
+  test("rpe-creep and stall ids carry programId and exerciseId", () => {
+    const creep = [SL("2026-10-02", [[140, 5, 7]]), SL("2026-10-23", [[140, 5, 9], [140, 5, 9]])];
+    const c = kinds(squatProgram([null, null, null, null, null]), creep, NOW_W5).find((s) => s.kind === "rpe-creep");
+    expect(c?.id).toBe("rpe-creep:pg-s:ex-squat");
+
+    const flat = ["2026-10-02", "2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30"].map((d) => SL(d, [[140, 5]]));
+    const s = kinds(squatProgram([null, null, null, null, null]), flat, NOW_W5).find((x) => x.kind === "stall");
+    expect(s?.id).toBe("stall:pg-s:ex-squat");
+  });
+});
+

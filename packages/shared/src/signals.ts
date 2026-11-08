@@ -43,7 +43,7 @@ export interface Signal {
 }
 
 /** Same load getting harder: avg RPE at identical weight, latest vs earliest week. */
-function rpeCreep(logs: SignalLog[], nameOf: (id: string) => string): Signal | null {
+function rpeCreep(programId: string, logs: SignalLog[], nameOf: (id: string) => string): Signal | null {
   const byWeight = new Map<string, { weeks: Map<string, { rpeSum: number; n: number }> }>();
   for (const log of logs.sort((a, b) => a.date.localeCompare(b.date))) {
     const week = log.date.slice(0, 10);
@@ -62,7 +62,7 @@ function rpeCreep(logs: SignalLog[], nameOf: (id: string) => string): Signal | n
     }
   }
 
-  let worst: { ex: string; weight: number; delta: number } | null = null;
+  let worst: { exId: string; ex: string; weight: number; delta: number } | null = null;
   for (const [key, entry] of byWeight) {
     const weeks = [...entry.weeks.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     if (weeks.length < 2) continue;
@@ -72,12 +72,12 @@ function rpeCreep(logs: SignalLog[], nameOf: (id: string) => string): Signal | n
     const delta = (last.rpeSum / last.n) - (first.rpeSum / first.n);
     if (delta >= 1.5 && (!worst || delta > worst.delta)) {
       const [exId, weight] = key.split("@");
-      worst = { ex: nameOf(exId), weight: Number(weight), delta };
+      worst = { exId, ex: nameOf(exId), weight: Number(weight), delta };
     }
   }
   if (!worst) return null;
   return {
-    id: `rpe-creep:${worst.ex}`,
+    id: `rpe-creep:${programId}:${worst.exId}`,
     kind: "rpe-creep",
     severity: "attention",
     title: `Fatigue signal — ${worst.ex}`,
@@ -90,7 +90,7 @@ function rpeCreep(logs: SignalLog[], nameOf: (id: string) => string): Signal | n
 }
 
 /** e1RM flat across recent weeks while peak was earlier in the block. */
-function stall(logs: SignalLog[], nameOf: (id: string) => string, timed: Set<string>): Signal | null {
+function stall(programId: string, logs: SignalLog[], nameOf: (id: string) => string, timed: Set<string>): Signal | null {
   const weeklyBest = new Map<string, Map<string, number>>();
   for (const log of logs) {
     const week = log.date.slice(0, 10);
@@ -119,7 +119,7 @@ function stall(logs: SignalLog[], nameOf: (id: string) => string, timed: Set<str
     if (Math.max(...last2) > peak * 1.01) continue;
     const name = nameOf(exId);
     return {
-      id: `stall:${exId}`,
+      id: `stall:${programId}:${exId}`,
       kind: "stall",
       severity: "attention",
       title: `${name} plateaued`,
@@ -297,9 +297,9 @@ export function computeSignals(
     });
   }
 
-  const creep = rpeCreep(programLogs, nameOf);
+  const creep = rpeCreep(program.id, programLogs, nameOf);
   if (creep) signals.push({ ...creep, ...owner });
-  const stalled = stall(programLogs, nameOf, timedExerciseIds(program));
+  const stalled = stall(program.id, programLogs, nameOf, timedExerciseIds(program));
   if (stalled) signals.push({ ...stalled, ...owner });
 
   return signals;
