@@ -172,15 +172,14 @@
     historyEntries = await api.history(id);
     const logs = await api.sessionLogs(id);
     sessionLogRows = logs;
+    // Client-level signals (cardio pace) exist with or without a program.
+    signals = (await api.notifications()).filter((s) => s.clientId === id);
     drill = null;
     if (cur) {
-      const sigs = await api.notifications();
-      signals = sigs.filter((s) => s.clientId === id);
       pulse = blockPulse(cur, logs);
       pulseWeek = weekOf(cur, logs);
       loggedDates = new Set(logs.filter((l) => l.programId === cur.id).map((l) => l.date.slice(0, 10)));
     } else {
-      signals = [];
       pulse = [];
       pulseWeek = 0;
     }
