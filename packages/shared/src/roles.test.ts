@@ -201,3 +201,11 @@ describe("fixDraftRoles", () => {
     expect(parsed.role).toBeUndefined();
   });
 });
+
+describe("suggestRole heaviness", () => {
+  test("a rep range counts by its low end; to-failure work isn't heavy", () => {
+    const squat = { name: "Squat", movementPattern: "knee_dominant" as const, prescribedSets: [{ reps: 8, repsMin: 6, type: "working" }] };
+    const pushUp = { name: "Push-Up", movementPattern: "horizontal_push" as const, prescribedSets: [{ reps: 0, amrap: true, type: "working" }] };
+    expect(suggestRoles([pushUp, squat])).toEqual(["strength", "primary"]);
+  });
+});

@@ -128,7 +128,7 @@ export interface RoleHints {
   movementPattern?: MovementPattern | null;
   primaryMuscleGroup?: MuscleGroup | null;
   equipment?: Equipment | null;
-  prescribedSets?: readonly { reps?: number | null; type?: string | null }[];
+  prescribedSets?: readonly { reps?: number | null; repsMin?: number | null; amrap?: boolean | null; type?: string | null }[];
 }
 
 const EXPLOSIVE = /\b(jumps?|jumping|throws?|cleans?|snatch(es)?|jerks?|plyo\w*|med(icine)?[\s-]?ball|bounds?|bounding|sprints?|sprinting)\b/i;
@@ -169,23 +169,23 @@ function kindOf(e: RoleHints): Kind {
   return COMPOUND_NAME.test(e.name) ? "compound" : "accessory";
 }
 
-/** Lowest working-set reps, or null when no reps are known. */
-function topReps(e: RoleHints): number | null {
-  const reps = (e.prescribedSets ?? [])
-    .filter((s) => (s.type ?? "working") === "working" && typeof s.reps === "number" && s.reps > 0)
-    .map((s) => s.reps as number);
-  return reps.length ? Math.min(...reps) : null;
+/**
+ * Heavy = working sets at ≤ 6 reps (a range counts by its low end); unknown
+ * reps count as heavy. All-AMRAP work ("to failure") is not heavy.
+ */
+function isHeavy(e: RoleHints): boolean {
+  const working = (e.prescribedSets ?? []).filter((s) => (s.type ?? "working") === "working");
+  if (working.length > 0 && working.every((s) => s.amrap)) return false;
+  const reps = working
+    .filter((s) => !s.amrap && typeof s.reps === "number" && s.reps > 0)
+    .map((s) => s.repsMin ?? (s.reps as number));
+  return reps.length === 0 || Math.min(...reps) <= 6;
 }
-
-const isHeavy = (e: RoleHints): boolean => {
-  const reps = topReps(e);
-  return reps === null || reps <= 6;
-};
 
 /**
  * Built-in label for `sessionExercises[index]` (`exercise`): explosive →
  * power; trunk → core; the session's first heavy compound (≤ 6 reps when
- * known) → primary, the next → secondary; other compound work → strength;
+ * known, not to failure) → primary, the next → secondary; other compound work → strength;
  * everything else → accessory (Auxiliary). Pure; never a custom label.
  */
 export function suggestRole(exercise: RoleHints, sessionExercises: readonly RoleHints[], index: number): BuiltinRole {
@@ -217,7 +217,7 @@ interface DraftLike {
       exerciseId?: string;
       exerciseName?: string;
       role?: ExerciseRole;
-      prescribedSets: readonly { reps?: number | null; type?: string | null }[];
+      prescribedSets: readonly { reps?: number | null; repsMin?: number | null; amrap?: boolean | null; type?: string | null }[];
     }[];
   }[];
 }
