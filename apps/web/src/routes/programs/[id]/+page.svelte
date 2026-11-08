@@ -90,6 +90,8 @@
   let openExercise = $state<string | null>(null);
   let openSession = $state<string | null>(null);
   let showPhasing = $state(false);
+  /** Bumped by Discard: the phasing editor keeps its own rows, so it must remount to show the restored plan. */
+  let phasingResets = $state(0);
   let saveError = $state<string | null>(null);
   const editable = $derived(program != null && program.status !== "archived");
   const dirty = $derived(program != null && baseline !== "" && snapshot(program) !== baseline);
@@ -225,6 +227,7 @@
     const saved = JSON.parse(baseline);
     program.weeks = saved.weeks;
     program.phasing = saved.phasing;
+    phasingResets++;
     openExercise = null;
     openSession = null;
     saveError = null;
@@ -378,13 +381,15 @@
     </div>
 
     {#if editable && showPhasing}
-      <PhasingEditor
-        bind:phasing={program.phasing}
-        weeksCount={program.weeks.length}
-        weeks={program.weeks}
-        {oneRepMaxes}
-        onapply={(next) => { if (program) program.weeks = $state.snapshot(next) as ProgramWeek[]; }}
-      />
+      {#key phasingResets}
+        <PhasingEditor
+          bind:phasing={program.phasing}
+          weeksCount={program.weeks.length}
+          weeks={program.weeks}
+          {oneRepMaxes}
+          onapply={(next) => { if (program) program.weeks = $state.snapshot(next) as ProgramWeek[]; }}
+        />
+      {/key}
     {/if}
 
     {#if editable}
