@@ -22,7 +22,7 @@ const PRIMARY_FOR: Record<MP, MG[]> = {
   vertical_push: ["shoulders", "triceps", "chest"],
   horizontal_pull: ["back", "shoulders", "traps", "biceps"],
   vertical_pull: ["back", "shoulders", "traps", "biceps"],
-  knee_dominant: ["quads", "glutes"],
+  knee_dominant: ["quads", "glutes", "hamstrings"],
   hip_dominant: ["hamstrings", "glutes", "back", "full_body"],
   rotation: ["core"],
   anti_rotation: ["core"],
@@ -30,6 +30,9 @@ const PRIMARY_FOR: Record<MP, MG[]> = {
   anti_lateral_flexion: ["core"],
   trunk_flexion: ["core"],
   anti_trunk_flexion: ["core"],
+  anti_extension: ["core"],
+  carry: ["forearms", "core", "traps", "quads", "full_body", "shoulders"],
+  isolation: MuscleGroup.options,
 };
 
 /** Functional movements that fit each pattern (null = untagged is fine). */
@@ -38,7 +41,7 @@ const FUNCTIONAL_FOR: Record<MP, (FM | null)[]> = {
   vertical_push: ["push"],
   horizontal_pull: ["pull", "locomotion"],
   vertical_pull: ["pull"],
-  knee_dominant: ["squat", "single_leg", "locomotion"],
+  knee_dominant: ["squat", "single_leg", "locomotion", null],
   hip_dominant: ["bend_lift", "single_leg"],
   rotation: ["rotation"],
   anti_rotation: ["rotation", null],
@@ -46,6 +49,9 @@ const FUNCTIONAL_FOR: Record<MP, (FM | null)[]> = {
   anti_lateral_flexion: [null, "locomotion"],
   trunk_flexion: [null],
   anti_trunk_flexion: [null],
+  anti_extension: [null],
+  carry: ["locomotion"],
+  isolation: [null],
 };
 
 /** German words that leaked into the old WGER seed. */
@@ -113,10 +119,27 @@ describe("exercise library", () => {
     expect(pick("Seated Cable Row")).toEqual(["back", "cable", "horizontal_pull", "pull"]);
     expect(pick("Bulgarian Split Squat")).toEqual(["quads", "bodyweight", "knee_dominant", "single_leg"]);
     expect(pick("Pallof Press")).toEqual(["core", "cable", "anti_rotation", "rotation"]);
-    expect(pick("Plank")).toEqual(["core", "bodyweight", "anti_trunk_flexion", null]);
-    expect(pick("Farmer's Carry")).toEqual(["forearms", "other", null, "locomotion"]);
+    expect(pick("Plank")).toEqual(["core", "bodyweight", "anti_extension", null]);
+    expect(pick("Ab Wheel Rollout")).toEqual(["core", "other", "anti_extension", null]);
+    expect(pick("Farmer's Carry")).toEqual(["forearms", "other", "carry", "locomotion"]);
+    expect(pick("Suitcase Carry")).toEqual(["core", "dumbbell", "carry", "locomotion"]);
+    expect(pick("Nordic Hamstring Curl")).toEqual(["hamstrings", "bodyweight", "knee_dominant", null]);
+    expect(pick("Lying Leg Curl")).toEqual(["hamstrings", "machine", "isolation", null]);
+    expect(pick("Cable Lateral Raise")).toEqual(["shoulders", "cable", "isolation", null]);
+    expect(pick("Side Plank")).toEqual(["core", "bodyweight", "anti_lateral_flexion", null]);
     expect(pick("Trap Bar Deadlift")).toEqual(["glutes", "barbell", "hip_dominant", "bend_lift"]);
     expect(pick("Power Clean")).toEqual(["full_body", "barbell", "hip_dominant", "bend_lift"]);
+  });
+
+  test("adductor and oblique work is tagged with the new muscle groups (F20)", () => {
+    const by = new Map(library.map((e) => [e.name, e]));
+    const muscles = (n: string) => [by.get(n)!.primaryMuscleGroup, ...by.get(n)!.secondaryMuscleGroups];
+    expect(muscles("Copenhagen Plank")).toContain("adductors");
+    expect(muscles("Cable Hip Adduction")).toContain("adductors");
+    expect(muscles("Pallof Press")).toContain("obliques");
+    expect(muscles("Side Plank")).toContain("obliques");
+    expect(muscles("Suitcase Carry")).toContain("obliques");
+    expect(library.some((e) => e.movementPattern === "anti_trunk_flexion")).toBe(false);
   });
 
   test("every alias points at a library exercise", () => {

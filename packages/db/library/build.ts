@@ -18,7 +18,7 @@ interface SourceExercise {
 const MUSCLE: Record<string, MuscleGroup> = {
   abdominals: "core",
   abductors: "glutes",
-  adductors: "quads",
+  adductors: "adductors",
   biceps: "biceps",
   calves: "calves",
   chest: "chest",
@@ -70,18 +70,24 @@ type Rule = [string[], MovementPattern | null, FunctionalMovement | null];
 /** First match on the lowercased final name wins. Order matters. */
 const RULES: Rule[] = [
   [["glute kickback"], "hip_dominant", "bend_lift"],
-  [["leg curl", "nordic", "glute ham"], "hip_dominant", "bend_lift"],
+  [["nordic"], "knee_dominant", null],
+  [["glute ham"], "hip_dominant", "bend_lift"],
   [["jerk dip"], "knee_dominant", "squat"],
   [["pike push-up"], "vertical_push", "push"],
   [["dip"], "vertical_push", "push"],
-  // Isolation: no pattern fits honestly.
+  // Single-joint work (leg curls included).
   [
     [
       "curl", "triceps", "skull crusher", "tate press", "jm press", "lateral raise", "front raise", "lateral-to-front",
-      "scaption", "cuban press", "external rotation", "internal rotation", "calf", "wrist", "pronation", "supination",
-      "neck harness", "neck extension", "neck flexion", "plate pinch", "hip adduction", "hip abduction", "hip flexion", "monster walk", "halo", "figure 8",
-      "bent press", "turkish get-up", "battle rope", "bottoms-up clean", "medicine ball overhead throw",
+      "scaption", "external rotation", "internal rotation", "calf", "wrist", "pronation", "supination",
+      "neck harness", "neck extension", "neck flexion", "plate pinch", "hip adduction", "hip abduction", "hip flexion",
     ],
+    "isolation",
+    null,
+  ],
+  // No pattern fits honestly.
+  [
+    ["cuban press", "monster walk", "halo", "figure 8", "bent press", "turkish get-up", "battle rope", "bottoms-up clean", "medicine ball overhead throw"],
     null,
     null,
   ],
@@ -94,7 +100,7 @@ const RULES: Rule[] = [
     null,
     "locomotion",
   ],
-  [["carry", "yoke"], null, "locomotion"],
+  [["carry", "yoke"], "carry", "locomotion"],
   [["sled push"], "horizontal_push", "locomotion"],
   [["sled row"], "horizontal_pull", "pull"],
   // Core
@@ -102,7 +108,7 @@ const RULES: Rule[] = [
   [["twist", "woodchop", "cable lift", "landmine rotation", "scoop toss"], "rotation", "rotation"],
   [["side bend", "windmill"], "lateral_flexion", null],
   [["side plank"], "anti_lateral_flexion", null],
-  [["plank", "rollout", "dead bug", "fallout", "bird dog", "hollow"], "anti_trunk_flexion", null],
+  [["plank", "rollout", "dead bug", "fallout", "bird dog", "hollow"], "anti_extension", null],
   [["crunch", "sit-up", "v-up", "leg raise", "knee raise", "knee tuck", "pike", "heel touch", "toes-to-bar", "slam"], "trunk_flexion", null],
   // Lower
   [["suitcase deadlift"], "hip_dominant", "bend_lift"],
@@ -160,6 +166,16 @@ const RULES: Rule[] = [
 const FULL_BODY = /\b(clean|snatch)\b/i;
 const NOT_FULL_BODY = /balance|deadlift|pull|bottoms-up/i;
 
+/** Patterns the obliques drive or brace against; suitcase carries brace sideways too. */
+const OBLIQUE_PATTERNS = new Set<MovementPattern>(["rotation", "anti_rotation", "lateral_flexion", "anti_lateral_flexion"]);
+
+/** Adds "obliques" as a secondary muscle to trunk work that loads them (primary stays "core"). */
+export function withObliques(e: LibraryEntry): LibraryEntry {
+  const loads = (e.movementPattern && OBLIQUE_PATTERNS.has(e.movementPattern)) || /suitcase carry/i.test(e.name);
+  if (!loads || e.primaryMuscleGroup !== "core" || e.secondaryMuscleGroups.includes("obliques")) return e;
+  return { ...e, secondaryMuscleGroups: ["obliques" as MuscleGroup, ...e.secondaryMuscleGroups].slice(0, 4) };
+}
+
 export function classify(name: string): { movementPattern: MovementPattern | null; functionalMovement: FunctionalMovement | null } {
   const lower = name.toLowerCase();
   for (const [keys, movementPattern, functionalMovement] of RULES) {
@@ -213,7 +229,7 @@ export function buildLibrary(source: SourceExercise[]): LibraryEntry[] {
   const unusedOverrides = Object.keys(OVERRIDES).filter((k) => !names.has(k));
   if (unusedOverrides.length) throw new Error(`OVERRIDES for missing names: ${unusedOverrides.join(", ")}`);
 
-  return [...out, ...SUPPLEMENT].sort((a, b) => a.name.localeCompare(b.name));
+  return [...out, ...SUPPLEMENT].map(withObliques).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const q = (v: string | null) => (v === null ? "NULL" : `'${v.replace(/'/g, "''")}'`);
