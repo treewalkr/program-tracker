@@ -255,6 +255,8 @@ export interface SessionLogDto {
   perceivedEnergy: number | null;
   sets: {
     id?: string;
+    /** The program slot the set was logged against; null = ad-hoc. */
+    programExerciseId?: string | null;
     exerciseId: string;
     setNumber: number;
     type: SetType;

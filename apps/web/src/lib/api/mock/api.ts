@@ -737,6 +737,7 @@ export const mockApi: TrainerApi = {
       perceivedEnergy: input.perceivedEnergy,
       notes: input.notes,
       sets: input.sets.map((s) => ({
+        programExerciseId: s.programExerciseId ?? null,
         exerciseId: s.exerciseId,
         setNumber: s.setNumber,
         type: s.type,

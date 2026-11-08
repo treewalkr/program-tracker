@@ -425,6 +425,7 @@ export interface StoredLog {
   perceivedEnergy?: number;
   notes?: string;
   sets: {
+    programExerciseId?: string | null;
     exerciseId: string;
     setNumber: number;
     type: SetType;
