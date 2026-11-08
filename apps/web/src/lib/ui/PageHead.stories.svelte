@@ -27,7 +27,7 @@
 <Story name="With actions" asChild>
   <PageHead title="Clients" sub="Your book of athletes.">
     {#snippet actions()}
-      <Button href="/clients" variant="primary">
+      <Button href="/clients/new" variant="primary">
         {#snippet icon()}<Icon name="plus" />{/snippet}
         Add client
       </Button>

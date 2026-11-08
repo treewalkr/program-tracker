@@ -74,7 +74,7 @@
 
 <PageHead title="This week" sub={rowsReady && clients?.length ? headLine : weekRangeLabel(weekDates)}>
   {#snippet actions()}
-    <Button href="/clients">
+    <Button href="/clients/new">
       {#snippet icon()}<Icon name="plus" />{/snippet}
       Add client
     </Button>
@@ -93,7 +93,7 @@
     <EmptyState>
       No clients yet. Add one and their training week shows up here — sessions, logs and anything that needs review.
       {#snippet actions()}
-        <Button variant="primary" href="/clients">
+        <Button variant="primary" href="/clients/new">
           {#snippet icon()}<Icon name="plus" />{/snippet}
           Add your first client
         </Button>
@@ -163,7 +163,7 @@
     <div class="col">
       <Panel title="Clients" count={clients.length}>
         {#snippet act()}
-          <a class="act" href="/clients">All clients</a>
+          <a class="act" href="/clients/new">All clients</a>
         {/snippet}
         <div class="panel-body tight">
           <table class="sheet">
