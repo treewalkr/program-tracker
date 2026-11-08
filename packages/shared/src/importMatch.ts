@@ -54,7 +54,11 @@ export function editDistance(a: string, b: string): number {
 
 const tokenMatch = (a: string, b: string) => a === b || (Math.min(a.length, b.length) >= 4 && editDistance(a, b) <= 1);
 
-/** 0…1: token overlap (typo-tolerant Dice) blended with whole-string edit similarity. */
+/**
+ * 0…1: how much of the query the candidate covers (typo-tolerant tokens),
+ * how much of the candidate is the query, and whole-string edit similarity.
+ * Coverage weighs most: "Push press" must not land on "Bench Press".
+ */
 export function nameSimilarity(query: string, candidate: string): number {
   const q = expandAbbreviations(query);
   const c = expandAbbreviations(candidate);
@@ -70,12 +74,13 @@ export function nameSimilarity(query: string, candidate: string): number {
       left.splice(i, 1);
     }
   }
-  const dice = (2 * matched) / (qt.length + ct.length);
+  const coverage = matched / qt.length;
+  const precision = matched / ct.length;
   const str = 1 - editDistance(q, c) / Math.max(q.length, c.length);
-  return Math.round((0.7 * dice + 0.3 * str) * 1000) / 1000;
+  return Math.round((0.5 * coverage + 0.3 * precision + 0.2 * str) * 1000) / 1000;
 }
 
-export const FUZZY_MIN_SCORE = 0.5;
+export const FUZZY_MIN_SCORE = 0.6;
 
 export interface MatchCatalogEntry {
   id: string;

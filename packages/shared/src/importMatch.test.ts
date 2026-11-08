@@ -68,8 +68,15 @@ describe("matchExercise", () => {
     const curl = matchExercise({ sourceName: "BB standing bicpes", name: "Barbell Standing Bicpes" }, CATALOG);
     expect(curl).toMatchObject({ kind: "fuzzy", exerciseId: "curl" });
     expect(curl.candidates!.length).toBeLessThanOrEqual(3);
-    expect(curl.candidates![0].score).toBeGreaterThanOrEqual(0.5);
+    expect(curl.candidates![0].score).toBeGreaterThanOrEqual(0.6);
     expect(matchExercise({ sourceName: "Triceps OVH extension", name: "x" }, CATALOG).exerciseId).toBe("ovh");
+  });
+
+  test("a shared word alone is not a match", () => {
+    const catalog = [{ id: "bench", name: "Bench Press" }];
+    expect(matchExercise({ sourceName: "Push press", name: "Push Press" }, catalog).kind).toBe("new");
+    expect(matchExercise({ sourceName: "Leg press", name: "Leg Press" }, catalog).kind).toBe("new");
+    expect(matchExercise({ sourceName: "Squat", name: "Squat" }, CATALOG)).toMatchObject({ kind: "fuzzy", exerciseId: "squat" });
   });
 
   test("nothing close → a new exercise named as expanded", () => {
@@ -81,6 +88,6 @@ describe("matchExercise", () => {
 
   test("similarity is symmetric-ish and bounded", () => {
     expect(nameSimilarity("Bench Press", "Bench Press")).toBe(1);
-    expect(nameSimilarity("Squat", "Kettlebell Swing")).toBeLessThan(0.5);
+    expect(nameSimilarity("Squat", "Kettlebell Swing")).toBeLessThan(0.6);
   });
 });
