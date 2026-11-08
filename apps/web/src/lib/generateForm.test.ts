@@ -82,7 +82,7 @@ const ledgerBase = {
   periodContext: null,
   templates: [],
   learned: null,
-  matchedExamples: 0,
+  matchedExamples: [] as string[],
 };
 
 describe("pendingProgram", () => {
@@ -140,6 +140,19 @@ describe("ledgerRows", () => {
     expect(rows[1].link?.href).toBe("/clients/c1#settings");
     expect(rows[6].link?.href).toBe("/examples");
     expect(rows[4].lamp).toBe("gray");
+  });
+
+  test("example row names the matches and says what they match on", () => {
+    const one = ledgerRows({ ...ledgerBase, matchedExamples: ["Gold Block"] }).find((r) => r.key === "Example programs");
+    expect(one).toEqual({
+      key: "Example programs",
+      value: "1 matched by goal, level and days/week: Gold Block",
+      lamp: "green",
+    });
+    const two = ledgerRows({ ...ledgerBase, matchedExamples: ["Gold Block", "Hypertrophy A"] }).find(
+      (r) => r.key === "Example programs"
+    );
+    expect(two?.value).toBe("2 matched by goal, level and days/week: Gold Block, Hypertrophy A");
   });
 
   test("block plan row only with an active program", () => {

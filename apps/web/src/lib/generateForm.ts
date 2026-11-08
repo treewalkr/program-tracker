@@ -126,9 +126,11 @@ export function ledgerRows(i: {
   periodContext: string | null;
   templates: InstructionTemplateDto[];
   learned: string | null;
-  matchedExamples: number;
+  /** Names of the example programs the AI will see. */
+  matchedExamples: string[];
 }): LedgerRow[] {
-  const { client, current, pending, recentLogs: n, matchedExamples: m } = i;
+  const { client, current, pending, recentLogs: n } = i;
+  const m = i.matchedExamples.length;
   const profileLink = { href: `/clients/${i.clientId}#settings`, label: "Add on profile" };
   const rows: LedgerRow[] = [];
 
@@ -189,7 +191,11 @@ export function ledgerRows(i: {
 
   rows.push(
     m > 0
-      ? { key: "Example programs", value: `${m} matched by goal and days/week`, lamp: "green" }
+      ? {
+          key: "Example programs",
+          value: `${m} matched by goal, level and days/week: ${i.matchedExamples.join(", ")}`,
+          lamp: "green",
+        }
       : { key: "Example programs", value: "None matched in your library", lamp: "gray", link: { href: "/examples", label: "Add examples" } }
   );
 

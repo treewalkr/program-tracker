@@ -289,7 +289,7 @@
           periodContext,
           templates: selectedTemplates,
           learned,
-          matchedExamples: matchedExamples.length,
+          matchedExamples: matchedExamples.map((e) => e.program.name),
         })
       : []
   );
