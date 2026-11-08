@@ -17,6 +17,7 @@
   // svelte-ignore state_referenced_locally
   let expanded = $state(!collapsible || form.cardioUnit !== "none" || form.goals.trim() !== "" || form.limitations.trim() !== "");
   const stack = $derived(stackNote(form.sessionsPerWeek, form.trainingDays.length));
+  const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const UNIT_WORD = { minutes: "minutes a week", sessions: "sessions a week", zone_minutes: "zone minutes a week" } as const;
 
   function setUnit(unit: ProfileForm["cardioUnit"]) {
@@ -33,12 +34,25 @@
     </select>
   </Field>
   <fieldset class="fs">
-    <legend class="label">Available days <span class="subtle">— sessions are placed on these days; none picked leaves every session on “any day”</span></legend>
+    <legend class="label">Lifting days <span class="subtle">— lifting sessions are placed on these days; none picked leaves every session on “any day”</span></legend>
     <div class="days-row">
-      <WeekdayPicker bind:days={form.trainingDays} />
+      <WeekdayPicker bind:days={form.trainingDays} label="Lifting days" />
       {#if stack}<span class="note" role="status">{stack}</span>{/if}
     </div>
   </fieldset>
+  <fieldset class="fs">
+    <legend class="label">Run days <span class="subtle">— extra days for cardio; cardio can also go on lifting days</span></legend>
+    <div class="days-row">
+      <WeekdayPicker bind:days={form.cardioDays} label="Run days" />
+      {#if form.cardioDays.length === 0}<span class="subtle">None picked: cardio uses the lifting days</span>{/if}
+    </div>
+  </fieldset>
+  <Field label="Long run day" htmlFor="{idPrefix}-long" hint="the long run (60 min or more) always goes here">
+    <select class="select count" id="{idPrefix}-long" bind:value={form.longRunDay}>
+      <option value={null}>Any day</option>
+      {#each WEEKDAYS as day, i (day)}<option value={i + 1}>{day}</option>{/each}
+    </select>
+  </Field>
 </section>
 
 {#if !expanded}

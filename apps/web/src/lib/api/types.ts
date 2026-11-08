@@ -51,6 +51,10 @@ export interface ClientDto {
   trainingDays?: number[];
   /** Standing weekly cardio target — null/undefined = none. */
   cardioTarget?: { unit: "minutes" | "sessions" | "zone_minutes"; value: number } | null;
+  /** ISO weekdays available for cardio on top of trainingDays; null/absent = trainingDays. */
+  cardioDays?: number[] | null;
+  /** ISO weekday the long run is pinned to; null/absent = the placer decides. */
+  longRunDay?: number | null;
   /** ISO timestamp; absent on older mock fixtures. */
   createdAt?: string;
 }

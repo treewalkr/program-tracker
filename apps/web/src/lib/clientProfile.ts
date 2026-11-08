@@ -4,6 +4,10 @@ import type { ClientDto } from "./api/types";
 export interface ProfileForm {
   sessionsPerWeek: number;
   trainingDays: number[];
+  /** Run / cardio days; empty = the lifting days. */
+  cardioDays: number[];
+  /** ISO weekday the long run is pinned to; null = the placer decides. */
+  longRunDay: number | null;
   cardioUnit: "none" | "minutes" | "sessions" | "zone_minutes";
   cardioValue: number;
   goals: string;
@@ -11,13 +15,15 @@ export interface ProfileForm {
 }
 
 export function emptyProfile(): ProfileForm {
-  return { sessionsPerWeek: 3, trainingDays: [], cardioUnit: "none", cardioValue: 120, goals: "", limitations: "" };
+  return { sessionsPerWeek: 3, trainingDays: [], cardioDays: [], longRunDay: null, cardioUnit: "none", cardioValue: 120, goals: "", limitations: "" };
 }
 
 export function profileFromClient(c: ClientDto): ProfileForm {
   return {
     sessionsPerWeek: c.sessionsPerWeek ?? 3,
     trainingDays: c.trainingDays ? [...c.trainingDays] : [],
+    cardioDays: c.cardioDays ? [...c.cardioDays] : [],
+    longRunDay: c.longRunDay ?? null,
     cardioUnit: c.cardioTarget?.unit ?? "none",
     cardioValue: c.cardioTarget?.value ?? 120,
     goals: c.goals ?? "",
@@ -35,6 +41,8 @@ export function profilePayload(f: ProfileForm) {
     sessionsPerWeek: Number(f.sessionsPerWeek),
     trainingDays: [...f.trainingDays].sort((a, b) => a - b),
     cardioTarget: f.cardioUnit === "none" ? null : { unit: f.cardioUnit, value: Number(f.cardioValue) },
+    cardioDays: f.cardioDays.length ? [...f.cardioDays].sort((a, b) => a - b) : null,
+    longRunDay: f.longRunDay == null ? null : Number(f.longRunDay),
   };
 }
 

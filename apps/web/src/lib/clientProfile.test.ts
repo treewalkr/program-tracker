@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { emailError, emptyProfile, nameError, profileKey, profilePayload, stackNote } from "./clientProfile";
+import { emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, stackNote } from "./clientProfile";
 
 test("payload trims text, sorts days and nulls an absent cardio target", () => {
   const f = { ...emptyProfile(), goals: "  Squat 140 ", limitations: "   ", trainingDays: [5, 1], sessionsPerWeek: "4" as unknown as number };
-  expect(profilePayload(f)).toEqual({ goals: "Squat 140", limitations: null, sessionsPerWeek: 4, trainingDays: [1, 5], cardioTarget: null });
+  expect(profilePayload(f)).toEqual({ goals: "Squat 140", limitations: null, sessionsPerWeek: 4, trainingDays: [1, 5], cardioTarget: null, cardioDays: null, longRunDay: null });
 });
 
 test("cardio target carries unit and numeric value", () => {
@@ -29,4 +29,16 @@ test("identity errors name what to fix", () => {
   expect(emailError("")).toBe("Enter the client's email");
   expect(emailError("test@")).toBe("Enter a full email, like ada@gym.com");
   expect(emailError(" ada@gym.com ")).toBeNull();
+});
+
+test("run days sort and an empty set means the lifting days (null); the long run day passes through", () => {
+  const f = { ...emptyProfile(), cardioDays: [7, 3], longRunDay: 7 };
+  expect(profilePayload(f)).toMatchObject({ cardioDays: [3, 7], longRunDay: 7 });
+  expect(profilePayload(emptyProfile())).toMatchObject({ cardioDays: null, longRunDay: null });
+});
+
+test("profileFromClient reads run days and the long run day", () => {
+  const c = { id: "c", name: "P", email: "p@x.io", status: "active" as const, goals: null, limitations: null, sessionsPerWeek: 2, cardioDays: [3, 7], longRunDay: 7 };
+  expect(profileFromClient(c)).toMatchObject({ cardioDays: [3, 7], longRunDay: 7 });
+  expect(profileFromClient({ ...c, cardioDays: null, longRunDay: null })).toMatchObject({ cardioDays: [], longRunDay: null });
 });

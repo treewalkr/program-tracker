@@ -2,7 +2,7 @@
 	import ToggleChip from '$lib/ui/ToggleChip.svelte';
 
 	/** ISO weekday toggles: 1=Mon … 7=Sun. Bindable — sorted on toggle. */
-	let { days = $bindable() }: { days: number[] } = $props();
+	let { days = $bindable(), label = 'Available days' }: { days: number[]; label?: string } = $props();
 
 	const LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -11,7 +11,7 @@
 	}
 </script>
 
-<div class="wd-row" role="group" aria-label="Available days">
+<div class="wd-row" role="group" aria-label={label}>
 	{#each LABELS as label, i (label)}
 		<ToggleChip on={days.includes(i + 1)} onclick={() => toggle(i + 1)}>{label}</ToggleChip>
 	{/each}
