@@ -14,7 +14,7 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import { AiProgramDraft, DELOAD_RULES, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
+import { AiProgramDraft, DELOAD_RULES, mergeRoleLabels, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
 import { readFileSync } from "node:fs";
 import { mockImportContent } from "./ai/mock";
 
@@ -169,10 +169,39 @@ describe("buildGenerationMessages", () => {
       catalog: [],
       trainerInstructions: "",
     });
-    expect(system).toContain('"role": "power" | "primary" | "strength" | "accessory" | "core"');
-    expect(system).toContain("role order (power → primary → strength → accessory → core)");
-    expect(system).toContain("primary: The main lift");
+    expect(system).toContain('"role": "power" | "primary" | "secondary" | "strength" | "accessory" | "core"');
+    expect(system).toContain("One Primary per lifting session");
+    for (const line of [
+      "power (Power): Explosive",
+      "primary (Primary): The main lift",
+      "secondary (Secondary): The second-priority lift",
+      "strength (Strength): Work for maximal force",
+      "accessory (Auxiliary): Assistance work",
+      "core (Core): Trunk and anti-movement",
+    ]) {
+      expect(system).toContain(line);
+    }
     expect(user).toContain("Back Squat (primary) [5 reps]");
+  });
+
+  test("the trainer's own labels reach the role rule and the JSON shape, archived ones don't", () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    const gone = "44444444-4444-4444-8444-444444444444";
+    const roleLabels = mergeRoleLabels([
+      { id, builtinKey: null, name: "Speed", chip: "Spd", description: "Fast, light reps.", rank: 150, archivedAt: null },
+      { id: gone, builtinKey: null, name: "Old", chip: null, description: "Gone.", rank: 160, archivedAt: "2026-01-01" },
+      { id: "55555555-5555-4555-8555-555555555555", builtinKey: "core", name: "Core", chip: null, description: "Abs, my way.", rank: 600, archivedAt: null },
+    ]);
+    const base = { client: { name: "Maya" }, previousProgram: null, periodization: null, chainBalance: null, history: [], catalog: [], trainerInstructions: "", roleLabels };
+    for (const { system } of [
+      buildGenerationMessages(base),
+      buildWeekMessages({ ...base, targetWeek: 2, plannedWeeks: 4, targetDirective: null, target: null }),
+    ]) {
+      expect(system).toContain(`"role": "power" | "label:${id}" | "primary"`);
+      expect(system).toContain(`label:${id} (Speed): Fast, light reps.`);
+      expect(system).toContain("core (Core): Abs, my way.");
+      expect(system).not.toContain(gone);
+    }
   });
 
   test("catalog lines carry movement pattern and functional movement", () => {

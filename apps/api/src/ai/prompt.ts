@@ -1,7 +1,7 @@
 import {
+  BUILTIN_ROLE_LABELS,
   DELOAD_RULES,
-  EXERCISE_ROLE_INFO,
-  EXERCISE_ROLES,
+  type RoleLabel,
   cardioLabel,
   cardioUnitLabel,
   type AiProgramDraft,
@@ -102,6 +102,8 @@ export interface GenerationContext {
   catalog: CatalogEntry[];
   /** The trainer's live session types — drafts label each session with one. */
   sessionTypes?: { name: string; format: SessionKind }[];
+  /** The trainer's role labels (built-ins + own); absent = the built-ins. */
+  roleLabels?: RoleLabel[];
   trainerInstructions: string;
   direction?: string | null;
   learnedPreferences?: string | null;
@@ -136,7 +138,9 @@ function guidanceBlocks(ctx: Pick<GenerationContext, "learnedPreferences" | "coa
   ];
 }
 
-const DRAFT_SCHEMA_SPEC = `{
+/** The draft JSON shape; the role line lists the trainer's live labels. */
+function draftSchemaSpec(labels: readonly RoleLabel[]): string {
+  return `{
   "name": string,                    // short program name
   "rationale": string,              // trainer-facing: progression logic, volume/intensity changes, and why
   "clientSummary": string,          // client-facing blurb, encouraging, no jargon
@@ -179,7 +183,7 @@ const DRAFT_SCHEMA_SPEC = `{
         {
           "exerciseId": string?,    // preferred: use a catalog id
           "exerciseName": string,   // required if exerciseId omitted
-          "role": "power" | "primary" | "strength" | "accessory" | "core", // session slot, see rules
+          "role": ${activeLabels(labels).map((l) => JSON.stringify(l.key)).join(" | ")}, // label, see the role rule
           "prescribedSets": [
             {
               "setNumber": number,  // 1-indexed, sequential
@@ -204,11 +208,22 @@ const DRAFT_SCHEMA_SPEC = `{
     }
   ]
 }`;
+}
 
-const ROLE_RULE = [
-  `- Give every exercise exactly one role and list each session's exercises in role order (${EXERCISE_ROLES.join(" → ")}).`,
-  ...EXERCISE_ROLES.map((r) => `  ${r}: ${EXERCISE_ROLE_INFO[r].description}`),
-].join("\n");
+/** Labels the AI may use: built-ins (overrides applied) + the trainer's own, archived left out, by rank. */
+function activeLabels(labels: readonly RoleLabel[] | undefined): RoleLabel[] {
+  const list = labels?.length ? labels : BUILTIN_ROLE_LABELS;
+  return list.filter((l) => !l.archived).sort((a, b) => a.rank - b.rank);
+}
+
+/** The role rule, built from the same list as the JSON shape so the two can't drift. */
+export function roleRule(labels?: readonly RoleLabel[]): string {
+  const list = activeLabels(labels);
+  return [
+    "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per lifting session. List each session's exercises in label order (the order below). Labels:",
+    ...list.map((l) => `  ${l.key} (${l.name}): ${l.description}`),
+  ].join("\n");
+}
 
 const GOLD_STANDARD_RULE =
   "- When GOLD-STANDARD EXAMPLE PROGRAMS are provided, treat them as the trainer's gold standard: mirror their session structure, exercise-role usage, set/rep style and level of detail, adapted to this client's history — never copy exercises or loads blindly.";
@@ -309,11 +324,11 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    DRAFT_SCHEMA_SPEC,
+    draftSchemaSpec(activeLabels(ctx.roleLabels)),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
-    ROLE_RULE,
+    roleRule(ctx.roleLabels),
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
@@ -452,11 +467,11 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : DRAFT_SCHEMA_SPEC,
+    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : draftSchemaSpec(activeLabels(ctx.roleLabels)),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
-    ROLE_RULE,
+    roleRule(ctx.roleLabels),
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
@@ -567,12 +582,12 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    DRAFT_SCHEMA_SPEC,
+    draftSchemaSpec(activeLabels(ctx.roleLabels)),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
     "- Keep exercise selection stable week to week — swap only with a reason stated in rationale.",
-    ROLE_RULE,
+    roleRule(ctx.roleLabels),
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
@@ -646,12 +661,12 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : DRAFT_SCHEMA_SPEC,
+    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : draftSchemaSpec(activeLabels(ctx.roleLabels)),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
     "- Keep exercise selection stable week to week — swap only with a reason stated in rationale.",
-    ROLE_RULE,
+    roleRule(ctx.roleLabels),
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,

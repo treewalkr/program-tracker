@@ -27,6 +27,7 @@ import { ensureSeededChains } from "./chains";
 import { ensureSessionTypes } from "./session-types";
 import { loadLogPrograms, timedIdsOf, timedSlotIdsOf, toSignalLog, toSignalProgram } from "./signals-service";
 import { loadActiveRules } from "./coaching-rules";
+import { loadRoleLabels } from "./role-labels";
 
 export const HISTORY_WINDOW_DAYS = 56;
 
@@ -211,6 +212,8 @@ export async function loadContext(
     sessionTypes: (await ensureSessionTypes(trainerId))
       .filter((t) => t.archivedAt === null)
       .map((t) => ({ name: t.name, format: t.format })),
+    // Built-ins + the trainer's own labels; archived ones are kept so old roles resolve, the prompt drops them.
+    roleLabels: await loadRoleLabels(trainerId),
     // Archived/hidden exercises stay resolvable by id but are never offered to the AI.
     catalog: catalogByTrainer.filter((e) => e.archivedAt === null).map((e) => ({
       id: e.id,
