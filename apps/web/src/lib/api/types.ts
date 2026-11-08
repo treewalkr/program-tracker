@@ -5,6 +5,7 @@ import type {
   CardioLog,
   CardioPrescription,
   ExerciseRole as Er,
+  OneRepMaxes,
   Phasing,
   PrescribedSet,
   ProgramWeek,
@@ -55,6 +56,8 @@ export interface ClientDto {
   cardioDays?: number[] | null;
   /** ISO weekday the long run is pinned to; null/absent = the placer decides. */
   longRunDay?: number | null;
+  /** exerciseId → { kg, date }; null/absent = none recorded. %1RM sets resolve against it. */
+  oneRepMaxes?: OneRepMaxes | null;
   /** ISO timestamp; absent on older mock fixtures. */
   createdAt?: string;
 }

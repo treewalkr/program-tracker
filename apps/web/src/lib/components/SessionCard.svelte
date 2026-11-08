@@ -38,6 +38,8 @@
       role?: ExerciseRole;
       movementPattern?: string | null;
       sets: PrescribedSetDto[];
+      /** The client's 1RM for this exercise — %1RM sets show their kg. */
+      oneRepMaxKg?: number | null;
       /** 1-based raw draft index; keys `marks`. */
       slot?: number;
     }[];
@@ -103,7 +105,7 @@
               </button>
             {/if}
           </div>
-          <SetChips sets={e.sets} />
+          <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} />
         </div>
       {/each}
     </div>

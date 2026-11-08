@@ -1,3 +1,4 @@
+import { resolveLoadKg } from "@pt/shared";
 import type { ProgramWeekDto, WeekPlan } from "./api/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -33,21 +34,45 @@ export function fmtDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/** One prescribed set as a coach reads it: "65kg × 6–10", "failure", "45s", "10/8/6/5" handled per-set. */
+/** One prescribed set as a coach reads it: "65kg × 6–10", "105kg (75%) × 5",
+ *  "90kg × AMRAP, stop @ RPE 9", "45s", "10/8/6/5" handled per-set. */
 export interface SetLabelInput {
   reps: number;
   repsMin?: number;
   amrap: boolean;
   durationSeconds?: number;
   targetWeightKg?: number | null;
+  percent1rm?: number | null;
+  targetRpe?: number | null;
+  stopRpe?: number | null;
 }
-export function fmtSet(s: SetLabelInput): string {
-  const load = s.targetWeightKg != null ? `${s.targetWeightKg}kg × ` : "";
+/** The load part: resolved kg (with its %1RM), a bare % when the 1RM is unknown, or the kg target. */
+function loadLabel(s: SetLabelInput, oneRepMaxKg: number | null | undefined): string {
+  const kg = resolveLoadKg(s, oneRepMaxKg);
+  if (s.percent1rm != null && oneRepMaxKg != null && kg != null) return `${kg}kg (${s.percent1rm}%) × `;
+  if (kg != null) return `${kg}kg × `;
+  if (s.percent1rm != null) return `${s.percent1rm}% × `;
+  return "";
+}
+/** AMRAP stop RPE; an older AMRAP's target RPE reads as its stop. */
+export const amrapStop = (s: { amrap?: boolean; stopRpe?: number | null; targetRpe?: number | null }) =>
+  s.amrap ? (s.stopRpe ?? s.targetRpe ?? null) : null;
+
+export function fmtSet(s: SetLabelInput, oneRepMaxKg?: number | null): string {
+  const load = loadLabel(s, oneRepMaxKg);
   if (s.durationSeconds != null) return `${load}${fmtDuration(s.durationSeconds)}`;
-  if (s.amrap && s.reps === 0) return `${load}failure`;
-  const reps =
-    s.repsMin != null && s.repsMin !== s.reps ? `${s.repsMin}–${s.reps}` : `${s.reps}${s.amrap ? "+" : ""}`;
+  if (s.amrap) {
+    const stop = amrapStop(s);
+    return `${load}${s.reps > 0 ? `${s.reps}+ ` : ""}AMRAP${stop != null ? `, stop @ RPE ${stop}` : ""}`;
+  }
+  const reps = s.repsMin != null && s.repsMin !== s.reps ? `${s.repsMin}–${s.reps}` : `${s.reps}`;
   return `${load}${reps}`;
+}
+
+/** Target RPE as "8" or "7–8"; null for AMRAP sets (their RPE is the stop, see fmtSet). */
+export function rpeLabel(s: { targetRpe?: number | null; targetRpeMin?: number | null; amrap?: boolean }): string | null {
+  if (s.amrap || s.targetRpe == null) return null;
+  return s.targetRpeMin != null && s.targetRpeMin < s.targetRpe ? `${s.targetRpeMin}–${s.targetRpe}` : `${s.targetRpe}`;
 }
 
 export function weekPlanLabel(w: WeekPlan): string {

@@ -47,3 +47,30 @@ describe("fmtDateTime", () => {
     withTz("UTC", () => expect(fmtDateTime("2026-01-02T03:04:05.000Z")).toBe("Fri 2 Jan 2026, 03:04:05 GMT"));
   });
 });
+
+import { fmtSet, rpeLabel } from "./format";
+
+describe("fmtSet (F22)", () => {
+  test("AMRAP reads as AMRAP with a stop RPE, never failure", () => {
+    expect(fmtSet({ reps: 0, amrap: true, targetWeightKg: 90, stopRpe: 9 })).toBe("90kg × AMRAP, stop @ RPE 9");
+    expect(fmtSet({ reps: 0, amrap: true })).toBe("AMRAP");
+    expect(fmtSet({ reps: 5, amrap: true, stopRpe: 8 })).toBe("5+ AMRAP, stop @ RPE 8");
+  });
+
+  test("an older AMRAP with a target RPE reads that RPE as its stop", () => {
+    expect(fmtSet({ reps: 0, amrap: true, targetWeightKg: 90, targetRpe: 9 })).toBe("90kg × AMRAP, stop @ RPE 9");
+  });
+
+  test("%1RM shows the resolved kg when the 1RM is known, else the percentage", () => {
+    expect(fmtSet({ reps: 5, amrap: false, percent1rm: 75 }, 140)).toBe("105kg (75%) × 5");
+    expect(fmtSet({ reps: 5, amrap: false, percent1rm: 75 })).toBe("75% × 5");
+    expect(fmtSet({ reps: 5, amrap: false, percent1rm: 75, targetWeightKg: 100 })).toBe("100kg × 5");
+  });
+
+  test("rpeLabel: ranges, RIR, and nothing for AMRAP (its RPE is the stop)", () => {
+    expect(rpeLabel({ targetRpe: 8, targetRpeMin: 7 })).toBe("7–8");
+    expect(rpeLabel({ targetRpe: 8 })).toBe("8");
+    expect(rpeLabel({ targetRpe: 9, amrap: true })).toBeNull();
+    expect(rpeLabel({})).toBeNull();
+  });
+});
