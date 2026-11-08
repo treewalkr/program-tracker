@@ -214,6 +214,20 @@ Import status: `pending → done | failed | cancelled`. Settling only touches a 
 Status codes: 404 missing entity · 409 state conflict · 422 semantic rejection ·
 502 upstream AI failure · 400 unconfigured provider.
 
+
+## Role labels
+
+The label on a program exercise (`role`): a built-in key or `label:<uuid>` for one of the trainer's own. Built-ins, in default order: `power` Power · `primary` Primary · `secondary` Secondary · `strength` Strength (chip "Str") · `accessory` Auxiliary (chip "Aux") · `core` Core. Design: `docs/role-labels-plan.md`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/v1/vocabulary/role-labels` | the merged list by `rank`: the six built-ins (the trainer's overrides applied) + the trainer's own labels, archived ones included with `archived: true`. Each item: `{key, builtinKey, id, name, chip, description, category ("priority" \| "quality" \| "region", null for own labels), rank, archived}` |
+| POST | `/v1/vocabulary/role-labels` | `{name ≤ 40, chip? ≤ 12, description ≤ 200, after?}` → **201** the label. `description` is required; `after` = key of the label it sorts right after (rank halfway to the next one; absent = last). **409** when the name (any case) is a built-in's or another of the trainer's; re-creating an archived label's name restores it with the new meaning |
+| PATCH | `/v1/vocabulary/role-labels/:id` | `:id` = a built-in key or an own label's id. Built-ins: `{chip?, description?, rank?}` upserts the trainer's override row (`""` = back to the default); a different `name` is **422**. Own labels: `{name?, chip?, description?, rank?}` (empty description **422**, name clash **409**) |
+| DELETE | `/v1/vocabulary/role-labels/:id` | own labels only: archives (out of the picker and the AI's list; programs still show it) → the archived label. A built-in key is **422** |
+
+Ownership: an own label's id goes through `PATH_OWNERS` like every other id (404 for another trainer's); built-in keys are exempt. The AI prompts list the active labels (key, name, meaning) in the role rule and in the JSON shape's `role` field. Every settled draft is checked in code (`checkDraftRoles`): a missing, unknown or archived label is filled by `suggestRole`; a session with more than one Primary keeps them and gets a "Role check:" note at the end of the rationale.
+
 ## Client messages (weekly result summary + compliment)
 
 Client-facing weekly messages the trainer copies into LINE by hand — **no

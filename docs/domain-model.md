@@ -15,6 +15,7 @@ trainers ──< clients ──< programs >────── (self-ref: created
     │           ├──< ai_imports (paste notes: text, status, chunk progress, checked result)
     ├──< exercises (trainer_id = custom exercises; NULL = global seed)
     ├──< exercise_aliases (name as written → exercise; trainer_id NULL = global)
+    ├──< role_labels (own role labels + overrides of the built-ins; trainer_id NULL = global)
     ├──< prompt_templates        (planned — Phase L2)
     └──< periodization_schemes   (planned — Phase L2)
 
@@ -45,6 +46,7 @@ A program stores a `ProgramWeeksDocument` (`weeks: ProgramWeek[]`):
               {
                 "id": "…uuid",        // programExercise id — set_logs.programExerciseId points HERE
                 "exerciseId": "…uuid",// reference into the exercises table
+                "role": "primary",    // optional label: a built-in key or "label:<uuid>"
                 "order": 0,
                 "notes": "2s pause at bottom",
                 "prescribedSets": [
@@ -260,11 +262,32 @@ A `cardio-behind` signal (shared `cardioBehindSignal`) fires when a client with 
 target is under 60% of pro-rata pace (`0.6 × value × weekday/7`) on Thursday or later.
 The AI prompt carries the target so drafts prescribe cardio consistent with it.
 
+## Role labels
+
+Each program exercise may carry one `role`: the label for what the session emphasizes with it. Labels come from three categories — priority (Primary, Secondary, Auxiliary), training quality (Power, Strength) and body region (Core). Secondary and Strength are different labels: Secondary is the second-priority lift of the session; Strength is work for maximal force.
+
+| key | name | chip | category | meaning |
+|---|---|---|---|---|
+| `power` | Power | Power | quality | Explosive, low-rep work done fresh — jumps, throws, Olympic lift variations. |
+| `primary` | Primary | Primary | priority | The main lift the session is built around. |
+| `secondary` | Secondary | Secondary | priority | The second-priority lift of the session. |
+| `strength` | Strength | Str | quality | Work for maximal force — heavy loads, low to moderate reps. |
+| `accessory` | Auxiliary | Aux | priority | Assistance work — isolation, weak points, balance, usually higher reps. |
+| `core` | Core | Core | region | Trunk and anti-movement work, typically closing the session. |
+
+The keys are stable, so programs written before `secondary` existed read unchanged (`strength` stays Strength). A trainer's own label is stored on the exercise as `label:<uuid>` (`ExerciseRole` = built-in key | `label:` + uuid; nothing else validates).
+
+`role_labels` (migration 0040): `trainer_id` (NULL = global, none yet — the `exercise_aliases` scoping), `builtin_key` (set = this trainer's override of a built-in's chip, meaning and rank; its key and name stay fixed), `name`, `chip` (NULL = the name), `description` (required for own labels; NULL on an override = the default), `rank`, `archived_at`. Unique `(trainer_id, lower(name))` and `(trainer_id, builtin_key)` where set, both `NULLS NOT DISTINCT`. The merged list (`mergeRoleLabels`) is the built-ins (default ranks 100, 200 … 600, overrides applied) plus the trainer's labels, by rank; exercises sort by it (`sortExercisesByRole`), with unknown and archived labels last. Archived labels leave the picker and the AI's list but still render on existing programs.
+
+**Auto-select** (`suggestRole`, built-ins only): explosive names (jump, throw, clean, snatch, jerk, plyo, med ball, bound, sprint) → power; trunk patterns (anti-*, carry, trunk/lateral flexion, rotation) or a core/obliques main muscle → core; the session's first heavy compound (a push/pull/knee/hip pattern; working sets ≤ 6 reps by a range's low end, or reps unknown; not all to failure) → primary, the next → secondary; other compound work → strength; everything else → accessory. Catalog fields are used when known, the name otherwise. It fills every pasted exercise, an exercise picked in the editor while its role is empty, and any AI draft exercise whose role is missing or unknown.
+
 ## Paste import and exercise aliases
 
 A trainer's plain-text program becomes a draft through `ai_imports` (migration 0039). The row keeps the pasted `text`, the provider/model/effort, `status` (`pending · done · failed · cancelled`), `chunks_total` / `chunks_done`, and the checked `result` (`ImportResult`, `packages/shared/src/import.ts`). Nothing is created from it directly: "Use this" fills the new-program form, and the trainer saves a normal draft program.
 
 The LLM output (`ImportChunk`) is checked in code before anyone sees it. Every number in a prescription or in the logged actuals has to be on its source line (1 min may justify 60 s; a pyramid's set count is its list length); a number inside the exercise name can't be reps, sets or load, and one occurrence can't fill two prescription fields. Values outside plausible ranges, lines nothing used, and exercises with no prescription are flagged amber. Ranges the program model can't hold (`1-2 sets`, `10-15 sec`, `Zone 2-3`, `40-60 min`) use the upper value and keep the wording in the exercise note (or cardio intensity). Mapping onto `PrescribedSet`: `6-10` → `reps 10, repsMin 6`; `10/8/6/5` → one set per value; timed → `durationSeconds` with `reps 0`; failure → `amrap` with `reps 0`; rounds and steps → `reps` with the unit in the note. The UI says "values found in your text", never "verified".
+
+"Use this" also gives every imported exercise a suggested role (`suggestRole`, in the notes' order); the trainer can change it in the editor.
 
 Weeks are grouped into blocks when consecutive weeks share exercise names (Jaccard ≥ 0.6 after normalizing); the latest block is the default and its latest week is the template.
 
