@@ -3,15 +3,10 @@
   import { api } from "$lib/api";
   import type { ClientDto } from "$lib/api/types";
   import StatusPill from "$lib/components/StatusPill.svelte";
-  import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
-  import { emailError, emptyProfile, nameError, profileKey, profilePayload } from "$lib/clientProfile";
-  import { tick } from "svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
-  import Panel from "$lib/ui/Panel.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import { goto } from "$app/navigation";
   import { cardioUnitLabel } from "@pt/shared";
@@ -22,37 +17,7 @@
   const SEARCH_MIN = 6;
 
   let clients = $state<ClientDto[] | null>(null);
-  let showForm = $state(false);
-  let saving = $state(false);
   let search = $state("");
-  let name = $state("");
-  let email = $state("");
-  let profile = $state(emptyProfile());
-  let createError = $state<string | null>(null);
-  /** Set by a submit attempt: shows every field error at once. */
-  let attempted = $state(false);
-  const missing = $derived(nameError(name) ? "a name" : emailError(email) ? "a valid email" : null);
-  const EMPTY_KEY = profileKey(emptyProfile());
-  const touchedForm = $derived(name.trim() !== "" || email.trim() !== "" || profileKey(profile) !== EMPTY_KEY);
-
-  function openForm() {
-    showForm = true;
-    createError = null;
-    attempted = false;
-    requestAnimationFrame(() => document.getElementById("f-name")?.focus());
-  }
-  async function cancel() {
-    if (touchedForm && !confirm("Discard this new client?")) return;
-    showForm = false;
-    name = "";
-    email = "";
-    profile = emptyProfile();
-    createError = null;
-    attempted = false;
-    await tick();
-    document.querySelector<HTMLButtonElement>("[data-add-client]")?.focus();
-  }
-
   const q = $derived(search.trim().toLowerCase());
   const filtered = $derived(
     (clients ?? [])
@@ -75,76 +40,20 @@
     return c.cardioTarget ? `+ ${c.cardioTarget.value} ${cardioUnitLabel(c.cardioTarget.unit)} cardio` : null;
   }
 
-  async function submit(e: SubmitEvent) {
-    e.preventDefault();
-    if (missing) {
-      attempted = true;
-      await tick();
-      document.getElementById(nameError(name) ? "f-name" : "f-email")?.focus();
-      return;
-    }
-    saving = true;
-    createError = null;
-    try {
-      const created = await api.createClient({ name: name.trim(), email: email.trim(), ...profilePayload(profile) });
-      goto(`/clients/${created.id}`);
-    } catch (err) {
-      createError = (err as Error).message;
-    } finally {
-      saving = false;
-    }
-  }
-
   onMount(async () => {
     clients = await api.clients();
   });
 </script>
 
 <svelte:head><title>Clients · Program Tracker</title></svelte:head>
-<svelte:window
-  onkeydown={(e) => {
-    if (e.key !== "Escape" || !showForm) return;
-    if (!document.querySelector(".newclient")?.contains(document.activeElement)) return;
-    e.preventDefault();
-    cancel();
-  }}
-/>
-
 <PageHead title="Clients" sub={rosterLine}>
   {#snippet actions()}
-    {#if !showForm}
-      <Button onclick={openForm} data-add-client>
-        {#snippet icon()}<Icon name="plus" />{/snippet}
-        Add client
-      </Button>
-    {/if}
+    <Button href="/clients/new">
+      {#snippet icon()}<Icon name="plus" />{/snippet}
+      Add client
+    </Button>
   {/snippet}
 </PageHead>
-
-{#if showForm}
-  <div class="newclient">
-  <Panel title="New client">
-    <form class="panel-body pf" onsubmit={submit} novalidate>
-      <section class="pf-sec">
-        <h3>Client</h3>
-        <ClientIdentityFields bind:name bind:email idPrefix="f" showAll={attempted} />
-      </section>
-
-      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible />
-
-      <div class="pf-foot">
-        <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
-        <Button variant="ghost" type="button" onclick={cancel}>Cancel</Button>
-        <span class="subtle" role="status" aria-live="polite">
-          {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
-          {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
-          {:else}Opens their page next — no program is created yet{/if}
-        </span>
-      </div>
-    </form>
-  </Panel>
-  </div>
-{/if}
 
 {#if clients !== null && clients.length >= SEARCH_MIN}
   <input class="input search" type="search" placeholder="Search by name or email" bind:value={search} aria-label="Search clients" />
@@ -153,7 +62,17 @@
 {#if clients === null}
   <SkeletonPanel height={60} />
 {:else if clients.length === 0}
-  <section class="panel"><EmptyState>No clients yet — add your first one above.</EmptyState></section>
+  <section class="panel">
+    <EmptyState>
+      No clients yet — add your first one to start their profile.
+      {#snippet actions()}
+        <Button variant="primary" href="/clients/new">
+          {#snippet icon()}<Icon name="plus" />{/snippet}
+          Add your first client
+        </Button>
+      {/snippet}
+    </EmptyState>
+  </section>
 {:else if filtered.length === 0}
   <section class="panel"><EmptyState>No client matches “{search}”.</EmptyState></section>
 {:else}
@@ -190,14 +109,6 @@
 {/if}
 
 <style>
-  .newclient { margin-bottom: 18px; }
-  /* Full column width like the roster below it; on wide screens the form
-     sections pair up (Client | Schedule, Cardio | For the AI). */
-  @media (min-width: 1360px) {
-    .newclient :global(.pf) { max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 40px; align-items: start; }
-    .newclient :global(.pf > .more), .newclient :global(.pf > .pf-foot) { grid-column: 1 / -1; justify-self: stretch; }
-    .newclient :global(.pf > .more) { justify-self: start; }
-  }
   .search { margin-bottom: 12px; max-width: 320px; }
   .row { cursor: pointer; }
   .row.dim td { color: var(--muted); }
