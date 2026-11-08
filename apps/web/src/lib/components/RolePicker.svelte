@@ -368,10 +368,11 @@
           <p class="rp-empty">No label matches “{typed}”.</p>
         {/if}
 
-        <p class="rp-foot" aria-hidden="true">
-          <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
-          <span><kbd>Enter</kbd> pick</span>
-          {#if editable}<span><kbd>⇧</kbd><kbd>Enter</kbd> edit</span>{/if}
+        <p class="rp-foot">
+          <span class="rp-keys" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> move</span>
+          <span class="rp-keys" aria-hidden="true"><kbd>Enter</kbd> pick</span>
+          {#if editable}<span class="rp-keys" aria-hidden="true"><kbd>⇧</kbd><kbd>Enter</kbd> edit</span>{/if}
+          <a class="rp-manage" href="/vocabulary?tab=roles" onclick={() => hide(false)}>Manage labels</a>
         </p>
       {/if}
     </div>
@@ -532,6 +533,8 @@
     font-size: 11px;
     color: var(--muted);
   }
+  .rp-manage { margin-left: auto; color: var(--blue); text-decoration: none; font-weight: 500; }
+  .rp-manage:hover { text-decoration: underline; text-underline-offset: 2px; }
   .rp-foot kbd {
     display: inline-block;
     min-width: 16px;
@@ -599,7 +602,7 @@
 
   @media (max-width: 600px) {
     .rp-pop { width: calc(100vw - 32px); }
-    .rp-foot { display: none; }
+    .rp-keys { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .rp-btn, .rp-edit { transition: none; }
