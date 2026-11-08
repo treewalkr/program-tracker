@@ -11,6 +11,7 @@
     type ImportFlag,
     type ImportResult,
     type ReviewExercise,
+    hasActuals,
   } from "@pt/shared";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { formatElapsed } from "$lib/generation";
@@ -39,6 +40,7 @@
   import ModelSettings from "./ModelSettings.svelte";
   import ExercisePicker from "./ExercisePicker.svelte";
   import NewWordsPanel from "./NewWordsPanel.svelte";
+  import HistoryImportPanel from "./HistoryImportPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Counter from "$lib/ui/Counter.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -59,9 +61,12 @@
     base,
     oncreate,
     onuse,
+    trainingDays = null,
   }: {
     clientId: string;
     catalog: ExerciseDto[];
+    /** The client's training days — Save history dates Day N on the Nth of them. */
+    trainingDays?: number[] | null;
     /** The form as it stands — "Use this" keeps its plan settings and replaces name and sessions. */
     base: () => DraftForm;
     /** Saves a new library exercise (and keeps the page's catalog in sync). */
@@ -489,6 +494,22 @@
     </div>
   </section>
 {:else if result && summary && week}
+  {#if row && hasActuals(result)}
+    {#key row.id}
+      <HistoryImportPanel
+        importId={row.id}
+        savedIds={row.historyProgramIds ?? null}
+        {result}
+        {choices}
+        {trainingDays}
+        {catalog}
+        {oncreate}
+        onchange={(ids) => {
+          if (row) row.historyProgramIds = ids;
+        }}
+      />
+    {/key}
+  {/if}
   <section class="panel band" aria-labelledby="pi-band-title">
     <div class="panel-head">
       <h2 class="panel-title" id="pi-band-title">Values found in your text</h2>

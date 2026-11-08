@@ -475,7 +475,7 @@
 
   {#if mode === "paste"}
   <div role="tabpanel" id="panel-paste" aria-labelledby="np-mode-paste">
-    <PasteImport clientId={id} {catalog} base={formSnapshot} oncreate={addToLibrary} onuse={useImport} />
+    <PasteImport clientId={id} {catalog} trainingDays={client.trainingDays ?? null} base={formSnapshot} oncreate={addToLibrary} onuse={useImport} />
   </div>
   {:else}
   <div role="tabpanel" id="panel-hand" aria-labelledby="np-mode-hand">
