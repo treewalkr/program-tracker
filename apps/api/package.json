@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc -p ."
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",

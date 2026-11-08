@@ -8,7 +8,7 @@
   "main": "./src/index.ts",
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p ."
   },
   "dependencies": {
     "zod": "^4.1.5"

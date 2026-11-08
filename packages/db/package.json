@@ -15,6 +15,7 @@
     "backfill:patterns": "bun run scripts/backfill-patterns.ts",
     "migrate:sessions": "bun run scripts/migrate-sessions.ts",
     "test": "bun test",
+    "typecheck": "tsc -p .",
     "library:build": "bun run library/build.ts"
   },
   "dependencies": {
