@@ -190,6 +190,23 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
     try {
       const { clients: rows } = (await (await get("/v1/admin/clients", admin)).json()) as { clients: Record<string, unknown>[] };
       expect(rows.find((r) => r.id === client.id)?.programme).toEqual({ id: program.id, name: "ZZ Strength block", week: 3, of: 4, over: false });
+
+      const res = await get(`/v1/admin/clients/${client.id}`, admin);
+      expect(res.status).toBe(200);
+      const detail = (await res.json()) as {
+        client: Record<string, unknown>;
+        programme: { week: number; of: number; thisWeek: ProgramWeek } & Record<string, unknown>;
+      };
+      expect(detail.client).toMatchObject({ id: client.id, name: "ZZ Kai programmed", trainer: { id: kai.id, name: "Kai" }, lastSessionAt: null });
+      expect(typeof detail.client.age).toBe("number");
+      for (const field of ["email", "phone", "goals", "limitations", "oneRepMaxes", "birthDate"]) expect(detail.client).not.toHaveProperty(field);
+      expect(detail.programme).toMatchObject({ id: program.id, name: "ZZ Strength block", version: 1, aiAssisted: false, week: 3, of: 4 });
+      expect(detail.programme.thisWeek.week).toBe(3);
+      expect(detail.programme.thisWeek.sessions[0].exercises[0].exerciseName).toBe("ZZ Kai squat");
+
+      const kaiToken = (await createSession(kai.id)).token;
+      expect((await get(`/v1/admin/clients/${client.id}`, kaiToken)).status).toBe(403);
+      expect((await get(`/v1/admin/clients/${crypto.randomUUID()}`, admin)).status).toBe(404);
     } finally {
       await db.delete(programs).where(eq(programs.id, program.id));
       await db.delete(exercises).where(eq(exercises.id, ex.id));
