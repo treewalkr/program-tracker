@@ -61,6 +61,9 @@ export interface SentEmail {
   feedbackNumber: number | null;
 }
 
+/** A UTC calendar day as `YYYY-MM-DD`, whether Eden revived it into a Date or left it a string. */
+const calendarDay = (d: string | Date): string => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
+
 /** The API's `{ error }` message, or a fallback. */
 const message = (error: { status: unknown; value: unknown }) =>
   (error.value as { error?: string } | null)?.error ?? `request failed (${String(error.status)})`;
@@ -85,7 +88,12 @@ export const adminApi = {
   async clients(): Promise<AdminClient[]> {
     const { data, error } = await client.v1.admin.clients.get();
     if (error) throw new Error(message(error));
-    return data.clients;
+    // Eden revives YYYY-MM-DD strings into Dates; these are calendar days.
+    return data.clients.map((c) => ({
+      ...c,
+      clientSince: calendarDay(c.clientSince),
+      lastSessionAt: c.lastSessionAt == null ? null : calendarDay(c.lastSessionAt),
+    }));
   },
   async llmStats(): Promise<LlmDatasetStats> {
     const { data, error } = await client.v1.admin["llm-stats"].get();
