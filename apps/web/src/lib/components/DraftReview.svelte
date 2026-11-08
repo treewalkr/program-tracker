@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { effortSummary } from "$lib/effort";
   import { diffDrafts, sortExercisesByRole, type SlotChange } from "@pt/shared";
   import type { ClientDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
@@ -185,7 +186,7 @@
       name: s.name,
       kind: s.kind ?? "lifting",
       cardio: s.cardio ?? null,
-      exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 }))).map((e) => ({
+      exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), roleLabels.all).map((e) => ({
         name: e.exerciseName ?? "",
         role: e.role,
         movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,

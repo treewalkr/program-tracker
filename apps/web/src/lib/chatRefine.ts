@@ -10,7 +10,7 @@ import type {
   TrainerApi,
 } from "./api/types";
 import { latestValidatedDraft, revisionChain } from "./generation";
-import { diffDrafts, sortExercisesByRole, unproposedChanges, type SlotChange } from "@pt/shared";
+import { diffDrafts, sortExercisesByRole, unproposedChanges, type RoleRank, type SlotChange } from "@pt/shared";
 import type { ChatProposalDto } from "./api/types";
 
 // ---- turn submission (what Send does) ----
@@ -163,6 +163,8 @@ export function draftPreviewModel(
   gens: GenerationDto[],
   pending: boolean,
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+  /** The trainer's role labels — display order follows their ranks; absent = built-ins. */
+  labels?: readonly RoleRank[],
 ): DraftPreviewModel {
   const target = latestValidatedDraft(gens);
   if (!target || !target.draft) {
@@ -184,7 +186,7 @@ export function draftPreviewModel(
       name: s.name,
       kind: s.kind ?? "lifting",
       cardio: s.cardio ?? null,
-      exercises: sortExercisesByRole(slotted).map((e) => ({
+      exercises: sortExercisesByRole(slotted, labels).map((e) => ({
         slot: e.slot,
         name: e.exerciseName ?? "",
         role: e.role,
@@ -283,6 +285,7 @@ export function versionView(
   targetId: string,
   version: number,
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+  labels?: readonly RoleRank[],
 ): VersionView | null {
   const chain = revisionChain(gens, targetId);
   const gen = chain[version - 1];
@@ -292,7 +295,7 @@ export function versionView(
     name: s.name,
     kind: s.kind ?? "lifting",
     cardio: s.cardio ?? null,
-    exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 }))).map((e) => ({
+    exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), labels).map((e) => ({
       name: e.exerciseName ?? "",
       role: e.role,
       movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,

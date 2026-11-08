@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -152,10 +153,10 @@
   /** Desktop: the bench fills the viewport below its own top edge (banners vary). */
   let benchHeight = $state<number | null>(null);
 
-  const preview = $derived(draftPreviewModel(allGens, building !== null, catalogById));
+  const preview = $derived(draftPreviewModel(allGens, building !== null, catalogById, roleLabels.all));
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
-  const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById) : null);
+  const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById, roleLabels.all) : null);
   const stamps = $derived(versionStamps(messages, allGens));
   /** Track labels for the draft a proposal targets (`change.day` = draft position). */
   const tagsFor = (genId: string | null | undefined) =>

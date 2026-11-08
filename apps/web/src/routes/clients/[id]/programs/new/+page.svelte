@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { uuid } from "$lib/uuid";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { onMount, tick } from "svelte";
@@ -357,7 +358,7 @@
           kind: "lifting",
           ...typed,
           cardio: null,
-          exercises: sortExercisesByRole($state.snapshot(s.exercises)).map((e, ei) => ({
+          exercises: sortExercisesByRole($state.snapshot(s.exercises), roleLabels.all).map((e, ei) => ({
             ...e,
             id: uuid(),
             exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name ?? e.exerciseName,
