@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SessionLogRow, SetLogRow } from "@pt/db";
-import { buildHistory, estimateTokens, HISTORY_TOKEN_BUDGET, renderTrainingLog } from "./lib/history";
+import { buildHistory, estimateTokens, HISTORY_TOKEN_BUDGET, renderTrainingLog, sessionLabelsFor } from "./lib/history";
 
 const logs = [{ id: "log-1" }] as SessionLogRow[];
 const set = (exerciseId: string, type: string, weightKg: string | null, reps: number, rpe: string | null = null) =>
@@ -165,4 +165,25 @@ describe("renderTrainingLog", () => {
     const text = renderTrainingLog({ logs, sets, catalog: logCatalog, budgetTokens: estimateTokens(newest) });
     expect(text).toBe([newest, "(1 older week omitted — over the context budget)"].join("\n"));
   });
+});
+
+test("session labels name each prescribed session by track and seq", () => {
+  const labels = sessionLabelsFor([
+    {
+      sessions: [
+        {
+          sessions: [
+            { id: "s1", kind: "lifting", seq: 1, name: "Lower A" },
+            { id: "s2", kind: "lifting", seq: 2, name: "Session 2" },
+            { id: "c1", kind: "cardio", seq: 1, name: "Easy run" },
+          ],
+        },
+      ],
+    },
+  ]);
+  expect([...labels]).toEqual([
+    ["s1", "Session 1 (Lower A)"],
+    ["s2", "Session 2"],
+    ["c1", "Cardio 1 (Easy run)"],
+  ]);
 });

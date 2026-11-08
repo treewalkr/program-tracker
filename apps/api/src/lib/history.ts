@@ -251,3 +251,19 @@ function summaryLine(
 
   return `Week of ${start} (summary): ${[counts.join(", "), ...lifts, ...cardioPart].join("; ")}`;
 }
+
+/** programSessionId → "Session 2 (Upper)" / "Cardio 1" across the given programs' weeks. */
+export function sessionLabelsFor(
+  programs: { sessions: { sessions: { id: string; kind?: string; seq: number; name: string }[] }[] }[]
+): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (const p of programs) {
+    for (const w of p.sessions) {
+      for (const s of w.sessions) {
+        const base = `${s.kind === "cardio" ? "Cardio" : "Session"} ${s.seq}`;
+        labels.set(s.id, s.name && s.name !== base ? `${base} (${s.name})` : base);
+      }
+    }
+  }
+  return labels;
+}
