@@ -21,3 +21,4 @@ export * from "./import";
 export * from "./importFixture";
 export * from "./importMatch";
 export * from "./roles";
+export * from "./vocabulary";
