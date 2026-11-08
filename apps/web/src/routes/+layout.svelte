@@ -59,8 +59,8 @@
   const groups = $derived<NavGroup[]>(
     isAdmin ? [...baseGroups, { label: "Platform", items: [
             { href: "/admin", label: "Trainers", icon: "lock" },
-            { href: "/admin/emails", label: "Emails", icon: "mail" },
-            { href: "/admin/emails/sent", label: "Outbox", icon: "mail" },
+            { href: "/admin/emails/templates", label: "Emails", icon: "mail" },
+            { href: "/admin/emails/outbox", label: "Outbox", icon: "mail" },
           ] }] : baseGroups,
   );
 
@@ -74,7 +74,7 @@
 
   /** Exact for "/" and "/admin", whose sub-pages have their own nav items. */
   const isActive = (href: string) =>
-    ["/", "/admin", "/admin/emails"].includes(href) ? page.url.pathname === href : page.url.pathname.startsWith(href);
+    ["/", "/admin"].includes(href) ? page.url.pathname === href : page.url.pathname.startsWith(href);
 
   /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
      narrow screens start as the rail and open the full menu over the page. */
