@@ -9,7 +9,6 @@
     addSession,
     applyPlacementToAllWeeks,
     DELOAD_RULES,
-    deloadWeek,
     moveExercise,
     removeExercise,
     formatPatternBalance,
@@ -33,6 +32,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { validateProgramDoc } from "$lib/programDoc";
   import { programSubline, snapshot } from "$lib/programEdit";
+  import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
@@ -161,6 +161,7 @@
   async function load() {
     program = await api.program(id);
     baseline = snapshot(program);
+    deloadUndo = new Map();
     [catalog, types] = await Promise.all([api.exercises(), api.sessionTypes()]);
     const mine = await api.examples(id);
     existingExample = mine[0] ?? null;
@@ -244,9 +245,15 @@
   }
 
   /** Deload the viewed week with the shared rule (deloadWeek): half the sets, −10 % loads, RPE ≤ 6, no AMRAP. */
+  /** Pre-deload copies per week, so a second press undoes instead of deloading twice. */
+  let deloadUndo = $state.raw<DeloadUndo>(new Map());
+  const weekDeloaded = $derived(currentWeek ? isDeloaded(deloadUndo, $state.snapshot(currentWeek) as ProgramWeek) : false);
+
   function applyDeload() {
     if (!currentWeek) return;
-    setWeek(deloadWeek($state.snapshot(currentWeek) as ProgramWeek));
+    const undo = new Map(deloadUndo);
+    setWeek(toggleDeload(undo, $state.snapshot(currentWeek) as ProgramWeek));
+    deloadUndo = undo;
   }
 
   onMount(load);
@@ -362,7 +369,7 @@
     <div class="week-bar">
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(patternBalance(weekExercises))}</p>
       {#if editable}
-        <button class="btn ghost small" onclick={applyDeload} title={`Deload week ${currentWeek.week}: ${DELOAD_RULES}`}>Deload this week</button>
+        <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${DELOAD_RULES}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
         <button class="btn ghost small" aria-expanded={showPhasing} onclick={() => (showPhasing = !showPhasing)}>Block phasing {showPhasing ? "▴" : "▾"}</button>
       {/if}
     </div>
