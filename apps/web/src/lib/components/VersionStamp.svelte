@@ -31,16 +31,32 @@
 {#snippet what(c: SlotChange)}
   <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
   {#if c.kind === "swap"}
-    <s class="from">{c.from}</s> → {c.to}
+    <s class="from">{c.from}</s>{" → "}{c.to}
   {:else if c.kind === "rx"}
-    {c.exercise} <span class="rx"><s class="from">{c.from}</s> → {c.to}</span>
+    {c.exercise} <span class="rx"><s class="from">{c.from}</s>{" → "}{c.to}</span>
   {:else if c.kind === "added"}
     {c.exercise} <span class="rx">{c.to}</span>
   {:else if c.kind === "session" || c.kind === "cardio" || c.kind === "plan"}
     {c.kind === "cardio" ? `${c.exercise} cardio` : c.kind === "plan" ? c.exercise : "Session"}
-    <span class="rx">{#if c.from}<s class="from">{c.from}</s> → {/if}{c.to}</span>
+    <span class="rx">{#if c.from}<s class="from">{c.from}</s>{" → "}{/if}{c.to}</span>
   {:else}
     <s class="from">{c.exercise}</s> removed
+  {/if}
+{/snippet}
+
+<!-- A reverted change reads the other way round: what stayed is plain, what the AI tried is struck. -->
+{#snippet keptWhat(c: SlotChange)}
+  <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
+  {#if c.kind === "swap"}
+    kept {c.from} <span class="tried">· AI tried <s>{c.to}</s></span>
+  {:else if c.kind === "added"}
+    <span class="tried">AI tried to add <s>{c.exercise} {c.to}</s></span>
+  {:else if c.kind === "removed"}
+    kept {c.exercise} <span class="tried">· AI tried to remove it</span>
+  {:else}
+    {c.kind === "cardio" ? `${c.exercise} cardio` : c.kind === "plan" ? c.exercise : c.kind === "session" ? "Session" : c.exercise}:
+    <span class="rx">kept {c.from ?? "none"}</span>
+    <span class="tried">· AI tried <s class="rx">{c.to ?? "none"}</s></span>
   {/if}
 {/snippet}
 
@@ -92,7 +108,7 @@
         {#each kept as c, i (i)}
           <li class="row static">
             {@render sign(c)}
-            <span class="what">{@render what(c)}</span>
+            <span class="what">{@render keptWhat(c)}</span>
           </li>
         {/each}
       </ul>
@@ -228,6 +244,12 @@
   }
   .row.static:hover {
     background: none;
+  }
+  .tried {
+    color: var(--muted);
+  }
+  .tried s {
+    text-decoration-color: var(--line-strong);
   }
   .row.static .sign {
     color: var(--muted);

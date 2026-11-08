@@ -322,7 +322,7 @@
           {/each}
           {#each planDelta as c, i (i)}
             {@const p = planLine(c)}
-            <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{p.where} ·</span> {#if p.from}<s>{p.from}</s> → {/if}{p.to}</span></li>
+            <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{p.where} ·</span> {#if p.from}<s>{p.from}</s>{" → "}{/if}{p.to}</span></li>
           {/each}
         </ul>
         {#if slotChanges.length > 5}<p class="subtle m0 mt6">+ {slotChanges.length - 5} more — see Compare below</p>{/if}
@@ -333,7 +333,12 @@
           <summary class="subtle">The AI also changed {plural(kept.length, "thing")} it wasn't asked to. Kept as before.</summary>
           <ul class="chg">
             {#each kept as c, i (i)}
-              <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{c.kind === "plan" ? c.exercise : tags[c.day - 1] ?? `Session ${c.day}`} ·</span> {#if c.kind !== "plan"}{c.exercise} {/if}<span class="rx">{#if c.from}<s>{c.from}</s> → {/if}{c.to}</span></span></li>
+              <!-- Reverted change: what stayed is plain, what the AI tried is struck. -->
+              <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{c.kind === "plan" ? "Block plan" : tags[c.day - 1] ?? `Session ${c.day}`} ·</span>
+                {#if c.kind === "swap"}kept {c.from} <span class="subtle">· AI tried <s>{c.to}</s></span>
+                {:else if c.kind === "added"}<span class="subtle">AI tried to add <s>{c.exercise} {c.to}</s></span>
+                {:else if c.kind === "removed"}kept {c.exercise} <span class="subtle">· AI tried to remove it</span>
+                {:else}{c.exercise}: <span class="rx">kept {c.from ?? "none"}</span> <span class="subtle">· AI tried <s class="rx">{c.to ?? "none"}</s></span>{/if}</span></li>
             {/each}
           </ul>
         </details>
