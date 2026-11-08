@@ -4,6 +4,16 @@ import { db, clients, programs } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 
+/** exerciseId → { kg, date } (mirrors shared `OneRepMaxes`). */
+const OneRepMaxesBody = t.Record(
+  t.String({ minLength: 1 }),
+  t.Object({
+    kg: t.Number({ exclusiveMinimum: 0, maximum: 600 }),
+    date: t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" }),
+  }),
+  { maxProperties: 200 }
+);
+
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
   .use(trainerContext)
   .get("/", async ({ trainerId }) => {
@@ -61,6 +71,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
           t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true, maxItems: 7 }), t.Null()])
         ),
         longRunDay: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
+        oneRepMaxes: t.Optional(t.Union([OneRepMaxesBody, t.Null()])),
       }),
     }
   )
@@ -99,6 +110,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
           t.Union([t.Array(t.Integer({ minimum: 1, maximum: 7 }), { uniqueItems: true, maxItems: 7 }), t.Null()])
         ),
         longRunDay: t.Optional(t.Union([t.Integer({ minimum: 1, maximum: 7 }), t.Null()])),
+        oneRepMaxes: t.Optional(t.Union([OneRepMaxesBody, t.Null()])),
         status: t.Optional(t.Union([t.Literal("active"), t.Literal("paused"), t.Literal("archived")])),
       }),
     }

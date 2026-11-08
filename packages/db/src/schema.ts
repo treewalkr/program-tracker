@@ -25,6 +25,7 @@ import type {
   SlotChange,
   CardioLog,
   CardioTarget,
+  OneRepMaxes,
   ClientStatus,
   ExampleLevel,
   FeedbackAgentCheck,
@@ -109,6 +110,8 @@ export const clients = pgTable("clients", {
   cardioDays: jsonb("cardio_days").$type<number[]>(),
   /** ISO weekday the long run is pinned to — null = placer decides. */
   longRunDay: integer("long_run_day"),
+  /** Current 1RMs, exerciseId → { kg, date } — null = none recorded. Drives %1RM loads. */
+  oneRepMaxes: jsonb("one_rep_maxes").$type<OneRepMaxes>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
