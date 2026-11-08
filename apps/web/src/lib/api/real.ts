@@ -19,6 +19,7 @@ import type {
   ProgramDto,
   ProgramExampleDto,
   ProviderDto,
+  RoleLabelDto,
   SessionLogDto,
   SessionLogInput,
   SessionTypeDto,
@@ -162,6 +163,10 @@ export const realApi: TrainerApi = {
   saveAliases: async (items) => {
     await unwrap<unknown>(client.v1.vocabulary.aliases.post({ items }));
   },
+  roleLabels: () => unwrap<RoleLabelDto[]>(client.v1.vocabulary["role-labels"].get()),
+  createRoleLabel: (input) => unwrap<RoleLabelDto>(client.v1.vocabulary["role-labels"].post(input)),
+  patchRoleLabel: (idOrKey, patch) => unwrap<RoleLabelDto>(client.v1.vocabulary["role-labels"]({ id: idOrKey }).patch(patch)),
+  archiveRoleLabel: (id) => unwrap<RoleLabelDto>(client.v1.vocabulary["role-labels"]({ id }).delete()),
 
   preferences: async () =>
     (

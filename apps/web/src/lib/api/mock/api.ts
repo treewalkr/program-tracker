@@ -37,6 +37,15 @@ import {
   buildImportResult,
   chunkLines,
   importLines,
+  EXERCISE_ROLE_INFO,
+  isBuiltinRole,
+  mergeRoleLabels,
+  rankAfter,
+  fixDraftRoles,
+  type RoleLabelRowLike,
+  type Equipment,
+  type MovementPattern,
+  type MuscleGroup,
   matchExercise,
   mockImportExtraction,
   normalizeAlias,
@@ -72,6 +81,7 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
   SessionTypeDto,
+  RoleLabelDto,
   TrainerApi,
 } from "../types";
 import { activeSignals, snoozeUntil } from "../../signals";
@@ -156,6 +166,7 @@ const state = {
   preferences: [...seedPreferences] as PreferencesDto[],
   messages: [] as (ChatMessageDto & { clientId: string })[],
   examples: [...seedExamples] as ProgramExampleDto[],
+  roleLabels: [] as RoleLabelRowLike[],
   sessionTypes: SESSION_TYPE_DEFAULTS.map((d, i) => ({ id: `st-${i + 1}`, name: d.name, format: d.format, archivedAt: null })) as Omit<
     SessionTypeDto,
     "usedIn"
@@ -188,7 +199,7 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
     providerId: gen.providerId,
     model: gen.model,
     status: "validated",
-    draft: locked.draft as any,
+    draft: checkRoles(locked.draft as any),
     discardedChanges: locked.discarded,
     error: null,
     parentGenerationId: gen.id,
@@ -229,6 +240,31 @@ function assertTypeNameFree(name: string, exceptId?: string) {
   if (state.sessionTypes.some((t) => t.id !== exceptId && t.name.toLowerCase() === name.toLowerCase())) {
     throw new Error(`"${name}" is already a session type`);
   }
+}
+
+// —— role labels: mirrors /v1/vocabulary/role-labels ————————————————————————
+const cleanText = (v: string) => v.trim().replace(/\s+/g, " ");
+const mergedLabels = () => mergeRoleLabels(state.roleLabels);
+function roleLabelDto(match: (l: RoleLabelDto) => boolean): RoleLabelDto {
+  const l = mergedLabels().find(match);
+  if (!l) throw new Error("label not found");
+  return structuredClone(l);
+}
+function assertLabelNameFree(name: string, exceptKey?: string) {
+  const clash = mergedLabels().find((l) => l.key !== exceptKey && l.name.toLowerCase() === name.toLowerCase());
+  if (clash) throw new Error(`"${clash.name}" is already a label`);
+}
+
+/** Mirrors the API's checkDraftRoles: missing/unknown labels → suggestRole; 2+ Primaries → a rationale note. */
+function checkRoles<D extends Parameters<typeof fixDraftRoles>[0]>(draft: D): D {
+  const { draft: fixed, notes } = fixDraftRoles(draft, mergedLabels(), (id) => {
+    const e = exercises.find((x) => x.id === id);
+    return e
+      ? { movementPattern: (e.movementPattern ?? null) as MovementPattern | null, primaryMuscleGroup: e.primaryMuscleGroup as MuscleGroup, equipment: e.equipment as Equipment }
+      : undefined;
+  });
+  const note = `\n\nRole check: ${notes.join(" ")}`;
+  return notes.length && !fixed.rationale.includes(note.trim()) ? { ...fixed, rationale: fixed.rationale + note } : fixed;
 }
 
 const nameOf = (exerciseId: string) =>
@@ -838,7 +874,7 @@ export const mockApi: TrainerApi = {
       { excludeProgramId: input.basedOnProgramId ?? null, limit: 2 },
     ).map((m) => m.programId);
     gen.status = "validated";
-    gen.draft = draft;
+    gen.draft = checkRoles(draft);
     gen.exampleProgramIds = exampleProgramIds;
     return structuredClone(gen);
   },
@@ -910,7 +946,7 @@ export const mockApi: TrainerApi = {
     }
 
     child.status = "validated";
-    child.draft = mockReviseDraft(parent.draft as any, message) as any;
+    child.draft = checkRoles(mockReviseDraft(parent.draft as any, message) as any);
     return structuredClone(child);
   },
 
@@ -979,6 +1015,83 @@ export const mockApi: TrainerApi = {
     return structuredClone(row);
   },
 
+  async roleLabels() {
+    await delay(80);
+    return structuredClone(mergedLabels());
+  },
+
+  async createRoleLabel(input) {
+    await delay(150);
+    const name = cleanText(input.name);
+    const description = cleanText(input.description);
+    if (!name) throw new Error("name is required");
+    if (!description) throw new Error("say what the label means");
+    const labels = mergedLabels();
+    const rank = rankAfter(labels, input.after);
+    const chip = input.chip ? cleanText(input.chip) || null : null;
+    const archived = labels.find((l) => l.id && l.archived && l.name.toLowerCase() === name.toLowerCase());
+    if (archived) {
+      state.roleLabels = state.roleLabels.map((r) => (r.id === archived.id ? { ...r, name, chip, description, rank, archivedAt: null } : r));
+      return roleLabelDto((l) => l.id === archived.id);
+    }
+    assertLabelNameFree(name);
+    const id = uuid();
+    state.roleLabels = [...state.roleLabels, { id, builtinKey: null, name, chip, description, rank, archivedAt: null }];
+    return roleLabelDto((l) => l.id === id);
+  },
+
+  async patchRoleLabel(idOrKey, patch) {
+    await delay(120);
+    if (isBuiltinRole(idOrKey)) {
+      if (patch.name !== undefined && cleanText(patch.name) !== EXERCISE_ROLE_INFO[idOrKey].name) throw new Error("built-in labels keep their name");
+      const current = roleLabelDto((l) => l.key === idOrKey);
+      const row = state.roleLabels.find((r) => r.builtinKey === idOrKey) ?? {
+        id: uuid(),
+        builtinKey: idOrKey,
+        name: current.name,
+        chip: null,
+        description: null,
+        rank: current.rank,
+        archivedAt: null,
+      };
+      const next = {
+        ...row,
+        ...(patch.chip !== undefined ? { chip: cleanText(patch.chip) || null } : {}),
+        ...(patch.description !== undefined ? { description: cleanText(patch.description) || null } : {}),
+        ...(patch.rank !== undefined ? { rank: patch.rank } : {}),
+      };
+      state.roleLabels = [...state.roleLabels.filter((r) => r.id !== row.id), next];
+      return roleLabelDto((l) => l.key === idOrKey);
+    }
+    const row = state.roleLabels.find((r) => r.id === idOrKey && !r.builtinKey);
+    if (!row) throw new Error("label not found");
+    const next = { ...row };
+    if (patch.name !== undefined) {
+      const name = cleanText(patch.name);
+      if (!name) throw new Error("name is required");
+      assertLabelNameFree(name, `label:${row.id}`);
+      next.name = name;
+    }
+    if (patch.chip !== undefined) next.chip = cleanText(patch.chip) || null;
+    if (patch.description !== undefined) {
+      const description = cleanText(patch.description);
+      if (!description) throw new Error("say what the label means");
+      next.description = description;
+    }
+    if (patch.rank !== undefined) next.rank = patch.rank;
+    state.roleLabels = state.roleLabels.map((r) => (r.id === row.id ? next : r));
+    return roleLabelDto((l) => l.id === row.id);
+  },
+
+  async archiveRoleLabel(id) {
+    await delay(120);
+    if (isBuiltinRole(id)) throw new Error("built-in labels can't be removed");
+    const row = state.roleLabels.find((r) => r.id === id && !r.builtinKey);
+    if (!row) throw new Error("label not found");
+    state.roleLabels = state.roleLabels.map((r) => (r.id === id ? { ...r, archivedAt: new Date().toISOString() } : r));
+    return roleLabelDto((l) => l.id === id);
+  },
+
   async saveAliases(items) {
     await delay(150);
     for (const i of items) {
@@ -1009,7 +1122,7 @@ export const mockApi: TrainerApi = {
       const exercises =
         kind === "cardio"
           ? []
-          : sortExercisesByRole(s.exercises).map((e, ei) => ({
+          : sortExercisesByRole(s.exercises, mergedLabels()).map((e, ei) => ({
               id: uuid(),
               exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
               exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),

@@ -26,6 +26,7 @@ import type {
   CoachingRuleStatus,
   ImportResult,
   ImportStatus,
+  RoleLabel,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -251,6 +252,27 @@ export interface ImportSummaryDto {
   /** The paste's first 120 characters. */
   preview: string;
   createdAt: string;
+}
+
+/** One of the trainer's role labels: a built-in (overrides applied) or their own. */
+export type RoleLabelDto = RoleLabel;
+
+export interface RoleLabelInput {
+  name: string;
+  /** Chip text; absent = the name. */
+  chip?: string;
+  /** One-line meaning — required; it also reaches the AI. */
+  description: string;
+  /** Key of the label this one sorts right after; absent = last. */
+  after?: string;
+}
+
+/** Own labels: any field. Built-ins: chip/description/rank only ("" = back to the default). */
+export interface RoleLabelPatch {
+  name?: string;
+  chip?: string;
+  description?: string;
+  rank?: number;
 }
 
 export interface AliasInput {
@@ -573,6 +595,13 @@ export interface TrainerApi {
   cancelImport(id: string): Promise<ImportDto>;
   /** Save personal aliases (as written → exercise) from confirmed matches. */
   saveAliases(items: AliasInput[]): Promise<void>;
+  /** Built-ins + the trainer's own labels, by rank (archived flagged). */
+  roleLabels(): Promise<RoleLabelDto[]>;
+  createRoleLabel(input: RoleLabelInput): Promise<RoleLabelDto>;
+  /** `idOrKey`: an own label's id, or a built-in key. */
+  patchRoleLabel(idOrKey: string, patch: RoleLabelPatch): Promise<RoleLabelDto>;
+  /** Own labels only: out of the picker; programs still show it. */
+  archiveRoleLabel(id: string): Promise<RoleLabelDto>;
 
   preferences(): Promise<PreferencesDto[]>;
   distillPreferences(input: {
