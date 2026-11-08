@@ -5,7 +5,7 @@
   import { api, apiMode } from "$lib/api";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
-  import { emailError, emptyProfile, nameError, profilePayload } from "$lib/clientProfile";
+  import { basicsInvalid, emailError, emptyProfile, nameError, profilePayload } from "$lib/clientProfile";
   import { clearNewClientDraft, newClientDraftKey, readNewClientDraft, saveNewClientDraft } from "$lib/newClientDraft";
   import Button from "$lib/ui/Button.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
@@ -76,6 +76,11 @@
       document.getElementById(nameError(name) ? "f-name" : "f-email")?.focus();
       return;
     }
+    if (basicsInvalid(profile)) {
+      attempted = true;
+      document.querySelector<HTMLElement>('.newclient [aria-invalid="true"]')?.focus();
+      return;
+    }
     saving = true;
     createError = null;
     try {
@@ -140,6 +145,7 @@
         <span class="subtle" role="status" aria-live="polite">
           {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
           {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
+          {:else if attempted && basicsInvalid(profile)}<span class="err">Fix the basics marked above to continue</span>
           {:else}Opens their page next — no program is created yet{/if}
         </span>
       </div>
@@ -149,7 +155,7 @@
 
 <style>
   :global(.note.draft-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-  /* On wide screens the form sections pair up (Client | Schedule, Cardio | For the AI). */
+  /* On wide screens the form sections pair up (Client | Basics, Schedule | Cardio, For the AI). */
   @media (min-width: 1360px) {
     .newclient :global(.pf) { max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 40px; align-items: start; }
     .newclient :global(.pf > .more), .newclient :global(.pf > .pf-foot) { grid-column: 1 / -1; justify-self: stretch; }

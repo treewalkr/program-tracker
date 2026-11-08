@@ -42,6 +42,26 @@ describe("newClientDraft", () => {
     expect(s.m.has("b")).toBe(false);
   });
 
+  test("a draft saved before the basics fields still restores, merged over an empty profile", () => {
+    const s = mem();
+    const old = {
+      sessionsPerWeek: 4,
+      trainingDays: [1, 3],
+      cardioDays: [],
+      longRunDay: null,
+      oneRepMaxes: [{ exerciseId: "ex-squat", kg: 100, date: "2026-10-01" }],
+      cardioUnit: "none",
+      cardioValue: 120,
+      goals: "Run 10k",
+      limitations: "",
+    };
+    s.setItem("old", JSON.stringify({ v: 1, savedAt: "x", data: { name: "Ana", email: "", profile: old } }));
+    const restored = readNewClientDraft("old", s);
+    expect(restored?.name).toBe("Ana");
+    expect(restored?.profile).toEqual({ ...emptyProfile(), ...old } as typeof restored.profile);
+    expect(restored?.profile).toMatchObject({ experience: "", birthDate: "", sex: "", bodyweightKg: null, heightCm: null });
+  });
+
   test("sign-out clears every new-client draft and nothing else", () => {
     const s = mem();
     s.setItem("pt.newClientDraft.mock.open", "x");

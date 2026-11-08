@@ -1,6 +1,6 @@
 <script lang="ts">
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
-  import { emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
+  import { basicsInvalid, emailError, emptyProfile, nameError, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -201,6 +201,11 @@
   async function save() {
     if (nameError(idName) || emailError(idEmail)) {
       idAttempted = true;
+      return;
+    }
+    if (basicsInvalid(form)) {
+      saveProfileError = "fix the basics marked above";
+      document.querySelector<HTMLElement>('#panel-settings [aria-invalid="true"]')?.focus();
       return;
     }
     saving = true;

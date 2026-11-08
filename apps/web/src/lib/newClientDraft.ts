@@ -35,10 +35,27 @@ export function isEmptyNewClient(d: NewClientDraft): boolean {
 
 const isNums = (v: unknown) => Array.isArray(v) && v.every((n) => typeof n === "number");
 
+const isStr = (v: unknown) => typeof v === "string";
+const isNumOrNull = (v: unknown) => v === null || typeof v === "number";
+
+/** A stored profile merged over `emptyProfile()`, so drafts saved before newer fields
+ *  (e.g. the basics) still restore; null when the shape is wrong. */
+function restoreProfile(p: unknown): ProfileForm | null {
+  if (p == null || typeof p !== "object" || Array.isArray(p)) return null;
+  const merged = { ...emptyProfile(), ...(p as Partial<ProfileForm>) };
+  return validProfile(merged) ? merged : null;
+}
+
 function validProfile(p: unknown): p is ProfileForm {
   if (p == null || typeof p !== "object") return false;
   const f = p as Record<string, unknown>;
   return (
+    ["", "beginner", "intermediate", "advanced"].includes(f.experience as string) &&
+    isStr(f.birthDate) &&
+    ["", "female", "male"].includes(f.sex as string) &&
+    isNumOrNull(f.bodyweightKg) &&
+    isNumOrNull(f.heightCm) &&
+    isStr(f.startedOn) &&
     typeof f.sessionsPerWeek === "number" &&
     isNums(f.trainingDays) &&
     isNums(f.cardioDays) &&
@@ -59,8 +76,9 @@ export function readNewClientDraft(key: string, s: Store | null = session()): Ne
   const raw = s?.getItem(key);
   if (!raw) return null;
   const d = readDraft<Partial<NewClientDraft>>(key, s)?.data;
-  if (d && typeof d.name === "string" && typeof d.email === "string" && validProfile(d.profile)) {
-    return { name: d.name, email: d.email, profile: d.profile };
+  const profile = d ? restoreProfile(d.profile) : null;
+  if (d && typeof d.name === "string" && typeof d.email === "string" && profile) {
+    return { name: d.name, email: d.email, profile };
   }
   clearDraft(key, s);
   return null;

@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { CARDIO_DEFAULT, stackNote, type ProfileForm } from "$lib/clientProfile";
+  import {
+    CARDIO_DEFAULT,
+    birthDateError,
+    bodyweightError,
+    heightError,
+    stackNote,
+    startedOnError,
+    type ProfileForm,
+  } from "$lib/clientProfile";
+  import { BIRTH_DATE_MIN, BODYWEIGHT_KG_RANGE, HEIGHT_CM_RANGE, STARTED_ON_MIN, ageOn, startedOnMax } from "@pt/shared";
   import Field from "$lib/ui/Field.svelte";
   import WeekdayPicker from "$lib/components/WeekdayPicker.svelte";
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
@@ -7,7 +16,7 @@
   import { localIso } from "$lib/overview";
 
   /**
-   * Schedule + "For the AI" sections of a client profile. The parent owns the
+   * Basics, Schedule and "For the AI" sections of a client profile. The parent owns the
    * form and its save. `collapsible` tucks the optional cardio target and AI
    * notes behind "More details" (new-client form); Settings shows everything.
    * With a `catalog`, the client's 1RMs are editable too (they resolve %1RM sets).
@@ -29,11 +38,63 @@
   const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const UNIT_WORD = { minutes: "minutes a week", sessions: "sessions a week", zone_minutes: "zone minutes a week" } as const;
 
+  const today = localIso(new Date());
+  const age = $derived(form.birthDate && !birthDateError(form.birthDate, today) ? ageOn(form.birthDate, today) : null);
+  const errs = $derived({
+    birth: birthDateError(form.birthDate, today) ?? undefined,
+    since: startedOnError(form.startedOn, today) ?? undefined,
+    weight: bodyweightError(form.bodyweightKg) ?? undefined,
+    height: heightError(form.heightCm) ?? undefined,
+  });
+
   function setUnit(unit: ProfileForm["cardioUnit"]) {
     form.cardioUnit = unit;
     if (unit !== "none") form.cardioValue = CARDIO_DEFAULT[unit];
   }
 </script>
+
+<section class="pf-sec">
+  <h3>Basics</h3>
+  <div class="basics-row">
+    <Field label="Experience" htmlFor="{idPrefix}-exp">
+      <select class="select" id="{idPrefix}-exp" bind:value={form.experience}>
+        <option value="">Not set</option>
+        <option value="beginner">Beginner — under 1 yr</option>
+        <option value="intermediate">Intermediate — 1–3 yrs</option>
+        <option value="advanced">Advanced — 3+ yrs</option>
+      </select>
+    </Field>
+    <Field label="Sex" htmlFor="{idPrefix}-sex">
+      <select class="select" id="{idPrefix}-sex" bind:value={form.sex}>
+        <option value="">Not specified</option>
+        <option value="female">Female</option>
+        <option value="male">Male</option>
+      </select>
+    </Field>
+  </div>
+  <div class="basics-row">
+    <Field label="Date of birth" htmlFor="{idPrefix}-dob" hint={age != null ? `${age} yrs` : undefined} error={errs.birth}>
+      <input class="input" id="{idPrefix}-dob" type="date" min={BIRTH_DATE_MIN} max={today} aria-invalid={errs.birth ? "true" : undefined} bind:value={form.birthDate} />
+    </Field>
+    <Field label="Client since" htmlFor="{idPrefix}-since" error={errs.since}>
+      <input class="input" id="{idPrefix}-since" type="date" min={STARTED_ON_MIN} max={startedOnMax(today)} aria-invalid={errs.since ? "true" : undefined} bind:value={form.startedOn} />
+    </Field>
+  </div>
+  <div class="basics-row">
+    <Field label="Bodyweight" htmlFor="{idPrefix}-bw" error={errs.weight}>
+      <span class="unit-input">
+        <input class="input tnum" id="{idPrefix}-bw" type="number" inputmode="decimal" min={BODYWEIGHT_KG_RANGE.min} max={BODYWEIGHT_KG_RANGE.max} step="0.1" placeholder="—" aria-invalid={errs.weight ? "true" : undefined} bind:value={form.bodyweightKg} />
+        <span class="subtle">kg</span>
+      </span>
+    </Field>
+    <Field label="Height" htmlFor="{idPrefix}-ht" error={errs.height}>
+      <span class="unit-input">
+        <input class="input tnum" id="{idPrefix}-ht" type="number" inputmode="decimal" min={HEIGHT_CM_RANGE.min} max={HEIGHT_CM_RANGE.max} step="0.5" placeholder="—" aria-invalid={errs.height ? "true" : undefined} bind:value={form.heightCm} />
+        <span class="subtle">cm</span>
+      </span>
+    </Field>
+  </div>
+</section>
 
 <section class="pf-sec">
   <h3>Schedule</h3>
@@ -120,6 +181,13 @@
 {/if}
 
 <style>
+  .basics-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .unit-input { display: flex; align-items: center; gap: 6px; }
+  .unit-input .input { width: 96px; text-align: right; }
+  .input[aria-invalid="true"] { border-color: var(--bad); }
+  @media (max-width: 700px) {
+    .basics-row { grid-template-columns: minmax(0, 1fr); }
+  }
   .fs { border: none; margin: 0; padding: 0; min-width: 0; }
   .fs legend { padding: 0; }
   .days-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
