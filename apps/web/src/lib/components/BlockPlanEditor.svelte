@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { ProgramPhasingDto, WeekDirective, WeekMetric } from "$lib/api/types";
-  import { WEEK_DIRECTIVES } from "@pt/shared";
-  import { normalizePlan, planChanges, validatePlanWeek, type PlanWeek } from "$lib/draftReview";
+  import { WEEK_DIRECTIVES, type ProgressionKind } from "@pt/shared";
+  import { normalizePlan, planChanges, setProgression, validatePlanWeek, PROGRESSION_STEP, type PlanWeek } from "$lib/draftReview";
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import Icon from "$lib/ui/Icon.svelte";
 
   /**
-   * Edit a draft's block plan by hand: per-week directive, % target and note;
+   * Edit a draft's block plan by hand: per-week directive, % target, progression rule and note;
    * add or remove weeks; rename the phase. The strip above previews the result.
    * Out-of-range targets block Save; softer issues show as warnings.
    */
@@ -44,6 +44,17 @@
     w.target = metric ? { metric, deltaPercent: w.target?.deltaPercent ?? (metric === "intensity" ? 2.5 : 5) } : undefined;
   }
 
+  const PROGRESSIONS: [ProgressionKind | "", string][] = [
+    ["", "None"],
+    ["kg", "+kg"],
+    ["percent", "+% 1RM"],
+    ["sets", "+sets"],
+  ];
+
+  function setProgAmount(w: PlanWeek, value: string) {
+    if (w.progression) w.progression.amount = value === "" ? Number.NaN : Number(value);
+  }
+
   function setPct(w: PlanWeek, value: string) {
     if (w.target) w.target.deltaPercent = value === "" ? Number.NaN : Number(value);
   }
@@ -64,11 +75,11 @@
   <div class="top">
     <label>Phase<input class="input" maxlength="120" bind:value={edit.phase} /></label>
     <label>Next block<input class="input" maxlength="120" placeholder="optional" bind:value={edit.nextPhase} /></label>
-    <span class="subtle">{weeks.length} weeks · sessions repeat every week; loads progress by each week's target</span>
+    <span class="subtle">{weeks.length} weeks · sessions repeat every week · after approval, Block phasing → Preview progression writes weeks 2+ from these rules</span>
   </div>
 
   <table class="ed">
-    <thead><tr><th>Week</th><th>Directive</th><th>Target</th><th>Note</th><th><span class="sr">Remove</span></th></tr></thead>
+    <thead><tr><th>Week</th><th>Directive</th><th>Target</th><th>Progression</th><th>Note</th><th><span class="sr">Remove</span></th></tr></thead>
     <tbody>
       {#each weeks as w, i (i)}
         {@const v = validatePlanWeek(w)}
@@ -102,6 +113,33 @@
               {/if}
             </div>
             {#if v}<div class="msg {v.kind}">{v.text}</div>{/if}
+          </td>
+          <td class="prog-cell">
+            {#if i === 0}
+              <span class="vs" title="Week 1 is the base the later weeks progress from">base</span>
+            {:else}
+              <div class="tgt">
+                <select
+                  class="select met"
+                  aria-label="Week {i + 1} progression vs W{i}"
+                  value={w.progression?.kind ?? ""}
+                  onchange={(e) => setProgression(w, e.currentTarget.value as ProgressionKind | "")}
+                >
+                  {#each PROGRESSIONS as [k, label] (k)}<option value={k}>{label}</option>{/each}
+                </select>
+                {#if w.progression}
+                  <input
+                    class="input pct"
+                    type="number"
+                    step={PROGRESSION_STEP[w.progression.kind]}
+                    aria-label="Week {i + 1} progression amount"
+                    value={Number.isFinite(w.progression.amount) ? w.progression.amount : ""}
+                    oninput={(e) => setProgAmount(w, e.currentTarget.value)}
+                  />
+                  <span class="vs">{w.progression.kind === "kg" ? "kg" : w.progression.kind === "percent" ? "pts" : "sets"}</span>
+                {/if}
+              </div>
+            {/if}
           </td>
           <td class="note-cell">
             <input class="input note" maxlength="500" placeholder="What this week should do" aria-label="Week {i + 1} note" bind:value={w.note} />
@@ -266,6 +304,7 @@
       padding: 0 4px;
     }
     .tgt-cell,
+    .prog-cell,
     .note-cell {
       grid-column: 2 / 4;
     }
