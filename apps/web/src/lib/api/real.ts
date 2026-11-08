@@ -9,6 +9,7 @@ import type {
   GlossaryTermDto,
   HistoryEntryDto,
   ImportDto,
+  ImportHistorySavedDto,
   ImportSummaryDto,
   InstructionTemplateDto,
   LlmVerdictDto,
@@ -162,6 +163,8 @@ export const realApi: TrainerApi = {
   importRow: (id) => unwrap<ImportDto>(client.v1.ai.imports({ id }).get()),
   imports: (clientId) => unwrap<ImportSummaryDto[]>(client.v1.ai.imports.get({ query: { clientId } })),
   cancelImport: (id) => unwrap<ImportDto>(client.v1.ai.imports({ id }).cancel.post()),
+  saveImportHistory: (id, input) => unwrap<ImportHistorySavedDto>(client.v1.ai.imports({ id }).history.post(input)),
+  undoImportHistory: (id) => unwrap<{ removed: number }>(client.v1.ai.imports({ id }).history.delete()),
   saveAliases: async (items) => {
     await unwrap<unknown>(client.v1.vocabulary.aliases.post({ items }));
   },

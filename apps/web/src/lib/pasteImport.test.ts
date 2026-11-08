@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   buildImportResult,
   chunkLines,
+  historyExerciseKey,
   importLines,
   matchExercise,
   mockImportExtraction,
@@ -16,6 +17,11 @@ import {
   flagSummary,
   formFromImport,
   hasTraining,
+  historyAliasesToSave,
+  historyExerciseIds,
+  historyExerciseMap,
+  historyNewExerciseNames,
+  historyWeeks,
   itemsByLine,
   lineOfItem,
   lineStates,
@@ -233,5 +239,58 @@ describe("flags and lines", () => {
     expect(at(44)).toBe("3 × AMRAP");
     expect(at(9)).toBe("10/8/6/5");
     expect(at(16)).toBe("2 × 15s");
+  });
+});
+
+describe("history import helpers", () => {
+  test("history weeks are the blocks with logged numbers", () => {
+    expect(historyWeeks(result())).toEqual([0, 1]);
+    const r = result();
+    for (const d of r.weeks[0].days) for (const s of d.sessions) for (const e of s.exercises) e.actuals = null;
+    expect(historyWeeks(r)).toEqual([1]);
+  });
+
+  test("each name: the review's pick, else the match, else a new custom exercise", () => {
+    const r = result();
+    // "Bench press" (week 11, exact) and "Squat" (week 12 template, fuzzy)
+    const squatKey = templateExercises(r, 1).find(({ ex }) => ex.sourceName === "Squat")!.key;
+    const choices: Record<string, ChoiceState> = {
+      [squatKey]: { choice: { kind: "catalog", exerciseId: "db-bench", exerciseName: "Dumbbell Bench Press" }, confirmed: true },
+    };
+    const map = historyExerciseMap(r, choices);
+    expect(map.get(historyExerciseKey("Bench press"))).toEqual({
+      choice: { kind: "catalog", exerciseId: "bench", exerciseName: "Bench Press" },
+      alias: false,
+      sourceName: "Bench press",
+    });
+    expect(map.get(historyExerciseKey("Squat"))).toMatchObject({ choice: { exerciseId: "db-bench" }, alias: true });
+    expect(map.get(historyExerciseKey("SA Row"))).toMatchObject({ choice: { kind: "new", exerciseName: "Single-Arm Row" }, alias: false });
+    // a name in both weeks appears once
+    expect([...map.keys()].filter((k) => k === historyExerciseKey("Lat pull down"))).toHaveLength(1);
+  });
+
+  test("new names are unique; ids resolve created customs; aliases follow aliasesToSave", () => {
+    const r = result();
+    const map = historyExerciseMap(r, {});
+    const names = historyNewExerciseNames(map);
+    expect(names).toContain("Single-Arm Row");
+    expect(names).not.toContain("Bench Press");
+    expect(new Set(names.map((x) => x.toLowerCase())).size).toBe(names.length);
+
+    const created = new Map(names.map((x) => [x.toLowerCase(), `id:${x}`]));
+    const ids = historyExerciseIds(map, created);
+    expect(ids[historyExerciseKey("SA Row")]).toBe("id:Single-Arm Row");
+    expect(ids[historyExerciseKey("Bench press")]).toBe("bench");
+    expect(Object.keys(ids)).toHaveLength(map.size);
+    expect(Object.keys(historyExerciseIds(map))).toHaveLength(map.size - names.length);
+
+    // fuzzy matches let stand are saved (here: Squat → Back Squat and two bench presses), exact ones aren't
+    const aliases = historyAliasesToSave(map, created);
+    expect(aliases).toContainEqual({ alias: "Squat", exerciseId: "squat", source: "import" });
+    const fuzzy = new Set(
+      r.weeks.flatMap((w) => w.days.flatMap((d) => d.sessions.flatMap((s) => s.exercises.filter((e) => e.match?.kind === "fuzzy").map((e) => e.sourceName)))),
+    );
+    expect(aliases.every((a) => fuzzy.has(a.alias))).toBe(true);
+    expect(aliases.map((a) => a.alias)).not.toContain("Bench press");
   });
 });

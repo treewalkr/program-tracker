@@ -24,6 +24,7 @@ import type {
   CoachingRuleCategory,
   CoachingRuleSource,
   CoachingRuleStatus,
+  HistorySkip,
   ImportResult,
   ImportStatus,
   RoleLabel,
@@ -240,8 +241,25 @@ export interface ImportDto {
   chunksDone: number;
   result: ImportResult | null;
   error: string | null;
+  /** History import: the archived programs saved from this import's logged numbers; null = not saved. */
+  historyProgramIds: string[] | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Save history: one start date per week of the result, and each name as written → exercise. */
+export interface ImportHistoryInput {
+  weekStarts: string[];
+  /** historyExerciseKey(sourceName) → catalog exercise id. */
+  exercises: Record<string, string>;
+}
+
+export interface ImportHistorySavedDto {
+  programs: { id: string; name: string }[];
+  sessions: number;
+  sets: number;
+  /** What was left out, with why (never silent). */
+  skipped: HistorySkip[];
 }
 
 /** A recent import in the list — no text or result, a preview instead. */
@@ -609,6 +627,10 @@ export interface TrainerApi {
   /** The client's 5 most recent imports, newest first. */
   imports(clientId: string): Promise<ImportSummaryDto[]>;
   cancelImport(id: string): Promise<ImportDto>;
+  /** Save the import's logged numbers as archived programs + logs (409 once saved). */
+  saveImportHistory(id: string, input: ImportHistoryInput): Promise<ImportHistorySavedDto>;
+  /** Undo a history save: its programs and their logs are deleted. */
+  undoImportHistory(id: string): Promise<{ removed: number }>;
   /** Save personal aliases (as written → exercise) from confirmed matches. */
   saveAliases(items: AliasInput[]): Promise<void>;
   /** Personal aliases first, then the global ones. */

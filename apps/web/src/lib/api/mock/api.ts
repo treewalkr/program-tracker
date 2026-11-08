@@ -54,6 +54,9 @@ import {
   glossaryAbbreviations,
   mergeGlossary,
   type GlossaryRowLike,
+  addDays,
+  buildHistory as buildImportHistory,
+  isIsoDate,
 } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
@@ -1037,6 +1040,7 @@ export const mockApi: TrainerApi = {
       chunksDone: 0,
       result: null,
       error: null,
+      historyProgramIds: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -1082,6 +1086,78 @@ export const mockApi: TrainerApi = {
     if (row.status !== "pending") throw new Error(`import is ${row.status}, not pending`);
     row.status = "cancelled";
     return structuredClone(row);
+  },
+
+  /** Mirrors POST /v1/ai/imports/:id/history: the plan is rebuilt from the stored result. */
+  async saveImportHistory(id, input) {
+    await delay(400);
+    const row = state.imports.find((r) => r.id === id);
+    if (!row) throw new Error("import not found");
+    if (row.status !== "done" || !row.result) throw new Error(`import is ${row.status}, not done`);
+    if (row.historyProgramIds) throw new Error("history already saved — undo it first");
+    if (input.weekStarts.length !== row.result.weeks.length) throw new Error("one start date per week");
+    const latest = addDays(new Date().toISOString().slice(0, 10), 1);
+    if (input.weekStarts.some((d) => !isIsoDate(d) || d > latest)) throw new Error("a week starts after today");
+    const known = new Map(exercises.map((e) => [e.id, e.name]));
+    if (Object.values(input.exercises).some((x) => !known.has(x))) throw new Error("unknown exercises");
+    const client = state.clients.find((c) => c.id === row.clientId);
+    const plan = buildImportHistory(row.result, {
+      weekStarts: input.weekStarts,
+      trainingDays: client?.trainingDays ?? null,
+      exerciseIds: input.exercises,
+      exerciseNames: Object.fromEntries(known),
+      today: latest,
+    });
+    if (plan.programs.length === 0) throw new Error("nothing to save — no logged numbers could be used");
+    const savedOn = new Date().toISOString().slice(0, 10);
+    const saved = plan.programs.map((p) => {
+      const program: ProgramDto = {
+        id: `pg-${uuid().slice(0, 8)}`,
+        clientId: row.clientId,
+        name: p.name,
+        description: `Imported from notes on ${savedOn}`,
+        status: "archived",
+        version: 1,
+        aiAssisted: false,
+        createdFromProgramId: null,
+        weeks: p.weeks,
+        createdAt: new Date().toISOString(),
+        activatedAt: `${p.activatedAt}T00:00:00.000Z`,
+        phasing: null,
+      };
+      state.programs = [...state.programs, program];
+      for (const l of p.logs) {
+        state.logs.push({
+          sessionLogId: uuid(),
+          clientId: row.clientId,
+          programId: program.id,
+          date: l.date,
+          kind: "lifting",
+          cardio: null,
+          perceivedEnergy: undefined,
+          notes: l.notes,
+          sets: l.sets.map((x) => ({ ...x, type: "working" as const, rpe: undefined })),
+        });
+      }
+      return { id: program.id, name: program.name };
+    });
+    row.historyProgramIds = saved.map((p) => p.id);
+    const logs = plan.programs.flatMap((p) => p.logs);
+    return { programs: saved, sessions: logs.length, sets: logs.reduce((n, l) => n + l.sets.length, 0), skipped: plan.skipped };
+  },
+
+  /** Mirrors DELETE /v1/ai/imports/:id/history: programs go, their logs with them. */
+  async undoImportHistory(id) {
+    await delay(250);
+    const row = state.imports.find((r) => r.id === id);
+    if (!row) throw new Error("import not found");
+    const ids = new Set(row.historyProgramIds ?? []);
+    if (!row.historyProgramIds) throw new Error("no saved history to undo");
+    const removed = state.programs.filter((p) => ids.has(p.id)).length;
+    state.programs = state.programs.filter((p) => !ids.has(p.id));
+    state.logs = state.logs.filter((l) => !ids.has(l.programId));
+    row.historyProgramIds = null;
+    return { removed };
   },
 
   async roleLabels() {

@@ -1,6 +1,7 @@
 import {
   blockLabel,
   defaultCardio,
+  historyExerciseKey,
   liftingNames,
   templateWeekIndex,
   type ImportFlag,
@@ -89,6 +90,90 @@ export function aliasesToSave(
     if (!picked) continue;
     const id = picked.kind === "catalog" ? picked.exerciseId : createdIds.get(picked.exerciseName.trim().toLowerCase());
     if (id) out.set(ex.sourceName.trim().toLowerCase(), { alias: ex.sourceName.trim(), exerciseId: id, source: "import" });
+  }
+  return [...out.values()];
+}
+
+// —— history import (docs/history-import-plan.md §4) ——————————————————————
+
+/** Weeks of the blocks that hold logged numbers — what Save history reads. */
+export function historyWeeks(r: ImportResult): number[] {
+  return r.blocks
+    .filter((b) => b.weeks.some((wi) => r.weeks[wi]?.days.some((d) => d.sessions.some((s) => s.exercises.some((e) => e.actuals?.length)))))
+    .flatMap((b) => b.weeks);
+}
+
+/** Every exercise of the given weeks, with its key. */
+function exercisesOfWeeks(r: ImportResult, weeks: number[]): { key: string; ex: ReviewExercise }[] {
+  return weeks.flatMap((w) =>
+    (r.weeks[w]?.days ?? []).flatMap((d, di) =>
+      d.sessions.flatMap((s, si) => s.exercises.map((ex, ei) => ({ key: exerciseKey(w, di, si, ei), ex }))),
+    ),
+  );
+}
+
+export interface HistoryPick {
+  choice: MatchChoice;
+  /** Saved as a personal alias: the trainer picked it, or let a fuzzy match stand. */
+  alias: boolean;
+  /** The name as written (first seen), for the alias. */
+  sourceName: string;
+}
+
+/**
+ * Each name as written in the history weeks (historyExerciseKey) → the
+ * exercise to log it against: the trainer's pick for the same name in the
+ * review, else the match (alias, exact, or the fuzzy one accepted), else a
+ * new custom exercise.
+ */
+export function historyExerciseMap(r: ImportResult, choices: Record<string, ChoiceState>): Map<string, HistoryPick> {
+  const all = exercisesOfWeeks(r, r.weeks.map((_, i) => i));
+  const picked = new Map<string, ChoiceState>();
+  for (const { key, ex } of all) {
+    const state = choices[key];
+    const name = historyExerciseKey(ex.sourceName);
+    if (state && (!picked.has(name) || (state.confirmed && !picked.get(name)!.confirmed))) picked.set(name, state);
+  }
+  const out = new Map<string, HistoryPick>();
+  for (const { ex } of exercisesOfWeeks(r, historyWeeks(r))) {
+    const name = historyExerciseKey(ex.sourceName);
+    if (!name || out.has(name)) continue;
+    const state = picked.get(name);
+    const choice = state?.choice ?? defaultChoice(ex.match, ex.name);
+    out.set(name, { choice, alias: state ? state.confirmed || ex.match?.kind === "fuzzy" : ex.match?.kind === "fuzzy", sourceName: ex.sourceName.trim() });
+  }
+  return out;
+}
+
+/** Custom exercises Save history has to create first (unique, case-insensitive). */
+export function historyNewExerciseNames(map: Map<string, HistoryPick>): string[] {
+  const seen = new Map<string, string>();
+  for (const { choice } of map.values()) {
+    const name = choice.exerciseName.trim();
+    if (choice.kind === "new" && name) seen.set(name.toLowerCase(), name);
+  }
+  return [...seen.values()];
+}
+
+/** The POST body's exercise map, created customs resolved by name; unresolved names left out. */
+export function historyExerciseIds(map: Map<string, HistoryPick>, createdIds: Map<string, string> = new Map()): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, { choice }] of map) {
+    const id = choice.kind === "catalog" ? choice.exerciseId : createdIds.get(choice.exerciseName.trim().toLowerCase());
+    if (id) out[name] = id;
+  }
+  return out;
+}
+
+/** aliasesToSave's rule across the history weeks: picks and accepted fuzzy matches. */
+export function historyAliasesToSave(
+  map: Map<string, HistoryPick>,
+  createdIds: Map<string, string> = new Map(),
+): { alias: string; exerciseId: string; source: "import" }[] {
+  const ids = historyExerciseIds(map, createdIds);
+  const out = new Map<string, { alias: string; exerciseId: string; source: "import" }>();
+  for (const [name, pick] of map) {
+    if (pick.alias && ids[name]) out.set(pick.sourceName.toLowerCase(), { alias: pick.sourceName, exerciseId: ids[name], source: "import" });
   }
   return [...out.values()];
 }
