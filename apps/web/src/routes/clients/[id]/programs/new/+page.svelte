@@ -39,6 +39,9 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Tabs from "$lib/ui/Tabs.svelte";
+  import Note from "$lib/ui/Note.svelte";
+  import PasteImport from "$lib/components/PasteImport.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -68,6 +71,18 @@
   let schemes = $state<PeriodizationSchemeDto[]>([]);
   let saving = $state(false);
   let error = $state<string | null>(null);
+  /** Build by hand (the editor) or Paste notes (read a plain-text program into it). */
+  let mode = $state<"hand" | "paste">("hand");
+  let filledFrom = $state<string | null>(null);
+
+  /** "Use this": the reviewed import becomes the form; the trainer finishes it here. */
+  function useImport(form: DraftForm) {
+    applyForm(form);
+    mode = "hand";
+    restoredAt = null;
+    filledFrom = form.name;
+    window.scrollTo({ top: 0 });
+  }
 
   const newRow = (): SessionRow => ({
     key: uuid(),
@@ -398,6 +413,8 @@
     }
     await tick(); // let derived fields (scheme weeks → plannedWeeks) settle first
     defaults = formSnapshot();
+    // an import still being read (or waiting for review) reopens Paste notes
+    if (readDraft<{ importId: string | null }>(`pt.draft.paste-import.${id}`)?.data.importId) mode = "paste";
     const kept = readDraft<DraftForm>(draftKey);
     if (kept) {
       applyForm(kept.data);
@@ -421,11 +438,14 @@
   <Skeleton h="140px" />
 {:else}
   <PageHead
-    title="Write a program by hand"
-    sub="Saved as a draft. Nothing goes live until you activate it."
+    title={mode === "paste" ? "Draft a program from your notes" : "Write a program by hand"}
+    sub={mode === "paste"
+      ? "Paste a plan you already wrote. Review what was read, then finish it in the editor."
+      : "Saved as a draft. Nothing goes live until you activate it."}
     crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "New program" }]}
   >
     {#snippet actions()}
+      {#if mode === "hand"}
       {#if blocker && !saving}<span class="blocker" id="np-blocker">{blocker}</span>{/if}
       <Button
         variant="primary"
@@ -435,8 +455,34 @@
       >
         {saving ? "Saving…" : "Save as draft"}
       </Button>
+      {/if}
     {/snippet}
   </PageHead>
+
+  <div class="mode">
+    <Tabs
+      label="How to write it"
+      idPrefix="np-mode"
+      value={mode}
+      onchange={(m) => (mode = m as "hand" | "paste")}
+      items={[
+        { id: "hand", label: "Build by hand" },
+        { id: "paste", label: "Paste notes" },
+      ]}
+    />
+  </div>
+
+  {#if mode === "paste"}
+  <div role="tabpanel" id="panel-paste" aria-labelledby="np-mode-paste">
+    <PasteImport clientId={id} {catalog} base={formSnapshot} oncreate={addToLibrary} onuse={useImport} />
+  </div>
+  {:else}
+  <div role="tabpanel" id="panel-hand" aria-labelledby="np-mode-hand">
+  {#if filledFrom}
+    <Note tone="ok" role="status" class="filled">
+      Filled from your notes — {filledFrom}. Check the sets and exercises, then save it as a draft.
+    </Note>
+  {/if}
 
   {#if error}<p class="error save-error" role="alert">{error}</p>{/if}
 
@@ -695,6 +741,8 @@
       </p>
     </div>
   </div>
+  </div>
+  {/if}
 {/if}
 
 <style>
@@ -703,6 +751,9 @@
   .stack :global(.label) { margin-bottom: 6px; }
 
   .blocker { font-size: 13px; color: var(--muted); }
+  .mode { margin: -6px 0 16px; }
+  .mode :global(.tabs) { margin: 0; }
+  :global(.filled) { margin: 0 0 16px; }
   .save-error { margin: -8px 0 16px; }
   .kept { margin: -8px 0 16px; font-size: 12px; color: var(--muted); }
   .kept.restored {

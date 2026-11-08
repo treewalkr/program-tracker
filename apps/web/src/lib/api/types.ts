@@ -24,6 +24,8 @@ import type {
   CoachingRuleCategory,
   CoachingRuleSource,
   CoachingRuleStatus,
+  ImportResult,
+  ImportStatus,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -217,6 +219,45 @@ export interface GenerationDto {
   /** Example programs whose text was injected into this generation's prompt. */
   exampleProgramIds: string[];
   createdAt: string;
+}
+
+/** A stored paste import (ai_imports). `result` is null until done. */
+export interface ImportDto {
+  id: string;
+  clientId: string;
+  /** The paste as stored (line endings normalized) — the review's left pane. */
+  text: string;
+  providerId: string;
+  model: string;
+  effort: string | null;
+  status: ImportStatus;
+  chunksTotal: number;
+  chunksDone: number;
+  result: ImportResult | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A recent import in the list — no text or result, a preview instead. */
+export interface ImportSummaryDto {
+  id: string;
+  clientId: string;
+  status: ImportStatus;
+  providerId: string;
+  model: string;
+  chunksTotal: number;
+  chunksDone: number;
+  /** The paste's first 120 characters. */
+  preview: string;
+  createdAt: string;
+}
+
+export interface AliasInput {
+  /** The name as the trainer wrote it; the API normalizes it. */
+  alias: string;
+  exerciseId: string;
+  source: "import" | "manual";
 }
 
 export interface ClientMessageDto {
@@ -523,6 +564,15 @@ export interface TrainerApi {
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string, reason?: string): Promise<GenerationDto>;
   cancelGeneration(id: string): Promise<GenerationDto>;
+
+  /** Paste notes: read the text (blocks until settled — poll `importRow` if the connection drops). */
+  createImport(input: { clientId: string; text: string; providerId?: string; model?: string; effort?: string }): Promise<ImportDto>;
+  importRow(id: string): Promise<ImportDto>;
+  /** The client's 5 most recent imports, newest first. */
+  imports(clientId: string): Promise<ImportSummaryDto[]>;
+  cancelImport(id: string): Promise<ImportDto>;
+  /** Save personal aliases (as written → exercise) from confirmed matches. */
+  saveAliases(items: AliasInput[]): Promise<void>;
 
   preferences(): Promise<PreferencesDto[]>;
   distillPreferences(input: {

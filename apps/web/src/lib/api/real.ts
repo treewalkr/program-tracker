@@ -6,6 +6,8 @@ import type {
   ExerciseDto,
   GenerationDto,
   HistoryEntryDto,
+  ImportDto,
+  ImportSummaryDto,
   InstructionTemplateDto,
   LlmVerdictDto,
   LlmNoteDto,
@@ -152,6 +154,14 @@ export const realApi: TrainerApi = {
     ),
   cancelGeneration: (id) =>
     unwrap<GenerationDto>(client.v1.ai.generations({ id }).cancel.post()),
+
+  createImport: (input) => unwrap<ImportDto>(client.v1.ai.imports.post(input)),
+  importRow: (id) => unwrap<ImportDto>(client.v1.ai.imports({ id }).get()),
+  imports: (clientId) => unwrap<ImportSummaryDto[]>(client.v1.ai.imports.get({ query: { clientId } })),
+  cancelImport: (id) => unwrap<ImportDto>(client.v1.ai.imports({ id }).cancel.post()),
+  saveAliases: async (items) => {
+    await unwrap<unknown>(client.v1.vocabulary.aliases.post({ items }));
+  },
 
   preferences: async () =>
     (

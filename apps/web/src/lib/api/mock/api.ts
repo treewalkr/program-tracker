@@ -32,7 +32,17 @@ import {
   anchorText,
   mockExtractRule,
   noteRevisionText,
-  type PreferenceSignal, DEFAULT_PROVIDER_ID } from "@pt/shared";
+  type PreferenceSignal, DEFAULT_PROVIDER_ID,
+  IMPORT_MAX_CHARS,
+  buildImportResult,
+  chunkLines,
+  importLines,
+  matchExercise,
+  mockImportExtraction,
+  normalizeAlias,
+  type ImportChunkOutcome,
+  type MatchAlias,
+} from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
   AiDraftDto,
@@ -43,6 +53,7 @@ import type {
   ExerciseDto,
   GenerationDto,
   HistoryEntryDto,
+  ImportDto,
   InstructionTemplateDto,
   KineticChainDto,
   LlmVerdictDto,
@@ -139,6 +150,8 @@ const state = {
   schemes: [...seedSchemes],
   chains: seedChains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] })),
   generations: [] as GenerationDto[],
+  imports: [] as ImportDto[],
+  aliases: [] as MatchAlias[],
   clientMessages: [] as ClientMessageDto[],
   preferences: [...seedPreferences] as PreferencesDto[],
   messages: [] as (ChatMessageDto & { clientId: string })[],
@@ -899,6 +912,80 @@ export const mockApi: TrainerApi = {
     child.status = "validated";
     child.draft = mockReviseDraft(parent.draft as any, message) as any;
     return structuredClone(child);
+  },
+
+  /** Mirrors /v1/ai/imports with the mock provider: the Week 11–12 sample reads fully, other text reads as unused. */
+  async createImport(input) {
+    const text = importLines(input.text).join("\n");
+    if (text.length > IMPORT_MAX_CHARS) throw new Error(`notes are over ${IMPORT_MAX_CHARS.toLocaleString()} characters`);
+    const lines = importLines(text);
+    const chunks = chunkLines(lines);
+    if (chunks.length === 0) throw new Error("nothing to read — paste some notes");
+    const now = new Date().toISOString();
+    const row: ImportDto = {
+      id: uuid(),
+      clientId: input.clientId,
+      text,
+      providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
+      model: input.model ?? "deepseek-flash",
+      effort: input.effort ?? "max",
+      status: "pending",
+      chunksTotal: chunks.length,
+      chunksDone: 0,
+      result: null,
+      error: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.imports.unshift(row);
+    const outcomes: ImportChunkOutcome[] = [];
+    for (const c of chunks) {
+      // simulated model latency per chunk, so progress shows
+      await delay(1300);
+      if (row.status !== "pending") return structuredClone(row);
+      outcomes.push({ ...c, ok: true, data: mockImportExtraction(lines, c.from, c.to) });
+      row.chunksDone++;
+    }
+    const result = buildImportResult(text, outcomes);
+    const catalog = exercises.filter((e) => !e.archivedAt);
+    for (const w of result.weeks)
+      for (const d of w.days)
+        for (const se of d.sessions) for (const e of se.exercises) e.match = matchExercise(e, catalog, state.aliases);
+    Object.assign(row, { status: "done", result, updatedAt: new Date().toISOString() });
+    return structuredClone(row);
+  },
+
+  async importRow(id) {
+    await delay(120);
+    const row = state.imports.find((r) => r.id === id);
+    if (!row) throw new Error("import not found");
+    return structuredClone(row);
+  },
+
+  async imports(clientId) {
+    await delay(120);
+    return state.imports
+      .filter((r) => r.clientId === clientId)
+      .slice(0, 5)
+      .map(({ text, result: _result, error: _error, effort: _effort, updatedAt: _updatedAt, ...rest }) => ({ ...rest, preview: text.slice(0, 120) }));
+  },
+
+  async cancelImport(id) {
+    await delay(150);
+    const row = state.imports.find((r) => r.id === id);
+    if (!row) throw new Error("import not found");
+    if (row.status !== "pending") throw new Error(`import is ${row.status}, not pending`);
+    row.status = "cancelled";
+    return structuredClone(row);
+  },
+
+  async saveAliases(items) {
+    await delay(150);
+    for (const i of items) {
+      const alias = normalizeAlias(i.alias);
+      state.aliases = state.aliases.filter((a) => a.alias !== alias);
+      state.aliases.push({ alias, exerciseId: i.exerciseId, trainerId: "me" });
+    }
   },
 
   async cancelGeneration(id) {
