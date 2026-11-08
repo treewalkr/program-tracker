@@ -189,6 +189,8 @@ export interface ImportFlag {
   message: string;
   /** Stops "Use this" until resolved (the program limits). */
   blocking?: boolean;
+  /** "actual": the flag is on a logged value — history import skips that exercise's numbers. */
+  field?: "actual";
 }
 
 /** How an exercise was matched to the catalog (filled by the API, see importMatch.ts). */
@@ -314,7 +316,11 @@ class NumberCheck {
   constructor(private tokens: NumToken[]) {}
 
   /** `alts`: other values in the text that also justify this one (1 min → 60 s). */
-  claim(label: string, value: number, opts: { alts?: number[]; prefer?: "before" | "after"; consume?: boolean } = {}): boolean {
+  claim(
+    label: string,
+    value: number,
+    opts: { alts?: number[]; prefer?: "before" | "after"; consume?: boolean; field?: "actual" } = {},
+  ): boolean {
     const wanted = [value, ...(opts.alts ?? [])];
     const matches = this.tokens
       .map((t, i) => ({ t, i }))
@@ -327,17 +333,17 @@ class NumberCheck {
       return true;
     }
     if (matches.some(({ t }) => !t.inName)) {
-      this.flag("used_twice", `${label} ${fmt(value)}: that number is already used for another value`);
+      this.flag("used_twice", `${label} ${fmt(value)}: that number is already used for another value`, opts.field);
     } else if (matches.length > 0) {
-      this.flag("in_name", `${label} ${fmt(value)}: this number looks like part of the name`);
+      this.flag("in_name", `${label} ${fmt(value)}: this number looks like part of the name`, opts.field);
     } else {
-      this.flag("not_found", `${label} ${fmt(value)}: value not found in the text`);
+      this.flag("not_found", `${label} ${fmt(value)}: value not found in the text`, opts.field);
     }
     return false;
   }
 
-  private flag(code: ImportFlagCode, message: string) {
-    if (!this.flags.some((f) => f.message === message)) this.flags.push({ level: "warn", code, message });
+  private flag(code: ImportFlagCode, message: string, field?: "actual") {
+    if (!this.flags.some((f) => f.message === message)) this.flags.push({ level: "warn", code, message, ...(field ? { field } : {}) });
   }
 }
 
@@ -359,9 +365,10 @@ function checkPrescription(p: ImportPrescription, check: NumberCheck) {
 
 function checkActuals(actuals: ImportActual[], check: NumberCheck) {
   for (const a of actuals) {
-    if (a.reps != null) check.claim("Logged reps", a.reps, { prefer: "after", consume: false });
-    if (a.kg != null) check.claim("Logged load", a.kg, { prefer: "after", consume: false });
-    if (a.seconds != null) check.claim("Logged time", a.seconds, { alts: perMinute(a.seconds), prefer: "after", consume: false });
+    const opts = { prefer: "after", consume: false, field: "actual" } as const;
+    if (a.reps != null) check.claim("Logged reps", a.reps, opts);
+    if (a.kg != null) check.claim("Logged load", a.kg, opts);
+    if (a.seconds != null) check.claim("Logged time", a.seconds, { ...opts, alts: perMinute(a.seconds) });
   }
 }
 
@@ -389,10 +396,13 @@ function plausibility(ex: ImportExercise): ImportFlag[] {
     within("Time", p.seconds, 1, 600);
     within("Time", p.secondsLow, 1, 600);
   }
+  const logged = (label: string, v: number | null | undefined, lo: number, hi: number) => {
+    if (v != null && (v < lo || v > hi)) out.push({ ...unusual(label, v), field: "actual" });
+  };
   for (const a of ex.actuals ?? []) {
-    within("Logged reps", a.reps, 0, repsMax);
-    within("Logged load", a.kg, 0, 400);
-    within("Logged time", a.seconds, 1, 600);
+    logged("Logged reps", a.reps, 0, repsMax);
+    logged("Logged load", a.kg, 0, 400);
+    logged("Logged time", a.seconds, 1, 600);
   }
   return dedupe(out);
 }
@@ -735,4 +745,25 @@ export function buildImportResult(
     alternating,
     newTerms: filterNewTerms(ok.flatMap((c) => c.newTerms ?? []), lines, glossary),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Block labels (review screen, history program names)
+// ---------------------------------------------------------------------------
+
+/** The week a block drafts from: its latest. */
+export const templateWeekIndex = (r: ImportResult, block: number): number => r.blocks[block]?.weeks.at(-1) ?? 0;
+
+/** The lifting session names of a week, in order, unique. */
+export const liftingNames = (w: ReviewWeek | undefined): string[] =>
+  [...new Set((w?.days ?? []).flatMap((d) => d.sessions.filter((s) => s.kind === "lifting").map((s) => s.name.trim())))].filter(Boolean);
+
+/** "Week 11 (Back/Biceps · Chest/Triceps · Lower)"; "Week 3 – Week 5 (…)" for several. */
+export function blockLabel(r: ImportResult, block: number): string {
+  const weeks = r.blocks[block]?.weeks ?? [];
+  const labels = weeks.map((i) => r.weeks[i]?.label).filter((l): l is string => !!l);
+  const head =
+    labels.length === 0 ? "Your notes" : labels.length === 1 ? labels[0] : `${labels[0]} – ${labels.at(-1)}`;
+  const names = liftingNames(r.weeks[templateWeekIndex(r, block)]);
+  return names.length ? `${head} (${names.join(" · ")})` : head;
 }

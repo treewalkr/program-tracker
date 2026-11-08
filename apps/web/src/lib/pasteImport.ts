@@ -1,5 +1,8 @@
 import {
+  blockLabel,
   defaultCardio,
+  liftingNames,
+  templateWeekIndex,
   type ImportFlag,
   type ImportMatch,
   type ImportResult,
@@ -27,21 +30,8 @@ export const exerciseKey = (w: number, d: number, s: number, e: number) => `w${w
 /** False when the read found no session at all (not a program) — there is nothing to review. */
 export const hasTraining = (r: ImportResult): boolean => r.weeks.some((w) => w.days.some((d) => d.sessions.length > 0));
 
-/** The week a block drafts from: its latest. */
-export const templateWeekIndex = (r: ImportResult, block: number): number => r.blocks[block]?.weeks.at(-1) ?? 0;
-
-const liftingNames = (w: ReviewWeek | undefined) =>
-  [...new Set((w?.days ?? []).flatMap((d) => d.sessions.filter((s) => s.kind === "lifting").map((s) => s.name.trim())))].filter(Boolean);
-
-/** "Week 11 (Back/Biceps · Chest/Triceps · Lower)"; "Weeks 3–5 (…)" for several. */
-export function blockLabel(r: ImportResult, block: number): string {
-  const weeks = r.blocks[block]?.weeks ?? [];
-  const labels = weeks.map((i) => r.weeks[i]?.label).filter((l): l is string => !!l);
-  const head =
-    labels.length === 0 ? "Your notes" : labels.length === 1 ? labels[0] : `${labels[0]} – ${labels.at(-1)}`;
-  const names = liftingNames(r.weeks[templateWeekIndex(r, block)]);
-  return names.length ? `${head} (${names.join(" · ")})` : head;
-}
+/** Moved to @pt/shared (history import names its programs with them); re-exported for the review. */
+export { blockLabel, templateWeekIndex };
 
 // —— exercise matches ————————————————————————————————————————————————————
 
