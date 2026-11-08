@@ -33,7 +33,7 @@
   --bad-line: #ffcecb;
   --warn: #9a6700;
   --warn-bg: #fff8c5;
-  --warn-line: var(--warn-line);
+  --warn-line: #d4a72c66;
 
   /* contributions ramp (training-week cells, tonnage heat) */
   --done-1: #aceebb;
@@ -63,12 +63,12 @@
   /* inks that sit on a filled surface */
   --on-ink: #ffffff; /* text on Inverted Ink (--hover-ink) fills */
   --on-done: #ffffff; /* text on the darkest ramp step (logged week cells) */
-  --warn-ink: var(--warn-ink); /* body text on warn tint */
+  --warn-ink: #4d3800; /* body text on warn tint */
   --rpe-mid-chip: #7d5600; /* amber RPE on the chip background */
 
   /* small one-off marks */
   --blue-line: #b6e3ff; /* hairline around Pulse Blue Tint surfaces */
-  --tab-on: var(--tab-on);
+  --tab-on: #fd8c73;
   --lamp-amber: #bf8700;
   --lamp-gray: #818b98;
   --avatar-bg: #dde4ea;
