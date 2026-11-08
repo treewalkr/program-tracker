@@ -1,0 +1,53 @@
+import { describe, expect, test } from "bun:test";
+import { emptyProfile } from "./clientProfile";
+import { clearAllNewClientDrafts, newClientDraftKey, readNewClientDraft, saveNewClientDraft } from "./newClientDraft";
+
+const mem = () => {
+  const m = new Map<string, string>();
+  return {
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => void m.set(k, v),
+    removeItem: (k: string) => void m.delete(k),
+    key: (i: number) => [...m.keys()][i] ?? null,
+    get length() {
+      return m.size;
+    },
+    m,
+  };
+};
+
+describe("newClientDraft", () => {
+  test("keys are scoped by mode and trainer", () => {
+    expect(newClientDraftKey("mock", null)).toBe("pt.newClientDraft.mock.open");
+    expect(newClientDraftKey("live", "t1")).toBe("pt.newClientDraft.live.t1");
+  });
+
+  test("round-trips a touched form; empty form removes the key", () => {
+    const s = mem();
+    const k = newClientDraftKey("mock", null);
+    const d = { name: "Ana", email: "", profile: { ...emptyProfile(), goals: "Run 10k" } };
+    saveNewClientDraft(k, d, s);
+    expect(readNewClientDraft(k, s)).toEqual(d);
+    saveNewClientDraft(k, { name: " ", email: "", profile: emptyProfile() }, s);
+    expect(s.m.has(k)).toBe(false);
+  });
+
+  test("corrupt or mis-shaped drafts are ignored and removed", () => {
+    const s = mem();
+    s.setItem("a", "{oops");
+    expect(readNewClientDraft("a", s)).toBeNull();
+    expect(s.m.has("a")).toBe(false);
+    s.setItem("b", JSON.stringify({ v: 1, savedAt: "x", data: { name: "A", email: "", profile: { goals: 1 } } }));
+    expect(readNewClientDraft("b", s)).toBeNull();
+    expect(s.m.has("b")).toBe(false);
+  });
+
+  test("sign-out clears every new-client draft and nothing else", () => {
+    const s = mem();
+    s.setItem("pt.newClientDraft.mock.open", "x");
+    s.setItem("pt.newClientDraft.live.t1", "x");
+    s.setItem("other", "x");
+    clearAllNewClientDrafts(s);
+    expect([...s.m.keys()]).toEqual(["other"]);
+  });
+});
