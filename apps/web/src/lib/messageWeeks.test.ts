@@ -26,13 +26,14 @@ test("plain YYYY-MM-DD dates work too, sorted ascending", () => {
   expect(loggedBlockWeeks(program, [log("2026-11-02"), log("2026-10-13")])).toEqual([1, 4]);
 });
 
-test("skips other programs, pre-block logs and unparseable dates", () => {
+test("skips other programs and unparseable dates; backfilled logs before activation count (F05)", () => {
   const weeks = loggedBlockWeeks(program, [
     log("2026-10-14", "other"),
     log("2026-10-05"),
     log("garbage"),
     log("2026-10-14"),
   ]);
-  expect(weeks).toEqual([1]);
+  // The block anchors on the earlier 2026-10-05 log, so 10-14 is week 2.
+  expect(weeks).toEqual([1, 2]);
   expect(weeks.every(Number.isFinite)).toBe(true);
 });
