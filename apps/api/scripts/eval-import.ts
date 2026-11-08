@@ -19,7 +19,7 @@ import { parseArgs } from "node:util";
 import { DEFAULT_PROVIDER_ID, WEEK11_12_EXTRACTION, buildImportResult } from "@pt/shared";
 import { providerRuntime, resolveEffort } from "../src/ai/runtime";
 import { extractChunks } from "../src/lib/imports";
-import { expectedFromExtraction, scoreResult, type ExpectedItem } from "../src/lib/import-eval";
+import { expectedFromExtraction, scoreResult, type Expected } from "../src/lib/import-eval";
 
 const { values } = parseArgs({
   options: {
@@ -42,12 +42,13 @@ const rt = providerRuntime(values.provider!, values.model);
 const effort = resolveEffort(rt, values.effort);
 console.log(`eval:import — ${rt.providerId} · ${rt.model} · effort ${effort ?? rt.defaultEffort ?? "—"} · ${names.length} fixtures\n`);
 
-const expectedFor = (name: string): ExpectedItem[] =>
+const expectedFor = (name: string): Expected =>
   name === "week11-12"
     ? expectedFromExtraction(WEEK11_12_EXTRACTION)
-    : (JSON.parse(readFileSync(join(DIR, `${name}.expected.json`), "utf8")) as { items: ExpectedItem[] }).items;
+    : (JSON.parse(readFileSync(join(DIR, `${name}.expected.json`), "utf8")) as Expected);
 
 const rows: Record<string, string | number>[] = [];
+const totals = { correct: 0, expected: 0, sessionsCorrect: 0, sessionsExpected: 0, numberFlags: 0 };
 for (const name of names) {
   const text = readFileSync(join(DIR, `${name}.txt`), "utf8");
   const started = performance.now();
@@ -66,15 +67,20 @@ for (const name of names) {
   rows.push({
     fixture: name,
     sets: `${s.correct}/${s.expected}`,
+    sessions: s.sessionsExpected ? `${s.sessionsCorrect}/${s.sessionsExpected} (${s.sessionsRead} read)` : "—",
     "number flags": s.numberFlags,
     unusual: s.implausible,
     "unused lines": s.unused,
     "unread lines": s.unreadLines,
     seconds: (ms / 1000).toFixed(1),
   });
+  for (const k of Object.keys(totals) as (keyof typeof totals)[]) totals[k] += s[k];
   for (const m of s.misses) console.log(`  ${name} ${m}`);
   for (const o of outcomes) if (!o.ok) console.log(`  ${name} lines ${o.from}–${o.to} unread: ${o.error.slice(0, 160)}`);
 }
 console.log();
 console.table(rows);
+console.log(
+  `total — sets ${totals.correct}/${totals.expected} · sessions ${totals.sessionsCorrect}/${totals.sessionsExpected} · number flags ${totals.numberFlags}`,
+);
 process.exit(0);

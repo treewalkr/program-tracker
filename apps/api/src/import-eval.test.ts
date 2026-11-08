@@ -12,11 +12,15 @@ describe("eval:import scoring", () => {
 
   test("the hand-written extraction scores perfectly against itself", () => {
     const expected = expectedFromExtraction(WEEK11_12_EXTRACTION);
-    expect(expected).toHaveLength(41);
-    expect(expected.find((e) => e.line === 9)).toEqual({ line: 9, sets: 4, repsList: [10, 8, 6, 5] });
+    expect(expected.items).toHaveLength(41);
+    expect(expected.items.find((e) => e.line === 9)).toMatchObject({ line: 9, sets: 4, repsList: [10, 8, 6, 5] });
+    const n = expected.sessions!.length;
     expect(scoreResult(read(), expected)).toEqual({
       correct: 41,
       expected: 41,
+      sessionsCorrect: n,
+      sessionsExpected: n,
+      sessionsRead: n,
       misses: [],
       numberFlags: 0,
       implausible: 0,
@@ -32,5 +36,22 @@ describe("eval:import scoring", () => {
     const s = scoreResult(r, expectedFromExtraction(WEEK11_12_EXTRACTION));
     expect(s.correct).toBe(39);
     expect(s.misses).toEqual(["L6: sets 4 ≠ 3", "L60: not read"]);
+  });
+
+  test("null means the field must be absent; logged sets and sessions are compared", () => {
+    const r = read();
+    const items = [
+      { line: 6, seconds: null },
+      { line: 6, actuals: 99 },
+      { line: 6, noteHas: ["power"] },
+      { line: 6, noteHas: ["kinesis"] },
+    ];
+    const s = scoreResult(r, { items, sessions: [{ line: 3, kind: "cardio" }], skipped: [6] });
+    expect(s.correct).toBe(2);
+    expect(s.misses[0]).toMatch(/^L6: logged sets \d+ ≠ 99$/);
+    expect(s.misses[1]).toMatch(/lacks "kinesis"$/);
+    expect(s.misses).toContain("L6: should be skipped");
+    expect(s.misses).toContain("session L3: lifting ≠ cardio");
+    expect(s.misses.at(-1)).toMatch(/^sessions: \d+ read ≠ 1$/);
   });
 });
