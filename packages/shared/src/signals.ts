@@ -92,15 +92,18 @@ function rpeCreep(program: SignalProgram, logs: SignalLog[], nameOf: (id: string
   };
 }
 
-/** Heaviest prescribed load for `exerciseId` in block week `week`; null when the
- *  week isn't in the doc or prescribes the exercise without a load target. */
-function prescribedLoad(program: SignalProgram, exerciseId: string, week: number): number | null {
-  const loads = weekSessions(program.weeks, week)
+/** Planned intensity for `exerciseId` in block week `week`, in one unit so weeks compare:
+ *  the highest %1RM when every set is prescribed as %1RM, else the heaviest kg.
+ *  Null when the week isn't in the doc or a set has no load target. */
+function prescribedLoad(program: SignalProgram, exerciseId: string, week: number): { unit: "pct" | "kg"; value: number } | null {
+  const sets = weekSessions(program.weeks, week)
     .flatMap((s) => s.exercises ?? [])
     .filter((e) => e.exerciseId === exerciseId)
-    .flatMap((e) => e.prescribedSets.map((ps) => ps.targetWeightKg ?? null));
-  if (loads.length === 0 || loads.some((l) => l == null)) return null;
-  return Math.max(...(loads as number[]));
+    .flatMap((e) => e.prescribedSets as { targetWeightKg?: number | null; percent1rm?: number | null }[]);
+  if (sets.length === 0) return null;
+  if (sets.every((ps) => ps.percent1rm != null)) return { unit: "pct", value: Math.max(...sets.map((ps) => ps.percent1rm!)) };
+  if (sets.every((ps) => ps.targetWeightKg != null)) return { unit: "kg", value: Math.max(...sets.map((ps) => ps.targetWeightKg!)) };
+  return null;
 }
 
 /** e1RM flat across recent block weeks while the peak was earlier in the block.
@@ -136,10 +139,11 @@ function stall(program: SignalProgram, logs: SignalLog[], nameOf: (id: string) =
 
     const peakWeek = sorted[peakIdx][0];
     const lastWeek = sorted[sorted.length - 1][0];
-    const planned: (number | null)[] = [];
+    const planned: ({ unit: "pct" | "kg"; value: number } | null)[] = [];
     for (let w = peakWeek; w <= lastWeek; w++) planned.push(prescribedLoad(program, exId, w));
-    const hasTargets = planned.every((l) => l != null);
-    const planProgressed = hasTargets && planned.slice(1).some((l) => l! > planned[0]!);
+    // Mixed units (kg one week, %1RM the next) can't be compared: treat as no target.
+    const hasTargets = planned.every((l) => l != null && l.unit === planned[0]!.unit);
+    const planProgressed = hasTargets && planned.slice(1).some((l) => l!.value > planned[0]!.value);
     if (hasTargets && !planProgressed) continue;
 
     const name = nameOf(exId);

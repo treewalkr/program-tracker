@@ -507,4 +507,21 @@ describe("stall buckets by block week and respects planned-flat loads (F17)", ()
   test("fires when the plan carries no load target", () => {
     expect(stall(squatProgram([null, null, null, null, null]), weekly([140, 140, 140, 140, 140]))).toBeDefined();
   });
+
+  /** Same block, but the squat is prescribed as %1RM instead of kg. */
+  const pctProgram = (pcts: number[]): SignalProgram => {
+    const p = squatProgram(pcts.map(() => null));
+    p.weeks.forEach((w, i) => {
+      (w.sessions[0].exercises[0].prescribedSets[0] as { percent1rm?: number }).percent1rm = pcts[i];
+    });
+    return p;
+  };
+
+  test("a %1RM plan held flat is the plan, not a stall", () => {
+    expect(stall(pctProgram([75, 75, 75, 75, 75]), weekly([140, 140, 140, 140, 140]))).toBeUndefined();
+  });
+
+  test("fires when a %1RM plan progressed and the athlete did not", () => {
+    expect(stall(pctProgram([70, 72.5, 75, 77.5, 80]), weekly([140, 140, 140, 140, 140]))).toBeDefined();
+  });
 });
