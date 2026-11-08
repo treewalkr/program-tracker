@@ -17,6 +17,8 @@
 
 - **Plan mode** — plan on Opus: `medium` effort for normal tasks, `high` for complex ones
 - **Build** — after the plan is approved, hand the implementation to `delegate_task` at `medium` effort
+- **Worktrees** — complex or conflict-prone work (dirty main, overlapping files) goes on a new branch in a git worktree
+- **Handback** — when done, suggest merging to main; if merging now is risky, suggest a PR instead
 
 # Commit Rules
 
