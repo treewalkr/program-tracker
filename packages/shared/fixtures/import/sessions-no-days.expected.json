@@ -1,0 +1,10 @@
+{
+  "items": [
+    { "line": 3, "sets": 3, "reps": 8 }, { "line": 4, "sets": 3, "reps": 6 }, { "line": 6, "sets": 3, "reps": 8 }, { "line": 7, "sets": 3, "reps": 10 },
+    { "line": 11, "sets": 4, "reps": 8 }, { "line": 12, "sets": 4, "reps": 6 }, { "line": 14, "sets": 4, "reps": 8 }, { "line": 15, "sets": 4, "reps": 10 }
+  ],
+  "sessions": [
+    { "line": 2, "kind": "lifting" }, { "line": 5, "kind": "lifting" },
+    { "line": 10, "kind": "lifting" }, { "line": 13, "kind": "lifting" }
+  ]
+}

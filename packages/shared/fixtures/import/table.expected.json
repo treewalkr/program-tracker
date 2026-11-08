@@ -1,1 +1,8 @@
-{ "items": [ { "line": 2, "sets": 4, "reps": 6 }, { "line": 3, "sets": 4, "reps": 8 }, { "line": 4, "sets": 3, "reps": 10 } ] }
+{
+  "items": [
+    {"line": 2, "sets": 4, "reps": 6, "noteHas": ["100kg"]},
+    {"line": 3, "sets": 4, "reps": 8, "noteHas": ["70kg"]},
+    {"line": 4, "sets": 3, "reps": 10, "noteHas": ["60kg"]}
+  ],
+  "skipped": [1]
+}

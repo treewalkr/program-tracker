@@ -1,1 +1,7 @@
-{ "items": [ { "line": 2, "sets": 5, "reps": 5 }, { "line": 3, "sets": 3, "reps": 5 }, { "line": 4, "sets": 3, "reps": 3 } ] }
+{
+  "items": [
+    {"line": 2, "sets": 5, "reps": 5, "noteHas": ["70%"]},
+    {"line": 3, "sets": 3, "reps": 5, "noteHas": ["75%"]},
+    {"line": 4, "sets": 3, "reps": 3, "noteHas": ["80%"]}
+  ]
+}

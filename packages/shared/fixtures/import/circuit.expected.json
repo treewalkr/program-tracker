@@ -1,0 +1,11 @@
+{
+  "items": [
+    {"line": 3, "reps": 15, "noteHas": ["3 rounds"]},
+    {"line": 4, "reps": 10, "noteHas": ["3 rounds"]},
+    {"line": 5, "reps": 12, "noteHas": ["3 rounds"]},
+    {"line": 7, "reps": 5, "noteHas": ["EMOM"]}
+  ],
+  "sessions": [
+    {"line": 1, "kind": "lifting"}
+  ]
+}

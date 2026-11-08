@@ -1,0 +1,13 @@
+{
+  "items": [
+    {"line": 2, "sets": 4, "reps": 8, "noteHas": ["เน้นลงช้า"]},
+    {"line": 3, "sets": 3, "reps": 10, "noteHas": ["ขาละข้าง"]},
+    {"line": 4, "sets": 3, "reps": 12, "noteHas": ["เครื่อง"]},
+    {"line": 6, "sets": 3, "seconds": 45},
+    {"line": 7, "sets": 3, "reps": 10}
+  ],
+  "sessions": [
+    {"line": 1, "kind": "lifting"}
+  ],
+  "skipped": [5]
+}

@@ -1,0 +1,9 @@
+{
+  "items": [
+    { "line": 3, "sets": 3, "reps": 8, "actuals": 3 },
+    { "line": 4, "sets": 3, "reps": 10, "actuals": 3 },
+    { "line": 5, "sets": 3, "reps": 15, "actuals": 3 },
+    { "line": 6, "sets": 3, "reps": 15, "actuals": 0 }
+  ],
+  "sessions": [{ "line": 2, "kind": "lifting" }]
+}

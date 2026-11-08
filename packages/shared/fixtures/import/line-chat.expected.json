@@ -1,0 +1,11 @@
+{
+  "items": [
+    {"line": 3, "sets": 4, "reps": 5},
+    {"line": 4, "sets": 3, "reps": 6},
+    {"line": 5, "sets": 3, "reps": 12, "noteHas": ["each side"]}
+  ],
+  "sessions": [
+    {"line": 2, "kind": "lifting"}
+  ],
+  "skipped": [1, 6, 7]
+}
