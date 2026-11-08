@@ -20,3 +20,4 @@ export * from "./client";
 export * from "./import";
 export * from "./importFixture";
 export * from "./importMatch";
+export * from "./roles";

@@ -609,28 +609,47 @@ describe("ProgramWeeksDocument", () => {
 describe("ExerciseRole", () => {
   const baseExercise: ProgramExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] };
 
-  test("role is optional and only the five session slots are accepted", () => {
+  test("role is optional; built-in keys and label:<uuid> are accepted", () => {
     expect(ProgramExercise.parse(baseExercise).role).toBeUndefined();
     expect(ProgramExercise.parse({ ...baseExercise, role: "primary" }).role).toBe("primary");
+    expect(ProgramExercise.parse({ ...baseExercise, role: "secondary" }).role).toBe("secondary");
+    const custom = `label:${uuid()}` as const;
+    expect(ProgramExercise.parse({ ...baseExercise, role: custom }).role).toBe(custom);
     expect(() => ProgramExercise.parse({ ...baseExercise, role: "warmup" })).toThrow();
+    expect(() => ProgramExercise.parse({ ...baseExercise, role: "label:nope" })).toThrow();
   });
 
-  test("every role has a label and a description", () => {
+  test("every built-in has a name, chip, category and description; Secondary and Strength are distinct", () => {
     for (const r of EXERCISE_ROLES) {
-      expect(EXERCISE_ROLE_INFO[r].label.length).toBeGreaterThan(0);
+      expect(EXERCISE_ROLE_INFO[r].chip.length).toBeGreaterThan(0);
       expect(EXERCISE_ROLE_INFO[r].description.length).toBeGreaterThan(0);
     }
+    expect(EXERCISE_ROLE_INFO.secondary.name).toBe("Secondary");
+    expect(EXERCISE_ROLE_INFO.strength.name).toBe("Strength");
+    expect(EXERCISE_ROLE_INFO.accessory.name).toBe("Auxiliary");
+    expect(EXERCISE_ROLE_INFO.strength.description).not.toMatch(/secondary/i);
+    expect(EXERCISE_ROLE_INFO.secondary.description).not.toMatch(/strength/i);
   });
 
-  test("sortExercisesByRole orders power → primary → strength → accessory → core", () => {
+  test("sortExercisesByRole orders power → primary → secondary → strength → auxiliary → core", () => {
     const sorted = sortExercisesByRole([
       { name: "plank", role: "core" as const },
       { name: "row", role: "accessory" as const },
       { name: "squat", role: "primary" as const },
       { name: "box jump", role: "power" as const },
       { name: "rdl", role: "strength" as const },
+      { name: "bench", role: "secondary" as const },
     ]);
-    expect(sorted.map((e) => e.name)).toEqual(["box jump", "squat", "rdl", "row", "plank"]);
+    expect(sorted.map((e) => e.name)).toEqual(["box jump", "squat", "bench", "rdl", "row", "plank"]);
+  });
+
+  test("unknown labels sort last with the unset ones", () => {
+    const sorted = sortExercisesByRole([
+      { name: "mystery", role: `label:${uuid()}` },
+      { name: "plank", role: "core" },
+      { name: "squat", role: "primary" },
+    ]);
+    expect(sorted.map((e) => e.name)).toEqual(["squat", "plank", "mystery"]);
   });
 
   test("sort is stable within a rank and puts unset roles last", () => {

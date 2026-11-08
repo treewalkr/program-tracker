@@ -345,51 +345,113 @@ export const SetType = z.enum(SET_TYPES);
 export type SetType = z.infer<typeof SetType>;
 
 /**
- * Slot an exercise fills within a session. Array order is the classic S&C
- * session order — power → primary → strength → accessory → core — and is the
- * rank `sortExercisesByRole` uses. "core" here is the closing slot of a
- * session, not the `core` muscle group.
+ * The label on a program exercise: what the trainer emphasizes with it in the
+ * session. Built-in keys, in their default order. Labels come from three
+ * categories — priority (Primary, Secondary, Auxiliary), training quality
+ * (Power, Strength) and body region (Core). Secondary and Strength are two
+ * different labels. "core" here is the body-region label, not the `core`
+ * muscle group. Trainers add their own labels (`label:<uuid>`, roles.ts).
  */
-export const EXERCISE_ROLES = ["power", "primary", "strength", "accessory", "core"] as const;
-export const ExerciseRole = z.enum(EXERCISE_ROLES);
-export type ExerciseRole = z.infer<typeof ExerciseRole>;
+export const EXERCISE_ROLES = ["power", "primary", "secondary", "strength", "accessory", "core"] as const;
+export const BuiltinRole = z.enum(EXERCISE_ROLES);
+export type BuiltinRole = z.infer<typeof BuiltinRole>;
 
-/** Full name (pickers), chip label (the trainer's shorthand) and tooltip copy per role; the copy is also fed to the AI prompt. */
-export const EXERCISE_ROLE_INFO: Record<ExerciseRole, { name: string; label: string; description: string }> = {
+/** Prefix of a trainer label's role value: `label:<uuid>`. */
+export const CUSTOM_ROLE_PREFIX = "label:";
+export const CustomRole = z.templateLiteral([CUSTOM_ROLE_PREFIX, z.uuid()]);
+export type CustomRole = z.infer<typeof CustomRole>;
+/** A built-in key or `label:<uuid>` (a trainer's own label). */
+export const ExerciseRole = z.union([BuiltinRole, CustomRole]);
+export type ExerciseRole = z.infer<typeof ExerciseRole>;
+export const isBuiltinRole = (r: unknown): r is BuiltinRole =>
+  typeof r === "string" && (EXERCISE_ROLES as readonly string[]).includes(r);
+export const customRoleKey = (id: string): CustomRole => `${CUSTOM_ROLE_PREFIX}${id}` as CustomRole;
+
+export const ROLE_CATEGORIES = ["priority", "quality", "region"] as const;
+export type RoleCategory = (typeof ROLE_CATEGORIES)[number];
+export const ROLE_CATEGORY_NAMES: Record<RoleCategory, string> = {
+  priority: "Priority",
+  quality: "Training quality",
+  region: "Body region",
+};
+
+/** Name (pickers), chip (the trainer's shorthand), category, default rank and
+ *  meaning per built-in label; the meaning is also fed to the AI prompt. */
+export const EXERCISE_ROLE_INFO: Record<
+  BuiltinRole,
+  { name: string; chip: string; category: RoleCategory; rank: number; description: string }
+> = {
   power: {
     name: "Power",
-    label: "Power",
+    chip: "Power",
+    category: "quality",
+    rank: 100,
     description: "Explosive, low-rep work done fresh — jumps, throws, Olympic lift variations.",
   },
   primary: {
     name: "Primary",
-    label: "Primary",
-    description: "The main lift the session is built around — the heaviest compound movement.",
+    chip: "Primary",
+    category: "priority",
+    rank: 200,
+    description: "The main lift the session is built around.",
+  },
+  secondary: {
+    name: "Secondary",
+    chip: "Secondary",
+    category: "priority",
+    rank: 300,
+    description: "The second-priority lift of the session.",
   },
   strength: {
-    name: "Secondary",
-    label: "Str",
-    description: "Secondary compound strength work that supports the primary lift.",
+    name: "Strength",
+    chip: "Str",
+    category: "quality",
+    rank: 400,
+    description: "Work for maximal force — heavy loads, low to moderate reps.",
   },
   accessory: {
-    name: "Accessory",
-    label: "Aux",
-    description: "Isolation or higher-rep assistance work for hypertrophy, weak points and balance.",
+    name: "Auxiliary",
+    chip: "Aux",
+    category: "priority",
+    rank: 500,
+    description: "Assistance work — isolation, weak points, balance, usually higher reps.",
   },
   core: {
     name: "Core",
-    label: "Core",
+    chip: "Core",
+    category: "region",
+    rank: 600,
     description: "Trunk and anti-movement work, typically closing the session.",
   },
 };
 
-/** Stable sort by role rank; exercises without a role keep their relative order at the end. */
-export function sortExercisesByRole<T extends { role?: ExerciseRole | null }>(
-  list: readonly T[]
+/** Rank lookup for sorting — a merged label list (roles.ts) or the built-in defaults. */
+export interface RoleRank {
+  key: string;
+  rank: number;
+  archived?: boolean;
+}
+
+/**
+ * Stable sort by label rank (built-ins + the trainer's labels). Exercises
+ * without a role, with an unknown label or an archived one keep their
+ * relative order at the end.
+ */
+export function sortExercisesByRole<T extends { role?: string | null }>(
+  list: readonly T[],
+  labels?: readonly RoleRank[]
 ): T[] {
-  const rank = (r: ExerciseRole | null | undefined) =>
-    r ? EXERCISE_ROLES.indexOf(r) : EXERCISE_ROLES.length;
-  return [...list].sort((a, b) => rank(a.role) - rank(b.role));
+  const ranks = new Map<string, number>(
+    labels
+      ? labels.filter((l) => !l.archived).map((l) => [l.key, l.rank])
+      : EXERCISE_ROLES.map((r) => [r, EXERCISE_ROLE_INFO[r].rank])
+  );
+  const rank = (r: string | null | undefined) => (r ? (ranks.get(r) ?? Infinity) : Infinity);
+  return [...list].sort((a, b) => {
+    const ra = rank(a.role);
+    const rb = rank(b.role);
+    return ra === rb ? 0 : ra - rb;
+  });
 }
 
 export interface PatternBalance {
@@ -499,7 +561,7 @@ export const ProgramExercise = z.object({
    * or draft name). Programs render it directly — no catalog join on read.
    */
   exerciseName: z.string().min(1).max(200).optional(),
-  /** Session slot (power → primary → strength → accessory → core). Absent on programs written before roles existed. */
+  /** Label: a built-in key or `label:<uuid>`. Absent on programs written before roles existed. */
   role: ExerciseRole.optional(),
   /** 0-indexed order within the session. */
   order: z.number().int().min(0),
