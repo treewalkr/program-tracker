@@ -121,6 +121,34 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
     await db.delete(clients).where(eq(clients.id, adminClient.id));
   });
 
+  test("the admin's client directory lists every trainer's clients, without contact details; trainers get 403", async () => {
+    const admin = await adminToken();
+    const kai = (await (await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).json()) as { id: string };
+    const kaiToken = (await createSession(kai.id)).token;
+    const [mine, theirs] = await db
+      .insert(clients)
+      .values([
+        { trainerId: defaultId, name: "ZZ Admin client", email: "a@example.com", startedOn: "2026-03-02" },
+        { trainerId: kai.id, name: "ZZ Kai client", email: "k@example.com", goals: "secret goal" },
+      ])
+      .returning();
+    try {
+      const res = await get("/v1/admin/clients", admin);
+      expect(res.status).toBe(200);
+      const { clients: rows } = (await res.json()) as { clients: Record<string, unknown>[] };
+      const a = rows.find((r) => r.id === mine.id);
+      const k = rows.find((r) => r.id === theirs.id);
+      expect(a).toMatchObject({ name: "ZZ Admin client", clientSince: "2026-03-02", lastSessionAt: null, trainer: { id: defaultId } });
+      expect(k).toMatchObject({ name: "ZZ Kai client", status: "active", trainer: { id: kai.id, name: "Kai", access: "invited" } });
+      expect(k?.clientSince).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      for (const field of ["email", "phone", "goals", "limitations", "oneRepMaxes"]) expect(k).not.toHaveProperty(field);
+
+      expect((await get("/v1/admin/clients", kaiToken)).status).toBe(403);
+    } finally {
+      await db.delete(clients).where(inArray(clients.id, [mine.id, theirs.id]));
+    }
+  });
+
   test("disabling a trainer signs them out and blocks the next sign-in", async () => {
     const admin = await adminToken();
     const mo = (await (await call("POST", "/v1/admin/trainers", admin, { name: "Mo", email: "mo@example.com" })).json()) as { id: string };

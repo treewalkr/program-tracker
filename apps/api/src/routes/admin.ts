@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
-import { and, count, desc, eq, isNull } from "drizzle-orm";
-import { clients, db, emailLog, feedbackItems, trainers } from "@pt/db";
+import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
+import { clients, db, emailLog, feedbackItems, sessionLogs, trainers } from "@pt/db";
 import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
@@ -109,6 +109,38 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
       return status(204);
     },
     { params: t.Object({ id: t.String({ format: "uuid" }) }), detail: { summary: "Remove an unused invite" } },
+  )
+  /**
+   * Every trainer's clients, read-only: the platform's shape, not anyone's
+   * client notes — no client contact details, goals, limitations or 1RMs.
+   */
+  .get(
+    "/clients",
+    async () => {
+      const last = db
+        .select({ clientId: sessionLogs.clientId, at: max(sessionLogs.date).as("last_at") })
+        .from(sessionLogs)
+        .groupBy(sessionLogs.clientId)
+        .as("last");
+      const rows = await db
+        .select({ client: clients, trainer: trainers, lastSessionAt: last.at })
+        .from(clients)
+        .innerJoin(trainers, eq(trainers.id, clients.trainerId))
+        .leftJoin(last, eq(last.clientId, clients.id))
+        .orderBy(asc(trainers.name), asc(clients.name));
+      return {
+        clients: rows.map(({ client: c, trainer: t, lastSessionAt }) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          experience: c.experience ?? null,
+          clientSince: c.startedOn ?? c.createdAt.toISOString().slice(0, 10),
+          lastSessionAt: lastSessionAt ?? null,
+          trainer: { id: t.id, name: t.name, access: accessOf(t) as "invited" | "active" | "disabled" },
+        })),
+      };
+    },
+    { detail: { summary: "List every trainer's clients (read-only directory)" } },
   )
   .get("/llm-stats", () => datasetStats(), {
     detail: { summary: "LLM dataset counts: final calls by purpose and label, attempts by status, feedback, pairs" },
