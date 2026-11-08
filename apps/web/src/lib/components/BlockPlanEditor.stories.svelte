@@ -25,7 +25,7 @@
       { week: 1, directive: 'base' },
       { week: 2, directive: '+volume', target: { metric: 'overall_volume', deltaPercent: 5 } },
       { week: 3, directive: '+intensity' },
-      { week: 4, directive: 'deload', target: { metric: 'overall_volume', deltaPercent: -40 } },
+      { week: 4, directive: 'deload', target: { metric: 'overall_volume', deltaPercent: -55 } },
     ],
   };
   const noop = () => {};

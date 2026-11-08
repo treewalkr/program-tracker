@@ -2,6 +2,7 @@ import {
   aiDraftToDiffSource,
   cardioBehindSignal,
   chainSetCounts,
+  DELOAD_RULES,
   computeSignals,
   diffRowsToText,
   diffSources,
@@ -88,7 +89,8 @@ const seedTemplates: InstructionTemplateDto[] = [
     id: "tpl-block-structure",
     name: "Block structure conventions",
     content:
-      "Steps:\n- 4-week blocks: 3 accumulation weeks, 1 deload week at ~60% volume.\n- Each session: 2–4 working sets per main lift.\n- Order: main compound first, accessories after, core last.",
+      `Steps:\n- 4-week blocks: 3 accumulation weeks, then 1 deload week: ${DELOAD_RULES}.\n` +
+      "- Each session: 2–4 working sets per main lift.\n- Order: main compound first, accessories after, core last.",
     updatedAt: "2026-09-18T14:30:00Z",
   },
   {
@@ -106,7 +108,7 @@ const seedPreferences: PreferencesDto[] = [
     clientId: null,
     clientName: null,
     document:
-      "Rules:\n- Prefer free-weight compound movements first in every session; machines only as accessories.\n- Cap main-lift top sets at RPE 8; progress by 2.5 kg when all target reps are hit.\n- 4-week blocks: 3 accumulation weeks, then a deload at ~60% volume.",
+      `Rules:\n- Prefer free-weight compound movements first in every session; machines only as accessories.\n- Cap main-lift top sets at RPE 8; progress by 2.5 kg when all target reps are hit.\n- 4-week blocks: 3 accumulation weeks, then a deload week: ${DELOAD_RULES}.`,
     providerId: "zai",
     model: "glm-5.3-flash",
     updatedAt: "2026-10-20T08:00:00Z",

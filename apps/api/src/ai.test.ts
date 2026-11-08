@@ -13,7 +13,7 @@ import {
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import { AiProgramDraft, ProgramWeeksDocument } from "@pt/shared";
+import { AiProgramDraft, DELOAD_RULES, ProgramWeeksDocument } from "@pt/shared";
 
 describe("extractJsonObject", () => {
   test("passes through clean JSON", () => {
@@ -118,6 +118,7 @@ describe("buildGenerationMessages", () => {
       expect(sys).toContain("Cardio is separate");
       expect(sys).not.toContain("Number of sessions must equal");
       expect(sys).not.toContain("**Day 1**");
+      expect(sys).toContain(`A deload week means: ${DELOAD_RULES}.`);
     }
     expect(systems[3]).toContain("Keep the current week's sessions in the same order");
   });

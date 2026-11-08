@@ -26,7 +26,7 @@
       { week: 3, directive: '+intensity', target: { metric: 'intensity', deltaPercent: 2.5 }, note: 'Hold volume, nudge top-set load ~2.5%.' },
       { week: 4, directive: '+volume', target: { metric: 'overall_volume', deltaPercent: 5 }, note: 'Second volume wave.' },
       { week: 5, directive: '+intensity', target: { metric: 'intensity', deltaPercent: 2.5 }, note: 'Heaviest week of the block.' },
-      { week: 6, directive: 'deload', target: { metric: 'overall_volume', deltaPercent: -40 }, note: 'Cut sets ~40%, arrive fresh.' },
+      { week: 6, directive: 'deload', target: { metric: 'overall_volume', deltaPercent: -55 }, note: 'Half the sets, loads −10%, arrive fresh.' },
     ],
   };
 </script>

@@ -12,6 +12,7 @@ import {
   validatePlanWeek,
   weekTargetLabel,
 } from "./draftReview";
+import { DELOAD_VOLUME_DELTA_PERCENT } from "@pt/shared";
 import type { AiDraftDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 const plan: ProgramPhasingDto = {
@@ -69,6 +70,7 @@ describe("block plan helpers", () => {
     expect(n).toEqual({ phase: "acc", nextPhase: null, plannedWeeks: 1, weeks: [{ week: 1, directive: "base" }] });
     const d = defaultPlan(4);
     expect(d.weeks!.map((w) => w.directive)).toEqual(["base", "+volume", "+volume", "deload"]);
+    expect(d.weeks![3].target).toEqual({ metric: "overall_volume", deltaPercent: DELOAD_VOLUME_DELTA_PERCENT });
   });
 });
 

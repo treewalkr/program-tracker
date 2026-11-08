@@ -1,4 +1,5 @@
 import {
+  DELOAD_RULES,
   EXERCISE_ROLE_INFO,
   EXERCISE_ROLES,
   cardioLabel,
@@ -16,6 +17,9 @@ import {
   type NoteAnchor,
   type PreferenceSignal,
 } from "@pt/shared";
+
+/** The shared deload definition (deload.ts), so drafted deload weeks match the program-page button. */
+const DELOAD_RULE = `- A deload week means: ${DELOAD_RULES}.`;
 
 export interface ClientContext {
   name: string;
@@ -268,6 +272,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    DELOAD_RULE,
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
@@ -407,6 +412,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Balance every session and the week across movement patterns and functional movements: roughly match push volume (vertical + horizontal) with pull volume, and knee-dominant with hip-dominant work; vary functional movements across the week. rationale must state how the block is balanced across patterns and functional movements, and why.",
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    DELOAD_RULE,
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
@@ -520,6 +526,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
+    DELOAD_RULE,
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     WEEK_STABILITY_RULE,
@@ -596,6 +603,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
+    DELOAD_RULE,
     "- Spread volume across the trainer's five kinetic chains: use the chain balance context to give neglected chains work (usually accessories) without regressing the main lifts.",
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     WEEK_STABILITY_RULE,

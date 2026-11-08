@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cardioBehindSignal, computeSignals, type SignalLog, type SignalProgram } from "./index";
+import { cardioBehindSignal, computeSignals, DELOAD_RULES, type SignalLog, type SignalProgram } from "./index";
 
 const owner = { programId: "pg-1", clientId: "cl-1" };
 
@@ -262,6 +262,16 @@ describe("week-ending signal", () => {
       activatedAt: new Date(now - 12 * 86400_000).toISOString(),
     };
     expect(computeSignals(inactiveProgram, [], () => "Bench", null, now)).toHaveLength(0);
+  });
+
+  test("deload-week describes the shared deload rule (F12)", () => {
+    const now = new Date("2026-10-20T00:00:00.000Z").getTime();
+    const program: SignalProgram = { ...baseProgram, activatedAt: new Date(now - 23 * 86400_000).toISOString() };
+    const sig = computeSignals(program, [], () => "Bench", null, now).find((s) => s.kind === "deload-week");
+    expect(sig).toBeDefined();
+    expect(sig!.evidence).toContain(DELOAD_RULES);
+    expect(sig!.prefillNote).toContain(DELOAD_RULES);
+    expect(`${sig!.evidence} ${sig!.prefillNote}`).not.toContain("60%");
   });
 });
 

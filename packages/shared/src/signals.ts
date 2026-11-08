@@ -1,5 +1,6 @@
 import { estimate1rm, weekSessions } from "./domain";
 import type { CardioTarget } from "./domain";
+import { DELOAD_RULES } from "./deload";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
 import { blockPulse, blockWeekOfDate, daysIntoBlock, localDateOf, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
@@ -184,8 +185,8 @@ export function computeSignals(
         kind: "deload-week",
         severity: "info",
         title: `Deload week — week ${week} of ${ph.plannedWeeks}`,
-        evidence: `Planned light week for “${program.name}”. Run ~60% of usual volume, no AMRAP sets.`,
-        prefillNote: `This week is a planned deload (week ${week}/${ph.plannedWeeks}). Draft a light deload session set: ~60% volume, RPE cap 6, no AMRAP sets.`,
+        evidence: `Planned light week for “${program.name}”. Deload: ${DELOAD_RULES}.`,
+        prefillNote: `This week is a planned deload (week ${week}/${ph.plannedWeeks}). Deload the week: ${DELOAD_RULES}.`,
         templateHint: "tpl-block-structure",
       });
     } else if (week >= ph.plannedWeeks) {

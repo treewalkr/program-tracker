@@ -1,4 +1,5 @@
 import {
+  DELOAD_VOLUME_DELTA_PERCENT,
   weekTargetLabel,
   planChanges,
   placementConflicts,
@@ -55,7 +56,7 @@ export function normalizePlan(ph: ProgramPhasingDto): ProgramPhasingDto {
   };
 }
 
-/** Starting plan when a draft has none: base → +volume … → deload. */
+/** Starting plan when a draft has none: base → +volume … → deload (the shared deload volume cut). */
 export function defaultPlan(weeks = 4): ProgramPhasingDto {
   return normalizePlan({
     phase: "accumulation",
@@ -65,7 +66,7 @@ export function defaultPlan(weeks = 4): ProgramPhasingDto {
       i === 0
         ? { week: 1, directive: "base" as const }
         : i === weeks - 1
-          ? { week: i + 1, directive: "deload" as const, target: { metric: "overall_volume" as const, deltaPercent: -40 } }
+          ? { week: i + 1, directive: "deload" as const, target: { metric: "overall_volume" as const, deltaPercent: DELOAD_VOLUME_DELTA_PERCENT } }
           : { week: i + 1, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 5 } }
     ),
   });
