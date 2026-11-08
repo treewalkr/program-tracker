@@ -207,8 +207,10 @@
                 </div>
                 <div class="subtle">{t.email}</div>
                 <div class="meta">
-                  {lastSeen(t)} · {t.clientCount}
-                  {t.clientCount === 1 ? "client" : "clients"}
+                  {lastSeen(t)} ·
+                  {#if t.clientCount > 0}
+                    <a href={`/admin/clients?trainer=${t.id}`}>{t.clientCount} {t.clientCount === 1 ? "client" : "clients"}</a>
+                  {:else}0 clients{/if}
                 </div>
                 {#if rowError?.id === t.id}<p class="err" role="alert">{rowError.text}</p>{/if}
               </div>
