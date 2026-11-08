@@ -2,10 +2,10 @@
   import { untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { CLIENT_STATUSES, EXPERIENCE_LABEL, type ClientStatus } from "@pt/shared";
+  import { CLIENT_STATUSES, type ClientStatus } from "@pt/shared";
   import { apiMode } from "$lib/api";
   import { adminApi, type AdminClient } from "$lib/api/admin";
-  import { filterClients, lastSessionLabel, localToday, sampleAdminClients, shortDay, trainersOf } from "$lib/adminClients";
+  import { filterClients, lastSessionLabel, localToday, programmeLabel, sampleAdminClients, shortDay, trainersOf } from "$lib/adminClients";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -21,6 +21,8 @@
   const demo = $derived(page.url.searchParams.has("demo"));
   const useSample = $derived(apiMode === "mock" || demo);
   const today = localToday();
+  /** Detail link for a client, keeping `?demo` so sample data stays sample. */
+  const hrefOf = (id: string) => `/admin/clients/${encodeURIComponent(id)}${demo ? "?demo" : ""}`;
 
   let rows = $state<AdminClient[] | null>(null);
   let loadError = $state<string | null>(null);
@@ -130,14 +132,14 @@
     <section class="panel">
       <table class="sheet roster">
         <thead>
-          <tr><th>Client</th><th>Trainer</th><th>Status</th><th>Experience</th><th>Client since</th><th>Last session</th></tr>
+          <tr><th>Client</th><th>Trainer</th><th>Status</th><th>Programme</th><th>Client since</th><th>Last session</th></tr>
         </thead>
         <tbody>
           {#each shown as c (c.id)}
             {@const last = lastSessionLabel(c.lastSessionAt, today)}
             <tr class:dim={c.status !== "active"}>
               <td>
-                <div class="who"><Avatar name={c.name} /><span class="name">{c.name}</span></div>
+                <div class="who"><Avatar name={c.name} /><a class="name" href={hrefOf(c.id)}>{c.name}</a></div>
               </td>
               <td class="trainer" class:off={c.trainer.access === "disabled"}>
                 <span class="m-label">Trainer</span>
@@ -145,9 +147,12 @@
                 {#if c.trainer.access === "disabled"}<Pill tone="bad">Disabled</Pill>{/if}
               </td>
               <td><span class="m-label">Status</span><StatusPill status={c.status} /></td>
-              <td>
-                <span class="m-label">Experience</span>
-                {#if c.experience}{EXPERIENCE_LABEL[c.experience].label}{:else}<span class="subtle">—</span>{/if}
+              <td class="prog">
+                <span class="m-label">Programme</span>
+                {#if c.programme}
+                  <span class="prog-name">{c.programme.name}</span>
+                  <span class="prog-week tnum" class:over={c.programme.over}>{programmeLabel(c.programme)}</span>
+                {:else}<span class="subtle">—</span>{/if}
               </td>
               <td class="tnum"><span class="m-label">Client since</span>{shortDay(c.clientSince, today)}</td>
               <td class="tnum last {last.tone}">
@@ -170,8 +175,12 @@
   .count { margin-left: 4px; }
   .who { display: flex; align-items: center; gap: 10px; }
   .who :global(.avatar) { width: 24px; height: 24px; font-size: 10px; flex: none; }
-  .name { font-weight: 600; }
+  .name { font-weight: 600; color: var(--ink); }
+  .name:hover { color: var(--blue); text-decoration: underline; }
   .roster tr.dim td, .roster tr.dim .name { color: var(--muted); }
+  .prog-name { margin-right: 6px; }
+  .prog-week { color: var(--muted); font-size: 12px; }
+  .prog-week.over { color: var(--warn); }
   .trainer { white-space: nowrap; }
   .trainer.off { color: var(--muted); }
   .tnum { font-variant-numeric: tabular-nums; white-space: nowrap; }
