@@ -96,7 +96,7 @@ export const clients = pgTable("clients", {
     .notNull()
     .references(() => trainers.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  email: text("email").notNull(),
+  email: text("email"),
   status: text("status").$type<ClientStatus>().notNull().default("active"),
   goals: text("goals"),
   limitations: text("limitations"),
