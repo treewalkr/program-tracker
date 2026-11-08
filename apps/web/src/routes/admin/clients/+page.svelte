@@ -143,15 +143,19 @@
               </td>
               <td class="trainer" class:off={c.trainer.access === "disabled"}>
                 <span class="m-label">Trainer</span>
-                {c.trainer.name}
-                {#if c.trainer.access === "disabled"}<Pill tone="bad">Disabled</Pill>{/if}
+                <span class="trainer-val">
+                  <span>{c.trainer.name}</span>
+                  {#if c.trainer.access === "disabled"}<Pill tone="bad">Disabled</Pill>{/if}
+                </span>
               </td>
               <td><span class="m-label">Status</span><StatusPill status={c.status} /></td>
               <td class="prog">
                 <span class="m-label">Programme</span>
                 {#if c.programme}
-                  <span class="prog-name">{c.programme.name}</span>
-                  <span class="prog-week tnum" class:over={c.programme.over}>{programmeLabel(c.programme)}</span>
+                  <span class="prog-val">
+                    <span class="prog-name" title={c.programme.name}>{c.programme.name}</span>
+                    <span class="prog-week tnum" class:over={c.programme.over}>{programmeLabel(c.programme)}</span>
+                  </span>
                 {:else}<span class="subtle">—</span>{/if}
               </td>
               <td class="tnum"><span class="m-label">Client since</span>{shortDay(c.clientSince, today)}</td>
@@ -175,27 +179,34 @@
   .count { margin-left: 4px; }
   .who { display: flex; align-items: center; gap: 10px; }
   .who :global(.avatar) { width: 24px; height: 24px; font-size: 10px; flex: none; }
-  .name { font-weight: 600; color: var(--ink); }
+  .name { font-weight: 600; color: var(--ink); white-space: nowrap; }
   .name:hover { color: var(--blue); text-decoration: underline; }
   .roster tr.dim td, .roster tr.dim .name { color: var(--muted); }
-  .prog-name { margin-right: 6px; }
+  .prog { min-width: 160px; }
+  .prog-val { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 260px; }
+  /* Long programme names stop at two lines; the full name is on hover. */
+  .prog-name { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .prog-week { color: var(--muted); font-size: 12px; }
   .prog-week.over { color: var(--warn); }
-  .trainer { white-space: nowrap; }
+  .trainer-val { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
   .trainer.off { color: var(--muted); }
   .tnum { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .last.none { color: var(--muted); }
   .last.dormant { color: var(--warn); }
   .m-label { display: none; }
-  @media (max-width: 700px) {
+  /* Sized to the room beside the sidebar, not the window: the six columns
+     need ~700px, which the sidebar takes away long before a phone width. */
+  @container main (max-width: 760px) {
     .search { width: 100%; }
     .filters .select { flex: 1; }
     .roster thead { display: none; }
     .roster, .roster tbody, .roster tr, .roster td { display: block; width: 100%; }
     .roster tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
     .roster tr:last-child { border-bottom: none; }
-    .roster td { padding: 2px 0; border: none; white-space: normal; display: flex; align-items: center; gap: 8px; }
-    .roster td:first-child { margin-bottom: 4px; }
-    .m-label { display: inline; min-width: 96px; color: var(--muted); font-size: 12px; }
+    .roster td { padding: 2px 0; border: none; white-space: normal; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .roster td:first-child { margin-bottom: 4px; align-items: center; }
+    .roster td > :not(.m-label) { min-width: 0; }
+    .prog-val { max-width: none; }
+    .m-label { display: inline; flex: none; width: 96px; color: var(--muted); font-size: 12px; }
   }
 </style>
