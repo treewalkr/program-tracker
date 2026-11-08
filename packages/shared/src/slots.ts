@@ -377,8 +377,9 @@ export interface ProposalChangeRef {
 /**
  * Changes the proposal did not ask for. A proposal change at (day, slot)
  * covers every swap/rx/removed change at that day + beforeSlot; each "add"
- * covers one "added" change on its day. Session and plan changes are never
- * covered; neither are cardio changes (proposals address exercise slots).
+ * covers one "added" change on its day; an "edit" with slot null (a cardio
+ * session edit) covers that day's cardio change. Session and plan changes
+ * are never covered.
  */
 export function unproposedChanges(changes: SlotChange[], proposal: { changes: ProposalChangeRef[] }): SlotChange[] {
   const covered = new Set(
@@ -386,8 +387,10 @@ export function unproposedChanges(changes: SlotChange[], proposal: { changes: Pr
   );
   const addsLeft = new Map<number, number>();
   for (const p of proposal.changes) if (p.kind === "add") addsLeft.set(p.day, (addsLeft.get(p.day) ?? 0) + 1);
+  const cardioDays = new Set(proposal.changes.filter((p) => p.kind === "edit" && p.slot == null).map((p) => p.day));
   return changes.filter((c) => {
-    if (c.kind === "session" || c.kind === "plan" || c.kind === "cardio") return true;
+    if (c.kind === "session" || c.kind === "plan") return true;
+    if (c.kind === "cardio") return !cardioDays.has(c.day);
     if (c.kind === "added") {
       const left = addsLeft.get(c.day) ?? 0;
       if (left > 0) {

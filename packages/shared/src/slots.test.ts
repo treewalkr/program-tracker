@@ -143,3 +143,13 @@ test("F04: an exercise-only proposal covers none of the off-proposal changes", (
   const extra = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 1, slot: 2, kind: "edit" }] });
   expect(extra.map((c) => c.kind).sort()).toEqual(["cardio", "plan", "plan", "rx", "session"]);
 });
+
+test("a cardio edit (slot null) covers that day's cardio change only", () => {
+  const after = v1();
+  after.sessions[1] = cardio("Tempo Ride", { durationMin: 40 });
+  after.phasing = phasing(false);
+  const extra = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 2, slot: null, kind: "edit" }] });
+  expect(extra.map((c) => c.kind)).toEqual(["plan"]);
+  const wrongDay = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 1, slot: null, kind: "edit" }] });
+  expect(wrongDay.map((c) => c.kind)).toEqual(["cardio", "plan"]);
+});

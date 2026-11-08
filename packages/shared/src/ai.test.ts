@@ -250,6 +250,17 @@ describe("chat proposals", () => {
     // Plain mode leaves phasing and cardio alone
     expect(mockApplyProposal(withExtras, proposal).phasing).toEqual(withExtras.phasing);
   });
+  test("cardio proposals: slot null edits a cardio session; mock adds 5 min", () => {
+    const c = { day: 2, slot: null, kind: "edit" as const, from: "Tempo Ride", to: "Tempo Ride", detail: "35 min · Z3" };
+    expect(ChatProposal.safeParse({ summary: "s", changes: [c] }).success).toBe(true);
+    expect(ChatProposal.safeParse({ summary: "s", changes: [{ ...c, kind: "swap" }] }).success).toBe(false);
+    const withCardio: AiProgramDraft = {
+      ...structuredClone(draft),
+      sessions: [structuredClone(draft.sessions[0]), { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] }],
+    };
+    expect(mockApplyProposal(withCardio, { summary: "s", changes: [c] }).sessions[1].cardio!.durationMin).toBe(35);
+    expect(proposalToFeedback("longer ride", { summary: "s", changes: [c] })).toContain("- Day 2, cardio session (edit): Tempo Ride → Tempo Ride — 35 min · Z3");
+  });
   test("proposalToFeedback lists each change", () => {
     const text = proposalToFeedback("swap it", { summary: "s", changes: [{ day: 3, slot: 2, kind: "swap", from: "Front Squat", to: "Paused Back Squat", detail: "5×5 @RPE 7–8 · rest 180s" }] });
     expect(text).toContain("- Day 3, slot 2 (swap): Front Squat → Paused Back Squat — 5×5 @RPE 7–8 · rest 180s");

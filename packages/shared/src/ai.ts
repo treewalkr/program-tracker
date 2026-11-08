@@ -276,13 +276,19 @@ export function draftNoticeText(d: AiProgramDraft): string {
 export const ChatProposalChange = z.object({
   /** 1-based session number in the draft being changed. */
   day: z.number().int().min(1),
-  /** 1-based exercise number in that session; null only for kind "add". */
+  /**
+   * 1-based exercise number in that session; null for kind "add", and for an
+   * "edit" of a cardio session (its prescription — cardio has no exercises).
+   */
   slot: z.number().int().min(1).nullable(),
   kind: z.enum(["swap", "edit", "add", "remove"]),
   from: z.string().max(200).nullable(),
   to: z.string().max(200).nullable(),
-  /** Prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s". */
+  /** Prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s" or "35 min · Z2 · RPE 4". */
   detail: z.string().max(300),
+}).refine((c) => c.slot != null || c.kind === "add" || c.kind === "edit", {
+  message: 'slot may be null only for "add" or a cardio "edit"',
+  path: ["slot"],
 });
 export type ChatProposalChange = z.infer<typeof ChatProposalChange>;
 
@@ -314,7 +320,8 @@ export function mockProposal(draft: AiProgramDraft, message: string): ChatPropos
 }
 
 /**
- * Mock build: applies each "edit" as +15s rest on that slot; other kinds are ignored.
+ * Mock build: applies each "edit" as +15s rest on that slot (+5 min for a cardio
+ * session edit, slot null); other kinds are ignored.
  * `rogue` also makes the off-proposal edits a live model made in F04 (next block →
  * "deload", last week's target dropped, first cardio session one zone harder), so
  * tests can prove the build scope reverts them.
@@ -331,7 +338,12 @@ export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal,
     if (cardio) cardio.hrZone = Math.min(5, (cardio.hrZone ?? 2) + 1);
   }
   for (const c of proposal.changes) {
-    if (c.kind !== "edit" || c.slot == null) continue;
+    if (c.kind !== "edit") continue;
+    if (c.slot == null) {
+      const cardio = next.sessions[c.day - 1]?.cardio;
+      if (cardio) cardio.durationMin = Math.min(300, (cardio.durationMin ?? 30) + 5);
+      continue;
+    }
     const ex = next.sessions[c.day - 1]?.exercises[c.slot - 1];
     if (!ex) continue;
     ex.prescribedSets = ex.prescribedSets.map((s) => ({ ...s, restSeconds: (s.restSeconds ?? 60) + 15 }));
@@ -342,7 +354,7 @@ export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal,
 /** Revision feedback text that turns an approved proposal into a draft. */
 export function proposalToFeedback(message: string, proposal: ChatProposal): string {
   const lines = proposal.changes.map((c) => {
-    const where = c.slot == null ? `Day ${c.day}, new slot` : `Day ${c.day}, slot ${c.slot}`;
+    const where = c.slot != null ? `Day ${c.day}, slot ${c.slot}` : c.kind === "edit" ? `Day ${c.day}, cardio session` : `Day ${c.day}, new slot`;
     return `- ${where} (${c.kind}): ${c.from ?? "—"} → ${c.to ?? "removed"} — ${c.detail}`;
   });
   return [

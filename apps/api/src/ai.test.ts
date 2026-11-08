@@ -1031,6 +1031,11 @@ describe("draftSlotsText", () => {
     expect(text).toContain("  slot 1 ");
     expect(text).not.toMatch(/\bD\d/);
   });
+
+  test("lists each cardio session's current prescription for cardio proposals", () => {
+    const text = draftSlotsText({ ...draft, sessions: [draftLift("Lower"), draftCardio("Zone 2 row")] });
+    expect(text).toContain("#2 Cardio 1 · Zone 2 row\n  cardio Row · 25 min");
+  });
 });
 
 describe("example library few-shot", () => {

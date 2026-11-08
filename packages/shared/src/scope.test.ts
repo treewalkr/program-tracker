@@ -138,3 +138,15 @@ test("a draft without phasing stays without phasing", () => {
   expect("phasing" in draft).toBe(false);
   expect(discarded.map((c) => c.kind)).toEqual(["plan"]);
 });
+
+test("a proposed cardio edit takes the built cardio prescription", () => {
+  const built = parent();
+  built.sessions[2].cardio = { modality: "Stationary Bike", durationMin: 40, hrZone: 3, targetRpe: 4 };
+  const { draft, discarded } = scopeToProposal(
+    parent(),
+    built,
+    proposal([{ day: 3, slot: null, kind: "edit", from: "Tempo Ride", to: "Tempo Ride", detail: "40 min · Z3" }])
+  );
+  expect(draft.sessions[2].cardio!.durationMin).toBe(40);
+  expect(discarded).toEqual([]);
+});

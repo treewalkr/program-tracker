@@ -1,6 +1,7 @@
 import {
   EXERCISE_ROLE_INFO,
   EXERCISE_ROLES,
+  cardioLabel,
   cardioUnitLabel,
   type AiProgramDraft,
   type CardioTarget,
@@ -351,11 +352,11 @@ export interface RevisionContext extends GenerationContext {
 }
 
 /** Output schema spec for proposal turns (propose → build). */
-const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null only for kind "add"), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s")}]} | null}`;
+const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4")}]} | null}`;
 
 const PROPOSAL_RULES = [
   "- This is a CHAT TURN. You do NOT write a new draft in this turn.",
-  '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
+  '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. To change a cardio session (modality, duration, zone, intensity, distance, RPE), add one "edit" with that session\'s day, slot null and the full new cardio prescription in "detail". Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
 ];
 
 /** Numbered slot listing the proposal contract refers to. */
@@ -368,6 +369,7 @@ export function draftSlotsText(d: AiProgramDraft): string {
       const rows = s.exercises.map(
         (e, ei) => `  slot ${ei + 1} ${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`
       );
+      if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
       return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
     })
     .join("\n");
