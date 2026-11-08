@@ -255,6 +255,16 @@ export const CardioTarget = z.object({
 });
 export type CardioTarget = z.infer<typeof CardioTarget>;
 
+/** A client's tested or trusted 1RM for one exercise, with the day it was set. */
+export const OneRepMax = z.object({
+  kg: z.number().positive().max(600),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+});
+export type OneRepMax = z.infer<typeof OneRepMax>;
+/** exerciseId → 1RM. Drives %1RM prescriptions (load.ts `resolveLoadKg`). */
+export const OneRepMaxes = z.record(z.string().min(1), OneRepMax);
+export type OneRepMaxes = z.infer<typeof OneRepMaxes>;
+
 export const Client = z.object({
   id: z.string().uuid(),
   trainerId: z.string().uuid(),
@@ -289,6 +299,8 @@ export const Client = z.object({
     .optional(),
   /** ISO weekday the long run is pinned to; null/absent = placer decides. */
   longRunDay: z.number().int().min(1).max(7).nullable().optional(),
+  /** Current 1RMs per exercise; null/absent = none recorded. */
+  oneRepMaxes: OneRepMaxes.nullable().optional(),
   createdAt: z.string(),
 });
 export type Client = z.infer<typeof Client>;
