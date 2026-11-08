@@ -1,4 +1,4 @@
-import type { SetType } from "@pt/shared";
+import { resolveLoadKg, type PrescribedSet, type SetType } from "@pt/shared";
 
 /**
  * A log-sheet cell. Svelte number-input binds give a number, or null/undefined
@@ -238,6 +238,23 @@ export function asPrescribed(
   const weight = ctx.swapped ? null : p.targetWeightKg ?? (ctx.bodyweight ? null : ctx.last?.weightKg ?? null);
   const count = p.durationSeconds ?? p.repsMin ?? p.reps;
   return { weight, reps: count > 0 ? count : null, rpe: p.targetRpe ?? null };
+}
+
+/**
+ * The logger's view of one prescribed set: a %1RM target resolved to kg
+ * against the client's 1RM (else the kg fallback), an AMRAP's stop RPE as its
+ * RPE, and RIR alone read as RPE 10 − RIR.
+ */
+export function prescriptionOf(ps: PrescribedSet, oneRepMaxKg: number | null | undefined): Prescription {
+  const rpe = ps.amrap ? (ps.stopRpe ?? ps.targetRpe) : (ps.targetRpe ?? (ps.targetRir != null ? 10 - ps.targetRir : undefined));
+  return {
+    reps: ps.reps,
+    repsMin: ps.repsMin ?? null,
+    amrap: ps.amrap,
+    durationSeconds: ps.durationSeconds ?? null,
+    targetWeightKg: resolveLoadKg(ps, oneRepMaxKg),
+    targetRpe: rpe ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------

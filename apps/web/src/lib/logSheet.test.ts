@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   asPrescribed,
+  prescriptionOf,
   blocksOf,
   isBlank,
   isSwapped,
@@ -223,6 +224,27 @@ describe("asPrescribed (F14)", () => {
 
   test("an extra set has no prescription", () => {
     expect(asPrescribed(null, { bodyweight: false, swapped: false, last: null })).toEqual({ weight: null, reps: null, rpe: null });
+  });
+});
+
+describe("prescriptionOf (F22)", () => {
+  const ctx = { bodyweight: false, swapped: false, last: { date: "x", weightKg: 95, reps: 5, rpe: null } };
+
+  test("a %1RM set logs its resolved kg", () => {
+    const rx = prescriptionOf({ setNumber: 1, type: "working", reps: 5, amrap: false, percent1rm: 75 }, 140);
+    expect(rx.targetWeightKg).toBe(105);
+    expect(asPrescribed(rx, ctx).weight).toBe(105);
+  });
+
+  test("without the 1RM a %1RM set falls back like any unloaded set (the slot's last load)", () => {
+    const rx = prescriptionOf({ setNumber: 1, type: "working", reps: 5, amrap: false, percent1rm: 75 }, null);
+    expect(asPrescribed(rx, ctx).weight).toBe(95);
+  });
+
+  test("AMRAP logs its stop RPE; RIR alone logs as 10 − RIR", () => {
+    expect(prescriptionOf({ setNumber: 1, type: "working", reps: 0, amrap: true, stopRpe: 9 }, null).targetRpe).toBe(9);
+    expect(prescriptionOf({ setNumber: 1, type: "working", reps: 5, amrap: false, targetRir: 2 }, null).targetRpe).toBe(8);
+    expect(prescriptionOf({ setNumber: 1, type: "working", reps: 5, amrap: false, targetRpeMin: 7, targetRpe: 8 }, null).targetRpe).toBe(8);
   });
 });
 

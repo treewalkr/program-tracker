@@ -5,7 +5,7 @@
   import { fmtSet } from "$lib/format";
   import { localIso } from "$lib/overview";
   import type { ClientDto, ExerciseDto, ProgramDto, ProgramSessionDto, SessionLogDto } from "$lib/api/types";
-  import { sessionTag, sessionsByWeekday, weekOf, type ExerciseRole } from "@pt/shared";
+  import { oneRepMaxKg, sessionTag, sessionsByWeekday, weekOf, type ExerciseRole } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -18,6 +18,7 @@
   import LogStepper from "$lib/components/LogStepper.svelte";
   import {
     asPrescribed,
+    prescriptionOf,
     blocksOf,
     cellNumber,
     isBlank,
@@ -164,14 +165,7 @@
     rows =
       session?.exercises.flatMap((e) =>
         e.prescribedSets.map((ps): Row => {
-          const rx: Prescription = {
-            reps: ps.reps,
-            repsMin: ps.repsMin ?? null,
-            amrap: ps.amrap,
-            durationSeconds: ps.durationSeconds ?? null,
-            targetWeightKg: ps.targetWeightKg ?? null,
-            targetRpe: ps.targetRpe ?? null,
-          };
+          const rx: Prescription = prescriptionOf(ps, oneRepMaxKg(client?.oneRepMaxes, e.exerciseId));
           const last = lastSets.get(`${slots.get(e.id)}#${ps.setNumber}`) ?? null;
           return {
             key: `${e.id}-${ps.setNumber}`,
@@ -367,7 +361,7 @@
     l == null ? "—" : `${l.weightKg != null ? `${l.weightKg} × ` : ""}${l.reps}${timed ? " s" : ""}`;
   const fmtRx = (r: Row) =>
     r.rx
-      ? `${fmtSet({ reps: r.rx.reps, repsMin: r.rx.repsMin ?? undefined, amrap: r.rx.amrap, durationSeconds: r.rx.durationSeconds ?? undefined, targetWeightKg: r.rx.targetWeightKg })}${r.rx.targetRpe != null ? ` @ ${r.rx.targetRpe}` : ""}`
+      ? `${fmtSet({ reps: r.rx.reps, repsMin: r.rx.repsMin ?? undefined, amrap: r.rx.amrap, durationSeconds: r.rx.durationSeconds ?? undefined, targetWeightKg: r.rx.targetWeightKg, targetRpe: r.rx.targetRpe })}${r.rx.targetRpe != null && !r.rx.amrap ? ` @ ${r.rx.targetRpe}` : ""}`
       : "—";
   const fmtDay = (iso: string) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
