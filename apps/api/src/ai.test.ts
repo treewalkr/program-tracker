@@ -812,6 +812,17 @@ describe("draftToWeeks", () => {
     expect(weeks[1].sessions.find((s) => s.name === "Heavy lower")!.weekday).toBe(dayOf("Heavy lower"));
   });
 
+  test("the mock draft suggests weekdays that a Mon-Wed-Fri client keeps", async () => {
+    const { MOCK_DRAFT } = await import("./ai/mock");
+    expect(AiProgramDraft.safeParse(MOCK_DRAFT).success).toBe(true);
+    const { weeks } = draftToWeeks(MOCK_DRAFT, catalog, 1, [1, 3, 5]);
+    expect(weeks[0].sessions.map((s) => [s.name, s.weekday])).toEqual([
+      ["Day A — Lower", 1],
+      ["Day B — Upper", 5],
+      ["Cardio 1", 3],
+    ]);
+  });
+
   test("a weekday outside 1–7 doesn't fail the draft", () => {
     const session = { name: "A", weekday: 9, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] };
     const parsed = AiProgramDraft.safeParse({ ...draft, sessions: [session] });

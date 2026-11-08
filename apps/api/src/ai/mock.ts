@@ -3,6 +3,8 @@ import { mockChatReply, type AiProgramDraft } from "@pt/shared";
 /**
  * Canned draft for the "mock" provider — keyless pipeline testing and UI dev.
  * Uses exerciseName refs only, so approve exercises the create-custom path.
+ * Suggests Mon / Fri lifting and a Wednesday ride, like a real draft would;
+ * placement keeps them for Mon-Wed-Fri clients and re-places them otherwise.
  */
 export const MOCK_DRAFT: AiProgramDraft = {
   name: "Mock Block — Progressive Overload",
@@ -23,6 +25,7 @@ export const MOCK_DRAFT: AiProgramDraft = {
   sessions: [
     {
       name: "Day A — Lower",
+      weekday: 1,
       kind: "lifting",
       exercises: [
         {
@@ -46,6 +49,7 @@ export const MOCK_DRAFT: AiProgramDraft = {
     },
     {
       name: "Day B — Upper",
+      weekday: 5,
       kind: "lifting",
       exercises: [
         {
@@ -68,6 +72,7 @@ export const MOCK_DRAFT: AiProgramDraft = {
     },
     {
       name: "Cardio 1",
+      weekday: 3,
       kind: "cardio",
       cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
       exercises: [],
