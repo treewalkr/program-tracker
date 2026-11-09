@@ -305,7 +305,7 @@
       case "scheduled":
         return `Picked ${name}: scheduled ${day}, not logged yet.`;
       case "earlier":
-        return `Picked ${name}: nothing open on ${day}, so the first open session earlier in week ${p.week}.`;
+        return `Picked ${name}: nothing open on ${day}, so the latest open session earlier in week ${p.week}.`;
       case "any-day":
         return `Picked ${name}: an any-day session not logged yet — nothing else is open in week ${p.week}.`;
       case "logged":

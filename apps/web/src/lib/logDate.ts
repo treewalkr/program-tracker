@@ -32,7 +32,7 @@ export interface DateLog {
 export type PickWhy =
   /** Placed on the date's weekday, not logged yet. */
   | "scheduled"
-  /** Nothing open that day: the first open session placed earlier in the week. */
+  /** Nothing open that day: the most recent open session placed earlier in the week. */
   | "earlier"
   /** Nothing placed is open: the first open "Any day" session. */
   | "any-day"
@@ -88,7 +88,7 @@ const isLogged = (logs: DateLog[], sessionId: string) => logs.some((l) => l.prog
 
 /**
  * The session a date most likely logs. In the week holding the date: an open
- * session placed that weekday, else the first open one placed earlier in the
+ * session placed that weekday, else the most recent open one placed earlier in the
  * week, else an open "Any day" one, else the (logged) one placed that weekday,
  * else the week's first.
  */
@@ -102,7 +102,7 @@ export function sessionForDate(program: DateProgram, logs: DateLog[], date: stri
   return (
     pick(open.find((s) => s.weekday === day), "scheduled") ??
     pick(
-      open.find((s) => {
+      open.findLast((s) => {
         const d = scheduledDate(program, logs, week, s);
         return d != null && d < date.slice(0, 10);
       }),

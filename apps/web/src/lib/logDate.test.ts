@@ -58,9 +58,9 @@ describe("sessionForDate", () => {
     expect(sessionForDate(program, [...logs, log("d1", "2026-11-07")], "2026-11-05")).toEqual({ week: 1, sessionId: "a1", why: "first" });
   });
 
-  test("an off day picks the first open session earlier in the week", () => {
-    const logs = [log("a1", "2026-11-02")];
-    expect(sessionForDate(program, logs, "2026-11-05")).toEqual({ week: 1, sessionId: "b1", why: "earlier" });
+  test("an off day picks the most recent open session earlier in the week", () => {
+    expect(sessionForDate(program, [], "2026-11-05")).toEqual({ week: 1, sessionId: "b1", why: "earlier" });
+    expect(sessionForDate(program, [log("b1", "2026-11-04")], "2026-11-05")).toEqual({ week: 1, sessionId: "a1", why: "earlier" });
   });
 
   test("a date before the anchor is week 1", () => {
