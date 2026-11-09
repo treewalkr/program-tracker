@@ -69,6 +69,19 @@ export function fmtSet(s: SetLabelInput, oneRepMaxKg?: number | null): string {
   return `${load}${reps}`;
 }
 
+/** The reps part alone ("6–8", "45s", "8+ AMRAP") — set chips put load in its own column. */
+export function repsLabel(s: SetLabelInput): string {
+  if (s.durationSeconds != null) return fmtDuration(s.durationSeconds);
+  if (s.amrap) return `${s.reps > 0 ? `${s.reps}+ ` : ""}AMRAP`;
+  return s.repsMin != null && s.repsMin !== s.reps ? `${s.repsMin}–${s.reps}` : `${s.reps}`;
+}
+
+/** The load alone: kg (resolved from %1RM when the 1RM is known) and the % it came from. */
+export function loadParts(s: SetLabelInput, oneRepMaxKg?: number | null): { kg: string | null; pct: string | null } {
+  const kg = resolveLoadKg(s, oneRepMaxKg);
+  return { kg: kg != null ? `${kg}kg` : null, pct: s.percent1rm != null ? `${s.percent1rm}%` : null };
+}
+
 /** Target RPE as "8" or "7–8"; null for AMRAP sets (their RPE is the stop, see fmtSet). */
 export function rpeLabel(s: { targetRpe?: number | null; targetRpeMin?: number | null; amrap?: boolean }): string | null {
   if (s.amrap || s.targetRpe == null) return null;

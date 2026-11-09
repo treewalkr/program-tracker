@@ -5,7 +5,7 @@
   /** `oneRepMaxKg`: the client's 1RM for this exercise, so %1RM sets show their kg. */
   /**
    * `cols`: aligned mode (session card rows). Every chip keeps the same slots
-   * — sets · effort · tempo · rest — so on a wide card the right-aligned chips
+   * — sets×reps · load · effort · tempo · rest — so on a wide card the right-aligned chips
    * line their fields up into columns. `head` renders the column labels.
    */
   let {
@@ -16,7 +16,7 @@
   }: {
     sets: PrescribedSetDto[];
     oneRepMaxKg?: number | null;
-    cols?: { tempo: boolean; rest: boolean } | null;
+    cols?: { load: boolean; tempo: boolean; rest: boolean } | null;
     head?: boolean;
   } = $props();
 
@@ -46,6 +46,7 @@
   {#if head && cols}
     <span class="setchip ghost" aria-hidden="true">
       <span class="slot s-main"><span class="sub">sets×reps</span></span>
+      {#if cols.load}<span class="slot s-load"><span class="sub">load</span></span>{/if}
       <span class="slot s-eff"><span class="sub">effort</span></span>
       {#if cols.tempo}<span class="slot s-tempo"><span class="sub">tempo</span></span>{/if}
       {#if cols.rest}<span class="slot s-rest"><span class="sub">rest</span></span>{/if}
@@ -63,8 +64,10 @@
           <span class="words">{describe(g)}</span>
         {:else}
           <span class="slot s-main">{#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}</span>
-          <span class="slot s-eff" class:none={!g.rpe && g.rir == null}>
-            {#if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>
+          {#if !cols || cols.load}<span class="slot s-load" class:none={!g.kg && !g.pct}>{#if g.kg}<span class="kg">{g.kg}</span>{#if g.pct}<span class="sub"> {g.pct}</span>{/if}{:else if g.pct}<span class="kg">{g.pct}</span>{/if}</span>{/if}
+          <span class="slot s-eff" class:none={!g.rpe && g.rir == null && g.stop == null}>
+            {#if g.stop != null}<span class="sub rpe" class:rpe-mid={g.stop >= 7}>stop @{g.stop}</span>
+            {:else if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>
             {:else if g.rir != null}<span class="sub">RIR {g.rir}</span>{/if}
           </span>
           {#if !cols || cols.tempo}<span class="slot s-tempo" class:none={!g.tempo}>{#if g.tempo}<span class="sub">· {g.tempo}</span>{/if}</span>{/if}
@@ -84,6 +87,9 @@
   }
   .count {
     font-weight: 600;
+  }
+  .kg {
+    font-weight: 500;
   }
   /* click shows the plain-words reading — the cursor says so */
   .setchip {
@@ -120,6 +126,7 @@
     .aligned { flex-direction: column; align-items: flex-end; gap: 3px; }
     .aligned .slot { display: inline-block; text-align: left; }
     .aligned .s-main { min-width: 8.5ch; }
+    .aligned .s-load { min-width: 10.5ch; }
     .aligned .s-eff { min-width: 7.5ch; }
     .aligned .s-tempo { min-width: 8.5ch; }
     .aligned .s-rest { min-width: 5.5ch; }

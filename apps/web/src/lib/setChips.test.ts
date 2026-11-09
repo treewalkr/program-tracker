@@ -44,6 +44,34 @@ describe("groupSets", () => {
     expect(groupSets([set({ targetRir: 2 })])[0]).toMatchObject({ rpe: null, rir: 2 });
   });
 
+  test("load sits in its own fields, so sets×reps stays pure", () => {
+    const [g] = groupSets([1, 2, 3].map((n) => set({ reps: 5, percent1rm: 75, targetRpe: 7 }, n)), 140);
+    expect(g).toMatchObject({ count: 3, main: "5", kg: "105kg", pct: "75%" });
+    const [noMax] = groupSets([set({ reps: 5, percent1rm: 75 })]);
+    expect(noMax).toMatchObject({ main: "5", kg: null, pct: "75%" });
+    const [kgOnly] = groupSets([set({ reps: 5, targetWeightKg: 100 })]);
+    expect(kgOnly).toMatchObject({ main: "5", kg: "100kg", pct: null });
+  });
+
+  test("an AMRAP's stop RPE reads as effort, not inside the reps", () => {
+    const [g] = groupSets([set({ reps: 8, amrap: true, stopRpe: 9 })]);
+    expect(g).toMatchObject({ main: "8+ AMRAP", stop: 9, rpe: null });
+    expect(describeGroup(g)).toBe("1 set × 8+ AMRAP · stop at RPE 9");
+  });
+
+  test("a heavier top set splits from back-offs by load", () => {
+    const g = groupSets([
+      set({ reps: 3, targetWeightKg: 120, targetRpe: 8 }),
+      set({ reps: 3, targetWeightKg: 105, targetRpe: 8 }),
+      set({ reps: 3, targetWeightKg: 105, targetRpe: 8 }),
+    ]);
+    expect(g.map((x) => [x.count, x.kg])).toEqual([
+      [1, "120kg"],
+      [2, "105kg"],
+    ]);
+    expect(describeGroup(g[1])).toBe("2 sets × 3 reps at 105kg · RPE 8");
+  });
+
   test("no sets, no chips", () => {
     expect(groupSets([])).toEqual([]);
   });

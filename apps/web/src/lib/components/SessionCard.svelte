@@ -58,8 +58,9 @@
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
   );
 
-  /** Columns the session's set chips line up into (tempo/rest only when some set has one). */
+  /** Columns the session's set chips line up into (load/tempo/rest only when some set has one). */
   const cols = $derived({
+    load: exercises.some((e) => groupSets(e.sets, e.oneRepMaxKg ?? null).some((g) => g.kg || g.pct)),
     tempo: exercises.some((e) => e.sets.some((s) => !!s.tempo)),
     rest: exercises.some((e) => e.sets.some((s) => !!s.restSeconds)),
   });
