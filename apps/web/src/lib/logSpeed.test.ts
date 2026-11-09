@@ -6,6 +6,8 @@ import {
   markTyped,
   nextCell,
   notesWithSkips,
+  rowsToSave,
+  sheetCounts,
   setSkipReason,
   skipExercise,
   skippedExercises,
@@ -86,6 +88,18 @@ describe("fillDown", () => {
   test("a swap drops the copy mark with the load", () => {
     const rows = fillDown([row({ key: "a1", weight: 50 }), row({ key: "a2", setNumber: 2 })], "a1", "weight");
     expect(swapSlot(rows, "pe1", "ex9")[1].copied).toEqual([]);
+  });
+
+  test("a filled-down load alone is not a logged set", () => {
+    const rows = fillDown(
+      [row({ key: "a1", weight: 70, reps: 5 }), row({ key: "a2", setNumber: 2 }), row({ key: "a3", setNumber: 3 })],
+      "a1",
+      "weight"
+    );
+    expect(rowsToSave(rows).map((r) => r.key)).toEqual(["a1"]);
+    expect(sheetCounts(rows)).toMatchObject({ logged: 1, open: 2 });
+    rows[1] = { ...rows[1], reps: 5 };
+    expect(rowsToSave(rows).map((r) => [r.key, r.weight])).toEqual([["a1", 70], ["a2", 70]]);
   });
 });
 

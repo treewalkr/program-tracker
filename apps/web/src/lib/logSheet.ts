@@ -41,8 +41,10 @@ export const isBlank = (v: Cell): boolean => v == null || (typeof v === "string"
 /** Blank → undefined; anything else → number (NaN for junk, caught by validateRows). */
 export const cellNumber = (v: Cell): number | undefined => (isBlank(v) ? undefined : Number(v));
 
-/** A row counts toward the log once reps or kg is entered (0 counts — a missed set). */
-export const rowFilled = (r: SheetRow): boolean => !isBlank(r.reps) || !isBlank(r.weight);
+/** A row counts toward the log once reps or kg is entered (0 counts — a missed set).
+ *  A filled-down kg alone doesn't: the set may not have happened. */
+export const rowFilled = (r: SheetRow): boolean =>
+  !isBlank(r.reps) || (!isBlank(r.weight) && !r.copied?.includes("weight"));
 
 /** The rows a save sends: entered and not skipped. */
 export const rowsToSave = <R extends SheetRow>(rows: R[]): R[] => rows.filter((r) => !r.skipped && rowFilled(r));
