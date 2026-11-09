@@ -83,6 +83,9 @@
     return `${setsWord} × ${main}${rpeWord}${restWord}`;
   };
 
+  /** Read-aloud form: tempo digits apart ("tempo 3 1 1 0"), not "3 minus 1". */
+  const spoken = (g: Parameters<typeof describe>[0]) => describe(g).replace(/([0-9X])-(?=[0-9X])/gi, "$1 ");
+
   const toggle = (i: number) => (openIndex = openIndex === i ? null : i);
 </script>
 
@@ -103,21 +106,12 @@
   {:else}
     {#each groups as g, i (i)}
       {@const open = openIndex === i}
-      <span
-        class="setchip"
-        class:open
-        role="button"
-        tabindex="0"
-        aria-expanded={open}
-        title={open ? "show notation" : describe(g)}
-        onclick={() => toggle(i)}
-        onkeydown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            toggle(i);
-          }
-        }}
-      >
+      <!-- Not a tab stop: a week holds ~70 chips. Screen readers get the
+           plain words below; tap-to-words is a pointer/touch aid. -->
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <span class="setchip" class:open title={open ? "show notation" : describe(g)} onclick={() => toggle(i)}>
+        <span class="sr">{spoken(g)}</span>
+        <span class="vis" aria-hidden="true">
         {#if open}
           <span class="words">{describe(g)}</span>
         {:else}
@@ -129,6 +123,7 @@
           {#if !cols || cols.tempo}<span class="slot s-tempo" class:none={!g.x.tempo}>{#if g.x.tempo}<span class="sub">· {g.x.tempo}</span>{/if}</span>{/if}
           {#if !cols || cols.rest}<span class="slot s-rest" class:none={!g.rest}>{#if g.rest}<span class="sub">· {g.rest}</span>{/if}</span>{/if}
         {/if}
+        </span>
       </span>
     {/each}
   {/if}
@@ -143,14 +138,27 @@
   .count {
     font-weight: 600;
   }
+  /* click shows the plain-words reading — the cursor says so */
   .setchip {
-    cursor: default;
+    position: relative;
+    cursor: pointer;
   }
   .setchip.open {
     outline: 2px solid var(--blue);
   }
   .words {
     font-weight: 400;
+  }
+  .vis {
+    display: contents;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .slot.none {
     display: none;
