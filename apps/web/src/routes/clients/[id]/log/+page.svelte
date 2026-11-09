@@ -12,6 +12,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Note from "$lib/ui/Note.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
@@ -24,6 +25,7 @@
     isBlank,
     isSwapped,
     lastBySlot,
+    loggedBySession,
     rowLabels,
     rowsToSave,
     serverFieldErrors,
@@ -105,6 +107,14 @@
   const lastSets = $derived(program ? lastBySlot(program, pastLogs) : new Map<string, LastSet>());
 
   const counts = $derived(sheetCounts(rows));
+  const tally = $derived(
+    [`${counts.logged} logged`, counts.skipped ? `${counts.skipped} skipped` : "", counts.open ? `${counts.open} open` : ""]
+      .filter(Boolean)
+      .join(" · ")
+  );
+  /** programSessionId → its logs in this program, newest first. */
+  const logged = $derived(program ? loggedBySession(pastLogs, program.id) : new Map<string, never[]>());
+  const sessionLogged = $derived(logged.get(sessionId)?.[0] ?? null);
   const prefillable = $derived(rows.some((r) => !r.skipped && isBlank(r.reps) && r.rx));
   const labels = $derived(rowLabels(rows, nameOf));
   const blocks = $derived(blocksOf(rows));
@@ -126,7 +136,10 @@
       .map((day) => ({
         day,
         label: day === 0 ? "Any day" : DAY_NAMES[day - 1],
-        items: (by.get(day) ?? []).map((s: ProgramSessionDto) => ({ id: s.id, label: `${sessionTag(s)} · ${s.name}`, session: s })),
+        items: (by.get(day) ?? []).map((s: ProgramSessionDto) => {
+          const done = logged.get(s.id)?.[0];
+          return { id: s.id, label: `${sessionTag(s)} · ${s.name}${done ? ` ✓ ${fmtDay(done.date)}` : ""}`, session: s };
+        }),
       }))
       .filter((g) => g.items.length > 0);
   });
@@ -433,7 +446,7 @@
     {@const prog = program}
     <!-- novalidate: the sheet validates itself; a native bubble on a cell in a hidden phone card would block Save silently. -->
     <form onsubmit={submit} novalidate>
-      <Panel title="Session">
+      <Panel title="Session" count={!isCardioSession && rows.length > 0 ? tally : undefined}>
         {#snippet act()}
           <div class="head-controls">
             <label class="label" for="log-week">Week</label>
@@ -472,6 +485,14 @@
             {/if}
           </div>
         {/snippet}
+      {#if sessionLogged}
+        <div class="panel-body logged-note">
+          <Note tone="warn" role="note">
+            Already logged {fmtDay(sessionLogged.date)}{isCardioSession ? "" : ` · ${sessionLogged.setCount} sets`}.
+            Saving again asks whether to replace it.
+          </Note>
+        </div>
+      {/if}
       {#if isCardioSession}
         <div class="panel-body cardio-form">
           <Field label="Modality" htmlFor="c-modality" hint="what did they do?">
@@ -606,6 +627,7 @@
                 <div class="meta">
                   <span class="m-set">
                     <span class="mob">Set&nbsp;</span><span class="tnum">{r.setNumber}</span>
+                    {#if !r.skipped && !isBlank(r.reps)}<span class="tick" title="Entered"><Icon name="check" /></span>{/if}
                     {#if r.extra}<span class="tag">extra</span>{:else if r.type === "backoff"}<span class="tag">back-off</span>{/if}
                   </span>
                   <span class="m-rx tnum">{fmtRx(r)}</span>
@@ -661,13 +683,7 @@
             </Field>
           </div>
           <div class="submit-row">
-            <span class="subtle tally" aria-live="polite">
-              {[
-                `${counts.logged} logged`,
-                counts.skipped ? `${counts.skipped} skipped` : "",
-                counts.open ? `${counts.open} open` : "",
-              ].filter(Boolean).join(" · ")}
-            </span>
+            <span class="subtle tally" aria-live="polite">{tally}</span>
             <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Save session"}
             </Button>
@@ -760,6 +776,9 @@
     border-top: 1px solid var(--line-soft);
   }
   .set.filled { background: var(--well); }
+  .tick { display: inline-flex; align-self: center; color: var(--good); }
+  .tick :global(svg) { width: 13px; height: 13px; }
+  .logged-note { padding-bottom: 0; }
   .meta { display: contents; }
   .m-set { display: flex; align-items: baseline; gap: 6px; }
   .tag { font: 500 11px/1.2 var(--font-ui); color: var(--muted); }
