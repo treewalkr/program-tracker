@@ -162,13 +162,30 @@ export const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as co
 
 const dayList = (days: number[]) => [...days].sort((a, b) => a - b).map((d) => DAY_SHORT[d - 1]).join(" ");
 
-/** One-line reading of the training week: "3 lifts on Mon Wed Fri · cardio on lifting days · long run any day". */
-export function weekSummary(f: Pick<ProfileForm, "sessionsPerWeek" | "trainingDays" | "cardioDays" | "longRunDay">): string {
+/** Unit word for a weekly cardio target: "120 minutes a week". */
+export const CARDIO_UNIT_WORD = { minutes: "minutes a week", sessions: "sessions a week", zone_minutes: "zone minutes a week" } as const;
+
+type WeekFields = Pick<ProfileForm, "sessionsPerWeek" | "trainingDays" | "cardioDays" | "longRunDay" | "cardioUnit" | "cardioValue">;
+
+/** True when the profile already carries any cardio setting (days, long session or a weekly target). */
+export function hasCardio(f: Pick<ProfileForm, "cardioDays" | "longRunDay" | "cardioUnit">): boolean {
+  return f.cardioDays.length > 0 || f.longRunDay != null || f.cardioUnit !== "none";
+}
+
+/**
+ * One-line reading of the training week:
+ * "3 lifts on Mon Wed Fri · cardio on Sat · long session Sun · 120 minutes a week".
+ * `cardio` is the form's Cardio switch; it defaults to whether any cardio is set.
+ */
+export function weekSummary(f: WeekFields, cardio: boolean = hasCardio(f)): string {
   const n = Number(f.sessionsPerWeek);
-  const lifts = `${n} ${n === 1 ? "lift" : "lifts"} on ${f.trainingDays.length ? dayList(f.trainingDays) : "any day"}`;
-  const cardio = `cardio on ${f.cardioDays.length ? dayList(f.cardioDays) : "lifting days"}`;
-  const long = f.longRunDay == null ? "long run any day" : `long run ${DAY_SHORT[f.longRunDay - 1]}`;
-  return [lifts, cardio, long].join(" · ");
+  const count = `${n} ${n === 1 ? "lift" : "lifts"}`;
+  const parts = [f.trainingDays.length ? `${count} on ${dayList(f.trainingDays)}` : `${count}, no fixed days`];
+  if (!cardio) return parts[0];
+  parts.push(`cardio on ${f.cardioDays.length ? dayList(f.cardioDays) : "lifting days"}`);
+  if (f.longRunDay != null) parts.push(`long session ${DAY_SHORT[f.longRunDay - 1]}`);
+  if (f.cardioUnit !== "none") parts.push(`${Number(f.cardioValue)} ${CARDIO_UNIT_WORD[f.cardioUnit]}`);
+  return parts.join(" · ");
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
