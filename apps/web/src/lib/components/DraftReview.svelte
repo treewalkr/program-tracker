@@ -591,7 +591,12 @@
   .ask :global(svg) { width: 14px; height: 14px; }
 
   .day { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
-  .day.has-why { grid-template-columns: minmax(0, 1fr) 300px; }
+  /* Wraps on the card's own width, not the viewport: the session keeps at
+     least 520px (its wide, column-aligned layout) before the aside drops
+     below it. The inset rule draws whichever edge faces the session. */
+  .day.has-why { display: flex; flex-wrap: wrap; }
+  .day.has-why .day-main { flex: 1 1 520px; }
+  .day.has-why .why { flex: 1 0 300px; border-left: 0; box-shadow: -1px -1px 0 var(--line); }
   .day :global(.session-body) { padding-left: 24px; }
   .day-main { min-width: 0; }
   .note-slot { padding: 0 14px 14px 24px; }
@@ -624,8 +629,7 @@
   @media (max-width: 1000px) {
     .band { grid-template-columns: 1fr; }
     .band > section + section { border-left: 0; border-top: 1px solid var(--line); }
-    .day.has-why { grid-template-columns: 1fr; }
-    .why { border-left: 0; border-top: 1px solid var(--line); }
+
     .more { grid-template-columns: 1fr; }
   }
   @media (max-width: 700px) {

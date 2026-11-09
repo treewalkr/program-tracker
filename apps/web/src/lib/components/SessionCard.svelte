@@ -106,7 +106,7 @@
   {:else}
     <div class="session-body">
       {#if exercises.length > 1}
-        <div class="exrow colhead" aria-hidden="true"><span class="legend">{#if legend}RPE {legend}{/if}</span><SetChips sets={[]} {cols} head /></div>
+        <div class="exrow colhead" aria-hidden="true"><span></span><SetChips sets={[]} {cols} head /></div>
       {/if}
       {#each exercises as e, i (i)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
@@ -129,8 +129,12 @@
         </div>
       {/each}
     </div>
-    {#if hasPattern}
-      <div class="balance">{formatPatternBalance(patternBalance(exercises))}</div>
+    {#if hasPattern || legend}
+      <!-- the notation key lives here, not over the columns: it must survive the stacked (<520px) card -->
+      <div class="balance">
+        {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises))}</span>{/if}
+        {#if legend}<span class="legend">RPE {legend}</span>{/if}
+      </div>
     {/if}
     {#if cardio}
       <div class="session-head cond-row">
@@ -184,6 +188,10 @@
     margin-left: 6px;
   }
   .balance {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 16px;
     font-size: 12px;
     color: var(--muted);
     padding: 6px 16px 10px;
@@ -224,7 +232,7 @@
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
   /* column labels over the aligned set chips; tight to the first row */
   .colhead { margin: -4px 0 -6px; }
-  .legend { font: 400 11px/1.4 var(--font-mono); color: var(--muted); align-self: end; }
+  .legend { font: 400 11px/1.6 var(--font-mono); }
   /* stacked rows (app.css): a tag that wraps starts flush with the role chip;
      chips no longer form columns, so the labels go */
   @container session (max-width: 520px) {
