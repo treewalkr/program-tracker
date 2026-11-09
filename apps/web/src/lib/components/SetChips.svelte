@@ -67,8 +67,8 @@
         {#if open}
           <span class="words">{describe(g)}</span>
         {:else}
-          <span class="slot s-main">{#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}</span>
-          {#if !cols || cols.load}<span class="slot s-load" class:none={!g.kg && !g.pct}>{#if g.kg}<span class="kg">{g.kg}</span>{#if g.pct}<span class="sub"> {g.pct}</span>{/if}{:else if g.pct}<span class="kg">{g.pct}</span>{/if}</span>{/if}
+          <span class="slot s-main"><span class="count">{g.count}×{g.main}</span></span>
+          {#if !cols || cols.load}<span class="slot s-load" class:none={!g.kg && !g.pct}>{#if g.kg}<span class="kg">{g.kg}</span>{#if g.pct}<span class="sub pct">{g.pct}</span>{/if}{:else if g.pct}<span class="kg">{g.pct}</span>{/if}</span>{/if}
           <span class="slot s-eff" class:none={!g.rpe && g.rir == null && g.stop == null}>
             {#if g.stop != null}<span class="sub rpe" class:rpe-mid={g.stop >= 7}>stop @{g.stop}</span>
             {:else if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7}>@RPE {#each rpeTokens(g.rpe) as t, k (k)}{#if t.hi}<b class="hi">{t.text}</b>{:else}{t.text}{/if}{/each}</span>
@@ -94,6 +94,9 @@
   }
   .kg {
     font-weight: 500;
+  }
+  .pct {
+    margin-left: 3px;
   }
   /* click shows the plain-words reading — the cursor says so */
   .setchip {
@@ -131,7 +134,7 @@
     .aligned .slot { display: inline-block; text-align: left; }
     .aligned .s-main { min-width: 8.5ch; }
     .aligned .s-load { min-width: 10.5ch; }
-    .aligned .s-eff { min-width: 7.5ch; }
+    .aligned .s-eff { min-width: 8.5ch; }
     .aligned .s-tempo { min-width: 8.5ch; }
     .aligned .s-rest { min-width: 5.5ch; }
   }
