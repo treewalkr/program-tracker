@@ -256,20 +256,21 @@
     color: var(--ink);
     stroke-width: 1.75;
   }
+  /* 48px tall like the open row, so the avatar doesn't shift when the sidebar collapses. */
   .trigger.rail {
     width: 32px;
-    height: 32px;
+    height: 48px;
     padding: 0;
     margin-inline: auto;
     justify-content: center;
   }
   .trigger.rail .text,
   .trigger.rail > :global(svg) { display: none; }
-  /* On the rail the release dot rides the avatar's top corner, keeping the button 32px square. */
+  /* On the rail the release dot rides the avatar's top corner (the avatar sits 8px down). */
   .trigger.rail { position: relative; }
   .trigger.rail .new {
     position: absolute;
-    top: -2px;
+    top: 6px;
     right: -2px;
     margin: 0;
     width: 8px;

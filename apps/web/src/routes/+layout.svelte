@@ -528,6 +528,8 @@
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
+    position: relative;
+    transition: color 150ms ease-out;
   }
   /* Rows sit 8px in from the edge; 12px inner padding puts icons at x=20,
      where the rail centres them, so the drawer unfolds around still icons. */
@@ -611,7 +613,7 @@
     white-space: nowrap;
   }
   @media (prefers-reduced-motion: reduce) {
-    .nav-item, .nav-item :global(svg), .side-toggle, .brand, .edge::after { transition: none; }
+    .nav-item, .nav-item :global(svg), .side-toggle, .brand, .edge::after, .nav-label { transition: none; }
   }
 
   .main {
@@ -639,7 +641,9 @@
   .shell.slim { grid-template-columns: 56px 1fr; }
   .rail .nav.primary { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
   .rail .nav.primary::-webkit-scrollbar { display: none; }
-  .rail .brand { flex: none; width: 32px; height: 32px; padding: 0; }
+  /* Rows keep their open-menu heights on the rail, so icons hold the same y
+     both ways and the toggle only moves things sideways. */
+  .rail .brand { flex: none; width: 32px; height: 48px; padding: 8px 0; }
   /* Rail tooltip anchors span the column and reach into the side padding, so
      bubbles clear the border while the 32px buttons stay centred on x=20. */
   .rail .side :global(.anchor) {
@@ -648,8 +652,19 @@
     padding-right: 8px;
     margin-right: -8px;
   }
-  .rail .nav { gap: 12px; }
-  .rail .nav-label { display: none; }
+  /* The group label keeps its 32px slot: the text fades and a short divider
+     on the icon column marks the group. */
+  .rail .nav-label { color: transparent; }
+  .rail .nav-label::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 16px;
+    height: 1px;
+    background: var(--line-strong);
+    transform: translate(-50%, -50%);
+  }
   .rail .nav-item { justify-content: center; width: 32px; padding: 0; margin-inline: auto; }
   /* Labels leave the layout but keep naming the link for assistive tech. */
   .rail .name,
