@@ -200,7 +200,7 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 - **Well Gray Active** (#e0e5ea): The selected nav item.
 - **Ink** (#1f2328): Primary text. **Muted Ink** (#59636e): secondary text, placeholders, labels. **Faint Ink** (#666e78): tertiary metadata and planned-only rows.
 - **Hairline Gray** (#d0d7de): Primary 1px borders. **Hairline Gray Soft** (#d8dee4): row separators. **Hairline Gray Strong** (#afb8c1): hover borders and pending step dots.
-- **Inverted Ink** (#24292f): Inverted fills — the "PT" brand mark and selected toggle chips (weekday picker, template chips, exercise filters).
+- **Inverted Ink** (#24292f): Inverted fills — the "PT" brand mark and selected toggle chips (template chips, exercise filters) and picked training-week cells.
 - **Avatar Gray** (#dde4ea): Initials avatar background.
 - **Chip Gray** (rgba(175, 184, 193, 0.2)): The code-span background of set chips.
 
@@ -218,7 +218,7 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 ### Hierarchy
 - **Headline** (600, 20px, 1.25, −0.01em): The page title ("This week", "Draft — next block").
 - **Title** (600, 16px / 14px, 1.3): `h2` section titles and panel-head titles (panel heads run 14px).
-- **Body** (400, 14px, 1.5): All prose, table cells, buttons, nav. Forms and settings panels cap near 560px wide.
+- **Body** (400, 14px, 1.5): All prose, table cells, buttons, nav. Forms and settings stacks cap at `--measure-form` (720px).
 - **Label** (500, 12px, 1.2): Pills, counters, directive chips, when-chips, set-chip sub-labels. Nav group labels add uppercase and 0.04em tracking.
 - **Mono figures** (500, 12px, tabular-nums): Set chips, deltas, `.num` stats (`.num.big` 20px/600), table `.r` columns, the merged-instructions `pre`. Week-cell tags run 10px uppercase mono with 0.02em tracking.
 - **Micro metadata** (400, 13px / 11px): Evidence lines at 13px muted; day numbers, client meta, and off-day dashes at 11px faint.
@@ -242,7 +242,7 @@ Flat, and deliberately so. Depth is conveyed by tonal layering — white panels 
 ### Shadow Vocabulary
 - **Button lip** (`box-shadow: 0 1px 0 rgba(31, 35, 40, 0.04)`): The system's only elevation, a 1px lip under every button; removed on `:active` so the press feels physical.
 - **Focus halo** (`box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15)`): Appears on input focus alongside a Link Blue border switch from well to white background; also marks a panel in edit mode (the block plan while editing) and a focused composer box.
-- **Overlay** (`--shadow-overlay: 0 8px 24px rgba(140, 149, 159, 0.2)`, and `--shadow-overlay-up` with the y-offset flipped for bars pinned to the bottom edge): Primer's overlay shadow, for surfaces that sit on top of scrolling content — the model-settings popover, the program page's sticky save bar, the phone approve bar, the collapsed draft pane.
+- **Overlay** (`--shadow-overlay: 0 8px 24px rgba(140, 149, 159, 0.2)`, and `--shadow-overlay-up` with the y-offset flipped for bars pinned to the bottom edge): Primer's overlay shadow, for surfaces that sit on top of scrolling content — the model-settings popover, the shared sticky save bar (program page, client Settings), the phone approve bar, the collapsed draft pane.
 - **Inset rings** (`inset 0 -2px 0` tab underline, `inset 0 0 0 1px` selected block-plan tile): borders drawn with box-shadow so they don't shift layout. They are borders, not elevation.
 - **Shimmer** (linear gradient `#eef1f4 → #f6f8fa → #eef1f4`, 200% width, 1.2s infinite linear): Loading skeletons; the sole animation besides 120ms button background transitions.
 
@@ -272,7 +272,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
 - **Role chip:** the session slot an exercise fills (Power / Primary / Str / Aux / Core) — neutral well pill in the trainer's shorthand, the primary lift in default ink; full description on hover (`title`); leads the exercise name in session rows
 - **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m` (11px micro); chip RPE ink reuses the RPE tiers darkened one step for AA on the chip background (≤6 #116329, 7–8 #7d5600, 9–10 Danger Red)
-- **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (weekday picker, templates, exercise filters)
+- **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (templates, exercise filters)
 
 ### Cards / Containers
 - **Panel (Primer Box):** Canvas White, 1px Hairline Gray border, 6px radius; optional **panel-head** (Well Gray band, hairline bottom, 10px/16px, 14px/600 title + counter + right-aligned `act` link, wrapping on narrow viewports) and **panel-body** (16px, or 4px/16px `tight` for tables)
@@ -295,6 +295,15 @@ The needs-review unit: an 8px lamp dot (green/amber `#bf8700`/red/gray `#818b98`
 ### Contributions Week Grid
 The overview's signature: one row per client, seven day cells (104px label column, `minmax(52px, 1fr)` cells, max-width 70px each, 4px radius, min-height 34px). Each cell shows the session's short name as a 10px uppercase mono tag, with a 10px state word below it (done / today / missed). Upcoming cells show no state word. States: **done** = Contributions done-4 fill + white text; **today** = 2px Link Blue border on Pulse Blue Tint + blue text; **missed** = Danger Red Tint + edge + red text; **next** = Well Gray + Muted Ink tag; off-days a faint em dash. A day with more than one session shows the count as a 9px mono figure in the cell's top-right corner. The day header for today turns Link Blue + 600; past day headers dim to Faint Ink. The client column stacks name, `N/wk · program`, a `+N any day` line for sessions with no weekday, and the cardio progress line. A row with no placed sessions spans one neutral pill across the week ("2 sessions · any day", "no program", or the client status). Cells are links: logged → client, otherwise → the log page. Hover brightens 5%.
 
+### Profile Sections
+A client profile (client Settings tab, New client) is a stack of **ProfileSection** boxes inside a `.pf` form: one Primer Box per topic, capped at `--measure-form` (720px) with a 16px gap and never nested in an outer panel. Each head carries the 14px/600 title and a one-line 13px Muted Ink purpose: Contact (how you reach them), Basics (used for age, loading and AI context), Training week (where sessions land on the calendar), Cardio target (resets every Monday), 1RMs (sets prescribed as % of 1RM take their kg from these; empty state "No 1RMs yet" + "+ Add a 1RM" link), For the AI (feeds every AI draft). On New client, Cardio target and For the AI wait behind a dashed "More details" button, and the Add client / Cancel row stays a normal button row under the stack.
+
+### Training Week Grid
+**TrainingWeekGrid** sets a client's week in one place. Above it, "Lifting sessions a week" is a compact −/+ stepper (1–7, mono tabular value) with the stacking warning beside it in Attention Amber ("2 days will hold two sessions"). The grid is a real `<table>` (visually hidden caption, day `th scope="col"`, row headers Lift / Run / Long run) with an eighth "Any" column. Lift and Run cells are `aria-pressed` toggle buttons: 4px radius, hairline border, min-height 36px (40px under 700px); picked cells fill Inverted Ink with a 10px uppercase mono "LIFT"/"RUN" tag. Long run is one native radio group (arrows move the pick) drawn as the same cells with a ring dot; the picked cell inverts, and "Any" clears the day. A 13px muted summary reads the week back ("3 lifts on Mon Wed Fri · cardio on lifting days · long run any day"). On narrow screens the table keeps its seven day columns and scrolls inside an `overflow-x: auto` wrapper.
+
+### Sticky Save Bar
+The shared `.savebar` (app.css) floats unsaved edits over the page: sticky at `bottom: 12px` (60px under 700px, clear of the Feedback launcher), Canvas White on a hairline, 6px radius, `--shadow-overlay`, `role="region"` labelled "Unsaved changes". Left: a 12.5px muted `.savemsg` ("Unsaved changes", or the save error in Danger Red); right: a ghost Discard and the green primary save. On the client Settings tab it shows only while the profile is dirty, a save failed, or "Saved" is flashing; Discard restores the stored client and Ctrl/⌘+S saves. The program page uses the same bar for its edits.
+
 ### AI Draft Review
 The code-review moment (`DraftReview`). Top to bottom:
 - **Head:** crumbs, version title, and the action row: a Danger "Reject…" (opens an optional reason box that future drafts learn from) beside the primary "Approve vN as draft program". Under the buttons, a lock-icon line: "Creates a draft program. {name} sees nothing until you activate it." Below 700px the action row moves into a fixed bottom bar (`--shadow-overlay-up`).
@@ -311,7 +320,7 @@ The client chat page (`clients/[id]/chat`) runs two columns: the conversation (`
 The block's weeks as a row of button tiles: directive chip, % target, and a bar for the chained volume index (week 1 = 100). Picking a tile shows its note; weeks changed since the previous version get an outline. The selected tile takes a 1px Inverted Ink inset ring. The BlockPlanEditor edits a copy (per-week directive, target and note; add or remove weeks; rename the phase). Out-of-range targets block Save; softer issues show as warnings.
 
 ### Week Calendar
-The program page's placement board: Mon–Sun columns plus an "Any day" tray. Cards are plain hairline boxes; the mono tag names the kind ("Session 1" in Muted Ink, "Cardio 1" in Commit Green), and the selected card takes a Link Blue border plus a 1px inset ring. Session cards drag between days, stack inside a day and reorder within it. Alt+arrows do the same from the keyboard, and SessionHeadEditor has a day select as the touch fallback. The calendar handles placement only; session content is edited inline below it with SessionHeadEditor and ExerciseEditor. Edits collect in a sticky save bar (`--shadow-overlay`).
+The program page's placement board: Mon–Sun columns plus an "Any day" tray. Cards are plain hairline boxes; the mono tag names the kind ("Session 1" in Muted Ink, "Cardio 1" in Commit Green), and the selected card takes a Link Blue border plus a 1px inset ring. Session cards drag between days, stack inside a day and reorder within it. Alt+arrows do the same from the keyboard, and SessionHeadEditor has a day select as the touch fallback. The calendar handles placement only; session content is edited inline below it with SessionHeadEditor and ExerciseEditor. Edits collect in the shared sticky save bar (see Sticky Save Bar).
 
 ### Pulse Chart
 Weekly volume bars on the contributions ramp, with an average-RPE line on a fixed 6–10 right axis. Weeks that are planned but not yet logged render as dashed stubs. The RPE line breaks over weeks with no RPE. It is purely presentational: metrics come from `blockPulse` in the page.
@@ -327,8 +336,8 @@ Reusable UI lives in code, catalogued in Storybook:
 - **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonPanel, Counter, Icon, EmptyState, Avatar, GeneratingState). `src/lib/components/` holds domain components, grouped by surface:
   - **Overview & client:** StatusPill, SignalRow, WeekGrid, PulseChart, SessionCard, SetChips, RoleChip, DirChip
   - **Draft review & chat:** DraftReview, DraftPreview, ChatProposal, VersionStamp, BlockPlanStrip, BlockPlanEditor
-  - **Program editing:** WeekCalendar, SessionHeadEditor, ExerciseEditor, PhasingEditor, WeekdayPicker
-  - **Generate & settings:** InputLedger, ModelSettings, ProviderPicker, KineticChainEditor, ClientProfileFields, ClientIdentityFields, CopyButton
+  - **Program editing:** WeekCalendar, SessionHeadEditor, ExerciseEditor, PhasingEditor
+  - **Generate & settings:** InputLedger, ModelSettings, ProviderPicker, KineticChainEditor, ClientProfileFields, ClientIdentityFields, ProfileSection, TrainingWeekGrid, CopyButton
 - **Stories** are colocated as `X.stories.svelte` next to each component.
 - **Architecture:** `src/app.css` stays the single style source — tokens (`:root` custom properties) plus the Primer classes. Components are typed Svelte 5 wrappers over those classes; every route consumes the primitives (PageHead, Button, Panel, Field, Skeleton, EmptyState) instead of hand-rolling `.page-head`/`.btn`/`.panel` markup, and recurring domain shapes live as components: **SessionCard** (prescribed session rows over the global `.session` classes — callers resolve exercise names to plain strings), **DraftReview** (the whole review surface, shared by full-block and single-week drafts), **WeekGrid** (the overview training-week grid — purely presentational; row building and status derivation live in `$lib/overview.ts`; the page passes rows plus local ISO week dates and today).
 - **The 3-uses rule:** a page-scoped pattern that appears 3+ times gets extracted — into an `app.css` class when it's styling, into `src/lib/ui/` when it's generic, into `src/lib/components/` when it speaks domain language. Never re-hand-roll markup or scoped CSS a library component already wraps.
