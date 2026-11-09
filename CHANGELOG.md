@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.11 — 2026-11-10
+
 ### New
 - Logging a session is faster: fill a value down the column, press Enter to move to the next cell, skip an exercise, and keep the Save button in view. Picking a date picks the session scheduled for it.
 - Logging is safer: sessions already logged that day show up, and you're asked before logging a duplicate. You get a summary to confirm, Undo after saving, a warning before leaving with unsaved sets, and drafts that survive a reload.
