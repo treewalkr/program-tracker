@@ -15,24 +15,31 @@
   import { localIso } from "$lib/overview";
 
   /**
-   * Basics, Training week, Cardio target, 1RMs and "For the AI" boxes of a client profile. The parent owns the
-   * form and its save. `collapsible` tucks the optional cardio target and AI
-   * notes behind "More details" (new-client form); Settings shows everything.
-   * With a `catalog`, the client's 1RMs are editable too (they resolve %1RM sets).
+   * The intake boxes of a client profile, in the order a trainer asks:
+   * Goals & limitations, Training week, Basics, then 1RMs. The parent owns the
+   * form and its save. With a `catalog`, the client's 1RMs are editable too
+   * (they resolve %1RM sets). `compact1rm` (new-client form) tucks the 1RMs
+   * behind a small "+ Add 1RMs" link until clicked or a row exists.
    */
   let {
     form = $bindable(),
     idPrefix,
-    collapsible = false,
+    compact1rm = false,
     catalog = null,
-  }: { form: ProfileForm; idPrefix: string; collapsible?: boolean; catalog?: ExerciseDto[] | null } = $props();
+  }: { form: ProfileForm; idPrefix: string; compact1rm?: boolean; catalog?: ExerciseDto[] | null } = $props();
 
   function addOneRepMax() {
     form.oneRepMaxes.push({ exerciseId: "", kg: null, date: localIso(new Date()) });
   }
 
-  // svelte-ignore state_referenced_locally
-  let expanded = $state(!collapsible || form.cardioUnit !== "none" || form.goals.trim() !== "" || form.limitations.trim() !== "");
+  /** Set by "+ Add 1RMs"; a restored draft with rows shows the box on its own. */
+  let ormOpened = $state(false);
+  const ormShown = $derived(!compact1rm || ormOpened || form.oneRepMaxes.length > 0);
+
+  function openOneRepMaxes() {
+    ormOpened = true;
+    if (!form.oneRepMaxes.length) addOneRepMax();
+  }
 
   const today = localIso(new Date());
   const age = $derived(form.birthDate && !birthDateError(form.birthDate, today) ? ageOn(form.birthDate, today) : null);
@@ -43,6 +50,19 @@
     height: heightError(form.heightCm) ?? undefined,
   });
 </script>
+
+<ProfileSection title="Goals & limitations" purpose="every AI draft respects these">
+  <Field label="Goals" htmlFor="{idPrefix}-goals">
+    <textarea class="textarea" id="{idPrefix}-goals" rows="2" maxlength="2000" placeholder="e.g. Squat 140kg by spring, run a sub-25 min 5k" bind:value={form.goals}></textarea>
+  </Field>
+  <Field label="Limitations" htmlFor="{idPrefix}-lim" hint="hard constraints every draft must respect">
+    <textarea class="textarea" id="{idPrefix}-lim" rows="3" maxlength="2000" placeholder="e.g. Left shoulder impingement — no overhead pressing" bind:value={form.limitations}></textarea>
+  </Field>
+</ProfileSection>
+
+<ProfileSection title="Training week" purpose="where lifting and cardio land on the calendar">
+  <TrainingWeekGrid bind:form {idPrefix} />
+</ProfileSection>
 
 <ProfileSection title="Basics" purpose="used for age, loading and AI context">
   <div class="basics-row">
@@ -86,11 +106,7 @@
   </div>
 </ProfileSection>
 
-<ProfileSection title="Training week" purpose="where lifting and cardio land on the calendar">
-  <TrainingWeekGrid bind:form {idPrefix} />
-</ProfileSection>
-
-{#if catalog}
+{#if catalog && ormShown}
   <ProfileSection title="1RMs" purpose="sets prescribed as % of 1RM take their kg from these">
     {#if form.oneRepMaxes.length}
       <div class="orm-list">
@@ -111,21 +127,11 @@
     {/if}
     <button type="button" class="orm-add" onclick={addOneRepMax}>+ Add a 1RM</button>
   </ProfileSection>
-{/if}
-
-{#if !expanded}
-  <button type="button" class="more" aria-expanded="false" onclick={() => (expanded = true)}>
-    More details <span class="subtle">— cardio target, goals, limitations · optional, can be set later in Settings</span>
-  </button>
-{:else}
-  <ProfileSection title="For the AI" purpose="feeds every AI draft">
-    <Field label="Goals" htmlFor="{idPrefix}-goals">
-      <textarea class="textarea" id="{idPrefix}-goals" rows="2" maxlength="2000" placeholder="e.g. Squat 140kg by spring, run a sub-25 min 5k" bind:value={form.goals}></textarea>
-    </Field>
-    <Field label="Limitations" htmlFor="{idPrefix}-lim" hint="hard constraints every draft must respect">
-      <textarea class="textarea" id="{idPrefix}-lim" rows="3" maxlength="2000" placeholder="e.g. Left shoulder impingement — no overhead pressing" bind:value={form.limitations}></textarea>
-    </Field>
-  </ProfileSection>
+{:else if catalog}
+  <p class="orm-more">
+    <button type="button" class="orm-add" onclick={openOneRepMaxes}>+ Add 1RMs</button>
+    <span class="subtle">— usually tested in the first week</span>
+  </p>
 {/if}
 
 <style>
@@ -147,17 +153,5 @@
   .orm-x:hover { color: var(--bad); }
   .orm-add { align-self: flex-start; border: none; background: none; padding: 0; font: 500 13px var(--font-ui); color: var(--blue); cursor: pointer; }
   .orm-add:hover { text-decoration: underline; }
-  .more {
-    align-self: flex-start;
-    border: 1px dashed var(--line-strong);
-    border-radius: 6px;
-    background: none;
-    padding: 8px 12px;
-    font: 500 13px var(--font-ui);
-    color: var(--ink);
-    text-align: left;
-    cursor: pointer;
-  }
-  .more:hover { background: var(--well); }
-  .more:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .orm-more { margin: 0; }
 </style>

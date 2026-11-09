@@ -145,7 +145,7 @@
       <ClientIdentityFields bind:name bind:email bind:phone idPrefix="f" showAll={attempted} />
     </ProfileSection>
 
-    <ClientProfileFields bind:form={profile} idPrefix="f" collapsible {catalog} />
+    <ClientProfileFields bind:form={profile} idPrefix="f" compact1rm {catalog} />
 
     <div class="pf-foot">
       <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
