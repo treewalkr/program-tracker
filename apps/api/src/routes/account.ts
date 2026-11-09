@@ -1,8 +1,9 @@
 import { Elysia, t } from "elysia";
 import { desc, eq } from "drizzle-orm";
 import { db, feedbackItems, feedbackMutes, trainers } from "@pt/db";
-import { feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
+import { DEFAULT_DELOAD, DeloadSettings, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
+import { trainerDeload } from "../lib/deload";
 
 const clip = (s: string, n: number) => {
   const c = s.replace(/\s+/g, " ").trim();
@@ -29,7 +30,7 @@ async function notificationSettings(trainerId: string, isAdmin: boolean) {
   };
 }
 
-/** The signed-in trainer's own settings: which feedback emails reach them. */
+/** The signed-in trainer's own settings: which feedback emails reach them, and their deload rule. */
 export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account"] })
   .use(trainerContext)
   .get("/notifications", ({ trainerId, isAdmin }) => notificationSettings(trainerId, isAdmin), {
@@ -65,4 +66,23 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
       }),
       detail: { summary: "Change feedback email settings (master switch and/or per-event prefs)" },
     },
+  )
+  .get("/deload", ({ trainerId }) => trainerDeload(trainerId), {
+    detail: { summary: "Your deload rule (the default when you haven't set one)" },
+  })
+  .put(
+    "/deload",
+    async ({ trainerId, body }) => {
+      await db.update(trainers).set({ deloadSettings: body }).where(eq(trainers.id, trainerId));
+      return body;
+    },
+    { body: DeloadSettings, detail: { summary: "Set your deload rule (every client without an override follows it)" } },
+  )
+  .delete(
+    "/deload",
+    async ({ trainerId }) => {
+      await db.update(trainers).set({ deloadSettings: null }).where(eq(trainers.id, trainerId));
+      return { ...DEFAULT_DELOAD };
+    },
+    { detail: { summary: "Reset your deload rule to the default" } },
   );

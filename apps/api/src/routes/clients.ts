@@ -3,12 +3,14 @@ import { eq } from "drizzle-orm";
 import { db, clients, programs } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
+import { clientDto, trainerDeloadSettings } from "../lib/deload";
 import {
   BODYWEIGHT_KG_RANGE,
   HEIGHT_CM_RANGE,
   PHONE_MAX,
   birthDateError,
   startedOnError,
+  DeloadSettings,
 } from "@pt/shared";
 
 /** exerciseId → { kg, date } (mirrors shared `OneRepMaxes`). */
@@ -59,11 +61,13 @@ const normPhone = <B extends { phone?: string | null }>(body: B): B =>
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
   .use(trainerContext)
   .get("/", async ({ trainerId }) => {
-    return db.select().from(clients).where(eq(clients.trainerId, trainerId));
+    const rows = await db.select().from(clients).where(eq(clients.trainerId, trainerId));
+    const mine = await trainerDeloadSettings(trainerId);
+    return rows.map((c) => clientDto(c, mine));
   })
   .get(
     "/:id",
-    async ({ params, status }) => {
+    async ({ params, status, trainerId }) => {
       const [client] = await db.select().from(clients).where(eq(clients.id, params.id));
       if (!client) return status(404, { error: "client not found" });
 
@@ -74,7 +78,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
       const current = activeProgram.find((p) => p.status === "active") ?? null;
 
       return {
-        client,
+        client: clientDto(client, await trainerDeloadSettings(trainerId)),
         currentProgram: current ? toProgramDto(current) : null,
         programs: activeProgram.map(toProgramDto),
       };
@@ -90,7 +94,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         .insert(clients)
         .values({ ...normPhone(normEmail(body)), trainerId })
         .returning();
-      return status(201, created);
+      return status(201, clientDto(created, await trainerDeloadSettings(trainerId)));
     },
     {
       body: t.Object({
@@ -122,7 +126,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
   )
   .patch(
     "/:id",
-    async ({ params, body, status }) => {
+    async ({ params, body, status, trainerId }) => {
       const invalid = basicsError(body);
       if (invalid) return status(422, { error: invalid });
       const [updated] = await db
@@ -131,7 +135,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         .where(eq(clients.id, params.id))
         .returning();
       if (!updated) return status(404, { error: "client not found" });
-      return updated;
+      return clientDto(updated, await trainerDeloadSettings(trainerId));
     },
     {
       params: t.Object({ id: t.String() }),
@@ -162,4 +166,26 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         status: t.Optional(t.Union([t.Literal("active"), t.Literal("paused"), t.Literal("archived")])),
       }),
     }
+  )
+  .put(
+    "/:id/deload",
+    async ({ params, body, status, trainerId }) => {
+      const [updated] = await db.update(clients).set({ deloadSettings: body }).where(eq(clients.id, params.id)).returning();
+      if (!updated) return status(404, { error: "client not found" });
+      return clientDto(updated, await trainerDeloadSettings(trainerId));
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: DeloadSettings,
+      detail: { summary: "Give this client their own deload rule" },
+    }
+  )
+  .delete(
+    "/:id/deload",
+    async ({ params, status, trainerId }) => {
+      const [updated] = await db.update(clients).set({ deloadSettings: null }).where(eq(clients.id, params.id)).returning();
+      if (!updated) return status(404, { error: "client not found" });
+      return clientDto(updated, await trainerDeloadSettings(trainerId));
+    },
+    { params: t.Object({ id: t.String() }), detail: { summary: "Back to your default deload rule for this client" } }
   );
