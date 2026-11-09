@@ -39,7 +39,9 @@ export type PickWhy =
   /** Placed on that weekday, but already logged. */
   | "logged"
   /** Nothing fits: the week's first session. */
-  | "first";
+  | "first"
+  /** Opened from a link that named the session and date (the overview's training week). */
+  | "linked";
 
 export interface SessionPick {
   week: number;
@@ -156,4 +158,20 @@ export function openingPick(
   if (best) return best;
   const pick = sessionForDate(program, logs, today);
   return pick ? { ...pick, date: today } : null;
+}
+
+/**
+ * A session and date named by a link (`?session=&date=`). Null when either is
+ * missing, the session isn't in the program, the date isn't YYYY-MM-DD, or the
+ * date is after today — the caller falls back to `openingPick`.
+ */
+export function linkedPick(
+  program: DateProgram,
+  sessionId: string | null,
+  date: string | null,
+  today: string
+): (SessionPick & { date: string }) | null {
+  if (!sessionId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today) return null;
+  const week = program.weeks.find((w) => w.sessions.some((s) => s.id === sessionId))?.week;
+  return week == null ? null : { week, sessionId, why: "linked", date };
 }

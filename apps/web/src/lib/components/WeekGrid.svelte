@@ -26,6 +26,9 @@
   const STATE = { logged: "done", today: "today", due: "missed" } as const;
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dayNumberOf = (iso: string) => Number(iso.slice(8, 10));
+  /** The logger, opened on this cell's session and date. */
+  const logHref = (clientId: string, sessionId: string | undefined, date: string) =>
+    sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
   const shortName = (sessionName: string) => sessionName.split(" + ")[0].split("—")[0].trim() || "Session";
 </script>
 
@@ -68,16 +71,23 @@
             <div class="wk-cell">
               {#if e}
                 {@const cls = e.status === "logged" ? "done" : e.status === "today" ? "today" : e.status === "due" ? "missed" : "next"}
-                <a
-                  class="cell {cls}"
-                  href={e.status === "logged" ? `/clients/${row.client.id}` : `/clients/${row.client.id}/log`}
-                  title={`${row.client.name} — ${e.sessionName}`}
-                  aria-label={`${row.client.name}, ${DAY_LABELS[d - 1]}: ${e.sessionName}${e.status === "upcoming" ? "" : `, ${STATE[e.status]}`}`}
-                >
+                {@const label = `${row.client.name}, ${DAY_LABELS[d - 1]}: ${e.sessionName}${e.status === "upcoming" ? ", upcoming" : `, ${STATE[e.status]}`}`}
+                {#snippet body()}
                   {#if (e.count ?? 1) > 1}<span class="more">{e.count}</span>{/if}
                   <span class="tag">{shortName(e.sessionName)}</span>
                   {#if e.status !== "upcoming"}<span class="state">{STATE[e.status]}</span>{/if}
-                </a>
+                {/snippet}
+                {#if e.status === "upcoming"}
+                  <!-- Not loggable yet (the logger refuses future dates), so not a link. -->
+                  <span class="cell {cls}" title={`${row.client.name} — ${e.sessionName}`} role="img" aria-label={label}>{@render body()}</span>
+                {:else}
+                  <a
+                    class="cell {cls}"
+                    href={e.status === "logged" ? `/clients/${row.client.id}` : logHref(row.client.id, e.sessionId, weekDates[d - 1])}
+                    title={`${row.client.name} — ${e.sessionName}`}
+                    aria-label={label}
+                  >{@render body()}</a>
+                {/if}
               {:else}
                 <span class="offday">—</span>
               {/if}
@@ -134,7 +144,7 @@
     padding: 3px 2px;
     text-decoration: none;
   }
-  .cell:hover { text-decoration: none; filter: brightness(1.05); }
+  a.cell:hover { text-decoration: none; filter: brightness(1.05); }
   .cell .tag {
     font: 500 10px/1.2 var(--font-mono);
     letter-spacing: 0.02em;

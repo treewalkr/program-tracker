@@ -81,3 +81,10 @@ test("days before the client was created are never missed, but backfilled logs s
   expect(buildWeekRow(newClient, p, [], week, "2026-11-05", NOV5).entries.has(1)).toBe(false);
   expect(buildWeekRow(newClient, p, [log("2026-11-02", null)], week, "2026-11-05", NOV5).entries.get(1)?.status).toBe("logged");
 });
+
+test("a cell names the session it opens: the first one on the day not logged yet", () => {
+  const p = program([session("a", 1, 1), session("b", 1, 2), session("c", 3, 3)]);
+  const row = buildWeekRow(client, p, [log("2026-11-02", "a")], week, "2026-11-04");
+  expect(row.entries.get(1)?.sessionId).toBe("b");
+  expect(row.entries.get(3)?.sessionId).toBe("c");
+});

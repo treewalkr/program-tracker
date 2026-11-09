@@ -8,6 +8,8 @@ export interface WeekEntry {
   sessionName: string;
   /** Sessions placed on the day; > 1 shows the count in the cell corner. Defaults to 1. */
   count?: number;
+  /** The session the cell opens in the logger: the day's first one not logged yet, else its first. */
+  sessionId?: string;
   status: "logged" | "due" | "today" | "upcoming";
 }
 
@@ -107,6 +109,7 @@ export function buildWeekRow(
       clientId: client.id,
       sessionName: list.map((s) => s.name).join(" + "),
       count: list.length,
+      sessionId: (list.find((s) => !loggedSlots.has(slot(s))) ?? list[0]).id,
       status: logged ? "logged" : date === today ? "today" : date < today ? "due" : "upcoming",
     });
   }

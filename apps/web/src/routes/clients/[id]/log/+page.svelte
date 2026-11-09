@@ -17,7 +17,7 @@
     type SessionLogInput,
   } from "$lib/api/types";
   import { oneRepMaxKg, sessionTag, sessionsByWeekday, type ExerciseRole } from "@pt/shared";
-  import { dateForSession, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
+  import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -312,6 +312,8 @@
         return `Picked ${name}: scheduled ${day}, already logged.`;
       case "first":
         return `Picked ${name}: nothing scheduled on ${day}, so the first session of week ${p.week}.`;
+      case "linked":
+        return `Opened ${name} for ${day} from the training week.`;
     }
   }
 
@@ -878,8 +880,10 @@
     program = detail.currentProgram;
     pastLogs = await api.sessionLogs(id);
     if (program && program.weeks?.length) {
-      // Open on the most recent scheduled session not logged yet, dated its day.
-      const pick = openingPick(program, pastLogs, today);
+      // Open on the session and date a link named (the overview's training week);
+      // otherwise on the most recent scheduled session not logged yet, dated its day.
+      const q = page.url.searchParams;
+      const pick = linkedPick(program, q.get("session"), q.get("date"), today) ?? openingPick(program, pastLogs, today);
       selectedWeekNumber = pick?.week ?? program.weeks[0].week;
       sessionId = pick?.sessionId ?? weekSessionsList[0]?.id ?? "";
       loadSession();

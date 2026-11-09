@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   dateForSession,
   isoWeekday,
+  linkedPick,
   openingPick,
   scheduledDate,
   sessionForDate,
@@ -109,5 +110,18 @@ describe("openingPick", () => {
   test("nothing open in the last week: whatever today maps to", () => {
     const all = ["a1", "b1", "c1", "a2", "b2", "c2"].map((id) => log(id, "2026-11-02"));
     expect(openingPick(program, all, "2026-11-14")).toEqual({ week: 2, sessionId: "d2", why: "any-day", date: "2026-11-14" });
+  });
+});
+
+describe("linkedPick", () => {
+  test("opens the linked session on the linked date, in the session's week", () => {
+    expect(linkedPick(program, "b1", "2026-11-04", "2026-11-09")).toEqual({ week: 1, sessionId: "b1", why: "linked", date: "2026-11-04" });
+  });
+
+  test("ignores an unknown session, a bad date and a future date", () => {
+    expect(linkedPick(program, "zz", "2026-11-04", "2026-11-09")).toBeNull();
+    expect(linkedPick(program, "b1", "nope", "2026-11-09")).toBeNull();
+    expect(linkedPick(program, "b2", "2026-11-11", "2026-11-09")).toBeNull();
+    expect(linkedPick(program, null, null, "2026-11-09")).toBeNull();
   });
 });
