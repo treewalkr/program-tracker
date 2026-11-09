@@ -11,7 +11,7 @@ import {
   type OneRepMaxes,
   type E1rmTodaySet,
 } from "@pt/shared";
-import { cellNumber, type Prescription, type SheetRow } from "./logSheet";
+import { cellNumber, isCopied, type Prescription, type SheetRow } from "./logSheet";
 
 /**
  * The log sheet's coaching: a suggested load per set, live feedback per entered
@@ -58,7 +58,7 @@ export interface SetFeedback {
 }
 
 export interface SheetCoach {
-  /** Row key → the load to suggest; only rows whose kg cell is blank. */
+  /** Row key → the load to suggest; only rows whose kg is blank or filled down (never typed). */
   suggest: Map<string, Suggestion>;
   /** Row key → feedback; only rows with something entered. */
   feedback: Map<string, SetFeedback>;
@@ -131,8 +131,8 @@ const setName = (r: Pick<CoachRow, "type" | "setNumber">) => `${r.type === "back
 /**
  * The sheet's coaching from its rows. A suggestion needs target reps and RPE
  * (a back-off without RPE keeps the plan's drop from its top set instead),
- * a loadable implement, and a blank kg cell — typed and filled-down loads are
- * never second-guessed.
+ * a loadable implement, and a kg cell that wasn't typed. A filled-down kg is
+ * never changed — the suggestion can only be offered as a chip against it.
  */
 export function coachSheet(rows: CoachRow[], ctx: CoachCtx): SheetCoach {
   const suggest = new Map<string, Suggestion>();
@@ -182,7 +182,7 @@ export function coachSheet(rows: CoachRow[], ctx: CoachCtx): SheetCoach {
   // ---- Suggestions for the sets still to do ----
   for (const r of rows) {
     if (r.skipped || r.timed || !r.rx || r.rx.amrap || r.rx.durationSeconds != null) continue;
-    if (cellNumber(r.weight) !== undefined) continue;
+    if (cellNumber(r.weight) !== undefined && !isCopied(r, "weight")) continue;
     const eq = ctx.equipmentOf(r.exerciseId);
     if (loadStep(eq) == null) continue;
     const reps = r.rx.repsMin ?? r.rx.reps;
@@ -239,10 +239,17 @@ function backoffFromTop(r: CoachRow, rows: CoachRow[], entered: Map<string, E1rm
   return { kg, source: `${Math.round(ratio * 100)}% of today's top set (${top.kg} kg), as planned`, adjusted: false };
 }
 
-/** Show the "→ 102.5" chip: the plan has a kg and the suggestion is at least one load step away. */
+/**
+ * Show the "→ 102.5" chip when the suggestion is at least one load step from
+ * what the cell would otherwise hold: a filled-down kg, else the plan's kg.
+ * Null with a typed kg, or with neither (the suggestion is the placeholder then).
+ */
 export function chipFor(r: CoachRow, s: Suggestion | undefined, equipment: Equipment | null | undefined): number | null {
-  const planned = r.rx?.targetWeightKg;
   const step = loadStep(equipment);
-  if (!s || planned == null || step == null) return null;
-  return Math.abs(s.kg - planned) >= step - 1e-9 ? s.kg : null;
+  if (!s || step == null) return null;
+  const copied = isCopied(r, "weight") ? cellNumber(r.weight) : undefined;
+  if (copied === undefined && cellNumber(r.weight) !== undefined) return null;
+  const against = copied ?? r.rx?.targetWeightKg;
+  if (against == null || !Number.isFinite(against)) return null;
+  return Math.abs(s.kg - against) >= step - 1e-9 ? s.kg : null;
 }

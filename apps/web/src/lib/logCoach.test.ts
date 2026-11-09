@@ -68,9 +68,19 @@ describe("suggested load", () => {
     expect(c.suggest.get("pe1-1")).toMatchObject({ kg: at(140, 5, 7), source: "From stored 1RM · e1RM 140" });
   });
 
-  test("a typed or filled-down kg is never second-guessed", () => {
-    const c = coachSheet([row({ weight: 90 }), row({ setNumber: 2, weight: 90, copied: ["weight"] })], ctx());
-    expect(c.suggest.size).toBe(0);
+  test("a typed kg is never second-guessed", () => {
+    expect(coachSheet([row({ weight: 90 })], ctx()).suggest.size).toBe(0);
+  });
+
+  test("a filled-down kg stays; the suggestion is offered as a chip against it", () => {
+    const rows = [row({ weight: 100, reps: 5, rpe: 9 }), row({ setNumber: 2, weight: 100, copied: ["weight"] })];
+    const c = coachSheet(rows, ctx());
+    const s = c.suggest.get("pe1-2")!;
+    expect(s.kg).toBeLessThan(100);
+    expect(rows[1].weight).toBe(100);
+    expect(chipFor(rows[1], s, "barbell")).toBe(s.kg);
+    expect(chipFor(row({ weight: 100 }), s, "barbell")).toBeNull();
+    expect(c.adjusted.get("pe1")).toContain("set 1 ran hot");
   });
 
   test("an on-target set today becomes the source", () => {
