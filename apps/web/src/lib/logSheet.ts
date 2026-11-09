@@ -24,6 +24,10 @@ export interface SheetRow {
   skipped?: boolean;
   /** Added on the floor, beyond the prescription. */
   extra?: boolean;
+  /** Cells filled down from an earlier set, not typed — a later fill may replace them. */
+  copied?: SheetField[];
+  /** Set on every row of an exercise skipped as a whole, with the optional reason. */
+  exerciseSkip?: { reason: SkipReason | null };
 }
 
 export type SheetField = "weight" | "reps" | "rpe";
@@ -288,7 +292,9 @@ export function withoutExtra<R extends SheetRow>(rows: R[], key: string): R[] {
 /** Log the slot under another exercise. Loads entered for the old lift are cleared. */
 export function swapSlot<R extends SheetRow>(rows: R[], programExerciseId: string, exerciseId: string): R[] {
   return rows.map((r) =>
-    r.programExerciseId === programExerciseId && r.exerciseId !== exerciseId ? { ...r, exerciseId, weight: null } : r
+    r.programExerciseId === programExerciseId && r.exerciseId !== exerciseId
+      ? { ...r, exerciseId, weight: null, copied: r.copied?.filter((f) => f !== "weight") }
+      : r
   );
 }
 
@@ -446,4 +452,132 @@ export function parseDraft<R extends SheetRow>(raw: string | null, fresh: R[]): 
   const prescribed = d.rows.filter((r) => !r?.extra);
   if (prescribed.length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
   return d;
+}
+
+// ---------------------------------------------------------------------------
+// Speed: fill down, keyboard order, skipping a whole exercise
+// ---------------------------------------------------------------------------
+
+export const isCopied = (r: Pick<SheetRow, "copied">, field: SheetField): boolean => !!r.copied?.includes(field);
+
+/** The cell was typed or stepped: it stops being a copy, so no later fill replaces it. */
+export function markTyped<R extends SheetRow>(r: R, field: SheetField): R {
+  return isCopied(r, field) ? { ...r, copied: r.copied!.filter((f) => f !== field) } : r;
+}
+
+/**
+ * Copy a committed cell into the later sets of the same exercise that are
+ * blank (or hold an earlier copy). Skipped and extra sets are left alone, and
+ * back-off sets too unless the source is a back-off — their load differs by
+ * design. A typed cell is never overwritten; a blank source copies nothing.
+ */
+export function fillDown<R extends SheetRow>(rows: R[], key: string, field: SheetField): R[] {
+  const at = rows.findIndex((r) => r.key === key);
+  const src = rows[at];
+  if (!src || src.skipped || isBlank(src[field])) return rows;
+  const value = src[field];
+  let changed = false;
+  const out = rows.map((r, i) => {
+    if (i <= at || r.programExerciseId !== src.programExerciseId) return r;
+    if (r.skipped || r.extra || (r.type === "backoff" && src.type !== "backoff")) return r;
+    if (!isBlank(r[field]) && !isCopied(r, field)) return r;
+    if (r[field] === value && isCopied(r, field)) return r;
+    changed = true;
+    return { ...r, [field]: value, copied: [...(r.copied ?? []).filter((f) => f !== field), field] };
+  });
+  return changed ? out : rows;
+}
+
+export interface CellRef {
+  key: string;
+  field: SheetField;
+  programExerciseId: string;
+}
+
+const FIELDS: SheetField[] = ["weight", "reps", "rpe"];
+
+/** The sheet's cells in Enter order: kg → reps → RPE per set; skipped rows out, no kg on bodyweight moves. */
+export function cellOrder(rows: SheetRow[], isBodyweight: (exerciseId: string) => boolean): CellRef[] {
+  return rows.flatMap((r) =>
+    r.skipped
+      ? []
+      : FIELDS.filter((f) => f !== "weight" || !isBodyweight(r.exerciseId)).map((field) => ({
+          key: r.key,
+          field,
+          programExerciseId: r.programExerciseId,
+        }))
+  );
+}
+
+/**
+ * The cell Enter (dir 1) or Shift+Enter (dir −1) moves to; null past either
+ * end. From a cell missing in the order (kg of a bodyweight move), it moves to
+ * the row's next listed cell.
+ */
+export function nextCell(order: CellRef[], key: string, field: SheetField, dir: 1 | -1): CellRef | null {
+  let i = order.findIndex((c) => c.key === key && c.field === field);
+  if (i < 0) {
+    const row = order.findIndex((c) => c.key === key);
+    if (row < 0) return null;
+    return dir === 1 ? order[row] : order[row - 1] ?? null;
+  }
+  return order[i + dir] ?? null;
+}
+
+export const SKIP_REASONS = ["time", "pain", "equipment", "other"] as const;
+export type SkipReason = (typeof SKIP_REASONS)[number];
+export const SKIP_REASON_LABEL: Record<SkipReason, string> = { time: "Time", pain: "Pain", equipment: "Equipment", other: "Other" };
+
+/** An extra set in the slot still holds something the trainer entered. */
+export const extrasHoldValues = (rows: SheetRow[], programExerciseId: string): boolean =>
+  rows.some((r) => r.programExerciseId === programExerciseId && r.extra && (!isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe)));
+
+/** Skip the exercise: every prescribed set skipped (values kept underneath), extra sets dropped. */
+export function skipExercise<R extends SheetRow>(rows: R[], programExerciseId: string): R[] {
+  return rows
+    .filter((r) => r.programExerciseId !== programExerciseId || !r.extra)
+    .map((r) => (r.programExerciseId === programExerciseId ? { ...r, skipped: true, exerciseSkip: { reason: null } } : r));
+}
+
+export function setSkipReason<R extends SheetRow>(rows: R[], programExerciseId: string, reason: SkipReason | null): R[] {
+  return rows.map((r) => (r.programExerciseId === programExerciseId && r.exerciseSkip ? { ...r, exerciseSkip: { reason } } : r));
+}
+
+/**
+ * Undo a whole-exercise skip. With `before` (the slot's rows when it was
+ * skipped) the rows come back exactly; without (after a reload) every set is
+ * simply un-skipped.
+ */
+export function unskipExercise<R extends SheetRow>(rows: R[], programExerciseId: string, before?: R[]): R[] {
+  if (before?.length) {
+    const at = rows.findIndex((r) => r.programExerciseId === programExerciseId);
+    if (at < 0) return rows;
+    return [...rows.slice(0, at), ...before, ...rows.slice(at).filter((r) => r.programExerciseId !== programExerciseId)];
+  }
+  return rows.map((r) =>
+    r.programExerciseId === programExerciseId && r.exerciseSkip ? { ...r, skipped: false, exerciseSkip: undefined } : r
+  );
+}
+
+/** Exercises skipped as a whole, in sheet order. */
+export function skippedExercises(rows: SheetRow[]): { programExerciseId: string; exerciseId: string; reason: SkipReason | null }[] {
+  const out: { programExerciseId: string; exerciseId: string; reason: SkipReason | null }[] = [];
+  for (const r of rows) {
+    if (!r.exerciseSkip || out.some((x) => x.programExerciseId === r.programExerciseId)) continue;
+    out.push({ programExerciseId: r.programExerciseId, exerciseId: r.exerciseId, reason: r.exerciseSkip.reason });
+  }
+  return out;
+}
+
+export const NOTES_MAX = 2000;
+
+/**
+ * The notes a save sends: the trainer's notes, then one line per skipped
+ * exercise ("Skipped Hack Squat — pain"). Over the limit, the skip lines are
+ * what gets cut — never the trainer's words.
+ */
+export function notesWithSkips(notes: string, skips: { name: string; reason: SkipReason | null }[], max = NOTES_MAX): string {
+  const own = notes.trim();
+  const lines = skips.map((s) => `Skipped ${s.name}${s.reason ? ` — ${s.reason}` : ""}`);
+  return [own, ...lines].filter(Boolean).join("\n").slice(0, Math.max(max, own.length));
 }
