@@ -732,12 +732,12 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 }
 .setchip .rep { font-weight: 500; }
 .setchip .sub { color: var(--faint); font-size: 11px; }
-/* RPE effort tiers on chips — low/mid darkened one step for AA on the chip
-   background at 12px semibold (6.6:1 / 5.8:1 / 4.7:1); after .sub so the
-   combined sub+rpe span keeps its tier ink */
-.setchip .rpe { color: var(--done-4); font-weight: 600; }
-.setchip .rpe.rpe-mid { color: var(--rpe-mid-chip); }
-.setchip .rpe.rpe-high { color: var(--bad); }
+/* RPE on chips is a planned effort, not a status: a neutral ink-weight scale
+   (≤6 muted, 7–8 ink semibold, 9+ ink bold with an ink bar) so a hard top
+   set never borrows Danger Red. After .sub so the rpe span keeps its ink. */
+.setchip .rpe { color: var(--muted); font-weight: 500; }
+.setchip .rpe.rpe-mid { color: var(--ink); font-weight: 600; }
+.setchip .rpe.rpe-high { font-weight: 700; text-decoration: underline 2px; text-underline-offset: 2px; }
 
 /* —— signals (needs-review cards) ————————— */
 
@@ -801,10 +801,11 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   align-items: center;
   gap: 5px;
   font: 500 12px/1 var(--font-ui);
-  color: var(--good);
+  color: var(--muted);
   white-space: nowrap;
 }
-.session-head .cond svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
+/* cardio is a track, not a success state: muted ink, the pulse glyph marks it */
+.session-head .cond svg { width: 10px; height: 10px; fill: currentColor; flex: none; }
 /* A cardio-only card's line is the whole body: let it wrap on a narrow card
    instead of pushing the page sideways. */
 .cond-row .cond { margin-left: 0; white-space: normal; min-width: 0; line-height: 1.35; align-items: flex-start; }

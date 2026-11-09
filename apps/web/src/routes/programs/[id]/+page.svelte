@@ -661,9 +661,9 @@
     align-items: center;
     gap: 5px;
     font: 500 12px var(--font-ui);
-    color: var(--good);
-    background: var(--good-bg);
-    border: 1px solid var(--good-line);
+    color: var(--muted);
+    background: var(--well);
+    border: 1px solid var(--line);
     border-radius: 99px;
     padding: 2px 10px;
     max-width: 320px;
@@ -671,7 +671,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .cond-chip :global(svg) { width: 10px; height: 10px; fill: var(--good); flex: none; }
+  .cond-chip :global(svg) { width: 10px; height: 10px; fill: currentColor; flex: none; }
   .divider { border: none; border-top: 1px solid var(--line); margin: 8px 0; }
   .week-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; }
   .balance { margin: 0 auto 0 0; color: var(--muted); }
