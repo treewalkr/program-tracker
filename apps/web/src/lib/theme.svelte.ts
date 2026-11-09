@@ -20,10 +20,10 @@ export const PALETTES = [
   { id: "light", label: "Light", mode: "light", swatch: { bg: "#ffffff", ink: "#1f2328", good: "#1f883d", bad: "#cf222e" } },
   { id: "light-hc", label: "High contrast", mode: "light", swatch: { bg: "#ffffff", ink: "#010409", good: "#055d20", bad: "#a0111f" } },
   { id: "light-cb", label: "Colourblind", mode: "light", swatch: { bg: "#ffffff", ink: "#1f2328", good: "#0969da", bad: "#bc4c00" } },
-  { id: "paper", label: "Paper", mode: "light", swatch: { bg: "#f7f1e3", ink: "#3b2f22", good: "#2f6f3a", bad: "#a8321f" } },
+  { id: "paper", label: "Paper", mode: "light", swatch: { bg: "#f7f1e3", ink: "#3b2f22", good: "#2f7a3d", bad: "#a3321f" } },
   { id: "dark", label: "Dark", mode: "dark", swatch: { bg: "#0d1117", ink: "#f0f6fc", good: "#238636", bad: "#f85149" } },
-  { id: "dark-dimmed", label: "Dimmed", mode: "dark", swatch: { bg: "#212830", ink: "#d1d7e0", good: "#347d39", bad: "#e5534b" } },
-  { id: "dark-hc", label: "High contrast", mode: "dark", swatch: { bg: "#010409", ink: "#ffffff", good: "#09b43a", bad: "#ff6a69" } },
+  { id: "dark-dimmed", label: "Dimmed", mode: "dark", swatch: { bg: "#212830", ink: "#d1d7e0", good: "#347d39", bad: "#f47067" } },
+  { id: "dark-hc", label: "High contrast", mode: "dark", swatch: { bg: "#010409", ink: "#ffffff", good: "#1a7f37", bad: "#ff6a69" } },
   { id: "dark-cb", label: "Colourblind", mode: "dark", swatch: { bg: "#0d1117", ink: "#f0f6fc", good: "#1f6feb", bad: "#f0883e" } },
 ] as const satisfies readonly Palette[];
 
