@@ -391,11 +391,13 @@
     color: var(--muted);
     stroke-width: 1.6;
   }
+  /* Opening the menu focuses its first item (arrow keys work at once); only
+     keyboard focus draws the highlight, so a mouse open shows none. */
+  .item:focus { outline: none; }
   .item:hover,
-  .item:focus-visible,
-  .item:focus { background: var(--well-2); text-decoration: none; outline: none; }
+  .item:focus-visible { background: var(--well-2); text-decoration: none; }
   .item:hover :global(svg),
-  .item:focus :global(svg) { color: var(--ink); }
+  .item:focus-visible :global(svg) { color: var(--ink); }
   .aside {
     margin-left: auto;
     font: 400 12px/1 var(--font-mono);
@@ -435,13 +437,14 @@
   }
   .seg-btn :global(svg) { width: 14px; height: 14px; stroke-width: 1.7; }
   .seg-btn:hover { color: var(--ink); }
-  .seg-btn:focus { outline: none; box-shadow: 0 0 0 2px var(--focus); }
+  .seg-btn:focus { outline: none; }
+  .seg-btn:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
   .seg-btn[aria-checked="true"] {
     background: var(--bg);
     color: var(--ink);
     box-shadow: 0 0 0 1px var(--line);
   }
-  .seg-btn[aria-checked="true"]:focus { box-shadow: 0 0 0 2px var(--focus); }
+  .seg-btn[aria-checked="true"]:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
 
   @media (prefers-reduced-motion: reduce) {
     .trigger, .status { transition: none; }
