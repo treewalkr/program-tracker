@@ -3,6 +3,7 @@
   import { basicsInvalid, basicsSummary, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
+  import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -788,6 +789,10 @@
         </div>
       {/if}
     </form>
+    <!-- Saves on its own, so it sits outside the profile form and its save bar. -->
+    <div class="pf deload-pf">
+      <ClientDeloadRule {client} onchange={(c) => (client = c)} />
+    </div>
     </div>
   {/if}
 {/if}
@@ -807,6 +812,7 @@
   }
 
   .sig-panel { margin: 18px 0 0; }
+  .deload-pf { margin-top: 16px; }
   .sig-panel :global(.signal .act) { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .snooze:disabled { color: var(--muted); cursor: default; }
 
