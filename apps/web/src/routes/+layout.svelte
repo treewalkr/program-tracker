@@ -444,6 +444,9 @@
   /* Crumbs are shorter than the toggle: the title block below them clears it
      instead of shifting right beside it. */
   .main :global(.crumbs + *) { clear: left; }
+  /* Crumbs ride the toggle's 28px line (centre y=40, like the brand); the
+     title below keeps its place. */
+  .main > :global(.crumbs) { line-height: 28px; margin: -2px 0 0; }
   .side-toggle {
     display: grid;
     place-items: center;
