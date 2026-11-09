@@ -16,7 +16,8 @@
     type SessionLogDto,
     type SessionLogInput,
   } from "$lib/api/types";
-  import { oneRepMaxKg, sessionTag, sessionsByWeekday, weekOf, type ExerciseRole } from "@pt/shared";
+  import { oneRepMaxKg, sessionTag, sessionsByWeekday, type ExerciseRole } from "@pt/shared";
+  import { dateForSession, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -55,6 +56,20 @@
     withExtraSet,
     withoutExtra,
     MAX_SETS,
+    cellOrder,
+    extrasHoldValues,
+    fillDown,
+    isCopied,
+    markTyped,
+    nextCell,
+    notesWithSkips,
+    setSkipReason,
+    skipExercise,
+    skippedExercises,
+    unskipExercise,
+    SKIP_REASONS,
+    SKIP_REASON_LABEL,
+    type SkipReason,
     type Cell,
     type FieldErrors,
     type LastSet,
@@ -82,7 +97,10 @@
 
   let selectedWeekNumber = $state<number>(1);
   let sessionId = $state<string>("");
-  let date = $state(localIso(new Date()));
+  const today = localIso(new Date());
+  let date = $state(today);
+  /** Explains the last automatic date or session pick, under the selects. */
+  let pickNote = $state<string | null>(null);
   let energy = $state<number>(DEFAULT_ENERGY);
   let notes = $state("");
   let saving = $state(false);
@@ -144,7 +162,6 @@
   );
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const todayIso = (new Date().getDay() + 6) % 7 + 1;
 
   /** The week's sessions grouped Mon→Sun, unscheduled last as "Any day". */
   const sessionGroups = $derived.by(() => {
@@ -162,9 +179,6 @@
       .filter((g) => g.items.length > 0);
   });
   const weekSessionsList = $derived(sessionGroups.flatMap((g) => g.items));
-  /** Default pick: the first session placed on today's weekday, else the first one. */
-  const defaultSessionId = () =>
-    (sessionGroups.find((g) => g.day === todayIso)?.items[0] ?? weekSessionsList[0])?.id ?? "";
 
   const selectedSession = $derived(
     sessionId ? weekSessionsList.find((ws) => ws.id === sessionId)?.session ?? null : null
@@ -212,6 +226,7 @@
     fieldErrors = {};
     current = 0;
     swapOpen = null;
+    skipBefore.clear();
     draftSavedAt = null;
     notes = "";
     energy = DEFAULT_ENERGY;
@@ -277,16 +292,60 @@
     return true;
   }
 
+  // ---- Date ↔ session: each change handler moves the other, so they can't loop ----
+
+  const weekdayOf = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" });
+  const sessionTitle = (sid: string) =>
+    program?.weeks.flatMap((w) => w.sessions).find((s) => s.id === sid)?.name ?? "the session";
+
+  function pickText(p: SessionPick, on: string): string {
+    const name = sessionTitle(p.sessionId);
+    const day = weekdayOf(on);
+    switch (p.why) {
+      case "scheduled":
+        return `Picked ${name}: scheduled ${day}, not logged yet.`;
+      case "earlier":
+        return `Picked ${name}: nothing open on ${day}, so the first open session earlier in week ${p.week}.`;
+      case "any-day":
+        return `Picked ${name}: an any-day session not logged yet — nothing else is open in week ${p.week}.`;
+      case "logged":
+        return `Picked ${name}: scheduled ${day}, already logged.`;
+      case "first":
+        return `Picked ${name}: nothing scheduled on ${day}, so the first session of week ${p.week}.`;
+    }
+  }
+
+  /** Move the date to the picked session's scheduled day — unless a restored draft brought its own. */
+  function dateFromSession() {
+    if (!program || draftSavedAt) {
+      pickNote = null;
+      return;
+    }
+    const d = dateForSession(program, pastLogs, selectedWeekNumber, sessionId, today);
+    if (!d || d.date === date) {
+      pickNote = null;
+      return;
+    }
+    date = d.date;
+    pickNote = d.capped
+      ? `Dated today: ${sessionName()} is scheduled ${fmtLongDay(d.scheduled)}, which hasn't come yet.`
+      : `Dated ${fmtLongDay(d.date)}: the day ${sessionName()} is scheduled.`;
+  }
+
   function changeWeek(e: Event & { currentTarget: HTMLSelectElement }) {
     const el = e.currentTarget;
     if (!confirmDiscard()) {
       el.value = String(selectedWeekNumber);
       return;
     }
+    // Stay on the same session slot ("Session 2") in the new week when it has one.
+    const was = selectedSession;
     selectedWeekNumber = Number(el.value);
     undo = null;
-    sessionId = defaultSessionId();
+    const same = weekSessionsList.find((ws) => ws.session.kind === was?.kind && ws.session.seq === was?.seq);
+    sessionId = (same ?? weekSessionsList[0])?.id ?? "";
     loadSession();
+    dateFromSession();
   }
 
   function changeSession(e: Event & { currentTarget: HTMLSelectElement }) {
@@ -298,6 +357,33 @@
     sessionId = el.value;
     undo = null;
     loadSession();
+    dateFromSession();
+  }
+
+  function changeDate(e: Event & { currentTarget: HTMLInputElement }) {
+    const el = e.currentTarget;
+    let next = el.value;
+    // Mid-typing ("0202-…") or cleared: wait for a real date; blur puts the old one back.
+    if (!next || next < "2000-01-01") return;
+    if (next > today) next = today;
+    const pick = program ? sessionForDate(program, pastLogs, next) : null;
+    if (!pick || (pick.week === selectedWeekNumber && pick.sessionId === sessionId)) {
+      date = next;
+      el.value = next;
+      pickNote = null;
+      return;
+    }
+    if (!confirmDiscard()) {
+      el.value = date;
+      return;
+    }
+    selectedWeekNumber = pick.week;
+    sessionId = pick.sessionId;
+    undo = null;
+    loadSession();
+    date = next;
+    el.value = next;
+    pickNote = pickText(pick, next);
   }
 
   beforeNavigate((nav) => {
@@ -396,7 +482,7 @@
         programSessionId: sessionId,
         date,
         perceivedEnergy: energy,
-        notes: notes || undefined,
+        notes: notesWithSkips(notes, skippedExercises(sheetRows).map((x) => ({ name: nameOf(x.exerciseId), reason: x.reason }))) || undefined,
         sets: sent.map(toLoggedSet),
       },
       sent,
@@ -553,12 +639,73 @@
     return b ? blockName(b) : nameOf(pe);
   };
 
-  async function focusCell(key: string, field: "weight" | "reps") {
+  async function focusCell(key: string, field: SheetField) {
     const r = rows.find((x) => x.key === key);
     if (!r) return;
     current = Math.max(0, blocks.findIndex((b) => b.programExerciseId === r.programExerciseId));
     await tick();
-    document.querySelector<HTMLInputElement>(`[data-cell="${CSS.escape(`${key}:${field}`)}"] input`)?.focus();
+    const input = document.querySelector<HTMLInputElement>(`[data-cell="${CSS.escape(`${key}:${field}`)}"] input`);
+    input?.focus();
+    input?.select();
+  }
+
+  // ---- Sticky Save bar: the floating Feedback button steps up whenever the bar sits under it ----
+
+  let saveBarEl = $state<HTMLElement>();
+  const isMac = browser && /Mac|iPhone|iPad/.test(navigator.userAgent);
+
+  $effect(() => {
+    const bar = saveBarEl;
+    if (!bar) return;
+    const root = document.documentElement;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const r = bar.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // The button lives in the bottom 16–56px of the viewport (FeedbackLayer).
+      const under = r.top < vh - 16 && r.bottom > vh - 56;
+      root.style.setProperty("--feedback-lift", under ? `${Math.ceil(vh - r.top)}px` : "0px");
+    };
+    const queue = () => (raf ||= requestAnimationFrame(update));
+    update();
+    document.addEventListener("scroll", queue, { capture: true, passive: true });
+    window.addEventListener("resize", queue);
+    const ro = new ResizeObserver(queue);
+    ro.observe(bar);
+    if (formEl) ro.observe(formEl);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("scroll", queue, { capture: true });
+      window.removeEventListener("resize", queue);
+      ro.disconnect();
+      root.style.removeProperty("--feedback-lift");
+    };
+  });
+
+  // ---- Keyboard: Enter walks the cells, Cmd/Ctrl+Enter saves, nothing submits by accident ----
+
+  const order = $derived(cellOrder(rows, isBodyweight));
+  const lastCell = $derived(order[order.length - 1]);
+  let formEl = $state<HTMLFormElement>();
+
+  function formKeydown(e: KeyboardEvent) {
+    if (e.key !== "Enter" || e.isComposing) return;
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      if (!saving) formEl?.requestSubmit();
+      return;
+    }
+    const el = e.target as HTMLElement;
+    // Buttons keep their own Enter; every input loses implicit submission.
+    if (!(el instanceof HTMLInputElement)) return;
+    e.preventDefault();
+    const cell = el.closest<HTMLElement>("[data-cell]")?.dataset.cell;
+    if (!cell) return;
+    const at = cell.lastIndexOf(":");
+    const to = nextCell(order, cell.slice(0, at), cell.slice(at + 1) as SheetField, e.shiftKey ? -1 : 1);
+    if (to) void focusCell(to.key, to.field);
+    else if (!e.shiftKey) document.getElementById("log-save")?.focus();
   }
 
   // ---- Undo: a short window after each save ----
@@ -611,6 +758,18 @@
     document.querySelector<HTMLInputElement>('.sheet [aria-invalid="true"]')?.focus();
   }
 
+  /** An edit by hand: the cell is typed now (no longer a fill-down copy), and its flag clears. */
+  function edited(key: string, field: SheetField) {
+    const i = rows.findIndex((r) => r.key === key);
+    if (i >= 0 && isCopied(rows[i], field)) rows[i] = markTyped(rows[i], field);
+    clearCell(key, field);
+  }
+
+  /** A committed kg fills the later blank sets of the exercise. */
+  function fillKg(key: string) {
+    rows = fillDown(rows, key, "weight");
+  }
+
   /** Editing a flagged cell clears its flag; the rest stay until the next save. */
   function clearCell(key: string, field: SheetField) {
     if (!fieldErrors[key]?.[field]) return;
@@ -656,6 +815,33 @@
     swapOpen = null;
   }
 
+  // ---- Skip a whole exercise ----
+
+  /** A slot's rows as they were before "Skip exercise" — Undo skip puts them back. */
+  const skipBefore = new Map<string, Row[]>();
+
+  function skipBlock(b: { programExerciseId: string; rows: Row[] }) {
+    const pe = b.programExerciseId;
+    if (extrasHoldValues(rows, pe) && !confirm(`Skip ${blockName(b)} and drop the extra sets you entered?`)) return;
+    skipBefore.set(pe, $state.snapshot(b.rows) as Row[]);
+    rows = skipExercise(rows, pe);
+    const keys = new Set(b.rows.map((r) => r.key));
+    fieldErrors = Object.fromEntries(Object.entries(fieldErrors).filter(([k]) => !keys.has(k)));
+    if (swapOpen === pe) swapOpen = null;
+  }
+
+  function undoSkipBlock(pe: string) {
+    rows = unskipExercise(rows, pe, skipBefore.get(pe));
+    skipBefore.delete(pe);
+  }
+
+  /** One tap picks a reason; tapping it again clears it. */
+  function pickSkipReason(pe: string, reason: SkipReason, was: SkipReason | null) {
+    rows = setSkipReason(rows, pe, was === reason ? null : reason);
+  }
+
+  const painSkips = $derived(skippedExercises(rows).filter((x) => x.reason === "pain"));
+
   function go(i: number) {
     current = Math.max(0, Math.min(blocks.length - 1, i));
     document.getElementById("log-sheet")?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -692,13 +878,15 @@
     program = detail.currentProgram;
     pastLogs = await api.sessionLogs(id);
     if (program && program.weeks?.length) {
-      const initialWeek = weekOf(
-        program,
-        pastLogs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
-      );
-      selectedWeekNumber = Math.max(1, Math.min(initialWeek, program.weeks.length));
-      sessionId = defaultSessionId();
+      // Open on the most recent scheduled session not logged yet, dated its day.
+      const pick = openingPick(program, pastLogs, today);
+      selectedWeekNumber = pick?.week ?? program.weeks[0].week;
+      sessionId = pick?.sessionId ?? weekSessionsList[0]?.id ?? "";
       loadSession();
+      if (pick && !draftSavedAt) {
+        date = pick.date;
+        pickNote = pickText(pick, pick.date);
+      }
     }
   });
 </script>
@@ -728,7 +916,9 @@
   {:else}
     {@const prog = program}
     <!-- novalidate: the sheet validates itself; a native bubble on a cell in a hidden phone card would block Save silently. -->
-    <form onsubmit={submit} novalidate>
+    <!-- Plain Enter never submits: formKeydown walks the cells; Cmd/Ctrl+Enter saves. Delegated from the cells' inputs. -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <form onsubmit={submit} onkeydown={formKeydown} bind:this={formEl} novalidate>
       <Panel title="Session" count={!isCardioSession && rows.length > 0 ? tally : undefined}>
         {#snippet act()}
           <div class="head-controls">
@@ -759,14 +949,25 @@
               {/each}
             </select>
             <label class="label" for="log-date">Date</label>
-            <input class="input date" id="log-date" type="date" bind:value={date} />
+            <input
+              class="input date"
+              id="log-date"
+              type="date"
+              max={today}
+              value={date}
+              onchange={changeDate}
+              onblur={(e) => (e.currentTarget.value = date)}
+            />
             {#if prefillable && !isCardioSession}
               <Button variant="ghost" small type="button" onclick={prefill}>Prefill prescribed</Button>
             {/if}
           </div>
         {/snippet}
-      {#if sessionLogged || draftSavedAt}
+      {#if pickNote || sessionLogged || draftSavedAt}
         <div class="panel-body sheet-notes">
+          {#if pickNote}
+            <p class="pick-note" aria-live="polite">{pickNote}</p>
+          {/if}
           {#if sessionLogged}
             <Note tone="warn" role="note">
               Already logged {fmtDay(sessionLogged.date)}{isCardioSession ? "" : ` · ${sessionLogged.setCount} sets`}.
@@ -816,13 +1017,8 @@
               <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
             </Field>
           </div>
-          <div class="submit-row">
-            <span class="subtle">cardio session — counts toward the weekly target</span>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save session"}
-            </Button>
-          </div>
         </div>
+        {@render saveBar("cardio session — counts toward the weekly target")}
       {:else}
       <div class="sheet" id="log-sheet">
         {#if blocks.length > 1}
@@ -860,6 +1056,7 @@
           {@const head = b.rows[0]}
           {@const role = roles.get(b.programExerciseId)}
           {@const swapped = isSwapped(head)}
+          {@const exSkip = head.exerciseSkip}
           <section class="block" class:off={bi !== current} aria-labelledby={`blk-${b.programExerciseId}`}>
             <header class="blk-head">
               <div class="blk-title">
@@ -868,8 +1065,14 @@
                 {#if swapped}
                   <span class="pill warn swap-pill">swapped · was {nameOf(head.slotExerciseId)}</span>
                 {/if}
+                {#if exSkip}
+                  <span class="pill skip-pill">Skipped{exSkip.reason ? ` · ${exSkip.reason}` : ""}</span>
+                {/if}
               </div>
               <div class="blk-act">
+                {#if exSkip}
+                  <Button variant="ghost" small type="button" aria-label={`Undo skip on ${blockName(b)}`} onclick={() => undoSkipBlock(b.programExerciseId)}>Undo skip</Button>
+                {:else}
                 {#if swapped}
                   <Button variant="ghost" small type="button" aria-label={`Undo swap on ${blockName(b)}`} onclick={() => swap(b.programExerciseId, head.slotExerciseId)}>Undo swap</Button>
                 {/if}
@@ -892,8 +1095,23 @@
                   {#snippet icon()}<Icon name="plus" />{/snippet}
                   Set
                 </Button>
+                <Button variant="ghost" small type="button" aria-label={`Skip ${blockName(b)}`} onclick={() => skipBlock(b)}>Skip exercise</Button>
+                {/if}
               </div>
-              {#if swapOpen === b.programExerciseId}
+              {#if exSkip}
+                <div class="blk-reason" role="group" aria-label={`Why was ${blockName(b)} skipped? Optional`}>
+                  <span class="subtle">Why? <span class="faint">optional</span></span>
+                  {#each SKIP_REASONS as k (k)}
+                    <button
+                      type="button"
+                      class="reason-chip"
+                      aria-pressed={exSkip.reason === k}
+                      onclick={() => pickSkipReason(b.programExerciseId, k, exSkip.reason)}
+                    >{SKIP_REASON_LABEL[k]}</button>
+                  {/each}
+                </div>
+              {/if}
+              {#if swapOpen === b.programExerciseId && !exSkip}
                 <div class="blk-swap">
                   <ExercisePicker
                     value={head.exerciseId}
@@ -924,20 +1142,23 @@
                   </span>
                 </div>
                 {#if r.skipped}
-                  <span class="skip-note">Skipped — not logged</span>
+                  <span class="skip-note">{exSkip ? "Exercise skipped" : "Skipped"} — not logged</span>
                 {:else}
+                  {@const hint = (f: SheetField) => (lastCell?.key === r.key && lastCell.field === f ? "done" : "next")}
                   <div class="c-kg" data-cell={`${r.key}:weight`}>
-                    <LogStepper bind:value={r.weight} label={`${label}, kg`} unit="kg" step={2.5} min={0} max={600} from={p.weight} placeholder={p.weight != null ? String(p.weight) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} onedit={() => clearCell(r.key, "weight")} />
+                    <LogStepper bind:value={r.weight} label={`${label}, kg`} unit="kg" step={2.5} min={0} max={600} from={p.weight} placeholder={p.weight != null ? String(p.weight) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
                   </div>
                   <div class="c-reps" data-cell={`${r.key}:reps`}>
-                    <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} onedit={() => clearCell(r.key, "reps")} />
+                    <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} enterkeyhint={hint("reps")} onedit={() => edited(r.key, "reps")} />
                   </div>
-                  <div class="c-rpe">
-                    <LogStepper bind:value={r.rpe} label={`${label}, RPE`} unit="RPE" step={0.5} min={1} max={10} from={p.rpe ?? 7.5} placeholder={p.rpe != null ? String(p.rpe) : "—"} error={fe?.rpe} errorId={`${r.key}-rpe-err`} onedit={() => clearCell(r.key, "rpe")} />
+                  <div class="c-rpe" data-cell={`${r.key}:rpe`}>
+                    <LogStepper bind:value={r.rpe} label={`${label}, RPE`} unit="RPE" step={0.5} min={1} max={10} from={p.rpe ?? 7.5} placeholder={p.rpe != null ? String(p.rpe) : "—"} error={fe?.rpe} errorId={`${r.key}-rpe-err`} enterkeyhint={hint("rpe")} onedit={() => edited(r.key, "rpe")} />
                   </div>
                 {/if}
                 <div class="c-skip">
-                  {#if r.extra}
+                  {#if exSkip}
+                    <!-- The whole exercise is skipped: Undo skip in the header brings the sets back. -->
+                  {:else if r.extra}
                     <button type="button" class="skip-btn" aria-label={`Remove ${label}`} title="Remove this set" onclick={() => removeSet(r.key)}>
                       <Icon name="x" /><span class="mob">Remove set</span>
                     </button>
@@ -970,16 +1191,34 @@
               <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
             </Field>
           </div>
-          <div class="submit-row">
-            <span class="subtle tally" aria-live="polite">{tally}</span>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save session"}
-            </Button>
-          </div>
         </div>
+        {#if painSkips.length > 0}
+          <div class="panel-body pain-note">
+            <Note tone="warn" role="note">
+              Pain logged on {painSkips.map((x) => nameOf(x.exerciseId)).join(", ")} — check in with {client.name.split(" ")[0]}.
+            </Note>
+          </div>
+        {/if}
+        {@render saveBar(tally)}
       {/if}
       </Panel>
     </form>
+
+    {#snippet saveBar(status: string)}
+      <!-- Sticky: Save, the tally and the error stay on screen while the sheet scrolls. -->
+      <div class="save-bar" bind:this={saveBarEl}>
+        {#if error}
+          <p class="err-msg" role="alert">{error}</p>
+        {/if}
+        <div class="submit-row">
+          <span class="subtle tally" aria-live="polite">{status}</span>
+          <span class="kbd-hint" aria-hidden="true">Enter: next cell · {isMac ? "⌘↵" : "Ctrl+↵"} save</span>
+          <Button type="submit" id="log-save" disabled={saving} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
+            {saving ? "Saving…" : "Save session"}
+          </Button>
+        </div>
+      </div>
+    {/snippet}
 
     {#if undo}
       <div class="undo-bar" role="status">
@@ -1000,9 +1239,6 @@
       </p>
     {/if}
     <p class="sr-only" aria-live="polite">{announce}</p>
-    {#if error}
-      <p class="err-msg" role="alert">{error}</p>
-    {/if}
 
     <p class="subtle hint">
       “Did it as prescribed” shows what it will log before saving: target loads (with none, the load
@@ -1290,6 +1526,52 @@
   .notes { min-width: 220px; }
   .submit-row { display: flex; align-items: center; gap: 14px; }
 
+  /* ---- Sticky Save bar: last thing in the form, pinned to the viewport bottom while the sheet scrolls ---- */
+  .save-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    padding: 10px 16px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+  .save-bar .submit-row { justify-content: flex-end; }
+  .save-bar .tally { margin-right: auto; }
+  .save-bar .err-msg { margin: 0 0 8px; }
+  .kbd-hint { font: 400 12px/1.2 var(--font-ui); color: var(--faint); white-space: nowrap; }
+  /* A focused cell scrolls clear of the bar, not under it. */
+  .sheet :global(input) { scroll-margin-bottom: 96px; }
+  .pain-note { padding-top: 0; }
+
+  .pick-note { margin: 0; font-size: 13px; color: var(--muted); }
+
+  /* ---- Skip a whole exercise ---- */
+  .skip-pill { font-weight: 500; }
+  .blk-reason {
+    flex: 1 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0 4px;
+  }
+  .blk-reason .subtle { font-size: 13px; margin-right: 4px; }
+  .faint { color: var(--faint); }
+  .reason-chip {
+    height: 28px;
+    padding: 0 10px;
+    font: 500 12px/1 var(--font-ui);
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    cursor: pointer;
+  }
+  .reason-chip:hover { color: var(--ink); background: var(--well-2); }
+  .reason-chip[aria-pressed="true"] { color: var(--ink); background: var(--well); border-color: var(--line-strong); font-weight: 600; }
+
   .ok-msg { color: var(--good); font-weight: 600; margin-top: 14px; }
   .err-msg { color: var(--bad); font-weight: 600; margin-top: 14px; }
   .hint { margin-top: 10px; max-width: var(--measure-prose); }
@@ -1431,7 +1713,12 @@
     .energy input[type="range"] { flex: 1; }
     .notes { min-width: 0; }
     .notes .input { min-height: 44px; }
-    .submit-row { justify-content: space-between; }
     .submit-row :global(.btn) { min-height: 44px; padding: 0 22px; }
+    .save-bar { padding: 8px 14px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+    /* Phone keyboards have a Next key; the shortcut hint is desk-only. */
+    .kbd-hint { display: none; }
+    .blk-act { flex-wrap: wrap; }
+    .blk-reason .subtle { flex-basis: 100%; }
+    .reason-chip { height: 40px; padding: 0 6px; font-size: 14px; flex: 1; }
   }
 </style>
