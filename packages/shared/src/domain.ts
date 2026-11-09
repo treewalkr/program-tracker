@@ -454,12 +454,17 @@ export function sortExercisesByRole<T extends { role?: string | null }>(
   });
 }
 
-/** Hard sets per movement-pattern bucket. Core overlaps nothing else; unclassified = untagged exercises. */
+/**
+ * Hard sets per movement-pattern bucket. Buckets don't overlap, so they sum to
+ * the session's set total; unclassified = untagged exercises.
+ */
 export interface PatternBalance {
   push: number;
   pull: number;
   knee: number;
   hip: number;
+  iso: number;
+  carry: number;
   core: number;
   unclassified: number;
 }
@@ -481,6 +486,8 @@ export function patternBalance(
     pull: 0,
     knee: 0,
     hip: 0,
+    iso: 0,
+    carry: 0,
     core: 0,
     unclassified: 0,
   };
@@ -499,6 +506,10 @@ export function patternBalance(
       result.knee += n;
     } else if (p === "hip_dominant") {
       result.hip += n;
+    } else if (p === "isolation") {
+      result.iso += n;
+    } else if (p === "carry") {
+      result.carry += n;
     }
     if (MOVEMENT_PATTERN_INFO[p as MovementPattern]?.core) {
       result.core += n;
@@ -524,13 +535,12 @@ export function sessionsPatternBalance(
   );
 }
 
-/** "push 12 · pull 8 · core 4 sets · 3 untagged sets" — short enough for a session subtitle. */
+/** "18 sets — push 6 · pull 5 · iso 4 · core 2 · 1 untagged" — total first, so every set is accounted for. */
 export function formatPatternBalance(b: PatternBalance): string {
-  const parts = (["push", "pull", "knee", "hip", "core"] as const).filter((k) => b[k] > 0).map((k) => `${k} ${b[k]}`);
-  const out: string[] = [];
-  if (parts.length) out.push(`${parts.join(" · ")} sets`);
-  if (b.unclassified > 0) out.push(`${b.unclassified} untagged ${b.unclassified === 1 ? "set" : "sets"}`);
-  return out.length ? out.join(" · ") : "no exercises";
+  const parts = (["push", "pull", "knee", "hip", "iso", "carry", "core"] as const).filter((k) => b[k] > 0).map((k) => `${k} ${b[k]}`);
+  if (b.unclassified > 0) parts.push(`${b.unclassified} untagged`);
+  const total = b.push + b.pull + b.knee + b.hip + b.iso + b.carry + b.core + b.unclassified;
+  return total > 0 ? `${total} ${total === 1 ? "set" : "sets"} — ${parts.join(" · ")}` : "no exercises";
 }
 
 /** Four tempo phases, each a digit (seconds) or X (explosive): "3-1-1-0" or "31X0". */

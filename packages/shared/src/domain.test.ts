@@ -885,7 +885,7 @@ describe("patternBalance", () => {
   ];
 
   test("tallies hard sets per pattern, not exercises", () => {
-    expect(patternBalance(tagged8Plus1Null)).toEqual({ push: 7, pull: 6, knee: 8, hip: 3, core: 2, unclassified: 2 });
+    expect(patternBalance(tagged8Plus1Null)).toEqual({ push: 7, pull: 6, knee: 8, hip: 3, iso: 0, carry: 0, core: 2, unclassified: 2 });
   });
 
   test("back-off sets count as hard sets", () => {
@@ -900,18 +900,25 @@ describe("patternBalance", () => {
     expect(balance.core).toBe(4);
   });
 
+  test("isolation and carry sets count, so buckets sum to the set total", () => {
+    const b = patternBalance([ex("hip_dominant", 9), ex("knee_dominant", 3), ex("isolation", 4), ex("carry", 2), ex("anti_rotation", 2)]);
+    expect(b.iso).toBe(4);
+    expect(b.carry).toBe(2);
+    expect(formatPatternBalance(b)).toBe("20 sets — knee 3 · hip 9 · iso 4 · carry 2 · core 2");
+  });
+
   test("an exercise with no sets adds nothing", () => {
     expect(patternBalance([ex("vertical_push", 0)]).push).toBe(0);
   });
 
   test("formatPatternBalance names the unit", () => {
     expect(formatPatternBalance(patternBalance(tagged8Plus1Null))).toBe(
-      "push 7 · pull 6 · knee 8 · hip 3 · core 2 sets · 2 untagged sets"
+      "28 sets — push 7 · pull 6 · knee 8 · hip 3 · core 2 · 2 untagged"
     );
-    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, core: 0, unclassified: 0 })).toBe("knee 2 sets");
-    expect(formatPatternBalance({ push: 0, pull: 0, knee: 0, hip: 0, core: 0, unclassified: 1 })).toBe("1 untagged set");
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, iso: 0, carry: 0, core: 0, unclassified: 0 })).toBe("2 sets — knee 2");
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 0, hip: 0, iso: 0, carry: 0, core: 0, unclassified: 1 })).toBe("1 set — 1 untagged");
     expect(formatPatternBalance(patternBalance(tagged8Plus1Null.slice(0, 8)))).toBe(
-      "push 7 · pull 6 · knee 8 · hip 3 · core 2 sets"
+      "26 sets — push 7 · pull 6 · knee 8 · hip 3 · core 2"
     );
     expect(formatPatternBalance(patternBalance([]))).toBe("no exercises");
   });
@@ -923,7 +930,7 @@ describe("patternBalance", () => {
       { exercises: [{ exerciseId: "mystery", prescribedSets: [w] }, { exerciseId: null, prescribedSets: [w, w] }] },
     ];
     expect(sessionsPatternBalance(sessions, (id) => patterns[id] ?? null)).toEqual({
-      push: 3, pull: 2, knee: 0, hip: 0, core: 0, unclassified: 3,
+      push: 3, pull: 2, knee: 0, hip: 0, iso: 0, carry: 0, core: 0, unclassified: 3,
     });
   });
 });

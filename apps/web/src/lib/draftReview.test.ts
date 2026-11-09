@@ -152,7 +152,7 @@ describe("review checks, rationale, history", () => {
     const week = { ...draft, sessions: [...draft.sessions, { name: "Day 3", exercises: [{ exerciseId: "row", exerciseName: "Row", prescribedSets: [set(8), set(8), backoff] }] }] };
     const patternOf = (id: string) => catalog.get(id)?.movementPattern ?? null;
     const b = sessionsPatternBalance(week.sessions, patternOf);
-    expect(formatPatternBalance(b)).toBe("push 2 · pull 4 · knee 2 sets");
+    expect(formatPatternBalance(b)).toBe("8 sets — push 2 · pull 4 · knee 2");
     const texts = reviewChecks(week, null, catalog).map((c) => c.text);
     expect(texts).toContain(`Pull ${b.pull} ≥ push ${b.push} sets`);
     expect(texts).toContain(`Knee ${b.knee} · hip ${b.hip} sets`);
