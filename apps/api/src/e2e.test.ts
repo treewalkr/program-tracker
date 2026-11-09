@@ -6,6 +6,7 @@ import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
+import { getDefaultTrainerId } from "./lib/trainer";
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
 
@@ -478,7 +479,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
   });
 
   test("approve 422s and fails validation when the draft maps to more than 14 sessions", async () => {
-    const [trainer] = await db.select().from(trainers).limit(1);
+    const trainer = { id: await getDefaultTrainerId() };
     const breachDraft: AiProgramDraft = {
       name: "Breach Block",
       rationale: "15 sessions exceeds the 14-session week limit",
@@ -539,7 +540,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
   });
 
   test("cancel marks a pending generation cancelled", async () => {
-    const trainerId = (await db.select().from(trainers).limit(1))[0].id;
+    const trainerId = await getDefaultTrainerId();
     const [pendingGen] = await db
       .insert(aiGenerations)
       .values({
@@ -565,7 +566,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
   });
 
   test("cancel 409s for non-pending and 404s for unknown ids", async () => {
-    const trainerId = (await db.select().from(trainers).limit(1))[0].id;
+    const trainerId = await getDefaultTrainerId();
     const [pendingGen] = await db
       .insert(aiGenerations)
       .values({
@@ -1744,7 +1745,7 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     const [elapsedProgram] = await db
       .insert(programs)
       .values({
-        trainerId: (await db.select().from(trainers).limit(1))[0].id,
+        trainerId: await getDefaultTrainerId(),
         clientId,
         name: "Elapsed Block",
         status: "active",
