@@ -440,6 +440,7 @@
       await afterSave(saved, p);
     } catch (err) {
       if (err instanceof DuplicateLogError) {
+        saving = false; // the choice buttons must be enabled before focus moves to them
         await openAsk({ mode: "duplicate", existing: err.existing, pending: p });
         return;
       }
@@ -983,7 +984,7 @@
     {#if undo}
       <div class="undo-bar" role="status">
         <span class="undo-msg">
-          {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} sets.`}
+          {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} ${undo.count === 1 ? "set" : "sets"}.`}
         </span>
         <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
         <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
@@ -994,7 +995,7 @@
         {#if isCardioSession}
           Logged — counting toward this week's cardio target.
         {:else}
-          Logged {savedCount} sets — now counting toward history and the next AI draft.
+          Logged {savedCount} {savedCount === 1 ? "set" : "sets"} — now counting toward history and the next AI draft.
         {/if}
       </p>
     {/if}
@@ -1017,7 +1018,7 @@
     {@const dupe = ask.mode === "duplicate" ? ask.existing : ask.pending ? sessionLogged : null}
     {#if ask.mode === "confirm"}
       <h2 id="ask-title">Log as prescribed?</h2>
-      <p class="ask-line tnum">
+      <p class="ask-line">
         Week {selectedWeekNumber} · {sessionName()} · {fmtLongDay(date)}{ask.summary ? ` · ${ask.summary.sets} sets` : ""}
       </p>
       {#if ask.summary && (ask.summary.missingLoad.length > 0 || ask.summary.openAmrap > 0)}
@@ -1025,7 +1026,7 @@
           {#if ask.summary.missingLoad.length > 0}
             <li>
               {ask.summary.missingLoadSets} {ask.summary.missingLoadSets === 1 ? "set has" : "sets have"} no load:
-              {#each ask.summary.missingLoad as pe, i (pe)}{#if i > 0}, {/if}<button type="button" class="link-btn" onclick={() => fillFirst("weight", pe)}>{blockNameOf(pe)}</button>{/each}
+              {#each ask.summary.missingLoad as pe, i (pe)}{#if i > 0}{", "}{/if}<button type="button" class="link-btn" onclick={() => fillFirst("weight", pe)}>{blockNameOf(pe)}</button>{/each}
               <span class="ask-sub">They log reps only — no tonnage, no e1RM.</span>
             </li>
           {/if}
