@@ -11,6 +11,7 @@ import {
 } from "@pt/db";
 import {
   ageOn,
+  effectiveDeload,
   blockPulse,
   chainBalanceText,
   chainSetCounts,
@@ -28,6 +29,7 @@ import { ensureSessionTypes } from "./session-types";
 import { loadLogPrograms, timedIdsOf, timedSlotIdsOf, toSignalLog, toSignalProgram } from "./signals-service";
 import { loadActiveRules } from "./coaching-rules";
 import { loadRoleLabels } from "./role-labels";
+import { trainerDeloadSettings } from "./deload";
 
 export const HISTORY_WINDOW_DAYS = 56;
 
@@ -194,6 +196,8 @@ export async function loadContext(
     },
     previousProgram: previous,
     periodization,
+    // The client's override, else the trainer's rule, else the default.
+    deload: effectiveDeload(await trainerDeloadSettings(trainerId), client.deloadSettings),
     chainBalance,
     examples,
     programDirection: basedOnProgram?.direction ?? null,

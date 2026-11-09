@@ -1,6 +1,7 @@
 import {
   BUILTIN_ROLE_LABELS,
-  DELOAD_RULES,
+  deloadRulesText,
+  type DeloadSettings,
   GLOSSARY_PROMPT_LIMIT,
   type GlossaryTerm,
   type RoleLabel,
@@ -23,8 +24,9 @@ import {
   type PreferenceSignal,
 } from "@pt/shared";
 
-/** The shared deload definition (deload.ts), so drafted deload weeks match the program-page button. */
-const DELOAD_RULE = `- A deload week means: ${DELOAD_RULES}.`;
+/** The client's deload rule (deload.ts), so drafted deload weeks match the program-page button.
+ *  It replaces any deload numbers written in an instruction template. */
+const deloadRule = (ctx: Pick<GenerationContext, "deload">) => `- A deload week means: ${deloadRulesText(ctx.deload)}.`;
 
 export interface ClientContext {
   name: string;
@@ -111,6 +113,8 @@ export interface GenerationContext {
   learnedPreferences?: string | null;
   /** Active coaching rules (trainer-confirmed), client rules first. */
   coachingRules?: CoachingRulePrompt[];
+  /** The client's deload rule in force (effectiveDeload); absent = the default. */
+  deload?: DeloadSettings;
 }
 
 export interface CoachingRulePrompt {
@@ -335,7 +339,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
-    DELOAD_RULE,
+    deloadRule(ctx),
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
@@ -478,7 +482,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
-    DELOAD_RULE,
+    deloadRule(ctx),
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
@@ -595,7 +599,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     PRESCRIPTION_RULE,
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
-    DELOAD_RULE,
+    deloadRule(ctx),
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     WEEK_STABILITY_RULE,
@@ -674,7 +678,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     PRESCRIPTION_RULE,
     "- Do NOT propose phasing: the block's periodization is fixed.",
     "- Follow the next week's directive and target when provided.",
-    DELOAD_RULE,
+    deloadRule(ctx),
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     ...sessionStructureRules(ctx.client, ctx.previousProgram),
     WEEK_STABILITY_RULE,

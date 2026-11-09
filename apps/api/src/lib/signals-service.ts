@@ -11,7 +11,8 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { cardioBehindSignal, computeSignals, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
+import { cardioBehindSignal, computeSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
+import { trainerDeloadSettings } from "./deload";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
 /**
@@ -124,6 +125,7 @@ export async function computeTrainerSignals(
 
   const signals: Signal[] = [];
   const now = Date.now();
+  const myDeload = await trainerDeloadSettings(trainerId);
   for (const client of clientRows) {
     // One active program per client.
     const program = scoped.find((p) => p.clientId === client.id) ?? null;
@@ -137,7 +139,8 @@ export async function computeTrainerSignals(
           clientLogs.filter((l) => l.programId === program.id),
           nameOf,
           client.sessionsPerWeek ?? undefined,
-          now
+          now,
+          deloadRulesText(effectiveDeload(myDeload, client.deloadSettings))
         )
       );
     }
