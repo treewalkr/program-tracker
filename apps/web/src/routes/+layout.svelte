@@ -419,6 +419,12 @@
     align-items: center;
     gap: 4px;
   }
+  /* Brand and page title share one line (y=40): the main column's 28px top
+     padding sets the title lower than the sidebar's 8px. Narrow screens pad
+     the page 20px, which already lines up. */
+  @media (min-width: 861px) {
+    .brand-row { margin-top: 8px; }
+  }
   /* The toggle shares the page's first line, set inline before the title (or
      crumbs) behind a hairline divider, as in shadcn's inset header. */
   .topbar {
