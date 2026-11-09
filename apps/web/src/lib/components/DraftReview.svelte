@@ -427,7 +427,7 @@
     </select>
     <strong class="count">{plural(compareAll.length, "change")}</strong>
   {:else}
-    <span class="subtle">{plural(draft.sessions.length, "session")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets</span>
+    <span class="subtle">{plural(draft.sessions.length, "session")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
   {/if}
   {#if gen.status === "validated" && !newProgram}
     <a class="ask" href={`/clients/${client.id}/chat`}><Icon name="sparkle" />Ask for exercise changes in Draft chat →</a>
@@ -436,7 +436,7 @@
 
 {#if mode === "sessions" || version < 2}
   {#each cards as s, i (i)}
-    <article class="day">
+    <article class="day" class:has-why={why.days[i].length > 0}>
       <div class="day-main">
         <SessionCard
           name={s.name}
@@ -465,14 +465,12 @@
           {/key}
         {/if}
       </div>
-      <aside class="why">
-        <h4><Icon name="sparkle" />Why this session</h4>
-        {#if why.days[i].length}
+      {#if why.days[i].length}
+        <aside class="why">
+          <h4><Icon name="sparkle" />Why this session</h4>
           {#each why.days[i] as b, j (j)}<div class="md">{@html renderMarkdown(b)}</div>{/each}
-        {:else}
-          <p class="subtle">No session-specific reasoning in this draft.</p>
-        {/if}
-      </aside>
+        </aside>
+      {/if}
     </article>
   {/each}
 {:else}
@@ -592,7 +590,8 @@
   .ask { margin-left: auto; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .ask :global(svg) { width: 14px; height: 14px; }
 
-  .day { display: grid; grid-template-columns: minmax(0, 1fr) 300px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
+  .day { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
+  .day.has-why { grid-template-columns: minmax(0, 1fr) 300px; }
   .day :global(.session-body) { padding-left: 24px; }
   .day-main { min-width: 0; }
   .note-slot { padding: 0 14px 14px 24px; }
@@ -625,7 +624,7 @@
   @media (max-width: 1000px) {
     .band { grid-template-columns: 1fr; }
     .band > section + section { border-left: 0; border-top: 1px solid var(--line); }
-    .day { grid-template-columns: 1fr; }
+    .day.has-why { grid-template-columns: 1fr; }
     .why { border-left: 0; border-top: 1px solid var(--line); }
     .more { grid-template-columns: 1fr; }
   }
