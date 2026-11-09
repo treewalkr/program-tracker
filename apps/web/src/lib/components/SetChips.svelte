@@ -45,10 +45,10 @@
 <span class="chips" class:aligned={!!cols} bind:this={rootEl}>
   {#if head && cols}
     <span class="setchip ghost" aria-hidden="true">
-      <span class="slot s-main sub">sets</span>
-      <span class="slot s-eff sub">effort</span>
-      {#if cols.tempo}<span class="slot s-tempo sub">tempo</span>{/if}
-      {#if cols.rest}<span class="slot s-rest sub">rest</span>{/if}
+      <span class="slot s-main"><span class="sub">sets×reps</span></span>
+      <span class="slot s-eff"><span class="sub">effort</span></span>
+      {#if cols.tempo}<span class="slot s-tempo"><span class="sub">tempo</span></span>{/if}
+      {#if cols.rest}<span class="slot s-rest"><span class="sub">rest</span></span>{/if}
     </span>
   {:else}
     {#each groups as g, i (i)}
@@ -119,7 +119,7 @@
     /* runs (top set, back-offs) stack so every run sits in the columns */
     .aligned { flex-direction: column; align-items: flex-end; gap: 3px; }
     .aligned .slot { display: inline-block; text-align: left; }
-    .aligned .s-main { min-width: 8ch; }
+    .aligned .s-main { min-width: 8.5ch; }
     .aligned .s-eff { min-width: 7.5ch; }
     .aligned .s-tempo { min-width: 8.5ch; }
     .aligned .s-rest { min-width: 5.5ch; }

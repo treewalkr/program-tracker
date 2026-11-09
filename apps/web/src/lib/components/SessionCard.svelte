@@ -17,6 +17,7 @@
   } from "@pt/shared";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
+  import { groupSets } from "$lib/setChips";
   import Icon from "$lib/ui/Icon.svelte";
 
   /**
@@ -63,6 +64,15 @@
     rest: exercises.some((e) => e.sets.some((s) => !!s.restSeconds)),
   });
 
+  /** Notation key over the columns — only the effort forms this session uses. */
+  const legend = $derived.by(() => {
+    const rpes = exercises.flatMap((e) => groupSets(e.sets).map((g) => g.rpe ?? ""));
+    const parts: string[] = [];
+    if (rpes.some((r) => r.includes("→"))) parts.push("7→8 climbs set to set");
+    if (rpes.some((r) => r.includes("–"))) parts.push("7–8 is a range");
+    return parts.join(" · ");
+  });
+
   const cardioLine = $derived.by(() => {
     if (!cardio) return "";
     const parts = [
@@ -95,7 +105,7 @@
   {:else}
     <div class="session-body">
       {#if exercises.length > 1}
-        <div class="exrow colhead" aria-hidden="true"><span></span><SetChips sets={[]} {cols} head /></div>
+        <div class="exrow colhead" aria-hidden="true"><span class="legend">{#if legend}RPE {legend}{/if}</span><SetChips sets={[]} {cols} head /></div>
       {/if}
       {#each exercises as e, i (i)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
@@ -213,6 +223,7 @@
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
   /* column labels over the aligned set chips; tight to the first row */
   .colhead { margin: -4px 0 -6px; }
+  .legend { font: 400 11px/1.4 var(--font-mono); color: var(--muted); align-self: end; }
   /* stacked rows (app.css): a tag that wraps starts flush with the role chip;
      chips no longer form columns, so the labels go */
   @container session (max-width: 520px) {
