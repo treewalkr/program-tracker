@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { z } from "zod";
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, clients, sessionLogs, setLogs, exercises, programs } from "@pt/db";
 import { CardioLog, SessionKind, SetType } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
@@ -21,6 +21,8 @@ const SessionLogInput = z
     cardio: CardioLog.nullable().optional(),
     notes: z.string().max(2000).optional(),
     perceivedEnergy: z.number().int().min(1).max(10).optional(),
+    /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
+    onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
     sets: z
       .array(
         z.object({
@@ -137,39 +139,69 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
         if (missing.length) return status(422, { error: "unknown exercises", ids: missing });
       }
 
-      const [log] = await db
-        .insert(sessionLogs)
-        .values({
-          clientId: input.clientId,
-          programId: input.programId,
-          programSessionId: input.programSessionId ?? null,
-          date: input.date,
-          kind: input.kind,
-          cardio: input.cardio ?? null,
-          notes: input.notes ?? null,
-          perceivedEnergy: input.perceivedEnergy ?? null,
-        })
-        .returning();
-
-      // Cardio logs carry no sets — drizzle `.values([])` throws, so insert only with rows.
-      const insertedSets =
-        input.sets.length > 0
-          ? await db
-              .insert(setLogs)
-              .values(
-                input.sets.map((s) => ({
-                  sessionLogId: log.id,
-                  programExerciseId: s.programExerciseId ?? null,
-                  exerciseId: s.exerciseId,
-                  setNumber: s.setNumber,
-                  type: s.type,
-                  weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
-                  reps: s.reps,
-                  rpe: s.rpe !== undefined ? String(s.rpe) : null,
-                }))
+      // A duplicate is this exact program session logged again; ad-hoc logs never are.
+      const duplicates = input.programSessionId
+        ? await db
+            .select({ id: sessionLogs.id, date: sessionLogs.date })
+            .from(sessionLogs)
+            .where(
+              and(
+                eq(sessionLogs.clientId, input.clientId),
+                eq(sessionLogs.programId, input.programId),
+                eq(sessionLogs.programSessionId, input.programSessionId)
               )
-              .returning()
-          : [];
+            )
+            .orderBy(desc(sessionLogs.date))
+        : [];
+      if (duplicates.length > 0 && input.onDuplicate === "reject") {
+        const [latest] = duplicates;
+        const [{ setCount }] = await db
+          .select({ setCount: count() })
+          .from(setLogs)
+          .where(eq(setLogs.sessionLogId, latest.id));
+        return status(409, { error: "already logged", existing: { id: latest.id, date: latest.date, setCount } });
+      }
+
+      const { log, insertedSets } = await db.transaction(async (tx) => {
+        if (duplicates.length > 0 && input.onDuplicate === "replace") {
+          // Sets go with their log (ON DELETE CASCADE).
+          await tx.delete(sessionLogs).where(inArray(sessionLogs.id, duplicates.map((d) => d.id)));
+        }
+        const [log] = await tx
+          .insert(sessionLogs)
+          .values({
+            clientId: input.clientId,
+            programId: input.programId,
+            programSessionId: input.programSessionId ?? null,
+            date: input.date,
+            kind: input.kind,
+            cardio: input.cardio ?? null,
+            notes: input.notes ?? null,
+            perceivedEnergy: input.perceivedEnergy ?? null,
+          })
+          .returning();
+
+        // Cardio logs carry no sets — drizzle `.values([])` throws, so insert only with rows.
+        const insertedSets =
+          input.sets.length > 0
+            ? await tx
+                .insert(setLogs)
+                .values(
+                  input.sets.map((s) => ({
+                    sessionLogId: log.id,
+                    programExerciseId: s.programExerciseId ?? null,
+                    exerciseId: s.exerciseId,
+                    setNumber: s.setNumber,
+                    type: s.type,
+                    weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
+                    reps: s.reps,
+                    rpe: s.rpe !== undefined ? String(s.rpe) : null,
+                  }))
+                )
+                .returning()
+            : [];
+        return { log, insertedSets };
+      });
 
       // Write path: the log is committed — queue any new signals for the outbox.
       // A queueing failure must not fail the already-committed log write.
@@ -180,6 +212,22 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       return status(201, { ...log, sets: serializeSets(insertedSets) });
     },
     { body: t.Any() }
+  )
+  /** Remove a log (Undo after save). Its sets go by cascade. */
+  .delete(
+    "/sessions/:id",
+    async ({ params, status, trainerId }) => {
+      const [deleted] = await db
+        .delete(sessionLogs)
+        .where(and(eq(sessionLogs.id, params.id), ofTrainer(trainerId)))
+        .returning({ clientId: sessionLogs.clientId });
+      if (!deleted) return status(404, { error: "log not found" });
+      await queueSignalsForOutbox(trainerId, deleted.clientId).catch((err) =>
+        console.error("signal outbox queue failed:", err)
+      );
+      return status(204);
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }) }
   )
   .get(
     "/sessions",

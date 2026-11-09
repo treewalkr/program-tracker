@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
-import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises, clients } from "@pt/db";
+import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises, clients, sessionLogs } from "@pt/db";
 import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
@@ -123,6 +123,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       clientId,
       programId,
       programSessionId,
+      onDuplicate: "add",
       date: new Date().toISOString().slice(0, 10),
       sets: [
         { programExerciseId, exerciseId: benchId, setNumber: 1, type: "working", weightKg: 60, reps: 8 },
@@ -134,6 +135,122 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       [programExerciseId, benchId, 1, null],
       [programExerciseId, benchId, 2, null],
     ]);
+  });
+
+  test("logging the same program session again is a 409 with the existing log", async () => {
+    const before = await call("GET", `/v1/logs/sessions?clientId=${clientId}`);
+    const { status, body } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId,
+      date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+    });
+    expect(status).toBe(409);
+    expect(body.error).toBe("already logged");
+    expect(typeof body.existing.id).toBe("string");
+    expect(body.existing.setCount).toBeGreaterThan(0);
+    const after = await call("GET", `/v1/logs/sessions?clientId=${clientId}`);
+    expect(after.body).toHaveLength(before.body.length);
+  });
+
+  test("a log without a program session is never a duplicate", async () => {
+    const adHoc = () =>
+      call("POST", "/v1/logs/sessions", {
+        clientId,
+        programId,
+        date: "2020-01-02",
+        sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 50, reps: 5 }],
+      });
+    const a = await adHoc();
+    const b = await adHoc();
+    expect([a.status, b.status]).toEqual([201, 201]);
+    for (const id of [a.body.id, b.body.id]) expect((await call("DELETE", `/v1/logs/sessions/${id}`)).status).toBe(204);
+  });
+
+  test("onDuplicate add keeps both; replace swaps them for one log with the new sets", async () => {
+    const mine = () =>
+      call("GET", `/v1/logs/sessions?programId=${programId}`).then((r) =>
+        r.body.filter((l: any) => l.programSessionId === programSessionId)
+      );
+    const start = (await mine()).length;
+    const added = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId,
+      onDuplicate: "add",
+      date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 90, reps: 5 }],
+    });
+    expect(added.status).toBe(201);
+    expect(await mine()).toHaveLength(start + 1);
+
+    const replaced = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId,
+      onDuplicate: "replace",
+      date: new Date().toISOString().slice(0, 10),
+      sets: [
+        // Same top set as the first log, so the history test below still finds it.
+        { exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8 },
+        { exerciseId: squatId, setNumber: 2, type: "working", weightKg: 102.5, reps: 4 },
+      ],
+    });
+    expect(replaced.status).toBe(201);
+    const after = await mine();
+    expect(after).toHaveLength(1);
+    expect(after[0].id).toBe(replaced.body.id);
+    expect(after[0].sets.map((s: any) => [s.weightKg, s.reps])).toEqual([
+      [100, 5],
+      [102.5, 4],
+    ]);
+  });
+
+  test("an unknown onDuplicate mode is a 422", async () => {
+    const { status } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId,
+      onDuplicate: "merge",
+      date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", reps: 5 }],
+    });
+    expect(status).toBe(422);
+  });
+
+  test("DELETE a log removes it and cascades its sets; unknown or other-trainer ids are 404", async () => {
+    const { body: log } = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: "2020-01-03",
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 60, reps: 5 }],
+    });
+    expect((await call("DELETE", `/v1/logs/sessions/${log.id}`)).status).toBe(204);
+    const left = await db.execute(sql`select count(*)::int as n from set_logs where session_log_id = ${log.id}`);
+    expect((left as any)[0].n).toBe(0);
+    expect((await call("DELETE", `/v1/logs/sessions/${log.id}`)).status).toBe(404);
+
+    // A log under another trainer's client is invisible to this trainer.
+    const [other] = await db
+      .insert(trainers)
+      .values({ name: "Other Trainer", email: `other-del-${Date.now()}@test.dev` })
+      .returning();
+    const [otherClient] = await db
+      .insert(clients)
+      .values({ trainerId: other.id, name: "Not mine", email: `nm-${Date.now()}@test.dev` })
+      .returning();
+    const [otherProgram] = await db
+      .insert(programs)
+      .values({ trainerId: other.id, clientId: otherClient.id, name: "Theirs", sessions: [] })
+      .returning();
+    const [theirs] = await db
+      .insert(sessionLogs)
+      .values({ clientId: otherClient.id, programId: otherProgram.id, date: "2020-01-04" })
+      .returning();
+    expect((await call("DELETE", `/v1/logs/sessions/${theirs.id}`)).status).toBe(404);
+    const [still] = await db.select().from(sessionLogs).where(eq(sessionLogs.id, theirs.id));
+    expect(still).toBeDefined();
   });
 
   test("an exercise from another trainer's catalog is a 422", async () => {

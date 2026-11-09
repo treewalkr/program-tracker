@@ -84,6 +84,7 @@ used in `exampleProgramIds`.
 |---|---|---|
 | POST | `/v1/logs/sessions` | see below |
 | GET | `/v1/logs/sessions?clientId=&programId=&from=&to=&limit=` | logs with their sets, newest first; `limit` 1–1000 (default 200); `programId` keeps one program's logs |
+| DELETE | `/v1/logs/sessions/:id` | Undo after save: removes the log (sets cascade) and re-queues signals. **204**; **404** not the trainer's log |
 | GET | `/v1/logs/history?clientId=` | per-exercise 8-week aggregation: `recentSets[]`, `bestE1rm` — same shape the AI consumes |
 
 `POST /v1/logs/sessions` body — lifting (default `kind`) or cardio:
@@ -122,6 +123,12 @@ Guards (**422** `"invalid log"`): `kind` defaults to `lifting`;
 lifting logs need ≥1 set and must not carry `cardio`; cardio logs need `cardio`
 (`modality` required, `durationMin` 1–300, `hrZone` 1–5) and must not carry sets;
 all `exerciseId`s must exist; program must belong to the client; date `YYYY-MM-DD`.
+
+Duplicates: a log with the same `clientId` + `programId` + `programSessionId` as an
+existing one (logs with no `programSessionId` never are). Optional
+`onDuplicate`: `"reject"` (default) → **409** `{ error: "already logged", existing: { id, date, setCount } }`
+(newest match); `"replace"` → deletes the existing log(s) and inserts the new one in
+one transaction; `"add"` → keeps both.
 
 ## Periodization schemes (trainer library)
 
