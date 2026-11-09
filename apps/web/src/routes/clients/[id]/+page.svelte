@@ -665,8 +665,8 @@
                       <span class="num big" title={l.timed ? "Timed hold — no e1RM" : "No loaded sets"}>—</span>
                     {/if}
                   </td>
-                  <td class="sets">
-                    {#each l.recentSets as s, i (i)}<span class="setchip" title={logDateLabel(s.date)}><span class="rep">{s.label}</span></span>{/each}
+                  <td class="sets-cell">
+                    <div class="sets">{#each l.recentSets as s, i (i)}<span class="setchip" title={logDateLabel(s.date)}><span class="rep">{s.label}</span></span>{/each}</div>
                   </td>
                 </tr>
               {/each}
@@ -867,7 +867,7 @@
   .table-wrap { overflow-x: auto; }
   .lift { font-weight: 500; }
   .unit { font-size: 12px; color: var(--faint); margin-left: 3px; font-weight: 400; }
-  td.sets { min-width: 220px; }
+  td.sets-cell { min-width: 220px; }
   .swaps { border-top: 1px solid var(--line); }
   .swaps-title { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font: 600 14px/1.3 var(--font-ui); }
   .swaps ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
