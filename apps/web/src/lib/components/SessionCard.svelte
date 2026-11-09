@@ -99,7 +99,7 @@
       {/if}
       {#each exercises as e, i (i)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
-        <div class="exrow" class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
+        <div class="exrow" class:is-primary={e.role === "primary"} class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
           <div class="ex">
             {#if e.role}<RoleChip role={e.role} />{/if}
             <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"}{" · not in proposal"}{/if}</span>{/if}</span>
@@ -143,6 +143,9 @@
   }
   .exrow.is-unasked::before {
     color: var(--warn);
+  }
+  .is-primary .ex-name {
+    font-weight: 600;
   }
   .ex-name {
     min-width: 0;
