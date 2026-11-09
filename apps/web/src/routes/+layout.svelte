@@ -654,6 +654,9 @@
   }
   /* The group label keeps its 32px slot: the text fades and a short divider
      on the icon column marks the group. */
+  /* The brand row is a flex row, so its anchor doesn't stretch across like the
+     nav's: fill the row so the mark centres on the icon column with the rest. */
+  .rail .brand-row :global(.anchor) { flex: 1; }
   .rail .nav-label { color: transparent; }
   .rail .nav-label::after {
     content: "";
