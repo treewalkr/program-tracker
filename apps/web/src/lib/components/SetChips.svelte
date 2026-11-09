@@ -33,6 +33,10 @@
   const describe = describeGroup;
   const spoken = spokenGroup;
 
+  /** "8→9" → [8, →, **9**]: only figures at RPE 9+ go heavy, never the whole token. */
+  const rpeTokens = (rpe: string) =>
+    rpe.split(/([→–/])/).filter(Boolean).map((text) => ({ text, hi: /^\d/.test(text) && Number(text) >= 9 }));
+
   const toggle = (i: number) => (openIndex = openIndex === i ? null : i);
 </script>
 
@@ -67,7 +71,7 @@
           {#if !cols || cols.load}<span class="slot s-load" class:none={!g.kg && !g.pct}>{#if g.kg}<span class="kg">{g.kg}</span>{#if g.pct}<span class="sub"> {g.pct}</span>{/if}{:else if g.pct}<span class="kg">{g.pct}</span>{/if}</span>{/if}
           <span class="slot s-eff" class:none={!g.rpe && g.rir == null && g.stop == null}>
             {#if g.stop != null}<span class="sub rpe" class:rpe-mid={g.stop >= 7}>stop @{g.stop}</span>
-            {:else if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>
+            {:else if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7}>@RPE {#each rpeTokens(g.rpe) as t, k (k)}{#if t.hi}<b class="hi">{t.text}</b>{:else}{t.text}{/if}{/each}</span>
             {:else if g.rir != null}<span class="sub">RIR {g.rir}</span>{/if}
           </span>
           {#if !cols || cols.tempo}<span class="slot s-tempo" class:none={!g.tempo}>{#if g.tempo}<span class="sub">· {g.tempo}</span>{/if}</span>{/if}

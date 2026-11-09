@@ -728,13 +728,12 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .setchip .rep { font-weight: 500; }
 .setchip .sub { color: var(--muted); font-size: 11px; } /* muted, not faint: 11px on chip gray must clear AA in dark too */
 /* RPE on chips is a planned effort, not a status: a neutral ink scale
-   (≤6 muted, 7–8+ ink semibold) so a hard set never borrows Danger Red.
-   9+ gets a filled cell behind the effort only — visible, never a link look,
-   and quieter than the Primary row's emphasis. After .sub so the rpe span
-   keeps its ink. */
+   (≤6 muted, 7+ ink semibold) so a hard set never borrows Danger Red. Only
+   the figures at 9+ go heavy (`.hi`), so a near-failure finisher reads hard
+   without out-shouting the Primary row. After .sub so the span keeps its ink. */
 .setchip .rpe { color: var(--muted); font-weight: 500; }
 .setchip .rpe.rpe-mid { color: var(--ink); font-weight: 600; }
-.setchip .rpe.rpe-high { background: color-mix(in srgb, var(--ink) 14%, transparent); border-radius: 3px; padding: 1px 3px; margin: -1px -3px; }
+.setchip .rpe .hi { font-weight: 800; }
 
 /* —— signals (needs-review cards) ————————— */
 
