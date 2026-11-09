@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.10 — 2026-11-09
+
 ### New
 - New client form follows the intake conversation: goals and limitations come first, 1RMs can wait for the first week, and the Add bar stays on screen. "Add & generate program" takes you straight to drafting their first programme.
 - Training days are now one row of day chips that fits a phone. Cardio days, the long-session day and the weekly cardio target sit under one Cardio switch, with a one-line summary of the week.
