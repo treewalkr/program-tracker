@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### New
+- Logging a session is faster: fill a value down the column, press Enter to move to the next cell, skip an exercise, and keep the Save button in view. Picking a date picks the session scheduled for it.
+- Logging is safer: sessions already logged that day show up, and you're asked before logging a duplicate. You get a summary to confirm, Undo after saving, a warning before leaving with unsaved sets, and drafts that survive a reload.
+- Suggested loads on the log sheet. RPE-only sets suggest a kg from the client's recent lifts, every set shows its e1RM with a PR badge, and off-target RPE is flagged. Remaining sets adjust after a set that ran hot or easy, and back-offs follow today's top set.
+- Deload rules: set your default deload in Settings, override it per client, and the Deload button and AI drafts follow it.
+- The training week on the dashboard is a grid with six weeks of history per client. Clients who need attention are listed first, and tapping a day opens the logger on that session.
+- Session cards line up sets, reps, load and effort in columns, group top sets and back-offs, and include a notation key.
+- Colour themes: pick a palette for light and dark mode, including high contrast, colourblind-friendly, paper and dimmed.
+
+### Fixed
+- Sidebar and account menu alignment tidied up.
+- Session balance counts isolation and carry sets.
+- Empty reasoning panels no longer show in draft review.
+- "Week 1" is no longer cut off in the deload settings.
+
 ## v0.1.10 — 2026-11-09
 
 ### New
