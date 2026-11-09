@@ -64,7 +64,6 @@
   --on-ink: #ffffff; /* text on Inverted Ink (--hover-ink) fills */
   --on-done: #ffffff; /* text on the darkest ramp step (logged week cells) */
   --warn-ink: #4d3800; /* body text on warn tint */
-  --rpe-mid-chip: #7d5600; /* amber RPE on the chip background */
 
   /* small one-off marks */
   --blue-line: #b6e3ff; /* hairline around Pulse Blue Tint surfaces */
@@ -150,7 +149,6 @@
   --on-ink: #0d1117;
   --on-done: #0d1117;
   --warn-ink: #e3b341;
-  --rpe-mid-chip: #d29922;
 
   --blue-line: rgba(56, 139, 253, 0.4);
   --tab-on: #f78166;
@@ -215,7 +213,6 @@
   --focus: rgba(3, 73, 180, 0.7);
   --focus-ring: rgba(3, 73, 180, 0.25);
   --warn-ink: #3f2200;
-  --rpe-mid-chip: #5c3700;
   --blue-line: #0349b4;
   --lamp-gray: #59636e;
   --btn-border: #20252c;
@@ -289,7 +286,6 @@
   --selection: rgba(29, 90, 158, 0.18);
   --on-ink: #fbf7ee;
   --warn-ink: #4a3200;
-  --rpe-mid-chip: #744b00;
   --blue-line: #bcd0e4;
   --tab-on: #c4673f;
   --lamp-amber: #a87400;
@@ -351,7 +347,6 @@
   --on-ink: #212830;
   --on-done: #212830;
   --warn-ink: #daaa3f;
-  --rpe-mid-chip: #c69026;
   --blue-line: rgba(65, 132, 228, 0.4);
   --tab-on: #ec775c;
   --lamp-amber: #c69026;
@@ -411,7 +406,6 @@
   --on-ink: #010409;
   --on-done: #010409;
   --warn-ink: #f7c843;
-  --rpe-mid-chip: #f0b72f;
   --blue-line: #74b9ff;
   --lamp-gray: #9ea7b3;
   --btn-border: #b7bdc8;
