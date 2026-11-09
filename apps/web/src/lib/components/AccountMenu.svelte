@@ -265,6 +265,17 @@
   }
   .trigger.rail .text,
   .trigger.rail > :global(svg) { display: none; }
+  /* On the rail the release dot rides the avatar's top corner, keeping the button 32px square. */
+  .trigger.rail { position: relative; }
+  .trigger.rail .new {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    margin: 0;
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 2px var(--well);
+  }
 
   .avatar {
     position: relative;
