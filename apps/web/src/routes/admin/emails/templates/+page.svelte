@@ -256,20 +256,20 @@
   .mail {
     max-width: 640px;
     margin: 0 auto;
-    background: #fff;
-    color: #1f2328;
+    background: var(--surface);
+    color: var(--ink);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     overflow: hidden;
   }
   .envelope {
     padding: 14px 24px 12px;
-    border-bottom: 1px solid #d8dee4;
+    border-bottom: 1px solid var(--line-soft);
   }
   .subject {
     margin: 0 0 8px;
     font: 600 16px/1.35 var(--font-ui);
-    color: #1f2328;
+    color: var(--ink);
     text-wrap: balance;
   }
   .envelope dl {
@@ -279,13 +279,13 @@
     margin: 0;
     font-size: 12px;
   }
-  .envelope dt { color: #59636e; }
-  .envelope dd { margin: 0; color: #1f2328; overflow-wrap: anywhere; }
+  .envelope dt { color: var(--muted); }
+  .envelope dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
   .envelope strong { font-weight: 600; }
-  .addr { color: #59636e; }
+  .addr { color: var(--muted); }
   .unsub {
     margin-left: 6px;
-    color: #59636e;
+    color: var(--muted);
     text-decoration: underline;
     text-underline-offset: 2px;
     cursor: help;
