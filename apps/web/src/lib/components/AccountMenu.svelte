@@ -41,6 +41,7 @@
     { value: "dark", label: "Dark", icon: "moon" },
   ];
 
+  const MENU_W = 256;
   let trigger = $state<HTMLButtonElement>();
   let menu = $state<HTMLDivElement>();
   let open = $state(false);
@@ -49,8 +50,10 @@
   function place() {
     if (!trigger) return;
     const r = trigger.getBoundingClientRect();
-    pos = rail
-      ? { left: (trigger.closest("aside") ?? trigger).getBoundingClientRect().right + 8, bottom: Math.max(8, window.innerHeight - r.bottom) }
+    const right = (trigger.closest("aside") ?? trigger).getBoundingClientRect().right + 8;
+    // Beside the sidebar, bottom edges aligned (shadcn NavUser); upward where that would leave the screen.
+    pos = right + MENU_W + 8 <= window.innerWidth
+      ? { left: right, bottom: Math.max(8, window.innerHeight - r.bottom) }
       : { left: r.left, bottom: window.innerHeight - r.top + 4 };
   }
 
@@ -155,8 +158,9 @@
   {@render avatar()}
   <span class="text">
     <span class="name">{trainer.name}</span>
-    <span class="meta">{modeLabel} · v{version}{#if unseen}<span class="new" aria-hidden="true"></span>{/if}</span>
+    <span class="meta">{trainer.email}</span>
   </span>
+  {#if unseen}<span class="new" aria-hidden="true"></span>{/if}
   <Icon name="chevrons-up-down" />
 </button>
   {/snippet}
@@ -184,8 +188,8 @@
     <div class="sep" role="separator"></div>
     <a class="item" role="menuitem" tabindex="-1" href="/whats-new">
       <Icon name="sparkle" />
-      <span>What's new</span>
-      <span class="aside">v{build}{#if unseen}<span class="new" aria-label="unread"></span>{/if}</span>
+      <span class="label">What's new</span>
+      <span class="aside" title="v{build}">v{version}{#if unseen}<span class="new" aria-label="unread"></span>{/if}</span>
     </a>
     <div class="theme" role="group" aria-label="Theme">
       <span class="theme-label" aria-hidden="true">Theme</span>
@@ -249,8 +253,8 @@
     height: 16px;
     flex: none;
     margin-right: 4px;
-    color: var(--muted);
-    stroke-width: 1.6;
+    color: var(--ink);
+    stroke-width: 1.75;
   }
   .trigger.rail {
     width: 32px;
@@ -278,8 +282,8 @@
   .initial {
     display: grid;
     place-items: center;
-    background: var(--muted);
-    color: var(--on-ink);
+    background: var(--active);
+    color: var(--ink);
     font: 600 13px/1 var(--font-ui);
   }
   /* Data mode rides on the avatar so it survives the collapsed rail. */
@@ -312,10 +316,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .name { font: 500 13px/1.3 var(--font-ui); color: var(--ink); }
+  .name { font: 600 14px/1.25 var(--font-ui); color: var(--ink); }
   .meta { font: 400 12px/1.3 var(--font-ui); color: var(--muted); }
+  .label { white-space: nowrap; }
   .new {
     display: inline-block;
+    flex: none;
     width: 6px;
     height: 6px;
     margin-left: 5px;
@@ -327,7 +333,7 @@
   .menu {
     position: fixed;
     z-index: 50;
-    width: 240px;
+    width: 256px;
     padding: 4px;
     background: var(--bg);
     border: 1px solid var(--line);

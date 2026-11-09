@@ -523,19 +523,18 @@
     white-space: nowrap;
     transition: background-color 120ms ease-out;
   }
+  /* Icons share the label's ink, as in shadcn; grey icons read as disabled. */
   .nav-item :global(svg) {
     width: 16px;
     height: 16px;
-    color: var(--muted);
-    stroke-width: 1.6;
+    color: var(--ink);
+    stroke-width: 1.75;
     flex: none;
     transition: color 120ms ease-out;
   }
   .nav-item:hover { background: var(--well-2); text-decoration: none; }
-  .nav-item:hover :global(svg) { color: var(--ink); }
   .nav-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
   .nav-item.active { background: var(--active); font-weight: 500; }
-  .nav-item.active :global(svg) { color: var(--ink); }
   .nav-text { overflow: hidden; text-overflow: ellipsis; }
   .unread {
     margin-left: auto;
