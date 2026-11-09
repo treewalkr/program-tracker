@@ -1005,9 +1005,10 @@
     {/if}
 
     <p class="subtle hint">
-      “Did it as prescribed” logs the prescription: target loads (with none, the load last used in
-      that same slot), the bottom of rep ranges, target RPE. Bodyweight stays bodyweight and
-      skipped sets stay out. Deviated? Prefill, change what differs, skip what didn't happen, save.
+      “Did it as prescribed” shows what it will log before saving: target loads (with none, the load
+      last used in that same slot), the bottom of rep ranges, target RPE. Bodyweight stays bodyweight
+      and skipped sets stay out. Deviated? Prefill, change what differs, skip what didn't happen, save.
+      Each save can be undone for 10 seconds.
     </p>
   {/if}
 {/if}
