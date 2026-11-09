@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### New
+- New client form follows the intake conversation: goals and limitations come first, 1RMs can wait for the first week, and the Add bar stays on screen. "Add & generate program" takes you straight to drafting their first programme.
+- Training days are now one row of day chips that fits a phone. Cardio days, the long-session day and the weekly cardio target sit under one Cardio switch, with a one-line summary of the week.
+- Client settings are grouped into clear boxes, with a save bar that follows you down the page, a Discard button and ⌘S.
+- The History tab shows lift trends with e1RM charts, an 8-week / 6-month / all-time range switch and sessions grouped by week.
+- The programme page shows the sets logged under each session.
+- A What's new page, with a dot on the version number when there's a new release.
+- A refreshed sidebar: account menu at the bottom, tooltips on the collapsed rail, and ⌘B to toggle it.
+
+### Fixed
+- AI drafts that hit the length limit say so instead of retrying in vain.
+- The all-clients list and admin client page fit narrow screens, and long cardio lines wrap on session cards.
+- The name error on a new client only shows after you've typed and left the field, or pressed Add.
+
 ## v0.1.9 — 2026-11-09
 
 ### New
