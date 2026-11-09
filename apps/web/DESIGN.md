@@ -208,6 +208,13 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 ### Named Rules
 **The Ink-on-Tint Rule.** Status is colored ink on its soft tint (good on Commit Green Tint, bad on Danger Red Tint) — never a large saturated fill. The only saturated fills in the system are the green primary button and the logged contributions cell.
 
+### Themes
+Mode (System / Light / Dark) and theme are separate picks. Each mode has its own theme, chosen on Settings › Appearance and kept per browser (`pt.theme.light` / `pt.theme.dark`); the account menu switches mode only. The resolved mode stays on `<html data-theme>`; the theme lands on `<html data-palette>`, and `app.css` holds one `:root[data-palette="…"]` block per variant that overrides only the tokens it changes, placed after the dark block so it wins.
+- **Light:** Light (default), High contrast (`light-hc`, near-black ink, firm hairlines, deeper signal hues), Colourblind (`light-cb`), Paper (`paper`, cream canvas, sepia ink, ink-blue links, forest action green — our own).
+- **Dark:** Dark (default), Dimmed (`dark-dimmed`, Primer's slate gray), High contrast (`dark-hc`, true-black canvas, white ink), Colourblind (`dark-cb`).
+- **The Colourblind Rule.** Colourblind themes never lean on red vs green: `--good*`, `--green-btn*` and `--rpe-low` become blue, `--bad*` and `--rpe-high` become orange, and the done ramp turns into a blue ramp that keeps its order (darker on light, brighter on dark, means more done).
+- **Contrast floor.** In every theme, ink, muted and faint text clear 4.5:1 on the canvas, and the high-contrast themes clear 7:1 for ink. Primary buttons keep white text at 4.5:1 or better, so `--green-btn` stays dark enough in every theme.
+
 ## Typography
 
 **Display Font:** none — the system UI stack at 20px semibold is the largest voice the app has.
