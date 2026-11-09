@@ -31,7 +31,7 @@
   } from "@pt/shared";
   import { EXAMPLE_LEVELS } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
-  import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
+  import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
   import { programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
@@ -129,12 +129,6 @@
   const weekLogCount = (w: ProgramWeek, wi: number) =>
     w.sessions.reduce((n, s) => n + logsOf(s.id).length, 0) + (logView?.otherByWeek.get(wi)?.length ?? 0);
   const nameOf = (exerciseId: string) => catalogById.get(exerciseId)?.name ?? "Exercise";
-  const cardioLine = (c: SessionLogDto["cardio"]) =>
-    c
-      ? [c.modality, c.durationMin ? `${c.durationMin} min` : null, c.hrZone ? `Z${c.hrZone}` : null, c.distanceKm ? `${c.distanceKm} km` : null, c.rpe ? `RPE ${c.rpe}` : null]
-          .filter(Boolean)
-          .join(" · ")
-      : "";
   const liftingCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "lifting").length;
   const indexOf = (sid: string) => currentWeek?.sessions.findIndex((x) => x.id === sid) ?? -1;
 
@@ -465,7 +459,7 @@
                 <div class="logged">
                   <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}</span>
                   {#each logsOf(s.id) as l (l.id)}
-                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLine(l.cardio)}</span>{/if}
+                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLogLabel(l.cardio)}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
                     {@const extras = s.kind === "lifting" ? extraSets(l, s.exercises) : []}
                     {#if extras.length > 0}
@@ -569,7 +563,7 @@
             <div class="logline">
               <span class="log-date">{logDateLabel(l.date)}</span>
               {#if l.kind === "cardio"}
-                <span class="log-chip">{cardioLine(l.cardio)}</span>
+                <span class="log-chip">{cardioLogLabel(l.cardio)}</span>
               {:else}
                 {#each l.sets as d, di (di)}<span class="log-chip">{nameOf(d.exerciseId)} {loggedSetLabel(d, false)}</span>{/each}
               {/if}
