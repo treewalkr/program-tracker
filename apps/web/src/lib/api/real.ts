@@ -120,8 +120,17 @@ export const realApi: TrainerApi = {
 
   history: async (clientId) =>
     (await unwrap<{ history: HistoryEntryDto[] }>(client.v1.logs.history.get({ query: { clientId } }))).history,
-  sessionLogs: (clientId, programId) =>
-    unwrap<SessionLogDto[]>(client.v1.logs.sessions.get({ query: { clientId, ...(programId ? { programId } : {}) } })),
+  sessionLogs: (clientId, programId, opts) =>
+    unwrap<SessionLogDto[]>(
+      client.v1.logs.sessions.get({
+        query: {
+          clientId,
+          ...(programId ? { programId } : {}),
+          ...(opts?.from ? { from: opts.from } : {}),
+          ...(opts?.limit ? { limit: opts.limit } : {}),
+        },
+      }),
+    ),
   logSession: (input: SessionLogInput) => unwrap<unknown>(client.v1.logs.sessions.post(input)),
 
   instructionTemplates: async () =>

@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HistoryEntryDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
+  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import { oneRepMaxKg, plannedVolume, pulseCellSets, type PulseCell } from "@pt/shared";
@@ -28,14 +28,18 @@
   import Avatar from "$lib/ui/Avatar.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import { logDateLabel } from "$lib/programLogs";
   import { slotSwaps } from "$lib/logSheet";
+  import { ALL_LIMIT, HISTORY_RANGES, liftProgress, rangeInfo, rangeStart, sessionsByWeek, type HistoryRange } from "$lib/historyTab";
+  import Sparkline from "$lib/components/Sparkline.svelte";
+  import LiftChart from "$lib/components/LiftChart.svelte";
+  import { SvelteSet } from "svelte/reactivity";
 
   const id = $derived(page.params.id ?? "");
 
   let client = $state<ClientDto | null>(null);
   let current = $state<ProgramDto | null>(null);
   let programs = $state<ProgramDto[] | null>(null);
-  let historyEntries = $state<HistoryEntryDto[] | null>(null);
   let latestGen = $state<GenerationDto | null>(null);
   let chainWeekData = $state<ChainWeekDto | null>(null);
   let sessionLogRows = $state<SessionLogDto[]>([]);
@@ -93,6 +97,44 @@
       snoozing = null;
     }
   }
+
+  /* History tab: its own fetch per range (the page's logs stop at the newest 200). */
+  let range = $state<HistoryRange>("8w");
+  let historyLogs = $state<SessionLogDto[] | null>(null);
+  let historyLoading = $state(false);
+  let historyError = $state<string | null>(null);
+  /** Lift whose chart is open under the Progress table. */
+  let chartLift = $state<string | null>(null);
+  const openSessions = new SvelteSet<string>();
+  let historyReq = 0;
+  const rangeLimit = (r: HistoryRange) => (r === "all" ? ALL_LIMIT : 200);
+
+  async function loadHistory(clientId: string, r: HistoryRange) {
+    const req = ++historyReq;
+    historyLoading = true;
+    historyError = null;
+    try {
+      const from = rangeStart(r, todayStr) ?? undefined;
+      const logs = await api.sessionLogs(clientId, undefined, { from, limit: r === "all" ? ALL_LIMIT : undefined });
+      if (req === historyReq) historyLogs = logs;
+    } catch (err) {
+      if (req === historyReq) historyError = (err as Error).message || "Couldn't load the history.";
+    } finally {
+      if (req === historyReq) historyLoading = false;
+    }
+  }
+
+  $effect(() => {
+    if (tab === "history" && id) loadHistory(id, range);
+  });
+
+  const lifts = $derived(historyLogs ? liftProgress(historyLogs, programs ?? [], liftName) : []);
+  const historyWeeks = $derived(historyLogs ? sessionsByWeek(historyLogs, programs ?? [], liftName) : []);
+  const historySessions = $derived(historyWeeks.reduce((n, w) => n + w.sessions.length, 0));
+  const historyCapped = $derived(historyLogs !== null && historyLogs.length >= rangeLimit(range));
+  const chartRow = $derived(lifts.find((l) => l.exerciseId === chartLift && l.series.length > 0) ?? null);
+  const toggleChart = (exerciseId: string) => (chartLift = chartLift === exerciseId ? null : exerciseId);
+  const toggleSession = (logId: string) => (openSessions.has(logId) ? openSessions.delete(logId) : openSessions.add(logId));
 
   const visibleSignals = $derived(signals.filter((s) => !dismissedNow.includes(s.id)));
 
@@ -176,7 +218,6 @@
     client = detail.client;
     current = cur;
     programs = detail.programs;
-    historyEntries = await api.history(id);
     const logs = await api.sessionLogs(id);
     sessionLogRows = logs;
     // Client-level signals (cardio pace) exist with or without a program.
@@ -340,7 +381,7 @@
     items={[
       { id: 'program', label: 'Program', count: `${currentWeek?.sessions.length ?? 0} sessions` },
       { id: 'pulse', label: 'Pulse', count: `${pulse.length} wks`, disabled: pulse.length === 0 },
-      { id: 'history', label: 'History', count: '8 wks' },
+      { id: 'history', label: 'History', count: rangeInfo(range).badge },
       { id: 'settings', label: 'Settings' },
     ]}
   />
@@ -573,30 +614,74 @@
       {/if}
     </div>
   {:else if tab === "history"}
-    <Panel title="Progress · 8 weeks" count="est. 1RM · Epley" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
-      {#if historyEntries !== null && historyEntries.length > 0}
+    {#snippet rangeSwitch()}
+      <div class="seg range" role="radiogroup" aria-label="History range">
+        {#each HISTORY_RANGES as r (r.id)}
+          <label class="seg-opt" class:on={range === r.id}>
+            <input type="radio" name="history-range" value={r.id} bind:group={range} />
+            {r.label}
+          </label>
+        {/each}
+      </div>
+    {/snippet}
+    <div class="history-stack" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+    <Panel title="Progress · {rangeInfo(range).label}" count="est. 1RM · Epley" act={rangeSwitch} aria-busy={historyLoading}>
+      <div class="hist-body" class:stale={historyLoading && historyLogs !== null}>
+      {#if historyError}
+        <div class="panel-body"><Note tone="warn">Couldn't load the history: {historyError}</Note></div>
+      {:else if historyLogs === null}
+        <div class="panel-body skel"><Skeleton h="14px" w="60%" /><Skeleton h="14px" w="80%" /><Skeleton h="14px" w="45%" /></div>
+      {:else if lifts.length > 0}
+        {#if historyCapped}
+          <p class="cap-note">Showing the newest {historyLogs.length} sessions.</p>
+        {/if}
         <div class="table-wrap">
           <table class="sheet">
-            <thead><tr><th>Lift</th><th class="r">Best e1RM</th><th>Recent sets</th></tr></thead>
+            <thead><tr><th>Lift</th><th>Trend</th><th class="r">Best e1RM</th><th>Recent sets</th></tr></thead>
             <tbody>
-              {#each historyEntries as h (h.exerciseName)}
-                <tr>
-                  <td class="lift">{h.exerciseName}</td>
+              {#each lifts as l (l.exerciseId)}
+                <tr class:chart-on={chartLift === l.exerciseId}>
+                  <td class="lift">
+                    {#if l.series.length > 0}
+                      <button type="button" class="lift-btn" aria-expanded={chartLift === l.exerciseId} aria-controls="lift-chart" onclick={() => toggleChart(l.exerciseId)}>{l.name}</button>
+                    {:else}
+                      {l.name}
+                    {/if}
+                    {#if l.main}<span class="main-tag" title="Power or Primary lift in a program">main</span>{/if}
+                  </td>
+                  <td class="trend">
+                    {#if l.series.length > 1}
+                      <button type="button" class="spark-btn" tabindex="-1" aria-hidden="true" onclick={() => toggleChart(l.exerciseId)}>
+                        <Sparkline series={l.series} unit={l.unit} />
+                      </button>
+                    {:else}
+                      <span class="subtle">—</span>
+                    {/if}
+                  </td>
                   <td class="r">
-                    <span class="num big">{h.bestE1rm > 0 ? Math.round(h.bestE1rm) : "—"}</span>
-                    {#if h.bestE1rm > 0}<span class="unit">kg</span>{/if}
+                    {#if l.bestE1rm != null}
+                      <span class="num big">{Math.round(l.bestE1rm)}</span><span class="unit">kg</span>
+                    {:else}
+                      <span class="num big" title={l.timed ? "Timed hold — no e1RM" : "No loaded sets"}>—</span>
+                    {/if}
                   </td>
                   <td class="sets">
-                    {#each h.recentSets as s, i (i)}<span class="setchip"><span class="rep">{s}</span></span>{/each}
+                    {#each l.recentSets as s, i (i)}<span class="setchip" title={logDateLabel(s.date)}><span class="rep">{s.label}</span></span>{/each}
                   </td>
                 </tr>
               {/each}
             </tbody>
           </table>
         </div>
+        {#if chartRow}
+          <div id="lift-chart">
+            <LiftChart name={chartRow.name} series={chartRow.series} unit={chartRow.unit} onclose={() => (chartLift = null)} />
+          </div>
+        {/if}
       {:else}
-        <EmptyState>No logged sets in the last 8 weeks.</EmptyState>
+        <EmptyState>{range === "all" ? "No logged sets yet." : `No logged sets in ${rangeInfo(range).phrase}.`}</EmptyState>
       {/if}
+      </div>
       {#if swaps.length > 0}
         <div class="panel-body swaps">
           <h3 class="swaps-title">Swaps <span class="counter">{swaps.length}</span></h3>
@@ -612,6 +697,46 @@
         </div>
       {/if}
     </Panel>
+
+    {#if historyWeeks.length > 0}
+      <Panel title="Sessions" count={historySessions} class={historyLoading ? "stale" : undefined}>
+        {#each historyWeeks as w (w.start)}
+          <div class="wk-h">
+            <span class="wk-name">{w.label}</span>
+            <span class="subtle">{w.sessions.length} {w.sessions.length === 1 ? "session" : "sessions"}</span>
+          </div>
+          <ul class="sess-list">
+            {#each w.sessions as s (s.id)}
+              {@const open = openSessions.has(s.id)}
+              <li class="sess" class:open>
+                <div class="sess-row">
+                  <button type="button" class="sess-btn" aria-expanded={open} aria-controls="sess-{s.id}" onclick={() => toggleSession(s.id)}>
+                    <span class="chev" aria-hidden="true"><Icon name="chevron" size={14} /></span>
+                    <span class="sess-date tnum">{s.dateLabel}</span>
+                    <span class="sess-name">{s.name}</span>
+                    <span class="sess-count subtle">{s.kind === "cardio" ? "cardio" : `${s.setCount} ${s.setCount === 1 ? "set" : "sets"}`}</span>
+                  </button>
+                  <a class="sess-prog" href="/programs/{s.programId}" title="Open {s.programName}">{s.programName}</a>
+                </div>
+                {#if open}
+                  <div class="sess-body" id="sess-{s.id}">
+                    {#if s.cardio}<p class="sess-line"><span class="setchip"><span class="rep">{s.cardio}</span></span></p>{/if}
+                    {#each s.exercises as e (e.exerciseId)}
+                      <div class="sess-ex">
+                        <span class="sess-ex-name">{e.name}</span>
+                        <span class="sess-sets">{#each e.sets as label, i (i)}<span class="setchip"><span class="rep">{label}</span></span>{/each}</span>
+                      </div>
+                    {/each}
+                    {#if s.notes}<p class="sess-notes subtle">{s.notes}</p>{/if}
+                  </div>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {/each}
+      </Panel>
+    {/if}
+    </div>
   {:else}
     <Panel class="narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" title="Profile">
       <form
@@ -742,13 +867,99 @@
   .table-wrap { overflow-x: auto; }
   .lift { font-weight: 500; }
   .unit { font-size: 12px; color: var(--faint); margin-left: 3px; font-weight: 400; }
-  td.sets { max-width: 340px; }
+  td.sets { min-width: 220px; }
   .swaps { border-top: 1px solid var(--line); }
   .swaps-title { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font: 600 14px/1.3 var(--font-ui); }
   .swaps ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   .swaps li { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; }
   .swaps s { color: var(--muted); text-decoration-color: var(--line-strong); }
   .swaps-day { min-width: 52px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+
+  /* History tab */
+  .history-stack { display: flex; flex-direction: column; gap: 16px; }
+  .hist-body { transition: opacity 0.15s ease; }
+  .hist-body.stale, :global(.panel.stale) { opacity: 0.55; }
+  .seg { display: inline-flex; margin-left: auto; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .seg-opt { position: relative; padding: 4px 10px; font: 400 12.5px/1.3 var(--font-ui); color: var(--muted); cursor: pointer; background: var(--well); white-space: nowrap; }
+  .seg-opt + .seg-opt { border-left: 1px solid var(--line); }
+  .seg-opt.on { background: var(--surface); color: var(--ink); font-weight: 600; }
+  .seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg-opt:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .skel { display: flex; flex-direction: column; gap: 10px; }
+  .cap-note { margin: 0; padding: 8px 16px; font: 400 12.5px/1.4 var(--font-ui); color: var(--muted); border-bottom: 1px solid var(--line-soft); }
+  .lift-btn, .spark-btn {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+  .lift-btn { text-decoration: underline dotted var(--faint); text-underline-offset: 3px; }
+  .lift-btn:hover, .lift-btn[aria-expanded="true"] { color: var(--blue); text-decoration-color: currentColor; }
+  .lift-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+  .spark-btn { display: block; padding: 2px 0; }
+  td.trend { width: 88px; }
+  .chart-on td { background: var(--pulse-now-bg); }
+  .main-tag {
+    margin-left: 6px;
+    font: 500 10.5px/1 var(--font-ui);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    padding: 1px 6px;
+    vertical-align: 1px;
+  }
+  .wk-h {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 16px 6px;
+    border-top: 1px solid var(--line);
+    background: var(--well);
+    font-size: 12.5px;
+  }
+  .wk-name { font-weight: 600; color: var(--ink); }
+  .sess-list { list-style: none; margin: 0; padding: 0; }
+  .sess { border-top: 1px solid var(--line-soft); }
+  .sess-row { display: flex; align-items: center; gap: 8px 12px; padding: 0 16px 0 8px; flex-wrap: wrap; }
+  .sess-btn {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex: 1 1 260px;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: none;
+    border: none;
+    padding: 9px 8px;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 4px;
+  }
+  .sess-btn:hover .sess-name { text-decoration: underline; }
+  .sess-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .chev { display: inline-flex; color: var(--faint); transform: rotate(-90deg); transition: transform 0.15s ease; align-self: center; }
+  .sess.open .chev { transform: none; color: var(--muted); }
+  .sess-date { min-width: 76px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+  .sess-name { font-weight: 500; overflow-wrap: anywhere; }
+  .sess-count { margin-left: auto; font-size: 12px; white-space: nowrap; }
+  .sess-prog { font-size: 12px; color: var(--blue); text-decoration: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sess-prog:hover { text-decoration: underline; }
+  .sess-body { padding: 2px 16px 12px 40px; display: flex; flex-direction: column; gap: 6px; }
+  .sess-ex { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .sess-ex-name { font-size: 13px; font-weight: 500; min-width: 140px; }
+  .sess-sets { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sess-line { margin: 0; }
+  .sess-notes { margin: 0; font-size: 12.5px; white-space: pre-line; }
+  @media (max-width: 520px) {
+    .sess-body { padding-left: 16px; }
+    .sess-ex-name { min-width: 0; flex: 1 1 100%; }
+    .sess-prog { max-width: 100%; padding: 0 8px 8px 30px; }
+  }
 
   .narrow { max-width: var(--measure-form); }
   .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }

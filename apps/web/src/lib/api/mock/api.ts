@@ -824,10 +824,18 @@ export const mockApi: TrainerApi = {
     }));
   },
 
-  async sessionLogs(clientId, programId) {
+  async sessionLogs(clientId, programId, opts) {
     await delay(250);
     return state.logs
-      .filter((l) => l.clientId === clientId && (!programId || l.programId === programId))
+      .filter(
+        (l) =>
+          l.clientId === clientId &&
+          (!programId || l.programId === programId) &&
+          (!opts?.from || l.date.slice(0, 10) >= opts.from),
+      )
+      // Newest first, like the API — the limit keeps the newest.
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, opts?.limit ?? 200)
       .map((l) => ({
         id: l.sessionLogId,
         clientId: l.clientId,
