@@ -7,10 +7,20 @@
 		<script>
 			// Resolve the theme before first paint (mirrors $lib/theme.svelte.ts).
 			(function () {
-				var p = null;
-				try { p = localStorage.getItem('pt.theme'); } catch (e) {}
+				var p = null, lt = null, dt = null;
+				try {
+					p = localStorage.getItem('pt.theme');
+					lt = localStorage.getItem('pt.theme.light');
+					dt = localStorage.getItem('pt.theme.dark');
+				} catch (e) {}
 				var dark = p === 'dark' || (p !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-				document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+				var light = ['light', 'light-hc', 'light-cb', 'paper'];
+				var darks = ['dark', 'dark-dimmed', 'dark-hc', 'dark-cb'];
+				var root = document.documentElement;
+				root.dataset.theme = dark ? 'dark' : 'light';
+				root.dataset.palette = dark
+					? (darks.indexOf(dt) >= 0 ? dt : 'dark')
+					: (light.indexOf(lt) >= 0 ? lt : 'light');
 			})();
 		</script>
 		%sveltekit.head%
