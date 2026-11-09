@@ -403,11 +403,13 @@
     white-space: nowrap;
   }
 
+  /* Same 32px row as the items; the label starts on their text column (8px
+     inset + 16px icon + 8px gap) and the switch ends on their right edge. */
   .theme {
     display: flex;
     align-items: center;
-    height: 36px;
-    padding: 0 4px 0 8px;
+    height: 32px;
+    padding: 0 8px 0 32px;
   }
   .theme-label { font: 400 14px/1 var(--font-ui); color: var(--ink); }
   .seg {
