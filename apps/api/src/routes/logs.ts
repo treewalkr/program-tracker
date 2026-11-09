@@ -82,7 +82,14 @@ function serializeSets(rows: typeof setLogs.$inferSelect[]) {
 const ofTrainer = (trainerId: string) =>
   inArray(sessionLogs.clientId, db.select({ id: clients.id }).from(clients).where(eq(clients.trainerId, trainerId)));
 
-async function loadSessionWithSets(trainerId: string, clientId?: string, from?: string, to?: string, programId?: string) {
+async function loadSessionWithSets(
+  trainerId: string,
+  clientId?: string,
+  from?: string,
+  to?: string,
+  programId?: string,
+  limit = 200
+) {
   const conds = [ofTrainer(trainerId)];
   if (clientId) conds.push(eq(sessionLogs.clientId, clientId));
   if (programId) conds.push(eq(sessionLogs.programId, programId));
@@ -93,7 +100,7 @@ async function loadSessionWithSets(trainerId: string, clientId?: string, from?: 
     .from(sessionLogs)
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(sessionLogs.date))
-    .limit(200);
+    .limit(limit);
   const sets = logs.length
     ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
     : [];
@@ -177,7 +184,7 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   .get(
     "/sessions",
     async ({ query, trainerId }) =>
-      loadSessionWithSets(trainerId, query.clientId, query.from, query.to, query.programId),
+      loadSessionWithSets(trainerId, query.clientId, query.from, query.to, query.programId, query.limit),
     {
       query: t.Object({
         clientId: t.Optional(t.String()),
@@ -185,6 +192,8 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
         programId: t.Optional(t.String()),
         from: t.Optional(t.String()),
         to: t.Optional(t.String()),
+        /** Newest N logs — the client History tab's "All" range asks for up to 1000. */
+        limit: t.Optional(t.Integer({ minimum: 1, maximum: 1000, default: 200 })),
       }),
     }
   )
