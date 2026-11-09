@@ -1,10 +1,21 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
+  import { browser } from "$app/environment";
+  import { beforeNavigate } from "$app/navigation";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import { localIso } from "$lib/overview";
-  import type { ClientDto, ExerciseDto, ProgramDto, ProgramSessionDto, SessionLogDto } from "$lib/api/types";
+  import {
+    DuplicateLogError,
+    type ClientDto,
+    type ExerciseDto,
+    type ExistingLogDto,
+    type ProgramDto,
+    type ProgramSessionDto,
+    type SessionLogDto,
+    type SessionLogInput,
+  } from "$lib/api/types";
   import { oneRepMaxKg, sessionTag, sessionsByWeekday, weekOf, type ExerciseRole } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -26,6 +37,13 @@
     isSwapped,
     lastBySlot,
     loggedBySession,
+    isDirty,
+    parseDraft,
+    draftKey,
+    prescribedSummary,
+    rowFilled,
+    DEFAULT_ENERGY,
+    type PrescribedSummary,
     rowLabels,
     rowsToSave,
     serverFieldErrors,
@@ -65,10 +83,9 @@
   let selectedWeekNumber = $state<number>(1);
   let sessionId = $state<string>("");
   let date = $state(localIso(new Date()));
-  let energy = $state<number>(7);
+  let energy = $state<number>(DEFAULT_ENERGY);
   let notes = $state("");
   let saving = $state(false);
-  let oneClickBusy = $state(false);
   let savedCount = $state(0);
   let error = $state<string | null>(null);
   let fieldErrors = $state<FieldErrors>({});
@@ -86,14 +103,15 @@
   /** Slot whose swap picker is open. */
   let swapOpen = $state<string | null>(null);
 
-  let cardioForm = $state<{
+  interface CardioForm {
     modality: string;
     durationMin: Cell;
     hrZone: string;
     intensity: string;
     distanceKm: Cell;
     rpe: Cell;
-  }>({
+  }
+  let cardioForm = $state<CardioForm>({
     modality: "",
     durationMin: "",
     hrZone: "",
@@ -159,23 +177,10 @@
 
   const isBodyweight = (exerciseId: string) => catalogById.get(exerciseId)?.equipment === "bodyweight";
 
-  function loadSession() {
-    savedCount = 0;
-    error = null;
-    fieldErrors = {};
-    current = 0;
-    swapOpen = null;
-    if (!program || !sessionId) {
-      rows = [];
-      return;
-    }
+  /** Prescribed rows for the selected session, nothing entered yet. */
+  function freshRows(): Row[] {
     const session = weekSessionsList.find((ws) => ws.id === sessionId)?.session;
-    if (session?.kind === "cardio") {
-      rows = [];
-      prefillCardio(session.cardio);
-      return;
-    }
-    rows =
+    return (
       session?.exercises.flatMap((e) =>
         e.prescribedSets.map((ps): Row => {
           const rx: Prescription = prescriptionOf(ps, oneRepMaxKg(client?.oneRepMaxes, e.exerciseId));
@@ -196,12 +201,119 @@
             rpe: "",
           };
         })
-      ) ?? [];
+      ) ?? []
+    );
   }
+
+  /** Reset the sheet to the selected session — or to its draft, when one was left on this device. */
+  function loadSession() {
+    savedCount = 0;
+    error = null;
+    fieldErrors = {};
+    current = 0;
+    swapOpen = null;
+    draftSavedAt = null;
+    notes = "";
+    energy = DEFAULT_ENERGY;
+    if (!program || !sessionId) {
+      rows = [];
+      return;
+    }
+    const session = weekSessionsList.find((ws) => ws.id === sessionId)?.session;
+    if (session?.kind === "cardio") {
+      rows = [];
+      prefillCardio(session.cardio);
+      return;
+    }
+    const fresh = freshRows();
+    const draft = browser ? parseDraft(localStorage.getItem(draftKey(id, sessionId)), fresh) : null;
+    if (draft) {
+      rows = draft.rows;
+      notes = draft.notes;
+      energy = draft.energy;
+      date = draft.date;
+      draftSavedAt = draft.savedAt;
+    } else {
+      rows = fresh;
+    }
+  }
+
+  // ---- Drafts: the sheet is kept on this device until it's saved or discarded ----
+
+  let draftSavedAt = $state<string | null>(null);
+  const dirty = $derived(isDirty(rows, notes, energy));
+
+  $effect(() => {
+    if (!program || !sessionId || isCardioSession) return;
+    const key = draftKey(id, sessionId);
+    if (!dirty) {
+      localStorage.removeItem(key);
+      return;
+    }
+    // Stringifying reads every cell, so any edit re-runs this.
+    const body = JSON.stringify({ rows, notes, energy, date, savedAt: new Date().toISOString() });
+    try {
+      localStorage.setItem(key, body);
+    } catch {
+      // Storage full or blocked: the unsaved-work prompts still guard the sheet.
+    }
+  });
+
+  function discardDraft() {
+    if (sessionId) localStorage.removeItem(draftKey(id, sessionId));
+    loadSession();
+    announce = "Draft discarded.";
+  }
+
+  // ---- Unsaved-work guard ----
+
+  const sessionName = () => selectedSession?.name ?? "this session";
+
+  /** True when there's nothing to lose, or the trainer agrees to drop it (and its draft). */
+  function confirmDiscard(): boolean {
+    if (!dirty) return true;
+    if (!confirm(`Discard the sets you've entered for ${sessionName()}?`)) return false;
+    if (sessionId) localStorage.removeItem(draftKey(id, sessionId));
+    return true;
+  }
+
+  function changeWeek(e: Event & { currentTarget: HTMLSelectElement }) {
+    const el = e.currentTarget;
+    if (!confirmDiscard()) {
+      el.value = String(selectedWeekNumber);
+      return;
+    }
+    selectedWeekNumber = Number(el.value);
+    undo = null;
+    sessionId = defaultSessionId();
+    loadSession();
+  }
+
+  function changeSession(e: Event & { currentTarget: HTMLSelectElement }) {
+    const el = e.currentTarget;
+    if (!confirmDiscard()) {
+      el.value = sessionId;
+      return;
+    }
+    sessionId = el.value;
+    undo = null;
+    loadSession();
+  }
+
+  beforeNavigate((nav) => {
+    if (!dirty || saving) return;
+    // Closing or reloading the tab: cancel() raises the browser's own prompt; confirm() is blocked there.
+    if (nav.type === "leave") nav.cancel();
+    else if (!confirm(`Leave without saving ${sessionName()}? What you've entered stays as a draft on this device.`)) nav.cancel();
+  });
 
   /** Fill the cardio form from a prescription (or a prior actual). */
   function prefillCardio(c?: ProgramSessionDto["cardio"]) {
-    cardioForm = {
+    cardioForm = cardioFormOf(c);
+  }
+
+  function cardioFormOf(c?: ProgramSessionDto["cardio"]): CardioForm {
+    return {
       modality: c?.modality ?? "",
       durationMin: c?.durationMin != null ? String(c.durationMin) : "",
       hrZone: c?.hrZone != null ? String(c.hrZone) : "",
@@ -211,24 +323,150 @@
     };
   }
 
+  /** The row with every empty cell filled from what was prescribed. Skips stay skipped. */
+  function withPrescribed(r: Row): Row {
+    if (r.skipped) return r;
+    const p = rxCell(r);
+    return {
+      ...r,
+      weight: isBlank(r.weight) && p.weight != null ? p.weight : r.weight,
+      reps: isBlank(r.reps) && p.reps != null ? p.reps : r.reps,
+      rpe: isBlank(r.rpe) && p.rpe != null ? p.rpe : r.rpe,
+    };
+  }
+
   /** Fill every empty cell of the sets still to do with exactly what was prescribed. */
   function prefill() {
-    for (const r of rows) {
-      if (r.skipped) continue;
-      const p = asPrescribed(r.rx, { bodyweight: isBodyweight(r.exerciseId), swapped: isSwapped(r), last: r.last });
-      if (isBlank(r.weight) && p.weight != null) r.weight = p.weight;
-      if (isBlank(r.reps) && p.reps != null) r.reps = p.reps;
-      if (isBlank(r.rpe) && p.rpe != null) r.rpe = p.rpe;
+    rows = rows.map(withPrescribed);
+  }
+
+  // ---- Saving: duplicate check, confirm dialog, undo ----
+
+  /** Everything the sheet held when a save was sent — Undo puts it back. */
+  interface Snapshot {
+    rows: Row[];
+    notes: string;
+    energy: number;
+    date: string;
+    cardio: CardioForm;
+  }
+
+  /** A save on hold while the dialog asks: re-sent with the trainer's duplicate choice. */
+  interface Pending {
+    input: SessionLogInput;
+    /** The exact rows sent, so a 422 can point at cells; null for cardio. */
+    sent: Row[] | null;
+    count: number;
+    snapshot: Snapshot;
+  }
+
+  type Ask =
+    | { mode: "confirm"; summary: PrescribedSummary | null; preview: Row[] | null; pending: Pending | null }
+    | { mode: "duplicate"; existing: ExistingLogDto; pending: Pending };
+
+  let ask = $state<Ask | null>(null);
+  let dialogEl = $state<HTMLDialogElement>();
+
+  async function openAsk(next: Ask) {
+    ask = next;
+    await tick();
+    if (dialogEl && !dialogEl.open) dialogEl.showModal();
+    // Start on the answer, not on the first link in the summary.
+    dialogEl?.querySelector<HTMLButtonElement>(".ask-actions .btn.primary")?.focus();
+  }
+
+  const closeAsk = () => dialogEl?.close();
+
+  function snapshot(sheetRows: Row[]): Snapshot {
+    return {
+      rows: $state.snapshot(sheetRows) as Row[],
+      notes,
+      energy,
+      date,
+      cardio: $state.snapshot(cardioForm),
+    };
+  }
+
+  function liftingPending(sheetRows: Row[]): Pending {
+    const sent = rowsToSave(sheetRows);
+    return {
+      input: {
+        clientId: id,
+        programId: program!.id,
+        programSessionId: sessionId,
+        date,
+        perceivedEnergy: energy,
+        notes: notes || undefined,
+        sets: sent.map(toLoggedSet),
+      },
+      sent,
+      count: sent.length,
+      snapshot: snapshot(sheetRows),
+    };
+  }
+
+  function cardioPending(form: CardioForm): Pending {
+    return {
+      input: {
+        clientId: id,
+        programId: program!.id,
+        programSessionId: sessionId,
+        date,
+        notes: notes || undefined,
+        kind: "cardio",
+        cardio: {
+          modality: form.modality.trim(),
+          durationMin: cellNumber(form.durationMin) ?? null,
+          hrZone: cellNumber(form.hrZone) ?? null,
+          intensity: form.intensity.trim() === "" ? undefined : form.intensity.trim(),
+          distanceKm: cellNumber(form.distanceKm),
+          rpe: cellNumber(form.rpe),
+        },
+        sets: [],
+      },
+      sent: null,
+      count: 1,
+      snapshot: { ...snapshot(rows), cardio: { ...form } },
+    };
+  }
+
+  /** Send a save. A duplicate opens (or turns) the dialog into the Replace / Log again choice. */
+  async function send(p: Pending, onDuplicate: "reject" | "replace" | "add" = "reject") {
+    saving = true;
+    error = null;
+    try {
+      const saved = await api.logSession({ ...p.input, onDuplicate });
+      closeAsk();
+      await afterSave(saved, p);
+    } catch (err) {
+      if (err instanceof DuplicateLogError) {
+        await openAsk({ mode: "duplicate", existing: err.existing, pending: p });
+        return;
+      }
+      closeAsk();
+      fieldErrors = p.sent ? serverFieldErrors((err as { issues?: unknown }).issues, p.sent) : {};
+      const flagged = Object.keys(fieldErrors).length > 0;
+      error = flagged ? "Fix the highlighted cells, then save." : (err as Error).message;
+      if (flagged) await focusFirstInvalid();
+    } finally {
+      saving = false;
     }
+  }
+
+  async function afterSave(saved: SessionLogDto, p: Pending) {
+    // The draft is saved now — drop it before the sheet resets, or loadSession would bring it back.
+    localStorage.removeItem(draftKey(id, sessionId));
+    pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
+    loadSession();
+    savedCount = p.count;
+    undo = { logId: saved.id, count: p.count, cardio: p.sent === null, snapshot: p.snapshot };
+    undoLeft = UNDO_SECONDS;
   }
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
-    if (isCardioSession) {
-      await saveCardio();
-      return;
-    }
-    await save();
+    if (isCardioSession) await saveCardio();
+    else await save();
   }
 
   async function saveCardio() {
@@ -237,34 +475,7 @@
       error = "Enter the modality — what did they do?";
       return;
     }
-    saving = true;
-    error = null;
-    try {
-      await api.logSession({
-        clientId: id,
-        programId: program.id,
-        programSessionId: sessionId,
-        date,
-        notes: notes || undefined,
-        kind: "cardio",
-        cardio: {
-          modality: cardioForm.modality.trim(),
-          durationMin: cellNumber(cardioForm.durationMin) ?? null,
-          hrZone: cellNumber(cardioForm.hrZone) ?? null,
-          intensity: cardioForm.intensity.trim() === "" ? undefined : cardioForm.intensity.trim(),
-          distanceKm: cellNumber(cardioForm.distanceKm),
-          rpe: cellNumber(cardioForm.rpe),
-        },
-        sets: [],
-      });
-      notes = "";
-      loadSession();
-      savedCount = 1;
-    } catch (err) {
-      error = (err as Error).message;
-    } finally {
-      saving = false;
-    }
+    await send(cardioPending(cardioForm));
   }
 
   async function save() {
@@ -282,30 +493,112 @@
       await focusFirstInvalid();
       return;
     }
-    saving = true;
+    await send(liftingPending(rows));
+  }
+
+  /** "Did it as prescribed": show what would be logged, and save only on "Log it". */
+  async function logAsPrescribed() {
+    if (!program || !sessionId) return;
     error = null;
+    if (isCardioSession) {
+      const form = cardioFormOf(selectedSession?.cardio);
+      if (form.modality.trim() === "") {
+        cardioForm = form;
+        error = "Enter the modality — what did they do?";
+        return;
+      }
+      await openAsk({ mode: "confirm", summary: null, preview: null, pending: cardioPending(form) });
+      return;
+    }
+    const preview = rows.map(withPrescribed);
+    const summary = prescribedSummary(preview, isBodyweight);
+    const filled = rowsToSave(preview);
+    const invalid = Object.keys(validateRows(filled)).length > 0;
+    // Open AMRAPs or bad cells can't be logged yet; the dialog says what's missing.
+    const pending = summary.openAmrap === 0 && summary.sets > 0 && !invalid ? liftingPending(preview) : null;
+    await openAsk({ mode: "confirm", summary, preview, pending });
+  }
+
+  /**
+   * Put the previewed (prescribed) values in the sheet and the cursor on the
+   * first cell still to fill — in one card (`pe`) or anywhere.
+   */
+  async function fillFirst(field: "weight" | "reps", pe?: string) {
+    if (ask?.mode !== "confirm" || !ask.preview) return;
+    const preview = ask.preview;
+    closeAsk();
+    rows = preview;
+    const target = rows.find(
+      (r) =>
+        !r.skipped &&
+        (!pe || r.programExerciseId === pe) &&
+        (field === "reps" ? !r.extra && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !isBodyweight(r.exerciseId))
+    );
+    if (target) await focusCell(target.key, field);
+  }
+
+  /** Nothing loggable as prescribed (all skipped, or a bad cell): back to the sheet with the save errors shown. */
+  async function backToSheet() {
+    if (ask?.mode !== "confirm" || !ask.preview) return;
+    const preview = ask.preview;
+    closeAsk();
+    rows = preview;
+    await save();
+  }
+
+  /** A card's name by its slot, for the summary's links. */
+  const blockNameOf = (pe: string) => {
+    const b = blocks.find((x) => x.programExerciseId === pe);
+    return b ? blockName(b) : nameOf(pe);
+  };
+
+  async function focusCell(key: string, field: "weight" | "reps") {
+    const r = rows.find((x) => x.key === key);
+    if (!r) return;
+    current = Math.max(0, blocks.findIndex((b) => b.programExerciseId === r.programExerciseId));
+    await tick();
+    document.querySelector<HTMLInputElement>(`[data-cell="${CSS.escape(`${key}:${field}`)}"] input`)?.focus();
+  }
+
+  // ---- Undo: a short window after each save ----
+
+  const UNDO_SECONDS = 10;
+  let undo = $state<{ logId: string; count: number; cardio: boolean; snapshot: Snapshot } | null>(null);
+  let undoLeft = $state(UNDO_SECONDS);
+  let undoBusy = $state(false);
+  /** Polite announcements: undo, discarded drafts. */
+  let announce = $state("");
+
+  $effect(() => {
+    if (!undo) return;
+    const timer = setInterval(() => {
+      undoLeft -= 1;
+      if (undoLeft <= 0) undo = null;
+    }, 1000);
+    return () => clearInterval(timer);
+  });
+
+  async function undoSave() {
+    const u = undo;
+    if (!u) return;
+    undoBusy = true;
     try {
-      await api.logSession({
-        clientId: id,
-        programId: program.id,
-        programSessionId: sessionId,
-        date,
-        perceivedEnergy: energy,
-        notes: notes || undefined,
-        sets: filled.map(toLoggedSet),
-      });
-      const count = filled.length;
-      notes = "";
+      await api.deleteSessionLog(u.logId);
+      undo = null;
+      savedCount = 0;
+      error = null;
+      fieldErrors = {};
+      rows = u.snapshot.rows;
+      notes = u.snapshot.notes;
+      energy = u.snapshot.energy;
+      date = u.snapshot.date;
+      cardioForm = u.snapshot.cardio;
       pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
-      loadSession();
-      savedCount = count;
+      announce = "Log removed. The sheet is back as it was.";
     } catch (err) {
-      fieldErrors = serverFieldErrors((err as { issues?: unknown }).issues, filled);
-      const flagged = Object.keys(fieldErrors).length > 0;
-      error = flagged ? "Fix the highlighted cells, then save." : (err as Error).message;
-      if (flagged) await focusFirstInvalid();
+      error = `Couldn't undo: ${(err as Error).message}`;
     } finally {
-      saving = false;
+      undoBusy = false;
     }
   }
 
@@ -378,29 +671,18 @@
       : "—";
   const fmtDay = (iso: string) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const fmtLongDay = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  /** A draft's last edit: the time today, else the day. */
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    return localIso(d) === localIso(new Date())
+      ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      : fmtDay(localIso(d));
+  };
   /** Placeholder = what "as prescribed" would log, so a blank cell reads as the plan. */
   const rxCell = (r: Row) =>
     asPrescribed(r.rx, { bodyweight: isBodyweight(r.exerciseId), swapped: isSwapped(r), last: r.last });
-
-  /** One click: session happened exactly as prescribed (skips stay skipped). */
-  async function logAsPrescribed() {
-    oneClickBusy = true;
-    if (isCardioSession) {
-      prefillCardio(selectedSession?.cardio);
-      await saveCardio();
-    } else {
-      prefill();
-      const open = rows.find((r) => !r.skipped && !r.extra && isBlank(r.reps));
-      if (open) {
-        fieldErrors = { [open.key]: { reps: "Enter reps done" } };
-        error = "AMRAP sets have no prescribed count — enter the reps done, then save.";
-        await focusFirstInvalid();
-      } else {
-        await save();
-      }
-    }
-    oneClickBusy = false;
-  }
 
   onMount(async () => {
     const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
@@ -432,9 +714,9 @@
   >
     {#snippet actions()}
       {#if rows.length > 0 || isCardioSession}
-        <Button variant="primary" onclick={logAsPrescribed} disabled={oneClickBusy || saving}>
-          {#snippet icon()}{#if !oneClickBusy}<Icon name="bolt" />{/if}{/snippet}
-          {oneClickBusy ? "Logging…" : "Did it as prescribed"}
+        <Button variant="primary" onclick={logAsPrescribed} disabled={saving} aria-haspopup="dialog">
+          {#snippet icon()}<Icon name="bolt" />{/snippet}
+          Did it as prescribed
         </Button>
       {/if}
     {/snippet}
@@ -453,11 +735,8 @@
             <select
               class="select"
               id="log-week"
-              bind:value={selectedWeekNumber}
-              onchange={() => {
-                sessionId = defaultSessionId();
-                loadSession();
-              }}
+              value={selectedWeekNumber}
+              onchange={changeWeek}
             >
               {#each prog.weeks as w (w.week)}
                 <option value={w.week}>Week {w.week}</option>
@@ -467,8 +746,8 @@
             <select
               class="select"
               id="log-session"
-              bind:value={sessionId}
-              onchange={loadSession}
+              value={sessionId}
+              onchange={changeSession}
             >
               {#each sessionGroups as g (g.day)}
                 <optgroup label={g.label}>
@@ -485,12 +764,20 @@
             {/if}
           </div>
         {/snippet}
-      {#if sessionLogged}
-        <div class="panel-body logged-note">
-          <Note tone="warn" role="note">
-            Already logged {fmtDay(sessionLogged.date)}{isCardioSession ? "" : ` · ${sessionLogged.setCount} sets`}.
-            Saving again asks whether to replace it.
-          </Note>
+      {#if sessionLogged || draftSavedAt}
+        <div class="panel-body sheet-notes">
+          {#if sessionLogged}
+            <Note tone="warn" role="note">
+              Already logged {fmtDay(sessionLogged.date)}{isCardioSession ? "" : ` · ${sessionLogged.setCount} sets`}.
+              Saving again asks whether to replace it.
+            </Note>
+          {/if}
+          {#if draftSavedAt}
+            <Note tone="ok" role="note" class="draft-note">
+              <span>Draft restored · last edited {fmtTime(draftSavedAt)}</span>
+              <button type="button" class="link-btn" onclick={discardDraft}>Discard</button>
+            </Note>
+          {/if}
         </div>
       {/if}
       {#if isCardioSession}
@@ -638,10 +925,10 @@
                 {#if r.skipped}
                   <span class="skip-note">Skipped — not logged</span>
                 {:else}
-                  <div class="c-kg">
+                  <div class="c-kg" data-cell={`${r.key}:weight`}>
                     <LogStepper bind:value={r.weight} label={`${label}, kg`} unit="kg" step={2.5} min={0} max={600} from={p.weight} placeholder={p.weight != null ? String(p.weight) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} onedit={() => clearCell(r.key, "weight")} />
                   </div>
-                  <div class="c-reps">
+                  <div class="c-reps" data-cell={`${r.key}:reps`}>
                     <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} onedit={() => clearCell(r.key, "reps")} />
                   </div>
                   <div class="c-rpe">
@@ -693,7 +980,16 @@
       </Panel>
     </form>
 
-    {#if savedCount > 0}
+    {#if undo}
+      <div class="undo-bar" role="status">
+        <span class="undo-msg">
+          {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} sets.`}
+        </span>
+        <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
+        <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
+        <span class="undo-drain" aria-hidden="true" style:animation-duration={`${UNDO_SECONDS}s`}></span>
+      </div>
+    {:else if savedCount > 0}
       <p class="ok-msg" role="status">
         {#if isCardioSession}
           Logged — counting toward this week's cardio target.
@@ -702,6 +998,7 @@
         {/if}
       </p>
     {/if}
+    <p class="sr-only" aria-live="polite">{announce}</p>
     {#if error}
       <p class="err-msg" role="alert">{error}</p>
     {/if}
@@ -713,6 +1010,75 @@
     </p>
   {/if}
 {/if}
+
+<!-- One dialog for both asks: the "as prescribed" summary and the duplicate choice. Native modal: focus stays inside, Esc closes. -->
+<dialog class="ask" bind:this={dialogEl} onclose={() => (ask = null)} aria-labelledby="ask-title">
+  {#if ask}
+    {@const dupe = ask.mode === "duplicate" ? ask.existing : ask.pending ? sessionLogged : null}
+    {#if ask.mode === "confirm"}
+      <h2 id="ask-title">Log as prescribed?</h2>
+      <p class="ask-line tnum">
+        Week {selectedWeekNumber} · {sessionName()} · {fmtLongDay(date)}{ask.summary ? ` · ${ask.summary.sets} sets` : ""}
+      </p>
+      {#if ask.summary && (ask.summary.missingLoad.length > 0 || ask.summary.openAmrap > 0)}
+        <ul class="ask-warn">
+          {#if ask.summary.missingLoad.length > 0}
+            <li>
+              {ask.summary.missingLoadSets} {ask.summary.missingLoadSets === 1 ? "set has" : "sets have"} no load:
+              {#each ask.summary.missingLoad as pe, i (pe)}{#if i > 0}, {/if}<button type="button" class="link-btn" onclick={() => fillFirst("weight", pe)}>{blockNameOf(pe)}</button>{/each}
+              <span class="ask-sub">They log reps only — no tonnage, no e1RM.</span>
+            </li>
+          {/if}
+          {#if ask.summary.openAmrap > 0}
+            <li>
+              {ask.summary.openAmrap} AMRAP {ask.summary.openAmrap === 1 ? "set needs" : "sets need"} reps — there's no count to assume.
+            </li>
+          {/if}
+        </ul>
+      {/if}
+      {#if !ask.pending && ask.summary && !ask.summary.openAmrap}
+        <p class="ask-sub">
+          {ask.summary.sets === 0 ? "Nothing to log yet — every set is skipped." : "Some cells need fixing before this can be logged."}
+        </p>
+      {/if}
+      {#if ask.pending && dupe}
+        <p class="ask-dupe">Already logged on {fmtDay(dupe.date)}{ask.pending.sent ? ` (${dupe.setCount} sets)` : ""}.</p>
+      {/if}
+    {:else}
+      <h2 id="ask-title">Already logged</h2>
+      <p class="ask-line">
+        {sessionName()} was already logged on {fmtDay(ask.existing.date)}{ask.pending.sent ? ` (${ask.existing.setCount} sets)` : ""}.
+        Replace it, or keep both?
+      </p>
+    {/if}
+
+    <div class="ask-actions">
+      {#if ask.mode === "confirm" && !ask.pending}
+        {#if ask.summary?.openAmrap}
+          <Button variant="primary" type="button" onclick={() => fillFirst("reps")}>Enter AMRAP reps</Button>
+        {:else}
+          <Button variant="primary" type="button" onclick={backToSheet}>Back to the sheet</Button>
+        {/if}
+        <Button variant="ghost" type="button" onclick={closeAsk}>Cancel</Button>
+      {:else if ask.pending && dupe}
+        {@const p = ask.pending}
+        <Button variant="primary" type="button" disabled={saving} onclick={() => send(p, "replace")}>Replace it</Button>
+        <Button type="button" disabled={saving} onclick={() => send(p, "add")}>Log a second time</Button>
+        {#if ask.mode === "confirm" && ask.summary?.missingLoad.length}
+          <Button variant="ghost" type="button" onclick={() => fillFirst("weight")}>Fill in loads first</Button>
+        {/if}
+        <Button variant="ghost" type="button" onclick={closeAsk}>Cancel</Button>
+      {:else if ask.pending}
+        {@const p = ask.pending}
+        <Button variant="primary" type="button" disabled={saving} onclick={() => send(p)}>{saving ? "Logging…" : "Log it"}</Button>
+        {#if ask.mode === "confirm" && ask.summary?.missingLoad.length}
+          <Button type="button" onclick={() => fillFirst("weight")}>Fill in loads first</Button>
+        {/if}
+        <Button variant="ghost" type="button" onclick={closeAsk}>Cancel</Button>
+      {/if}
+    </div>
+  {/if}
+</dialog>
 
 <style>
   .head-controls {
@@ -778,7 +1144,97 @@
   .set.filled { background: var(--well); }
   .tick { display: inline-flex; align-self: center; color: var(--good); }
   .tick :global(svg) { width: 13px; height: 13px; }
-  .logged-note { padding-bottom: 0; }
+  .sheet-notes { display: grid; gap: 8px; padding-bottom: 0; }
+  .sheet-notes :global(.draft-note) { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .link-btn {
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    background: none;
+    border: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* ---- Undo window: the save stands once the line drains ---- */
+  .undo-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 8px 12px 10px;
+    color: var(--good);
+    background: var(--good-bg);
+    border: 1px solid var(--good-line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .undo-msg { font-weight: 600; }
+  .undo-left { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .undo-drain {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--good);
+    transform-origin: left;
+    animation: drain linear forwards;
+  }
+  @keyframes drain {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .undo-drain { display: none; }
+  }
+
+  /* ---- The ask: one small modal for the summary and the duplicate choice ---- */
+  .ask {
+    width: min(460px, calc(100vw - 32px));
+    padding: 20px 20px 16px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-overlay);
+  }
+  .ask::backdrop { background: rgba(1, 4, 9, 0.35); }
+  .ask h2 { margin: 0 0 6px; font: 600 16px/1.3 var(--font-ui); }
+  .ask-line { margin: 0; color: var(--ink); }
+  .ask-warn {
+    margin: 12px 0 0;
+    padding: 8px 12px 8px 28px;
+    color: var(--warn-ink);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .ask-warn li + li { margin-top: 4px; }
+  .ask-sub { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
+  .ask-warn .ask-sub { color: inherit; opacity: 0.85; }
+  .ask-dupe { margin: 12px 0 0; font-weight: 600; }
+  .ask-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+  }
+  .ask-actions :global(.btn.ghost:last-child) { margin-left: auto; }
   .meta { display: contents; }
   .m-set { display: flex; align-items: baseline; gap: 6px; }
   .tag { font: 500 11px/1.2 var(--font-ui); color: var(--muted); }
