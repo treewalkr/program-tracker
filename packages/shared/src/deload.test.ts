@@ -1,5 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { DELOAD_RULES, DELOAD_VOLUME_DELTA_PERCENT, deloadLoad, deloadWeek } from "./deload";
+import {
+  DEFAULT_DELOAD,
+  DELOAD_RULES,
+  DELOAD_VOLUME_DELTA_PERCENT,
+  DeloadSettings,
+  deloadLoad,
+  deloadRulesText,
+  deloadSetCount,
+  deloadVolumeDeltaPercent,
+  deloadWeek,
+  effectiveDeload,
+} from "./deload";
 import type { PrescribedSet, ProgramWeek } from "./domain";
 
 const set = (n: number, p: Partial<PrescribedSet> = {}): PrescribedSet => ({
@@ -126,5 +137,110 @@ describe("deload description", () => {
 
   test("the volume target matches half the sets at −10% load", () => {
     expect(DELOAD_VOLUME_DELTA_PERCENT).toBe(-55);
+  });
+});
+
+describe("custom deload settings", () => {
+  const custom = (p: Partial<DeloadSettings>): DeloadSettings => ({ ...DEFAULT_DELOAD, ...p });
+  const w1 = week([[set(1, { targetWeightKg: 120 }), set(2, { targetWeightKg: 120 }), set(3, { targetWeightKg: 120 })], [set(1, { targetWeightKg: 40 })]]);
+  const w3 = week([
+    [set(1, { targetWeightKg: 140 }), set(2, { targetWeightKg: 140 }), set(3, { targetWeightKg: 140 })],
+    [set(1, { targetWeightKg: 50 })],
+    [set(1, { targetWeightKg: 30 })],
+  ]);
+
+  test("keeps the set share rounded up, at least one", () => {
+    const sets = (pct: number, n: number) => deloadWeek(week([Array.from({ length: n }, (_, i) => set(i + 1))]), custom({ setsKeptPercent: pct })).sessions[0].exercises[0].prescribedSets.length;
+    expect(sets(100, 4)).toBe(4);
+    expect(sets(75, 4)).toBe(3);
+    expect(sets(60, 5)).toBe(3);
+    expect(sets(25, 1)).toBe(1);
+    expect(sets(25, 5)).toBe(2);
+    expect(deloadSetCount(4, custom({ setsKeptPercent: 50 }))).toBe(2);
+  });
+
+  test("applies the custom load change", () => {
+    expect(deloadLoad(100, custom({ loadPercent: -20 }))).toBe(80);
+    expect(deloadLoad(100, custom({ loadPercent: 0 }))).toBe(100);
+    expect(deloadLoad(101, custom({ loadPercent: 0 }))).toBeLessThanOrEqual(101);
+  });
+
+  test("week-1 basis takes each slot's week-1 load; a slot new since week 1 uses last week's", () => {
+    const out = deloadWeek(w3, custom({ loadBasis: "week1", setsKeptPercent: 100 }), w1).sessions[0].exercises;
+    expect(out[0].prescribedSets.map((s) => s.targetWeightKg)).toEqual([107.5, 107.5, 107.5]);
+    expect(out[1].prescribedSets[0].targetWeightKg).toBe(35);
+    expect(out[2].prescribedSets[0].targetWeightKg).toBe(27.5);
+  });
+
+  test("week-1 basis without week 1 falls back to last week", () => {
+    const out = deloadWeek(w3, custom({ loadBasis: "week1" })).sessions[0].exercises;
+    expect(out[0].prescribedSets[0].targetWeightKg).toBe(125);
+  });
+
+  test("no RPE cap leaves RPE as written", () => {
+    const w = week([[set(1, { targetRpe: 8.5 }), set(2)]]);
+    const [a] = deloadWeek(w, custom({ rpeCap: null })).sessions[0].exercises[0].prescribedSets;
+    expect(a.targetRpe).toBe(8.5);
+    const [b] = deloadWeek(week([[set(1)]]), custom({ rpeCap: null })).sessions[0].exercises[0].prescribedSets;
+    expect(b.targetRpe).toBeUndefined();
+  });
+
+  test("a custom cap trims an RPE range that no longer fits", () => {
+    const [s] = deloadWeek(week([[set(1, { targetRpeMin: 7, targetRpe: 8 })]]), custom({ rpeCap: 6.5 })).sessions[0].exercises[0].prescribedSets;
+    expect(s.targetRpe).toBe(6.5);
+    expect(s.targetRpeMin).toBeUndefined();
+  });
+
+  test("AMRAP kept when the rule says so", () => {
+    const w = week([[set(1, { reps: 0, amrap: true, stopRpe: 9 })]]);
+    const [s] = deloadWeek(w, custom({ amrap: true, rpeCap: null })).sessions[0].exercises[0].prescribedSets;
+    expect(s.amrap).toBe(true);
+    expect(s.reps).toBe(0);
+    expect(s.stopRpe).toBe(9);
+    const [off] = deloadWeek(w).sessions[0].exercises[0].prescribedSets;
+    expect(off.amrap).toBe(false);
+    expect(off.stopRpe).toBeUndefined();
+  });
+});
+
+describe("deloadRulesText", () => {
+  test("the default text is DELOAD_RULES", () => {
+    expect(deloadRulesText()).toBe(DELOAD_RULES);
+    expect(DELOAD_RULES).toBe("half the sets per exercise (rounded up), loads −10 % from last week, RPE 6 cap, no AMRAP sets");
+  });
+
+  test("describes a custom rule", () => {
+    expect(deloadRulesText({ setsKeptPercent: 60, loadPercent: -7.5, loadBasis: "week1", rpeCap: null, amrap: true })).toBe(
+      "60 % of the sets per exercise (rounded up), loads −7.5 % from week 1, no RPE cap, AMRAP sets kept"
+    );
+    expect(deloadRulesText({ ...DEFAULT_DELOAD, setsKeptPercent: 100, loadPercent: 0, rpeCap: 6.5 })).toBe(
+      "all sets kept, loads as last week, RPE 6.5 cap, no AMRAP sets"
+    );
+  });
+});
+
+describe("deloadVolumeDeltaPercent", () => {
+  test("sets kept × load factor − 1", () => {
+    expect(deloadVolumeDeltaPercent()).toBe(-55);
+    expect(deloadVolumeDeltaPercent({ ...DEFAULT_DELOAD, setsKeptPercent: 100, loadPercent: -20 })).toBe(-20);
+    expect(deloadVolumeDeltaPercent({ ...DEFAULT_DELOAD, setsKeptPercent: 60, loadPercent: 0 })).toBe(-40);
+  });
+});
+
+describe("effectiveDeload", () => {
+  const mine: DeloadSettings = { ...DEFAULT_DELOAD, setsKeptPercent: 70 };
+  const theirs: DeloadSettings = { ...DEFAULT_DELOAD, rpeCap: null };
+
+  test("client override, else trainer, else defaults", () => {
+    expect(effectiveDeload(mine, theirs)).toEqual(theirs);
+    expect(effectiveDeload(mine, null)).toEqual(mine);
+    expect(effectiveDeload(null)).toEqual(DEFAULT_DELOAD);
+  });
+
+  test("skips invalid settings", () => {
+    expect(effectiveDeload(mine, { setsKeptPercent: 10 })).toEqual(mine);
+    expect(effectiveDeload({ ...mine, loadPercent: 5 }, "x")).toEqual(DEFAULT_DELOAD);
+    expect(DeloadSettings.safeParse({ ...DEFAULT_DELOAD, loadPercent: -3 }).success).toBe(false);
+    expect(DeloadSettings.safeParse({ ...DEFAULT_DELOAD, extra: 1 }).success).toBe(false);
   });
 });

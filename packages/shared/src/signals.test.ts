@@ -273,6 +273,15 @@ describe("week-ending signal", () => {
     expect(sig!.prefillNote).toContain(DELOAD_RULES);
     expect(`${sig!.evidence} ${sig!.prefillNote}`).not.toContain("60%");
   });
+
+  test("deload-week uses the client's own rule text when given", () => {
+    const now = new Date("2026-10-20T00:00:00.000Z").getTime();
+    const program: SignalProgram = { ...baseProgram, activatedAt: new Date(now - 23 * 86400_000).toISOString() };
+    const sig = computeSignals(program, [], () => "Bench", null, now, "all sets kept, loads −20 % from week 1, no RPE cap, AMRAP sets kept").find((s) => s.kind === "deload-week");
+    expect(sig!.evidence).toContain("loads −20 % from week 1");
+    expect(sig!.prefillNote).toContain("AMRAP sets kept");
+    expect(sig!.evidence).not.toContain(DELOAD_RULES);
+  });
 });
 
 describe("rpe creep and stall see every set (F02, F15)", () => {

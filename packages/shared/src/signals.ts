@@ -166,7 +166,9 @@ export function computeSignals(
   logs: SignalLog[],
   nameOf: (id: string) => string,
   clientSessionsPerWeek?: number | null,
-  now = Date.now()
+  now = Date.now(),
+  /** The client's deload rule in words (deloadRulesText(effectiveDeload(…))). */
+  deloadRules = DELOAD_RULES
 ): Signal[] {
   if (!program || program.status !== "active") return [];
   const signals: Signal[] = [];
@@ -189,8 +191,8 @@ export function computeSignals(
         kind: "deload-week",
         severity: "info",
         title: `Deload week — week ${week} of ${ph.plannedWeeks}`,
-        evidence: `Planned light week for “${program.name}”. Deload: ${DELOAD_RULES}.`,
-        prefillNote: `This week is a planned deload (week ${week}/${ph.plannedWeeks}). Deload the week: ${DELOAD_RULES}.`,
+        evidence: `Planned light week for “${program.name}”. Deload: ${deloadRules}.`,
+        prefillNote: `This week is a planned deload (week ${week}/${ph.plannedWeeks}). Deload the week: ${deloadRules}.`,
         templateHint: "tpl-block-structure",
       });
     } else if (week >= ph.plannedWeeks) {
