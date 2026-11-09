@@ -166,6 +166,279 @@
   --shadow-overlay-up: 0 -8px 24px rgba(1, 4, 9, 0.75);
 }
 
+/* ————————————————————————————————————————————
+   Palettes: one optional variant per mode, set by $lib/theme.svelte.ts on
+   <html data-palette>. Each block overrides only what changes on top of its
+   mode's base above (`light` and `dark` are the bases and need no block).
+   Colourblind palettes swap red/green signals for orange/blue; the done ramp
+   keeps its order as a blue ramp. Kept after the dark block so they win.
+   ———————————————————————————————————————————— */
+
+/* Light high contrast: near-black ink, firm hairlines, deeper signal hues. */
+:root[data-palette="light-hc"] {
+  --ink: #010409;
+  --muted: #2f353d;
+  --faint: #454c54;
+  --line: #59636e;
+  --line-soft: #88929d;
+  --line-strong: #20252c;
+  --well: #eff2f5;
+  --well-2: #e6eaef;
+  --active: #d1d9e0;
+
+  --blue: #0349b4;
+  --blue-hov: #023b95;
+  --good: #055d20;
+  --good-bg: #d2fedb;
+  --good-line: #055d20;
+  --green-btn: #055d20;
+  --green-btn-hov: #024c1a;
+  --bad: #a0111f;
+  --bad-bg: #fff0ee;
+  --bad-line: #a0111f;
+  --warn: #744500;
+  --warn-bg: #fcf7be;
+  --warn-line: #744500;
+
+  --done-1: #82e596;
+  --done-2: #26a148;
+  --done-3: #117f32;
+  --done-4: #024c1a;
+
+  --rpe-low: #055d20;
+  --rpe-mid: #744500;
+  --rpe-high: #a0111f;
+
+  --hover-ink: #010409;
+  --chip-bg: rgba(89, 99, 110, 0.18);
+  --dir-tr: #0349b4;
+  --focus: rgba(3, 73, 180, 0.7);
+  --focus-ring: rgba(3, 73, 180, 0.25);
+  --warn-ink: #3f2200;
+  --rpe-mid-chip: #5c3700;
+  --blue-line: #0349b4;
+  --lamp-gray: #59636e;
+  --btn-border: #20252c;
+  --cell-edge: rgba(1, 4, 9, 0.15);
+}
+
+/* Light colourblind: success reads blue, danger reads orange. */
+:root[data-palette="light-cb"] {
+  --good: #0969da;
+  --good-bg: #ddf4ff;
+  --good-line: #b6e3ff;
+  --green-btn: #0969da;
+  --green-btn-hov: #0860c4;
+  --bad: #bc4c00;
+  --bad-bg: #fff1e5;
+  --bad-line: #ffd8b5;
+
+  --done-1: #b6e3ff;
+  --done-2: #54aeff;
+  --done-3: #0969da;
+  --done-4: #0a3069;
+
+  --rpe-low: #0969da;
+  --rpe-mid: #9a6700;
+  --rpe-high: #bc4c00;
+}
+
+/* Paper: warm cream canvas, sepia ink, ink-blue links, a forest action green. */
+:root[data-palette="paper"] {
+  --bg: #f7f1e3;
+  --surface: #fbf7ee;
+  --ink: #3b2f22;
+  --muted: #65553f;
+  --faint: #6e5e48;
+  --line: #d9cbb0;
+  --line-soft: #e4d9c3;
+  --line-strong: #b9a683;
+  --well: #f0e7d4;
+  --well-2: #e9dec7;
+  --active: #dfd1b6;
+
+  --blue: #1d5a9e;
+  --blue-hov: #174c86;
+  --good: #2f6b38;
+  --good-bg: #e2ebcd;
+  --good-line: #bfd3a2;
+  --green-btn: #2f7a3d;
+  --green-btn-hov: #286a34;
+  --bad: #a3321f;
+  --bad-bg: #f6e0d4;
+  --bad-line: #e9c0ad;
+  --warn: #855600;
+  --warn-bg: #f5e6b5;
+  --warn-line: rgba(160, 112, 16, 0.4);
+
+  --done-1: #d3e2b3;
+  --done-2: #93bb73;
+  --done-3: #5a924d;
+  --done-4: #2f5e2d;
+
+  --rpe-low: #2f6b38;
+  --rpe-mid: #855600;
+  --rpe-high: #a3321f;
+
+  --hover-ink: #2a2118;
+  --chip-bg: rgba(140, 115, 80, 0.16);
+  --pulse-now-bg: #e2eaf0;
+  --dir-tr: #1d5a9e;
+  --focus: rgba(29, 90, 158, 0.45);
+  --focus-ring: rgba(29, 90, 158, 0.15);
+  --selection: rgba(29, 90, 158, 0.18);
+  --on-ink: #fbf7ee;
+  --warn-ink: #4a3200;
+  --rpe-mid-chip: #744b00;
+  --blue-line: #bcd0e4;
+  --tab-on: #c4673f;
+  --lamp-amber: #a87400;
+  --lamp-gray: #8f7f69;
+  --avatar-bg: #e4d9c3;
+  --btn-border: rgba(59, 47, 34, 0.18);
+  --btn-lip: 0 1px 0 rgba(59, 47, 34, 0.05);
+  --cell-edge: rgba(59, 47, 34, 0.08);
+  --scrim: rgba(59, 47, 34, 0.25);
+  --shadow-overlay: 0 8px 24px rgba(120, 100, 70, 0.22);
+  --shadow-overlay-up: 0 -8px 24px rgba(120, 100, 70, 0.22);
+}
+
+/* Dark dimmed: Primer's slate gray — softer canvas, softer ink. */
+:root[data-palette="dark-dimmed"] {
+  --bg: #212830;
+  --surface: #212830;
+  --ink: #d1d7e0;
+  --muted: #9da5b0;
+  --faint: #959da8;
+  --line: #3d444d;
+  --line-soft: #343b44;
+  --line-strong: #656c76;
+  --well: #262c36;
+  --well-2: #2a313c;
+  --active: #2f3742;
+
+  --blue: #539bf5;
+  --blue-hov: #6cb6ff;
+  --good: #57ab5a;
+  --good-bg: rgba(70, 149, 74, 0.15);
+  --good-line: rgba(70, 149, 74, 0.4);
+  --green-btn: #347d39;
+  --green-btn-hov: #3b8640;
+  --bad: #f47067;
+  --bad-bg: rgba(229, 83, 75, 0.1);
+  --bad-line: rgba(229, 83, 75, 0.4);
+  --warn: #c69026;
+  --warn-bg: rgba(174, 124, 20, 0.15);
+  --warn-line: rgba(174, 124, 20, 0.4);
+
+  --done-1: #1b4721;
+  --done-2: #2b6a30;
+  --done-3: #46954a;
+  --done-4: #6bc46d;
+
+  --rpe-low: #57ab5a;
+  --rpe-mid: #c69026;
+  --rpe-high: #f47067;
+
+  --hover-ink: #d1d7e0;
+  --chip-bg: rgba(101, 108, 118, 0.25);
+  --warn-line-soft: rgba(174, 124, 20, 0.4);
+  --pulse-now-bg: rgba(65, 132, 228, 0.15);
+  --dir-tr: #539bf5;
+  --focus: rgba(71, 139, 230, 0.6);
+  --focus-ring: rgba(71, 139, 230, 0.3);
+  --selection: rgba(65, 132, 228, 0.4);
+  --on-ink: #212830;
+  --on-done: #212830;
+  --warn-ink: #daaa3f;
+  --rpe-mid-chip: #c69026;
+  --blue-line: rgba(65, 132, 228, 0.4);
+  --tab-on: #ec775c;
+  --lamp-amber: #c69026;
+  --avatar-bg: #2f3742;
+  --btn-border: #3d444d;
+  --cell-edge: rgba(209, 215, 224, 0.05);
+  --scrim: rgba(21, 27, 35, 0.6);
+  --shadow-overlay: 0 8px 24px rgba(21, 27, 35, 0.6);
+  --shadow-overlay-up: 0 -8px 24px rgba(21, 27, 35, 0.6);
+}
+
+/* Dark high contrast: true-black canvas, white ink, bright hairlines. */
+:root[data-palette="dark-hc"] {
+  --bg: #010409;
+  --surface: #010409;
+  --ink: #ffffff;
+  --muted: #d1d7e0;
+  --faint: #b7bdc8;
+  --line: #b7bdc8;
+  --line-soft: #6b737e;
+  --line-strong: #d1d7e0;
+  --well: #151b23;
+  --well-2: #212830;
+  --active: #2a313c;
+
+  --blue: #74b9ff;
+  --blue-hov: #99ccff;
+  --good: #2bd853;
+  --good-bg: rgba(9, 180, 58, 0.18);
+  --good-line: #2bd853;
+  --green-btn: #1a7f37;
+  --green-btn-hov: #116329;
+  --bad: #ff6a69;
+  --bad-bg: rgba(255, 106, 105, 0.15);
+  --bad-line: #ff6a69;
+  --warn: #f0b72f;
+  --warn-bg: rgba(240, 183, 47, 0.15);
+  --warn-line: #f0b72f;
+
+  --done-1: #0b5d27;
+  --done-2: #09893a;
+  --done-3: #09b43a;
+  --done-4: #4ae168;
+
+  --rpe-low: #2bd853;
+  --rpe-mid: #f0b72f;
+  --rpe-high: #ff6a69;
+
+  --hover-ink: #ffffff;
+  --chip-bg: rgba(183, 189, 200, 0.2);
+  --warn-line-soft: #f0b72f;
+  --pulse-now-bg: rgba(116, 185, 255, 0.18);
+  --dir-tr: #74b9ff;
+  --focus: rgba(116, 185, 255, 0.85);
+  --focus-ring: rgba(116, 185, 255, 0.4);
+  --selection: rgba(116, 185, 255, 0.4);
+  --on-ink: #010409;
+  --on-done: #010409;
+  --warn-ink: #f7c843;
+  --rpe-mid-chip: #f0b72f;
+  --blue-line: #74b9ff;
+  --lamp-gray: #9ea7b3;
+  --btn-border: #b7bdc8;
+  --cell-edge: rgba(255, 255, 255, 0.15);
+}
+
+/* Dark colourblind: success reads blue, danger reads orange. */
+:root[data-palette="dark-cb"] {
+  --good: #58a6ff;
+  --good-bg: rgba(56, 139, 253, 0.15);
+  --good-line: rgba(56, 139, 253, 0.4);
+  --green-btn: #1f6feb;
+  --green-btn-hov: #1158c7;
+  --bad: #f0883e;
+  --bad-bg: rgba(219, 109, 40, 0.1);
+  --bad-line: rgba(219, 109, 40, 0.4);
+
+  --done-1: #0c2d6b;
+  --done-2: #1158c7;
+  --done-3: #1f6feb;
+  --done-4: #58a6ff;
+
+  --rpe-low: #58a6ff;
+  --rpe-mid: #d29922;
+  --rpe-high: #f0883e;
+}
+
 html {
   color-scheme: light;
 }
