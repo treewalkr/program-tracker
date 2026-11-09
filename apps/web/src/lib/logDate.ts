@@ -124,11 +124,11 @@ export function dateForSession(
   week: number,
   sessionId: string,
   today: string
-): { date: string; capped: boolean } | null {
+): { date: string; scheduled: string; capped: boolean } | null {
   const session = program.weeks.find((w) => w.week === week)?.sessions.find((s) => s.id === sessionId);
-  const date = session ? scheduledDate(program, logs, week, session) : null;
-  if (!date) return null;
-  return date > today ? { date: today, capped: true } : { date, capped: false };
+  const scheduled = session ? scheduledDate(program, logs, week, session) : null;
+  if (!scheduled) return null;
+  return scheduled > today ? { date: today, scheduled, capped: true } : { date: scheduled, scheduled, capped: false };
 }
 
 /** How far back the page-open default looks for a missed session. */

@@ -81,11 +81,11 @@ describe("sessionForDate", () => {
 
 describe("dateForSession", () => {
   test("the scheduled day in its week", () => {
-    expect(dateForSession(program, [], 1, "b1", "2026-11-20")).toEqual({ date: "2026-11-04", capped: false });
+    expect(dateForSession(program, [], 1, "b1", "2026-11-20")).toEqual({ date: "2026-11-04", scheduled: "2026-11-04", capped: false });
   });
 
   test("never in the future", () => {
-    expect(dateForSession(program, [], 2, "c2", "2026-11-10")).toEqual({ date: "2026-11-10", capped: true });
+    expect(dateForSession(program, [], 2, "c2", "2026-11-10")).toEqual({ date: "2026-11-10", scheduled: "2026-11-13", capped: true });
   });
 
   test("an any-day session keeps the current date", () => {
