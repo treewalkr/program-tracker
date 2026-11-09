@@ -500,7 +500,8 @@
   .bar {
     position: fixed;
     right: 16px;
-    bottom: 16px;
+    /* A page with a sticky bottom bar (the log sheet's Save) sets the lift. */
+    bottom: calc(16px + var(--feedback-lift, 0px));
     z-index: 9999;
     display: flex;
     align-items: center;
