@@ -1,139 +1,412 @@
 <script module lang="ts">
-  export type { ClientRow, WeekEntry } from "$lib/overview";
+  export type { ClientStrip, StripDay, StripSession } from "$lib/overview";
 </script>
 
 <script lang="ts">
   /**
-   * Contributions-style training-week grid. Purely presentational — row
-   * building and status derivation stay in the owning page, which passes
-   * ready-made rows plus the week's ISO dates (past columns dim, the
-   * today column derives from `today`).
+   * The overview's contributions grid. One row per client: up to five past
+   * weeks as small squares shaded by logged volume (vs the client's usual day),
+   * then this week as labelled cells. Purely presentational — strips arrive
+   * built and sorted (exceptions first) from the page; clients with nothing
+   * this week collapse into one line at the bottom.
+   *
+   * Every non-rest day explains itself: hover/focus shows a tooltip, a click
+   * (tap) pins it as a popover whose due sessions link to the logger. Past
+   * weeks are one tab stop per client (arrow keys move between days); they
+   * drop oldest-first as the panel narrows.
    */
+  import { tick } from "svelte";
+  import type { ClientStrip, StripDay } from "$lib/overview";
+  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, plural, sessionLine, volumeLabel } from "$lib/overview";
+
   interface Props {
-    rows: ClientRow[];
-    /** 7 ISO dates for Mon–Sun of the displayed week. */
-    weekDates: string[];
+    /** Built by `buildClientStrip`, ordered by `exceptionOrder`; every strip has the same weeks. */
+    strips: ClientStrip[];
     /** Today as an ISO date. */
     today: string;
-    /** clientId → current program name, for the row meta line. */
-    currentNames: Record<string, string>;
   }
 
-  import type { ClientRow } from "$lib/overview";
+  let { strips, today }: Props = $props();
 
-  let { rows, weekDates, today, currentNames }: Props = $props();
-
-  const STATE = { logged: "done", today: "today", due: "missed" } as const;
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const dayNumberOf = (iso: string) => Number(iso.slice(8, 10));
-  /** The logger, opened on this cell's session and date. */
-  const logHref = (clientId: string, sessionId: string | undefined, date: string) =>
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const shortDate = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
+
+  const active = $derived(strips.filter((s) => s.exception !== "none"));
+  const idle = $derived(strips.filter((s) => s.exception === "none"));
+  /** Calendar weeks, from any strip (they all share them). */
+  const calendar = $derived(strips[0]?.weeks.map((w) => w.map((d) => d.date)) ?? []);
+  const thisWeek = $derived(calendar[calendar.length - 1] ?? []);
+  const pastWeeks = $derived(calendar.slice(0, -1));
+
+  /** The logger, opened on a session and date. */
+  const logHref = (clientId: string, sessionId: string | null | undefined, date: string) =>
     sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
-  const shortName = (sessionName: string) => sessionName.split(" + ")[0].split("—")[0].trim() || "Session";
+  const tagOf = (name: string) => name.split(" + ")[0].split("—")[0].trim() || "Session";
+  const marks = (d: StripDay) => d.status !== "rest" && d.status !== "before-start";
+  const loggable = (d: StripDay) => d.status === "today" || d.status === "missed";
+  const metaOf = (s: ClientStrip) =>
+    [
+      s.program ? `${s.client.sessionsPerWeek ?? "—"}/wk` : null,
+      s.unscheduled ? `+${s.unscheduled} any day` : null,
+      s.cardio ? `cardio ${s.cardio.done}/${s.cardio.target}${s.cardio.unitLabel === "min" ? "" : ` ${s.cardio.unitLabel}`}` : null,
+    ]
+      .filter((m): m is string => !!m);
+
+  // ── Tooltip / popover: one floating card, anchored to the square or cell ──
+  type Tip = { strip: ClientStrip; day: StripDay; x: number; y: number; below: boolean; pinned: boolean; anchor: HTMLElement };
+  let tip = $state<Tip | null>(null);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let card = $state<HTMLDivElement>();
+  const uid = $props.id();
+  const tipId = `wk-tip-${uid}`;
+
+  function place(anchor: HTMLElement) {
+    const r = anchor.getBoundingClientRect();
+    const below = r.top < 160;
+    return { x: Math.min(Math.max(r.left + r.width / 2, 130), window.innerWidth - 130), y: below ? r.bottom + 6 : r.top - 6, below };
+  }
+  function show(strip: ClientStrip, day: StripDay, anchor: HTMLElement, delay: number) {
+    if (tip?.pinned) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => (tip = { strip, day, anchor, pinned: false, ...place(anchor) }), delay);
+  }
+  function hide() {
+    clearTimeout(timer);
+    if (!tip?.pinned) tip = null;
+  }
+  /** Click/tap pins the card; from the keyboard (Enter/Space) focus moves into it. */
+  async function pin(e: MouseEvent, strip: ClientStrip, day: StripDay) {
+    const anchor = e.currentTarget as HTMLElement;
+    clearTimeout(timer);
+    if (tip?.pinned && tip.anchor === anchor) {
+      tip = null;
+      return;
+    }
+    tip = { strip, day, anchor, pinned: true, ...place(anchor) };
+    if (e.detail === 0) {
+      await tick();
+      card?.querySelector<HTMLElement>("a")?.focus();
+    }
+  }
+  function close(refocus: boolean) {
+    const anchor = tip?.anchor;
+    tip = null;
+    if (refocus) anchor?.focus();
+  }
+
+  $effect(() => {
+    if (!tip) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close(true);
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!card?.contains(t) && !tip?.anchor.contains(t)) close(false);
+    };
+    const onScroll = () => close(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onScroll);
+    };
+  });
+  $effect(() => () => clearTimeout(timer));
+
+  // ── Past weeks: one tab stop per client, arrows move between days ──
+  let current = $state<Record<string, string>>({});
+  const lastMarked = (s: ClientStrip) => s.weeks.slice(0, -1).flat().filter(marks).at(-1)?.date;
+  const stopOf = (s: ClientStrip) => current[s.client.id] ?? lastMarked(s);
+
+  function rove(e: KeyboardEvent, s: ClientStrip) {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const group = e.currentTarget as HTMLElement;
+    const items = [...group.querySelectorAll<HTMLButtonElement>("button.sq")].filter((b) => b.offsetParent !== null);
+    if (items.length === 0) return;
+    e.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next =
+      e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : Math.min(items.length - 1, Math.max(0, at + (e.key === "ArrowLeft" ? -1 : 1)));
+    current[s.client.id] = items[next].dataset.date!;
+    items[next].focus();
+  }
 </script>
 
 <div class="week-wrap">
-  <div class="week-grid">
-    <div class="wk-h corner">Client</div>
-    {#each weekDates as date, i (date)}
-      <div class="wk-h" class:dim={date < today} class:now={date === today}>
-        {DAY_LABELS[i]}<span class="d">{dayNumberOf(date)}</span>
-      </div>
-    {/each}
-
-    {#each rows as row (row.client.id)}
-      <div class="wk-row">
-        <div class="wk-client">
-          <a href={`/clients/${row.client.id}`}>{row.client.name}</a>
-          {#if row.program}
-            <span class="meta">
-              {row.client.sessionsPerWeek ?? "—"}/wk · {currentNames[row.client.id]}
+  <div class="wk-in">
+    <div class="wk" role="table" aria-label="Training week by client, this week and the five before">
+      <div class="wk-head" role="rowgroup">
+        <div class="wk-tr" role="row">
+          <div class="wk-client corner" role="columnheader">Client</div>
+          <div class="hist" role="columnheader">
+            <span class="sr">Earlier weeks</span>
+            <span class="hw-labels" aria-hidden="true">
+              {#each pastWeeks as w (w[0])}<span class="hw-label">{shortDate(w[0])}</span>{/each}
             </span>
-          {/if}
-          {#if row.unscheduled && row.entries.size > 0}
-            <span class="meta">+{row.unscheduled} any day</span>
-          {/if}
-          {#if row.cardio}
-            <span class="meta cardio">cardio {row.cardio.done}/{row.cardio.target} {row.cardio.unitLabel}</span>
-          {/if}
-        </div>
-        {#if row.entries.size === 0}
-          <div class="wk-cell span">
-            {#if row.program && row.unscheduled}
-              <span class="pill neutral">{row.unscheduled} {row.unscheduled === 1 ? "session" : "sessions"} · any day</span>
-            {:else}
-              <span class="pill neutral">{row.client.status === "active" ? "no program" : row.client.status}</span>
-            {/if}
           </div>
-        {:else}
-          {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
-            {@const e = row.entries.get(d)}
-            <div class="wk-cell">
-              {#if e}
-                {@const cls = e.status === "logged" ? "done" : e.status === "today" ? "today" : e.status === "due" ? "missed" : "next"}
-                {@const label = `${row.client.name}, ${DAY_LABELS[d - 1]}: ${e.sessionName}${e.status === "upcoming" ? ", upcoming" : `, ${STATE[e.status]}`}`}
-                {#snippet body()}
-                  {#if (e.count ?? 1) > 1}<span class="more">{e.count}</span>{/if}
-                  <span class="tag">{shortName(e.sessionName)}</span>
-                  {#if e.status !== "upcoming"}<span class="state">{STATE[e.status]}</span>{/if}
-                {/snippet}
-                {#if e.status === "upcoming"}
-                  <!-- Not loggable yet (the logger refuses future dates), so not a link. -->
-                  <span class="cell {cls}" title={`${row.client.name} — ${e.sessionName}`} role="img" aria-label={label}>{@render body()}</span>
-                {:else}
-                  <a
-                    class="cell {cls}"
-                    href={e.status === "logged" ? `/clients/${row.client.id}` : logHref(row.client.id, e.sessionId, weekDates[d - 1])}
-                    title={`${row.client.name} — ${e.sessionName}`}
-                    aria-label={label}
-                  >{@render body()}</a>
-                {/if}
-              {:else}
-                <span class="offday">—</span>
-              {/if}
+          {#each thisWeek as date, i (date)}
+            <div class="wk-day" class:dim={date < today} class:now={date === today} role="columnheader" aria-label={dayDateLabel(date, true)}>
+              {DAY_LABELS[i]}<span class="d">{Number(date.slice(8, 10))}</span>
             </div>
           {/each}
+        </div>
+      </div>
+
+      <div class="wk-body" role="rowgroup">
+        {#each active as s (s.client.id)}
+          {@const meta = metaOf(s)}
+          <div class="wk-tr" role="row">
+            <div class="wk-client" role="rowheader">
+              <a href={`/clients/${s.client.id}`} title={s.program ?? undefined}>{s.client.name}</a>
+              {#if meta.length}
+                <span class="meta">
+                  {#each meta as m, i (m)}<span>{m}{i < meta.length - 1 ? " ·" : ""}</span>{/each}
+                </span>
+              {/if}
+            </div>
+
+            <div class="hist" role="cell">
+              <!-- Roving focus: arrow keys bubble up from the day buttons inside. -->
+              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+              <div class="hist-days" onkeydown={(e) => rove(e, s)} role="group" aria-label={`${s.client.name}, earlier weeks`}>
+                {#each s.weeks.slice(0, -1) as w (w[0].date)}
+                  <div class="hw">
+                    {#each w as d (d.date)}
+                      {#if marks(d)}
+                        <button
+                          type="button"
+                          class="sq {d.status}"
+                          data-level={d.status === "logged" ? d.level : undefined}
+                          data-date={d.date}
+                          tabindex={stopOf(s) === d.date ? 0 : -1}
+                          aria-label={daySentence(s.client.name, d)}
+                          aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
+                          aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
+                          onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+                          onpointerleave={hide}
+                          onfocus={(e) => {
+                            current[s.client.id] = d.date;
+                            show(s, d, e.currentTarget, 0);
+                          }}
+                          onblur={hide}
+                          onclick={(e) => pin(e, s, d)}
+                        ></button>
+                      {:else}
+                        <span class="sq rest" aria-hidden="true"></span>
+                      {/if}
+                    {/each}
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            {#each s.weeks[s.weeks.length - 1] as d (d.date)}
+              {@const extra = d.sessions.length - 1}
+              <div class="wk-cell" role="cell">
+                {#if marks(d)}
+                  {@const label = daySentence(s.client.name, d)}
+                  {#snippet body()}
+                    <span class="tag">{tagOf(d.sessions[0].name)}</span>
+                    {#if extra > 0}<span class="more">+{extra}<span class="more-word">{" more"}</span></span>{/if}
+                    {#if d.status === "logged"}<span class="state">done</span>{:else if d.status === "missed"}<span class="state">missed</span>{/if}
+                  {/snippet}
+                  {#if loggable(d)}
+                    <a
+                      class="cell {d.status}"
+                      href={logHref(s.client.id, d.openSessionId, d.date)}
+                      aria-label={`${label} Open the logger.`}
+                      onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+                      onpointerleave={hide}
+                      onfocus={(e) => show(s, d, e.currentTarget, 0)}
+                      onblur={hide}
+                    >{@render body()}</a>
+                  {:else}
+                    <button
+                      type="button"
+                      class="cell {d.status}"
+                      aria-label={label}
+                      aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
+                      aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
+                      onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+                      onpointerleave={hide}
+                      onfocus={(e) => show(s, d, e.currentTarget, 0)}
+                      onblur={hide}
+                      onclick={(e) => pin(e, s, d)}
+                    >{@render body()}</button>
+                  {/if}
+                {:else}
+                  <span class="offday" aria-hidden="true"></span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/each}
+
+        {#if idle.length > 0}
+          <div class="wk-tr idle" role="row">
+            <div class="idle-line" role="cell" aria-colspan={9}>
+              <span class="idle-count">{plural(idle.length, "client")} with no sessions this week</span>
+              <span class="idle-names">
+                {#each idle as s, i (s.client.id)}
+                  <a href={`/clients/${s.client.id}`} title={s.program ?? (s.client.status === "active" ? "No program" : s.client.status)}>{s.client.name}</a>{#if i < idle.length - 1}<span class="sep">, </span>{/if}
+                {/each}
+              </span>
+            </div>
+          </div>
         {/if}
       </div>
-    {/each}
+    </div>
+
+    {#if active.length > 0}
+      <div class="legend" aria-hidden="true">
+        <span class="lg">
+          Less
+          {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
+          More
+        </span>
+        <span class="lg"><span class="sq missed"></span>Missed</span>
+        <span class="lg"><span class="sq today"></span>Due today</span>
+        <span class="lg"><span class="sq upcoming"></span>Planned</span>
+      </div>
+    {/if}
   </div>
 </div>
 
+{#if tip}
+  {@const t = tip}
+  <div
+    bind:this={card}
+    id={tipId}
+    class="tip"
+    class:below={t.below}
+    class:pinned={t.pinned}
+    style:left="{t.x}px"
+    style:top="{t.y}px"
+    role={t.pinned ? "dialog" : "tooltip"}
+    aria-label={t.pinned ? `${t.strip.client.name}, ${dayDateLabel(t.day.date, true)}` : undefined}
+    aria-hidden={t.pinned ? undefined : "true"}
+    onfocusout={(e) => t.pinned && !card?.contains(e.relatedTarget as Node) && close(false)}
+  >
+    <div class="tip-head">
+      <strong>{t.strip.client.name}</strong>
+      <span>{dayDateLabel(t.day.date)}</span>
+    </div>
+    <ul>
+      {#each t.day.sessions as x, i (i)}
+        <li class={x.status}>
+          <span class="dot" aria-hidden="true"></span>
+          <span class="nm">{x.name}</span>
+          <span class="st">{x.loggedOn ? `logged ${dayDateLabel(x.loggedOn)}` : SESSION_WORDS[x.status]}</span>
+          {#if t.pinned && x.planned && (x.status === "today" || x.status === "missed")}
+            <a class="go" href={logHref(t.strip.client.id, x.id, t.day.date)} aria-label={`Log ${sessionLine(x)}`}>Log</a>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    {#if t.day.volume}
+      <div class="tip-vol"><span class="fig">{volumeLabel(t.day.volume)}</span> · {LEVEL_WORDS[t.day.level]}</div>
+    {/if}
+    {#if t.pinned}
+      <a class="tip-client" href={`/clients/${t.strip.client.id}`}>Open {t.strip.client.name}</a>
+    {/if}
+  </div>
+{/if}
+
 <style>
-  .week-wrap { overflow-x: auto; padding: 12px 16px; container-type: inline-size; }
-  .week-grid {
-    display: grid;
-    grid-template-columns: 104px repeat(7, minmax(52px, 1fr));
-    min-width: 480px;
+  /* Sizes: 10px squares, 2px gap → 82px a week; weeks 5px apart. */
+  .week-wrap { container: weekgrid / inline-size; }
+  .wk-in {
+    --sq: 10px;
+    --sq-gap: 2px;
+    --hw: calc(7 * var(--sq) + 6 * var(--sq-gap));
+    --client-col: 152px;
+    padding: 12px 16px;
   }
-  .wk-h {
+  .wk { display: flex; flex-direction: column; }
+  .wk-tr {
+    display: grid;
+    grid-template-columns: var(--client-col) auto repeat(7, minmax(48px, 1fr));
+    column-gap: 4px;
+    align-items: center;
+  }
+  .wk-body .wk-tr + .wk-tr { border-top: 1px solid var(--line-soft); }
+
+  /* Header */
+  .wk-day, .corner, .hist[role="columnheader"] {
     font: 500 12px/1.4 var(--font-ui);
     color: var(--muted);
-    padding: 8px 4px;
+    padding: 6px 2px 8px;
     text-align: center;
   }
-  .wk-h .d { display: block; font: 400 11px/1.6 var(--font-ui); color: var(--faint); }
-  .wk-h.dim { color: var(--faint); }
-  .wk-h.now { color: var(--blue); font-weight: 600; }
-  .wk-h.now .d { color: var(--blue); }
-  .wk-h.corner { text-align: left; padding-left: 12px; }
-  .wk-row { display: contents; }
-  .wk-client { padding: 8px 4px 8px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .wk-client a { color: var(--ink); font-weight: 600; }
-  .wk-client .meta {
-    font: 400 11px/1.4 var(--font-ui);
+  .corner { text-align: left; padding-left: 4px; }
+  .wk-day .d { display: block; font: 400 11px/1.6 var(--font-mono); color: var(--faint); }
+  .wk-day.dim { color: var(--faint); }
+  .wk-day.now, .wk-day.now .d { color: var(--blue); font-weight: 600; }
+  .hist[role="columnheader"] { padding-right: 12px; }
+  .hw-labels { display: flex; gap: 5px; }
+  .hw-label {
+    width: var(--hw);
+    font: 400 11px/1.6 var(--font-mono);
     color: var(--faint);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    text-align: left;
+    align-self: end;
   }
-  .wk-client .meta.cardio { color: var(--muted); }
-  .wk-cell { padding: 5px 4px; display: flex; justify-content: center; }
-  .wk-cell.span { grid-column: 2 / -1; justify-content: flex-start; }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Client column */
+  .wk-client { padding: 8px 4px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .wk-client a { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wk-client .meta {
+    font: 400 11px/1.4 var(--font-mono);
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.5ch;
+  }
+  .wk-client .meta span { white-space: nowrap; }
+
+  /* Past weeks */
+  .hist[role="cell"] { padding-right: 12px; }
+  .hist-days { display: flex; gap: 5px; }
+  .hw { display: flex; gap: var(--sq-gap); }
+  .sq {
+    width: var(--sq);
+    height: var(--sq);
+    border-radius: 2px;
+    border: 1px solid transparent;
+    padding: 0;
+    background: var(--well-2);
+    flex: none;
+    cursor: default;
+  }
+  button.sq { cursor: pointer; }
+  .sq.rest, .sq.before-start { background: var(--well-2); opacity: 0.55; }
+  .sq.logged[data-level="1"] { background: var(--done-1); }
+  .sq.logged[data-level="2"] { background: var(--done-2); }
+  .sq.logged[data-level="3"] { background: var(--done-3); }
+  .sq.logged[data-level="4"] { background: var(--done-4); }
+  .sq.missed { background: var(--bad-bg); border-color: var(--bad); }
+  .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
+  .sq.upcoming { background: var(--surface); border-color: var(--line-strong); }
+  button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
+
+  /* This week */
+  .wk-cell { padding: 6px 0; display: flex; justify-content: center; min-width: 0; }
   .cell {
     width: 100%;
-    max-width: 70px;
-    min-height: 34px;
+    max-width: 76px;
+    min-height: 40px;
     border-radius: 4px;
     border: 1px solid var(--line);
     display: flex;
@@ -141,62 +414,149 @@
     align-items: center;
     justify-content: center;
     gap: 1px;
-    padding: 3px 2px;
+    padding: 4px 3px;
     text-decoration: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
   }
-  a.cell:hover { text-decoration: none; filter: brightness(1.05); }
+  a.cell:hover { text-decoration: none; }
+  .cell:hover { border-color: var(--ink); }
   .cell .tag {
-    font: 500 10px/1.2 var(--font-mono);
+    font: 500 11px/1.2 var(--font-mono);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     text-align: center;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
-  .cell .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cell .state { font: 400 10px/1.2 var(--font-ui); }
-  .cell.done .state { color: var(--on-done); }
-  .cell.today .state { color: var(--blue); font-weight: 600; }
-  .cell.missed .state { color: var(--bad); }
-  .cell.done { background: var(--done-4); border-color: var(--done-4); }
-  .cell.done .tag { color: var(--on-done); }
-  .cell.today { border-color: var(--blue); border-width: 2px; background: var(--pulse-now-bg); }
-  .cell.today .tag { color: var(--blue); }
-  .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); }
-  .cell.missed .tag { color: var(--bad); }
-  .cell.next { background: var(--well); }
-  .cell.next .tag { color: var(--muted); }
-  .cell { position: relative; }
-  .cell .more {
-    position: absolute;
-    top: 2px;
-    right: 3px;
-    font: 500 9px/1 var(--font-mono);
-    opacity: 0.8;
+  .cell .more { font: 500 11px/1.2 var(--font-mono); white-space: nowrap; }
+  .cell .state { font: 400 11px/1.2 var(--font-ui); }
+  .cell.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
+  .cell.logged:hover { border-color: var(--ink); }
+  .cell.today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--pulse-now-bg); color: var(--blue); }
+  .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
+  .cell.missed:hover { border-color: var(--bad); }
+  .cell.upcoming { background: var(--well); color: var(--muted); }
+  .offday {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--line);
   }
-  /* Keep the session tag clear of the corner count badge. */
-  .cell:has(.more) .tag { padding-right: 8px; }
-  .cell.done .more { color: var(--on-done); }
-  .cell.today .more { color: var(--blue); }
-  .cell.missed .more { color: var(--bad); }
-  .cell.next .more { color: var(--muted); }
-  .offday { align-self: center; color: var(--faint); font-size: 11px; }
 
-  /* Narrow panels: the client column becomes a label row above its week,
-     so all seven days fit without sideways scrolling. */
-  @container (max-width: 520px) {
-    .week-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
-    .wk-h.corner { display: none; }
-    .wk-h { padding: 4px 2px 6px; }
+  /* One focus ring for every fill — ink outline on the canvas gap, clear of blue and green. */
+  .sq:focus-visible, .cell:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+
+  /* Clients with nothing this week */
+  .wk-tr.idle { display: block; }
+  .idle-line {
+    padding: 10px 4px 4px;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+  .idle-count { font-weight: 500; }
+  .idle-names a { color: var(--ink); }
+  .sep { color: var(--faint); }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px 16px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line-soft);
+    font: 400 11px/1.4 var(--font-ui);
+    color: var(--muted);
+  }
+  .lg { display: inline-flex; align-items: center; gap: 3px; }
+  .lg .sq + :not(.sq) { margin-left: 2px; }
+
+  /* Tooltip / popover */
+  .tip {
+    position: fixed;
+    z-index: 60;
+    transform: translate(-50%, -100%);
+    min-width: 200px;
+    max-width: 260px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-overlay);
+    font: 400 12px/1.45 var(--font-ui);
+    pointer-events: none;
+  }
+  .tip.below { transform: translate(-50%, 0); }
+  .tip.pinned { pointer-events: auto; }
+  .tip-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .tip-head span { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+  .tip ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  .tip li { display: grid; grid-template-columns: 8px 1fr auto auto; gap: 6px; align-items: baseline; }
+  .tip .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--done-3); align-self: center; }
+  .tip li.missed .dot { background: var(--bad); }
+  /* Hollow, so it never reads as a logged dot where the ramp is blue (colourblind). */
+  .tip li.today .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--blue); }
+  .tip li.upcoming .dot { background: transparent; border: 1px solid var(--line-strong); }
+  .tip .st { color: var(--muted); white-space: nowrap; }
+  .tip li.missed .st { color: var(--bad); }
+  .tip li.today .st { color: var(--blue); }
+  .tip .go { font-weight: 600; }
+  .tip-vol { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--muted); }
+  .tip-vol .fig { font-family: var(--font-mono); color: var(--ink); }
+  .tip-client { display: inline-block; margin-top: 6px; font-weight: 500; }
+
+  /* Drop past weeks oldest-first as the panel narrows (each week ≈ 87px; 5 weeks need ~975px). */
+  @container weekgrid (max-width: 974px) { .hw:nth-child(1), .hw-label:nth-child(1) { display: none; } }
+  @container weekgrid (max-width: 887px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
+  @container weekgrid (max-width: 800px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
+  @container weekgrid (max-width: 713px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
+  @container weekgrid (max-width: 626px) {
+    .wk-in { --client-col: 120px; }
+    .hist { display: none !important; }
+    .wk-tr { grid-template-columns: var(--client-col) repeat(7, minmax(48px, 1fr)); }
+  }
+
+  /* Narrow: the client becomes a label line above its week, so seven days fit. */
+  @container weekgrid (max-width: 520px) {
+    .wk-in { padding: 8px 4px; }
+    .wk-tr { grid-template-columns: repeat(7, minmax(0, 1fr)); column-gap: 1px; }
+    .corner { display: none; }
     .wk-client {
       grid-column: 1 / -1;
       flex-direction: row;
       flex-wrap: wrap;
       align-items: baseline;
       gap: 2px 10px;
-      padding: 12px 2px 4px;
-      border-top: 1px solid var(--line-soft);
+      padding: 10px 2px 2px;
     }
-    .wk-client .meta { max-width: 100%; }
-    .wk-cell { padding: 4px 2px; }
-    .wk-cell.span { grid-column: 1 / -1; }
+    .wk-cell { padding: 4px 0 8px; }
+    .cell { min-height: 44px; padding: 4px 0; }
+    /* Cells are ~33px: the tag drops to sentence-case UI type so a short
+       name ("Lower", "Upper A") fits whole over at most two lines; anything
+       longer clips — the full name is in the label and the tooltip. */
+    .cell .tag {
+      font: 500 11px/1.2 var(--font-ui);
+      text-transform: none;
+      letter-spacing: -0.02em;
+      overflow-wrap: normal;
+    }
+    .more-word { display: none; }
+    .legend { justify-content: flex-start; }
   }
 </style>

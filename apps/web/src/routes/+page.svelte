@@ -2,7 +2,16 @@
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
-  import { buildWeekRow, localIso, plural, weekDatesOf, weekRangeLabel, type ClientRow } from "$lib/overview";
+  import {
+    buildClientStrip,
+    exceptionOrder,
+    localIso,
+    plural,
+    stripWeeks,
+    weekRangeLabel,
+    weekTally,
+    type ClientStrip,
+  } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekGrid from "$lib/components/WeekGrid.svelte";
@@ -20,25 +29,27 @@
   let loadError = $state<string | null>(null);
   let currentNames = $state<Record<string, string>>({});
   let signals = $state<SignalDto[]>([]);
-  let rows = $state<ClientRow[]>([]);
+  let strips = $state<ClientStrip[]>([]);
   let rowsReady = $state(false);
 
   const now = new Date();
-  const weekDates = weekDatesOf(now);
+  const weeks = stripWeeks(now);
+  const weekDates = weeks[weeks.length - 1];
   const today = localIso(now);
 
-  const entries = $derived(rows.flatMap((r) => [...r.entries.values()]));
-  const loggedCount = $derived(entries.filter((e) => e.status === "logged").length);
-  const plannedCount = $derived(entries.length);
-  const trainingClients = $derived(rows.filter((r) => r.program).length);
-  const dueToday = $derived(entries.filter((e) => e.status === "today").length);
+  const tally = $derived(weekTally(strips));
+  const trainingClients = $derived(strips.filter((s) => s.program).length);
+  /** Says what the head line doesn't: what needs the trainer now. */
+  const weekCount = $derived(
+    [tally.dueToday ? `${tally.dueToday} due today` : null, tally.missed ? `${tally.missed} missed` : null].filter(Boolean).join(" · ") ||
+      (tally.planned ? "all on track" : undefined)
+  );
   const providersDown = $derived(providers.filter((p) => !p.configured));
   const headLine = $derived(
     [
       weekRangeLabel(weekDates),
       `${plural(trainingClients, "client")} training`,
-      `${loggedCount} of ${plannedCount} logged`,
-      dueToday ? `${dueToday} due today` : null,
+      `${tally.logged} of ${tally.planned} logged`,
     ]
       .filter(Boolean)
       .join(" · ")
@@ -56,10 +67,10 @@
         cs.map(async (c) => {
           const [detail, logs] = await Promise.all([api.client(c.id), api.sessionLogs(c.id)]);
           currentNames[c.id] = detail.currentProgram?.name ?? "—";
-          return buildWeekRow(c, detail.currentProgram, logs, weekDates, today);
+          return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
         })
       );
-      rows = built;
+      strips = exceptionOrder(built);
       rowsReady = true;
     } catch (err) {
       console.error(err);
@@ -101,6 +112,15 @@
     </EmptyState>
   </section>
 {:else}
+  <Panel class="week-panel" title="Training week" count={rowsReady ? weekCount : undefined}>
+    {#if rowsReady}
+      <WeekGrid {strips} {today} />
+    {:else if loadError}
+      <p class="clear err">Couldn't load sessions — {loadError}. <Button small onclick={load}>Try again</Button></p>
+    {:else}
+      <div class="panel-body"><Skeleton h="96px" /></div>
+    {/if}
+  </Panel>
   <div class="grid-2">
     <div class="col">
       <Panel title="Needs review" count={signals.length ? plural(signals.length, "signal") : undefined}>
@@ -149,15 +169,6 @@
         {/if}
       </Panel>
 
-      <Panel title="Training week" count={rowsReady ? `${loggedCount} of ${plannedCount} logged` : undefined}>
-        {#if rowsReady}
-          <WeekGrid {rows} {weekDates} {today} {currentNames} />
-        {:else if loadError}
-          <p class="clear err">Couldn't load sessions — {loadError}. <Button small onclick={load}>Try again</Button></p>
-        {:else}
-          <div class="panel-body"><Skeleton h="96px" /></div>
-        {/if}
-      </Panel>
     </div>
 
     <div class="col">
@@ -216,6 +227,7 @@
     gap: 16px;
     align-items: start;
   }
+  :global(.week-panel) { margin-bottom: 16px; }
   .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .clear { margin: 0; padding: 14px 16px; color: var(--muted); }
   .clear.err { color: var(--bad); }

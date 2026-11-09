@@ -3,6 +3,7 @@ export * from "./placement";
 export * from "./ai";
 export * from "./cardio";
 export * from "./metrics";
+export * from "./dayIntensity";
 export * from "./signals";
 export * from "./diff";
 export * from "./slots";
