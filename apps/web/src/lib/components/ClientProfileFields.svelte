@@ -1,6 +1,5 @@
 <script lang="ts">
   import {
-    CARDIO_DEFAULT,
     birthDateError,
     bodyweightError,
     heightError,
@@ -34,7 +33,6 @@
 
   // svelte-ignore state_referenced_locally
   let expanded = $state(!collapsible || form.cardioUnit !== "none" || form.goals.trim() !== "" || form.limitations.trim() !== "");
-  const UNIT_WORD = { minutes: "minutes a week", sessions: "sessions a week", zone_minutes: "zone minutes a week" } as const;
 
   const today = localIso(new Date());
   const age = $derived(form.birthDate && !birthDateError(form.birthDate, today) ? ageOn(form.birthDate, today) : null);
@@ -44,11 +42,6 @@
     weight: bodyweightError(form.bodyweightKg) ?? undefined,
     height: heightError(form.heightCm) ?? undefined,
   });
-
-  function setUnit(unit: ProfileForm["cardioUnit"]) {
-    form.cardioUnit = unit;
-    if (unit !== "none") form.cardioValue = CARDIO_DEFAULT[unit];
-  }
 </script>
 
 <ProfileSection title="Basics" purpose="used for age, loading and AI context">
@@ -93,26 +86,9 @@
   </div>
 </ProfileSection>
 
-<ProfileSection title="Training week" purpose="where sessions land on the calendar">
+<ProfileSection title="Training week" purpose="where lifting and cardio land on the calendar">
   <TrainingWeekGrid bind:form {idPrefix} />
 </ProfileSection>
-
-{#if expanded}
-  <ProfileSection title="Cardio target" purpose="resets every Monday">
-    <div class="cardio-fields">
-      <select class="select" value={form.cardioUnit} onchange={(e) => setUnit(e.currentTarget.value as ProfileForm["cardioUnit"])} aria-label="Cardio target unit">
-        <option value="none">No cardio target</option>
-        <option value="minutes">Minutes</option>
-        <option value="sessions">Sessions</option>
-        <option value="zone_minutes">Zone minutes</option>
-      </select>
-      {#if form.cardioUnit !== "none"}
-        <input class="input tnum" type="number" inputmode="numeric" min="1" max="10000" bind:value={form.cardioValue} aria-label="Target {UNIT_WORD[form.cardioUnit]}" />
-        <span class="subtle">{UNIT_WORD[form.cardioUnit]}</span>
-      {/if}
-    </div>
-  </ProfileSection>
-{/if}
 
 {#if catalog}
   <ProfileSection title="1RMs" purpose="sets prescribed as % of 1RM take their kg from these">
@@ -171,9 +147,6 @@
   .orm-x:hover { color: var(--bad); }
   .orm-add { align-self: flex-start; border: none; background: none; padding: 0; font: 500 13px var(--font-ui); color: var(--blue); cursor: pointer; }
   .orm-add:hover { text-decoration: underline; }
-  .cardio-fields { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .cardio-fields .select { width: auto; }
-  .cardio-fields .input { width: 96px; }
   .more {
     align-self: flex-start;
     border: 1px dashed var(--line-strong);

@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'A client\'s training week in one grid: lifting sessions a week (stepper), Lift and Run toggle rows, and a Long run radio row (with "Any") across Mon–Sun. Bound to the profile form; a one-line summary reads the week back.',
+            'A client\'s training week: lifting sessions a week (stepper), lifting days as day chips, and a Cardio switch that reveals cardio days, the long session day and the weekly target. Bound to the profile form; a one-line summary reads the week back.',
         },
       },
     },
@@ -18,7 +18,7 @@
 </script>
 
 <script>
-  let planned = $state({ ...emptyProfile('2026-11-09'), sessionsPerWeek: 3, trainingDays: [1, 3, 5], cardioDays: [2, 6], longRunDay: 7 });
+  let planned = $state({ ...emptyProfile('2026-11-09'), sessionsPerWeek: 3, trainingDays: [1, 3, 5], cardioDays: [6], longRunDay: 7, cardioUnit: 'minutes' as const, cardioValue: 120 });
   let blank = $state(emptyProfile('2026-11-09'));
   let stacked = $state({ ...emptyProfile('2026-11-09'), sessionsPerWeek: 5, trainingDays: [1, 3, 5] });
 </script>
