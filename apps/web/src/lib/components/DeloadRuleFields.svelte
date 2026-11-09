@@ -85,6 +85,8 @@
   }
   .knobs :global(.label) { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
   .knobs .select { min-height: 32px; font-variant-numeric: tabular-nums; }
+  /* the two-option switch needs two columns or "Week 1" is clipped */
+  .knobs > :global(:has(> .seg)) { grid-column: span 2; }
 
   .seg {
     display: flex;
