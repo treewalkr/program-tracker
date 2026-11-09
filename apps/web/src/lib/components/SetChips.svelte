@@ -3,7 +3,22 @@
   import { fmtSet, rpeLabel } from "$lib/format";
 
   /** `oneRepMaxKg`: the client's 1RM for this exercise, so %1RM sets show their kg. */
-  let { sets, oneRepMaxKg = null }: { sets: PrescribedSetDto[]; oneRepMaxKg?: number | null } = $props();
+  /**
+   * `cols`: aligned mode (session card rows). Every chip keeps the same slots
+   * — sets · effort · tempo · rest — so on a wide card the right-aligned chips
+   * line their fields up into columns. `head` renders the column labels.
+   */
+  let {
+    sets,
+    oneRepMaxKg = null,
+    cols = null,
+    head = false,
+  }: {
+    sets: PrescribedSetDto[];
+    oneRepMaxKg?: number | null;
+    cols?: { tempo: boolean; rest: boolean } | null;
+    head?: boolean;
+  } = $props();
 
   let openIndex = $state<number | null>(null);
   let rootEl = $state<HTMLElement | null>(null);
@@ -46,8 +61,11 @@
       if (rpes.every((r) => r != null)) {
         if (same(rpes)) rpe = rpes[0];
         else if (!labelled.some((l) => l.ranged)) {
+          // A ramp reads as a progression (7→8), never a range (7–8 means "either").
           const vals = labelled.map((l) => l.top);
-          rpe = `${Math.min(...vals)}–${Math.max(...vals)}`;
+          const up = vals.every((v, i) => i === 0 || v >= vals[i - 1]);
+          const down = vals.every((v, i) => i === 0 || v <= vals[i - 1]);
+          rpe = up || down ? `${vals[0]}→${vals[vals.length - 1]}` : vals.join("/");
         } else rpe = rpes.join("/");
       }
       const maxRpe = Math.max(...labelled.map((l) => l.top));
@@ -74,34 +92,46 @@
   }}
 />
 
-<span class="chips" bind:this={rootEl}>
-  {#each groups as g, i (i)}
-    {@const open = openIndex === i}
-    <span
-      class="setchip"
-      class:open
-      role="button"
-      tabindex="0"
-      aria-expanded={open}
-      title={open ? "show notation" : describe(g)}
-      onclick={() => toggle(i)}
-      onkeydown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggle(i);
-        }
-      }}
-    >
-      {#if open}
-        <span class="words">{describe(g)}</span>
-      {:else}
-        {#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}
-        {#if g.extra}<span class="sub">· {g.extra}</span>{/if}
-        {#if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>{/if}
-        {#if g.rest}<span class="sub">· {g.rest}</span>{/if}
-      {/if}
+<span class="chips" class:aligned={!!cols} bind:this={rootEl}>
+  {#if head && cols}
+    <span class="setchip ghost" aria-hidden="true">
+      <span class="slot s-main sub">sets</span>
+      <span class="slot s-eff sub">effort</span>
+      {#if cols.tempo}<span class="slot s-tempo sub">tempo</span>{/if}
+      {#if cols.rest}<span class="slot s-rest sub">rest</span>{/if}
     </span>
-  {/each}
+  {:else}
+    {#each groups as g, i (i)}
+      {@const open = openIndex === i}
+      <span
+        class="setchip"
+        class:open
+        role="button"
+        tabindex="0"
+        aria-expanded={open}
+        title={open ? "show notation" : describe(g)}
+        onclick={() => toggle(i)}
+        onkeydown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle(i);
+          }
+        }}
+      >
+        {#if open}
+          <span class="words">{describe(g)}</span>
+        {:else}
+          <span class="slot s-main">{#if g.count > 1}<span class="count">{g.count}×{g.main}</span>{:else}<span class="rep">{g.main}</span>{/if}</span>
+          <span class="slot s-eff" class:none={!g.rpe && g.x.rir == null}>
+            {#if g.rpe}<span class="sub rpe" class:rpe-mid={g.maxRpe >= 7} class:rpe-high={g.maxRpe >= 9}>@RPE {g.rpe}</span>
+            {:else if g.x.rir != null}<span class="sub">RIR {g.x.rir}</span>{/if}
+          </span>
+          {#if !cols || cols.tempo}<span class="slot s-tempo" class:none={!g.x.tempo}>{#if g.x.tempo}<span class="sub">· {g.x.tempo}</span>{/if}</span>{/if}
+          {#if !cols || cols.rest}<span class="slot s-rest" class:none={!g.rest}>{#if g.rest}<span class="sub">· {g.rest}</span>{/if}</span>{/if}
+        {/if}
+      </span>
+    {/each}
+  {/if}
 </span>
 
 <style>
@@ -121,6 +151,21 @@
   }
   .words {
     font-weight: 400;
+  }
+  .slot.none {
+    display: none;
+  }
+  .ghost {
+    background: none;
+  }
+  /* Wide session card: fixed slots so right-aligned chips form columns.
+     Widths in ch of the 12px chip mono; longer values (loads) just grow. */
+  @container session (min-width: 521px) {
+    .aligned .slot { display: inline-block; text-align: left; }
+    .aligned .s-main { min-width: 8ch; }
+    .aligned .s-eff { min-width: 7.5ch; }
+    .aligned .s-tempo { min-width: 8.5ch; }
+    .aligned .s-rest { min-width: 5.5ch; }
   }
   /* RPE effort tiers live in app.css (.setchip .rpe) — chip-darkened for AA */
 </style>

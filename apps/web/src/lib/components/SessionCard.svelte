@@ -57,6 +57,12 @@
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
   );
 
+  /** Columns the session's set chips line up into (tempo/rest only when some set has one). */
+  const cols = $derived({
+    tempo: exercises.some((e) => e.sets.some((s) => !!s.tempo)),
+    rest: exercises.some((e) => e.sets.some((s) => !!s.restSeconds)),
+  });
+
   const cardioLine = $derived.by(() => {
     if (!cardio) return "";
     const parts = [
@@ -88,6 +94,9 @@
     </div>
   {:else}
     <div class="session-body">
+      {#if exercises.length > 1}
+        <div class="exrow colhead" aria-hidden="true"><span></span><SetChips sets={[]} {cols} head /></div>
+      {/if}
       {#each exercises as e, i (i)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
         <div class="exrow" class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
@@ -105,7 +114,7 @@
               </button>
             {/if}
           </div>
-          <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} />
+          <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} {cols} />
         </div>
       {/each}
     </div>
@@ -199,8 +208,12 @@
   .note-btn.noted span { display: none; }
   @media (hover: none) { .note-btn { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
-  /* stacked rows (app.css): a tag that wraps starts flush with the role chip */
+  /* column labels over the aligned set chips; tight to the first row */
+  .colhead { margin: -4px 0 -6px; }
+  /* stacked rows (app.css): a tag that wraps starts flush with the role chip;
+     chips no longer form columns, so the labels go */
   @container session (max-width: 520px) {
     .mp-tag { margin-left: 0; }
+    .colhead { display: none; }
   }
 </style>
