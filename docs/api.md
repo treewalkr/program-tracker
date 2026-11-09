@@ -21,6 +21,11 @@ route schemas (TypeBox + zod via `mapJsonSchema`), grouped by tag.
 | POST | `/v1/clients` | `{name, email, goals?, limitations?, daysPerWeek?, trainingDays?, cardioTarget?}` → 201 |
 | GET | `/v1/clients/:id` | client + `currentProgram` + all their programs |
 | PATCH | `/v1/clients/:id` | partial update of name/goals/limitations/daysPerWeek/trainingDays/cardioTarget/status |
+| PUT | `/v1/clients/:id/deload` | give this client their own deload rule (`DeloadSettings`, below) → the client; bad input 422 |
+| DELETE | `/v1/clients/:id/deload` | drop the override — the client follows the trainer's rule again → the client |
+
+Every client response carries `deloadSettings` (the client's override, or `null`) and
+`effectiveDeload` (the rule in force: override, else the trainer's, else the default).
 
 `trainingDays`: weekday ints 1=Mon…7=Sun (e.g. `[1,2,4,6]`) — powers the dashboard
 week strip and honest adherence (expected sessions come from the *client's calendar*,
@@ -30,6 +35,21 @@ not the program's day count).
 client's standing weekly cardio target. Resets every ISO week (Monday-start); progress
 is computed client-side from session logs (no progress endpoint). Feeds the AI prompt
 and the `cardio-behind` signal.
+
+## Deload rule
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/v1/account/deload` | the trainer's deload rule, filled with the default when unset |
+| PUT | `/v1/account/deload` | set it (full `DeloadSettings`) → 200 with the rule; bad input 422 |
+| DELETE | `/v1/account/deload` | back to the default → the default |
+
+`DeloadSettings` (zod, `packages/shared/src/deload.ts`):
+`{setsKeptPercent: 25–100 step 5, loadPercent: −50–0 step 2.5, loadBasis: "previous" | "week1", rpeCap: 4–10 step 0.5 | null, amrap: boolean}`.
+Default `{50, −10, "previous", 6, false}`. The rule in force for a client drives the
+program-page Deload button, the default plan's deload target, the plan's load index,
+the deload-week signal text and the "A deload week means: …" line in every AI prompt
+(it replaces deload numbers written in instruction templates).
 
 ## Programs
 
