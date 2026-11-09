@@ -10,7 +10,8 @@
   import { theme, PALETTES, type ThemePref, type PaletteId, type Mode } from "$lib/theme.svelte";
   import { accountApi, type NotificationPatch, type NotificationSettings } from "$lib/account";
   import { feedbackApi } from "$lib/feedback/client";
-  import type { FeedbackReplyScope } from "@pt/shared";
+  import { DEFAULT_DELOAD, type DeloadSettings, type FeedbackReplyScope } from "@pt/shared";
+  import DeloadRuleFields from "$lib/components/DeloadRuleFields.svelte";
 
   const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
     { value: "system", label: "System", icon: "monitor" },
@@ -33,6 +34,38 @@
   let emailError = $state<string | null>(null);
   /** Which replies to turn back on when the admin re-ticks "Replies". */
   let replyScope = $state<Exclude<FeedbackReplyScope, "off">>("all");
+
+  /** Deload rule: undefined while loading, null if the API didn't answer. `saved` is what the server holds. */
+  let deloadSaved = $state<DeloadSettings | null | undefined>(undefined);
+  let deloadDraft = $state<DeloadSettings>({ ...DEFAULT_DELOAD });
+  let deloadBusy = $state(false);
+  let deloadError = $state<string | null>(null);
+  let deloadJustSaved = $state(false);
+  const same = (a: DeloadSettings, b: DeloadSettings) =>
+    a.setsKeptPercent === b.setsKeptPercent &&
+    a.loadPercent === b.loadPercent &&
+    a.loadBasis === b.loadBasis &&
+    a.rpeCap === b.rpeCap &&
+    a.amrap === b.amrap;
+  const deloadDirty = $derived(deloadSaved != null && !same(deloadDraft, deloadSaved));
+  const deloadIsDefault = $derived(same(deloadDraft, DEFAULT_DELOAD));
+
+  async function deloadCall(run: () => Promise<DeloadSettings>) {
+    deloadBusy = true;
+    deloadError = null;
+    try {
+      const next = await run();
+      deloadSaved = next;
+      deloadDraft = { ...next };
+      deloadJustSaved = true;
+    } catch (err) {
+      deloadError = (err as Error).message || "Could not save";
+    } finally {
+      deloadBusy = false;
+    }
+  }
+  const saveDeload = () => deloadCall(() => api.setDeloadSettings($state.snapshot(deloadDraft)));
+  const resetDeload = () => deloadCall(() => api.resetDeloadSettings());
 
   /** Optimistic: show the change now, keep the server's answer, revert on error. */
   async function saveEmail(patch: NotificationPatch) {
@@ -81,6 +114,13 @@
       },
       () => (notif = null),
     );
+    api.deloadSettings().then(
+      (d) => {
+        deloadSaved = d;
+        deloadDraft = { ...d };
+      },
+      () => (deloadSaved = null),
+    );
     api.apiBuild().then(
       (b) => (apiBuild = b),
       () => (apiBuild = null)
@@ -90,7 +130,7 @@
 
 <svelte:head><title>Settings · Program Tracker</title></svelte:head>
 
-<PageHead title="Settings" sub="Appearance, your email and this app's version" />
+<PageHead title="Settings" sub="Appearance, your deload rule, your email and this app's version" />
 
 <Panel title="Appearance">
   <div class="appearance">
@@ -148,6 +188,31 @@
     {/each}
   </div>
 </Panel>
+
+<div class="section">
+  <Panel title="Deload">
+    {#snippet act()}<span class="head-note">every client, unless you give one their own</span>{/snippet}
+    <div class="deload">
+      {#if deloadSaved === undefined}
+        <Skeleton w="320px" h="18px" />
+      {:else if deloadSaved === null}
+        <p class="muted">The deload rule isn't available right now.</p>
+      {:else}
+        <p class="muted help">
+          What a deload week does — the Deload button on a program, the block plan's deload target and every AI draft use it.
+          It replaces any deload numbers written in your instruction templates.
+        </p>
+        <DeloadRuleFields bind:value={deloadDraft} idPrefix="my-deload" disabled={deloadBusy} />
+        <div class="deload-actions">
+          {#if deloadError}<p class="err" role="alert">{deloadError}</p>{/if}
+          {#if deloadJustSaved && !deloadDirty}<span class="muted" role="status">Saved</span>{/if}
+          <Button small variant="ghost" onclick={resetDeload} disabled={deloadBusy || deloadIsDefault}>Reset to default</Button>
+          <Button small onclick={saveDeload} disabled={deloadBusy || !deloadDirty}>{deloadBusy ? "Saving…" : "Save"}</Button>
+        </div>
+      {/if}
+    </div>
+  </Panel>
+</div>
 
 <div class="section">
   <Panel title="Email">
@@ -363,6 +428,13 @@
   .sw-dots span { width: 10px; height: 10px; border-radius: 50%; }
   .palette-name { padding: 0 2px; font-size: 12px; }
   @media (prefers-reduced-motion: reduce) { .palette-opt { transition: none; } }
+
+  .head-note { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .deload { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px; font-size: 13px; }
+  .deload .muted { color: var(--muted); margin: 0; }
+  .deload .help { max-width: 64ch; line-height: 1.5; }
+  .deload-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+  .deload-actions .err { margin-right: auto; color: var(--bad); font-size: 12px; }
 
   .email { padding: 14px 16px; font-size: 13px; }
   .email .muted { color: var(--muted); margin: 0; }
