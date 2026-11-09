@@ -279,7 +279,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 - **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged")
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
 - **Role chip:** the session slot an exercise fills (Power / Primary / Str / Aux / Core) — neutral well pill in the trainer's shorthand, the primary lift in default ink; full description on hover (`title`); leads the exercise name in session rows
-- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, amber/red/green `@RPE`, faint rest `3m` (11px micro); chip RPE ink reuses the RPE tiers darkened one step for AA on the chip background (≤6 #116329, 7–8 #7d5600, 9–10 Danger Red)
+- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, `@RPE` on a neutral ink-weight scale (≤6 Muted Ink 500, 7–8 Ink 600, 9–10 Ink 700 with a 2px ink underline — a planned effort, never a status colour), faint rest `3m` (11px micro). Cardio lines on session cards are Muted Ink with the pulse glyph, not Commit Green
   - One effort scale per chip: `@RPE`, or `RIR n` only when the set has no RPE. A uniform ramp collapses to one chip and reads as a progression (`@RPE 7→8`); `7–8` always means a range. On a wide session card (≥521px container) chips keep fixed slots — sets · effort · tempo · rest — so the right-aligned chips form columns under faint mono labels; tempo/rest columns appear only when some set in the session has one.
 - **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (templates, exercise filters)
 
