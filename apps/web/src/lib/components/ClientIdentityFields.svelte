@@ -4,8 +4,9 @@
   import { PHONE_MAX } from "@pt/shared";
 
   /**
-   * Name, email and phone (contact details) with per-field validation. Errors show once a field is left
-   * (blur) or when the parent sets `showAll` after a submit attempt.
+   * Name, email and phone (contact details) with per-field validation. Errors show once a field the user
+   * typed in is left (blur), or when the parent sets `showAll` after a submit attempt. Leaving an untouched
+   * field (the autofocused name, a tab switch) shows nothing.
    */
   let {
     name = $bindable(),
@@ -15,6 +16,7 @@
     showAll = false,
   }: { name: string; email: string; phone: string; idPrefix: string; showAll?: boolean } = $props();
 
+  let edited = $state({ name: false, email: false });
   let touched = $state({ name: false, email: false });
   const nErr = $derived(touched.name || showAll ? nameError(name) : null);
   const eErr = $derived(touched.email || showAll ? emailError(email) : null);
@@ -31,7 +33,8 @@
       aria-required="true"
       aria-invalid={nErr ? "true" : undefined}
       aria-describedby={nErr ? `${idPrefix}-name-err` : undefined}
-      onblur={() => (touched.name = true)}
+      oninput={() => (edited.name = true)}
+      onblur={() => (touched.name = edited.name)}
     />
     {#if nErr}<p class="ferr" id="{idPrefix}-name-err">{nErr}</p>{/if}
   </Field>
@@ -46,7 +49,8 @@
       autocomplete="off"
       aria-invalid={eErr ? "true" : undefined}
       aria-describedby={eErr ? `${idPrefix}-email-err` : undefined}
-      onblur={() => (touched.email = true)}
+      oninput={() => (edited.email = true)}
+      onblur={() => (touched.email = edited.email)}
     />
     {#if eErr}<p class="ferr" id="{idPrefix}-email-err">{eErr}</p>{/if}
   </Field>
