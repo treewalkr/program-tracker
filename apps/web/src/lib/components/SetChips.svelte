@@ -9,9 +9,13 @@
   let rootEl = $state<HTMLElement | null>(null);
 
   const restLabel = (s: PrescribedSetDto) => (s.restSeconds ? `${s.restSeconds}s` : null);
-  /** RIR and tempo ride along in the notation: "3×5 · RIR 2 · 3-1-1-0". */
+  /**
+   * Tempo rides along in the notation: "3×5 · 3-1-1-0". One effort scale per
+   * chip — RIR shows only when the set has no RPE, so a ramp that moves both
+   * still collapses to one chip.
+   */
   const extras = (s: PrescribedSetDto) => ({
-    rir: s.targetRir ?? null,
+    rir: rpeLabel(s) == null ? (s.targetRir ?? null) : null,
     tempo: s.tempo ? s.tempo.toUpperCase() : null,
   });
   const extraNotation = (x: { rir: number | null; tempo: string | null }) =>
