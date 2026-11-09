@@ -72,11 +72,11 @@ export interface E1rmSet {
   rpe?: number | null;
 }
 
-export interface TodaySet extends E1rmSet {
+export interface E1rmTodaySet extends E1rmSet {
   setNumber: number;
 }
 
-export interface HistorySet extends E1rmSet {
+export interface E1rmHistorySet extends E1rmSet {
   /** ISO date (YYYY-MM-DD…) the set was logged. */
   date: string;
   /** A hold logged in seconds — never an e1RM. */
@@ -84,8 +84,8 @@ export interface HistorySet extends E1rmSet {
 }
 
 export type E1rmSource =
-  | { kind: "today"; set: TodaySet }
-  | { kind: "history"; set: HistorySet }
+  | { kind: "today"; set: E1rmTodaySet }
+  | { kind: "history"; set: E1rmHistorySet }
   | { kind: "stored" };
 
 export interface BestE1rm {
@@ -127,7 +127,7 @@ function bestOf<S extends E1rmSet>(sets: S[]): { set: S; e1rm: number } | null {
  */
 export function bestE1rm(
   exerciseId: string,
-  ctx: { today?: TodaySet[]; history?: HistorySet[]; stored?: OneRepMaxes | null; now: string }
+  ctx: { today?: E1rmTodaySet[]; history?: E1rmHistorySet[]; stored?: OneRepMaxes | null; now: string }
 ): BestE1rm | null {
   const today = bestOf((ctx.today ?? []).filter((s) => s.exerciseId === exerciseId));
   if (today) {
