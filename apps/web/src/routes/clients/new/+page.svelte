@@ -12,7 +12,7 @@
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
-  import Panel from "$lib/ui/Panel.svelte";
+  import ProfileSection from "$lib/components/ProfileSection.svelte";
 
   const session = page.data.session;
   const draftKey = newClientDraftKey(apiMode, session?.kind === "signedIn" ? session.trainer.id : null);
@@ -140,35 +140,26 @@
     cancel();
   }}
 >
-  <Panel title="Client details">
-    <form class="panel-body pf" onsubmit={submit} novalidate>
-      <section class="pf-sec">
-        <h3>Client</h3>
-        <ClientIdentityFields bind:name bind:email bind:phone idPrefix="f" showAll={attempted} />
-      </section>
+  <form class="pf" onsubmit={submit} novalidate>
+    <ProfileSection title="Contact" purpose="how you reach them">
+      <ClientIdentityFields bind:name bind:email bind:phone idPrefix="f" showAll={attempted} />
+    </ProfileSection>
 
-      <ClientProfileFields bind:form={profile} idPrefix="f" collapsible {catalog} />
+    <ClientProfileFields bind:form={profile} idPrefix="f" collapsible {catalog} />
 
-      <div class="pf-foot">
-        <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
-        <Button variant="ghost" type="button" onclick={cancel}>Cancel</Button>
-        <span class="subtle" role="status" aria-live="polite">
-          {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
-          {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
-          {:else if attempted && basicsInvalid(profile)}<span class="err">Fix the basics marked above to continue</span>
-          {:else}Opens their page next — no program is created yet{/if}
-        </span>
-      </div>
-    </form>
-  </Panel>
+    <div class="pf-foot">
+      <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
+      <Button variant="ghost" type="button" onclick={cancel}>Cancel</Button>
+      <span class="subtle" role="status" aria-live="polite">
+        {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
+        {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
+        {:else if attempted && basicsInvalid(profile)}<span class="err">Fix the basics marked above to continue</span>
+        {:else}Opens their page next — no program is created yet{/if}
+      </span>
+    </div>
+  </form>
 </div>
 
 <style>
   :global(.note.draft-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-  /* On wide screens the form sections pair up (Client | Basics, Schedule | Cardio, For the AI). */
-  @media (min-width: 1360px) {
-    .newclient :global(.pf) { max-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 40px; align-items: start; }
-    .newclient :global(.pf > .more), .newclient :global(.pf > .pf-foot) { grid-column: 1 / -1; justify-self: stretch; }
-    .newclient :global(.pf > .more) { justify-self: start; }
-  }
 </style>

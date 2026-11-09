@@ -2,6 +2,7 @@
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import { basicsInvalid, basicsSummary, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
+  import ProfileSection from "$lib/components/ProfileSection.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -738,31 +739,30 @@
     {/if}
     </div>
   {:else}
-    <Panel class="narrow" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" title="Profile">
-      <form
-        class="panel-body pf"
-        onsubmit={(e) => {
-          e.preventDefault();
-          save();
-        }}
-      >
-        <section class="pf-sec">
-          <h3>Client</h3>
-          <ClientIdentityFields bind:name={idName} bind:email={idEmail} bind:phone={idPhone} idPrefix="p" showAll={idAttempted} />
-        </section>
+    <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">
+    <form
+      class="pf"
+      onsubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <ProfileSection title="Contact" purpose="how you reach them">
+        <ClientIdentityFields bind:name={idName} bind:email={idEmail} bind:phone={idPhone} idPrefix="p" showAll={idAttempted} />
+      </ProfileSection>
 
-        <ClientProfileFields bind:form idPrefix="p" catalog={catalogList} />
+      <ClientProfileFields bind:form idPrefix="p" catalog={catalogList} />
 
-        <div class="pf-foot">
-          <Button variant="primary" type="submit" disabled={saving || !profileDirty}>{saving ? "Saving…" : "Save profile"}</Button>
-          <span class="subtle" role="status">
-            {#if saveProfileError}<span class="err">Save failed: {saveProfileError}</span>
-            {:else if profileDirty}Unsaved changes
-            {:else if profileSaved}Saved{/if}
-          </span>
-        </div>
-      </form>
-    </Panel>
+      <div class="pf-foot">
+        <Button variant="primary" type="submit" disabled={saving || !profileDirty}>{saving ? "Saving…" : "Save profile"}</Button>
+        <span class="subtle" role="status">
+          {#if saveProfileError}<span class="err">Save failed: {saveProfileError}</span>
+          {:else if profileDirty}Unsaved changes
+          {:else if profileSaved}Saved{/if}
+        </span>
+      </div>
+    </form>
+    </div>
   {/if}
 {/if}
 
@@ -961,7 +961,6 @@
     .sess-prog { max-width: 100%; padding: 0 8px 8px 30px; }
   }
 
-  .narrow { max-width: var(--measure-form); }
   .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
   .day-h {
     display: flex;

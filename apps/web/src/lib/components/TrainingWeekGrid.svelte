@@ -149,7 +149,7 @@
   .stack { font-size: 12.5px; color: var(--warn); }
 
   .twg-scroll { overflow-x: auto; }
-  .twg-table { border-collapse: separate; border-spacing: 4px; min-width: 400px; margin: -4px; }
+  .twg-table { border-collapse: separate; border-spacing: 4px; width: calc(100% + 8px); min-width: 420px; margin: -4px; }
   thead th {
     font: 500 12px/1.4 var(--font-ui);
     color: var(--muted);
@@ -163,6 +163,7 @@
     color: var(--ink);
     text-align: left;
     white-space: nowrap;
+    width: 1%;
     padding-right: 8px;
   }
   td { padding: 0; }
