@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ProgramPhasingDto, WeekDirective, WeekMetric } from "$lib/api/types";
-  import { WEEK_DIRECTIVES, type ProgressionKind } from "@pt/shared";
+  import { DEFAULT_DELOAD, WEEK_DIRECTIVES, type DeloadSettings, type ProgressionKind } from "@pt/shared";
   import { normalizePlan, planChanges, setProgression, validatePlanWeek, PROGRESSION_STEP, type PlanWeek } from "$lib/draftReview";
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -19,9 +19,11 @@
     error?: string | null;
     onsave: (phasing: ProgramPhasingDto) => void;
     oncancel: () => void;
+    /** The client's deload rule, for the preview strip. */
+    deload?: DeloadSettings;
   }
 
-  let { phasing, nextVersion, saving = false, error = null, onsave, oncancel }: Props = $props();
+  let { phasing, nextVersion, saving = false, error = null, onsave, oncancel, deload = DEFAULT_DELOAD }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let edit = $state<ProgramPhasingDto>(normalizePlan(structuredClone($state.snapshot(phasing))));
@@ -70,7 +72,7 @@
 </script>
 
 <div class="editor">
-  <BlockPlanStrip phasing={normalized} bind:selected changed={changedWeeks} />
+  <BlockPlanStrip phasing={normalized} bind:selected changed={changedWeeks} {deload} />
 
   <div class="top">
     <label>Phase<input class="input" maxlength="120" bind:value={edit.phase} /></label>

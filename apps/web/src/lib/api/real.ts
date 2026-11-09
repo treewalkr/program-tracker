@@ -31,6 +31,7 @@ import type {
   ExistingLogDto,
 } from "./types";
 import { DuplicateLogError } from "./types";
+import type { DeloadSettings } from "@pt/shared";
 import { browser } from "$app/environment";
 import { toLogin } from "./auth";
 import { client } from "./treaty";
@@ -83,6 +84,11 @@ export const realApi: TrainerApi = {
     ),
   createClient: (input) => unwrap<ClientDto>(client.v1.clients.post(input)),
   updateClient: (id, patch) => unwrap<ClientDto>(client.v1.clients({ id }).patch(patch)),
+  deloadSettings: () => unwrap<DeloadSettings>(client.v1.account.deload.get()),
+  setDeloadSettings: (settings) => unwrap<DeloadSettings>(client.v1.account.deload.put(settings)),
+  resetDeloadSettings: () => unwrap<DeloadSettings>(client.v1.account.deload.delete()),
+  setClientDeload: (id, settings) => unwrap<ClientDto>(client.v1.clients({ id }).deload.put(settings)),
+  resetClientDeload: (id) => unwrap<ClientDto>(client.v1.clients({ id }).deload.delete()),
 
   program: (id) => unwrap<ProgramDto>(client.v1.programs({ id }).get()),
   programs: (clientId) => unwrap<ProgramDto[]>(client.v1.programs.get({ query: { clientId } })),

@@ -8,7 +8,9 @@
   import { renderMarkdown } from "$lib/chatRefine";
   import {
     ago,
+    clientDeload,
     defaultPlan,
+    deloadLoadPhrase,
     draftSessionTags,
     historyEntries,
     planChanges,
@@ -149,6 +151,8 @@
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
   const changedWeeks = $derived(new Set(planDelta.map((c) => c.week).filter((w): w is number => w !== null)));
   const checks = $derived(reviewChecks(draft, client.sessionsPerWeek, catalogById, client));
+  /** This client's deload rule: the default plan's deload cut and the load index follow it. */
+  const deload = $derived(clientDeload(client));
   const noDeload = $derived(!isWeek && plan !== null && !(plan.weeks ?? []).some((w) => w.directive === "deload"));
   const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length, draft.sessions.map((s) => s.kind)));
 
@@ -395,7 +399,8 @@
     <div class="panel-body">
       {#if editing}
         <BlockPlanEditor
-          phasing={plan ?? defaultPlan(4)}
+          phasing={plan ?? defaultPlan(4, deload)}
+          {deload}
           nextVersion={version + 1}
           saving={planSaving}
           error={planError}
@@ -403,8 +408,8 @@
           oncancel={() => (editing = false)}
         />
       {:else if plan}
-        <BlockPlanStrip phasing={plan} bind:selected={week} changed={changedWeeks} />
-        <p class="legend">Bars: volume index chained from each week's target (W1 = 100). Load index under each week; a deload week drops load 10 %.</p>
+        <BlockPlanStrip phasing={plan} bind:selected={week} changed={changedWeeks} {deload} />
+        <p class="legend">Bars: volume index chained from each week's target (W1 = 100). Load index under each week; {deloadLoadPhrase(deload)}.</p>
       {:else}
         <p class="subtle m0">This draft has no block plan.</p>
       {/if}

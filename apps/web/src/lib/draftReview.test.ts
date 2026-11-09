@@ -11,10 +11,12 @@ import {
   reviewChecks,
   validatePlanWeek,
   setProgression,
+  clientDeload,
+  deloadLoadPhrase,
   type PlanWeek,
   weekTargetLabel,
 } from "./draftReview";
-import { DELOAD_VOLUME_DELTA_PERCENT, formatPatternBalance, sessionsPatternBalance } from "@pt/shared";
+import { DEFAULT_DELOAD, DELOAD_VOLUME_DELTA_PERCENT, formatPatternBalance, sessionsPatternBalance, type DeloadSettings } from "@pt/shared";
 import type { AiDraftDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 const plan: ProgramPhasingDto = {
@@ -117,6 +119,36 @@ describe("block plan helpers", () => {
     const d = defaultPlan(4);
     expect(d.weeks!.map((w) => w.directive)).toEqual(["base", "+volume", "+volume", "deload"]);
     expect(d.weeks![3].target).toEqual({ metric: "overall_volume", deltaPercent: DELOAD_VOLUME_DELTA_PERCENT });
+  });
+});
+
+describe("block plan helpers with a custom deload rule", () => {
+  const custom = (p: Partial<DeloadSettings>): DeloadSettings => ({ ...DEFAULT_DELOAD, ...p });
+
+  test("planIndexes dips load by the rule's load change", () => {
+    const idx = planIndexes(plan, custom({ loadPercent: -20 })).map((x) => [Math.round(x.vol), +x.load.toFixed(1)]);
+    expect(idx).toEqual([[100, 100], [105, 100], [105, 102.5], [63, 82]]);
+    expect(planIndexes(plan, custom({ loadPercent: 0 }))[3].load).toBe(102.5);
+  });
+
+  test("planIndexes with the week-1 basis drops load to a share of week 1", () => {
+    const idx = planIndexes(plan, custom({ loadPercent: -10, loadBasis: "week1" }));
+    expect(idx[3].load).toBe(90);
+    expect(idx[2].load).toBe(102.5);
+  });
+
+  test("defaultPlan's deload target follows the rule's volume cut", () => {
+    const d = defaultPlan(5, custom({ setsKeptPercent: 60, loadPercent: 0 }));
+    expect(d.weeks![4]).toEqual({ week: 5, directive: "deload", target: { metric: "overall_volume", deltaPercent: -40 } });
+  });
+
+  test("clientDeload falls back to the default; the legend phrase follows the rule", () => {
+    expect(clientDeload(null)).toEqual(DEFAULT_DELOAD);
+    expect(clientDeload({ effectiveDeload: custom({ amrap: true }) }).amrap).toBe(true);
+    expect(deloadLoadPhrase()).toBe("a deload week drops load 10 %");
+    expect(deloadLoadPhrase(custom({ loadPercent: -7.5 }))).toBe("a deload week drops load 7.5 %");
+    expect(deloadLoadPhrase(custom({ loadPercent: 0 }))).toBe("a deload week keeps load");
+    expect(deloadLoadPhrase(custom({ loadBasis: "week1", loadPercent: -15 }))).toBe("a deload week sets load to 85 % of week 1");
   });
 });
 

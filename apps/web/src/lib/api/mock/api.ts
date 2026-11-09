@@ -1,8 +1,13 @@
+import { DeloadSettings as DeloadSettingsSchema } from "@pt/shared";
 import {
   aiDraftToDiffSource,
   cardioBehindSignal,
   chainSetCounts,
   DELOAD_RULES,
+  DEFAULT_DELOAD,
+  deloadRulesText,
+  effectiveDeload,
+  type DeloadSettings,
   computeSignals,
   diffRowsToText,
   diffSources,
@@ -185,7 +190,16 @@ const MOCK_GLOBAL_ALIASES: [alias: string, exercise: string][] = [
 ];
 
 /** Mutable in-memory demo state. Reset by reloading the page module. */
+/** A mock client as the API sends it: its override plus the rule in force. */
+const clientDto = (c: ClientDto): ClientDto => ({
+  ...c,
+  deloadSettings: c.deloadSettings ?? null,
+  effectiveDeload: effectiveDeload(state.deload, c.deloadSettings),
+});
+
 const state = {
+  /** The trainer's deload rule; null = the default. */
+  deload: null as DeloadSettings | null,
   clients: [...seedClients],
   programs: [...seedPrograms],
   logs: [...seedLogs],
@@ -638,7 +652,7 @@ export const mockApi: TrainerApi = {
 
   async clients() {
     await delay(250);
-    return state.clients.filter((c) => c.status !== "archived");
+    return state.clients.filter((c) => c.status !== "archived").map(clientDto);
   },
 
   async client(id) {
@@ -647,7 +661,7 @@ export const mockApi: TrainerApi = {
     if (!client) throw new Error("client not found");
     const programs = state.programs.filter((p) => p.clientId === id).map(withNames);
     return {
-      client,
+      client: clientDto(client),
       currentProgram: programs.find((p) => p.status === "active") ?? null,
       programs,
     };
@@ -657,14 +671,47 @@ export const mockApi: TrainerApi = {
     await delay(350);
     const created = { ...input, id: uuid(), status: "active" as const };
     state.clients.push(created);
-    return created;
+    return clientDto(created);
   },
 
   async updateClient(id, patch) {
     await delay(300);
     const i = state.clients.findIndex((c) => c.id === id);
     state.clients[i] = { ...state.clients[i], ...patch };
-    return state.clients[i];
+    return clientDto(state.clients[i]);
+  },
+
+  async deloadSettings() {
+    await delay(150);
+    return effectiveDeload(state.deload);
+  },
+
+  async setDeloadSettings(settings) {
+    await delay(250);
+    state.deload = DeloadSettingsSchema.parse(settings);
+    return structuredClone(state.deload);
+  },
+
+  async resetDeloadSettings() {
+    await delay(200);
+    state.deload = null;
+    return { ...DEFAULT_DELOAD };
+  },
+
+  async setClientDeload(id, settings) {
+    await delay(250);
+    const c = state.clients.find((x) => x.id === id);
+    if (!c) throw new Error("client not found");
+    c.deloadSettings = DeloadSettingsSchema.parse(settings);
+    return clientDto(c);
+  },
+
+  async resetClientDeload(id) {
+    await delay(200);
+    const c = state.clients.find((x) => x.id === id);
+    if (!c) throw new Error("client not found");
+    c.deloadSettings = null;
+    return clientDto(c);
   },
 
   async program(id) {
@@ -1623,7 +1670,7 @@ export const mockApi: TrainerApi = {
       const clientLogs = state.logs
         .filter((l) => l.clientId === client.id)
         .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, sets: l.sets }));
-      if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek));
+      if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
       // Cardio targets are a client attribute — checked with or without a program (F18).
       if (client.cardioTarget) {
         const behind = cardioBehindSignal(

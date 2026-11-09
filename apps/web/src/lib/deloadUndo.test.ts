@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ProgramWeek } from "@pt/shared";
+import { DEFAULT_DELOAD, type ProgramWeek } from "@pt/shared";
 import { isDeloaded, toggleDeload, type DeloadUndo } from "./deloadUndo";
 
 const week = (): ProgramWeek =>
@@ -41,5 +41,14 @@ describe("toggleDeload", () => {
     const once = toggleDeload(undo, week());
     sets(once)[0].reps = 6;
     expect(isDeloaded(undo, once)).toBe(false);
+  });
+
+  test("deloads by the given rule, from week 1 with the week-1 basis", () => {
+    const undo: DeloadUndo = new Map();
+    const w1 = week();
+    (w1.sessions[0] as any).exercises[0].prescribedSets.forEach((s: { targetWeightKg: number }) => (s.targetWeightKg = 80));
+    const out = toggleDeload(undo, week(), { ...DEFAULT_DELOAD, setsKeptPercent: 75, loadPercent: -20, loadBasis: "week1" }, w1);
+    expect(sets(out)).toHaveLength(3);
+    expect(sets(out)[0].targetWeightKg).toBe(65);
   });
 });

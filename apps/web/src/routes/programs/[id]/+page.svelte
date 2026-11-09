@@ -8,7 +8,9 @@
     addSet,
     addSession,
     applyPlacementToAllWeeks,
-    DELOAD_RULES,
+    DEFAULT_DELOAD,
+    deloadRulesText,
+    type DeloadSettings,
     moveExercise,
     removeExercise,
     formatPatternBalance,
@@ -35,6 +37,7 @@
   import { validateProgramDoc } from "$lib/programDoc";
   import { programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
+  import { clientDeload } from "$lib/draftReview";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
@@ -60,6 +63,8 @@
   let longRunDay = $state<number | null>(null);
   /** The client's 1RMs: %1RM sets show (and plan) their kg. */
   let oneRepMaxes = $state<OneRepMaxes | null>(null);
+  /** The client's deload rule in force — the Deload button applies it. */
+  let deload = $state<DeloadSettings>(DEFAULT_DELOAD);
   /** Placement edits apply to every week (the block's template) unless narrowed to this week. */
   let placeAllWeeks = $state(true);
   let selected = $state<string | null>(null);
@@ -186,6 +191,7 @@
       cardioDays = detail.client.cardioDays ?? null;
       longRunDay = detail.client.longRunDay ?? null;
       oneRepMaxes = detail.client.oneRepMaxes ?? null;
+      deload = clientDeload(detail.client);
       logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
     }
   }
@@ -262,7 +268,7 @@
     }
   }
 
-  /** Deload the viewed week with the shared rule (deloadWeek): half the sets, −10 % loads, RPE ≤ 6, no AMRAP. */
+  /** Deload the viewed week by the client's rule (deloadWeek); the week-1 basis reads week 1's loads. */
   /** Pre-deload copies per week, so a second press undoes instead of deloading twice. */
   let deloadUndo = $state.raw<DeloadUndo>(new Map());
   const weekDeloaded = $derived(currentWeek ? isDeloaded(deloadUndo, $state.snapshot(currentWeek) as ProgramWeek) : false);
@@ -270,7 +276,8 @@
   function applyDeload() {
     if (!currentWeek) return;
     const undo = new Map(deloadUndo);
-    setWeek(toggleDeload(undo, $state.snapshot(currentWeek) as ProgramWeek));
+    const week1 = deload.loadBasis === "week1" ? ($state.snapshot(program?.weeks.find((w) => w.week === 1) ?? program?.weeks[0]) as ProgramWeek | undefined) : undefined;
+    setWeek(toggleDeload(undo, $state.snapshot(currentWeek) as ProgramWeek, $state.snapshot(deload), week1));
     deloadUndo = undo;
   }
 
@@ -385,7 +392,7 @@
     <div class="week-bar">
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(sessionsPatternBalance(currentWeek.sessions, patternOf))}</p>
       {#if editable}
-        <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${DELOAD_RULES}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
+        <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${deloadRulesText(deload)}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
         <button class="btn ghost small" aria-expanded={showPhasing} onclick={() => (showPhasing = !showPhasing)}>Block phasing {showPhasing ? "▴" : "▾"}</button>
       {/if}
     </div>

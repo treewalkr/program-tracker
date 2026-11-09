@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { ProgramPhasingDto } from "$lib/api/types";
+  import { DEFAULT_DELOAD, type DeloadSettings } from "@pt/shared";
   import { planIndexes, weekTargetLabel } from "$lib/draftReview";
 
   /**
    * The block's weeks as a row of tiles: directive, % target, and a bar for the
    * volume index chained from the targets (week 1 = 100). A deload week dips
-   * load 10 % and the following week resumes from pre-deload values. Tiles are buttons —
+   * load by the client's deload rule and the following week resumes from pre-deload values. Tiles are buttons —
    * picking one shows its note. `changed` outlines weeks edited since the
    * previous version.
    */
@@ -13,12 +14,14 @@
     phasing: ProgramPhasingDto;
     selected?: number;
     changed?: ReadonlySet<number>;
+    /** The client's deload rule — sets the deload week's load dip. */
+    deload?: DeloadSettings;
   }
 
-  let { phasing, selected = $bindable(1), changed = new Set() }: Props = $props();
+  let { phasing, selected = $bindable(1), changed = new Set(), deload = DEFAULT_DELOAD }: Props = $props();
 
   const weeks = $derived(phasing.weeks ?? []);
-  const idx = $derived(planIndexes(phasing));
+  const idx = $derived(planIndexes(phasing, deload));
   const maxVol = $derived(Math.max(1, ...idx.map((x) => x.vol)));
   const cls = (d: string) => (d === "+volume" ? "vol" : d === "+intensity" ? "int" : d === "deload" || d === "transition" ? "tr" : "");
   const current = $derived(weeks.find((w) => w.week === selected) ?? weeks[0]);

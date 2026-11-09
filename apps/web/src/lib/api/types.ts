@@ -4,6 +4,7 @@
 import type {
   CardioLog,
   CardioPrescription,
+  DeloadSettings,
   ExerciseRole as Er,
   OneRepMaxes,
   Phasing,
@@ -81,6 +82,11 @@ export interface ClientDto {
   phone?: string | null;
   /** ISO timestamp; absent on older mock fixtures. */
   createdAt?: string;
+  /** This client's own deload rule; null/absent = the trainer's. */
+  deloadSettings?: DeloadSettings | null;
+  /** The deload rule in force for this client (override, else the trainer's, else the default).
+   *  Read it through `clientDeload` — absent on fixtures built by hand. */
+  effectiveDeload?: DeloadSettings;
 }
 
 export interface ProgramExerciseDto {
@@ -577,6 +583,15 @@ export interface TrainerApi {
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;
   createClient(input: Omit<ClientDto, "id" | "status">): Promise<ClientDto>;
   updateClient(id: string, patch: Partial<ClientDto>): Promise<ClientDto>;
+  /** The trainer's deload rule, filled with the default when unset. */
+  deloadSettings(): Promise<DeloadSettings>;
+  setDeloadSettings(settings: DeloadSettings): Promise<DeloadSettings>;
+  /** Back to the built-in default; resolves to it. */
+  resetDeloadSettings(): Promise<DeloadSettings>;
+  /** Give one client their own deload rule. */
+  setClientDeload(id: string, settings: DeloadSettings): Promise<ClientDto>;
+  /** The client follows the trainer's rule again. */
+  resetClientDeload(id: string): Promise<ClientDto>;
 
   program(id: string): Promise<ProgramDto>;
   programs(clientId: string): Promise<ProgramDto[]>;

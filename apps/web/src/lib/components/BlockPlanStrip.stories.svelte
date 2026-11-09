@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            "A block's weeks as tiles: directive, % target, and a bar for the volume index chained from the targets (W1 = 100), with the load index underneath. A deload week dips load 10 % and the following week resumes from pre-deload values. Picking a tile shows its note. Edited weeks get a blue outline.",
+            "A block's weeks as tiles: directive, % target, and a bar for the volume index chained from the targets (W1 = 100), with the load index underneath. A deload week dips load by the deload rule (default 10 %) and the following week resumes from pre-deload values. Picking a tile shows its note. Edited weeks get a blue outline.",
         },
       },
     },

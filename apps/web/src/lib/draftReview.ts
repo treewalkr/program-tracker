@@ -1,6 +1,8 @@
 import {
-  DELOAD_LOAD_FACTOR,
-  DELOAD_VOLUME_DELTA_PERCENT,
+  DEFAULT_DELOAD,
+  deloadLoadFactor,
+  deloadVolumeDeltaPercent,
+  type DeloadSettings,
   hardSetCount,
   sessionsPatternBalance,
   weekTargetLabel,
@@ -11,7 +13,7 @@ import {
   type ProgramSession,
   type ProgressionKind,
 } from "@pt/shared";
-import type { AiDraftDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
+import type { AiDraftDto, ClientDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 // ---- block plan ----
 
@@ -24,10 +26,11 @@ export { weekTargetLabel, planChanges, type PlanChange };
  * Volume and load index per week, chained from each week's % target (week 1 = 100).
  * Volume targets (overall/rep) move `vol`; intensity targets move `load`.
  * A deload week without an intensity target drops load by the deload rule
- * (×DELOAD_LOAD_FACTOR). A deload is a one-week dip: the next week resumes from
+ * (× 1 + loadPercent/100) — from last week's load, or from week 1's (= 100)
+ * with the week-1 basis. A deload is a one-week dip: the next week resumes from
  * the last pre-deload values, so back-to-back deloads each dip from that baseline.
  */
-export function planIndexes(ph: ProgramPhasingDto): { vol: number; load: number }[] {
+export function planIndexes(ph: ProgramPhasingDto, deload: DeloadSettings = DEFAULT_DELOAD): { vol: number; load: number }[] {
   // Trim float noise (100 × 1.025 × 0.9 = 92.24999…) so display rounding is honest.
   const clean = (n: number) => +n.toPrecision(12);
   let vol = 100;
@@ -36,7 +39,8 @@ export function planIndexes(ph: ProgramPhasingDto): { vol: number; load: number 
     const volTarget = w.target && w.target.metric !== "intensity" ? 1 + w.target.deltaPercent / 100 : 1;
     const loadTarget = w.target && w.target.metric === "intensity" ? 1 + w.target.deltaPercent / 100 : null;
     if (w.directive === "deload") {
-      return { vol: clean(vol * volTarget), load: clean(load * (loadTarget ?? DELOAD_LOAD_FACTOR)) };
+      const deloadLoad = deload.loadBasis === "week1" ? 100 * deloadLoadFactor(deload) : load * deloadLoadFactor(deload);
+      return { vol: clean(vol * volTarget), load: clean(loadTarget != null ? load * loadTarget : deloadLoad) };
     }
     vol *= volTarget;
     load *= loadTarget ?? 1;
@@ -89,8 +93,8 @@ export function normalizePlan(ph: ProgramPhasingDto): ProgramPhasingDto {
   };
 }
 
-/** Starting plan when a draft has none: base → +volume … → deload (the shared deload volume cut). */
-export function defaultPlan(weeks = 4): ProgramPhasingDto {
+/** Starting plan when a draft has none: base → +volume … → deload (the deload rule's volume cut). */
+export function defaultPlan(weeks = 4, deload: DeloadSettings = DEFAULT_DELOAD): ProgramPhasingDto {
   return normalizePlan({
     phase: "accumulation",
     nextPhase: null,
@@ -99,10 +103,21 @@ export function defaultPlan(weeks = 4): ProgramPhasingDto {
       i === 0
         ? { week: 1, directive: "base" as const }
         : i === weeks - 1
-          ? { week: i + 1, directive: "deload" as const, target: { metric: "overall_volume" as const, deltaPercent: DELOAD_VOLUME_DELTA_PERCENT } }
+          ? { week: i + 1, directive: "deload" as const, target: { metric: "overall_volume" as const, deltaPercent: deloadVolumeDeltaPercent(deload) } }
           : { week: i + 1, directive: "+volume" as const, target: { metric: "overall_volume" as const, deltaPercent: 5 } }
     ),
   });
+}
+
+/** The deload rule in force for a client (default when the DTO doesn't carry one). */
+export const clientDeload = (client: Pick<ClientDto, "effectiveDeload"> | null | undefined): DeloadSettings =>
+  client?.effectiveDeload ?? DEFAULT_DELOAD;
+
+/** "a deload week drops load 10 %" / "… to 90 % of week 1" / "… keeps load", for plan legends. */
+export function deloadLoadPhrase(deload: DeloadSettings = DEFAULT_DELOAD): string {
+  const pct = String(Math.abs(deload.loadPercent));
+  if (deload.loadBasis === "week1") return `a deload week sets load to ${100 + deload.loadPercent} % of week 1`;
+  return deload.loadPercent === 0 ? "a deload week keeps load" : `a deload week drops load ${pct} %`;
 }
 
 // ---- checks ----
