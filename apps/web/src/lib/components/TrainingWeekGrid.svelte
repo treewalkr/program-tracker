@@ -198,7 +198,7 @@
   }
   .radio:has(input:checked) { background: var(--hover-ink); border-color: var(--hover-ink); }
   .radio:has(input:checked) .dot { border-color: var(--on-ink); background: var(--on-ink); }
-  .radio:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .cell:focus-visible, .radio:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
 
   .summary { margin: 0; font-size: 13px; color: var(--muted); }
 

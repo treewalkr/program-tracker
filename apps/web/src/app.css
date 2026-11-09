@@ -654,6 +654,29 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
   font-size: 14px;
 }
 
+/* Sticky save bar: floats at the bottom of the viewport while edits are unsaved (program page, client Settings). */
+.savebar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+}
+.savemsg { flex: 1; font-size: 12.5px; color: var(--muted); }
+.savemsg .err { color: var(--bad); }
+@media (max-width: 700px) {
+  /* Clear the fixed Feedback launcher in the bottom-right corner. */
+  .savebar { bottom: 60px; }
+  .savebar .btn { min-height: 40px; }
+}
+
 /* Sectioned profile forms (new client, client settings): a stack of Primer Boxes (ProfileSection). */
 .pf { display: flex; flex-direction: column; gap: 16px; max-width: var(--measure-form); }
 .pf .input, .pf .select { min-height: 32px; }

@@ -3,7 +3,7 @@
   import { basicsInvalid, basicsSummary, emailError, emptyProfile, nameError, phonePayload, profileFromClient, profileKey, profilePayload, type ProfileForm } from "$lib/clientProfile";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
@@ -246,6 +246,8 @@
   async function save() {
     if (nameError(idName) || emailError(idEmail)) {
       idAttempted = true;
+      await tick();
+      document.querySelector<HTMLElement>('#panel-settings [aria-invalid="true"]')?.focus();
       return;
     }
     if (basicsInvalid(form)) {
@@ -270,6 +272,24 @@
     } finally {
       saving = false;
     }
+  }
+
+  /** Throw away unsaved Settings edits: back to the stored client. */
+  function discard() {
+    if (!client) return;
+    form = profileFromClient(client);
+    idName = client.name;
+    idEmail = client.email ?? "";
+    idPhone = client.phone ?? "";
+    idAttempted = false;
+    saveProfileError = null;
+  }
+
+  /** Ctrl/⌘+S saves the profile while the Settings tab is open. */
+  function onSaveShortcut(e: KeyboardEvent) {
+    if (tab !== "settings" || e.key.toLowerCase() !== "s" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    e.preventDefault();
+    if (profileDirty && !saving) save();
   }
 
   async function saveDirection() {
@@ -297,6 +317,7 @@
 </script>
 
 <svelte:head><title>{client?.name ?? "Client"} · Program Tracker</title></svelte:head>
+<svelte:window onkeydown={onSaveShortcut} />
 
 {#snippet cellBtn(week: number, cell: PulseCell, text: string, label: string)}
   <button type="button" class="cell-btn" aria-label={label} aria-expanded={isOpen(week, cell)} aria-controls="pulse-drill" onclick={() => openDrill(week, cell)}>{text}</button>
@@ -753,14 +774,19 @@
 
       <ClientProfileFields bind:form idPrefix="p" catalog={catalogList} />
 
-      <div class="pf-foot">
-        <Button variant="primary" type="submit" disabled={saving || !profileDirty}>{saving ? "Saving…" : "Save profile"}</Button>
-        <span class="subtle" role="status">
-          {#if saveProfileError}<span class="err">Save failed: {saveProfileError}</span>
-          {:else if profileDirty}Unsaved changes
-          {:else if profileSaved}Saved{/if}
-        </span>
-      </div>
+      {#if profileDirty || saveProfileError || profileSaved}
+        <div class="savebar" role="region" aria-label="Unsaved changes">
+          <span class="savemsg" role="status">
+            {#if saveProfileError}<span class="err">Save failed: {saveProfileError}</span>
+            {:else if profileDirty}Unsaved changes
+            {:else}Saved{/if}
+          </span>
+          {#if profileDirty}
+            <Button small variant="ghost" type="button" onclick={discard} disabled={saving}>Discard</Button>
+            <Button small variant="primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button>
+          {/if}
+        </div>
+      {/if}
     </form>
     </div>
   {/if}

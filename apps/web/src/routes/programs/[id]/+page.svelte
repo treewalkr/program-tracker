@@ -742,21 +742,6 @@
   .exblock.editable { border-radius: var(--radius); margin: 0 -8px; padding: 4px 8px; }
   .exblock.editable:hover { background: var(--well); }
   .exname:hover { text-decoration: underline; text-decoration-color: var(--faint); }
-  .savebar {
-    position: sticky;
-    bottom: 12px;
-    z-index: 5;
-    margin-top: 18px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-overlay);
-  }
-  .savemsg { flex: 1; font-size: 12.5px; color: var(--muted); }
 
   @media (max-width: 980px) {
     .sessions-grid { grid-template-columns: minmax(0, 1fr); }
