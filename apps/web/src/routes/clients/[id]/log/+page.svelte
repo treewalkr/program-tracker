@@ -16,7 +16,9 @@
     type SessionLogDto,
     type SessionLogInput,
   } from "$lib/api/types";
-  import { oneRepMaxKg, sessionTag, sessionsByWeekday, type ExerciseRole } from "@pt/shared";
+  import { oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
+  import { chipFor, coachSheet, historySets, type Suggestion } from "$lib/logCoach";
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -190,6 +192,35 @@
   );
 
   const isBodyweight = (exerciseId: string) => catalogById.get(exerciseId)?.equipment === "bodyweight";
+  const equipmentOf = (exerciseId: string) => catalogById.get(exerciseId)?.equipment as Equipment | undefined;
+
+  // ---- Coaching: suggested loads and live feedback, recomputed from the sheet (nothing stored) ----
+
+  const history = $derived.by(() => {
+    const slots = program ? timedSlotIds(program) : new Set<string>();
+    const lifts = program ? timedExerciseIds(program) : new Set<string>();
+    return historySets(pastLogs, (s) => (!!s.programExerciseId && slots.has(s.programExerciseId)) || lifts.has(s.exerciseId));
+  });
+  const coach = $derived(coachSheet(rows, { equipmentOf, history, stored: client?.oneRepMaxes, now: date }));
+  /** Rows whose suggestion source is open (tapped). */
+  const sourceOpen = new SvelteSet<string>();
+  /** Rows filled from a "→" chip: what was used and where it came from, until the cell is edited. */
+  const usedSuggestion = new SvelteMap<string, Suggestion>();
+
+  /** The chip counts as typing the load: the cell fills (and fills down, like a typed kg). */
+  function useSuggestion(key: string, s: Suggestion) {
+    const r = rows.find((x) => x.key === key);
+    if (!r) return;
+    r.weight = s.kg;
+    edited(key, "weight");
+    usedSuggestion.set(key, s);
+    fillKg(key);
+  }
+
+  function toggleSource(key: string) {
+    if (sourceOpen.has(key)) sourceOpen.delete(key);
+    else sourceOpen.add(key);
+  }
 
   /** Prescribed rows for the selected session, nothing entered yet. */
   function freshRows(): Row[] {
@@ -227,6 +258,8 @@
     current = 0;
     swapOpen = null;
     skipBefore.clear();
+    sourceOpen.clear();
+    usedSuggestion.clear();
     draftSavedAt = null;
     notes = "";
     energy = DEFAULT_ENERGY;
@@ -764,6 +797,7 @@
   function edited(key: string, field: SheetField) {
     const i = rows.findIndex((r) => r.key === key);
     if (i >= 0 && isCopied(rows[i], field)) rows[i] = markTyped(rows[i], field);
+    if (field === "weight") usedSuggestion.delete(key);
     clearCell(key, field);
   }
 
@@ -869,9 +903,15 @@
       ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
       : fmtDay(localIso(d));
   };
-  /** Placeholder = what "as prescribed" would log, so a blank cell reads as the plan. */
-  const rxCell = (r: Row) =>
-    asPrescribed(r.rx, { bodyweight: isBodyweight(r.exerciseId), swapped: isSwapped(r), last: r.last });
+  /**
+   * Placeholder = what "as prescribed" would log, so a blank cell reads as the
+   * plan. With no kg in the plan, the suggested load stands in for it.
+   */
+  const rxCell = (r: Row) => {
+    const p = asPrescribed(r.rx, { bodyweight: isBodyweight(r.exerciseId), swapped: isSwapped(r), last: r.last });
+    const s = r.rx?.targetWeightKg == null ? coach.suggest.get(r.key) : undefined;
+    return s ? { ...p, weight: s.kg } : p;
+  };
 
   onMount(async () => {
     const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
@@ -1133,6 +1173,11 @@
               {@const label = labels.get(r.key) ?? r.key}
               {@const p = rxCell(r)}
               {@const last = isSwapped(r) ? null : r.last}
+              {@const sg = coach.suggest.get(r.key)}
+              {@const chip = chipFor(r, sg, equipmentOf(r.exerciseId))}
+              {@const fb = coach.feedback.get(r.key)}
+              {@const used = usedSuggestion.get(r.key)}
+              {@const src = used ? `Used ${used.kg} kg · ${used.source}` : sg && sourceOpen.has(r.key) && r.rx?.targetWeightKg == null && isBlank(r.weight) ? `Suggested ${sg.kg} kg · ${sg.source}` : null}
               <div class="set" class:skipped={r.skipped} class:filled={!r.skipped && !isBlank(r.reps)} class:extra={r.extra}>
                 <div class="meta">
                   <span class="m-set">
@@ -1140,7 +1185,14 @@
                     {#if !r.skipped && !isBlank(r.reps)}<span class="tick" title="Entered"><Icon name="check" /></span>{/if}
                     {#if r.extra}<span class="tag">extra</span>{:else if r.type === "backoff"}<span class="tag">back-off</span>{/if}
                   </span>
-                  <span class="m-rx tnum">{fmtRx(r)}</span>
+                  <span class="m-rx tnum">
+                    {fmtRx(r)}
+                    {#if chip != null && sg}
+                      <button type="button" class="sugg-chip" title={`${sg.source} — tap to use`} aria-label={`Use ${chip} kg for ${label}. ${sg.source}`} onclick={() => useSuggestion(r.key, sg)}>→ {chip}</button>
+                    {:else if sg && r.rx?.targetWeightKg == null && isBlank(r.weight)}
+                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-label={`Suggested ${sg.kg} kg for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
+                    {/if}
+                  </span>
                   <span class="m-last tnum" title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
                     <span class="mob">last&nbsp;</span>{fmtLast(last, r.timed)}
                   </span>
@@ -1172,8 +1224,23 @@
                     </button>
                   {/if}
                 </div>
+                {#if !r.skipped && (src || fb)}
+                  <div class="coach-line">
+                    {#if src}<span class="cl-src">{src}</span>{/if}
+                    {#if fb?.e1rm != null}
+                      <span class="cl-e1rm tnum" title="Estimated 1RM — Epley, with reps in reserve from the RPE">e1RM {fb.e1rm}{#if fb.pr}<span class="pill good cl-pr" title="Best e1RM ever logged for this exercise">PR</span>{/if}</span>
+                    {/if}
+                    {#if fb?.rpeOff}
+                      <span class="pill warn cl-rpe tnum" title={`RPE ${fb.rpeOff.actual} against a target of ${fb.rpeOff.target} — ${fb.rpeOff.dir === "hot" ? "harder" : "easier"} than planned`}>{fb.rpeOff.actual} vs {fb.rpeOff.target}</span>
+                    {/if}
+                  </div>
+                {/if}
               </div>
             {/each}
+
+            {#if coach.adjusted.get(b.programExerciseId) && !exSkip}
+              <p class="coach-adjust">{coach.adjusted.get(b.programExerciseId)}</p>
+            {/if}
 
             {#if bi < blocks.length - 1}
               <button type="button" class="next-ex" onclick={() => go(bi + 1)}>
@@ -1246,7 +1313,8 @@
 
     <p class="subtle hint">
       “Did it as prescribed” shows what it will log before saving: target loads (with none, the load
-      last used in that same slot), the bottom of rep ranges, target RPE. Bodyweight stays bodyweight
+      suggested from the RPE target, else the load last used in that same slot), the bottom of rep
+      ranges, target RPE. Bodyweight stays bodyweight
       and skipped sets stay out. Deviated? Prefill, change what differs, skip what didn't happen, save.
       Each save can be undone for 10 seconds.
     </p>
@@ -1512,6 +1580,52 @@
 
   .pager, .next-ex { display: none; }
 
+  /* ---- Coaching: suggested loads and live feedback ---- */
+  .sugg-chip,
+  .sugg-src {
+    margin-left: 6px;
+    padding: 1px 6px;
+    font: 500 11px/1.4 var(--font-mono);
+    border-radius: 99px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  /* The plan's kg stays; the chip offers the load today's numbers give. */
+  .sugg-chip { color: var(--blue); background: transparent; border: 1px solid var(--line); }
+  .sugg-chip:hover { background: var(--well-2); border-color: var(--line-strong); }
+  .sugg-src {
+    padding: 0;
+    font-family: var(--font-ui);
+    color: var(--faint);
+    background: none;
+    border: 0;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+  }
+  .sugg-src:hover, .sugg-src[aria-expanded="true"] { color: var(--muted); }
+  .sugg-src.adj { color: var(--warn); }
+  .coach-line {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: var(--set-cols);
+    gap: 0 10px;
+    align-items: center;
+    margin-top: -3px;
+    font: 500 11px/1.4 var(--font-mono);
+    color: var(--muted);
+  }
+  .cl-src { grid-column: 2 / 4; font-family: var(--font-ui); font-weight: 400; }
+  .cl-e1rm { grid-column: 4 / 6; justify-self: end; display: inline-flex; align-items: center; gap: 6px; }
+  .cl-rpe { grid-column: 6; justify-self: end; padding: 0 6px; font: 500 11px/1.4 var(--font-mono); }
+  .cl-pr { padding: 0 6px; font-size: 11px; }
+  .coach-adjust {
+    margin: 0;
+    padding: 6px 16px 8px;
+    font-size: 12px;
+    color: var(--warn);
+    border-top: 1px solid var(--line-soft);
+  }
+
   .foot {
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -1690,6 +1804,12 @@
     .skip-note { grid-area: note; grid-column: auto; text-align: left; }
     .skip-btn { width: 100%; height: 44px; font-size: 14px; }
     .skip-word::after { content: " set"; }
+    .coach-line { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: -4px; font-size: 12px; }
+    .cl-src { flex-basis: 100%; }
+    .cl-e1rm { margin-right: auto; }
+    .sugg-chip { padding: 4px 10px; font-size: 13px; }
+    .sugg-src { font-size: 13px; }
+    .coach-adjust { padding: 8px 14px; font-size: 13px; }
 
     .next-ex {
       display: flex;
