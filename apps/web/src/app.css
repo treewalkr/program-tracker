@@ -664,7 +664,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 64px;
+  min-width: 80px; /* fits "Secondary", the longest default label */
 }
 .role.primary { color: var(--ink); border-color: var(--line-strong); }
 
@@ -807,7 +807,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .session-head .cond svg { width: 10px; height: 10px; fill: var(--good); flex: none; }
 /* A cardio-only card's line is the whole body: let it wrap on a narrow card
    instead of pushing the page sideways. */
-.cond-row .cond { white-space: normal; min-width: 0; line-height: 1.35; align-items: flex-start; }
+.cond-row .cond { margin-left: 0; white-space: normal; min-width: 0; line-height: 1.35; align-items: flex-start; }
 .cond-row .cond svg { margin-top: 3px; }
 .session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
 .session { container: session / inline-size; }
