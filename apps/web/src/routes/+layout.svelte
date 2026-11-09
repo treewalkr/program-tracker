@@ -9,6 +9,7 @@
   import { authApi } from "$lib/api/auth";
   import { clearAllNewClientDrafts } from "$lib/newClientDraft";
   import Note from "$lib/ui/Note.svelte";
+  import Tooltip from "$lib/ui/Tooltip.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
@@ -125,6 +126,20 @@
     drawerClosing = true;
   }
 
+  /* ⌘B on a Mac, Ctrl+B elsewhere (either works); text fields keep their own bold. */
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const shortcut = isMac ? "⌘B" : "Ctrl+B";
+  const toggleLabel = $derived(`${sideOpen ? "Collapse" : "Expand"} menu (${shortcut})`);
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Escape") closeDrawer();
+    if (bare || e.key.toLowerCase() !== "b" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+    e.preventDefault();
+    toggleSide();
+  }
+
   function toggleSide() {
     if (narrow) {
       if (drawerOpen) closeDrawer();
@@ -182,14 +197,19 @@
 </script>
 
 {#snippet navItem(item: NavGroup["items"][number])}
+  <Tooltip
+    side="right"
+    disabled={!rail}
+    text={item.href === "/feedback" && feedbackUnread.count
+      ? `${item.label} · ${feedbackUnread.count} unread`
+      : item.label}
+  >
+    {#snippet children()}
   <a
     class="nav-item"
     class:active={isActive(item.href)}
     aria-current={isActive(item.href) ? "page" : undefined}
     href={item.href}
-    title={item.href === "/feedback" && feedbackUnread.count
-      ? `${item.label} — ${feedbackUnread.count} unread`
-      : item.label}
   >
     <Icon name={item.icon} />
     <span class="nav-text">{item.label}</span>
@@ -200,9 +220,11 @@
       <span class="unread" aria-label="{feedbackUnread.count} unread">{feedbackUnread.count}</span>
     {/if}
   </a>
+    {/snippet}
+  </Tooltip>
 {/snippet}
 
-<svelte:window onkeydown={(e) => { if (e.key === "Escape") closeDrawer(); }} />
+<svelte:window onkeydown={onKey} />
 
 {#if bare}
   {@render children()}
@@ -223,20 +245,25 @@
     }}
   >
     <div class="brand-row">
-      <a class="brand" href="/">
-        <span class="mark" aria-hidden="true">PT</span>
-        <span class="name">
-          Program Tracker
-          <small>Trainer workspace</small>
-        </span>
-      </a>
+      <Tooltip side="right" disabled={!rail} text="Program Tracker">
+        {#snippet children()}
+          <a class="brand" href="/">
+            <span class="mark" aria-hidden="true">PT</span>
+            <span class="name">
+              Program Tracker
+              <small>Trainer workspace</small>
+            </span>
+          </a>
+        {/snippet}
+      </Tooltip>
       <button
         type="button"
         class="side-toggle"
         aria-controls="sidebar"
         aria-expanded={sideOpen}
         aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
-        title={sideOpen ? "Collapse menu" : "Expand menu"}
+        aria-keyshortcuts={isMac ? "Meta+B" : "Control+B"}
+        title={toggleLabel}
         onclick={toggleSide}
       >
         <Icon name="sidebar" />
@@ -273,6 +300,19 @@
       {/if}
     </div>
   </aside>
+
+  <!-- A thin grab edge on the sidebar's border (wide screens). Mouse only:
+       the toggle button and ⌘/Ctrl+B are the keyboard paths. -->
+  {#if !narrow}
+    <button
+      type="button"
+      class="edge"
+      tabindex="-1"
+      aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
+      title={toggleLabel}
+      onclick={toggleSide}
+    ></button>
+  {/if}
 
   {#if narrow && drawerOpen}
     <button
@@ -324,6 +364,8 @@
   }
 
   .side {
+    grid-column: 1;
+    grid-row: 1;
     background: var(--well);
     border-right: 1px solid var(--line);
     display: flex;
@@ -334,6 +376,37 @@
     top: 0;
     height: 100vh;
     overflow: hidden; /* labels clip at the edge while the column animates; only the nav scrolls */
+  }
+
+  /* Edge rail: rides the column's right border (and its animation), 6px each
+     side of the hairline; hover draws the line stronger. */
+  .edge {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    align-self: start;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    width: 12px;
+    height: 100vh;
+    margin-right: -6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: ew-resize;
+  }
+  .edge::after {
+    content: "";
+    position: absolute;
+    inset: 0 5px;
+    background: var(--line-strong);
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+  }
+  .edge:hover::after { opacity: 1; }
+  @media (max-width: 860px) {
+    .edge { display: none; }
   }
 
   /* Header: a switcher-style brand row with the toggle beside it. */
@@ -518,7 +591,7 @@
     white-space: nowrap;
   }
   @media (prefers-reduced-motion: reduce) {
-    .nav-item, .nav-item :global(svg), .side-toggle, .brand { transition: none; }
+    .nav-item, .nav-item :global(svg), .side-toggle, .brand, .edge::after { transition: none; }
   }
 
   .main {
@@ -549,6 +622,14 @@
   .rail .brand-row { flex-direction: column; gap: 8px; }
   .rail .side-toggle { margin-left: 0; }
   .rail .brand { flex: none; width: 32px; height: 32px; padding: 0; }
+  /* Rail tooltip anchors span the column and reach into the side padding, so
+     bubbles clear the border while the 32px buttons stay centred on x=20. */
+  .rail .side :global(.anchor) {
+    align-self: stretch;
+    justify-content: center;
+    padding-right: 8px;
+    margin-right: -8px;
+  }
   .rail .nav { gap: 12px; }
   .rail .nav-label { display: none; }
   .rail .nav-item { justify-content: center; width: 32px; padding: 0; margin-inline: auto; }

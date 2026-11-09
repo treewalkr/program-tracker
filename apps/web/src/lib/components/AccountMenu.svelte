@@ -9,6 +9,7 @@
   import { page } from "$app/state";
   import type { SessionTrainer } from "$lib/api/auth";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
+  import Tooltip from "$lib/ui/Tooltip.svelte";
   import { theme, type ThemePref } from "$lib/theme.svelte";
   import { whatsNew } from "$lib/whatsNew.svelte";
 
@@ -49,7 +50,7 @@
     if (!trigger) return;
     const r = trigger.getBoundingClientRect();
     pos = rail
-      ? { left: r.right + 8, bottom: Math.max(8, window.innerHeight - r.bottom) }
+      ? { left: (trigger.closest("aside") ?? trigger).getBoundingClientRect().right + 8, bottom: Math.max(8, window.innerHeight - r.bottom) }
       : { left: r.left, bottom: window.innerHeight - r.top + 4 };
   }
 
@@ -137,6 +138,8 @@
   </span>
 {/snippet}
 
+<Tooltip side="right" disabled={!rail || open} text="{trainer.name} · {modeLabel}">
+  {#snippet children()}
 <button
   type="button"
   class="trigger"
@@ -156,6 +159,8 @@
   </span>
   <Icon name="chevrons-up-down" />
 </button>
+  {/snippet}
+</Tooltip>
 
 {#if open}
   <div

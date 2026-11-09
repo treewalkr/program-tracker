@@ -23,3 +23,11 @@
     {/snippet}
   </Tooltip>
 </Story>
+
+<Story name="Right side (sidebar rail)">
+  <Tooltip text="Exercise library" side="right">
+    {#snippet children()}
+      <a href="/exercises" aria-label="Exercise library" style="display: grid; place-items: center; width: 32px; height: 32px">EL</a>
+    {/snippet}
+  </Tooltip>
+</Story>
