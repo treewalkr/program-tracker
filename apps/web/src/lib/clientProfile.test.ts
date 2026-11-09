@@ -13,6 +13,7 @@ import {
   profileKey,
   profilePayload,
   stackNote,
+  weekSummary,
   startedOnError,
 } from "./clientProfile";
 
@@ -160,4 +161,11 @@ test("header basics list only what's set", () => {
   ).toEqual(["Intermediate", "34 yrs", "Female", "72 kg"]);
   expect(basicsSummary({ ...base, sex: "male" }, "2026-11-08")).toEqual(["Male"]);
   expect(basicsSummary(base, "2026-11-08")).toEqual([]);
+});
+
+test("week summary reads the whole training week in one line", () => {
+  const f = emptyProfile("2026-11-08");
+  expect(weekSummary(f)).toBe("3 lifts on any day · cardio on lifting days · long run any day");
+  expect(weekSummary({ ...f, sessionsPerWeek: 3, trainingDays: [5, 1, 3] })).toBe("3 lifts on Mon Wed Fri · cardio on lifting days · long run any day");
+  expect(weekSummary({ ...f, sessionsPerWeek: 1, trainingDays: [2], cardioDays: [6, 4], longRunDay: 7 })).toBe("1 lift on Tue · cardio on Thu Sat · long run Sun");
 });
