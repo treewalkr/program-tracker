@@ -244,18 +244,22 @@
 
     <nav class="nav" aria-label="Primary">
       {#each groups as group (group.label)}
-        <div class="nav-label">{group.label}</div>
-        {#each group.items as item (item.href)}
-          {@render navItem(item)}
-        {/each}
+        <div class="group" role="group" aria-label={group.label}>
+          <div class="nav-label" aria-hidden="true">{group.label}</div>
+          {#each group.items as item (item.href)}
+            {@render navItem(item)}
+          {/each}
+        </div>
       {/each}
     </nav>
 
     <div class="foot">
       <nav class="nav" aria-label="Help and settings">
-        {#each utility as item (item.href)}
-          {@render navItem(item)}
-        {/each}
+        <div class="group">
+          {#each utility as item (item.href)}
+            {@render navItem(item)}
+          {/each}
+        </div>
       </nav>
 
       <div class="account" class:demo={!live}>
@@ -337,8 +341,8 @@
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 20px 12px 16px;
+    gap: 16px;
+    padding: 8px;
     position: sticky;
     top: 0;
     height: 100vh;
@@ -346,6 +350,7 @@
     overflow-y: auto;
   }
 
+  /* Header: a switcher-style brand row with the toggle beside it. */
   .brand-row {
     display: flex;
     align-items: center;
@@ -360,70 +365,87 @@
     flex: none;
     padding: 0;
     border: 0;
-    border-radius: var(--radius);
+    border-radius: 6px;
     background: none;
     color: var(--muted);
     cursor: pointer;
-    transition: background-color 120ms ease-out;
+    transition: background-color 120ms ease-out, color 120ms ease-out;
   }
   .side-toggle :global(svg) { width: 16px; height: 16px; stroke-width: 1.6; }
   .side-toggle:hover { background: var(--well-2); color: var(--ink); }
   .side-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
 
+  /* 4px inline padding centres the 32px mark on the nav icon column (x=28). */
   .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0 8px 4px;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    height: 48px;
+    padding: 8px 4px;
     text-decoration: none;
-    border-radius: var(--radius);
+    border-radius: 8px;
+    transition: background-color 120ms ease-out;
   }
-  .brand:hover { text-decoration: none; }
+  .brand:hover { background: var(--well-2); text-decoration: none; }
+  .brand:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
   .mark {
-    width: 28px;
-    height: 28px;
-    border-radius: 99px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
     background: var(--hover-ink);
     color: var(--on-ink);
     display: grid;
     place-items: center;
-    font: 600 11px/1 var(--font-ui);
+    font: 600 12px/1 var(--font-ui);
     letter-spacing: 0.02em;
     flex: none;
   }
   .name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
     white-space: nowrap; /* no rewrapping while the column animates */
     font: 600 14px/1.2 var(--font-ui);
     color: var(--ink);
   }
   .name small {
-    display: block;
-    font: 400 12px/1.5 var(--font-ui);
+    font: 400 12px/1.2 var(--font-ui);
     color: var(--muted);
   }
 
   .nav {
     display: flex;
     flex-direction: column;
+    gap: 16px;
+  }
+  .group {
+    display: flex;
+    flex-direction: column;
     gap: 2px;
   }
+  /* Sentence-case group label, quiet: it names the group, it doesn't shout. */
   .nav-label {
-    font: 500 11px/1 var(--font-ui);
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 12px;
+    font: 500 12px/1 var(--font-ui);
     color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 0 8px;
-    margin: 0 0 6px;
     white-space: nowrap;
+    overflow: hidden;
   }
-  .nav-item + .nav-label { margin-top: 18px; }
+  /* Rows sit 8px in from the edge; 12px inner padding puts icons at x=20,
+     where the rail centres them, so the drawer unfolds around still icons. */
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 32px;
-    padding: 0 8px;
-    border-radius: var(--radius);
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
     text-decoration: none;
     font: 400 14px/1.4 var(--font-ui);
     color: var(--ink);
@@ -436,11 +458,14 @@
     color: var(--muted);
     stroke-width: 1.6;
     flex: none;
+    transition: color 120ms ease-out;
   }
   .nav-item:hover { background: var(--well-2); text-decoration: none; }
   .nav-item:hover :global(svg) { color: var(--ink); }
-  .nav-item.active { background: var(--active); font-weight: 600; }
+  .nav-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+  .nav-item.active { background: var(--active); font-weight: 500; }
   .nav-item.active :global(svg) { color: var(--ink); }
+  .nav-text { overflow: hidden; text-overflow: ellipsis; }
   .unread {
     margin-left: auto;
     font: 600 11px/18px var(--font-ui);
@@ -469,27 +494,27 @@
     margin-top: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
   .account {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
-    padding: 12px 0 0 8px;
-    border-top: 1px solid var(--line);
+    min-height: 48px;
+    padding: 8px 4px;
   }
   .avatar {
     position: relative;
     flex: none;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
   .avatar img,
   .initial {
-    width: 28px;
-    height: 28px;
-    border-radius: 99px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
     display: block;
   }
   .initial {
@@ -497,7 +522,7 @@
     place-items: center;
     background: var(--muted);
     color: var(--on-ink);
-    font: 600 12px/1 var(--font-ui);
+    font: 600 13px/1 var(--font-ui);
   }
   /* Data mode rides on the avatar so it survives the collapsed rail. */
   .status,
@@ -514,10 +539,11 @@
     bottom: -2px;
     box-shadow: 0 0 0 2px var(--well);
   }
-  .mode-dot { width: 7px; height: 7px; }
+  /* Open mode has no avatar: the dot stands in the icon column (centre x=28). */
+  .mode-dot { width: 8px; height: 8px; margin: 0 8px 0 12px; }
   .account.demo .status,
   .account.demo .mode-dot { background: var(--warn); }
-  .account-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+  .account-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .account-name {
     font: 500 13px/1.3 var(--font-ui);
     color: var(--ink);
@@ -526,13 +552,12 @@
     white-space: nowrap;
   }
   .account-meta {
-    font: 400 11px/1.4 var(--font-ui);
+    font: 400 12px/1.3 var(--font-ui);
     color: var(--muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .account-meta.mode { font-size: 12px; }
   .sign-out {
     flex: none;
     display: grid;
@@ -541,7 +566,7 @@
     height: 32px;
     padding: 0;
     border: 0;
-    border-radius: var(--radius);
+    border-radius: 6px;
     background: none;
     color: var(--muted);
     cursor: pointer;
@@ -551,7 +576,7 @@
   .sign-out:hover { background: var(--well-2); color: var(--ink); }
 
   @media (prefers-reduced-motion: reduce) {
-    .nav-item, .side-toggle, .sign-out { transition: none; }
+    .nav-item, .nav-item :global(svg), .side-toggle, .brand, .sign-out { transition: none; }
   }
 
   .main {
@@ -574,24 +599,35 @@
     max-width: 100%;
   }
 
-  /* Icon rail: chosen on wide screens, the default on narrow ones. */
+  /* Icon rail: chosen on wide screens, the default on narrow ones. The 39px
+     content box centres 32px buttons at x=11.5, so 16px icons land on x=20. */
   .shell.slim { grid-template-columns: 56px 1fr; }
-  .rail .side { padding: 16px 8px; gap: 14px; scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
+  .rail .side { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
   .rail .side::-webkit-scrollbar { display: none; }
-  .rail .brand-row { flex-direction: column; gap: 10px; }
+  .rail .brand-row { flex-direction: column; gap: 8px; }
   .rail .side-toggle { margin-left: 0; }
-  .rail .brand { padding: 0; justify-content: center; }
-  .rail .name { display: none; }
-  .rail .nav-label { visibility: hidden; height: 8px; margin: 0; padding: 0; }
-  .rail .nav-text, .rail .count, .rail .account-text, .rail .account-meta { display: none; }
-  .rail .account { flex-direction: column; gap: 8px; padding: 12px 0 0; }
-  .rail .nav-item { justify-content: center; padding: 0; min-height: 36px; }
+  .rail .brand { flex: none; width: 32px; height: 32px; padding: 0; }
+  .rail .nav { gap: 12px; }
+  .rail .nav-label { display: none; }
+  .rail .nav-item { justify-content: center; width: 32px; padding: 0; margin-inline: auto; }
+  /* Labels leave the layout but keep naming the link for assistive tech. */
+  .rail .name,
+  .rail .nav-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .rail .count, .rail .account-text, .rail .account-meta { display: none; }
+  .rail .account { flex-direction: column; gap: 8px; padding: 8px 0; }
+  .rail .mode-dot { margin: 0; }
   /* On the icon rail the unread count shrinks to a dot on the icon. */
   .rail .nav-item { position: relative; }
   .rail .unread {
     position: absolute;
-    top: 6px;
-    right: 10px;
+    top: 5px;
+    right: 6px;
     width: 8px;
     height: 8px;
     min-width: 0;
