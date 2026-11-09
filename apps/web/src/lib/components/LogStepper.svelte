@@ -88,13 +88,17 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     padding: 5px 8px;
+    /* Typed or stepped values read as entered: full ink, bold. */
+    color: var(--ink);
+    font-weight: 600;
     /* Spin arrows ate the room for "107.5" (F32); the steppers replace them. */
     appearance: textfield;
     -moz-appearance: textfield;
   }
   .lstep-input::-webkit-outer-spin-button,
   .lstep-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .lstep-input::placeholder { color: var(--faint); }
+  /* The plan shows as a ghost — faint, italic, regular weight — never mistaken for an entry. */
+  .lstep-input::placeholder { color: var(--faint); font-style: italic; font-weight: 400; }
   .invalid .lstep-input { border-color: var(--bad); }
 
   .lstep-err {
@@ -136,11 +140,9 @@
       border-radius: 0;
       text-align: center;
       font-size: 16px; /* ≥16px: iOS won't zoom the page on focus */
-      font-weight: 600;
       padding: 0 4px;
     }
-    /* The target shows as a ghost; only a typed or stepped value goes bold. */
-    .lstep-input::placeholder { font-weight: 400; color: var(--faint); opacity: 0.8; }
+    .lstep-input::placeholder { opacity: 0.8; }
     .lstep-err { text-align: left; font-size: 12px; }
   }
 
