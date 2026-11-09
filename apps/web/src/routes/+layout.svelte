@@ -314,7 +314,7 @@
   {/if}
 
   <main class="main">
-    <!-- The toggle sits in the page's top-left corner, as in shadcn's SidebarInset header. -->
+    <!-- The toggle shares the page's first line (shadcn's SidebarInset header). -->
     <div class="topbar">
       <button
         type="button"
@@ -419,12 +419,25 @@
     align-items: center;
     gap: 4px;
   }
-  /* Pulled into the main column's top-left padding so pages lose little height. */
+  /* The toggle shares the page's first line, set inline before the title (or
+     crumbs) behind a hairline divider, as in shadcn's inset header. */
   .topbar {
+    float: left;
     display: flex;
     align-items: center;
-    margin: -16px 0 12px -12px;
+    gap: 12px;
+    height: 28px;
+    margin: -2px 12px 0 -6px;
   }
+  .topbar::after {
+    content: "";
+    width: 1px;
+    height: 16px;
+    background: var(--line);
+  }
+  /* Crumbs are shorter than the toggle: the title block below them clears it
+     instead of shifting right beside it. */
+  .main :global(.crumbs + *) { clear: left; }
   .side-toggle {
     display: grid;
     place-items: center;
@@ -707,7 +720,6 @@
 
   @media (max-width: 860px) {
     .main { padding: 20px 16px 56px; }
-    .topbar { margin: -12px 0 8px -8px; }
   }
 
   .focus-menu { display: none; }
