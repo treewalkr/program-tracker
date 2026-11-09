@@ -11,6 +11,7 @@ docs
 prototypes
 *.sql
 **/*.md
+!CHANGELOG.md
 apps/web/build
 apps/web/storybook-static
 **/*.log

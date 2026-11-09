@@ -76,6 +76,7 @@ services:
         - { action: sync, path: ./apps/web/src, target: /app/apps/web/src }
         - { action: sync, path: ./apps/web/static, target: /app/apps/web/static }
         - { action: sync, path: ./packages/shared/src, target: /app/packages/shared/src }
+        - { action: sync, path: ./CHANGELOG.md, target: /app/CHANGELOG.md }
     environment:
       TZ: Asia/Bangkok
       # browser calls /v1 same-origin; vite proxies it to the api service
