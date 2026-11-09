@@ -19,6 +19,12 @@ import {
   validateRows,
   withExtraSet,
   withoutExtra,
+  loggedBySession,
+  prescribedSummary,
+  isDirty,
+  DEFAULT_ENERGY,
+  draftKey,
+  parseDraft,
   type SheetRow,
 } from "./logSheet";
 
@@ -344,5 +350,121 @@ describe("slotSwaps (history)", () => {
       { date: "2026-11-05", fromExerciseId: "bench", toExerciseId: "db-press", sets: 1 },
       { date: "2026-11-01", fromExerciseId: "dl", toExerciseId: "rdl", sets: 2 },
     ]);
+  });
+});
+
+describe("loggedBySession", () => {
+  const log = (id: string, programSessionId: string | null, date: string, sets = 3, programId = "pg1") => ({
+    id,
+    programId,
+    programSessionId,
+    date,
+    sets: Array.from({ length: sets }, () => ({})),
+  });
+
+  test("groups one program's logs by session, newest first", () => {
+    const m = loggedBySession(
+      [log("a", "s1", "2026-11-02", 14), log("b", "s1", "2026-11-07T10:00:00.000Z", 12), log("c", "s2", "2026-11-03")],
+      "pg1"
+    );
+    expect(m.get("s1")).toEqual([
+      { id: "b", date: "2026-11-07", setCount: 12 },
+      { id: "a", date: "2026-11-02", setCount: 14 },
+    ]);
+    expect(m.get("s2")?.map((l) => l.id)).toEqual(["c"]);
+  });
+
+  test("ad-hoc logs and other programs are left out", () => {
+    const m = loggedBySession([log("a", null, "2026-11-02"), log("b", "s1", "2026-11-02", 3, "pg2")], "pg1");
+    expect(m.size).toBe(0);
+  });
+});
+
+describe("prescribedSummary", () => {
+  const bw = (id: string) => id === "pushup";
+
+  test("counts the sets a save sends", () => {
+    const s = prescribedSummary(
+      [row({ key: "a", weight: 100, reps: 5 }), row({ key: "b", weight: 100, reps: 5, skipped: true })],
+      bw
+    );
+    expect(s).toEqual({ sets: 1, missingLoad: [], missingLoadSets: 0, openAmrap: 0 });
+  });
+
+  test("lists cards whose sets would log no kg, once each, in sheet order", () => {
+    const s = prescribedSummary(
+      [
+        row({ key: "a1", programExerciseId: "squat", reps: 5 }),
+        row({ key: "a2", programExerciseId: "squat", reps: 5 }),
+        row({ key: "b1", programExerciseId: "hack", reps: 8 }),
+        row({ key: "c1", programExerciseId: "rdl", reps: 8, weight: 80 }),
+      ],
+      bw
+    );
+    expect(s.missingLoad).toEqual(["squat", "hack"]);
+    expect(s.missingLoadSets).toBe(3);
+    expect(s.sets).toBe(4);
+  });
+
+  test("bodyweight moves never miss a load", () => {
+    const s = prescribedSummary([row({ exerciseId: "pushup", slotExerciseId: "pushup", reps: 12 })], bw);
+    expect(s.missingLoad).toEqual([]);
+  });
+
+  test("a prescribed set with no reps is an open AMRAP and isn't counted as a set", () => {
+    const s = prescribedSummary([row({ key: "a", weight: 60, reps: 5 }), row({ key: "b", weight: 60, reps: "" })], bw);
+    expect(s.openAmrap).toBe(1);
+    expect(s.sets).toBe(1);
+    expect(s.missingLoad).toEqual([]);
+  });
+
+  test("a blank extra set is ignored, a skipped AMRAP isn't open", () => {
+    const s = prescribedSummary([row({ key: "x", extra: true }), row({ key: "b", reps: "", skipped: true })], bw);
+    expect(s).toEqual({ sets: 0, missingLoad: [], missingLoadSets: 0, openAmrap: 0 });
+  });
+});
+
+describe("isDirty", () => {
+  test("a fresh sheet is clean", () => {
+    expect(isDirty([row()], "", DEFAULT_ENERGY)).toBe(false);
+    expect(isDirty([row({ weight: null, reps: undefined })], "  ", DEFAULT_ENERGY)).toBe(false);
+  });
+
+  test("a typed value, a skip, an extra set or a swap is dirty", () => {
+    expect(isDirty([row({ reps: 5 })], "", DEFAULT_ENERGY)).toBe(true);
+    expect(isDirty([row({ rpe: 8 })], "", DEFAULT_ENERGY)).toBe(true);
+    expect(isDirty([row({ skipped: true })], "", DEFAULT_ENERGY)).toBe(true);
+    expect(isDirty([row({ extra: true })], "", DEFAULT_ENERGY)).toBe(true);
+    expect(isDirty([row({ exerciseId: "other" })], "", DEFAULT_ENERGY)).toBe(true);
+  });
+
+  test("notes or a changed energy are dirty", () => {
+    expect(isDirty([row()], "felt slow", DEFAULT_ENERGY)).toBe(true);
+    expect(isDirty([row()], "", 9)).toBe(true);
+  });
+});
+
+describe("drafts", () => {
+  const fresh = [row({ key: "a" }), row({ key: "b" })];
+  const draft = (rows: SheetRow[]) =>
+    JSON.stringify({ rows, notes: "n", energy: 8, date: "2026-11-09", savedAt: "2026-11-09T10:00:00Z" });
+
+  test("draftKey is per client and session", () => {
+    expect(draftKey("c1", "s1")).not.toBe(draftKey("c1", "s2"));
+    expect(draftKey("c1", "s1")).not.toBe(draftKey("c2", "s1"));
+  });
+
+  test("a draft that covers the session comes back with its extras", () => {
+    const d = parseDraft(draft([row({ key: "a", reps: 5 }), row({ key: "b" }), row({ key: "x", extra: true })]), fresh);
+    expect(d?.rows.map((r) => r.key)).toEqual(["a", "b", "x"]);
+    expect(d?.energy).toBe(8);
+  });
+
+  test("a draft from an edited session, junk or nothing is dropped", () => {
+    expect(parseDraft(draft([row({ key: "a" })]), fresh)).toBeNull();
+    expect(parseDraft(draft([row({ key: "a" }), row({ key: "z" })]), fresh)).toBeNull();
+    expect(parseDraft("{not json", fresh)).toBeNull();
+    expect(parseDraft(JSON.stringify({ rows: [] }), fresh)).toBeNull();
+    expect(parseDraft(null, fresh)).toBeNull();
   });
 });

@@ -340,3 +340,110 @@ export function rowLabels(rows: SheetRow[], nameOf: (exerciseId: string) => stri
     })
   );
 }
+
+// ---------------------------------------------------------------------------
+// Log safety: what's already logged, the "as prescribed" summary, unsaved work
+// ---------------------------------------------------------------------------
+
+export interface LoggedMark {
+  id: string;
+  date: string;
+  setCount: number;
+}
+
+/** programSessionId → its logs in one program, newest first. Ad-hoc logs (no session) are left out. */
+export function loggedBySession(
+  logs: { id: string; programId: string; programSessionId?: string | null; date: string; sets: unknown[] }[],
+  programId: string
+): Map<string, LoggedMark[]> {
+  const out = new Map<string, LoggedMark[]>();
+  for (const l of logs) {
+    if (l.programId !== programId || !l.programSessionId) continue;
+    const list = out.get(l.programSessionId) ?? [];
+    list.push({ id: l.id, date: l.date.slice(0, 10), setCount: l.sets.length });
+    out.set(l.programSessionId, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => b.date.localeCompare(a.date));
+  return out;
+}
+
+export interface PrescribedSummary {
+  /** Sets the save would send. */
+  sets: number;
+  /** Cards (programExerciseIds, sheet order) with a set that would log no kg. */
+  missingLoad: string[];
+  missingLoadSets: number;
+  /** Prescribed sets still without reps — AMRAPs have no count to assume. */
+  openAmrap: number;
+}
+
+/**
+ * What "Did it as prescribed" is about to log. `rows` are the sheet as it will
+ * be saved (prescription already filled in). A set has no load when its kg is
+ * blank and the exercise isn't bodyweight.
+ */
+export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: string) => boolean): PrescribedSummary {
+  const missing: string[] = [];
+  let missingLoadSets = 0;
+  let openAmrap = 0;
+  for (const r of rows) {
+    if (r.skipped) continue;
+    if (!r.extra && isBlank(r.reps)) {
+      openAmrap++;
+      continue;
+    }
+    if (!rowFilled(r)) continue;
+    if (isBlank(r.weight) && !isBodyweight(r.exerciseId)) {
+      missingLoadSets++;
+      if (!missing.includes(r.programExerciseId)) missing.push(r.programExerciseId);
+    }
+  }
+  const sets = rowsToSave(rows).filter((r) => r.extra || !isBlank(r.reps)).length;
+  return { sets, missingLoad: missing, missingLoadSets, openAmrap };
+}
+
+export const DEFAULT_ENERGY = 7;
+
+/** Anything the trainer entered that a session change or leaving the page would lose. */
+export function isDirty(rows: SheetRow[], notes: string, energy: number): boolean {
+  return (
+    notes.trim() !== "" ||
+    energy !== DEFAULT_ENERGY ||
+    rows.some((r) => r.skipped || r.extra || isSwapped(r) || !isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe))
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Drafts: the sheet survives a reload, per client and program session
+// ---------------------------------------------------------------------------
+
+export interface SheetDraft<R extends SheetRow = SheetRow> {
+  rows: R[];
+  notes: string;
+  energy: number;
+  date: string;
+  savedAt: string;
+}
+
+export const draftKey = (clientId: string, sessionId: string) => `pt:log-draft:${clientId}:${sessionId}`;
+
+/**
+ * A stored draft, if it still fits the session: every prescribed row of the
+ * fresh sheet is in it (the program wasn't edited under it). Junk → null.
+ */
+export function parseDraft<R extends SheetRow>(raw: string | null, fresh: R[]): SheetDraft<R> | null {
+  if (!raw) return null;
+  let d: SheetDraft<R>;
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.energy !== "number" || typeof d.date !== "string") {
+    return null;
+  }
+  const keys = new Set(d.rows.map((r) => r?.key));
+  const prescribed = d.rows.filter((r) => !r?.extra);
+  if (prescribed.length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
+  return d;
+}
