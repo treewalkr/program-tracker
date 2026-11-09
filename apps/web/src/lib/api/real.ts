@@ -28,7 +28,9 @@ import type {
   SessionTypeDto,
   SignalDto,
   TrainerApi,
+  ExistingLogDto,
 } from "./types";
+import { DuplicateLogError } from "./types";
 import { browser } from "$app/environment";
 import { toLogin } from "./auth";
 import { client } from "./treaty";
@@ -62,7 +64,9 @@ async function unwrap<T>(
     if (code === 401 && browser) window.location.assign(toLogin(new URL(window.location.href)));
     // validation detail rides along so forms can point at the offending field
     const issues = typeof value === "object" && value ? value.issues : undefined;
-    throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code, issues });
+    // a 409 duplicate log names the log it collides with
+    const existing = typeof value === "object" && value && "existing" in value ? value.existing : undefined;
+    throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code, issues, existing });
   }
   return datesToIso(data) as T;
 }
@@ -131,7 +135,16 @@ export const realApi: TrainerApi = {
         },
       }),
     ),
-  logSession: (input: SessionLogInput) => unwrap<unknown>(client.v1.logs.sessions.post(input)),
+  logSession: async (input: SessionLogInput) => {
+    try {
+      return await unwrap<SessionLogDto>(client.v1.logs.sessions.post(input));
+    } catch (err) {
+      const e = err as Error & { status?: unknown; existing?: ExistingLogDto };
+      if (e.status === 409 && e.existing) throw new DuplicateLogError(e.existing);
+      throw err;
+    }
+  },
+  deleteSessionLog: (id) => unwrap<void>(client.v1.logs.sessions({ id }).delete()),
 
   instructionTemplates: async () =>
     (await unwrap<{ templates: InstructionTemplateDto[] }>(client.v1.ai["prompt-templates"].get())).templates,

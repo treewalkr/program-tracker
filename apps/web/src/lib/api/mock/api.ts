@@ -101,7 +101,9 @@ import {
   patternOf,
   programs as seedPrograms,
   schemes as seedSchemes,
+  type StoredLog,
 } from "./data";
+import { DuplicateLogError } from "../types";
 
 import { uuid } from "$lib/uuid";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -852,7 +854,26 @@ export const mockApi: TrainerApi = {
 
   async logSession(input: SessionLogInput) {
     await delay(500);
-    state.logs.push({
+    // Same rule as the API: this exact program session again; ad-hoc logs never are.
+    const dupes = input.programSessionId
+      ? state.logs
+          .filter(
+            (l) =>
+              l.clientId === input.clientId &&
+              l.programId === input.programId &&
+              l.programSessionId === input.programSessionId,
+          )
+          .sort((a, b) => b.date.localeCompare(a.date))
+      : [];
+    const mode = input.onDuplicate ?? "reject";
+    if (dupes.length > 0 && mode === "reject") {
+      const [latest] = dupes;
+      throw new DuplicateLogError({ id: latest.sessionLogId, date: latest.date, setCount: latest.sets.length });
+    }
+    if (dupes.length > 0 && mode === "replace") {
+      state.logs = state.logs.filter((l) => !dupes.includes(l));
+    }
+    const stored: StoredLog = {
       sessionLogId: uuid(),
       clientId: input.clientId,
       programId: input.programId,
@@ -871,8 +892,27 @@ export const mockApi: TrainerApi = {
         reps: s.reps,
         rpe: s.rpe,
       })),
-    });
-    return { ok: true };
+    };
+    state.logs.push(stored);
+    return {
+      id: stored.sessionLogId,
+      clientId: stored.clientId,
+      programId: stored.programId,
+      programSessionId: stored.programSessionId ?? null,
+      date: stored.date,
+      kind: stored.kind ?? "lifting",
+      cardio: stored.cardio ?? null,
+      notes: stored.notes ?? null,
+      perceivedEnergy: stored.perceivedEnergy ?? null,
+      sets: stored.sets.map((s) => ({ ...s })),
+    };
+  },
+
+  async deleteSessionLog(id: string) {
+    await delay(200);
+    const before = state.logs.length;
+    state.logs = state.logs.filter((l) => l.sessionLogId !== id);
+    if (state.logs.length === before) throw Object.assign(new Error("log not found"), { status: 404 });
   },
 
   async generate(input) {

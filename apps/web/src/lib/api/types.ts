@@ -361,7 +361,27 @@ export interface SessionLogInput {
   cardio?: CardioLogDto | null;
   notes?: string;
   perceivedEnergy?: number;
+  /** This program session is already logged: throw DuplicateLogError (default),
+   *  swap the old log for this one, or keep both. */
+  onDuplicate?: "reject" | "replace" | "add";
   sets: LogSetInput[];
+}
+
+/** The newest log of the program session a save would duplicate. */
+export interface ExistingLogDto {
+  id: string;
+  date: string;
+  setCount: number;
+}
+
+/** Thrown by `logSession` (409) when the program session is already logged
+ *  and `onDuplicate` is "reject". Re-send with "replace" or "add". */
+export class DuplicateLogError extends Error {
+  readonly status = 409;
+  constructor(readonly existing: ExistingLogDto) {
+    super("already logged");
+    this.name = "DuplicateLogError";
+  }
 }
 
 export interface SessionLogDto {
@@ -602,7 +622,10 @@ export interface TrainerApi {
   /** A client's logs, newest first; `programId` keeps one program's, `from` (YYYY-MM-DD)
    *  drops older ones, `limit` caps the count (1–1000, default 200). */
   sessionLogs(clientId: string, programId?: string, opts?: { from?: string; limit?: number }): Promise<SessionLogDto[]>;
-  logSession(input: SessionLogInput): Promise<unknown>;
+  /** Throws DuplicateLogError when the session is already logged and `onDuplicate` is "reject". */
+  logSession(input: SessionLogInput): Promise<SessionLogDto>;
+  /** Undo a save: the log and its sets go. */
+  deleteSessionLog(id: string): Promise<void>;
 
   generate(input: {
     clientId: string;
