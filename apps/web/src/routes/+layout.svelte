@@ -256,18 +256,6 @@
           </a>
         {/snippet}
       </Tooltip>
-      <button
-        type="button"
-        class="side-toggle"
-        aria-controls="sidebar"
-        aria-expanded={sideOpen}
-        aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
-        aria-keyshortcuts={isMac ? "Meta+B" : "Control+B"}
-        title={toggleLabel}
-        onclick={toggleSide}
-      >
-        <Icon name="sidebar" />
-      </button>
     </div>
 
     <nav class="nav primary" aria-label="Primary">
@@ -326,6 +314,21 @@
   {/if}
 
   <main class="main">
+    <!-- The toggle sits in the page's top-left corner, as in shadcn's SidebarInset header. -->
+    <div class="topbar">
+      <button
+        type="button"
+        class="side-toggle"
+        aria-controls="sidebar"
+        aria-expanded={sideOpen}
+        aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
+        aria-keyshortcuts={isMac ? "Meta+B" : "Control+B"}
+        title={toggleLabel}
+        onclick={toggleSide}
+      >
+        <Icon name="sidebar" />
+      </button>
+    </div>
     {#if focusRoute && !drawerOpen}
       <button
         type="button"
@@ -409,15 +412,20 @@
     .edge { display: none; }
   }
 
-  /* Header: a switcher-style brand row with the toggle beside it. */
+  /* Header: a switcher-style brand row. */
   .brand-row {
     flex: none;
     display: flex;
     align-items: center;
     gap: 4px;
   }
+  /* Pulled into the main column's top-left padding so pages lose little height. */
+  .topbar {
+    display: flex;
+    align-items: center;
+    margin: -16px 0 12px -12px;
+  }
   .side-toggle {
-    margin-left: auto;
     display: grid;
     place-items: center;
     width: 28px;
@@ -618,8 +626,6 @@
   .shell.slim { grid-template-columns: 56px 1fr; }
   .rail .nav.primary { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
   .rail .nav.primary::-webkit-scrollbar { display: none; }
-  .rail .brand-row { flex-direction: column; gap: 8px; }
-  .rail .side-toggle { margin-left: 0; }
   .rail .brand { flex: none; width: 32px; height: 32px; padding: 0; }
   /* Rail tooltip anchors span the column and reach into the side padding, so
      bubbles clear the border while the 32px buttons stay centred on x=20. */
@@ -701,6 +707,7 @@
 
   @media (max-width: 860px) {
     .main { padding: 20px 16px 56px; }
+    .topbar { margin: -12px 0 8px -8px; }
   }
 
   .focus-menu { display: none; }
@@ -709,6 +716,7 @@
     .shell.focus.rail .side { display: none; }
     .shell.focus.drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
     .shell.focus .main { padding: 12px 12px 56px; }
+    .shell.focus .topbar { display: none; } /* the corner menu button covers it here */
     .focus-menu {
       display: grid;
       place-items: center;
