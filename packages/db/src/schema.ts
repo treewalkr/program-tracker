@@ -27,6 +27,7 @@ import type {
   SlotChange,
   CardioLog,
   CardioTarget,
+  DeloadSettings,
   OneRepMaxes,
   ClientExperience,
   ClientSex,
@@ -86,6 +87,8 @@ export const trainers = pgTable("trainers", {
     .default(sql`'{"newTickets":true,"replies":"all","status":true}'::jsonb`),
   /** Secret for unsubscribe links in emails; created on first email, resettable. */
   emailToken: text("email_token").unique(),
+  /** The trainer's deload rule — null = the built-in default (read through `effectiveDeload`). */
+  deloadSettings: jsonb("deload_settings").$type<DeloadSettings>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -131,6 +134,8 @@ export const clients = pgTable("clients", {
   startedOn: date("started_on", { mode: "string" }),
   /** Contact phone. Admin-only — never sent to the AI. */
   phone: text("phone"),
+  /** This client's deload rule — null = the trainer's (read through `effectiveDeload`). */
+  deloadSettings: jsonb("deload_settings").$type<DeloadSettings>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
