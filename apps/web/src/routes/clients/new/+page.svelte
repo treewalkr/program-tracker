@@ -17,7 +17,8 @@
   const session = page.data.session;
   const draftKey = newClientDraftKey(apiMode, session?.kind === "signedIn" ? session.trainer.id : null);
 
-  let saving = $state(false);
+  /** Which add button is running: "page" opens the client, "generate" goes on to draft their first program. */
+  let saving = $state<"page" | "generate" | null>(null);
   let name = $state("");
   let email = $state("");
   let phone = $state("");
@@ -75,6 +76,8 @@
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
+    // Enter in a field submits via the first submit button: "Add client".
+    const then = (e.submitter as HTMLButtonElement | null)?.value === "generate" ? "generate" : "page";
     if (missing) {
       attempted = true;
       await tick();
@@ -86,18 +89,18 @@
       document.querySelector<HTMLElement>('.newclient [aria-invalid="true"]')?.focus();
       return;
     }
-    saving = true;
+    saving = then;
     createError = null;
     try {
       const created = await api.createClient({ name: name.trim(), email: email.trim() || null, phone: phonePayload(phone), ...profilePayload(profile) });
       autosave = false;
       clearTimeout(saveTimer);
       clearNewClientDraft(draftKey);
-      goto(`/clients/${created.id}`);
+      goto(then === "generate" ? `/clients/${created.id}/generate` : `/clients/${created.id}`);
     } catch (err) {
       createError = (err as Error).message;
     } finally {
-      saving = false;
+      saving = null;
     }
   }
 
@@ -147,19 +150,35 @@
 
     <ClientProfileFields bind:form={profile} idPrefix="f" compact1rm {catalog} />
 
-    <div class="pf-foot">
-      <Button variant="primary" type="submit" disabled={saving}>{saving ? "Adding…" : "Add client"}</Button>
-      <Button variant="ghost" type="button" onclick={cancel}>Cancel</Button>
-      <span class="subtle" role="status" aria-live="polite">
+    <div class="savebar addbar" role="region" aria-label="Add client">
+      <span class="savemsg" role="status" aria-live="polite">
         {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
         {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
         {:else if attempted && basicsInvalid(profile)}<span class="err">Fix the basics marked above to continue</span>
-        {:else}Opens their page next — no program is created yet{/if}
+        {:else}<span class="addbar-hint">Add client opens their page · Add &amp; generate drafts their first program</span>{/if}
+      </span>
+      <span class="addbar-actions">
+        <Button small variant="ghost" type="button" onclick={cancel}>Cancel</Button>
+        <Button small type="submit" name="then" value="page" disabled={saving != null}>{saving === "page" ? "Adding…" : "Add client"}</Button>
+        <Button small variant="primary" type="submit" name="then" value="generate" disabled={saving != null}>
+          {saving === "generate" ? "Adding…" : "Add & generate program"}
+        </Button>
       </span>
     </div>
   </form>
 </div>
 
 <style>
+  .addbar { flex-wrap: wrap; row-gap: 8px; }
+  .addbar-actions { display: flex; gap: 8px; margin-left: auto; }
+  /* The column reaches the fixed Feedback launcher below ~1100px: sit above it. */
+  @media (max-width: 1100px) { .addbar { bottom: 60px; } }
+  @media (max-width: 700px) {
+    /* Phones: the neutral hint gives way to the buttons; errors still show. */
+    .addbar .savemsg { flex-basis: 100%; }
+    .addbar .savemsg:has(.addbar-hint) { display: none; }
+    .addbar-actions { flex: 1; flex-wrap: wrap; justify-content: flex-end; margin-left: 0; }
+    .addbar-actions :global(.btn.primary) { order: -1; flex: 1 1 100%; justify-content: center; }
+  }
   :global(.note.draft-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
 </style>

@@ -654,7 +654,7 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
   font-size: 14px;
 }
 
-/* Sticky save bar: floats at the bottom of the viewport while edits are unsaved (program page, client Settings). */
+/* Sticky save bar: floats at the bottom of the viewport while edits are unsaved (program page, client Settings, new client). */
 .savebar {
   position: sticky;
   bottom: 12px;
@@ -680,12 +680,9 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 /* Sectioned profile forms (new client, client settings): a stack of Primer Boxes (ProfileSection). */
 .pf { display: flex; flex-direction: column; gap: 16px; max-width: var(--measure-form); }
 .pf .input, .pf .select { min-height: 32px; }
-.pf-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.pf-foot .err { color: var(--bad); }
 
 @media (max-width: 700px) {
   /* 16px stops iOS Safari zooming on focus. */
   .input, .select, .textarea { font-size: 16px; }
   .pf .input, .pf .select { min-height: 40px; }
-  .pf-foot .btn { min-height: 40px; }
 }
