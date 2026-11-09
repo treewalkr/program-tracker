@@ -21,7 +21,10 @@
     disabled = false,
     error,
     errorId,
+    copied = false,
+    enterkeyhint = "next",
     onedit,
+    oncommit,
   }: {
     value: Cell;
     /** Unique accessible name of the input, e.g. "Bench back-off set 2, kg". */
@@ -37,17 +40,23 @@
     disabled?: boolean;
     error?: string;
     errorId?: string;
+    /** Filled down from an earlier set: reads as entered, marked "↓" until edited. */
+    copied?: boolean;
+    enterkeyhint?: "next" | "done";
     /** Any edit (typed or stepped) — clears the cell's error flag. */
     onedit?: () => void;
+    /** The value is committed: the field's change, or a stepper tap. */
+    oncommit?: () => void;
   } = $props();
 
   function nudge(dir: 1 | -1) {
     value = stepCell(value, dir * step, { min, max, from });
     onedit?.();
+    oncommit?.();
   }
 </script>
 
-<div class="lstep" class:invalid={!!error}>
+<div class="lstep" class:invalid={!!error} class:copied>
   <span class="lstep-unit" aria-hidden="true">{unit}</span>
   <div class="lstep-row">
     <button type="button" class="lstep-btn" tabindex="-1" aria-label={`${label} −${step}`} {disabled} onclick={() => nudge(-1)}>
@@ -60,14 +69,17 @@
       step={step}
       {min}
       {max}
-      aria-label={label}
+      aria-label={copied ? `${label}, filled down` : label}
+      {enterkeyhint}
       {placeholder}
       {disabled}
       bind:value
       aria-invalid={error ? true : undefined}
       aria-describedby={error ? errorId : undefined}
       oninput={() => onedit?.()}
+      onchange={() => oncommit?.()}
     />
+    {#if copied}<span class="lstep-copied" aria-hidden="true" title="Filled down from an earlier set">↓</span>{/if}
     <button type="button" class="lstep-btn" tabindex="-1" aria-label={`${label} +${step}`} {disabled} onclick={() => nudge(1)}>
       <Icon name="plus" />
     </button>
@@ -78,7 +90,17 @@
 <style>
   .lstep { min-width: 0; }
   .lstep-unit { display: none; }
-  .lstep-row { display: flex; }
+  .lstep-row { display: flex; position: relative; }
+  /* Filled down: the value reads as entered; the arrow says where it came from. */
+  .lstep-copied {
+    position: absolute;
+    left: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    font: 600 11px/1 var(--font-mono);
+    color: var(--muted);
+    pointer-events: none;
+  }
   .lstep-btn { display: none; }
 
   .lstep-input {
@@ -143,6 +165,7 @@
       padding: 0 4px;
     }
     .lstep-input::placeholder { opacity: 0.8; }
+    .lstep-copied { left: 52px; font-size: 13px; }
     .lstep-err { text-align: left; font-size: 12px; }
   }
 
