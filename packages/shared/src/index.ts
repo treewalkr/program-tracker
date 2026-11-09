@@ -24,3 +24,4 @@ export * from "./importHistory";
 export * from "./importMatch";
 export * from "./roles";
 export * from "./vocabulary";
+export * from "./autoreg";
