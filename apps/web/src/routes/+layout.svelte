@@ -16,6 +16,7 @@
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { whatsNew } from "$lib/whatsNew.svelte";
   import VersionLink from "$lib/components/VersionLink.svelte";
+  import AccountMenu from "$lib/components/AccountMenu.svelte";
 
   let { children, data } = $props();
 
@@ -242,7 +243,7 @@
       </button>
     </div>
 
-    <nav class="nav" aria-label="Primary">
+    <nav class="nav primary" aria-label="Primary">
       {#each groups as group (group.label)}
         <div class="group" role="group" aria-label={group.label}>
           <div class="nav-label" aria-hidden="true">{group.label}</div>
@@ -262,28 +263,14 @@
         </div>
       </nav>
 
-      <div class="account" class:demo={!live}>
-        {#if trainer}
-          <span class="avatar" title="{trainer.name} · {modeLabel}">
-            {#if trainer.avatarUrl}
-              <img src={trainer.avatarUrl} alt="" referrerpolicy="no-referrer" />
-            {:else}
-              <span class="initial" aria-hidden="true">{trainer.name.trim().charAt(0).toUpperCase() || "?"}</span>
-            {/if}
-            <span class="status" aria-hidden="true"></span>
-          </span>
-          <span class="account-text">
-            <span class="account-name">{trainer.name}</span>
-            <span class="account-meta">{modeLabel} · <VersionLink build={__APP_VERSION__} fresh={whatsNew.unseen} /></span>
-          </span>
-          <button type="button" class="sign-out" aria-label="Sign out" title="Sign out" onclick={signOut}>
-            <Icon name="signout" />
-          </button>
-        {:else}
+      {#if trainer}
+        <AccountMenu {trainer} {live} {rail} onSignOut={signOut} />
+      {:else}
+        <div class="account" class:demo={!live}>
           <span class="mode-dot" title="{modeLabel} · v{__APP_VERSION__}" aria-hidden="true"></span>
-          <span class="account-meta mode">{modeLabel} · <VersionLink build={__APP_VERSION__} fresh={whatsNew.unseen} /></span>
-        {/if}
-      </div>
+          <span class="account-meta">{modeLabel} · <VersionLink build={__APP_VERSION__} fresh={whatsNew.unseen} /></span>
+        </div>
+      {/if}
     </div>
   </aside>
 
@@ -346,12 +333,12 @@
     position: sticky;
     top: 0;
     height: 100vh;
-    overflow-x: hidden; /* overflow-y alone makes x auto too; hidden nowrap labels must not add a sideways bar */
-    overflow-y: auto;
+    overflow: hidden; /* labels clip at the edge while the column animates; only the nav scrolls */
   }
 
   /* Header: a switcher-style brand row with the toggle beside it. */
   .brand-row {
+    flex: none;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -421,6 +408,17 @@
     flex-direction: column;
     gap: 16px;
   }
+  /* Header and foot stay put; a long admin nav scrolls between them. The
+     scroll box reaches into the side padding so focus rings aren't clipped. */
+  .nav.primary {
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    margin: -4px -8px;
+    padding: 4px 8px;
+    scrollbar-width: thin;
+  }
   .group {
     display: flex;
     flex-direction: column;
@@ -489,9 +487,9 @@
     text-align: center;
   }
 
-  /* Foot: utility links, then one account row that also carries the data mode and build. */
+  /* Foot: utility links, then the account menu (or, with auth off, the data mode and build). */
   .foot {
-    margin-top: auto;
+    flex: none;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -504,53 +502,14 @@
     min-height: 48px;
     padding: 8px 4px;
   }
-  .avatar {
-    position: relative;
-    flex: none;
-    width: 32px;
-    height: 32px;
-  }
-  .avatar img,
-  .initial {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: block;
-  }
-  .initial {
-    display: grid;
-    place-items: center;
-    background: var(--muted);
-    color: var(--on-ink);
-    font: 600 13px/1 var(--font-ui);
-  }
-  /* Data mode rides on the avatar so it survives the collapsed rail. */
-  .status,
   .mode-dot {
-    width: 9px;
-    height: 9px;
     border-radius: 99px;
     background: var(--green-btn);
     flex: none;
   }
-  .status {
-    position: absolute;
-    right: -2px;
-    bottom: -2px;
-    box-shadow: 0 0 0 2px var(--well);
-  }
   /* Open mode has no avatar: the dot stands in the icon column (centre x=28). */
   .mode-dot { width: 8px; height: 8px; margin: 0 8px 0 12px; }
-  .account.demo .status,
   .account.demo .mode-dot { background: var(--warn); }
-  .account-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-  .account-name {
-    font: 500 13px/1.3 var(--font-ui);
-    color: var(--ink);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .account-meta {
     font: 400 12px/1.3 var(--font-ui);
     color: var(--muted);
@@ -558,25 +517,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .sign-out {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-    transition: background-color 120ms ease-out;
-  }
-  .sign-out :global(svg) { width: 16px; height: 16px; stroke-width: 1.6; }
-  .sign-out:hover { background: var(--well-2); color: var(--ink); }
-
   @media (prefers-reduced-motion: reduce) {
-    .nav-item, .nav-item :global(svg), .side-toggle, .brand, .sign-out { transition: none; }
+    .nav-item, .nav-item :global(svg), .side-toggle, .brand { transition: none; }
   }
 
   .main {
@@ -602,8 +544,8 @@
   /* Icon rail: chosen on wide screens, the default on narrow ones. The 39px
      content box centres 32px buttons at x=11.5, so 16px icons land on x=20. */
   .shell.slim { grid-template-columns: 56px 1fr; }
-  .rail .side { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
-  .rail .side::-webkit-scrollbar { display: none; }
+  .rail .nav.primary { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
+  .rail .nav.primary::-webkit-scrollbar { display: none; }
   .rail .brand-row { flex-direction: column; gap: 8px; }
   .rail .side-toggle { margin-left: 0; }
   .rail .brand { flex: none; width: 32px; height: 32px; padding: 0; }
@@ -619,7 +561,7 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
-  .rail .count, .rail .account-text, .rail .account-meta { display: none; }
+  .rail .count, .rail .account-meta { display: none; }
   .rail .account { flex-direction: column; gap: 8px; padding: 8px 0; }
   .rail .mode-dot { margin: 0; }
   /* On the icon rail the unread count shrinks to a dot on the icon. */
