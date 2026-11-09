@@ -181,7 +181,7 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 
 ### Primary
 - **Action Green** (#1f883d): The primary button — the review-flow verb ("Approve as draft program", "Generate draft", "Save profile"). Darkens to Action Green Hover (#1a7f37) on hover. Also the lamp green, the sidebar live-data dot, and the generation-meta dot.
-- **Commit Green** (#1a7f37): Success and delta-up text ink (approved flash note, `+12%` deltas, done step dots) and the easy RPE tier. Paired with **Commit Green Tint** (#dafbe1) and **Commit Green Edge** (#aceebb) for the good pill and approval flash.
+- **Commit Green** (#1a7f37): Success and delta-up text ink (approved flash note, `+12%` deltas, done step dots) and the easy RPE tier outside set chips. Paired with **Commit Green Tint** (#dafbe1) and **Commit Green Edge** (#aceebb) for the good pill and approval flash.
 
 ### Secondary
 - **Link Blue** (#0969da): Links, snooze, the "changed" diff ink, the transition directive chip, and injected periodization context. Darkens to Link Blue Hover (#0860c4).
@@ -189,8 +189,8 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 - **Pulse Blue Tint** (#ddf4ff): The current week — today's cell and the current pulse row — a highlight, not a status.
 
 ### Tertiary
-- **Danger Red** (#cf222e): Destructive actions, rejected/failed states, delta-down, missed sessions, maximal RPE. Tint Danger Red Tint (#ffebe9) + Edge Danger Red Edge (#ffcecb) for the bad pill, missed cells, and the reject flash.
-- **Attention Amber** (#9a6700): Paused/warn ink and the hard RPE tier (7–8). Tint Attention Amber Tint (#fff8c5) + Edge (#d4a72c66) for the demo banner and limitations panel (amber body ink #4d3800 on the tint).
+- **Danger Red** (#cf222e): Destructive actions, rejected/failed states, delta-down, missed sessions, maximal RPE outside set chips. Tint Danger Red Tint (#ffebe9) + Edge Danger Red Edge (#ffcecb) for the bad pill, missed cells, and the reject flash.
+- **Attention Amber** (#9a6700): Paused/warn ink and the hard RPE tier (7–8) outside set chips (set chips use the neutral scale under Components). Tint Attention Amber Tint (#fff8c5) + Edge (#d4a72c66) for the demo banner and limitations panel (amber body ink #4d3800 on the tint).
 - **Tab Coral** (#fd8c73): The 2px active-tab underline — the system's only warm flourish, straight from Primer's UnderlineNav.
 - **Contributions Ramp** (done-1 #aceebb → done-4 #116329): Logged intensity. The overall volume heat strip walks the full 4 steps; logged week cells intentionally use the darkest step (done-4, #116329) instead of the prototype's brighter #4ac26b so the 10px white uppercase tag keeps 4.5:1 contrast; missed-past cells are Danger Red Tint (a real data state, not prototype furniture).
 
@@ -279,7 +279,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 - **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged")
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
 - **Role chip:** the session slot an exercise fills (Power / Primary / Str / Aux / Core) — neutral well pill in the trainer's shorthand, the primary lift in default ink; full description on hover (`title`); leads the exercise name in session rows
-- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, `@RPE` on a neutral ink-weight scale (≤6 Muted Ink 500, 7–8 Ink 600, 9–10 Ink 600 on a filled cell — `color-mix` of Ink at 14% — behind the effort only: a planned effort, never a status colour or a link look; the Primary row, not effort, is the loudest mark on a session: ink-ruled role pill, 600 name), faint rest `3m` (11px micro). Cardio lines on session cards are Muted Ink with the pulse glyph, not Commit Green
+- **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, `@RPE` on a neutral ink-weight scale (≤6 Muted Ink 500, 7–8 Ink 600, 9–10 figures alone at 800 (`@RPE 8→`**`9`**) — a planned effort, never a status colour, a fill or a link look; the Primary row, not effort, is the loudest mark on a session: ink-ruled role pill, 600 name), faint rest `3m` (11px micro). Cardio lines on session cards are Muted Ink with the pulse glyph, not Commit Green
   - One effort scale per chip: `@RPE`, or `RIR n` only when the set has no RPE. A uniform ramp collapses to one chip and reads as a progression (`@RPE 7→8`); `7–8` always means a range. On a wide session card (≥521px container) chips keep fixed slots — sets · effort · tempo · rest — so the right-aligned chips form columns under faint mono labels; tempo/rest columns appear only when some set in the session has one. Labels read `sets×reps · effort · tempo · rest`; a mono key at the left of the label row explains only the effort forms the session uses (`RPE 7→8 climbs set to set · 7–8 is a range`). Non-uniform sets group into consecutive runs (top set, then back-offs) that stack inside the same columns. Chip micro text is Muted Ink (5.4:1 on chip gray in light and dark), not Faint.
 - **Toggle chips:** hairline pills that invert to Inverted Ink (#24292f) with white text when selected (templates, exercise filters)
 
