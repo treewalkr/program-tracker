@@ -11,7 +11,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { cardioBehindSignal, computeSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
+import { cardioBehindSignal, computeSignals, painFlagSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
 import { trainerDeloadSettings } from "./deload";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
@@ -71,6 +71,7 @@ export function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
     date: log.date,
     kind: log.kind,
     cardio: log.cardio ?? null,
+    flags: log.flags ?? null,
     sets: sets.map((s) => ({
       exerciseId: s.exerciseId,
       type: s.type as SignalLog["sets"][number]["type"],
@@ -110,7 +111,9 @@ export async function computeTrainerSignals(
         .where(inArray(setLogs.sessionLogId, logRows.map((l) => l.id)))
     : [];
 
-  const exerciseIds = [...new Set(setRows.map((s) => s.exerciseId))];
+  const exerciseIds = [
+    ...new Set([...setRows.map((s) => s.exerciseId), ...logRows.flatMap((l) => (l.flags ?? []).map((f) => f.exerciseId))]),
+  ];
   const exerciseRows = exerciseIds.length
     ? await db.select().from(exercises).where(inArray(exercises.id, exerciseIds))
     : [];
@@ -154,6 +157,7 @@ export async function computeTrainerSignals(
       );
       if (behind) signals.push(behind);
     }
+    signals.push(...painFlagSignals({ programId: program?.id ?? null, clientId: client.id }, clientLogs, nameOf, now));
   }
   return signals;
 }
