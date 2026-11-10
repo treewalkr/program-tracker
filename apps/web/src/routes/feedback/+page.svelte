@@ -247,8 +247,13 @@
 
 <svelte:head><title>Feedback · Program Tracker</title></svelte:head>
 
+<!-- Another trainer's client or program page would 404: show the path, don't link it. -->
 {#snippet pageLink(item: FeedbackItem)}
-  <a href={item.context.route.path}>{item.context.route.path}</a>
+  {#if item.reachable}
+    <a href={item.context.route.path}>{item.context.route.path}</a>
+  {:else}
+    <span title="Belongs to a client or program you don't have">{item.context.route.path}</span>
+  {/if}
 {/snippet}
 
 <Lightbox images={shots} bind:open={shotsOpen} bind:index={shotIndex} label="Ticket screenshots" />
@@ -628,7 +633,7 @@
   .muted {
     color: var(--muted);
   }
-  /* Details toggle (left) and Show me (right) under the comment. */
+  /* Under the comment: the Details toggle, then Show me. */
   .ticket-bar {
     display: flex;
     align-items: center;
