@@ -86,11 +86,55 @@ export interface FeedbackAuthor {
   avatarUrl: string | null;
 }
 
+/**
+ * The feedback auto-reply agent's call on a ticket: it already exists, it
+ * shipped after the reporter's build, here's how to do it — or it's a real
+ * bug / feature request / unclear and a person should look.
+ */
+export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear"] as const;
+export type FeedbackAiVerdict = (typeof FEEDBACK_AI_VERDICTS)[number];
+/** Verdicts an AI answer may go out on by itself (auto mode, high confidence). */
+export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists", "shipped", "how_to"];
+
+export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
+export type FeedbackAiConfidence = (typeof FEEDBACK_AI_CONFIDENCE)[number];
+
+/** The admin's switch: no AI answers, drafts for review only, or send confident ones. */
+export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
+export type FeedbackAiMode = (typeof FEEDBACK_AI_MODES)[number];
+export const DEFAULT_FEEDBACK_AI_MODE: FeedbackAiMode = "drafts";
+
+/** Who wrote a thread entry: a person, or the auto-reply agent. */
+export type FeedbackAuthorKind = "human" | "ai";
+/** public = everyone on the ticket; draft = an unsent AI reply; private = an AI triage note. Drafts and private notes are admin-only. */
+export type FeedbackVisibility = "public" | "draft" | "private";
+
+/** What the agent recorded alongside an AI reply or note. */
+export interface FeedbackAiMeta {
+  verdict: FeedbackAiVerdict;
+  confidence: FeedbackAiConfidence;
+  /** `file:line` references backing the verdict. */
+  citations: string[];
+  /** `agentCheckBasis` of the ticket the agent answered. */
+  basis: string;
+  model: string | null;
+  runAt: string;
+}
+
+/** Display name for AI-written entries (they have no trainer author). */
+export const FEEDBACK_AI_AUTHOR_NAME = "AI assistant";
+
 /** One thread entry: a reply, or a status change made by `author`. */
 export interface FeedbackComment {
   id: string;
   kind: "reply" | "status";
+  /** Null for AI entries and deleted trainers. */
   author: FeedbackAuthor | null;
+  authorKind: FeedbackAuthorKind;
+  /** Non-admins only ever see `public`. */
+  visibility: FeedbackVisibility;
+  /** AI entries, admin only; null otherwise. */
+  aiMeta: FeedbackAiMeta | null;
   /** Reply text; null for status entries. */
   body: string | null;
   /** Status moved to; null for replies. */
@@ -118,11 +162,15 @@ export interface FeedbackAgentCheck {
 }
 
 /**
- * What an agent check depends on: the comment, the triage note and the
- * replies. When any changes, the stored check is stale.
+ * What an agent check (or an AI answer) depends on: the comment, the triage
+ * note and the public replies. When any changes, the stored check is stale.
+ * Drafts and private notes don't count — the same basis whoever computes it.
  */
-export function agentCheckBasis(item: Pick<FeedbackItem, "comment" | "triageNote" | "thread">): string {
-  const text = [item.comment, item.triageNote ?? "", ...item.thread.filter((c) => c.kind === "reply").map((c) => c.body ?? "")]
+export function agentCheckBasis(
+  item: Pick<FeedbackItem, "comment" | "triageNote"> & { thread: Pick<FeedbackComment, "kind" | "body" | "visibility">[] },
+): string {
+  const replies = item.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
+  const text = [item.comment, item.triageNote ?? "", ...replies.map((c) => c.body ?? "")]
     .join("\u0000");
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
@@ -289,11 +337,12 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     lines.push("**Thread** (oldest first — clarifications from the reporter and the owner):");
     lines.push("");
     for (const c of item.thread) {
-      const who = c.author?.name ?? "unknown";
+      const who = c.authorKind === "ai" ? FEEDBACK_AI_AUTHOR_NAME : (c.author?.name ?? "unknown");
+      const tag = c.visibility === "draft" ? " _(unsent draft)_" : c.visibility === "private" ? " _(private note)_" : "";
       lines.push(
         c.kind === "status"
           ? `- _${who} marked it ${c.status} (${c.createdAt.slice(0, 10)})_`
-          : `- **${who}** (${c.createdAt.slice(0, 10)}): ${(c.body ?? "").trim().split("\n").join("\n  ")}`,
+          : `- **${who}**${tag} (${c.createdAt.slice(0, 10)}): ${(c.body ?? "").trim().split("\n").join("\n  ")}`,
       );
     }
   }

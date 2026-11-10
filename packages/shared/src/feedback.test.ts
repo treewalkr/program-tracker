@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  agentCheckBasis,
   feedbackFixPrompt,
   feedbackHandle,
   feedbackMarkdown,
@@ -117,8 +118,8 @@ describe("feedbackMarkdown", () => {
         item({
           shippedIn: "0.1.3",
           thread: [
-            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z" },
-            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z" },
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null },
           ],
         }),
       ],
@@ -128,6 +129,16 @@ describe("feedbackMarkdown", () => {
     expect(out).toContain("- **Ana** (2026-11-07): Which screen?\n  The log one?");
     expect(out).toContain("- _Ana marked it done (2026-11-08)_");
     expect(md).not.toContain("**Thread**");
+  });
+  test("labels AI entries, drafts and private notes", () => {
+    const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
+    const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, body, status: null, createdAt: "2026-11-09T00:00:00.000Z",
+    });
+    const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
+    expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
+    expect(out).toContain("- **AI assistant** _(unsent draft)_ (2026-11-09): Unsent");
+    expect(out).toContain("- **AI assistant** _(private note)_ (2026-11-09): Note");
   });
   test("names the reporter", () => {
     expect(md).toContain("- **Reported by:** Kai");
@@ -189,5 +200,22 @@ describe("feedbackFixPrompt", () => {
     const stale = feedbackFixPrompt(item({ agentCheck: { ...check, stale: true } }), { imageUrl: () => null });
     expect(stale).not.toContain("Suggested plan");
     expect(stale).not.toContain("attach the image");
+  });
+});
+
+describe("agentCheckBasis", () => {
+  const reply = (body: string, visibility: "public" | "draft" | "private" = "public") => ({ kind: "reply" as const, body, visibility });
+  const base = { comment: "c", triageNote: null };
+
+  test("changes with public replies", () => {
+    expect(agentCheckBasis({ ...base, thread: [reply("a")] })).not.toBe(agentCheckBasis({ ...base, thread: [] }));
+  });
+  test("ignores drafts, private notes and status entries", () => {
+    const plain = agentCheckBasis({ ...base, thread: [reply("a")] });
+    const noisy = agentCheckBasis({
+      ...base,
+      thread: [reply("a"), reply("draft", "draft"), reply("note", "private"), { kind: "status" as const, body: null, visibility: "public" as const }],
+    });
+    expect(noisy).toBe(plain);
   });
 });
