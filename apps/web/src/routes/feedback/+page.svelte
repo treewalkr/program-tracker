@@ -2,7 +2,10 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
-  import { feedbackApi, exportUrl, shotUrl, ticketShots } from "$lib/feedback/client";
+  import { attachmentImages, attachmentUrl, feedbackApi, exportUrl, ticketImageCaption, ticketShots } from "$lib/feedback/client";
+  import AttachmentInput from "$lib/feedback/AttachmentInput.svelte";
+  import AttachmentStrip from "$lib/feedback/AttachmentStrip.svelte";
+  import { ImageTray } from "$lib/feedback/tray.svelte";
   import { shortPath } from "$lib/feedback/capture";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import Author from "$lib/feedback/Author.svelte";
@@ -50,6 +53,7 @@
   let draft = $state("");
   let draftPage = $state("");
   let filing = $state(false);
+  const draftImages = new ImageTray();
   let draftField = $state<HTMLTextAreaElement | null>(null);
 
   const counts = $derived(
@@ -185,6 +189,7 @@
     composing = false;
     draft = "";
     draftPage = "";
+    draftImages.clear();
   }
 
   /** Accepts `/clients/x`, `clients/x` or a full app URL; keeps path + query. */
@@ -202,7 +207,7 @@
   async function fileTicket(e?: SubmitEvent) {
     e?.preventDefault();
     const comment = draft.trim();
-    if (!comment || filing) return;
+    if (!comment || filing || draftImages.busy) return;
     filing = true;
     try {
       const context = unpinnedContext(pagePath(draftPage), {
@@ -210,7 +215,7 @@
         userAgent: navigator.userAgent,
         appVersion: __APP_VERSION__,
       });
-      const { id } = await feedbackApi.submit({ comment, context });
+      const { id } = await feedbackApi.submit({ comment, context, images: draftImages.files });
       const item = await feedbackApi.get(id);
       items = [item, ...items];
       notes[item.id] = "";
@@ -256,6 +261,28 @@
   {/if}
 {/snippet}
 
+<!-- The element close-up large (as before), every other image as a thumbnail; one viewer for all. -->
+{#snippet ticketImages(item: FeedbackItem)}
+  {@const images = attachmentImages(item.id, item.attachments, ticketImageCaption(item))}
+  {@const el = item.attachments.findIndex((a) => a.kind === "element")}
+  {#if images.length}
+    {@const strip = { ref: undefined as AttachmentStrip | undefined }}
+    {#if el >= 0}
+      <figure class="shot">
+        <button type="button" class="shot-open" onclick={() => strip.ref?.show(el)} aria-label="Open {images[el].alt}">
+          <img
+            src={attachmentUrl(item.id, item.attachments[el].id)}
+            alt=""
+            loading="lazy"
+            onload={(e) => fitShot(e.currentTarget as HTMLImageElement, item.context.viewport.dpr)}
+          />
+        </button>
+      </figure>
+    {/if}
+    <AttachmentStrip bind:this={strip.ref} {images} skip={el >= 0 ? [el] : []} label="Images on {feedbackHandle(item.number)}" />
+  {/if}
+{/snippet}
+
 <Lightbox images={shots} bind:open={shotsOpen} bind:index={shotIndex} label="Ticket screenshots" />
 
 <div class="page">
@@ -281,7 +308,14 @@
   {/if}
 
   {#if composing}
-    <form id="new-ticket" class="composer" onsubmit={fileTicket} aria-label="New ticket">
+    <form
+      id="new-ticket"
+      class="composer"
+      class:dropping={draftImages.dragging}
+      onsubmit={fileTicket}
+      aria-label="New ticket"
+      {@attach draftImages.zone}
+    >
       <label class="field">
         <span>What should change?</span>
         <textarea
@@ -296,6 +330,7 @@
           }}
         ></textarea>
       </label>
+      <AttachmentInput tray={draftImages} disabled={filing} label="the new ticket" />
       <label class="field page-field">
         <span>Page <span class="muted">— optional</span></span>
         <input type="text" bind:value={draftPage} placeholder="/clients" autocomplete="off" spellcheck="false" />
@@ -304,7 +339,7 @@
         Not about one thing on screen. To point at an element, turn on <strong>Feedback</strong> (bottom right) and click it.
       </p>
       <div class="actions">
-        <Button type="submit" variant="primary" small disabled={!draft.trim() || filing}>
+        <Button type="submit" variant="primary" small disabled={!draft.trim() || filing || draftImages.busy}>
           {filing ? "Filing…" : "File ticket"}
         </Button>
         <Button type="button" small variant="ghost" onclick={closeComposer}>Cancel</Button>
@@ -387,7 +422,7 @@
                   <!-- filed on /feedback itself: nothing to jump to -->
                   {#if item.reachable}
                     <a class="show-me" href={showMeHref(item)}>Show me</a>
-                  {:else if item.hasPageShot || item.hasElementShot}
+                  {:else if ticketShots(item).length}
                     <button
                       type="button"
                       class="show-me linkish"
@@ -425,21 +460,7 @@
                 <dd>{c.viewport.width}×{c.viewport.height} @{c.viewport.dpr}x · build <code>{c.appVersion}</code></dd>
               </dl>
 
-              {#if item.hasElementShot}
-                <figure class="shot">
-                  <img
-                    src={shotUrl(item.id, "element")}
-                    alt="Screenshot of the element {feedbackHandle(item.number)} is about"
-                    loading="lazy"
-                    onload={(e) => fitShot(e.currentTarget as HTMLImageElement, c.viewport.dpr)}
-                  />
-                  {#if item.hasPageShot}
-                    <figcaption>
-                      <a href={shotUrl(item.id, "page")} target="_blank" rel="noreferrer">Open full-page screenshot</a>
-                    </figcaption>
-                  {/if}
-                </figure>
-              {/if}
+              {@render ticketImages(item)}
 
               <Thread {item} onchange={replace} />
 
@@ -550,15 +571,25 @@
     border-radius: 4px;
     background: var(--surface);
   }
-  .shot > img {
+  .shot-open {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: zoom-in;
+    max-width: 100%;
+  }
+  .shot-open:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+  .shot-open > img {
     box-sizing: content-box;
     padding: 6px;
     background: var(--well);
     border: 1px solid var(--line-soft);
     border-radius: var(--radius);
-  }
-  figcaption {
-    font-size: 12px;
   }
   .body {
     display: flex;
@@ -742,6 +773,10 @@
     outline: none;
     border-color: var(--blue);
     box-shadow: 0 0 0 3px var(--focus);
+  }
+  .composer.dropping {
+    outline: 2px dashed var(--blue);
+    outline-offset: -6px;
   }
   .composer {
     display: flex;

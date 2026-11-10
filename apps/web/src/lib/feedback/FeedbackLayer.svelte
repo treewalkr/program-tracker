@@ -5,6 +5,9 @@
   import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
   import { feedbackApi } from "./client";
   import TicketPins from "./TicketPins.svelte";
+  import AttachmentInput from "./AttachmentInput.svelte";
+  import { compressImage, dataUrlToBlob } from "./images";
+  import { ImageTray } from "./tray.svelte";
   import { feedbackHandle, type FeedbackItem } from "@pt/shared";
 
   /**
@@ -14,8 +17,6 @@
    */
 
   const FORM_W = 340;
-  /** Server rejects images over 4 MB; stay under it after base64 overhead. */
-  const MAX_DATA_URL = 5_000_000;
 
   let hovered = $state<Element | null>(null);
   let selected = $state<Element | null>(null);
@@ -23,6 +24,8 @@
   let selRect = $state<DOMRect | null>(null);
   let comment = $state("");
   let includePage = $state(true);
+  /** Images the trainer adds on top of the two captures. */
+  const tray = new ImageTray();
   let sending = $state(false);
   let error = $state<string | null>(null);
   let toast = $state<string | null>(null);
@@ -75,6 +78,7 @@
   function close() {
     selected = null;
     comment = "";
+    tray.clear();
     error = null;
     measure();
   }
@@ -159,7 +163,8 @@
     });
   });
 
-  async function shoot(node: HTMLElement, kind: "element" | "page"): Promise<string | undefined> {
+  /** A capture, re-encoded like any other image (webp, ≤ 2000px, ≤ 2 MB). */
+  async function shoot(node: HTMLElement, kind: "element" | "page"): Promise<File | undefined> {
     try {
       const { domToPng, domToJpeg } = await import("modern-screenshot");
       const filter = (n: Node) => !isFeedbackUi(n);
@@ -168,17 +173,17 @@
       const url =
         kind === "element"
           ? await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor, filter })
-          : await domToJpeg(node, { scale: 1, quality: 0.7, backgroundColor, filter });
-      return url.length < MAX_DATA_URL ? url : undefined;
+          : await domToJpeg(node, { scale: 1, quality: 0.85, backgroundColor, filter });
+      return await compressImage(await dataUrlToBlob(url), { name: `${kind}.png` });
     } catch {
-      // A failed screenshot never blocks the comment itself.
+      // A failed (or too large) screenshot never blocks the comment itself.
       return undefined;
     }
   }
 
   async function send() {
     const el = selected;
-    if (!el || !comment.trim() || sending) return;
+    if (!el || !comment.trim() || sending || tray.busy) return;
     sending = true;
     error = null;
     try {
@@ -194,7 +199,7 @@
       );
       const target = el as HTMLElement;
       const elementShot = await shoot(target, "element");
-      let pageShot: string | undefined;
+      let pageShot: File | undefined;
       if (includePage) {
         // Mark the picked element so the page shot shows what the comment is about.
         const prev = target.style.outline;
@@ -208,7 +213,7 @@
           target.style.outlineOffset = prevOffset;
         }
       }
-      const res = await feedbackApi.submit({ comment, context, elementShot, pageShot });
+      const res = await feedbackApi.submit({ comment, context, elementShot, pageShot, images: tray.files });
       feedbackMode.sent += 1;
       showToast(`${res.handle} saved`);
       close();
@@ -261,8 +266,10 @@
   {#if selected && formPos}
     <form
       class="pin"
+      class:dropping={tray.dragging}
       style={formPos}
       aria-label="Leave feedback on this element"
+      {@attach tray.zone}
       onsubmit={(e) => {
         e.preventDefault();
         send();
@@ -290,13 +297,14 @@
         <input type="checkbox" bind:checked={includePage} />
         Attach a screenshot of the whole page
       </label>
+      <AttachmentInput {tray} disabled={sending} label="this feedback" />
       {#if error}
         <p class="err" role="alert">{error}</p>
       {/if}
       <div class="pin-actions">
         <span class="hint">⌘↵ to send · Esc to cancel</span>
         <button type="button" class="btn small" onclick={close}>Cancel</button>
-        <button type="submit" class="btn small primary" disabled={!comment.trim() || sending}>
+        <button type="submit" class="btn small primary" disabled={!comment.trim() || sending || tray.busy}>
           {sending ? "Saving…" : "Send"}
         </button>
       </div>
@@ -421,6 +429,10 @@
     gap: 8px;
     font: 400 14px/1.5 var(--font-ui);
     color: var(--ink);
+  }
+  .pin.dropping {
+    outline: 2px dashed var(--blue);
+    outline-offset: -6px;
   }
   .pin-head {
     display: flex;
