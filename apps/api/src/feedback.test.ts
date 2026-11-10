@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { desc, eq, inArray } from "drizzle-orm";
-import { clients, db, feedbackItems, llmBlobs, llmCalls, trainers } from "@pt/db";
+import { eq, inArray } from "drizzle-orm";
+import { clients, db, feedbackItems, trainers } from "@pt/db";
 import type { FeedbackContext } from "@pt/shared";
 import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
@@ -138,46 +138,6 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(asJson.some((i: { id: string }) => i.id === id)).toBe(true);
   });
 
-  test("agent check stores a verdict, feeds the ready export and goes stale on edits", async () => {
-    const res = await call("POST", `/v1/feedback/${id}/agent-check`, { providerId: "mock" });
-    expect(res.status).toBe(200);
-    const item = await json(res);
-    expect(item.agentCheck).toMatchObject({ verdict: "ready", risk: "low", questions: [], stale: false, model: "mock-draft-v1" });
-    expect(item.agentCheck.plan.length).toBeGreaterThan(0);
-
-    // The element screenshot rides along by hash; its bytes never reach the log.
-    const [logged] = await db
-      .select({ context: llmCalls.context, refs: llmCalls.requestBlobIds })
-      .from(llmCalls)
-      .where(eq(llmCalls.purpose, "feedback_check"))
-      .orderBy(desc(llmCalls.createdAt))
-      .limit(1);
-    expect(logged.context.images).toEqual([{ message: 1, sha256: expect.any(String), bytes: expect.any(Number) }]);
-    const blobs = await db
-      .select({ content: llmBlobs.content })
-      .from(llmBlobs)
-      .where(inArray(llmBlobs.sha256, logged.refs.map((r) => r.sha)));
-    expect(blobs.some((b) => b.content.includes(PNG_B64))).toBe(false);
-
-    const ready = await (await call("GET", "/v1/feedback/export?ready=true")).text();
-    expect(ready).toContain(`## ${handle} · accepted`);
-    expect(ready).toContain("**Agent check:** ready · low risk");
-
-    await call("POST", `/v1/feedback/${id}/comments`, { body: "Also on the week view, please." });
-    const after = await json(await call("GET", `/v1/feedback/${id}`));
-    expect(after.agentCheck.stale).toBe(true);
-    expect(await (await call("GET", "/v1/feedback/export?ready=true")).text()).not.toContain(handle);
-
-    const again = await json(await call("POST", `/v1/feedback/${id}/agent-check`, { providerId: "mock" }));
-    expect(again.agentCheck.stale).toBe(false);
-  });
-
-  test("agent check reports an unconfigured provider", async () => {
-    const res = await call("POST", `/v1/feedback/${id}/agent-check`, { providerId: "nope" });
-    expect(res.status).toBe(400);
-    expect((await json(res)).error).toContain("not configured");
-  });
-
   test("list filters by status", async () => {
     const accepted = await json(await call("GET", "/v1/feedback?status=accepted"));
     expect(accepted.every((i: { status: string }) => i.status === "accepted")).toBe(true);
@@ -220,12 +180,6 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
   afterAll(async () => {
     await db.delete(feedbackItems).where(inArray(feedbackItems.id, [kaiItem, adminItem]));
     await db.delete(trainers).where(inArray(trainers.email, EMAILS));
-  });
-
-  test("a trainer never sees the agent check on their own item", async () => {
-    await call("POST", `/v1/feedback/${kaiItem}/agent-check`, { providerId: "mock" });
-    expect((await json(await call("GET", `/v1/feedback/${kaiItem}`))).agentCheck.verdict).toBe("needs_info");
-    expect((await json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai))).agentCheck).toBeNull();
   });
 
   test("a trainer lists only their own items; the admin lists all", async () => {
@@ -326,7 +280,6 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
       await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" }, kai),
       await call("DELETE", `/v1/feedback/${kaiItem}`, undefined, kai),
       await call("GET", "/v1/feedback/export", undefined, kai),
-      await call("POST", `/v1/feedback/${kaiItem}/agent-check`, { providerId: "mock" }, kai),
     ]) {
       expect(res.status).toBe(403);
       expect(await json(res)).toEqual({ error: "admin only" });

@@ -43,7 +43,6 @@
     thread,
     unread: false,
     muted: false,
-    agentCheck: null,
     createdAt: '2026-11-09T09:00:00.000Z',
     updatedAt: '2026-11-09T09:00:00.000Z',
   });

@@ -177,29 +177,11 @@ export interface FeedbackComment {
   createdAt: string;
 }
 
-/** An LLM's call on whether a coding agent could fix the ticket unattended. */
-export const AGENT_VERDICTS = ["ready", "needs_info", "not_for_agent"] as const;
-export type AgentVerdict = (typeof AGENT_VERDICTS)[number];
-
-export interface FeedbackAgentCheck {
-  verdict: AgentVerdict;
-  /** One sentence: what to change, or why it can't be done yet. */
-  summary: string;
-  /** Concrete steps for the fixing agent; empty unless ready. */
-  plan: string[];
-  /** What to ask the reporter or owner before an agent can start. */
-  questions: string[];
-  risk: "low" | "medium" | "high";
-  model: string;
-  checkedAt: string;
-  /** Fingerprint of the ticket text it judged — see `ticketBasis`. */
-  basis: string;
-}
-
 /**
- * What an agent check (or an AI answer) depends on: the comment, the triage
- * note and the public replies. When any changes, the stored check is stale.
- * Drafts and private notes don't count — the same basis whoever computes it.
+ * Fingerprint of what an AI answer depends on: the comment, the triage note
+ * and the public replies. When any changes, an answer recorded for the old
+ * basis is stale. Drafts and private notes don't count — the same basis
+ * whoever computes it.
  */
 export function ticketBasis(
   item: Pick<FeedbackItem, "comment" | "triageNote"> & { thread: Pick<FeedbackComment, "kind" | "body" | "visibility">[] },
@@ -241,8 +223,6 @@ export interface FeedbackItem {
    * screenshot instead.
    */
   reachable: boolean;
-  /** Admin only: last agent-readiness check, `stale` once the ticket changed after it. */
-  agentCheck: (FeedbackAgentCheck & { stale: boolean }) | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -363,12 +343,6 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
-  const check = item.agentCheck;
-  if (check && !check.stale) {
-    lines.push(`- **Agent check:** ${check.verdict.replace(/_/g, " ")} · ${check.risk} risk — ${check.summary}`);
-    for (const step of check.plan) lines.push(`  - ${step}`);
-    for (const q of check.questions) lines.push(`  - Open question: ${q}`);
-  }
   const el = opts.imageUrl(item, "element");
   const pg = opts.imageUrl(item, "page");
   if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
@@ -421,35 +395,4 @@ export function feedbackMarkdown(items: FeedbackItem[], opts: FeedbackMarkdownOp
     "owner's decision and outranks the comment when they differ.",
   ];
   return [...head, "", ...items.map((i) => `${feedbackItemMarkdown(i, opts)}\n`)].join("\n");
-}
-
-/**
- * One ticket as a paste-ready prompt for a coding agent working in this repo:
- * how to work, the readiness check's plan or open questions, then the ticket.
- */
-export function feedbackFixPrompt(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
-  const check = item.agentCheck && !item.agentCheck.stale ? item.agentCheck : null;
-  const shots = Boolean(opts.imageUrl(item, "element") || opts.imageUrl(item, "page"));
-  const lines = [
-    `Fix feedback ticket ${feedbackHandle(item.number)} in this repo (SvelteKit web app in \`apps/web\`, Elysia API in \`apps/api\`, Drizzle schema in \`packages/db\`, shared types in \`packages/shared\`).`,
-    "",
-    "How to work:",
-    "- The quoted comment is the trainer's words. The **Triage note** is the owner's decision and outranks the comment.",
-    "- Start at **Source**; follow **Rendered via** if the change belongs in a parent component.",
-    "- Keep the change small and limited to this ticket. Follow the repo's conventions (see CLAUDE.md / AGENTS.md).",
-    "- Run the relevant tests and the typecheck before you finish.",
-    "- Finish with what you changed and how to check it in the UI.",
-  ];
-  if (shots)
-    lines.push("- Screenshot links need a signed-in session. If you can't open them, ask me to attach the image.");
-  if (check?.plan.length) {
-    lines.push("", "Suggested plan (from an automated readiness check — verify it against the code):");
-    check.plan.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
-  }
-  if (check?.questions.length) {
-    lines.push("", "Open questions — if the code doesn't answer them, stop and ask me instead of guessing:");
-    for (const q of check.questions) lines.push(`- ${q}`);
-  }
-  lines.push("", "---", "", feedbackItemMarkdown({ ...item, agentCheck: null }, opts));
-  return lines.join("\n");
 }

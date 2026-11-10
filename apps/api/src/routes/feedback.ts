@@ -20,7 +20,6 @@ import {
 } from "../lib/feedback";
 import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
-import { runAgentCheck } from "../lib/feedback-agent-check";
 import { trainerContext } from "../lib/trainer-context";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
@@ -82,15 +81,13 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
   /**
    * Agent-facing export. Markdown by default — self-contained items with
    * absolute screenshot URLs. Defaults to `accepted`: the owner's go-list.
-   * `ready=true` keeps only items whose current agent check says ready.
    */
   .get(
     "/export",
     async ({ query, request, isAdmin, status }) => {
       if (!isAdmin) return status(403, ADMIN_ONLY);
       const statuses = query.status === "all" ? null : (parseStatuses(query.status ?? "accepted") ?? []);
-      const all = await listFeedback(statuses, "oldest");
-      const items = query.ready === "true" ? all.filter((i) => i.agentCheck?.verdict === "ready" && !i.agentCheck.stale) : all;
+      const items = await listFeedback(statuses, "oldest");
       if (query.format === "json") return items;
       const origin = new URL(request.url).origin;
       const md = feedbackMarkdown(items, {
@@ -106,7 +103,6 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       query: t.Object({
         status: t.Optional(t.String()),
         format: t.Optional(t.UnionEnum(["md", "json"])),
-        ready: t.Optional(t.String()),
       }),
       detail: { summary: "Export feedback for a coding agent (Markdown or JSON)" },
     },
@@ -196,30 +192,6 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         triageNote: t.Optional(t.Nullable(t.String({ maxLength: 5000 }))),
       }),
       detail: { summary: "Triage a feedback item" },
-    },
-  )
-  /**
-   * Ask an LLM whether a coding agent could fix this item unattended. The
-   * verdict (plan or open questions) is stored on the item and returned.
-   */
-  .post(
-    "/:id/agent-check",
-    async ({ params, body, status, isAdmin, trainerId, who }) => {
-      if (!isAdmin) return status(403, ADMIN_ONLY);
-      const item = await getFeedback(params.id, who);
-      if (!item) return status(404, NOT_FOUND);
-      const out = await runAgentCheck(item, { trainerId, ...body });
-      if (!out.ok) return status(out.status as 400 | 502, { error: out.error });
-      return (await getFeedback(params.id, who))!;
-    },
-    {
-      params: IdParams,
-      body: t.Object({
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-        effort: t.Optional(t.String()),
-      }),
-      detail: { summary: "Check whether a coding agent could fix a feedback item unattended" },
     },
   )
   /** Reply on an item's thread — its reporter or the admin. */
