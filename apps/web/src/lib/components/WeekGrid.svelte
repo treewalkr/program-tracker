@@ -292,7 +292,7 @@
     {#if active.length > 0}
       <div class="legend" aria-hidden="true">
         {#if legend.ramp}
-          <span class="lg">
+          <span class="lg ramp">
             Less
             {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
             More
@@ -659,6 +659,8 @@
     .wk-body .wk-cell { padding: 4px 0 8px; }
     .cell { height: 44px; padding: 3px 2px; }
     .legend { justify-content: flex-start; }
+    /* The ramp reads the history squares, the states read the cells: one line each. */
+    .lg.ramp { flex-basis: 100%; }
   }
   /* Two weeks no longer fit beside the name. */
   @container weekgrid (max-width: 450px) { .hw:nth-child(4) { display: none; } }
