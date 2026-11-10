@@ -1,5 +1,6 @@
 import { apiBase } from "$lib/api/base";
-import type { FeedbackComment, FeedbackContext, FeedbackItem, FeedbackStatus } from "@pt/shared";
+import { feedbackHandle, type FeedbackComment, type FeedbackContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+import type { LightboxImage } from "$lib/ui/Lightbox.svelte";
 import { client } from "$lib/api/treaty";
 
 /**
@@ -66,3 +67,21 @@ const base = apiBase;
 export const shotUrl = (id: string, kind: "element" | "page") => `${base}/v1/feedback/${id}/shot/${kind}`;
 export const exportUrl = (status: string, format: "md" | "json" = "md") =>
   `${base}/v1/feedback/export?status=${encodeURIComponent(status)}&format=${format}`;
+
+/**
+ * A ticket's screenshots for the lightbox: the page shot first (the element is
+ * outlined in red in it), then the close-up of the element.
+ */
+export function ticketShots(item: FeedbackItem): LightboxImage[] {
+  const handle = feedbackHandle(item.number);
+  const shots: LightboxImage[] = [];
+  if (item.hasPageShot)
+    shots.push({
+      src: shotUrl(item.id, "page"),
+      alt: `Page screenshot for ${handle}`,
+      caption: `${handle} · the page when it was filed, element outlined in red`,
+    });
+  if (item.hasElementShot)
+    shots.push({ src: shotUrl(item.id, "element"), alt: `Screenshot of the element ${handle} is about`, caption: `${handle} · the element` });
+  return shots;
+}
