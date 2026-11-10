@@ -2005,7 +2005,7 @@
     .kbd-hint { display: none; }
     .blk-act { flex-wrap: wrap; }
     .blk-reason .subtle { flex-basis: 100%; }
-    .reason-chip { height: 40px; padding: 0 6px; font-size: 14px; flex: 1; }
+    .reason-chip { height: 44px; padding: 0 6px; font-size: 14px; flex: 1; }
     .blk-flag .subtle { flex-basis: 100%; }
     .blk-flag :global(.btn) { min-height: 44px; flex: 1; justify-content: center; font-size: 14px; background: var(--well); border: 1px solid var(--line); }
   }
