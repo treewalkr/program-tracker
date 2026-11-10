@@ -23,6 +23,7 @@ import { clientMessageRoutes } from "./routes/client-messages";
 import { preferenceRoutes } from "./routes/preferences";
 import { chatRoutes } from "./routes/chat";
 import { feedbackRoutes } from "./routes/feedback";
+import { agentFeedbackRoutes } from "./routes/agent-feedback";
 import { accountRoutes } from "./routes/account";
 import { authRoutes } from "./routes/auth";
 import { emailRoutes } from "./routes/email";
@@ -55,6 +56,7 @@ const TAGS = [
   { name: "preferences", description: "Distilled trainer/client style preferences" },
   { name: "email", description: "Public unsubscribe links from feedback emails (token in the link, no session)" },
   { name: "account", description: "The signed-in trainer's own settings (email notifications)" },
+  { name: "agent", description: "Feedback auto-reply agent — bearer FEEDBACK_AGENT_TOKEN, no session; reads tickets, writes AI notes and replies" },
   { name: "feedback", description: "Feedback mode — trainer comments pinned to UI elements, exported for coding agents" },
 ];
 
@@ -88,6 +90,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(authRoutes)
   // public: the token in an email's unsubscribe link is the credential
   .use(emailRoutes)
+  // the feedback auto-reply agent: its own bearer token, never a session — so before the trainer guard
+  .use(agentFeedbackRoutes)
   // everything below needs a signed-in trainer and only sees that trainer's data
   .use(trainerContext)
   /**
