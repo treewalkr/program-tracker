@@ -131,6 +131,14 @@
   let pickNote = $state<string | null>(null);
   /** Energy, sleep and soreness before the session — all optional. */
   let readiness = $state<ReadinessForm>({ ...EMPTY_READINESS });
+  /** Narrow sheet only: pickers and readiness fold to one line each so the first set sits near the top. */
+  let pickersOpen = $state(false);
+  let readinessOpen = $state(false);
+  const readinessSummary = $derived(
+    READINESS_SCALES.filter((sc) => readiness[sc.field] != null)
+      .map((sc) => `${sc.label} ${readiness[sc.field]}`)
+      .join(" · ")
+  );
   /** programExerciseId → its Pain / Technique flag. */
   let flags = $state<ExerciseFlags>({});
   /** Slot whose flag menu is open. */
@@ -1076,7 +1084,15 @@
     <form class="log-form" onsubmit={submit} onkeydown={formKeydown} bind:this={formEl} novalidate>
       <Panel title="Session" count={!isCardioSession && rows.length > 0 ? tally : undefined}>
         {#snippet act()}
-          <div class="head-controls">
+          <div class="head-controls" class:collapsed={!pickersOpen}>
+            <div class="hc-summary">
+              <span class="hc-sum-text">
+                Wk {selectedWeekNumber} · {selectedSession?.name ?? "No session"}{date ? ` · ${fmtLongDay(date)}` : ""}
+              </span>
+              <button type="button" class="link-btn" aria-expanded={pickersOpen} onclick={() => (pickersOpen = !pickersOpen)}>
+                {pickersOpen ? "Done" : "Change"}
+              </button>
+            </div>
             <span class="hc-pair">
               <label class="label" for="log-week">Week</label>
               <select
@@ -1472,7 +1488,12 @@
 
     {#snippet readinessStrip()}
       <!-- Before the session: three optional taps. "Did it as prescribed" needs none of them. -->
-      <div class="panel-body readiness" role="group" aria-label="Readiness, optional">
+      <div class="panel-body readiness" class:collapsed={!readinessOpen} role="group" aria-label="Readiness, optional">
+        <button type="button" class="rd-toggle" aria-expanded={readinessOpen} onclick={() => (readinessOpen = !readinessOpen)}>
+          <span class="rd-toggle-label">Readiness</span>
+          <span class="faint rd-toggle-sum">{readinessSummary || "optional"}</span>
+          <Icon name="chevron" />
+        </button>
         {#each READINESS_SCALES as sc (sc.field)}
           <div class="rd">
             <span class="rd-label" id={`rd-${sc.field}`}>{sc.label} <span class="faint">1 {sc.low} · {sc.max} {sc.high}</span></span>
@@ -1617,6 +1638,8 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+  /* Folded summaries exist only in the narrow sheet. */
+  .hc-summary, .rd-toggle { display: none; }
   /* A label never wraps away from its field. */
   .hc-pair { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .head-controls .label { margin: 0; }
@@ -1749,6 +1772,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .undo-drain { display: none; }
+    .rd-toggle :global(svg) { transition: none; }
   }
 
   /* ---- The ask: one small modal for the summary and the duplicate choice ---- */
@@ -2128,8 +2152,37 @@
     .head-controls .select, .date { width: 100%; }
     .head-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); }
     .hc-pair { display: contents; }
+    .hc-summary {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+    }
+    .hc-sum-text { flex: 1; min-width: 0; font-size: 14px; line-height: 1.35; color: var(--ink); text-wrap: pretty; }
+    .hc-summary .link-btn { min-height: 44px; padding: 0 4px; font-size: 14px; }
+    .head-controls.collapsed .hc-pair { display: none; }
     .head-controls :global(.btn) { grid-column: 1 / -1; min-height: 44px; justify-content: center; }
     .readiness { display: grid; gap: 12px; }
+    .readiness.collapsed { padding-top: 0; padding-bottom: 0; }
+    .readiness.collapsed .rd, .readiness.collapsed .rd-hint { display: none; }
+    .rd-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 44px;
+      padding: 0;
+      font: 500 14px/1.3 var(--font-ui);
+      color: var(--ink);
+      background: none;
+      border: 0;
+      cursor: pointer;
+      text-align: left;
+    }
+    .rd-toggle-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+    .rd-toggle :global(svg) { flex: 0 0 auto; width: 16px; height: 16px; transition: transform 150ms ease-out; }
+    .rd-toggle[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
     .rd-scale { display: flex; }
     .seg button { flex: 1; min-width: 0; height: 40px; font-size: 14px; }
     .rd-hint { margin-left: 0; }
