@@ -224,18 +224,32 @@ export interface FeedbackComment {
   createdAt: string;
 }
 
+type BasisImages = { attachments?: Pick<FeedbackAttachment, "id" | "kind">[] };
+
 /**
- * Fingerprint of what an AI answer depends on: the comment, the triage note
- * and the public replies. When any changes, an answer recorded for the old
- * basis is stale. Drafts and private notes don't count — the same basis
- * whoever computes it.
+ * Fingerprint of what an AI answer depends on: the comment, the triage note,
+ * the public replies and the images people uploaded to the ticket or those
+ * replies. When any changes, an answer recorded for the old basis is stale.
+ * Drafts and private notes don't count — the same basis whoever computes it.
+ * Captured screenshots don't count either: they only show what the comment
+ * is about. Upload ids are appended only when there are any, so a ticket
+ * without uploads keeps the basis it had before images counted.
  */
 export function ticketBasis(
-  item: Pick<FeedbackItem, "comment" | "triageNote"> & { thread: Pick<FeedbackComment, "kind" | "body" | "visibility">[] },
+  item: Pick<FeedbackItem, "comment" | "triageNote"> &
+    BasisImages & { thread: (Pick<FeedbackComment, "kind" | "body" | "visibility"> & BasisImages)[] },
 ): string {
   const replies = item.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
-  const text = [item.comment, item.triageNote ?? "", ...replies.map((c) => c.body ?? "")]
-    .join("\u0000");
+  const uploads = [item, ...replies]
+    .flatMap((e) => e.attachments ?? [])
+    .filter((a) => a.kind === "upload")
+    .map((a) => a.id);
+  const text = [
+    item.comment,
+    item.triageNote ?? "",
+    ...replies.map((c) => c.body ?? ""),
+    ...(uploads.length ? [`uploads:${uploads.join(",")}`] : []),
+  ].join("\u0000");
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
   return h.toString(16).padStart(8, "0");
