@@ -2,7 +2,7 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { feedbackFixPrompt, feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
-  import { feedbackApi, exportUrl, shotUrl } from "$lib/feedback/client";
+  import { feedbackApi, exportUrl, shotUrl, ticketShots } from "$lib/feedback/client";
   import { shortPath } from "$lib/feedback/capture";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import Author from "$lib/feedback/Author.svelte";
@@ -20,6 +20,7 @@
   import Pill from "$lib/ui/Pill.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Lightbox, { type LightboxImage } from "$lib/ui/Lightbox.svelte";
 
   type Filter = FeedbackStatus | "all";
 
@@ -111,6 +112,16 @@
     const path = item.context.route.path;
     return `${path}${path.includes("?") ? "&" : "?"}fbshow=${item.id}`;
   };
+
+  /** "Show me" for a page the viewer can't open (another trainer's client): its screenshots instead. */
+  let shots = $state<LightboxImage[]>([]);
+  let shotsOpen = $state(false);
+  let shotIndex = $state(0);
+  function showShots(item: FeedbackItem) {
+    shots = ticketShots(item);
+    shotIndex = 0;
+    shotsOpen = shots.length > 0;
+  }
 
   /** Marks an unread item seen once at least half of it has been on screen. */
   function seenWhenVisible(node: HTMLElement, item: FeedbackItem) {
@@ -258,6 +269,8 @@
 
 <svelte:head><title>Feedback · Program Tracker</title></svelte:head>
 
+<Lightbox images={shots} bind:open={shotsOpen} bind:index={shotIndex} label="Ticket screenshots" />
+
 <div class="page">
   <PageHead
     title="Feedback"
@@ -373,8 +386,17 @@
                 <dt>Page</dt>
                 <dd>
                   <a href={c.route.path}>{c.route.path}</a>{#if c.target.headings.length}<span class="muted">&nbsp;· {c.target.headings.join(" › ")}</span>{/if}
-                  {#if !c.route.path.startsWith("/feedback")}
+                  {#if c.route.path.startsWith("/feedback")}
+                    <!-- filed on this page: nothing to jump to -->
+                  {:else if item.reachable}
                     <a class="show-me" href={showMeHref(item)}>Show me</a>
+                  {:else if item.hasPageShot || item.hasElementShot}
+                    <button
+                      type="button"
+                      class="show-me linkish"
+                      title="This page belongs to a client you don't have — showing the screenshot instead"
+                      onclick={() => showShots(item)}>Show me</button
+                    >
                   {/if}
                 </dd>
                 <dt>Source</dt>
@@ -631,6 +653,18 @@
     margin-left: 8px;
     font-weight: 600;
     white-space: nowrap;
+  }
+  .linkish {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--blue);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .linkish:hover {
+    text-decoration: underline;
   }
   /* Admin-only triage sits in the box footer, apart from what the reporter wrote. */
   .triage-box {
