@@ -248,7 +248,7 @@ export interface FlagSummary {
   info: number;
   /** What stops "Use this" (program limits). */
   blocking: string[];
-  /** Fuzzy matches accepted by default — the trainer hasn't picked another. */
+  /** Fuzzy matches picked for the trainer (strong ones) that they haven't changed. */
   matched: number;
   /** Lines in the whole paste nothing used. */
   unused: number;
@@ -277,7 +277,7 @@ export function flagSummary(r: ImportResult, block: number, choices: Record<stri
     amber: flags.filter((f) => f.level === "warn").length,
     info: flags.filter((f) => f.level === "info").length,
     blocking,
-    matched: templateExercises(r, block).filter(({ key, ex }) => ex.match?.kind === "fuzzy" && !choices[key]?.confirmed).length,
+    matched: templateExercises(r, block).filter(({ key, ex }) => ex.match?.kind === "fuzzy" && !!ex.match.exerciseId && !choices[key]?.confirmed).length,
     unused: r.unused.length,
     unread: r.unread.reduce((n, u) => n + (u.to - u.from + 1), 0),
   };

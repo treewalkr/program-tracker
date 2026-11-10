@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { editDistance, expandAbbreviations, matchExercise, nameSimilarity, normalizeAlias } from "./importMatch";
+import {
+  FUZZY_AUTO_SCORE,
+  FUZZY_MIN_SCORE,
+  editDistance,
+  expandAbbreviations,
+  matchExercise,
+  nameMatchParts,
+  nameSimilarity,
+  normalizeAlias,
+} from "./importMatch";
 
 const CATALOG = [
   { id: "bench", name: "Bench Press" },
@@ -90,19 +99,42 @@ describe("matchExercise", () => {
 
   test("fuzzy: shorthand and typos, top candidates offered", () => {
     const sa = matchExercise({ sourceName: "SA Row", name: "Single-Arm Row" }, CATALOG);
-    expect(sa).toMatchObject({ kind: "fuzzy", exerciseId: "sa-row" });
+    expect(sa).toMatchObject({ kind: "fuzzy", exerciseName: "Single-Arm Row" });
+    expect(sa.candidates![0]).toMatchObject({ exerciseId: "sa-row" });
     const curl = matchExercise({ sourceName: "BB standing bicpes", name: "Barbell Standing Bicpes" }, CATALOG);
-    expect(curl).toMatchObject({ kind: "fuzzy", exerciseId: "curl" });
+    expect(curl.kind).toBe("fuzzy");
+    expect(curl.candidates![0].exerciseId).toBe("curl");
     expect(curl.candidates!.length).toBeLessThanOrEqual(3);
-    expect(curl.candidates![0].score).toBeGreaterThanOrEqual(0.6);
-    expect(matchExercise({ sourceName: "Triceps OVH extension", name: "x" }, CATALOG).exerciseId).toBe("ovh");
+    expect(curl.candidates![0].score).toBeGreaterThanOrEqual(FUZZY_MIN_SCORE);
+  });
+
+  test("fuzzy: picked only when strong and every written word is covered", () => {
+    expect(matchExercise({ sourceName: "Triceps OVH extension", name: "x" }, CATALOG)).toMatchObject({ kind: "fuzzy", exerciseId: "ovh" });
+    const catalog = [...CATALOG, { id: "rdl", name: "Romanian Deadlifts" }];
+    const rdl = matchExercise({ sourceName: "Romanian deadlift", name: "Romanian deadlift" }, catalog);
+    expect(rdl).toMatchObject({ kind: "fuzzy", exerciseId: "rdl", exerciseName: "Romanian Deadlifts" });
+    expect(rdl.candidates![0].score).toBeGreaterThanOrEqual(FUZZY_AUTO_SCORE);
+  });
+
+  test("fuzzy: a weak match is only suggested", () => {
+    const catalog = [...CATALOG, { id: "hop", name: "Single-Leg Hop" }, { id: "pull", name: "Pull-Up" }];
+    const m = matchExercise({ sourceName: "Single leg throwball", name: "Single Leg Throwball" }, catalog);
+    expect(m.kind).toBe("fuzzy");
+    expect(m.exerciseId).toBeUndefined();
+    expect(m.exerciseName).toBe("Single Leg Throwball");
+    expect(m.candidates!.map((c) => c.exerciseId)).toContain("hop");
+    // exact names are untouched
+    expect(matchExercise({ sourceName: "Pull up", name: "Pull Up" }, catalog)).toMatchObject({ kind: "exact", exerciseId: "pull" });
   });
 
   test("a shared word alone is not a match", () => {
     const catalog = [{ id: "bench", name: "Bench Press" }];
     expect(matchExercise({ sourceName: "Push press", name: "Push Press" }, catalog).kind).toBe("new");
     expect(matchExercise({ sourceName: "Leg press", name: "Leg Press" }, catalog).kind).toBe("new");
-    expect(matchExercise({ sourceName: "Squat", name: "Squat" }, CATALOG)).toMatchObject({ kind: "fuzzy", exerciseId: "squat" });
+    const squat = matchExercise({ sourceName: "Squat", name: "Squat" }, CATALOG);
+    expect(squat).toMatchObject({ kind: "fuzzy", exerciseName: "Squat" });
+    expect(squat.exerciseId).toBeUndefined();
+    expect(squat.candidates![0].exerciseId).toBe("squat");
   });
 
   test("matching uses the trainer's glossary", () => {
@@ -124,5 +156,7 @@ describe("matchExercise", () => {
   test("similarity is symmetric-ish and bounded", () => {
     expect(nameSimilarity("Bench Press", "Bench Press")).toBe(1);
     expect(nameSimilarity("Squat", "Kettlebell Swing")).toBeLessThan(0.6);
+    expect(nameMatchParts("Single leg throwball", "Single-Leg Hop")!.coverage).toBeCloseTo(2 / 3);
+    expect(nameMatchParts("", "Hop")).toBeNull();
   });
 });

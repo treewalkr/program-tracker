@@ -4,7 +4,7 @@ exports[`formFromImport every imported exercise gets a suggested role, in the no
 [
   "Push Press: primary",
   "Dumbbell Bench Press: secondary",
-  "Bench Press: strength",
+  "Incline Bench Press: strength",
   "Crossover / Dip: strength",
   "Push-Up: strength",
   "Triceps Rope Pushdown: accessory",
@@ -14,7 +14,7 @@ exports[`formFromImport every imported exercise gets a suggested role, in the no
   "Rear Delt Row: strength",
   "Inverted Row: strength",
   "Biceps Rope Curl: accessory",
-  "Back Squat: primary",
+  "Squat: primary",
   "Leg Press: strength",
   "Walking Lunge: strength",
   "Leg Extension: accessory",

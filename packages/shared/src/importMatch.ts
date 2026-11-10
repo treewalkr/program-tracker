@@ -62,15 +62,20 @@ export function editDistance(a: string, b: string): number {
 
 const tokenMatch = (a: string, b: string) => a === b || (Math.min(a.length, b.length) >= 4 && editDistance(a, b) <= 1);
 
-/**
- * 0…1: how much of the query the candidate covers (typo-tolerant tokens),
- * how much of the candidate is the query, and whole-string edit similarity.
- * Coverage weighs most: "Push press" must not land on "Bench Press".
- */
-export function nameSimilarity(query: string, candidate: string, abbreviations: AbbreviationMap = IMPORT_ABBREVIATIONS): number {
+export interface NameMatchParts {
+  /** Share of the query's tokens the candidate has (typo-tolerant). */
+  coverage: number;
+  /** Share of the candidate's tokens that are the query's. */
+  precision: number;
+  /** Whole-string edit similarity. */
+  str: number;
+}
+
+/** The parts nameSimilarity weighs; null when either name is blank. */
+export function nameMatchParts(query: string, candidate: string, abbreviations: AbbreviationMap = IMPORT_ABBREVIATIONS): NameMatchParts | null {
   const q = expandAbbreviations(query, abbreviations);
   const c = expandAbbreviations(candidate, abbreviations);
-  if (!q || !c) return 0;
+  if (!q || !c) return null;
   const qt = q.split(" ");
   const ct = c.split(" ");
   const left = [...ct];
@@ -82,13 +87,24 @@ export function nameSimilarity(query: string, candidate: string, abbreviations: 
       left.splice(i, 1);
     }
   }
-  const coverage = matched / qt.length;
-  const precision = matched / ct.length;
-  const str = 1 - editDistance(q, c) / Math.max(q.length, c.length);
-  return Math.round((0.5 * coverage + 0.3 * precision + 0.2 * str) * 1000) / 1000;
+  return { coverage: matched / qt.length, precision: matched / ct.length, str: 1 - editDistance(q, c) / Math.max(q.length, c.length) };
 }
 
+const score = (p: NameMatchParts | null) => (p ? Math.round((0.5 * p.coverage + 0.3 * p.precision + 0.2 * p.str) * 1000) / 1000 : 0);
+
+/**
+ * 0…1: how much of the query the candidate covers (typo-tolerant tokens),
+ * how much of the candidate is the query, and whole-string edit similarity.
+ * Coverage weighs most: "Push press" must not land on "Bench Press".
+ */
+export function nameSimilarity(query: string, candidate: string, abbreviations: AbbreviationMap = IMPORT_ABBREVIATIONS): number {
+  return score(nameMatchParts(query, candidate, abbreviations));
+}
+
+/** Fuzzy candidates at or above this are offered. */
 export const FUZZY_MIN_SCORE = 0.6;
+/** A fuzzy match is picked for the trainer only at or above this, with every written word covered. */
+export const FUZZY_AUTO_SCORE = 0.85;
 
 export interface MatchCatalogEntry {
   id: string;
@@ -135,18 +151,28 @@ export function matchExercise(
   const global = aliasHit(false);
   if (global) return viaAlias(global);
 
-  // 4. fuzzy — shorthand expanded, typo-tolerant; the top 3 are offered
+  // 4. fuzzy — shorthand expanded, typo-tolerant; the top 3 are offered. Only a strong match that
+  //    covers every written word is picked ("Single leg throwball" ≠ "Single-Leg Hop"); else the
+  //    trainer chooses, and it stays a new exercise until they do.
   const ranked = catalog
-    .map((c) => ({
-      exerciseId: c.id,
-      name: c.name,
-      score: Math.max(nameSimilarity(ex.sourceName, c.name, abbreviations), nameSimilarity(ex.name, c.name, abbreviations)),
-    }))
+    .map((c) => {
+      const parts = [ex.sourceName, ex.name].map((n) => nameMatchParts(n, c.name, abbreviations));
+      return {
+        exerciseId: c.id,
+        name: c.name,
+        score: Math.max(...parts.map(score)),
+        sure: parts.some((p) => p !== null && p.coverage === 1 && score(p) >= FUZZY_AUTO_SCORE),
+      };
+    })
     .filter((c) => c.score >= FUZZY_MIN_SCORE)
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 3);
   if (ranked.length > 0) {
-    return { kind: "fuzzy", exerciseId: ranked[0].exerciseId, exerciseName: ranked[0].name, candidates: ranked };
+    const candidates = ranked.map(({ exerciseId, name, score }) => ({ exerciseId, name, score }));
+    const top = ranked[0];
+    return top.sure
+      ? { kind: "fuzzy", exerciseId: top.exerciseId, exerciseName: top.name, candidates }
+      : { kind: "fuzzy", exerciseName: ex.name.trim(), candidates };
   }
 
   // 5. new custom exercise, named as the LLM expanded it

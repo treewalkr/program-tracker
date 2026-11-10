@@ -127,7 +127,10 @@ describe("formFromImport", () => {
   test("catalog patterns steer the suggestion", () => {
     const r = result();
     const catalog = [{ id: "bench", name: "Bench Press", primaryMuscleGroup: "core", equipment: "barbell", movementPattern: "anti_extension" }];
-    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey, catalog });
+    // "Incline bench press" is only a suggestion for Bench Press: the trainer takes it
+    const incline = templateExercises(r, r.defaultBlock).find(({ ex }) => ex.sourceName === "Incline bench press")!.key;
+    const choices: Record<string, ChoiceState> = { [incline]: { choice: { kind: "catalog", exerciseId: "bench", exerciseName: "Bench Press" }, confirmed: true } };
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices, resolve, newKey, catalog });
     const bench = form.sessions.flatMap((s) => s.exercises).find((e) => e.exerciseId === "bench");
     expect(bench?.role).toBe("core");
   });
@@ -159,6 +162,9 @@ describe("formFromImport", () => {
 describe("matches", () => {
   test("default choice follows the match", () => {
     expect(defaultChoice({ kind: "fuzzy", exerciseId: "x", exerciseName: "X" }, "y")).toEqual({ kind: "catalog", exerciseId: "x", exerciseName: "X" });
+    // a weak fuzzy match only suggests: it stays new until the trainer picks
+    const weak = { kind: "fuzzy" as const, exerciseName: "Single Leg Throwball", candidates: [{ exerciseId: "hop", name: "Single-Leg Hop", score: 0.66 }] };
+    expect(defaultChoice(weak, "y")).toEqual({ kind: "new", exerciseName: "Single Leg Throwball" });
     expect(defaultChoice({ kind: "new", exerciseName: "Dip" }, "y")).toEqual({ kind: "new", exerciseName: "Dip" });
     expect(defaultChoice(undefined, "Row")).toEqual({ kind: "new", exerciseName: "Row" });
   });
@@ -177,20 +183,17 @@ describe("matches", () => {
     const squat = items.find(({ ex }) => ex.line === 56)!;
     const dip = items.find(({ ex }) => ex.line === 43)!;
     const choices: Record<string, ChoiceState> = {
-      [squat.key]: { choice: choiceFor({}, squat.key, squat.ex), confirmed: true },
+      [squat.key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true },
       [dip.key]: { choice: { kind: "new", exerciseName: "Crossover / Dip" }, confirmed: true },
     };
     expect(aliasesToSave(r, 1, choices, new Map([["crossover / dip", "dip-id"]]))).toEqual([
-      { alias: "Incline bench press", exerciseId: "bench", source: "import" },
       { alias: "Crossover / Dip", exerciseId: "dip-id", source: "import" },
       { alias: "Squat", exerciseId: "squat", source: "import" },
     ]);
-    // untouched: the fuzzy matches are accepted by default
-    expect(aliasesToSave(r, 1, {}).map((a) => a.alias).sort()).toEqual(["Incline bench press", "Squat"]);
+    // untouched: the fuzzy matches are only suggestions → new exercises, none created yet
+    expect(aliasesToSave(r, 1, {})).toEqual([]);
     // changed to a new exercise that wasn't created → nothing to point at
-    expect(aliasesToSave(r, 1, { [squat.key]: { choice: { kind: "new", exerciseName: "Squat" }, confirmed: true } }).map((a) => a.alias)).toEqual([
-      "Incline bench press",
-    ]);
+    expect(aliasesToSave(r, 1, { [squat.key]: { choice: { kind: "new", exerciseName: "Squat" }, confirmed: true } })).toEqual([]);
   });
 });
 
@@ -203,9 +206,13 @@ describe("flags and lines", () => {
     expect(s.blocking).toEqual([]);
     expect(s.unused).toBe(0);
     const w12 = flagSummary(r, 1);
-    expect(w12.matched).toBe(2); // Incline bench press → Bench Press, Squat → Back Squat
-    const key = templateExercises(r, 1).find(({ ex }) => ex.line === 56)!.key;
-    expect(flagSummary(r, 1, { [key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true } }).matched).toBe(1);
+    // Incline bench press and Squat are only suggestions, so nothing was matched for the trainer
+    expect(w12.matched).toBe(0);
+    const strong = result();
+    const squat = templateExercises(strong, 1).find(({ ex }) => ex.line === 56)!;
+    squat.ex.match = { kind: "fuzzy", exerciseId: "squat", exerciseName: "Back Squat", candidates: [] };
+    expect(flagSummary(strong, 1).matched).toBe(1);
+    expect(flagSummary(strong, 1, { [squat.key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true } }).matched).toBe(0);
   });
 
   test("maps lines to items and back", () => {
@@ -284,9 +291,9 @@ describe("history import helpers", () => {
     expect(Object.keys(ids)).toHaveLength(map.size);
     expect(Object.keys(historyExerciseIds(map))).toHaveLength(map.size - names.length);
 
-    // fuzzy matches let stand are saved (here: Squat → Back Squat and two bench presses), exact ones aren't
+    // fuzzy matches let stand are saved (here: Squat and two bench presses, now new exercises), exact ones aren't
     const aliases = historyAliasesToSave(map, created);
-    expect(aliases).toContainEqual({ alias: "Squat", exerciseId: "squat", source: "import" });
+    expect(aliases).toContainEqual({ alias: "Squat", exerciseId: "id:Squat", source: "import" });
     const fuzzy = new Set(
       r.weeks.flatMap((w) => w.days.flatMap((d) => d.sessions.flatMap((s) => s.exercises.filter((e) => e.match?.kind === "fuzzy").map((e) => e.sourceName)))),
     );
