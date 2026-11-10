@@ -1,9 +1,12 @@
 import { Elysia, t } from "elysia";
 import { desc, eq } from "drizzle-orm";
 import { db, feedbackItems, feedbackMutes, trainers } from "@pt/db";
-import { DEFAULT_DELOAD, DeloadSettings, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
+import { DEFAULT_DELOAD, DeloadSettings, FEEDBACK_AI_MODES, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { trainerDeload } from "../lib/deload";
+import { feedbackAiMode } from "../lib/feedback-ai";
+
+const ADMIN_ONLY = { error: "admin only" } as const;
 
 const clip = (s: string, n: number) => {
   const c = s.replace(/\s+/g, " ").trim();
@@ -65,6 +68,24 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
         ),
       }),
       detail: { summary: "Change feedback email settings (master switch and/or per-event prefs)" },
+    },
+  )
+  /** Admin: whether the feedback auto-reply agent may answer, and how (see lib/feedback-ai). */
+  .get(
+    "/feedback-ai",
+    async ({ isAdmin, status }) => (isAdmin ? { mode: await feedbackAiMode() } : status(403, ADMIN_ONLY)),
+    { detail: { summary: "AI answers on feedback: off, drafts only, or auto-send confident ones (admin)" } },
+  )
+  .put(
+    "/feedback-ai",
+    async ({ isAdmin, trainerId, body, status }) => {
+      if (!isAdmin) return status(403, ADMIN_ONLY);
+      await db.update(trainers).set({ feedbackAiMode: body.mode }).where(eq(trainers.id, trainerId));
+      return { mode: body.mode };
+    },
+    {
+      body: t.Object({ mode: t.UnionEnum(FEEDBACK_AI_MODES) }),
+      detail: { summary: "Set AI answers on feedback (admin)" },
     },
   )
   .get("/deload", ({ trainerId }) => trainerDeload(trainerId), {
