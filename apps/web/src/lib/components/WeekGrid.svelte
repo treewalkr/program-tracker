@@ -236,7 +236,7 @@
                   {@const label = daySentence(s.client.name, d)}
                   {#snippet body()}
                     {@const tag = tagOf(d.sessions[0].name)}
-                    <span class="tag" class:word={!tag.includes(" ")}>{tag}</span>
+                    <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
                     <span class="foot">
                       {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
                       {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
@@ -354,12 +354,14 @@
     --sq-gap: 2px;
     --hw: calc(7 * var(--sq) + 6 * var(--sq-gap));
     --client-col: 152px;
+    /* 64px fits an eight-letter uppercase mono tag ("STRENGTH") on one line. */
+    --day-min: 64px;
     padding: 12px 16px;
   }
   .wk { display: flex; flex-direction: column; }
   .wk-tr {
     display: grid;
-    grid-template-columns: var(--client-col) auto repeat(7, minmax(48px, 1fr));
+    grid-template-columns: var(--client-col) auto repeat(7, minmax(var(--day-min), 1fr));
     column-gap: 4px;
     align-items: center;
   }
@@ -473,8 +475,9 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  /* One word never breaks mid-word: it stays on one line and ellipsizes. */
-  .cell .tag.word { display: block; white-space: nowrap; text-overflow: ellipsis; }
+  /* A word never breaks mid-word: one word, or (in the ~48px uppercase mono
+     cells) any tag with a word over eight letters, stays on one line and ellipsizes. */
+  .cell .tag.word, .cell .tag.longword { display: block; white-space: nowrap; text-overflow: ellipsis; }
   .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
   .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
   .cell .mk + .state { margin-left: 2px; }
@@ -590,17 +593,17 @@
   .tip-vol .fig { font-family: var(--font-mono); color: var(--ink); }
   .tip-client { display: inline-block; margin-top: 6px; font-weight: 500; }
 
-  /* Drop past weeks oldest-first as the panel narrows (each week ≈ 87px; 5 weeks need ~975px). */
-  @container weekgrid (max-width: 974px) { .hw:nth-child(1), .hw-label:nth-child(1) { display: none; } }
-  @container weekgrid (max-width: 887px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
-  @container weekgrid (max-width: 800px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
-  @container weekgrid (max-width: 713px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
+  /* Drop past weeks oldest-first as the panel narrows (each week ≈ 87px; 5 weeks need ~1106px). */
+  @container weekgrid (max-width: 1105px) { .hw:nth-child(1), .hw-label:nth-child(1) { display: none; } }
+  @container weekgrid (max-width: 1018px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
+  @container weekgrid (max-width: 931px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
+  @container weekgrid (max-width: 844px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
   /* The latest week stays at every width, so the history column (and its
      header, read by screen readers) always exists: rows are always 9 cells. */
-  @container weekgrid (max-width: 626px) {
-    .wk-in { --client-col: 120px; }
+  @container weekgrid (max-width: 757px) {
+    .wk-in { --client-col: 112px; --day-min: 48px; }
     /* The last week moves under the client name; days span both lines. */
-    .wk-tr { grid-template-columns: var(--client-col) repeat(7, minmax(48px, 1fr)); }
+    .wk-tr { grid-template-columns: var(--client-col) repeat(7, minmax(var(--day-min), 1fr)); }
     .wk-body .wk-client { grid-column: 1; grid-row: 1; padding-bottom: 4px; }
     .hist[role="cell"] { grid-column: 1; grid-row: 2; padding: 0 4px 8px; }
     .wk-body .wk-cell { grid-row: 1 / span 2; }
@@ -611,6 +614,15 @@
       padding: 0;
       overflow: hidden;
       clip-path: inset(50%);
+    }
+    /* Cells are 48–76px: the tag drops to sentence-case UI type so a name
+       ("Lower", "Strength A") fits whole over at most two lines; one long
+       word ellipsizes — the full name is in the label and the tooltip. */
+    .cell .tag.longword:not(.word) { display: -webkit-box; white-space: normal; }
+    .cell .tag {
+      font: 500 11px/1.2 var(--font-ui);
+      text-transform: none;
+      letter-spacing: -0.02em;
     }
   }
 
@@ -642,14 +654,6 @@
     .cell { height: 44px; padding: 3px 2px; }
     /* ~33px cells: fill and edge carry the state; the word is in the label and tooltip. */
     .cell .state { display: none; }
-    /* Cells are ~33px: the tag drops to sentence-case UI type so a short
-       name ("Lower", "Upper A") fits whole over at most two lines; anything
-       longer clips — the full name is in the label and the tooltip. */
-    .cell .tag {
-      font: 500 11px/1.2 var(--font-ui);
-      text-transform: none;
-      letter-spacing: -0.02em;
-    }
     .legend { justify-content: flex-start; }
   }
   /* Two weeks no longer fit beside the name. */
