@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.14 — 2026-11-10
+
 ### New
 - On a feedback ticket, "Show me" opens the screenshot when the page can't be opened or the element can't be found, and screenshots open full size.
 - Pasted programs with suggested exercise matches show "Did you mean …" buttons. Tap one to pick it, and it's remembered for next time.
