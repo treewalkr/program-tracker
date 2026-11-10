@@ -1072,46 +1072,52 @@
     <!-- novalidate: the sheet validates itself; a native bubble on a cell in a hidden phone card would block Save silently. -->
     <!-- Plain Enter never submits: formKeydown walks the cells; Cmd/Ctrl+Enter saves. Delegated from the cells' inputs. -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <form onsubmit={submit} onkeydown={formKeydown} bind:this={formEl} novalidate>
+    <form class="log-form" onsubmit={submit} onkeydown={formKeydown} bind:this={formEl} novalidate>
       <Panel title="Session" count={!isCardioSession && rows.length > 0 ? tally : undefined}>
         {#snippet act()}
           <div class="head-controls">
-            <label class="label" for="log-week">Week</label>
-            <select
-              class="select"
-              id="log-week"
-              value={selectedWeekNumber}
-              onchange={changeWeek}
-            >
-              {#each prog.weeks as w (w.week)}
-                <option value={w.week}>Week {w.week}</option>
-              {/each}
-            </select>
-            <label class="label" for="log-session">Session</label>
-            <select
-              class="select"
-              id="log-session"
-              value={sessionId}
-              onchange={changeSession}
-            >
-              {#each sessionGroups as g (g.day)}
-                <optgroup label={g.label}>
-                  {#each g.items as ws (ws.id)}
-                    <option value={ws.id}>{ws.label}</option>
-                  {/each}
-                </optgroup>
-              {/each}
-            </select>
-            <label class="label" for="log-date">Date</label>
-            <input
-              class="input date"
-              id="log-date"
-              type="date"
-              max={today}
-              value={date}
-              onchange={changeDate}
-              onblur={(e) => (e.currentTarget.value = date)}
-            />
+            <span class="hc-pair">
+              <label class="label" for="log-week">Week</label>
+              <select
+                class="select"
+                id="log-week"
+                value={selectedWeekNumber}
+                onchange={changeWeek}
+              >
+                {#each prog.weeks as w (w.week)}
+                  <option value={w.week}>Week {w.week}</option>
+                {/each}
+              </select>
+            </span>
+            <span class="hc-pair">
+              <label class="label" for="log-session">Session</label>
+              <select
+                class="select"
+                id="log-session"
+                value={sessionId}
+                onchange={changeSession}
+              >
+                {#each sessionGroups as g (g.day)}
+                  <optgroup label={g.label}>
+                    {#each g.items as ws (ws.id)}
+                      <option value={ws.id}>{ws.label}</option>
+                    {/each}
+                  </optgroup>
+                {/each}
+              </select>
+            </span>
+            <span class="hc-pair">
+              <label class="label" for="log-date">Date</label>
+              <input
+                class="input date"
+                id="log-date"
+                type="date"
+                max={today}
+                value={date}
+                onchange={changeDate}
+                onblur={(e) => (e.currentTarget.value = date)}
+              />
+            </span>
             {#if prefillable && !isCardioSession}
               <Button variant="ghost" small type="button" onclick={prefill}>Prefill prescribed</Button>
             {/if}
@@ -1610,6 +1616,8 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+  /* A label never wraps away from its field. */
+  .hc-pair { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .head-controls .label { margin: 0; }
   .head-controls .select { width: auto; max-width: 100%; }
   .date { width: 150px; }
@@ -1981,8 +1989,11 @@
     .cardio-form { grid-template-columns: 1fr; }
   }
 
-  /* ---- Phone: one exercise card at a time, one set per row, 44px steppers ---- */
-  @media (max-width: 640px) {
+  /* ---- Narrow sheet: one exercise card at a time, one set per row, 44px steppers.
+     Keyed to the form's own width, not the viewport: with the sidebar open a 660–930px
+     window leaves the card narrower than the 7-column table needs (~680px). ---- */
+  .log-form { container: logform / inline-size; }
+  @container logform (max-width: 679px) {
     .cols { display: none; }
     .block.off { display: none; }
     .block + .block { border-top: 0; }
@@ -2115,6 +2126,7 @@
 
     .head-controls .select, .date { width: 100%; }
     .head-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+    .hc-pair { display: contents; }
     .head-controls :global(.btn) { grid-column: 1 / -1; min-height: 44px; justify-content: center; }
     .readiness { display: grid; gap: 12px; }
     .rd-scale { display: flex; }

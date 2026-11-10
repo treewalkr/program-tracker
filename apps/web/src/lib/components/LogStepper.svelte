@@ -132,7 +132,8 @@
     text-align: right;
   }
 
-  @media (max-width: 640px) {
+  /* Matches the log page's narrow sheet (container on its form). */
+  @container logform (max-width: 679px) {
     .lstep-unit {
       display: block;
       margin-bottom: 4px;
