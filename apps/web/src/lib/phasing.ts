@@ -18,16 +18,42 @@ export interface PhasingRow {
   /** Progression rule vs the week before ("" / absent = none). */
   progKind?: ProgressionKind | "";
   progAmount?: number | null;
+  /** Coach's note for the week ("" / absent = none). */
+  note?: string;
 }
 
-export function phasingToRows(p: ProgramPhasingDto | null): PhasingRow[] {
-  if (!p?.weeks || p.weeks.length === 0) return [];
-  return p.weeks.map((w) => ({
+/** A scheme's weeks as editable rows (WeekPlanRows.svelte). */
+export function weekPlansToRows(weeks: readonly WeekPlan[]): PhasingRow[] {
+  return weeks.map((w) => ({
     directive: w.directive,
     metric: w.target?.metric ?? "",
     deltaPercent: w.target?.deltaPercent ?? null,
     ...(w.progression ? { progKind: w.progression.kind, progAmount: w.progression.amount } : {}),
+    ...(w.note ? { note: w.note } : {}),
   }));
+}
+
+/** Rows back to week plans, numbered from 1; blank targets, zero rules and empty notes drop out. */
+export function rowsToWeekPlans(rows: readonly PhasingRow[]): WeekPlan[] {
+  return rows.map((r, i) => {
+    const plan: WeekPlan = { week: i + 1, directive: r.directive };
+    const delta = r.deltaPercent == null ? NaN : Number(r.deltaPercent);
+    if (r.metric !== "" && Number.isFinite(delta)) {
+      plan.target = { metric: r.metric, deltaPercent: delta };
+    }
+    const amount = r.progAmount == null ? NaN : Number(r.progAmount);
+    if (r.progKind && Number.isFinite(amount) && amount !== 0) {
+      plan.progression = { kind: r.progKind, amount: r.progKind === "sets" ? Math.round(amount) : amount };
+    }
+    const note = r.note?.trim();
+    if (note) plan.note = note.slice(0, 500);
+    return plan;
+  });
+}
+
+export function phasingToRows(p: ProgramPhasingDto | null): PhasingRow[] {
+  if (!p?.weeks || p.weeks.length === 0) return [];
+  return weekPlansToRows(p.weeks);
 }
 
 export function rowsToPhasing(
@@ -38,31 +64,11 @@ export function rowsToPhasing(
 ): ProgramPhasingDto | null {
   const trimmedPhase = phase.trim();
   if (!trimmedPhase) return null;
-
-  const plannedWeeks = Math.max(rows.length, weeksCount);
-  const weeks: WeekPlan[] = rows.map((r, i) => {
-    const plan: WeekPlan = {
-      week: i + 1,
-      directive: r.directive,
-    };
-    if (r.metric !== "" && r.deltaPercent != null) {
-      plan.target = {
-        metric: r.metric,
-        deltaPercent: r.deltaPercent,
-      };
-    }
-    const amount = r.progAmount == null ? NaN : Number(r.progAmount);
-    if (r.progKind && Number.isFinite(amount) && amount !== 0) {
-      plan.progression = { kind: r.progKind, amount: r.progKind === "sets" ? Math.round(amount) : amount };
-    }
-    return plan;
-  });
-
   return {
-    plannedWeeks,
+    plannedWeeks: Math.max(rows.length, weeksCount),
     phase: trimmedPhase,
     nextPhase: nextPhase.trim() || null,
-    weeks,
+    weeks: rowsToWeekPlans(rows),
   };
 }
 

@@ -30,11 +30,11 @@
     sessionTag,
     stampWeeks,
     type ProgramSession,
-    type WeekDirective,
-    type WeekMetric,
     type WeekPlan,
   } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
+  import { rowsToWeekPlans } from "$lib/phasing";
+  import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
   import { exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
@@ -218,20 +218,10 @@
     return d.toLocaleString(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   };
   let savingScheme = $state(false);
-  const DIRECTIVES: WeekDirective[] = ["base", "+volume", "+intensity", "deload", "transition", "test"];
-  const METRICS: { value: WeekMetric; label: string }[] = [
-    { value: "overall_volume", label: "Overall vol" },
-    { value: "rep_volume", label: "Rep vol" },
-    { value: "intensity", label: "Intensity" },
-  ];
 
   const activeWeekPlans = $derived.by<WeekPlan[]>(() => {
     if (schemeMode === "custom") {
-      return customWeeks.map((cw, i) => ({
-        week: i + 1,
-        directive: cw.directive,
-        target: cw.metric ? { metric: cw.metric, deltaPercent: Number(cw.deltaPercent ?? 0) } : undefined,
-      }));
+      return rowsToWeekPlans(customWeeks);
     }
     if (schemeMode === "saved" && selectedScheme) {
       return selectedScheme.weeks;
@@ -578,47 +568,11 @@
                     />
                   </div>
                 {:else if schemeMode === "custom"}
-                  <div class="week-rows">
-                    {#each customWeeks as w, i (i)}
-                      <div class="week-row">
-                        <span class="wk">W{i + 1}</span>
-                        <select class="select tiny" bind:value={w.directive} aria-label="Week {i + 1} directive">
-                          {#each DIRECTIVES as opt (opt)}
-                            <option value={opt}>{opt}</option>
-                          {/each}
-                        </select>
-                        <select class="select tiny" bind:value={w.metric} aria-label="Week {i + 1} target">
-                          <option value="">No target</option>
-                          {#each METRICS as m (m.value)}
-                            <option value={m.value}>{m.label}</option>
-                          {/each}
-                        </select>
-                        {#if w.metric !== ""}
-                          <input
-                            class="input tiny-num"
-                            type="number"
-                            min="-100"
-                            max="200"
-                            placeholder="±%"
-                            aria-label="Week {i + 1} change, percent"
-                            bind:value={w.deltaPercent}
-                          />
-                        {/if}
-                        <Button
-                          variant="ghost"
-                          small
-                          disabled={customWeeks.length <= 2}
-                          onclick={() => (customWeeks = customWeeks.filter((_, j) => j !== i))}
-                          aria-label="Remove week {i + 1}"
-                        >{#snippet icon()}<Icon name="x" />{/snippet}</Button>
-                      </div>
-                    {/each}
-                    <Button
-                      variant="ghost"
-                      small
-                      class="self-start"
-                      onclick={() => customWeeks.push({ directive: "+volume", metric: "overall_volume", deltaPercent: 5 })}
-                    >+ Add week</Button>
+                  <div class="custom-scheme">
+                    <WeekPlanRows
+                      bind:rows={customWeeks}
+                      newRow={() => ({ directive: "+volume", metric: "overall_volume", deltaPercent: 5 })}
+                    />
                     <div class="save-row">
                       <input class="input" placeholder="Scheme name, e.g. 5-week peak" aria-label="Scheme name" bind:value={schemeName} />
                       <Button
@@ -833,15 +787,10 @@
   .scheme-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 6px; }
   .nowrap { white-space: nowrap; }
   .scheme-meta .num { font-family: var(--font-mono); color: var(--ink); }
-  .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-  .week-row { display: flex; align-items: center; gap: 6px; }
-  .week-row .select { flex: 1; min-width: 0; }
-  .tiny-num { width: 60px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
-  .wk { font: 500 12px var(--font-mono); width: 24px; color: var(--muted); }
+  .custom-scheme { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
   .save-row { display: flex; gap: 8px; align-items: center; }
   .save-row .input { flex: 1; min-width: 0; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .select.tiny { width: auto; padding: 3px 6px; font-size: 12.5px; }
 
   /* —— sessions —— */
   .builder-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

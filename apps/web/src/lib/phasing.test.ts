@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { phasingToRows, rowsToPhasing, type PhasingRow } from "./phasing";
+import { phasingToRows, rowsToPhasing, rowsToWeekPlans, weekPlansToRows, type PhasingRow } from "./phasing";
+import { SCHEME_PRESETS } from "@pt/shared";
 import type { ProgramPhasingDto } from "./api/types";
 
 describe("phasing", () => {
@@ -102,5 +103,22 @@ describe("progression rules (F23)", () => {
     ]);
     expect(rows[0].changes.map((c) => [c.exercise, c.from, c.to])).toEqual([["Squat", "100 kg", "102.5 kg"]]);
     expect(rows[1].changes).toEqual([]);
+  });
+
+  test("weekPlansToRows / rowsToWeekPlans round-trip every preset, notes and rules included", () => {
+    for (const p of SCHEME_PRESETS) expect(rowsToWeekPlans(weekPlansToRows(p.weeks))).toEqual(p.weeks);
+  });
+
+  test("rowsToWeekPlans drops blank notes, zero rules and targets without a number; rounds sets", () => {
+    const rows: PhasingRow[] = [
+      { directive: "base", metric: "", deltaPercent: null, note: "  " },
+      { directive: "+volume", metric: "overall_volume", deltaPercent: null, progKind: "sets", progAmount: 1.4, note: " RPE 8 " },
+      { directive: "+intensity", metric: "", deltaPercent: null, progKind: "kg", progAmount: 0 },
+    ];
+    expect(rowsToWeekPlans(rows)).toEqual([
+      { week: 1, directive: "base" },
+      { week: 2, directive: "+volume", progression: { kind: "sets", amount: 1 }, note: "RPE 8" },
+      { week: 3, directive: "+intensity" },
+    ]);
   });
 });

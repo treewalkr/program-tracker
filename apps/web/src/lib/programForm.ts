@@ -1,5 +1,6 @@
 import { normalizeGroups } from "@pt/shared";
-import type { CardioPrescriptionDto, ProgramExerciseDto, WeekDirective, WeekMetric } from "./api/types";
+import type { CardioPrescriptionDto, ProgramExerciseDto } from "./api/types";
+import type { PhasingRow } from "./phasing";
 
 /** The new-program form (/clients/:id/programs/new) — one session row of the template week. */
 export interface SessionRow {
@@ -12,11 +13,8 @@ export interface SessionRow {
   exercises: ProgramExerciseDto[];
 }
 
-export interface CustomWeekRow {
-  directive: WeekDirective;
-  metric: WeekMetric | "";
-  deltaPercent: number | null;
-}
+/** A custom scheme week — the shared week-plan row (WeekPlanRows.svelte). */
+export type CustomWeekRow = PhasingRow;
 
 /** Every field of the form — kept on this device until Save, and what Paste notes fills. */
 export interface DraftForm {
