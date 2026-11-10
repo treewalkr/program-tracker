@@ -165,7 +165,12 @@ export const realApi: TrainerApi = {
   schemes: async () =>
     (await unwrap<{ schemes: PeriodizationSchemeDto[] }>(client.v1.schemes.get())).schemes,
   createScheme: (input) => unwrap<PeriodizationSchemeDto>(client.v1.schemes.post(input)),
+  updateScheme: (id, input) => unwrap<PeriodizationSchemeDto>(client.v1.schemes({ id }).put(input)),
   deleteScheme: (id) => unwrap<void>(client.v1.schemes({ id }).delete()),
+  hiddenSchemePresets: async () =>
+    (await unwrap<{ hidden: string[] }>(client.v1.schemes.presets.hidden.get())).hidden,
+  setSchemePresetHidden: async (key, hidden) =>
+    (await unwrap<{ hidden: string[] }>(client.v1.schemes.presets({ key }).put({ hidden }))).hidden,
 
   notifications: async () =>
     (await unwrap<{ signals: SignalDto[] }>(client.v1.notifications.get())).signals,

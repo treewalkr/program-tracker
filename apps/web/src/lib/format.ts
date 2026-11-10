@@ -97,8 +97,8 @@ export function weekPlanLabel(w: WeekPlan): string {
         : w.target.metric === "rep_volume"
         ? "rep vol"
         : "intensity";
-    const sign = w.target.deltaPercent >= 0 ? "+" : "";
-    label += ` · ${short} ${sign}${w.target.deltaPercent}%`;
+    const d = w.target.deltaPercent;
+    label += ` · ${short} ${d >= 0 ? "+" : "−"}${Math.abs(d)}%`;
   }
   return label;
 }

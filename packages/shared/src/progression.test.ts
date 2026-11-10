@@ -39,7 +39,7 @@ describe("WeekProgression", () => {
 
   test("labels read like a coach writes them", () => {
     expect(progressionLabel({ kind: "kg", amount: 2.5 })).toBe("+2.5 kg");
-    expect(progressionLabel({ kind: "percent", amount: -5 })).toBe("−5%");
+    expect(progressionLabel({ kind: "percent", amount: -5 })).toBe("−5% 1RM");
     expect(progressionLabel({ kind: "sets", amount: 1 })).toBe("+1 set");
     expect(progressionLabel({ kind: "sets", amount: 2 })).toBe("+2 sets");
   });

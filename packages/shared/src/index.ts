@@ -27,3 +27,4 @@ export * from "./roles";
 export * from "./vocabulary";
 export * from "./autoreg";
 export * from "./logRestore";
+export * from "./schemePresets";

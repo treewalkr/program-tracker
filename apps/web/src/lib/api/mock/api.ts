@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, schemePreset } from "@pt/shared";
 import {
   aiDraftToDiffSource,
   cardioBehindSignal,
@@ -223,6 +223,8 @@ const state = {
   logs: [...seedLogs],
   templates: [...seedTemplates],
   schemes: [...seedSchemes],
+  /** Built-in scheme presets the trainer hid. */
+  hiddenPresets: [] as string[],
   chains: seedChains.map((c) => ({ ...c, muscleGroups: [...c.muscleGroups] })),
   generations: [] as GenerationDto[],
   imports: [] as ImportDto[],
@@ -562,20 +564,53 @@ export const mockApi: TrainerApi = {
     return [...state.schemes];
   },
 
-  async createScheme({ name, weeks }) {
+  async createScheme({ name, weeks, description, basedOn }) {
     await delay(250);
     const scheme: PeriodizationSchemeDto = {
       id: `sch-${uuid().slice(0, 8)}`,
       name,
+      description: description ?? null,
+      basedOn: basedOn ?? null,
       weeks,
+      updatedAt: null,
     };
     state.schemes = [...state.schemes, scheme];
     return scheme;
   },
 
+  async updateScheme(id, { name, weeks, description, basedOn }) {
+    await delay(250);
+    const old = state.schemes.find((s) => s.id === id);
+    if (!old) throw new Error("scheme not found");
+    const updated: PeriodizationSchemeDto = {
+      ...old,
+      name,
+      weeks,
+      description: description ?? null,
+      basedOn: basedOn === undefined ? old.basedOn : basedOn,
+      updatedAt: new Date().toISOString(),
+    };
+    state.schemes = state.schemes.map((s) => (s.id === id ? updated : s));
+    return updated;
+  },
+
   async deleteScheme(id) {
     await delay(200);
     state.schemes = state.schemes.filter((s) => s.id !== id);
+  },
+
+  async hiddenSchemePresets() {
+    await delay(80);
+    return [...state.hiddenPresets];
+  },
+
+  async setSchemePresetHidden(key, hidden) {
+    await delay(150);
+    if (!schemePreset(key)) throw new Error("preset not found");
+    state.hiddenPresets = hidden
+      ? [...new Set([...state.hiddenPresets, key])]
+      : state.hiddenPresets.filter((k) => k !== key);
+    return [...state.hiddenPresets];
   },
 
   async sessionTypes() {

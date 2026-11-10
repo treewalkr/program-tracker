@@ -30,11 +30,12 @@
     sessionTag,
     stampWeeks,
     type ProgramSession,
-    type WeekDirective,
-    type WeekMetric,
     type WeekPlan,
   } from "@pt/shared";
+  import { SCHEME_PRESETS, schemePreset } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
+  import { rowsToWeekPlans } from "$lib/phasing";
+  import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
   import { exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
@@ -173,9 +174,10 @@
     schemeName = f.schemeName;
     customWeeks = f.customWeeks;
     sessions = f.sessions.length > 0 ? f.sessions : [newRow()];
-    if (f.schemeMode === "saved" && !schemes.some((x) => x.id === f.selectedSchemeId)) {
-      schemeMode = schemes.length > 0 ? "saved" : "none";
-      selectedSchemeId = schemes[0]?.id ?? "";
+    if (f.schemeMode === "saved" && !pickable(f.selectedSchemeId)) {
+      const fallback = defaultPick();
+      schemeMode = fallback ? "saved" : "none";
+      selectedSchemeId = fallback;
     } else {
       schemeMode = f.schemeMode;
       selectedSchemeId = f.selectedSchemeId;
@@ -219,20 +221,10 @@
     return d.toLocaleString(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   };
   let savingScheme = $state(false);
-  const DIRECTIVES: WeekDirective[] = ["base", "+volume", "+intensity", "deload", "transition", "test"];
-  const METRICS: { value: WeekMetric; label: string }[] = [
-    { value: "overall_volume", label: "Overall vol" },
-    { value: "rep_volume", label: "Rep vol" },
-    { value: "intensity", label: "Intensity" },
-  ];
 
   const activeWeekPlans = $derived.by<WeekPlan[]>(() => {
     if (schemeMode === "custom") {
-      return customWeeks.map((cw, i) => ({
-        week: i + 1,
-        directive: cw.directive,
-        target: cw.metric ? { metric: cw.metric, deltaPercent: Number(cw.deltaPercent ?? 0) } : undefined,
-      }));
+      return rowsToWeekPlans(customWeeks);
     }
     if (schemeMode === "saved" && selectedScheme) {
       return selectedScheme.weeks;
@@ -240,9 +232,38 @@
     return [];
   });
 
-  const selectedScheme = $derived(
-    schemeMode === "saved" ? (schemes.find((s) => s.id === selectedSchemeId) ?? null) : null
-  );
+  /** Built-in presets the trainer hasn't hidden; picked as `preset:<key>` in the scheme select. */
+  let hiddenPresets = $state<string[]>([]);
+  const visiblePresets = $derived(SCHEME_PRESETS.filter((p) => !hiddenPresets.includes(p.key)));
+  const PRESET = "preset:";
+  const presetOf = (value: string) => (value.startsWith(PRESET) ? schemePreset(value.slice(PRESET.length)) : undefined);
+  /** A saved scheme or a visible preset still exists for this select value. */
+  const pickable = (value: string) =>
+    schemes.some((x) => x.id === value) || visiblePresets.some((p) => `${PRESET}${p.key}` === value);
+  /** Trainer's first scheme, else Linear strength 3:1 (or the first visible preset). */
+  const defaultPick = () => {
+    if (schemes[0]) return schemes[0].id;
+    const preset = visiblePresets.find((p) => p.key === "linear-3-1") ?? visiblePresets[0];
+    return preset ? `${PRESET}${preset.key}` : "";
+  };
+
+  const selectedScheme = $derived.by<{ name: string; weeks: WeekPlan[] } | null>(() => {
+    if (schemeMode !== "saved") return null;
+    const preset = presetOf(selectedSchemeId);
+    if (preset) return { name: preset.name, weeks: [...preset.weeks] };
+    return schemes.find((s) => s.id === selectedSchemeId) ?? null;
+  });
+
+  /** Pick a scheme; a preset also fills This phase / Next phase. */
+  function pick(value: string) {
+    schemeMode = value ? "saved" : "none";
+    selectedSchemeId = value;
+    const preset = presetOf(value);
+    if (preset) {
+      phase = preset.phase;
+      nextPhase = preset.nextPhase;
+    }
+  }
 
   $effect(() => {
     if (activeWeekPlans.length > 0) {
@@ -254,8 +275,7 @@
     if (value === "custom" || value === "none") {
       schemeMode = value;
     } else {
-      schemeMode = "saved";
-      selectedSchemeId = value;
+      pick(value);
     }
   }
 
@@ -276,14 +296,6 @@
     }
   }
 
-  async function removeScheme() {
-    if (!selectedScheme) return;
-    const gone = selectedScheme.id;
-    await api.deleteScheme(gone);
-    schemes = schemes.filter((s) => s.id !== gone);
-    if (schemes.length > 0) selectedSchemeId = schemes[0].id;
-    else schemeMode = "none";
-  }
 
   /** Session label as the trainer sees it: their name, else the track tag. */
   const labelOf = (s: SessionRow, i: number) => s.name.trim() || sessionTag({ kind: s.kind, seq: seqs[i] });
@@ -424,13 +436,13 @@
   async function firstLoad() {
     const detail = await api.client(id);
     client = detail.client;
-    [catalog, schemes, types] = await Promise.all([api.exercises(), api.schemes(), api.sessionTypes()]);
-    if (schemes.length > 0) {
-      schemeMode = "saved";
-      selectedSchemeId = schemes[0].id;
-    } else {
-      schemeMode = "none";
-    }
+    [catalog, schemes, types, hiddenPresets] = await Promise.all([
+      api.exercises(),
+      api.schemes(),
+      api.sessionTypes(),
+      api.hiddenSchemePresets(),
+    ]);
+    pick(defaultPick());
     await tick(); // let derived fields (scheme weeks → plannedWeeks) settle first
     defaults = formSnapshot();
     // an import still being read (or waiting for review) reopens Paste notes
@@ -557,9 +569,20 @@
                     value={schemeMode === "saved" ? selectedSchemeId : schemeMode}
                     onchange={(e) => onSchemeSelect(e.currentTarget.value)}
                   >
-                    {#each schemes as s (s.id)}
-                      <option value={s.id}>{s.name}</option>
-                    {/each}
+                    {#if visiblePresets.length > 0}
+                      <optgroup label="Presets">
+                        {#each visiblePresets as p (p.key)}
+                          <option value="{PRESET}{p.key}">{p.name}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
+                    {#if schemes.length > 0}
+                      <optgroup label="Your schemes">
+                        {#each schemes as s (s.id)}
+                          <option value={s.id}>{s.name}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
                     <option value="custom">Custom — set each week</option>
                     <option value="none">None — no week directives</option>
                   </select>
@@ -573,57 +596,14 @@
                   </div>
                   <div class="scheme-meta">
                     <span class="subtle nowrap" title="Block length comes from the scheme"><span class="num">{activeWeekPlans.length}</span>-week block</span>
-                    <ConfirmButton
-                      label="Delete scheme"
-                      confirmLabel="Really delete?"
-                      variant="danger"
-                      class="ghost"
-                      small
-                      onconfirm={removeScheme}
-                    />
+                    <a class="manage" href="/schemes">Manage schemes</a>
                   </div>
                 {:else if schemeMode === "custom"}
-                  <div class="week-rows">
-                    {#each customWeeks as w, i (i)}
-                      <div class="week-row">
-                        <span class="wk">W{i + 1}</span>
-                        <select class="select tiny" bind:value={w.directive} aria-label="Week {i + 1} directive">
-                          {#each DIRECTIVES as opt (opt)}
-                            <option value={opt}>{opt}</option>
-                          {/each}
-                        </select>
-                        <select class="select tiny" bind:value={w.metric} aria-label="Week {i + 1} target">
-                          <option value="">No target</option>
-                          {#each METRICS as m (m.value)}
-                            <option value={m.value}>{m.label}</option>
-                          {/each}
-                        </select>
-                        {#if w.metric !== ""}
-                          <input
-                            class="input tiny-num"
-                            type="number"
-                            min="-100"
-                            max="200"
-                            placeholder="±%"
-                            aria-label="Week {i + 1} change, percent"
-                            bind:value={w.deltaPercent}
-                          />
-                        {/if}
-                        <Button
-                          variant="ghost"
-                          small
-                          disabled={customWeeks.length <= 2}
-                          onclick={() => (customWeeks = customWeeks.filter((_, j) => j !== i))}
-                          aria-label="Remove week {i + 1}"
-                        >{#snippet icon()}<Icon name="x" />{/snippet}</Button>
-                      </div>
-                    {/each}
-                    <Button
-                      variant="ghost"
-                      small
-                      class="self-start"
-                      onclick={() => customWeeks.push({ directive: "+volume", metric: "overall_volume", deltaPercent: 5 })}
-                    >+ Add week</Button>
+                  <div class="custom-scheme">
+                    <WeekPlanRows
+                      bind:rows={customWeeks}
+                      newRow={() => ({ directive: "+volume", metric: "overall_volume", deltaPercent: 5 })}
+                    />
                     <div class="save-row">
                       <input class="input" placeholder="Scheme name, e.g. 5-week peak" aria-label="Scheme name" bind:value={schemeName} />
                       <Button
@@ -837,16 +817,12 @@
   .scheme-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .scheme-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 6px; }
   .nowrap { white-space: nowrap; }
+  .manage { font-size: 12px; }
   .scheme-meta .num { font-family: var(--font-mono); color: var(--ink); }
-  .week-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-  .week-row { display: flex; align-items: center; gap: 6px; }
-  .week-row .select { flex: 1; min-width: 0; }
-  .tiny-num { width: 60px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
-  .wk { font: 500 12px var(--font-mono); width: 24px; color: var(--muted); }
+  .custom-scheme { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
   .save-row { display: flex; gap: 8px; align-items: center; }
   .save-row .input { flex: 1; min-width: 0; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .select.tiny { width: auto; padding: 3px 6px; font-size: 12.5px; }
 
   /* —— sessions —— */
   .builder-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

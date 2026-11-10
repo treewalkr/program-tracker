@@ -11,10 +11,14 @@ import type {
 } from "../types";
 import { placeSession, placeWeeks, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType } from "@pt/shared";
 
+/** The sample trainer's own scheme; built-in presets come from SCHEME_PRESETS (@pt/shared). */
 export const schemes: PeriodizationSchemeDto[] = [
   {
     id: "sch-6wave",
     name: "6-week wave (coach's own)",
+    description: "Two build waves, then two lighter weeks before the next block.",
+    basedOn: null,
+    updatedAt: null,
     weeks: [
       { week: 1, directive: "base" },
       { week: 2, directive: "+volume" },
@@ -22,26 +26,6 @@ export const schemes: PeriodizationSchemeDto[] = [
       { week: 4, directive: "+volume" },
       { week: 5, directive: "transition" },
       { week: 6, directive: "transition" },
-    ],
-  },
-  {
-    id: "sch-4wave",
-    name: "4-week wave",
-    weeks: [
-      { week: 1, directive: "base" },
-      { week: 2, directive: "+volume" },
-      { week: 3, directive: "+intensity" },
-      { week: 4, directive: "deload" },
-    ],
-  },
-  {
-    id: "sch-31",
-    name: "3:1 block",
-    weeks: [
-      { week: 1, directive: "base" },
-      { week: 2, directive: "+volume" },
-      { week: 3, directive: "+volume" },
-      { week: 4, directive: "deload" },
     ],
   },
 ];

@@ -96,6 +96,8 @@ export const trainers = pgTable("trainers", {
   emailToken: text("email_token").unique(),
   /** The trainer's deload rule — null = the built-in default (read through `effectiveDeload`). */
   deloadSettings: jsonb("deload_settings").$type<DeloadSettings>(),
+  /** Built-in scheme presets (SCHEME_PRESETS keys) this trainer has hidden from the picker. */
+  hiddenSchemePresets: text("hidden_scheme_presets").array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -454,6 +456,10 @@ export const periodizationSchemes = pgTable("periodization_schemes", {
     .references(() => trainers.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   weeks: jsonb("weeks").$type<WeekPlan[]>().notNull(),
+  description: text("description"),
+  /** The preset key or scheme id this one was duplicated from. */
+  basedOn: text("based_on"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

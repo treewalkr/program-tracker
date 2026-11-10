@@ -18,6 +18,7 @@
 		| 'mail'
 		| 'bolt'
 		| 'pulse'
+		| 'trending'
 		| 'chevron'
 		| 'chevrons-up-down'
 		| 'search'
@@ -93,6 +94,7 @@
 		lock: { d: 'M8 10V7a4 4 0 0 1 8 0v3', rect: { x: 4, y: 10, w: 16, h: 10, rx: 2 } },
 		bolt: { d: 'M13 2 3 14h7l-1 8 10-12h-7l1-8z', filled: true },
 		pulse: { d: 'M12 6l7 12H5z', filled: true },
+		trending: { d: 'M3 17l6-6 4 4 8-8', d2: 'M15 7h6v6' },
 		chevron: { d: 'm6 9 6 6 6-6' },
 		'chevrons-up-down': { d: 'm7 15 5 5 5-5', d2: 'm7 9 5-5 5 5' },
 		search: { d: 'm20 20-4.2-4.2', circle: { cx: 11, cy: 11, r: 7 } },
