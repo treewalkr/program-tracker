@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.12 — 2026-11-10
+
 ### New
 - Readiness and flags on the log sheet: record how the client slept and how sore they are, and flag any exercise for pain or technique, or mark it skipped with a reason. Both show on the client's History.
 - A pain flag (or a skip because of pain) raises a "pain flag" alert for 14 days, so you check in before loading that exercise again. AI drafts see readiness and flags from recent sessions.
