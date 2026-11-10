@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### New
+- Supersets and circuits. In the program editor, click "Superset with next" to pair exercises. They show as A1/A2 with one rounds count for the group. Change it once and every exercise in the group follows.
+- Supersets show as a group on the program page, client page and AI draft review.
+- Logging a superset goes round by round on one card: A1, A2, then the next round. Enter moves in the same order.
+- Pasted notes with "Superset x 3 sets" or A1/A2 labels now come in as real supersets.
+- AI-written programs can include supersets.
+- The feedback mute toggle uses bell icons.
+
+### Fixed
+- A program you build by hand now saves in the order you built it, instead of being re-sorted by exercise label.
+
 ## v0.1.14 — 2026-11-10
 
 ### New
