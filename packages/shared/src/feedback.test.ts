@@ -4,6 +4,7 @@ import {
   feedbackFixPrompt,
   feedbackHandle,
   feedbackMarkdown,
+  ownedRouteRef,
   snapshotJson,
   toRepoPath,
   unpinnedContext,
@@ -40,6 +41,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   },
   hasElementShot: true,
   hasPageShot: false,
+  reachable: true,
   shippedIn: null,
   thread: [],
   unread: false,
@@ -217,5 +219,30 @@ describe("agentCheckBasis", () => {
       thread: [reply("a"), reply("draft", "draft"), reply("note", "private"), { kind: "status" as const, body: null, visibility: "public" as const }],
     });
     expect(noisy).toBe(plain);
+  });
+});
+
+describe("ownedRouteRef", () => {
+  const env = { viewport: { width: 1, height: 1, dpr: 1 }, userAgent: "t", appVersion: "x" };
+  const routed = (path: string, id: string | null, params: Record<string, string> = {}) => ({
+    ...unpinnedContext(path, env),
+    route: { path, id, params },
+  });
+
+  test("client and program pages name their record", () => {
+    expect(ownedRouteRef(routed("/clients/c1/log", "/clients/[id]/log", { id: "c1" }))).toEqual({ kind: "client", id: "c1" });
+    expect(ownedRouteRef(routed("/programs/p1", "/programs/[id]", { id: "p1" }))).toEqual({ kind: "program", id: "p1" });
+  });
+
+  test("pages without an owned record have none", () => {
+    expect(ownedRouteRef(routed("/clients", "/clients"))).toBeNull();
+    expect(ownedRouteRef(routed("/clients/new", "/clients/new"))).toBeNull();
+    expect(ownedRouteRef(routed("/admin/clients/c1", "/admin/clients/[id]", { id: "c1" }))).toBeNull();
+  });
+
+  test("unpinned tickets fall back to the typed path", () => {
+    expect(ownedRouteRef(unpinnedContext("/clients/c9/generate?x=1", env))).toEqual({ kind: "client", id: "c9" });
+    expect(ownedRouteRef(unpinnedContext("/clients/new", env))).toBeNull();
+    expect(ownedRouteRef(unpinnedContext("", env))).toBeNull();
   });
 });

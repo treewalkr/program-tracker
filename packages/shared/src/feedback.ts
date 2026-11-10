@@ -79,6 +79,26 @@ export function unpinnedContext(
   };
 }
 
+/** Pages under these route prefixes 404 for a trainer who doesn't own the record. */
+const OWNED_ROUTES = [
+  { kind: "client", routeId: "/clients/[id]", path: /^\/clients\/([^/?#]+)/ },
+  { kind: "program", routeId: "/programs/[id]", path: /^\/programs\/([^/?#]+)/ },
+] as const;
+
+/** The trainer-owned record a ticket's page is about, if any (e.g. the client on `/clients/<id>/log`). */
+export function ownedRouteRef(c: FeedbackContext): { kind: "client" | "program"; id: string } | null {
+  for (const r of OWNED_ROUTES) {
+    if (c.route.id) {
+      if (c.route.id.startsWith(r.routeId) && c.route.params.id) return { kind: r.kind, id: c.route.params.id };
+      continue;
+    }
+    // Unpinned tickets carry only the path the reporter typed.
+    const m = r.path.exec(c.route.path);
+    if (m && m[1] !== "new") return { kind: r.kind, id: m[1] };
+  }
+  return null;
+}
+
 /** The trainer who filed an item (or wrote a reply). */
 export interface FeedbackAuthor {
   id: string;
@@ -200,6 +220,12 @@ export interface FeedbackItem {
   unread: boolean;
   /** The caller muted emails about it. */
   muted: boolean;
+  /**
+   * The caller can open the ticket's page: false when it belongs to a client
+   * or program they don't own (the page would 404), so "Show me" shows the
+   * screenshot instead.
+   */
+  reachable: boolean;
   /** Admin only: last agent-readiness check, `stale` once the ticket changed after it. */
   agentCheck: (FeedbackAgentCheck & { stale: boolean }) | null;
   createdAt: string;

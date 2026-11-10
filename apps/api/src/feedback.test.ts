@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { desc, eq, inArray } from "drizzle-orm";
-import { db, feedbackItems, llmBlobs, llmCalls, trainers } from "@pt/db";
+import { clients, db, feedbackItems, llmBlobs, llmCalls, trainers } from "@pt/db";
 import type { FeedbackContext } from "@pt/shared";
 import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
@@ -332,6 +332,53 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
       expect(await json(res)).toEqual({ error: "admin only" });
     }
     expect((await call("PATCH", `/v1/feedback/${kaiItem}`, { status: "accepted" })).status).toBe(200);
+  });
+});
+
+describe.skipIf(!dbUp)("feedback reachability", () => {
+  const EMAIL = "fb-reach@example.com";
+  let kai = "";
+  let mine = "";
+  let theirs = "";
+  const items: string[] = [];
+  const onPage = (clientId: string, path = "/log"): FeedbackContext => ({
+    ...context,
+    route: { path: `/clients/${clientId}${path}`, id: `/clients/[id]${path}`, params: { id: clientId } },
+  });
+  const file = async (ctx: FeedbackContext, token?: string) => {
+    const id = (await json(await call("POST", "/v1/feedback", { comment: "where is it", context: ctx }, token))).id;
+    items.push(id);
+    return id as string;
+  };
+  const reachable = async (id: string, token?: string) =>
+    (await json(await call("GET", `/v1/feedback/${id}`, undefined, token))).reachable;
+
+  beforeAll(async () => {
+    await db.delete(trainers).where(eq(trainers.email, EMAIL));
+    const [row] = await db.insert(trainers).values({ name: "Kai", email: EMAIL }).returning({ id: trainers.id });
+    kai = (await createSession(row.id)).token;
+    const admin = await getDefaultTrainerId();
+    [{ id: mine }] = await db.insert(clients).values({ trainerId: admin, name: "Admin's client" }).returning({ id: clients.id });
+    [{ id: theirs }] = await db.insert(clients).values({ trainerId: row.id, name: "Kai's client" }).returning({ id: clients.id });
+  });
+  afterAll(async () => {
+    await db.delete(feedbackItems).where(inArray(feedbackItems.id, items));
+    await db.delete(clients).where(inArray(clients.id, [mine, theirs]));
+    await db.delete(trainers).where(eq(trainers.email, EMAIL));
+  });
+
+  test("the admin can open their own client's page, not another trainer's", async () => {
+    expect(await reachable(await file(onPage(mine)))).toBe(true);
+    const kaiTicket = await file(onPage(theirs), kai);
+    expect(await reachable(kaiTicket)).toBe(false);
+    expect(await reachable(kaiTicket, kai)).toBe(true);
+    const listed = await json(await call("GET", "/v1/feedback"));
+    expect(listed.find((i: { id: string }) => i.id === kaiTicket).reachable).toBe(false);
+  });
+
+  test("pages without a client, and unknown ids", async () => {
+    expect(await reachable(await file({ ...context, route: { path: "/clients", id: "/clients", params: {} } }))).toBe(true);
+    expect(await reachable(await file(onPage("not-a-uuid", "")))).toBe(false);
   });
 });
 

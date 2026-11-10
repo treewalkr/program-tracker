@@ -1,6 +1,23 @@
 import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
-import { db, feedbackComments, feedbackItems, feedbackMutes, feedbackReads, trainers, type FeedbackItemRow } from "@pt/db";
-import { agentCheckBasis, FEEDBACK_STATUSES, type FeedbackComment, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+import {
+  clients,
+  db,
+  feedbackComments,
+  feedbackItems,
+  feedbackMutes,
+  feedbackReads,
+  programs,
+  trainers,
+  type FeedbackItemRow,
+} from "@pt/db";
+import {
+  agentCheckBasis,
+  FEEDBACK_STATUSES,
+  ownedRouteRef,
+  type FeedbackComment,
+  type FeedbackItem,
+  type FeedbackStatus,
+} from "@pt/shared";
 
 /** Screenshot cap per image, decoded. Keeps a runaway capture out of the DB. */
 export const MAX_SHOT_BYTES = 4 * 1024 * 1024;
@@ -32,6 +49,30 @@ type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot"> & {
 };
 
 const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainers.avatarUrl };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Ids of the items whose page the viewer can open: pages about a client or
+ * program answer 404 unless the viewer owns it — the admin included. Two
+ * queries at most, whatever the number of rows.
+ */
+async function reachableItems(rows: ListRow[], viewerId: string): Promise<Set<string>> {
+  const refs = rows.map((r) => ({ itemId: r.id, ref: ownedRouteRef(r.context) }));
+  const wanted = { client: new Set<string>(), program: new Set<string>() };
+  for (const { ref } of refs) if (ref && UUID.test(ref.id)) wanted[ref.kind].add(ref.id);
+  const owned = new Set<string>();
+  for (const [kind, table] of [["client", clients], ["program", programs]] as const) {
+    const ids = [...wanted[kind]];
+    if (ids.length === 0) continue;
+    const found = await db
+      .select({ id: table.id })
+      .from(table)
+      .where(and(inArray(table.id, ids), eq(table.trainerId, viewerId)));
+    for (const f of found) owned.add(`${kind}:${f.id}`);
+  }
+  return new Set(refs.filter(({ ref }) => !ref || owned.has(`${ref.kind}:${ref.id}`)).map((r) => r.itemId));
+}
 
 /**
  * Rows → API items: attaches each thread (one query) and, for a viewer, the
@@ -77,6 +118,8 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       .where(and(eq(feedbackMutes.trainerId, viewerId), inArray(feedbackMutes.itemId, ids)));
     for (const m of mutes) muted.add(m.itemId);
   }
+  // No viewer (the export): nobody is opening pages, so don't flag any.
+  const reachable = viewerId ? await reachableItems(rows, viewerId) : null;
 
   return rows.map(({ trainerId, agentCheck, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
@@ -105,6 +148,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
           : null,
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),
+      reachable: reachable ? reachable.has(r.id) : true,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     };
