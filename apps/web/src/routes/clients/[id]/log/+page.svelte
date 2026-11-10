@@ -147,6 +147,8 @@
   let notes = $state("");
   let saving = $state(false);
   let savedCount = $state(0);
+  /** The log this page just saved: its own "Already logged" warning would only echo the save. */
+  let savedLogId = $state<string | null>(null);
   let error = $state<string | null>(null);
   let fieldErrors = $state<FieldErrors>({});
 
@@ -193,6 +195,8 @@
   /** programSessionId → its logs in this program, newest first. */
   const logged = $derived(program ? loggedBySession(pastLogs, program.id) : new Map<string, never[]>());
   const sessionLogged = $derived(logged.get(sessionId)?.[0] ?? null);
+  /** Warn about an earlier log, never about the one just saved here. */
+  const loggedNote = $derived(sessionLogged && sessionLogged.id !== savedLogId ? sessionLogged : null);
   const prefillable = $derived(rows.some((r) => !r.skipped && isBlank(r.reps) && r.rx));
   const labels = $derived(rowLabels(rows, nameOf));
   const blocks = $derived(blocksOf(rows));
@@ -295,6 +299,7 @@
   /** Reset the sheet to the selected session — or to its draft, when one was left on this device. */
   function loadSession() {
     savedCount = 0;
+    savedLogId = null;
     error = null;
     fieldErrors = {};
     current = 0;
@@ -633,6 +638,7 @@
     pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
     loadSession();
     savedCount = p.count;
+    savedLogId = saved.id;
     undo = {
       logId: saved.id,
       count: p.count,
@@ -848,6 +854,7 @@
       await api.deleteSessionLog(u.logId);
       undo = null;
       savedCount = 0;
+      savedLogId = null;
       error = null;
       fieldErrors = {};
       rows = u.snapshot.rows;
@@ -1144,14 +1151,14 @@
             {/if}
           </div>
         {/snippet}
-      {#if pickNote || sessionLogged || draftSavedAt}
+      {#if pickNote || loggedNote || draftSavedAt}
         <div class="panel-body sheet-notes">
           {#if pickNote}
             <p class="pick-note" aria-live="polite">{pickNote}</p>
           {/if}
-          {#if sessionLogged}
+          {#if loggedNote}
             <Note tone="warn" role="note">
-              Already logged {fmtDay(sessionLogged.date)}{isCardioSession ? "" : ` · ${sessionLogged.setCount} sets`}.
+              Already logged {fmtDay(loggedNote.date)}{isCardioSession ? "" : ` · ${loggedNote.setCount} sets`}.
               Saving again asks whether to replace it.
             </Note>
           {/if}
@@ -1524,6 +1531,26 @@
         {#if error}
           <p class="err-msg" role="alert">{error}</p>
         {/if}
+        <!-- The save confirms where the eye already is: in the bar, beside Save. -->
+        {#if undo}
+          <div class="undo-bar" role="status">
+            <span class="undo-msg">
+              {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} ${undo.count === 1 ? "set" : "sets"}.`}
+              {#if undo.replaced.length}Replaced the {undo.replaced.map((l) => fmtDay(l.date)).join(", ")} log.{/if}
+            </span>
+            <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
+            <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
+            <span class="undo-drain" aria-hidden="true" style:animation-duration={`${UNDO_SECONDS}s`}></span>
+          </div>
+        {:else if savedCount > 0}
+          <p class="ok-msg" role="status">
+            {#if isCardioSession}
+              Logged — counting toward this week's cardio target.
+            {:else}
+              Logged {savedCount} {savedCount === 1 ? "set" : "sets"} — now counting toward history and the next AI draft.
+            {/if}
+          </p>
+        {/if}
         <div class="submit-row">
           <span class="subtle tally" aria-live="polite">{status}</span>
           <span class="kbd-hint" aria-hidden="true">Enter: next cell · {isMac ? "⌘↵" : "Ctrl+↵"} save</span>
@@ -1541,25 +1568,6 @@
       </div>
     {/snippet}
 
-    {#if undo}
-      <div class="undo-bar" role="status">
-        <span class="undo-msg">
-          {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} ${undo.count === 1 ? "set" : "sets"}.`}
-          {#if undo.replaced.length}Replaced the {undo.replaced.map((l) => fmtDay(l.date)).join(", ")} log.{/if}
-        </span>
-        <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
-        <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
-        <span class="undo-drain" aria-hidden="true" style:animation-duration={`${UNDO_SECONDS}s`}></span>
-      </div>
-    {:else if savedCount > 0}
-      <p class="ok-msg" role="status">
-        {#if isCardioSession}
-          Logged — counting toward this week's cardio target.
-        {:else}
-          Logged {savedCount} {savedCount === 1 ? "set" : "sets"} — now counting toward history and the next AI draft.
-        {/if}
-      </p>
-    {/if}
     <p class="sr-only" aria-live="polite">{announce}</p>
 
     <p class="subtle hint">
@@ -1984,6 +1992,7 @@
   .save-bar .submit-row { justify-content: flex-end; }
   .save-bar .tally { margin-right: auto; }
   .save-bar .err-msg { margin: 0 0 8px; }
+  .save-bar .undo-bar, .save-bar .ok-msg { margin: 0 0 8px; }
   .fb-dock {
     display: inline-flex;
     align-items: center;
@@ -2222,6 +2231,8 @@
     .kbd-hint { display: none; }
     .fb-dock { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 6px; }
     .fb-word { display: none; }
+    .save-bar .undo-bar { padding-top: 4px; padding-bottom: 6px; }
+    .undo-bar :global(.btn) { min-height: 44px; padding: 0 16px; }
     .blk-act { flex-wrap: wrap; }
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 44px; padding: 0 6px; font-size: 14px; flex: 1; }
