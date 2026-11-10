@@ -93,7 +93,8 @@
     ["/", "/admin"].includes(href) ? page.url.pathname === href : page.url.pathname.startsWith(href);
 
   /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
-     narrow screens start as the rail and open the full menu over the page. */
+     narrow screens start as the rail (hidden on phones) and open the full menu
+     over the page. */
   const RAIL_KEY = "pt.sidebar.rail";
   const narrowQuery = window.matchMedia("(max-width: 860px)");
   let narrow = $state(narrowQuery.matches);
@@ -115,8 +116,8 @@
     clearTimeout(settleTimer);
     railSettling = false;
   }
-  /* Gym-floor routes give phones the full width: the rail hides (≤640px) and a
-     menu button in the page corner opens the same drawer. */
+  /* Gym-floor routes swap the top-bar toggle for a larger corner menu button
+     on phones (≤640px), where the rail is hidden on every page. */
   const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
   const sideOpen = $derived(!rail);
 
@@ -750,10 +751,15 @@
   }
 
   .focus-menu { display: none; }
+  /* Phones give every page the full width: the rail hides and the menu
+     button (top bar, or the corner on gym-floor routes) opens the drawer. */
   @media (max-width: 640px) {
-    .shell.focus.slim { grid-template-columns: 0 1fr; }
-    .shell.focus.rail .side { display: none; }
-    .shell.focus.drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
+    .shell.slim { grid-template-columns: 0 1fr; }
+    .shell.rail .side { display: none; }
+    .shell.drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
+    /* 44px touch target around the 28px toggle, without moving the title line. */
+    .side-toggle { position: relative; }
+    .side-toggle::before { content: ""; position: absolute; inset: -8px; }
     .shell.focus .main { padding: 12px 12px 56px; }
     .shell.focus .topbar { display: none; } /* the corner menu button covers it here */
     .focus-menu {
