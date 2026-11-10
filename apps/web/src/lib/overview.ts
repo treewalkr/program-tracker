@@ -12,7 +12,12 @@ import {
 } from "@pt/shared";
 import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
 
-export type SessionStatus = "logged" | "missed" | "today" | "upcoming";
+/**
+ * A planned session's state on its date. `unlogged` is the grace period: a past
+ * session not logged yet but within `GRACE_DAYS` of today (clients report late,
+ * trainers log in batches); only older ones are `missed`.
+ */
+export type SessionStatus = "logged" | "missed" | "unlogged" | "today" | "upcoming";
 export type DayStatus = SessionStatus | "rest" | "before-start";
 
 export interface StripSession {
@@ -22,6 +27,8 @@ export interface StripSession {
   status: SessionStatus;
   /** False for a log on a day that had nothing of its own planned. */
   planned: boolean;
+  /** From the program session, or the log for an unplanned extra. */
+  kind: "lifting" | "cardio";
   /** Set when a planned session was logged on another day of its week. */
   loggedOn?: string;
 }
@@ -30,7 +37,7 @@ export interface StripDay {
   date: string;
   /** 1=Mon … 7=Sun */
   weekday: number;
-  /** missed > today > upcoming > logged; rest = nothing planned or logged;
+  /** missed > unlogged > today > upcoming > logged; rest = nothing planned or logged;
    *  before-start = nothing logged before the block / client began (never missed). */
   status: DayStatus;
   sessions: StripSession[];
@@ -42,8 +49,8 @@ export interface StripDay {
   openSessionId?: string;
 }
 
-/** missed → due today → on track → nothing this week, decided by the current week. */
-export type ClientException = "missed" | "today" | "on-track" | "none";
+/** missed → not logged yet → due today → on track → nothing this week, decided by the current week. */
+export type ClientException = "missed" | "unlogged" | "today" | "on-track" | "none";
 
 export interface ClientStrip {
   client: ClientDto;
@@ -88,6 +95,9 @@ export function weekRangeLabel(weekDates: string[]): string {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** Days after its date a planned session stays `unlogged` before it reads as `missed`. */
+export const GRACE_DAYS = 2;
+
 /** Calendar date `days` away from an ISO date (local, DST-safe). */
 function addDays(iso: string, days: number): string {
   const d = new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)) + days);
@@ -100,7 +110,7 @@ export function stripWeeks(now: Date, count = 6): string[][] {
   return Array.from({ length: count }, (_, i) => current.map((d) => addDays(d, -7 * (count - 1 - i))));
 }
 
-const STATUS_RANK: SessionStatus[] = ["missed", "today", "upcoming", "logged"];
+const STATUS_RANK: SessionStatus[] = ["missed", "unlogged", "today", "upcoming", "logged"];
 
 /**
  * One client's contributions strip: every day of `weeks`, its planned sessions
@@ -112,6 +122,7 @@ const STATUS_RANK: SessionStatus[] = ["missed", "today", "upcoming", "logged"];
  * week (F08); logs without a resolvable session satisfy their own date.
  * Nothing before the block anchor or the client's creation is ever missed —
  * those days show logs only (F07). Logs from other programs show as logged.
+ * A past session not logged is `unlogged` for `GRACE_DAYS`, then `missed`.
  */
 export function buildClientStrip(
   client: ClientDto,
@@ -121,6 +132,7 @@ export function buildClientStrip(
   today: string
 ): ClientStrip {
   const currentWeek = weeks[weeks.length - 1];
+  const graceFrom = addDays(today, -GRACE_DAYS);
   const strip: ClientStrip = { client, program: program?.name ?? null, weeks: [], unscheduled: 0, exception: "none" };
   if (client.cardioTarget) {
     strip.cardio = {
@@ -183,13 +195,35 @@ export function buildClientStrip(
           const logged = on !== undefined || unresolvedDates.has(date);
           if (!logged && !due) continue;
           plannedSlots.add(slot(s));
-          const status: SessionStatus = logged ? "logged" : date === today ? "today" : date < today ? "missed" : "upcoming";
-          sessions.push({ id: s.id, name: s.name, status, planned: true, ...(on && on !== date ? { loggedOn: on } : {}) });
+          const status: SessionStatus = logged
+            ? "logged"
+            : date === today
+              ? "today"
+              : date > today
+                ? "upcoming"
+                : date >= graceFrom
+                  ? "unlogged"
+                  : "missed";
+          sessions.push({
+            id: s.id,
+            name: s.name,
+            status,
+            planned: true,
+            kind: s.kind === "cardio" ? "cardio" : "lifting",
+            ...(on && on !== date ? { loggedOn: on } : {}),
+          });
         }
         for (const l of dayLogs) {
           const sl = l.programId === program?.id && l.programSessionId ? slotById.get(l.programSessionId) : undefined;
           const covers = l.programId === program?.id && (sl ? plannedSlots.has(sl) : sessions.length > 0);
-          if (!covers) sessions.push({ id: (sl && l.programSessionId) || null, name: extraName(l), status: "logged", planned: false });
+          if (!covers)
+            sessions.push({
+              id: (sl && l.programSessionId) || null,
+              name: extraName(l),
+              status: "logged",
+              planned: false,
+              kind: l.kind === "cardio" ? "cardio" : "lifting",
+            });
         }
         const worst = STATUS_RANK.find((st) => sessions.some((s) => s.status === st));
         const status: DayStatus = worst ?? (due ? "rest" : "before-start");
@@ -216,7 +250,9 @@ export function buildClientStrip(
   const now = strip.weeks[strip.weeks.length - 1];
   strip.exception = now.some((d) => d.status === "missed")
     ? "missed"
-    : now.some((d) => d.status === "today")
+    : now.some((d) => d.status === "unlogged")
+      ? "unlogged"
+      : now.some((d) => d.status === "today")
       ? "today"
       : now.some((d) => d.sessions.some((s) => s.planned)) || strip.unscheduled > 0
         ? "on-track"
@@ -224,16 +260,22 @@ export function buildClientStrip(
   return strip;
 }
 
-const EXCEPTION_RANK: Record<ClientException, number> = { missed: 0, today: 1, "on-track": 2, none: 3 };
+const EXCEPTION_RANK: Record<ClientException, number> = { missed: 0, unlogged: 1, today: 2, "on-track": 3, none: 4 };
 
-/** Exceptions first: missed → due today → on track → nothing this week; roster order within each. */
+/** Exceptions first: missed → not logged → due today → on track → nothing this week; roster order within each. */
 export function exceptionOrder(strips: ClientStrip[]): ClientStrip[] {
   return [...strips].sort((a, b) => EXCEPTION_RANK[a.exception] - EXCEPTION_RANK[b.exception]);
 }
 
 /** This week's planned sessions across clients. */
-export function weekTally(strips: ClientStrip[]): { logged: number; planned: number; dueToday: number; missed: number } {
-  const t = { logged: 0, planned: 0, dueToday: 0, missed: 0 };
+export function weekTally(strips: ClientStrip[]): {
+  logged: number;
+  planned: number;
+  dueToday: number;
+  unlogged: number;
+  missed: number;
+} {
+  const t = { logged: 0, planned: 0, dueToday: 0, unlogged: 0, missed: 0 };
   for (const s of strips) {
     for (const d of s.weeks[s.weeks.length - 1] ?? []) {
       for (const x of d.sessions) {
@@ -241,11 +283,42 @@ export function weekTally(strips: ClientStrip[]): { logged: number; planned: num
         t.planned += 1;
         if (x.status === "logged") t.logged += 1;
         else if (x.status === "today") t.dueToday += 1;
+        else if (x.status === "unlogged") t.unlogged += 1;
         else if (x.status === "missed") t.missed += 1;
       }
     }
   }
   return t;
+}
+
+/** This week's cells (client-days) by state — what the grid draws, one per day. */
+export function weekDayTally(strips: ClientStrip[]): { missed: number; unlogged: number; today: number; planned: number } {
+  const t = { missed: 0, unlogged: 0, today: 0, planned: 0 };
+  for (const s of strips) {
+    for (const d of s.weeks[s.weeks.length - 1] ?? []) {
+      if (d.sessions.some((x) => x.planned)) t.planned += 1;
+      if (d.status === "missed") t.missed += 1;
+      else if (d.status === "unlogged") t.unlogged += 1;
+      else if (d.status === "today") t.today += 1;
+    }
+  }
+  return t;
+}
+
+/**
+ * The Training week counter: client-days that need the trainer, counted like
+ * the cells ("2 missed · 3 to log · 1 due today"), toned red when anything is
+ * missed, amber when only logging is behind. Undefined when nothing is planned.
+ */
+export function weekCounter(strips: ClientStrip[]): { label: string; tone?: "bad" | "warn" } | undefined {
+  const t = weekDayTally(strips);
+  const parts = [
+    t.missed ? `${t.missed} missed` : null,
+    t.unlogged ? `${t.unlogged} to log` : null,
+    t.today ? `${t.today} due today` : null,
+  ].filter((p): p is string => !!p);
+  if (parts.length) return { label: parts.join(" · "), tone: t.missed ? "bad" : t.unlogged ? "warn" : undefined };
+  return t.planned ? { label: "all on track" } : undefined;
 }
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -270,6 +343,7 @@ export const LEVEL_WORDS = ["", "light day", "below usual", "usual day", "big da
 export const SESSION_WORDS: Record<SessionStatus, string> = {
   logged: "logged",
   missed: "missed",
+  unlogged: "not logged",
   today: "due today",
   upcoming: "upcoming",
 };
@@ -285,4 +359,10 @@ export function daySentence(clientName: string, d: StripDay): string {
   if (d.sessions.length === 0) return `${head}: nothing planned.`;
   const vol = d.volume ? ` — ${volumeLabel(d.volume)}, ${LEVEL_WORDS[d.level]}` : "";
   return `${head}: ${d.sessions.map(sessionLine).join("; ")}${vol}.`;
+}
+
+/** Why a client has no sessions this week, as a short label: their status when not active, else no program / nothing planned. */
+export function idleReason(s: ClientStrip): string {
+  if (s.client.status && s.client.status !== "active") return s.client.status;
+  return s.program ? "nothing planned" : "no program";
 }

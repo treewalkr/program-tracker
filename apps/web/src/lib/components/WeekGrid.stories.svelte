@@ -60,7 +60,7 @@
           let status: StripSession['status'] =
             date > today ? 'upcoming' : date === today ? 'today' : r() < (spec.skip ?? 0.15) ? 'missed' : 'logged';
           if (spec.all && date <= today) status = spec.all;
-          return { id, name, status, planned: true };
+          return { id, name, status, planned: true, kind: /bike|run|ride|zone|interval|conditioning/i.test(name) ? 'cardio' : 'lifting' };
         });
         const logged = sessions.some((s) => s.status === 'logged');
         const worst = (['missed', 'today', 'upcoming', 'logged'] as const).find((st) => sessions.some((s) => s.status === st));
