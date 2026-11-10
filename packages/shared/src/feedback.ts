@@ -134,6 +134,13 @@ export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists"
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
 export type FeedbackAiConfidence = (typeof FEEDBACK_AI_CONFIDENCE)[number];
 
+/** How likely the fix is to break something or miss the point. */
+export const FEEDBACK_AI_RISKS = ["low", "medium", "high"] as const;
+export type FeedbackAiRisk = (typeof FEEDBACK_AI_RISKS)[number];
+/** Caps on an AI fix plan: steps, and characters per step. */
+export const FEEDBACK_FIX_PLAN_MAX_STEPS = 8;
+export const FEEDBACK_FIX_PLAN_STEP_MAX = 300;
+
 /** The admin's switch: no AI answers, drafts for review only, or send confident ones. */
 export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
 export type FeedbackAiMode = (typeof FEEDBACK_AI_MODES)[number];
@@ -150,6 +157,10 @@ export interface FeedbackAiMeta {
   confidence: FeedbackAiConfidence;
   /** `file:line` references backing the verdict. */
   citations: string[];
+  /** `bug` / `feature` only: concrete steps for the coding agent, naming the files to change. */
+  fixPlan?: string[];
+  /** `bug` / `feature` only: how risky the fix is. */
+  risk?: FeedbackAiRisk;
   /** `ticketBasis` of the ticket the agent answered. */
   basis: string;
   model: string | null;

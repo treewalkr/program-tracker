@@ -236,6 +236,35 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect((await answer("00000000-0000-4000-8000-000000000000", { basis })).status).toBe(404);
   });
 
+  test("validates the fix plan and risk", async () => {
+    const id = await ticket("Validate plan");
+    const basis = await basisOf(id);
+    const bug = { basis, verdict: "bug", confidence: "medium" };
+    expect((await answer(id, { ...bug, risk: "huge" })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: "Open the file" })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: Array.from({ length: 9 }, (_, i) => `Step ${i}`) })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: ["x".repeat(301)] })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: [""] })).status).toBe(422);
+    expect(await inInbox(id)).toBeDefined(); // nothing was stored
+  });
+
+  test("a bug answer stores its fix plan and risk on the private note", async () => {
+    const id = await ticket("Plan me");
+    const fixPlan = Array.from({ length: 8 }, (_, i) => `Step ${i + 1} in apps/web/src/lib/A.svelte`);
+    const res = await answer(id, { basis: await basisOf(id), verdict: "bug", confidence: "medium", fixPlan, risk: "low" });
+    expect(res.status).toBe(200);
+    const [note] = (await asAdmin(id)).thread;
+    expect(note).toMatchObject({ visibility: "private", aiMeta: { verdict: "bug", risk: "low", fixPlan } });
+  });
+
+  test("an answer without a plan stores none", async () => {
+    const id = await ticket("No plan");
+    await answer(id, { basis: await basisOf(id) });
+    const meta = (await asAdmin(id)).thread[0].aiMeta;
+    expect(meta.fixPlan).toBeUndefined();
+    expect(meta.risk).toBeUndefined();
+  });
+
   test("a note without a reply is stored privately", async () => {
     const id = await ticket("Note only");
     const out = await json(await answer(id, { basis: await basisOf(id), verdict: "bug", confidence: "medium" }));
