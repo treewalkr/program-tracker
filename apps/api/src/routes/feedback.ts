@@ -1,5 +1,5 @@
 import { Elysia, t, type Static } from "elysia";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems, feedbackMutes } from "@pt/db";
 import {
   FEEDBACK_STATUSES,
@@ -54,6 +54,7 @@ const Status = t.Union([t.Literal("new"), t.Literal("accepted"), t.Literal("done
 // Keeps the literal list in step with FEEDBACK_STATUSES.
 true satisfies (typeof FEEDBACK_STATUSES)[number] extends Static<typeof Status> ? true : false;
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
+const CommentParams = t.Object({ id: t.String({ format: "uuid" }), cid: t.String({ format: "uuid" }) });
 
 const ADMIN_ONLY = { error: "admin only" } as const;
 const NOT_FOUND = { error: "feedback not found" } as const;
@@ -241,6 +242,58 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       body: t.Object({ body: t.String({ minLength: 1, maxLength: 5000 }) }),
       detail: { summary: "Reply on a feedback item" },
     },
+  )
+  /**
+   * Admin: send an AI draft reply, optionally edited first. It moves to the
+   * end of the thread (sent now) and notifies like any reply.
+   */
+  .post(
+    "/:id/comments/:cid/publish",
+    async ({ params, body, status, isAdmin, trainerId, who }) => {
+      if (!isAdmin) return status(403, ADMIN_ONLY);
+      const text = body.body?.trim();
+      if (body.body !== undefined && !text) return status(422, { error: "reply is empty" });
+      const [row] = await db
+        .update(feedbackComments)
+        .set({ visibility: "public", createdAt: new Date(), ...(text ? { body: text } : {}) })
+        .where(
+          and(
+            eq(feedbackComments.id, params.cid),
+            eq(feedbackComments.itemId, params.id),
+            eq(feedbackComments.visibility, "draft"),
+          ),
+        )
+        .returning({ id: feedbackComments.id });
+      if (!row) return status(404, { error: "draft not found" });
+      notifyFeedback({ kind: "reply", itemId: params.id, commentId: row.id, by: trainerId });
+      await markSeen(trainerId, params.id);
+      return (await getFeedback(params.id, who))!;
+    },
+    {
+      params: CommentParams,
+      body: t.Object({ body: t.Optional(t.String({ maxLength: 5000 })) }),
+      detail: { summary: "Send an AI draft reply (optionally edited)" },
+    },
+  )
+  /** Admin: discard an AI draft or private note. Sent replies stay. */
+  .delete(
+    "/:id/comments/:cid",
+    async ({ params, status, isAdmin, who }) => {
+      if (!isAdmin) return status(403, ADMIN_ONLY);
+      const [row] = await db
+        .delete(feedbackComments)
+        .where(
+          and(
+            eq(feedbackComments.id, params.cid),
+            eq(feedbackComments.itemId, params.id),
+            ne(feedbackComments.visibility, "public"),
+          ),
+        )
+        .returning({ id: feedbackComments.id });
+      if (!row) return status(404, { error: "draft not found" });
+      return (await getFeedback(params.id, who))!;
+    },
+    { params: CommentParams, detail: { summary: "Discard an AI draft or private note" } },
   )
   /** The caller has looked at this item: clears it from their unread count. */
   .post(
