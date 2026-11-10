@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### New
+- Edit your feedback tickets after sending them: change the text or the images. The ticket shows when it was edited, and the other side sees the edit as unread.
+- Training week: a session now gets two days' grace before it counts as missed. Until then it shows in amber as "not logged yet".
+- Training week: the counter counts days and changes colour as the week runs out. Idle clients are listed as links, each with the reason it's idle.
+- Training week: today's column is highlighted, and the legend only lists the states you can see.
+- Logging "as prescribed" now shows every set it will save before you confirm. Sets you typed yourself are in bold.
+- Saving a log is confirmed in the save bar.
+
+### Fixed
+- Week grid cells are all the same height, tags stay within two lines at any width, and extra sessions are marked by type. Cardio shows its unit.
+- On narrow screens the week grid keeps the latest history weeks and gives the legend its own line.
+- Better contrast for amber warnings in dark mode and for planned history squares.
+- The Feedback button sits in the log sheet's save bar instead of covering the sets.
+- The image tray shows a clearer upload count and whole-image thumbnails.
+- The sidebar scrollbar only shows when you hover over it.
+
 ## v0.1.17 — 2026-11-10
 
 ### New
