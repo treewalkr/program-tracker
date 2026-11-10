@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  agentCheckBasis,
+  ticketBasis,
   feedbackFixPrompt,
   feedbackHandle,
   feedbackMarkdown,
@@ -205,16 +205,16 @@ describe("feedbackFixPrompt", () => {
   });
 });
 
-describe("agentCheckBasis", () => {
+describe("ticketBasis", () => {
   const reply = (body: string, visibility: "public" | "draft" | "private" = "public") => ({ kind: "reply" as const, body, visibility });
   const base = { comment: "c", triageNote: null };
 
   test("changes with public replies", () => {
-    expect(agentCheckBasis({ ...base, thread: [reply("a")] })).not.toBe(agentCheckBasis({ ...base, thread: [] }));
+    expect(ticketBasis({ ...base, thread: [reply("a")] })).not.toBe(ticketBasis({ ...base, thread: [] }));
   });
   test("ignores drafts, private notes and status entries", () => {
-    const plain = agentCheckBasis({ ...base, thread: [reply("a")] });
-    const noisy = agentCheckBasis({
+    const plain = ticketBasis({ ...base, thread: [reply("a")] });
+    const noisy = ticketBasis({
       ...base,
       thread: [reply("a"), reply("draft", "draft"), reply("note", "private"), { kind: "status" as const, body: null, visibility: "public" as const }],
     });

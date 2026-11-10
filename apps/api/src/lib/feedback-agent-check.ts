@@ -5,7 +5,7 @@ import { shotMime } from "./feedback";
 import {
   AGENT_VERDICTS,
   DEFAULT_PROVIDER_ID,
-  agentCheckBasis,
+  ticketBasis,
   feedbackItemMarkdown,
   type FeedbackAgentCheck,
   type FeedbackItem,
@@ -134,7 +134,7 @@ export async function runAgentCheck(
     risk: v.risk,
     model: rt.model,
     checkedAt: new Date().toISOString(),
-    basis: agentCheckBasis(item),
+    basis: ticketBasis(item),
   };
   await db.update(feedbackItems).set({ agentCheck: check }).where(eq(feedbackItems.id, item.id));
   return { ok: true, check };

@@ -11,7 +11,7 @@ import {
   type FeedbackItemRow,
 } from "@pt/db";
 import {
-  agentCheckBasis,
+  ticketBasis,
   FEEDBACK_STATUSES,
   ownedRouteRef,
   type FeedbackComment,
@@ -144,7 +144,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       thread,
       agentCheck:
         admin && agentCheck
-          ? { ...agentCheck, stale: agentCheck.basis !== agentCheckBasis({ comment: r.comment, triageNote: r.triageNote, thread }) }
+          ? { ...agentCheck, stale: agentCheck.basis !== ticketBasis({ comment: r.comment, triageNote: r.triageNote, thread }) }
           : null,
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),

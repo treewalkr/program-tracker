@@ -150,7 +150,7 @@ export interface FeedbackAiMeta {
   confidence: FeedbackAiConfidence;
   /** `file:line` references backing the verdict. */
   citations: string[];
-  /** `agentCheckBasis` of the ticket the agent answered. */
+  /** `ticketBasis` of the ticket the agent answered. */
   basis: string;
   model: string | null;
   runAt: string;
@@ -192,7 +192,7 @@ export interface FeedbackAgentCheck {
   risk: "low" | "medium" | "high";
   model: string;
   checkedAt: string;
-  /** Fingerprint of the ticket text it judged — see `agentCheckBasis`. */
+  /** Fingerprint of the ticket text it judged — see `ticketBasis`. */
   basis: string;
 }
 
@@ -201,7 +201,7 @@ export interface FeedbackAgentCheck {
  * note and the public replies. When any changes, the stored check is stale.
  * Drafts and private notes don't count — the same basis whoever computes it.
  */
-export function agentCheckBasis(
+export function ticketBasis(
   item: Pick<FeedbackItem, "comment" | "triageNote"> & { thread: Pick<FeedbackComment, "kind" | "body" | "visibility">[] },
 ): string {
   const replies = item.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
