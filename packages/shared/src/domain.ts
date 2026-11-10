@@ -1159,6 +1159,9 @@ export type InstructionTemplateInput = z.infer<typeof InstructionTemplateInput>;
 export const PeriodizationSchemeInput = z
   .object({
     name: z.string().min(1).max(120),
+    description: z.string().max(500).nullable().optional(),
+    /** The preset key or scheme id this one was duplicated from. */
+    basedOn: z.string().min(1).max(120).nullable().optional(),
     weeks: z.array(WeekPlan).min(2).max(26),
   })
   .refine((s) => s.weeks.every((w, i) => w.week === i + 1), {

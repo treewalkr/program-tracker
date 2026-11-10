@@ -141,7 +141,7 @@ describe.skipIf(!dbUp)("implicit LLM feedback", () => {
 
   test("client messages: edited approve keeps both texts; reject is −1", async () => {
     const clientId = await newClient();
-    const [trainer] = await db.select().from(trainers).limit(1);
+    const [trainer] = await db.select().from(trainers).orderBy(trainers.createdAt).limit(1);
     const insert = async () =>
       (
         await db

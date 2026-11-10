@@ -452,6 +452,18 @@ export interface PreferencesDto {
 export interface PeriodizationSchemeDto {
   id: string;
   name: string;
+  description: string | null;
+  /** The preset key or scheme id this one was duplicated from. */
+  basedOn: string | null;
+  weeks: WeekPlan[];
+  /** Null until first edited. */
+  updatedAt: string | null;
+}
+
+export interface SchemeInput {
+  name: string;
+  description?: string | null;
+  basedOn?: string | null;
   weeks: WeekPlan[];
 }
 
@@ -590,8 +602,13 @@ export interface TrainerApi {
   updateInstructionTemplate(id: string, input: { name: string; content: string }): Promise<InstructionTemplateDto>;
   deleteInstructionTemplate(id: string): Promise<void>;
   schemes(): Promise<PeriodizationSchemeDto[]>;
-  createScheme(input: { name: string; weeks: WeekPlan[] }): Promise<PeriodizationSchemeDto>;
+  createScheme(input: SchemeInput): Promise<PeriodizationSchemeDto>;
+  updateScheme(id: string, input: SchemeInput): Promise<PeriodizationSchemeDto>;
   deleteScheme(id: string): Promise<void>;
+  /** Keys of the built-in presets (SCHEME_PRESETS) the trainer has hidden. */
+  hiddenSchemePresets(): Promise<string[]>;
+  /** Hide or show a built-in preset; returns the hidden keys after the change. */
+  setSchemePresetHidden(key: string, hidden: boolean): Promise<string[]>;
   /** Seeds the 6 defaults on a trainer's first read. */
   sessionTypes(): Promise<SessionTypeDto[]>;
   createSessionType(input: SessionTypeInput): Promise<SessionTypeDto>;

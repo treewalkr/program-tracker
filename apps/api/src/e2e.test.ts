@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
-import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises, clients, sessionLogs } from "@pt/db";
-import { EXERCISE_ROLES, draftNoticeText, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
+import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises, clients, sessionLogs, periodizationSchemes } from "@pt/db";
+import { EXERCISE_ROLES, draftNoticeText, type WeekPlan, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
 import { assertTestDatabaseUrl } from "./testing/test-db";
@@ -1072,6 +1072,68 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
     const del = await call("DELETE", `/v1/schemes/${schemeId}`);
     expect(del.status).toBe(204);
     expect((await call("DELETE", `/v1/schemes/${schemeId}`)).status).toBe(404);
+  });
+
+  test("edit a scheme; another trainer's is a 404", async () => {
+    const weeks: WeekPlan[] = [
+      { week: 1, directive: "base" },
+      { week: 2, directive: "+volume", progression: { kind: "sets", amount: 1 } },
+      { week: 3, directive: "deload" },
+    ];
+    const created = await call("POST", "/v1/schemes", {
+      name: "Hypertrophy volume ramp (copy)",
+      basedOn: "hypertrophy-ramp",
+      weeks,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.basedOn).toBe("hypertrophy-ramp");
+    expect(created.body.updatedAt).toBeNull();
+    const id = created.body.id;
+
+    const edited = await call("PUT", `/v1/schemes/${id}`, {
+      name: "My ramp",
+      description: "Two sets more in week 2",
+      weeks: [weeks[0], { ...weeks[1], progression: { kind: "sets", amount: 2 } }, weeks[2]],
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.updatedAt).not.toBeNull();
+    const found = (await call("GET", "/v1/schemes")).body.schemes.find((s: any) => s.id === id);
+    expect(found.name).toBe("My ramp");
+    expect(found.description).toBe("Two sets more in week 2");
+    expect(found.basedOn).toBe("hypertrophy-ramp");
+    expect(found.weeks[1].progression).toEqual({ kind: "sets", amount: 2 });
+
+    expect((await call("PUT", `/v1/schemes/${id}`, { name: "bad", weeks: [weeks[0]] })).status).toBe(422);
+
+    const [other] = await db
+      .insert(trainers)
+      .values({ name: "Other Trainer", email: `other-scheme-${Date.now()}@test.dev` })
+      .returning();
+    const [theirs] = await db
+      .insert(periodizationSchemes)
+      .values({ trainerId: other.id, name: "Theirs", weeks })
+      .returning();
+    expect((await call("PUT", `/v1/schemes/${theirs.id}`, { name: "Mine now", weeks })).status).toBe(404);
+    const [still] = await db.select().from(periodizationSchemes).where(eq(periodizationSchemes.id, theirs.id));
+    expect(still.name).toBe("Theirs");
+
+    expect((await call("DELETE", `/v1/schemes/${id}`)).status).toBe(204);
+  });
+
+  test("hide and unhide a built-in scheme preset", async () => {
+    const hide = await call("PUT", "/v1/schemes/presets/peak-taper", { hidden: true });
+    expect(hide.status).toBe(200);
+    expect(hide.body.hidden).toContain("peak-taper");
+    // hiding twice keeps one entry
+    await call("PUT", "/v1/schemes/presets/peak-taper", { hidden: true });
+    const listed = await call("GET", "/v1/schemes/presets/hidden");
+    expect(listed.body.hidden.filter((k: string) => k === "peak-taper")).toHaveLength(1);
+
+    const show = await call("PUT", "/v1/schemes/presets/peak-taper", { hidden: false });
+    expect(show.body.hidden).not.toContain("peak-taper");
+    expect((await call("GET", "/v1/schemes/presets/hidden")).body.hidden).not.toContain("peak-taper");
+
+    expect((await call("PUT", "/v1/schemes/presets/no-such-preset", { hidden: true })).status).toBe(404);
   });
 
   test("instruction templates CRUD", async () => {

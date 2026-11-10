@@ -16,6 +16,9 @@ export const schemes: PeriodizationSchemeDto[] = [
   {
     id: "sch-6wave",
     name: "6-week wave (coach's own)",
+    description: "Two build waves, then two lighter weeks before the next block.",
+    basedOn: null,
+    updatedAt: null,
     weeks: [
       { week: 1, directive: "base" },
       { week: 2, directive: "+volume" },
