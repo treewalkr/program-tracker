@@ -11,7 +11,7 @@
   import AttachmentInput from "./AttachmentInput.svelte";
   import AttachmentStrip from "./AttachmentStrip.svelte";
   import { ImageTray } from "./tray.svelte";
-  import { STATUS_LABEL } from "./status";
+  import { entryAuthorName, statusLine } from "./status";
   import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL } from "./ai";
 
   /**
@@ -90,7 +90,7 @@
 
   /** "Ana's reply", for image names. */
   const replyOf = (c: FeedbackComment) => {
-    const who = c.authorKind === "ai" ? FEEDBACK_AI_AUTHOR_NAME : c.author?.name;
+    const who = c.author || c.authorKind !== "human" ? entryAuthorName(c) : null;
     return who ? `${who}'s reply` : "a reply";
   };
 
@@ -109,9 +109,10 @@
       {#each thread as c (c.id)}
         <li class={c.kind}>
           {#if c.kind === "status"}
-            <span class="dot" aria-hidden="true"></span>
+            {@const line = statusLine(c, { latestDone: c.id === lastDoneId && item.status === "done", shippedIn: item.shippedIn })}
+            <span class="dot" class:release={c.authorKind === "system"} aria-hidden="true"></span>
             <span class="sys">
-              {c.author?.name ?? "Someone"} marked it <strong>{STATUS_LABEL[c.status!]}</strong>{#if c.id === lastDoneId && item.status === "done" && item.shippedIn}&nbsp;· shipped in v{item.shippedIn}{/if}
+              {line.who} marked it <strong>{line.status}</strong>{#if line.tail}&nbsp;· {line.tail}{/if}
             </span>
             {@render when(c.createdAt)}
           {:else if c.visibility === "private"}
@@ -123,6 +124,9 @@
               {#if c.authorKind === "ai"}
                 {@render aiAuthor()}
                 <span class="ai-badge">AI answer</span>
+              {:else if c.authorKind === "system"}
+                <span class="release-author"><span class="release-mark" aria-hidden="true"><Icon name="check" /></span>{entryAuthorName(c)}</span>
+                {#if c.ship}<code class="sha" title="Commit {c.ship.sha}">{c.ship.sha.slice(0, 7)}</code>{/if}
               {:else}
                 <Author author={c.author} />
               {/if}
@@ -318,6 +322,37 @@
   .ai-mark :global(svg) {
     width: 12px;
     height: 12px;
+  }
+  /* Release author: a check in a green disc, the same footprint as an avatar */
+  .release-author {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 13px/1 var(--font-ui);
+  }
+  .release-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 99px;
+    background: var(--good-bg);
+    color: var(--good);
+    flex: none;
+  }
+  .release-mark :global(svg) {
+    width: 12px;
+    height: 12px;
+  }
+  .sha {
+    font: 11px/1.4 var(--font-mono);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--chip-bg);
+    color: var(--muted);
+  }
+  .dot.release {
+    background: var(--good);
   }
   .ai-badge,
   .tag {
