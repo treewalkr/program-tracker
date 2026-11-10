@@ -33,6 +33,7 @@
 
 - Prefix the message with a type: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`
 - Keep the message very short (one line, imperative)
+- A commit that fixes a feedback ticket ends with its handle: `fix: clearer rest timer (FB-012)` — the deploy closes the ticket once it's live
 - No body
 - No Co-Authored-By
 
