@@ -1159,7 +1159,7 @@
                     aria-expanded={flagOpen === b.programExerciseId}
                     onclick={() => (flagOpen = flagOpen === b.programExerciseId ? null : b.programExerciseId)}
                   >
-                    <Icon name="flag" />{FLAG_LABEL[flag.kind]}{#if flag.note}<span class="flag-note">· {flag.note}</span>{/if}
+                    <Icon name="flag" />{FLAG_LABEL[flag.kind]}{#if flag.note}<span class="flag-note">{" · "}{flag.note}</span>{/if}
                   </button>
                 {/if}
               </div>
@@ -1780,7 +1780,7 @@
   .flag-pill {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 0 4px;
     max-width: 280px;
     font: 500 12px/1.4 var(--font-ui);
     cursor: pointer;
@@ -2007,5 +2007,6 @@
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 40px; padding: 0 6px; font-size: 14px; flex: 1; }
     .blk-flag .subtle { flex-basis: 100%; }
+    .blk-flag :global(.btn) { min-height: 44px; flex: 1; justify-content: center; font-size: 14px; background: var(--well); border: 1px solid var(--line); }
   }
 </style>
