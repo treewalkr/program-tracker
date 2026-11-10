@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { exerciseUnits, groupIssues } from "./groups";
 
 // ---------------------------------------------------------------------------
 // Core enums / vocabularies
@@ -437,7 +438,7 @@ export interface RoleRank {
  * without a role, with an unknown label or an archived one keep their
  * relative order at the end.
  */
-export function sortExercisesByRole<T extends { role?: string | null }>(
+export function sortExercisesByRole<T extends { role?: string | null; group?: string | null }>(
   list: readonly T[],
   labels?: readonly RoleRank[]
 ): T[] {
@@ -447,11 +448,11 @@ export function sortExercisesByRole<T extends { role?: string | null }>(
       : EXERCISE_ROLES.map((r) => [r, EXERCISE_ROLE_INFO[r].rank])
   );
   const rank = (r: string | null | undefined) => (r ? (ranks.get(r) ?? Infinity) : Infinity);
-  return [...list].sort((a, b) => {
-    const ra = rank(a.role);
-    const rb = rank(b.role);
-    return ra === rb ? 0 : ra - rb;
-  });
+  // A superset sorts as one unit, ranked by its best-ranked member; its inside order is kept.
+  const units = exerciseUnits(list).map((u) => ({ items: u.items, rank: Math.min(...u.items.map((e) => rank(e.role))) }));
+  return units
+    .sort((a, b) => (a.rank === b.rank ? 0 : a.rank - b.rank))
+    .flatMap((u) => u.items);
 }
 
 /**
@@ -609,6 +610,8 @@ export const ProgramExercise = z.object({
   prescribedSets: z.array(PrescribedSet).min(1).max(20),
   /** Coach cue for this exercise in this program, e.g. "2s pause at bottom". */
   notes: z.string().max(1000).optional(),
+  /** Superset / circuit letter; members share it, sit adjacent and have equal set counts (= rounds). */
+  group: z.string().regex(/^[A-Z]$/).optional(),
 });
 export type ProgramExercise = z.infer<typeof ProgramExercise>;
 
@@ -660,6 +663,9 @@ export const ProgramSession = z
           message: "lifting session must not have cardio prescription",
           path: ["cardio"],
         });
+      }
+      for (const message of groupIssues(val.exercises)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["exercises"] });
       }
     } else if (val.kind === "cardio") {
       if (val.cardio == null) {

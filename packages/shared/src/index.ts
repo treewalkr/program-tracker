@@ -1,4 +1,5 @@
 export * from "./domain";
+export * from "./groups";
 export * from "./placement";
 export * from "./ai";
 export * from "./cardio";

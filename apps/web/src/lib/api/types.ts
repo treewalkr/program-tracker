@@ -101,6 +101,8 @@ export interface ProgramExerciseDto {
   order: number;
   prescribedSets: PrescribedSetDto[];
   notes?: string;
+  /** Superset / circuit letter shared by adjacent members (A1, A2…). */
+  group?: string;
 }
 
 export interface ProgramSessionDto {
