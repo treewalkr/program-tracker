@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, clients, sessionLogs, setLogs, exercises, programs } from "@pt/db";
-import { CardioLog, SessionKind, SetType } from "@pt/shared";
+import { CardioLog, Readiness, SessionFlag, SessionKind, SetType } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
 import { loadLogPrograms, queueSignalsForOutbox, timedIdsOf, timedSlotIdsOf } from "../lib/signals-service";
@@ -21,6 +21,10 @@ const SessionLogInput = z
     cardio: CardioLog.nullable().optional(),
     notes: z.string().max(2000).optional(),
     perceivedEnergy: z.number().int().min(1).max(10).optional(),
+    /** Pre-session sleep and soreness, 1–5 each. */
+    readiness: Readiness.nullable().optional(),
+    /** Per-exercise pain / technique / skipped flags. */
+    flags: z.array(SessionFlag).max(100).nullable().optional(),
     /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
     onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
     sets: z
@@ -178,6 +182,9 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
             cardio: input.cardio ?? null,
             notes: input.notes ?? null,
             perceivedEnergy: input.perceivedEnergy ?? null,
+            // An empty readiness or flag list stores as null, like an old row.
+            readiness: input.readiness && Object.keys(input.readiness).length > 0 ? input.readiness : null,
+            flags: input.flags?.length ? input.flags : null,
           })
           .returning();
 
