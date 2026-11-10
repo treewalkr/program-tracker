@@ -369,3 +369,11 @@ export function proposalToFeedback(message: string, proposal: ChatProposal): str
     "Do not change: the block plan / phasing (weeks, targets, next block), cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.",
   ].join("\n");
 }
+
+/**
+ * Sample session lead the generation prompt shows for rationale markdown. The
+ * draft review routes a block or bullet opening with a session's bold name to
+ * that session's "Why" panel, so the prompt and that parser share this one
+ * example (a test holds them together).
+ */
+export const RATIONALE_SESSION_LEAD_EXAMPLE = "Lower — squat focus";

@@ -16,7 +16,7 @@ import {
   type PlanWeek,
   weekTargetLabel,
 } from "./draftReview";
-import { DEFAULT_DELOAD, DELOAD_VOLUME_DELTA_PERCENT, formatPatternBalance, sessionsPatternBalance, type DeloadSettings } from "@pt/shared";
+import { DEFAULT_DELOAD, DELOAD_VOLUME_DELTA_PERCENT, RATIONALE_SESSION_LEAD_EXAMPLE, formatPatternBalance, sessionsPatternBalance, type DeloadSettings } from "@pt/shared";
 import type { AiDraftDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 const plan: ProgramPhasingDto = {
@@ -221,7 +221,7 @@ describe("review checks, rationale, history", () => {
   });
 
   test("rationaleByDay resolves **Session N** / **Cardio N** leads by track", () => {
-    const r = rationaleByDay("**Session 2:** bench.\n\n**Cardio 1:** easy bike.\n\n**Session 1:** squat.", 3, ["lifting", "cardio", "lifting"]);
+    const r = rationaleByDay("**Session 2:** bench.\n\n**Cardio 1:** easy bike.\n\n**Session 1:** squat.", 3, [{ kind: "lifting" }, { kind: "cardio" }, { kind: "lifting" }]);
     expect(r.days).toEqual([["Squat."], ["Easy bike."], ["Bench."]]);
     expect(r.general).toEqual([]);
   });
@@ -230,6 +230,39 @@ describe("review checks, rationale, history", () => {
     const r = rationaleByDay("**Cold start** — no logs.\n\n**Day 1 — Squat:** back squat primary.\n\n**Day 2 — Upper:** bench.\n\n**Day 9:** ignored", 2);
     expect(r.days).toEqual([["Back squat primary."], ["Bench."]]);
     expect(r.general).toEqual(["**Cold start** — no logs.", "**Day 9:** ignored"]);
+  });
+
+  const named = [
+    { kind: "lifting", name: "Lower — squat focus" },
+    { kind: "lifting", name: "Upper — push & pull" },
+    { kind: "lifting", name: "Full body — hinge focus" },
+    { kind: "cardio", name: "Zone 2 bike" },
+  ];
+
+  test("rationaleByDay routes per-session bullets led by the session name", () => {
+    const text = [
+      "**Cold start, no data to lean on.** Beta has no logs.",
+      "**Weekly structure — 3 lifting days, full-body with an emphasis each day.**\n- **Lower — squat focus (Mon):** back squat 3×6–8.\n- **Upper — push & pull (Wed):** bench press 3×6–8.\n- **Full body — hinge focus (Fri):** kettlebell swing 3×8.",
+      "**Cardio.** 3 × 40 min Zone 2.",
+    ].join("\n\n");
+    const r = rationaleByDay(text, 4, named);
+    expect(r.days).toEqual([["Back squat 3×6–8."], ["Bench press 3×6–8."], ["Kettlebell swing 3×8."], []]);
+    expect(r.general).toEqual([
+      "**Cold start, no data to lean on.** Beta has no logs.",
+      "**Weekly structure — 3 lifting days, full-body with an emphasis each day.**",
+      "**Cardio.** 3 × 40 min Zone 2.",
+    ]);
+  });
+
+  test("rationaleByDay routes paragraphs led by the session name, case and dash agnostic", () => {
+    const r = rationaleByDay("**Lower – Squat Focus** — squat 3×5.\n\n**Upper — push & pull:** bench.\n\n**Lower** — not a session name.", 4, named);
+    expect(r.days).toEqual([["Squat 3×5."], ["Bench."], [], []]);
+    expect(r.general).toEqual(["**Lower** — not a session name."]);
+  });
+
+  test("the prompt's sample session lead routes to that session", () => {
+    const r = rationaleByDay(`**${RATIONALE_SESSION_LEAD_EXAMPLE}** — why.`, 1, [{ kind: "lifting", name: RATIONALE_SESSION_LEAD_EXAMPLE }]);
+    expect(r.days).toEqual([["Why."]]);
   });
 
   test("historyEntries and ago", () => {

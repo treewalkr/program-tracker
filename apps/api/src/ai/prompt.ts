@@ -22,6 +22,7 @@ import {
   type ClientSex,
   type NoteAnchor,
   type PreferenceSignal,
+  RATIONALE_SESSION_LEAD_EXAMPLE,
 } from "@pt/shared";
 
 /** The client's deload rule (deload.ts), so drafted deload weeks match the program-page button.
@@ -299,8 +300,7 @@ function weekdayRule(client: ClientContext, days: number[]): string {
 const WEEK_STABILITY_RULE =
   "- sessions is exactly one week. Keep the current week's sessions in the same order (lifting first, then cardio) so each one keeps its calendar slot; add or drop a session only with a reason stated in rationale.";
 
-const MARKDOWN_RULE =
-  '- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins naming the session (e.g. **Lower — squat focus**), and bullet lists for per-session/per-week breakdowns. No headings, no tables.';
+const MARKDOWN_RULE = `- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins naming the session exactly as its \`name\` (e.g. **${RATIONALE_SESSION_LEAD_EXAMPLE}**), and bullet lists for per-session/per-week breakdowns. No headings, no tables.`;
 
 function cardioTargetLine(target: CardioTarget): string {
   const label = cardioUnitLabel(target.unit);

@@ -154,7 +154,7 @@
   /** This client's deload rule: the default plan's deload cut and the load index follow it. */
   const deload = $derived(clientDeload(client));
   const noDeload = $derived(!isWeek && plan !== null && !(plan.weeks ?? []).some((w) => w.directive === "deload"));
-  const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length, draft.sessions.map((s) => s.kind)));
+  const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length, draft.sessions));
 
   const history = $derived(
     historyEntries(chain)

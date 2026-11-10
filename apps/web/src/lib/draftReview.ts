@@ -207,20 +207,35 @@ export function draftSessionTags(sessions: readonly { kind?: string | null }[]):
 
 // ---- rationale ----
 
+/** Lead or session name, comparable: "Lower — Squat focus (Mon):" → "lower - squat focus". */
+const leadKey = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[—–]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[\s:.,;\-]+$/, "")
+    .trim();
+
 /**
- * Rationale split into markdown blocks: those opening with a bold "Session N" /
- * "Cardio N" lead (or legacy "Day N" = Nth session in draft order) go to that
- * session (lead removed, first letter capitalised); the rest are general.
- * Pass `kinds` (draft session kinds) to resolve track leads; without it every
- * lead counts as a draft position.
+ * Rationale split into markdown blocks. A block, or a bullet inside one, that
+ * opens with a bold lead naming a session goes to that session (lead removed,
+ * first letter capitalised); the rest are general. A lead names a session by
+ * track position — "Session N" / "Cardio N" (legacy "Day N" = Nth in draft
+ * order) — or by the session's own name ("**Lower — squat focus (Mon):**"),
+ * which is the form the generation prompt asks for. Pass `sessions` (draft
+ * kinds and names) to resolve track leads and names; without it every
+ * numbered lead counts as a draft position.
  */
 export function rationaleByDay(
   text: string,
   dayCount: number,
-  kinds?: readonly (string | null | undefined)[]
+  sessions?: readonly { kind?: string | null; name?: string | null }[]
 ): { days: string[][]; general: string[] } {
   const days: string[][] = Array.from({ length: dayCount }, () => []);
   const general: string[] = [];
+  const kinds = sessions?.map((s) => s.kind);
+  const names = sessions?.map((s) => (s.name ? leadKey(s.name) : "")) ?? [];
   const indexOf = (lead: string, n: number): number => {
     if (lead === "Day" || !kinds) return n - 1;
     const want = lead === "Cardio" ? "cardio" : "lifting";
@@ -230,15 +245,35 @@ export function rationaleByDay(
     }
     return -1;
   };
-  for (const block of text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)) {
-    const m = block.match(/^\*\*(Day|Session|Cardio) (\d+)\b[^*]*\*\*[\s:—-]*/);
-    const day = m ? indexOf(m[1], Number(m[2])) : -1;
-    if (m && day >= 0 && day < dayCount) {
-      const rest = block.slice(m[0].length);
-      days[day].push(rest.charAt(0).toUpperCase() + rest.slice(1));
-    } else {
-      general.push(block);
+  /** Session index and the text after the lead, or null when the text names no session. */
+  const route = (t: string): { day: number; rest: string } | null => {
+    const num = t.match(/^\*\*(Day|Session|Cardio) (\d+)\b[^*]*\*\*[\s:—-]*/);
+    if (num) {
+      const day = indexOf(num[1], Number(num[2]));
+      return day >= 0 && day < dayCount ? { day, rest: t.slice(num[0].length) } : null;
     }
+    const named = t.match(/^\*\*([^*]+)\*\*[\s:—–-]*/);
+    if (!named) return null;
+    const day = names.indexOf(leadKey(named[1]));
+    return day >= 0 && day < dayCount && names[day] ? { day, rest: t.slice(named[0].length) } : null;
+  };
+  const push = (day: number, rest: string) => days[day].push(rest.charAt(0).toUpperCase() + rest.slice(1));
+  for (const block of text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)) {
+    const whole = route(block);
+    if (whole) {
+      push(whole.day, whole.rest);
+      continue;
+    }
+    // Per-session bullets ("- **Lower — squat focus (Mon):** …") split out of a list block.
+    const kept: string[] = [];
+    for (const line of block.split("\n")) {
+      const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+      const hit = bullet ? route(bullet[1].trim()) : null;
+      if (hit) push(hit.day, hit.rest);
+      else kept.push(line);
+    }
+    const left = kept.join("\n").trim();
+    if (left) general.push(left);
   }
   return { days, general };
 }
