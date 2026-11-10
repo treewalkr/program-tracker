@@ -17,7 +17,7 @@
    */
   import { tick } from "svelte";
   import type { ClientStrip, StripDay } from "$lib/overview";
-  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, plural, sessionLine, volumeLabel } from "$lib/overview";
+  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, idleReason, plural, sessionLine, volumeLabel } from "$lib/overview";
 
   interface Props {
     /** Built by `buildClientStrip`, ordered by `exceptionOrder`; every strip has the same weeks. */
@@ -250,12 +250,12 @@
         {#if idle.length > 0}
           <div class="wk-tr idle" role="row">
             <div class="idle-line" role="cell" aria-colspan={9}>
-              <span class="idle-count">{plural(idle.length, "client")} with no sessions this week</span>
-              <span class="idle-names">
-                {#each idle as s, i (s.client.id)}
-                  <a href={`/clients/${s.client.id}`} title={s.program ?? (s.client.status === "active" ? "No program" : s.client.status)}>{s.client.name}</a>{#if i < idle.length - 1}<span class="sep">, </span>{/if}
+              <span class="idle-count">No sessions this week:</span>
+              <ul class="idle-names" aria-label={plural(idle.length, "client")}>
+                {#each idle as s (s.client.id)}
+                  <li><a href={`/clients/${s.client.id}`}>{s.client.name}</a> <span class="pill neutral">{idleReason(s)}</span></li>
                 {/each}
-              </span>
+              </ul>
             </div>
           </div>
         {/if}
@@ -470,11 +470,14 @@
     color: var(--muted);
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 8px;
+    align-items: baseline;
+    gap: 4px 8px;
   }
   .idle-count { font-weight: 500; }
-  .idle-names a { color: var(--ink); }
-  .sep { color: var(--faint); }
+  .idle-names { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .idle-names li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .idle-names a { font-weight: 500; text-underline-offset: 3px; }
+  .idle-names .pill { font-size: 11px; padding: 0 6px; }
 
   /* Legend */
   .legend {
