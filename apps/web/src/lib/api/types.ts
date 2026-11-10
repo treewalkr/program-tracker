@@ -425,6 +425,9 @@ export interface SessionLogDto {
   }[];
 }
 
+/** A fresh save. `replaced` holds the logs a Replace removed, in full — Undo writes them back. */
+export type SavedLogDto = SessionLogDto & { replaced: SessionLogDto[] };
+
 export interface InstructionTemplateDto {
   id: string;
   name: string;
@@ -650,7 +653,7 @@ export interface TrainerApi {
    *  drops older ones, `limit` caps the count (1–1000, default 200). */
   sessionLogs(clientId: string, programId?: string, opts?: { from?: string; limit?: number }): Promise<SessionLogDto[]>;
   /** Throws DuplicateLogError when the session is already logged and `onDuplicate` is "reject". */
-  logSession(input: SessionLogInput): Promise<SessionLogDto>;
+  logSession(input: SessionLogInput): Promise<SavedLogDto>;
   /** Undo a save: the log and its sets go. */
   deleteSessionLog(id: string): Promise<void>;
 

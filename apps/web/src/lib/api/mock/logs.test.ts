@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { logToInput } from "@pt/shared";
 import { mockApi } from "./api";
 import { DuplicateLogError, type SessionLogInput } from "../types";
 
@@ -105,5 +106,33 @@ describe("mockApi session log readiness and flags", () => {
     const signal = signals.find((s) => s.kind === "pain-flag" && s.clientId === input.clientId);
     expect(signal?.id).toBe(`pain-flag:${input.clientId}:ex-squat:${date}`);
     expect(signal?.evidence).toContain("“knee twinge”");
+  });
+
+  test("replace returns the removed log; writing it back with logToInput restores it", async () => {
+    const input = await base();
+    const original = await mockApi.logSession({
+      ...input,
+      date: "2026-11-05",
+      notes: "grindy",
+      perceivedEnergy: 6,
+      readiness: { sleep: 2, soreness: 4 },
+      flags: [{ programExerciseId: "pe-1", exerciseId: "ex-squat", kind: "pain", note: "left knee" }],
+      sets: [
+        { programExerciseId: "pe-1", exerciseId: "ex-squat", setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8.5 },
+        { programExerciseId: null, exerciseId: "ex-squat", setNumber: 2, type: "backoff", reps: 12 },
+      ],
+    });
+    expect(original.replaced).toEqual([]);
+    const [before] = await mine(input);
+    const replacing = await mockApi.logSession({ ...input, onDuplicate: "replace" });
+    expect(replacing.replaced).toEqual([before]);
+
+    await mockApi.logSession(logToInput(replacing.replaced[0]));
+    await mockApi.deleteSessionLog(replacing.id);
+    const after = await mine(input);
+    expect(after).toHaveLength(1);
+    const { id: _a, ...restored } = after[0];
+    const { id: _b, ...was } = before;
+    expect(restored).toEqual(was);
   });
 });

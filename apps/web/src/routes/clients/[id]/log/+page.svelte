@@ -13,10 +13,11 @@
     type ExistingLogDto,
     type ProgramDto,
     type ProgramSessionDto,
+    type SavedLogDto,
     type SessionLogDto,
     type SessionLogInput,
   } from "$lib/api/types";
-  import { oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
+  import { logToInput, oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { chipFor, coachSheet, historySets, type Suggestion } from "$lib/logCoach";
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
@@ -602,13 +603,20 @@
     }
   }
 
-  async function afterSave(saved: SessionLogDto, p: Pending) {
+  async function afterSave(saved: SavedLogDto, p: Pending) {
     // The draft is saved now — drop it before the sheet resets, or loadSession would bring it back.
     localStorage.removeItem(draftKey(id, sessionId));
     pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
     loadSession();
     savedCount = p.count;
-    undo = { logId: saved.id, count: p.count, cardio: p.sent === null, snapshot: p.snapshot };
+    undo = {
+      logId: saved.id,
+      count: p.count,
+      cardio: p.sent === null,
+      snapshot: p.snapshot,
+      replaced: saved.replaced ?? [],
+      sessionName: sessionName(),
+    };
     undoLeft = UNDO_SECONDS;
   }
 
@@ -773,7 +781,16 @@
   // ---- Undo: a short window after each save ----
 
   const UNDO_SECONDS = 10;
-  let undo = $state<{ logId: string; count: number; cardio: boolean; snapshot: Snapshot } | null>(null);
+  interface UndoState {
+    logId: string;
+    count: number;
+    cardio: boolean;
+    snapshot: Snapshot;
+    /** The logs a Replace removed — Undo writes them back. */
+    replaced: SessionLogDto[];
+    sessionName: string;
+  }
+  let undo = $state<UndoState | null>(null);
   let undoLeft = $state(UNDO_SECONDS);
   let undoBusy = $state(false);
   /** Polite announcements: undo, discarded drafts. */
@@ -793,6 +810,8 @@
     if (!u) return;
     undoBusy = true;
     try {
+      // Put back what a Replace removed first: a failure here leaves the new log, never neither.
+      for (const old of u.replaced) await api.logSession(logToInput(old));
       await api.deleteSessionLog(u.logId);
       undo = null;
       savedCount = 0;
@@ -805,7 +824,9 @@
       date = u.snapshot.date;
       cardioForm = u.snapshot.cardio;
       pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
-      announce = "Log removed. The sheet is back as it was.";
+      announce = u.replaced.length
+        ? `Log removed. ${u.sessionName} from ${u.replaced.map((l) => fmtDay(l.date)).join(", ")} is back.`
+        : "Log removed. The sheet is back as it was.";
     } catch (err) {
       error = `Couldn't undo: ${(err as Error).message}`;
     } finally {
@@ -1401,6 +1422,7 @@
       <div class="undo-bar" role="status">
         <span class="undo-msg">
           {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} ${undo.count === 1 ? "set" : "sets"}.`}
+          {#if undo.replaced.length}Replaced the {undo.replaced.map((l) => fmtDay(l.date)).join(", ")} log.{/if}
         </span>
         <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
         <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>

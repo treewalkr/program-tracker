@@ -109,10 +109,26 @@ import {
   schemes as seedSchemes,
   type StoredLog,
 } from "./data";
-import { DuplicateLogError } from "../types";
+import { DuplicateLogError, type SessionLogDto } from "../types";
 
 import { uuid } from "$lib/uuid";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** A stored log as the API serializes it — copies, so callers can't reach into state. */
+const logDto = (l: StoredLog): SessionLogDto => ({
+  id: l.sessionLogId,
+  clientId: l.clientId,
+  programId: l.programId,
+  programSessionId: l.programSessionId ?? null,
+  date: l.date,
+  kind: l.kind ?? "lifting",
+  cardio: l.cardio ? { ...l.cardio } : null,
+  notes: l.notes ?? null,
+  perceivedEnergy: l.perceivedEnergy ?? null,
+  readiness: l.readiness ? { ...l.readiness } : null,
+  flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
+  sets: l.sets.map((s) => ({ ...s })),
+});
 
 const seedTemplates: InstructionTemplateDto[] = [
   {
@@ -886,20 +902,7 @@ export const mockApi: TrainerApi = {
       // Newest first, like the API — the limit keeps the newest.
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, opts?.limit ?? 200)
-      .map((l) => ({
-        id: l.sessionLogId,
-        clientId: l.clientId,
-        programId: l.programId,
-        programSessionId: l.programSessionId ?? null,
-        date: l.date,
-        kind: l.kind ?? "lifting",
-        cardio: l.cardio ?? null,
-        notes: l.notes ?? null,
-        perceivedEnergy: l.perceivedEnergy ?? null,
-        readiness: l.readiness ? { ...l.readiness } : null,
-        flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
-        sets: l.sets.map((s) => ({ ...s })),
-      }));
+      .map(logDto);
   },
 
   async logSession(input: SessionLogInput) {
@@ -920,9 +923,9 @@ export const mockApi: TrainerApi = {
       const [latest] = dupes;
       throw new DuplicateLogError({ id: latest.sessionLogId, date: latest.date, setCount: latest.sets.length });
     }
-    if (dupes.length > 0 && mode === "replace") {
-      state.logs = state.logs.filter((l) => !dupes.includes(l));
-    }
+    // Like the API, Replace hands back what it removed so Undo can write it back.
+    const replaced = dupes.length > 0 && mode === "replace" ? dupes : [];
+    if (replaced.length > 0) state.logs = state.logs.filter((l) => !replaced.includes(l));
     const stored: StoredLog = {
       sessionLogId: uuid(),
       clientId: input.clientId,
@@ -947,20 +950,7 @@ export const mockApi: TrainerApi = {
       })),
     };
     state.logs.push(stored);
-    return {
-      id: stored.sessionLogId,
-      clientId: stored.clientId,
-      programId: stored.programId,
-      programSessionId: stored.programSessionId ?? null,
-      date: stored.date,
-      kind: stored.kind ?? "lifting",
-      cardio: stored.cardio ?? null,
-      notes: stored.notes ?? null,
-      perceivedEnergy: stored.perceivedEnergy ?? null,
-      readiness: stored.readiness ? { ...stored.readiness } : null,
-      flags: stored.flags ? stored.flags.map((f) => ({ ...f })) : null,
-      sets: stored.sets.map((s) => ({ ...s })),
-    };
+    return { ...logDto(stored), replaced: replaced.map(logDto) };
   },
 
   async deleteSessionLog(id: string) {

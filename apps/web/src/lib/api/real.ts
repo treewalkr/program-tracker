@@ -23,6 +23,7 @@ import type {
   ProgramExampleDto,
   ProviderDto,
   RoleLabelDto,
+  SavedLogDto,
   SessionLogDto,
   SessionLogInput,
   SessionTypeDto,
@@ -143,7 +144,7 @@ export const realApi: TrainerApi = {
     ),
   logSession: async (input: SessionLogInput) => {
     try {
-      return await unwrap<SessionLogDto>(client.v1.logs.sessions.post(input));
+      return await unwrap<SavedLogDto>(client.v1.logs.sessions.post(input));
     } catch (err) {
       const e = err as Error & { status?: unknown; existing?: ExistingLogDto };
       if (e.status === 409 && e.existing) throw new DuplicateLogError(e.existing);
