@@ -7,7 +7,8 @@
   import Author from "./Author.svelte";
   import MuteToggle from "./MuteToggle.svelte";
   import Thread from "./Thread.svelte";
-  import { feedbackApi } from "./client";
+  import Lightbox, { type LightboxImage } from "$lib/ui/Lightbox.svelte";
+  import { feedbackApi, ticketShots } from "./client";
   import { locateTarget } from "./locate";
   import { feedbackMode } from "./mode.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "./status";
@@ -166,7 +167,11 @@
   // ---- "Show me": /some/page?fbshow=<id> ----------------------------------
 
   let showing = $state<{ el: Element; handle: string } | null>(null);
-  let missMsg = $state<string | null>(null);
+  /** The miss toast; `shots` offers the ticket's screenshots instead. */
+  let missMsg = $state<{ text: string; shots: LightboxImage[] } | null>(null);
+  let shots = $state<LightboxImage[]>([]);
+  let shotsOpen = $state(false);
+  let shotIndex = $state(0);
   const showRect = $derived.by(() => {
     void frame;
     return showing?.el.isConnected ? showing.el.getBoundingClientRect() : null;
@@ -204,7 +209,7 @@
     if (cancelled()) return;
     replaceState(url, page.state);
     if (!el) {
-      miss(`Couldn't find ${handle} here — the page has changed since.`);
+      miss(`Couldn't find ${handle} here — the page has changed since.`, ticketShots(item));
       return;
     }
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -215,9 +220,20 @@
     }, 3200);
   }
 
-  function miss(text: string) {
-    missMsg = text;
-    setTimeout(() => (missMsg = null), 4500);
+  let missTimer: ReturnType<typeof setTimeout> | undefined;
+  function miss(text: string, offer: LightboxImage[] = []) {
+    missMsg = { text, shots: offer };
+    clearTimeout(missTimer);
+    // Longer when there's a button to reach for.
+    missTimer = setTimeout(() => (missMsg = null), offer.length ? 9000 : 4500);
+  }
+
+  function openMissShots() {
+    if (!missMsg) return;
+    shots = missMsg.shots;
+    shotIndex = 0;
+    shotsOpen = true;
+    missMsg = null;
   }
 </script>
 
@@ -264,8 +280,15 @@
 {/if}
 
 {#if missMsg}
-  <p class="miss" role="status">{missMsg}</p>
+  <p class="miss" role="status">
+    {missMsg.text}
+    {#if missMsg.shots.length}
+      <button type="button" class="miss-act" onclick={openMissShots}>Open screenshot</button>
+    {/if}
+  </p>
 {/if}
+
+<Lightbox images={shots} bind:open={shotsOpen} bind:index={shotIndex} label="Ticket screenshots" />
 
 <style>
   .tpin {
@@ -382,5 +405,19 @@
     padding: 8px 12px;
     border-radius: 8px;
     box-shadow: var(--shadow-overlay);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .miss-act {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: 600 13px/1.4 var(--font-ui);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    white-space: nowrap;
   }
 </style>
