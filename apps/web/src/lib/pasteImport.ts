@@ -183,8 +183,8 @@ export function historyAliasesToSave(
 
 /**
  * The block's template week as the new-program form: one row per session in
- * order, named after the day labels, sets as mapped, notes kept, and the
- * exercises' order kept on Save (keepOrder). `resolve`
+ * order, named after the day labels, sets as mapped, notes kept (Save keeps
+ * the exercises' order). `resolve`
  * turns an exercise's choice into a catalog id (created ones included).
  */
 export function formFromImport(
@@ -221,6 +221,7 @@ export function formFromImport(
           order: ei,
           prescribedSets: structuredClone(ex.sets),
           ...(ex.note ? { notes: ex.note } : {}),
+          ...(ex.group ? { group: ex.group } : {}),
         };
       });
       // every imported exercise gets a suggested role; the trainer can change it
@@ -239,8 +240,6 @@ export function formFromImport(
     name: (liftingNames(week).join(" / ") || base.name).slice(0, 120),
     plannedWeeks: weeksInBlock > 1 ? weeksInBlock : base.plannedWeeks,
     sessions,
-    // the notes' order is the trainer's (supersets, pairs) — Save keeps it
-    keepOrder: true,
   };
 }
 

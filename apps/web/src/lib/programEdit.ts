@@ -80,13 +80,7 @@ export function isUniform(sets: PrescribedSetDto[]): boolean {
 const renumber = (sets: PrescribedSetDto[]) => sets.map((s, i) => ({ ...s, setNumber: i + 1 }));
 
 /** Grow by copying the last set, or shrink from the end. Clamped to 1–20. */
-export function withSetCount(sets: PrescribedSetDto[], n: number): PrescribedSetDto[] {
-  const count = Math.min(20, Math.max(1, Math.round(n) || 1));
-  const last = sets[sets.length - 1];
-  const next = sets.slice(0, count);
-  while (next.length < count) next.push({ ...last });
-  return renumber(next);
-}
+export { withSetCount } from "@pt/shared";
 
 /** Apply the same change to every set. */
 export function patchAll(sets: PrescribedSetDto[], patch: (s: PrescribedSetDto) => PrescribedSetDto) {

@@ -9,7 +9,10 @@
 <script lang="ts">
   import type { CardioPrescriptionDto, ExerciseRole, PrescribedSetDto } from "$lib/api/types";
   import {
+    exerciseUnits,
     formatPatternBalance,
+    groupKind,
+    groupTag,
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
     patternBalance,
@@ -17,6 +20,7 @@
   } from "@pt/shared";
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
+  import GroupTag from "$lib/components/GroupTag.svelte";
   import { groupSets } from "$lib/setChips";
   import Icon from "$lib/ui/Icon.svelte";
 
@@ -43,6 +47,8 @@
       oneRepMaxKg?: number | null;
       /** 1-based raw draft index; keys `marks`. */
       slot?: number;
+      /** Superset letter shared by adjacent members. */
+      group?: string | null;
     }[];
     /** Change marks keyed by exercise `slot` (chat draft preview). */
     marks?: Map<number, SlotMark>;
@@ -53,6 +59,8 @@
   }
 
   let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks, onnote, noted }: Props = $props();
+
+  const units = $derived(exerciseUnits(exercises));
 
   const hasPattern = $derived(
     exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
@@ -108,10 +116,11 @@
       {#if exercises.length > 1}
         <div class="exrow colhead" aria-hidden="true"><span></span><SetChips sets={[]} {cols} head /></div>
       {/if}
-      {#each exercises as e, i (i)}
+      {#snippet exrow(e: (typeof exercises)[number], i: number)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
         <div class="exrow" class:is-primary={e.role === "primary"} class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
           <div class="ex">
+            {#if e.group}<GroupTag tag={groupTag(exercises, i) ?? e.group} />{/if}
             {#if e.role}<RoleChip role={e.role} />{/if}
             <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"}{" · not in proposal"}{/if}</span>{/if}</span>
             {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
@@ -127,6 +136,19 @@
           </div>
           <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} {cols} />
         </div>
+      {/snippet}
+      {#each units as u (u.start)}
+        {#if u.group}
+          <div class="xgroup" role="group" aria-label="{groupKind(u.items.length)} {u.group}">
+            <div class="grouphead">
+              <span class="gletter">{u.group}</span>
+              <strong>{groupKind(u.items.length)}</strong> · {u.items[0].sets.length} {u.items[0].sets.length === 1 ? "round" : "rounds"}
+            </div>
+            {#each u.items as e, k (u.start + k)}{@render exrow(e, u.start + k)}{/each}
+          </div>
+        {:else}
+          {@render exrow(u.items[0], u.start)}
+        {/if}
       {/each}
     </div>
     {#if hasPattern || legend}
@@ -187,6 +209,27 @@
     white-space: nowrap;
     margin-left: 6px;
   }
+  /* a superset: hairline box around its members; contents stay on the card's columns */
+  .xgroup {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin: 0 -8px;
+    padding: 0 8px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .grouphead {
+    margin: 0 -8px;
+    padding: 4px 8px;
+    background: var(--well);
+    border-bottom: 1px solid var(--line);
+    border-radius: var(--radius) var(--radius) 0 0;
+    font: 500 12px/1.4 var(--font-ui);
+    color: var(--muted);
+  }
+  .grouphead strong { color: var(--ink); font-weight: 600; }
+  .gletter { font: 600 11px/1 var(--font-mono); margin-right: 4px; }
   .balance {
     display: flex;
     flex-wrap: wrap;

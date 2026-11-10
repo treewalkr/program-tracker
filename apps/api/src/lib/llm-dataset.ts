@@ -161,6 +161,7 @@ async function targetFor(
       exercises: s.exercises.map((e) => ({
         exerciseName: names.get(e.exerciseId) ?? e.exerciseName ?? e.exerciseId,
         ...(e.role ? { role: e.role } : {}),
+        ...(e.group ? { group: e.group } : {}),
         prescribedSets: e.prescribedSets,
       })),
     })),

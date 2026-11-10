@@ -1,5 +1,6 @@
 import {
   BUILTIN_ROLE_LABELS,
+  groupTag,
   deloadRulesText,
   type DeloadSettings,
   GLOSSARY_PROMPT_LIMIT,
@@ -58,7 +59,8 @@ export interface ProgramSummary {
   sessions: {
     name: string;
     kind?: "lifting" | "cardio";
-    exercises: { name: string; role?: string; sets: string[] }[];
+    /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
+    exercises: { name: string; role?: string; group?: string; sets: string[] }[];
   }[];
 }
 
@@ -209,7 +211,8 @@ function draftSchemaSpec(labels: readonly RoleLabel[]): string {
               "restSeconds": number?
             }
           ],
-          "notes": string?
+          "notes": string?,
+          "group": string?          // superset letter "A", "B"…, see the superset rule; omit when done alone
         }
       ]
     }
@@ -229,8 +232,12 @@ export function roleRule(labels?: readonly RoleLabel[]): string {
   return [
     "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per lifting session. List each session's exercises in label order (the order below). Labels:",
     ...list.map((l) => `  ${l.key} (${l.name}): ${l.description}`),
+    SUPERSET_RULE,
   ].join("\n");
 }
+
+const SUPERSET_RULE =
+  '- Supersets: give "group" (the same letter, "A" then "B"…) only to exercises done back to back as one round, e.g. paired accessories. Keep a group\'s exercises next to each other and give them the same number of sets (the rounds). Most exercises have no group.';
 
 const GOLD_STANDARD_RULE =
   "- When GOLD-STANDARD EXAMPLE PROGRAMS are provided, treat them as the trainer's gold standard: mirror their session structure, exercise-role usage, set/rep style and level of detail, adapted to this client's history — never copy exercises or loads blindly.";
@@ -457,9 +464,10 @@ export function draftSlotsText(d: AiProgramDraft): string {
     .map((s, di) => {
       const kind = s.kind === "cardio" ? "cardio" : "lifting";
       const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
-      const rows = s.exercises.map(
-        (e, ei) => `  slot ${ei + 1} ${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`
-      );
+      const rows = s.exercises.map((e, ei) => {
+        const tag = groupTag(s.exercises, ei);
+        return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+      });
       if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
       return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
     })
@@ -786,7 +794,7 @@ function programToText(p: ProgramSummary): string {
     .map(
       (s) =>
         `- ${s.name}${s.kind === "cardio" ? " (cardio)" : ""}: ${s.exercises
-          .map((e) => `${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
+          .map((e) => `${e.group ? `${e.group}. ` : ""}${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
           .join(", ")}`
     )
     .join("\n");
@@ -1119,7 +1127,7 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
   const system = [
     "You read a personal trainer's training notes, pasted as numbered lines, and turn them into structured JSON. You never invent anything: every value you output must be written in its line.",
     "Respond with a single JSON object only, this shape (? = optional; omit a field the text does not give):",
-    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}]}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
+    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
     "Trainers write notes in many styles (day numbers or weekday names, \"4x8\" or \"3 sets of 10\", bullets, tables, copied chat messages, Thai or English). Read what each line means, not its exact wording.",
     "Structure:",
     '- A week header ("Week 3", "WEEK 1", "สัปดาห์ 2") starts a week: label as written, its line. No week headers → one week with label null and line null.',
@@ -1134,6 +1142,7 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
     '- A parenthesized technique tag right after the name ("(Power)", "(PAILs/RAILs)", "(Kinesis)", "(Static Stretch)", "(Pyramid)") goes in variation. Equipment ("machine", "(machine)", "เครื่อง", "cable") goes in equipment.',
     '- notes = every other instruction on the line, copied as written: load or intensity ("@ 60kg", "70%", "185 lb", "@ RPE 8"), tempo ("tempo 3-1-1"), rest ("rest 90s"), sides ("each leg", "/side", "ขาละข้าง"), cues ("slow eccentric"). Never drop them.',
     '- A group header ("Circuit – 3 rounds, 60s rest", "Superset x3", "EMOM 8 min", "Finisher: AMRAP 10 min") is not an exercise: copy its text into the notes of each exercise in the group (the lines under it, up to a blank line or the next header) and reference its line by skipping it with reason "group header". Never turn its rounds or minutes into sets.',
+    '- group = a letter shared by exercises done back to back as one superset or circuit: the exercises under the same group header, or with list markers A1, A2 (B1, B2 → another letter). "A" for the first group in a session, "B" for the next. Leave it out for an exercise done on its own.',
     "Prescription (what to do):",
     '- Sets × reps in any order or wording: "4x8", "4 x 8", "4 sets of 8", "8 reps x 4 sets", "3 เซ็ต 12 ครั้ง" → sets 4, reps 8 (sets 3, reps 12). "x15" alone → reps 15, sets null. A bare "12 reps x 3" → reps 12, sets 3.',
     '- With a load first, the order is load × reps × sets: "70% x 5 x 3", "100kg x 5 x 3" → reps 5, sets 3 (load into notes).',

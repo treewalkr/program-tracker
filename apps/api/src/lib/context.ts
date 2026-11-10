@@ -16,6 +16,7 @@ import {
   chainBalanceText,
   chainSetCounts,
   combinePreferenceDocs,
+  groupTag,
   pulseSummary,
   selectExamples,
   sessionsInSeqOrder,
@@ -61,9 +62,10 @@ export async function loadContext(
         sessions: targetSessions.map((s) => ({
           name: s.name,
           kind: s.kind,
-          exercises: s.exercises.map((e) => ({
+          exercises: s.exercises.map((e, i) => ({
             name: nameById.get(e.exerciseId) ?? e.exerciseId,
             role: e.role,
+            ...(e.group ? { group: groupTag(s.exercises, i) ?? undefined } : {}),
             sets: e.prescribedSets.map(
               (ps) =>
                 `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
@@ -159,9 +161,10 @@ export async function loadContext(
         sessions: sessionsInSeqOrder(firstWeek.sessions).map((s) => ({
           name: s.name,
           kind: s.kind,
-          exercises: s.exercises.map((e) => ({
+          exercises: s.exercises.map((e, i) => ({
             name: e.exerciseName ?? e.exerciseId,
             role: e.role,
+            ...(e.group ? { group: groupTag(s.exercises, i) ?? undefined } : {}),
             sets: e.prescribedSets.map(
               (ps) => `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
             ),

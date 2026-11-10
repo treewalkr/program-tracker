@@ -13,7 +13,7 @@ import {
   normalizeExerciseName,
   numberedLines,
   weekExerciseNames,
-  type ImportExercise,
+  ImportExercise,
   type ImportResult,
   type ReviewExercise,
 } from "./import";
@@ -536,5 +536,68 @@ describe("buildImportResult applies group headers", () => {
     const ex = r.weeks[0].days[0].sessions[0].exercises;
     expect(ex.map((e) => e.sets.length)).toEqual([3, 3]);
     expect(ex[0].sets[0].reps).toBe(10);
+  });
+});
+
+describe("buildImportResult makes supersets", () => {
+  const run = (text: string, exercises: Partial<ImportExercise>[]) => {
+    const data = ImportChunk.parse({
+      weeks: [
+        {
+          label: null,
+          line: null,
+          days: [
+            {
+              label: "Day 1",
+              line: null,
+              sessions: [
+                {
+                  name: "",
+                  kind: "lifting",
+                  exercises: exercises.map((e) => ({ name: e.sourceName, notes: null, prescription: null, ...e })),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const lines = text.split("\n").length;
+    return buildImportResult(text, [{ from: 1, to: lines, ok: true, data }]).weeks[0].days[0].sessions[0].exercises;
+  };
+
+  test("FB-011: header plus A1/A2 gives group A with 3 rounds", () => {
+    const ex = run("Superset x 3 sets\nA1.Single leg throwball\nA2.Slamball side to side", [
+      { line: 2, sourceName: "Single leg throwball", notes: "Superset x 3 sets", group: "A" },
+      { line: 3, sourceName: "Slamball side to side", notes: "Superset x 3 sets", group: "A" },
+    ]);
+    expect(ex.map((e) => e.group)).toEqual(["A", "A"]);
+    expect(ex.map((e) => e.sets.length)).toEqual([3, 3]);
+    expect(ex.map((e) => e.note)).toEqual(["", ""]);
+  });
+
+  test("header only: same header in notes, no group from the model", () => {
+    const ex = run("Back squat 5x5\nCircuit 3 rounds\nPush up x10\nRow x10\nPlank 3x30s", [
+      { line: 1, sourceName: "Back squat", prescription: { sets: 5, reps: 5 } },
+      { line: 3, sourceName: "Push up", notes: "Circuit 3 rounds", prescription: { sets: null, reps: 10 } },
+      { line: 4, sourceName: "Row", notes: "Circuit 3 rounds", prescription: { sets: null, reps: 10 } },
+      { line: 5, sourceName: "Plank", prescription: { sets: 3, seconds: 30 } },
+    ]);
+    expect(ex.map((e) => e.group ?? null)).toEqual([null, "A", "A", null]);
+    expect(ex.slice(1, 3).map((e) => e.sets.length)).toEqual([3, 3]);
+  });
+
+  test("A1/A2 prefixes alone make a group; set counts brought up", () => {
+    const ex = run("B1. Bench 4x8\nB2. Row 3x10\nC1 Curl 3x12", [
+      { line: 1, sourceName: "Bench", prescription: { sets: 4, reps: 8 } },
+      { line: 2, sourceName: "Row", prescription: { sets: 3, reps: 10 } },
+      { line: 3, sourceName: "Curl", prescription: { sets: 3, reps: 12 } },
+    ]);
+    expect(ex.map((e) => e.group ?? null)).toEqual(["A", "A", null]);
+    expect(ex.map((e) => e.sets.length)).toEqual([4, 4, 3]);
+  });
+
+  test("a bad group value from the model is ignored", () => {
+    expect(ImportExercise.parse({ line: 1, sourceName: "x", name: "x", prescription: null, group: 42 }).group).toBeNull();
   });
 });

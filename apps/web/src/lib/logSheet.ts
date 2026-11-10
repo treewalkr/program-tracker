@@ -29,6 +29,8 @@ export interface SheetRow {
   copied?: SheetField[];
   /** Set on every row of an exercise skipped as a whole, with the optional reason. */
   exerciseSkip?: { reason: SkipReason | null };
+  /** Superset letter: the group's rows run round by round on one card. */
+  group?: string;
 }
 
 export type SheetField = "weight" | "reps" | "rpe";
@@ -270,12 +272,13 @@ export function prescriptionOf(ps: PrescribedSet, oneRepMaxKg: number | null | u
 
 export const MAX_SETS = 20;
 
-/** Insert an extra set after the slot's last row, numbered after its highest set. */
+/** Insert an extra set after the slot's last row (a superset's: after its last round), numbered after its highest set. */
 export function withExtraSet<R extends SheetRow>(rows: R[], programExerciseId: string, make: (setNumber: number) => R): R[] {
   const slot = rows.filter((r) => r.programExerciseId === programExerciseId);
   const next = Math.max(0, ...slot.map((r) => r.setNumber)) + 1;
   if (next > MAX_SETS) return rows;
-  const at = rows.lastIndexOf(slot[slot.length - 1]) + 1;
+  const unit = unitRows(rows, programExerciseId);
+  const at = rows.lastIndexOf(unit[unit.length - 1]) + 1;
   return [...rows.slice(0, at), make(next), ...rows.slice(at)];
 }
 
@@ -309,15 +312,61 @@ export function stepCell(v: Cell, delta: number, o: { min: number; max: number; 
   return Math.min(o.max, Math.max(o.min, next));
 }
 
-/** Consecutive rows of one slot — an exercise card. */
-export function blocksOf<R extends SheetRow>(rows: R[]): { programExerciseId: string; rows: R[] }[] {
-  const out: { programExerciseId: string; rows: R[] }[] = [];
+export interface SheetBlock<R> {
+  /** Stable card key: the group letter, else the slot. */
+  key: string;
+  /** Superset letter when the card is a group. */
+  group?: string;
+  /** The card's first slot (the only one for a single exercise). */
+  programExerciseId: string;
+  /** Slots on the card, in prescribed order (A1, A2…). */
+  memberIds: string[];
+  rows: R[];
+}
+
+/** Consecutive rows of one unit — a single exercise or a whole superset — as a card. */
+export function blocksOf<R extends SheetRow>(rows: R[]): SheetBlock<R>[] {
+  const out: SheetBlock<R>[] = [];
   for (const r of rows) {
     const last = out[out.length - 1];
-    if (last?.programExerciseId === r.programExerciseId) last.rows.push(r);
-    else out.push({ programExerciseId: r.programExerciseId, rows: [r] });
+    const key = r.group ? `group:${r.group}` : r.programExerciseId;
+    if (last?.key === key) {
+      last.rows.push(r);
+      if (!last.memberIds.includes(r.programExerciseId)) last.memberIds.push(r.programExerciseId);
+    } else {
+      out.push({ key, ...(r.group ? { group: r.group } : {}), programExerciseId: r.programExerciseId, memberIds: [r.programExerciseId], rows: [r] });
+    }
   }
   return out;
+}
+
+/** The card index holding a slot; -1 when none. */
+export function blockIndexOf(blocks: SheetBlock<SheetRow>[], programExerciseId: string): number {
+  return blocks.findIndex((b) => b.memberIds.includes(programExerciseId));
+}
+
+/**
+ * Rows built exercise by exercise → a superset's rows in round order:
+ * A1 set 1, A2 set 1, A1 set 2… Ungrouped rows keep their place; within a
+ * round the members keep their order.
+ */
+export function roundOrder<R extends Pick<SheetRow, "group" | "setNumber">>(rows: R[]): R[] {
+  const out: R[] = [];
+  for (let i = 0; i < rows.length; ) {
+    const g = rows[i].group;
+    let j = i + 1;
+    while (g && j < rows.length && rows[j].group === g) j++;
+    const run = rows.slice(i, j);
+    out.push(...(g ? run.map((r, k) => ({ r, k })).sort((a, b) => a.r.setNumber - b.r.setNumber || a.k - b.k).map((x) => x.r) : run));
+    i = j;
+  }
+  return out;
+}
+
+/** The rows of a slot's whole card: its group's rows, else its own. */
+function unitRows<R extends SheetRow>(rows: R[], programExerciseId: string): R[] {
+  const g = rows.find((r) => r.programExerciseId === programExerciseId)?.group;
+  return rows.filter((r) => (g ? r.group === g : r.programExerciseId === programExerciseId));
 }
 
 const ORDINAL = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
@@ -564,9 +613,16 @@ export function setSkipReason<R extends SheetRow>(rows: R[], programExerciseId: 
  */
 export function unskipExercise<R extends SheetRow>(rows: R[], programExerciseId: string, before?: R[]): R[] {
   if (before?.length) {
-    const at = rows.findIndex((r) => r.programExerciseId === programExerciseId);
-    if (at < 0) return rows;
-    return [...rows.slice(0, at), ...before, ...rows.slice(at).filter((r) => r.programExerciseId !== programExerciseId)];
+    if (!rows.some((r) => r.programExerciseId === programExerciseId)) return rows;
+    // Rows come back in place (a superset's are interleaved); dropped extras after the card's last row.
+    const byKey = new Map(before.map((r) => [r.key, r]));
+    const out = rows.map((r) => (r.programExerciseId === programExerciseId ? byKey.get(r.key) ?? { ...r, skipped: false, exerciseSkip: undefined } : r));
+    const present = new Set(out.map((r) => r.key));
+    const missing = before.filter((r) => !present.has(r.key));
+    if (missing.length === 0) return out;
+    const unit = unitRows(out, programExerciseId);
+    const at = out.lastIndexOf(unit[unit.length - 1]) + 1;
+    return [...out.slice(0, at), ...missing, ...out.slice(at)];
   }
   return rows.map((r) =>
     r.programExerciseId === programExerciseId && r.exerciseSkip ? { ...r, skipped: false, exerciseSkip: undefined } : r

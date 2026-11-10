@@ -5,6 +5,8 @@
   import {
     DEFAULT_PROVIDER_ID,
     IMPORT_MAX_CHARS,
+    exerciseUnits,
+    groupKind,
     WEEK_HEADER,
     importLines,
     typicalGenerationSeconds,
@@ -642,7 +644,7 @@
                 <p class="sess-name" id="pi-{sk}">{s.name}</p>
               {/if}
               {@render flagLines(s.flags)}
-              {#each s.exercises as ex, ei (ei)}
+              {#snippet exRow(ex: (typeof s.exercises)[number], ei: number)}
                 {@const key = exerciseKey(wi, di, si, ei)}
                 {@const c = choice(key, ex)}
                 {@const confirmed = choices[key]?.confirmed ?? false}
@@ -700,6 +702,16 @@
                   </div>
                   <code class="setchip">{setsLabel(ex.sets)}</code>
                 </div>
+              {/snippet}
+              {#each exerciseUnits(s.exercises) as u (u.start)}
+                {#if u.group}
+                  <div class="xgroup" role="group" aria-label="{groupKind(u.items.length)} {u.group}">
+                    <p class="xgroup-head"><span class="gletter">{u.group}</span> <strong>{groupKind(u.items.length)}</strong> · {u.items[0].sets.length} {u.items[0].sets.length === 1 ? "round" : "rounds"}</p>
+                    {#each u.items as ex, k (u.start + k)}{@render exRow(ex, u.start + k)}{/each}
+                  </div>
+                {:else}
+                  {@render exRow(u.items[0], u.start)}
+                {/if}
               {/each}
             {/if}
           {/each}
@@ -811,6 +823,10 @@
   .ln.hot { background: var(--pulse-now-bg); box-shadow: inset 0 0 0 1px var(--blue-line); }
   .ln.hot .no { color: var(--blue); font-weight: 600; }
   .ln:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .xgroup { border: 1px solid var(--line); border-radius: var(--radius); margin: 4px 0; }
+  .xgroup-head { margin: 0; padding: 4px 10px; background: var(--well); border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; font: 500 12px/1.4 var(--font-ui); color: var(--muted); }
+  .xgroup-head strong { color: var(--ink); font-weight: 600; }
+  .gletter { font: 600 11px/1 var(--font-mono); }
   .tag { font: 500 11px/1.6 var(--font-ui); color: var(--muted); padding: 0 6px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); margin-left: 8px; white-space: nowrap; align-self: center; }
   .tag.amber { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
   .tag.red { color: var(--bad); border-color: var(--bad-line); }

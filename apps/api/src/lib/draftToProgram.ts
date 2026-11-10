@@ -6,6 +6,7 @@ import {
   placementDayPools,
   sessionKey,
   sessionsInSeqOrder,
+  normalizeGroups,
   sortExercisesByRole,
   stampWeeks,
 } from "@pt/shared";
@@ -101,9 +102,11 @@ export function draftTemplateSessions(
               order: ei,
               prescribedSets: ref.prescribedSets,
               notes: ref.notes,
+              ...(ref.group ? { group: ref.group } : {}),
             },
           ];
         });
+    const grouped = normalizeGroups(exercises).map((e, i) => ({ ...e, order: i }));
 
     const kind = isCardio ? ("cardio" as const) : ("lifting" as const);
     const type = findSessionType(types, s.type);
@@ -116,7 +119,7 @@ export function draftTemplateSessions(
       kind,
       ...(type && type.format === kind ? { typeId: type.id, typeName: type.name } : {}),
       notes: s.notes,
-      exercises,
+      exercises: grouped,
       cardio: isCardio ? s.cardio : null,
     };
   });

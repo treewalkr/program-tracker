@@ -110,6 +110,8 @@ export const DraftExerciseRef = z
     role: ExerciseRole.optional().catch(undefined),
     prescribedSets: z.array(PrescribedSet).min(1).max(20),
     notes: z.string().max(1000).optional(),
+    /** Superset letter; members adjacent with equal set counts. Tidied by normalizeGroups when settled. */
+    group: z.string().regex(/^[A-Z]$/).optional().catch(undefined),
   })
   .refine((v) => v.exerciseId !== undefined || v.exerciseName !== undefined, {
     message: "Provide exerciseId (from catalog) or exerciseName",

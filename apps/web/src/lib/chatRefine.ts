@@ -85,6 +85,7 @@ export interface PreviewSessionCard {
     role?: ExerciseRole;
     movementPattern: string | null;
     sets: PrescribedSetDto[];
+    group?: string;
   }[];
 }
 
@@ -192,6 +193,7 @@ export function draftPreviewModel(
         role: e.role,
         movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
         sets: e.prescribedSets,
+        group: e.group,
       })),
     };
     return { index, state, card };
@@ -301,6 +303,7 @@ export function versionView(
       movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
       sets: e.prescribedSets,
       slot: e.slot,
+      group: e.group,
     })),
   }));
   return { version, generation: gen, sessions, changes: prev ? diffDrafts(prev, gen.draft) : [] };

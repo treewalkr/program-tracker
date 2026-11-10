@@ -771,6 +771,33 @@ describe("draftToWeeks", () => {
     expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
   });
 
+  test("a superset survives the role sort and is tidied", () => {
+    const sets = (n: number) => Array.from({ length: n }, (_, i) => ({ setNumber: i + 1, reps: 10, type: "working" as const, amrap: false }));
+    const d5: AiProgramDraft = {
+      ...draft,
+      sessions: [
+        {
+          name: "Day A",
+          kind: "lifting",
+          exercises: [
+            { exerciseName: "Cable Crunch", role: "core", prescribedSets: sets(3) },
+            { exerciseName: "Lateral Raise", role: "accessory", group: "B", prescribedSets: sets(2) },
+            { exerciseName: "Face Pull", role: "accessory", group: "B", prescribedSets: sets(3) },
+            { exerciseId: "11111111-1111-1111-1111-111111111111", role: "primary", prescribedSets: sets(5) },
+            { exerciseName: "Plank", role: "core", group: "C", prescribedSets: sets(3) },
+          ],
+        },
+      ],
+    };
+    const { weeks } = draftToWeeks(d5, catalog);
+    const ex = weeks[0].sessions[0].exercises;
+    expect(ex.map((e) => e.exerciseName)).toEqual(["Back Squat", "Lateral Raise", "Face Pull", "Cable Crunch", "Plank"]);
+    expect(ex.map((e) => e.group ?? null)).toEqual([null, "A", "A", null, null]);
+    expect(ex.map((e) => e.prescribedSets.length)).toEqual([5, 3, 3, 3, 3]);
+    expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3, 4]);
+    expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
+  });
+
   test("draftToWeeks maps cardio draft sessions into cardio sessions", () => {
     const draftWithCardio: AiProgramDraft = {
       ...draft,

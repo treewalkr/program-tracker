@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CardioPrescription, PrescribedSet } from "./domain";
 import { ImportNewTerm, filterNewTerms, type GlossaryTerm } from "./vocabulary";
+import { withSetCount } from "./groups";
 
 /**
  * Paste notes (docs/paste-import-plan.md): a trainer's plain-text program →
@@ -56,6 +57,8 @@ export const ImportExercise = z.object({
   notes: z.string().max(500).nullish(),
   prescription: ImportPrescription.nullable(),
   actuals: z.array(ImportActual).max(30).nullish(),
+  /** Superset letter ("A" for A1/A2 or the lines under one group header); null when alone. */
+  group: z.string().max(3).nullish().catch(null),
 });
 export type ImportExercise = z.infer<typeof ImportExercise>;
 
@@ -616,9 +619,58 @@ function reviewSession(s: LocatedSession, lines: string[]): ReviewSession {
     line: s.line,
     source: null,
     cardio: null,
-    exercises: s.exercises.map((e) => reviewExercise(e, lines)),
+    exercises: groupExercises(s.exercises.map((e) => reviewExercise(e, lines)), lines),
     flags,
   };
+}
+
+/** The group-header part of an exercise's notes ("Superset x 3 sets"), lowercased; null when none or timed. */
+function groupHeaderKey(notes: string | null | undefined): string | null {
+  if (!notes || !GROUP_WORD.test(notes) || TIMED_GROUP.test(notes)) return null;
+  const part = notes.split(/\s*(?:[·;\n]|,\s)\s*/).find((x) => GROUP_WORD.test(x));
+  return part ? part.trim().toLowerCase().replace(/\s+/g, " ") : null;
+}
+
+const PREFIX = /^\s*(?:[-*•]\s*)?([A-Za-z])\s?\d{1,2}(?:\s*[.):\-]\s*|\s+)(?=\S)/;
+
+/**
+ * Supersets: adjacent exercises sharing a list prefix letter (A1, A2), the
+ * model's group letter, or the same group header in their notes become one
+ * group — re-lettered A, B… by appearance, members' set counts brought up to
+ * the largest. A note that is only the header is dropped (the group shows it).
+ */
+function groupExercises(list: ReviewExercise[], lines: string[]): ReviewExercise[] {
+  const keys = list.map((e) => {
+    const prefix = (lines[e.line - 1] ?? "").match(PREFIX)?.[1];
+    if (prefix) return `p:${prefix.toUpperCase()}`;
+    const letter = e.group?.trim().match(/^[A-Za-z]/)?.[0];
+    if (letter) return `m:${letter.toUpperCase()}`;
+    const header = groupHeaderKey(e.notes);
+    return header ? `h:${header}` : null;
+  });
+  const out: ReviewExercise[] = [];
+  let next = 0;
+  for (let i = 0; i < list.length; ) {
+    let j = i + 1;
+    while (keys[i] != null && j < list.length && keys[j] === keys[i]) j++;
+    const run = list.slice(i, j);
+    if (run.length < 2 || next >= 26) {
+      out.push(...run.map(({ group: _g, ...e }) => e));
+    } else {
+      const letter = String.fromCharCode(65 + next++);
+      const rounds = Math.max(...run.map((e) => e.sets.length));
+      for (const e of run) {
+        const header = e.notes?.trim();
+        const note = header && groupHeaderKey(header) === header.toLowerCase().replace(/\s+/g, " ")
+          ? e.note.split(" · ").filter((x) => x !== header).join(" · ")
+          : e.note;
+        const sets = e.sets.length > 0 && e.sets.length < rounds ? withSetCount(e.sets, rounds) : e.sets;
+        out.push({ ...e, group: letter, sets, note });
+      }
+    }
+    i = j;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

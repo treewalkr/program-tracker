@@ -16,6 +16,7 @@ import {
   PROGRAM_EDIT_FEEDBACK_DAYS,
   aiDraftToDiffSource,
   diffSources,
+  groupedSetsOf,
   setsOf,
   type AiProgramDraft,
   type DiffRow,
@@ -140,9 +141,9 @@ function weekSource(week: ProgramWeek | undefined, names: Map<string, string>, w
     sessions: week.sessions.map((s) => ({
       name: s.name,
       ...(withWeekdays ? { weekday: s.weekday ?? null } : {}),
-      exercises: s.exercises.map((e) => ({
+      exercises: s.exercises.map((e, i) => ({
         name: names.get(e.exerciseId) ?? e.exerciseName ?? e.exerciseId,
-        sets: setsOf(e.prescribedSets),
+        sets: groupedSetsOf(s.exercises, i),
       })),
     })),
   };
