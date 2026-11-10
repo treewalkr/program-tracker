@@ -133,6 +133,7 @@ describe("superset paste, end to end", () => {
       "Bench Press": 3,
       "Bent-Over Row": 3,
     });
+    expect(saved.map((e) => e.group ?? null)).toEqual(["A", "A", "B", "B", null, "C", "C"]);
     // without keepOrder, role sorting would pull Deadlift ahead of the pairs
     expect(exercisesForSave(form.sessions[0].exercises, false)[0].exerciseName).not.toBe("Single Leg Throwball");
   });

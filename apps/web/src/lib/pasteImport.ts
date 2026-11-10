@@ -221,6 +221,7 @@ export function formFromImport(
           order: ei,
           prescribedSets: structuredClone(ex.sets),
           ...(ex.note ? { notes: ex.note } : {}),
+          ...(ex.group ? { group: ex.group } : {}),
         };
       });
       // every imported exercise gets a suggested role; the trainer can change it

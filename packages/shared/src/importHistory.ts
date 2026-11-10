@@ -6,6 +6,7 @@
 
 import { ProgramWeeksDocument, type ProgramExercise, type ProgramSession, type ProgramWeek } from "./domain";
 import { IMPORT_LIMITS, blockLabel, normalizeExerciseName, type ImportResult } from "./import";
+import { normalizeGroups } from "./groups";
 
 // ---------------------------------------------------------------------------
 // Dates (ISO YYYY-MM-DD, calendar math in UTC so no timezone shifts a day)
@@ -229,16 +230,17 @@ export function buildHistory(
             return [{ ex, exerciseId }];
           });
           if (picked.length === 0) continue;
-          const exercises: ProgramExercise[] = picked.map(({ ex, exerciseId }, order) => {
-            return {
+          const exercises: ProgramExercise[] = normalizeGroups(
+            picked.map(({ ex, exerciseId }, order): ProgramExercise => ({
               id: crypto.randomUUID(),
               exerciseId,
               exerciseName: (opts.exerciseNames?.[exerciseId] ?? ex.name).slice(0, 200),
               order,
               prescribedSets: structuredClone(ex.sets),
               ...(ex.note ? { notes: ex.note } : {}),
-            };
-          });
+              ...(ex.group ? { group: ex.group } : {}),
+            }))
+          );
           const session: ProgramSession = { ...place(), seq: ++seq.lifting, kind: "lifting", exercises };
           sessions.push(session);
 
