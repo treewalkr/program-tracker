@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### New
+- Feedback replies can now come from an AI assistant, marked with an "AI answer" badge. It answers questions it can check against the app, like "this already exists" or "this was added after you reported it". Reply on the ticket if the answer is wrong.
+- Feedback replies show formatting such as **bold** text and lists.
+- On phones the sidebar is replaced by a slim icon rail that stays put.
+
+### Fixed
+- Tapping Save session more than once no longer creates duplicate logs of the same session. Replacing an earlier log can be undone.
+- The feedback button no longer covers the pain warning.
+- Flag and skip-reason chips are easier to tap on phones.
+
 ## v0.1.12 — 2026-11-10
 
 ### New
