@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.17 — 2026-11-10
+
 ### New
 - Attach images to feedback tickets and replies. Pick or paste them, and they're shrunk before upload. Click any image to view it full size.
 - The log sheet on a phone folds the session pickers and readiness away, so the sets come first.
