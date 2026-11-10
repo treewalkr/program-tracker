@@ -12,7 +12,7 @@ export function progressionLabel(p: WeekProgression): string {
   const sign = p.amount > 0 ? "+" : "−";
   const n = Math.abs(p.amount);
   if (p.kind === "kg") return `${sign}${n} kg`;
-  if (p.kind === "percent") return `${sign}${n}%`;
+  if (p.kind === "percent") return `${sign}${n}% 1RM`;
   return `${sign}${n} ${n === 1 ? "set" : "sets"}`;
 }
 

@@ -50,7 +50,7 @@
       items: [
         { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
         { href: "/session-types", label: "Session types", icon: "layers" },
-        { href: "/schemes", label: "Progression schemes", icon: "pulse" },
+        { href: "/schemes", label: "Progression schemes", icon: "trending" },
         { href: "/vocabulary", label: "Vocabulary", icon: "pencil" },
         { href: "/chains", label: "Kinetic chains", icon: "link" },
         { href: "/templates", label: "Templates", icon: "file" },

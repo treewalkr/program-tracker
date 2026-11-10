@@ -41,7 +41,7 @@
     general: "General",
   };
 
-  /** "W2 · +intensity · intensity +3% · +2.5%" — the rule is what the presets are for. */
+  /** "W2 · +intensity · intensity +3% · +2.5% 1RM" — the rule is what the presets are for. */
   const chipLabel = (w: WeekPlan) => weekPlanLabel(w) + (w.progression ? ` · ${progressionLabel(w.progression)}` : "");
 
   /** "Hypertrophy volume ramp" for a preset key, the scheme's name for a scheme id. */

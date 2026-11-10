@@ -9,6 +9,9 @@ describe("weekPlanLabel", () => {
       target: { metric: "overall_volume", deltaPercent: 5 },
     });
     expect(withTarget).toBe("W2 · +volume · overall vol +5%");
+    expect(weekPlanLabel({ week: 4, directive: "deload", target: { metric: "overall_volume", deltaPercent: -55 } })).toBe(
+      "W4 · deload · overall vol −55%"
+    );
 
     const noTarget = weekPlanLabel({
       week: 3,
