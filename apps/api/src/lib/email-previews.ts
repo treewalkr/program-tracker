@@ -41,7 +41,7 @@ const TRAINER = person("00000000-0000-4000-8000-000000000002", "Sam Trainer", "s
 
 function snap(
   over: Partial<FeedbackSnapshot["item"]>,
-  actor: Person,
+  actor: Person | null,
   comment: FeedbackSnapshot["comment"],
   appUrl: string,
 ): FeedbackSnapshot {
@@ -105,7 +105,25 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       recipients:
         "Everyone on the thread — the reporter, the admin and other repliers — except the person who replied. Replies set to “Only tickets I'm in” skip tickets the person never touched.",
       kind: "reply",
-      snap: snap({}, ADMIN, { body: "Good catch — supersets should count once per exercise. Looking at it now.", status: null }, appUrl),
+      snap: snap({}, ADMIN, { body: "Good catch — supersets should count once per exercise. Looking at it now.", status: null, authorKind: "human" }, appUrl),
+    },
+    {
+      id: "reply-ai",
+      group: "Replies",
+      title: "AI answer",
+      trigger: "The feedback auto-reply agent answers a ticket on its own (Auto-send mode, high confidence), or the admin sends one of its drafts.",
+      recipients: "Everyone on the thread, like a reply. Labelled as an AI answer and invites the reporter to reply if it's wrong.",
+      kind: "reply",
+      snap: snap(
+        {},
+        null,
+        {
+          body: "Supersets already count both exercises in the week totals — that shipped in v0.1.9. Reload the app to get it.",
+          status: null,
+          authorKind: "ai",
+        },
+        appUrl,
+      ),
     },
     {
       id: "status-accepted",
@@ -114,7 +132,7 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       trigger: "The admin moves a ticket to Accepted.",
       recipients: toReporter,
       kind: "status",
-      snap: snap({}, ADMIN, { body: null, status: "accepted" }, appUrl),
+      snap: snap({}, ADMIN, { body: null, status: "accepted", authorKind: "human" }, appUrl),
     },
     {
       id: "status-wontfix",
@@ -126,7 +144,7 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       snap: snap(
         { triageNote: "Supersets are logged as one block on purpose, so the totals match the program." },
         ADMIN,
-        { body: null, status: "wontfix" },
+        { body: null, status: "wontfix", authorKind: "human" },
         appUrl,
       ),
     },
@@ -137,7 +155,7 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       trigger: "The admin moves a ticket to Done. Names the version that was live at that moment.",
       recipients: toReporter,
       kind: "status",
-      snap: snap({ shippedIn: "0.1.3" }, ADMIN, { body: null, status: "done" }, appUrl),
+      snap: snap({ shippedIn: "0.1.3" }, ADMIN, { body: null, status: "done", authorKind: "human" }, appUrl),
     },
   ];
   return cases.map(({ kind, snap: s, ...meta }) => {

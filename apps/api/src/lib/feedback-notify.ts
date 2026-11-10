@@ -1,6 +1,12 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, emailLog, feedbackComments, feedbackItems, feedbackMutes, trainers } from "@pt/db";
-import { feedbackEmailPrefs, feedbackHandle, type FeedbackEmailPrefs, type FeedbackStatus } from "@pt/shared";
+import {
+  feedbackEmailPrefs,
+  feedbackHandle,
+  type FeedbackAuthorKind,
+  type FeedbackEmailPrefs,
+  type FeedbackStatus,
+} from "@pt/shared";
 import { adminEmailFromEnv } from "./auth";
 import { appUrl, ensureEmailToken, unsubscribeUrl, type EmailEvent, type UnsubscribeScope } from "./email-links";
 import { emailConfigured, sendEmail, type Email, type SendResult } from "./mailer";
@@ -10,7 +16,9 @@ import { emailConfigured, sendEmail, type Email, type SendResult } from "./maile
  * `notifyFeedback` loads the facts and sends, fire-and-forget after commit.
  *
  * - created → the admin (unless the admin filed it)
- * - reply   → everyone on the thread (reporter, admin, other repliers) but the author
+ * - reply   → everyone on the thread (reporter, admin, other repliers) but the author;
+ *             an AI answer is labelled as one and invites a correction. AI drafts
+ *             and private notes never notify — only publishing one does.
  * - status  → the reporter, for accepted / won't fix / done (unless they made the change)
  * Nobody hears about their own actions. On top of that each person's own say:
  * `feedback_emails = false` silences everything, a muted ticket silences that
@@ -20,7 +28,8 @@ import { emailConfigured, sendEmail, type Email, type SendResult } from "./maile
 
 export type FeedbackEvent =
   | { kind: "created"; itemId: string }
-  | { kind: "reply"; itemId: string; commentId: string }
+  /** `by`: who made it public when that isn't the comment's author (the admin sending an AI draft). */
+  | { kind: "reply"; itemId: string; commentId: string; by?: string }
   | { kind: "status"; itemId: string; commentId: string };
 
 export interface Person {
@@ -54,7 +63,7 @@ export interface FeedbackSnapshot {
   /** Who caused the event: the reporter for created, the comment's author otherwise. */
   actor: Person | null;
   /** The reply or status entry behind a reply/status event. */
-  comment: { body: string | null; status: FeedbackStatus | null } | null;
+  comment: { body: string | null; status: FeedbackStatus | null; authorKind: FeedbackAuthorKind } | null;
   appUrl: string;
 }
 
@@ -162,6 +171,14 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
     }, "New ticket");
   }
 
+  if (kind === "reply" && snap.comment?.authorKind === "ai") {
+    return send(`[${handle}] AI answer to your feedback`, {
+      lead: `The AI assistant answered ${handle} ("${clip(item.comment, 80)}"):`,
+      quote: snap.comment.body?.trim() ?? "",
+      after: "This answer was written by an AI that read the app's code. If it's wrong or doesn't help, reply on the ticket to correct it and a person will take a look.",
+    }, "AI answer");
+  }
+
   if (kind === "reply") {
     return send(`[${handle}] ${actorName} replied`, {
       lead: `${actorName} replied on ${handle} ("${clip(item.comment, 80)}"):`,
@@ -219,9 +236,17 @@ async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> 
   if (!item) return null;
 
   const thread = await db
-    .select({ id: feedbackComments.id, trainerId: feedbackComments.trainerId, kind: feedbackComments.kind, body: feedbackComments.body, status: feedbackComments.status })
+    .select({
+      id: feedbackComments.id,
+      trainerId: feedbackComments.trainerId,
+      kind: feedbackComments.kind,
+      body: feedbackComments.body,
+      status: feedbackComments.status,
+      authorKind: feedbackComments.authorKind,
+    })
     .from(feedbackComments)
-    .where(eq(feedbackComments.itemId, event.itemId));
+    // drafts and private notes are not part of the conversation anyone is emailed about
+    .where(and(eq(feedbackComments.itemId, event.itemId), eq(feedbackComments.visibility, "public")));
   const comment = "commentId" in event ? (thread.find((c) => c.id === event.commentId) ?? null) : null;
 
   const adminEmail = adminEmailFromEnv();
@@ -252,14 +277,14 @@ async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> 
   const admin = adminEmail ? (people.find((p) => p.email.toLowerCase() === adminEmail) ?? null) : null;
 
   const reporter = item.trainerId ? (byId.get(item.trainerId) ?? null) : null;
-  const actorId = event.kind === "created" ? item.trainerId : comment?.trainerId;
+  const actorId = event.kind === "created" ? item.trainerId : event.kind === "reply" && event.by ? event.by : comment?.trainerId;
   return {
     item,
     reporter,
     admin,
     repliers: thread.filter((c) => c.kind === "reply" && c.trainerId).map((c) => byId.get(c.trainerId!)!).filter(Boolean),
     actor: actorId ? (byId.get(actorId) ?? null) : null,
-    comment: comment ? { body: comment.body, status: comment.status } : null,
+    comment: comment ? { body: comment.body, status: comment.status, authorKind: comment.authorKind } : null,
     appUrl: appUrl(),
   };
 }

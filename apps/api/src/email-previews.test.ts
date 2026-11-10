@@ -9,6 +9,7 @@ describe("email previews", () => {
       "created-page",
       "created-general",
       "reply",
+      "reply-ai",
       "status-accepted",
       "status-wontfix",
       "status-done",

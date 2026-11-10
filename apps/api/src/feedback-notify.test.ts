@@ -41,41 +41,53 @@ describe("feedbackEmails", () => {
   test("a reply reaches everyone on the thread but its author, once each", () => {
     const out = feedbackEmails(
       "reply",
-      snap({ actor: boss, repliers: [boss, mo, mo], comment: { body: "Which screen?", status: null } }),
+      snap({ actor: boss, repliers: [boss, mo, mo], comment: { body: "Which screen?", status: null, authorKind: "human" } }),
     );
     expect(to(out)).toEqual(["kai@example.com", "mo@example.com"]);
     expect(out[0].subject).toBe("[FB-012] Ana replied");
     expect(out[0].text).toContain("  Which screen?");
   });
 
+  test("an AI answer is labelled as one and invites a correction", () => {
+    const out = feedbackEmails(
+      "reply",
+      snap({ actor: null, comment: { body: "It's under Settings → Email.", status: null, authorKind: "ai" } }),
+    );
+    expect(to(out)).toEqual(["boss@example.com", "kai@example.com"]);
+    expect(out[0].subject).toBe("[FB-012] AI answer to your feedback");
+    expect(out[0].text).toContain("The AI assistant answered FB-012");
+    expect(out[0].text).toContain("  It's under Settings → Email.");
+    expect(out[0].text).toContain("reply on the ticket to correct it");
+  });
+
   test("status changes email the reporter: accepted, won't fix with reason, shipped", () => {
-    const accepted = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "accepted" } }));
+    const accepted = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "accepted", authorKind: "human" } }));
     expect(to(accepted)).toEqual(["kai@example.com"]);
     expect(accepted[0].subject).toBe("[FB-012] Accepted — on the build list");
 
     const wontfix = feedbackEmails(
       "status",
-      snap({ actor: boss, item: { ...snap().item, triageNote: "Warm-ups are hidden by design" }, comment: { body: null, status: "wontfix" } }),
+      snap({ actor: boss, item: { ...snap().item, triageNote: "Warm-ups are hidden by design" }, comment: { body: null, status: "wontfix", authorKind: "human" } }),
     );
     expect(wontfix[0].subject).toBe("[FB-012] Won't fix");
     expect(wontfix[0].text).toContain("Reason: Warm-ups are hidden by design");
 
     const done = feedbackEmails(
       "status",
-      snap({ actor: boss, item: { ...snap().item, shippedIn: "0.1.3" }, comment: { body: null, status: "done" } }),
+      snap({ actor: boss, item: { ...snap().item, shippedIn: "0.1.3" }, comment: { body: null, status: "done", authorKind: "human" } }),
     );
     expect(done[0].subject).toBe("[FB-012] Shipped in v0.1.3");
   });
 
   test("back to new, and changes the reporter made themselves, send nothing", () => {
-    expect(feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "new" } }))).toEqual([]);
-    expect(feedbackEmails("status", snap({ actor: kai, comment: { body: null, status: "accepted" } }))).toEqual([]);
+    expect(feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "new", authorKind: "human" } }))).toEqual([]);
+    expect(feedbackEmails("status", snap({ actor: kai, comment: { body: null, status: "accepted", authorKind: "human" } }))).toEqual([]);
   });
 
   test("opted-out people and unknown reporters are skipped", () => {
     const quiet = person("kai", "Kai", { feedbackEmails: false });
-    expect(feedbackEmails("status", snap({ reporter: quiet, actor: boss, comment: { body: null, status: "accepted" } }))).toEqual([]);
-    expect(feedbackEmails("status", snap({ reporter: null, actor: boss, comment: { body: null, status: "done" } }))).toEqual([]);
+    expect(feedbackEmails("status", snap({ reporter: quiet, actor: boss, comment: { body: null, status: "accepted", authorKind: "human" } }))).toEqual([]);
+    expect(feedbackEmails("status", snap({ reporter: null, actor: boss, comment: { body: null, status: "done", authorKind: "human" } }))).toEqual([]);
     expect(feedbackEmails("created", snap({ admin: person("boss", "Ana", { feedbackEmails: false }) }))).toEqual([]);
   });
 
@@ -92,14 +104,14 @@ describe("feedbackEmails", () => {
   test("the master switch off silences every event", () => {
     const off = (p: Person) => ({ ...p, feedbackEmails: false });
     expect(feedbackEmails("created", snap({ admin: off(boss) }))).toEqual([]);
-    expect(feedbackEmails("reply", snap({ actor: mo, reporter: off(kai), admin: off(boss), comment: { body: "hi", status: null } }))).toEqual([]);
-    expect(feedbackEmails("status", snap({ actor: boss, reporter: off(kai), comment: { body: null, status: "done" } }))).toEqual([]);
+    expect(feedbackEmails("reply", snap({ actor: mo, reporter: off(kai), admin: off(boss), comment: { body: "hi", status: null, authorKind: "human" } }))).toEqual([]);
+    expect(feedbackEmails("status", snap({ actor: boss, reporter: off(kai), comment: { body: null, status: "done", authorKind: "human" } }))).toEqual([]);
   });
 
   test("a muted ticket sends that person nothing, others still hear", () => {
     const mutedKai = { ...kai, muted: true };
-    expect(feedbackEmails("status", snap({ actor: boss, reporter: mutedKai, comment: { body: null, status: "accepted" } }))).toEqual([]);
-    const reply = feedbackEmails("reply", snap({ actor: mo, reporter: mutedKai, repliers: [mo], comment: { body: "hi", status: null } }));
+    expect(feedbackEmails("status", snap({ actor: boss, reporter: mutedKai, comment: { body: null, status: "accepted", authorKind: "human" } }))).toEqual([]);
+    const reply = feedbackEmails("reply", snap({ actor: mo, reporter: mutedKai, repliers: [mo], comment: { body: "hi", status: null, authorKind: "human" } }));
     expect(to(reply)).toEqual(["boss@example.com"]);
     expect(feedbackEmails("created", snap({ admin: { ...boss, muted: true } }))).toEqual([]);
   });
@@ -113,7 +125,7 @@ describe("feedbackEmails", () => {
 
   test("replies off skips the person; mine needs them in the ticket", () => {
     const reply = (admin: Person) =>
-      to(feedbackEmails("reply", snap({ actor: kai, admin, comment: { body: "hi", status: null } })));
+      to(feedbackEmails("reply", snap({ actor: kai, admin, comment: { body: "hi", status: null, authorKind: "human" } })));
     expect(reply(withPrefs(boss, { replies: "off" }))).toEqual([]);
     expect(reply(withPrefs({ ...boss, inTicket: false }, { replies: "all" }))).toEqual(["boss@example.com"]);
     expect(reply(withPrefs({ ...boss, inTicket: false }, { replies: "mine" }))).toEqual([]);
@@ -122,13 +134,13 @@ describe("feedbackEmails", () => {
 
   test("status needs the status pref; other prefs do not matter", () => {
     const status = (reporter: Person) =>
-      feedbackEmails("status", snap({ actor: boss, reporter, comment: { body: null, status: "accepted" } }));
+      feedbackEmails("status", snap({ actor: boss, reporter, comment: { body: null, status: "accepted", authorKind: "human" } }));
     expect(status(withPrefs(kai, { status: false }))).toEqual([]);
     expect(to(status(withPrefs(kai, { replies: "off", newTickets: false })))).toEqual(["kai@example.com"]);
   });
 
   test("each recipient's footer carries their own unsubscribe links", () => {
-    const out = feedbackEmails("reply", snap({ actor: mo, repliers: [mo], comment: { body: "hi", status: null } }));
+    const out = feedbackEmails("reply", snap({ actor: mo, repliers: [mo], comment: { body: "hi", status: null, authorKind: "human" } }));
     const kaiMail = out.find((e) => e.to === "kai@example.com")!;
     const bossMail = out.find((e) => e.to === "boss@example.com")!;
     const base = "https://pt.test/v1/email/unsubscribe?t=tok-kai&scope=";
@@ -154,7 +166,7 @@ describe("feedbackEmails", () => {
   test("the stop link names the event that triggered the email", () => {
     const [created] = feedbackEmails("created", snap());
     expect(created.text).toContain("Stop new-ticket emails: https://pt.test/v1/email/unsubscribe?t=tok-boss&scope=event%3AnewTickets");
-    const [status] = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "done" } }));
+    const [status] = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "done", authorKind: "human" } }));
     expect(status.text).toContain("Stop status emails: https://pt.test/v1/email/unsubscribe?t=tok-kai&scope=event%3Astatus");
   });
 
