@@ -30,7 +30,8 @@
 		| 'thumbs-down'
 		| 'list-check'
 		| 'send'
-		| 'pencil';
+		| 'pencil'
+		| 'flag';
 </script>
 
 <script lang="ts">
@@ -111,6 +112,7 @@
 		'list-check': { d: 'M11 6h10M11 12h10M11 18h10', d2: 'm3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17' },
 		pencil: { d: 'M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16z', d2: 'M13.5 6.5l4 4' },
 		send: { d: 'M22 2 11 13', d2: 'M22 2l-7 20-4-9-9-4z' },
+		flag: { d: 'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z', d2: 'M4 22v-7' },
 	};
 
 	const icon = $derived(ICONS[name]);
