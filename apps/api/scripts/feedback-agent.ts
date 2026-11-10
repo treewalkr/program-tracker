@@ -14,7 +14,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { treaty } from "@elysiajs/eden";
 import type { App } from "../src/app";
@@ -22,10 +22,19 @@ import type { App } from "../src/app";
 const SHOTS_DIR = "/tmp/pt-fb-agent";
 
 /** KEY=VALUE lines; # comments; optional quotes. Only the two keys we need are read. */
+/** This checkout's .env.agent, else the main checkout's — scheduled runs land in fresh worktrees. */
+function agentEnvFile(): string | null {
+  const here = resolve(import.meta.dir, "../../../.env.agent");
+  if (existsSync(here)) return here;
+  const common = Bun.spawnSync(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: import.meta.dir });
+  const main = common.success ? join(dirname(common.stdout.toString().trim()), ".env.agent") : null;
+  return main && existsSync(main) ? main : null;
+}
+
 function loadAgentEnv(): { url: string; token: string } {
-  const file = resolve(import.meta.dir, "../../../.env.agent");
+  const file = agentEnvFile();
   const vars: Record<string, string> = {};
-  if (existsSync(file)) {
+  if (file) {
     for (const line of readFileSync(file, "utf8").split("\n")) {
       const m = /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
       if (m && !line.trimStart().startsWith("#")) vars[m[1]] = m[2].replace(/^(['"])(.*)\1$/, "$2");
