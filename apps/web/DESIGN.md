@@ -252,7 +252,9 @@ Flat, and deliberately so. Depth is conveyed by tonal layering — white panels 
 - **Focus halo** (`box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15)`): Appears on input focus alongside a Link Blue border switch from well to white background; also marks a panel in edit mode (the block plan while editing) and a focused composer box.
 - **Overlay** (`--shadow-overlay: 0 8px 24px rgba(140, 149, 159, 0.2)`, and `--shadow-overlay-up` with the y-offset flipped for bars pinned to the bottom edge): Primer's overlay shadow, for surfaces that sit on top of scrolling content — the model-settings popover, the shared sticky save bar (program page, client Settings), the phone approve bar, the collapsed draft pane.
 - **Inset rings** (`inset 0 -2px 0` tab underline, `inset 0 0 0 1px` selected block-plan tile): borders drawn with box-shadow so they don't shift layout. They are borders, not elevation.
-- **Shimmer** (linear gradient `#eef1f4 → #f6f8fa → #eef1f4`, 200% width, 1.2s infinite linear): Loading skeletons; the sole animation besides 120ms button background transitions.
+- **Shimmer** (narrow `#eef1f4 → #f6f8fa → #eef1f4` band, `200vw` wide and pinned to the viewport with `background-attachment: fixed`, 1.6s infinite linear; bars fade in after 140ms): Loading skeletons; the sole animation besides 120ms button background transitions. Because the gradient is viewport-pinned, one light pass crosses the whole layout instead of each bar flickering on its own, and loads under 140ms never flash gray.
+
+**The Skeleton Rule.** A loading state mirrors the loaded layout: static chrome stays real (page titles that don't come from data, panel heads via `SkeletonPanel title`), and only data shimmers — `SkeletonRows` for Box lists, `SkeletonHead` for data-driven page heads, `WeekGridSkeleton` for the overview grid, a block only for charts and free-form bodies. Never a single gray slab standing in for a whole page.
 
 ### Named Rules
 **The Hairline Rule.** Surfaces are separated by 1px hairlines (2px for table headers and the today cell) and layered by well tint, never by shadow. No panel or in-flow container may add an elevation shadow. The budget is the button lip, the focus halo, and the overlay token — and the overlay token only goes on a surface that actually floats over content. Never write a raw shadow value; use the tokens.
@@ -357,7 +359,7 @@ The generate page opens with an **InputLedger**: "What the AI reads", one lamp r
 Reusable UI lives in code, catalogued in Storybook:
 
 - **Run:** `bun run storybook` (repo root) → http://localhost:6006. Stories are Svelte 5 CSF (`defineMeta` + `Story`) via `@storybook/addon-svelte-csf`.
-- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonPanel, Counter, Icon, EmptyState, Avatar, GeneratingState). `src/lib/components/` holds domain components, grouped by surface:
+- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonRows/SkeletonPanel/SkeletonHead, Counter, Icon, EmptyState, Avatar, GeneratingState). `src/lib/components/` holds domain components, grouped by surface:
   - **Overview & client:** StatusPill, SignalRow, WeekGrid, PulseChart, SessionCard, SetChips, RoleChip, DirChip
   - **Draft review & chat:** DraftReview, DraftPreview, ChatProposal, VersionStamp, BlockPlanStrip, BlockPlanEditor
   - **Program editing:** WeekCalendar, SessionHeadEditor, ExerciseEditor, PhasingEditor
