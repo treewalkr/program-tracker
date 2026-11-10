@@ -23,6 +23,9 @@
         "postgres": "^3.4.7",
         "zod": "^4.1.5",
       },
+      "devDependencies": {
+        "@elysiajs/eden": "^1.4.9",
+      },
     },
     "apps/web": {
       "name": "@pt/web",

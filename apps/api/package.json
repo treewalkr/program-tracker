@@ -20,5 +20,8 @@
   },
   "exports": {
     ".": "./src/app.ts"
+  },
+  "devDependencies": {
+    "@elysiajs/eden": "^1.4.9"
   }
 }
