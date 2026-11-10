@@ -34,9 +34,13 @@ import type {
   ClientStatus,
   ExampleLevel,
   FeedbackAgentCheck,
+  FeedbackAiMeta,
+  FeedbackAiMode,
+  FeedbackAuthorKind,
   FeedbackContext,
   FeedbackEmailPrefs,
   FeedbackStatus,
+  FeedbackVisibility,
   FunctionalMovement,
   GenerationStatus,
   AliasSource,
@@ -87,6 +91,8 @@ export const trainers = pgTable("trainers", {
     .$type<FeedbackEmailPrefs>()
     .notNull()
     .default(sql`'{"newTickets":true,"replies":"all","status":true}'::jsonb`),
+  /** Feedback auto-reply agent: off / drafts / auto. Only the admin's value is read. */
+  feedbackAiMode: text("feedback_ai_mode").$type<FeedbackAiMode>().notNull().default("drafts"),
   /** Secret for unsubscribe links in emails; created on first email, resettable. */
   emailToken: text("email_token").unique(),
   /** The trainer's deload rule — null = the built-in default (read through `effectiveDeload`). */
@@ -599,6 +605,12 @@ export const feedbackComments = pgTable("feedback_comments", {
   body: text("body"),
   /** Status moved to; null for replies. */
   status: text("status").$type<FeedbackStatus>(),
+  /** human, or ai (the auto-reply agent — trainer_id is null). */
+  authorKind: text("author_kind").$type<FeedbackAuthorKind>().notNull().default("human"),
+  /** public; draft = unsent AI reply; private = AI triage note. Only the admin sees non-public rows. */
+  visibility: text("visibility").$type<FeedbackVisibility>().notNull().default("public"),
+  /** AI rows: verdict, confidence, citations and the ticket basis answered. */
+  aiMeta: jsonb("ai_meta").$type<FeedbackAiMeta>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_comments_item_idx").on(t.itemId, t.createdAt)]);
 export type FeedbackCommentRow = typeof feedbackComments.$inferSelect;
