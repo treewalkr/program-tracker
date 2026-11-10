@@ -36,7 +36,8 @@ const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainer
 /**
  * Rows → API items: attaches each thread (one query) and, for a viewer, the
  * unread and muted flags (two more). Unread = someone other than the viewer filed it,
- * replied or changed its status after the viewer last looked.
+ * replied or changed its status after the viewer last looked. Only the admin
+ * gets AI drafts and private notes (which then count as news for them too).
  */
 async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean): Promise<FeedbackItem[]> {
   if (rows.length === 0) return [];
@@ -49,12 +50,16 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       kind: feedbackComments.kind,
       body: feedbackComments.body,
       status: feedbackComments.status,
+      authorKind: feedbackComments.authorKind,
+      visibility: feedbackComments.visibility,
+      aiMeta: feedbackComments.aiMeta,
       createdAt: feedbackComments.createdAt,
       author: authorColumns,
     })
     .from(feedbackComments)
     .leftJoin(trainers, eq(trainers.id, feedbackComments.trainerId))
-    .where(inArray(feedbackComments.itemId, ids))
+    // Security boundary: AI drafts and private notes never leave the server for a non-admin.
+    .where(and(inArray(feedbackComments.itemId, ids), admin ? undefined : eq(feedbackComments.visibility, "public")))
     .orderBy(asc(feedbackComments.createdAt));
   const seen = new Map<string, Date>();
   if (viewerId) {
@@ -83,6 +88,9 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
         id: c.id,
         kind: c.kind,
         author: c.author,
+        authorKind: c.authorKind,
+        visibility: c.visibility,
+        aiMeta: admin ? c.aiMeta : null,
         body: c.body,
         status: c.status,
         createdAt: c.createdAt.toISOString(),
