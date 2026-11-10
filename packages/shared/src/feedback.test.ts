@@ -130,7 +130,7 @@ describe("feedbackMarkdown", () => {
     expect(out).toContain("- _Ana marked it done (2026-11-08)_");
     expect(md).not.toContain("**Thread**");
   });
-  test("labels AI entries, drafts and private notes", () => {
+  test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
       id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, body, status: null, createdAt: "2026-11-09T00:00:00.000Z",
@@ -138,7 +138,41 @@ describe("feedbackMarkdown", () => {
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
     expect(out).toContain("- **AI assistant** _(unsent draft)_ (2026-11-09): Unsent");
-    expect(out).toContain("- **AI assistant** _(private note)_ (2026-11-09): Note");
+    expect(out).not.toContain("Note");
+  });
+  describe("AI triage", () => {
+    const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
+    const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, body: `Note ${id}`, status: null, createdAt: at(day),
+      aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
+    });
+    const current = ticketBasis(item());
+
+    test("shows the latest current note with its plan, risk and citations", () => {
+      const out = feedbackMarkdown(
+        [item({ thread: [note("old", current, 1), note("new", current, 2, { risk: "low", fixPlan: ["Open A.svelte", "Mute warm-up chips"] })] })],
+        { imageUrl: () => null },
+      );
+      expect(out).toContain("- **AI triage (read the code, 2026-11-02):** bug · medium confidence · low risk");
+      expect(out).toContain("  > Note new");
+      expect(out).toContain("  - Fix plan:\n    1. Open A.svelte\n    2. Mute warm-up chips");
+      expect(out).toContain("  - Citations: `apps/web/src/lib/A.svelte:3`");
+      expect(out).not.toContain("Note old");
+      expect(out).not.toContain("**Thread**");
+    });
+
+    test("skips notes for an older version of the ticket", () => {
+      const out = feedbackMarkdown([item({ thread: [note("stale", "deadbeef", 1, { fixPlan: ["Stale step"] })] })], { imageUrl: () => null });
+      expect(out).not.toContain("AI triage (");
+      expect(out).not.toContain("Stale step");
+      expect(out).not.toContain("Note stale");
+    });
+
+    test("leaves out risk and plan when the note has none", () => {
+      const out = feedbackMarkdown([item({ thread: [note("n", current, 1, { verdict: "how_to" })] })], { imageUrl: () => null });
+      expect(out).toContain("**AI triage (read the code, 2026-11-01):** how to · medium confidence\n");
+      expect(out).not.toContain("Fix plan");
+    });
   });
   test("names the reporter", () => {
     expect(md).toContain("- **Reported by:** Kai");

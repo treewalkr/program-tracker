@@ -325,10 +325,24 @@ const fence = (lang: string, body: string) => {
   return `${ticks}${lang}\n${body}\n${ticks}`;
 };
 
+/**
+ * The auto-reply agent's latest private note that still matches the ticket
+ * (same `ticketBasis`), or null. Older notes judged a different ticket text.
+ * Needs the admin view: other viewers get no private notes or `aiMeta`.
+ */
+export function currentAiNote(item: FeedbackItem): (FeedbackComment & { aiMeta: FeedbackAiMeta }) | null {
+  const basis = ticketBasis(item);
+  const note = item.thread.findLast(
+    (c) => c.authorKind === "ai" && c.visibility === "private" && c.aiMeta?.basis === basis,
+  );
+  return note?.aiMeta ? (note as FeedbackComment & { aiMeta: FeedbackAiMeta }) : null;
+}
+
 /** One item as a self-contained Markdown section. */
 export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
   const c = item.context;
   const lines: string[] = [];
+  const ai = currentAiNote(item);
   lines.push(`## ${feedbackHandle(item.number)} · ${item.status}`);
   lines.push("");
   lines.push(`> ${item.comment.trim().split("\n").join("\n> ")}`);
@@ -354,17 +368,30 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
+  if (ai) {
+    const m = ai.aiMeta;
+    const rated = [m.verdict.replace(/_/g, " "), `${m.confidence} confidence`, ...(m.risk ? [`${m.risk} risk`] : [])];
+    lines.push(`- **AI triage (read the code, ${ai.createdAt.slice(0, 10)}):** ${rated.join(" · ")}`);
+    lines.push(`  > ${(ai.body ?? "").trim().split("\n").join("\n  > ")}`);
+    if (m.fixPlan?.length) {
+      lines.push("  - Fix plan:");
+      m.fixPlan.forEach((step, i) => lines.push(`    ${i + 1}. ${step}`));
+    }
+    if (m.citations.length) lines.push(`  - Citations: ${m.citations.map((x) => `\`${x}\``).join(", ")}`);
+  }
   const el = opts.imageUrl(item, "element");
   const pg = opts.imageUrl(item, "page");
   if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
   if (pg) lines.push(`- **Page screenshot (element outlined in red):** ![${feedbackHandle(item.number)} page](${pg})`);
-  if (item.thread.length) {
+  // AI private notes: the current one is the AI triage above; older ones judged a ticket that has since changed.
+  const thread = item.thread.filter((e) => !(e.authorKind === "ai" && e.visibility === "private"));
+  if (thread.length) {
     lines.push("");
     lines.push("**Thread** (oldest first — clarifications from the reporter and the owner):");
     lines.push("");
-    for (const c of item.thread) {
+    for (const c of thread) {
       const who = c.authorKind === "ai" ? FEEDBACK_AI_AUTHOR_NAME : (c.author?.name ?? "unknown");
-      const tag = c.visibility === "draft" ? " _(unsent draft)_" : c.visibility === "private" ? " _(private note)_" : "";
+      const tag = c.visibility === "draft" ? " _(unsent draft)_" : "";
       lines.push(
         c.kind === "status"
           ? `- _${who} marked it ${c.status} (${c.createdAt.slice(0, 10)})_`
@@ -403,7 +430,8 @@ export function feedbackMarkdown(items: FeedbackItem[], opts: FeedbackMarkdownOp
     `${items.length} item${items.length === 1 ? "" : "s"}. Each item is a comment the trainer left on one UI element.`,
     "The quoted text is the trainer's words, verbatim. **Source** is the exact element in the repo;",
     "**Rendered via** lists the enclosing components, innermost first. A **Triage note** is the",
-    "owner's decision and outranks the comment when they differ.",
+    "owner's decision and outranks the comment when they differ. **AI triage** is the auto-reply",
+    "agent's latest read of the code for the ticket as it stands; verify its fix plan before you follow it.",
   ];
   return [...head, "", ...items.map((i) => `${feedbackItemMarkdown(i, opts)}\n`)].join("\n");
 }
