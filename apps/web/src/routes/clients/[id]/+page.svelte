@@ -469,6 +469,7 @@
                       movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
                       sets: e.prescribedSets,
                       oneRepMaxKg: oneRepMaxKg(client?.oneRepMaxes, e.exerciseId),
+                      group: e.group,
                     }))}
                   />
                 {/each}

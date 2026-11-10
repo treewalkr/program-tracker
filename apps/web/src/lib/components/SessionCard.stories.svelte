@@ -33,6 +33,12 @@
     { name: '', role: 'accessory' as ExerciseRole, sets: working(12, 3, 20) },
   ];
 
+  const superset = [
+    { name: 'Back Squat', role: 'primary' as ExerciseRole, sets: working(5, 3, 140, 8) },
+    { name: 'Single Leg Throwball', group: 'A', sets: working(8, 3, 4) },
+    { name: 'Slamball Side to Side', group: 'A', sets: working(10, 3, 6) },
+  ];
+
   const lower = [
     { name: 'Back Squat', sets: working(5, 3, 140, 8) },
     { name: 'Romanian Deadlift', sets: working(8, 3, 100) },
@@ -63,6 +69,7 @@
 {/snippet}
 
 <Story name="Lifting day" {template} args={{ name: 'Upper', tag: 'Session 1', when: 'Thursday · due today', kind: 'lifting', exercises: upper }} />
+<Story name="With a superset" {template} args={{ name: 'Lower', tag: 'Session 2', kind: 'lifting', exercises: superset }} />
 <Story name="Cardio session" {template} args={{ name: 'Cardio 1', kind: 'cardio', cardio: { modality: 'Bike', durationMin: 40, hrZone: 2, distanceKm: 15, targetRpe: 5 } }} />
 <Story name="Two-a-day (evening cardio)" {template} args={{ name: 'Evening Cardio', when: 'Thursday · evening', kind: 'cardio', cardio: { modality: 'Run', durationMin: 30, hrZone: 3, targetRpe: 7 } }} />
 <Story name="With movement patterns & balance" {template} args={{ name: 'Pattern balance', tag: 'Session 3', kind: 'lifting', exercises: patternSession }} />

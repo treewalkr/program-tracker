@@ -46,6 +46,7 @@
   import { clientDeload } from "$lib/draftReview";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
+  import GroupTag from "$lib/components/GroupTag.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
@@ -529,6 +530,7 @@
                     {@const pattern = patternOf(e.exerciseId)}
                     <div class="exblock" class:editable>
                       <div class="exhead">
+                        {#if e.group}<GroupTag tag={groupTag(s.exercises, ei) ?? e.group} />{/if}
                         {#if e.role}<RoleChip role={e.role} />{/if}
                         {#if editable}
                           <button class="exname" onclick={() => { openExercise = e.id; openSession = null; }} title="Edit {e.exerciseName}">{e.exerciseName}</button>
