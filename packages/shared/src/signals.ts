@@ -1,6 +1,7 @@
-import { estimate1rm, weekSessions } from "./domain";
+import { estimate1rm, isPainFlag, weekSessions } from "./domain";
 import type { CardioTarget } from "./domain";
 import { DELOAD_RULES } from "./deload";
+import { shortDate } from "./autoreg";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
 import { blockPulse, blockWeekOfDate, daysIntoBlock, localDateOf, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
@@ -20,7 +21,8 @@ export type SignalKind =
   | "stall"
   | "adherence"
   | "cardio-behind"
-  | "week-ending";
+  | "week-ending"
+  | "pain-flag";
 
 export interface Signal {
   /** Deterministic id, e.g. `block-ending:<programId>` — PK for snooze/outbox. */
@@ -373,4 +375,52 @@ export function cardioBehindSignal(
     altHref: `/clients/${owner.clientId}`,
     altLabel: "Review client",
   };
+}
+
+/** How far back a pain flag still raises a signal. */
+export const PAIN_FLAG_DAYS = 14;
+
+/** Pain check, merged by each signal caller next to computeSignals: one signal
+ *  per client + exercise with a pain flag (or a skip for pain) in the last
+ *  14 days, citing each date and note. The id carries the newest flag's date,
+ *  so a fresh flag after a snooze shows again. */
+export function painFlagSignals(
+  owner: { programId: string | null; clientId: string | null },
+  logs: Pick<SignalLog, "date" | "flags">[],
+  nameOf: (id: string) => string,
+  now: number = Date.now()
+): Signal[] {
+  const today = localDateOf(now);
+  const since = localDateOf(Date.parse(`${today}T12:00:00Z`) - PAIN_FLAG_DAYS * 86_400_000);
+  const byExercise = new Map<string, { date: string; note?: string; skipped: boolean }[]>();
+  for (const log of logs) {
+    const date = log.date.slice(0, 10);
+    if (date <= since || date > today) continue;
+    for (const f of log.flags ?? []) {
+      if (!isPainFlag(f)) continue;
+      const list = byExercise.get(f.exerciseId) ?? [];
+      list.push({ date, note: f.note?.trim() || undefined, skipped: f.kind === "skipped" });
+      byExercise.set(f.exerciseId, list);
+    }
+  }
+  const signals: Signal[] = [];
+  for (const [exId, hits] of byExercise) {
+    hits.sort((a, b) => b.date.localeCompare(a.date));
+    const name = nameOf(exId);
+    const cites = hits
+      .map((h) => `${shortDate(h.date)}${h.skipped ? " (skipped)" : ""}${h.note ? ` “${h.note}”` : ""}`)
+      .join("; ");
+    signals.push({
+      id: `pain-flag:${owner.clientId}:${exId}:${hits[0].date}`,
+      kind: "pain-flag",
+      severity: "attention",
+      title: `Pain flagged — ${name}${hits.length > 1 ? ` ×${hits.length}` : ""}`,
+      evidence: `${name}: pain in the last ${PAIN_FLAG_DAYS} days — ${cites}. Check in before loading it again.`,
+      programId: owner.programId,
+      clientId: owner.clientId,
+      altHref: `/clients/${owner.clientId}`,
+      altLabel: "Review client",
+    });
+  }
+  return signals;
 }

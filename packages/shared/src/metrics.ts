@@ -1,5 +1,5 @@
 import { estimate1rm } from "./domain";
-import type { CardioLog, Phasing, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
+import type { CardioLog, Phasing, SessionFlag, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
 /**
  * Block pulse: weekly volume & intensity computed from logged working + back-off sets.
@@ -35,6 +35,8 @@ export interface SignalLog {
   /** Cardio actuals when kind is "cardio". */
   cardio?: CardioLog | null;
   sets: SignalLogSet[];
+  /** Per-exercise flags (pain, technique, skipped) the trainer set on the log. */
+  flags?: SessionFlag[] | null;
 }
 
 export interface WeekMetrics {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cardioBehindSignal, computeSignals, DELOAD_RULES, type SignalLog, type SignalProgram } from "./index";
+import { cardioBehindSignal, computeSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
 
 const owner = { programId: "pg-1", clientId: "cl-1" };
 
@@ -532,5 +532,52 @@ describe("stall buckets by block week and respects planned-flat loads (F17)", ()
 
   test("fires when a %1RM plan progressed and the athlete did not", () => {
     expect(stall(pctProgram([70, 72.5, 75, 77.5, 80]), weekly([140, 140, 140, 140, 140]))).toBeDefined();
+  });
+});
+
+describe("painFlagSignals", () => {
+  const SQUAT = "00000000-0000-4000-8000-0000000000aa";
+  const ROW = "00000000-0000-4000-8000-0000000000bb";
+  const nameOf = (id: string) => (id === SQUAT ? "Hack Squat" : "Cable Row");
+  const flagLog = (date: string, flags: SignalLog["flags"]) => ({ date, flags });
+  const pain = (exerciseId: string, note?: string) => ({ programExerciseId: null, exerciseId, kind: "pain" as const, note });
+
+  test("one signal per exercise, citing dates and notes, newest first", () => {
+    const logs = [
+      flagLog("2026-10-20", [pain(SQUAT, "knee twinge")]),
+      flagLog("2026-10-27", [pain(SQUAT)]),
+      flagLog("2026-10-27", [pain(ROW, "elbow")]),
+    ];
+    const signals = painFlagSignals(owner, logs, nameOf, THU);
+    expect(signals).toHaveLength(2);
+    const squat = signals.find((s) => s.id.includes(SQUAT))!;
+    expect(squat.id).toBe(`pain-flag:cl-1:${SQUAT}:2026-10-27`);
+    expect(squat.kind).toBe("pain-flag");
+    expect(squat.severity).toBe("attention");
+    expect(squat.title).toBe("Pain flagged — Hack Squat ×2");
+    expect(squat.evidence).toBe("Hack Squat: pain in the last 14 days — Oct 27; Oct 20 “knee twinge”. Check in before loading it again.");
+    expect(squat.programId).toBe("pg-1");
+    expect(squat.clientId).toBe("cl-1");
+    expect(squat.altHref).toBe("/clients/cl-1");
+  });
+
+  test("a skip for pain counts; technique and other skips don't", () => {
+    const logs = [
+      flagLog("2026-10-27", [
+        { programExerciseId: null, exerciseId: SQUAT, kind: "skipped", reason: "pain" },
+        { programExerciseId: null, exerciseId: ROW, kind: "skipped", reason: "time" },
+        { programExerciseId: null, exerciseId: ROW, kind: "technique", note: "hips rise" },
+      ]),
+    ];
+    const signals = painFlagSignals(owner, logs, nameOf, THU);
+    expect(signals.map((s) => s.title)).toEqual(["Pain flagged — Hack Squat"]);
+    expect(signals[0].evidence).toContain("Oct 27 (skipped)");
+  });
+
+  test("flags older than 14 days and logs without flags are silent", () => {
+    // THU = 2026-10-29 → window is Oct 16 … Oct 29.
+    expect(painFlagSignals(owner, [flagLog("2026-10-15", [pain(SQUAT)])], nameOf, THU)).toEqual([]);
+    expect(painFlagSignals(owner, [flagLog("2026-10-16", [pain(SQUAT)])], nameOf, THU)).toHaveLength(1);
+    expect(painFlagSignals(owner, [flagLog("2026-10-28", null), { date: "2026-10-28" }], nameOf, THU)).toEqual([]);
   });
 });
