@@ -1057,7 +1057,8 @@
   >
     {#snippet actions()}
       {#if rows.length > 0 || isCardioSession}
-        <Button variant="primary" onclick={logAsPrescribed} disabled={saving} aria-haspopup="dialog">
+        <!-- Green is the Save verb (DESIGN.md): the shortcut is primary only on an empty sheet; once anything is entered, Save takes it. -->
+        <Button variant={dirty ? "default" : "primary"} onclick={logAsPrescribed} disabled={saving} aria-haspopup="dialog">
           {#snippet icon()}<Icon name="bolt" />{/snippet}
           Did it as prescribed
         </Button>
@@ -1501,7 +1502,7 @@
         <div class="submit-row">
           <span class="subtle tally" aria-live="polite">{status}</span>
           <span class="kbd-hint" aria-hidden="true">Enter: next cell · {isMac ? "⌘↵" : "Ctrl+↵"} save</span>
-          <Button type="submit" id="log-save" disabled={saving} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
+          <Button variant={dirty ? "primary" : "default"} type="submit" id="log-save" disabled={saving} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
             {saving ? "Saving…" : "Save session"}
           </Button>
         </div>
