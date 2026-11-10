@@ -349,7 +349,7 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
     const aiReply = (min: number, basis = "old") => ({
       id: `ai${min}`, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "public" as const,
       aiMeta: { verdict: "exists" as const, confidence: "high" as const, citations: [], basis, model: null, runAt: at(min) },
-      body: "Answer", status: null, attachments: [], createdAt: at(min),
+      ship: null, body: "Answer", status: null, attachments: [], createdAt: at(min),
     });
     const base = (over: Partial<FeedbackItem>): FeedbackItem => ({
       id: "i", number: 1, author: kaiAuthor, status: "new", comment: "c", triageNote: null, route: "/", source: null, context,
