@@ -74,8 +74,9 @@ export function newExerciseNames(r: ImportResult, block: number, choices: Record
 }
 
 /**
- * Personal aliases to save, as written → exercise: the trainer's picks, and
- * the fuzzy matches they let stand (accepted by default) — next time they're exact.
+ * Personal aliases to save, as written → exercise: only what the trainer
+ * picked or confirmed. A match they merely let stand isn't saved — a wrong
+ * guess would come back on every import.
  */
 export function aliasesToSave(
   r: ImportResult,
@@ -86,8 +87,8 @@ export function aliasesToSave(
   const out = new Map<string, { alias: string; exerciseId: string; source: "import" }>();
   for (const { key, ex } of templateExercises(r, block)) {
     const state = choices[key];
-    const picked = state?.confirmed ? state.choice : ex.match?.kind === "fuzzy" ? choiceFor(choices, key, ex) : null;
-    if (!picked) continue;
+    if (!state?.confirmed) continue;
+    const picked = state.choice;
     const id = picked.kind === "catalog" ? picked.exerciseId : createdIds.get(picked.exerciseName.trim().toLowerCase());
     if (id) out.set(ex.sourceName.trim().toLowerCase(), { alias: ex.sourceName.trim(), exerciseId: id, source: "import" });
   }
@@ -114,7 +115,7 @@ function exercisesOfWeeks(r: ImportResult, weeks: number[]): { key: string; ex: 
 
 export interface HistoryPick {
   choice: MatchChoice;
-  /** Saved as a personal alias: the trainer picked it, or let a fuzzy match stand. */
+  /** Saved as a personal alias: the trainer picked it. */
   alias: boolean;
   /** The name as written (first seen), for the alias. */
   sourceName: string;
@@ -140,7 +141,7 @@ export function historyExerciseMap(r: ImportResult, choices: Record<string, Choi
     if (!name || out.has(name)) continue;
     const state = picked.get(name);
     const choice = state?.choice ?? defaultChoice(ex.match, ex.name);
-    out.set(name, { choice, alias: state ? state.confirmed || ex.match?.kind === "fuzzy" : ex.match?.kind === "fuzzy", sourceName: ex.sourceName.trim() });
+    out.set(name, { choice, alias: state?.confirmed ?? false, sourceName: ex.sourceName.trim() });
   }
   return out;
 }
@@ -165,7 +166,7 @@ export function historyExerciseIds(map: Map<string, HistoryPick>, createdIds: Ma
   return out;
 }
 
-/** aliasesToSave's rule across the history weeks: picks and accepted fuzzy matches. */
+/** aliasesToSave's rule across the history weeks: the trainer's picks only. */
 export function historyAliasesToSave(
   map: Map<string, HistoryPick>,
   createdIds: Map<string, string> = new Map(),

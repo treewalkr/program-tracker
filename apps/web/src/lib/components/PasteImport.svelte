@@ -525,7 +525,7 @@
         <li>
           <span class="lamp green" aria-hidden="true"></span>
           <span><b class="num">{summary.matched}</b> {summary.matched === 1 ? "name" : "names"} matched</span>
-          <span class="subtle">accepted — tap Change on any that's wrong; saved for next time</span>
+          <span class="subtle">accepted — tap Change on any that's wrong; what you pick is saved for next time</span>
         </li>
         <li>
           <span class="lamp" class:amber={summary.unused > 0} class:green={summary.unused === 0} aria-hidden="true"></span>

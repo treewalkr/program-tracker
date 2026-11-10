@@ -177,7 +177,7 @@ describe("matches", () => {
     expect(new Set(names.map((s) => s.toLowerCase())).size).toBe(names.length);
   });
 
-  test("picks and the fuzzy matches let stand become aliases, keyed by the name as written", () => {
+  test("only the trainer's picks become aliases, keyed by the name as written", () => {
     const r = result();
     const items = templateExercises(r, 1);
     const squat = items.find(({ ex }) => ex.line === 56)!;
@@ -190,10 +190,23 @@ describe("matches", () => {
       { alias: "Crossover / Dip", exerciseId: "dip-id", source: "import" },
       { alias: "Squat", exerciseId: "squat", source: "import" },
     ]);
-    // untouched: the fuzzy matches are only suggestions → new exercises, none created yet
+    // untouched: nothing is saved
     expect(aliasesToSave(r, 1, {})).toEqual([]);
     // changed to a new exercise that wasn't created → nothing to point at
     expect(aliasesToSave(r, 1, { [squat.key]: { choice: { kind: "new", exerciseName: "Squat" }, confirmed: true } })).toEqual([]);
+  });
+
+  test("an unconfirmed fuzzy match is never saved, even a strong one picked for the trainer", () => {
+    const r = result();
+    const squat = templateExercises(r, 1).find(({ ex }) => ex.line === 56)!;
+    squat.ex.match = { kind: "fuzzy", exerciseId: "squat", exerciseName: "Back Squat", candidates: [] };
+    expect(choiceFor({}, squat.key, squat.ex)).toMatchObject({ kind: "catalog", exerciseId: "squat" });
+    expect(aliasesToSave(r, 1, {})).toEqual([]);
+    // unconfirmed state (not picked by the trainer) isn't saved either
+    expect(aliasesToSave(r, 1, { [squat.key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: false } })).toEqual([]);
+    expect(
+      aliasesToSave(r, 1, { [squat.key]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true } }),
+    ).toEqual([{ alias: "Squat", exerciseId: "squat", source: "import" }]);
   });
 });
 
@@ -291,13 +304,12 @@ describe("history import helpers", () => {
     expect(Object.keys(ids)).toHaveLength(map.size);
     expect(Object.keys(historyExerciseIds(map))).toHaveLength(map.size - names.length);
 
-    // fuzzy matches let stand are saved (here: Squat and two bench presses, now new exercises), exact ones aren't
-    const aliases = historyAliasesToSave(map, created);
-    expect(aliases).toContainEqual({ alias: "Squat", exerciseId: "id:Squat", source: "import" });
-    const fuzzy = new Set(
-      r.weeks.flatMap((w) => w.days.flatMap((d) => d.sessions.flatMap((s) => s.exercises.filter((e) => e.match?.kind === "fuzzy").map((e) => e.sourceName)))),
-    );
-    expect(aliases.every((a) => fuzzy.has(a.alias))).toBe(true);
-    expect(aliases.map((a) => a.alias)).not.toContain("Bench press");
+    // nothing picked → nothing saved; a pick is saved
+    expect(historyAliasesToSave(map, created)).toEqual([]);
+    const squatKey = templateExercises(r, 1).find(({ ex }) => ex.sourceName === "Squat")!.key;
+    const picked = historyExerciseMap(r, {
+      [squatKey]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true },
+    });
+    expect(historyAliasesToSave(picked, created)).toEqual([{ alias: "Squat", exerciseId: "squat", source: "import" }]);
   });
 });
