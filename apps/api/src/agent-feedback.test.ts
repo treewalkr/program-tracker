@@ -168,9 +168,19 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     await flush();
   });
 
-  test("screenshots are served to the agent", async () => {
-    const id = await ticket("shot");
-    expect((await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, agent)).status).toBe(404);
+  test("screenshots are served to the agent as bytes, with their type", async () => {
+    const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const body = { comment: "shot", context, elementShot: `data:image/png;base64,${PNG_B64}` };
+    const id = (await json(await call("POST", "/v1/feedback", body, kai))).id as string;
+    items.push(id);
+    await flush();
+    expect((await inInbox(id)).shots).toEqual({ element: true, page: false });
+    const res = await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, agent);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/octet-stream");
+    expect(res.headers.get("x-shot-type")).toBe("image/png");
+    expect(Buffer.from(await res.arrayBuffer()).equals(Buffer.from(PNG_B64, "base64"))).toBe(true);
+    expect((await call("GET", `/v1/agent/feedback/${id}/shots/page`, undefined, agent)).status).toBe(404);
     expect((await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, kai)).status).toBe(401);
   });
 

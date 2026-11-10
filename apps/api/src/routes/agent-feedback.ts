@@ -60,7 +60,10 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       const col = params.kind === "element" ? feedbackItems.elementShot : feedbackItems.pageShot;
       const [row] = await db.select({ shot: col }).from(feedbackItems).where(eq(feedbackItems.id, params.id));
       if (!row?.shot) return status(404, { error: "screenshot not found" });
-      return new Response(new Uint8Array(row.shot), { headers: { "content-type": shotMime(row.shot) } });
+      // octet-stream so Eden hands the CLI raw bytes (it reads image/* as text); the real type rides along
+      return new Response(new Uint8Array(row.shot), {
+        headers: { "content-type": "application/octet-stream", "x-shot-type": shotMime(row.shot) },
+      });
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }), kind: t.UnionEnum(["element", "page"]) }),
