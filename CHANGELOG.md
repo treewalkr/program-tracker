@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.18 — 2026-11-10
+
 ### New
 - Edit your feedback tickets after sending them: change the text or the images. The ticket shows when it was edited, and the other side sees the edit as unread.
 - Training week: a session now gets two days' grace before it counts as missed. Until then it shows in amber as "not logged yet".
