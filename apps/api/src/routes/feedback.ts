@@ -39,6 +39,7 @@ const Context = t.Object({
     html: t.String(),
     headings: t.Array(t.String()),
     selector: t.String(),
+    anchor: t.Optional(t.Nullable(t.Object({ attr: t.String({ maxLength: 100 }), value: t.String({ maxLength: 200 }), depth: t.Number() }))),
     rect: t.Object({ x: t.Number(), y: t.Number(), width: t.Number(), height: t.Number() }),
   }),
   pageData: t.Unknown(),

@@ -19,6 +19,19 @@ export interface FeedbackChainEntry extends FeedbackSourceLoc {
   type: string;
 }
 
+/**
+ * The nearest stable attribute on the clicked element or one of its close
+ * ancestors (`id`, a `data-*` attribute, `aria-label` or `name`), unique on
+ * the page at capture time. `depth` is how many levels above the element it
+ * sits (0 = the element itself). Survives production builds, which carry no
+ * Svelte source metadata.
+ */
+export interface FeedbackAnchor {
+  attr: string;
+  value: string;
+  depth: number;
+}
+
 export interface FeedbackContext {
   route: {
     /** URL path + query at click time, e.g. `/clients/c_31/programs/new`. */
@@ -41,6 +54,8 @@ export interface FeedbackContext {
     headings: string[];
     /** CSS selector path from the nearest id/landmark. */
     selector: string;
+    /** Stable attribute anchor; absent on tickets filed before it was recorded. */
+    anchor?: FeedbackAnchor | null;
     rect: { x: number; y: number; width: number; height: number };
   };
   /** Snapshot of SvelteKit `page.data` (truncated JSON) — the data the page rendered. */

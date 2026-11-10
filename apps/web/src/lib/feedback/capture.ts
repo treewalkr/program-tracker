@@ -1,6 +1,7 @@
 import {
   snapshotJson,
   toRepoPath,
+  type FeedbackAnchor,
   type FeedbackChainEntry,
   type FeedbackContext,
   type FeedbackSourceLoc,
@@ -103,6 +104,49 @@ export function cssPath(el: Element, maxDepth = 6): string {
   return parts.join(" > ");
 }
 
+/** CSS selector for one attribute value: `[data-set-id="s1"]`. */
+export const anchorSelector = (a: Pick<FeedbackAnchor, "attr" | "value">) =>
+  `[${a.attr}="${a.value.replace(/["\\]/g, "\\$&")}"]`;
+
+/** Framework and widget-library attributes that change between renders or carry no identity. */
+const NOISY_DATA = /^data-(svelte|sveltekit|state|slot|orientation|side|align|disabled|highlighted|selected|feedback|fb)/;
+/** Generated ids (`bits-12`, `:r3:`, long digit runs) aren't stable across sessions. */
+const NOISY_ID = /^(bits-|:r|svelte-)|\d{4,}/;
+
+function stableAttrs(el: Element): { attr: string; value: string }[] {
+  const out: { attr: string; value: string }[] = [];
+  if (el.id && !NOISY_ID.test(el.id)) out.push({ attr: "id", value: el.id });
+  for (const { name, value } of el.attributes) {
+    if (name.startsWith("data-") && !NOISY_DATA.test(name) && value && value.length <= 200) out.push({ attr: name, value });
+  }
+  for (const attr of ["aria-label", "name"]) {
+    const value = el.getAttribute(attr);
+    if (value && value.length <= 200) out.push({ attr, value });
+  }
+  return out;
+}
+
+/**
+ * The nearest attribute on the element or its close ancestors that names it
+ * uniquely on the page — what "Show me" looks for first in production builds,
+ * where class and position selectors drift.
+ */
+export function anchorOf(el: Element, maxDepth = 4, root: ParentNode = document): FeedbackAnchor | null {
+  let depth = 0;
+  for (let cur: Element | null = el; cur && depth <= maxDepth; cur = cur.parentElement, depth++) {
+    const tag = cur.tagName.toLowerCase();
+    if (tag === "main" || tag === "body") break;
+    for (const a of stableAttrs(cur)) {
+      try {
+        if (root.querySelectorAll(anchorSelector(a)).length === 1) return { ...a, depth };
+      } catch {
+        // An attribute name the selector engine rejects — try the next one.
+      }
+    }
+  }
+  return null;
+}
+
 const squash = (s: string | null | undefined, max: number) => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max)}…` : t;
@@ -157,6 +201,7 @@ export function buildContext(el: Element, page: PageInfo, appVersion: string): F
       html: htmlOf(el),
       headings: headingsOf(el),
       selector: cssPath(el),
+      anchor: anchorOf(el),
       rect: { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) },
     },
     pageData: snapshotJson(page.data),

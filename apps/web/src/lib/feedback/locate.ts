@@ -1,5 +1,5 @@
 import type { FeedbackContext, FeedbackSourceLoc } from "@pt/shared";
-import { sourceOf, textOf } from "./capture";
+import { anchorSelector, sourceOf, textOf } from "./capture";
 
 type Target = FeedbackContext["target"];
 
@@ -16,10 +16,31 @@ function query(root: ParentNode, selector: string): Element[] {
 }
 
 /**
+ * The element under the item's stable anchor whose tag and visible text match,
+ * or null. `depth` 0 means the anchor is the element itself; otherwise it's an
+ * ancestor and the element is among its descendants of the same tag.
+ */
+function viaAnchor(root: ParentNode, target: Target): Element | null {
+  const a = target.anchor;
+  if (!a) return null;
+  for (const host of query(root, anchorSelector(a))) {
+    const cands =
+      a.depth === 0
+        ? [host].filter((el) => el.tagName.toLowerCase() === target.tag)
+        : query(host, target.tag);
+    const hit = target.text ? cands.find((el) => textOf(el) === target.text) : cands.length === 1 ? cands[0] : undefined;
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
  * Finds the element a feedback item is about on the current page, or null.
  * Shared by feedback-mode pins and "Show me".
  *
- * Candidates are the selector hits — narrowed to the ones rendered by the same
+ * The stable anchor (id / data-* / aria-label / name, recorded since it
+ * existed) plus the visible text is tried first: it survives production
+ * builds, which have no source metadata. Then candidates are the selector hits — narrowed to the ones rendered by the same
  * source line when the build has dev metadata — or, if the selector misses,
  * every element rendered by that source line. Rows of a list share one source
  * line, so the visible text decides between them. Without a text match:
@@ -32,6 +53,8 @@ export function locateTarget(
   target: Target,
   { root = document, loose = false }: { root?: ParentNode; loose?: boolean } = {},
 ): Element | null {
+  const anchored = viaAnchor(root, target);
+  if (anchored) return anchored;
   const src = target.source;
   const fromSource = (els: Element[]) => (src ? els.filter((el) => sameLoc(sourceOf(el), src)) : []);
   const hits = query(root, target.selector);

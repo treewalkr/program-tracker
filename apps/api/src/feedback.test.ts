@@ -380,6 +380,14 @@ describe.skipIf(!dbUp)("feedback reachability", () => {
     expect(await reachable(await file({ ...context, route: { path: "/clients", id: "/clients", params: {} } }))).toBe(true);
     expect(await reachable(await file(onPage("not-a-uuid", "")))).toBe(false);
   });
+
+  test("the stable anchor round-trips; old contexts without one still save", async () => {
+    const anchor = { attr: "data-set-id", value: "s1", depth: 1 };
+    const id = await file({ ...onPage(mine), target: { ...context.target, anchor } });
+    expect((await json(await call("GET", `/v1/feedback/${id}`))).context.target.anchor).toEqual(anchor);
+    const old = await file(onPage(mine));
+    expect((await json(await call("GET", `/v1/feedback/${old}`))).context.target.anchor).toBeUndefined();
+  });
 });
 
 describe.skipIf(!dbUp)("feedback emails", () => {
