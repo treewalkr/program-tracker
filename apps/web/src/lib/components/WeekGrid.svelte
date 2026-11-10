@@ -44,7 +44,8 @@
     sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
   const tagOf = (name: string) => name.split(" + ")[0].split("—")[0].trim() || "Session";
   const marks = (d: StripDay) => d.status !== "rest" && d.status !== "before-start";
-  const loggable = (d: StripDay) => d.status === "today" || d.status === "missed";
+  /** Due, not logged yet, or missed: the cell (and the popover's Log link) opens the logger. */
+  const loggable = (d: { status: string }) => d.status === "today" || d.status === "unlogged" || d.status === "missed";
   const metaOf = (s: ClientStrip) =>
     [
       s.program ? `${s.client.sessionsPerWeek ?? "—"}/wk` : null,
@@ -269,6 +270,7 @@
           More
         </span>
         <span class="lg"><span class="sq missed"></span>Missed</span>
+        <span class="lg"><span class="sq unlogged"></span>Not logged</span>
         <span class="lg"><span class="sq today"></span>Due today</span>
         <span class="lg"><span class="sq upcoming"></span>Planned</span>
       </div>
@@ -301,7 +303,7 @@
           <span class="dot" aria-hidden="true"></span>
           <span class="nm">{x.name}</span>
           <span class="st">{x.loggedOn ? `logged ${dayDateLabel(x.loggedOn)}` : SESSION_WORDS[x.status]}</span>
-          {#if t.pinned && x.planned && (x.status === "today" || x.status === "missed")}
+          {#if t.pinned && x.planned && loggable(x)}
             <a class="go" href={logHref(t.strip.client.id, x.id, t.day.date)} aria-label={`Log ${sessionLine(x)}`}>Log</a>
           {/if}
         </li>
@@ -397,6 +399,7 @@
   .sq.logged[data-level="3"] { background: var(--done-3); }
   .sq.logged[data-level="4"] { background: var(--done-4); }
   .sq.missed { background: var(--bad-bg); border-color: var(--bad); }
+  .sq.unlogged { background: var(--warn-bg); border-color: var(--warn); }
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
   .sq.upcoming { background: var(--surface); border-color: var(--line-strong); }
   button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
@@ -442,6 +445,8 @@
   .cell.today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--pulse-now-bg); color: var(--blue); }
   .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
   .cell.missed:hover { border-color: var(--bad); }
+  .cell.unlogged { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+  .cell.unlogged:hover { border-color: var(--warn); }
   .cell.upcoming { background: var(--well); color: var(--muted); }
   .offday {
     width: 4px;
@@ -510,11 +515,13 @@
   .tip li { display: grid; grid-template-columns: 8px 1fr auto auto; gap: 6px; align-items: baseline; }
   .tip .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--done-3); align-self: center; }
   .tip li.missed .dot { background: var(--bad); }
+  .tip li.unlogged .dot { background: var(--warn-bg); box-shadow: inset 0 0 0 1px var(--warn); }
   /* Hollow, so it never reads as a logged dot where the ramp is blue (colourblind). */
   .tip li.today .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--blue); }
   .tip li.upcoming .dot { background: transparent; border: 1px solid var(--line-strong); }
   .tip .st { color: var(--muted); white-space: nowrap; }
   .tip li.missed .st { color: var(--bad); }
+  .tip li.unlogged .st { color: var(--warn-ink); }
   .tip li.today .st { color: var(--blue); }
   .tip .go { font-weight: 600; }
   .tip-vol { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--muted); }
