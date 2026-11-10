@@ -10,6 +10,8 @@
   import { fmtDate, fmtDateTime } from "$lib/format";
   import Author from "$lib/feedback/Author.svelte";
   import Thread from "$lib/feedback/Thread.svelte";
+  import TicketEditor from "$lib/feedback/TicketEditor.svelte";
+  import { ago } from "$lib/draftReview";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { ticketDetails } from "$lib/feedback/details.svelte";
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
@@ -33,6 +35,9 @@
     const session = page.data.session;
     return session?.kind === "open" || (session?.kind === "signedIn" && session.trainer.isAdmin);
   });
+
+  /** The signed-in trainer; null with auth off (then everyone is the admin). */
+  const viewerId = $derived(page.data.session?.kind === "signedIn" ? page.data.session.trainer.id : null);
 
   let items = $state<FeedbackItem[]>([]);
   let loaded = $state(false);
@@ -140,6 +145,21 @@
 
   function replace(next: FeedbackItem) {
     items = items.map((i) => (i.id === next.id ? next : i));
+  }
+
+  /** The reporter and the admin may edit an open ticket's comment and images. */
+  const canEdit = (item: FeedbackItem) =>
+    (item.status === "new" || item.status === "accepted") &&
+    (isAdmin || (viewerId !== null && item.author?.id === viewerId));
+
+  /** The ticket open in the inline editor. */
+  let editingId = $state<string | null>(null);
+
+  async function closeEditor(item: FeedbackItem, next?: FeedbackItem) {
+    if (next) replace(next);
+    editingId = null;
+    await tick();
+    document.getElementById(`fb-edit-${item.id}`)?.focus();
   }
 
   /**
@@ -401,11 +421,31 @@
                     <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
                   {/snippet}
                 </Tooltip>
+                {#if item.editedAt}
+                  {@const by = item.editedBy && item.editedBy.id !== item.author?.id ? item.editedBy.name : null}
+                  <Tooltip text="Edited {fmtDateTime(item.editedAt)}{item.editedBy ? ` by ${item.editedBy.name}` : ''}">
+                    {#snippet children(tipId)}
+                      <button type="button" class="when" aria-describedby={tipId}>
+                        edited · <time datetime={item.editedAt}>{ago(item.editedAt!)}</time>{#if by}&nbsp;by {by}{/if}
+                      </button>
+                    {/snippet}
+                  </Tooltip>
+                {/if}
                 <span class="spacer"></span>
                 <MuteToggle {item} onchange={(muted) => (items = items.map((i) => (i.id === item.id ? { ...i, muted } : i)))} />
               </div>
 
-              <p class="comment">{item.comment}</p>
+              {#if editingId === item.id}
+                <TicketEditor
+                  {item}
+                  {viewerId}
+                  onsaved={(next) => closeEditor(item, next)}
+                  onreload={replace}
+                  oncancel={() => closeEditor(item)}
+                />
+              {:else}
+                <p class="comment">{item.comment}</p>
+              {/if}
 
               <div class="ticket-bar">
                 <button
@@ -418,6 +458,15 @@
                 >
                   Details<span class="chev" aria-hidden="true"><Icon name="chevron" /></span>
                 </button>
+                {#if canEdit(item) && editingId !== item.id}
+                  <button
+                    type="button"
+                    id="fb-edit-{item.id}"
+                    class="details-toggle"
+                    aria-label="Edit {feedbackHandle(item.number)}"
+                    onclick={() => (editingId = item.id)}>Edit</button
+                  >
+                {/if}
                 {#if isPinned(c) && !c.route.path.startsWith("/feedback")}
                   <!-- filed on /feedback itself: nothing to jump to -->
                   {#if item.reachable}
@@ -460,7 +509,7 @@
                 <dd>{c.viewport.width}×{c.viewport.height} @{c.viewport.dpr}x · build <code>{c.appVersion}</code></dd>
               </dl>
 
-              {@render ticketImages(item)}
+              {#if editingId !== item.id}{@render ticketImages(item)}{/if}
 
               <Thread {item} onchange={replace} />
 

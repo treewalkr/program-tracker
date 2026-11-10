@@ -19,8 +19,8 @@ import { getDefaultTrainerId } from "./trainer";
  * on the owner's machine) and talks to `/v1/agent/feedback` with a bearer
  * token. Policy lives here, pure where it can be:
  *
- * - inbox: open tickets where the reporter spoke last and the agent hasn't
- *   answered this version of the ticket yet
+ * - inbox: open tickets where the reporter spoke last (a reply, or an edit
+ *   of their ticket) and the agent hasn't answered this version of it yet
  * - send vs draft: only auto mode, high confidence, an "it already works"
  *   verdict, and at most one AI answer per reporter message goes out alone
  */
@@ -62,20 +62,33 @@ const publicReplies = (thread: FeedbackComment[]) =>
 const byReporter = (item: FeedbackItem, c: FeedbackComment) =>
   c.authorKind === "human" && item.author !== null && c.author?.id === item.author.id;
 
-/** Whether the agent should look at this ticket now. Pure; expects the admin view (drafts included). */
+/**
+ * When the reporter last edited their own ticket, or null. Such an edit is
+ * their latest word, like a reply; the admin's edits are not.
+ */
+const reporterEditedAt = (item: FeedbackItem): string | null =>
+  item.editedAt && item.author !== null && item.editedBy?.id === item.author.id ? item.editedAt : null;
+
+/**
+ * Whether the agent should look at this ticket now. Pure; expects the admin
+ * view (drafts included). The reporter spoke last — by a reply, or by editing
+ * the ticket after the last answer — and nothing was answered for this version.
+ */
 export function needsAnswer(item: FeedbackItem): boolean {
   if (!OPEN.has(item.status)) return false;
   const last = publicReplies(item.thread).at(-1);
-  if (last && !byReporter(item, last)) return false;
+  const edited = reporterEditedAt(item);
+  if (last && !byReporter(item, last) && !(edited && edited > last.createdAt)) return false;
   const basis = ticketBasis(item);
   return !item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis);
 }
 
-/** Has an AI answer gone out since the reporter last wrote (or since they filed it)? */
+/** Has an AI answer gone out since the reporter last wrote — replied, edited the ticket, or filed it? */
 export function aiRepliedSinceReporter(item: FeedbackItem): boolean {
   const replies = publicReplies(item.thread);
   const from = replies.findLastIndex((c) => byReporter(item, c));
-  return replies.slice(from + 1).some((c) => c.authorKind === "ai");
+  const edited = reporterEditedAt(item);
+  return replies.slice(from + 1).some((c) => c.authorKind === "ai" && !(edited && c.createdAt < edited));
 }
 
 export type AnswerOutcome = "sent" | "drafted";

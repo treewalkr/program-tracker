@@ -9,6 +9,10 @@ import {
 } from "@pt/shared";
 import type { LightboxImage } from "$lib/ui/Lightbox.svelte";
 import { client } from "$lib/api/treaty";
+import type { ImageSlot } from "./layout";
+
+/** Someone else edited the ticket (or it was closed) while it was open in the editor. */
+export class EditConflict extends Error {}
 
 /**
  * Feedback goes straight to the Elysia API (Eden), in mock and live mode
@@ -34,6 +38,7 @@ const normalizeComment = (c: FeedbackComment): FeedbackComment => ({
 const normalize = (i: FeedbackItem): FeedbackItem => ({
   ...i,
   thread: i.thread.map(normalizeComment),
+  editedAt: i.editedAt === null ? null : iso(i.editedAt),
   createdAt: iso(i.createdAt),
   updatedAt: iso(i.updatedAt),
 });
@@ -53,6 +58,19 @@ export const feedbackApi = {
     (await unwrap<FeedbackItem[]>(client.v1.feedback.get({ query: { status: status?.join(",") } }))).map(normalize),
   triage: async (id: string, patch: { status?: FeedbackStatus; triageNote?: string | null }) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).patch(patch))),
+  /**
+   * Edit a ticket's comment and images (its reporter or the admin). `version`
+   * is `editedAt ?? createdAt` as the editor opened it; a 409 throws
+   * EditConflict. Multipart only when new images ride along.
+   */
+  editContent: async (id: string, body: { comment: string; version: string; layout: ImageSlot[]; images: File[] }) => {
+    const res = await client.v1.feedback({ id }).content.patch(withImages(body));
+    if (res.error?.status === 409) {
+      const value = res.error.value as { error?: string } | null;
+      throw new EditConflict(value?.error ?? "This ticket changed while you were editing it.");
+    }
+    return normalize(await unwrap<FeedbackItem>(Promise.resolve(res)));
+  },
   get: async (id: string) => normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).get())),
   remove: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).delete()),
   reply: async (id: string, body: string, images: File[] = []) =>

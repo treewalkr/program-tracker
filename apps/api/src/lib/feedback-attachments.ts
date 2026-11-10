@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { db, feedbackAttachments } from "@pt/db";
 import {
   FEEDBACK_IMAGE_MIMES,
@@ -198,4 +198,74 @@ export async function ticketShot(itemId: string, kind: "element" | "page") {
     )
     .limit(1);
   return row ?? null;
+}
+
+/** A ticket's own images (not its replies'), in order, without bytes. */
+export async function ticketImages(tx: Tx, itemId: string): Promise<Pick<FeedbackAttachment, "id" | "kind">[]> {
+  return tx
+    .select({ id: feedbackAttachments.id, kind: feedbackAttachments.kind })
+    .from(feedbackAttachments)
+    .where(and(eq(feedbackAttachments.itemId, itemId), isNull(feedbackAttachments.commentId)))
+    .orderBy(asc(feedbackAttachments.position), asc(feedbackAttachments.createdAt));
+}
+
+/** One slot of a ticket's edited image list: an image it already has, or the nth new upload. */
+export type ImageSlot = { keep: string } | { upload: number };
+
+/**
+ * Checks an edited image list against the ticket's current images: every
+ * kept id is one of them (once), every new upload is placed exactly once,
+ * and the uploads in the result — kept and new — stay within
+ * FEEDBACK_MAX_IMAGES. Captured screenshots may be kept or dropped but don't
+ * count. Pure; the error reads as-is in the editor.
+ */
+export function checkLayout(
+  current: Pick<FeedbackAttachment, "id" | "kind">[],
+  layout: ImageSlot[],
+  uploads: number,
+): { error: string } | null {
+  const byId = new Map(current.map((a) => [a.id, a]));
+  const kept = new Set<string>();
+  const placed = new Set<number>();
+  for (const slot of layout) {
+    if ("keep" in slot) {
+      if (!byId.has(slot.keep) || kept.has(slot.keep)) return { error: "an image in the list isn't on this ticket" };
+      kept.add(slot.keep);
+    } else {
+      if (slot.upload >= uploads || placed.has(slot.upload)) return { error: "the image list doesn't match the uploads" };
+      placed.add(slot.upload);
+    }
+  }
+  if (placed.size !== uploads) return { error: "the image list doesn't match the uploads" };
+  const total = [...kept].filter((id) => byId.get(id)!.kind === "upload").length + uploads;
+  if (total > FEEDBACK_MAX_IMAGES) return { error: `at most ${FEEDBACK_MAX_IMAGES} images — the ticket would have ${total}` };
+  return null;
+}
+
+/**
+ * Rewrites a ticket's own images (`comment_id` null) to `layout`: drops the
+ * ones left out, renumbers the kept ones and inserts the new uploads where
+ * they were placed. Run `checkLayout` first.
+ */
+export async function relayoutTicketImages(tx: Tx, itemId: string, layout: ImageSlot[], uploads: NewImage[]): Promise<void> {
+  const keep = layout.flatMap((s) => ("keep" in s ? [s.keep] : []));
+  const onTicket = and(eq(feedbackAttachments.itemId, itemId), isNull(feedbackAttachments.commentId));
+  await tx.delete(feedbackAttachments).where(keep.length ? and(onTicket, notInArray(feedbackAttachments.id, keep)) : onTicket);
+  for (const [position, slot] of layout.entries()) {
+    if ("keep" in slot) {
+      await tx.update(feedbackAttachments).set({ position }).where(and(onTicket, eq(feedbackAttachments.id, slot.keep)));
+    } else {
+      const img = uploads[slot.upload];
+      await tx.insert(feedbackAttachments).values({
+        itemId,
+        commentId: null,
+        kind: img.kind,
+        mime: img.mime,
+        bytes: img.bytes,
+        width: img.width,
+        height: img.height,
+        position,
+      });
+    }
+  }
 }

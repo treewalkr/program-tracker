@@ -41,6 +41,8 @@
     reachable: true,
     shippedIn: null,
     thread,
+    editedAt: null,
+    editedBy: null,
     unread: false,
     muted: false,
     createdAt: '2026-11-09T09:00:00.000Z',

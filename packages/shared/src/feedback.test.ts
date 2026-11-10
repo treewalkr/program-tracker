@@ -42,6 +42,8 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   reachable: true,
   shippedIn: null,
   thread: [],
+  editedAt: null,
+  editedBy: null,
   unread: false,
   muted: false,
   createdAt: "2026-11-07T10:00:00.000Z",
@@ -199,6 +201,14 @@ describe("feedbackMarkdown", () => {
       expect(out).not.toContain("Fix plan");
     });
   });
+  test("says when and by whom the ticket was edited", () => {
+    expect(md).not.toContain("**Edited:**");
+    const out = feedbackMarkdown(
+      [item({ editedAt: "2026-11-08T09:30:00.000Z", editedBy: { id: "t0", name: "Ana", avatarUrl: null } })],
+      { imageUrl: () => null },
+    );
+    expect(out).toContain("- **Edited:** 2026-11-08T09:30:00.000Z by Ana");
+  });
   test("names the reporter", () => {
     expect(md).toContain("- **Reported by:** Kai");
     const anon = feedbackMarkdown([item({ author: null })], { imageUrl: () => null });
@@ -238,6 +248,48 @@ describe("ticketBasis", () => {
       thread: [reply("a"), reply("draft", "draft"), reply("note", "private"), { kind: "status" as const, body: null, visibility: "public" as const }],
     });
     expect(noisy).toBe(plain);
+  });
+});
+
+describe("ticketBasis with images", () => {
+  /** The function as it was before images counted — the basis every stored AI answer was recorded against. */
+  function textOnlyBasis(i: { comment: string; triageNote: string | null; thread: { kind: string; body: string | null; visibility: string }[] }) {
+    const replies = i.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
+    const text = [i.comment, i.triageNote ?? "", ...replies.map((c) => c.body ?? "")].join("\u0000");
+    let h = 0x811c9dc5;
+    for (let k = 0; k < text.length; k++) h = Math.imul(h ^ text.charCodeAt(k), 0x01000193) >>> 0;
+    return h.toString(16).padStart(8, "0");
+  }
+  const img = (id: string, kind: "element" | "page" | "upload" = "upload") => ({ id, kind });
+  const reply = (body: string, attachments: ReturnType<typeof img>[] = [], visibility: "public" | "draft" = "public") => ({
+    kind: "reply" as const,
+    body,
+    visibility,
+    attachments,
+  });
+  const base = { comment: "Rest timer is tiny", triageNote: "bigger digits" };
+
+  test("a ticket without uploads keeps exactly the old hash, captured screenshots or not", () => {
+    for (const t of [
+      { ...base, thread: [] },
+      { ...base, attachments: [img("e", "element"), img("p", "page")], thread: [reply("which screen?"), reply("log")] },
+      { ...base, triageNote: null, attachments: [], thread: [reply("draft with image", [img("d")], "draft")] },
+    ]) {
+      expect(ticketBasis(t)).toBe(textOnlyBasis(t));
+    }
+    expect(ticketBasis(item())).toBe(textOnlyBasis(item()));
+  });
+  test("changes when uploads are added, removed or swapped, on the ticket or a public reply", () => {
+    const plain = ticketBasis({ ...base, thread: [] });
+    const one = ticketBasis({ ...base, attachments: [img("u1")], thread: [] });
+    const other = ticketBasis({ ...base, attachments: [img("u2")], thread: [] });
+    const onReply = ticketBasis({ ...base, thread: [reply("see", [img("u3")])] });
+    expect(one).not.toBe(plain);
+    expect(other).not.toBe(one);
+    expect(onReply).not.toBe(ticketBasis({ ...base, thread: [reply("see")] }));
+  });
+  test("drafts' images don't count", () => {
+    expect(ticketBasis({ ...base, thread: [reply("d", [img("u")], "draft")] })).toBe(ticketBasis({ ...base, thread: [reply("d", [], "draft")] }));
   });
 });
 
