@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.16 — 2026-11-10
+
 ### New
 - Progression schemes: 7 built-in presets backed by training research. They cover linear strength 3:1, block, hypertrophy volume ramp, weekly undulating, peak & taper, novice linear and return to training. Each one has real week-by-week numbers, a short "why" and its sources.
 - A new Progression schemes page in the Library. Duplicate a preset to make it your own, hide the ones you don't use, and create, edit or delete your own schemes. Each week can have a target, a progression rule and a note.
