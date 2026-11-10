@@ -2,6 +2,7 @@ import { DeloadSettings as DeloadSettingsSchema } from "@pt/shared";
 import {
   aiDraftToDiffSource,
   cardioBehindSignal,
+  painFlagSignals,
   chainSetCounts,
   DELOAD_RULES,
   DEFAULT_DELOAD,
@@ -895,6 +896,8 @@ export const mockApi: TrainerApi = {
         cardio: l.cardio ?? null,
         notes: l.notes ?? null,
         perceivedEnergy: l.perceivedEnergy ?? null,
+        readiness: l.readiness ? { ...l.readiness } : null,
+        flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
         sets: l.sets.map((s) => ({ ...s })),
       }));
   },
@@ -929,6 +932,9 @@ export const mockApi: TrainerApi = {
       kind: input.kind ?? "lifting",
       cardio: input.cardio ?? null,
       perceivedEnergy: input.perceivedEnergy,
+      // Same as the API: an empty readiness or flag list stores as null.
+      readiness: input.readiness && Object.keys(input.readiness).length > 0 ? { ...input.readiness } : null,
+      flags: input.flags?.length ? input.flags.map((f) => ({ ...f })) : null,
       notes: input.notes,
       sets: input.sets.map((s) => ({
         programExerciseId: s.programExerciseId ?? null,
@@ -951,6 +957,8 @@ export const mockApi: TrainerApi = {
       cardio: stored.cardio ?? null,
       notes: stored.notes ?? null,
       perceivedEnergy: stored.perceivedEnergy ?? null,
+      readiness: stored.readiness ? { ...stored.readiness } : null,
+      flags: stored.flags ? stored.flags.map((f) => ({ ...f })) : null,
       sets: stored.sets.map((s) => ({ ...s })),
     };
   },
@@ -1669,7 +1677,7 @@ export const mockApi: TrainerApi = {
         state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
       const clientLogs = state.logs
         .filter((l) => l.clientId === client.id)
-        .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, sets: l.sets }));
+        .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets }));
       if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
       // Cardio targets are a client attribute — checked with or without a program (F18).
       if (client.cardioTarget) {
@@ -1682,6 +1690,7 @@ export const mockApi: TrainerApi = {
         );
         if (behind) signals.push(behind);
       }
+      signals.push(...painFlagSignals({ programId: current?.id ?? null, clientId: client.id }, clientLogs, nameOf));
     }
     return activeSignals(signals);
   },

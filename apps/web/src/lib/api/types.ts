@@ -33,6 +33,8 @@ import type {
   GlossaryTerm,
   GlossaryTermInput,
   VocabularyAlias,
+  Readiness,
+  SessionFlag,
 } from "@pt/shared";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -46,6 +48,8 @@ export type ProgramWeekDto = ProgramWeek;
 export type CardioPrescriptionDto = CardioPrescription;
 export type SessionKindDto = SessionKind;
 export type CardioLogDto = CardioLog;
+export type ReadinessDto = Readiness;
+export type SessionFlagDto = SessionFlag;
 export type WeekSummaryStatsDto = WeekSummaryStats;
 
 export interface ClientDto {
@@ -367,6 +371,10 @@ export interface SessionLogInput {
   cardio?: CardioLogDto | null;
   notes?: string;
   perceivedEnergy?: number;
+  /** Pre-session sleep and soreness, 1–5 each. */
+  readiness?: ReadinessDto | null;
+  /** Per-exercise pain / technique / skipped flags. */
+  flags?: SessionFlagDto[] | null;
   /** This program session is already logged: throw DuplicateLogError (default),
    *  swap the old log for this one, or keep both. */
   onDuplicate?: "reject" | "replace" | "add";
@@ -400,6 +408,10 @@ export interface SessionLogDto {
   cardio?: CardioLogDto | null;
   notes: string | null;
   perceivedEnergy: number | null;
+  /** Null on logs saved before readiness existed, or with none rated. */
+  readiness: ReadinessDto | null;
+  /** Null on logs saved before flags existed, or with none set. */
+  flags: SessionFlagDto[] | null;
   sets: {
     id?: string;
     /** The program slot the set was logged against; null = ad-hoc. */

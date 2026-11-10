@@ -9,7 +9,7 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
 } from "../types";
-import { placeSession, placeWeeks, sessionKey, type CardioLog, type SessionKind, type SetType } from "@pt/shared";
+import { placeSession, placeWeeks, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType } from "@pt/shared";
 
 export const schemes: PeriodizationSchemeDto[] = [
   {
@@ -440,6 +440,8 @@ export interface StoredLog {
   kind?: SessionKind;
   cardio?: CardioLog | null;
   perceivedEnergy?: number;
+  readiness?: Readiness | null;
+  flags?: SessionFlag[] | null;
   notes?: string;
   sets: {
     programExerciseId?: string | null;

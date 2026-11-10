@@ -67,3 +67,43 @@ describe("mockApi session log duplicates", () => {
     expect(mockApi.deleteSessionLog(saved.id)).rejects.toThrow("log not found");
   });
 });
+
+describe("mockApi session log readiness and flags", () => {
+  const pain = { programExerciseId: null, exerciseId: "ex-squat", kind: "pain" as const, note: "knee twinge" };
+
+  test("stores and returns readiness and flags; empty ones read as null", async () => {
+    const input = { ...(await base()), programSessionId: null };
+    const saved = await mockApi.logSession({ ...input, readiness: { sleep: 2, soreness: 4 }, flags: [pain] });
+    expect(saved.readiness).toEqual({ sleep: 2, soreness: 4 });
+    expect(saved.flags).toEqual([pain]);
+    const plain = await mockApi.logSession({ ...input, readiness: {}, flags: [] });
+    expect(plain.readiness).toBeNull();
+    expect(plain.flags).toBeNull();
+    const listed = await mockApi.sessionLogs(input.clientId);
+    expect(listed.find((l) => l.id === saved.id)?.flags).toEqual([pain]);
+    expect(listed.find((l) => l.id === plain.id)?.readiness).toBeNull();
+  });
+
+  test("replace carries the new log's readiness and flags; delete drops them", async () => {
+    const input = await base();
+    await mockApi.logSession({ ...input, readiness: { sleep: 5 } });
+    const replaced = await mockApi.logSession({ ...input, onDuplicate: "replace", readiness: { soreness: 3 }, flags: [pain] });
+    const left = await mine(input);
+    expect(left).toHaveLength(1);
+    expect(left[0].readiness).toEqual({ soreness: 3 });
+    expect(left[0].flags).toEqual([pain]);
+    await mockApi.deleteSessionLog(replaced.id);
+    expect(await mine(input)).toHaveLength(0);
+  });
+
+  test("a pain flag shows as a pain-flag signal on the Overview feed", async () => {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const input = { ...(await base()), programSessionId: null, date };
+    await mockApi.logSession({ ...input, flags: [pain] });
+    const signals = await mockApi.notifications();
+    const signal = signals.find((s) => s.kind === "pain-flag" && s.clientId === input.clientId);
+    expect(signal?.id).toBe(`pain-flag:${input.clientId}:ex-squat:${date}`);
+    expect(signal?.evidence).toContain("“knee twinge”");
+  });
+});
