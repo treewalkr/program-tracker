@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   dissolveGroup,
   exerciseUnits,
+  groupIssues,
   groupKind,
   groupTag,
   linkWithNext,
@@ -151,17 +152,29 @@ describe("ProgramSession group rules", () => {
   test("accepts a valid group", () => {
     expect(ProgramSession.safeParse(session([ex("a", 3, "A"), ex("b", 3, "A")])).success).toBe(true);
   });
-  test("rejects a split group", () => {
-    expect(ProgramSession.safeParse(session([ex("a", 3, "A"), ex("b", 3, "A"), ex("c"), ex("d", 3, "A"), ex("e", 3, "A")])).success).toBe(false);
+  const tidy = (list: ReturnType<typeof ex>[]) => {
+    const r = ProgramSession.safeParse(session(list));
+    if (!r.success) throw new Error("expected success");
+    return r.data.exercises;
+  };
+  test("tidies a split group into two groups", () => {
+    expect(groups(tidy([ex("a", 3, "A"), ex("b", 3, "A"), ex("c"), ex("d", 3, "A"), ex("e", 3, "A")]))).toBe("AA-BB");
   });
-  test("rejects a one-member group", () => {
-    expect(ProgramSession.safeParse(session([ex("a", 3, "A"), ex("b")])).success).toBe(false);
+  test("drops a one-member group", () => {
+    expect(groups(tidy([ex("a", 3, "A"), ex("b")]))).toBe("--");
   });
-  test("rejects unequal set counts", () => {
-    expect(ProgramSession.safeParse(session([ex("a", 3, "A"), ex("b", 2, "A")])).success).toBe(false);
+  test("evens unequal set counts up to the largest", () => {
+    expect(tidy([ex("a", 3, "A"), ex("b", 2, "A")]).map((e) => e.prescribedSets.length)).toEqual([3, 3]);
   });
-  test("rejects a non-letter group", () => {
-    expect(ProgramSession.safeParse(session([ex("a", 3, "A1"), ex("b", 3, "A1")])).success).toBe(false);
+  test("re-letters a non-letter group", () => {
+    expect(groups(tidy([ex("a", 3, "A1"), ex("b", 3, "A1")]))).toBe("AA");
+  });
+  test("groupIssues still names each problem", () => {
+    expect(groupIssues([ex("a", 3, "A"), ex("b", 2, "A"), ex("c"), ex("d", 3, "A")])).toEqual([
+      "group A members must have the same number of sets",
+      "group A members must be adjacent",
+      "group A needs at least two exercises",
+    ]);
   });
 });
 

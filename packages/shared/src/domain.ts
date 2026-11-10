@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { exerciseUnits, groupIssues } from "./groups";
+import { exerciseUnits, groupIssues, normalizeGroups } from "./groups";
 
 // ---------------------------------------------------------------------------
 // Core enums / vocabularies
@@ -645,7 +645,13 @@ export const ProgramSession = z
     typeId: z.string().min(1).max(64).optional(),
     typeName: z.string().min(1).max(40).optional(),
     notes: z.string().max(2000).optional(),
-    exercises: z.array(ProgramExercise).max(20).default([]),
+    /** Groups are tidied on the way in (re-lettered, singletons dropped, rounds evened) so a lopsided edit never 422s. */
+    exercises: z
+      .preprocess(
+        (v) => (Array.isArray(v) && v.every((e) => e !== null && typeof e === "object") ? normalizeGroups(v) : v),
+        z.array(ProgramExercise).max(20)
+      )
+      .default([]),
     cardio: CardioPrescription.nullable().optional(),
   })
   .superRefine((val, ctx) => {
