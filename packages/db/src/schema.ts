@@ -40,6 +40,7 @@ import type {
   FeedbackEmailPrefs,
   FeedbackStatus,
   FeedbackVisibility,
+  FeedbackAttachmentKind,
   FunctionalMovement,
   GenerationStatus,
   AliasSource,
@@ -589,7 +590,14 @@ export const feedbackItems = pgTable("feedback_items", {
   /** `file:line:column` of the clicked element. */
   source: text("source"),
   context: jsonb("context").$type<FeedbackContext>().notNull(),
+  /**
+   * Unused since 0046 moved screenshots to `feedback_attachments`; due to be
+   * dropped. Kept one release so the previous API keeps reading them while the
+   * deploy rolls out. The drop migration must first re-run 0046's copy (it is
+   * idempotent — `WHERE NOT EXISTS`) to pick up tickets filed in that window.
+   */
   elementShot: bytea("element_shot"),
+  /** Unused, due to be dropped — see `elementShot`. */
   pageShot: bytea("page_shot"),
   /** App version that was live when the item was marked done. */
   shippedIn: text("shipped_in"),
@@ -619,6 +627,29 @@ export const feedbackComments = pgTable("feedback_comments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_comments_item_idx").on(t.itemId, t.createdAt)]);
 export type FeedbackCommentRow = typeof feedbackComments.$inferSelect;
+
+/**
+ * Images on a ticket (`comment_id` null) or on one reply: the captured element
+ * and page screenshots, plus images the trainer uploaded. Limits (count, size,
+ * type) live in @pt/shared feedback.
+ */
+export const feedbackAttachments = pgTable("feedback_attachments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  itemId: uuid("item_id").notNull().references(() => feedbackItems.id, { onDelete: "cascade" }),
+  /** The reply it belongs to; null = on the ticket itself. */
+  commentId: uuid("comment_id").references(() => feedbackComments.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<FeedbackAttachmentKind>().notNull(),
+  mime: text("mime").notNull(),
+  /** The image itself. */
+  bytes: bytea("bytes").notNull(),
+  /** Pixel size; null when it could not be read (some screenshots copied by 0046). */
+  width: integer("width"),
+  height: integer("height"),
+  /** Order within its ticket or reply, from 0. */
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("feedback_attachments_item_idx").on(t.itemId, t.commentId, t.position)]);
+export type FeedbackAttachmentRow = typeof feedbackAttachments.$inferSelect;
 
 /** When each trainer last looked at each item — drives the unread count. */
 export const feedbackReads = pgTable("feedback_reads", {
