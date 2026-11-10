@@ -58,7 +58,8 @@ export interface ProgramSummary {
   sessions: {
     name: string;
     kind?: "lifting" | "cardio";
-    exercises: { name: string; role?: string; sets: string[] }[];
+    /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
+    exercises: { name: string; role?: string; group?: string; sets: string[] }[];
   }[];
 }
 
@@ -786,7 +787,7 @@ function programToText(p: ProgramSummary): string {
     .map(
       (s) =>
         `- ${s.name}${s.kind === "cardio" ? " (cardio)" : ""}: ${s.exercises
-          .map((e) => `${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
+          .map((e) => `${e.group ? `${e.group}. ` : ""}${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
           .join(", ")}`
     )
     .join("\n");

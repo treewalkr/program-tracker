@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   diffRowsToText,
+  groupedSetsOf,
   diffSources,
   aiDraftToDiffSource,
   programWeeksToDiffSource,
@@ -172,5 +173,17 @@ describe("diffSources sees moved sessions", () => {
     expect(aiDraftToDiffSource(draft).sessions.map((s) => s.weekday)).toEqual([5, undefined]);
     const weeks = [{ week: 1, sessions: [{ id: "s", name: "A", seq: 1, order: 0, kind: "lifting", exercises: [] }] }] as unknown as ProgramWeek[];
     expect(programWeeksToDiffSource(weeks).sessions[0].weekday).toBeNull();
+  });
+});
+
+describe("groups in diffs", () => {
+  test("joining a superset shows as a change", () => {
+    const s = (n: number) => ({ reps: 8, amrap: false, setNumber: n });
+    const list = [
+      { prescribedSets: [s(1), s(2)], group: "A" },
+      { prescribedSets: [s(1), s(2)], group: "A" },
+      { prescribedSets: [s(1), s(2)] },
+    ];
+    expect([0, 1, 2].map((i) => groupedSetsOf(list, i))).toEqual(["8/8 · A1", "8/8 · A2", "8/8"]);
   });
 });

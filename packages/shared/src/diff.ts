@@ -1,5 +1,6 @@
 import type { AiProgramDraft } from "./ai";
 import type { ProgramWeek } from "./domain";
+import { groupTag, type Groupable } from "./groups";
 
 export interface DiffRow {
   exercise: string;
@@ -19,6 +20,15 @@ export interface DiffSource {
 export const setsOf = (prescribedSets: { reps: number; amrap: boolean }[]) =>
   prescribedSets.map((s) => `${s.reps}${s.amrap ? "+" : ""}`).join("/");
 
+/** Sets plus the superset tag ("8/8/8 · A1"), so joining or leaving a group shows as a change. */
+export function groupedSetsOf(
+  list: readonly (Groupable & { prescribedSets: { reps: number; amrap: boolean }[] })[],
+  i: number
+): string {
+  const tag = groupTag(list, i);
+  return `${setsOf(list[i].prescribedSets)}${tag ? ` · ${tag}` : ""}`;
+}
+
 export function diffRowsToText(rows: DiffRow[]): string {
   return rows
     .filter((r) => r.change !== "kept")
@@ -31,9 +41,9 @@ export function aiDraftToDiffSource(d: AiProgramDraft): DiffSource {
     sessions: d.sessions.map((s) => ({
       name: s.name,
       ...(s.weekday != null ? { weekday: s.weekday } : {}),
-      exercises: s.exercises.map((e) => ({
+      exercises: s.exercises.map((e, i) => ({
         name: e.exerciseName ?? e.exerciseId ?? "",
-        sets: setsOf(e.prescribedSets),
+        sets: groupedSetsOf(s.exercises, i),
       })),
     })),
   };
@@ -47,9 +57,9 @@ export function programWeeksToDiffSource(weeks: ProgramWeek[], weekNumber?: numb
     sessions: sessions.map((s) => ({
       name: s.name,
       weekday: s.weekday ?? null,
-      exercises: s.exercises.map((e) => ({
+      exercises: s.exercises.map((e, i) => ({
         name: e.exerciseName ?? e.exerciseId,
-        sets: setsOf(e.prescribedSets),
+        sets: groupedSetsOf(s.exercises, i),
       })),
     })),
   };
