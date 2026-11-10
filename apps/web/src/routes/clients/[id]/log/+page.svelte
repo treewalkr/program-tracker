@@ -52,6 +52,8 @@
     draftJson,
     draftKey,
     prescribedSummary,
+    previewBlocks,
+    type PreviewBlock,
     rowFilled,
     type PrescribedSummary,
     rowLabels,
@@ -535,7 +537,14 @@
   }
 
   type Ask =
-    | { mode: "confirm"; summary: PrescribedSummary | null; preview: Row[] | null; pending: Pending | null }
+    | {
+        mode: "confirm";
+        summary: PrescribedSummary | null;
+        preview: Row[] | null;
+        /** What the log would hold, per card, and how many of those sets were typed. */
+        shown: { blocks: PreviewBlock<Row>[]; entered: number } | null;
+        pending: Pending | null;
+      }
     | { mode: "duplicate"; existing: ExistingLogDto; pending: Pending };
 
   let ask = $state<Ask | null>(null);
@@ -694,7 +703,7 @@
         error = "Enter the modality — what did they do?";
         return;
       }
-      await openAsk({ mode: "confirm", summary: null, preview: null, pending: cardioPending(form) });
+      await openAsk({ mode: "confirm", summary: null, preview: null, shown: null, pending: cardioPending(form) });
       return;
     }
     const preview = rows.map(withPrescribed);
@@ -703,7 +712,7 @@
     const invalid = Object.keys(validateRows(filled)).length > 0;
     // Open AMRAPs or bad cells can't be logged yet; the dialog says what's missing.
     const pending = summary.openAmrap === 0 && summary.sets > 0 && !invalid ? liftingPending(preview) : null;
-    await openAsk({ mode: "confirm", summary, preview, pending });
+    await openAsk({ mode: "confirm", summary, preview, shown: previewBlocks(rows, preview), pending });
   }
 
   /**
@@ -1008,6 +1017,13 @@
   /** A card is done once every set is entered or skipped. */
   const blockDone = (b: { rows: Row[] }) => b.rows.every((r) => r.skipped || !isBlank(r.reps));
 
+  /** One set in the as-prescribed dialog: "65×5 @8", "BW×12", "—×5" (no load), "45 s". */
+  const fmtPreviewSet = (r: Row) => {
+    const reps = `${r.reps}${r.timed ? " s" : ""}`;
+    const kg = !isBlank(r.weight) ? String(r.weight) : isBodyweight(r.exerciseId) ? "BW" : "—";
+    const load = r.timed && isBlank(r.weight) ? reps : `${kg}×${reps}`;
+    return isBlank(r.rpe) ? load : `${load} @${r.rpe}`;
+  };
   const fmtLast = (l: LastSet | null, timed: boolean) =>
     l == null ? "—" : `${l.weightKg != null ? `${l.weightKg} × ` : ""}${l.reps}${timed ? " s" : ""}`;
   const fmtRx = (r: Row) =>
@@ -1587,8 +1603,25 @@
     {#if ask.mode === "confirm"}
       <h2 id="ask-title">Log as prescribed?</h2>
       <p class="ask-line">
-        Week {selectedWeekNumber} · {sessionName()} · {fmtLongDay(date)}{ask.summary ? ` · ${ask.summary.sets} sets` : ""}
+        Week {selectedWeekNumber} · {sessionName()} · {fmtLongDay(date)}{ask.summary ? ` · ${ask.summary.sets} ${ask.summary.sets === 1 ? "set" : "sets"}` : ""}
       </p>
+      {#if ask.shown && ask.shown.blocks.length > 0}
+        {@const typed = ask.shown.entered}
+        {@const total = ask.summary?.sets ?? 0}
+        {#if typed > 0}
+          <p class="ask-sub">{typed} entered by you <span class="ask-typed-key">(bold)</span>, {total - typed} as prescribed.</p>
+        {/if}
+        <ul class="ask-sets">
+          {#each ask.shown.blocks as b (b.programExerciseId)}
+            <li>
+              <span class="ask-ex">{blockNameOf(b.programExerciseId)}</span>
+              <span class="ask-vals">
+                {#each b.sets as s, i (s.row.key)}{#if i > 0}{", "}{/if}<span class:typed={s.entered}>{fmtPreviewSet(s.row)}</span>{/each}
+              </span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
       {#if ask.summary && (ask.summary.missingLoad.length > 0 || ask.summary.openAmrap > 0)}
         <ul class="ask-warn">
           {#if ask.summary.missingLoad.length > 0}
@@ -1821,6 +1854,29 @@
   .ask-sub { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
   .ask-warn .ask-sub { color: inherit; opacity: 0.85; }
   .ask-dupe { margin: 12px 0 0; font-weight: 600; }
+  /* The log to be: every set, typed ones in ink like the sheet, prescribed ones muted like its ghosts. */
+  .ask-sets {
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    max-height: min(40vh, 320px);
+    overflow-y: auto;
+    border-top: 1px solid var(--line);
+  }
+  .ask-sets li {
+    display: grid;
+    grid-template-columns: minmax(0, 9em) minmax(0, 1fr);
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .ask-ex { color: var(--ink); overflow-wrap: anywhere; }
+  .ask-vals { color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .ask-vals > span { white-space: nowrap; }
+  .ask-vals .typed { color: var(--ink); font-weight: 600; }
+  .ask-typed-key { color: var(--ink); font-weight: 600; }
   .ask-actions {
     display: flex;
     flex-wrap: wrap;
