@@ -27,6 +27,9 @@
   const count = $derived(tray.images.length);
   /** Toward the limit: captured screenshots (when editing a ticket) don't count. */
   const counted = $derived(tray.counted);
+  /** Captured screenshots in the tray: shown, but outside the upload limit. */
+  const shots = $derived(count - counted);
+  const isShot = (img: (typeof tray.images)[number]) => img.stored !== undefined && img.stored.kind !== "upload";
 
   function pick(e: Event) {
     const el = e.currentTarget as HTMLInputElement;
@@ -79,7 +82,12 @@
       <span>Image</span>
     </button>
     {#if counted}
-      <span class="count" class:full={tray.full}>{counted}/{tray.max}</span>
+      <span
+        class="count"
+        class:full={tray.full}
+        title={shots ? `Up to ${tray.max} uploads — captured screenshots don't count` : undefined}
+        >{counted}/{tray.max}{shots ? " uploads" : ""}</span
+      >
     {:else}
       <span class="hint">or paste / drop</span>
     {/if}
@@ -101,6 +109,8 @@
           draggable={!disabled}
           class:pending={!img.file && !img.stored}
           class:lifted={dragId === img.id}
+          class:shot={isShot(img)}
+          title={isShot(img) ? "Captured screenshot — doesn't count toward the upload limit" : undefined}
           ondragstart={(e) => {
             dragId = img.id;
             e.dataTransfer?.setData("text/plain", String(img.id));
@@ -117,7 +127,7 @@
             type="button"
             class="thumb"
             data-thumb
-            aria-label="Image {i + 1} of {count}{img.name ? `, ${img.name}` : ''}{img.file || img.stored ? '' : ', compressing'}"
+            aria-label="Image {i + 1} of {count}{isShot(img) ? ', captured screenshot' : ''}{img.name ? `, ${img.name}` : ''}{img.file || img.stored ? '' : ', compressing'}"
             aria-describedby={hintId}
             onkeydown={(e) => onkeydown(e, img.id, i)}
           >
@@ -210,8 +220,8 @@
   }
   .thumbs li {
     position: relative;
-    width: 56px;
-    height: 56px;
+    width: 80px;
+    height: 60px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--well);
@@ -231,6 +241,10 @@
     outline: 2px solid var(--blue);
     outline-offset: -2px;
   }
+  /* Captured with the ticket, not uploaded: outside the limit, so marked apart. */
+  .thumbs li.shot {
+    border-style: dashed;
+  }
   .thumbs li.lifted {
     opacity: 0.4;
   }
@@ -238,7 +252,8 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    /* Whole image, letterboxed on the well: screenshots are wide and the detail is often at an edge. */
+    object-fit: contain;
   }
   .pending img {
     opacity: 0.45;
