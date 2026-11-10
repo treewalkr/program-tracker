@@ -525,7 +525,7 @@
         <li>
           <span class="lamp green" aria-hidden="true"></span>
           <span><b class="num">{summary.matched}</b> {summary.matched === 1 ? "name" : "names"} matched</span>
-          <span class="subtle">accepted — tap Change on any that's wrong; saved for next time</span>
+          <span class="subtle">accepted — tap Change on any that's wrong; what you pick is saved for next time</span>
         </li>
         <li>
           <span class="lamp" class:amber={summary.unused > 0} class:green={summary.unused === 0} aria-hidden="true"></span>
@@ -668,6 +668,19 @@
                         <button type="button" class="linkish" aria-label="Change the exercise for {ex.sourceName}" onclick={() => (changing = key)}>Change</button>
                       {/if}
                     </div>
+
+                    {#if changing !== key && !confirmed && ex.match?.kind === "fuzzy" && !ex.match.exerciseId && ex.match.candidates?.length}
+                      <p class="suggest">
+                        <span class="subtle fine">Did you mean</span>
+                        {#each ex.match.candidates as cand (cand.exerciseId)}
+                          <button
+                            type="button"
+                            class="linkish"
+                            onclick={() => choose(key, { kind: "catalog", exerciseId: cand.exerciseId, exerciseName: cand.name })}>{cand.name}</button
+                          >
+                        {/each}
+                      </p>
+                    {/if}
 
                     {#if changing === key}
                       <div class="change">
@@ -841,6 +854,8 @@
   .ex:hover .linkish, .linkish:focus-visible { color: var(--blue); }
   .linkish:hover { text-decoration: underline; text-underline-offset: 3px; }
   .ex-note { margin: 0; font-size: 13px; color: var(--muted); }
+  .suggest { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .suggest .linkish { color: var(--blue); }
 
   .flags { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .flags li { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--faint); }

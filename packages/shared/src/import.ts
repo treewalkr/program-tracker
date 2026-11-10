@@ -180,7 +180,8 @@ export type ImportFlagCode =
   | "no_sets"
   | "no_reps"
   | "limit"
-  | "split";
+  | "split"
+  | "group_sets";
 
 export interface ImportFlag {
   /** warn = amber (check it); info = a note on how it was mapped. */
@@ -424,19 +425,46 @@ const range = (lo: number | null | undefined, hi: number, unit: string) => (lo !
 export const isMobilityName = (name: string): boolean =>
   /\b(stretch\w*|mobility|mobilit\w*|foam roll\w*|warm[ -]?up|activation|cars|pails|rails|breathing|release|cool[ -]?down)\b/i.test(name);
 
+const GROUP_WORD = /super\s?-?sets?|circuits?|giant\s?-?sets?|tri\s?-?sets?|ซุปเปอร์\s?เซ็?ต/i;
+const TIMED_GROUP = /\b(?:emom|amrap|e\d+mom)\b|\d\s*(?:min|mins|minutes?|นาที)(?![a-z])/i;
+const UNIT_COUNT = /(\d{1,2})\s*(?:sets?|rounds?)(?![a-z])|(\d{1,2})\s*(?:เซ็?ต|รอบ)/i;
+const X_COUNT = /[x×]\s*(\d{1,2})(?!\s*[\d.])(?!\s*(?:reps?|kg|lbs?|s|sec|secs|seconds?|m|ครั้ง|วิ)(?![a-z]))/i;
+
+/**
+ * Set count from a group header the extraction put in an exercise's notes:
+ * "Superset x 3 sets", "Supersets x 3sets", "Circuit – 3 rounds", "ซุปเปอร์เซ็ต 3 เซ็ต".
+ * Null when there is no group word or the group is timed (EMOM, AMRAP, "10 min").
+ */
+export function groupSetCount(notes: string | null | undefined): number | null {
+  if (!notes || !GROUP_WORD.test(notes) || TIMED_GROUP.test(notes)) return null;
+  const m = notes.match(UNIT_COUNT) ?? notes.match(X_COUNT);
+  const n = m ? Number(m[1] ?? m[2]) : NaN;
+  return n >= 1 && n <= IMPORT_LIMITS.setsPerExercise ? n : null;
+}
+
+/**
+ * `groupSets`: the set count from the exercise's group header (groupSetCount).
+ * It fills in only when the exercise gives no set count of its own.
+ */
 export function mapPrescription(
   p: ImportPrescription | null,
   name = "",
+  groupSets: number | null = null,
 ): { sets: PrescribedSet[]; notes: string[]; flags: ImportFlag[] } {
   const notes: string[] = [];
   const flags: ImportFlag[] = [];
   const base = { type: "working" as const, amrap: false };
+  const fromGroup = groupSets != null && (!p || (p.sets == null && !p.repsList?.length)) ? groupSets : null;
+  if (fromGroup != null) flags.push({ level: "info", code: "group_sets", message: `${fromGroup} sets from the group header` });
   if (!p) {
+    const count = fromGroup ?? 1;
     if (!isMobilityName(name)) {
-      flags.push({ level: "warn", code: "no_prescription", message: `No sets/reps in the text — set to 1 × ${DEFAULT_TIMED_SECONDS}s` });
+      flags.push({ level: "warn", code: "no_prescription", message: `No sets/reps in the text — set to ${count} × ${DEFAULT_TIMED_SECONDS}s` });
     }
-    return { sets: [{ ...base, setNumber: 1, reps: 0, durationSeconds: DEFAULT_TIMED_SECONDS }], notes, flags };
+    const sets = Array.from({ length: count }, (_, i) => ({ ...base, setNumber: i + 1, reps: 0, durationSeconds: DEFAULT_TIMED_SECONDS }));
+    return { sets, notes, flags };
   }
+  if (fromGroup != null) p = { ...p, sets: fromGroup };
 
   if (p.setsLow != null && p.sets != null && p.setsLow < p.sets) {
     notes.push(range(p.setsLow, p.sets, " sets"));
@@ -531,7 +559,7 @@ function reviewExercise(ex: ImportExercise, lines: string[]): ReviewExercise {
   const check = new NumberCheck(numberTokens(text, nameSpan(text, ex.sourceName)));
   if (ex.prescription) checkPrescription(ex.prescription, check);
   checkActuals(ex.actuals ?? [], check);
-  const mapped = mapPrescription(ex.prescription, `${ex.sourceName} ${ex.name} ${ex.variation ?? ""}`);
+  const mapped = mapPrescription(ex.prescription, `${ex.sourceName} ${ex.name} ${ex.variation ?? ""}`, groupSetCount(ex.notes));
   const note = [ex.variation, ex.equipment, ex.notes, ...mapped.notes]
     .map((s) => s?.trim())
     .filter((s): s is string => !!s)

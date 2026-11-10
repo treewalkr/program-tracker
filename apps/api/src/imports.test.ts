@@ -74,7 +74,10 @@ describe.skipIf(!dbUp)("/v1/ai/imports", () => {
     const bench = exercisesOf(result).find((e) => e.line === 20)!;
     expect(bench.match).toMatchObject({ kind: "exact", exerciseName: "Bench Press" });
     const squat = exercisesOf(result).find((e) => e.line === 56)!;
-    expect(squat.match).toMatchObject({ kind: "fuzzy", exerciseName: "Back Squat" });
+    // a weak fuzzy match is only suggested: no exercise picked, Back Squat offered
+    expect(squat.match).toMatchObject({ kind: "fuzzy", exerciseName: "Squat" });
+    expect(squat.match!.exerciseId).toBeUndefined();
+    expect(squat.match!.candidates![0]).toMatchObject({ name: "Back Squat" });
     expect(exercisesOf(result).find((e) => e.line === 43)!.match).toEqual({ kind: "new", exerciseName: "Crossover / Dip" });
 
     const calls = await db.select().from(llmCalls).where(eq(llmCalls.purpose, "program_import"));
