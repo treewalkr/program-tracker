@@ -50,7 +50,7 @@
     [
       s.program ? `${s.client.sessionsPerWeek ?? "—"}/wk` : null,
       s.unscheduled ? `+${s.unscheduled} any day` : null,
-      s.cardio ? `cardio ${s.cardio.done}/${s.cardio.target}${s.cardio.unitLabel === "min" ? "" : ` ${s.cardio.unitLabel}`}` : null,
+      s.cardio ? `cardio ${s.cardio.done}/${s.cardio.target} ${s.cardio.unitLabel}` : null,
     ]
       .filter((m): m is string => !!m);
 
