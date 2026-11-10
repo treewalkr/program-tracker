@@ -574,6 +574,14 @@
     margin: -4px -8px;
     padding: 4px 8px;
     scrollbar-width: thin;
+    /* Thumb stays invisible until the nav is in use; the gutter keeps its
+       width so nothing shifts when it appears. */
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 160ms;
+  }
+  .nav.primary:hover,
+  .nav.primary:focus-within {
+    scrollbar-color: var(--line-strong) transparent;
   }
   .group {
     display: flex;
