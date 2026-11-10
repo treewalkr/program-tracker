@@ -8,6 +8,7 @@ import {
   importLines,
   jaccard,
   mapCardio,
+  groupSetCount,
   mapPrescription,
   normalizeExerciseName,
   numberedLines,
@@ -433,5 +434,107 @@ describe("day numbers starting again", () => {
     });
     const r = buildImportResult(text, [{ from: 1, to: 14, ok: true, data }]);
     expect(r.weeks.map((w) => w.label)).toEqual(["Week 3 (part 1)", "Week 3 (part 2)", "Week 4"]);
+  });
+});
+
+describe("groupSetCount", () => {
+  test("reads the set count from superset and circuit headers", () => {
+    expect(groupSetCount("Superset x 3 sets")).toBe(3);
+    expect(groupSetCount("Supersets x 3sets")).toBe(3);
+    expect(groupSetCount("Circuit – 3 rounds")).toBe(3);
+    expect(groupSetCount("Giant set ×4")).toBe(4);
+    expect(groupSetCount("Tri-set x 2")).toBe(2);
+    expect(groupSetCount("ซุปเปอร์เซ็ต 3 เซ็ต")).toBe(3);
+    expect(groupSetCount("ซุปเปอร์เซ็ต x 4 รอบ")).toBe(4);
+  });
+  test("ignores timed groups, plain notes and silly counts", () => {
+    expect(groupSetCount("EMOM 10 min superset")).toBeNull();
+    expect(groupSetCount("Circuit AMRAP 3 rounds")).toBeNull();
+    expect(groupSetCount("Circuit for 12 min")).toBeNull();
+    expect(groupSetCount("3 sets, slow tempo")).toBeNull();
+    expect(groupSetCount("Superset with B2")).toBeNull();
+    expect(groupSetCount("Superset x 10 reps")).toBeNull();
+    expect(groupSetCount("Superset x 50 sets")).toBeNull();
+    expect(groupSetCount(null)).toBeNull();
+  });
+});
+
+describe("mapPrescription with a group set count", () => {
+  test("reps without sets take the group's count", () => {
+    const m = mapPrescription({ sets: null, reps: 10 }, "Squat", 3);
+    expect(m.sets.map((s) => s.reps)).toEqual([10, 10, 10]);
+    expect(m.flags.map((f) => f.code)).toEqual(["group_sets"]);
+  });
+  test("timed without sets takes the group's count", () => {
+    const m = mapPrescription({ sets: null, seconds: 60 }, "Farmer carry", 3);
+    expect(m.sets.map((s) => s.durationSeconds)).toEqual([60, 60, 60]);
+  });
+  test("no numbers → N × the 30s placeholder, still flagged", () => {
+    const m = mapPrescription(null, "Slamball side to side", 3);
+    expect(m.sets).toHaveLength(3);
+    expect(m.sets.every((s) => s.durationSeconds === 30)).toBe(true);
+    expect(m.sets.map((s) => s.setNumber)).toEqual([1, 2, 3]);
+    expect(m.flags.map((f) => f.code)).toEqual([
+      "group_sets",
+      "no_prescription",
+    ]);
+    expect(m.flags[1].message).toContain("3 × 30s");
+  });
+  test("the exercise's own set count wins", () => {
+    const m = mapPrescription({ sets: 4, reps: 8 }, "Bench Press", 3);
+    expect(m.sets).toHaveLength(4);
+    expect(m.flags).toEqual([]);
+    expect(
+      mapPrescription({ sets: null, repsList: [10, 8] }, "Row", 3).sets,
+    ).toHaveLength(2);
+  });
+});
+
+describe("buildImportResult applies group headers", () => {
+  test("superset exercises get the header's set count", () => {
+    const text = [
+      "Superset x 3 sets",
+      "A1.Squat 40 kg x 10 reps",
+      "A2.Slamball side to side",
+    ].join("\n");
+    const exercise = (
+      line: number,
+      sourceName: string,
+      prescription: ImportExercise["prescription"],
+    ): ImportExercise => ({
+      line,
+      sourceName,
+      name: sourceName,
+      notes: "Superset x 3 sets",
+      prescription,
+    });
+    const data = ImportChunk.parse({
+      weeks: [
+        {
+          label: null,
+          line: null,
+          days: [
+            {
+              label: "Day 1",
+              line: null,
+              sessions: [
+                {
+                  name: "",
+                  kind: "lifting",
+                  exercises: [
+                    exercise(2, "Squat", { sets: null, reps: 10 }),
+                    exercise(3, "Slamball side to side", null),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const r = buildImportResult(text, [{ from: 1, to: 3, ok: true, data }]);
+    const ex = r.weeks[0].days[0].sessions[0].exercises;
+    expect(ex.map((e) => e.sets.length)).toEqual([3, 3]);
+    expect(ex[0].sets[0].reps).toBe(10);
   });
 });
