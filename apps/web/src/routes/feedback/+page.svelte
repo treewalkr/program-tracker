@@ -409,7 +409,7 @@
                 </figure>
               {/if}
 
-              <Thread {item} />
+              <Thread {item} onchange={replace} />
 
               {#if !isAdmin && item.triageNote}
                 <div class="team-note">

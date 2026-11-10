@@ -248,7 +248,7 @@
     </div>
     <blockquote>{item.comment}</blockquote>
     {#key item.id}
-      <Thread {item} />
+      <Thread {item} onchange={(next) => (items = items.map((i) => (i.id === next.id ? next : i)))} />
     {/key}
   </div>
 {/if}

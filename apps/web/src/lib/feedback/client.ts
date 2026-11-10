@@ -18,7 +18,11 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
 
 /** Eden revives ISO dates into Date objects; FeedbackItem models them as strings. */
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : (v as string));
-const normalizeComment = (c: FeedbackComment): FeedbackComment => ({ ...c, createdAt: iso(c.createdAt) });
+const normalizeComment = (c: FeedbackComment): FeedbackComment => ({
+  ...c,
+  createdAt: iso(c.createdAt),
+  aiMeta: c.aiMeta ? { ...c.aiMeta, runAt: iso(c.aiMeta.runAt) } : null,
+});
 const normalize = (i: FeedbackItem): FeedbackItem => ({
   ...i,
   thread: i.thread.map(normalizeComment),
@@ -48,6 +52,12 @@ export const feedbackApi = {
         client.v1.feedback.export.get({ query: { status, format: "md", ...(opts.ready ? { ready: "true" } : {}) } }),
       ),
     ),
+  /** Admin: send an AI draft reply, edited when `body` is given. */
+  publishDraft: async (id: string, cid: string, body?: string) =>
+    normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).publish.post(body === undefined ? {} : { body }))),
+  /** Admin: discard an AI draft or private note. */
+  discardAi: async (id: string, cid: string) =>
+    normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).delete())),
   /** Admin: ask the LLM whether a coding agent could fix this item unattended. */
   agentCheck: async (id: string) => normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id })["agent-check"].post({}))),
 };

@@ -1,18 +1,32 @@
 <script lang="ts">
-  import { feedbackHandle, type FeedbackComment, type FeedbackItem } from "@pt/shared";
+  import { FEEDBACK_AI_AUTHOR_NAME, feedbackHandle, type FeedbackComment, type FeedbackItem } from "@pt/shared";
   import { fmtDate, fmtDateTime } from "$lib/format";
+  import { renderSafeMarkdown } from "$lib/markdown";
   import Button from "$lib/ui/Button.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
+  import Pill from "$lib/ui/Pill.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Author from "./Author.svelte";
   import { feedbackApi } from "./client";
   import { STATUS_LABEL } from "./status";
+  import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_VERDICT_LABEL } from "./ai";
 
   /**
    * A feedback item's conversation: replies between the reporter and the
    * admin, with status changes as quiet system lines. Used on the feedback
    * page and in feedback-mode pins.
+   *
+   * AI entries: a sent answer is badged; an unsent draft is a card the admin
+   * sends (as is or edited) or discards; a private triage note is a muted
+   * block. Only the admin's item ever carries drafts and notes.
    */
-  let { item, onposted }: { item: FeedbackItem; onposted?: (c: FeedbackComment) => void } = $props();
+  interface Props {
+    item: FeedbackItem;
+    onposted?: (c: FeedbackComment) => void;
+    /** The item after an admin sends or discards an AI entry. */
+    onchange?: (next: FeedbackItem) => void;
+  }
+  let { item, onposted, onchange }: Props = $props();
 
   let draft = $state("");
   let sending = $state(false);
@@ -39,6 +53,35 @@
     }
   }
 
+  /** The draft being edited, and its text. */
+  let editing = $state<string | null>(null);
+  let editText = $state("");
+  /** The AI entry with a request in flight. */
+  let busyId = $state<string | null>(null);
+  let aiError = $state<{ id: string; message: string } | null>(null);
+
+  async function aiAction(c: FeedbackComment, run: () => Promise<FeedbackItem>) {
+    if (busyId) return;
+    busyId = c.id;
+    aiError = null;
+    try {
+      const next = await run();
+      editing = null;
+      onchange?.(next);
+    } catch (err) {
+      aiError = { id: c.id, message: err instanceof Error ? err.message : "That didn't work" };
+    } finally {
+      busyId = null;
+    }
+  }
+  const sendDraft = (c: FeedbackComment) =>
+    aiAction(c, () => feedbackApi.publishDraft(item.id, c.id, editing === c.id ? editText.trim() : undefined));
+  const discard = (c: FeedbackComment) => aiAction(c, () => feedbackApi.discardAi(item.id, c.id));
+  function startEdit(c: FeedbackComment) {
+    editing = c.id;
+    editText = c.body ?? "";
+  }
+
   /** Return adds a line; ⌘/Ctrl+Return sends, like the chat composer. */
   function onkeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.isComposing) {
@@ -59,12 +102,21 @@
               {c.author?.name ?? "Someone"} marked it <strong>{STATUS_LABEL[c.status!]}</strong>{#if c.id === lastDoneId && item.status === "done" && item.shippedIn}&nbsp;· shipped in v{item.shippedIn}{/if}
             </span>
             {@render when(c.createdAt)}
+          {:else if c.visibility === "private"}
+            {@render note(c)}
+          {:else if c.visibility === "draft"}
+            {@render draftCard(c)}
           {:else}
             <div class="head">
-              <Author author={c.author} />
+              {#if c.authorKind === "ai"}
+                {@render aiAuthor()}
+                <span class="ai-badge">AI answer</span>
+              {:else}
+                <Author author={c.author} />
+              {/if}
               {@render when(c.createdAt)}
             </div>
-            <p class="body">{c.body}</p>
+            <div class="body md">{@html renderSafeMarkdown(c.body)}</div>
           {/if}
         </li>
       {/each}
@@ -85,6 +137,74 @@
   </form>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </div>
+
+{#snippet aiAuthor()}
+  <span class="ai-author"><span class="ai-mark" aria-hidden="true"><Icon name="sparkle" /></span>{FEEDBACK_AI_AUTHOR_NAME}</span>
+{/snippet}
+
+{#snippet verdict(c: FeedbackComment)}
+  {#if c.aiMeta}
+    <span class="verdict">{AI_VERDICT_LABEL[c.aiMeta.verdict]}</span>
+    <Pill tone={AI_CONFIDENCE_TONE[c.aiMeta.confidence]}>{AI_CONFIDENCE_LABEL[c.aiMeta.confidence]}</Pill>
+  {/if}
+{/snippet}
+
+{#snippet draftCard(c: FeedbackComment)}
+  <section class="ai-draft" aria-label="Unsent AI draft" aria-busy={busyId === c.id}>
+    <div class="head">
+      {@render aiAuthor()}
+      <span class="tag">Draft · not sent</span>
+      {@render when(c.createdAt)}
+    </div>
+    {#if editing === c.id}
+      <textarea
+        class="edit"
+        aria-label="Edit the AI draft"
+        bind:value={editText}
+        maxlength="5000"
+        disabled={busyId === c.id}
+      ></textarea>
+    {:else}
+      <div class="body md">{@render html(c.body)}</div>
+    {/if}
+    <div class="actions">
+      <Button small variant="primary" disabled={busyId !== null || (editing === c.id && !editText.trim())} onclick={() => sendDraft(c)}>
+        {busyId === c.id ? "Sending…" : editing === c.id ? "Send edited" : "Send"}
+      </Button>
+      {#if editing === c.id}
+        <Button small variant="ghost" disabled={busyId !== null} onclick={() => (editing = null)}>Cancel edit</Button>
+      {:else}
+        <Button small disabled={busyId !== null} onclick={() => startEdit(c)}>Edit</Button>
+      {/if}
+      <Button small variant="ghost" disabled={busyId !== null} onclick={() => discard(c)}>Discard</Button>
+      <span class="hint">Only you see this until you send it.</span>
+    </div>
+    {#if aiError?.id === c.id}<p class="error" role="alert">{aiError.message}</p>{/if}
+  </section>
+{/snippet}
+
+{#snippet note(c: FeedbackComment)}
+  <section class="ai-note" aria-label="Private AI note">
+    <div class="head">
+      <span class="ai-note-label"><Icon name="lock" />AI triage note</span>
+      {@render verdict(c)}
+      {@render when(c.createdAt)}
+      <span class="spacer"></span>
+      <button type="button" class="dismiss" disabled={busyId !== null} onclick={() => discard(c)}>Dismiss</button>
+    </div>
+    <div class="body md">{@render html(c.body)}</div>
+    {#if c.aiMeta?.citations.length}
+      <ul class="cites" aria-label="Citations">
+        {#each c.aiMeta.citations as cite (cite)}<li><code>{cite}</code></li>{/each}
+      </ul>
+    {/if}
+    {#if aiError?.id === c.id}<p class="error" role="alert">{aiError.message}</p>{/if}
+  </section>
+{/snippet}
+
+{#snippet html(body: string | null)}
+  {@html renderSafeMarkdown(body)}
+{/snippet}
 
 {#snippet when(iso: string)}
   <Tooltip text={fmtDateTime(iso)}>
@@ -119,8 +239,176 @@
     margin: 4px 0 0 26px;
     font-size: 14px;
     line-height: 1.5;
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .md :global(p) {
+    margin: 0 0 6px;
+  }
+  .md :global(:last-child) {
+    margin-bottom: 0;
+  }
+  .md :global(ul),
+  .md :global(ol) {
+    margin: 0 0 6px;
+    padding-left: 20px;
+  }
+  .md :global(code) {
+    font: 12px/1.4 var(--font-mono);
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: var(--chip-bg);
+  }
+  .md :global(a) {
+    color: var(--blue);
+  }
+
+  /* AI author: the app's sparkle mark in a 20px disc, aligned with Author's avatar */
+  .ai-author {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 13px/1 var(--font-ui);
+  }
+  .ai-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 99px;
+    background: var(--pulse-now-bg);
+    color: var(--blue);
+    flex: none;
+  }
+  .ai-mark :global(svg) {
+    width: 12px;
+    height: 12px;
+  }
+  .ai-badge,
+  .tag {
+    font: 500 11px/1 var(--font-ui);
+    padding: 3px 6px;
+    border-radius: 99px;
+    border: 1px solid var(--blue-line);
+    color: var(--blue);
+    background: var(--pulse-now-bg);
+  }
+  .tag {
+    border-color: var(--warn-line);
+    color: var(--warn-ink);
+    background: var(--warn-bg);
+  }
+  .verdict {
+    font: 500 12px/1 var(--font-ui);
+    color: var(--ink);
+  }
+
+  /* Draft: dashed edge says "not out yet"; the body sits where a sent reply would */
+  .ai-draft {
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    background: var(--bg);
+  }
+  .ai-draft .head,
+  .ai-note .head {
+    flex-wrap: wrap;
+  }
+  .ai-draft .body,
+  .ai-note .body {
+    margin-left: 0;
+    margin-top: 6px;
+  }
+  .edit {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    field-sizing: content;
+    min-height: 64px;
+    max-height: 320px;
+    font: 400 13px/1.5 var(--font-ui);
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    resize: vertical;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  .edit:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--focus);
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Private note: quiet well, smaller type — triage context, not conversation */
+  .ai-note {
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    background: var(--well);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .ai-note .body {
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .ai-note-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: 600 12px/1 var(--font-ui);
+    color: var(--muted);
+  }
+  .ai-note-label :global(svg) {
+    width: 12px;
+    height: 12px;
+  }
+  .spacer {
+    flex: 1;
+  }
+  .dismiss {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font: 500 12px/1 var(--font-ui);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .dismiss:hover {
+    color: var(--ink);
+    background: var(--hover-soft);
+  }
+  .dismiss:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .cites {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .cites code {
+    font: 11px/1.4 var(--font-mono);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--well-2);
+    color: var(--ink);
   }
   li.status {
     display: flex;
