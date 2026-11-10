@@ -8,9 +8,11 @@
   import Author from "$lib/feedback/Author.svelte";
   import Thread from "$lib/feedback/Thread.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
+  import { ticketDetails } from "$lib/feedback/details.svelte";
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import Tooltip from "$lib/ui/Tooltip.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -245,6 +247,10 @@
 
 <svelte:head><title>Feedback · Program Tracker</title></svelte:head>
 
+{#snippet pageLink(item: FeedbackItem)}
+  <a href={item.context.route.path}>{item.context.route.path}</a>
+{/snippet}
+
 <Lightbox images={shots} bind:open={shotsOpen} bind:index={shotIndex} label="Ticket screenshots" />
 
 <div class="page">
@@ -346,20 +352,20 @@
 
               <p class="comment">{item.comment}</p>
 
-              <dl>
-                {#if !isPinned(c)}
-                  <dt>Page</dt>
-                  <dd>
-                    {#if c.route.path}<a href={c.route.path}>{c.route.path}</a>{:else}<span class="muted">General</span>{/if}
-                    <span class="muted">&nbsp;· filed here, not pinned to an element</span>
-                  </dd>
-                {:else}
-                <dt>Page</dt>
-                <dd>
-                  <a href={c.route.path}>{c.route.path}</a>{#if c.target.headings.length}<span class="muted">&nbsp;· {c.target.headings.join(" › ")}</span>{/if}
-                  {#if c.route.path.startsWith("/feedback")}
-                    <!-- filed on this page: nothing to jump to -->
-                  {:else if item.reachable}
+              <div class="ticket-bar">
+                <button
+                  type="button"
+                  class="details-toggle"
+                  class:open={ticketDetails.open}
+                  aria-expanded={ticketDetails.open}
+                  aria-controls="fb-details-{item.id}"
+                  onclick={ticketDetails.toggle}
+                >
+                  Details<span class="chev" aria-hidden="true"><Icon name="chevron" /></span>
+                </button>
+                {#if isPinned(c) && !c.route.path.startsWith("/feedback")}
+                  <!-- filed on /feedback itself: nothing to jump to -->
+                  {#if item.reachable}
                     <a class="show-me" href={showMeHref(item)}>Show me</a>
                   {:else if item.hasPageShot || item.hasElementShot}
                     <button
@@ -369,18 +375,31 @@
                       onclick={() => showShots(item)}>Show me</button
                     >
                   {/if}
-                </dd>
-                <dt>Source</dt>
+                {/if}
+              </div>
+
+              <dl id="fb-details-{item.id}" hidden={!ticketDetails.open}>
+                <dt>Page</dt>
                 <dd>
-                  {#if item.source}
-                    <code title={item.source}>{shortPath(item.source)}</code>
-                    {#if c.target.chain.length}
-                      <span class="muted">&nbsp;in {c.target.chain.slice(0, 2).map((e) => `${shortPath(e.file)}:${e.line}`).join(" ← ")}</span>
-                    {/if}
-                  {:else}
-                    <code>{c.target.selector}</code>
+                  {#if c.route.path}{@render pageLink(item)}{:else}<span class="muted">General</span>{/if}
+                  {#if !isPinned(c)}
+                    <span class="muted">&nbsp;· filed here, not pinned to an element</span>
+                  {:else if c.target.headings.length}
+                    <span class="muted">&nbsp;· {c.target.headings.join(" › ")}</span>
                   {/if}
                 </dd>
+                {#if isPinned(c)}
+                  <dt>Source</dt>
+                  <dd>
+                    {#if item.source}
+                      <code title={item.source}>{shortPath(item.source)}</code>
+                      {#if c.target.chain.length}
+                        <span class="muted">&nbsp;in {c.target.chain.slice(0, 2).map((e) => `${shortPath(e.file)}:${e.line}`).join(" ← ")}</span>
+                      {/if}
+                    {:else}
+                      <code>{c.target.selector}</code>
+                    {/if}
+                  </dd>
                 {/if}
                 <dt>Device</dt>
                 <dd>{c.viewport.width}×{c.viewport.height} @{c.viewport.dpr}x · build <code>{c.appVersion}</code></dd>
@@ -609,8 +628,51 @@
   .muted {
     color: var(--muted);
   }
+  /* Details toggle (left) and Show me (right) under the comment. */
+  .ticket-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: -4px;
+    font-size: 12px;
+  }
+  .details-toggle {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    margin-left: -4px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    font: 500 12px/1.2 var(--font-ui);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .details-toggle:hover {
+    color: var(--ink);
+    background: var(--hover-soft);
+  }
+  .details-toggle:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .chev {
+    display: inline-flex;
+    transition: transform 120ms;
+  }
+  .chev :global(svg) {
+    width: 14px;
+    height: 14px;
+  }
+  .details-toggle.open .chev {
+    transform: rotate(180deg);
+  }
+  dl[hidden] {
+    display: none;
+  }
   .show-me {
-    margin-left: 8px;
     font-weight: 600;
     white-space: nowrap;
   }
@@ -732,7 +794,8 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .item {
+    .item,
+    .chev {
       transition: none;
     }
   }
