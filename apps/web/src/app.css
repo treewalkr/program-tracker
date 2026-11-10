@@ -323,7 +323,7 @@
   --bad: #f47067;
   --bad-bg: rgba(229, 83, 75, 0.1);
   --bad-line: rgba(229, 83, 75, 0.4);
-  --warn: #c69026;
+  --warn: #d29922; /* lifted from #c69026: amber Labels need 4.5:1 on the warn tint */
   --warn-bg: rgba(174, 124, 20, 0.15);
   --warn-line: rgba(174, 124, 20, 0.4);
 
