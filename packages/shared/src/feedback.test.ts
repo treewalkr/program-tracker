@@ -42,6 +42,8 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   reachable: true,
   shippedIn: null,
   thread: [],
+  editedAt: null,
+  editedBy: null,
   unread: false,
   muted: false,
   createdAt: "2026-11-07T10:00:00.000Z",
@@ -198,6 +200,14 @@ describe("feedbackMarkdown", () => {
       expect(out).toContain("**AI triage (read the code, 2026-11-01):** how to · medium confidence\n");
       expect(out).not.toContain("Fix plan");
     });
+  });
+  test("says when and by whom the ticket was edited", () => {
+    expect(md).not.toContain("**Edited:**");
+    const out = feedbackMarkdown(
+      [item({ editedAt: "2026-11-08T09:30:00.000Z", editedBy: { id: "t0", name: "Ana", avatarUrl: null } })],
+      { imageUrl: () => null },
+    );
+    expect(out).toContain("- **Edited:** 2026-11-08T09:30:00.000Z by Ana");
   });
   test("names the reporter", () => {
     expect(md).toContain("- **Reported by:** Kai");

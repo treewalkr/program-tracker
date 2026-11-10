@@ -274,6 +274,10 @@ export interface FeedbackItem {
   shippedIn: string | null;
   /** Replies and status changes, oldest first. */
   thread: FeedbackComment[];
+  /** Last time the comment or the ticket's images were edited; null = never. */
+  editedAt: string | null;
+  /** Who made that edit (the reporter or the admin); null if never edited or the trainer was deleted. */
+  editedBy: FeedbackAuthor | null;
   /** Someone else did something on it since the caller last looked. */
   unread: boolean;
   /** The caller muted emails about it. */
@@ -436,6 +440,11 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   );
   lines.push(`- **Reported by:** ${item.author?.name ?? "unknown"}`);
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
+  if (item.editedAt) {
+    lines.push(
+      `- **Edited:** ${item.editedAt} by ${item.editedBy?.name ?? "unknown"} — the comment and images above are the edited version; replies before that answered the earlier text`,
+    );
+  }
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
   if (ai) {
