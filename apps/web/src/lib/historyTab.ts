@@ -1,6 +1,7 @@
 import { estimate1rm, mainLiftIds, sessionTag, timedExerciseIds, timedSlotIds } from "@pt/shared";
 import type { ProgramDto, SessionLogDto } from "./api/types";
 import { cardioLogLabel, logDateLabel, loggedSetLabel } from "./programLogs";
+import { flagChips, readinessLine } from "./logFlags";
 
 /**
  * The client page's History tab, computed from session logs and the client's
@@ -127,6 +128,12 @@ export interface SessionRow {
   /** "Run · 35 min · Z2 · 5.5 km" for a cardio log; null otherwise. */
   cardio: string | null;
   notes: string | null;
+  /** "Energy 6/10 · Sleep 2/5 · Soreness 4/5"; null when nothing was rated. */
+  readiness: string | null;
+  /** Pain, technique and skip flags, one chip each. */
+  flags: ReturnType<typeof flagChips>;
+  /** Some flag says pain — the row shows it before it's opened. */
+  pain: boolean;
 }
 
 export interface WeekGroup {
@@ -175,6 +182,7 @@ export function sessionsByWeek(
       if (!ex) exercises.push((ex = { exerciseId: s.exerciseId, name: nameOf(s.exerciseId), sets: [] }));
       ex.sets.push(loggedSetLabel(s, isTimed(s)));
     }
+    const flags = flagChips(l.flags, nameOf);
     const planned = l.programSessionId ? sessionName.get(`${l.programId}:${l.programSessionId}`) : undefined;
     const row: SessionRow = {
       id: l.id,
@@ -188,6 +196,9 @@ export function sessionsByWeek(
       exercises,
       cardio: l.kind === "cardio" && l.cardio ? cardioLogLabel(l.cardio) : null,
       notes: l.notes || null,
+      readiness: readinessLine(l),
+      flags,
+      pain: flags.some((f) => f.tone === "bad"),
     };
     const start = mondayOf(date);
     const last = weeks[weeks.length - 1];

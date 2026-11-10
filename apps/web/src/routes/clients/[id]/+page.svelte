@@ -737,6 +737,11 @@
                     <span class="chev" aria-hidden="true"><Icon name="chevron" size={14} /></span>
                     <span class="sess-date tnum">{s.dateLabel}</span>
                     <span class="sess-name">{s.name}</span>
+                    {#if s.flags.length > 0}
+                      <span class={`pill sess-flag ${s.pain ? "bad" : "neutral"}`} title={s.flags.map((f) => f.text).join(", ")}>
+                        <Icon name="flag" size={11} />{s.pain ? "Pain" : s.flags.length === 1 ? "1 flag" : `${s.flags.length} flags`}
+                      </span>
+                    {/if}
                     <span class="sess-count subtle">{s.kind === "cardio" ? "cardio" : `${s.setCount} ${s.setCount === 1 ? "set" : "sets"}`}</span>
                   </button>
                   <a class="sess-prog" href="/programs/{s.programId}" title="Open {s.programName}">{s.programName}</a>
@@ -750,6 +755,17 @@
                         <span class="sess-sets">{#each e.sets as label, i (i)}<span class="setchip"><span class="rep">{label}</span></span>{/each}</span>
                       </div>
                     {/each}
+                    {#if s.readiness}<p class="sess-ready subtle tnum">{s.readiness}</p>{/if}
+                    {#if s.flags.length > 0}
+                      <ul class="sess-flags">
+                        {#each s.flags as f (f.key)}
+                          <li>
+                            <span class={`pill ${f.tone}`}>{f.text}</span>
+                            {#if f.note}<span class="sess-flag-note">{f.note}</span>{/if}
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
                     {#if s.notes}<p class="sess-notes subtle">{s.notes}</p>{/if}
                   </div>
                 {/if}
@@ -987,6 +1003,12 @@
   .sess-sets { display: flex; flex-wrap: wrap; gap: 4px; }
   .sess-line { margin: 0; }
   .sess-notes { margin: 0; font-size: 12.5px; white-space: pre-line; }
+  .sess-flag { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; font-size: 11px; white-space: nowrap; }
+  .sess-ready { margin: 0; font-size: 12px; font-family: var(--font-mono); }
+  .sess-flags { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .sess-flags li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .sess-flags .pill { font-size: 11px; }
+  .sess-flag-note { font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
   @media (max-width: 520px) {
     .sess-body { padding-left: 16px; }
     .sess-ex-name { min-width: 0; flex: 1 1 100%; }

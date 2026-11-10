@@ -50,6 +50,8 @@ const log = (over: Partial<SessionLogDto>): SessionLogDto => ({
   kind: "lifting",
   notes: null,
   perceivedEnergy: null,
+  readiness: null,
+  flags: null,
   sets: [],
   ...over,
 });
@@ -198,6 +200,33 @@ describe("sessionsByWeek", () => {
       { exerciseId: "row", name: "Bent-over Row", sets: ["60 kg × 5", "70 kg × 5"] },
       { exerciseId: "plank", name: "Plank", sets: ["45 s"] },
     ]);
+  });
+
+  test("each row carries its readiness and flags; old logs have none", () => {
+    const [week] = sessionsByWeek(
+      [
+        log({
+          perceivedEnergy: 6,
+          readiness: { sleep: 2, soreness: 4 },
+          flags: [
+            { programExerciseId: null, exerciseId: "bench", kind: "pain", note: "shoulder" },
+            { programExerciseId: null, exerciseId: "row", kind: "skipped", reason: "time" },
+          ],
+          sets: [set("bench", 45, 5)],
+        }),
+        log({ date: "2026-10-20", sets: [set("bench", 45, 5)] }),
+      ],
+      [program],
+      nameOf,
+    );
+    const [plain, flagged] = week.sessions;
+    expect(flagged.readiness).toBe("Energy 6/10 · Sleep 2/5 · Soreness 4/5");
+    expect(flagged.flags.map((f) => [f.text, f.note])).toEqual([
+      ["Pain · Bench Press", "shoulder"],
+      ["Skipped · Bent-over Row · time", null],
+    ]);
+    expect(flagged.pain).toBe(true);
+    expect(plain).toMatchObject({ readiness: null, flags: [], pain: false });
   });
 
   test("freestyle and cardio rows", () => {
