@@ -90,8 +90,6 @@
   /** Build by hand (the editor) or Paste notes (read a plain-text program into it). */
   let mode = $state<"hand" | "paste">("hand");
   let filledFrom = $state<string | null>(null);
-  /** Imported notes: Save keeps the exercises' order (exercisesForSave). */
-  let keepOrder = $state(false);
 
   /** "Use this": the reviewed import becomes the form; the trainer finishes it here. */
   function useImport(form: DraftForm) {
@@ -162,7 +160,6 @@
     $state.snapshot({
       name, description, plannedWeeks, phase, nextPhase, usePhasing,
       schemeMode, selectedSchemeId, customWeeks, schemeName, sessions,
-      ...(keepOrder ? { keepOrder } : {}),
     });
 
   function applyForm(f: DraftForm) {
@@ -175,7 +172,6 @@
     schemeName = f.schemeName;
     customWeeks = f.customWeeks;
     sessions = f.sessions.length > 0 ? f.sessions : [newRow()];
-    keepOrder = f.keepOrder ?? false;
     if (f.schemeMode === "saved" && !schemes.some((x) => x.id === f.selectedSchemeId)) {
       schemeMode = schemes.length > 0 ? "saved" : "none";
       selectedSchemeId = schemes[0]?.id ?? "";
@@ -211,7 +207,6 @@
     clearDraft(draftKey);
     if (defaults) applyForm(structuredClone(defaults));
     sessions = [newRow()];
-    keepOrder = false;
     restoredAt = null;
     keptAt = null;
     baseline = JSON.stringify(formSnapshot());
@@ -381,7 +376,7 @@
           kind: "lifting",
           ...typed,
           cardio: null,
-          exercises: exercisesForSave($state.snapshot(s.exercises), keepOrder, roleLabels.all).map((e, ei) => ({
+          exercises: exercisesForSave($state.snapshot(s.exercises)).map((e, ei) => ({
             ...e,
             id: uuid(),
             exerciseName: catalog.find((c) => c.id === e.exerciseId)?.name ?? e.exerciseName,

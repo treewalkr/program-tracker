@@ -18,19 +18,15 @@ const BASE: DraftForm = {
 };
 
 describe("exercisesForSave", () => {
-  const list = [
-    { id: "a", role: "accessory" },
-    { id: "b", role: "primary" },
-    { id: "c", role: "core" },
-  ];
-  test("sorts by role by default", () => {
-    expect(exercisesForSave(list, undefined).map((e) => e.id)).toEqual(["b", "a", "c"]);
-    expect(exercisesForSave(list, false).map((e) => e.id)).toEqual(["b", "a", "c"]);
-  });
-  test("keeps the editor's order with keepOrder", () => {
-    const kept = exercisesForSave(list, true);
-    expect(kept.map((e) => e.id)).toEqual(["a", "b", "c"]);
-    expect(kept).not.toBe(list);
+  test("keeps the editor's order — no role sort", () => {
+    const list = [
+      { id: "squat", role: undefined },
+      { id: "bench", role: "strength" },
+      { id: "chin", role: "strength" },
+    ];
+    const saved = exercisesForSave(list);
+    expect(saved.map((e) => e.id)).toEqual(["squat", "bench", "chin"]);
+    expect(saved).not.toBe(list);
   });
 });
 
@@ -113,8 +109,7 @@ describe("superset paste, end to end", () => {
     expect(throwball.ex.match?.candidates?.map((c) => c.name)).toContain("Single-Leg Hop");
 
     const form = formFromImport(r, 0, BASE, { choices: {}, resolve, newKey });
-    expect(form.keepOrder).toBe(true);
-    const saved = exercisesForSave(form.sessions[0].exercises, form.keepOrder);
+    const saved = exercisesForSave(form.sessions[0].exercises);
     expect(saved.map((e) => e.exerciseName)).toEqual([
       "Single Leg Throwball",
       "Slamball Side to Side",
@@ -134,22 +129,20 @@ describe("superset paste, end to end", () => {
       "Bent-Over Row": 3,
     });
     expect(saved.map((e) => e.group ?? null)).toEqual(["A", "A", "B", "B", null, "C", "C"]);
-    // without keepOrder, role sorting would pull Deadlift ahead of the pairs
-    expect(exercisesForSave(form.sessions[0].exercises, false)[0].exerciseName).not.toBe("Single Leg Throwball");
   });
 });
 
 describe("exercisesForSave with groups", () => {
   const set = (n: number) => ({ setNumber: n });
-  test("a superset stays together when sorted by role", () => {
+  test("tidies groups in place: re-lettered, rounds evened", () => {
     const list = [
-      { id: "core", role: "core", prescribedSets: [set(1)] },
-      { id: "a1", role: "accessory", group: "B", prescribedSets: [set(1), set(2)] },
-      { id: "a2", role: "primary", group: "B", prescribedSets: [set(1), set(2), set(3)] },
+      { id: "core", prescribedSets: [set(1)] },
+      { id: "a1", group: "B", prescribedSets: [set(1), set(2)] },
+      { id: "a2", group: "B", prescribedSets: [set(1), set(2), set(3)] },
     ];
-    const out = exercisesForSave(list, false);
-    expect(out.map((e) => e.id)).toEqual(["a1", "a2", "core"]);
-    expect(out.map((e) => e.group)).toEqual(["A", "A", undefined]);
-    expect(out[0].prescribedSets.length).toBe(3);
+    const out = exercisesForSave(list);
+    expect(out.map((e) => e.id)).toEqual(["core", "a1", "a2"]);
+    expect(out.map((e) => e.group)).toEqual([undefined, "A", "A"]);
+    expect(out[1].prescribedSets.length).toBe(3);
   });
 });
