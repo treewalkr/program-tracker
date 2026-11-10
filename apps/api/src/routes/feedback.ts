@@ -7,9 +7,18 @@ import {
   feedbackMarkdown,
   formatSourceLoc,
   type FeedbackContext,
+  type FeedbackStatus,
 } from "@pt/shared";
 import { getFeedback, listFeedback, markSeen, parseStatuses, unreadCount, type FeedbackViewer } from "../lib/feedback";
-import { attachmentBytes, readImages, saveAttachments, ticketShot } from "../lib/feedback-attachments";
+import {
+  attachmentBytes,
+  checkLayout,
+  readImages,
+  relayoutTicketImages,
+  saveAttachments,
+  ticketImages,
+  ticketShot,
+} from "../lib/feedback-attachments";
 import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { trainerContext } from "../lib/trainer-context";
@@ -53,6 +62,18 @@ const CommentParams = t.Object({ id: t.String({ format: "uuid" }), cid: t.String
  * same way; the schema only caps the count far above the real limit.
  */
 const Images = t.Optional(t.Files({ maxItems: 20 }));
+
+/**
+ * An edited ticket's images in their new order: `{ keep: id }` for an image
+ * it already has, `{ upload: n }` for the nth file in `images`. Images left
+ * out are removed. Eden sends an array of objects as one JSON field.
+ */
+const ImageLayout = t.Array(
+  t.Union([t.Object({ keep: t.String({ format: "uuid" }) }), t.Object({ upload: t.Integer({ minimum: 0 }) })]),
+  { maxItems: 40 },
+);
+
+const OPEN_STATUSES: readonly FeedbackStatus[] = ["new", "accepted"];
 
 const IMAGE_CACHE = "private, max-age=31536000, immutable";
 
@@ -190,6 +211,73 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         triageNote: t.Optional(t.Nullable(t.String({ maxLength: 5000 }))),
       }),
       detail: { summary: "Triage a feedback item" },
+    },
+  )
+  /**
+   * Edit an open ticket's comment and its own images (remove any, add
+   * uploads, reorder) — its reporter or the admin. `version` is the ticket's
+   * `editedAt` (or `createdAt` if never edited) when the editor opened it; a
+   * different one means someone else edited it meanwhile: 409, nothing saved.
+   * Counts as news for the other side, but sends no email.
+   */
+  .patch(
+    "/:id/content",
+    async ({ params, body, status, isAdmin, trainerId, who }) => {
+      const comment = body.comment.trim();
+      if (!comment) return status(422, { error: "comment is empty" });
+      const read = await readImages({ images: body.images });
+      if ("error" in read) return status(422, { error: read.error });
+      const out = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select({
+            trainerId: feedbackItems.trainerId,
+            status: feedbackItems.status,
+            comment: feedbackItems.comment,
+            editedAt: feedbackItems.editedAt,
+            createdAt: feedbackItems.createdAt,
+          })
+          .from(feedbackItems)
+          .where(eq(feedbackItems.id, params.id))
+          .for("update");
+        // Same rule as reading it: a trainer may only touch their own tickets.
+        if (!row || (!isAdmin && row.trainerId !== trainerId)) return { fail: 404 } as const;
+        if (!OPEN_STATUSES.includes(row.status)) return { fail: "closed" } as const;
+        if (body.version !== (row.editedAt ?? row.createdAt).toISOString()) return { fail: "stale" } as const;
+        const current = await ticketImages(tx, params.id);
+        const invalid = checkLayout(current, body.layout, read.images.length);
+        if (invalid) return { invalid: invalid.error };
+        const same =
+          comment === row.comment &&
+          body.layout.length === current.length &&
+          body.layout.every((slot, i) => "keep" in slot && slot.keep === current[i].id);
+        if (same) return { saved: false };
+        await relayoutTicketImages(tx, params.id, body.layout, read.images);
+        const now = new Date();
+        await tx
+          .update(feedbackItems)
+          .set({ comment, editedAt: now, editedBy: trainerId, updatedAt: now })
+          .where(eq(feedbackItems.id, params.id));
+        return { saved: true };
+      });
+      if ("fail" in out) {
+        if (out.fail === 404) return status(404, NOT_FOUND);
+        if (out.fail === "closed") return status(409, { error: "This ticket is closed, so it can't be edited." });
+        return status(409, { error: "Someone else edited this ticket while you were editing it." });
+      }
+      if ("invalid" in out) return status(422, { error: out.invalid });
+      // No email for an edit; the unread dot tells the other side.
+      if (out.saved) await markSeen(trainerId, params.id);
+      return (await getFeedback(params.id, who))!;
+    },
+    {
+      params: IdParams,
+      body: t.Object({
+        comment: t.String({ minLength: 1, maxLength: 5000 }),
+        version: t.String({ minLength: 1, maxLength: 64 }),
+        layout: ImageLayout,
+        images: Images,
+      }),
+      detail: { summary: "Edit a ticket's comment and images (reporter or admin)" },
     },
   )
   /** Reply on an item's thread — its reporter or the admin — with up to FEEDBACK_MAX_IMAGES images. */
