@@ -722,10 +722,13 @@
   // ---- Sticky Save bar: the floating Feedback button steps up whenever the bar sits under it ----
 
   let saveBarEl = $state<HTMLElement>();
+  /** The pain warning sits right above the bar: once it's in view there, the button clears it too. */
+  let painNoteEl = $state<HTMLElement>();
   const isMac = browser && /Mac|iPhone|iPad/.test(navigator.userAgent);
 
   $effect(() => {
     const bar = saveBarEl;
+    const note = painNoteEl;
     if (!bar) return;
     const root = document.documentElement;
     let raf = 0;
@@ -735,7 +738,9 @@
       const vh = window.innerHeight;
       // The button lives in the bottom 16–56px of the viewport (FeedbackLayer).
       const under = r.top < vh - 16 && r.bottom > vh - 56;
-      root.style.setProperty("--feedback-lift", under ? `${Math.ceil(vh - r.top)}px` : "0px");
+      // Scrolled up, the note hides behind the stuck bar (its top is lower); only above it does it count.
+      const top = Math.min(r.top, note?.getBoundingClientRect().top ?? Infinity);
+      root.style.setProperty("--feedback-lift", under ? `${Math.ceil(vh - top)}px` : "0px");
     };
     const queue = () => (raf ||= requestAnimationFrame(update));
     update();
@@ -744,6 +749,7 @@
     const ro = new ResizeObserver(queue);
     ro.observe(bar);
     if (formEl) ro.observe(formEl);
+    if (note) ro.observe(note);
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("scroll", queue, { capture: true });
@@ -1368,7 +1374,7 @@
           </div>
         </div>
         {#if painList.length > 0}
-          <div class="panel-body pain-note">
+          <div class="panel-body pain-note" bind:this={painNoteEl}>
             <Note tone="warn" role="note">
               Pain logged on {painList.map(nameOf).join(", ")} — check in with {client.name.split(" ")[0]}.
             </Note>
