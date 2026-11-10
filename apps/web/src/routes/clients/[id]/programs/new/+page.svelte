@@ -32,6 +32,7 @@
     type ProgramSession,
     type WeekPlan,
   } from "@pt/shared";
+  import { SCHEME_PRESETS, schemePreset } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
@@ -172,9 +173,10 @@
     schemeName = f.schemeName;
     customWeeks = f.customWeeks;
     sessions = f.sessions.length > 0 ? f.sessions : [newRow()];
-    if (f.schemeMode === "saved" && !schemes.some((x) => x.id === f.selectedSchemeId)) {
-      schemeMode = schemes.length > 0 ? "saved" : "none";
-      selectedSchemeId = schemes[0]?.id ?? "";
+    if (f.schemeMode === "saved" && !pickable(f.selectedSchemeId)) {
+      const fallback = defaultPick();
+      schemeMode = fallback ? "saved" : "none";
+      selectedSchemeId = fallback;
     } else {
       schemeMode = f.schemeMode;
       selectedSchemeId = f.selectedSchemeId;
@@ -229,9 +231,38 @@
     return [];
   });
 
-  const selectedScheme = $derived(
-    schemeMode === "saved" ? (schemes.find((s) => s.id === selectedSchemeId) ?? null) : null
-  );
+  /** Built-in presets the trainer hasn't hidden; picked as `preset:<key>` in the scheme select. */
+  let hiddenPresets = $state<string[]>([]);
+  const visiblePresets = $derived(SCHEME_PRESETS.filter((p) => !hiddenPresets.includes(p.key)));
+  const PRESET = "preset:";
+  const presetOf = (value: string) => (value.startsWith(PRESET) ? schemePreset(value.slice(PRESET.length)) : undefined);
+  /** A saved scheme or a visible preset still exists for this select value. */
+  const pickable = (value: string) =>
+    schemes.some((x) => x.id === value) || visiblePresets.some((p) => `${PRESET}${p.key}` === value);
+  /** Trainer's first scheme, else Linear strength 3:1 (or the first visible preset). */
+  const defaultPick = () => {
+    if (schemes[0]) return schemes[0].id;
+    const preset = visiblePresets.find((p) => p.key === "linear-3-1") ?? visiblePresets[0];
+    return preset ? `${PRESET}${preset.key}` : "";
+  };
+
+  const selectedScheme = $derived.by<{ name: string; weeks: WeekPlan[] } | null>(() => {
+    if (schemeMode !== "saved") return null;
+    const preset = presetOf(selectedSchemeId);
+    if (preset) return { name: preset.name, weeks: [...preset.weeks] };
+    return schemes.find((s) => s.id === selectedSchemeId) ?? null;
+  });
+
+  /** Pick a scheme; a preset also fills This phase / Next phase. */
+  function pick(value: string) {
+    schemeMode = value ? "saved" : "none";
+    selectedSchemeId = value;
+    const preset = presetOf(value);
+    if (preset) {
+      phase = preset.phase;
+      nextPhase = preset.nextPhase;
+    }
+  }
 
   $effect(() => {
     if (activeWeekPlans.length > 0) {
@@ -243,8 +274,7 @@
     if (value === "custom" || value === "none") {
       schemeMode = value;
     } else {
-      schemeMode = "saved";
-      selectedSchemeId = value;
+      pick(value);
     }
   }
 
@@ -265,14 +295,6 @@
     }
   }
 
-  async function removeScheme() {
-    if (!selectedScheme) return;
-    const gone = selectedScheme.id;
-    await api.deleteScheme(gone);
-    schemes = schemes.filter((s) => s.id !== gone);
-    if (schemes.length > 0) selectedSchemeId = schemes[0].id;
-    else schemeMode = "none";
-  }
 
   /** Session label as the trainer sees it: their name, else the track tag. */
   const labelOf = (s: SessionRow, i: number) => s.name.trim() || sessionTag({ kind: s.kind, seq: seqs[i] });
@@ -413,13 +435,13 @@
   async function firstLoad() {
     const detail = await api.client(id);
     client = detail.client;
-    [catalog, schemes, types] = await Promise.all([api.exercises(), api.schemes(), api.sessionTypes()]);
-    if (schemes.length > 0) {
-      schemeMode = "saved";
-      selectedSchemeId = schemes[0].id;
-    } else {
-      schemeMode = "none";
-    }
+    [catalog, schemes, types, hiddenPresets] = await Promise.all([
+      api.exercises(),
+      api.schemes(),
+      api.sessionTypes(),
+      api.hiddenSchemePresets(),
+    ]);
+    pick(defaultPick());
     await tick(); // let derived fields (scheme weeks → plannedWeeks) settle first
     defaults = formSnapshot();
     // an import still being read (or waiting for review) reopens Paste notes
@@ -542,9 +564,20 @@
                     value={schemeMode === "saved" ? selectedSchemeId : schemeMode}
                     onchange={(e) => onSchemeSelect(e.currentTarget.value)}
                   >
-                    {#each schemes as s (s.id)}
-                      <option value={s.id}>{s.name}</option>
-                    {/each}
+                    {#if visiblePresets.length > 0}
+                      <optgroup label="Presets">
+                        {#each visiblePresets as p (p.key)}
+                          <option value="{PRESET}{p.key}">{p.name}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
+                    {#if schemes.length > 0}
+                      <optgroup label="Your schemes">
+                        {#each schemes as s (s.id)}
+                          <option value={s.id}>{s.name}</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
                     <option value="custom">Custom — set each week</option>
                     <option value="none">None — no week directives</option>
                   </select>
@@ -558,14 +591,7 @@
                   </div>
                   <div class="scheme-meta">
                     <span class="subtle nowrap" title="Block length comes from the scheme"><span class="num">{activeWeekPlans.length}</span>-week block</span>
-                    <ConfirmButton
-                      label="Delete scheme"
-                      confirmLabel="Really delete?"
-                      variant="danger"
-                      class="ghost"
-                      small
-                      onconfirm={removeScheme}
-                    />
+                    <a class="manage" href="/schemes">Manage schemes</a>
                   </div>
                 {:else if schemeMode === "custom"}
                   <div class="custom-scheme">
@@ -786,6 +812,7 @@
   .scheme-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .scheme-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 6px; }
   .nowrap { white-space: nowrap; }
+  .manage { font-size: 12px; }
   .scheme-meta .num { font-family: var(--font-mono); color: var(--ink); }
   .custom-scheme { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
   .save-row { display: flex; gap: 8px; align-items: center; }
