@@ -215,7 +215,8 @@
                 {#if marks(d)}
                   {@const label = daySentence(s.client.name, d)}
                   {#snippet body()}
-                    <span class="tag">{tagOf(d.sessions[0].name)}</span>
+                    {@const tag = tagOf(d.sessions[0].name)}
+                    <span class="tag" class:word={!tag.includes(" ")}>{tag}</span>
                     <span class="foot">
                       {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
                       {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
@@ -440,13 +441,15 @@
     text-transform: uppercase;
     text-align: center;
     max-width: 100%;
-    overflow-wrap: break-word;
+    hyphens: auto;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  /* One word never breaks mid-word: it stays on one line and ellipsizes. */
+  .cell .tag.word { display: block; white-space: nowrap; text-overflow: ellipsis; }
   .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
   .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
   .cell .mk + .state { margin-left: 2px; }
@@ -568,8 +571,8 @@
       gap: 2px 10px;
       padding: 10px 2px 2px;
     }
-    .wk-cell { padding: 4px 0 8px; }
-    .cell { height: 44px; padding: 3px 0; }
+    .wk-body .wk-cell { padding: 4px 0 8px; }
+    .cell { height: 44px; padding: 3px 2px; }
     /* ~33px cells: fill and edge carry the state; the word is in the label and tooltip. */
     .cell .state { display: none; }
     /* Cells are ~33px: the tag drops to sentence-case UI type so a short
@@ -579,7 +582,6 @@
       font: 500 11px/1.2 var(--font-ui);
       text-transform: none;
       letter-spacing: -0.02em;
-      overflow-wrap: normal;
     }
     .legend { justify-content: flex-start; }
   }
