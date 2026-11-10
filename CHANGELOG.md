@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### New
+- Progression schemes: 7 built-in presets backed by training research. They cover linear strength 3:1, block, hypertrophy volume ramp, weekly undulating, peak & taper, novice linear and return to training. Each one has real week-by-week numbers, a short "why" and its sources.
+- A new Progression schemes page in the Library. Duplicate a preset to make it your own, hide the ones you don't use, and create, edit or delete your own schemes. Each week can have a target, a progression rule and a note.
+- The new-program page lists presets and your schemes in one dropdown. Picking one fills in the block's phases.
+- Loading screens now show the shape of the page while it loads.
+- Feedback tickets keep their details behind a Details toggle that remembers your choice.
+
+### Fixed
+- Feedback ticket pages that can no longer be opened now show as plain text instead of a broken link.
+
 ## v0.1.15 — 2026-11-10
 
 ### New
