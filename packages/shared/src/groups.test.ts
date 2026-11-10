@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  dissolveGroup,
   exerciseUnits,
   groupKind,
   groupTag,
@@ -161,5 +162,12 @@ describe("ProgramSession group rules", () => {
   });
   test("rejects a non-letter group", () => {
     expect(ProgramSession.safeParse(session([ex("a", 3, "A1"), ex("b", 3, "A1")])).success).toBe(false);
+  });
+});
+
+describe("dissolveGroup", () => {
+  test("ungroups every member, leaves other groups", () => {
+    const out = dissolveGroup([ex("a", 3, "A"), ex("b", 3, "A"), ex("c", 3, "B"), ex("d", 3, "B")], "A");
+    expect(groups(out)).toBe("--BB");
   });
 });

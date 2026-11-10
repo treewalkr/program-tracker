@@ -17,7 +17,15 @@
   } from "$lib/api/types";
   import {
     defaultCardio,
+    dissolveGroup,
+    exerciseUnits,
+    groupTag,
+    linkWithNext,
+    moveUnit,
+    normalizeGroups,
     oneRepMaxKg,
+    setGroupRounds,
+    unlink,
     placeSessions,
     sessionTag,
     stampWeeks,
@@ -29,6 +37,7 @@
   import { weekPlanLabel } from "$lib/format";
   import { exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
+  import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import SessionTypePicker from "$lib/components/SessionTypePicker.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
@@ -325,9 +334,12 @@
     });
   }
 
-  function moveExercise(s: SessionRow, from: number, to: number) {
-    const [ex] = s.exercises.splice(from, 1);
-    s.exercises.splice(to, 0, ex);
+  function moveExercise(s: SessionRow, i: number, dir: -1 | 1, scope: "item" | "unit" = "item") {
+    s.exercises = moveUnit(s.exercises, i, dir, scope);
+  }
+
+  function removeExerciseAt(s: SessionRow, i: number) {
+    s.exercises = normalizeGroups(s.exercises.filter((_, j) => j !== i));
   }
 
   function toTemplateSessions(): ProgramSession[] {
@@ -723,19 +735,45 @@
               </EmptyState>
             {:else}
               <div class="exlist">
-                {#each s.exercises as e, ei (e.id)}
+                {#snippet editor(e: (typeof s.exercises)[number], ei: number, first: boolean, last: boolean)}
                   <ExerciseEditor
                     bind:exercise={s.exercises[ei]}
                     session={s.exercises}
                     {catalog}
-                    oneRepMaxKg={oneRepMaxKg(client.oneRepMaxes, e.exerciseId)}
+                    oneRepMaxKg={oneRepMaxKg(client?.oneRepMaxes, e.exerciseId)}
                     oncreate={addToLibrary}
-                    canMoveUp={ei > 0}
-                    canMoveDown={ei < s.exercises.length - 1}
-                    onmoveup={() => moveExercise(s, ei, ei - 1)}
-                    onmovedown={() => moveExercise(s, ei, ei + 1)}
-                    onremove={() => s.exercises.splice(ei, 1)}
+                    tag={groupTag(s.exercises, ei)}
+                    canMoveUp={!first}
+                    canMoveDown={!last}
+                    onmoveup={() => moveExercise(s, ei, -1)}
+                    onmovedown={() => moveExercise(s, ei, 1)}
+                    onremove={() => removeExerciseAt(s, ei)}
+                    onlink={ei < s.exercises.length - 1 ? () => (s.exercises = linkWithNext(s.exercises, ei)) : undefined}
+                    onunlink={() => (s.exercises = unlink(s.exercises, ei))}
                   />
+                {/snippet}
+                {#each exerciseUnits(s.exercises) as u, ui (u.items[0].id)}
+                  {@const lastUnit = u.start + u.items.length === s.exercises.length}
+                  {#if u.group}
+                    {@const g = u.group}
+                    <ExerciseGroup
+                      group={g}
+                      count={u.items.length}
+                      rounds={u.items[0].prescribedSets.length}
+                      onrounds={(n) => (s.exercises = setGroupRounds(s.exercises, g, n))}
+                      canMoveUp={ui > 0}
+                      canMoveDown={!lastUnit}
+                      onmoveup={() => moveExercise(s, u.start, -1, "unit")}
+                      onmovedown={() => moveExercise(s, u.start, 1, "unit")}
+                      onungroup={() => (s.exercises = dissolveGroup(s.exercises, g))}
+                    >
+                      {#each u.items as e, k (e.id)}
+                        {@render editor(e, u.start + k, k === 0, k === u.items.length - 1)}
+                      {/each}
+                    </ExerciseGroup>
+                  {:else}
+                    {@render editor(u.items[0], u.start, ui === 0, lastUnit)}
+                  {/if}
                 {/each}
                 <Button small class="self-start" onclick={() => addExercise(s)}>+ Add exercise</Button>
               </div>

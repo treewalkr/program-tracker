@@ -1,4 +1,4 @@
-import { sortExercisesByRole, type RoleRank } from "@pt/shared";
+import { normalizeGroups, sortExercisesByRole, type RoleRank } from "@pt/shared";
 import type { CardioPrescriptionDto, ProgramExerciseDto, WeekDirective, WeekMetric } from "./api/types";
 
 /** The new-program form (/clients/:id/programs/new) — one session row of the template week. */
@@ -35,7 +35,10 @@ export interface DraftForm {
   keepOrder?: boolean;
 }
 
-/** A session's exercises as saved: the editor's order when `keepOrder`, else sorted by role. */
-export function exercisesForSave<T extends { role?: string | null }>(list: readonly T[], keepOrder: boolean | undefined, labels?: readonly RoleRank[]): T[] {
-  return keepOrder ? [...list] : sortExercisesByRole(list, labels);
+/** A session's exercises as saved: the editor's order when `keepOrder`, else sorted by role
+ *  (a superset moves as one). Groups are tidied either way. */
+export function exercisesForSave<
+  T extends { role?: string | null; group?: string | null; prescribedSets?: readonly { setNumber: number }[] },
+>(list: readonly T[], keepOrder: boolean | undefined, labels?: readonly RoleRank[]): T[] {
+  return normalizeGroups(keepOrder ? [...list] : sortExercisesByRole(list, labels));
 }

@@ -21,6 +21,7 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import ExercisePicker from "./ExercisePicker.svelte";
   import RolePicker from "./RolePicker.svelte";
+  import GroupTag from "./GroupTag.svelte";
 
   /**
    * Inline editor for one exercise, opened from the read view. Identical sets
@@ -39,6 +40,9 @@
     oncreate,
     oneRepMaxKg = null,
     session,
+    tag = null,
+    onlink,
+    onunlink,
   }: {
     exercise: ProgramExerciseDto;
     /** The session's exercises (this one included) — picking an exercise with no role suggests one from its place. */
@@ -55,7 +59,15 @@
     onclose?: () => void;
     /** Adds a new library exercise from the picker. */
     oncreate?: (input: ExerciseInput) => Promise<ExerciseDto>;
+    /** Superset tag ("A1") when this exercise is in a group; its set count is then the group's rounds. */
+    tag?: string | null;
+    /** "Superset with next" — omit when there is no next exercise. */
+    onlink?: () => void;
+    /** Take this exercise out of its group. */
+    onunlink?: () => void;
   } = $props();
+
+  const grouped = $derived(tag != null);
 
   // svelte-ignore state_referenced_locally
   let split = $state(!isUniform(exercise.prescribedSets));
@@ -129,6 +141,7 @@
 
 <div class="exedit" class:inline={!onclose}>
   <div class="head">
+    {#if tag}<GroupTag {tag} />{/if}
     <RolePicker value={exercise.role} onpick={(r) => (exercise.role = r)} />
     <ExercisePicker value={exercise.exerciseId} {catalog} onpick={pickExercise} {oncreate} />
     <div class="seg" role="radiogroup" aria-label="Set mode">
@@ -172,13 +185,17 @@
             </td>
             {@render effort(s, (fn) => setOne(i, fn))}
             <td>
-              <button type="button" class="x" aria-label="Remove set {s.setNumber}" disabled={sets.length <= 1} onclick={() => (exercise.prescribedSets = withSetCount(sets.filter((_, j) => j !== i), sets.length - 1))}>×</button>
+              <button type="button" class="x" aria-label="Remove set {s.setNumber}" disabled={sets.length <= 1 || grouped} title={grouped ? "Rounds are set on the group" : undefined} onclick={() => (exercise.prescribedSets = withSetCount(sets.filter((_, j) => j !== i), sets.length - 1))}>×</button>
             </td>
           </tr>
         {/each}
       {:else}
         <tr>
-          <td><input class="input cell" type="number" min="1" max="20" aria-label="Number of sets" value={sets.length} onchange={(e) => (exercise.prescribedSets = withSetCount(sets, Number(e.currentTarget.value)))} /></td>
+          {#if grouped}
+            <td><span class="cell fixed" title="Rounds are set on the group">{sets.length}</span></td>
+          {:else}
+            <td><input class="input cell" type="number" min="1" max="20" aria-label="Number of sets" value={sets.length} onchange={(e) => (exercise.prescribedSets = withSetCount(sets, Number(e.currentTarget.value)))} /></td>
+          {/if}
           {@render effort(sets[0], setAll)}
         </tr>
       {/if}
@@ -189,12 +206,15 @@
   {#if percentNote}<p class="setsnote pct" role="status">{percentNote}</p>{/if}
 
   <p class="setsnote">
+    {#if grouped}
+      Rounds set on the group ·
+    {/if}
     {#if split}
-      <button type="button" class="link" disabled={sets.length >= 20} onclick={() => (exercise.prescribedSets = withSetCount(sets, sets.length + 1))}>+ Set</button>
-      {#if uniform}· <button type="button" class="link" onclick={() => (split = false)}>Edit as one row</button>
-      {:else}· <button type="button" class="link" onclick={() => { setAll((s) => ({ ...sets[0], setNumber: s.setNumber })); split = false; }}>Make all like set 1</button>{/if}
+      {#if !grouped}<button type="button" class="link" disabled={sets.length >= 20} onclick={() => (exercise.prescribedSets = withSetCount(sets, sets.length + 1))}>+ Set</button> ·{/if}
+      {#if uniform}<button type="button" class="link" onclick={() => (split = false)}>Edit as one row</button>
+      {:else}<button type="button" class="link" onclick={() => { setAll((s) => ({ ...sets[0], setNumber: s.setNumber })); split = false; }}>Make all like set 1</button>{/if}
     {:else}
-      {sets.length} identical {sets.length === 1 ? "set" : "sets"} ·
+      {#if !grouped}{sets.length} identical {sets.length === 1 ? "set" : "sets"} ·{/if}
       <button type="button" class="link" onclick={() => (split = true)}>Set each one separately</button>
     {/if}
     {#if !showMore && mode !== "timed"}· <button type="button" class="link" onclick={() => (showMore = true)}>+ RIR, tempo</button>{/if}
@@ -213,6 +233,11 @@
   <div class="foot">
     <button type="button" class="btn ghost small" disabled={!canMoveUp} onclick={onmoveup} aria-label="Move exercise up">↑ Up</button>
     <button type="button" class="btn ghost small" disabled={!canMoveDown} onclick={onmovedown} aria-label="Move exercise down">↓ Down</button>
+    {#if grouped && onunlink}
+      <button type="button" class="btn ghost small" onclick={onunlink} title="Take this exercise out of the superset">Unlink</button>
+    {:else if !grouped && onlink}
+      <button type="button" class="btn ghost small" onclick={onlink} title="Do this and the next exercise back to back, as rounds">Superset with next</button>
+    {/if}
     <span class="grow"></span>
     <ConfirmButton label="Remove exercise" confirmLabel="Really remove?" variant="danger" class="ghost" small onconfirm={onremove} />
     {#if onclose}
@@ -257,6 +282,7 @@
   .settable .l { text-align: left; }
   .n { color: var(--faint); font: 12px var(--font-mono); width: 28px; }
   .cell { width: 64px; padding: 4px 6px; text-align: right; font: 12.5px var(--font-mono); }
+  .cell.fixed { display: inline-block; box-sizing: border-box; color: var(--muted); }
   /* no spinner gutter: digits sit flush right under their label (↑↓ keys still step) */
   .cell[type="number"] { appearance: textfield; -moz-appearance: textfield; }
   .cell::-webkit-inner-spin-button,

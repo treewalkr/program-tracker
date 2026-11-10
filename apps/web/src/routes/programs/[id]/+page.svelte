@@ -11,8 +11,14 @@
     DEFAULT_DELOAD,
     deloadRulesText,
     type DeloadSettings,
-    moveExercise,
-    removeExercise,
+    dissolveGroup,
+    exerciseUnits,
+    groupTag,
+    linkWithNext,
+    moveUnit,
+    normalizeGroups,
+    setGroupRounds,
+    unlink,
     formatPatternBalance,
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
@@ -39,6 +45,7 @@
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
+  import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
@@ -103,6 +110,11 @@
   let phasingResets = $state(0);
   let saveError = $state<string | null>(null);
   const editable = $derived(program != null && program.status !== "archived");
+  /** Replace a session's exercises in the open week; groups are tidied on every edit. */
+  function setExercises(si: number, list: ProgramSessionDto["exercises"]) {
+    if (!currentWeek) return;
+    currentWeek.sessions[si] = { ...currentWeek.sessions[si], exercises: normalizeGroups(list).map((e, i) => ({ ...e, order: i })) };
+  }
   const dirty = $derived(program != null && baseline !== "" && snapshot(program) !== baseline);
   let saving = $state(false);
   let savedAt = $state<string | null>(null);
@@ -495,7 +507,7 @@
                   </div>
                 {/if}
               {:else}
-                {#each s.exercises as e, ei (e.id)}
+                {#snippet exitem(e: (typeof s.exercises)[number], ei: number, first: boolean, last: boolean)}
                   {#if openExercise === e.id}
                     <ExerciseEditor
                       bind:exercise={currentWeek.sessions[si].exercises[ei]}
@@ -503,11 +515,14 @@
                       {catalog}
                       oneRepMaxKg={oneRepMaxKg(oneRepMaxes, e.exerciseId)}
                       oncreate={addToLibrary}
-                      canMoveUp={ei > 0}
-                      canMoveDown={ei < s.exercises.length - 1}
-                      onmoveup={() => { if (currentWeek) currentWeek.sessions[si] = moveExercise(currentWeek.sessions[si], ei, ei - 1); }}
-                      onmovedown={() => { if (currentWeek) currentWeek.sessions[si] = moveExercise(currentWeek.sessions[si], ei, ei + 1); }}
-                      onremove={() => { if (currentWeek) currentWeek.sessions[si] = removeExercise(currentWeek.sessions[si], ei); openExercise = null; }}
+                      tag={groupTag(s.exercises, ei)}
+                      canMoveUp={!first}
+                      canMoveDown={!last}
+                      onmoveup={() => setExercises(si, moveUnit(s.exercises, ei, -1))}
+                      onmovedown={() => setExercises(si, moveUnit(s.exercises, ei, 1))}
+                      onremove={() => { setExercises(si, s.exercises.filter((_, j) => j !== ei)); openExercise = null; }}
+                      onlink={ei < s.exercises.length - 1 ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
+                      onunlink={() => setExercises(si, unlink(s.exercises, ei))}
                       onclose={() => (openExercise = null)}
                     />
                   {:else}
@@ -538,7 +553,30 @@
                       {/each}
                     </div>
                   {/if}
-                  {#if ei < s.exercises.length - 1}<hr class="divider" />{/if}
+                {/snippet}
+                {#each exerciseUnits(s.exercises) as u, ui (u.items[0].id)}
+                  {@const lastUnit = u.start + u.items.length === s.exercises.length}
+                  {#if u.group}
+                    {@const g = u.group}
+                    <ExerciseGroup
+                      group={g}
+                      count={u.items.length}
+                      rounds={u.items[0].prescribedSets.length}
+                      onrounds={editable ? (n) => setExercises(si, setGroupRounds(s.exercises, g, n)) : undefined}
+                      canMoveUp={ui > 0}
+                      canMoveDown={!lastUnit}
+                      onmoveup={editable ? () => setExercises(si, moveUnit(s.exercises, u.start, -1, "unit")) : undefined}
+                      onmovedown={editable ? () => setExercises(si, moveUnit(s.exercises, u.start, 1, "unit")) : undefined}
+                      onungroup={editable ? () => setExercises(si, dissolveGroup(s.exercises, g)) : undefined}
+                    >
+                      {#each u.items as e, k (e.id)}
+                        {@render exitem(e, u.start + k, k === 0, k === u.items.length - 1)}
+                      {/each}
+                    </ExerciseGroup>
+                  {:else}
+                    {@render exitem(u.items[0], u.start, ui === 0, lastUnit)}
+                  {/if}
+                  {#if !lastUnit}<hr class="divider" />{/if}
                 {/each}
                 {#if editable && s.exercises.length < 20}
                   <button

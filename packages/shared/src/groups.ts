@@ -179,3 +179,8 @@ export function groupIssues(list: readonly WithSets[]): string[] {
   }
   return issues;
 }
+
+/** Break a whole group back into single exercises. */
+export function dissolveGroup<T extends Groupable>(list: readonly T[], group: string): T[] {
+  return list.map((e) => (e.group === group ? ungroup(e) : e));
+}

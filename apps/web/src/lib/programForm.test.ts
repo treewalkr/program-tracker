@@ -137,3 +137,18 @@ describe("superset paste, end to end", () => {
     expect(exercisesForSave(form.sessions[0].exercises, false)[0].exerciseName).not.toBe("Single Leg Throwball");
   });
 });
+
+describe("exercisesForSave with groups", () => {
+  const set = (n: number) => ({ setNumber: n });
+  test("a superset stays together when sorted by role", () => {
+    const list = [
+      { id: "core", role: "core", prescribedSets: [set(1)] },
+      { id: "a1", role: "accessory", group: "B", prescribedSets: [set(1), set(2)] },
+      { id: "a2", role: "primary", group: "B", prescribedSets: [set(1), set(2), set(3)] },
+    ];
+    const out = exercisesForSave(list, false);
+    expect(out.map((e) => e.id)).toEqual(["a1", "a2", "core"]);
+    expect(out.map((e) => e.group)).toEqual(["A", "A", undefined]);
+    expect(out[0].prescribedSets.length).toBe(3);
+  });
+});
