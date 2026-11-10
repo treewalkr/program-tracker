@@ -9,7 +9,7 @@
   import Author from "./Author.svelte";
   import { feedbackApi } from "./client";
   import { STATUS_LABEL } from "./status";
-  import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_VERDICT_LABEL } from "./ai";
+  import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL } from "./ai";
 
   /**
    * A feedback item's conversation: replies between the reporter and the
@@ -193,6 +193,19 @@
       <button type="button" class="dismiss" disabled={busyId !== null} onclick={() => discard(c)}>Dismiss</button>
     </div>
     <div class="body md">{@render html(c.body)}</div>
+    {#if c.aiMeta?.risk || c.aiMeta?.fixPlan?.length}
+      <div class="plan">
+        <div class="plan-head">
+          <span class="plan-label">Fix plan</span>
+          {#if c.aiMeta.risk}<Pill tone={AI_RISK_TONE[c.aiMeta.risk]}>{AI_RISK_LABEL[c.aiMeta.risk]}</Pill>{/if}
+        </div>
+        {#if c.aiMeta.fixPlan?.length}
+          <ol aria-label="Fix plan">
+            {#each c.aiMeta.fixPlan as step, i (i)}<li>{step}</li>{/each}
+          </ol>
+        {/if}
+      </div>
+    {/if}
     {#if c.aiMeta?.citations.length}
       <ul class="cites" aria-label="Citations">
         {#each c.aiMeta.citations as cite (cite)}<li><code>{cite}</code></li>{/each}
@@ -394,6 +407,28 @@
   .dismiss:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+  .plan {
+    margin-top: 8px;
+  }
+  .plan-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .plan-label {
+    font: 600 12px/1 var(--font-ui);
+    color: var(--muted);
+  }
+  .plan ol {
+    margin: 6px 0 0;
+    padding-left: 20px;
+    color: var(--ink);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .plan li + li {
+    margin-top: 2px;
   }
   .cites {
     list-style: none;

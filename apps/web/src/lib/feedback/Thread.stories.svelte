@@ -59,7 +59,7 @@
       docs: {
         description: {
           component:
-            "A ticket's conversation. AI entries: a sent answer carries the AI badge; an unsent draft is a dashed card the admin sends, edits or discards; a private triage note is a quiet well with verdict, confidence and citations. Reply bodies render as safe markdown (raw HTML escaped).",
+            "A ticket's conversation. AI entries: a sent answer carries the AI badge; an unsent draft is a dashed card the admin sends, edits or discards; a private triage note is a quiet well with verdict, confidence, risk, the fix plan and citations. Reply bodies render as safe markdown (raw HTML escaped).",
         },
       },
     },
@@ -96,7 +96,16 @@
       entry({
         authorKind: 'ai',
         visibility: 'private',
-        aiMeta: meta({ verdict: 'bug', confidence: 'low', citations: ['apps/web/src/lib/feedback/Thread.svelte:88'] }),
+        aiMeta: meta({
+          verdict: 'bug',
+          confidence: 'low',
+          citations: ['apps/web/src/lib/feedback/Thread.svelte:88'],
+          risk: 'medium',
+          fixPlan: [
+            'In apps/api/src/lib/feedback.ts, skip muted items when computing unread.',
+            'Add a case to apps/api/src/feedback.test.ts for a muted ticket with a new reply.',
+          ],
+        }),
         body: 'Looks like a real bug: the unread dot ignores muted tickets. Needs a person.',
       }),
     ]),

@@ -1,4 +1,4 @@
-import type { FeedbackAiConfidence, FeedbackAiMode, FeedbackAiVerdict } from "@pt/shared";
+import type { FeedbackAiConfidence, FeedbackAiMode, FeedbackAiRisk, FeedbackAiVerdict } from "@pt/shared";
 
 /** How the feedback AI's verdicts read in the thread (admin only). */
 export const AI_VERDICT_LABEL: Record<FeedbackAiVerdict, string> = {
@@ -20,6 +20,19 @@ export const AI_CONFIDENCE_TONE: Record<FeedbackAiConfidence, "good" | "warn" | 
   high: "good",
   medium: "warn",
   low: "neutral",
+};
+
+/** Risk of the AI's fix plan: low is the calm case, high the one to read twice. */
+export const AI_RISK_LABEL: Record<FeedbackAiRisk, string> = {
+  low: "Low risk",
+  medium: "Medium risk",
+  high: "High risk",
+};
+
+export const AI_RISK_TONE: Record<FeedbackAiRisk, "good" | "warn" | "bad"> = {
+  low: "good",
+  medium: "warn",
+  high: "bad",
 };
 
 /** Settings choices for the admin's AI answers switch. */
