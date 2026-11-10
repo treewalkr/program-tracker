@@ -36,6 +36,11 @@ describe("draftChangelog", () => {
       "# What's new\n\n## Unreleased\n\n### New\n- [draft] Paste notes\n- [draft] Dark theme\n\n### Fixed\n- [draft] Deload index\n\n## v0.1.0 — 2026-11-07\n\n### New\n- First release.\n",
     );
   });
+  test("keeps the ticket a fix names, so the owner sees what the release closes", () => {
+    const out = draftChangelog(LOG, ["fix: clearer rest timer (FB-012)", "feat: goal chips (FB-3, FB-014)"]);
+    expect(out).toContain("- [draft] Goal chips (FB-3, FB-014)");
+    expect(out).toContain("- [draft] Clearer rest timer (FB-012)");
+  });
   test("re-running replaces drafts but keeps hand-written lines", () => {
     const first = draftChangelog(LOG, ["feat: a", "fix: b"]);
     const edited = first.replace("- [draft] A", "- A, but for trainers");
