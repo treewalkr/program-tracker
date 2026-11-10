@@ -193,6 +193,8 @@ export interface DraftExerciseRef {
   role?: ExerciseRole;
   prescribedSets: PrescribedSetDto[];
   notes?: string;
+  /** Superset letter shared by adjacent members. */
+  group?: string;
 }
 
 export interface AiDraftDto {

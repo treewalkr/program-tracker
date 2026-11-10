@@ -30,6 +30,7 @@ import {
   programWeeksToDiffSource,
   ProgramWeeksDocument,
   selectExamples,
+  normalizeGroups,
   sortExercisesByRole,
   placeWeeks,
   sessionKey,
@@ -1425,15 +1426,18 @@ export const mockApi: TrainerApi = {
       const exercises =
         kind === "cardio"
           ? []
-          : sortExercisesByRole(s.exercises, mergedLabels()).map((e, ei) => ({
-              id: uuid(),
-              exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
-              exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
-              role: e.role,
-              order: ei,
-              prescribedSets: e.prescribedSets,
-              notes: e.notes,
-            }));
+          : normalizeGroups(
+              sortExercisesByRole(s.exercises, mergedLabels()).map((e, ei) => ({
+                id: uuid(),
+                exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
+                exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
+                role: e.role,
+                order: ei,
+                prescribedSets: e.prescribedSets,
+                notes: e.notes,
+                ...(e.group ? { group: e.group } : {}),
+              }))
+            );
       return {
         id: uuid(),
         name: s.name,

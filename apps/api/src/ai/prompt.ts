@@ -1,5 +1,6 @@
 import {
   BUILTIN_ROLE_LABELS,
+  groupTag,
   deloadRulesText,
   type DeloadSettings,
   GLOSSARY_PROMPT_LIMIT,
@@ -210,7 +211,8 @@ function draftSchemaSpec(labels: readonly RoleLabel[]): string {
               "restSeconds": number?
             }
           ],
-          "notes": string?
+          "notes": string?,
+          "group": string?          // superset letter "A", "B"…, see the superset rule; omit when done alone
         }
       ]
     }
@@ -230,8 +232,12 @@ export function roleRule(labels?: readonly RoleLabel[]): string {
   return [
     "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per lifting session. List each session's exercises in label order (the order below). Labels:",
     ...list.map((l) => `  ${l.key} (${l.name}): ${l.description}`),
+    SUPERSET_RULE,
   ].join("\n");
 }
+
+const SUPERSET_RULE =
+  '- Supersets: give "group" (the same letter, "A" then "B"…) only to exercises done back to back as one round, e.g. paired accessories. Keep a group\'s exercises next to each other and give them the same number of sets (the rounds). Most exercises have no group.';
 
 const GOLD_STANDARD_RULE =
   "- When GOLD-STANDARD EXAMPLE PROGRAMS are provided, treat them as the trainer's gold standard: mirror their session structure, exercise-role usage, set/rep style and level of detail, adapted to this client's history — never copy exercises or loads blindly.";
@@ -458,9 +464,10 @@ export function draftSlotsText(d: AiProgramDraft): string {
     .map((s, di) => {
       const kind = s.kind === "cardio" ? "cardio" : "lifting";
       const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
-      const rows = s.exercises.map(
-        (e, ei) => `  slot ${ei + 1} ${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`
-      );
+      const rows = s.exercises.map((e, ei) => {
+        const tag = groupTag(s.exercises, ei);
+        return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+      });
       if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
       return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
     })

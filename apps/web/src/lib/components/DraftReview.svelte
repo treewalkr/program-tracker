@@ -196,6 +196,7 @@
         movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
         sets: e.prescribedSets,
         slot: e.slot,
+        group: e.group,
       })),
     }))
   );
