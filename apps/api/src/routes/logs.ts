@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { z } from "zod";
-import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db, clients, sessionLogs, setLogs, exercises, programs } from "@pt/db";
 import { CardioLog, Readiness, SessionFlag, SessionKind, SetType } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
@@ -143,30 +143,36 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
         if (missing.length) return status(422, { error: "unknown exercises", ids: missing });
       }
 
-      // A duplicate is this exact program session logged again; ad-hoc logs never are.
-      const duplicates = input.programSessionId
-        ? await db
-            .select({ id: sessionLogs.id, date: sessionLogs.date })
-            .from(sessionLogs)
-            .where(
-              and(
-                eq(sessionLogs.clientId, input.clientId),
-                eq(sessionLogs.programId, input.programId),
-                eq(sessionLogs.programSessionId, input.programSessionId)
+      const saved = await db.transaction(async (tx) => {
+        // A duplicate is this exact program session logged again; ad-hoc logs never are.
+        // Two saves of one session queue on this lock, so the second sees the first's row.
+        const programSessionId = input.programSessionId;
+        if (programSessionId) {
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(hashtext(${input.clientId} || ':' || ${programSessionId}))`
+          );
+        }
+        const duplicates = programSessionId
+          ? await tx
+              .select({ id: sessionLogs.id, date: sessionLogs.date })
+              .from(sessionLogs)
+              .where(
+                and(
+                  eq(sessionLogs.clientId, input.clientId),
+                  eq(sessionLogs.programId, input.programId),
+                  eq(sessionLogs.programSessionId, programSessionId)
+                )
               )
-            )
-            .orderBy(desc(sessionLogs.date))
-        : [];
-      if (duplicates.length > 0 && input.onDuplicate === "reject") {
-        const [latest] = duplicates;
-        const [{ setCount }] = await db
-          .select({ setCount: count() })
-          .from(setLogs)
-          .where(eq(setLogs.sessionLogId, latest.id));
-        return status(409, { error: "already logged", existing: { id: latest.id, date: latest.date, setCount } });
-      }
-
-      const { log, insertedSets } = await db.transaction(async (tx) => {
+              .orderBy(desc(sessionLogs.date))
+          : [];
+        if (duplicates.length > 0 && input.onDuplicate === "reject") {
+          const [latest] = duplicates;
+          const [{ setCount }] = await tx
+            .select({ setCount: count() })
+            .from(setLogs)
+            .where(eq(setLogs.sessionLogId, latest.id));
+          return { conflict: { id: latest.id, date: latest.date, setCount } } as const;
+        }
         if (duplicates.length > 0 && input.onDuplicate === "replace") {
           // Sets go with their log (ON DELETE CASCADE).
           await tx.delete(sessionLogs).where(inArray(sessionLogs.id, duplicates.map((d) => d.id)));
@@ -209,6 +215,8 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
             : [];
         return { log, insertedSets };
       });
+      if ("conflict" in saved) return status(409, { error: "already logged", existing: saved.conflict });
+      const { log, insertedSets } = saved;
 
       // Write path: the log is committed — queue any new signals for the outbox.
       // A queueing failure must not fail the already-committed log write.
