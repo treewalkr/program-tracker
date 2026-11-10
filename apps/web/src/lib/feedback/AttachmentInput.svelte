@@ -25,6 +25,8 @@
   const hintId = $props.id();
 
   const count = $derived(tray.images.length);
+  /** Toward the limit: captured screenshots (when editing a ticket) don't count. */
+  const counted = $derived(tray.counted);
 
   function pick(e: Event) {
     const el = e.currentTarget as HTMLInputElement;
@@ -76,8 +78,8 @@
       <Icon name="image" />
       <span>Image</span>
     </button>
-    {#if count}
-      <span class="count" class:full={tray.full}>{count}/{tray.max}</span>
+    {#if counted}
+      <span class="count" class:full={tray.full}>{counted}/{tray.max}</span>
     {:else}
       <span class="hint">or paste / drop</span>
     {/if}
@@ -97,7 +99,7 @@
       {#each tray.images as img, i (img.id)}
         <li
           draggable={!disabled}
-          class:pending={!img.file}
+          class:pending={!img.file && !img.stored}
           class:lifted={dragId === img.id}
           ondragstart={(e) => {
             dragId = img.id;
@@ -115,7 +117,7 @@
             type="button"
             class="thumb"
             data-thumb
-            aria-label="Image {i + 1} of {count}{img.name ? `, ${img.name}` : ''}{img.file ? '' : ', compressing'}"
+            aria-label="Image {i + 1} of {count}{img.name ? `, ${img.name}` : ''}{img.file || img.stored ? '' : ', compressing'}"
             aria-describedby={hintId}
             onkeydown={(e) => onkeydown(e, img.id, i)}
           >

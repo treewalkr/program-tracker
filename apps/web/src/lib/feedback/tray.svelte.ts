@@ -1,14 +1,20 @@
-import { FEEDBACK_MAX_IMAGES } from "@pt/shared";
+import { FEEDBACK_MAX_IMAGES, type FeedbackAttachment } from "@pt/shared";
 import { admit, compressImage, ImageRefused } from "./images";
+import { editLayout } from "./layout";
 
 export interface TrayImage {
   id: number;
-  /** Re-encoded, ready to upload; null while it's still being compressed. */
+  /** Re-encoded, ready to upload; null while it's still being compressed, and for a stored image. */
   file: File | null;
-  /** Object URL of the original for the thumbnail (shown at once, before compression). */
+  /** Object URL of the original for the thumbnail (shown at once, before compression), or a stored image's URL. */
   preview: string;
   name: string;
+  /** An image the ticket already has (editing): kept by id, never re-uploaded. */
+  stored?: Pick<FeedbackAttachment, "id" | "kind">;
 }
+
+/** A captured screenshot (element or page): kept or removed, but outside the upload limit. */
+const captured = (i: TrayImage) => i.stored !== undefined && i.stored.kind !== "upload";
 
 let seq = 0;
 
@@ -33,19 +39,40 @@ export class ImageTray {
   }
 
   get busy() {
-    return this.images.some((i) => !i.file);
+    return this.images.some((i) => !i.file && !i.stored);
+  }
+  /** Images that count toward the limit: everything but captured screenshots. */
+  get counted() {
+    return this.images.filter((i) => !captured(i)).length;
   }
   get full() {
-    return this.images.length >= this.max;
+    return this.counted >= this.max;
   }
   /** The files to upload, in order. */
   get files(): File[] {
     return this.images.flatMap((i) => (i.file ? [i.file] : []));
   }
 
+  /** The tray as an edit of a ticket's images (see `editLayout`). */
+  get layout() {
+    return editLayout(this.images);
+  }
+
+  /** Starts the tray from images a ticket already has (`url` gives each one's address). */
+  seed(list: FeedbackAttachment[], url: (a: FeedbackAttachment) => string, name: (a: FeedbackAttachment, n: number) => string) {
+    this.clear();
+    this.images = list.map((a, n) => ({
+      id: ++seq,
+      file: null,
+      preview: url(a),
+      name: name(a, n + 1),
+      stored: { id: a.id, kind: a.kind },
+    }));
+  }
+
   add(incoming: File[]) {
     if (!incoming.length) return;
-    const { accepted, refused } = admit(this.images.length, incoming, this.max);
+    const { accepted, refused } = admit(this.counted, incoming, this.max);
     this.error = refused;
     for (const original of accepted) {
       const entry: TrayImage = { id: ++seq, file: null, preview: URL.createObjectURL(original), name: original.name };
@@ -84,7 +111,7 @@ export class ImageTray {
   }
 
   clear() {
-    for (const i of this.images) URL.revokeObjectURL(i.preview);
+    for (const i of this.images) if (!i.stored) URL.revokeObjectURL(i.preview);
     this.images = [];
     this.error = null;
     this.status = "";
@@ -92,7 +119,7 @@ export class ImageTray {
 
   private drop(id: number) {
     const i = this.images.find((x) => x.id === id);
-    if (i) URL.revokeObjectURL(i.preview);
+    if (i && !i.stored) URL.revokeObjectURL(i.preview);
     this.images = this.images.filter((x) => x.id !== id);
   }
 
