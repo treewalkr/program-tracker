@@ -34,6 +34,7 @@ import type {
   ClientStatus,
   ExampleLevel,
   FeedbackAiMeta,
+  FeedbackShip,
   FeedbackAiMode,
   FeedbackAuthorKind,
   FeedbackContext,
@@ -621,12 +622,14 @@ export const feedbackComments = pgTable("feedback_comments", {
   body: text("body"),
   /** Status moved to; null for replies. */
   status: text("status").$type<FeedbackStatus>(),
-  /** human, or ai (the auto-reply agent — trainer_id is null). */
+  /** human; ai (the auto-reply agent) or system (a release closing the ticket) — trainer_id is null for both. */
   authorKind: text("author_kind").$type<FeedbackAuthorKind>().notNull().default("human"),
   /** public; draft = unsent AI reply; private = AI triage note. Only the admin sees non-public rows. */
   visibility: text("visibility").$type<FeedbackVisibility>().notNull().default("public"),
   /** AI rows: verdict, confidence, citations and the ticket basis answered. */
   aiMeta: jsonb("ai_meta").$type<FeedbackAiMeta>(),
+  /** Release rows (author_kind 'system'): the commit that closed the ticket and the version it went live in. */
+  ship: jsonb("ship").$type<FeedbackShip>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_comments_item_idx").on(t.itemId, t.createdAt)]);
 export type FeedbackCommentRow = typeof feedbackComments.$inferSelect;

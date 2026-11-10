@@ -96,6 +96,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       authorKind: feedbackComments.authorKind,
       visibility: feedbackComments.visibility,
       aiMeta: feedbackComments.aiMeta,
+      ship: feedbackComments.ship,
       createdAt: feedbackComments.createdAt,
       author: authorColumns,
     })
@@ -139,6 +140,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
         authorKind: c.authorKind,
         visibility: c.visibility,
         aiMeta: admin ? c.aiMeta : null,
+        ship: c.ship,
         body: c.body,
         status: c.status,
         attachments: itemImages?.get(c.id) ?? [],

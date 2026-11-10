@@ -146,8 +146,8 @@ export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
 export type FeedbackAiMode = (typeof FEEDBACK_AI_MODES)[number];
 export const DEFAULT_FEEDBACK_AI_MODE: FeedbackAiMode = "drafts";
 
-/** Who wrote a thread entry: a person, or the auto-reply agent. */
-export type FeedbackAuthorKind = "human" | "ai";
+/** Who wrote a thread entry: a person, the auto-reply agent, or a release (CI closing a ticket from a commit). */
+export type FeedbackAuthorKind = "human" | "ai" | "system";
 /** public = everyone on the ticket; draft = an unsent AI reply; private = an AI triage note. Drafts and private notes are admin-only. */
 export type FeedbackVisibility = "public" | "draft" | "private";
 
@@ -169,6 +169,40 @@ export interface FeedbackAiMeta {
 
 /** Display name for AI-written entries (they have no trainer author). */
 export const FEEDBACK_AI_AUTHOR_NAME = "AI assistant";
+/** Display name for entries a release wrote when it closed a ticket. */
+export const FEEDBACK_RELEASE_AUTHOR_NAME = "Release";
+
+/** On entries a release wrote: the commit that named the ticket, and the version it went live in. */
+export interface FeedbackShip {
+  sha: string;
+  version: string;
+}
+
+/**
+ * Ticket numbers a commit subject names, as `FB-<digits>` (`FB-012`, `FB-12`),
+ * in order, once each. Upper case only: `fb-12` is not a reference.
+ */
+export function feedbackHandlesIn(subject: string): number[] {
+  const out: number[] = [];
+  for (const m of subject.matchAll(/\bFB-(\d{1,9})\b/g)) {
+    const n = Number(m[1]);
+    if (n > 0 && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/** Text is clearly Thai: more Thai letters than Latin ones. */
+export const isMostlyThai = (text: string): boolean => {
+  const thai = text.match(/[\u0E01-\u0E5B]/g)?.length ?? 0;
+  const latin = text.match(/[A-Za-z]/g)?.length ?? 0;
+  return thai > 0 && thai > latin;
+};
+
+/** The release's public note to the reporter, in the ticket's language. */
+export const shippedNote = (version: string, ticketText: string): string =>
+  isMostlyThai(ticketText)
+    ? `ปล่อยแล้วในเวอร์ชัน v${version} — รีโหลดแอปเพื่อใช้งาน`
+    : `Shipped in v${version} — reload the app to get it.`;
 
 /**
  * Where an image on a ticket came from: the captured close-up of the clicked
@@ -215,6 +249,8 @@ export interface FeedbackComment {
   visibility: FeedbackVisibility;
   /** AI entries, admin only; null otherwise. */
   aiMeta: FeedbackAiMeta | null;
+  /** Release entries: the commit and version that closed the ticket; null otherwise. */
+  ship: FeedbackShip | null;
   /** Reply text; null for status entries. */
   body: string | null;
   /** Status moved to; null for replies. */
@@ -466,7 +502,12 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     lines.push("**Thread** (oldest first — clarifications from the reporter and the owner):");
     lines.push("");
     for (const c of thread) {
-      const who = c.authorKind === "ai" ? FEEDBACK_AI_AUTHOR_NAME : (c.author?.name ?? "unknown");
+      const who =
+        c.authorKind === "ai"
+          ? FEEDBACK_AI_AUTHOR_NAME
+          : c.authorKind === "system"
+            ? FEEDBACK_RELEASE_AUTHOR_NAME
+            : (c.author?.name ?? "unknown");
       const tag = c.visibility === "draft" ? " _(unsent draft)_" : "";
       lines.push(
         c.kind === "status"

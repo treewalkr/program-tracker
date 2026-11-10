@@ -96,7 +96,16 @@ Element source comes from Svelte's dev-build metadata, so it needs the dev serve
 3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`. The Markdown
    links every image as `/v1/feedback/<id>/attachments/<attachmentId>`; the old
    `/v1/feedback/<id>/shot/element|page` links still work.
-4. **Close the loop**: mark the item **Done** once it ships.
+4. **Close the loop**: end the fix commit with the ticket, e.g.
+   `fix: clearer rest timer (FB-012)`. Once that commit is live, CI's last deploy step
+   (`apps/api/scripts/feedback-shipped.ts`) moves the ticket to **Done** with the live
+   version, posts "Shipped in vX.Y.Z — reload the app to get it" (in Thai for a Thai
+   ticket) and sends the reporter the usual status email. It reads the commits since the
+   previous release tag, closes a ticket at most once per commit (a reopened ticket stays
+   open) and leaves done or won't-fix tickets alone. It needs the GitHub secret
+   `FEEDBACK_AGENT_TOKEN` (same value as the API's); without it the step only prints a
+   notice, and it never fails the deploy. **Done** by hand still works for anything
+   fixed without a commit.
 
 ### Feedback auto-reply
 

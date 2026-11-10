@@ -21,6 +21,7 @@
     authorKind: 'human',
     visibility: 'public',
     aiMeta: null,
+    ship: null,
     body: null,
     status: null,
     attachments: [],
@@ -76,6 +77,21 @@
       entry({ author: kai, body: 'The **log** screen — and `<b>this</b>` should show as text.\nSecond line.' }),
       entry({ kind: 'status', author: ana, status: 'accepted' }),
     ]),
+  }}
+/>
+
+<Story
+  name="Closed by a release"
+  args={{
+    item: {
+      ...item([
+        entry({ kind: 'status', author: ana, status: 'accepted' }),
+        entry({ kind: 'status', authorKind: 'system', status: 'done', ship: { sha: '9f3c2a1d0b7e', version: '0.1.18' } }),
+        entry({ authorKind: 'system', ship: { sha: '9f3c2a1d0b7e', version: '0.1.18' }, body: 'Shipped in v0.1.18 — reload the app to get it.' }),
+      ]),
+      status: 'done',
+      shippedIn: '0.1.18',
+    },
   }}
 />
 

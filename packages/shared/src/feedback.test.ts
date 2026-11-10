@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   ticketBasis,
   feedbackHandle,
+  feedbackHandlesIn,
   feedbackMarkdown,
+  isMostlyThai,
+  shippedNote,
   ownedRouteRef,
   snapshotJson,
   toRepoPath,
@@ -113,7 +116,7 @@ describe("feedbackMarkdown", () => {
       ({ id, kind, mime: "image/webp", width: 10, height: 10, position });
     const reply = (id: string, attachments: ReturnType<typeof img>[]) => ({
       id, kind: "reply" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: "See these", status: null,
-      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, attachments,
+      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, ship: null, attachments,
     });
     const out = feedbackMarkdown(
       [
@@ -145,8 +148,8 @@ describe("feedbackMarkdown", () => {
         item({
           shippedIn: "0.1.3",
           thread: [
-            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, attachments: [] },
-            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, attachments: [] },
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, ship: null, attachments: [] },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, ship: null, attachments: [] },
           ],
         }),
       ],
@@ -160,7 +163,7 @@ describe("feedbackMarkdown", () => {
   test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, ship: null, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
     });
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
@@ -170,7 +173,7 @@ describe("feedbackMarkdown", () => {
   describe("AI triage", () => {
     const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
     const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, ship: null, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
       aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
     });
     const current = ticketBasis(item());
@@ -315,5 +318,35 @@ describe("ownedRouteRef", () => {
     expect(ownedRouteRef(unpinnedContext("/clients/c9/generate?x=1", env))).toEqual({ kind: "client", id: "c9" });
     expect(ownedRouteRef(unpinnedContext("/clients/new", env))).toBeNull();
     expect(ownedRouteRef(unpinnedContext("", env))).toBeNull();
+  });
+});
+
+describe("feedbackHandlesIn", () => {
+  test("reads padded and unpadded handles", () => {
+    expect(feedbackHandlesIn("fix: clearer rest timer (FB-012)")).toEqual([12]);
+    expect(feedbackHandlesIn("fix: clearer rest timer (FB-12)")).toEqual([12]);
+  });
+  test("reads several, in order, once each", () => {
+    expect(feedbackHandlesIn("fix: tidy log (FB-3, FB-014) and FB-3 again")).toEqual([3, 14]);
+  });
+  test("finds none in a plain subject", () => {
+    expect(feedbackHandlesIn("fix: deload index")).toEqual([]);
+  });
+  test("ignores lower case, FB-0 and handles glued to a word", () => {
+    expect(feedbackHandlesIn("fix: x (fb-12) (Fb-13)")).toEqual([]);
+    expect(feedbackHandlesIn("fix: x (FB-0) XFB-12 FB-12a")).toEqual([]);
+  });
+});
+
+describe("shippedNote", () => {
+  test("English unless the ticket is clearly Thai", () => {
+    expect(shippedNote("0.1.18", "The rest timer is hard to read")).toBe("Shipped in v0.1.18 — reload the app to get it.");
+    expect(shippedNote("0.1.18", "ตัวจับเวลาพักอ่านยาก")).toContain("v0.1.18");
+    expect(shippedNote("0.1.18", "ตัวจับเวลาพักอ่านยาก")).not.toContain("Shipped");
+  });
+  test("mixed text goes by which script dominates", () => {
+    expect(isMostlyThai("ปุ่ม Save กดไม่ได้ในหน้าลูกค้า")).toBe(true);
+    expect(isMostlyThai("The ปุ่ม on the Save screen is broken")).toBe(false);
+    expect(isMostlyThai("")).toBe(false);
   });
 });

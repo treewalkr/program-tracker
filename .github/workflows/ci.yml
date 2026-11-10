@@ -45,6 +45,9 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history and tags: the last step reads the commits since the previous release tag.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -88,3 +91,12 @@ jobs:
             sleep 15
           done
           exit 1
+
+      # The API is live: close the feedback tickets these commits name (FB-012).
+      # Never fails the deploy; without the secret it only prints a notice.
+      - name: Close shipped feedback tickets
+        continue-on-error: true
+        env:
+          PT_API_URL: https://pt.pinroj.com
+          FEEDBACK_AGENT_TOKEN: ${{ secrets.FEEDBACK_AGENT_TOKEN }}
+        run: bun run apps/api/scripts/feedback-shipped.ts

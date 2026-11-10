@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems } from "@pt/db";
 import {
   ticketBasis,
@@ -11,10 +11,14 @@ import {
   feedbackHandle,
   feedbackItemMarkdown,
   imageExt,
+  shippedNote,
   type FeedbackAiMeta,
   type FeedbackAttachment,
   type FeedbackItem,
+  type FeedbackShip,
+  type FeedbackStatus,
 } from "@pt/shared";
+import { API_VERSION } from "../lib/build";
 import { getFeedback, listFeedback } from "../lib/feedback";
 import { attachmentBytes, ticketShot } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
@@ -32,6 +36,56 @@ export const agentAuth = new Elysia({ name: "agent-auth" }).onBeforeHandle(
 );
 
 const NOT_FOUND = { error: "feedback not found" } as const;
+
+type ShipRef = { handle: string; number: number; sha: string };
+type ShipOutcome =
+  | { closed: true }
+  | { closed: false; reason: "unknown" | "already-shipped" | Exclude<FeedbackStatus, "new" | "accepted"> };
+
+/**
+ * Close one ticket for one commit, at most once: a ticket the same commit
+ * closed before stays as the owner left it (reopened, say). The release
+ * writes a status entry and a public note to the reporter; returns the status
+ * entry's id for the email.
+ */
+async function shipTicket(number: number, ship: FeedbackShip): Promise<ShipOutcome & { itemId?: string; statusId?: string }> {
+  return db.transaction(async (tx) => {
+    const [item] = await tx
+      .select({ id: feedbackItems.id, status: feedbackItems.status, comment: feedbackItems.comment })
+      .from(feedbackItems)
+      .where(eq(feedbackItems.number, number))
+      .for("update");
+    if (!item) return { closed: false, reason: "unknown" };
+    if (item.status !== "new" && item.status !== "accepted") return { closed: false, reason: item.status };
+    const [before] = await tx
+      .select({ id: feedbackComments.id })
+      .from(feedbackComments)
+      .where(
+        and(
+          eq(feedbackComments.itemId, item.id),
+          eq(feedbackComments.authorKind, "system"),
+          sql`${feedbackComments.ship}->>'sha' = ${ship.sha}`,
+        ),
+      )
+      .limit(1);
+    if (before) return { closed: false, reason: "already-shipped" };
+    const now = Date.now();
+    await tx
+      .update(feedbackItems)
+      .set({ status: "done", shippedIn: ship.version, updatedAt: new Date(now) })
+      .where(eq(feedbackItems.id, item.id));
+    const release = { itemId: item.id, trainerId: null, authorKind: "system" as const, ship };
+    const [entry] = await tx
+      .insert(feedbackComments)
+      .values({ ...release, kind: "status", status: "done", createdAt: new Date(now) })
+      .returning({ id: feedbackComments.id });
+    // a millisecond later, so the thread reads status → note
+    await tx
+      .insert(feedbackComments)
+      .values({ ...release, kind: "reply", body: shippedNote(ship.version, item.comment), createdAt: new Date(now + 1) });
+    return { closed: true, itemId: item.id, statusId: entry.id };
+  });
+}
 const MAX_TEXT = 2000;
 
 /** Stands in for an image URL in the inbox Markdown; the CLI swaps in the downloaded file's path. */
@@ -223,5 +277,46 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         model: t.Optional(t.String({ maxLength: 100 })),
       }),
       detail: { summary: "Record the auto-reply agent's answer: a private note, plus a sent or drafted reply" },
+    },
+  )
+  /**
+   * CI, after a deploy is live: close the tickets these commits name. Each
+   * open (new / accepted) ticket goes to done with `shippedIn` = this server's
+   * version, gets a release status entry and a public note, and its reporter
+   * the usual status email. Done, won't-fix and unknown tickets are reported,
+   * not touched; a commit never closes the same ticket twice.
+   */
+  .post(
+    "/shipped",
+    async ({ body }) => {
+      const closed: ShipRef[] = [];
+      const skipped: (ShipRef & { reason: string })[] = [];
+      const unknown: ShipRef[] = [];
+      for (const commit of body.commits) {
+        const sha = commit.sha.toLowerCase();
+        for (const number of new Set(commit.handles)) {
+          const ref = { handle: feedbackHandle(number), number, sha };
+          const out = await shipTicket(number, { sha, version: API_VERSION });
+          if (out.closed) {
+            closed.push(ref);
+            notifyFeedback({ kind: "status", itemId: out.itemId!, commentId: out.statusId! });
+          } else if (out.reason === "unknown") unknown.push(ref);
+          else skipped.push({ ...ref, reason: out.reason });
+        }
+      }
+      return { version: API_VERSION, closed, skipped, unknown };
+    },
+    {
+      body: t.Object({
+        commits: t.Array(
+          t.Object({
+            sha: t.String({ pattern: "^[0-9a-fA-F]{7,40}$" }),
+            subject: t.String({ maxLength: 1000 }),
+            handles: t.Array(t.Integer({ minimum: 1 }), { maxItems: 50 }),
+          }),
+          { maxItems: 1000 },
+        ),
+      }),
+      detail: { summary: "Close the tickets that live commits name (CI, after a deploy)" },
     },
   );
