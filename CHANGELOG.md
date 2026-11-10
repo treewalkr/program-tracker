@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### New
+- On a feedback ticket, "Show me" opens the screenshot when the page can't be opened or the element can't be found, and screenshots open full size.
+- Pasted programs with suggested exercise matches show "Did you mean …" buttons. Tap one to pick it, and it's remembered for next time.
+
+### Fixed
+- Supersets and circuits from a pasted program keep their pairs together. Exercises stay in the pasted order instead of being re-sorted by role.
+- A header like "Superset x 3 sets" now gives each exercise under it 3 sets.
+- A pasted exercise is no longer swapped for a look-alike (e.g. "Single leg throwball" became "Single-Leg Hop"). Unsure matches are only suggested, and only matches you pick are remembered.
+- A client page that can't load now says so instead of loading forever.
+
 ## v0.1.13 — 2026-11-10
 
 ### New
