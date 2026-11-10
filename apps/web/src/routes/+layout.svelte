@@ -98,6 +98,11 @@
   const RAIL_KEY = "pt.sidebar.rail";
   const narrowQuery = window.matchMedia("(max-width: 860px)");
   let narrow = $state(narrowQuery.matches);
+  /* Phones hide the rail unless the trainer pins it (remembered). */
+  const PHONE_RAIL_KEY = "pt.sidebar.phoneRail";
+  const phoneQuery = window.matchMedia("(max-width: 640px)");
+  let phone = $state(phoneQuery.matches);
+  let keepRail = $state(localStorage.getItem(PHONE_RAIL_KEY) === "1");
   let collapsed = $state(localStorage.getItem(RAIL_KEY) === "1");
   let drawerOpen = $state(false);
   /* Holds the drawer layout while it retracts into the rail; cleared on animationend. */
@@ -120,6 +125,11 @@
      on phones (≤640px), where the rail is hidden on every page. */
   const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
   const sideOpen = $derived(!rail);
+
+  function toggleKeepRail() {
+    keepRail = !keepRail;
+    localStorage.setItem(PHONE_RAIL_KEY, keepRail ? "1" : "0");
+  }
 
   function closeDrawer() {
     if (!drawerOpen) return;
@@ -169,6 +179,12 @@
     };
     narrowQuery.addEventListener("change", onChange);
     return () => narrowQuery.removeEventListener("change", onChange);
+  });
+
+  $effect(() => {
+    const onChange = (e: MediaQueryListEvent) => (phone = e.matches);
+    phoneQuery.addEventListener("change", onChange);
+    return () => phoneQuery.removeEventListener("change", onChange);
   });
 
   // Close the narrow-screen drawer after navigating.
@@ -237,7 +253,8 @@
   ontransitionend={(e) => {
     if (e.target === e.currentTarget && e.propertyName === "grid-template-columns") settleRail();
   }}
-  class:focus={focusRoute} class:drawer={drawerShown} class:closing={drawerClosing}>
+  class:focus={focusRoute} class:drawer={drawerShown} class:closing={drawerClosing}
+  class:keep-rail={keepRail && !focusRoute}>
   <aside
     class="side"
     id="sidebar"
@@ -257,6 +274,18 @@
           </a>
         {/snippet}
       </Tooltip>
+      {#if phone && drawerShown && !focusRoute}
+        <button
+          type="button"
+          class="pin"
+          aria-pressed={keepRail}
+          aria-label="Keep icon rail on phones"
+          title={keepRail ? "Hide the icon rail when the menu closes" : "Keep the icon rail when the menu closes"}
+          onclick={toggleKeepRail}
+        >
+          <Icon name="pin" />
+        </button>
+      {/if}
     </div>
 
     <nav class="nav primary" aria-label="Primary">
@@ -412,6 +441,28 @@
   @media (max-width: 860px) {
     .edge { display: none; }
   }
+
+  /* Phone-only pin beside the brand: keeps the icon rail once the menu closes. */
+  .pin {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color 120ms ease-out, color 120ms ease-out;
+  }
+  .pin::before { content: ""; position: absolute; inset: -6px; } /* 44px touch target */
+  .pin :global(svg) { width: 16px; height: 16px; stroke-width: 1.6; }
+  .pin:hover { background: var(--well-2); color: var(--ink); }
+  .pin[aria-pressed="true"] { background: var(--active); color: var(--blue); }
+  .pin:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
 
   /* Header: a switcher-style brand row. */
   .brand-row {
@@ -754,9 +805,9 @@
   /* Phones give every page the full width: the rail hides and the menu
      button (top bar, or the corner on gym-floor routes) opens the drawer. */
   @media (max-width: 640px) {
-    .shell.slim { grid-template-columns: 0 1fr; }
-    .shell.rail .side { display: none; }
-    .shell.drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
+    .shell:not(.keep-rail).slim { grid-template-columns: 0 1fr; }
+    .shell:not(.keep-rail).rail .side { display: none; }
+    .shell:not(.keep-rail).drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
     /* 44px touch target around the 28px toggle, without moving the title line. */
     .side-toggle { position: relative; }
     .side-toggle::before { content: ""; position: absolute; inset: -8px; }
