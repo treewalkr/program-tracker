@@ -58,6 +58,25 @@
     ]
       .filter((m): m is string => !!m);
 
+  // ── Legend: only what this data draws ──
+  const LEGEND_WORDS = { logged: "Done", missed: "Missed", unlogged: "Not logged", today: "Due today", upcoming: "Planned" } as const;
+  type LegendState = keyof typeof LEGEND_WORDS;
+  const legend = $derived.by(() => {
+    const seen = new Set<string>();
+    let ramp = false;
+    for (const s of active) {
+      s.weeks.forEach((w, i) => {
+        const current = i === s.weeks.length - 1;
+        for (const d of w) {
+          // Past logged days read on the ramp; this week's done cells get their own swatch.
+          if (d.status === "logged" && !current) ramp = true;
+          else seen.add(d.status);
+        }
+      });
+    }
+    return { ramp, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
+  });
+
   // ── Tooltip / popover: one floating card, anchored to the square or cell ──
   type Tip = { strip: ClientStrip; day: StripDay; x: number; y: number; below: boolean; pinned: boolean; anchor: HTMLElement };
   let tip = $state<Tip | null>(null);
@@ -272,15 +291,16 @@
 
     {#if active.length > 0}
       <div class="legend" aria-hidden="true">
-        <span class="lg">
-          Less
-          {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
-          More
-        </span>
-        <span class="lg"><span class="sq missed"></span>Missed</span>
-        <span class="lg"><span class="sq unlogged"></span>Not logged</span>
-        <span class="lg"><span class="sq today"></span>Due today</span>
-        <span class="lg"><span class="sq upcoming"></span>Planned</span>
+        {#if legend.ramp}
+          <span class="lg">
+            Less
+            {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
+            More
+          </span>
+        {/if}
+        {#each legend.states as st (st)}
+          <span class="lg"><span class="sw {st}"></span>{LEGEND_WORDS[st]}</span>
+        {/each}
       </div>
     {/if}
   </div>
@@ -510,6 +530,24 @@
   }
   .lg { display: inline-flex; align-items: center; gap: 3px; }
   .lg .sq + :not(.sq) { margin-left: 2px; }
+  /* State swatches are the cells in miniature: same edge, radius and fill. */
+  .sw {
+    width: 16px;
+    height: 12px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    margin-right: 2px;
+    flex: none;
+    display: grid;
+    place-items: center;
+  }
+  /* A short stroke in the cell's text colour stands in for its tag. */
+  .sw::after { content: ""; width: 6px; height: 2px; background: currentColor; }
+  .sw.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
+  .sw.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
+  .sw.unlogged { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+  .sw.today { background: var(--pulse-now-bg); border-color: var(--blue); color: var(--blue); }
+  .sw.upcoming { background: var(--well); color: var(--muted); }
 
   /* Tooltip / popover */
   .tip {
