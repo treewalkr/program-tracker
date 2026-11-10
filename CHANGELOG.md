@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.15 — 2026-11-10
+
 ### New
 - Supersets and circuits. In the program editor, click "Superset with next" to pair exercises. They show as A1/A2 with one rounds count for the group. Change it once and every exercise in the group follows.
 - Supersets show as a group on the program page, client page and AI draft review.
