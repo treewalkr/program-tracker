@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   clients,
   db,
@@ -13,13 +14,17 @@ import {
 import {
   FEEDBACK_STATUSES,
   ownedRouteRef,
+  type FeedbackAuthor,
   type FeedbackComment,
   type FeedbackItem,
   type FeedbackStatus,
 } from "@pt/shared";
 import { attachmentsByItem } from "./feedback-attachments";
 
-/** Every column except the image blobs, plus the author. */
+/** The trainer who last edited a ticket (a second join on trainers). */
+const editors = alias(trainers, "editors");
+
+/** Every column except the image blobs, plus the author and the last editor. */
 const listColumns = {
   id: feedbackItems.id,
   number: feedbackItems.number,
@@ -32,12 +37,17 @@ const listColumns = {
   source: feedbackItems.source,
   context: feedbackItems.context,
   shippedIn: feedbackItems.shippedIn,
+  editedAt: feedbackItems.editedAt,
+  editorId: feedbackItems.editedBy,
+  editedBy: { id: editors.id, name: editors.name, avatarUrl: editors.avatarUrl },
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
 };
 
-type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot" | "agentCheck"> & {
+type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot" | "agentCheck" | "editedBy"> & {
   author: FeedbackItem["author"];
+  editorId: string | null;
+  editedBy: FeedbackAuthor | null;
 };
 
 const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainers.avatarUrl };
@@ -69,7 +79,7 @@ async function reachableItems(rows: ListRow[], viewerId: string): Promise<Set<st
 /**
  * Rows → API items: attaches each thread and the image metadata (two
  * queries) and, for a viewer, the unread and muted flags (two more). Unread = someone other than the viewer filed it,
- * replied or changed its status after the viewer last looked. Only the admin
+ * edited it, replied or changed its status after the viewer last looked. Only the admin
  * gets AI drafts and private notes (which then count as news for them too).
  */
 async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean): Promise<FeedbackItem[]> {
@@ -114,9 +124,10 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
   // No viewer (the export): nobody is opening pages, so don't flag any.
   const reachable = viewerId ? await reachableItems(rows, viewerId) : null;
 
-  return rows.map(({ trainerId, ...r }) => {
+  return rows.map(({ trainerId, editorId, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
+    if (r.editedAt && editorId !== viewerId && (!last || r.editedAt > last)) last = r.editedAt;
     for (const c of mine) if (c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
     const seenAt = seen.get(r.id);
     const itemImages = images.get(r.id);
@@ -141,6 +152,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),
       reachable: reachable ? reachable.has(r.id) : true,
+      editedAt: r.editedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     };
@@ -167,7 +179,11 @@ const visibleTo = (ownerId: string | null): SQL | undefined =>
   ownerId ? eq(feedbackItems.trainerId, ownerId) : undefined;
 
 const selectItems = () =>
-  db.select(listColumns).from(feedbackItems).leftJoin(trainers, eq(trainers.id, feedbackItems.trainerId));
+  db
+    .select(listColumns)
+    .from(feedbackItems)
+    .leftJoin(trainers, eq(trainers.id, feedbackItems.trainerId))
+    .leftJoin(editors, eq(editors.id, feedbackItems.editedBy));
 
 /** Items newest first (review UI) or oldest first (export reads like a queue). */
 export async function listFeedback(
