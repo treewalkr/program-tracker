@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { db, feedbackAttachments, feedbackComments, feedbackItems, trainers } from "@pt/db";
-import { unpinnedContext, type FeedbackAiMode } from "@pt/shared";
+import { feedbackHandle, unpinnedContext, type FeedbackAiMode } from "@pt/shared";
+import { API_VERSION } from "./lib/build";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { agentTokenMatches } from "./lib/feedback-ai";
@@ -444,5 +445,103 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     await setMode("auto");
     expect(await json(await call("GET", "/v1/account/feedback-ai"))).toEqual({ mode: "auto" });
     await setMode("drafts");
+  });
+  describe("shipped: CI closes the tickets live commits name", () => {
+    const SHA = "9f3c2a1d0b7e4c5a6b7c8d9e0f1a2b3c4d5e6f70";
+    const SHA2 = "1111111111111111111111111111111111111111";
+    const shipped = (commits: { sha: string; subject: string; handles: number[] }[], as: As = agent) =>
+      call("POST", "/v1/agent/feedback/shipped", { commits }, as);
+    const numberOf = async (id: string) => (await asAdmin(id)).number as number;
+    const commit = (sha: string, ...handles: number[]) => ({ sha, subject: `fix: thing (${handles.map((n) => `FB-${n}`).join(", ")})`, handles });
+
+    test("only the agent token gets in", async () => {
+      expect((await shipped([], { bearer: null })).status).toBe(401);
+      expect((await shipped([], kai)).status).toBe(401);
+      expect((await shipped([], "admin")).status).toBe(401);
+      expect((await shipped([{ sha: "not-a-sha", subject: "x", handles: [1] }])).status).toBe(422);
+      expect(await json(await shipped([]))).toEqual({ version: API_VERSION, closed: [], skipped: [], unknown: [] });
+    });
+
+    test("closes new and accepted tickets with the live version, a release entry, a note and the status email", async () => {
+      const a = await ticket("The rest timer is hard to read");
+      const b = await ticket("ตัวจับเวลาพักอ่านยาก");
+      await call("PATCH", `/v1/feedback/${b}`, { status: "accepted" });
+      await flush();
+      const [na, nb] = [await numberOf(a), await numberOf(b)];
+
+      const res = await json(await shipped([commit(SHA, na, nb)]));
+      expect(res.closed).toEqual([
+        { handle: feedbackHandle(na), number: na, sha: SHA },
+        { handle: feedbackHandle(nb), number: nb, sha: SHA },
+      ]);
+
+      const item = await asKai(a);
+      expect(item).toMatchObject({ status: "done", shippedIn: API_VERSION });
+      const [status, note] = item.thread;
+      expect(status).toMatchObject({
+        kind: "status", status: "done", authorKind: "system", author: null, visibility: "public",
+        ship: { sha: SHA, version: API_VERSION },
+      });
+      expect(note).toMatchObject({ kind: "reply", authorKind: "system", visibility: "public", body: `Shipped in v${API_VERSION} — reload the app to get it.` });
+      expect((await asKai(b)).thread.at(-1).body).toBe(`ปล่อยแล้วในเวอร์ชัน v${API_VERSION} — รีโหลดแอปเพื่อใช้งาน`);
+      // counts as news for the reporter
+      expect((await asKai(a)).unread).toBe(true);
+
+      const mails = await flush();
+      expect(mails.map((m) => m.to)).toEqual([EMAIL, EMAIL]);
+      expect(mails.map((m) => m.subject).sort()).toEqual(
+        [`[${feedbackHandle(na)}] Shipped in v${API_VERSION}`, `[${feedbackHandle(nb)}] Shipped in v${API_VERSION}`].sort(),
+      );
+    });
+
+    test("skips done and won't-fix tickets and reports unknown numbers, without touching them", async () => {
+      const done = await ticket("Already done");
+      const wont = await ticket("Won't fix this");
+      await call("PATCH", `/v1/feedback/${done}`, { status: "done" });
+      await call("PATCH", `/v1/feedback/${wont}`, { status: "wontfix" });
+      await flush();
+      const [nd, nw] = [await numberOf(done), await numberOf(wont)];
+      const before = (await asAdmin(done)).thread.length;
+
+      const res = await json(await shipped([commit(SHA, nd, nw, 999999)]));
+      expect(res.closed).toEqual([]);
+      expect(res.skipped).toEqual([
+        { handle: feedbackHandle(nd), number: nd, sha: SHA, reason: "done" },
+        { handle: feedbackHandle(nw), number: nw, sha: SHA, reason: "wontfix" },
+      ]);
+      expect(res.unknown).toEqual([{ handle: "FB-999999", number: 999999, sha: SHA }]);
+      expect((await asAdmin(done)).thread).toHaveLength(before);
+      expect((await asAdmin(wont)).status).toBe("wontfix");
+      expect(await flush()).toEqual([]);
+    });
+
+    test("a commit closes a ticket at most once: after a reopen it stays open, a new commit closes it again", async () => {
+      const id = await ticket("Reopen me");
+      const n = await numberOf(id);
+      expect((await json(await shipped([commit(SHA, n)]))).closed).toHaveLength(1);
+      await call("PATCH", `/v1/feedback/${id}`, { status: "accepted" });
+      await flush();
+
+      // the next deploy covers the same commit again
+      const again = await json(await shipped([commit(SHA, n)]));
+      expect(again.closed).toEqual([]);
+      expect(again.skipped).toEqual([{ handle: feedbackHandle(n), number: n, sha: SHA, reason: "already-shipped" }]);
+      expect((await asAdmin(id)).status).toBe("accepted");
+      expect(await flush()).toEqual([]);
+
+      // two commits naming it in one push: the first closes it, the second sees it done
+      const next = await json(await shipped([commit(SHA2, n), commit(SHA, n)]));
+      expect(next.closed).toEqual([{ handle: feedbackHandle(n), number: n, sha: SHA2 }]);
+      expect(next.skipped.map((s: any) => s.reason)).toEqual(["done"]);
+      expect((await asAdmin(id)).status).toBe("done");
+      await flush();
+    });
+
+    test("respects the reporter's email prefs", async () => {
+      const id = await ticket("Quiet please");
+      await call("PUT", `/v1/feedback/${id}/mute`, undefined, kai);
+      expect((await json(await shipped([commit(SHA, await numberOf(id))]))).closed).toHaveLength(1);
+      expect(await flush()).toEqual([]);
+    });
   });
 });
