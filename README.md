@@ -85,6 +85,33 @@ Element source comes from Svelte's dev-build metadata, so it needs the dev serve
 3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`.
 4. **Close the loop**: mark the item **Done** once it ships.
 
+### Feedback auto-reply
+
+A scheduled coding agent answers tickets the code can answer ("already exists",
+"shipped after your build", "here's how"). Each answer is a private triage note for
+the admin plus a reply that is either sent (badged **AI answer**, emailed as one) or
+left on the ticket as a draft to **Send**, **Edit** or **Discard**. It never changes
+a ticket's status, and it talks to the API only through `/v1/agent/feedback` with
+its own token — no session, no database access.
+
+1. **API**: set `FEEDBACK_AGENT_TOKEN` (`openssl rand -base64 32`) where the API runs.
+   Unset, the agent routes answer 401.
+2. **Agent machine**: put the same token in a gitignored `.env.agent` at the repo root:
+   ```
+   PT_API_URL=https://pt.pinroj.com
+   FEEDBACK_AGENT_TOKEN=…
+   ```
+   Check it with `bun run feedback:agent inbox`.
+3. **Mode** (Settings → Email → *AI answers to feedback*, admin only):
+   **Off**, **Drafts only** (default) or **Auto-send confident** — only high-confidence
+   "exists / shipped / how-to" answers go out alone, at most one per reporter message.
+4. **Schedule**: a T3 scheduled task in the project root, every 30 minutes, prompt
+   `/answer-feedback` (the skill in `.claude/skills/answer-feedback`). An empty inbox
+   ends the run quietly.
+
+The inbox holds open tickets where the reporter wrote last and the agent hasn't
+answered that version of the ticket yet.
+
 ## Releases
 
 Versions stay on `0.1.x` until the app is stable. Each deploy is a patch bump.
