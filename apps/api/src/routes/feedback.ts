@@ -8,16 +8,8 @@ import {
   formatSourceLoc,
   type FeedbackContext,
 } from "@pt/shared";
-import {
-  decodeShot,
-  getFeedback,
-  listFeedback,
-  markSeen,
-  parseStatuses,
-  shotMime,
-  unreadCount,
-  type FeedbackViewer,
-} from "../lib/feedback";
+import { getFeedback, listFeedback, markSeen, parseStatuses, unreadCount, type FeedbackViewer } from "../lib/feedback";
+import { attachmentBytes, readImages, saveAttachments, ticketShot } from "../lib/feedback-attachments";
 import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { trainerContext } from "../lib/trainer-context";
@@ -55,6 +47,14 @@ const Status = t.Union([t.Literal("new"), t.Literal("accepted"), t.Literal("done
 true satisfies (typeof FEEDBACK_STATUSES)[number] extends Static<typeof Status> ? true : false;
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 const CommentParams = t.Object({ id: t.String({ format: "uuid" }), cid: t.String({ format: "uuid" }) });
+/**
+ * Uploaded images, multipart (Eden sends FormData when a field holds a File).
+ * Count, size and type are checked by `readImages` so every refusal reads the
+ * same way; the schema only caps the count far above the real limit.
+ */
+const Images = t.Optional(t.Files({ maxItems: 20 }));
+
+const IMAGE_CACHE = "private, max-age=31536000, immutable";
 
 const ADMIN_ONLY = { error: "admin only" } as const;
 const NOT_FOUND = { error: "feedback not found" } as const;
@@ -92,10 +92,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       const origin = new URL(request.url).origin;
       const md = feedbackMarkdown(items, {
         title: `Trainer feedback (${statuses ? statuses.join(", ") : "all"})`,
-        imageUrl: (item, kind) =>
-          (kind === "element" ? item.hasElementShot : item.hasPageShot)
-            ? `${origin}/v1/feedback/${item.id}/shot/${kind}`
-            : null,
+        imageUrl: (item, a) => `${origin}/v1/feedback/${item.id}/attachments/${a.id}`,
       });
       return new Response(md, { headers: { "content-type": "text/markdown; charset=utf-8" } });
     },
@@ -107,30 +104,30 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       detail: { summary: "Export feedback for a coding agent (Markdown or JSON)" },
     },
   )
+  /**
+   * File a ticket. Multipart when it carries images: the captured element and
+   * page screenshots, plus up to FEEDBACK_MAX_IMAGES uploads.
+   */
   .post(
     "/",
     async ({ body, status, trainerId }) => {
-      let elementShot: Buffer | null;
-      let pageShot: Buffer | null;
-      try {
-        elementShot = decodeShot(body.elementShot);
-        pageShot = decodeShot(body.pageShot);
-      } catch (err) {
-        return status(422, { error: (err as Error).message });
-      }
+      const read = await readImages(body);
+      if ("error" in read) return status(422, { error: read.error });
       const context = body.context as FeedbackContext;
-      const [row] = await db
-        .insert(feedbackItems)
-        .values({
-          trainerId,
-          comment: body.comment.trim(),
-          route: context.route.path,
-          source: context.target.source ? formatSourceLoc(context.target.source) : null,
-          context,
-          elementShot,
-          pageShot,
-        })
-        .returning({ id: feedbackItems.id, number: feedbackItems.number });
+      const row = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(feedbackItems)
+          .values({
+            trainerId,
+            comment: body.comment.trim(),
+            route: context.route.path,
+            source: context.target.source ? formatSourceLoc(context.target.source) : null,
+            context,
+          })
+          .returning({ id: feedbackItems.id, number: feedbackItems.number });
+        await saveAttachments(tx, row.id, null, read.images);
+        return row;
+      });
       notifyFeedback({ kind: "created", itemId: row.id });
       return { id: row.id, number: row.number, handle: feedbackHandle(row.number) };
     },
@@ -138,8 +135,9 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       body: t.Object({
         comment: t.String({ minLength: 1, maxLength: 5000 }),
         context: Context,
-        elementShot: t.Optional(t.String()),
-        pageShot: t.Optional(t.String()),
+        elementShot: t.Optional(t.File()),
+        pageShot: t.Optional(t.File()),
+        images: Images,
       }),
       detail: { summary: "Submit a feedback item" },
     },
@@ -194,17 +192,23 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       detail: { summary: "Triage a feedback item" },
     },
   )
-  /** Reply on an item's thread — its reporter or the admin. */
+  /** Reply on an item's thread — its reporter or the admin — with up to FEEDBACK_MAX_IMAGES images. */
   .post(
     "/:id/comments",
     async ({ params, body, status, trainerId, who }) => {
       if (!(await getFeedback(params.id, who))) return status(404, NOT_FOUND);
       const text = body.body.trim();
-      if (!text) return status(422, { error: "reply is empty" });
-      const [row] = await db
-        .insert(feedbackComments)
-        .values({ itemId: params.id, trainerId, kind: "reply", body: text })
-        .returning({ id: feedbackComments.id });
+      const read = await readImages({ images: body.images });
+      if ("error" in read) return status(422, { error: read.error });
+      if (!text && read.images.length === 0) return status(422, { error: "reply is empty" });
+      const row = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(feedbackComments)
+          .values({ itemId: params.id, trainerId, kind: "reply", body: text })
+          .returning({ id: feedbackComments.id });
+        await saveAttachments(tx, params.id, row.id, read.images);
+        return row;
+      });
       notifyFeedback({ kind: "reply", itemId: params.id, commentId: row.id });
       await markSeen(trainerId, params.id);
       const item = (await getFeedback(params.id, who))!;
@@ -212,7 +216,8 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     },
     {
       params: IdParams,
-      body: t.Object({ body: t.String({ minLength: 1, maxLength: 5000 }) }),
+      // Text, images or both; empty text is fine when images come with it.
+      body: t.Object({ body: t.String({ maxLength: 5000 }), images: Images }),
       detail: { summary: "Reply on a feedback item" },
     },
   )
@@ -311,19 +316,41 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     },
     { params: IdParams, detail: { summary: "Delete a feedback item" } },
   )
+  /**
+   * One image, visible exactly when what it's on is: the ticket for its
+   * reporter and the admin; a draft's or private note's only for the admin.
+   */
+  .get(
+    "/:id/attachments/:attachmentId",
+    async ({ params, status, who }) => {
+      const item = await getFeedback(params.id, who);
+      const row = item ? await attachmentBytes(params.id, params.attachmentId) : null;
+      // `thread` already holds only the entries this viewer may see.
+      if (!row || (row.commentId && !item!.thread.some((c) => c.id === row.commentId))) {
+        return status(404, { error: "image not found" });
+      }
+      return new Response(new Uint8Array(row.bytes), {
+        headers: { "content-type": row.mime, "cache-control": IMAGE_CACHE },
+      });
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }), attachmentId: t.String({ format: "uuid" }) }),
+      detail: { summary: "Image bytes for a feedback item or reply" },
+    },
+  )
+  /** Old screenshot URLs (pre-attachments export links): the ticket's captured element or page image. */
   .get(
     "/:id/shot/:kind",
     async ({ params, status, who }) => {
       if (!(await getFeedback(params.id, who))) return status(404, { error: "screenshot not found" });
-      const col = params.kind === "element" ? feedbackItems.elementShot : feedbackItems.pageShot;
-      const [row] = await db.select({ shot: col }).from(feedbackItems).where(eq(feedbackItems.id, params.id));
-      if (!row?.shot) return status(404, { error: "screenshot not found" });
-      return new Response(new Uint8Array(row.shot), {
-        headers: { "content-type": shotMime(row.shot), "cache-control": "private, max-age=31536000, immutable" },
+      const shot = await ticketShot(params.id, params.kind);
+      if (!shot) return status(404, { error: "screenshot not found" });
+      return new Response(new Uint8Array(shot.bytes), {
+        headers: { "content-type": shot.mime, "cache-control": IMAGE_CACHE },
       });
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }), kind: t.UnionEnum(["element", "page"]) }),
-      detail: { summary: "Screenshot bytes for a feedback item" },
+      detail: { summary: "Screenshot bytes for a feedback item (compatibility alias)" },
     },
   );
