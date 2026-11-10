@@ -3,7 +3,7 @@
   import { dayIntensityLevels } from '@pt/shared';
   import WeekGrid, { type ClientStrip, type StripDay, type StripSession } from './WeekGrid.svelte';
   import Panel from '$lib/ui/Panel.svelte';
-  import { exceptionOrder, stripWeeks, weekTally } from '$lib/overview';
+  import { GRACE_DAYS, exceptionOrder, stripWeeks, weekCounter } from '$lib/overview';
   import type { ClientDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -13,7 +13,7 @@
       docs: {
         description: {
           component:
-            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, hairline = planned), then this week as labelled cells (green = done, blue ring = due today, red = missed, grey = upcoming). Rows sort missed → due today → on track; clients with nothing this week collapse into one line. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
+            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned), then this week as fixed-height labelled cells (green = done, blue ring = due today, amber = not logged yet (within two days), red = missed, grey = upcoming); extra sessions on a day are marks under the tag (square = lifting, disc = cardio). Rows sort missed → not logged → due today → on track; clients with nothing this week collapse into one line with a reason label. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
         },
       },
     },
@@ -21,6 +21,12 @@
 
   // Week of Mon 2026-10-12 … Sun 2026-10-18, today Thursday; history from Sep 7.
   const today = '2026-10-15';
+  /** Past sessions on or after this date are still in the grace period (GRACE_DAYS before today). */
+  const graceFrom = (() => {
+    const d = new Date(2026, 9, 15 - GRACE_DAYS);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const CARDIO = /bike|run|ride|zone|interval|conditioning/i;
   const weeks = stripWeeks(new Date(2026, 9, 15, 9));
 
   /** Deterministic noise so stories don't shift between renders. */
@@ -58,12 +64,20 @@
         const sessions: StripSession[] = names.map((name, k) => {
           const id = `${spec.id}-${i + 1}-${k}`;
           let status: StripSession['status'] =
-            date > today ? 'upcoming' : date === today ? 'today' : r() < (spec.skip ?? 0.15) ? 'missed' : 'logged';
+            date > today
+              ? 'upcoming'
+              : date === today
+                ? 'today'
+                : r() < (spec.skip ?? 0.15)
+                  ? date >= graceFrom
+                    ? 'unlogged'
+                    : 'missed'
+                  : 'logged';
           if (spec.all && date <= today) status = spec.all;
-          return { id, name, status, planned: true };
+          return { id, name, status, planned: true, kind: CARDIO.test(name) ? 'cardio' : 'lifting' };
         });
         const logged = sessions.some((s) => s.status === 'logged');
-        const worst = (['missed', 'today', 'upcoming', 'logged'] as const).find((st) => sessions.some((s) => s.status === st));
+        const worst = (['missed', 'unlogged', 'today', 'upcoming', 'logged'] as const).find((st) => sessions.some((s) => s.status === st));
         return {
           date,
           weekday: i + 1,
@@ -80,7 +94,9 @@
     const now = days[days.length - 1];
     const exception: ClientStrip['exception'] = now.some((d) => d.status === 'missed')
       ? 'missed'
-      : now.some((d) => d.status === 'today')
+      : now.some((d) => d.status === 'unlogged')
+        ? 'unlogged'
+        : now.some((d) => d.status === 'today')
         ? 'today'
         : now.some((d) => d.sessions.length) || spec.unscheduled
           ? 'on-track'
@@ -130,10 +146,26 @@
     )
   );
 
-  const noProgram = [
+  /** One idle client per reason: paused, no program, nothing planned this week. */
+  const idleReasons = exceptionOrder([
+    strip({ id: 'maya', name: 'Maya Chen', plan: { 1: ['Upper'], 3: ['Lower'], 5: ['Full body'] }, skip: 0 }),
     strip({ id: 'priya', name: 'Priya Nair', program: null, status: 'paused' }),
     strip({ id: 'sam', name: 'Sam Ortiz', program: null }),
-  ];
+    strip({ id: 'lea', name: 'Léa Dubois', program: 'Return to Run' }),
+  ]);
+
+  /** Today Thu: Monday is past the grace period (missed), Tue/Wed are still to log. */
+  const grace = exceptionOrder([
+    strip({ id: 'jonas', name: 'Jonas Berg', plan: { 1: ['Push'], 2: ['Pull'], 3: ['Legs'], 5: ['Conditioning'] }, skip: 1 }),
+    strip({ id: 'maya', name: 'Maya Chen', plan: { 1: ['Upper'], 3: ['Lower'], 4: ['Full body', 'Zone 2 bike'] }, skip: 0.5, seed: 9 }),
+    strip({ id: 'ada', name: 'Ada Okoye', plan: { 2: ['Strength A'], 4: ['Strength B'] }, skip: 0, seed: 4 }),
+  ]);
+
+  /** Only logging is behind: the counter turns amber, not red. */
+  const behind = exceptionOrder([
+    strip({ id: 'maya', name: 'Maya Chen', plan: { 3: ['Lower'], 6: ['Upper'] }, skip: 1 }),
+    strip({ id: 'ada', name: 'Ada Okoye', plan: { 1: ['Strength A'], 2: ['Zone 2 run'], 4: ['Strength B'] }, skip: 0, seed: 4 }),
+  ]);
 
   const allLogged = exceptionOrder([
     strip({ id: 'maya', name: 'Maya Chen', plan: { 1: ['Upper'], 2: ['Lower'], 4: ['Full body'] }, all: 'logged' }),
@@ -148,17 +180,15 @@
   const multi = exceptionOrder([
     strip({ id: 'nat', name: 'Nattapong W.', plan: { 1: ['Back / Biceps', 'Zone 2 run'], 2: ['Core / VO2max', 'Mobility'], 4: ['Chest / Triceps', 'Intervals', 'Stretch'] }, cardio: { done: 35, target: 180, unitLabel: 'min' } }),
     strip({ id: 'maya', name: 'Maya Chen', plan: { 3: ['Full body', 'Zone 2 bike'], 5: ['Upper', 'Lower'] }, seed: 5 }),
+    strip({ id: 'kofi', name: 'Kofi Mensah', plan: { 2: ['Long ride', 'Strength A', 'Intervals', 'Core', 'Mobility'], 6: ['Zone 2 run', 'Zone 2 bike'] }, seed: 2, cardio: { done: 2, target: 4, unitLabel: 'sessions' } }),
   ]);
 
-  const countOf = (strips: ClientStrip[]) => {
-    const t = weekTally(strips);
-    return [t.dueToday ? `${t.dueToday} due today` : null, t.missed ? `${t.missed} missed` : null].filter(Boolean).join(' · ') || (t.planned ? 'all on track' : undefined);
-  };
+
 </script>
 
 {#snippet template(args: { strips: ClientStrip[]; today: string })}
   <div style="max-width: 1140px;">
-    <Panel title="Training week" count={countOf(args.strips)}>
+    <Panel title="Training week" count={weekCounter(args.strips)?.label} countTone={weekCounter(args.strips)?.tone}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -166,7 +196,7 @@
 
 {#snippet narrow(args: { strips: ClientStrip[]; today: string })}
   <div style="max-width: 360px;">
-    <Panel title="Training week" count={countOf(args.strips)}>
+    <Panel title="Training week" count={weekCounter(args.strips)?.label} countTone={weekCounter(args.strips)?.tone}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -176,7 +206,11 @@
 
 <Story name="25 clients" exportName="TwentyFiveClients" {template} args={{ strips: many, today }} />
 
-<Story name="No program" {template} args={{ strips: noProgram, today }} />
+<Story name="Idle clients" {template} args={{ strips: idleReasons, today }} />
+
+<Story name="Grace period" {template} args={{ strips: grace, today }} />
+
+<Story name="Behind on logging" {template} args={{ strips: behind, today }} />
 
 <Story name="All logged" {template} args={{ strips: allLogged, today }} />
 

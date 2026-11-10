@@ -17,7 +17,7 @@
    */
   import { tick } from "svelte";
   import type { ClientStrip, StripDay } from "$lib/overview";
-  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, plural, sessionLine, volumeLabel } from "$lib/overview";
+  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, idleReason, plural, sessionLine, volumeLabel } from "$lib/overview";
 
   interface Props {
     /** Built by `buildClientStrip`, ordered by `exceptionOrder`; every strip has the same weeks. */
@@ -42,16 +42,40 @@
   /** The logger, opened on a session and date. */
   const logHref = (clientId: string, sessionId: string | null | undefined, date: string) =>
     sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
+  /** Extra sessions on a day show as marks under the tag — one each, up to this many. */
+  const MAX_MARKS = 3;
+  /** In-cell state word at wider widths; today's cell has none (ring + header say it). */
+  const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", missed: "missed", unlogged: "to log" };
   const tagOf = (name: string) => name.split(" + ")[0].split("—")[0].trim() || "Session";
   const marks = (d: StripDay) => d.status !== "rest" && d.status !== "before-start";
-  const loggable = (d: StripDay) => d.status === "today" || d.status === "missed";
+  /** Due, not logged yet, or missed: the cell (and the popover's Log link) opens the logger. */
+  const loggable = (d: { status: string }) => d.status === "today" || d.status === "unlogged" || d.status === "missed";
   const metaOf = (s: ClientStrip) =>
     [
       s.program ? `${s.client.sessionsPerWeek ?? "—"}/wk` : null,
       s.unscheduled ? `+${s.unscheduled} any day` : null,
-      s.cardio ? `cardio ${s.cardio.done}/${s.cardio.target}${s.cardio.unitLabel === "min" ? "" : ` ${s.cardio.unitLabel}`}` : null,
+      s.cardio ? `cardio ${s.cardio.done}/${s.cardio.target} ${s.cardio.unitLabel}` : null,
     ]
       .filter((m): m is string => !!m);
+
+  // ── Legend: only what this data draws ──
+  const LEGEND_WORDS = { logged: "Done", missed: "Missed", unlogged: "Not logged", today: "Due today", upcoming: "Planned" } as const;
+  type LegendState = keyof typeof LEGEND_WORDS;
+  const legend = $derived.by(() => {
+    const seen = new Set<string>();
+    let ramp = false;
+    for (const s of active) {
+      s.weeks.forEach((w, i) => {
+        const current = i === s.weeks.length - 1;
+        for (const d of w) {
+          // Past logged days read on the ramp; this week's done cells get their own swatch.
+          if (d.status === "logged" && !current) ramp = true;
+          else seen.add(d.status);
+        }
+      });
+    }
+    return { ramp, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
+  });
 
   // ── Tooltip / popover: one floating card, anchored to the square or cell ──
   type Tip = { strip: ClientStrip; day: StripDay; x: number; y: number; below: boolean; pinned: boolean; anchor: HTMLElement };
@@ -118,6 +142,7 @@
 
   // ── Past weeks: one tab stop per client, arrows move between days ──
   let current = $state<Record<string, string>>({});
+  /** Default tab stop: the latest marked past day — the latest week shows at every width. */
   const lastMarked = (s: ClientStrip) => s.weeks.slice(0, -1).flat().filter(marks).at(-1)?.date;
   const stopOf = (s: ClientStrip) => current[s.client.id] ?? lastMarked(s);
 
@@ -149,7 +174,7 @@
             </span>
           </div>
           {#each thisWeek as date, i (date)}
-            <div class="wk-day" class:dim={date < today} class:now={date === today} role="columnheader" aria-label={dayDateLabel(date, true)}>
+            <div class="wk-day" class:now={date === today} role="columnheader" aria-label={dayDateLabel(date, true)}>
               {DAY_LABELS[i]}<span class="d">{Number(date.slice(8, 10))}</span>
             </div>
           {/each}
@@ -205,14 +230,17 @@
             </div>
 
             {#each s.weeks[s.weeks.length - 1] as d (d.date)}
-              {@const extra = d.sessions.length - 1}
-              <div class="wk-cell" role="cell">
+              {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
+              <div class="wk-cell" class:now={d.date === today} role="cell">
                 {#if marks(d)}
                   {@const label = daySentence(s.client.name, d)}
                   {#snippet body()}
-                    <span class="tag">{tagOf(d.sessions[0].name)}</span>
-                    {#if extra > 0}<span class="more">+{extra}<span class="more-word">{" more"}</span></span>{/if}
-                    {#if d.status === "logged"}<span class="state">done</span>{:else if d.status === "missed"}<span class="state">missed</span>{/if}
+                    {@const tag = tagOf(d.sessions[0].name)}
+                    <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
+                    <span class="foot">
+                      {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
+                      {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
+                    </span>
                   {/snippet}
                   {#if loggable(d)}
                     <a
@@ -249,12 +277,12 @@
         {#if idle.length > 0}
           <div class="wk-tr idle" role="row">
             <div class="idle-line" role="cell" aria-colspan={9}>
-              <span class="idle-count">{plural(idle.length, "client")} with no sessions this week</span>
-              <span class="idle-names">
-                {#each idle as s, i (s.client.id)}
-                  <a href={`/clients/${s.client.id}`} title={s.program ?? (s.client.status === "active" ? "No program" : s.client.status)}>{s.client.name}</a>{#if i < idle.length - 1}<span class="sep">, </span>{/if}
+              <span class="idle-count">No sessions this week:</span>
+              <ul class="idle-names" aria-label={plural(idle.length, "client")}>
+                {#each idle as s (s.client.id)}
+                  <li><a href={`/clients/${s.client.id}`}>{s.client.name}</a> <span class="pill neutral">{idleReason(s)}</span></li>
                 {/each}
-              </span>
+              </ul>
             </div>
           </div>
         {/if}
@@ -263,14 +291,16 @@
 
     {#if active.length > 0}
       <div class="legend" aria-hidden="true">
-        <span class="lg">
-          Less
-          {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
-          More
-        </span>
-        <span class="lg"><span class="sq missed"></span>Missed</span>
-        <span class="lg"><span class="sq today"></span>Due today</span>
-        <span class="lg"><span class="sq upcoming"></span>Planned</span>
+        {#if legend.ramp}
+          <span class="lg ramp">
+            Less
+            {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
+            More
+          </span>
+        {/if}
+        {#each legend.states as st (st)}
+          <span class="lg"><span class="sw {st}"></span>{LEGEND_WORDS[st]}</span>
+        {/each}
       </div>
     {/if}
   </div>
@@ -301,7 +331,7 @@
           <span class="dot" aria-hidden="true"></span>
           <span class="nm">{x.name}</span>
           <span class="st">{x.loggedOn ? `logged ${dayDateLabel(x.loggedOn)}` : SESSION_WORDS[x.status]}</span>
-          {#if t.pinned && x.planned && (x.status === "today" || x.status === "missed")}
+          {#if t.pinned && x.planned && loggable(x)}
             <a class="go" href={logHref(t.strip.client.id, x.id, t.day.date)} aria-label={`Log ${sessionLine(x)}`}>Log</a>
           {/if}
         </li>
@@ -324,12 +354,14 @@
     --sq-gap: 2px;
     --hw: calc(7 * var(--sq) + 6 * var(--sq-gap));
     --client-col: 152px;
+    /* 64px fits an eight-letter uppercase mono tag ("STRENGTH") on one line. */
+    --day-min: 64px;
     padding: 12px 16px;
   }
   .wk { display: flex; flex-direction: column; }
   .wk-tr {
     display: grid;
-    grid-template-columns: var(--client-col) auto repeat(7, minmax(48px, 1fr));
+    grid-template-columns: var(--client-col) auto repeat(7, minmax(var(--day-min), 1fr));
     column-gap: 4px;
     align-items: center;
   }
@@ -344,8 +376,10 @@
   }
   .corner { text-align: left; padding-left: 4px; }
   .wk-day .d { display: block; font: 400 11px/1.6 var(--font-mono); color: var(--faint); }
-  .wk-day.dim { color: var(--faint); }
   .wk-day.now, .wk-day.now .d { color: var(--blue); font-weight: 600; }
+  /* Today's column: a quiet band of the Pulse tint from header to last row. */
+  .wk-day.now, .wk-cell.now { background: color-mix(in srgb, var(--pulse-now-bg) 45%, transparent); }
+  .wk-day.now { border-radius: 4px 4px 0 0; }
   .hist[role="columnheader"] { padding-right: 12px; }
   .hw-labels { display: flex; gap: 5px; }
   .hw-label {
@@ -397,24 +431,30 @@
   .sq.logged[data-level="3"] { background: var(--done-3); }
   .sq.logged[data-level="4"] { background: var(--done-4); }
   .sq.missed { background: var(--bad-bg); border-color: var(--bad); }
+  .sq.unlogged { background: var(--warn-bg); border-color: var(--warn); }
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
-  .sq.upcoming { background: var(--surface); border-color: var(--line-strong); }
+  /* Faint, not line-strong: the planned outline needs 3:1 on canvas in every palette. */
+  .sq.upcoming { background: var(--surface); border-color: var(--faint); }
   button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
 
   /* This week */
-  .wk-cell { padding: 6px 0; display: flex; justify-content: center; min-width: 0; }
+  /* Stretched to the row so today's band runs unbroken down the column. */
+  .wk-cell { padding: 6px 0; display: flex; justify-content: center; align-items: center; align-self: stretch; min-width: 0; }
+  /* Every this-week cell is the same height at a given width: the tag clamps
+     to two lines, extras are marks, never extra text lines. */
   .cell {
     width: 100%;
     max-width: 76px;
-    min-height: 40px;
+    height: 52px;
     border-radius: 4px;
     border: 1px solid var(--line);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    padding: 4px 3px;
+    gap: 2px;
+    padding: 3px;
+    overflow: hidden;
     text-decoration: none;
     font: inherit;
     color: inherit;
@@ -423,25 +463,34 @@
   a.cell:hover { text-decoration: none; }
   .cell:hover { border-color: var(--ink); }
   .cell .tag {
-    font: 500 11px/1.2 var(--font-mono);
+    font: 500 10px/1.2 var(--font-mono);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     text-align: center;
     max-width: 100%;
-    overflow-wrap: break-word;
+    hyphens: auto;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .cell .more { font: 500 11px/1.2 var(--font-mono); white-space: nowrap; }
-  .cell .state { font: 400 11px/1.2 var(--font-ui); }
+  /* A word never breaks mid-word: one word, or (in the ~48px uppercase mono
+     cells) any tag with a word over eight letters, stays on one line and ellipsizes. */
+  .cell .tag.word, .cell .tag.longword { display: block; white-space: nowrap; text-overflow: ellipsis; }
+  .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
+  .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
+  .cell .mk + .state { margin-left: 2px; }
+  /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
+  .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
+  .mk.cardio { border-radius: 99px; }
   .cell.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
   .cell.logged:hover { border-color: var(--ink); }
   .cell.today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--pulse-now-bg); color: var(--blue); }
   .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
   .cell.missed:hover { border-color: var(--bad); }
+  .cell.unlogged { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+  .cell.unlogged:hover { border-color: var(--warn); }
   .cell.upcoming { background: var(--well); color: var(--muted); }
   .offday {
     width: 4px;
@@ -465,11 +514,14 @@
     color: var(--muted);
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 8px;
+    align-items: baseline;
+    gap: 4px 8px;
   }
   .idle-count { font-weight: 500; }
-  .idle-names a { color: var(--ink); }
-  .sep { color: var(--faint); }
+  .idle-names { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .idle-names li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .idle-names a { font-weight: 500; text-underline-offset: 3px; }
+  .idle-names .pill { font-size: 11px; padding: 0 6px; }
 
   /* Legend */
   .legend {
@@ -485,6 +537,24 @@
   }
   .lg { display: inline-flex; align-items: center; gap: 3px; }
   .lg .sq + :not(.sq) { margin-left: 2px; }
+  /* State swatches are the cells in miniature: same edge, radius and fill. */
+  .sw {
+    width: 16px;
+    height: 12px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    margin-right: 2px;
+    flex: none;
+    display: grid;
+    place-items: center;
+  }
+  /* A short stroke in the cell's text colour stands in for its tag. */
+  .sw::after { content: ""; width: 6px; height: 2px; background: currentColor; }
+  .sw.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
+  .sw.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
+  .sw.unlogged { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+  .sw.today { background: var(--pulse-now-bg); border-color: var(--blue); color: var(--blue); }
+  .sw.upcoming { background: var(--well); color: var(--muted); }
 
   /* Tooltip / popover */
   .tip {
@@ -510,53 +580,88 @@
   .tip li { display: grid; grid-template-columns: 8px 1fr auto auto; gap: 6px; align-items: baseline; }
   .tip .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--done-3); align-self: center; }
   .tip li.missed .dot { background: var(--bad); }
+  .tip li.unlogged .dot { background: var(--warn-bg); box-shadow: inset 0 0 0 1px var(--warn); }
   /* Hollow, so it never reads as a logged dot where the ramp is blue (colourblind). */
   .tip li.today .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--blue); }
   .tip li.upcoming .dot { background: transparent; border: 1px solid var(--line-strong); }
   .tip .st { color: var(--muted); white-space: nowrap; }
   .tip li.missed .st { color: var(--bad); }
+  .tip li.unlogged .st { color: var(--warn-ink); }
   .tip li.today .st { color: var(--blue); }
   .tip .go { font-weight: 600; }
   .tip-vol { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--muted); }
   .tip-vol .fig { font-family: var(--font-mono); color: var(--ink); }
   .tip-client { display: inline-block; margin-top: 6px; font-weight: 500; }
 
-  /* Drop past weeks oldest-first as the panel narrows (each week ≈ 87px; 5 weeks need ~975px). */
-  @container weekgrid (max-width: 974px) { .hw:nth-child(1), .hw-label:nth-child(1) { display: none; } }
-  @container weekgrid (max-width: 887px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
-  @container weekgrid (max-width: 800px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
-  @container weekgrid (max-width: 713px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
-  @container weekgrid (max-width: 626px) {
-    .wk-in { --client-col: 120px; }
-    .hist { display: none !important; }
-    .wk-tr { grid-template-columns: var(--client-col) repeat(7, minmax(48px, 1fr)); }
+  /* Drop past weeks oldest-first as the panel narrows (each week ≈ 87px; 5 weeks need ~1106px). */
+  @container weekgrid (max-width: 1105px) { .hw:nth-child(1), .hw-label:nth-child(1) { display: none; } }
+  @container weekgrid (max-width: 1018px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
+  @container weekgrid (max-width: 931px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
+  @container weekgrid (max-width: 844px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
+  /* Below ~65px cells uppercase mono wraps "STRENGTH / A" and stacks a third
+     line over the state word: the tag drops to sentence-case UI type so a name
+     ("Lower", "Strength A") fits on one line, or whole over two at the narrowest;
+     one long word ellipsizes — the full name is in the label and the tooltip. */
+  @container weekgrid (max-width: 844px) {
+    .cell .tag.longword:not(.word) { display: -webkit-box; white-space: normal; }
+    .cell .tag {
+      font: 500 11px/1.2 var(--font-ui);
+      text-transform: none;
+      letter-spacing: -0.02em;
+    }
+  }
+  /* The latest week stays at every width, so the history column (and its
+     header, read by screen readers) always exists: rows are always 9 cells. */
+  @container weekgrid (max-width: 757px) {
+    .wk-in { --client-col: 112px; --day-min: 48px; }
+    /* The last week moves under the client name; days span both lines. */
+    .wk-tr { grid-template-columns: var(--client-col) repeat(7, minmax(var(--day-min), 1fr)); }
+    .wk-body .wk-client { grid-column: 1; grid-row: 1; padding-bottom: 4px; }
+    .hist[role="cell"] { grid-column: 1; grid-row: 2; padding: 0 4px 8px; }
+    .wk-body .wk-cell { grid-row: 1 / span 2; }
+    /* 48px cells: a two-line tag plus the word would stack three lines. Fill and
+       edge carry the state; the word is in the label, tooltip and legend. */
+    .cell .state { display: none; }
+    .wk-head .hist {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
   }
 
   /* Narrow: the client becomes a label line above its week, so seven days fit. */
   @container weekgrid (max-width: 520px) {
     .wk-in { padding: 8px 4px; }
     .wk-tr { grid-template-columns: repeat(7, minmax(0, 1fr)); column-gap: 1px; }
-    .corner { display: none; }
+    .corner {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    /* The label line: client left, the last two weeks right; days below. */
+    .wk-body .wk-client { grid-column: 1 / 5; grid-row: 1; }
+    .hist[role="cell"] { grid-column: 5 / -1; grid-row: 1; justify-self: end; align-self: end; padding: 0 2px 4px; }
+    .wk-body .wk-cell { grid-row: 2; }
+    .hw:nth-child(4) { display: flex; }
     .wk-client {
-      grid-column: 1 / -1;
       flex-direction: row;
       flex-wrap: wrap;
       align-items: baseline;
       gap: 2px 10px;
       padding: 10px 2px 2px;
     }
-    .wk-cell { padding: 4px 0 8px; }
-    .cell { min-height: 44px; padding: 4px 0; }
-    /* Cells are ~33px: the tag drops to sentence-case UI type so a short
-       name ("Lower", "Upper A") fits whole over at most two lines; anything
-       longer clips — the full name is in the label and the tooltip. */
-    .cell .tag {
-      font: 500 11px/1.2 var(--font-ui);
-      text-transform: none;
-      letter-spacing: -0.02em;
-      overflow-wrap: normal;
-    }
-    .more-word { display: none; }
+    .wk-body .wk-cell { padding: 4px 0 8px; }
+    .cell { height: 44px; padding: 3px 2px; }
     .legend { justify-content: flex-start; }
+    /* The ramp reads the history squares, the states read the cells: one line each. */
+    .lg.ramp { flex-basis: 100%; }
   }
+  /* Two weeks no longer fit beside the name. */
+  @container weekgrid (max-width: 450px) { .hw:nth-child(4) { display: none; } }
 </style>

@@ -14,6 +14,8 @@
 		title?: string;
 		/** Evidence counter next to the title ("9 of 12 logged"). */
 		count?: string | number;
+		/** Tones the counter as a Primer Label when it calls for action. */
+		countTone?: 'bad' | 'warn';
 		/** Right-aligned head content — render `<a class="act">` inside. */
 		act?: Snippet;
 		children?: Snippet;
@@ -21,14 +23,14 @@
 		class?: string;
 	}
 
-	let { title, count, act, children, class: cls, ...rest }: Props & HTMLAttributes<HTMLElement> = $props();
+	let { title, count, countTone, act, children, class: cls, ...rest }: Props & HTMLAttributes<HTMLElement> = $props();
 </script>
 
 <section class={['panel', cls]} {...rest}>
 	{#if title || act}
 		<div class="panel-head">
 			{#if title}<h2>{title}</h2>{/if}
-			{#if count}<Counter value={count} />{/if}
+			{#if count}<Counter value={count} tone={countTone} />{/if}
 			{@render act?.()}
 		</div>
 	{/if}
