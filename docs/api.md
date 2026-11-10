@@ -117,6 +117,11 @@ used in `exampleProgramIds`.
   "date": "2026-09-22",
   "kind": "lifting",
   "perceivedEnergy": 7,
+  "readiness": { "sleep": 2, "soreness": 4 },
+  "flags": [
+    { "programExerciseId": "…", "exerciseId": "…", "kind": "pain", "note": "left knee at the bottom" },
+    { "programExerciseId": "…", "exerciseId": "…", "kind": "skipped", "reason": "time" }
+  ],
   "notes": "felt strong",
   "sets": [
     { "programExerciseId": "… or null", "exerciseId": "…", "setNumber": 1, "type": "warm_up", "weightKg": 60, "reps": 5 },
@@ -143,6 +148,18 @@ Guards (**422** `"invalid log"`): `kind` defaults to `lifting`;
 lifting logs need ≥1 set and must not carry `cardio`; cardio logs need `cardio`
 (`modality` required, `durationMin` 1–300, `hrZone` 1–5) and must not carry sets;
 all `exerciseId`s must exist; program must belong to the client; date `YYYY-MM-DD`.
+
+Readiness and flags (both optional, both on lifting and cardio logs):
+- `perceivedEnergy` 1–10 (integer).
+- `readiness` `{ sleep?: 1–5, soreness?: 1–5 }` (integers; no other keys).
+- `flags[]` (≤ 100): `{ programExerciseId: uuid | null, exerciseId: uuid, kind: "pain" | "technique" | "skipped", reason?, note? }`.
+  `reason` (`"time" | "pain" | "equipment" | "other"`) only on `kind: "skipped"`; `note` ≤ 280 chars.
+  The log sheet sends a whole-exercise skip as a `skipped` flag; `notes` are the trainer's own text.
+
+Both come back on the created log and on `GET /v1/logs/sessions` as `readiness` and `flags`;
+`null` when absent, empty (`{}` / `[]`), or on logs saved before they existed (migration 0044).
+A `pain` flag (or a skip for pain) raises a `pain-flag` signal for 14 days (see `docs/notifications.md`),
+and the AI training log carries readiness and flags per session.
 
 Duplicates: a log with the same `clientId` + `programId` + `programSessionId` as an
 existing one (logs with no `programSessionId` never are). Optional

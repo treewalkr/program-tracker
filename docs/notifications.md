@@ -44,6 +44,7 @@ Data rules (log-derived):
 |---|---|---|---|
 | RPE creep | `rpe-creep` | same load, avg RPE +≥1.5 vs first week | fatigue building |
 | Stall | `stall` | weekly best e1RM peaked ≥3 weeks ago, last weeks within +1% | stimulus exhausted |
+| Pain flag | `pain-flag` | a `pain` flag (or a skip for pain) on a log in the last 14 days — one per client + exercise, citing each date and note; id `pain-flag:<clientId>:<exerciseId>:<newest date>`, so a new flag after a snooze shows again | check in before loading it |
 
 Scheme-vs-reality rules (need `phasing.weeks` + block pulse):
 
@@ -66,7 +67,7 @@ program → filter snoozed → return. Powers dashboard "Needs review" and clien
 
 ### 2. Write path (event-driven, no polling)
 
-Data-driven signals (rpe-creep, stall) can only change when a log lands. In
+Data-driven signals (rpe-creep, stall, pain-flag) can only change when a log lands. In
 `POST /v1/logs/sessions`, after commit: run rules for that program; any signal id absent
 from `signal_outbox` → insert (dedupe) → background worker sends email.
 
