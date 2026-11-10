@@ -123,6 +123,7 @@
 
   // ── Past weeks: one tab stop per client, arrows move between days ──
   let current = $state<Record<string, string>>({});
+  /** Default tab stop: the latest marked past day — the latest week shows at every width. */
   const lastMarked = (s: ClientStrip) => s.weeks.slice(0, -1).flat().filter(marks).at(-1)?.date;
   const stopOf = (s: ClientStrip) => current[s.client.id] ?? lastMarked(s);
 
@@ -552,19 +553,43 @@
   @container weekgrid (max-width: 887px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
   @container weekgrid (max-width: 800px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
   @container weekgrid (max-width: 713px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
+  /* The latest week stays at every width, so the history column (and its
+     header, read by screen readers) always exists: rows are always 9 cells. */
   @container weekgrid (max-width: 626px) {
     .wk-in { --client-col: 120px; }
-    .hist { display: none !important; }
+    /* The last week moves under the client name; days span both lines. */
     .wk-tr { grid-template-columns: var(--client-col) repeat(7, minmax(48px, 1fr)); }
+    .wk-body .wk-client { grid-column: 1; grid-row: 1; padding-bottom: 4px; }
+    .hist[role="cell"] { grid-column: 1; grid-row: 2; padding: 0 4px 8px; }
+    .wk-body .wk-cell { grid-row: 1 / span 2; }
+    .wk-head .hist {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
   }
 
   /* Narrow: the client becomes a label line above its week, so seven days fit. */
   @container weekgrid (max-width: 520px) {
     .wk-in { padding: 8px 4px; }
     .wk-tr { grid-template-columns: repeat(7, minmax(0, 1fr)); column-gap: 1px; }
-    .corner { display: none; }
+    .corner {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    /* The label line: client left, the last two weeks right; days below. */
+    .wk-body .wk-client { grid-column: 1 / 5; grid-row: 1; }
+    .hist[role="cell"] { grid-column: 5 / -1; grid-row: 1; justify-self: end; align-self: end; padding: 0 2px 4px; }
+    .wk-body .wk-cell { grid-row: 2; }
+    .hw:nth-child(4) { display: flex; }
     .wk-client {
-      grid-column: 1 / -1;
       flex-direction: row;
       flex-wrap: wrap;
       align-items: baseline;
@@ -585,4 +610,6 @@
     }
     .legend { justify-content: flex-start; }
   }
+  /* Two weeks no longer fit beside the name. */
+  @container weekgrid (max-width: 450px) { .hw:nth-child(4) { display: none; } }
 </style>
