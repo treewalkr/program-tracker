@@ -35,6 +35,7 @@
   import GroupTag from "$lib/components/GroupTag.svelte";
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
   import LogStepper from "$lib/components/LogStepper.svelte";
+  import { feedbackMode } from "$lib/feedback/mode.svelte";
   import {
     asPrescribed,
     prescriptionOf,
@@ -754,6 +755,8 @@
     const note = painNoteEl;
     if (!bar) return;
     const root = document.documentElement;
+    // The idle pill docks in the Save bar here (.fb-dock); feedback mode itself still floats.
+    root.style.setProperty("--feedback-idle", "none");
     let raf = 0;
     const update = () => {
       raf = 0;
@@ -779,6 +782,7 @@
       window.removeEventListener("resize", queue);
       ro.disconnect();
       root.style.removeProperty("--feedback-lift");
+      root.style.removeProperty("--feedback-idle");
     };
   });
 
@@ -1523,6 +1527,13 @@
         <div class="submit-row">
           <span class="subtle tally" aria-live="polite">{status}</span>
           <span class="kbd-hint" aria-hidden="true">Enter: next cell · {isMac ? "⌘↵" : "Ctrl+↵"} save</span>
+          {#if !feedbackMode.on}
+            <!-- Docked here: the floating Feedback pill would cover the sheet (it hides on this page). -->
+            <button type="button" class="fb-dock" onclick={() => feedbackMode.set(true)} aria-label="Feedback">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" /></svg>
+              <span class="fb-word">Feedback</span>
+            </button>
+          {/if}
           <Button variant={dirty ? "primary" : "default"} type="submit" id="log-save" disabled={saving} aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}>
             {saving ? "Saving…" : "Save session"}
           </Button>
@@ -1973,6 +1984,21 @@
   .save-bar .submit-row { justify-content: flex-end; }
   .save-bar .tally { margin-right: auto; }
   .save-bar .err-msg { margin: 0 0 8px; }
+  .fb-dock {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    font: 500 12px/1 var(--font-ui);
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    cursor: pointer;
+  }
+  .fb-dock:hover { color: var(--ink); border-color: var(--line-strong); }
+  .fb-dock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .kbd-hint { font: 400 12px/1.2 var(--font-ui); color: var(--faint); white-space: nowrap; }
   /* A focused cell scrolls clear of the bar, not under it. */
   .sheet :global(input) { scroll-margin-bottom: 96px; }
@@ -2194,6 +2220,8 @@
     .save-bar { padding: 8px 14px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     /* Phone keyboards have a Next key; the shortcut hint is desk-only. */
     .kbd-hint { display: none; }
+    .fb-dock { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 6px; }
+    .fb-word { display: none; }
     .blk-act { flex-wrap: wrap; }
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 44px; padding: 0 6px; font-size: 14px; flex: 1; }

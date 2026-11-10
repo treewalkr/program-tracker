@@ -520,6 +520,8 @@
     gap: 10px;
     font: 400 13px/1 var(--font-ui);
   }
+  /* A page that docks its own Feedback button (the log sheet) hides the idle pill. */
+  .bar:not(.on) { display: var(--feedback-idle, flex); }
   .bar.on {
     background: var(--hover-ink);
     color: var(--on-ink);
