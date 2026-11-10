@@ -1,6 +1,7 @@
 <script lang="ts">
   import { feedbackHandle, type FeedbackItem } from "@pt/shared";
   import { feedbackApi } from "./client";
+  import Icon from "$lib/ui/Icon.svelte";
 
   /**
    * Stop (or resume) emails about one ticket, for the signed-in trainer.
@@ -16,6 +17,9 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
   const handle = $derived(feedbackHandle(item.number));
+  const label = $derived(
+    item.muted ? `Emails about ${handle} are off — click to turn them back on` : `Stop emails about ${handle}`,
+  );
 
   async function toggle() {
     const next = !item.muted;
@@ -37,29 +41,28 @@
   type="button"
   class="mute"
   class:on={item.muted}
-  title={error ?? (item.muted ? `Emails about ${handle} are off — click to turn them back on` : `Stop emails about ${handle}`)}
+  title={error ?? label}
+  aria-label={label}
   aria-pressed={item.muted}
   disabled={saving}
   onclick={toggle}
 >
-  {#if item.muted}Muted · <span class="u">Unmute</span>{:else}Mute{/if}
+  <Icon name={item.muted ? "bell-off" : "bell"} size={14} />
 </button>
 
 <style>
   .mute {
-    font: inherit;
-    font-size: 12px;
-    line-height: 1;
-    padding: 3px 6px;
+    display: inline-grid;
+    place-items: center;
+    padding: 3px;
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
     color: var(--muted);
     cursor: pointer;
-    white-space: nowrap;
   }
   .mute:hover:not(:disabled) { background: var(--well-2); color: var(--ink); }
   .mute:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
   .mute:disabled { opacity: 0.6; cursor: default; }
-  .mute.on .u { color: var(--blue); }
+  .mute.on { color: var(--blue); }
 </style>
