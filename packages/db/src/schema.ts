@@ -603,6 +603,9 @@ export const feedbackItems = pgTable("feedback_items", {
   shippedIn: text("shipped_in"),
   /** Unused since the readiness check was removed; due to be dropped in a later migration. */
   agentCheck: jsonb("agent_check"),
+  /** Last edit of the comment or the ticket's images (reporter or admin); null = never edited. No history is kept. */
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  editedBy: uuid("edited_by").references(() => trainers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_items_trainer_idx").on(t.trainerId)]);
