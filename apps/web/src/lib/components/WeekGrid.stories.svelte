@@ -174,7 +174,7 @@
 
 <Story name="Three clients" {template} args={{ strips: three, today }} />
 
-<Story name="25 clients" {template} args={{ strips: many, today }} />
+<Story name="25 clients" exportName="TwentyFiveClients" {template} args={{ strips: many, today }} />
 
 <Story name="No program" {template} args={{ strips: noProgram, today }} />
 
