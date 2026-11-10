@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### New
+- Attach images to feedback tickets and replies. Pick or paste them, and they're shrunk before upload. Click any image to view it full size.
+- The log sheet on a phone folds the session pickers and readiness away, so the sets come first.
+
+### Fixed
+- Progression scheme sources are corrected and checked. Every citation now has its journal, volume and pages. Where a preset rests on coaching practice rather than a study, it now says so.
+- The log sheet switches to its narrow layout based on its own width, not the window's.
+- Save becomes the main button on the log sheet once you've entered something.
+
 ## v0.1.16 — 2026-11-10
 
 ### New
