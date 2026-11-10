@@ -3,6 +3,12 @@ import {
   asPrescribed,
   prescriptionOf,
   blocksOf,
+  blockIndexOf,
+  cellOrder,
+  nextCell,
+  roundOrder,
+  skipExercise,
+  unskipExercise,
   isBlank,
   isSwapped,
   lastBySlot,
@@ -491,5 +497,51 @@ describe("drafts", () => {
     expect(parseDraft("{not json", fresh)).toBeNull();
     expect(parseDraft(JSON.stringify({ rows: [] }), fresh)).toBeNull();
     expect(parseDraft(null, fresh)).toBeNull();
+  });
+});
+
+describe("supersets on the sheet", () => {
+
+  const r = (pe: string, n: number, group?: string): SheetRow =>
+    row({ key: `${pe}-${n}`, programExerciseId: pe, exerciseId: `ex-${pe}`, slotExerciseId: `ex-${pe}`, setNumber: n, ...(group ? { group } : {}) });
+  // built exercise by exercise, as freshRows does before roundOrder
+  const built = () => [r("sq", 1), r("sq", 2), r("a1", 1, "A"), r("a1", 2, "A"), r("a1", 3, "A"), r("a2", 1, "A"), r("a2", 2, "A"), r("a2", 3, "A"), r("core", 1)];
+  const keys = (rs: SheetRow[]) => rs.map((x) => x.key);
+
+  test("a group's rows run round by round", () => {
+    expect(keys(roundOrder(built()))).toEqual(["sq-1", "sq-2", "a1-1", "a2-1", "a1-2", "a2-2", "a1-3", "a2-3", "core-1"]);
+  });
+
+  test("blocks are units: the whole group is one card", () => {
+    const blocks = blocksOf(roundOrder(built()));
+    expect(blocks.map((b) => [b.key, b.memberIds.join("+"), b.rows.length])).toEqual([
+      ["sq", "sq", 2],
+      ["group:A", "a1+a2", 6],
+      ["core", "core", 1],
+    ]);
+    expect(blockIndexOf(blocks, "a2")).toBe(1);
+    expect(blockIndexOf(blocks, "nope")).toBe(-1);
+  });
+
+  test("Enter goes A1 → A2 → round 2", () => {
+    const order = cellOrder(roundOrder(built()), () => true); // bodyweight: reps, rpe only
+    const a1Rpe = nextCell(order, "a1-1", "rpe", 1);
+    expect(a1Rpe).toMatchObject({ key: "a2-1", field: "reps" });
+    expect(nextCell(order, "a2-1", "rpe", 1)).toMatchObject({ key: "a1-2", field: "reps" });
+  });
+
+  test("+Set on a member lands after the last round, in the group", () => {
+    const rows = roundOrder(built());
+    const out = withExtraSet(rows, "a1", (n) => ({ ...r("a1", n, "A"), key: "a1-x", extra: true }));
+    expect(keys(out).slice(2, 9)).toEqual(["a1-1", "a2-1", "a1-2", "a2-2", "a1-3", "a2-3", "a1-x"]);
+    expect(blocksOf(out)).toHaveLength(3);
+  });
+
+  test("undo skip puts a member's rows back in place", () => {
+    const rows = roundOrder(built());
+    const before = rows.filter((x) => x.programExerciseId === "a1").map((x) => ({ ...x, reps: 9 }));
+    const out = unskipExercise(skipExercise(rows, "a1"), "a1", before);
+    expect(keys(out)).toEqual(keys(rows));
+    expect(out.filter((x) => x.programExerciseId === "a1").every((x) => x.reps === 9 && !x.skipped)).toBe(true);
   });
 });

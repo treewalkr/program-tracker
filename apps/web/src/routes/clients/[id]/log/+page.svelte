@@ -17,7 +17,7 @@
     type SessionLogDto,
     type SessionLogInput,
   } from "$lib/api/types";
-  import { logToInput, oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
+  import { groupKind, logToInput, oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { chipFor, coachSheet, historySets, type Suggestion } from "$lib/logCoach";
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
@@ -31,12 +31,15 @@
   import Note from "$lib/ui/Note.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
+  import GroupTag from "$lib/components/GroupTag.svelte";
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
   import LogStepper from "$lib/components/LogStepper.svelte";
   import {
     asPrescribed,
     prescriptionOf,
     blocksOf,
+    blockIndexOf,
+    roundOrder,
     cellNumber,
     isBlank,
     isSwapped,
@@ -252,7 +255,8 @@
   /** Prescribed rows for the selected session, nothing entered yet. */
   function freshRows(): Row[] {
     const session = weekSessionsList.find((ws) => ws.id === sessionId)?.session;
-    return (
+    // a superset's sets run round by round: A1 set 1, A2 set 1, A1 set 2…
+    return roundOrder(
       session?.exercises.flatMap((e) =>
         e.prescribedSets.map((ps): Row => {
           const rx: Prescription = prescriptionOf(ps, oneRepMaxKg(client?.oneRepMaxes, e.exerciseId));
@@ -271,6 +275,7 @@
             weight: "",
             reps: "",
             rpe: "",
+            ...(e.group ? { group: e.group } : {}),
           };
         })
       ) ?? []
@@ -305,7 +310,9 @@
     const fresh = freshRows();
     const draft = browser ? parseDraft(localStorage.getItem(draftKey(id, sessionId)), fresh) : null;
     if (draft) {
-      rows = draft.rows;
+      // the program's groups win over the draft's (it may predate a superset)
+      const groupOf = new Map(fresh.map((r) => [r.programExerciseId, r.group]));
+      rows = draft.rows.map((r) => ({ ...r, group: groupOf.get(r.programExerciseId) }));
       notes = draft.notes;
       readiness = draft.readiness;
       flags = draft.flags;
@@ -712,14 +719,14 @@
 
   /** A card's name by its slot, for the summary's links. */
   const blockNameOf = (pe: string) => {
-    const b = blocks.find((x) => x.programExerciseId === pe);
-    return b ? blockName(b) : nameOf(pe);
+    const own = rows.filter((r) => r.programExerciseId === pe);
+    return own.length ? blockName({ rows: own }) : nameOf(pe);
   };
 
   async function focusCell(key: string, field: SheetField) {
     const r = rows.find((x) => x.key === key);
     if (!r) return;
-    current = Math.max(0, blocks.findIndex((b) => b.programExerciseId === r.programExerciseId));
+    current = Math.max(0, blockIndexOf(blocks, r.programExerciseId));
     await tick();
     const input = document.querySelector<HTMLInputElement>(`[data-cell="${CSS.escape(`${key}:${field}`)}"] input`);
     input?.focus();
@@ -850,7 +857,7 @@
   /** Put the trainer on the first flagged cell — on a phone, bring its card on screen first. */
   async function focusFirstInvalid() {
     const bad = rows.find((r) => Object.keys(fieldErrors[r.key] ?? {}).length > 0);
-    if (bad) current = blocks.findIndex((b) => b.programExerciseId === bad.programExerciseId);
+    if (bad) current = blockIndexOf(blocks, bad.programExerciseId);
     await tick();
     document.querySelector<HTMLInputElement>('.sheet [aria-invalid="true"]')?.focus();
   }
@@ -901,6 +908,7 @@
       weight: "",
       reps: "",
       rpe: "",
+      ...(head.group ? { group: head.group } : {}),
     }));
   }
 
@@ -954,6 +962,27 @@
   function go(i: number) {
     current = Math.max(0, Math.min(blocks.length - 1, i));
     document.getElementById("log-sheet")?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  /** A card's title: the exercise, or "Superset A" for a group. */
+  const cardTitle = (b: { group?: string; memberIds: string[]; rows: Row[] }) =>
+    b.group ? `${groupKind(b.memberIds.length)} ${b.group}` : nameOf(b.rows[0].exerciseId);
+  /** One member's rows inside a group card — for its sub-header's actions. */
+  const memberBlock = (b: { rows: Row[] }, pe: string) => ({ programExerciseId: pe, rows: b.rows.filter((r) => r.programExerciseId === pe) });
+  /** "A1" for a row on a group card. */
+  const tagOf = (b: { group?: string; memberIds: string[] }, pe: string) =>
+    b.group ? `${b.group}${b.memberIds.indexOf(pe) + 1}` : null;
+  /** Rows of a group card that open a round: key → "Round 2" / "Extra sets". Skipped exercises' rows are hidden. */
+  function roundBreaks(rs: Row[]): Map<string, string> {
+    const out = new Map<string, string>();
+    let prev = "";
+    for (const r of rs) {
+      if (r.exerciseSkip) continue;
+      const label = r.extra ? "Extra sets" : `Round ${r.setNumber}`;
+      if (label !== prev) out.set(r.key, label);
+      prev = label;
+    }
+    return out;
   }
 
   /** A card is done once every set is entered or skipped. */
@@ -1148,7 +1177,7 @@
               <Icon name="chevron" />
             </button>
             <ol class="pg-steps">
-              {#each blocks as b, i (b.programExerciseId)}
+              {#each blocks as b, i (b.key)}
                 <li>
                   <button
                     type="button"
@@ -1156,7 +1185,7 @@
                     class:on={i === current}
                     class:done={blockDone(b)}
                     aria-current={i === current ? "step" : undefined}
-                    aria-label={`${i + 1}. ${nameOf(b.rows[0].exerciseId)}${blockDone(b) ? ", done" : ""}`}
+                    aria-label={`${i + 1}. ${cardTitle(b)}${blockDone(b) ? ", done" : ""}`}
                     onclick={() => go(i)}
                   ></button>
                 </li>
@@ -1173,15 +1202,15 @@
           <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">kg</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
         </div>
 
-        {#each blocks as b, bi (b.programExerciseId)}
-          {@const head = b.rows[0]}
-          {@const role = roles.get(b.programExerciseId)}
-          {@const swapped = isSwapped(head)}
-          {@const exSkip = head.exerciseSkip}
-          {@const flag = flags[b.programExerciseId]}
-          <section class="block" class:off={bi !== current} aria-labelledby={`blk-${b.programExerciseId}`}>
-            <header class="blk-head">
+        {#snippet exHead(b: { programExerciseId: string; rows: Row[] }, tag: string | null)}
+            {@const head = b.rows[0]}
+            {@const role = roles.get(b.programExerciseId)}
+            {@const swapped = isSwapped(head)}
+            {@const exSkip = head.exerciseSkip}
+            {@const flag = flags[b.programExerciseId]}
+            <header class="blk-head" class:member={tag != null}>
               <div class="blk-title">
+                {#if tag}<GroupTag {tag} />{/if}
                 {#if role}<RoleChip {role} />{/if}
                 <h3 id={`blk-${b.programExerciseId}`}>{nameOf(head.exerciseId)}</h3>
                 {#if swapped}
@@ -1295,8 +1324,9 @@
                 </div>
               {/if}
             </header>
+        {/snippet}
 
-            {#each b.rows as r (r.key)}
+        {#snippet setRow(r: Row, tag: string | null)}
               {@const fe = fieldErrors[r.key]}
               {@const label = labels.get(r.key) ?? r.key}
               {@const p = rxCell(r)}
@@ -1309,11 +1339,13 @@
               <div class="set" class:skipped={r.skipped} class:filled={!r.skipped && !isBlank(r.reps)} class:extra={r.extra}>
                 <div class="meta">
                   <span class="m-set">
+                    {#if tag}<GroupTag {tag} />{/if}
                     <span class="mob">Set&nbsp;</span><span class="tnum">{r.setNumber}</span>
                     {#if !r.skipped && !isBlank(r.reps)}<span class="tick" title="Entered"><Icon name="check" /></span>{/if}
                     {#if r.extra}<span class="tag">extra</span>{:else if r.type === "backoff"}<span class="tag">back-off</span>{/if}
                   </span>
                   <span class="m-rx tnum">
+                    {#if tag}<span class="m-who">{nameOf(r.exerciseId)}</span>{/if}
                     {fmtRx(r)}
                     {#if chip != null && sg}
                       <button type="button" class="sugg-chip" title={`${sg.source} — tap to use`} aria-label={`Use ${chip} kg for ${label}. ${sg.source}`} onclick={() => useSuggestion(r.key, sg)}>→ {chip}</button>
@@ -1326,7 +1358,7 @@
                   </span>
                 </div>
                 {#if r.skipped}
-                  <span class="skip-note">{exSkip ? "Exercise skipped" : "Skipped"} — not logged</span>
+                  <span class="skip-note">{r.exerciseSkip ? "Exercise skipped" : "Skipped"} — not logged</span>
                 {:else}
                   {@const hint = (f: SheetField) => (lastCell?.key === r.key && lastCell.field === f ? "done" : "next")}
                   <div class="c-kg" data-cell={`${r.key}:weight`}>
@@ -1340,7 +1372,7 @@
                   </div>
                 {/if}
                 <div class="c-skip">
-                  {#if exSkip}
+                  {#if r.exerciseSkip}
                     <!-- The whole exercise is skipped: Undo skip in the header brings the sets back. -->
                   {:else if r.extra}
                     <button type="button" class="skip-btn" aria-label={`Remove ${label}`} title="Remove this set" onclick={() => removeSet(r.key)}>
@@ -1364,15 +1396,46 @@
                   </div>
                 {/if}
               </div>
-            {/each}
+        {/snippet}
 
-            {#if coach.adjusted.get(b.programExerciseId) && !exSkip}
-              <p class="coach-adjust">{coach.adjusted.get(b.programExerciseId)}</p>
+        {#each blocks as b, bi (b.key)}
+          <section class="block" class:off={bi !== current} aria-labelledby={b.group ? `blk-g-${b.group}` : `blk-${b.programExerciseId}`}>
+            {#if b.group}
+              {@const breaks = roundBreaks(b.rows)}
+              {@const rounds = Math.max(1, ...b.rows.filter((r) => !r.extra).map((r) => r.setNumber))}
+              <header class="grp-head">
+                <span class="gletter">{b.group}</span>
+                <h3 id={`blk-g-${b.group}`}>{groupKind(b.memberIds.length)}</h3>
+                <span class="subtle">· {rounds} {rounds === 1 ? "round" : "rounds"}</span>
+              </header>
+              {#each b.memberIds as pe (pe)}
+                {@render exHead(memberBlock(b, pe), tagOf(b, pe))}
+              {/each}
+              {#each b.rows as r (r.key)}
+                {#if !r.exerciseSkip}
+                  {#if breaks.has(r.key)}<div class="round-div">{breaks.get(r.key)}</div>{/if}
+                  {@render setRow(r, tagOf(b, r.programExerciseId))}
+                {/if}
+              {/each}
+              {#each b.memberIds as pe (pe)}
+                {@const adj = coach.adjusted.get(pe)}
+                {#if adj && !b.rows.find((r) => r.programExerciseId === pe)?.exerciseSkip}
+                  <p class="coach-adjust">{tagOf(b, pe)} · {adj}</p>
+                {/if}
+              {/each}
+            {:else}
+              {@render exHead(b, null)}
+              {#each b.rows as r (r.key)}
+                {@render setRow(r, null)}
+              {/each}
+              {#if coach.adjusted.get(b.programExerciseId) && !b.rows[0].exerciseSkip}
+                <p class="coach-adjust">{coach.adjusted.get(b.programExerciseId)}</p>
+              {/if}
             {/if}
 
             {#if bi < blocks.length - 1}
               <button type="button" class="next-ex" onclick={() => go(bi + 1)}>
-                <span>Next: {nameOf(blocks[bi + 1].rows[0].exerciseId)}</span>
+                <span>Next: {cardTitle(blocks[bi + 1])}</span>
                 <Icon name="chevron" />
               </button>
             {/if}
@@ -1579,6 +1642,35 @@
     padding: 10px 16px 6px;
   }
   .blk-title { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+  /* a superset card: one header for the group, a compact line per member, rows round by round */
+  .grp-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 10px 16px 6px;
+  }
+  .grp-head h3 { margin: 0; font: 600 14px/1.3 var(--font-ui); }
+  .gletter { font: 600 12px/1 var(--font-mono); color: var(--muted); }
+  .blk-head.member { padding-top: 4px; padding-bottom: 4px; }
+  .blk-head.member .blk-title h3 { font-weight: 500; }
+  .round-div {
+    padding: 8px 16px 4px;
+    border-top: 1px solid var(--line-soft);
+    font: 500 11px/1.2 var(--font-ui);
+    color: var(--muted);
+    background: var(--well);
+  }
+  .round-div + :global(.set) { border-top: none; }
+  .m-who {
+    display: inline-block;
+    max-width: 14ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    color: var(--ink);
+    margin-right: 6px;
+  }
   .blk-title h3 { margin: 0; font: 600 14px/1.3 var(--font-ui); }
   .swap-pill { font-weight: 500; }
   .blk-act { display: flex; gap: 4px; }
