@@ -9,6 +9,7 @@
     plural,
     stripWeeks,
     weekRangeLabel,
+    weekCounter,
     weekTally,
     type ClientStrip,
   } from "$lib/overview";
@@ -39,11 +40,8 @@
 
   const tally = $derived(weekTally(strips));
   const trainingClients = $derived(strips.filter((s) => s.program).length);
-  /** Says what the head line doesn't: what needs the trainer now. */
-  const weekCount = $derived(
-    [tally.dueToday ? `${tally.dueToday} due today` : null, tally.missed ? `${tally.missed} missed` : null].filter(Boolean).join(" · ") ||
-      (tally.planned ? "all on track" : undefined)
-  );
+  /** Says what the head line doesn't: which days need the trainer now, counted like the cells. */
+  const weekCount = $derived(weekCounter(strips));
   const providersDown = $derived(providers.filter((p) => !p.configured));
   const headLine = $derived(
     [
@@ -118,7 +116,7 @@
     </EmptyState>
   </section>
 {:else}
-  <Panel class="week-panel" title="Training week" count={rowsReady ? weekCount : undefined}>
+  <Panel class="week-panel" title="Training week" count={rowsReady ? weekCount?.label : undefined} countTone={weekCount?.tone}>
     {#if rowsReady}
       <WeekGrid {strips} {today} />
     {:else if loadError}

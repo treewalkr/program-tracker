@@ -3,7 +3,7 @@
   import { dayIntensityLevels } from '@pt/shared';
   import WeekGrid, { type ClientStrip, type StripDay, type StripSession } from './WeekGrid.svelte';
   import Panel from '$lib/ui/Panel.svelte';
-  import { exceptionOrder, stripWeeks, weekTally } from '$lib/overview';
+  import { exceptionOrder, stripWeeks, weekCounter } from '$lib/overview';
   import type { ClientDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -150,15 +150,12 @@
     strip({ id: 'maya', name: 'Maya Chen', plan: { 3: ['Full body', 'Zone 2 bike'], 5: ['Upper', 'Lower'] }, seed: 5 }),
   ]);
 
-  const countOf = (strips: ClientStrip[]) => {
-    const t = weekTally(strips);
-    return [t.dueToday ? `${t.dueToday} due today` : null, t.missed ? `${t.missed} missed` : null].filter(Boolean).join(' · ') || (t.planned ? 'all on track' : undefined);
-  };
+
 </script>
 
 {#snippet template(args: { strips: ClientStrip[]; today: string })}
   <div style="max-width: 1140px;">
-    <Panel title="Training week" count={countOf(args.strips)}>
+    <Panel title="Training week" count={weekCounter(args.strips)?.label} countTone={weekCounter(args.strips)?.tone}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -166,7 +163,7 @@
 
 {#snippet narrow(args: { strips: ClientStrip[]; today: string })}
   <div style="max-width: 360px;">
-    <Panel title="Training week" count={countOf(args.strips)}>
+    <Panel title="Training week" count={weekCounter(args.strips)?.label} countTone={weekCounter(args.strips)?.tone}>
       <WeekGrid {...args} />
     </Panel>
   </div>
