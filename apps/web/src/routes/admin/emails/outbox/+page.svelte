@@ -275,7 +275,7 @@
         {#if !shown.length}
           {@const e = query.trim() ? { text: `No emails match “${query.trim()}”.` } : EMPTY[filter]}
           <p class="none" class:good={e.good}>
-            {#if e.good}<Icon name="check" />{/if}
+            {#if e.good}<Icon name="check" size={16} />{/if}
             {e.text}
           </p>
         {:else}
@@ -413,6 +413,7 @@
     color: var(--muted);
   }
   .none.good { color: var(--good); }
+  .none :global(svg) { flex: none; }
 
   .sr {
     position: absolute;
