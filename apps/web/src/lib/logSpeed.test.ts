@@ -5,7 +5,6 @@ import {
   fillDown,
   markTyped,
   nextCell,
-  notesWithSkips,
   rowsToSave,
   sheetCounts,
   setSkipReason,
@@ -169,14 +168,5 @@ describe("skip a whole exercise", () => {
     const plain = unskipExercise(skipped, "pe1");
     expect(plain.map((r) => r.skipped)).toEqual([false, false, undefined]);
     expect(plain.every((r) => !r.exerciseSkip)).toBe(true);
-  });
-
-  test("notes get one line per skipped exercise, cut before the trainer's words", () => {
-    expect(notesWithSkips("Felt strong", [{ name: "Hack Squat", reason: "pain" }, { name: "Row", reason: null }])).toBe(
-      "Felt strong\nSkipped Hack Squat — pain\nSkipped Row"
-    );
-    expect(notesWithSkips("  ", [{ name: "Row", reason: "time" }])).toBe("Skipped Row — time");
-    expect(notesWithSkips("x".repeat(15), [{ name: "Hack Squat", reason: "pain" }], 20)).toBe(`${"x".repeat(15)}\nSkip`);
-    expect(notesWithSkips("", [])).toBe("");
   });
 });

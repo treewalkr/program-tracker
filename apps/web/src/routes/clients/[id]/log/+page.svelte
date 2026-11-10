@@ -42,10 +42,10 @@
     loggedBySession,
     isDirty,
     parseDraft,
+    draftJson,
     draftKey,
     prescribedSummary,
     rowFilled,
-    DEFAULT_ENERGY,
     type PrescribedSummary,
     rowLabels,
     rowsToSave,
@@ -64,10 +64,8 @@
     isCopied,
     markTyped,
     nextCell,
-    notesWithSkips,
     setSkipReason,
     skipExercise,
-    skippedExercises,
     unskipExercise,
     SKIP_REASONS,
     SKIP_REASON_LABEL,
@@ -79,6 +77,22 @@
     type SheetField,
     type SheetRow,
   } from "$lib/logSheet";
+  import {
+    EMPTY_READINESS,
+    FLAG_KINDS,
+    FLAG_LABEL,
+    FLAG_NOTE_MAX,
+    READINESS_SCALES,
+    painExercises,
+    readinessInput,
+    sessionFlags,
+    setFlagNote,
+    tapScale,
+    toggleFlag,
+    type ExerciseFlags,
+    type FlagKind,
+    type ReadinessForm,
+  } from "$lib/logFlags";
 
   const id = $derived(page.params.id ?? "");
 
@@ -103,7 +117,12 @@
   let date = $state(today);
   /** Explains the last automatic date or session pick, under the selects. */
   let pickNote = $state<string | null>(null);
-  let energy = $state<number>(DEFAULT_ENERGY);
+  /** Energy, sleep and soreness before the session — all optional. */
+  let readiness = $state<ReadinessForm>({ ...EMPTY_READINESS });
+  /** programExerciseId → its Pain / Technique flag. */
+  let flags = $state<ExerciseFlags>({});
+  /** Slot whose flag menu is open. */
+  let flagOpen = $state<string | null>(null);
   let notes = $state("");
   let saving = $state(false);
   let savedCount = $state(0);
@@ -262,7 +281,9 @@
     usedSuggestion.clear();
     draftSavedAt = null;
     notes = "";
-    energy = DEFAULT_ENERGY;
+    readiness = { ...EMPTY_READINESS };
+    flags = {};
+    flagOpen = null;
     if (!program || !sessionId) {
       rows = [];
       return;
@@ -278,7 +299,8 @@
     if (draft) {
       rows = draft.rows;
       notes = draft.notes;
-      energy = draft.energy;
+      readiness = draft.readiness;
+      flags = draft.flags;
       date = draft.date;
       draftSavedAt = draft.savedAt;
     } else {
@@ -289,7 +311,7 @@
   // ---- Drafts: the sheet is kept on this device until it's saved or discarded ----
 
   let draftSavedAt = $state<string | null>(null);
-  const dirty = $derived(isDirty(rows, notes, energy));
+  const dirty = $derived(isDirty(rows, notes, readiness, flags));
 
   $effect(() => {
     if (!program || !sessionId || isCardioSession) return;
@@ -299,7 +321,7 @@
       return;
     }
     // Stringifying reads every cell, so any edit re-runs this.
-    const body = JSON.stringify({ rows, notes, energy, date, savedAt: new Date().toISOString() });
+    const body = draftJson({ rows, notes, readiness, flags, date, savedAt: new Date().toISOString() });
     try {
       localStorage.setItem(key, body);
     } catch {
@@ -467,7 +489,8 @@
   interface Snapshot {
     rows: Row[];
     notes: string;
-    energy: number;
+    readiness: ReadinessForm;
+    flags: ExerciseFlags;
     date: string;
     cardio: CardioForm;
   }
@@ -502,7 +525,8 @@
     return {
       rows: $state.snapshot(sheetRows) as Row[],
       notes,
-      energy,
+      readiness: $state.snapshot(readiness),
+      flags: $state.snapshot(flags),
       date,
       cardio: $state.snapshot(cardioForm),
     };
@@ -516,8 +540,10 @@
         programId: program!.id,
         programSessionId: sessionId,
         date,
-        perceivedEnergy: energy,
-        notes: notesWithSkips(notes, skippedExercises(sheetRows).map((x) => ({ name: nameOf(x.exerciseId), reason: x.reason }))) || undefined,
+        ...readinessInput(readiness),
+        // Skips and their reasons travel as flags; the notes are the trainer's own words.
+        flags: sessionFlags(sheetRows, flags),
+        notes: notes.trim() || undefined,
         sets: sent.map(toLoggedSet),
       },
       sent,
@@ -533,6 +559,7 @@
         programId: program!.id,
         programSessionId: sessionId,
         date,
+        ...readinessInput(readiness),
         notes: notes || undefined,
         kind: "cardio",
         cardio: {
@@ -773,7 +800,8 @@
       fieldErrors = {};
       rows = u.snapshot.rows;
       notes = u.snapshot.notes;
-      energy = u.snapshot.energy;
+      readiness = u.snapshot.readiness;
+      flags = u.snapshot.flags;
       date = u.snapshot.date;
       cardioForm = u.snapshot.cardio;
       pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
@@ -876,7 +904,18 @@
     rows = setSkipReason(rows, pe, was === reason ? null : reason);
   }
 
-  const painSkips = $derived(skippedExercises(rows).filter((x) => x.reason === "pain"));
+  /** Exercises with a Pain flag or skipped for pain — the warning above the save bar names them. */
+  const painList = $derived(painExercises(rows, flags));
+
+  // ---- Flag an exercise: Pain or Technique, with an optional note ----
+
+  function pickFlag(pe: string, kind: FlagKind) {
+    flags = toggleFlag(flags, pe, kind);
+  }
+
+  function noteFlag(pe: string, note: string) {
+    flags = setFlagNote(flags, pe, note);
+  }
 
   function go(i: number) {
     current = Math.max(0, Math.min(blocks.length - 1, i));
@@ -1026,6 +1065,9 @@
           {/if}
         </div>
       {/if}
+      {#if sessionId}
+        {@render readinessStrip()}
+      {/if}
       {#if isCardioSession}
         <div class="panel-body cardio-form">
           <Field label="Modality" htmlFor="c-modality" hint="what did they do?">
@@ -1051,11 +1093,6 @@
           </Field>
         </div>
         <div class="panel-body foot">
-          <div class="energy">
-            <label class="label" for="log-energy">Perceived energy <span class="subtle">1–10</span></label>
-            <input id="log-energy" type="range" min="1" max="10" bind:value={energy} />
-            <span class="num big">{energy}</span>
-          </div>
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">
               <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
@@ -1101,6 +1138,7 @@
           {@const role = roles.get(b.programExerciseId)}
           {@const swapped = isSwapped(head)}
           {@const exSkip = head.exerciseSkip}
+          {@const flag = flags[b.programExerciseId]}
           <section class="block" class:off={bi !== current} aria-labelledby={`blk-${b.programExerciseId}`}>
             <header class="blk-head">
               <div class="blk-title">
@@ -1111,6 +1149,18 @@
                 {/if}
                 {#if exSkip}
                   <span class="pill skip-pill">Skipped{exSkip.reason ? ` · ${exSkip.reason}` : ""}</span>
+                {/if}
+                {#if flag}
+                  <button
+                    type="button"
+                    class={`pill flag-pill ${flag.kind === "pain" ? "bad" : "warn"}`}
+                    title={flag.note || `${FLAG_LABEL[flag.kind]} flagged`}
+                    aria-label={`${FLAG_LABEL[flag.kind]} flagged on ${blockName(b)}${flag.note ? `: ${flag.note}` : ""}. Edit flag`}
+                    aria-expanded={flagOpen === b.programExerciseId}
+                    onclick={() => (flagOpen = flagOpen === b.programExerciseId ? null : b.programExerciseId)}
+                  >
+                    <Icon name="flag" />{FLAG_LABEL[flag.kind]}{#if flag.note}<span class="flag-note">· {flag.note}</span>{/if}
+                  </button>
                 {/if}
               </div>
               <div class="blk-act">
@@ -1139,6 +1189,17 @@
                   {#snippet icon()}<Icon name="plus" />{/snippet}
                   Set
                 </Button>
+                <Button
+                  variant="ghost"
+                  small
+                  type="button"
+                  aria-label={`Flag ${blockName(b)}: pain or technique`}
+                  aria-expanded={flagOpen === b.programExerciseId}
+                  onclick={() => (flagOpen = flagOpen === b.programExerciseId ? null : b.programExerciseId)}
+                >
+                  {#snippet icon()}<Icon name="flag" />{/snippet}
+                  Flag
+                </Button>
                 <Button variant="ghost" small type="button" aria-label={`Skip ${blockName(b)}`} onclick={() => skipBlock(b)}>Skip exercise</Button>
                 {/if}
               </div>
@@ -1153,6 +1214,33 @@
                       onclick={() => pickSkipReason(b.programExerciseId, k, exSkip.reason)}
                     >{SKIP_REASON_LABEL[k]}</button>
                   {/each}
+                </div>
+              {/if}
+              {#if flagOpen === b.programExerciseId}
+                <div class="blk-flag" role="group" aria-label={`Flag ${blockName(b)}`}>
+                  <span class="subtle">Flag</span>
+                  {#each FLAG_KINDS as k (k)}
+                    <button
+                      type="button"
+                      class="reason-chip"
+                      class:pain={k === "pain"}
+                      aria-pressed={flag?.kind === k}
+                      onclick={() => pickFlag(b.programExerciseId, k)}
+                    >{FLAG_LABEL[k]}</button>
+                  {/each}
+                  {#if flag}
+                    <input
+                      class="input flag-input"
+                      aria-label={`Note on the ${FLAG_LABEL[flag.kind].toLowerCase()} flag, optional`}
+                      placeholder={flag.kind === "pain" ? "Where, when? e.g. left knee at the bottom" : "What broke down? e.g. hips rise first"}
+                      maxlength={FLAG_NOTE_MAX}
+                      value={flag.note}
+                      oninput={(e) => noteFlag(b.programExerciseId, e.currentTarget.value)}
+                    />
+                  {:else}
+                    <span class="faint flag-hint">Tap one — tap again to clear</span>
+                  {/if}
+                  <Button variant="ghost" small type="button" onclick={() => (flagOpen = null)}>Done</Button>
                 </div>
               {/if}
               {#if swapOpen === b.programExerciseId && !exSkip}
@@ -1252,21 +1340,16 @@
         {/each}
       </div>
         <div class="panel-body foot">
-          <div class="energy">
-            <label class="label" for="log-energy">Perceived energy <span class="subtle">1–10</span></label>
-            <input id="log-energy" type="range" min="1" max="10" bind:value={energy} />
-            <span class="num big">{energy}</span>
-          </div>
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">
               <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
             </Field>
           </div>
         </div>
-        {#if painSkips.length > 0}
+        {#if painList.length > 0}
           <div class="panel-body pain-note">
             <Note tone="warn" role="note">
-              Pain logged on {painSkips.map((x) => nameOf(x.exerciseId)).join(", ")} — check in with {client.name.split(" ")[0]}.
+              Pain logged on {painList.map(nameOf).join(", ")} — check in with {client.name.split(" ")[0]}.
             </Note>
           </div>
         {/if}
@@ -1274,6 +1357,29 @@
       {/if}
       </Panel>
     </form>
+
+    {#snippet readinessStrip()}
+      <!-- Before the session: three optional taps. "Did it as prescribed" needs none of them. -->
+      <div class="panel-body readiness" role="group" aria-label="Readiness, optional">
+        {#each READINESS_SCALES as sc (sc.field)}
+          <div class="rd">
+            <span class="rd-label" id={`rd-${sc.field}`}>{sc.label} <span class="faint">1 {sc.low} · {sc.max} {sc.high}</span></span>
+            <div class="seg rd-scale" role="group" aria-labelledby={`rd-${sc.field}`}>
+              {#each Array.from({ length: sc.max }, (_, i) => i + 1) as v (v)}
+                <button
+                  type="button"
+                  class="tnum"
+                  aria-pressed={readiness[sc.field] === v}
+                  aria-label={`${sc.label} ${v} of ${sc.max}`}
+                  onclick={() => (readiness[sc.field] = tapScale(readiness[sc.field], v))}
+                >{v}</button>
+              {/each}
+            </div>
+          </div>
+        {/each}
+        <span class="faint rd-hint">Optional · tap again to clear</span>
+      </div>
+    {/snippet}
 
     {#snippet saveBar(status: string)}
       <!-- Sticky: Save, the tally and the error stay on screen while the sheet scrolls. -->
@@ -1628,7 +1734,7 @@
 
   .foot {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 22px;
     align-items: end;
     border-top: 1px solid var(--line);
@@ -1638,10 +1744,61 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
   }
-  .energy { display: flex; align-items: center; gap: 10px; }
-  .energy input[type="range"] { accent-color: var(--blue); }
-  .energy .label { margin: 0; }
   .notes { min-width: 220px; }
+
+  /* ---- Readiness: three segmented scales, top of the sheet ---- */
+  .readiness {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 24px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .rd { display: grid; gap: 6px; }
+  .rd-label { font: 500 12px/1.2 var(--font-ui); color: var(--muted); }
+  .rd-label .faint { font-weight: 400; margin-left: 4px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    font: 500 13px/1 var(--font-mono);
+    color: var(--muted);
+    background: var(--well);
+    border: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button:hover { color: var(--ink); background: var(--well-2); }
+  .seg button[aria-pressed="true"] { color: var(--ink); background: var(--surface); font-weight: 600; box-shadow: inset 0 -2px 0 var(--tab-on); }
+  .rd-hint { font-size: 12px; margin-left: auto; align-self: center; }
+
+  /* ---- Flag an exercise ---- */
+  .flag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 280px;
+    font: 500 12px/1.4 var(--font-ui);
+    cursor: pointer;
+  }
+  .flag-pill :global(svg) { flex: 0 0 auto; width: 12px; height: 12px; }
+  .flag-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+  .blk-flag {
+    flex: 1 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0 4px;
+  }
+  .blk-flag .subtle { font-size: 13px; margin-right: 4px; }
+  .reason-chip.pain[aria-pressed="true"] { color: var(--bad); background: var(--bad-bg); border-color: var(--bad-line); }
+  .flag-input { flex: 1 1 260px; min-width: 0; height: 28px; font-size: 13px; }
+  .flag-hint { font-size: 12px; }
   .submit-row { display: flex; align-items: center; gap: 14px; }
 
   /* ---- Sticky Save bar: last thing in the form, pinned to the viewport bottom while the sheet scrolls ---- */
@@ -1834,7 +1991,12 @@
     .head-controls .select, .date { width: 100%; }
     .head-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); }
     .head-controls :global(.btn) { grid-column: 1 / -1; min-height: 44px; justify-content: center; }
-    .energy input[type="range"] { flex: 1; }
+    .readiness { display: grid; gap: 12px; }
+    .rd-scale { display: flex; }
+    .seg button { flex: 1; min-width: 0; height: 40px; font-size: 14px; }
+    .rd-hint { margin-left: 0; }
+    .flag-pill { max-width: 100%; }
+    .flag-input { flex-basis: 100%; height: 44px; font-size: 14px; }
     .notes { min-width: 0; }
     .notes .input { min-height: 44px; }
     .submit-row :global(.btn) { min-height: 44px; padding: 0 22px; }
@@ -1844,5 +2006,6 @@
     .blk-act { flex-wrap: wrap; }
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 40px; padding: 0 6px; font-size: 14px; flex: 1; }
+    .blk-flag .subtle { flex-basis: 100%; }
   }
 </style>

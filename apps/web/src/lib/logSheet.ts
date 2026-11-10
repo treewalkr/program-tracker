@@ -1,4 +1,5 @@
-import { resolveLoadKg, type PrescribedSet, type SetType } from "@pt/shared";
+import { resolveLoadKg, type PrescribedSet, type SetType, type SkipReason } from "@pt/shared";
+import { parseFlags, parseReadiness, readinessRated, type ExerciseFlags, type ReadinessForm } from "./logFlags";
 
 /**
  * A log-sheet cell. Svelte number-input binds give a number, or null/undefined
@@ -410,13 +411,12 @@ export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: s
   return { sets, missingLoad: missing, missingLoadSets, openAmrap };
 }
 
-export const DEFAULT_ENERGY = 7;
-
 /** Anything the trainer entered that a session change or leaving the page would lose. */
-export function isDirty(rows: SheetRow[], notes: string, energy: number): boolean {
+export function isDirty(rows: SheetRow[], notes: string, readiness: ReadinessForm, flags: ExerciseFlags): boolean {
   return (
     notes.trim() !== "" ||
-    energy !== DEFAULT_ENERGY ||
+    readinessRated(readiness) ||
+    Object.keys(flags).length > 0 ||
     rows.some((r) => r.skipped || r.extra || isSwapped(r) || !isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe))
   );
 }
@@ -428,9 +428,16 @@ export function isDirty(rows: SheetRow[], notes: string, energy: number): boolea
 export interface SheetDraft<R extends SheetRow = SheetRow> {
   rows: R[];
   notes: string;
-  energy: number;
+  readiness: ReadinessForm;
+  flags: ExerciseFlags;
   date: string;
   savedAt: string;
+}
+
+/** What goes in localStorage. Energy stays a top-level field, as drafts stored it before the readiness strip. */
+export function draftJson(d: SheetDraft): string {
+  const { readiness, ...rest } = d;
+  return JSON.stringify({ ...rest, energy: readiness.energy, readiness: { sleep: readiness.sleep, soreness: readiness.soreness } });
 }
 
 export const draftKey = (clientId: string, sessionId: string) => `pt:log-draft:${clientId}:${sessionId}`;
@@ -441,19 +448,25 @@ export const draftKey = (clientId: string, sessionId: string) => `pt:log-draft:$
  */
 export function parseDraft<R extends SheetRow>(raw: string | null, fresh: R[]): SheetDraft<R> | null {
   if (!raw) return null;
-  let d: SheetDraft<R>;
+  let d: { rows?: R[]; notes?: unknown; energy?: unknown; readiness?: unknown; flags?: unknown; date?: unknown; savedAt?: unknown };
   try {
     d = JSON.parse(raw);
   } catch {
     return null;
   }
-  if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.energy !== "number" || typeof d.date !== "string") {
-    return null;
-  }
+  if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.date !== "string") return null;
   const keys = new Set(d.rows.map((r) => r?.key));
   const prescribed = d.rows.filter((r) => !r?.extra);
   if (prescribed.length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
-  return d;
+  // Drafts from before the readiness strip carry a bare energy and no flags.
+  return {
+    rows: d.rows,
+    notes: d.notes,
+    readiness: parseReadiness(d),
+    flags: parseFlags(d.flags),
+    date: d.date,
+    savedAt: typeof d.savedAt === "string" ? d.savedAt : "",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -526,8 +539,7 @@ export function nextCell(order: CellRef[], key: string, field: SheetField, dir: 
   return order[i + dir] ?? null;
 }
 
-export const SKIP_REASONS = ["time", "pain", "equipment", "other"] as const;
-export type SkipReason = (typeof SKIP_REASONS)[number];
+export { SKIP_REASONS, type SkipReason } from "@pt/shared";
 export const SKIP_REASON_LABEL: Record<SkipReason, string> = { time: "Time", pain: "Pain", equipment: "Equipment", other: "Other" };
 
 /** An extra set in the slot still holds something the trainer entered. */
@@ -569,17 +581,4 @@ export function skippedExercises(rows: SheetRow[]): { programExerciseId: string;
     out.push({ programExerciseId: r.programExerciseId, exerciseId: r.exerciseId, reason: r.exerciseSkip.reason });
   }
   return out;
-}
-
-export const NOTES_MAX = 2000;
-
-/**
- * The notes a save sends: the trainer's notes, then one line per skipped
- * exercise ("Skipped Hack Squat — pain"). Over the limit, the skip lines are
- * what gets cut — never the trainer's words.
- */
-export function notesWithSkips(notes: string, skips: { name: string; reason: SkipReason | null }[], max = NOTES_MAX): string {
-  const own = notes.trim();
-  const lines = skips.map((s) => `Skipped ${s.name}${s.reason ? ` — ${s.reason}` : ""}`);
-  return [own, ...lines].filter(Boolean).join("\n").slice(0, Math.max(max, own.length));
 }

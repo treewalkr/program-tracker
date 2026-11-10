@@ -22,11 +22,12 @@ import {
   loggedBySession,
   prescribedSummary,
   isDirty,
-  DEFAULT_ENERGY,
+  draftJson,
   draftKey,
   parseDraft,
   type SheetRow,
 } from "./logSheet";
+import { EMPTY_READINESS } from "./logFlags";
 
 const row = (over: Partial<SheetRow> = {}): SheetRow => ({
   key: "pe1-1",
@@ -425,29 +426,33 @@ describe("prescribedSummary", () => {
 });
 
 describe("isDirty", () => {
+  const none = EMPTY_READINESS;
   test("a fresh sheet is clean", () => {
-    expect(isDirty([row()], "", DEFAULT_ENERGY)).toBe(false);
-    expect(isDirty([row({ weight: null, reps: undefined })], "  ", DEFAULT_ENERGY)).toBe(false);
+    expect(isDirty([row()], "", none, {})).toBe(false);
+    expect(isDirty([row({ weight: null, reps: undefined })], "  ", none, {})).toBe(false);
   });
 
   test("a typed value, a skip, an extra set or a swap is dirty", () => {
-    expect(isDirty([row({ reps: 5 })], "", DEFAULT_ENERGY)).toBe(true);
-    expect(isDirty([row({ rpe: 8 })], "", DEFAULT_ENERGY)).toBe(true);
-    expect(isDirty([row({ skipped: true })], "", DEFAULT_ENERGY)).toBe(true);
-    expect(isDirty([row({ extra: true })], "", DEFAULT_ENERGY)).toBe(true);
-    expect(isDirty([row({ exerciseId: "other" })], "", DEFAULT_ENERGY)).toBe(true);
+    expect(isDirty([row({ reps: 5 })], "", none, {})).toBe(true);
+    expect(isDirty([row({ rpe: 8 })], "", none, {})).toBe(true);
+    expect(isDirty([row({ skipped: true })], "", none, {})).toBe(true);
+    expect(isDirty([row({ extra: true })], "", none, {})).toBe(true);
+    expect(isDirty([row({ exerciseId: "other" })], "", none, {})).toBe(true);
   });
 
-  test("notes or a changed energy are dirty", () => {
-    expect(isDirty([row()], "felt slow", DEFAULT_ENERGY)).toBe(true);
-    expect(isDirty([row()], "", 9)).toBe(true);
+  test("notes, any readiness tap or a flag are dirty", () => {
+    expect(isDirty([row()], "felt slow", none, {})).toBe(true);
+    expect(isDirty([row()], "", { ...none, energy: 9 }, {})).toBe(true);
+    expect(isDirty([row()], "", { ...none, sleep: 2 }, {})).toBe(true);
+    expect(isDirty([row()], "", { ...none, soreness: 4 }, {})).toBe(true);
+    expect(isDirty([row()], "", none, { pe1: { kind: "technique", note: "" } })).toBe(true);
   });
 });
 
 describe("drafts", () => {
   const fresh = [row({ key: "a" }), row({ key: "b" })];
-  const draft = (rows: SheetRow[]) =>
-    JSON.stringify({ rows, notes: "n", energy: 8, date: "2026-11-09", savedAt: "2026-11-09T10:00:00Z" });
+  const draft = (rows: SheetRow[], extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ rows, notes: "n", energy: 8, date: "2026-11-09", savedAt: "2026-11-09T10:00:00Z", ...extra });
 
   test("draftKey is per client and session", () => {
     expect(draftKey("c1", "s1")).not.toBe(draftKey("c1", "s2"));
@@ -457,7 +462,27 @@ describe("drafts", () => {
   test("a draft that covers the session comes back with its extras", () => {
     const d = parseDraft(draft([row({ key: "a", reps: 5 }), row({ key: "b" }), row({ key: "x", extra: true })]), fresh);
     expect(d?.rows.map((r) => r.key)).toEqual(["a", "b", "x"]);
-    expect(d?.energy).toBe(8);
+    // A draft from before the readiness strip: energy alone, no flags.
+    expect(d?.readiness).toEqual({ energy: 8, sleep: null, soreness: null });
+    expect(d?.flags).toEqual({});
+  });
+
+  test("readiness and flags round-trip through draftJson", () => {
+    const saved = {
+      rows: fresh,
+      notes: "",
+      readiness: { energy: null, sleep: 2, soreness: 5 },
+      flags: { pe1: { kind: "pain" as const, note: "knee" } },
+      date: "2026-11-09",
+      savedAt: "2026-11-09T10:00:00Z",
+    };
+    expect(parseDraft(draftJson(saved), fresh)).toEqual(saved);
+  });
+
+  test("bad readiness values or flags in a draft read as unset", () => {
+    const d = parseDraft(draft(fresh, { energy: 11, readiness: { sleep: 9, soreness: "3" }, flags: { pe1: { kind: "ouch" }, pe2: { kind: "pain" } } }), fresh);
+    expect(d?.readiness).toEqual({ energy: null, sleep: null, soreness: null });
+    expect(d?.flags).toEqual({ pe2: { kind: "pain", note: "" } });
   });
 
   test("a draft from an edited session, junk or nothing is dropped", () => {
