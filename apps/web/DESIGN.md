@@ -59,7 +59,12 @@ typography:
     lineHeight: 1.2
   micro:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif"
-    fontSize: "13px / 11px"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.4
+  micro-sm:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.4
   mono:
@@ -69,6 +74,7 @@ typography:
     lineHeight: 1
     fontFeature: "tnum"
 rounded:
+  xs: "2px"
   sm: "4px"
   md: "6px"
   lg: "8px"
@@ -186,11 +192,11 @@ A neutral Primer canvas (white, wells, hairlines) where color arrives only as fu
 ### Secondary
 - **Link Blue** (#0969da): Links, snooze, the "changed" diff ink, the transition directive chip, and injected periodization context. Darkens to Link Blue Hover (#0860c4).
 - **Focus Blue** (rgba(9, 105, 218, 0.45)): The global `:focus-visible` outline (2px, offset −1px). Input focus adds a 3px halo at 15% alpha of the same hue.
-- **Pulse Blue Tint** (#ddf4ff): The current week — today's cell and the current pulse row — a highlight, not a status.
+- **Pulse Blue Tint** (#ddf4ff): The current week — today's cell and the current pulse row — a highlight, not a status. At 45% (`color-mix` with transparent) it bands today's column of the week grid from header to last row.
 
 ### Tertiary
 - **Danger Red** (#cf222e): Destructive actions, rejected/failed states, delta-down, missed sessions, maximal RPE outside set chips. Tint Danger Red Tint (#ffebe9) + Edge Danger Red Edge (#ffcecb) for the bad pill, missed cells, and the reject flash.
-- **Attention Amber** (#9a6700): Paused/warn ink and the hard RPE tier (7–8) outside set chips (set chips use the neutral scale under Components). Tint Attention Amber Tint (#fff8c5) + Edge (#d4a72c66) for the demo banner and limitations panel (amber body ink #4d3800 on the tint).
+- **Attention Amber** (#9a6700): Paused/warn ink and the hard RPE tier (7–8) outside set chips (set chips use the neutral scale under Components). Tint Attention Amber Tint (#fff8c5) + Edge (#d4a72c66) for the demo banner, limitations panel and not-logged-yet week cells (amber body ink #4d3800 on the tint; Amber is their history-square edge). The dimmed-dark palette lifts Amber to #d29922 so amber Labels keep 4.5:1 on their tint.
 - **Tab Coral** (#fd8c73): The 2px active-tab underline — the system's only warm flourish, straight from Primer's UnderlineNav.
 - **Contributions Ramp** (done-1 #aceebb → done-4 #116329): Logged intensity. The overall volume heat strip walks the full 4 steps; logged week cells intentionally use the darkest step (done-4, #116329) instead of the prototype's brighter #4ac26b so the 11px white uppercase tag keeps 4.5:1 contrast; the overview's history squares walk all four steps by the intensity rule (see Contributions Week Grid); missed-past cells are Danger Red Tint (a real data state, not prototype furniture).
 
@@ -228,8 +234,8 @@ Mode (System / Light / Dark) and theme are separate picks. Each mode has its own
 - **Title** (600, 16px / 14px, 1.3): `h2` section titles and panel-head titles (panel heads run 14px).
 - **Body** (400, 14px, 1.5): All prose, table cells, buttons, nav. Forms and settings stacks cap at `--measure-form` (720px).
 - **Label** (500, 12px, 1.2): Pills, counters, directive chips, when-chips, set-chip sub-labels, sidebar nav group labels (sentence case, Muted Ink).
-- **Mono figures** (500, 12px, tabular-nums): Set chips, deltas, `.num` stats (`.num.big` 20px/600), table `.r` columns, the merged-instructions `pre`. Week-cell tags run 10px uppercase mono with 0.02em tracking.
-- **Micro metadata** (400, 13px / 11px): Evidence lines at 13px muted; day numbers, client meta, and off-day dashes at 11px faint.
+- **Mono figures** (500, 12px, tabular-nums): Set chips, deltas, `.num` stats (`.num.big` 20px/600), table `.r` columns, the merged-instructions `pre`. Week-cell tags run 11px/500 uppercase mono with 0.02em tracking where day columns are ≥64px, and 11px/500 sentence-case UI type below that (container ≤757px).
+- **Micro metadata** (400, 13px `micro` / 11px `micro-sm`): Evidence lines, the week grid's idle line and panel prose at 13px muted; day numbers, client meta, week-cell state words, legend text and inline reason Labels (11px Label variant) at 11px.
 
 ### Named Rules
 **The Tabular Figure Rule.** Any number that gets compared across a row, column, or week renders in `ui-monospace` with `font-variant-numeric: tabular-nums` (right-aligned in sheet tables). Counts inside pills are the one exception — they are labels, not figures.
@@ -261,10 +267,10 @@ Flat, and deliberately so. Depth is conveyed by tonal layering — white panels 
 
 ## Shapes
 
-A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 8px for the sidebar's identity squares (the 32px "PT" mark and account avatar, the brand row) and the floating account menu; 4px only inside data grids and small focus outlines (week cells, overall volume heat squares, the row-link focus ring). Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
+A bordered, quietly rounded form language. Default radius 6px on every control and container (buttons, inputs, panels, set chips, notes, `pre` blocks); fully-round 99px pills for every chip-like token (labels, counters, when-chips, directive chips, lamps, avatars, scrollbars); 8px for the sidebar's identity squares (the 32px "PT" mark and account avatar, the brand row) and the floating account menu; 4px only inside data grids and small focus outlines (week cells and their legend swatches, overall volume heat squares, the row-link focus ring); 2px only on the 10px history squares and the tooltip's 8px status dots. Everything gets a 1px border — transparent-background variants (ghost buttons) switch to dashed rather than going naked. Underlines act as shape: the 2px Tab Coral tab underline, the 2px Link Blue today-cell border, the 2px Hairline Gray Soft table header rule, and `text-underline-offset: 3px` on row links.
 
 ### Named Rules
-**The Fixed Radii Rule.** Three radii exist — 6px containers/controls, 99px pills, 4px inner data cells — and no others. No new corner value enters the system.
+**The Fixed Radii Rule.** Four radii exist — 6px containers/controls, 99px pills, 4px inner data cells, 2px for marks under 10px (history squares, tooltip dots) — and no others. No new corner value enters the system.
 
 ## Components
 
@@ -278,7 +284,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 
 ### Chips
 - **Status pill (Primer Label):** 99px, 12px/500 ink-on-tint (`good`/`warn`/`bad`/`neutral`) with a matching tint edge; the StatusPill component maps every domain state onto these four
-- **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged")
+- **Counter:** a white pill with hairline border and Muted Ink text sitting beside a heading to cite its evidence ("9 of 12 logged"). An optional `tone` (`Panel countTone`) renders it as the matching Primer Label instead — `bad` when the count reports a failure, `warn` when it reports something to do — for the Training week counter only so far
 - **Directive chips:** neutral pills recolored per periodization directive — +volume green, +intensity amber, transition blue
 - **Role chip:** the session slot an exercise fills (Power / Primary / Str / Aux / Core) — neutral well pill in the trainer's shorthand, the primary lift in default ink; full description on hover (`title`); leads the exercise name in session rows
 - **Set chip (code span):** mono 12px on Chip Gray (6px radius): reps `3×8`, `@RPE` on a neutral ink-weight scale (≤6 Muted Ink 500, 7–8 Ink 600, 9–10 figures alone at 800 (`@RPE 8→`**`9`**) — a planned effort, never a status colour, a fill or a link look; the Primary row, not effort, is the loudest mark on a session: ink-ruled role pill, 600 name), faint rest `3m` (11px micro). Cardio lines on session cards are Muted Ink with the pulse glyph, not Commit Green
@@ -305,16 +311,20 @@ The needs-review unit: an 8px lamp dot (green/amber `#bf8700`/red/gray `#818b98`
 
 ### Contributions Week Grid
 The overview's signature, and the first panel on the page: it spans the full column above the Needs-review / Clients grid, because the history needs the width. It answers "who needs me today, and who's slipping?" in one scan.
-- **Structure:** an ARIA table (explicit `table`/`row`/`columnheader`/`rowheader`/`cell` roles, so the narrow re-flow keeps the semantics). Columns: Client (152px), Earlier weeks (one header with a faint mono week-start date over each week), then one column header per day of this week (`minmax(48px, 1fr)`, `Mon` over a mono `9`; today Link Blue + 600, past days Faint Ink). Each client's name is the row header.
-- **Rows sort exceptions-first, always:** missed → due today → on track → nothing this week, roster order within each group; no toggle. Clients with nothing this week collapse into one muted line at the bottom ("2 clients with no sessions this week" + the names as links).
-- **Client column:** name link (Ink/600; the program name is its `title`), then a mono 11px Muted Ink figure strip — `3/wk · +1 any day · cardio 40/120` (unit only when not minutes); parts wrap whole.
-- **Earlier weeks:** five calendar weeks as 10px squares (2px radius, 2px gap, 5px between weeks), Mon → Sun left to right. Logged = the contributions ramp by the **intensity rule** below; missed = Danger Red Tint with a Danger edge; planned (not yet due) = hairline outline; rest and before-start days = a 55% Well Gray 2 square, `aria-hidden`. Weeks before the current program started show logs only — never missed (F07). The whole run is one tab stop per client; ←/→, Home/End move between days. As the panel narrows the oldest week drops first (container ≤974/887/800/713px), and at ≤626px the history hides entirely.
-- **This week:** labelled cells (4px radius, min-height 40px, max-width 76px). The session tag is 11px uppercase mono (wraps to two lines, never a 10px ellipsis); a second session reads `+1 more` under it; done and missed cells carry an 11px state word (`done`, `missed`) — today's cell has none, the blue ring and header already say it. States: **done** = done-4 fill + On-done text; **due today** = Link Blue edge plus a 1px inset ring on Pulse Blue Tint, blue text; **missed** = Danger Red Tint + edge + red text; **upcoming** = Well Gray + Muted Ink; rest days a 4px Hairline dot, `aria-hidden`. Due-today and missed cells are links straight to the logger on that session and date (`?session=&date=`); done and upcoming cells are buttons that open the popover.
-- **Every day explains itself:** hover (150ms) or focus shows a card (Canvas, hairline, `--shadow-overlay`): client, date, each session with its status ("logged Tue, Nov 3" when done on another day), and the day's volume with its level word. A click or tap pins it as a non-modal dialog with **Log** links on due/missed sessions and "Open {client}"; from the keyboard focus moves into it, Escape returns focus to the day. Every square and cell carries a full-sentence label ("Maya Chen, Monday, Nov 9: Lower — squat due today; Zone 2 bike due today. Open the logger.").
-- **Interaction:** hover is a border, never a brightness filter (ink edge on cells, 1px ink outline on squares); focus is a 2px Ink outline offset 2px over a canvas halo, visible on blue, green and red fills alike.
-- **Legend:** right-aligned under a soft hairline, 11px Muted Ink: `Less ■■■■ More · Missed · Due today · Planned`.
-- **Counter:** the panel counter says what needs the trainer now — "2 due today · 1 missed", or "all on track"; the page sub-line keeps "N of M logged".
-- **Narrow (container ≤520px):** only this week; the client becomes a label line above its seven cells; tags drop to 11px sentence-case UI type so short names ("Lower", "Upper A") fit whole in ~33px cells, and `+1 more` shortens to `+1`.
+- **Structure:** an ARIA table (explicit `table`/`row`/`columnheader`/`rowheader`/`cell` roles). Columns: Client (152px), Earlier weeks (one header with a faint mono week-start date over each week), then one column header per day of this week (`minmax(64px, 1fr)`, `Mon` over a mono `9`; today Link Blue + 600). Past day headers are not dimmed — Monday is often where the red lives. Each client's name is the row header. Every row has all nine cells at every width: re-flows move cells, they never remove the history column (its header goes visually hidden instead), so the idle line's `aria-colspan="9"` is always true.
+- **Today band:** today's column carries Pulse Blue Tint at 45% from the header (4px top corners) through every client row — a quiet column, not a status.
+- **Grace period (`GRACE_DAYS = 2`):** a planned session not logged is **not logged** (`unlogged`) on the two days after its date, and **missed** only from the third — clients report late and trainers log in batches, so Tuesday morning never shows Monday as missed. Today Thu: Mon = missed, Tue/Wed = not logged. It applies to history squares across the week boundary too.
+- **Rows sort exceptions-first, always:** missed → not logged → due today → on track → nothing this week, roster order within each group; no toggle.
+- **Idle line:** clients with nothing this week collapse into one muted 13px line at the bottom: "No sessions this week:" then each client as a Link Blue link followed by an 11px neutral Label with the reason in words — the client status when not active ("paused"), else "no program", else "nothing planned". The reason is visible text, never only a `title`.
+- **Client column:** name link (Ink/600; the program name is its `title`), then a mono 11px Muted Ink figure strip — `3/wk · +1 any day · cardio 40/120 min` (the cardio unit always shows); parts wrap whole.
+- **Earlier weeks:** five calendar weeks as 10px squares (2px radius, 2px gap, 5px between weeks), Mon → Sun left to right. Logged = the contributions ramp by the **intensity rule** below; missed = Danger Red Tint with a Danger edge; not logged = Attention Amber Tint with an Amber edge; planned (not yet due) = a Faint Ink outline on canvas (≥3:1 in every palette — Hairline Strong was 2:1); rest and before-start days = a 55% Well Gray 2 square, `aria-hidden`. Weeks before the current program started show logs only — never missed (F07). The whole run is one tab stop per client; ←/→, Home/End move between days. As the panel narrows the oldest week drops first (container ≤1105/1018/931/844px); the latest week never drops (see the re-flows below).
+- **This week:** labelled cells (4px radius, max-width 76px) of one **fixed height** — 52px, or 44px at ≤520px — so every row is even. The tag clamps to two lines; a single word, or (in uppercase mono) a tag holding a word over eight letters, stays on one line and ellipsizes; the full name lives in the label and tooltip. **Extra sessions** show as marks under the tag, one per extra session, at most three: a 6px square for lifting, a 6px disc for cardio (shape, not only colour), in the cell's ink — never "+1 more" text. Where it fits (container >520px) done, not-logged and missed cells add an 11px state word (`done`, `to log`, `missed`) beside the marks; today's cell has none, the blue ring and header already say it. States: **done** = done-4 fill + On-done text; **due today** = Link Blue edge plus a 1px inset ring on Pulse Blue Tint, blue text; **not logged** = Attention Amber Tint + Attention Amber Edge + amber body ink (`--warn-ink`), Amber edge on hover; **missed** = Danger Red Tint + edge + red text; **upcoming** = Well Gray + Muted Ink; rest days a 4px Hairline dot, `aria-hidden`. Due-today, not-logged and missed cells are links straight to the logger on that session and date (`?session=&date=`); done and upcoming cells are buttons that open the popover.
+- **Every day explains itself:** hover (150ms) or focus shows a card (Canvas, hairline, `--shadow-overlay`): client, date, each session with its status ("logged Tue, Nov 3" when done on another day; "not logged" in amber), and the day's volume with its level word. A click or tap pins it as a non-modal dialog with **Log** links on due, not-logged and missed sessions and "Open {client}"; from the keyboard focus moves into it, Escape returns focus to the day. Every square and cell carries a full-sentence label listing every session ("Maya Chen, Monday, Nov 9: Lower — squat due today; Zone 2 bike due today. Open the logger.").
+- **Interaction:** hover is a border, never a brightness filter (ink edge on cells, 1px ink outline on squares); focus is a 2px Ink outline offset 2px over a canvas halo, visible on blue, green, amber and red fills alike.
+- **Legend:** right-aligned under a soft hairline, 11px Muted Ink, listing only what the data draws: `Less ■■■■ More` when any history day is logged, then state swatches — Done · Missed · Not logged · Due today · Planned — each present state only. Swatches are the cells in miniature (16×12, 4px radius, the cell's fill and edge, a 6×2 stroke in the cell's text colour standing in for the tag).
+- **Counter:** counts what the grid draws — client-days (cells), not sessions: "2 missed · 3 to log · 1 due today" (zero parts omitted), or "all on track". Any missed → red Primer Label (`bad`); only to-log/due → amber Label (`warn`) when something is to log, else the neutral Counter. The page sub-line keeps "N of M logged" in sessions.
+- **Mid width (container ≤757px):** the latest past week moves under the client name in the 112px client column (day cells span both lines; day columns `minmax(48px, 1fr)`), and tags switch to 11px sentence-case UI type so "Strength A" fits whole over two lines.
+- **Narrow (container ≤520px):** the client becomes a label line above its seven cells, with the last two past weeks right-aligned on that line (one at ≤450px); state words drop — fill, edge and the label carry the state.
 
 **Intensity rule** (`dayIntensityLevels` in `@pt/shared`): a logged day's volume against the client's own logged days over the six shown weeks. Lifting = tonnage (Σ kg × reps, timed holds excluded); lifting with no load = set count; cardio-only days = minutes; cardio with no duration = sessions — each compared only with days measured the same way. Quartile cut points: below Q1 → done-1 (light day), Q1–median → done-2 (below usual), median–Q3 → done-3 (usual day), above Q3 → done-4 (big day). A usual day reads done-3, and one outlier can't wash out the rest. A planned day logged on another day of its week still reads at least done-1.
 
