@@ -174,7 +174,7 @@
             </span>
           </div>
           {#each thisWeek as date, i (date)}
-            <div class="wk-day" class:dim={date < today} class:now={date === today} role="columnheader" aria-label={dayDateLabel(date, true)}>
+            <div class="wk-day" class:now={date === today} role="columnheader" aria-label={dayDateLabel(date, true)}>
               {DAY_LABELS[i]}<span class="d">{Number(date.slice(8, 10))}</span>
             </div>
           {/each}
@@ -231,7 +231,7 @@
 
             {#each s.weeks[s.weeks.length - 1] as d (d.date)}
               {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
-              <div class="wk-cell" role="cell">
+              <div class="wk-cell" class:now={d.date === today} role="cell">
                 {#if marks(d)}
                   {@const label = daySentence(s.client.name, d)}
                   {#snippet body()}
@@ -374,8 +374,10 @@
   }
   .corner { text-align: left; padding-left: 4px; }
   .wk-day .d { display: block; font: 400 11px/1.6 var(--font-mono); color: var(--faint); }
-  .wk-day.dim { color: var(--faint); }
   .wk-day.now, .wk-day.now .d { color: var(--blue); font-weight: 600; }
+  /* Today's column: a quiet band of the Pulse tint from header to last row. */
+  .wk-day.now, .wk-cell.now { background: color-mix(in srgb, var(--pulse-now-bg) 45%, transparent); }
+  .wk-day.now { border-radius: 4px 4px 0 0; }
   .hist[role="columnheader"] { padding-right: 12px; }
   .hw-labels { display: flex; gap: 5px; }
   .hw-label {
@@ -433,7 +435,8 @@
   button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
 
   /* This week */
-  .wk-cell { padding: 6px 0; display: flex; justify-content: center; min-width: 0; }
+  /* Stretched to the row so today's band runs unbroken down the column. */
+  .wk-cell { padding: 6px 0; display: flex; justify-content: center; align-items: center; align-self: stretch; min-width: 0; }
   /* Every this-week cell is the same height at a given width: the tag clamps
      to two lines, extras are marks, never extra text lines. */
   .cell {
