@@ -5,6 +5,9 @@ import {
   addSet,
   AiProgramDraft,
   CardioLog,
+  isPainFlag,
+  Readiness,
+  SessionFlag,
   CardioPrescription,
   CardioTarget,
   CHAIN_MUSCLE_GROUPS,
@@ -1298,3 +1301,29 @@ describe("Program editing (pure)", () => {
   });
 });
 
+
+describe("SessionFlag / Readiness", () => {
+  const ex = "00000000-0000-4000-8000-000000000001";
+  test("readiness takes 1–5 integers, each optional", () => {
+    expect(Readiness.safeParse({}).success).toBe(true);
+    expect(Readiness.safeParse({ sleep: 2, soreness: 5 }).success).toBe(true);
+    expect(Readiness.safeParse({ sleep: 0 }).success).toBe(false);
+    expect(Readiness.safeParse({ soreness: 6 }).success).toBe(false);
+    expect(Readiness.safeParse({ sleep: 2.5 }).success).toBe(false);
+    expect(Readiness.safeParse({ stress: 3 }).success).toBe(false);
+  });
+  test("flags: kinds, skip reasons only on skips, note ≤ 280", () => {
+    expect(SessionFlag.safeParse({ programExerciseId: null, exerciseId: ex, kind: "pain", note: "knee" }).success).toBe(true);
+    expect(SessionFlag.safeParse({ programExerciseId: ex, exerciseId: ex, kind: "skipped", reason: "time" }).success).toBe(true);
+    expect(SessionFlag.safeParse({ programExerciseId: null, exerciseId: ex, kind: "pain", reason: "time" }).success).toBe(false);
+    expect(SessionFlag.safeParse({ programExerciseId: null, exerciseId: ex, kind: "ouch" }).success).toBe(false);
+    expect(SessionFlag.safeParse({ programExerciseId: null, exerciseId: ex, kind: "skipped", reason: "bored" }).success).toBe(false);
+    expect(SessionFlag.safeParse({ programExerciseId: null, exerciseId: ex, kind: "technique", note: "x".repeat(281) }).success).toBe(false);
+  });
+  test("isPainFlag counts pain and skipped-for-pain", () => {
+    expect(isPainFlag({ kind: "pain" })).toBe(true);
+    expect(isPainFlag({ kind: "skipped", reason: "pain" })).toBe(true);
+    expect(isPainFlag({ kind: "skipped", reason: "time" })).toBe(false);
+    expect(isPainFlag({ kind: "technique" })).toBe(false);
+  });
+});

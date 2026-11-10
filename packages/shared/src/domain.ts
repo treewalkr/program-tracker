@@ -1205,6 +1205,44 @@ export const CardioLog = z.object({
 });
 export type CardioLog = z.infer<typeof CardioLog>;
 
+/** Pre-session readiness, 1–5 each (both optional). Energy stays in `perceivedEnergy`. */
+export const Readiness = z
+  .object({
+    sleep: z.number().int().min(1).max(5).optional(),
+    soreness: z.number().int().min(1).max(5).optional(),
+  })
+  .strict();
+export type Readiness = z.infer<typeof Readiness>;
+
+export const SESSION_FLAG_KINDS = ["pain", "technique", "skipped"] as const;
+export const SessionFlagKind = z.enum(SESSION_FLAG_KINDS);
+export type SessionFlagKind = z.infer<typeof SessionFlagKind>;
+
+export const SKIP_REASONS = ["time", "pain", "equipment", "other"] as const;
+export const SkipReason = z.enum(SKIP_REASONS);
+export type SkipReason = z.infer<typeof SkipReason>;
+
+/** A per-exercise note on a logged session: pain, a technique issue, or a skip (with its reason). */
+export const SessionFlag = z
+  .object({
+    /** The program slot; null = an ad-hoc exercise. */
+    programExerciseId: z.string().uuid().nullable(),
+    exerciseId: z.string().uuid(),
+    kind: SessionFlagKind,
+    reason: SkipReason.optional(),
+    note: z.string().trim().max(280).optional(),
+  })
+  .strict()
+  .refine((f) => f.reason === undefined || f.kind === "skipped", {
+    message: "only a skipped flag has a reason",
+    path: ["reason"],
+  });
+export type SessionFlag = z.infer<typeof SessionFlag>;
+
+/** A pain flag, or a skip because of pain — both tell the coach something hurts. */
+export const isPainFlag = (f: Pick<SessionFlag, "kind" | "reason">) =>
+  f.kind === "pain" || (f.kind === "skipped" && f.reason === "pain");
+
 export const SessionLog = z
   .object({
     id: z.string().uuid(),
@@ -1219,6 +1257,8 @@ export const SessionLog = z
     notes: z.string().max(2000).optional(),
     /** Client subjective readiness 1–10, optional but great AI signal. */
     perceivedEnergy: z.number().min(1).max(10).optional(),
+    readiness: Readiness.nullable().optional(),
+    flags: z.array(SessionFlag).max(100).nullable().optional(),
   })
   .superRefine((val, ctx) => {
     if (val.kind === "lifting") {
