@@ -7,7 +7,7 @@
  *                                           screenshots saved to /tmp/pt-fb-agent/
  *   bun run feedback:agent answer <id> --file answer.json
  *
- * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "model"? }
+ * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "model"? }
  *
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN, from the environment or the
  * repo's gitignored .env.agent (the environment wins).

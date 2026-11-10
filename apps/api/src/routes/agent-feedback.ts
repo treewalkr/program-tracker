@@ -2,9 +2,12 @@ import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems } from "@pt/db";
 import {
-  agentCheckBasis,
+  ticketBasis,
   FEEDBACK_AI_CONFIDENCE,
+  FEEDBACK_AI_RISKS,
   FEEDBACK_AI_VERDICTS,
+  FEEDBACK_FIX_PLAN_MAX_STEPS,
+  FEEDBACK_FIX_PLAN_STEP_MAX,
   feedbackHandle,
   feedbackItemMarkdown,
   type FeedbackAiMeta,
@@ -45,7 +48,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         number: item.number,
         handle: feedbackHandle(item.number),
         status: item.status,
-        basis: agentCheckBasis(item),
+        basis: ticketBasis(item),
         /** Reporter's build: `x.y.z+sha` or a bare sha. */
         build: item.context.appVersion,
         shots: { element: item.hasElementShot, page: item.hasPageShot },
@@ -83,6 +86,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       const reply = body.reply?.trim() || null;
       const note = body.note.trim();
       if (!note) return status(422, { error: "note is empty" });
+      const fixPlan = (body.fixPlan ?? []).map((s) => s.trim()).filter(Boolean);
 
       const out = await db.transaction(async (tx) => {
         // Serialises answers per ticket: a second run waits here, then sees the first one's entries.
@@ -94,7 +98,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         if (!locked) return { error: 404 as const };
         const item = (await getFeedback(params.id))!;
         if (item.status !== "new" && item.status !== "accepted") return { error: "closed" as const };
-        const basis = agentCheckBasis(item);
+        const basis = ticketBasis(item);
         if (basis !== body.basis) return { error: "stale" as const, basis };
         if (item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis)) {
           return { error: "answered" as const, basis };
@@ -105,6 +109,8 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           verdict: body.verdict,
           confidence: body.confidence,
           citations: body.citations,
+          ...(fixPlan.length ? { fixPlan } : {}),
+          ...(body.risk ? { risk: body.risk } : {}),
           basis,
           model: body.model ?? null,
           runAt: new Date(now).toISOString(),
@@ -146,6 +152,12 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         verdict: t.UnionEnum(FEEDBACK_AI_VERDICTS),
         confidence: t.UnionEnum(FEEDBACK_AI_CONFIDENCE),
         citations: t.Array(t.String({ maxLength: 300 }), { maxItems: 30 }),
+        /** For `bug` / `feature`: steps for the coding agent that will fix it. */
+        fixPlan: t.Optional(
+          t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_FIX_PLAN_STEP_MAX }), { maxItems: FEEDBACK_FIX_PLAN_MAX_STEPS }),
+        ),
+        // Literal union, not t.UnionEnum: UnionEnum's default (its first value) would fill an absent risk with "low".
+        risk: t.Optional(t.Union(FEEDBACK_AI_RISKS.map((r) => t.Literal(r)))),
         model: t.Optional(t.String({ maxLength: 100 })),
       }),
       detail: { summary: "Record the auto-reply agent's answer: a private note, plus a sent or drafted reply" },

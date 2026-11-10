@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, trainers } from "@pt/db";
 import {
-  agentCheckBasis,
+  ticketBasis,
   DEFAULT_FEEDBACK_AI_MODE,
   FEEDBACK_AI_AUTO_VERDICTS,
   type FeedbackAiConfidence,
@@ -67,7 +67,7 @@ export function needsAnswer(item: FeedbackItem): boolean {
   if (!OPEN.has(item.status)) return false;
   const last = publicReplies(item.thread).at(-1);
   if (last && !byReporter(item, last)) return false;
-  const basis = agentCheckBasis(item);
+  const basis = ticketBasis(item);
   return !item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis);
 }
 

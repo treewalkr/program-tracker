@@ -73,15 +73,19 @@ When Postgres is down, the DB-backed tests are skipped; pure unit tests still ru
 A review tool for the trainer. Click **Feedback** (bottom right) and every element
 becomes pickable: click one, write a comment, send. Each item stores the route, the
 element's source file and line, the component chain, nearest headings, viewport,
-build SHA, and screenshots of the element and the page.
+build SHA, and screenshots of the element and the page. On `/feedback` that metadata
+sits behind each ticket's **Details** toggle (closed by default; the choice is
+remembered per device).
 
 Element source comes from Svelte's dev-build metadata, so it needs the dev server
 (as `docker compose` runs it). A production build saves the selector and text only.
 
 1. **Triage** at `/feedback`: write a triage note, then **Accept** or **Won't fix**.
-2. **Hand to an agent**: `bun run feedback:export` writes accepted items to
-   `feedback/feedback.md`, `feedback/feedback.json` and `feedback/shots/` (gitignored).
-   Use `--status new,accepted` or `--status all` to widen it.
+2. **Hand to an agent**: **Copy N for agent** on `/feedback`, or `bun run feedback:export`,
+   which writes accepted items to `feedback/feedback.md`, `feedback/feedback.json` and
+   `feedback/shots/` (gitignored). Use `--status new,accepted` or `--status all` to widen it.
+   Each item carries the auto-reply agent's latest **AI triage** (verdict, confidence, risk,
+   fix plan, citations) while it still matches the ticket; once the ticket changes, it's left out.
 3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`.
 4. **Close the loop**: mark the item **Done** once it ships.
 
@@ -92,7 +96,9 @@ A scheduled coding agent answers tickets the code can answer ("already exists",
 the admin plus a reply that is either sent (badged **AI answer**, emailed as one) or
 left on the ticket as a draft to **Send**, **Edit** or **Discard**. It never changes
 a ticket's status, and it talks to the API only through `/v1/agent/feedback` with
-its own token — no session, no database access.
+its own token — no session, no database access. For a **bug** or **feature** the note
+also carries a numbered fix plan and a risk, read from the code; the admin sees them
+under the note, and the export hands them to the coding agent.
 
 1. **API**: set `FEEDBACK_AGENT_TOKEN` (`openssl rand -base64 32`) where the API runs.
    Unset, the agent routes answer 401.

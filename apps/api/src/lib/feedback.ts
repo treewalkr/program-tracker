@@ -11,7 +11,6 @@ import {
   type FeedbackItemRow,
 } from "@pt/db";
 import {
-  agentCheckBasis,
   FEEDBACK_STATUSES,
   ownedRouteRef,
   type FeedbackComment,
@@ -35,14 +34,13 @@ const listColumns = {
   source: feedbackItems.source,
   context: feedbackItems.context,
   shippedIn: feedbackItems.shippedIn,
-  agentCheck: feedbackItems.agentCheck,
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
   hasElementShot: sql<boolean>`${feedbackItems.elementShot} is not null`,
   hasPageShot: sql<boolean>`${feedbackItems.pageShot} is not null`,
 };
 
-type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot"> & {
+type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot" | "agentCheck"> & {
   author: FeedbackItem["author"];
   hasElementShot: boolean;
   hasPageShot: boolean;
@@ -121,7 +119,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
   // No viewer (the export): nobody is opening pages, so don't flag any.
   const reachable = viewerId ? await reachableItems(rows, viewerId) : null;
 
-  return rows.map(({ trainerId, agentCheck, ...r }) => {
+  return rows.map(({ trainerId, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
     for (const c of mine) if (c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
@@ -142,10 +140,6 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     return {
       ...r,
       thread,
-      agentCheck:
-        admin && agentCheck
-          ? { ...agentCheck, stale: agentCheck.basis !== agentCheckBasis({ comment: r.comment, triageNote: r.triageNote, thread }) }
-          : null,
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),
       reachable: reachable ? reachable.has(r.id) : true,

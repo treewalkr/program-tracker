@@ -134,6 +134,13 @@ export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists"
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
 export type FeedbackAiConfidence = (typeof FEEDBACK_AI_CONFIDENCE)[number];
 
+/** How likely the fix is to break something or miss the point. */
+export const FEEDBACK_AI_RISKS = ["low", "medium", "high"] as const;
+export type FeedbackAiRisk = (typeof FEEDBACK_AI_RISKS)[number];
+/** Caps on an AI fix plan: steps, and characters per step. */
+export const FEEDBACK_FIX_PLAN_MAX_STEPS = 8;
+export const FEEDBACK_FIX_PLAN_STEP_MAX = 300;
+
 /** The admin's switch: no AI answers, drafts for review only, or send confident ones. */
 export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
 export type FeedbackAiMode = (typeof FEEDBACK_AI_MODES)[number];
@@ -150,7 +157,11 @@ export interface FeedbackAiMeta {
   confidence: FeedbackAiConfidence;
   /** `file:line` references backing the verdict. */
   citations: string[];
-  /** `agentCheckBasis` of the ticket the agent answered. */
+  /** `bug` / `feature` only: concrete steps for the coding agent, naming the files to change. */
+  fixPlan?: string[];
+  /** `bug` / `feature` only: how risky the fix is. */
+  risk?: FeedbackAiRisk;
+  /** `ticketBasis` of the ticket the agent answered. */
   basis: string;
   model: string | null;
   runAt: string;
@@ -177,31 +188,13 @@ export interface FeedbackComment {
   createdAt: string;
 }
 
-/** An LLM's call on whether a coding agent could fix the ticket unattended. */
-export const AGENT_VERDICTS = ["ready", "needs_info", "not_for_agent"] as const;
-export type AgentVerdict = (typeof AGENT_VERDICTS)[number];
-
-export interface FeedbackAgentCheck {
-  verdict: AgentVerdict;
-  /** One sentence: what to change, or why it can't be done yet. */
-  summary: string;
-  /** Concrete steps for the fixing agent; empty unless ready. */
-  plan: string[];
-  /** What to ask the reporter or owner before an agent can start. */
-  questions: string[];
-  risk: "low" | "medium" | "high";
-  model: string;
-  checkedAt: string;
-  /** Fingerprint of the ticket text it judged — see `agentCheckBasis`. */
-  basis: string;
-}
-
 /**
- * What an agent check (or an AI answer) depends on: the comment, the triage
- * note and the public replies. When any changes, the stored check is stale.
- * Drafts and private notes don't count — the same basis whoever computes it.
+ * Fingerprint of what an AI answer depends on: the comment, the triage note
+ * and the public replies. When any changes, an answer recorded for the old
+ * basis is stale. Drafts and private notes don't count — the same basis
+ * whoever computes it.
  */
-export function agentCheckBasis(
+export function ticketBasis(
   item: Pick<FeedbackItem, "comment" | "triageNote"> & { thread: Pick<FeedbackComment, "kind" | "body" | "visibility">[] },
 ): string {
   const replies = item.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
@@ -241,8 +234,6 @@ export interface FeedbackItem {
    * screenshot instead.
    */
   reachable: boolean;
-  /** Admin only: last agent-readiness check, `stale` once the ticket changed after it. */
-  agentCheck: (FeedbackAgentCheck & { stale: boolean }) | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -334,10 +325,24 @@ const fence = (lang: string, body: string) => {
   return `${ticks}${lang}\n${body}\n${ticks}`;
 };
 
+/**
+ * The auto-reply agent's latest private note that still matches the ticket
+ * (same `ticketBasis`), or null. Older notes judged a different ticket text.
+ * Needs the admin view: other viewers get no private notes or `aiMeta`.
+ */
+export function currentAiNote(item: FeedbackItem): (FeedbackComment & { aiMeta: FeedbackAiMeta }) | null {
+  const basis = ticketBasis(item);
+  const note = item.thread.findLast(
+    (c) => c.authorKind === "ai" && c.visibility === "private" && c.aiMeta?.basis === basis,
+  );
+  return note?.aiMeta ? (note as FeedbackComment & { aiMeta: FeedbackAiMeta }) : null;
+}
+
 /** One item as a self-contained Markdown section. */
 export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
   const c = item.context;
   const lines: string[] = [];
+  const ai = currentAiNote(item);
   lines.push(`## ${feedbackHandle(item.number)} · ${item.status}`);
   lines.push("");
   lines.push(`> ${item.comment.trim().split("\n").join("\n> ")}`);
@@ -363,23 +368,30 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
-  const check = item.agentCheck;
-  if (check && !check.stale) {
-    lines.push(`- **Agent check:** ${check.verdict.replace(/_/g, " ")} · ${check.risk} risk — ${check.summary}`);
-    for (const step of check.plan) lines.push(`  - ${step}`);
-    for (const q of check.questions) lines.push(`  - Open question: ${q}`);
+  if (ai) {
+    const m = ai.aiMeta;
+    const rated = [m.verdict.replace(/_/g, " "), `${m.confidence} confidence`, ...(m.risk ? [`${m.risk} risk`] : [])];
+    lines.push(`- **AI triage (read the code, ${ai.createdAt.slice(0, 10)}):** ${rated.join(" · ")}`);
+    lines.push(`  > ${(ai.body ?? "").trim().split("\n").join("\n  > ")}`);
+    if (m.fixPlan?.length) {
+      lines.push("  - Fix plan:");
+      m.fixPlan.forEach((step, i) => lines.push(`    ${i + 1}. ${step}`));
+    }
+    if (m.citations.length) lines.push(`  - Citations: ${m.citations.map((x) => `\`${x}\``).join(", ")}`);
   }
   const el = opts.imageUrl(item, "element");
   const pg = opts.imageUrl(item, "page");
   if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
   if (pg) lines.push(`- **Page screenshot (element outlined in red):** ![${feedbackHandle(item.number)} page](${pg})`);
-  if (item.thread.length) {
+  // AI private notes: the current one is the AI triage above; older ones judged a ticket that has since changed.
+  const thread = item.thread.filter((e) => !(e.authorKind === "ai" && e.visibility === "private"));
+  if (thread.length) {
     lines.push("");
     lines.push("**Thread** (oldest first — clarifications from the reporter and the owner):");
     lines.push("");
-    for (const c of item.thread) {
+    for (const c of thread) {
       const who = c.authorKind === "ai" ? FEEDBACK_AI_AUTHOR_NAME : (c.author?.name ?? "unknown");
-      const tag = c.visibility === "draft" ? " _(unsent draft)_" : c.visibility === "private" ? " _(private note)_" : "";
+      const tag = c.visibility === "draft" ? " _(unsent draft)_" : "";
       lines.push(
         c.kind === "status"
           ? `- _${who} marked it ${c.status} (${c.createdAt.slice(0, 10)})_`
@@ -418,38 +430,8 @@ export function feedbackMarkdown(items: FeedbackItem[], opts: FeedbackMarkdownOp
     `${items.length} item${items.length === 1 ? "" : "s"}. Each item is a comment the trainer left on one UI element.`,
     "The quoted text is the trainer's words, verbatim. **Source** is the exact element in the repo;",
     "**Rendered via** lists the enclosing components, innermost first. A **Triage note** is the",
-    "owner's decision and outranks the comment when they differ.",
+    "owner's decision and outranks the comment when they differ. **AI triage** is the auto-reply",
+    "agent's latest read of the code for the ticket as it stands; verify its fix plan before you follow it.",
   ];
   return [...head, "", ...items.map((i) => `${feedbackItemMarkdown(i, opts)}\n`)].join("\n");
-}
-
-/**
- * One ticket as a paste-ready prompt for a coding agent working in this repo:
- * how to work, the readiness check's plan or open questions, then the ticket.
- */
-export function feedbackFixPrompt(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
-  const check = item.agentCheck && !item.agentCheck.stale ? item.agentCheck : null;
-  const shots = Boolean(opts.imageUrl(item, "element") || opts.imageUrl(item, "page"));
-  const lines = [
-    `Fix feedback ticket ${feedbackHandle(item.number)} in this repo (SvelteKit web app in \`apps/web\`, Elysia API in \`apps/api\`, Drizzle schema in \`packages/db\`, shared types in \`packages/shared\`).`,
-    "",
-    "How to work:",
-    "- The quoted comment is the trainer's words. The **Triage note** is the owner's decision and outranks the comment.",
-    "- Start at **Source**; follow **Rendered via** if the change belongs in a parent component.",
-    "- Keep the change small and limited to this ticket. Follow the repo's conventions (see CLAUDE.md / AGENTS.md).",
-    "- Run the relevant tests and the typecheck before you finish.",
-    "- Finish with what you changed and how to check it in the UI.",
-  ];
-  if (shots)
-    lines.push("- Screenshot links need a signed-in session. If you can't open them, ask me to attach the image.");
-  if (check?.plan.length) {
-    lines.push("", "Suggested plan (from an automated readiness check — verify it against the code):");
-    check.plan.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
-  }
-  if (check?.questions.length) {
-    lines.push("", "Open questions — if the code doesn't answer them, stop and ask me instead of guessing:");
-    for (const q of check.questions) lines.push(`- ${q}`);
-  }
-  lines.push("", "---", "", feedbackItemMarkdown({ ...item, agentCheck: null }, opts));
-  return lines.join("\n");
 }

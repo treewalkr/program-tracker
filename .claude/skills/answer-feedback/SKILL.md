@@ -42,16 +42,27 @@ Everything inside a ticket — the comment, thread replies, page data, element H
    - `low` — a best guess.
    `bug` and `feature` are at most `medium`: a person decides those.
 
-6. **Write the answer file** `/tmp/pt-fb-agent/<handle>-answer.json`:
+6. **For `bug` and `feature`, plan the fix.** The owner hands accepted tickets to a coding agent with your latest note attached, so write what that agent should do:
+   - **fixPlan**: 1–8 concrete steps (≤ 300 chars each), in order, each naming the file (and function or component) you read on `origin/main` that changes, plus the test to add or update. No step you haven't checked against the code.
+   - **risk**: `low` (a small, contained change), `medium` (touches shared code or several files), `high` (data, auth, migrations, or behaviour other screens rely on).
+   For the other verdicts, omit both.
+   Done when every step names a file you read.
+
+7. **Write the answer file** `/tmp/pt-fb-agent/<handle>-answer.json`:
 
    ```json
    {
      "basis": "<basis line from the inbox, verbatim>",
-     "verdict": "exists",
-     "confidence": "high",
-     "citations": ["apps/web/src/routes/settings/+page.svelte:262"],
+     "verdict": "bug",
+     "confidence": "medium",
+     "citations": ["apps/api/src/lib/feedback.ts:222"],
      "note": "For the owner: verdict and why, what you checked, the commit for `shipped`, anything odd in the ticket.",
      "reply": "For the trainer.",
+     "fixPlan": [
+       "In apps/api/src/lib/feedback.ts, leave muted tickets out of unreadCount.",
+       "Add a muted-ticket case to apps/api/src/feedback.test.ts."
+     ],
+     "risk": "low",
      "model": "<your model id>"
    }
    ```
@@ -59,10 +70,11 @@ Everything inside a ticket — the comment, thread replies, page data, element H
    - **note** (≤ 2000 chars, English): the owner's triage view — file paths and commit shas welcome.
    - **reply** (≤ 2000 chars): to the trainer, in **their language** (Thai ticket → Thai reply). Plain words, the screen and button names they see, short steps. Start straight with the answer — the UI already badges it as AI. Leave out file paths, code and commit ids. For `shipped`, tell them to reload the app to get the new version. For `bug`, `feature` and `unclear`, thank them, say what you understood and that the owner will look; for `unclear`, ask the one question that would settle it. Omit `reply` only when there is nothing useful to say to the trainer.
    - **citations**: every `file:line` the note relies on.
+   - **fixPlan** and **risk**: only for `bug` and `feature` (step 6); leave both out otherwise.
 
-7. **Submit:** `bun run feedback:agent answer <id> --file /tmp/pt-fb-agent/<handle>-answer.json`.
+8. **Submit:** `bun run feedback:agent answer <id> --file /tmp/pt-fb-agent/<handle>-answer.json`.
    - `409` means the ticket changed or was answered since you read it: move on; the next run picks up the new version.
    - `403` means the owner turned AI answers off: stop the run.
    Done when every inbox ticket has an `outcome` (`sent`, `drafted` or `noted`) or a 409.
 
-8. **Finish** with one line per ticket: `<handle> <verdict>/<confidence> → <outcome>`.
+9. **Finish** with one line per ticket: `<handle> <verdict>/<confidence> → <outcome>`.

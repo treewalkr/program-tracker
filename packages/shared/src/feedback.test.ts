@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  agentCheckBasis,
-  feedbackFixPrompt,
+  ticketBasis,
   feedbackHandle,
   feedbackMarkdown,
   ownedRouteRef,
@@ -46,7 +45,6 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   thread: [],
   unread: false,
   muted: false,
-  agentCheck: null,
   createdAt: "2026-11-07T10:00:00.000Z",
   updatedAt: "2026-11-07T10:00:00.000Z",
   ...over,
@@ -132,7 +130,7 @@ describe("feedbackMarkdown", () => {
     expect(out).toContain("- _Ana marked it done (2026-11-08)_");
     expect(md).not.toContain("**Thread**");
   });
-  test("labels AI entries, drafts and private notes", () => {
+  test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
       id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, body, status: null, createdAt: "2026-11-09T00:00:00.000Z",
@@ -140,7 +138,41 @@ describe("feedbackMarkdown", () => {
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
     expect(out).toContain("- **AI assistant** _(unsent draft)_ (2026-11-09): Unsent");
-    expect(out).toContain("- **AI assistant** _(private note)_ (2026-11-09): Note");
+    expect(out).not.toContain("Note");
+  });
+  describe("AI triage", () => {
+    const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
+    const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, body: `Note ${id}`, status: null, createdAt: at(day),
+      aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
+    });
+    const current = ticketBasis(item());
+
+    test("shows the latest current note with its plan, risk and citations", () => {
+      const out = feedbackMarkdown(
+        [item({ thread: [note("old", current, 1), note("new", current, 2, { risk: "low", fixPlan: ["Open A.svelte", "Mute warm-up chips"] })] })],
+        { imageUrl: () => null },
+      );
+      expect(out).toContain("- **AI triage (read the code, 2026-11-02):** bug · medium confidence · low risk");
+      expect(out).toContain("  > Note new");
+      expect(out).toContain("  - Fix plan:\n    1. Open A.svelte\n    2. Mute warm-up chips");
+      expect(out).toContain("  - Citations: `apps/web/src/lib/A.svelte:3`");
+      expect(out).not.toContain("Note old");
+      expect(out).not.toContain("**Thread**");
+    });
+
+    test("skips notes for an older version of the ticket", () => {
+      const out = feedbackMarkdown([item({ thread: [note("stale", "deadbeef", 1, { fixPlan: ["Stale step"] })] })], { imageUrl: () => null });
+      expect(out).not.toContain("AI triage (");
+      expect(out).not.toContain("Stale step");
+      expect(out).not.toContain("Note stale");
+    });
+
+    test("leaves out risk and plan when the note has none", () => {
+      const out = feedbackMarkdown([item({ thread: [note("n", current, 1, { verdict: "how_to" })] })], { imageUrl: () => null });
+      expect(out).toContain("**AI triage (read the code, 2026-11-01):** how to · medium confidence\n");
+      expect(out).not.toContain("Fix plan");
+    });
   });
   test("names the reporter", () => {
     expect(md).toContain("- **Reported by:** Kai");
@@ -167,54 +199,16 @@ describe("feedbackMarkdown", () => {
   });
 });
 
-describe("feedbackFixPrompt", () => {
-  const check = {
-    verdict: "ready" as const,
-    summary: "Mute warm-up chips.",
-    plan: ["Open SetChips.svelte", "Add a muted class for warm-ups"],
-    questions: [],
-    risk: "low" as const,
-    model: "m",
-    checkedAt: "2026-11-07T11:00:00.000Z",
-    basis: "x",
-    stale: false,
-  };
-  const url = (i: FeedbackItem, k: string) => `https://pt.example/v1/feedback/${i.id}/shot/${k}`;
-
-  test("wraps the ticket in instructions, with the check's plan", () => {
-    const p = feedbackFixPrompt(item({ agentCheck: check }), { imageUrl: url });
-    expect(p.startsWith("Fix feedback ticket FB-014")).toBe(true);
-    expect(p).toContain("outranks the comment");
-    expect(p).toContain("1. Open SetChips.svelte\n2. Add a muted class for warm-ups");
-    expect(p).toContain("## FB-014 · accepted");
-    expect(p).toContain("https://pt.example/v1/feedback/u1/shot/element");
-    expect(p).toContain("ask me to attach the image");
-    expect(p).not.toContain("**Agent check:**");
-  });
-
-  test("lists open questions; leaves out a stale check and the screenshot note when there is none", () => {
-    const asks = feedbackFixPrompt(
-      item({ agentCheck: { ...check, verdict: "needs_info", plan: [], questions: ["Which chip?"] } }),
-      { imageUrl: url },
-    );
-    expect(asks).toContain("stop and ask me instead of guessing:\n- Which chip?");
-
-    const stale = feedbackFixPrompt(item({ agentCheck: { ...check, stale: true } }), { imageUrl: () => null });
-    expect(stale).not.toContain("Suggested plan");
-    expect(stale).not.toContain("attach the image");
-  });
-});
-
-describe("agentCheckBasis", () => {
+describe("ticketBasis", () => {
   const reply = (body: string, visibility: "public" | "draft" | "private" = "public") => ({ kind: "reply" as const, body, visibility });
   const base = { comment: "c", triageNote: null };
 
   test("changes with public replies", () => {
-    expect(agentCheckBasis({ ...base, thread: [reply("a")] })).not.toBe(agentCheckBasis({ ...base, thread: [] }));
+    expect(ticketBasis({ ...base, thread: [reply("a")] })).not.toBe(ticketBasis({ ...base, thread: [] }));
   });
   test("ignores drafts, private notes and status entries", () => {
-    const plain = agentCheckBasis({ ...base, thread: [reply("a")] });
-    const noisy = agentCheckBasis({
+    const plain = ticketBasis({ ...base, thread: [reply("a")] });
+    const noisy = ticketBasis({
       ...base,
       thread: [reply("a"), reply("draft", "draft"), reply("note", "private"), { kind: "status" as const, body: null, visibility: "public" as const }],
     });

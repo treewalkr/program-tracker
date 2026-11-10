@@ -236,6 +236,61 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect((await answer("00000000-0000-4000-8000-000000000000", { basis })).status).toBe(404);
   });
 
+  test("validates the fix plan and risk", async () => {
+    const id = await ticket("Validate plan");
+    const basis = await basisOf(id);
+    const bug = { basis, verdict: "bug", confidence: "medium" };
+    expect((await answer(id, { ...bug, risk: "huge" })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: "Open the file" })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: Array.from({ length: 9 }, (_, i) => `Step ${i}`) })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: ["x".repeat(301)] })).status).toBe(422);
+    expect((await answer(id, { ...bug, fixPlan: [""] })).status).toBe(422);
+    expect(await inInbox(id)).toBeDefined(); // nothing was stored
+  });
+
+  test("a bug answer stores its fix plan and risk on the private note", async () => {
+    const id = await ticket("Plan me");
+    const fixPlan = Array.from({ length: 8 }, (_, i) => `Step ${i + 1} in apps/web/src/lib/A.svelte`);
+    const res = await answer(id, { basis: await basisOf(id), verdict: "bug", confidence: "medium", fixPlan, risk: "low" });
+    expect(res.status).toBe(200);
+    const [note] = (await asAdmin(id)).thread;
+    expect(note).toMatchObject({ visibility: "private", aiMeta: { verdict: "bug", risk: "low", fixPlan } });
+  });
+
+  test("the export carries the current AI note's plan, and drops it once the ticket changes", async () => {
+    const id = await ticket("Export my plan");
+    const fixPlan = ["Open apps/web/src/routes/feedback/+page.svelte", "Hide the details by default"];
+    await answer(id, { basis: await basisOf(id), verdict: "feature", confidence: "medium", note: "Plan note", fixPlan, risk: "medium" });
+    const handle = (await asAdmin(id)).number;
+    const section = async () => {
+      const md = await (await call("GET", "/v1/feedback/export?status=new")).text();
+      const start = md.indexOf(`## FB-${String(handle).padStart(3, "0")} ·`);
+      expect(start).toBeGreaterThan(-1);
+      const end = md.indexOf("\n## ", start + 1);
+      return md.slice(start, end < 0 ? undefined : end);
+    };
+    const before = await section();
+    expect(before).toContain("**AI triage (read the code,");
+    expect(before).toContain("feature · medium confidence · medium risk");
+    expect(before).toContain("1. Open apps/web/src/routes/feedback/+page.svelte\n    2. Hide the details by default");
+    expect(before).toContain("> Plan note");
+
+    await call("POST", `/v1/feedback/${id}/comments`, { body: "Also on mobile, please." }, kai);
+    await flush();
+    const after = await section();
+    expect(after).not.toContain("AI triage");
+    expect(after).not.toContain("Hide the details by default");
+    expect(after).not.toContain("Plan note");
+  });
+
+  test("an answer without a plan stores none", async () => {
+    const id = await ticket("No plan");
+    await answer(id, { basis: await basisOf(id) });
+    const meta = (await asAdmin(id)).thread[0].aiMeta;
+    expect(meta.fixPlan).toBeUndefined();
+    expect(meta.risk).toBeUndefined();
+  });
+
   test("a note without a reply is stored privately", async () => {
     const id = await ticket("Note only");
     const out = await json(await answer(id, { basis: await basisOf(id), verdict: "bug", confidence: "medium" }));
