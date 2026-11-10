@@ -73,7 +73,14 @@ When Postgres is down, the DB-backed tests are skipped; pure unit tests still ru
 A review tool for the trainer. Click **Feedback** (bottom right) and every element
 becomes pickable: click one, write a comment, send. Each item stores the route, the
 element's source file and line, the component chain, nearest headings, viewport,
-build SHA, and screenshots of the element and the page. On `/feedback` that metadata
+build SHA, and screenshots of the element and the page. Any composer — the feedback-mode
+pin, **New ticket** on `/feedback` and every reply — also takes up to 6 images: paste,
+drop or pick them, reorder by dragging (or Alt+←/→ on a focused thumbnail), remove with ×
+or Delete. The browser re-encodes each to WebP, at most 2000px on the longest side and
+2 MB; the API re-checks count, size and type (PNG, JPEG or WebP by content). Images live
+in Postgres (`feedback_attachments`) and are visible exactly when their ticket or reply
+is — an AI draft's or private note's only to the admin. Click a thumbnail to open the
+viewer; arrow keys step through that ticket's or reply's images. On `/feedback` that metadata
 sits behind each ticket's **Details** toggle (closed by default; the choice is
 remembered per device).
 
@@ -83,10 +90,12 @@ Element source comes from Svelte's dev-build metadata, so it needs the dev serve
 1. **Triage** at `/feedback`: write a triage note, then **Accept** or **Won't fix**.
 2. **Hand to an agent**: **Copy N for agent** on `/feedback`, or `bun run feedback:export`,
    which writes accepted items to `feedback/feedback.md`, `feedback/feedback.json` and
-   `feedback/shots/` (gitignored). Use `--status new,accepted` or `--status all` to widen it.
+   every image (ticket and replies) to `feedback/shots/<handle>-<n>.<ext>` (gitignored). Use `--status new,accepted` or `--status all` to widen it.
    Each item carries the auto-reply agent's latest **AI triage** (verdict, confidence, risk,
    fix plan, citations) while it still matches the ticket; once the ticket changes, it's left out.
-3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`.
+3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`. The Markdown
+   links every image as `/v1/feedback/<id>/attachments/<attachmentId>`; the old
+   `/v1/feedback/<id>/shot/element|page` links still work.
 4. **Close the loop**: mark the item **Done** once it ships.
 
 ### Feedback auto-reply
@@ -116,7 +125,10 @@ under the note, and the export hands them to the coding agent.
    ends the run quietly.
 
 The inbox holds open tickets where the reporter wrote last and the agent hasn't
-answered that version of the ticket yet.
+answered that version of the ticket yet. `inbox` downloads every image on the ticket and
+its public replies to `/tmp/pt-fb-agent/<handle>-<n>.<ext>`, lists which entry each came
+from, and the skill opens them all before deciding. The old
+`/v1/agent/feedback/<id>/shots/:kind` route stays for one release for older CLIs.
 
 ## Releases
 

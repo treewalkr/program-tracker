@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
-import { db, feedbackItems, trainers } from "@pt/db";
+import { db, feedbackAttachments, feedbackComments, feedbackItems, trainers } from "@pt/db";
 import { unpinnedContext, type FeedbackAiMode } from "@pt/shared";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
@@ -34,12 +34,17 @@ type As = "admin" | string | { bearer: string | null };
 const call = async (method: string, path: string, body?: unknown, as: As = "admin") => {
   const prev = process.env.AUTH_DISABLED;
   if (as !== "admin") process.env.AUTH_DISABLED = "false";
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const multipart = body instanceof FormData;
+  const headers: Record<string, string> = multipart ? {} : { "content-type": "application/json" };
   if (typeof as === "string" && as !== "admin") headers.cookie = `${SESSION_COOKIE}=${as}`;
   if (typeof as === "object" && as.bearer !== null) headers.authorization = `Bearer ${as.bearer}`;
   try {
     return await app.handle(
-      new Request(`http://local${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }),
+      new Request(`http://local${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
+      }),
     );
   } finally {
     process.env.AUTH_DISABLED = prev;
@@ -47,6 +52,8 @@ const call = async (method: string, path: string, body?: unknown, as: As = "admi
 };
 const json = async (res: Response) => (await res.json()) as any;
 const agent = { bearer: TOKEN };
+const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+const pngFile = () => new File([Buffer.from(PNG_B64, "base64")], "shot.png", { type: "image/png" });
 
 describe("agentTokenMatches", () => {
   test("needs the exact bearer token, and a configured one", () => {
@@ -169,19 +176,63 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
   });
 
   test("screenshots are served to the agent as bytes, with their type", async () => {
-    const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-    const body = { comment: "shot", context, elementShot: `data:image/png;base64,${PNG_B64}` };
+    const body = new FormData();
+    body.append("comment", "shot");
+    body.append("context", JSON.stringify(context));
+    body.append("elementShot", pngFile());
     const id = (await json(await call("POST", "/v1/feedback", body, kai))).id as string;
     items.push(id);
     await flush();
-    expect((await inInbox(id)).shots).toEqual({ element: true, page: false });
-    const res = await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, agent);
+    const entry = await inInbox(id);
+    expect(entry.shots).toEqual({ element: true, page: false });
+    expect(entry.attachments).toEqual([
+      { id: expect.any(String), kind: "element", mime: "image/png", entry: "ticket", commentId: null, file: `${entry.handle}-1.png` },
+    ]);
+    const res = await call("GET", `/v1/agent/feedback/${id}/attachments/${entry.attachments[0].id}`, undefined, agent);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/octet-stream");
     expect(res.headers.get("x-shot-type")).toBe("image/png");
     expect(Buffer.from(await res.arrayBuffer()).equals(Buffer.from(PNG_B64, "base64"))).toBe(true);
+    expect((await call("GET", `/v1/agent/feedback/${id}/attachments/${entry.attachments[0].id}`, undefined, kai)).status).toBe(401);
+
+    // the old CLI's route still works for one release
+    const old = await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, agent);
+    expect(old.status).toBe(200);
+    expect(old.headers.get("x-shot-type")).toBe("image/png");
     expect((await call("GET", `/v1/agent/feedback/${id}/shots/page`, undefined, agent)).status).toBe(404);
     expect((await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, kai)).status).toBe(401);
+  });
+
+  test("the inbox lists the images on public replies, not on drafts", async () => {
+    const id = await ticket("The chart is cut off");
+    const reply = new FormData();
+    reply.append("body", "Like this");
+    reply.append("images", pngFile());
+    reply.append("images", pngFile());
+    expect((await call("POST", `/v1/feedback/${id}/comments`, reply, kai)).status).toBe(201);
+    // an AI draft carrying an image (as if one existed) stays out of the agent's view
+    const [draft] = await db
+      .insert(feedbackComments)
+      .values({ itemId: id, kind: "reply", body: "draft", authorKind: "ai", visibility: "draft", createdAt: new Date(Date.now() - 60_000) })
+      .returning({ id: feedbackComments.id });
+    const [hidden] = await db
+      .insert(feedbackAttachments)
+      .values({ itemId: id, commentId: draft.id, kind: "upload", mime: "image/png", bytes: Buffer.from(PNG_B64, "base64") })
+      .returning({ id: feedbackAttachments.id });
+    await flush();
+
+    const entry = await inInbox(id);
+    expect(entry.attachments.map((a: any) => [a.kind, a.entry.startsWith("reply by Kai"), a.file])).toEqual([
+      ["upload", true, `${entry.handle}-1.png`],
+      ["upload", true, `${entry.handle}-2.png`],
+    ]);
+    expect(entry.attachments.every((a: any) => a.commentId && a.commentId !== draft.id)).toBe(true);
+    // the Markdown points at each listed image, for the CLI to swap in the file path
+    for (const a of entry.attachments) expect(entry.markdown).toContain(`(attachment:${a.id})`);
+    expect(entry.markdown).not.toContain(hidden.id);
+    expect((await call("GET", `/v1/agent/feedback/${id}/attachments/${hidden.id}`, undefined, agent)).status).toBe(404);
+    // and an attachment id under the wrong ticket is a 404
+    expect((await call("GET", `/v1/agent/feedback/${items[0]}/attachments/${entry.attachments[0].id}`, undefined, agent)).status).toBe(404);
   });
 
   test("drafts mode: the reply waits as a draft, invisible to the reporter, and nobody is emailed", async () => {

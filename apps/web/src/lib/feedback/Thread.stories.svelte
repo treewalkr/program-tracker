@@ -23,6 +23,7 @@
     aiMeta: null,
     body: null,
     status: null,
+    attachments: [],
     createdAt: '2026-11-09T10:00:00.000Z',
     ...over,
   });
@@ -36,8 +37,7 @@
     route: '/settings',
     source: null,
     context: unpinnedContext('/settings', { viewport: { width: 1280, height: 800, dpr: 2 }, userAgent: 'sb', appVersion: '0.1.11+abc1234' }),
-    hasElementShot: false,
-    hasPageShot: false,
+    attachments: [],
     reachable: true,
     shippedIn: null,
     thread,

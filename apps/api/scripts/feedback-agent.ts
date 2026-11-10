@@ -3,8 +3,9 @@
  * (Eden Treaty, typed from the API). The thinking is done by the coding agent
  * running the `answer-feedback` skill; this only reads and writes.
  *
- *   bun run feedback:agent inbox            tickets to answer, as Markdown;
- *                                           screenshots saved to /tmp/pt-fb-agent/
+ *   bun run feedback:agent inbox            tickets to answer, as Markdown; every image
+ *                                           (ticket and public replies) saved to
+ *                                           /tmp/pt-fb-agent/<handle>-<n>.<ext>
  *   bun run feedback:agent answer <id> --file answer.json
  *
  * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "model"? }
@@ -79,15 +80,17 @@ if (command === "inbox") {
   await mkdir(SHOTS_DIR, { recursive: true });
   const out: string[] = [`# Feedback inbox — ${data.length} ticket${data.length === 1 ? "" : "s"}`, ""];
   for (const t of data) {
-    const shots: string[] = [];
-    for (const kind of ["element", "page"] as const) {
-      if (!t.shots[kind]) continue;
-      const res = await api({ id: t.id }).shots({ kind }).get();
-      if (res.error) fail(`${t.handle} ${kind} screenshot: ${errorText(res.error)}`);
-      const ext = (res.headers as Headers).get("x-shot-type")?.split("/")[1]?.replace("jpeg", "jpg") ?? "bin";
-      const path = join(SHOTS_DIR, `${t.handle}-${kind}.${ext}`);
+    const images: string[] = [];
+    let markdown = t.markdown;
+    for (const a of t.attachments) {
+      const res = await api({ id: t.id }).attachments({ attachmentId: a.id }).get();
+      if (res.error) fail(`${t.handle} image ${a.file}: ${errorText(res.error)}`);
+      const path = join(SHOTS_DIR, a.file);
       await writeFile(path, new Uint8Array(res.data as unknown as ArrayBuffer));
-      shots.push(`${kind}: ${path}`);
+      // the Markdown names each image `attachment:<id>`; point it at the file instead
+      markdown = markdown.replaceAll(`attachment:${a.id}`, path);
+      const what = a.kind === "upload" ? "image" : `${a.kind} screenshot`;
+      images.push(`- ${path} — ${what}, on the ${a.entry}`);
     }
     out.push(
       "---",
@@ -95,9 +98,9 @@ if (command === "inbox") {
       `id: ${t.id}`,
       `basis: ${t.basis}`,
       `reporter build: ${t.build}`,
-      `screenshots: ${shots.length ? shots.join(" · ") : "none"}`,
+      images.length ? `images (open every one):\n${images.join("\n")}` : "images: none",
       "",
-      t.markdown,
+      markdown,
       "",
     );
   }

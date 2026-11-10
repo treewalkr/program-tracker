@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { clients, db, feedbackItems, trainers } from "@pt/db";
 import type { FeedbackContext } from "@pt/shared";
-import { decodeShot, parseStatuses, shotMime } from "./lib/feedback";
+import { parseStatuses } from "./lib/feedback";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { API_VERSION } from "./lib/build";
@@ -54,10 +54,11 @@ const call = async (method: string, path: string, body?: unknown, token?: string
       new Request(`http://local${path}`, {
         method,
         headers: {
-          "content-type": "application/json",
+          // FormData sets its own multipart boundary
+          ...(body instanceof FormData ? {} : { "content-type": "application/json" }),
           ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
       }),
     );
   } finally {
@@ -65,16 +66,17 @@ const call = async (method: string, path: string, body?: unknown, token?: string
   }
 };
 const json = async (res: Response) => (await res.json()) as any;
+const png = () => new File([Buffer.from(PNG_B64, "base64")], "shot.png", { type: "image/png" });
+/** Multipart body the way Eden builds it: objects as JSON, files as parts. */
+const form = (fields: Record<string, unknown>) => {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(fields)) {
+    for (const x of Array.isArray(v) ? v : [v]) f.append(k, x instanceof File ? x : typeof x === "object" ? JSON.stringify(x) : String(x));
+  }
+  return f;
+};
 
 describe("feedback helpers", () => {
-  test("decodeShot accepts png data URLs and bare base64", () => {
-    expect(shotMime(decodeShot(`data:image/png;base64,${PNG_B64}`)!)).toBe("image/png");
-    expect(decodeShot(PNG_B64)!.byteLength).toBeGreaterThan(0);
-    expect(decodeShot(undefined)).toBeNull();
-  });
-  test("decodeShot rejects non-image data URLs", () => {
-    expect(() => decodeShot("data:text/html;base64,PGgxPg==")).toThrow();
-  });
   test("parseStatuses keeps only known statuses", () => {
     expect(parseStatuses("accepted,bogus,new")).toEqual(["new", "accepted"]);
     expect(parseStatuses(undefined)).toBeNull();
@@ -86,11 +88,11 @@ describe.skipIf(!dbUp)("feedback routes", () => {
   let handle = "";
 
   test("submit stores the item with its source", async () => {
-    const res = await call("POST", "/v1/feedback", {
-      comment: "  I can't tell which sets are warm-ups.  ",
-      context,
-      elementShot: `data:image/png;base64,${PNG_B64}`,
-    });
+    const res = await call(
+      "POST",
+      "/v1/feedback",
+      form({ comment: "  I can't tell which sets are warm-ups.  ", context, elementShot: png() }),
+    );
     expect(res.status).toBe(200);
     const body = await json(res);
     id = body.id;
@@ -101,8 +103,9 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(item.status).toBe("new");
     expect(item.comment).toBe("I can't tell which sets are warm-ups.");
     expect(item.source).toBe("apps/web/src/lib/components/SetChips.svelte:12:4");
-    expect(item.hasElementShot).toBe(true);
-    expect(item.hasPageShot).toBe(false);
+    expect(item.attachments).toEqual([
+      { id: expect.any(String), kind: "element", mime: "image/png", width: 1, height: 1, position: 0 },
+    ]);
     const [me] = await db.select().from(trainers).where(eq(trainers.id, await getDefaultTrainerId()));
     expect(item.author).toEqual({ id: me.id, name: me.name, avatarUrl: me.avatarUrl });
   });
@@ -112,10 +115,16 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(res.status).toBe(422);
   });
 
-  test("serves the screenshot bytes", async () => {
-    const res = await call("GET", `/v1/feedback/${id}/shot/element`);
+  test("serves the screenshot bytes, by attachment and by the old shot URL", async () => {
+    const [shot] = (await json(await call("GET", `/v1/feedback/${id}`))).attachments;
+    const res = await call("GET", `/v1/feedback/${id}/attachments/${shot.id}`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
+    expect(Buffer.from(await res.arrayBuffer()).equals(Buffer.from(PNG_B64, "base64"))).toBe(true);
+
+    const compat = await call("GET", `/v1/feedback/${id}/shot/element`);
+    expect(compat.status).toBe(200);
+    expect(compat.headers.get("content-type")).toBe("image/png");
     expect((await call("GET", `/v1/feedback/${id}/shot/page`)).status).toBe(404);
   });
 
@@ -131,7 +140,8 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     const md = await (await call("GET", "/v1/feedback/export")).text();
     expect(md).toContain(`## ${handle} · accepted`);
     expect(md).toContain("> I can't tell which sets are warm-ups.");
-    expect(md).toContain(`http://local/v1/feedback/${id}/shot/element`);
+    const [shot] = (await json(await call("GET", `/v1/feedback/${id}`))).attachments;
+    expect(md).toContain(`http://local/v1/feedback/${id}/attachments/${shot.id}`);
     expect(md).toContain("muted chip for warm-ups");
 
     const asJson = await json(await call("GET", "/v1/feedback/export?format=json"));

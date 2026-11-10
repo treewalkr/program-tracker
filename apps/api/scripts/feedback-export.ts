@@ -2,7 +2,7 @@
  * Write feedback to disk for a coding agent:
  *   <out>/feedback.md      — self-contained items, screenshots linked relatively
  *   <out>/feedback.json    — same items, machine-readable
- *   <out>/shots/FB-001.png, FB-001-page.jpg
+ *   <out>/shots/FB-001-1.png, FB-001-2.jpg …  — every image, ticket then replies
  *
  * Usage: bun run feedback:export [--status accepted|new,accepted|all] [--out feedback]
  * Defaults: --status accepted (the owner's go-list), --out <repo>/feedback.
@@ -11,9 +11,9 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { inArray } from "drizzle-orm";
-import { db, feedbackItems } from "@pt/db";
-import { feedbackHandle, feedbackMarkdown } from "@pt/shared";
-import { listFeedback, parseStatuses, shotExt } from "../src/lib/feedback";
+import { db, feedbackAttachments } from "@pt/db";
+import { feedbackHandle, feedbackMarkdown, imageExt, type FeedbackItem } from "@pt/shared";
+import { listFeedback, parseStatuses } from "../src/lib/feedback";
 
 const { values } = parseArgs({
   options: {
@@ -29,24 +29,26 @@ const items = await listFeedback(statuses, "oldest");
 await rm(join(out, "shots"), { recursive: true, force: true });
 await mkdir(join(out, "shots"), { recursive: true });
 
-const files = new Map<string, { element?: string; page?: string }>();
-if (items.length) {
-  const shots = await db
-    .select({ id: feedbackItems.id, elementShot: feedbackItems.elementShot, pageShot: feedbackItems.pageShot })
-    .from(feedbackItems)
-    .where(inArray(feedbackItems.id, items.map((i) => i.id)));
-  for (const s of shots) {
-    const handle = feedbackHandle(items.find((i) => i.id === s.id)!.number);
-    const entry: { element?: string; page?: string } = {};
-    if (s.elementShot) {
-      entry.element = `shots/${handle}.${shotExt(s.elementShot)}`;
-      await writeFile(join(out, entry.element), s.elementShot);
-    }
-    if (s.pageShot) {
-      entry.page = `shots/${handle}-page.${shotExt(s.pageShot)}`;
-      await writeFile(join(out, entry.page), s.pageShot);
-    }
-    files.set(s.id, entry);
+/** The ticket's images, then each reply's, in reading order. */
+const allImages = (i: FeedbackItem) => [i.attachments, ...i.thread.map((c) => c.attachments)].flat();
+
+/** Attachment id → its file, relative to <out>. Numbered per ticket in reading order. */
+const files = new Map<string, string>();
+for (const item of items) {
+  const handle = feedbackHandle(item.number);
+  const ordered = allImages(item);
+  if (!ordered.length) continue;
+  const rows = await db
+    .select({ id: feedbackAttachments.id, bytes: feedbackAttachments.bytes })
+    .from(feedbackAttachments)
+    .where(inArray(feedbackAttachments.id, ordered.map((a) => a.id)));
+  const bytes = new Map(rows.map((r) => [r.id, r.bytes]));
+  for (const [n, a] of ordered.entries()) {
+    const data = bytes.get(a.id);
+    if (!data) continue;
+    const file = `shots/${handle}-${n + 1}.${imageExt(a.mime)}`;
+    await writeFile(join(out, file), data);
+    files.set(a.id, file);
   }
 }
 
@@ -55,13 +57,18 @@ await writeFile(
   join(out, "feedback.md"),
   feedbackMarkdown(items, {
     title: `Trainer feedback (${label})`,
-    imageUrl: (item, kind) => files.get(item.id)?.[kind] ?? null,
+    imageUrl: (_, a) => files.get(a.id) ?? null,
   }),
 );
 await writeFile(
   join(out, "feedback.json"),
   `${JSON.stringify(
-    items.map((i) => ({ handle: feedbackHandle(i.number), ...i, screenshots: files.get(i.id) ?? {} })),
+    items.map((i) => ({
+      handle: feedbackHandle(i.number),
+      ...i,
+      /** Attachment id → file under <out>. */
+      images: Object.fromEntries(allImages(i).map((a) => [a.id, files.get(a.id) ?? null])),
+    })),
     null,
     2,
   )}\n`,

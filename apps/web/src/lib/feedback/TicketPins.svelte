@@ -8,7 +8,8 @@
   import MuteToggle from "./MuteToggle.svelte";
   import Thread from "./Thread.svelte";
   import Lightbox, { type LightboxImage } from "$lib/ui/Lightbox.svelte";
-  import { feedbackApi, ticketShots } from "./client";
+  import { attachmentImages, feedbackApi, ticketImageCaption, ticketShots } from "./client";
+  import AttachmentStrip from "./AttachmentStrip.svelte";
   import { locateTarget } from "./locate";
   import { feedbackMode } from "./mode.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "./status";
@@ -263,6 +264,10 @@
       <a class="more" href="/feedback#{feedbackHandle(item.number)}">Open in Feedback</a>
     </div>
     <blockquote>{item.comment}</blockquote>
+    <!-- the pin already marks the element: every image is still one click away -->
+    {#if item.attachments.length}
+      <AttachmentStrip images={attachmentImages(item.id, item.attachments, ticketImageCaption(item))} label="Images on {feedbackHandle(item.number)}" />
+    {/if}
     {#key item.id}
       <Thread {item} onchange={(next) => (items = items.map((i) => (i.id === next.id ? next : i)))} />
     {/key}

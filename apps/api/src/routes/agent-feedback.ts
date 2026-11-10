@@ -10,9 +10,13 @@ import {
   FEEDBACK_FIX_PLAN_STEP_MAX,
   feedbackHandle,
   feedbackItemMarkdown,
+  imageExt,
   type FeedbackAiMeta,
+  type FeedbackAttachment,
+  type FeedbackItem,
 } from "@pt/shared";
-import { getFeedback, listFeedback, shotMime } from "../lib/feedback";
+import { getFeedback, listFeedback } from "../lib/feedback";
+import { attachmentBytes, ticketShot } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { agentTokenMatches, feedbackAiMode, needsAnswer, routeAnswer } from "../lib/feedback-ai";
 
@@ -30,6 +34,42 @@ export const agentAuth = new Elysia({ name: "agent-auth" }).onBeforeHandle(
 const NOT_FOUND = { error: "feedback not found" } as const;
 const MAX_TEXT = 2000;
 
+/** Stands in for an image URL in the inbox Markdown; the CLI swaps in the downloaded file's path. */
+export const agentImageRef = (a: Pick<FeedbackAttachment, "id">) => `attachment:${a.id}`;
+
+/**
+ * Every image the agent should look at, in reading order: the ticket's, then
+ * each public reply's. `file` is the CLI's download name, `<handle>-<n>.<ext>`.
+ */
+export function agentAttachments(item: FeedbackItem) {
+  const handle = feedbackHandle(item.number);
+  const entries = [
+    { entry: "ticket", commentId: null as string | null, list: item.attachments },
+    ...item.thread
+      .filter((c) => c.kind === "reply" && c.visibility === "public" && c.attachments.length)
+      .map((c) => ({
+        entry: `reply by ${c.authorKind === "ai" ? "AI" : (c.author?.name ?? "unknown")} on ${c.createdAt.slice(0, 10)}`,
+        commentId: c.id as string | null,
+        list: c.attachments,
+      })),
+  ];
+  let n = 0;
+  return entries.flatMap(({ entry, commentId, list }) =>
+    list.map((a) => ({
+      id: a.id,
+      kind: a.kind,
+      mime: a.mime,
+      entry,
+      commentId,
+      file: `${handle}-${++n}.${imageExt(a.mime)}`,
+    })),
+  );
+}
+
+const imageResponse = (bytes: Buffer, mime: string) =>
+  // octet-stream so Eden hands the CLI raw bytes (it reads image/* as text); the real type rides along
+  new Response(new Uint8Array(bytes), { headers: { "content-type": "application/octet-stream", "x-shot-type": mime } });
+
 /**
  * The feedback auto-reply agent's API (see lib/feedback-ai). It reads tickets
  * like the admin does, and writes only AI thread entries: a private note
@@ -43,7 +83,10 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
     "/inbox",
     async () => {
       const items = (await listFeedback(["new", "accepted"], "oldest")).filter(needsAnswer);
-      return items.map((item) => ({
+      return items.map((item) => {
+        const attachments = agentAttachments(item);
+        const listed = new Set(attachments.map((a) => a.id));
+        return {
         id: item.id,
         number: item.number,
         handle: feedbackHandle(item.number),
@@ -51,26 +94,45 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         basis: ticketBasis(item),
         /** Reporter's build: `x.y.z+sha` or a bare sha. */
         build: item.context.appVersion,
-        shots: { element: item.hasElementShot, page: item.hasPageShot },
-        markdown: feedbackItemMarkdown(item, { imageUrl: () => null }),
-      }));
+        /** Deprecated: read by CLIs older than attachments. Use `attachments`. */
+        shots: {
+          element: item.attachments.some((a) => a.kind === "element"),
+          page: item.attachments.some((a) => a.kind === "page"),
+        },
+        /** Every image on the ticket and its public replies. */
+        attachments,
+        markdown: feedbackItemMarkdown(item, { imageUrl: (_, a) => (listed.has(a.id) ? agentImageRef(a) : null) }),
+        };
+      });
     },
     { detail: { summary: "Tickets the auto-reply agent should answer" } },
   )
+  /** One image on a ticket or a public reply. */
+  .get(
+    "/:id/attachments/:attachmentId",
+    async ({ params, status }) => {
+      const item = await getFeedback(params.id);
+      const row = item ? await attachmentBytes(params.id, params.attachmentId) : null;
+      const visible = row && (!row.commentId || item!.thread.some((c) => c.id === row.commentId && c.visibility === "public"));
+      if (!visible) return status(404, { error: "image not found" });
+      return imageResponse(row.bytes, row.mime);
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }), attachmentId: t.String({ format: "uuid" }) }),
+      detail: { summary: "Image bytes for the auto-reply agent" },
+    },
+  )
+  /** Deprecated: CLIs older than attachments read the two screenshots here. Remove after one release. */
   .get(
     "/:id/shots/:kind",
     async ({ params, status }) => {
-      const col = params.kind === "element" ? feedbackItems.elementShot : feedbackItems.pageShot;
-      const [row] = await db.select({ shot: col }).from(feedbackItems).where(eq(feedbackItems.id, params.id));
-      if (!row?.shot) return status(404, { error: "screenshot not found" });
-      // octet-stream so Eden hands the CLI raw bytes (it reads image/* as text); the real type rides along
-      return new Response(new Uint8Array(row.shot), {
-        headers: { "content-type": "application/octet-stream", "x-shot-type": shotMime(row.shot) },
-      });
+      const shot = await ticketShot(params.id, params.kind);
+      if (!shot) return status(404, { error: "screenshot not found" });
+      return imageResponse(shot.bytes, shot.mime);
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }), kind: t.UnionEnum(["element", "page"]) }),
-      detail: { summary: "Screenshot bytes for the auto-reply agent" },
+      detail: { summary: "Screenshot bytes for the auto-reply agent (deprecated)" },
     },
   )
   /**

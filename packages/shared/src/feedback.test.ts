@@ -38,8 +38,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
     userAgent: "Safari",
     appVersion: "d8cb841",
   },
-  hasElementShot: true,
-  hasPageShot: false,
+  attachments: [{ id: "a-el", kind: "element", mime: "image/png", width: 30, height: 20, position: 0 }],
   reachable: true,
   shippedIn: null,
   thread: [],
@@ -91,7 +90,7 @@ describe("snapshotJson", () => {
 
 describe("feedbackMarkdown", () => {
   const md = feedbackMarkdown([item()], {
-    imageUrl: (i, kind) => (kind === "element" ? `feedback/${feedbackHandle(i.number)}.png` : null),
+    imageUrl: (i, a) => (a.kind === "element" ? `feedback/${feedbackHandle(i.number)}.png` : null),
   });
 
   test("carries the handle, verbatim comment, source and chain", () => {
@@ -107,6 +106,32 @@ describe("feedbackMarkdown", () => {
     expect(md).toContain("](feedback/FB-014.png)");
     expect(md).not.toContain("Page screenshot");
   });
+  test("lists every image on the ticket and in the thread, by attachment id", () => {
+    const img = (id: string, kind: "element" | "page" | "upload", position: number) =>
+      ({ id, kind, mime: "image/webp", width: 10, height: 10, position });
+    const reply = (id: string, attachments: ReturnType<typeof img>[]) => ({
+      id, kind: "reply" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: "See these", status: null,
+      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, attachments,
+    });
+    const out = feedbackMarkdown(
+      [
+        item({
+          attachments: [img("e", "element", 0), img("p", "page", 1), img("u1", "upload", 2), img("u2", "upload", 3)],
+          thread: [reply("r1", [img("r1a", "upload", 0)]), reply("r2", [img("r2a", "upload", 0), img("r2b", "upload", 1)])],
+        }),
+      ],
+      { imageUrl: (_, a) => `https://x/att/${a.id}` },
+    );
+    expect(out).toContain("- **Element screenshot:** ![FB-014 ticket element screenshot](https://x/att/e)");
+    expect(out).toContain("- **Page screenshot (element outlined in red):** ![FB-014 ticket page screenshot](https://x/att/p)");
+    expect(out).toContain("- **Image 1 of 2:** ![FB-014 ticket image 1 of 2](https://x/att/u1)");
+    expect(out).toContain("- **Image 2 of 2:** ![FB-014 ticket image 2 of 2](https://x/att/u2)");
+    expect(out).toContain("  - Image: ![FB-014 reply image](https://x/att/r1a)");
+    expect(out).toContain("  - Image 2 of 2: ![FB-014 reply image 2 of 2](https://x/att/r2b)");
+    // replies' images sit under their reply, after the ticket's
+    expect(out.indexOf("att/r1a")).toBeGreaterThan(out.indexOf("See these"));
+    expect(out.match(/!\[/g)).toHaveLength(7);
+  });
   test("page data block only when there is data", () => {
     expect(md).toContain("Page data at click time");
     const empty = feedbackMarkdown([item({ context: { ...item().context, pageData: {} } })], { imageUrl: () => null });
@@ -118,8 +143,8 @@ describe("feedbackMarkdown", () => {
         item({
           shippedIn: "0.1.3",
           thread: [
-            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null },
-            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null },
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, attachments: [] },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, attachments: [] },
           ],
         }),
       ],
@@ -133,7 +158,7 @@ describe("feedbackMarkdown", () => {
   test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, body, status: null, createdAt: "2026-11-09T00:00:00.000Z",
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
     });
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
@@ -143,7 +168,7 @@ describe("feedbackMarkdown", () => {
   describe("AI triage", () => {
     const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
     const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, body: `Note ${id}`, status: null, createdAt: at(day),
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
       aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
     });
     const current = ticketBasis(item());
@@ -182,7 +207,7 @@ describe("feedbackMarkdown", () => {
   test("unpinned tickets skip element details", () => {
     const env = { viewport: { width: 1280, height: 900, dpr: 1 }, userAgent: "Safari", appVersion: "0.1.2" };
     const ctx = unpinnedContext("", env);
-    const out = feedbackMarkdown([item({ source: null, route: "", context: ctx, hasElementShot: false })], {
+    const out = feedbackMarkdown([item({ source: null, route: "", context: ctx, attachments: [] })], {
       imageUrl: () => null,
     });
     expect(out).toContain("not pinned to an element");

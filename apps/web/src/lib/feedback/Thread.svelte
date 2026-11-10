@@ -7,7 +7,10 @@
   import Pill from "$lib/ui/Pill.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Author from "./Author.svelte";
-  import { feedbackApi } from "./client";
+  import { attachmentImages, feedbackApi } from "./client";
+  import AttachmentInput from "./AttachmentInput.svelte";
+  import AttachmentStrip from "./AttachmentStrip.svelte";
+  import { ImageTray } from "./tray.svelte";
   import { STATUS_LABEL } from "./status";
   import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL } from "./ai";
 
@@ -29,7 +32,9 @@
   let { item, onposted, onchange }: Props = $props();
 
   let draft = $state("");
+  const tray = new ImageTray();
   let sending = $state(false);
+  const canSend = $derived(!sending && !tray.busy && (draft.trim() !== "" || tray.images.length > 0));
   let error = $state<string | null>(null);
   /** Replies posted here before the parent refreshes `item`. */
   let posted = $state<FeedbackComment[]>([]);
@@ -37,14 +42,15 @@
   const lastDoneId = $derived(thread.findLast((c) => c.kind === "status" && c.status === "done")?.id);
 
   async function send() {
+    if (!canSend) return;
     const body = draft.trim();
-    if (!body || sending) return;
     sending = true;
     error = null;
     try {
-      const c = await feedbackApi.reply(item.id, body);
+      const c = await feedbackApi.reply(item.id, body, tray.files);
       posted = [...posted, c];
       draft = "";
+      tray.clear();
       onposted?.(c);
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not send reply";
@@ -82,6 +88,12 @@
     editText = c.body ?? "";
   }
 
+  /** "Ana's reply", for image names. */
+  const replyOf = (c: FeedbackComment) => {
+    const who = c.authorKind === "ai" ? FEEDBACK_AI_AUTHOR_NAME : c.author?.name;
+    return who ? `${who}'s reply` : "a reply";
+  };
+
   /** Return adds a line; ⌘/Ctrl+Return sends, like the chat composer. */
   function onkeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.isComposing) {
@@ -116,24 +128,35 @@
               {/if}
               {@render when(c.createdAt)}
             </div>
-            <div class="body md">{@html renderSafeMarkdown(c.body)}</div>
+            {#if c.body}<div class="body md">{@html renderSafeMarkdown(c.body)}</div>{/if}
+            {#if c.attachments.length}
+              <div class="body images">
+                <AttachmentStrip
+                  images={attachmentImages(item.id, c.attachments, (_, n) => `image ${n} of ${c.attachments.length} in ${replyOf(c)}`)}
+                  label="Images in {replyOf(c)} on {feedbackHandle(item.number)}"
+                />
+              </div>
+            {/if}
           {/if}
         </li>
       {/each}
     </ol>
   {/if}
 
-  <form class="composer" onsubmit={(e) => (e.preventDefault(), send())}>
-    <textarea
-      aria-label="Reply to {feedbackHandle(item.number)}"
-      rows="1"
-      placeholder="Reply…"
-      bind:value={draft}
-      {onkeydown}
-      disabled={sending}
-      maxlength="5000"
-    ></textarea>
-    <Button small type="submit" disabled={sending || !draft.trim()}>{sending ? "Sending…" : "Reply"}</Button>
+  <form class="composer" class:dropping={tray.dragging} onsubmit={(e) => (e.preventDefault(), send())} {@attach tray.zone}>
+    <div class="row">
+      <textarea
+        aria-label="Reply to {feedbackHandle(item.number)}"
+        rows="1"
+        placeholder="Reply…"
+        bind:value={draft}
+        {onkeydown}
+        disabled={sending}
+        maxlength="5000"
+      ></textarea>
+      <Button small type="submit" disabled={!canSend}>{sending ? "Sending…" : "Reply"}</Button>
+    </div>
+    <AttachmentInput {tray} disabled={sending} label="the reply" />
   </form>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </div>
@@ -480,8 +503,21 @@
   }
   .composer {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .composer.dropping {
+    outline: 2px dashed var(--blue);
+    outline-offset: 3px;
+    border-radius: var(--radius);
+  }
+  .composer .row {
+    display: flex;
     align-items: flex-end;
     gap: 6px;
+  }
+  .images {
+    margin-top: 6px;
   }
   .composer textarea {
     flex: 1;

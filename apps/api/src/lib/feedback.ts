@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
 import {
   clients,
   db,
@@ -17,11 +17,9 @@ import {
   type FeedbackItem,
   type FeedbackStatus,
 } from "@pt/shared";
+import { attachmentsByItem } from "./feedback-attachments";
 
-/** Screenshot cap per image, decoded. Keeps a runaway capture out of the DB. */
-export const MAX_SHOT_BYTES = 4 * 1024 * 1024;
-
-/** Every column except the image blobs, plus has-shot flags and the author. */
+/** Every column except the image blobs, plus the author. */
 const listColumns = {
   id: feedbackItems.id,
   number: feedbackItems.number,
@@ -36,14 +34,10 @@ const listColumns = {
   shippedIn: feedbackItems.shippedIn,
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
-  hasElementShot: sql<boolean>`${feedbackItems.elementShot} is not null`,
-  hasPageShot: sql<boolean>`${feedbackItems.pageShot} is not null`,
 };
 
 type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot" | "agentCheck"> & {
   author: FeedbackItem["author"];
-  hasElementShot: boolean;
-  hasPageShot: boolean;
 };
 
 const authorColumns = { id: trainers.id, name: trainers.name, avatarUrl: trainers.avatarUrl };
@@ -73,8 +67,8 @@ async function reachableItems(rows: ListRow[], viewerId: string): Promise<Set<st
 }
 
 /**
- * Rows → API items: attaches each thread (one query) and, for a viewer, the
- * unread and muted flags (two more). Unread = someone other than the viewer filed it,
+ * Rows → API items: attaches each thread and the image metadata (two
+ * queries) and, for a viewer, the unread and muted flags (two more). Unread = someone other than the viewer filed it,
  * replied or changed its status after the viewer last looked. Only the admin
  * gets AI drafts and private notes (which then count as news for them too).
  */
@@ -100,6 +94,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     // Security boundary: AI drafts and private notes never leave the server for a non-admin.
     .where(and(inArray(feedbackComments.itemId, ids), admin ? undefined : eq(feedbackComments.visibility, "public")))
     .orderBy(asc(feedbackComments.createdAt));
+  const images = await attachmentsByItem(ids);
   const seen = new Map<string, Date>();
   if (viewerId) {
     const reads = await db
@@ -124,6 +119,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
     for (const c of mine) if (c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
     const seenAt = seen.get(r.id);
+    const itemImages = images.get(r.id);
     const thread = mine.map(
       (c): FeedbackComment => ({
         id: c.id,
@@ -134,11 +130,13 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
         aiMeta: admin ? c.aiMeta : null,
         body: c.body,
         status: c.status,
+        attachments: itemImages?.get(c.id) ?? [],
         createdAt: c.createdAt.toISOString(),
       }),
     );
     return {
       ...r,
+      attachments: itemImages?.get("") ?? [],
       thread,
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),
@@ -148,29 +146,6 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     };
   });
 }
-
-/**
- * `data:image/png;base64,…` (or bare base64) → bytes. Null when absent;
- * throws on a non-image data URL or an oversized image.
- */
-export function decodeShot(input: string | undefined | null): Buffer | null {
-  if (!input) return null;
-  const m = /^data:(image\/(?:png|jpeg|webp));base64,(.*)$/s.exec(input);
-  if (input.startsWith("data:") && !m) throw new Error("screenshot must be a png, jpeg or webp data URL");
-  const buf = Buffer.from(m ? m[2] : input, "base64");
-  if (buf.byteLength > MAX_SHOT_BYTES) throw new Error("screenshot too large");
-  return buf;
-}
-
-/** Magic-number sniff so the image route serves the right content type. */
-export function shotMime(buf: Buffer): string {
-  if (buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
-  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
-  if (buf.subarray(0, 4).toString() === "RIFF") return "image/webp";
-  return "application/octet-stream";
-}
-
-export const shotExt = (buf: Buffer) => shotMime(buf).split("/")[1].replace("jpeg", "jpg");
 
 export function parseStatuses(raw: string | undefined): FeedbackStatus[] | null {
   if (!raw) return null;
