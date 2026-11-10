@@ -22,15 +22,13 @@
 </script>
 
 <div class="generating-state" aria-busy="true">
-  <div class="heading" role="status">
+  <div class="heading">
     <span class="spinner" aria-hidden="true"></span>
-    <h2 class="title">Drafting your next block…</h2>
+    <!-- status announces once; the ticking timer sits outside it so it isn't re-read every second -->
+    <h2 class="title"><span role="status">Drafting your next block…</span></h2>
+    <span class="elapsed mono" title="elapsed">· {formatElapsed(now - startedAtMs)}</span>
   </div>
   <div class="meta">{providerLabel} · {model}</div>
-
-  <div class="elapsed-row">
-    <span class="elapsed mono">{formatElapsed(now - startedAtMs)} elapsed</span>
-  </div>
 
   <p class="reassurance">
     You can leave this page — generation continues on the server, and the draft will wait here for your review.
@@ -45,8 +43,11 @@
   }
   .heading {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .heading .spinner {
+    align-self: center;
   }
   .spinner {
     width: 16px;
@@ -77,18 +78,16 @@
     font-size: 13px;
     color: var(--muted);
   }
-  .elapsed-row {
-    display: flex;
-    justify-content: flex-end;
-  }
   .elapsed {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
   .mono {
     font-family: var(--font-mono, monospace);
   }
   .reassurance {
+    max-width: 65ch;
     margin: 4px 0 0;
     font-size: 13px;
     line-height: 1.5;
