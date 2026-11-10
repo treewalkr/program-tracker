@@ -38,7 +38,10 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     name: "Linear strength 3:1",
     goal: "strength",
     summary: "Three weeks of rising load, then a deload to let fatigue clear — simple step loading that suits most intermediate lifters.",
-    sources: ["Bompa & Haff, Periodization: Theory and Methodology of Training (step loading)", "Rhea & Alderman 2004, Res Q Exerc Sport — periodized vs non-periodized meta-analysis"],
+    sources: [
+      "Bompa & Haff 2009, Periodization: Theory and Methodology of Training, 5th ed. (Human Kinetics) — step loading",
+      "Rhea & Alderman 2004, Res Q Exerc Sport 75(4):413–422 — periodized vs non-periodized meta-analysis",
+    ],
     phase: "intensification",
     nextPhase: "accumulation",
     weeks: [
@@ -52,8 +55,12 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     key: "block",
     name: "Block (accumulate → transmute → realize)",
     goal: "strength",
-    summary: "Concentrated blocks: build work capacity with volume, convert it with heavier loads, then cut volume to express strength.",
-    sources: ["Issurin 2010, Sports Med — new horizons for the methodology and physiology of training periodization"],
+    summary: "Concentrated blocks: build work capacity with volume, convert it with heavier loads, then cut volume to express strength. Evidence comes mostly from athletes and is still debated.",
+    sources: [
+      "Issurin 2010, Sports Med 40(3):189–206 — new horizons for the methodology and physiology of training periodization",
+      "Painter et al. 2012, Int J Sports Physiol Perform 7(2):161–169 — block vs daily undulating: similar strength, block used less volume",
+      "Kiely 2010, Sports Med 40(9):803–805 — critique: block periodization lacks strong comparative evidence",
+    ],
     phase: "accumulation",
     nextPhase: "transition",
     weeks: [
@@ -69,8 +76,11 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     key: "hypertrophy-ramp",
     name: "Hypertrophy volume ramp",
     goal: "hypertrophy",
-    summary: "Start near the least volume that still grows muscle and add a set each week, then deload before fatigue outruns gains.",
-    sources: ["Schoenfeld, Ogborn & Krieger 2017, J Sports Sci — weekly set dose-response for hypertrophy", "Israetel, Hoffmann & Smith, Scientific Principles of Hypertrophy Training (MEV → MRV)"],
+    summary: "More weekly sets grow more muscle (graded dose-response). Ramping a set a week, then deloading, is the coaching model built on that.",
+    sources: [
+      "Schoenfeld, Ogborn & Krieger 2017, J Sports Sci 35(11):1073–1082 — weekly set dose-response for hypertrophy (meta-analysis)",
+      "Coaching model, not a study: Israetel, Hoffmann & Smith, Scientific Principles of Hypertrophy Training (Renaissance Periodization) — MEV → MRV ramp",
+    ],
     phase: "accumulation",
     nextPhase: "intensification",
     weeks: [
@@ -85,8 +95,12 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     key: "undulating",
     name: "Weekly undulating",
     goal: "general",
-    summary: "Alternate volume and intensity weeks so neither stress piles up — matches or beats linear plans in trained lifters.",
-    sources: ["Rhea et al. 2002, J Strength Cond Res — linear vs daily undulating periodization", "Painter et al. 2012, J Strength Cond Res — block vs daily undulating in athletes"],
+    summary: "Alternate volume and intensity weeks for variety. Evidence is mixed: undulating plans (mostly daily) edge out linear for max strength, but the one weekly-undulating trial found linear better.",
+    sources: [
+      "Apel, Lacey & Kell 2011, J Strength Cond Res 25(3):694–703 — weekly undulating vs traditional: traditional stronger at 12 weeks",
+      "Caldas et al. 2016, Int J Sports Sci 6(6):219–229 — meta-analysis: undulating slightly better for max strength, not hypertrophy",
+      "Rhea et al. 2002, J Strength Cond Res 16(2):250–255 — daily undulating beat linear for strength",
+    ],
     phase: "accumulation",
     nextPhase: "intensification",
     weeks: [
@@ -102,7 +116,11 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     name: "Peak & taper",
     goal: "peaking",
     summary: "Keep loads heavy while cutting volume 40–60 % so fatigue drops faster than fitness before a test or meet.",
-    sources: ["Bosquet et al. 2007, Med Sci Sports Exerc — taper meta-analysis (volume −41–60 %)", "Pritchard et al. 2015, Sports Med — tapering practices of strength athletes"],
+    sources: [
+      "Bosquet et al. 2007, Med Sci Sports Exerc 39(8):1358–1365 — taper meta-analysis: 2 weeks, volume −41–60 %",
+      "Pritchard et al. 2015, Strength Cond J 37(2):72–83 — effects and mechanisms of tapering for maximal strength",
+      "Pritchard et al. 2016, J Strength Cond Res 30(7):1796–1804 — elite raw powerlifters' tapers: volume −59 %, intensity kept",
+    ],
     phase: "realization",
     nextPhase: "transition",
     weeks: [
@@ -115,8 +133,10 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     key: "novice-linear",
     name: "Novice linear",
     goal: "strength",
-    summary: "Beginners recover fast enough to add load every week — keep it simple until progress stalls.",
-    sources: ["Rhea et al. 2003, Med Sci Sports Exerc — dose-response for strength (untrained vs trained)"],
+    summary: "Coaching practice: beginners progress on lower loads and doses, so adding a little weight each week works until it stalls. Not a tested protocol.",
+    sources: [
+      "Rhea et al. 2003, Med Sci Sports Exerc 35(3):456–464 — dose-response for strength: untrained gain most at ~60 % 1RM, trained at ~80 %",
+    ],
     phase: "linear progression",
     nextPhase: "intensification",
     weeks: [
@@ -132,12 +152,14 @@ export const SCHEME_PRESETS: readonly SchemePreset[] = [
     key: "return-to-train",
     name: "Return to training",
     goal: "general",
-    summary: "After a layoff, rebuild volume before load — strength comes back quickly, tendons and work capacity take longer.",
-    sources: ["Mujika & Padilla 2000, Sports Med — detraining: loss of training-induced adaptations"],
+    summary: "Coaching practice after a layoff: rebuild volume before load. Short breaks cost little strength but more work capacity. The ramp itself is not a tested protocol.",
+    sources: [
+      "Mujika & Padilla 2000, Sports Med 30(2):79–87 and 30(3):145–154 — detraining: what is lost, and how fast",
+    ],
     phase: "reintroduction",
     nextPhase: "accumulation",
     weeks: [
-      { week: 1, directive: "base", note: "≈60% usual volume, RPE ≤ 7." },
+      { week: 1, directive: "base", note: "Rule of thumb: about 60% of usual volume, RPE ≤ 7." },
       { week: 2, directive: "+volume", progression: { kind: "sets", amount: 1 } },
       { week: 3, directive: "+volume", progression: { kind: "sets", amount: 1 } },
       { week: 4, directive: "+intensity", progression: { kind: "percent", amount: 2.5 } },
