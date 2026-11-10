@@ -170,6 +170,40 @@ export interface FeedbackAiMeta {
 /** Display name for AI-written entries (they have no trainer author). */
 export const FEEDBACK_AI_AUTHOR_NAME = "AI assistant";
 
+/**
+ * Where an image on a ticket came from: the captured close-up of the clicked
+ * element, the captured page (element outlined in red), or one the trainer
+ * pasted, dropped or picked.
+ */
+export const FEEDBACK_ATTACHMENT_KINDS = ["element", "page", "upload"] as const;
+export type FeedbackAttachmentKind = (typeof FEEDBACK_ATTACHMENT_KINDS)[number];
+
+/** Image types a ticket or reply accepts (the browser re-encodes to webp before upload). */
+export const FEEDBACK_IMAGE_MIMES = ["image/png", "image/jpeg", "image/webp"] as const;
+export type FeedbackImageMime = (typeof FEEDBACK_IMAGE_MIMES)[number];
+/** Uploaded images per ticket, and per reply. The two captured screenshots don't count. */
+export const FEEDBACK_MAX_IMAGES = 6;
+/** Per image, after the browser's compression. */
+export const FEEDBACK_MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+/** The browser scales images down so the longest side is at most this. */
+export const FEEDBACK_IMAGE_MAX_SIDE = 2000;
+
+/** An image on a ticket or a reply (metadata only; the bytes have their own URL). */
+export interface FeedbackAttachment {
+  id: string;
+  kind: FeedbackAttachmentKind;
+  mime: string;
+  /** Null for a few screenshots copied over from before attachments existed. */
+  width: number | null;
+  height: number | null;
+  /** Order within its ticket or reply. */
+  position: number;
+}
+
+/** File extension for an image type (`jpg`, not `jpeg`). */
+export const imageExt = (mime: string): string =>
+  ({ "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" })[mime] ?? "bin";
+
 /** One thread entry: a reply, or a status change made by `author`. */
 export interface FeedbackComment {
   id: string;
@@ -185,6 +219,8 @@ export interface FeedbackComment {
   body: string | null;
   /** Status moved to; null for replies. */
   status: FeedbackStatus | null;
+  /** Images posted with a reply, in order; empty for status entries. */
+  attachments: FeedbackAttachment[];
   createdAt: string;
 }
 
@@ -218,8 +254,8 @@ export interface FeedbackItem {
   /** `file:line:column` of the clicked element, or null. */
   source: string | null;
   context: FeedbackContext;
-  hasElementShot: boolean;
-  hasPageShot: boolean;
+  /** Images on the ticket itself (screenshots and uploads), in order. Replies carry their own. */
+  attachments: FeedbackAttachment[];
   /** App version live when it was marked done (e.g. `0.1.3`); null otherwise. */
   shippedIn: string | null;
   /** Replies and status changes, oldest first. */
@@ -315,9 +351,29 @@ export function snapshotJson(value: unknown, maxChars = 8000): unknown {
 }
 
 export interface FeedbackMarkdownOptions {
-  /** Link target for an item's screenshot; null when the shot is missing. */
-  imageUrl: (item: FeedbackItem, kind: "element" | "page") => string | null;
+  /** Link target for one of the item's images (on the ticket or a reply); null leaves it out. */
+  imageUrl: (item: FeedbackItem, attachment: FeedbackAttachment) => string | null;
   title?: string;
+}
+
+const ATTACHMENT_LABEL: Record<FeedbackAttachmentKind, string> = {
+  element: "Element screenshot",
+  page: "Page screenshot (element outlined in red)",
+  upload: "Image",
+};
+
+/** `![alt](url)` per image with a URL; uploads are numbered within their entry. */
+function imageLines(item: FeedbackItem, list: FeedbackAttachment[], opts: FeedbackMarkdownOptions, where: string) {
+  const handle = feedbackHandle(item.number);
+  const uploads = list.filter((a) => a.kind === "upload").length;
+  let n = 0;
+  return list.flatMap((a) => {
+    const url = opts.imageUrl(item, a);
+    if (a.kind === "upload") n++;
+    if (!url) return [];
+    const label = a.kind === "upload" && uploads > 1 ? `${ATTACHMENT_LABEL.upload} ${n} of ${uploads}` : ATTACHMENT_LABEL[a.kind];
+    return [{ label, md: `![${handle} ${where} ${label.split(" (")[0].toLowerCase()}](${url})` }];
+  });
 }
 
 const fence = (lang: string, body: string) => {
@@ -379,10 +435,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     }
     if (m.citations.length) lines.push(`  - Citations: ${m.citations.map((x) => `\`${x}\``).join(", ")}`);
   }
-  const el = opts.imageUrl(item, "element");
-  const pg = opts.imageUrl(item, "page");
-  if (el) lines.push(`- **Element screenshot:** ![${feedbackHandle(item.number)} element](${el})`);
-  if (pg) lines.push(`- **Page screenshot (element outlined in red):** ![${feedbackHandle(item.number)} page](${pg})`);
+  for (const img of imageLines(item, item.attachments ?? [], opts, "ticket")) lines.push(`- **${img.label}:** ${img.md}`);
   // AI private notes: the current one is the AI triage above; older ones judged a ticket that has since changed.
   const thread = item.thread.filter((e) => !(e.authorKind === "ai" && e.visibility === "private"));
   if (thread.length) {
@@ -397,6 +450,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
           ? `- _${who} marked it ${c.status} (${c.createdAt.slice(0, 10)})_`
           : `- **${who}**${tag} (${c.createdAt.slice(0, 10)}): ${(c.body ?? "").trim().split("\n").join("\n  ")}`,
       );
+      for (const img of imageLines(item, c.attachments ?? [], opts, "reply")) lines.push(`  - ${img.label}: ${img.md}`);
     }
   }
   if (pinned) {
