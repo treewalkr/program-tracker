@@ -12,6 +12,8 @@ storybook-static/
 .env
 .env.*
 !.env.example
+# feedback auto-reply agent's token (already covered by .env.*, listed so it stays ignored)
+.env.agent
 
 # misc
 /feedback/
