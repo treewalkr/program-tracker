@@ -431,7 +431,8 @@
   .sq.missed { background: var(--bad-bg); border-color: var(--bad); }
   .sq.unlogged { background: var(--warn-bg); border-color: var(--warn); }
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
-  .sq.upcoming { background: var(--surface); border-color: var(--line-strong); }
+  /* Faint, not line-strong: the planned outline needs 3:1 on canvas in every palette. */
+  .sq.upcoming { background: var(--surface); border-color: var(--faint); }
   button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
 
   /* This week */
