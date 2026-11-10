@@ -10,7 +10,8 @@
   import { theme, PALETTES, type ThemePref, type PaletteId, type Mode } from "$lib/theme.svelte";
   import { accountApi, type NotificationPatch, type NotificationSettings } from "$lib/account";
   import { feedbackApi } from "$lib/feedback/client";
-  import { DEFAULT_DELOAD, type DeloadSettings, type FeedbackReplyScope } from "@pt/shared";
+  import { DEFAULT_DELOAD, type DeloadSettings, type FeedbackAiMode, type FeedbackReplyScope } from "@pt/shared";
+  import { AI_MODE_OPTIONS } from "$lib/feedback/ai";
   import DeloadRuleFields from "$lib/components/DeloadRuleFields.svelte";
 
   const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
@@ -34,6 +35,27 @@
   let emailError = $state<string | null>(null);
   /** Which replies to turn back on when the admin re-ticks "Replies". */
   let replyScope = $state<Exclude<FeedbackReplyScope, "off">>("all");
+
+  /** Admin: AI answers on feedback. undefined while loading (or not admin), null if the API didn't answer. */
+  let aiMode = $state<FeedbackAiMode | null | undefined>(undefined);
+  let aiSaving = $state(false);
+  let aiError = $state<string | null>(null);
+
+  /** Optimistic, like the email switches. */
+  async function saveAiMode(mode: FeedbackAiMode) {
+    const prev = aiMode;
+    aiMode = mode;
+    aiSaving = true;
+    aiError = null;
+    try {
+      aiMode = await accountApi.setFeedbackAiMode(mode);
+    } catch (err) {
+      aiMode = prev;
+      aiError = (err as Error).message || "Could not save";
+    } finally {
+      aiSaving = false;
+    }
+  }
 
   /** Deload rule: undefined while loading, null if the API didn't answer. `saved` is what the server holds. */
   let deloadSaved = $state<DeloadSettings | null | undefined>(undefined);
@@ -111,6 +133,12 @@
       (n) => {
         notif = n;
         if (n.prefs.replies !== "off") replyScope = n.prefs.replies;
+        if (n.isAdmin) {
+          accountApi.feedbackAiMode().then(
+            (m) => (aiMode = m),
+            () => (aiMode = null),
+          );
+        }
       },
       () => (notif = null),
     );
@@ -309,6 +337,38 @@
           </div>
         {/if}
         {#if emailError}<p class="err" role="alert">{emailError}</p>{/if}
+
+        {#if notif.isAdmin}
+          <div class="ai-answers">
+            <h3 id="ai-answers-title">AI answers to feedback</h3>
+            <p class="muted">
+              A scheduled agent reads new tickets against the code and replies. Every answer is badged as AI and comes with a
+              private note for you.
+            </p>
+            {#if aiMode === undefined}
+              <Skeleton w="220px" h="16px" />
+            {:else if aiMode === null}
+              <p class="muted">This setting isn't available right now.</p>
+            {:else}
+              <div class="radios ai-modes" role="radiogroup" aria-labelledby="ai-answers-title">
+                {#each AI_MODE_OPTIONS as opt (opt.value)}
+                  <label class="check">
+                    <input
+                      type="radio"
+                      name="feedback-ai-mode"
+                      value={opt.value}
+                      checked={aiMode === opt.value}
+                      disabled={aiSaving}
+                      onchange={() => saveAiMode(opt.value)}
+                    />
+                    <span>{opt.label} <span class="muted">— {opt.help}</span></span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+            {#if aiError}<p class="err" role="alert">{aiError}</p>{/if}
+          </div>
+        {/if}
       {/if}
     </div>
   </Panel>
@@ -473,6 +533,13 @@
   .muted-list li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
   .muted-list .handle { font-family: var(--font-mono); font-size: 12px; color: var(--blue); flex: none; }
   .muted-list .comment { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+
+  .ai-answers { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .ai-answers h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .ai-answers > .muted { max-width: 64ch; line-height: 1.5; margin-bottom: 10px; }
+  .ai-modes { margin-left: 0; }
+  .ai-modes .check { align-items: flex-start; }
+  .ai-modes .check input { margin-top: 2px; }
 
   .email .err { margin: 8px 0 0; color: var(--bad); font-size: 12px; }
 
