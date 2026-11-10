@@ -27,6 +27,7 @@ import {
   withoutExtra,
   loggedBySession,
   prescribedSummary,
+  previewBlocks,
   isDirty,
   draftJson,
   draftKey,
@@ -428,6 +429,43 @@ describe("prescribedSummary", () => {
   test("a blank extra set is ignored, a skipped AMRAP isn't open", () => {
     const s = prescribedSummary([row({ key: "x", extra: true }), row({ key: "b", reps: "", skipped: true })], bw);
     expect(s).toEqual({ sets: 0, missingLoad: [], missingLoadSets: 0, openAmrap: 0 });
+  });
+});
+
+describe("previewBlocks", () => {
+  test("groups the sent sets by card and marks the typed ones", () => {
+    const before = [
+      row({ key: "a1", programExerciseId: "squat", weight: 70, reps: 6 }),
+      row({ key: "a2", programExerciseId: "squat" }),
+      row({ key: "b1", programExerciseId: "rdl" }),
+    ];
+    const after = [
+      row({ key: "a1", programExerciseId: "squat", weight: 70, reps: 6 }),
+      row({ key: "a2", programExerciseId: "squat", weight: 65, reps: 5 }),
+      row({ key: "b1", programExerciseId: "rdl", weight: 80, reps: 8 }),
+    ];
+    const { blocks, entered } = previewBlocks(before, after);
+    expect(entered).toBe(1);
+    expect(blocks.map((b) => [b.programExerciseId, b.sets.map((s) => [s.row.key, s.entered])])).toEqual([
+      ["squat", [["a1", true], ["a2", false]]],
+      ["rdl", [["b1", false]]],
+    ]);
+  });
+
+  test("leaves out skipped sets and open AMRAPs; a filled-down kg isn't typed", () => {
+    const before = [
+      row({ key: "a", weight: 60, copied: ["weight"] }),
+      row({ key: "b", skipped: true }),
+      row({ key: "c" }),
+    ];
+    const after = [
+      row({ key: "a", weight: 60, reps: 5, copied: ["weight"] }),
+      row({ key: "b", reps: 5, skipped: true }),
+      row({ key: "c", weight: 60, reps: "" }),
+    ];
+    const { blocks, entered } = previewBlocks(before, after);
+    expect(entered).toBe(0);
+    expect(blocks.flatMap((b) => b.sets.map((s) => s.row.key))).toEqual(["a"]);
   });
 });
 

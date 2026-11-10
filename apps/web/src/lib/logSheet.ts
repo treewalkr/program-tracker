@@ -460,6 +460,32 @@ export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: s
   return { sets, missingLoad: missing, missingLoadSets, openAmrap };
 }
 
+export interface PreviewBlock<R extends SheetRow> {
+  programExerciseId: string;
+  /** The sets the save sends, sheet order; `entered` = the trainer had typed it before the fill. */
+  sets: { row: R; entered: boolean }[];
+}
+
+/**
+ * The sets "Did it as prescribed" would log, one block per card, so the dialog
+ * can show the numbers. `before` is the sheet as typed, `after` the same rows
+ * with the prescription filled in (same keys).
+ */
+export function previewBlocks<R extends SheetRow>(before: SheetRow[], after: R[]): { blocks: PreviewBlock<R>[]; entered: number } {
+  const typed = new Set(before.filter((r) => !r.skipped && rowFilled(r)).map((r) => r.key));
+  const blocks: PreviewBlock<R>[] = [];
+  let entered = 0;
+  for (const r of rowsToSave(after)) {
+    if (!r.extra && isBlank(r.reps)) continue;
+    const isTyped = typed.has(r.key);
+    if (isTyped) entered++;
+    let b = blocks.find((x) => x.programExerciseId === r.programExerciseId);
+    if (!b) blocks.push((b = { programExerciseId: r.programExerciseId, sets: [] }));
+    b.sets.push({ row: r, entered: isTyped });
+  }
+  return { blocks, entered };
+}
+
 /** Anything the trainer entered that a session change or leaving the page would lose. */
 export function isDirty(rows: SheetRow[], notes: string, readiness: ReadinessForm, flags: ExerciseFlags): boolean {
   return (
