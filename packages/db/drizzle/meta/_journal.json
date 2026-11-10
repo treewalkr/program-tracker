@@ -302,6 +302,13 @@
       "when": 1796300000000,
       "tag": "0043_deload_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1796400000000,
+      "tag": "0044_log_flags",
+      "breakpoints": true
     }
   ]
 }

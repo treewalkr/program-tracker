@@ -62,6 +62,8 @@ import type {
   WeekSummaryStats,
   BuiltinRole,
   GlossaryKind,
+  Readiness,
+  SessionFlag,
 } from "@pt/shared";
 
 // ---------------------------------------------------------------------------
@@ -211,6 +213,10 @@ export const sessionLogs = pgTable("session_logs", {
   cardio: jsonb("cardio").$type<CardioLog>(),
   notes: text("notes"),
   perceivedEnergy: integer("perceived_energy"),
+  /** Pre-session sleep and soreness, 1–5 each; null on older rows. */
+  readiness: jsonb("readiness").$type<Readiness>(),
+  /** Per-exercise pain / technique / skipped flags; null on older rows. */
+  flags: jsonb("flags").$type<SessionFlag[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
