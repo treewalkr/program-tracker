@@ -42,6 +42,10 @@
   /** The logger, opened on a session and date. */
   const logHref = (clientId: string, sessionId: string | null | undefined, date: string) =>
     sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
+  /** Extra sessions on a day show as marks under the tag — one each, up to this many. */
+  const MAX_MARKS = 3;
+  /** In-cell state word at wider widths; today's cell has none (ring + header say it). */
+  const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", missed: "missed", unlogged: "to log" };
   const tagOf = (name: string) => name.split(" + ")[0].split("—")[0].trim() || "Session";
   const marks = (d: StripDay) => d.status !== "rest" && d.status !== "before-start";
   /** Due, not logged yet, or missed: the cell (and the popover's Log link) opens the logger. */
@@ -206,14 +210,16 @@
             </div>
 
             {#each s.weeks[s.weeks.length - 1] as d (d.date)}
-              {@const extra = d.sessions.length - 1}
+              {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
               <div class="wk-cell" role="cell">
                 {#if marks(d)}
                   {@const label = daySentence(s.client.name, d)}
                   {#snippet body()}
                     <span class="tag">{tagOf(d.sessions[0].name)}</span>
-                    {#if extra > 0}<span class="more">+{extra}<span class="more-word">{" more"}</span></span>{/if}
-                    {#if d.status === "logged"}<span class="state">done</span>{:else if d.status === "missed"}<span class="state">missed</span>{/if}
+                    <span class="foot">
+                      {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
+                      {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
+                    </span>
                   {/snippet}
                   {#if loggable(d)}
                     <a
@@ -406,18 +412,21 @@
 
   /* This week */
   .wk-cell { padding: 6px 0; display: flex; justify-content: center; min-width: 0; }
+  /* Every this-week cell is the same height at a given width: the tag clamps
+     to two lines, extras are marks, never extra text lines. */
   .cell {
     width: 100%;
     max-width: 76px;
-    min-height: 40px;
+    height: 52px;
     border-radius: 4px;
     border: 1px solid var(--line);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    padding: 4px 3px;
+    gap: 2px;
+    padding: 3px;
+    overflow: hidden;
     text-decoration: none;
     font: inherit;
     color: inherit;
@@ -438,8 +447,12 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .cell .more { font: 500 11px/1.2 var(--font-mono); white-space: nowrap; }
-  .cell .state { font: 400 11px/1.2 var(--font-ui); }
+  .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
+  .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
+  .cell .mk + .state { margin-left: 2px; }
+  /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
+  .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
+  .mk.cardio { border-radius: 99px; }
   .cell.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
   .cell.logged:hover { border-color: var(--ink); }
   .cell.today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--pulse-now-bg); color: var(--blue); }
@@ -556,7 +569,9 @@
       padding: 10px 2px 2px;
     }
     .wk-cell { padding: 4px 0 8px; }
-    .cell { min-height: 44px; padding: 4px 0; }
+    .cell { height: 44px; padding: 3px 0; }
+    /* ~33px cells: fill and edge carry the state; the word is in the label and tooltip. */
+    .cell .state { display: none; }
     /* Cells are ~33px: the tag drops to sentence-case UI type so a short
        name ("Lower", "Upper A") fits whole over at most two lines; anything
        longer clips — the full name is in the label and the tooltip. */
@@ -566,7 +581,6 @@
       letter-spacing: -0.02em;
       overflow-wrap: normal;
     }
-    .more-word { display: none; }
     .legend { justify-content: flex-start; }
   }
 </style>
