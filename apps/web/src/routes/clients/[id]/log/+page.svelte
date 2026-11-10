@@ -1804,7 +1804,7 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow-overlay);
   }
-  .ask::backdrop { background: rgba(1, 4, 9, 0.35); }
+  .ask::backdrop { background: var(--scrim); }
   .ask h2 { margin: 0 0 6px; font: 600 16px/1.3 var(--font-ui); }
   .ask-line { margin: 0; color: var(--ink); }
   .ask-warn {
@@ -2156,7 +2156,8 @@
     .c-skip { grid-area: skip; }
     .skip-note { grid-area: note; grid-column: auto; text-align: left; }
     .skip-btn { width: 100%; height: 44px; font-size: 14px; }
-    .skip-word::after { content: " set"; }
+    /* Visual only: the button's aria-label already names the set. */
+    .skip-word::after { content: " set" / ""; }
     .coach-line { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: -4px; font-size: 12px; }
     .cl-src { flex-basis: 100%; }
     .cl-e1rm { margin-right: auto; }
