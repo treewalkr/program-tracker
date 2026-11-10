@@ -28,7 +28,9 @@
   import Field from "$lib/ui/Field.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Note from "$lib/ui/Note.svelte";
   import { logDateLabel } from "$lib/programLogs";
@@ -334,7 +336,14 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <Skeleton h="140px" />
+  <SkeletonHead avatar actions={4} tabs={4} label="Loading client…" />
+  <div class="two-col">
+    <SkeletonPanel count rows={5} />
+    <div class="side-stack">
+      <SkeletonPanel height={72} />
+      <SkeletonPanel rows={2} dense />
+    </div>
+  </div>
 {:else}
   <Crumbs items={[{ href: "/clients", label: "Clients" }, { label: client.name }]} />
 
@@ -663,7 +672,7 @@
       {#if historyError}
         <div class="panel-body"><Note tone="warn">Couldn't load the history: {historyError}</Note></div>
       {:else if historyLogs === null}
-        <div class="panel-body skel"><Skeleton h="14px" w="60%" /><Skeleton h="14px" w="80%" /><Skeleton h="14px" w="45%" /></div>
+        <SkeletonRows rows={4} dense />
       {:else if lifts.length > 0}
         {#if historyCapped}
           <p class="cap-note">Showing the newest {historyLogs.length} sessions.</p>
@@ -943,7 +952,6 @@
   .seg-opt.on { background: var(--surface); color: var(--ink); font-weight: 600; }
   .seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
   .seg-opt:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
-  .skel { display: flex; flex-direction: column; gap: 10px; }
   .cap-note { margin: 0; padding: 8px 16px; font: 400 12.5px/1.4 var(--font-ui); color: var(--muted); border-bottom: 1px solid var(--line-soft); }
   .lift-btn, .spark-btn {
     font: inherit;

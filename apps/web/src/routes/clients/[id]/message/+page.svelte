@@ -17,7 +17,8 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   const id = $derived(page.params.id ?? "");
   const paramWeek = $derived(new URLSearchParams(page.url.search).get("week"));
@@ -144,9 +145,8 @@
 </script>
 
 {#if loading}
-  <PageHead title="Message client" crumbs={[{ href: `/clients/${id}`, label: "Client" }, { label: "Message" }]} />
-  <Skeleton h="18px" w="40%" />
-  <div class="mt-16"><Skeleton h="220px" w="100%" /></div>
+  <SkeletonHead label="Loading messages…" />
+  <SkeletonPanel title="Draft message" height={180} />
 {:else if !client}
   <EmptyState>Client not found.</EmptyState>
 {:else if !current}

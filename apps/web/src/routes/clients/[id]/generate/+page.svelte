@@ -29,7 +29,8 @@
   import Panel from "$lib/ui/Panel.svelte";
   import ModelSettings from "$lib/components/ModelSettings.svelte";
   import InputLedger from "$lib/components/InputLedger.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
 
@@ -434,7 +435,11 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <Skeleton h="140px" />
+  <SkeletonHead label="Loading client…" />
+  <div class="skel-stack form">
+    <SkeletonPanel height={140} />
+    <SkeletonPanel title="What the AI reads" rows={3} trail={false} />
+  </div>
 {:else if phase !== "review" || !gen?.draft}
   <PageHead
     title={phase === "form"

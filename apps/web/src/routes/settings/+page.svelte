@@ -222,7 +222,7 @@
     {#snippet act()}<span class="head-note">every client, unless you give one their own</span>{/snippet}
     <div class="deload">
       {#if deloadSaved === undefined}
-        <Skeleton w="320px" h="18px" />
+        <Skeleton shape="line" w="min(320px, 100%)" h="12px" />
       {:else if deloadSaved === null}
         <p class="muted">The deload rule isn't available right now.</p>
       {:else}
@@ -246,7 +246,7 @@
   <Panel title="Email">
     <div class="email">
       {#if notif === undefined}
-        <Skeleton w="260px" h="18px" />
+        <Skeleton shape="line" w="min(260px, 100%)" h="12px" />
       {:else if notif === null}
         <p class="muted">Email settings aren't available right now.</p>
       {:else}
@@ -346,7 +346,7 @@
               private note for you.
             </p>
             {#if aiMode === undefined}
-              <Skeleton w="220px" h="16px" />
+              <Skeleton shape="line" w="min(220px, 100%)" h="12px" />
             {:else if aiMode === null}
               <p class="muted">This setting isn't available right now.</p>
             {:else}
@@ -381,7 +381,7 @@
       <span class="ver">{webBuild}</span>
       <span class="api" aria-live="polite">
         {#if apiBuild === undefined}
-          <Skeleton w="90px" h="12px" />
+          <Skeleton shape="line" w="90px" h="10px" />
         {:else if apiBuild === null}
           <span class="dot bad" aria-hidden="true"></span>API not reachable
         {:else if apiBuild !== webBuild}
@@ -518,15 +518,6 @@
   .group { display: flex; flex-direction: column; gap: 6px; }
   .radios { display: flex; flex-direction: column; gap: 6px; margin-left: 22px; }
   .radios input:disabled + span { color: var(--muted); }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
   .muted-list { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
   .muted-list h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
   .muted-list ul { list-style: none; margin: 0; padding: 0; }

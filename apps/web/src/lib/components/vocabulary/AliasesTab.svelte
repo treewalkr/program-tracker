@@ -12,7 +12,7 @@
   import Note from "$lib/ui/Note.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
 
   /**
    * Aliases: the names the trainer writes (as written → exercise). Their own
@@ -120,7 +120,7 @@
   {/if}
 
   {#if !loaded}
-    <div class="panel-body"><Skeleton h="160px" /></div>
+    <SkeletonRows rows={5} dense />
   {:else if shown.length === 0}
     <EmptyState>
       {query.trim()

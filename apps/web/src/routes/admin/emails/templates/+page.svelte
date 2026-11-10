@@ -76,7 +76,10 @@
     <Button small onclick={load}>Try again</Button>
   </Note>
 {:else if !previews || !selected}
-  <SkeletonPanel />
+  <div class="layout">
+    <SkeletonPanel rows={6} dense trail={false} label="Loading templates…" />
+    <SkeletonPanel height={360} />
+  </div>
 {:else}
   {@const from = sender(selected.from)}
   <div class="layout">

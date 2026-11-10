@@ -13,7 +13,7 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
 
   let rules = $state<CoachingRuleDto[]>([]);
   let clients = $state<ClientDto[]>([]);
@@ -161,7 +161,7 @@
 
     <Panel title="Active" count={active.length}>
       {#if !loaded}
-        <div class="panel-body"><Skeleton h="120px" /></div>
+        <SkeletonRows rows={3} />
       {:else if active.length === 0}
         <EmptyState>
           No rules yet. Add a note on a draft or a reply and choose “This client” or “All clients”. The AI suggests a rule,

@@ -17,7 +17,7 @@
   import WeekGrid from "$lib/components/WeekGrid.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import WeekGridSkeleton from "$lib/components/WeekGridSkeleton.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -98,7 +98,13 @@
     <Button small onclick={load}>Try again</Button>
   </Note>
 {:else if clients === null}
-  <SkeletonPanel height={80} />
+  <SkeletonPanel class="week-panel" title="Training week" count label="Loading this week…">
+    <WeekGridSkeleton />
+  </SkeletonPanel>
+  <div class="grid-2">
+    <div class="col"><SkeletonPanel title="Needs review" rows={3} /></div>
+    <div class="col"><SkeletonPanel title="Clients" count rows={4} /></div>
+  </div>
 {:else if clients.length === 0}
   <section class="panel">
     <EmptyState>
@@ -118,7 +124,7 @@
     {:else if loadError}
       <p class="clear err">Couldn't load sessions — {loadError}. <Button small onclick={load}>Try again</Button></p>
     {:else}
-      <div class="panel-body"><Skeleton h="96px" /></div>
+      <WeekGridSkeleton rows={Math.min(Math.max(clients.length, 1), 4)} />
     {/if}
   </Panel>
   <div class="grid-2">

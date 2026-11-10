@@ -60,7 +60,7 @@
 {/if}
 
 {#if clients === null}
-  <SkeletonPanel height={60} />
+  <SkeletonPanel rows={6} label="Loading clients…" />
 {:else if clients.length === 0}
   <section class="panel">
     <EmptyState>

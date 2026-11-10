@@ -316,7 +316,22 @@
 
   <div role="tabpanel" id="panel-{filter}" aria-labelledby="fb-{filter}">
     {#if !loaded}
-      <div class="list"><Skeleton h="120px" /><Skeleton h="120px" /></div>
+      <ul class="list" aria-busy="true">
+        <li class="sr-only" role="status">Loading feedback…</li>
+        {#each { length: 3 }, i (i)}
+          <li class="item" aria-hidden="true">
+            <div class="body skel-item">
+              <span class="skel-meta">
+                <Skeleton shape="line" h="10px" w="44px" />
+                <Skeleton shape="round" h="20px" w="64px" />
+                <Skeleton shape="line" h="10px" w="96px" />
+              </span>
+              <Skeleton shape="line" h="12px" w={["72%", "58%", "66%"][i]} />
+              <Skeleton shape="line" h="12px" w={["44%", "52%", "30%"][i]} />
+            </div>
+          </li>
+        {/each}
+      </ul>
     {:else if visible.length === 0}
       <EmptyState>
         {#if items.length === 0}
@@ -552,6 +567,8 @@
     min-width: 0;
     padding: 14px 16px 16px;
   }
+  .skel-item { gap: 10px; }
+  .skel-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .meta {
     display: flex;
     flex-wrap: wrap;

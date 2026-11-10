@@ -39,7 +39,8 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Note from "$lib/ui/Note.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Verdict from "$lib/components/Verdict.svelte";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
@@ -574,7 +575,8 @@
 {/snippet}
 
 {#if loading}
-  <div class="mt-16"><Skeleton h="180px" w="100%" /></div>
+  <SkeletonHead actions={1} label="Loading conversation…" />
+  <SkeletonPanel title="Conversation" rows={3} trail={false} />
 {:else if !client}
   <EmptyState>Client not found.</EmptyState>
 {:else}
@@ -641,9 +643,6 @@
 {/if}
 
 <style>
-  .mt-16 {
-    margin-top: 16px;
-  }
   .bench {
     min-height: 420px;
     display: grid;
