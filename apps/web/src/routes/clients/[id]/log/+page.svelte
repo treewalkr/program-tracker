@@ -27,6 +27,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Note from "$lib/ui/Note.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
@@ -98,6 +99,12 @@
   const id = $derived(page.params.id ?? "");
 
   let client = $state<ClientDto | null>(null);
+  /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
+  let loadError = $state<unknown>(null);
+  const onLoadError = (e: unknown) => {
+    if (client !== null) throw e;
+    loadError = e;
+  };
   let program = $state<ProgramDto | null>(null);
   let pastLogs = $state<SessionLogDto[]>([]);
   let catalog = $state<ExerciseDto[]>([]);
@@ -979,7 +986,7 @@
     return s ? { ...p, weight: s.kg } : p;
   };
 
-  onMount(async () => {
+  async function firstLoad() {
     const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
     catalog = exercises;
     client = detail.client;
@@ -998,12 +1005,18 @@
         pickNote = pickText(pick, pick.date);
       }
     }
+  }
+
+  onMount(() => {
+    firstLoad().catch(onLoadError);
   });
 </script>
 
 <svelte:head><title>Log session · Program Tracker</title></svelte:head>
 
-{#if client === null}
+{#if loadError}
+  <ClientLoadError error={loadError} />
+{:else if client === null}
   <Skeleton h="140px" />
 {:else}
   <PageHead

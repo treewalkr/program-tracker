@@ -30,11 +30,18 @@
   import ModelSettings from "$lib/components/ModelSettings.svelte";
   import InputLedger from "$lib/components/InputLedger.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
 
   const id = $derived(page.params.id ?? "");
 
   let client = $state<ClientDto | null>(null);
+  /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
+  let loadError = $state<unknown>(null);
+  const onLoadError = (e: unknown) => {
+    if (client !== null) throw e;
+    loadError = e;
+  };
   let current = $state<ProgramDto | null>(null);
   let catalogById = $state(new Map<string, ExerciseDto>());
   let providers = $state<ProviderDto[]>([]);
@@ -365,7 +372,7 @@
     selected = selected.includes(id2) ? selected.filter((s) => s !== id2) : [...selected, id2];
   }
 
-  onMount(async () => {
+  async function firstLoad() {
     const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
     const prefs = await api.preferences();
     learned = effectivePreferences(prefs, id);
@@ -415,12 +422,18 @@
         startPolling(latest.id);
       }
     }
+  }
+
+  onMount(() => {
+    firstLoad().catch(onLoadError);
   });
 </script>
 
 <svelte:head><title>Generate program · Program Tracker</title></svelte:head>
 
-{#if client === null}
+{#if loadError}
+  <ClientLoadError error={loadError} />
+{:else if client === null}
   <Skeleton h="140px" />
 {:else if phase !== "review" || !gen?.draft}
   <PageHead

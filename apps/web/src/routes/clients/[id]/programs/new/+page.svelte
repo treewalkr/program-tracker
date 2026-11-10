@@ -40,6 +40,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PasteImport from "$lib/components/PasteImport.svelte";
@@ -47,6 +48,12 @@
   const id = $derived(page.params.id ?? "");
 
   let client = $state<ClientDto | null>(null);
+  /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
+  let loadError = $state<unknown>(null);
+  const onLoadError = (e: unknown) => {
+    if (client !== null) throw e;
+    loadError = e;
+  };
   let catalog = $state<ExerciseDto[]>([]);
   /** New exercise from the picker: save to the library, keep the catalog in sync. */
   async function addToLibrary(input: ExerciseInput) {
@@ -402,7 +409,7 @@
     }
   }
 
-  onMount(async () => {
+  async function firstLoad() {
     const detail = await api.client(id);
     client = detail.client;
     [catalog, schemes, types] = await Promise.all([api.exercises(), api.schemes(), api.sessionTypes()]);
@@ -424,6 +431,10 @@
     await tick();
     baseline = JSON.stringify(formSnapshot());
     autosave = true;
+  }
+
+  onMount(() => {
+    firstLoad().catch(onLoadError);
   });
 </script>
 
@@ -435,7 +446,9 @@
   }}
 />
 
-{#if client === null}
+{#if loadError}
+  <ClientLoadError error={loadError} />
+{:else if client === null}
   <Skeleton h="140px" />
 {:else}
   <PageHead

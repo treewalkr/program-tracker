@@ -29,6 +29,7 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Note from "$lib/ui/Note.svelte";
   import { logDateLabel } from "$lib/programLogs";
   import { slotSwaps } from "$lib/logSheet";
@@ -40,6 +41,12 @@
   const id = $derived(page.params.id ?? "");
 
   let client = $state<ClientDto | null>(null);
+  /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
+  let loadError = $state<unknown>(null);
+  const onLoadError = (e: unknown) => {
+    if (client !== null) throw e;
+    loadError = e;
+  };
   let current = $state<ProgramDto | null>(null);
   let programs = $state<ProgramDto[] | null>(null);
   let latestGen = $state<GenerationDto | null>(null);
@@ -313,7 +320,7 @@
   onMount(() => {
     const h = location.hash.slice(1);
     if (h === "pulse" || h === "history" || h === "settings" || h === "program") tab = h;
-    return load();
+    load().catch(onLoadError);
   });
 </script>
 
@@ -324,7 +331,9 @@
   <button type="button" class="cell-btn" aria-label={label} aria-expanded={isOpen(week, cell)} aria-controls="pulse-drill" onclick={() => openDrill(week, cell)}>{text}</button>
 {/snippet}
 
-{#if client === null}
+{#if loadError}
+  <ClientLoadError error={loadError} />
+{:else if client === null}
   <Skeleton h="140px" />
 {:else}
   <Crumbs items={[{ href: "/clients", label: "Clients" }, { label: client.name }]} />
