@@ -13,6 +13,7 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -92,9 +93,10 @@
     <Button small onclick={() => load(id, useSample)}>Try again</Button>
   </Note>
 {:else if detail === undefined}
+  <SkeletonHead label="Loading client…" />
   <div class="layout">
-    <SkeletonPanel height={240} />
-    <SkeletonPanel height={360} />
+    <SkeletonPanel title="Basics" class="basics" rows={5} dense />
+    <SkeletonPanel head count class="programme" rows={6} dense />
   </div>
 {:else if detail === null || !client}
   <PageHead title="Client not found" crumbs={[{ href: backHref, label: "All clients" }, { label: "Not found" }]} />

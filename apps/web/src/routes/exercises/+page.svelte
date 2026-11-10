@@ -382,7 +382,7 @@
 </PageHead>
 
 {#if loading}
-  <SkeletonPanel />
+  <SkeletonPanel rows={8} dense label="Loading exercises…" />
 {:else if loadError}
   <EmptyState>
     Couldn't load the exercise library. {loadError}

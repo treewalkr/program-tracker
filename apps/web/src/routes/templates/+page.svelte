@@ -4,7 +4,7 @@
   import { fmtDate } from "$lib/format";
   import type { ClientDto, InstructionTemplateDto, PreferencesDto } from "$lib/api/types";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -168,7 +168,7 @@
 
   <Panel title="Library" count={templates.length}>
     {#if !loaded}
-      <div class="panel-body"><Skeleton h="120px" /></div>
+      <SkeletonRows rows={3} />
     {:else if templates.length === 0}
       <EmptyState>No templates yet. Write your first standing rule in New template.</EmptyState>
     {:else}

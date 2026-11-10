@@ -11,7 +11,7 @@
   import Note from "$lib/ui/Note.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
 
   /**
    * Glossary: shorthand, techniques and equipment words the trainer uses.
@@ -123,7 +123,7 @@
   {/if}
 
   {#if !loaded}
-    <div class="panel-body"><Skeleton h="160px" /></div>
+    <SkeletonRows rows={5} dense />
   {:else if shown.length === 0}
     <EmptyState>{query.trim() ? `No term matches “${query.trim()}”.` : "No terms yet. Add your first one above."}</EmptyState>
   {:else}

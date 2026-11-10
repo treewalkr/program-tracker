@@ -47,7 +47,8 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -460,7 +461,11 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <Skeleton h="140px" />
+  <SkeletonHead actions={2} label="Loading client…" />
+  <div class="skel-stack">
+    <SkeletonPanel title="Basics" height={96} />
+    <SkeletonPanel head rows={4} dense />
+  </div>
 {:else}
   <PageHead
     title={mode === "paste" ? "Draft a program from your notes" : "Write a program by hand"}

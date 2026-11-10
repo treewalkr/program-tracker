@@ -186,7 +186,7 @@
     </Panel>
 
     {#if trainers === null}
-      <SkeletonPanel height={60} />
+      <SkeletonPanel title="Accounts" count rows={4} avatar={32} label="Loading trainers…" />
     {:else}
       <Panel title="Accounts" count={trainers.length}>
         <ul class="accounts">
@@ -254,7 +254,7 @@
     {:else if llmStats}
       <LlmDatasetPanel stats={llmStats} />
     {:else}
-      <SkeletonPanel height={60} />
+      <SkeletonPanel title="AI dataset" count height={120} />
     {/if}
   </div>
 {/if}

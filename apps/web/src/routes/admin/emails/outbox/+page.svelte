@@ -214,7 +214,7 @@
     <Button small onclick={load}>Try again</Button>
   </Note>
 {:else if !snap}
-  <SkeletonPanel />
+  <SkeletonPanel rows={5} label="Loading emails…" />
 {:else if !all.length && !isOutbox}
   <p class="quiet">
     <Icon name="mail" size={16} />

@@ -5,7 +5,7 @@
   import type { KineticChainDto } from "$lib/api/types";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Button from "$lib/ui/Button.svelte";
   import KineticChainEditor from "$lib/components/KineticChainEditor.svelte";
@@ -63,7 +63,7 @@
       The counts describe where the work lands; they are not a balance score.
     </p>
     {#if chains === null}
-      <div class="pad"><Skeleton h="200px" /></div>
+      <SkeletonRows rows={4} />
     {:else}
       {#each chains as chain (chain.id)}
         <KineticChainEditor
@@ -86,5 +86,4 @@
     max-width: none;
   }
   .lede em { font-style: normal; color: var(--ink); }
-  .pad { padding: 16px; }
 </style>

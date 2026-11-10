@@ -7,7 +7,7 @@
   import { EXAMPLE_LEVELS } from "@pt/shared";
   import type { ClientDto, ProgramExampleDto } from "$lib/api/types";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -141,8 +141,8 @@
 
 {#if !loaded}
   <div class="cols">
-    <Panel title="Filters"><div class="panel-body"><Skeleton h="160px" /></div></Panel>
-    <Panel title="Library"><div class="panel-body"><Skeleton h="120px" /></div></Panel>
+    <SkeletonPanel title="Filters" rows={4} dense trail={false} />
+    <SkeletonPanel title="Library" count rows={4} label="Loading examples…" />
   </div>
 {:else if examples.length === 0}
   <Panel title="Library" class="empty-panel">

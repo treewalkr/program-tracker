@@ -26,7 +26,8 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Note from "$lib/ui/Note.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
@@ -1046,7 +1047,8 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <Skeleton h="140px" />
+  <SkeletonHead actions={1} label="Loading session…" />
+  <SkeletonPanel title="Session" count rows={5} />
 {:else}
   <PageHead
     title="Log a session"
@@ -1706,16 +1708,6 @@
     text-underline-offset: 2px;
     cursor: pointer;
   }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
   /* ---- Undo window: the save stands once the line drains ---- */
   .undo-bar {
     position: relative;

@@ -57,7 +57,8 @@
   import Field from "$lib/ui/Field.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -302,7 +303,10 @@
 <svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
 
 {#if program === null}
-  <Skeleton h="140px" />
+  <SkeletonHead actions={2} label="Loading program…" />
+  <div class="sessions-grid">
+    {#each { length: 4 }, i (i)}<SkeletonPanel head rows={i % 2 ? 3 : 4} dense />{/each}
+  </div>
 {:else}
   <div class="page-head">
     <div>

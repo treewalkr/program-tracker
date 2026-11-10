@@ -93,7 +93,7 @@
     <Button small onclick={() => load(useSample)}>Try again</Button>
   </Note>
 {:else if rows === null}
-  <SkeletonPanel height={60} />
+  <SkeletonPanel rows={6} label="Loading clients…" />
 {:else if rows.length === 0}
   <section class="panel"><EmptyState>No clients yet — trainers' clients show up here once they add them.</EmptyState></section>
 {:else}
