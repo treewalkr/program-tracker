@@ -82,4 +82,66 @@ describe.skipIf(!dbUp)("session log duplicates", () => {
     expect(conflict.body).toEqual({ error: "already logged", existing: { id: created.body.id, date: "2026-11-07", setCount: 1 } });
     expect(await mine(sessionA)).toHaveLength(1);
   });
+
+  test("replace returns the removed log; posting it back with logToInput restores every field", async () => {
+    const strip = (l: any) => {
+      const { id, createdAt, sets, ...rest } = l;
+      return { ...rest, sets: sets.map(({ id, sessionLogId, createdAt, ...s }: any) => s) };
+    };
+    const original = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId: sessionB,
+      date: "2026-11-05",
+      notes: "grindy last set",
+      perceivedEnergy: 6,
+      readiness: { sleep: 2, soreness: 4 },
+      flags: [
+        { programExerciseId: slotB, exerciseId: squatId, kind: "pain", note: "left knee" },
+        { programExerciseId: null, exerciseId: squatId, kind: "skipped", reason: "time" },
+      ],
+      sets: [
+        { programExerciseId: slotB, exerciseId: squatId, setNumber: 1, type: "backoff", weightKg: 60, reps: 5 },
+        { programExerciseId: slotB, exerciseId: squatId, setNumber: 2, type: "working", weightKg: 102.5, reps: 4, rpe: 8.5 },
+        { programExerciseId: null, exerciseId: squatId, setNumber: 3, type: "working", reps: 12, rpe: 7 },
+      ],
+    });
+    expect(original.status).toBe(201);
+    expect(original.body.replaced).toEqual([]);
+    const [before] = await mine(sessionB);
+
+    const replacing = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      programSessionId: sessionB,
+      onDuplicate: "replace",
+      date: "2026-11-07",
+      sets: [{ programExerciseId: slotB, exerciseId: squatId, setNumber: 1, type: "working", weightKg: 110, reps: 3 }],
+    });
+    expect(replacing.status).toBe(201);
+    expect(replacing.body.replaced).toHaveLength(1);
+    expect(replacing.body.replaced[0].id).toBe(original.body.id);
+    expect(strip(replacing.body.replaced[0])).toEqual(strip(before));
+
+    // Undo: write the replaced log back, then remove the new one.
+    const restored = await call("POST", "/v1/logs/sessions", logToInput(replacing.body.replaced[0]));
+    expect(restored.status).toBe(201);
+    expect((await call("DELETE", `/v1/logs/sessions/${replacing.body.id}`)).status).toBe(204);
+
+    const after = await mine(sessionB);
+    expect(after).toHaveLength(1);
+    const byKey = (l: any) => ({ ...strip(l), sets: [...strip(l).sets].sort((a: any, b: any) => a.setNumber - b.setNumber) });
+    expect(byKey(after[0])).toEqual(byKey(before));
+  });
+
+  test("a cardio log round-trips too", async () => {
+    const cardio = { modality: "Bike", durationMin: 30, hrZone: 2, distanceKm: 12.5, rpe: 6 };
+    const first = await call("POST", "/v1/logs/sessions", { clientId, programId, date: "2026-11-04", kind: "cardio", cardio, sets: [] });
+    expect(first.status).toBe(201);
+    const again = await call("POST", "/v1/logs/sessions", logToInput(first.body));
+    expect(again.status).toBe(201);
+    expect(again.body.kind).toBe("cardio");
+    expect(again.body.cardio).toEqual(cardio);
+    expect(again.body.date).toBe("2026-11-04");
+  });
 });

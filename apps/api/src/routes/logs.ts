@@ -173,9 +173,14 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
             .where(eq(setLogs.sessionLogId, latest.id));
           return { conflict: { id: latest.id, date: latest.date, setCount } } as const;
         }
+        // Replace hands back what it removed, in full, so Undo can write it back.
+        let replaced: (typeof sessionLogs.$inferSelect & { sets: ReturnType<typeof serializeSets> })[] = [];
         if (duplicates.length > 0 && input.onDuplicate === "replace") {
-          // Sets go with their log (ON DELETE CASCADE).
-          await tx.delete(sessionLogs).where(inArray(sessionLogs.id, duplicates.map((d) => d.id)));
+          const ids = duplicates.map((d) => d.id);
+          // Read the sets first: they go with their log (ON DELETE CASCADE).
+          const removedSets = serializeSets(await tx.select().from(setLogs).where(inArray(setLogs.sessionLogId, ids)));
+          const removed = await tx.delete(sessionLogs).where(inArray(sessionLogs.id, ids)).returning();
+          replaced = removed.map((l) => ({ ...l, sets: removedSets.filter((st) => st.sessionLogId === l.id) }));
         }
         const [log] = await tx
           .insert(sessionLogs)
@@ -213,10 +218,10 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
                 )
                 .returning()
             : [];
-        return { log, insertedSets };
+        return { log, insertedSets, replaced };
       });
       if ("conflict" in saved) return status(409, { error: "already logged", existing: saved.conflict });
-      const { log, insertedSets } = saved;
+      const { log, insertedSets, replaced } = saved;
 
       // Write path: the log is committed — queue any new signals for the outbox.
       // A queueing failure must not fail the already-committed log write.
@@ -224,7 +229,7 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
         console.error("signal outbox queue failed:", err)
       );
 
-      return status(201, { ...log, sets: serializeSets(insertedSets) });
+      return status(201, { ...log, sets: serializeSets(insertedSets), replaced });
     },
     { body: t.Any() }
   )
