@@ -127,6 +127,39 @@ describe("renderTrainingLog", () => {
     expect(renderTrainingLog({ logs: [], sets: [], catalog: logCatalog })).toBe("");
   });
 
+  test("readiness and flags ride on each session line, with a flag summary on top", () => {
+    const flagged = (id: string, date: string, extra: Partial<LogFixture>): LogFixture => ({ ...lifting(id, date, "ps-1"), ...extra });
+    const text = renderTrainingLog({
+      logs: [
+        flagged("a", "2026-11-01", {
+          perceivedEnergy: 6,
+          readiness: { sleep: 2, soreness: 4 },
+          flags: [{ programExerciseId: null, exerciseId: "ex-squat", kind: "pain", note: "knee twinge" }],
+        }),
+        flagged("b", "2026-11-05", {
+          readiness: { sleep: 2 },
+          flags: [
+            { programExerciseId: null, exerciseId: "ex-squat", kind: "skipped", reason: "pain" },
+            { programExerciseId: null, exerciseId: "ex-bench", kind: "technique", note: "elbows flare" },
+            { programExerciseId: null, exerciseId: "ex-unknown", kind: "pain" },
+          ],
+        }),
+        flagged("c", "2026-11-03", { readiness: null, flags: null }),
+      ],
+      sets: [s("a", "ex-squat", 1, "100", 5, "8"), s("b", "ex-bench", 1, "80", 5), s("c", "ex-bench", 1, "80", 5)],
+      catalog: logCatalog,
+      sessionLabels,
+    });
+    expect(text).toBe(
+      [
+        "Flags: pain on Squat ×2 (2026-11-05 skipped, 2026-11-01 “knee twinge”); technique on Bench ×1 (2026-11-05 “elbows flare”)",
+        "2026-11-05 Session 1 (Lower): Bench 80×5 | sleep 2/5 | skipped (pain) Squat; technique Bench “elbows flare”",
+        "2026-11-03 Session 1 (Lower): Bench 80×5",
+        "2026-11-01 Session 1 (Lower): Squat 100×5@8 | energy 6/10, sleep 2/5, soreness 4/5 | pain Squat “knee twinge”",
+      ].join("\n")
+    );
+  });
+
   test("the default budget is an explicit named constant", () => {
     expect(HISTORY_TOKEN_BUDGET).toBeGreaterThanOrEqual(2000);
     expect(estimateTokens("x".repeat(400))).toBe(100);

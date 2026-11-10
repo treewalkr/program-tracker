@@ -1,5 +1,5 @@
 import type { SessionLogRow, SetLogRow } from "@pt/db";
-import { estimate1rm } from "@pt/shared";
+import { estimate1rm, isPainFlag, type SessionFlag } from "@pt/shared";
 import type { ExerciseHistoryEntry } from "../ai/prompt";
 
 export interface HistoryInput {
@@ -78,7 +78,8 @@ export function estimateTokens(text: string): number {
 }
 
 export interface TrainingLogInput {
-  logs: Pick<SessionLogRow, "id" | "date" | "kind" | "cardio" | "programSessionId">[];
+  logs: (Pick<SessionLogRow, "id" | "date" | "kind" | "cardio" | "programSessionId"> &
+    Partial<Pick<SessionLogRow, "perceivedEnergy" | "readiness" | "flags">>)[];
   sets: (Pick<SetLogRow, "sessionLogId" | "exerciseId" | "setNumber" | "type" | "weightKg" | "reps" | "rpe"> &
     Partial<Pick<SetLogRow, "programExerciseId">>)[];
   catalog: { id: string; name: string }[];
@@ -142,6 +143,55 @@ function byExercise(sets: ParsedSet[]): [string, ParsedSet[]][] {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** "energy 6/10, sleep 2/5, soreness 4/5" — empty when nothing was rated. */
+function readinessText(l: LogRow): string {
+  return [
+    l.perceivedEnergy != null ? `energy ${l.perceivedEnergy}/10` : null,
+    l.readiness?.sleep != null ? `sleep ${l.readiness.sleep}/5` : null,
+    l.readiness?.soreness != null ? `soreness ${l.readiness.soreness}/5` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+const flagWord = (f: SessionFlag) => (f.kind === "skipped" ? `skipped${f.reason ? ` (${f.reason})` : ""}` : f.kind);
+
+/** "pain Hack Squat “knee twinge”; skipped (time) Leg Curl" — flags on exercises the trainer can see. */
+function flagsText(l: LogRow, nameById: Map<string, string>): string {
+  return (l.flags ?? [])
+    .filter((f) => nameById.has(f.exerciseId))
+    .map((f) => `${flagWord(f)} ${nameById.get(f.exerciseId)}${f.note ? ` “${f.note}”` : ""}`)
+    .join("; ");
+}
+
+/**
+ * One line over the whole window, so a draft can't miss a recurring problem:
+ *   "Flags: pain on Hack Squat ×2 (2026-11-05 “knee twinge”, 2026-11-01); technique on Bench Press ×1 (2026-11-03)"
+ * Null when nothing was flagged.
+ */
+export function flagSummary(logs: Pick<LogRow, "date" | "flags">[], nameById: Map<string, string>): string | null {
+  const groups = new Map<string, { kind: string; name: string; hits: { date: string; note?: string; skipped: boolean }[] }>();
+  const newestFirst = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+  for (const l of newestFirst) {
+    for (const f of l.flags ?? []) {
+      const name = nameById.get(f.exerciseId);
+      if (!name) continue;
+      const kind = isPainFlag(f) ? "pain" : flagWord(f);
+      const key = `${kind}|${f.exerciseId}`;
+      const g = groups.get(key) ?? { kind, name, hits: [] };
+      g.hits.push({ date: l.date, note: f.note || undefined, skipped: kind === "pain" && f.kind === "skipped" });
+      groups.set(key, g);
+    }
+  }
+  if (groups.size === 0) return null;
+  // Pain first — it changes what can be programmed.
+  const order = (k: string) => (k === "pain" ? 0 : k === "technique" ? 1 : 2);
+  const parts = [...groups.values()]
+    .sort((a, b) => order(a.kind) - order(b.kind) || b.hits.length - a.hits.length)
+    .map((g) => `${g.kind} on ${g.name} ×${g.hits.length} (${g.hits.map((h) => `${h.date}${h.skipped ? " skipped" : ""}${h.note ? ` “${h.note}”` : ""}`).join(", ")})`);
+  return `Flags: ${parts.join("; ")}`;
+}
+
 /**
  * The client's training as dated, per-session lines, newest first — every
  * logged set (back-offs flagged, timed holds in seconds) plus cardio logs:
@@ -184,13 +234,14 @@ export function renderTrainingLog({
     (l.programSessionId && sessionLabels?.get(l.programSessionId)) || (l.kind === "cardio" ? "Cardio" : "Freestyle");
 
   const logLine = (l: LogRow): string | null => {
-    if (l.kind === "cardio") return l.cardio ? `${l.date} ${label(l)}: ${cardioText(l.cardio)}` : null;
+    const extras = [readinessText(l), flagsText(l, nameById)].filter(Boolean).map((x) => ` | ${x}`).join("");
+    if (l.kind === "cardio") return l.cardio ? `${l.date} ${label(l)}: ${cardioText(l.cardio)}${extras}` : null;
     const parsed = setsByLog.get(l.id) ?? [];
     if (parsed.length === 0) return null;
     const body = byExercise(parsed)
       .map(([id, g]) => `${nameById.get(id)} ${g.map((p) => `${fmtSet(p)}${p.backoff ? " (back-off)" : ""}`).join(", ")}`)
       .join("; ");
-    return `${l.date} ${label(l)}: ${body}`;
+    return `${l.date} ${label(l)}: ${body}${extras}`;
   };
 
   const weeks: { start: string; logs: LogRow[] }[] = [];
@@ -204,13 +255,15 @@ export function renderTrainingLog({
   const verbatim = weeks.map((w) => w.logs.map(logLine).filter((x): x is string => x !== null));
   const summaries = weeks.map((w) => summaryLine(w.start, w.logs, setsByLog, nameById));
 
-  const cost = (lines: string[]) => estimateTokens(lines.join("\n"));
+  const flagged = flagSummary(logs, nameById);
+  const head = flagged ? [flagged] : [];
+  const cost = (lines: string[]) => estimateTokens([...head, ...lines].join("\n"));
   const compose = (k: number) => [...verbatim.slice(0, k).flat(), ...summaries.slice(k).filter((x): x is string => !!x)];
 
   // Prefer the most verbatim weeks whose text plus summaries of the rest fits.
   for (let k = weeks.length; k >= 0; k--) {
     const lines = compose(k);
-    if (cost(lines) <= budgetTokens) return lines.join("\n");
+    if (cost(lines) <= budgetTokens) return [...head, ...lines].join("\n");
   }
 
   // Even all-summaries overflows: keep what verbatim fits, then summaries newest-first, drop the rest.
@@ -226,7 +279,7 @@ export function renderTrainingLog({
   }
   const omitted = weeks.length - next;
   if (omitted > 0) lines.push(`(${plural(omitted, "older week")} omitted — over the context budget)`);
-  return lines.join("\n");
+  return [...head, ...lines].join("\n");
 }
 
 function summaryLine(

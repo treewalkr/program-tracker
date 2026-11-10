@@ -205,7 +205,8 @@ export async function loadContext(
     // Trainer-confirmed rules only (proposed/retired never reach a prompt).
     coachingRules: await loadActiveRules(trainerId, clientId),
     history: buildHistory({ logs, sets, catalog: catalogForHistory, timedExerciseIds, timedSlotIds }),
-    // Dated, per-session, every set + cardio — what the prompts actually render (F11).
+    // Dated, per-session, every set + cardio, with readiness and flags (pain, technique,
+    // skipped) per line and a flag summary on top — what the prompts actually render (F11).
     trainingLog: renderTrainingLog({
       logs,
       sets,
