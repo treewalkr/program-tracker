@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.13 — 2026-11-10
+
 ### New
 - Feedback replies can now come from an AI assistant, marked with an "AI answer" badge. It answers questions it can check against the app, like "this already exists" or "this was added after you reported it". Reply on the ticket if the answer is wrong.
 - Feedback replies show formatting such as **bold** text and lists.
