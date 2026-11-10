@@ -208,12 +208,4 @@
   .cross { stroke: var(--line-strong); stroke-width: 1; }
   .line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .dot { fill: var(--blue); stroke: var(--surface); stroke-width: 2; }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
 </style>
