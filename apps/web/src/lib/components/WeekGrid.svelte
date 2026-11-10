@@ -463,7 +463,7 @@
   a.cell:hover { text-decoration: none; }
   .cell:hover { border-color: var(--ink); }
   .cell .tag {
-    font: 500 11px/1.2 var(--font-mono);
+    font: 500 10px/1.2 var(--font-mono);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     text-align: center;
@@ -598,6 +598,18 @@
   @container weekgrid (max-width: 1018px) { .hw:nth-child(2), .hw-label:nth-child(2) { display: none; } }
   @container weekgrid (max-width: 931px) { .hw:nth-child(3), .hw-label:nth-child(3) { display: none; } }
   @container weekgrid (max-width: 844px) { .hw:nth-child(4), .hw-label:nth-child(4) { display: none; } }
+  /* Below ~65px cells uppercase mono wraps "STRENGTH / A" and stacks a third
+     line over the state word: the tag drops to sentence-case UI type so a name
+     ("Lower", "Strength A") fits on one line, or whole over two at the narrowest;
+     one long word ellipsizes — the full name is in the label and the tooltip. */
+  @container weekgrid (max-width: 844px) {
+    .cell .tag.longword:not(.word) { display: -webkit-box; white-space: normal; }
+    .cell .tag {
+      font: 500 11px/1.2 var(--font-ui);
+      text-transform: none;
+      letter-spacing: -0.02em;
+    }
+  }
   /* The latest week stays at every width, so the history column (and its
      header, read by screen readers) always exists: rows are always 9 cells. */
   @container weekgrid (max-width: 757px) {
@@ -607,6 +619,9 @@
     .wk-body .wk-client { grid-column: 1; grid-row: 1; padding-bottom: 4px; }
     .hist[role="cell"] { grid-column: 1; grid-row: 2; padding: 0 4px 8px; }
     .wk-body .wk-cell { grid-row: 1 / span 2; }
+    /* 48px cells: a two-line tag plus the word would stack three lines. Fill and
+       edge carry the state; the word is in the label, tooltip and legend. */
+    .cell .state { display: none; }
     .wk-head .hist {
       position: absolute;
       width: 1px;
@@ -614,15 +629,6 @@
       padding: 0;
       overflow: hidden;
       clip-path: inset(50%);
-    }
-    /* Cells are 48–76px: the tag drops to sentence-case UI type so a name
-       ("Lower", "Strength A") fits whole over at most two lines; one long
-       word ellipsizes — the full name is in the label and the tooltip. */
-    .cell .tag.longword:not(.word) { display: -webkit-box; white-space: normal; }
-    .cell .tag {
-      font: 500 11px/1.2 var(--font-ui);
-      text-transform: none;
-      letter-spacing: -0.02em;
     }
   }
 
@@ -652,8 +658,6 @@
     }
     .wk-body .wk-cell { padding: 4px 0 8px; }
     .cell { height: 44px; padding: 3px 2px; }
-    /* ~33px cells: fill and edge carry the state; the word is in the label and tooltip. */
-    .cell .state { display: none; }
     .legend { justify-content: flex-start; }
   }
   /* Two weeks no longer fit beside the name. */
