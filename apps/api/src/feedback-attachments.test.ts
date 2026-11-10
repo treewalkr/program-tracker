@@ -263,7 +263,7 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
   });
 
   describe("migration 0046 copy", () => {
-    const copy = readFileSync(new URL("../../../packages/db/drizzle/0046_feedback_attachments.sql", import.meta.url), "utf8")
+    const copy = readFileSync(new URL("../../../packages/db/drizzle/0047_feedback_attachments.sql", import.meta.url), "utf8")
       .split("--> statement-breakpoint")
       .find((s) => s.includes('INSERT INTO "feedback_attachments"'))!
       .split("\n")
