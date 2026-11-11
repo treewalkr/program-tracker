@@ -223,6 +223,16 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
     expect(item.thread.map((c: { body: string }) => c.body)).toEqual(["It's the log screen.", "Got it"]);
   });
 
+  test("the triage note stays private: the reporter never sees it", async () => {
+    await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: "agent: check the log screen" });
+    const own = await json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai));
+    expect(own.triageNote).toBeNull();
+    const listed = await json(await call("GET", "/v1/feedback", undefined, kai));
+    expect(listed.find((i: { id: string }) => i.id === kaiItem).triageNote).toBeNull();
+    expect((await json(await call("GET", `/v1/feedback/${kaiItem}`))).triageNote).toBe("agent: check the log screen");
+    await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: null });
+  });
+
   test("status changes land in the thread; done stamps the version", async () => {
     await call("PATCH", `/v1/feedback/${adminItem}`, { triageNote: "note only" });
     let item = await json(await call("GET", `/v1/feedback/${adminItem}`));
@@ -358,8 +368,9 @@ describe.skipIf(!dbUp)("feedback emails", () => {
   const ENV = { RESEND_API_KEY: "re_test", EMAIL_FROM: "PT <fb@pinroj.com>", APP_URL: "https://pt.test" };
   const saved: Record<string, string | undefined> = {};
   const origFetch = globalThis.fetch;
-  let sent: { to: string; subject: string }[] = [];
+  let sent: { to: string; subject: string; text?: string }[] = [];
   let lastUnsubscribe: string | undefined;
+  let lastText: string | undefined;
   let ren = "";
   let item = "";
 
@@ -372,6 +383,7 @@ describe.skipIf(!dbUp)("feedback emails", () => {
       if (!String(input).startsWith("https://api.resend.com/")) return origFetch(input, init);
       const b = JSON.parse(String(init?.body));
       sent.push({ to: b.to[0], subject: b.subject });
+      lastText = b.text;
       lastUnsubscribe = b.headers?.["List-Unsubscribe"];
       return Response.json({ id: crypto.randomUUID() });
     }) as typeof fetch;
@@ -437,6 +449,40 @@ describe.skipIf(!dbUp)("feedback emails", () => {
     const [mail] = await flush();
     expect(mail.to).toBe(EMAIL);
     expect(lastUnsubscribe).toContain(`t=${token}&scope=all`);
+  });
+
+  test("won't fix with a reason: a reply before the status entry, one email quoting it", async () => {
+    const other = (await json(await call("POST", "/v1/feedback", { comment: "Bigger buttons", context }, ren))).id;
+    try {
+      await flush();
+      expect((await call("PATCH", `/v1/feedback/${other}`, { status: "accepted", reason: "nope" })).status).toBe(422);
+      expect((await call("PATCH", `/v1/feedback/${other}`, { reason: "nope" })).status).toBe(422);
+
+      const closed = await json(
+        await call("PATCH", `/v1/feedback/${other}`, { status: "wontfix", reason: "  They match the platform size.  " }),
+      );
+      expect(closed.status).toBe("wontfix");
+      expect(closed.thread.map((c: any) => [c.kind, c.body ?? c.status])).toEqual([
+        ["reply", "They match the platform size."],
+        ["status", "wontfix"],
+      ]);
+      const mails = await flush();
+      expect(mails.map((e) => e.subject)).toEqual([expect.stringMatching(/Won't fix$/)]);
+      expect(lastText).toContain("Reason: They match the platform size.");
+
+      // Reporter sees the reason as a normal reply.
+      const seen = await json(await call("GET", `/v1/feedback/${other}`, undefined, ren));
+      expect(seen.thread[0]).toMatchObject({ kind: "reply", visibility: "public", body: "They match the platform size." });
+
+      await call("PATCH", `/v1/feedback/${other}`, { status: "new" });
+      await flush();
+      const bare = await json(await call("PATCH", `/v1/feedback/${other}`, { status: "wontfix", reason: "   " }));
+      expect(bare.thread.filter((c: any) => c.kind === "reply")).toHaveLength(1);
+      expect((await flush()).map((e) => e.to)).toEqual([EMAIL]);
+      expect(lastText).toContain("Reply on the item if you want to talk it through.");
+    } finally {
+      await db.delete(feedbackItems).where(eq(feedbackItems.id, other));
+    }
   });
 
   test("note edits, unchanged status and deletes send nothing", async () => {

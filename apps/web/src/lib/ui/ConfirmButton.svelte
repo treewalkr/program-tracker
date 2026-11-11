@@ -17,6 +17,8 @@
 		disabled?: boolean;
 		/** Extra classes (e.g. "ghost" for the ghost-danger combo). */
 		class?: string;
+		/** What it acts on, appended to the accessible name ("Delete FB-013") so a list's buttons differ. */
+		subject?: string;
 	}
 
 	let {
@@ -28,11 +30,13 @@
 		small = false,
 		disabled = false,
 		class: extra,
+		subject,
 	}: Props = $props();
 
 	let armed = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
+	const text = $derived(armed ? (confirmLabel ?? `Confirm ${label.toLowerCase()}`) : label);
 	const cls = $derived([armed ? 'armed' : undefined, extra].filter(Boolean).join(' ') || undefined);
 
 	$effect(() => {
@@ -51,8 +55,15 @@
 	}
 </script>
 
-<Button {variant} {small} class={cls} disabled={disabled || undefined} onclick={click}>
-	{armed ? (confirmLabel ?? `Confirm ${label.toLowerCase()}`) : label}
+<Button
+	{variant}
+	{small}
+	class={cls}
+	disabled={disabled || undefined}
+	aria-label={subject ? `${text} ${subject}` : undefined}
+	onclick={click}
+>
+	{text}
 </Button>
 
 <style>

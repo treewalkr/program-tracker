@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { FEEDBACK_AI_AUTHOR_NAME, feedbackHandle, type FeedbackComment, type FeedbackItem } from "@pt/shared";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import { renderSafeMarkdown } from "$lib/markdown";
@@ -28,14 +29,35 @@
     onposted?: (c: FeedbackComment) => void;
     /** The item after an admin sends or discards an AI entry. */
     onchange?: (next: FeedbackItem) => void;
+    /** Start with a "Reply" link that opens the composer (the feedback page's calmer cards). */
+    collapsible?: boolean;
   }
-  let { item, onposted, onchange }: Props = $props();
+  let { item, onposted, onchange, collapsible = false }: Props = $props();
 
   let draft = $state("");
   const tray = new ImageTray();
   let sending = $state(false);
   const canSend = $derived(!sending && !tray.busy && (draft.trim() !== "" || tray.images.length > 0));
   let error = $state<string | null>(null);
+  /** Collapsible threads: the composer was opened; it also stays open while it holds a draft. */
+  let opened = $state(false);
+  const expanded = $derived(!collapsible || opened || draft.trim() !== "" || tray.images.length > 0);
+  let field = $state<HTMLTextAreaElement | null>(null);
+  let opener = $state<HTMLButtonElement | null>(null);
+
+  async function openComposer() {
+    opened = true;
+    await tick();
+    field?.focus();
+  }
+
+  /** Esc on an empty composer folds it back to the link. */
+  async function closeComposer() {
+    if (!collapsible || draft.trim() || tray.images.length) return;
+    opened = false;
+    await tick();
+    opener?.focus();
+  }
   /** Replies posted here before the parent refreshes `item`. */
   let posted = $state<FeedbackComment[]>([]);
   const thread = $derived([...item.thread, ...posted.filter((p) => !item.thread.some((c) => c.id === p.id))]);
@@ -100,6 +122,7 @@
       e.preventDefault();
       send();
     }
+    if (e.key === "Escape") closeComposer();
   }
 </script>
 
@@ -147,9 +170,20 @@
     </ol>
   {/if}
 
+  {#if !expanded}
+    <button
+      type="button"
+      class="reply-link"
+      bind:this={opener}
+      aria-label="Reply to {feedbackHandle(item.number)}"
+      aria-expanded="false"
+      onclick={openComposer}><Icon name="comment" />Reply</button
+    >
+  {:else}
   <form class="composer" class:dropping={tray.dragging} onsubmit={(e) => (e.preventDefault(), send())} {@attach tray.zone}>
     <div class="row">
       <textarea
+        bind:this={field}
         aria-label="Reply to {feedbackHandle(item.number)}"
         rows="1"
         placeholder="Reply…"
@@ -162,6 +196,7 @@
     </div>
     <AttachmentInput {tray} disabled={sending} label="the reply" />
   </form>
+  {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </div>
 
@@ -463,7 +498,7 @@
     background: var(--hover-soft);
   }
   .dismiss:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
   .plan {
@@ -524,6 +559,9 @@
   }
   button.when {
     appearance: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     background: none;
     border: 0;
     padding: 0;
@@ -533,13 +571,41 @@
     cursor: default;
   }
   button.when:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
   .composer {
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+  /* Collapsed composer: the thread ends with a quiet link. */
+  .reply-link {
+    appearance: none;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 24px;
+    padding: 2px 6px;
+    margin-left: -6px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    font: 600 12px/1.2 var(--font-ui);
+    color: var(--blue);
+    cursor: pointer;
+  }
+  .reply-link :global(svg) {
+    width: 14px;
+    height: 14px;
+  }
+  .reply-link:hover {
+    background: var(--hover-soft);
+  }
+  .reply-link:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
   }
   .composer.dropping {
     outline: 2px dashed var(--blue);

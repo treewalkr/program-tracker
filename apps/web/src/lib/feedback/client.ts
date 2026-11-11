@@ -43,6 +43,9 @@ const normalize = (i: FeedbackItem): FeedbackItem => ({
   updatedAt: iso(i.updatedAt),
 });
 
+/** PATCH /v1/feedback/:id body, straight from the API's type. */
+export type TriagePatch = Parameters<ReturnType<typeof client.v1.feedback>["patch"]>[0];
+
 /** Leaves out an empty image list so a text-only post stays JSON. */
 function withImages<T extends { images?: File[] }>(body: T): T {
   if (body.images?.length) return body;
@@ -56,7 +59,8 @@ export const feedbackApi = {
     unwrap<{ id: string; number: number; handle: string }>(client.v1.feedback.post(withImages(body))),
   list: async (status?: FeedbackStatus[]) =>
     (await unwrap<FeedbackItem[]>(client.v1.feedback.get({ query: { status: status?.join(",") } }))).map(normalize),
-  triage: async (id: string, patch: { status?: FeedbackStatus; triageNote?: string | null }) =>
+  /** Status and/or note; `reason` (Won't fix only) posts as a reply the email quotes. */
+  triage: async (id: string, patch: TriagePatch) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).patch(patch))),
   /**
    * Edit a ticket's comment and images (its reporter or the admin). `version`

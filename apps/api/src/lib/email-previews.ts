@@ -44,6 +44,7 @@ function snap(
   actor: Person | null,
   comment: FeedbackSnapshot["comment"],
   appUrl: string,
+  reason: string | null = null,
 ): FeedbackSnapshot {
   return {
     item: {
@@ -51,7 +52,6 @@ function snap(
       number: 42,
       comment: "The week totals on the client page don't include supersets.\nCould they count both exercises?",
       route: "/clients/abc",
-      triageNote: null,
       shippedIn: null,
       ...over,
     },
@@ -60,6 +60,7 @@ function snap(
     repliers: [],
     actor,
     comment,
+    reason,
     appUrl,
   };
 }
@@ -138,14 +139,16 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       id: "status-wontfix",
       group: "Status changes",
       title: "Won't fix",
-      trigger: "The admin moves a ticket to Won't fix. Shows the triage note as the reason when there is one.",
+      trigger:
+        "The admin moves a ticket to Won't fix. Quotes the reason when the admin gives one — it also posts as a reply on the ticket, without a reply email of its own.",
       recipients: toReporter,
       kind: "status",
       snap: snap(
-        { triageNote: "Supersets are logged as one block on purpose, so the totals match the program." },
+        {},
         ADMIN,
         { body: null, status: "wontfix", authorKind: "human" },
         appUrl,
+        "Supersets are logged as one block on purpose, so the totals match the program.",
       ),
     },
     {

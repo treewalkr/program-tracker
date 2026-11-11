@@ -190,7 +190,7 @@
     background: var(--hover-soft);
   }
   .pick:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 1px;
   }
   .pick:disabled {

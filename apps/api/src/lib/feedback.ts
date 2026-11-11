@@ -80,7 +80,7 @@ async function reachableItems(rows: ListRow[], viewerId: string): Promise<Set<st
  * Rows → API items: attaches each thread and the image metadata (two
  * queries) and, for a viewer, the unread and muted flags (two more). Unread = someone other than the viewer filed it,
  * edited it, replied or changed its status after the viewer last looked. Only the admin
- * gets AI drafts and private notes (which then count as news for them too).
+ * gets AI drafts, private notes and the triage note (which then count as news for them too).
  */
 async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean): Promise<FeedbackItem[]> {
   if (rows.length === 0) return [];
@@ -149,6 +149,8 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     );
     return {
       ...r,
+      // Security boundary: the triage note is the admin's private memo to the agent.
+      triageNote: admin ? r.triageNote : null,
       attachments: itemImages?.get("") ?? [],
       thread,
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),

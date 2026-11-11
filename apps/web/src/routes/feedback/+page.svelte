@@ -1,8 +1,17 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { fade } from "svelte/transition";
   import { page } from "$app/state";
   import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
-  import { attachmentImages, attachmentUrl, feedbackApi, exportUrl, ticketImageCaption, ticketShots } from "$lib/feedback/client";
+  import {
+    attachmentImages,
+    attachmentUrl,
+    feedbackApi,
+    exportUrl,
+    ticketImageCaption,
+    ticketShots,
+    type TriagePatch,
+  } from "$lib/feedback/client";
   import AttachmentInput from "$lib/feedback/AttachmentInput.svelte";
   import AttachmentStrip from "$lib/feedback/AttachmentStrip.svelte";
   import { ImageTray } from "$lib/feedback/tray.svelte";
@@ -17,7 +26,6 @@
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import Tooltip from "$lib/ui/Tooltip.svelte";
-  import Icon from "$lib/ui/Icon.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -47,7 +55,15 @@
   let copied = $state(false);
   /** Triage-note drafts keyed by item id; saved on blur. */
   let notes = $state<Record<string, string>>({});
-  let busy = $state<Record<string, boolean>>({});
+  type CardAction = FeedbackStatus | "delete";
+  /** The action running on each card: its button spins, the card's other actions wait. */
+  let pending = $state<Record<string, CardAction | null>>({});
+  /** A failed triage or delete, shown beside that card's actions. */
+  let cardError = $state<Record<string, string | null>>({});
+  type NoteState = { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
+  /** Triage-note save state under each textarea. */
+  let noteState = $state<Record<string, NoteState | null>>({});
+  const savedTimers: Record<string, ReturnType<typeof setTimeout>> = {};
   /** Items that had unread activity when the page opened; stay marked for this visit. */
   let fresh = $state(new Set<string>());
   /** Handle from `/feedback#FB-012`, flashed once scrolled into view. */
@@ -169,34 +185,79 @@
    */
   const seq: Record<string, number> = {};
 
-  async function triage(item: FeedbackItem, patch: { status?: FeedbackStatus; triageNote?: string | null }) {
+  /** Sends a patch; null when it landed (or a newer one superseded it), else the error to show. */
+  async function triage(item: FeedbackItem, patch: TriagePatch): Promise<string | null> {
     const n = (seq[item.id] = (seq[item.id] ?? 0) + 1);
-    busy[item.id] = true;
     try {
       const next = await feedbackApi.triage(item.id, patch);
-      if (seq[item.id] !== n) return;
-      replace(next);
-      error = null;
+      if (seq[item.id] === n) replace(next);
+      return null;
     } catch (err) {
-      error = err instanceof Error ? err.message : "Could not update feedback";
-    } finally {
-      if (seq[item.id] === n) busy[item.id] = false;
+      return err instanceof Error ? err.message : "Could not update feedback";
     }
   }
 
-  function saveNote(item: FeedbackItem) {
+  /** Moves a card's status; a failure shows beside its actions. True once it landed. */
+  async function setStatus(item: FeedbackItem, patch: TriagePatch & { status: FeedbackStatus }): Promise<boolean> {
+    if (pending[item.id]) return false;
+    pending[item.id] = patch.status;
+    cardError[item.id] = null;
+    const failed = await triage(item, patch);
+    pending[item.id] = null;
+    cardError[item.id] = failed;
+    return !failed;
+  }
+
+  async function saveNote(item: FeedbackItem) {
     const next = (notes[item.id] ?? "").trim();
     if (next === (item.triageNote ?? "")) return;
-    triage(item, { triageNote: next || null });
+    clearTimeout(savedTimers[item.id]);
+    noteState[item.id] = { kind: "saving" };
+    const failed = await triage(item, { triageNote: next || null });
+    if (failed) {
+      noteState[item.id] = { kind: "error", message: failed };
+      return;
+    }
+    noteState[item.id] = { kind: "saved" };
+    savedTimers[item.id] = setTimeout(() => (noteState[item.id] = null), 2000);
   }
 
   async function remove(item: FeedbackItem) {
+    if (pending[item.id]) return;
+    pending[item.id] = "delete";
+    cardError[item.id] = null;
     try {
       await feedbackApi.remove(item.id);
       items = items.filter((i) => i.id !== item.id);
     } catch (err) {
-      error = err instanceof Error ? err.message : "Could not delete feedback";
+      cardError[item.id] = err instanceof Error ? err.message : "Could not delete feedback";
+    } finally {
+      pending[item.id] = null;
     }
+  }
+
+  /** The card whose Won't-fix row is open, and each card's reason draft. */
+  let closing = $state<string | null>(null);
+  let reasons = $state<Record<string, string>>({});
+
+  async function openWontfix(item: FeedbackItem) {
+    closing = item.id;
+    await tick();
+    document.getElementById(`fb-reason-${item.id}`)?.focus();
+  }
+
+  async function cancelWontfix(item: FeedbackItem) {
+    closing = null;
+    await tick();
+    document.getElementById(`fb-wontfix-${item.id}`)?.focus();
+  }
+
+  /** The reason, when given, posts as a public reply and the Won't-fix email quotes it. */
+  async function confirmWontfix(item: FeedbackItem) {
+    const reason = (reasons[item.id] ?? "").trim();
+    if (!(await setStatus(item, { status: "wontfix", ...(reason ? { reason } : {}) }))) return;
+    closing = null;
+    reasons[item.id] = "";
   }
 
   async function openComposer() {
@@ -272,6 +333,8 @@
 
 <svelte:head><title>Feedback · Program Tracker</title></svelte:head>
 
+{#snippet spinner()}<span class="spinner" aria-hidden="true"></span>{/snippet}
+
 <!-- Another trainer's client or program page would 404: show the path, don't link it. -->
 {#snippet pageLink(item: FeedbackItem)}
   {#if item.reachable}
@@ -288,11 +351,16 @@
   {#if images.length}
     {@const strip = { ref: undefined as AttachmentStrip | undefined }}
     {#if el >= 0}
+      {@const path = item.context.route.path}
       <figure class="shot">
-        <button type="button" class="shot-open" onclick={() => strip.ref?.show(el)} aria-label="Open {images[el].alt}">
+        <figcaption>
+          <span class="shot-kind">Screenshot</span>
+          <span>{images[el].caption}{#if path}&nbsp;· <span class="shot-route">{path}</span>{/if}</span>
+        </figcaption>
+        <button type="button" class="shot-open" onclick={() => strip.ref?.show(el)} aria-label="Enlarge {images[el].alt}">
           <img
             src={attachmentUrl(item.id, item.attachments[el].id)}
-            alt=""
+            alt="Screenshot of the element {feedbackHandle(item.number)} is pinned to{path ? ` on ${path}` : ''}"
             loading="lazy"
             onload={(e) => fitShot(e.currentTarget as HTMLImageElement, item.context.viewport.dpr)}
           />
@@ -367,7 +435,19 @@
     </form>
   {/if}
 
-  <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
+  <div class="tabbar">
+    <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
+    <!-- One choice for every ticket: page, source and device under each comment. -->
+    <button
+      type="button"
+      class="details-toggle"
+      aria-pressed={ticketDetails.open}
+      aria-controls={visible.map((i) => `fb-details-${i.id}`).join(" ") || undefined}
+      onclick={ticketDetails.toggle}
+    >
+      Show details
+    </button>
+  </div>
 
   <div role="tabpanel" id="panel-{filter}" aria-labelledby="fb-{filter}">
     {#if !loaded}
@@ -404,7 +484,7 @@
             class:fresh={fresh.has(item.id)}
             class:flash={flashed === feedbackHandle(item.number)}
             id={feedbackHandle(item.number)}
-            aria-busy={busy[item.id] ?? false}
+            aria-busy={!!pending[item.id]}
             use:seenWhenVisible={item}
           >
             <div class="body">
@@ -415,7 +495,7 @@
                   {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
                 </Pill>
                 {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
-                <span class="by"><Author author={item.author} /></span>
+                <span class="by"><Author author={item.author} fallback="Filed before sign-in" /></span>
                 <Tooltip text={fmtDateTime(item.createdAt)}>
                   {#snippet children(tipId)}
                     <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
@@ -444,20 +524,10 @@
                   oncancel={() => closeEditor(item)}
                 />
               {:else}
-                <p class="comment">{item.comment}</p>
+                <h2 class="comment">{item.comment}</h2>
               {/if}
 
               <div class="ticket-bar">
-                <button
-                  type="button"
-                  class="details-toggle"
-                  class:open={ticketDetails.open}
-                  aria-expanded={ticketDetails.open}
-                  aria-controls="fb-details-{item.id}"
-                  onclick={ticketDetails.toggle}
-                >
-                  Details<span class="chev" aria-hidden="true"><Icon name="chevron" /></span>
-                </button>
                 {#if canEdit(item) && editingId !== item.id}
                   <button
                     type="button"
@@ -511,44 +581,124 @@
 
               {#if editingId !== item.id}{@render ticketImages(item)}{/if}
 
-              <Thread {item} onchange={replace} />
-
-              {#if !isAdmin && item.triageNote}
-                <div class="team-note">
-                  <span class="label">Note from the team</span>
-                  <p>{item.triageNote}</p>
-                </div>
-              {/if}
+              <Thread {item} onchange={replace} collapsible />
             </div>
 
             {#if isAdmin}
+              {@const busy = !!pending[item.id]}
+              {@const handle = feedbackHandle(item.number)}
+              {@const note = noteState[item.id]}
               <div class="triage-box">
-                <label class="triage">
-                  <span>Triage note <span class="muted">— your call, read by the agent</span></span>
+                <div class="triage">
+                  <div class="note-head">
+                    <label for="fb-note-{item.id}">Triage note <span class="muted">— private, read by the agent</span></label>
+                    <p class="note-state" class:bad={note?.kind === "error"} aria-live="polite">
+                    {#if note?.kind === "saving"}
+                      Saving…
+                    {:else if note?.kind === "saved"}
+                      <span out:fade={{ duration: 300 }}>Saved</span>
+                    {:else if note?.kind === "error"}
+                      Not saved: {note.message}
+                      <button type="button" class="linkish" onclick={() => saveNote(item)}>Retry</button>
+                    {/if}
+                    </p>
+                  </div>
                   <textarea
+                    id="fb-note-{item.id}"
                     rows="2"
                     bind:value={notes[item.id]}
                     onblur={() => saveNote(item)}
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
                   ></textarea>
-                </label>
+                </div>
                 <div class="actions">
                 {#if item.status === "new"}
-                  <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
-                  <Button small onclick={() => triage(item, { status: "wontfix" })}>Won't fix</Button>
+                  <Button
+                    small
+                    disabled={busy}
+                    aria-label="Accept {handle}"
+                    icon={pending[item.id] === "accepted" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "accepted" })}>Accept</Button
+                  >
+                  <Button
+                    small
+                    id="fb-wontfix-{item.id}"
+                    disabled={busy}
+                    aria-label="Won't fix {handle}"
+                    aria-expanded={closing === item.id}
+                    aria-controls="fb-closing-{item.id}"
+                    onclick={() => (closing === item.id ? cancelWontfix(item) : openWontfix(item))}>Won't fix</Button
+                  >
                 {:else if item.status === "accepted"}
                   <Button
                     small
+                    disabled={busy}
+                    aria-label="Mark done {handle}"
+                    icon={pending[item.id] === "done" ? spinner : undefined}
                     title="Mark it done once the change is live — stamps the running version"
-                    onclick={() => triage(item, { status: "done" })}>Mark done</Button
+                    onclick={() => setStatus(item, { status: "done" })}>Mark done</Button
                   >
-                  <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Back to new</Button>
+                  <Button
+                    small
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label="Back to new {handle}"
+                    icon={pending[item.id] === "new" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "new" })}>Back to new</Button
+                  >
                 {:else}
-                  <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Reopen</Button>
+                  <Button
+                    small
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label="Reopen {handle}"
+                    icon={pending[item.id] === "new" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "new" })}>Reopen</Button
+                  >
                 {/if}
                 <span class="spacer"></span>
-                <ConfirmButton small variant="ghost" class="danger" onconfirm={() => remove(item)} />
+                <ConfirmButton
+                  small
+                  variant="ghost"
+                  class="danger"
+                  disabled={busy}
+                  label={pending[item.id] === "delete" ? "Deleting…" : "Delete"}
+                  subject={handle}
+                  onconfirm={() => remove(item)}
+                />
                 </div>
+                {#if closing === item.id && item.status === "new"}
+                  <div class="closing" id="fb-closing-{item.id}">
+                    <div class="triage">
+                      <label for="fb-reason-{item.id}">Reason for the reporter <span class="muted">(optional) — posts as a reply</span></label>
+                      <textarea
+                        id="fb-reason-{item.id}"
+                        rows="2"
+                        maxlength="5000"
+                        bind:value={reasons[item.id]}
+                        placeholder="e.g. Supersets log as one block on purpose, so totals match the program"
+                        onkeydown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) confirmWontfix(item);
+                          if (e.key === "Escape") cancelWontfix(item);
+                        }}
+                      ></textarea>
+                    </div>
+                    <div class="actions">
+                      <Button
+                        small
+                        variant="primary"
+                        disabled={busy}
+                        aria-label="Won't fix {handle}, confirm"
+                        icon={pending[item.id] === "wontfix" ? spinner : undefined}
+                        onclick={() => confirmWontfix(item)}>Won't fix</Button
+                      >
+                      <Button small variant="ghost" onclick={() => cancelWontfix(item)}>Cancel</Button>
+                    </div>
+                  </div>
+                {/if}
+                {#if cardError[item.id]}
+                  <p class="card-error" role="alert">{cardError[item.id]}</p>
+                {/if}
               </div>
             {/if}
           </li>
@@ -563,6 +713,14 @@
   .page {
     max-width: 960px;
     padding-bottom: 32px;
+  }
+  /* Focus rings: solid blue (the translucent --focus stays as the halo around inputs). */
+  .page :global(:focus-visible) {
+    outline-color: var(--blue);
+  }
+  /* Small buttons reach the 24px minimum target. */
+  .page :global(.btn.small) {
+    min-height: 24px;
   }
   .page > :global(.note) {
     margin-bottom: 16px;
@@ -580,9 +738,6 @@
     border-radius: var(--radius);
     background: var(--surface);
     overflow: hidden;
-  }
-  .item[aria-busy="true"] {
-    opacity: 0.6;
   }
   .item {
     scroll-margin-top: 16px;
@@ -603,6 +758,7 @@
     font: 600 12px/1 var(--font-ui);
     color: var(--blue);
   }
+  /* The pinned element: a framed screenshot, capped so it never outweighs the comment. */
   .shot {
     margin: 0;
     align-self: flex-start;
@@ -610,13 +766,35 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    padding: 6px 8px 8px;
+    background: var(--well);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+  }
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .shot-kind {
+    font: 600 12px/1.4 var(--font-ui);
+    color: var(--ink);
+  }
+  .shot-route {
+    font-family: var(--font-mono);
   }
   .shot img {
     display: block;
     max-width: 100%;
-    max-height: 280px;
+    max-height: 200px;
     object-fit: contain;
     object-position: left top;
+    border: 1px solid var(--line-soft);
     border-radius: 4px;
     background: var(--surface);
   }
@@ -624,6 +802,7 @@
     display: block;
     padding: 0;
     border: 0;
+    border-radius: 4px;
     background: none;
     cursor: zoom-in;
     max-width: 100%;
@@ -631,14 +810,6 @@
   .shot-open:focus-visible {
     outline: 2px solid var(--blue);
     outline-offset: 2px;
-    border-radius: var(--radius);
-  }
-  .shot-open > img {
-    box-sizing: content-box;
-    padding: 6px;
-    background: var(--well);
-    border: 1px solid var(--line-soft);
-    border-radius: var(--radius);
   }
   .body {
     display: flex;
@@ -662,6 +833,9 @@
   }
   button.when {
     appearance: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     background: none;
     border: 0;
     padding: 0;
@@ -669,26 +843,8 @@
     cursor: default;
   }
   .when:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
-  }
-  .team-note {
-    max-width: var(--measure-prose);
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    background: var(--well);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .team-note .label {
-    display: block;
-    font: 500 12px/1.2 var(--font-ui);
-    color: var(--muted);
-    margin-bottom: 2px;
-  }
-  .team-note p {
-    margin: 0;
-    white-space: pre-wrap;
   }
   .handle {
     font: 600 13px/1 var(--font-mono);
@@ -697,9 +853,10 @@
     font-size: 12px;
     color: var(--muted);
   }
-  /* The comment is the ticket's headline. */
+  /* The comment is the ticket's headline — and its heading, so the list is navigable by heading. */
   .comment {
     margin: 0;
+    letter-spacing: normal;
     font: 500 15px/1.5 var(--font-ui);
     color: var(--ink);
     white-space: pre-wrap;
@@ -730,7 +887,10 @@
   .muted {
     color: var(--muted);
   }
-  /* Under the comment: the Details toggle, then Show me. */
+  /* Under the comment: Edit, then Show me. */
+  .ticket-bar:empty {
+    display: none;
+  }
   .ticket-bar {
     display: flex;
     align-items: center;
@@ -743,6 +903,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-height: 24px;
     padding: 2px 4px;
     margin-left: -4px;
     border: 0;
@@ -757,24 +918,16 @@
     background: var(--hover-soft);
   }
   .details-toggle:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
-  }
-  .chev {
-    display: inline-flex;
-    transition: transform 120ms;
-  }
-  .chev :global(svg) {
-    width: 14px;
-    height: 14px;
-  }
-  .details-toggle.open .chev {
-    transform: rotate(180deg);
   }
   dl[hidden] {
     display: none;
   }
   .show-me {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     font-weight: 600;
     white-space: nowrap;
   }
@@ -809,6 +962,42 @@
   .triage .muted {
     font-weight: 400;
   }
+  /* Label left, save state right: "Saving…" / "Saved" / the error never shifts the layout. */
+  .note-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+  }
+  .note-state {
+    margin: 0;
+    font: 400 12px/1.4 var(--font-ui);
+    color: var(--muted);
+  }
+  .note-state.bad,
+  .card-error {
+    color: var(--bad);
+  }
+  .card-error {
+    margin: 0;
+    font-size: 12px;
+  }
+  /* The clicked button's spinner; the card's text keeps full contrast meanwhile. */
+  .spinner {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 99px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .triage textarea {
     font: 400 13px/1.5 var(--font-ui);
     padding: 6px 8px;
@@ -822,6 +1011,14 @@
     outline: none;
     border-color: var(--blue);
     box-shadow: 0 0 0 3px var(--focus);
+  }
+  /* Won't fix: the optional reason, inline under the actions. */
+  .closing {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
   }
   .composer.dropping {
     outline: 2px dashed var(--blue);
@@ -878,8 +1075,29 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+  }
+  .tabbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin: 16px 0 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tabbar :global(.tabs) {
+    flex: 1 1 auto;
+    margin: 0 0 -1px;
+    border-bottom: 0;
+  }
+  .tabbar .details-toggle {
+    margin-left: auto;
+  }
+  .details-toggle[aria-pressed="true"] {
+    color: var(--ink);
+    background: var(--well-2);
   }
   .spacer {
     flex: 1;
@@ -900,9 +1118,11 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .item,
-    .chev {
+    .item {
       transition: none;
+    }
+    .spinner {
+      animation-duration: 2.4s;
     }
   }
 </style>

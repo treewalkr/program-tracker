@@ -17,8 +17,10 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
   const handle = $derived(feedbackHandle(item.number));
-  const label = $derived(
-    item.muted ? `Emails about ${handle} are off — click to turn them back on` : `Stop emails about ${handle}`,
+  /** Fixed name, state in aria-pressed (pressed = emails on); the tooltip spells the state out. */
+  const label = $derived(`Emails about ${handle}`);
+  const tip = $derived(
+    item.muted ? `Emails about ${handle} are off — click to turn them back on` : `Emails about ${handle} are on — click to stop them`,
   );
 
   async function toggle() {
@@ -41,9 +43,9 @@
   type="button"
   class="mute"
   class:on={item.muted}
-  title={error ?? label}
+  title={error ?? tip}
   aria-label={label}
-  aria-pressed={item.muted}
+  aria-pressed={!item.muted}
   disabled={saving}
   onclick={toggle}
 >
@@ -54,7 +56,7 @@
   .mute {
     display: inline-grid;
     place-items: center;
-    padding: 3px;
+    padding: 4px;
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;

@@ -19,12 +19,13 @@ const boss = person("boss", "Ana");
 const mo = person("mo", "Mo");
 
 const snap = (over: Partial<FeedbackSnapshot> = {}): FeedbackSnapshot => ({
-  item: { id: "11111111-2222-3333-4444-555555555555", number: 12, comment: "Warm-up sets look like work sets.", route: "/clients/c1", triageNote: null, shippedIn: null },
+  item: { id: "11111111-2222-3333-4444-555555555555", number: 12, comment: "Warm-up sets look like work sets.", route: "/clients/c1", shippedIn: null },
   reporter: kai,
   admin: boss,
   repliers: [],
   actor: kai,
   comment: null,
+  reason: null,
   appUrl: "https://pt.test",
   ...over,
 });
@@ -67,10 +68,15 @@ describe("feedbackEmails", () => {
 
     const wontfix = feedbackEmails(
       "status",
-      snap({ actor: boss, item: { ...snap().item, triageNote: "Warm-ups are hidden by design" }, comment: { body: null, status: "wontfix", authorKind: "human" } }),
+      snap({ actor: boss, reason: "Warm-ups are hidden by design", comment: { body: null, status: "wontfix", authorKind: "human" } }),
     );
     expect(wontfix[0].subject).toBe("[FB-012] Won't fix");
     expect(wontfix[0].text).toContain("Reason: Warm-ups are hidden by design");
+    expect(wontfix[0].text).not.toContain("talk it through");
+
+    const bare = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "wontfix", authorKind: "human" } }));
+    expect(bare[0].text).toContain("Reply on the item if you want to talk it through.");
+    expect(bare[0].text).not.toContain("Reason:");
 
     const done = feedbackEmails(
       "status",
