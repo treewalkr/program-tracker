@@ -130,14 +130,84 @@ under the note, and the export hands them to the coding agent.
 3. **Mode** (Settings → Email → *AI answers to feedback*, admin only):
    **Off**, **Drafts only** (default) or **Auto-send confident** — only high-confidence
    "exists / shipped / how-to" answers go out alone, at most one per reporter message.
-4. **Schedule**: a T3 scheduled task in the project root, every 30 minutes, prompt
-   `/answer-feedback` (the skill in `.claude/skills/answer-feedback`). An empty inbox
-   ends the run quietly.
+4. **Run it**: on new work with the local watcher (below), or as a T3 scheduled task in
+   the project root every 30 minutes, prompt `/answer-feedback` (the skill in
+   `.claude/skills/answer-feedback`). An empty inbox ends the run quietly.
 
 The inbox holds open tickets where the reporter wrote last and the agent hasn't
 answered that version of the ticket yet. `inbox` downloads every image on the ticket and
 its public replies to `/tmp/pt-fb-agent/<handle>-<n>.<ext>`, lists which entry each came
 from, and the skill opens them all before deciding.
+
+**Duplicates.** Before answering, the agent compares each ticket with every open one
+(`bun run feedback:agent open`) and links a ticket that asks for the same change to the
+older one: `bun run feedback:agent duplicate <id> --of FB-012`. The admin links and
+unlinks on `/feedback` (the **Duplicate of** field under the triage note). The duplicate
+shows *Duplicate of FB-012*, the original lists its duplicates. When the original closes
+— **Done**, **Won't fix** (its reason is copied over) or a deploy — its open duplicates
+close the same way and each reporter gets the usual status email. Both must be open; an
+original is never itself a duplicate; reopening the original leaves duplicates closed.
+
+#### Event-driven runs (`feedback:watch`)
+
+Instead of waking the agent every 30 minutes, a local poller asks the API once a minute
+whether there is work (`GET /v1/agent/feedback/pending`: inbox and fixable counts plus a
+cursor that changes exactly when the inbox does) and starts the agent only then — on a new
+ticket, a reporter's reply or an edit, or as a retry 30 minutes after a run that left
+tickets behind. Runs never overlap, and a second watcher refuses to start.
+
+```sh
+bun run feedback:watch --once --dry-run   # what it would do now
+bun run feedback:watch                    # poll every 60s (--interval 120 to slow it)
+```
+
+The agent it starts is `claude -p /answer-feedback` with a read-only tool allowlist, run
+from the repo root; set `FEEDBACK_WATCH_CMD` to use something else. To switch over:
+
+1. Load it with launchd so it survives logins — save as
+   `~/Library/LaunchAgents/com.pinroj.pt-feedback-watch.plist` (fix the two paths), then
+   `launchctl load ~/Library/LaunchAgents/com.pinroj.pt-feedback-watch.plist`:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0"><dict>
+     <key>Label</key><string>com.pinroj.pt-feedback-watch</string>
+     <key>WorkingDirectory</key><string>/Users/you/dev/program-tracker</string>
+     <key>ProgramArguments</key><array>
+       <string>/bin/zsh</string><string>-lc</string><string>bun run feedback:watch</string>
+     </array>
+     <key>RunAtLoad</key><true/>
+     <key>KeepAlive</key><true/>
+     <key>StandardOutPath</key><string>/tmp/pt-feedback-watch.log</string>
+     <key>StandardErrorPath</key><string>/tmp/pt-feedback-watch.log</string>
+   </dict></plist>
+   ```
+2. File a test ticket and check `/tmp/pt-feedback-watch.log` shows a run within a minute.
+3. Then delete the 30-minute T3 schedule. Running both meanwhile is safe: an answer for
+   a ticket version that's already answered gets a 409 and is skipped.
+
+### Feedback fix agent
+
+Accepted tickets the auto-reply agent judged **low risk** and **ready** (its plan is
+checked against the code and leaves nothing to decide) can be fixed by an agent that
+opens a **draft PR** per ticket; a person reviews and merges, and the deploy closes the
+ticket from the `(FB-nnn)` commit. It never merges, never pushes `main`, never
+force-pushes. Run `/fix-feedback` from the repo root (Claude Code / T3), or say
+"`/fix-feedback` dry run" to go through every step without pushing or opening anything.
+The skill drives `bun run feedback:fix`:
+
+- `list [--max N]` — this run's tickets, oldest first (default 2, cap 5): accepted, not a
+  duplicate, current AI note `bug`/`feature` with `risk: low` and `ready: true`. Tickets
+  whose recorded PR is open or merged are skipped (`gh pr view`); a closed one may be
+  retried. It says why every other accepted ticket was skipped.
+- `prepare <id>` — worktree `../pt-fix-fb-nnn` on `fix/fb-nnn` from `origin/main`, brief
+  in `/tmp/pt-fb-fix/`.
+- `open <id> --worktree <path> [--dry-run]` — checks the branch is `fix/fb-nnn`, clean,
+  1–10 commits each typed and ending `(FB-nnn)`; pushes that branch, opens the draft PR
+  with `gh`, records its URL on the ticket (the admin sees **Fix PR #n** on the card).
+  `--dry-run` (or `FEEDBACK_FIX_DRY_RUN=1`) prints the push and PR instead.
+
+Needs `gh auth login` on the machine, and the same `.env.agent` as the auto-reply agent.
 
 ## Releases
 
