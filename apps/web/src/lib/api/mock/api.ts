@@ -4,8 +4,11 @@ import {
   applyDraftEdit,
   DraftEditError,
   DraftEditOps,
+  canonicalDraft,
   draftEditNote,
   draftEditRevisionMessage,
+  foldDraftEdit,
+  sameDraft,
   aiDraftToDiffSource,
   cardioBehindSignal,
   painFlagSignals,
@@ -1148,6 +1151,41 @@ export const mockApi: TrainerApi = {
     if (!edit.changed) throw new Error("the draft is unchanged");
     // No full schema check here: demo exercise ids are not uuids. The ops keep sessions valid.
 
+    const target = parent;
+    const version = revisionChain(state.generations, target.id).length;
+    const own = (m: (typeof state.messages)[number]) => m.clientId === target.clientId;
+    // Same rule as the API: fold into a hand-edit version with an edit note that no open proposal targets.
+    const foldable =
+      target.manualEdit === true &&
+      state.messages.some((m) => m.kind === "edit" && m.generationId === target.id) &&
+      !state.messages.some(
+        (m) => own(m) && m.kind === "proposal" && m.proposal?.parentGenerationId === target.id && !m.proposal.builtGenerationId
+      );
+    if (foldable) {
+      const before = state.generations.find((g) => g.id === target.parentGenerationId);
+      const labels = mergedLabels();
+      const same =
+        !!before?.draft &&
+        sameDraft(
+          canonicalDraft(before.draft as AiProgramDraftSchema, labels, { keepOrder: before.trainerOrder }),
+          canonicalDraft(edit.draft, labels, { keepOrder: true })
+        );
+      const last = state.messages.filter(own).at(-1);
+      const ownNote = last?.kind === "edit" && last.generationId === target.id ? last : null;
+      const next = foldDraftEdit({ version, revisionMessage: target.revisionMessage, lastNote: ownNote?.content ?? null, changes: edit.changes, same });
+      target.draft = edit.draft as GenerationDto["draft"];
+      target.revisionMessage = next.revisionMessage;
+      target.trainerOrder = true;
+      let message = ownNote;
+      if (message) message.content = next.note;
+      else {
+        message = { id: uuid(), clientId: target.clientId, role: "trainer", kind: "edit", content: next.note, generationId: target.id, createdAt: new Date().toISOString() };
+        state.messages.push(message);
+      }
+      const { clientId: _c, ...dto } = message;
+      return structuredClone({ generation: target, message: dto, undo: [edit.inverse], folded: true, version, changes: edit.changes });
+    }
+
     const now = new Date().toISOString();
     const generation: GenerationDto = {
       ...structuredClone(parent),
@@ -1163,19 +1201,18 @@ export const mockApi: TrainerApi = {
       createdAt: now,
     };
     state.generations.unshift(generation);
-    const version = revisionChain(state.generations, generation.id).length;
     const message: ChatMessageDto & { clientId: string } = {
       id: uuid(),
       clientId: parent.clientId,
       role: "trainer",
       kind: "edit",
-      content: draftEditNote(version, edit.changes),
+      content: draftEditNote(version + 1, edit.changes),
       generationId: generation.id,
       createdAt: now,
     };
     state.messages.push(message);
     const { clientId: _c, ...dto } = message;
-    return structuredClone({ generation, message: dto, undo: [edit.inverse] });
+    return structuredClone({ generation, message: dto, undo: [edit.inverse], folded: false, version: version + 1, changes: edit.changes });
   },
 
   async reviseGeneration(id, message) {

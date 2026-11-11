@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { SlotChange } from "@pt/shared";
-  import { changeSummary, type VersionView } from "$lib/chatRefine";
+  import { changeSummary, type VersionRow, type VersionView } from "$lib/chatRefine";
   import { draftSessionTags } from "$lib/draftReview";
   import SessionCard, { type SessionEditable, type SlotMark } from "$lib/components/SessionCard.svelte";
   import DraftEditDock from "$lib/components/DraftEditDock.svelte";
+  import VersionPicker from "$lib/components/VersionPicker.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import type { DraftEditor } from "$lib/draftEditor.svelte";
   import { rowMenuItems } from "$lib/draftEditMenu";
@@ -18,13 +19,16 @@
    * pane collapses to its head row (`open` toggles it).
    *
    * With an `editor`, the latest version can be rearranged by hand: a ⋯ menu
-   * per row, and a Select mode whose bar acts on the ticked rows. Each edit
-   * saves the next version. Older versions and a running build lock it.
+   * per row, and a Select mode whose bar acts on the ticked rows. An edit
+   * saves the next version, or folds into the latest when that is already a
+   * hand-edit version. Older versions and a running build lock it.
    */
   interface Props {
     view: VersionView;
     /** Newest version number (the switcher shows 1…latest). */
     latest: number;
+    /** Switcher rows, oldest first (who made each version, what changed); bare "vN" rows when omitted. */
+    history?: VersionRow[];
     /** Changes outside the proposal, for the shown version; empty if none or not proposal-built. */
     unproposed?: SlotChange[];
     /** Set while a new version builds. */
@@ -41,6 +45,7 @@
   let {
     view,
     latest,
+    history,
     unproposed = [],
     building = null,
     reviewHref,
@@ -52,7 +57,11 @@
 
   let showChanges = $state(true);
 
-  const versions = $derived(Array.from({ length: latest }, (_, i) => i + 1));
+  const rows = $derived<VersionRow[]>(
+    history?.length === latest
+      ? history
+      : Array.from({ length: latest }, (_, i) => ({ version: i + 1, by: "ai" as const, label: i === 0 ? "First draft" : "" }))
+  );
   const plural = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
 
   const keyOf = (c: SlotChange) => `${c.day}:${c.beforeSlot}:${c.afterSlot}:${c.kind}`;
@@ -109,18 +118,10 @@
 
 <section class="panel pane" class:open aria-busy={building !== null} aria-label="Draft">
   <div class="panel-head pane-head">
-    <h2>Draft v{view.version}</h2>
-    <div class="vswitch" role="group" aria-label="Draft version">
-      {#each versions as v (v)}
-        <button type="button" aria-pressed={view.version === v} onclick={() => onview(v)}>v{v}</button>
-      {/each}
-      {#if building}
-        <button type="button" disabled><span class="spinner" aria-hidden="true"></span>v{building.next}</button>
-      {/if}
-    </div>
+    <h2>Draft</h2>
+    <VersionPicker {rows} current={view.version} building={building?.next ?? null} onpick={onview} />
     <span class="counter days">{plural(view.sessions.length, "session")}</span>
     {#if view.generation.manualEdit}<span class="pill neutral edited">edited by you</span>{/if}
-    {#if view.version !== latest}<span class="pill neutral">older version</span>{/if}
     {#if editor}
       <button
         type="button"
@@ -207,36 +208,6 @@
   .pane-head {
     gap: 10px;
     flex: none;
-  }
-  .vswitch {
-    display: inline-flex;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--surface);
-  }
-  .vswitch button {
-    font: 500 12px/1 var(--font-mono);
-    padding: 5px 8px;
-    background: none;
-    border: 0;
-    color: var(--muted);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .vswitch button + button {
-    border-left: 1px solid var(--line);
-  }
-  .vswitch button[aria-pressed="true"] {
-    background: var(--hover-ink);
-    color: var(--on-ink);
-  }
-  .vswitch button:disabled {
-    cursor: default;
-    color: var(--blue);
-    background: var(--pulse-now-bg);
   }
   .strip-toggle {
     display: none;
@@ -418,12 +389,6 @@
     }
     .pane-head h2 {
       white-space: nowrap;
-    }
-    .vswitch {
-      flex: none;
-    }
-    .vswitch button {
-      padding: 7px 9px;
     }
     .select-toggle {
       padding-inline: 8px;

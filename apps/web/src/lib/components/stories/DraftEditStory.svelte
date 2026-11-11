@@ -3,19 +3,21 @@
     applyDraftEdit,
     draftEditNote,
     draftEditRevisionMessage,
+    foldDraftEdit,
     type AiProgramDraft,
     type DraftEditOp,
   } from "@pt/shared";
   import type { AiDraftDto, ChatMessageDto, DraftEditResultDto, GenerationDto } from "$lib/api/types";
-  import { draftPreviewModel, versionView } from "$lib/chatRefine";
+  import { draftPreviewModel, versionRows, versionView } from "$lib/chatRefine";
   import { revisionChain } from "$lib/generation";
   import { DraftEditor } from "$lib/draftEditor.svelte";
   import DraftPreview from "../DraftPreview.svelte";
 
   /**
    * Story harness: the chat draft pane with hand edits on, backed by a local
-   * fake of the edit route that replays the same shared ops. Edits stack up
-   * as versions; the edit notes the AI would read list underneath.
+   * fake of the edit route that replays the same shared ops. The first edit
+   * makes a version, later ones fold into it; the edit notes the AI would
+   * read list underneath.
    */
   interface Props {
     /** Start in select mode with these rows ticked ("day:slot"). */
@@ -98,8 +100,17 @@
     async editDraft(id: string, ops: DraftEditOp[]): Promise<DraftEditResultDto> {
       await new Promise((r) => setTimeout(r, 200));
       const parent = gens.find((g) => g.id === id)!;
-      const res = applyDraftEdit(parent.draft as AiProgramDraft, ops);
+      const res = applyDraftEdit(parent.draft as AiProgramDraft, ops, undefined, { keepOrder: parent.trainerOrder });
       if (!res.changed) throw new Error("the draft is unchanged");
+      const version = revisionChain(gens, parent.id).length;
+      if (parent.manualEdit) {
+        // Fold into the hand-edit version, as the API does (no chat in between here).
+        const last = notes.at(-1)!;
+        const next = foldDraftEdit({ version, revisionMessage: parent.revisionMessage, lastNote: last.content, changes: res.changes, same: false });
+        const generation = { ...parent, draft: res.draft, revisionMessage: next.revisionMessage };
+        const message = { ...last, content: next.note };
+        return { generation, message, undo: [res.inverse], folded: true, version, changes: res.changes };
+      }
       const generation: GenerationDto = {
         ...parent,
         id: `g-${++n}`,
@@ -107,18 +118,18 @@
         parentGenerationId: parent.id,
         revisionMessage: draftEditRevisionMessage(res.changes),
         manualEdit: true,
+        trainerOrder: true,
         createdAt: new Date().toISOString(),
       };
-      const version = revisionChain([generation, ...gens], generation.id).length;
       const message: ChatMessageDto = {
         id: `m-${n}`,
         role: "trainer",
         kind: "edit",
-        content: draftEditNote(version, res.changes),
+        content: draftEditNote(version + 1, res.changes),
         generationId: generation.id,
         createdAt: generation.createdAt,
       };
-      return { generation, message, undo: [res.inverse] };
+      return { generation, message, undo: [res.inverse], folded: false, version: version + 1, changes: res.changes };
     },
   };
 
@@ -126,13 +137,14 @@
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
   const vview = $derived(preview.target ? versionView(gens, preview.target.id, shown, new Map()) : null);
+  const history = $derived(preview.target ? versionRows(revisionChain(gens, preview.target.id)) : []);
 
   const editor = new DraftEditor({
     api: fakeApi,
     target: () => (building ? null : preview.target),
-    onsaved: ({ generation, message }) => {
-      gens = [generation, ...gens];
-      notes = [...notes, message];
+    onsaved: ({ generation, message, folded }) => {
+      gens = [generation, ...gens.filter((g) => g.id !== generation.id)];
+      notes = folded ? notes.map((m) => (m.id === message.id ? message : m)) : [...notes, message];
       view = null;
     },
   });
@@ -148,6 +160,7 @@
     <DraftPreview
       view={vview}
       {latest}
+      {history}
       building={building ? { next: latest + 1, elapsed: "0:42" } : null}
       reviewHref="/clients/cl-story/generate"
       onview={(v) => (view = v)}

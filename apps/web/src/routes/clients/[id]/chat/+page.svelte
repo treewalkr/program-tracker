@@ -26,10 +26,12 @@
     stripDraftNotice,
     submitBuild,
     submitChatTurn,
+    versionRows,
     versionStamps,
     versionView,
     type VersionStamp as Stamp,
   } from "$lib/chatRefine";
+  import { revisionChain } from "$lib/generation";
   import DraftPreview from "$lib/components/DraftPreview.svelte";
   import ChatProposal from "$lib/components/ChatProposal.svelte";
   import { draftSessionTags } from "$lib/draftReview";
@@ -157,19 +159,23 @@
 
   const preview = $derived(draftPreviewModel(allGens, building !== null, catalogById, roleLabels.all));
 
-  /** Hand edits on the latest version: each saves the next one and posts its note to the thread. */
+  /** Hand edits on the latest version: each saves (or folds into) a version and posts or updates its note. */
   const editor = new DraftEditor({
     api,
     target: () => (busy ? null : preview.target),
     onsaved: ({ generation, message }) => {
       allGens = [generation, ...allGens.filter((g) => g.id !== generation.id)];
-      messages = [...messages, message];
+      // A folded edit rewrites its note in place; otherwise the note is new.
+      messages = messages.some((m) => m.id === message.id)
+        ? messages.map((m) => (m.id === message.id ? message : m))
+        : [...messages, message];
       view = null;
     },
   });
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
   const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById, roleLabels.all) : null);
+  const vrows = $derived(preview.target ? versionRows(revisionChain(allGens, preview.target.id)) : []);
   const stamps = $derived(versionStamps(messages, allGens));
   /** Track labels for the draft a proposal targets (`change.day` = draft position). */
   const tagsFor = (genId: string | null | undefined) =>
@@ -645,6 +651,7 @@
         <DraftPreview
           view={vview}
           {latest}
+          history={vrows}
           unproposed={shownUnproposed}
           building={building ? { next: latest + 1, elapsed: elapsed ?? "0:00" } : null}
           reviewHref={`/clients/${id}/generate`}

@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, llmBlobs, llmCalls, trainers } from "@pt/db";
-import { DRAFT_EDIT_NOTE_PREFIX } from "@pt/shared";
+import { DRAFT_EDIT_NOTE_PREFIX, parseDraftEditRevision } from "@pt/shared";
 import { loadRevisionConversation } from "./lib/revision";
 import { HAND_EDIT_RULE } from "./ai/prompt";
+import { PHASING_EDIT_MESSAGE } from "./lib/phasing-edit";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
 
@@ -63,6 +64,8 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
     });
     expect(res.status).toBe(201);
     const { generation, message } = res.body;
+    expect(res.body.folded).toBe(false);
+    expect(res.body.version).toBe(2);
     editedId = generation.id;
     undo = res.body.undo;
     note = message.content;
@@ -204,7 +207,8 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
 
   test("a second edit starts from the stored order: Primary can land below an accessory", async () => {
     const res = await call("POST", `/v1/ai/generations/${editedId}/edit`, { ops: [{ op: "moveTo", refs: [{ day: 1, slot: 2 }], day: 2 }] });
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
+    expect(res.body.folded).toBe(true);
     expect(names(res.body.generation)).toEqual([order[0]]);
     const day2 = res.body.generation.draft.sessions[1].exercises;
     expect(day2.at(-1).exerciseName).toBe(order[1]);
@@ -231,5 +235,141 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
       const s = res.body.weeks[0].sessions.find((x: any) => x.kind === "lifting" && x.seq === i + 1);
       expect(s.exercises.map((e: any) => e.exerciseName)).toEqual(d.exercises.map((e: any) => e.exerciseName));
     });
+  });
+});
+
+describe.skipIf(!dbUp)("consecutive hand edits fold into one version", () => {
+  // The mock draft: two lifting sessions of two exercises each.
+  const up = (day: number) => ({ ops: [{ op: "move", refs: [{ day, slot: 2 }], dir: "up" }] });
+  const edit = (id: string, body: unknown) => call("POST", `/v1/ai/generations/${id}/edit`, body);
+  const edits = (clientId: string) =>
+    db.select().from(chatMessages).where(and(eq(chatMessages.clientId, clientId), eq(chatMessages.kind, "edit")));
+  let clientId = "";
+  let rootId = "";
+  let v2 = "";
+  let undo: unknown[] = [];
+
+  test("a second edit updates the hand-edit version and rewrites its note", async () => {
+    const c = await call("POST", "/v1/clients", { name: "Fold Client", email: `fold-${crypto.randomUUID()}@test.dev`, sessionsPerWeek: 2 });
+    clientId = c.body.id;
+    const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    rootId = g.body.id;
+    const first = await edit(rootId, up(1));
+    expect(first.status).toBe(201);
+    v2 = first.body.generation.id;
+
+    const second = await edit(v2, up(2));
+    expect(second.status).toBe(200);
+    expect(second.body.folded).toBe(true);
+    expect(second.body.version).toBe(2);
+    expect(second.body.generation.id).toBe(v2);
+    expect(second.body.message.id).toBe(first.body.message.id);
+    expect(second.body.changes).toHaveLength(1);
+    const [a] = first.body.changes;
+    const [b] = second.body.changes;
+    expect(second.body.generation.revisionMessage).toBe(`Edited by you: ${a}; ${b}`);
+    expect(second.body.message.content).toBe(`${DRAFT_EDIT_NOTE_PREFIX} (v2): ${a}; ${b}.`);
+
+    const gens = await db.select().from(aiGenerations).where(eq(aiGenerations.clientId, clientId));
+    expect(gens).toHaveLength(2);
+    expect(await edits(clientId)).toHaveLength(1);
+    undo = second.body.undo;
+  });
+
+  test("after a chat message in between, the fold adds a continued note", async () => {
+    const chat = await call("POST", "/v1/ai/chat", { clientId, message: "Looks good?", providerId: "mock" });
+    expect(chat.status).toBe(201);
+    const res = await edit(v2, { ops: [{ op: "superset", ref: { day: 1, slot: 1 }, with: "below" }] });
+    expect(res.status).toBe(200);
+    expect(res.body.generation.id).toBe(v2);
+    expect(res.body.message.content).toBe(`${DRAFT_EDIT_NOTE_PREFIX} (v2, continued): ${res.body.changes[0]}.`);
+    expect(res.body.generation.revisionMessage.split("; ")).toHaveLength(3);
+    const notes = await edits(clientId);
+    expect(notes).toHaveLength(2);
+    expect(notes.every((n) => n.generationId === v2)).toBe(true);
+    undo = res.body.undo;
+  });
+
+  test("the AI-facing conversation and prompt carry the accumulated changes", async () => {
+    const notes = (await edits(clientId)).map((n) => n.content);
+    const conversation = await loadRevisionConversation(v2);
+    for (const n of notes) expect(conversation).toContain(`Trainer: ${n}`);
+
+    const res = await call("POST", "/v1/ai/chat", { clientId, message: "Why this order?", providerId: "mock" });
+    const prompt = await promptOf(res.body.messages[1].id);
+    for (const n of notes) expect(prompt).toContain(n);
+    expect(prompt).toContain(HAND_EDIT_RULE);
+  });
+
+  test("undo folds too; undoing back to the parent keeps the version as 'changes undone'", async () => {
+    const back = await edit(v2, { ops: undo });
+    expect(back.status).toBe(200);
+    expect(back.body.message.content).toEndWith("undid the last hand edit.");
+    expect(back.body.generation.revisionMessage).toEndWith("…and 1 more");
+
+    // Put everything back to v1 in one restore: the inverse of all hand edits.
+    const [root] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, rootId));
+    const [cur] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, v2));
+    const key = (e: any) => e.exerciseName;
+    const at = new Map<string, { day: number; slot: number }>();
+    cur.draft!.sessions.forEach((s, d) => s.exercises.forEach((e, i) => at.set(key(e), { day: d + 1, slot: i + 1 })));
+    const restore = {
+      op: "restore",
+      sessions: root.draft!.sessions.map((s) =>
+        s.exercises.map((e) => ({ from: at.get(key(e))!, group: e.group ?? null, sets: e.prescribedSets.length }))
+      ),
+    };
+    const res = await edit(v2, { ops: [restore] });
+    expect(res.status).toBe(200);
+    expect(res.body.generation.id).toBe(v2);
+    expect(res.body.generation.revisionMessage).toBe("Edited by you: changes undone");
+    expect(res.body.message.content).toBe(`${DRAFT_EDIT_NOTE_PREFIX} (v2, continued): changes undone, the draft is back to v1.`);
+    const gens = await db.select().from(aiGenerations).where(eq(aiGenerations.clientId, clientId));
+    expect(gens).toHaveLength(2);
+  });
+
+  test("an AI build after an edit starts a new version, and the next edit makes another", async () => {
+    const rev = await call("POST", `/v1/ai/generations/${v2}/revise`, { message: "Keep it as is" });
+    expect(rev.status).toBe(201);
+    const res = await edit(rev.body.id, up(1));
+    expect(res.status).toBe(201);
+    expect(res.body.folded).toBe(false);
+    expect(res.body.version).toBe(4);
+    expect(res.body.generation.parentGenerationId).toBe(rev.body.id);
+  });
+
+  test("a block-plan edit is not folded into", async () => {
+    const [last] = await db.select().from(aiGenerations).where(eq(aiGenerations.clientId, clientId)).orderBy(desc(aiGenerations.createdAt)).limit(1);
+    // What savePhasingEdit saves: a manual child with no edit note.
+    const [plan] = await db
+      .insert(aiGenerations)
+      .values({ ...last, id: undefined, createdAt: undefined, parentGenerationId: last.id, revisionMessage: PHASING_EDIT_MESSAGE, manualEdit: true })
+      .returning();
+    const res = await edit(plan.id, up(1));
+    expect(res.status).toBe(201);
+    expect(res.body.folded).toBe(false);
+    expect(res.body.generation.parentGenerationId).toBe(plan.id);
+  });
+
+  test("an open proposal on the version stops the fold", async () => {
+    const [last] = await db.select().from(aiGenerations).where(eq(aiGenerations.clientId, clientId)).orderBy(desc(aiGenerations.createdAt)).limit(1);
+    const turn = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: last.id, message: "Add a core finisher", providerId: "mock" });
+    expect(turn.status).toBe(201);
+    const res = await edit(last.id, up(1));
+    expect(res.status).toBe(201);
+    expect(res.body.folded).toBe(false);
+  });
+
+  test("two quick edits on the same version both land", async () => {
+    const [last] = await db.select().from(aiGenerations).where(eq(aiGenerations.clientId, clientId)).orderBy(desc(aiGenerations.createdAt)).limit(1);
+    const [x, y] = await Promise.all([
+      edit(last.id, up(2)),
+      edit(last.id, { ops: [{ op: "superset", ref: { day: 1, slot: 1 }, with: "below" }] }),
+    ]);
+    expect([x.status, y.status]).toEqual([200, 200]);
+    const [after] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, last.id));
+    const { changes, more } = parseDraftEditRevision(after.revisionMessage);
+    expect(changes.length + more).toBe(3);
+    expect(after.draft!.sessions[0].exercises.every((e) => e.group)).toBe(true);
   });
 });
