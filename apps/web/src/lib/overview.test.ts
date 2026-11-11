@@ -7,6 +7,7 @@ import {
   volumeLabel,
   exceptionOrder,
   GRACE_DAYS,
+  LOOKBACK_DAYS,
   idleReason,
   localIso,
   plural,
@@ -187,7 +188,8 @@ describe("grace period", () => {
     expect(day(s, "2026-11-06").status).toBe("missed");
     expect(day(s, "2026-11-07").status).toBe("unlogged");
     expect(day(s, "2026-11-08").status).toBe("unlogged");
-    expect(s.exception).toBe("on-track");
+    // Nothing this week is behind, but last Fri carries over (see "Monday carry-over").
+    expect(s.exception).toBe("missed");
   });
   test("a log clears it", () => {
     const s = buildClientStrip(client, daily, [log("2026-11-03", "d2")], weeks, "2026-11-05");
@@ -198,8 +200,11 @@ describe("grace period", () => {
   });
 });
 
+/** A program that started this week (Mon 2 Nov): last week has nothing to carry over. */
+const thisWeekOnly = (sessions: ReturnType<typeof session>[]) => ({ ...program(sessions), activatedAt: "2026-11-02T08:00:00.000Z" }) as ProgramDto;
+
 test("exception per client: missed → unlogged → today → on track → none", () => {
-  const p = program([session("a", 1, 1), session("b", 3, 2), session("c", 5, 3)]);
+  const p = thisWeekOnly([session("a", 1, 1), session("b", 3, 2), session("c", 5, 3)]);
   expect(buildClientStrip(client, p, [], weeks, "2026-11-05").exception).toBe("missed");
   expect(buildClientStrip(client, p, [], weeks, "2026-11-04").exception).toBe("unlogged");
   expect(buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-04").exception).toBe("today");
@@ -221,16 +226,92 @@ test("week tally counts this week's planned sessions only", () => {
 
 test("the counter counts client-days (cells), not sessions, and tones by the worst", () => {
   // Mon holds two sessions — one cell. Today Thu 5: Mon missed, Wed to log, Thu due.
-  const p = program([session("a", 1, 1), session("a2", 1, 2, "cardio"), session("b", 3, 3), session("c", 4, 4), session("d", 6, 5)]);
+  const p = thisWeekOnly([session("a", 1, 1), session("a2", 1, 2, "cardio"), session("b", 3, 3), session("c", 4, 4), session("d", 6, 5)]);
   const s = buildClientStrip(client, p, [], weeks, "2026-11-05");
   expect(weekTally([s]).missed).toBe(2);
-  expect(weekDayTally([s])).toEqual({ missed: 1, unlogged: 1, today: 1, planned: 4 });
-  expect(weekCounter([s, s])).toEqual({ label: "2 missed · 2 to log · 2 due today", tone: "bad" });
-  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-03")])).toEqual({ label: "1 to log", tone: "warn" });
-  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-02")])).toEqual({ label: "1 due today", tone: undefined });
+  expect(weekDayTally([s], "2026-11-05")).toEqual({ missed: 1, unlogged: 1, today: 1, planned: 4, carried: { missed: 0, unlogged: 0 } });
+  expect(weekCounter([s, s], "2026-11-05")).toEqual({ label: "2 missed · 2 to log · 2 due today", tone: "bad" });
+  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-03")], "2026-11-03")).toEqual({ label: "1 to log", tone: "warn" });
+  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-02")], "2026-11-02")).toEqual({ label: "1 due today", tone: undefined });
   const done = buildClientStrip(client, program([session("a", 1, 1)]), [log("2026-11-02", "a")], weeks, "2026-11-05");
-  expect(weekCounter([done])).toEqual({ label: "all on track" });
-  expect(weekCounter([buildClientStrip(client, null, [], weeks, "2026-11-05")])).toBeUndefined();
+  expect(weekCounter([done], "2026-11-05")).toEqual({ label: "all on track" });
+  expect(weekCounter([buildClientStrip(client, null, [], weeks, "2026-11-05")], "2026-11-05")).toBeUndefined();
+});
+
+describe("Monday carry-over (7-day look-back)", () => {
+  // Block from Mon 19 Oct; Fri/Sat/Sun planned every week, plus Mon of the current week.
+  const p = (() => {
+    const m = multiWeek("2026-10-19T08:00:00.000Z");
+    return { ...m, weeks: m.weeks.map((w) => ({ ...w, sessions: [1, 5, 6, 7].map((wd) => session(`w${w.week}-${wd}`, wd, wd)) })) } as ProgramDto;
+  })();
+  // Today Mon 9 Nov: last Fri 6 is past grace (missed), Sat 7 / Sun 8 within it (to log).
+  const monday = stripWeeks(new Date(2026, 10, 9, 9));
+  const lastWeekDone = ["2026-11-06", "2026-11-07", "2026-11-08"];
+  /** Last Mon 2 is exactly seven days back, so inside the window: logged here to isolate Fri–Sun. */
+  const lastMon = log("2026-11-02", "w1-1");
+
+  test("the window is the seven days before today: last Monday itself is inside", () => {
+    expect(LOOKBACK_DAYS).toBe(7);
+    const s = buildClientStrip(client, p, lastWeekDone.map((d, i) => log(d, `w3-${5 + i}`)), monday, "2026-11-09");
+    expect(day(s, "2026-11-02").status).toBe("missed");
+    expect(s.exception).toBe("missed");
+  });
+
+  test("last Fri missed and Sat/Sun unlogged carry into Monday's exception and counter", () => {
+    const s = buildClientStrip(client, p, [lastMon], monday, "2026-11-09");
+    expect(["2026-11-06", "2026-11-07", "2026-11-08"].map((d) => day(s, d).status)).toEqual(["missed", "unlogged", "unlogged"]);
+    expect(current(s)[0].status).toBe("today");
+    expect(s.exception).toBe("missed");
+    expect(weekDayTally([s], "2026-11-09")).toMatchObject({ missed: 0, unlogged: 0, today: 1, carried: { missed: 1, unlogged: 2 } });
+    expect(weekCounter([s], "2026-11-09")).toEqual({ label: "3 from last week · 1 due today", tone: "bad" });
+  });
+
+  test("only unlogged days carried: amber, and the exception is unlogged", () => {
+    const s = buildClientStrip(client, p, [lastMon, log("2026-11-06", "w3-5")], monday, "2026-11-09");
+    expect(s.exception).toBe("unlogged");
+    expect(weekCounter([s], "2026-11-09")).toEqual({ label: "2 from last week · 1 due today", tone: "warn" });
+  });
+
+  test("carried days say missed / not logged in their label", () => {
+    const s = buildClientStrip(client, p, [lastMon], monday, "2026-11-09");
+    expect(daySentence("Ada", day(s, "2026-11-06"))).toBe("Ada, Friday, Nov 6: Session 5 missed.");
+    expect(daySentence("Ada", day(s, "2026-11-07"))).toBe("Ada, Saturday, Nov 7: Session 6 not logged.");
+  });
+
+  test("carry-over sorts a client above one only due today", () => {
+    const carried = { ...buildClientStrip({ ...client, id: "late" } as ClientDto, p, [lastMon], monday, "2026-11-09") };
+    const clean = buildClientStrip({ ...client, id: "clean" } as ClientDto, p, [lastMon, ...lastWeekDone.map((d, i) => log(d, `w3-${5 + i}`))], monday, "2026-11-09");
+    expect(clean.exception).toBe("today");
+    expect(exceptionOrder([clean, carried]).map((s) => s.client.id)).toEqual(["late", "clean"]);
+  });
+
+  test("Thursday: last week's Wed is outside the window, last Thu–Sun inside", () => {
+    // Today Thu 12 Nov: window is Thu 5 … Wed 11.
+    const thursday = stripWeeks(new Date(2026, 10, 12, 9));
+    const q = (() => {
+      const m = multiWeek("2026-10-19T08:00:00.000Z");
+      return { ...m, weeks: m.weeks.map((w) => ({ ...w, sessions: [session(`w${w.week}-3`, 3, 3)] })) } as ProgramDto;
+    })();
+    // Last Wed 4 missed; this Wed 11 logged.
+    const s = buildClientStrip(client, q, [log("2026-11-11", "w3-3")], thursday, "2026-11-12");
+    expect(day(s, "2026-11-04").status).toBe("missed");
+    expect(s.exception).toBe("on-track");
+    expect(weekCounter([s], "2026-11-12")).toEqual({ label: "all on track" });
+    // Planned on Thu instead: last Thu 5 is exactly seven days back — inside.
+    const r = (() => {
+      const m = multiWeek("2026-10-19T08:00:00.000Z");
+      return { ...m, weeks: m.weeks.map((w) => ({ ...w, sessions: [session(`w${w.week}-4`, 4, 4)] })) } as ProgramDto;
+    })();
+    const t = buildClientStrip(client, r, [], thursday, "2026-11-12");
+    expect(day(t, "2026-11-05").status).toBe("missed");
+    expect(t.exception).toBe("missed");
+    expect(weekCounter([t], "2026-11-12")).toEqual({ label: "1 from last week · 1 due today", tone: "bad" });
+  });
+
+  test("week tally (the head line) still counts this week's sessions only", () => {
+    const s = buildClientStrip(client, p, [lastMon], monday, "2026-11-09");
+    expect(weekTally([s])).toEqual({ logged: 0, planned: 4, dueToday: 1, unlogged: 0, missed: 0 });
+  });
 });
 
 test("idle clients say why: status when not active, then no program, else nothing planned", () => {
