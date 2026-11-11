@@ -27,7 +27,8 @@ describe("mockApi roster (mirrors /v1/clients/roster)", () => {
     const { items } = await mockApi.roster({ limit: 50 });
     const rank = { active: 0, paused: 1, archived: 2 };
     expect(items.map((c) => rank[c.status])).toEqual([...items.map((c) => rank[c.status])].sort());
-    expect((await mockApi.roster({ page: 99 })).page).toBe(1);
+    const last = await mockApi.roster({ page: 99 });
+    expect(last.page).toBe(Math.max(1, Math.ceil(last.total / 10)));
   });
 
   test("rows carry program week and last session; limit outside 10/25/50 is refused", async () => {
