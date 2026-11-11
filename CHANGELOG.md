@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### New
+- Won't fix can carry a reason. It's posted as a reply, and the reporter's email quotes it, so they get one email.
+- Feedback cards are calmer. The reply box opens from a Reply link, Accept is no longer green, and one "Show details" toggle covers the whole list.
+- Feedback cards show "Saved" on the triage note, show errors on the card itself, and show a spinner while busy. The pinned screenshot has a caption.
+- Training week: with more than eight clients, the on-track ones fold into one line. "Show all" brings them back.
+- Training week: the counter colours each part on its own. Missed is red, to log is amber, and due today is neutral.
+- Training week: "+n" appears when a day has more than three extra sessions, and the legend explains the marks. Partly done days get their own look, and narrow history shows week dates.
+
+### Fixed
+- The triage note is now private. Reporters no longer see it.
+- Feedback cards are easier to use with a keyboard or screen reader: clearer focus rings, bigger click targets, a heading per card, and button names that include the ticket.
+- Week cells showing "+n" no longer overflow.
+
 ## v0.1.19 — 2026-11-11
 
 ### New
