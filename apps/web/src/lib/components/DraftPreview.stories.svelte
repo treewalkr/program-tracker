@@ -4,6 +4,7 @@
   import { versionView } from '$lib/chatRefine';
   import { diffDrafts, unproposedChanges } from '@pt/shared';
   import type { AiDraftDto, GenerationDto } from '$lib/api/types';
+  import DraftEditStory from './stories/DraftEditStory.svelte';
 
   const { Story } = defineMeta({
     title: 'Domain/DraftPreview',
@@ -83,3 +84,15 @@
 <Story name="Older version" args={{ view: firstView, latest: 2, reviewHref: href, onview: noop }} />
 <Story name="Building" args={{ view: latestView, latest: 2, building: { next: 3, elapsed: '0:42' }, reviewHref: href, onview: noop, oncancel: noop }} />
 <Story name="With surprise" args={{ view: latestView, latest: 2, unproposed: surprise, reviewHref: href, onview: noop }} />
+
+<!-- Hand edits: ⋯ per row (move, superset, leave, move to session), Select mode with its bar, and the Undo toast.
+     Edits apply in memory; the lines under the pane are the notes the AI reads. -->
+<Story name="Editable" asChild>
+  <DraftEditStory />
+</Story>
+<Story name="Editable selecting" asChild>
+  <DraftEditStory selected={['1:5', '1:7']} />
+</Story>
+<Story name="Editable locked while building" asChild>
+  <DraftEditStory building />
+</Story>
