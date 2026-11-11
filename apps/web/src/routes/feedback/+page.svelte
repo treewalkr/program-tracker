@@ -33,6 +33,8 @@
   import { ticketDetails } from "$lib/feedback/details.svelte";
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
+  import { aiAnswerTally } from "$lib/feedback/ai";
+  import Icon from "$lib/ui/Icon.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
@@ -91,6 +93,8 @@
       { new: 0, accepted: 0, done: 0, wontfix: 0 } as Record<FeedbackStatus, number>,
     ),
   );
+  /** Admin: how reporters rated the sent AI answers, across every ticket. */
+  const tally = $derived(aiAnswerTally(items));
   const visible = $derived(filter === "all" ? items : items.filter((i) => i.status === filter));
   const tabs = $derived([
     ...(Object.keys(STATUS_LABEL) as FeedbackStatus[]).map((s) => ({
@@ -476,6 +480,14 @@
 
   <div class="tabbar">
     <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
+    {#if isAdmin && tally.up + tally.down + tally.unrated > 0}
+      <p class="tally" title="How reporters rated the AI's sent answers ({tally.unrated} not rated yet)">
+        <span class="sr-only">AI answers: {tally.up} rated helpful, {tally.down} not helpful, {tally.unrated} not rated.</span>
+        <span aria-hidden="true">AI answers</span>
+        <span class="t up" aria-hidden="true"><Icon name="thumbs-up" />{tally.up}</span>
+        <span class="t down" aria-hidden="true"><Icon name="thumbs-down" />{tally.down}</span>
+      </p>
+    {/if}
     <!-- One choice for every ticket: page, source and device under each comment. -->
     <button
       type="button"
@@ -1236,6 +1248,34 @@
   }
   .tabbar .details-toggle {
     margin-left: auto;
+  }
+  .tabbar .tally + .details-toggle {
+    margin-left: 0;
+  }
+  .tally {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 0 auto;
+    font: 500 12px/1.2 var(--font-ui);
+    color: var(--muted);
+  }
+  .tally .t {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .tally .t :global(svg) {
+    width: 13px;
+    height: 13px;
+  }
+  .tally .up :global(svg) {
+    color: var(--good);
+  }
+  .tally .down :global(svg) {
+    color: var(--bad);
   }
   .details-toggle[aria-pressed="true"] {
     color: var(--ink);
