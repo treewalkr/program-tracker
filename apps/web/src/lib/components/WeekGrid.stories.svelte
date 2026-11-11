@@ -13,7 +13,7 @@
       docs: {
         description: {
           component:
-            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned), then this week as fixed-height labelled cells (green = done, blue ring = due today, amber = not logged yet (within two days), red = missed, grey = upcoming); extra sessions on a day are marks under the tag (square = lifting, disc = cardio). Rows sort missed → not logged → due today → on track; clients with nothing this week collapse into one line with a reason label. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
+            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned), then this week as fixed-height labelled cells, loudest first: red fill + 2px red edge = missed, amber edge = not logged yet (within two days), blue ring = due today, grey = upcoming, soft green tint = done; extra sessions on a day are marks under the tag (square = lifting, disc = cardio). Rows sort missed → not logged → due today → on track, looking back seven days (on Monday, last Fri–Sun still count; the counter adds them as "from last week"); clients with nothing this week collapse into one line with a reason label. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
         },
       },
     },
@@ -230,6 +230,7 @@
 
 <Story name="All logged" {template} args={{ strips: allLogged, today }} />
 
+<!-- Nothing logged: past days are missed, the last two still to log, today due. -->
 <Story name="All missed" {template} args={{ strips: allMissed, today }} />
 
 <Story name="Monday carry-over" {template} args={{ strips: carryOver, today: monday.today }} />
