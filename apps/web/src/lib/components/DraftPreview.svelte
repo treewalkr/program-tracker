@@ -121,7 +121,7 @@
       {/if}
     </div>
     <span class="counter days">{plural(view.sessions.length, "session")}</span>
-    {#if view.generation.manualEdit}<span class="pill neutral">edited by you</span>{/if}
+    {#if view.generation.manualEdit}<span class="pill neutral edited">edited by you</span>{/if}
     {#if view.version !== latest}<span class="pill neutral">older version</span>{/if}
     {#if editor}
       <button
@@ -414,8 +414,15 @@
       flex-wrap: nowrap;
       padding: 8px 12px;
     }
-    .days {
+    .days,
+    .edited {
       display: none;
+    }
+    .pane-head h2 {
+      white-space: nowrap;
+    }
+    .vswitch {
+      flex: none;
     }
     .vswitch button {
       padding: 7px 9px;

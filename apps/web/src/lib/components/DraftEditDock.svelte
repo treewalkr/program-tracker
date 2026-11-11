@@ -18,13 +18,25 @@
     draft: AiDraftDto;
     labels?: readonly RoleRank[];
     variant?: "pane" | "page";
+    /** `page`: height of a fixed bar under the page (the phone approve bar) to float above. */
+    lift?: number;
   }
 
-  let { editor, draft, labels, variant = "pane" }: Props = $props();
+  let { editor, draft, labels, variant = "pane", lift = 0 }: Props = $props();
 
   const refs = $derived(editor.refs);
   const acts = $derived(selectionActions(draft, refs, labels));
   const showBar = $derived(editor.selecting && refs.length > 0);
+  const shown = $derived(showBar || !!editor.toast || !!editor.error);
+
+  // Floating on the page: lift the Feedback pill above the dock, as the log sheet's Save does.
+  let height = $state(0);
+  $effect(() => {
+    if (variant !== "page" || !shown || !height) return;
+    const root = document.documentElement;
+    root.style.setProperty("--feedback-lift", `${lift + height + 12}px`);
+    return () => root.style.removeProperty("--feedback-lift");
+  });
   const moveItems = $derived(
     acts.moveTo.map((t) => ({
       label: t.label,
@@ -36,8 +48,8 @@
   );
 </script>
 
-{#if showBar || editor.toast || editor.error}
-  <div class="dock {variant}">
+{#if shown}
+  <div class="dock {variant}" bind:clientHeight={height} style:bottom={variant === "page" && lift ? `${lift + 12}px` : null}>
     {#if editor.error}
       <div class="line err" role="alert">
         <span>{editor.error}</span>
@@ -140,7 +152,7 @@
     flex: none;
   }
   .msg {
-    flex: 1 1 200px;
+    flex: 1 1 0;
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -172,11 +184,6 @@
   }
   .clear {
     margin-left: auto;
-  }
-  @media (max-width: 700px) {
-    .dock.page {
-      bottom: 60px;
-    }
   }
   @media (pointer: coarse) {
     .bar .btn {

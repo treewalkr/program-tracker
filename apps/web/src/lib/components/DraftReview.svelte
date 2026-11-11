@@ -172,6 +172,8 @@
       items: (slot) => rowMenuItems(d, { day, slot }, (ops) => editor.run(ops), roleLabels.all),
     };
   }
+  /** The phone approve bar (fixed, ≤700px; 0 when hidden): the edit dock floats above it. */
+  let mbarHeight = $state(0);
   /** The phasing editor's own label; a session edit says "Edited by you: …". */
   const planEdit = $derived(gen.manualEdit && gen.revisionMessage === "Block plan edited by you");
 
@@ -569,7 +571,7 @@
 {/if}
 
 {#if mode === "sessions" || version < 2}
-  <DraftEditDock {editor} {draft} labels={roleLabels.all} variant="page" />
+  <DraftEditDock {editor} {draft} labels={roleLabels.all} variant="page" lift={mbarHeight} />
 {/if}
 
 <div class="more">
@@ -583,7 +585,7 @@
   </details>
 </div>
 
-{#if !decided}<div class="mbar">{@render actions()}</div>{/if}
+{#if !decided}<div class="mbar" bind:clientHeight={mbarHeight}>{@render actions()}</div>{/if}
 
 <style>
   .rv-head { display: flex; align-items: flex-start; gap: 16px; margin: 4px 0 16px; flex-wrap: wrap; }
