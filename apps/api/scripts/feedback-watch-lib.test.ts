@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_AGENT_CMD, RETRY_MS, intervalMs, parseState, shouldRun } from "./feedback-watch-lib";
+import { DEFAULT_AGENT_CMD, RETRY_MS, intervalMs, parseRunPointer, parseState, shouldRun, transcriptName } from "./feedback-watch-lib";
 
 const NOW = 1_800_000_000_000;
 
@@ -47,5 +47,22 @@ describe("DEFAULT_AGENT_CMD", () => {
     expect(allowed).toContain("Bash(bun run feedback:agent:*)");
     expect(allowed).toContain("Edit(//tmp/pt-fb-agent/**)");
     expect(allowed).not.toMatch(/Bash\(\*\)|git push|Edit\((?!\/\/tmp\/pt-fb-agent\/)/);
+  });
+  test("writes its run as stream-json, which -p only allows with --verbose", () => {
+    const i = DEFAULT_AGENT_CMD.indexOf("--output-format");
+    expect(DEFAULT_AGENT_CMD[i + 1]).toBe("stream-json");
+    expect(DEFAULT_AGENT_CMD).toContain("--verbose");
+  });
+});
+
+describe("run pointer", () => {
+  test("reads the run in progress; junk is none", () => {
+    expect(parseRunPointer('{"transcript":"/tmp/pt-fb-agent/run-x.jsonl","startedAt":5}')).toEqual({ transcript: "/tmp/pt-fb-agent/run-x.jsonl", startedAt: 5 });
+    expect(parseRunPointer(null)).toBeNull();
+    expect(parseRunPointer('{"transcript":3}')).toBeNull();
+  });
+  test("transcript names sort by start time", () => {
+    expect(transcriptName(Date.UTC(2026, 10, 11, 10, 4, 5, 123))).toBe("run-2026-11-11T10-04-05-123Z.jsonl");
+    expect(transcriptName(1) < transcriptName(2)).toBe(true);
   });
 });

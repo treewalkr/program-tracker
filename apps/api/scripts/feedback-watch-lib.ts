@@ -58,14 +58,43 @@ export function parseState(raw: string | null): WatchState {
 }
 
 /**
+ * The run in progress, so `feedback:agent answer` can upload its transcript:
+ * the watcher writes `run.json` in the agent dir before starting the agent
+ * and removes it once the agent exits.
+ */
+export interface RunPointer {
+  /** Absolute path of the stream-json transcript being written. */
+  transcript: string;
+  /** When the run started, ms. */
+  startedAt: number;
+}
+
+/** `run.json` → the run in progress; anything unreadable → null. */
+export function parseRunPointer(raw: string | null): RunPointer | null {
+  try {
+    const v = JSON.parse(raw ?? "") as Partial<RunPointer>;
+    return typeof v.transcript === "string" && typeof v.startedAt === "number" ? { transcript: v.transcript, startedAt: v.startedAt } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `run-2026-11-11T10-04-05-123Z.jsonl`: sorts by start time, safe in any file system. */
+export const transcriptName = (startedAt: number) => `run-${new Date(startedAt).toISOString().replace(/[:.]/g, "-")}.jsonl`;
+
+/**
  * The agent the watcher starts: headless Claude Code running the skill, with
- * the same narrow tool allowlist the T3 schedule uses. FEEDBACK_WATCH_CMD
- * replaces it (run through `sh -c`).
+ * the same narrow tool allowlist the T3 schedule uses, writing its run as
+ * stream-json (which `-p` only allows with `--verbose`) so the watcher can
+ * save the transcript. FEEDBACK_WATCH_CMD replaces it (run through `sh -c`).
  */
 export const DEFAULT_AGENT_CMD = [
   "claude",
   "-p",
   "/answer-feedback",
+  "--output-format",
+  "stream-json",
+  "--verbose",
   "--allowedTools",
   [
     "Read",

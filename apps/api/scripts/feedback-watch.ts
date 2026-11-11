@@ -14,19 +14,24 @@
  * the last run, or 30 minutes passed (a retry). Runs one at a time, waiting
  * for each to finish. The agent is `claude -p /answer-feedback` with a
  * read-only allowlist, from the repo root; FEEDBACK_WATCH_CMD replaces it.
+ * Its output (stream-json) is saved to /tmp/pt-fb-agent/run-<start>.jsonl
+ * (the newest 20 kept) and named in run.json while it runs, so
+ * `feedback:agent answer` uploads it with each answer.
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN (.env.agent or the environment).
  */
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { treaty } from "@elysiajs/eden";
 import type { App } from "../src/app";
 import { agentEnv } from "./agent-env";
-import { DEFAULT_AGENT_CMD, intervalMs, parseState, shouldRun, type WatchState } from "./feedback-watch-lib";
+import { DEFAULT_AGENT_CMD, intervalMs, parseState, shouldRun, transcriptName, type WatchState } from "./feedback-watch-lib";
+import { transcriptStats, transcriptsToPrune } from "../src/lib/agent-transcript";
 
 const DIR = "/tmp/pt-fb-agent";
 const STATE_FILE = join(DIR, "watch-state.json");
 const LOCK_FILE = join(DIR, "watch.pid");
+const RUN_FILE = join(DIR, "run.json");
 
 const log = (msg: string) => console.log(`${new Date().toISOString()} feedback-watch: ${msg}`);
 function fail(message: string): never {
@@ -98,9 +103,23 @@ async function tick() {
   if (dryRun) return;
   // Saved before the run: a crash mid-run still waits for news or the retry instead of looping.
   saveState({ cursor: pending.cursor, lastRunAt: now });
-  const proc = Bun.spawn(agentCmd, { cwd: repoRoot, stdout: "inherit", stderr: "inherit", stdin: "ignore" });
-  const code = await proc.exited;
-  log(`agent finished (exit ${code}, ${Math.round((Date.now() - now) / 1000)}s)`);
+  // The agent's stdout (its stream-json run) goes to a file; run.json tells the CLI which one.
+  const transcript = join(DIR, transcriptName(now));
+  const fd = openSync(transcript, "w");
+  writeFileSync(RUN_FILE, JSON.stringify({ transcript, startedAt: now }));
+  let code: number;
+  try {
+    const proc = Bun.spawn(agentCmd, { cwd: repoRoot, stdout: fd, stderr: "inherit", stdin: "ignore" });
+    code = await proc.exited;
+  } finally {
+    closeSync(fd);
+    rmSync(RUN_FILE, { force: true });
+  }
+  const stats = transcriptStats(readFileSync(transcript, "utf8"));
+  const cost = stats.costUsd === null ? "" : `, $${stats.costUsd.toFixed(2)}`;
+  const turns = stats.numTurns === null ? "" : `, ${stats.numTurns} turns`;
+  log(`agent finished (exit ${code}, ${Math.round((Date.now() - now) / 1000)}s${turns}${cost}) — transcript ${transcript}`);
+  for (const old of transcriptsToPrune(readdirSync(DIR))) rmSync(join(DIR, old), { force: true });
 }
 
 if (!dryRun) takeLock();
