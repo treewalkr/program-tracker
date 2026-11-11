@@ -770,6 +770,11 @@ describe("draftToWeeks", () => {
     expect(ex.map((e) => e.exerciseName)).toEqual(["Back Squat", "Bench Press", "Cable Crunch", "Lateral Raise"]);
     expect(ex.map((e) => e.role)).toEqual(["primary", "strength", "core", undefined]);
     expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
+
+    // A trainer-ordered draft keeps its stored order.
+    const kept = draftToWeeks(d4, catalog, 4, undefined, [], undefined, true).weeks[0].sessions[0].exercises;
+    expect(kept.map((e) => e.exerciseName)).toEqual(["Cable Crunch", "Lateral Raise", "Bench Press", "Back Squat"]);
+    expect(kept.map((e) => e.order)).toEqual([0, 1, 2, 3]);
   });
 
   test("a superset survives the role sort and is tidied", () => {

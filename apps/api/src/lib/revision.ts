@@ -102,6 +102,8 @@ export async function runRevision(
       status: "pending",
       parentGenerationId: parent.id,
       revisionMessage: trimmedMessage,
+      // A trainer-ordered draft stays trainer-ordered through AI revisions.
+      trainerOrder: parent.trainerOrder,
       exampleProgramIds: parent.exampleProgramIds ?? [],
     })
     .returning();
