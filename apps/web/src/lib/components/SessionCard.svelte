@@ -4,6 +4,17 @@
     /** Old value shown as "was …" (old name for swaps, old prescription parts for rx). */
     was: string | null;
   }
+
+  /** Hand-edit controls for a draft session's rows (DraftPreview, DraftReview). */
+  export interface SessionEditable {
+    /** Select mode: a checkbox leads each row. */
+    selecting: boolean;
+    isSelected: (slot: number) => boolean;
+    ontoggle: (slot: number) => void;
+    /** The row's ⋯ menu (move, superset, move to session). */
+    items: (slot: number) => OverflowItem[];
+    disabled?: boolean;
+  }
 </script>
 
 <script lang="ts">
@@ -23,6 +34,7 @@
   import GroupTag from "$lib/components/GroupTag.svelte";
   import { groupSets } from "$lib/setChips";
   import Icon from "$lib/ui/Icon.svelte";
+  import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
 
   /**
    * One prescribed session over the global `.session` row classes (client
@@ -56,9 +68,11 @@
     onnote?: (slot: number | null) => void;
     /** Slots (and 0 for the session) that already carry a note. */
     noted?: ReadonlySet<number>;
+    /** Hand-edit controls; rows need a `slot`. Without it the card is read-only. */
+    editable?: SessionEditable;
   }
 
-  let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks, onnote, noted }: Props = $props();
+  let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks, onnote, noted, editable }: Props = $props();
 
   const units = $derived(exerciseUnits(exercises));
 
@@ -114,12 +128,33 @@
   {:else}
     <div class="session-body">
       {#if exercises.length > 1}
-        <div class="exrow colhead" aria-hidden="true"><span></span><SetChips sets={[]} {cols} head /></div>
+        <div class="exrow colhead" class:editable={!!editable} aria-hidden="true"><span></span><SetChips sets={[]} {cols} head />{#if editable}<span></span>{/if}</div>
       {/if}
       {#snippet exrow(e: (typeof exercises)[number], i: number, striped = false)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
-        <div class="exrow" class:stripe={striped} class:is-primary={e.role === "primary"} class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
+        {@const picked = !!editable && e.slot != null && editable.isSelected(e.slot)}
+        <div
+          class="exrow"
+          class:stripe={striped}
+          class:is-primary={e.role === "primary"}
+          class:is-changed={!!m}
+          class:is-unasked={m?.kind === "unproposed"}
+          class:editable={!!editable}
+          class:sel={picked}
+          data-slot={e.slot}
+        >
           <div class="ex">
+            {#if editable?.selecting && e.slot != null}
+              {@const slot = e.slot}
+              <input
+                type="checkbox"
+                class="pick"
+                checked={picked}
+                disabled={editable.disabled}
+                aria-label="Select {e.name || 'this exercise'}"
+                onchange={() => editable.ontoggle(slot)}
+              />
+            {/if}
             {#if e.group}<GroupTag tag={groupTag(exercises, i) ?? e.group} />{/if}
             {#if e.role}<RoleChip role={e.role} />{/if}
             <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"}{" · not in proposal"}{/if}</span>{/if}</span>
@@ -135,6 +170,11 @@
             {/if}
           </div>
           <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} {cols} />
+          {#if editable && e.slot != null}
+            <span class="rowmenu">
+              <OverflowMenu items={editable.items(e.slot)} label="Edit {e.name || 'this exercise'}" disabled={editable.disabled} />
+            </span>
+          {/if}
         </div>
       {/snippet}
       <!-- rows stripe by exercise index; a superset is one framed, tinted block that pauses them -->
@@ -290,6 +330,30 @@
   .note-btn.noted span { display: none; }
   @media (hover: none) { .note-btn { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
+  /* Hand edits: a third column for the ⋯ menu; ticked rows take the selection tint. */
+  .exrow.editable {
+    grid-template-columns: minmax(min(16rem, 55%), 1fr) minmax(0, auto) auto;
+  }
+  .exrow.sel,
+  .xgroup > .exrow.sel {
+    background: var(--pulse-now-bg);
+  }
+  .rowmenu {
+    display: inline-flex;
+    align-self: center;
+    margin-right: -6px;
+  }
+  .rowmenu :global(.trigger) {
+    color: var(--muted);
+  }
+  .pick {
+    width: 16px;
+    height: 16px;
+    margin: 0 2px 0 0;
+    accent-color: var(--blue);
+    cursor: pointer;
+    flex: none;
+  }
   /* column labels over the aligned set chips; tight to the first row */
   .colhead { padding-top: 6px; padding-bottom: 0; }
   .legend { font: 400 11px/1.6 var(--font-mono); }
@@ -298,5 +362,12 @@
   @container session (max-width: 660px) {
     .mp-tag { margin-left: 0; }
     .colhead { display: none; }
+    .exrow.editable { grid-template-columns: minmax(0, 1fr) auto auto; }
+  }
+  /* phone-narrow card: name and ⋯ on top, chips under them */
+  @container session (max-width: 420px) {
+    .exrow.editable { grid-template-columns: minmax(0, 1fr) auto; }
+    .exrow.editable > .rowmenu { grid-column: 2; grid-row: 1; justify-self: end; align-self: start; }
+    .exrow.editable > :global(.chips) { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
   }
 </style>

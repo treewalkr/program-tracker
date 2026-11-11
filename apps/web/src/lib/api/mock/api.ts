@@ -1,5 +1,11 @@
 import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf } from "@pt/shared";
 import {
+  AiProgramDraft as AiProgramDraftSchema,
+  applyDraftEdit,
+  DraftEditError,
+  DraftEditOps,
+  draftEditNote,
+  draftEditRevisionMessage,
   aiDraftToDiffSource,
   cardioBehindSignal,
   painFlagSignals,
@@ -76,6 +82,7 @@ import type {
   ClientMessageDto,
   ExerciseDto,
   GenerationDto,
+  DraftEditResultDto,
   HistoryEntryDto,
   ImportDto,
   InstructionTemplateDto,
@@ -101,6 +108,7 @@ import type {
   RosterQuery,
   TrainerApi,
 } from "../types";
+import { revisionChain } from "../../generation";
 import { activeSignals, snoozeUntil } from "../../signals";
 import {
   clients as seedClients,
@@ -1119,6 +1127,56 @@ export const mockApi: TrainerApi = {
     return structuredClone(child);
   },
 
+  async editDraft(generationId, ops): Promise<DraftEditResultDto> {
+    await delay(250);
+    const parent = state.generations.find((g) => g.id === generationId);
+    if (!parent) throw new Error("generation not found");
+    if (parent.status !== "validated" || !parent.draft) throw new Error(`generation is ${parent.status}, not validated`);
+    if (parent.kind === "week") throw new Error("week drafts can't be edited by hand");
+    const child = state.generations.find((g) => g.parentGenerationId === parent.id && (g.status === "pending" || g.status === "validated"));
+    if (child?.status === "pending") throw new Error("a revision is already running for this generation");
+    if (child) throw new Error("only the latest version can be edited");
+    const parsed = DraftEditOps.safeParse(ops);
+    if (!parsed.success) throw new Error("invalid edit");
+    let edit: ReturnType<typeof applyDraftEdit>;
+    try {
+      edit = applyDraftEdit(parent.draft as AiProgramDraftSchema, parsed.data, mergedLabels());
+    } catch (err) {
+      if (err instanceof DraftEditError) throw new Error(err.message);
+      throw err;
+    }
+    if (!edit.changed) throw new Error("the draft is unchanged");
+    // No full schema check here: demo exercise ids are not uuids. The ops keep sessions valid.
+
+    const now = new Date().toISOString();
+    const generation: GenerationDto = {
+      ...structuredClone(parent),
+      id: uuid(),
+      status: "validated",
+      draft: edit.draft as GenerationDto["draft"],
+      parentGenerationId: parent.id,
+      revisionMessage: draftEditRevisionMessage(edit.changes),
+      manualEdit: true,
+      approvedProgramId: null,
+      rejectReason: null,
+      createdAt: now,
+    };
+    state.generations.unshift(generation);
+    const version = revisionChain(state.generations, generation.id).length;
+    const message: ChatMessageDto & { clientId: string } = {
+      id: uuid(),
+      clientId: parent.clientId,
+      role: "trainer",
+      kind: "edit",
+      content: draftEditNote(version, edit.changes),
+      generationId: generation.id,
+      createdAt: now,
+    };
+    state.messages.push(message);
+    const { clientId: _c, ...dto } = message;
+    return structuredClone({ generation, message: dto, undo: [edit.inverse] });
+  },
+
   async reviseGeneration(id, message) {
     const parent = state.generations.find((g) => g.id === id);
     if (!parent || parent.status !== "validated" || !parent.draft) {
@@ -1869,6 +1927,9 @@ export const mockApi: TrainerApi = {
     if (!row || row.kind !== "proposal" || !row.proposal) throw new Error("proposal not found");
     if (row.proposal.builtGenerationId) throw new Error("proposal already built");
     const parent = state.generations.find((g) => g.id === row.proposal!.parentGenerationId);
+    if (state.generations.some((g) => g.parentGenerationId === parent?.id && g.manualEdit && g.status === "validated")) {
+      throw new Error("the draft was edited by hand since this proposal — ask again");
+    }
     const pending: GenerationDto = {
       ...structuredClone(parent!),
       id: uuid(),

@@ -11,10 +11,11 @@ import {
   conversationToText,
   draftSlotsText,
   draftToText,
+  HAND_EDIT_RULE,
   periodizationContext,
 } from "./ai/prompt";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "./lib/draftToProgram";
-import { AiProgramDraft, DEFAULT_GLOSSARY, DELOAD_RULES, mergeRoleLabels, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
+import { AiProgramDraft, DEFAULT_GLOSSARY, applyDraftEdit, draftEditNote, DELOAD_RULES, mergeRoleLabels, ImportChunk, ProgramWeeksDocument, WEEK11_12_EXTRACTION, importLines, numberedLines } from "@pt/shared";
 import { readFileSync } from "node:fs";
 import { mockImportContent } from "./ai/mock";
 
@@ -1682,6 +1683,27 @@ describe("revision conversation threading", () => {
 });
 
 describe("draftToText shows rest and duration", () => {
+  test("superset members carry their tag", () => {
+    const set = { setNumber: 1, type: "working" as const, reps: 8, amrap: false };
+    const text = draftToText({
+      name: "B",
+      rationale: "",
+      clientSummary: "",
+      sessions: [
+        {
+          name: "Day A",
+          kind: "lifting",
+          exercises: [
+            { exerciseName: "Curl", group: "A", prescribedSets: [set] },
+            { exerciseName: "Pushdown", group: "A", prescribedSets: [set] },
+            { exerciseName: "Plank", prescribedSets: [set] },
+          ],
+        },
+      ],
+    });
+    expect(text).toContain("A1 Curl [8 reps], A2 Pushdown [8 reps], Plank [8 reps]");
+  });
+
   const withSets = (sets: Array<{ setNumber: number; type: "working"; reps: number; amrap: boolean; durationSeconds?: number; targetRpe?: number; restSeconds?: number }>): AiProgramDraft => ({
     name: "Block",
     rationale: "",
@@ -1807,5 +1829,76 @@ describe("buildImportMessages", () => {
     const text = readFileSync(new URL("../../../packages/shared/fixtures/import/week11-12.txt", import.meta.url), "utf8");
     const parsed = ImportChunk.parse(JSON.parse(mockImportContent(importLines(text), 1, 36)));
     expect(parsed.weeks.map((w) => w.label)).toEqual(["Week 11"]);
+  });
+});
+
+describe("hand edits reach the prompt", () => {
+  const previousDraft: AiProgramDraft = {
+    name: "Block 1",
+    rationale: "r",
+    clientSummary: "c",
+    sessions: [
+      {
+        name: "Day A",
+        kind: "lifting",
+        exercises: [
+          { exerciseName: "Box Jump", role: "accessory", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
+          { exerciseName: "Plank", role: "accessory", prescribedSets: [{ setNumber: 1, type: "working", reps: 1, amrap: false }] },
+        ],
+      },
+    ],
+  };
+  const edit = applyDraftEdit(previousDraft, [{ op: "superset", ref: { day: 1, slot: 2 }, with: "above" }]);
+  const note = draftEditNote(2, edit.changes);
+  const base = {
+    client: { name: "Ada", sessionsPerWeek: 1 },
+    previousProgram: null,
+    periodization: null,
+    chainBalance: null,
+    history: [],
+    catalog: [],
+    trainerInstructions: "",
+    feedback: "add a finisher",
+  };
+
+  test("the note names the change", () => {
+    expect(note).toBe("Edited the draft by hand (v2): superset A in Session 1: Box Jump + Plank.");
+  });
+
+  test("proposal and build prompts carry the note and the keep-it rule", () => {
+    const conversation = conversationToText([
+      { role: "trainer", content: "Make the start explosive" },
+      { role: "trainer", content: note },
+    ]);
+    for (const outputContract of ["proposal", "draft"] as const) {
+      const { system, user } = buildRevisionMessages({ ...base, previousDraft: edit.draft, conversation, outputContract });
+      expect(user).toContain(`Trainer: ${note}`);
+      expect(system).toContain(HAND_EDIT_RULE);
+      // the model revises the edited draft
+      expect(user).toContain("A1 Box Jump");
+    }
+    const week = buildWeekRevisionMessages({
+      ...base,
+      targetWeek: 2,
+      plannedWeeks: 4,
+      targetDirective: null,
+      target: null,
+      previousDraft: edit.draft,
+      conversation,
+      outputContract: "proposal",
+    });
+    expect(week.system).toContain(HAND_EDIT_RULE);
+  });
+
+  test("no hand edit, no rule", () => {
+    const conversation = conversationToText([{ role: "trainer", content: "Make the start explosive" }]);
+    const { system } = buildRevisionMessages({ ...base, previousDraft, conversation, outputContract: "proposal" });
+    expect(system).not.toContain(HAND_EDIT_RULE);
+  });
+
+  test("chat Q&A system prompt carries the rule when the history has an edit", () => {
+    const ctx = { ...base, latestDraft: null };
+    expect(buildChatSystem({ ...ctx, handEdits: true })).toContain(HAND_EDIT_RULE);
+    expect(buildChatSystem(ctx)).not.toContain(HAND_EDIT_RULE);
   });
 });

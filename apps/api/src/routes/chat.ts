@@ -166,6 +166,18 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       const [row] = await db.select().from(chatMessages).where(eq(chatMessages.id, params.messageId));
       if (!row || row.kind !== "proposal" || !row.proposal) return status(404, { error: "proposal not found" });
       if (row.proposal.builtGenerationId) return status(409, { error: "proposal already built" });
+      // Builds start from the latest version: a hand edit since this proposal wins.
+      const [edited] = await db
+        .select({ id: aiGenerations.id })
+        .from(aiGenerations)
+        .where(
+          and(
+            eq(aiGenerations.parentGenerationId, row.proposal.parentGenerationId),
+            eq(aiGenerations.manualEdit, true),
+            eq(aiGenerations.status, "validated")
+          )
+        );
+      if (edited) return status(409, { error: "the draft was edited by hand since this proposal — ask again" });
 
       const requestText = await proposalRequestText(row);
       const feedback = proposalToFeedback(requestText, row.proposal);

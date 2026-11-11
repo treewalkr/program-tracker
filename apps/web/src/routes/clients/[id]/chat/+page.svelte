@@ -44,6 +44,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Verdict from "$lib/components/Verdict.svelte";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
+  import { DraftEditor } from "$lib/draftEditor.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -155,6 +156,17 @@
   let benchHeight = $state<number | null>(null);
 
   const preview = $derived(draftPreviewModel(allGens, building !== null, catalogById, roleLabels.all));
+
+  /** Hand edits on the latest version: each saves the next one and posts its note to the thread. */
+  const editor = new DraftEditor({
+    api,
+    target: () => (busy ? null : preview.target),
+    onsaved: ({ generation, message }) => {
+      allGens = [generation, ...allGens.filter((g) => g.id !== generation.id)];
+      messages = [...messages, message];
+      view = null;
+    },
+  });
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
   const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById, roleLabels.all) : null);
@@ -503,7 +515,10 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="thread" role="log" aria-live="polite" aria-label="Conversation with AI" onpointerup={() => setTimeout(readSelection)} onkeyup={(e) => e.shiftKey && readSelection()}>
     {#each messages as m (m.id)}
-      {#if m.role === "trainer"}
+      {#if m.kind === "edit"}
+        <!-- A hand edit: exactly the line the AI reads, as a quiet system line. -->
+        <div class="sysline"><Icon name="pencil" /><span>{m.content}</span></div>
+      {:else if m.role === "trainer"}
         <div class="you">{m.content}</div>
       {:else}
         <div class="ai">
@@ -636,6 +651,7 @@
           onview={(v) => (view = v)}
           oncancel={cancel}
           bind:open={stripOpen}
+          {editor}
         />
       </div>
     </div>
@@ -686,6 +702,25 @@
     line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .sysline {
+    align-self: stretch;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    padding: 2px 8%;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .sysline :global(svg) {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    margin-top: 3px;
   }
   .ai {
     font-size: 14px;

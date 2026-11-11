@@ -250,7 +250,8 @@ export async function loadRevisionConversation(generationId: string): Promise<st
     .where(
       and(
         eq(chatMessages.clientId, generation.clientId),
-        inArray(chatMessages.kind, ["chat", "revision", "proposal"]),
+        // "edit": the trainer's hand edits, so the model keeps them.
+        inArray(chatMessages.kind, ["chat", "revision", "proposal", "edit"]),
         isNull(chatMessages.hiddenAt)
       )
     )
