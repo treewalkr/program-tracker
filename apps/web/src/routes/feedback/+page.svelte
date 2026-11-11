@@ -513,7 +513,7 @@
                   oncancel={() => closeEditor(item)}
                 />
               {:else}
-                <p class="comment">{item.comment}</p>
+                <h2 class="comment">{item.comment}</h2>
               {/if}
 
               <div class="ticket-bar">
@@ -585,6 +585,7 @@
 
             {#if isAdmin}
               {@const busy = !!pending[item.id]}
+              {@const handle = feedbackHandle(item.number)}
               {@const note = noteState[item.id]}
               <div class="triage-box">
                 <div class="triage">
@@ -613,6 +614,7 @@
                     small
                     variant="primary"
                     disabled={busy}
+                    aria-label="Accept {handle}"
                     icon={pending[item.id] === "accepted" ? spinner : undefined}
                     onclick={() => setStatus(item, { status: "accepted" })}>Accept</Button
                   >
@@ -620,6 +622,7 @@
                     small
                     id="fb-wontfix-{item.id}"
                     disabled={busy}
+                    aria-label="Won't fix {handle}"
                     aria-expanded={closing === item.id}
                     aria-controls="fb-closing-{item.id}"
                     onclick={() => (closing === item.id ? cancelWontfix(item) : openWontfix(item))}>Won't fix</Button
@@ -628,6 +631,7 @@
                   <Button
                     small
                     disabled={busy}
+                    aria-label="Mark done {handle}"
                     icon={pending[item.id] === "done" ? spinner : undefined}
                     title="Mark it done once the change is live — stamps the running version"
                     onclick={() => setStatus(item, { status: "done" })}>Mark done</Button
@@ -636,6 +640,7 @@
                     small
                     variant="ghost"
                     disabled={busy}
+                    aria-label="Back to new {handle}"
                     icon={pending[item.id] === "new" ? spinner : undefined}
                     onclick={() => setStatus(item, { status: "new" })}>Back to new</Button
                   >
@@ -644,6 +649,7 @@
                     small
                     variant="ghost"
                     disabled={busy}
+                    aria-label="Reopen {handle}"
                     icon={pending[item.id] === "new" ? spinner : undefined}
                     onclick={() => setStatus(item, { status: "new" })}>Reopen</Button
                   >
@@ -655,6 +661,7 @@
                   class="danger"
                   disabled={busy}
                   label={pending[item.id] === "delete" ? "Deleting…" : "Delete"}
+                  subject={handle}
                   onconfirm={() => remove(item)}
                 />
                 </div>
@@ -679,6 +686,7 @@
                         small
                         variant="primary"
                         disabled={busy}
+                        aria-label="Won't fix {handle}, confirm"
                         icon={pending[item.id] === "wontfix" ? spinner : undefined}
                         onclick={() => confirmWontfix(item)}>Won't fix</Button
                       >
@@ -703,6 +711,14 @@
   .page {
     max-width: 960px;
     padding-bottom: 32px;
+  }
+  /* Focus rings: solid blue (the translucent --focus stays as the halo around inputs). */
+  .page :global(:focus-visible) {
+    outline-color: var(--blue);
+  }
+  /* Small buttons reach the 24px minimum target. */
+  .page :global(.btn.small) {
+    min-height: 24px;
   }
   .page > :global(.note) {
     margin-bottom: 16px;
@@ -815,6 +831,9 @@
   }
   button.when {
     appearance: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     background: none;
     border: 0;
     padding: 0;
@@ -822,7 +841,7 @@
     cursor: default;
   }
   .when:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
   .handle {
@@ -832,9 +851,10 @@
     font-size: 12px;
     color: var(--muted);
   }
-  /* The comment is the ticket's headline. */
+  /* The comment is the ticket's headline — and its heading, so the list is navigable by heading. */
   .comment {
     margin: 0;
+    letter-spacing: normal;
     font: 500 15px/1.5 var(--font-ui);
     color: var(--ink);
     white-space: pre-wrap;
@@ -878,6 +898,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-height: 24px;
     padding: 2px 4px;
     margin-left: -4px;
     border: 0;
@@ -892,7 +913,7 @@
     background: var(--hover-soft);
   }
   .details-toggle:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
   .chev {
@@ -910,6 +931,9 @@
     display: none;
   }
   .show-me {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     font-weight: 600;
     white-space: nowrap;
   }

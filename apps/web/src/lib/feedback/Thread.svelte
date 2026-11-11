@@ -463,7 +463,7 @@
     background: var(--hover-soft);
   }
   .dismiss:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
   .plan {
@@ -524,6 +524,9 @@
   }
   button.when {
     appearance: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
     background: none;
     border: 0;
     padding: 0;
@@ -533,7 +536,7 @@
     cursor: default;
   }
   button.when:focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
   .composer {
