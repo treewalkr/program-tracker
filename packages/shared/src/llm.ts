@@ -16,6 +16,8 @@ export const LLM_PURPOSES = [
   "feedback_check",
   "rule_extract",
   "program_import",
+  /** The feedback auto-reply agent (off-server Claude Code run), logged when it posts an answer. */
+  "feedback_answer",
 ] as const;
 export type LlmPurpose = (typeof LLM_PURPOSES)[number];
 
@@ -23,7 +25,7 @@ export const LLM_CALL_STATUSES = ["ok", "provider_error", "parse_error", "valida
 export type LlmCallStatus = (typeof LLM_CALL_STATUSES)[number];
 
 /** What a verdict judges. */
-export const LLM_SUBJECT_KINDS = ["call", "chat_message", "generation", "client_message"] as const;
+export const LLM_SUBJECT_KINDS = ["call", "chat_message", "generation", "client_message", "feedback_answer"] as const;
 export type LlmSubjectKind = (typeof LLM_SUBJECT_KINDS)[number];
 
 /** Fixed reason vocabulary for thumbs-down (and optional on thumbs-up). */
