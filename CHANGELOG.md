@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### New
+- AI answers to your feedback now show how confident the AI was (High or Medium).
+- Rate an AI answer with 👍 or 👎. On 👎 you can pick what was wrong and add a comment, and the AI takes another look.
+- For admins: each AI answer shows the reporter's rating, and the feedback list shows the 👍/👎 tally for AI answers.
+
 ## v0.1.23 — 2026-11-11
 
 ### New
