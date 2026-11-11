@@ -141,8 +141,8 @@
   ];
   const PLANS: Record<number, string[]>[] = [
     { 1: ['Upper'], 3: ['Lower'], 5: ['Full body'] },
-    { 2: ['Push'], 4: ['Pull'], 6: ['Legs'] },
-    { 1: ['Lower — squat'], 4: ['Upper — press'] },
+    { 2: ['Push'], 5: ['Pull'], 6: ['Legs'] },
+    { 1: ['Lower — squat'], 3: ['Upper — press'] },
     { 1: ['Strength A'], 2: ['Zone 2 run'], 4: ['Strength B'], 7: ['Long ride'] },
   ];
   const many = exceptionOrder(
@@ -202,7 +202,7 @@
 
 </script>
 
-{#snippet template(args: { strips: ClientStrip[]; today: string })}
+{#snippet template(args: { strips: ClientStrip[]; today: string; showOnTrack?: boolean })}
   {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 1140px;">
     <Panel title="Training week" {count}>
@@ -222,7 +222,10 @@
 
 <Story name="Three clients" {template} args={{ strips: three, today }} />
 
-<Story name="25 clients" exportName="TwentyFiveClients" {template} args={{ strips: many, today }} />
+<!-- Past eight active rows, on-track clients fold into one line (collapsed here whatever was saved). -->
+<Story name="25 clients" exportName="TwentyFiveClients" {template} args={{ strips: many, today, showOnTrack: false }} />
+
+<Story name="On-track expanded" {template} args={{ strips: many, today, showOnTrack: true }} />
 
 <Story name="Idle clients" {template} args={{ strips: idleReasons, today }} />
 

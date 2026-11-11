@@ -17,16 +17,28 @@
    */
   import { tick } from "svelte";
   import type { ClientStrip, StripDay } from "$lib/overview";
-  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, idleReason, plural, sessionLine, volumeLabel } from "$lib/overview";
+  import {
+    LEVEL_WORDS,
+    SESSION_WORDS,
+    dayDateLabel,
+    daySentence,
+    foldsOnTrack,
+    idleReason,
+    plural,
+    sessionLine,
+    volumeLabel,
+  } from "$lib/overview";
 
   interface Props {
     /** Built by `buildClientStrip`, ordered by `exceptionOrder`; every strip has the same weeks. */
     strips: ClientStrip[];
     /** Today as an ISO date. */
     today: string;
+    /** Start with folded on-track rows shown; overrides the saved choice (stories). */
+    showOnTrack?: boolean;
   }
 
-  let { strips, today }: Props = $props();
+  let { strips, today, showOnTrack: initialShow }: Props = $props();
 
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -34,6 +46,34 @@
 
   const active = $derived(strips.filter((s) => s.exception !== "none"));
   const idle = $derived(strips.filter((s) => s.exception === "none"));
+
+  // ── Fold: past eight active rows, on-track clients share one line (missed / to log / due today never fold) ──
+  const SHOW_KEY = "pt.weekgrid.showOnTrack";
+  /** Names the folded line lists before "+N". */
+  const FOLD_NAMES = 5;
+  function savedShow(): boolean {
+    try {
+      return typeof localStorage !== "undefined" && localStorage.getItem(SHOW_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+  // svelte-ignore state_referenced_locally
+  let showOnTrack = $state(initialShow ?? savedShow());
+  function toggleOnTrack() {
+    showOnTrack = !showOnTrack;
+    try {
+      localStorage.setItem(SHOW_KEY, showOnTrack ? "1" : "0");
+    } catch {
+      // Private mode or storage off: the choice lasts until reload.
+    }
+  }
+  const fold = $derived(foldsOnTrack(strips));
+  const onTrack = $derived(fold ? active.filter((s) => s.exception === "on-track") : []);
+  /** Rows above the fold line: every active row, or only the exceptions when folding. */
+  const lead = $derived(fold ? active.filter((s) => s.exception !== "on-track") : active);
+  /** The rows on screen — the legend draws only what these show. */
+  const visible = $derived(fold && !showOnTrack ? lead : active);
   /** Calendar weeks, from any strip (they all share them). */
   const calendar = $derived(strips[0]?.weeks.map((w) => w.map((d) => d.date)) ?? []);
   const thisWeek = $derived(calendar[calendar.length - 1] ?? []);
@@ -64,7 +104,7 @@
   const legend = $derived.by(() => {
     const seen = new Set<string>();
     let ramp = false;
-    for (const s of active) {
+    for (const s of visible) {
       s.weeks.forEach((w, i) => {
         const current = i === s.weeks.length - 1;
         for (const d of w) {
@@ -84,6 +124,7 @@
   let card = $state<HTMLDivElement>();
   const uid = $props.id();
   const tipId = `wk-tip-${uid}`;
+  const foldId = `wk-ontrack-${uid}`;
 
   function place(anchor: HTMLElement) {
     const r = anchor.getBoundingClientRect();
@@ -161,6 +202,98 @@
   }
 </script>
 
+{#snippet row(s: ClientStrip)}
+  {@const meta = metaOf(s)}
+  <div class="wk-tr" role="row">
+    <div class="wk-client" role="rowheader">
+      <a href={`/clients/${s.client.id}`} title={s.program ?? undefined}>{s.client.name}</a>
+      {#if meta.length}
+        <span class="meta">
+          {#each meta as m, i (m)}<span>{m}{i < meta.length - 1 ? " ·" : ""}</span>{/each}
+        </span>
+      {/if}
+    </div>
+
+    <div class="hist" role="cell">
+      <!-- Roving focus: arrow keys bubble up from the day buttons inside. -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div class="hist-days" onkeydown={(e) => rove(e, s)} role="group" aria-label={`${s.client.name}, earlier weeks`}>
+        {#each s.weeks.slice(0, -1) as w (w[0].date)}
+          <div class="hw">
+            {#each w as d (d.date)}
+              {#if marks(d)}
+                <button
+                  type="button"
+                  class="sq {d.status}"
+                  data-level={d.status === "logged" ? d.level : undefined}
+                  data-date={d.date}
+                  tabindex={stopOf(s) === d.date ? 0 : -1}
+                  aria-label={daySentence(s.client.name, d)}
+                  aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
+                  aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
+                  onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+                  onpointerleave={hide}
+                  onfocus={(e) => {
+                    current[s.client.id] = d.date;
+                    show(s, d, e.currentTarget, 0);
+                  }}
+                  onblur={hide}
+                  onclick={(e) => pin(e, s, d)}
+                ></button>
+              {:else}
+                <span class="sq rest" aria-hidden="true"></span>
+              {/if}
+            {/each}
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    {#each s.weeks[s.weeks.length - 1] as d (d.date)}
+      {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
+      <div class="wk-cell" class:now={d.date === today} role="cell">
+        {#if marks(d)}
+          {@const label = daySentence(s.client.name, d)}
+          {#snippet body()}
+            {@const tag = tagOf(d.sessions[0].name)}
+            <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
+            <span class="foot">
+              {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
+              {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
+            </span>
+          {/snippet}
+          {#if loggable(d)}
+            <a
+              class="cell {d.status}"
+              href={logHref(s.client.id, d.openSessionId, d.date)}
+              aria-label={`${label} Open the logger.`}
+              onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+              onpointerleave={hide}
+              onfocus={(e) => show(s, d, e.currentTarget, 0)}
+              onblur={hide}
+            >{@render body()}</a>
+          {:else}
+            <button
+              type="button"
+              class="cell {d.status}"
+              aria-label={label}
+              aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
+              aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
+              onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+              onpointerleave={hide}
+              onfocus={(e) => show(s, d, e.currentTarget, 0)}
+              onblur={hide}
+              onclick={(e) => pin(e, s, d)}
+            >{@render body()}</button>
+          {/if}
+        {:else}
+          <span class="offday" aria-hidden="true"></span>
+        {/if}
+      </div>
+    {/each}
+  </div>
+{/snippet}
+
 <div class="week-wrap">
   <div class="wk-in">
     <div class="wk" role="table" aria-label="Training week by client, this week and the five before">
@@ -181,100 +314,36 @@
         </div>
       </div>
 
+      {#if lead.length > 0 || fold}
       <div class="wk-body" role="rowgroup">
-        {#each active as s (s.client.id)}
-          {@const meta = metaOf(s)}
-          <div class="wk-tr" role="row">
-            <div class="wk-client" role="rowheader">
-              <a href={`/clients/${s.client.id}`} title={s.program ?? undefined}>{s.client.name}</a>
-              {#if meta.length}
-                <span class="meta">
-                  {#each meta as m, i (m)}<span>{m}{i < meta.length - 1 ? " ·" : ""}</span>{/each}
-                </span>
+        {#each lead as s (s.client.id)}{@render row(s)}{/each}
+        {#if fold}
+          <div class="wk-tr idle fold" role="row">
+            <div class="idle-line" role="cell" aria-colspan={9}>
+              {#if !showOnTrack}
+                <span class="idle-count">On track:</span>
+                <ul class="idle-names" aria-label={plural(onTrack.length, "client") + " on track"}>
+                  {#each onTrack.slice(0, FOLD_NAMES) as s (s.client.id)}
+                    <li><a href={`/clients/${s.client.id}`}>{s.client.name}</a></li>
+                  {/each}
+                  {#if onTrack.length > FOLD_NAMES}<li class="more" aria-hidden="true">+{onTrack.length - FOLD_NAMES}</li>{/if}
+                </ul>
               {/if}
+              <button type="button" class="linkbtn" aria-expanded={showOnTrack} aria-controls={foldId} onclick={toggleOnTrack}>
+                {showOnTrack ? "Hide on-track" : `Show all ${onTrack.length}`}
+              </button>
             </div>
-
-            <div class="hist" role="cell">
-              <!-- Roving focus: arrow keys bubble up from the day buttons inside. -->
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <div class="hist-days" onkeydown={(e) => rove(e, s)} role="group" aria-label={`${s.client.name}, earlier weeks`}>
-                {#each s.weeks.slice(0, -1) as w (w[0].date)}
-                  <div class="hw">
-                    {#each w as d (d.date)}
-                      {#if marks(d)}
-                        <button
-                          type="button"
-                          class="sq {d.status}"
-                          data-level={d.status === "logged" ? d.level : undefined}
-                          data-date={d.date}
-                          tabindex={stopOf(s) === d.date ? 0 : -1}
-                          aria-label={daySentence(s.client.name, d)}
-                          aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
-                          aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
-                          onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
-                          onpointerleave={hide}
-                          onfocus={(e) => {
-                            current[s.client.id] = d.date;
-                            show(s, d, e.currentTarget, 0);
-                          }}
-                          onblur={hide}
-                          onclick={(e) => pin(e, s, d)}
-                        ></button>
-                      {:else}
-                        <span class="sq rest" aria-hidden="true"></span>
-                      {/if}
-                    {/each}
-                  </div>
-                {/each}
-              </div>
-            </div>
-
-            {#each s.weeks[s.weeks.length - 1] as d (d.date)}
-              {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
-              <div class="wk-cell" class:now={d.date === today} role="cell">
-                {#if marks(d)}
-                  {@const label = daySentence(s.client.name, d)}
-                  {#snippet body()}
-                    {@const tag = tagOf(d.sessions[0].name)}
-                    <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
-                    <span class="foot">
-                      {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
-                      {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
-                    </span>
-                  {/snippet}
-                  {#if loggable(d)}
-                    <a
-                      class="cell {d.status}"
-                      href={logHref(s.client.id, d.openSessionId, d.date)}
-                      aria-label={`${label} Open the logger.`}
-                      onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
-                      onpointerleave={hide}
-                      onfocus={(e) => show(s, d, e.currentTarget, 0)}
-                      onblur={hide}
-                    >{@render body()}</a>
-                  {:else}
-                    <button
-                      type="button"
-                      class="cell {d.status}"
-                      aria-label={label}
-                      aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
-                      aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
-                      onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
-                      onpointerleave={hide}
-                      onfocus={(e) => show(s, d, e.currentTarget, 0)}
-                      onblur={hide}
-                      onclick={(e) => pin(e, s, d)}
-                    >{@render body()}</button>
-                  {/if}
-                {:else}
-                  <span class="offday" aria-hidden="true"></span>
-                {/if}
-              </div>
-            {/each}
           </div>
-        {/each}
-
-        {#if idle.length > 0}
+        {/if}
+      </div>
+      {/if}
+      {#if fold}
+        <div class="wk-body" role="rowgroup" id={foldId} hidden={!showOnTrack}>
+          {#if showOnTrack}{#each onTrack as s (s.client.id)}{@render row(s)}{/each}{/if}
+        </div>
+      {/if}
+      {#if idle.length > 0}
+        <div class="wk-body" role="rowgroup">
           <div class="wk-tr idle" role="row">
             <div class="idle-line" role="cell" aria-colspan={9}>
               <span class="idle-count">No sessions this week:</span>
@@ -285,11 +354,11 @@
               </ul>
             </div>
           </div>
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
 
-    {#if active.length > 0}
+    {#if visible.length > 0}
       <div class="legend" aria-hidden="true">
         {#if legend.ramp}
           <span class="lg ramp">
@@ -525,6 +594,23 @@
   .idle-names li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
   .idle-names a { font-weight: 500; text-underline-offset: 3px; }
   .idle-names .pill { font-size: 11px; padding: 0 6px; }
+  /* Row groups (lead · on-track · idle) keep the hairline between rows. */
+  .wk-body + .wk-body > .wk-tr:first-child { border-top: 1px solid var(--line-soft); }
+  /* The fold line sits between rows, so it pads evenly; names stay on ~one line. */
+  .fold .idle-line { padding: 8px 4px; }
+  .fold .more { color: var(--muted); font: 400 12px/1.5 var(--font-mono); }
+  .linkbtn {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    font: 500 13px/1.5 var(--font-ui);
+    color: var(--blue);
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .linkbtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   /* Legend */
   .legend {
