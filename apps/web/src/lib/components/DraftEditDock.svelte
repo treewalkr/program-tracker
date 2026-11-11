@@ -17,15 +17,17 @@
     /** The latest version's draft (what the ticked refs point into). */
     draft: AiDraftDto;
     labels?: readonly RoleRank[];
+    /** The version's trainerOrder: rows are shown as stored, not role-sorted. */
+    keepOrder?: boolean;
     variant?: "pane" | "page";
     /** `page`: height of a fixed bar under the page (the phone approve bar) to float above. */
     lift?: number;
   }
 
-  let { editor, draft, labels, variant = "pane", lift = 0 }: Props = $props();
+  let { editor, draft, labels, keepOrder = false, variant = "pane", lift = 0 }: Props = $props();
 
   const refs = $derived(editor.refs);
-  const acts = $derived(selectionActions(draft, refs, labels));
+  const acts = $derived(selectionActions(draft, refs, labels, { keepOrder }));
   const showBar = $derived(editor.selecting && refs.length > 0);
   const shown = $derived(showBar || !!editor.toast || !!editor.error);
 

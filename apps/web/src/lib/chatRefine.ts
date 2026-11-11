@@ -10,7 +10,7 @@ import type {
   TrainerApi,
 } from "./api/types";
 import { latestValidatedDraft, revisionChain } from "./generation";
-import { diffDrafts, sortExercisesByRole, unproposedChanges, type RoleRank, type SlotChange } from "@pt/shared";
+import { diffDrafts, shownExerciseOrder, unproposedChanges, type RoleRank, type SlotChange } from "@pt/shared";
 import type { ChatProposalDto } from "./api/types";
 
 // ---- turn submission (what Send does) ----
@@ -180,14 +180,14 @@ export function draftPreviewModel(
 
   const sessions: PreviewSession[] = target.draft.sessions.map((s, index) => {
     // Raw draft index travels with the exercise: slot marks must not move when
-    // display order is role-sorted.
+    // display order is role-sorted (AI-made order only).
     const slotted = s.exercises.map((e, i) => ({ ...e, slot: i + 1 }));
     const state: PreviewSessionState = changed.has(index) ? "updated" : "unchanged";
     const card: PreviewSessionCard = {
       name: s.name,
       kind: s.kind ?? "lifting",
       cardio: s.cardio ?? null,
-      exercises: sortExercisesByRole(slotted, labels).map((e) => ({
+      exercises: shownExerciseOrder(slotted, labels, { keepOrder: target.trainerOrder }).map((e) => ({
         slot: e.slot,
         name: e.exerciseName ?? "",
         role: e.role,
@@ -297,7 +297,7 @@ export function versionView(
     name: s.name,
     kind: s.kind ?? "lifting",
     cardio: s.cardio ?? null,
-    exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), labels).map((e) => ({
+    exercises: shownExerciseOrder(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), labels, { keepOrder: gen.trainerOrder }).map((e) => ({
       name: e.exerciseName ?? "",
       role: e.role,
       movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,

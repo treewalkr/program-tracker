@@ -3,6 +3,7 @@ import {
   applyChatTurn,
   changedSessionIndexes,
   draftPreviewModel,
+  versionView,
   findBuildingChild,
   submitChatTurn,
   versionStamps,
@@ -259,6 +260,23 @@ describe("draftPreviewModel", () => {
     expect(card.exercises[0].movementPattern).toBe("squat");
     expect(card.exercises[1].movementPattern).toBeNull();
     expect(card.kind).toBe("lifting");
+  });
+
+  test("a trainer-ordered draft shows its stored order, in the pane and in older versions", () => {
+    const draftSession: AiDraftDto["sessions"][number] = {
+      exercises: [
+        { exerciseId: "ex-x", role: "accessory", prescribedSets: [set(8)] },
+        { exerciseId: "ex-squat", role: "primary", prescribedSets: [set(5, 100)] },
+      ],
+    };
+    const v1 = gen({ draft: { sessions: [draftSession] }, trainerOrder: true });
+    const card = draftPreviewModel([v1], false, catalogById).sessions[0].card;
+    expect(card.exercises.map((e) => e.role)).toEqual(["accessory", "primary"]);
+    expect(card.exercises.map((e) => e.slot)).toEqual([1, 2]);
+    const old = versionView([v1], v1.id, 1, catalogById)!;
+    expect(old.sessions[0].exercises.map((e) => e.role)).toEqual(["accessory", "primary"]);
+    const ai = versionView([{ ...v1, trainerOrder: false }], v1.id, 1, catalogById)!;
+    expect(ai.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "accessory"]);
   });
 
   test("unnamed exercises map to an empty display name", () => {

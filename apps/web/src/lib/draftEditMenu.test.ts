@@ -44,11 +44,33 @@ describe("row menu", () => {
     const items = rowMenuItems(draft, { day: 3, slot: 1 }, () => {});
     expect(labelsOf(items)).toEqual([
       "(off) Move up",
-      "(off) Move down",
+      "Move down",
       "Superset with Row",
       "Move to › Session 1 · Lower",
     ]);
     expect(moveTargets(draft).map((t) => t.day)).toEqual([1, 3]);
+  });
+
+  test("moves across roles: the top Primary can move down, and Row can move up past it", () => {
+    expect(labelsOf(rowMenuItems(draft, { day: 3, slot: 2 }, () => {})).slice(0, 2)).toEqual(["Move up", "(off) Move down"]);
+    expect(labelsOf(rowMenuItems(draft, { day: 1, slot: 1 }, () => {})).slice(0, 2)).toEqual(["(off) Move up", "Move down"]);
+    expect(selectionActions(draft, [{ day: 1, slot: 4 }]).up).not.toBeNull();
+  });
+
+  test("a trainer-ordered draft is offered moves as stored: Primary below Str can move up", () => {
+    const d = { ...draft, sessions: [draft.sessions[0], draft.sessions[1], { ...draft.sessions[2], exercises: [ex("Row", "strength"), ex("Bench", "primary")] }] };
+    const keep = { keepOrder: true };
+    expect(labelsOf(rowMenuItems(d, { day: 3, slot: 2 }, () => {}, undefined, keep)).slice(0, 3)).toEqual([
+      "Move up",
+      "(off) Move down",
+      "Superset with Row",
+    ]);
+    // Without keepOrder the same rows show role-sorted: Bench on top.
+    expect(labelsOf(rowMenuItems(d, { day: 3, slot: 2 }, () => {})).slice(0, 3)).toEqual([
+      "(off) Move up",
+      "Move down",
+      "Superset with Row",
+    ]);
   });
 
   test("picking an item runs its op", () => {
