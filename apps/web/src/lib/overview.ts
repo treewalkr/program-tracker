@@ -355,24 +355,29 @@ export function weekDayTally(
   return t;
 }
 
+/** One Label in the Training week counter; no tone = the neutral Counter. */
+export interface CounterPart {
+  text: string;
+  tone?: "bad" | "warn";
+}
+
 /**
  * The Training week counter: client-days that need the trainer, counted like
- * the cells ("2 missed · 3 to log · 2 from last week · 1 due today"; zero parts
- * omitted), toned red when anything is missed — this week or carried — amber
- * when only logging is behind. Undefined when nothing is planned or carried.
+ * the cells, as separate Labels — "2 missed" (red) · "3 to log" (amber) ·
+ * "2 from last week" (red if any carried day is missed, else amber) ·
+ * "1 due today" (neutral); zero parts omitted, "all on track" (neutral) when
+ * nothing needs the trainer. Undefined when nothing is planned or carried.
  */
-export function weekCounter(strips: ClientStrip[], today: string): { label: string; tone?: "bad" | "warn" } | undefined {
+export function weekCounter(strips: ClientStrip[], today: string): CounterPart[] | undefined {
   const t = weekDayTally(strips, today);
   const carried = t.carried.missed + t.carried.unlogged;
-  const parts = [
-    t.missed ? `${t.missed} missed` : null,
-    t.unlogged ? `${t.unlogged} to log` : null,
-    carried ? `${carried} from last week` : null,
-    t.today ? `${t.today} due today` : null,
-  ].filter((p): p is string => !!p);
-  const tone = t.missed || t.carried.missed ? "bad" : t.unlogged || t.carried.unlogged ? "warn" : undefined;
-  if (parts.length) return { label: parts.join(" · "), tone };
-  return t.planned ? { label: "all on track" } : undefined;
+  const parts: CounterPart[] = [];
+  if (t.missed) parts.push({ text: `${t.missed} missed`, tone: "bad" });
+  if (t.unlogged) parts.push({ text: `${t.unlogged} to log`, tone: "warn" });
+  if (carried) parts.push({ text: `${carried} from last week`, tone: t.carried.missed ? "bad" : "warn" });
+  if (t.today) parts.push({ text: `${t.today} due today` });
+  if (parts.length) return parts;
+  return t.planned ? [{ text: "all on track" }] : undefined;
 }
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

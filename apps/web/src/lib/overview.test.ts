@@ -226,17 +226,17 @@ test("week tally counts this week's planned sessions only", () => {
   expect(weekTally([s])).toEqual({ logged: 0, planned: 3, dueToday: 1, unlogged: 1, missed: 0 });
 });
 
-test("the counter counts client-days (cells), not sessions, and tones by the worst", () => {
+test("the counter counts client-days (cells), not sessions, one toned Label per part", () => {
   // Mon holds two sessions — one cell. Today Thu 5: Mon missed, Wed to log, Thu due.
   const p = thisWeekOnly([session("a", 1, 1), session("a2", 1, 2, "cardio"), session("b", 3, 3), session("c", 4, 4), session("d", 6, 5)]);
   const s = buildClientStrip(client, p, [], weeks, "2026-11-05");
   expect(weekTally([s]).missed).toBe(2);
   expect(weekDayTally([s], "2026-11-05")).toEqual({ missed: 1, unlogged: 1, today: 1, planned: 4, carried: { missed: 0, unlogged: 0 } });
-  expect(weekCounter([s, s], "2026-11-05")).toEqual({ label: "2 missed · 2 to log · 2 due today", tone: "bad" });
-  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-03")], "2026-11-03")).toEqual({ label: "1 to log", tone: "warn" });
-  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-02")], "2026-11-02")).toEqual({ label: "1 due today", tone: undefined });
+  expect(weekCounter([s, s], "2026-11-05")).toEqual([{ text: "2 missed", tone: "bad" }, { text: "2 to log", tone: "warn" }, { text: "2 due today" }]);
+  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-03")], "2026-11-03")).toEqual([{ text: "1 to log", tone: "warn" }]);
+  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-02")], "2026-11-02")).toEqual([{ text: "1 due today" }]);
   const done = buildClientStrip(client, program([session("a", 1, 1)]), [log("2026-11-02", "a")], weeks, "2026-11-05");
-  expect(weekCounter([done], "2026-11-05")).toEqual({ label: "all on track" });
+  expect(weekCounter([done], "2026-11-05")).toEqual([{ text: "all on track" }]);
   expect(weekCounter([buildClientStrip(client, null, [], weeks, "2026-11-05")], "2026-11-05")).toBeUndefined();
 });
 
@@ -265,13 +265,13 @@ describe("Monday carry-over (7-day look-back)", () => {
     expect(current(s)[0].status).toBe("today");
     expect(s.exception).toBe("missed");
     expect(weekDayTally([s], "2026-11-09")).toMatchObject({ missed: 0, unlogged: 0, today: 1, carried: { missed: 1, unlogged: 2 } });
-    expect(weekCounter([s], "2026-11-09")).toEqual({ label: "3 from last week · 1 due today", tone: "bad" });
+    expect(weekCounter([s], "2026-11-09")).toEqual([{ text: "3 from last week", tone: "bad" }, { text: "1 due today" }]);
   });
 
   test("only unlogged days carried: amber, and the exception is unlogged", () => {
     const s = buildClientStrip(client, p, [lastMon, log("2026-11-06", "w3-5")], monday, "2026-11-09");
     expect(s.exception).toBe("unlogged");
-    expect(weekCounter([s], "2026-11-09")).toEqual({ label: "2 from last week · 1 due today", tone: "warn" });
+    expect(weekCounter([s], "2026-11-09")).toEqual([{ text: "2 from last week", tone: "warn" }, { text: "1 due today" }]);
   });
 
   test("carried days say missed / not logged in their label", () => {
@@ -298,7 +298,7 @@ describe("Monday carry-over (7-day look-back)", () => {
     const s = buildClientStrip(client, q, [log("2026-11-11", "w3-3")], thursday, "2026-11-12");
     expect(day(s, "2026-11-04").status).toBe("missed");
     expect(s.exception).toBe("on-track");
-    expect(weekCounter([s], "2026-11-12")).toEqual({ label: "all on track" });
+    expect(weekCounter([s], "2026-11-12")).toEqual([{ text: "all on track" }]);
     // Planned on Thu instead: last Thu 5 is exactly seven days back — inside.
     const r = (() => {
       const m = multiWeek("2026-10-19T08:00:00.000Z");
@@ -307,7 +307,7 @@ describe("Monday carry-over (7-day look-back)", () => {
     const t = buildClientStrip(client, r, [], thursday, "2026-11-12");
     expect(day(t, "2026-11-05").status).toBe("missed");
     expect(t.exception).toBe("missed");
-    expect(weekCounter([t], "2026-11-12")).toEqual({ label: "1 from last week · 1 due today", tone: "bad" });
+    expect(weekCounter([t], "2026-11-12")).toEqual([{ text: "1 from last week", tone: "bad" }, { text: "1 due today" }]);
   });
 
   test("week tally (the head line) still counts this week's sessions only", () => {

@@ -168,7 +168,7 @@
     strip({ id: 'ada', name: 'Ada Okoye', plan: { 2: ['Strength A'], 4: ['Strength B'] }, skip: 0, seed: 4 }),
   ]);
 
-  /** Only logging is behind: the counter turns amber, not red. */
+  /** Only logging is behind: the counter shows amber Labels only, no red. */
   const behind = exceptionOrder([
     strip({ id: 'maya', name: 'Maya Chen', plan: { 3: ['Lower'], 6: ['Upper'] }, skip: 1 }),
     strip({ id: 'ada', name: 'Ada Okoye', plan: { 1: ['Strength A'], 2: ['Zone 2 run'], 4: ['Strength B'] }, skip: 0, seed: 4 }),
@@ -205,7 +205,7 @@
 {#snippet template(args: { strips: ClientStrip[]; today: string })}
   {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 1140px;">
-    <Panel title="Training week" count={count?.label} countTone={count?.tone}>
+    <Panel title="Training week" {count}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -214,7 +214,7 @@
 {#snippet narrow(args: { strips: ClientStrip[]; today: string })}
   {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 360px;">
-    <Panel title="Training week" count={count?.label} countTone={count?.tone}>
+    <Panel title="Training week" {count}>
       <WeekGrid {...args} />
     </Panel>
   </div>
