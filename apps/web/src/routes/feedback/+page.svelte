@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { fade } from "svelte/transition";
   import { page } from "$app/state";
   import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
   import {
@@ -55,7 +56,15 @@
   let copied = $state(false);
   /** Triage-note drafts keyed by item id; saved on blur. */
   let notes = $state<Record<string, string>>({});
-  let busy = $state<Record<string, boolean>>({});
+  type CardAction = FeedbackStatus | "delete";
+  /** The action running on each card: its button spins, the card's other actions wait. */
+  let pending = $state<Record<string, CardAction | null>>({});
+  /** A failed triage or delete, shown beside that card's actions. */
+  let cardError = $state<Record<string, string | null>>({});
+  type NoteState = { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
+  /** Triage-note save state under each textarea. */
+  let noteState = $state<Record<string, NoteState | null>>({});
+  const savedTimers: Record<string, ReturnType<typeof setTimeout>> = {};
   /** Items that had unread activity when the page opened; stay marked for this visit. */
   let fresh = $state(new Set<string>());
   /** Handle from `/feedback#FB-012`, flashed once scrolled into view. */
@@ -177,21 +186,54 @@
    */
   const seq: Record<string, number> = {};
 
-  /** True once the change landed (or a newer one superseded it). */
-  async function triage(item: FeedbackItem, patch: TriagePatch): Promise<boolean> {
+  /** Sends a patch; null when it landed (or a newer one superseded it), else the error to show. */
+  async function triage(item: FeedbackItem, patch: TriagePatch): Promise<string | null> {
     const n = (seq[item.id] = (seq[item.id] ?? 0) + 1);
-    busy[item.id] = true;
     try {
       const next = await feedbackApi.triage(item.id, patch);
-      if (seq[item.id] !== n) return true;
-      replace(next);
-      error = null;
-      return true;
+      if (seq[item.id] === n) replace(next);
+      return null;
     } catch (err) {
-      error = err instanceof Error ? err.message : "Could not update feedback";
-      return false;
+      return err instanceof Error ? err.message : "Could not update feedback";
+    }
+  }
+
+  /** Moves a card's status; a failure shows beside its actions. True once it landed. */
+  async function setStatus(item: FeedbackItem, patch: TriagePatch & { status: FeedbackStatus }): Promise<boolean> {
+    if (pending[item.id]) return false;
+    pending[item.id] = patch.status;
+    cardError[item.id] = null;
+    const failed = await triage(item, patch);
+    pending[item.id] = null;
+    cardError[item.id] = failed;
+    return !failed;
+  }
+
+  async function saveNote(item: FeedbackItem) {
+    const next = (notes[item.id] ?? "").trim();
+    if (next === (item.triageNote ?? "")) return;
+    clearTimeout(savedTimers[item.id]);
+    noteState[item.id] = { kind: "saving" };
+    const failed = await triage(item, { triageNote: next || null });
+    if (failed) {
+      noteState[item.id] = { kind: "error", message: failed };
+      return;
+    }
+    noteState[item.id] = { kind: "saved" };
+    savedTimers[item.id] = setTimeout(() => (noteState[item.id] = null), 2000);
+  }
+
+  async function remove(item: FeedbackItem) {
+    if (pending[item.id]) return;
+    pending[item.id] = "delete";
+    cardError[item.id] = null;
+    try {
+      await feedbackApi.remove(item.id);
+      items = items.filter((i) => i.id !== item.id);
+    } catch (err) {
+      cardError[item.id] = err instanceof Error ? err.message : "Could not delete feedback";
     } finally {
-      if (seq[item.id] === n) busy[item.id] = false;
+      pending[item.id] = null;
     }
   }
 
@@ -214,24 +256,9 @@
   /** The reason, when given, posts as a public reply and the Won't-fix email quotes it. */
   async function confirmWontfix(item: FeedbackItem) {
     const reason = (reasons[item.id] ?? "").trim();
-    if (!(await triage(item, { status: "wontfix", ...(reason ? { reason } : {}) }))) return;
+    if (!(await setStatus(item, { status: "wontfix", ...(reason ? { reason } : {}) }))) return;
     closing = null;
     reasons[item.id] = "";
-  }
-
-  function saveNote(item: FeedbackItem) {
-    const next = (notes[item.id] ?? "").trim();
-    if (next === (item.triageNote ?? "")) return;
-    triage(item, { triageNote: next || null });
-  }
-
-  async function remove(item: FeedbackItem) {
-    try {
-      await feedbackApi.remove(item.id);
-      items = items.filter((i) => i.id !== item.id);
-    } catch (err) {
-      error = err instanceof Error ? err.message : "Could not delete feedback";
-    }
   }
 
   async function openComposer() {
@@ -306,6 +333,8 @@
 </script>
 
 <svelte:head><title>Feedback · Program Tracker</title></svelte:head>
+
+{#snippet spinner()}<span class="spinner" aria-hidden="true"></span>{/snippet}
 
 <!-- Another trainer's client or program page would 404: show the path, don't link it. -->
 {#snippet pageLink(item: FeedbackItem)}
@@ -444,7 +473,7 @@
             class:fresh={fresh.has(item.id)}
             class:flash={flashed === feedbackHandle(item.number)}
             id={feedbackHandle(item.number)}
-            aria-busy={busy[item.id] ?? false}
+            aria-busy={!!pending[item.id]}
             use:seenWhenVisible={item}
           >
             <div class="body">
@@ -555,22 +584,42 @@
             </div>
 
             {#if isAdmin}
+              {@const busy = !!pending[item.id]}
+              {@const note = noteState[item.id]}
               <div class="triage-box">
-                <label class="triage">
-                  <span>Triage note <span class="muted">— private, read by the agent</span></span>
+                <div class="triage">
+                  <label for="fb-note-{item.id}">Triage note <span class="muted">— private, read by the agent</span></label>
                   <textarea
+                    id="fb-note-{item.id}"
                     rows="2"
                     bind:value={notes[item.id]}
                     onblur={() => saveNote(item)}
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
                   ></textarea>
-                </label>
+                  <p class="note-state" class:bad={note?.kind === "error"} aria-live="polite">
+                    {#if note?.kind === "saving"}
+                      Saving…
+                    {:else if note?.kind === "saved"}
+                      <span out:fade={{ duration: 300 }}>Saved</span>
+                    {:else if note?.kind === "error"}
+                      Not saved: {note.message}
+                      <button type="button" class="linkish" onclick={() => saveNote(item)}>Retry</button>
+                    {/if}
+                  </p>
+                </div>
                 <div class="actions">
                 {#if item.status === "new"}
-                  <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
+                  <Button
+                    small
+                    variant="primary"
+                    disabled={busy}
+                    icon={pending[item.id] === "accepted" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "accepted" })}>Accept</Button
+                  >
                   <Button
                     small
                     id="fb-wontfix-{item.id}"
+                    disabled={busy}
                     aria-expanded={closing === item.id}
                     aria-controls="fb-closing-{item.id}"
                     onclick={() => (closing === item.id ? cancelWontfix(item) : openWontfix(item))}>Won't fix</Button
@@ -578,20 +627,41 @@
                 {:else if item.status === "accepted"}
                   <Button
                     small
+                    disabled={busy}
+                    icon={pending[item.id] === "done" ? spinner : undefined}
                     title="Mark it done once the change is live — stamps the running version"
-                    onclick={() => triage(item, { status: "done" })}>Mark done</Button
+                    onclick={() => setStatus(item, { status: "done" })}>Mark done</Button
                   >
-                  <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Back to new</Button>
+                  <Button
+                    small
+                    variant="ghost"
+                    disabled={busy}
+                    icon={pending[item.id] === "new" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "new" })}>Back to new</Button
+                  >
                 {:else}
-                  <Button small variant="ghost" onclick={() => triage(item, { status: "new" })}>Reopen</Button>
+                  <Button
+                    small
+                    variant="ghost"
+                    disabled={busy}
+                    icon={pending[item.id] === "new" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "new" })}>Reopen</Button
+                  >
                 {/if}
                 <span class="spacer"></span>
-                <ConfirmButton small variant="ghost" class="danger" onconfirm={() => remove(item)} />
+                <ConfirmButton
+                  small
+                  variant="ghost"
+                  class="danger"
+                  disabled={busy}
+                  label={pending[item.id] === "delete" ? "Deleting…" : "Delete"}
+                  onconfirm={() => remove(item)}
+                />
                 </div>
                 {#if closing === item.id && item.status === "new"}
                   <div class="closing" id="fb-closing-{item.id}">
-                    <label class="triage">
-                      <span>Reason for the reporter <span class="muted">(optional) — posts as a reply</span></span>
+                    <div class="triage">
+                      <label for="fb-reason-{item.id}">Reason for the reporter <span class="muted">(optional) — posts as a reply</span></label>
                       <textarea
                         id="fb-reason-{item.id}"
                         rows="2"
@@ -603,12 +673,21 @@
                           if (e.key === "Escape") cancelWontfix(item);
                         }}
                       ></textarea>
-                    </label>
+                    </div>
                     <div class="actions">
-                      <Button small variant="primary" disabled={busy[item.id]} onclick={() => confirmWontfix(item)}>Won't fix</Button>
+                      <Button
+                        small
+                        variant="primary"
+                        disabled={busy}
+                        icon={pending[item.id] === "wontfix" ? spinner : undefined}
+                        onclick={() => confirmWontfix(item)}>Won't fix</Button
+                      >
                       <Button small variant="ghost" onclick={() => cancelWontfix(item)}>Cancel</Button>
                     </div>
                   </div>
+                {/if}
+                {#if cardError[item.id]}
+                  <p class="card-error" role="alert">{cardError[item.id]}</p>
                 {/if}
               </div>
             {/if}
@@ -641,9 +720,6 @@
     border-radius: var(--radius);
     background: var(--surface);
     overflow: hidden;
-  }
-  .item[aria-busy="true"] {
-    opacity: 0.6;
   }
   .item {
     scroll-margin-top: 16px;
@@ -868,6 +944,35 @@
   .triage .muted {
     font-weight: 400;
   }
+  .note-state {
+    min-height: 1.2em;
+    margin: 2px 0 0;
+    font: 400 12px/1.4 var(--font-ui);
+    color: var(--muted);
+  }
+  .note-state.bad,
+  .card-error {
+    color: var(--bad);
+  }
+  .card-error {
+    margin: 0;
+    font-size: 12px;
+  }
+  /* The clicked button's spinner; the card's text keeps full contrast meanwhile. */
+  .spinner {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 99px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   .triage textarea {
     font: 400 13px/1.5 var(--font-ui);
     padding: 6px 8px;
@@ -970,6 +1075,9 @@
     .item,
     .chev {
       transition: none;
+    }
+    .spinner {
+      animation-duration: 2.4s;
     }
   }
 </style>
