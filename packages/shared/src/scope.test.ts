@@ -192,3 +192,34 @@ test("lockPhasing keeps the parent's plan unless the message is about it", () =>
   delete noPlan.phasing;
   expect("phasing" in lockPhasing(noPlan, revised, "Swap the squat").draft).toBe(false);
 });
+
+test("a proposed add never lands inside a superset: it goes after the group", () => {
+  const p = parent();
+  p.sessions[1].exercises = [ex("Bench"), { ...ex("Lunge"), group: "A" }, { ...ex("Side Plank"), group: "A" }, ex("Curl")];
+  const built = structuredClone(p);
+  built.sessions[1].exercises.splice(2, 0, ex("Push-up")); // the AI slots it between A1 and A2
+  const { draft } = scopeToProposal(p, built, proposal([{ day: 2, slot: null, kind: "add", from: null, to: "Push-up", detail: "2×10" }]));
+  expect(draft.sessions[1].exercises.map((e) => `${e.exerciseName}${e.group ? `:${e.group}` : ""}`)).toEqual([
+    "Bench",
+    "Lunge:A",
+    "Side Plank:A",
+    "Push-up",
+    "Curl",
+  ]);
+});
+
+test("two adds inside one superset both move after it, in order", () => {
+  const p = parent();
+  p.sessions[1].exercises = [{ ...ex("Lunge"), group: "A" }, { ...ex("Side Plank"), group: "A" }, ex("Curl")];
+  const built = structuredClone(p);
+  built.sessions[1].exercises.splice(1, 0, ex("Push-up"), ex("Dip"));
+  const { draft } = scopeToProposal(
+    p,
+    built,
+    proposal([
+      { day: 2, slot: null, kind: "add", from: null, to: "Push-up", detail: "2×10" },
+      { day: 2, slot: null, kind: "add", from: null, to: "Dip", detail: "2×10" },
+    ])
+  );
+  expect(draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Lunge", "Side Plank", "Push-up", "Dip", "Curl"]);
+});

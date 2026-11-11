@@ -50,17 +50,47 @@ export function scopeToProposal(
     const takeBefore = new Set(mine.filter((c) => c.beforeSlot != null && c.kind !== "added").map((c) => c.beforeSlot! - 1));
     const takeAdded = new Set(mine.filter((c) => c.kind === "added").map((c) => c.afterSlot! - 1));
     const out: AiProgramDraft["sessions"][number]["exercises"] = [];
+    const added = new Set<(typeof out)[number]>();
     for (const [i, j] of alignExercises(ps.exercises, bs.exercises)) {
       if (i != null && j != null) out.push(structuredClone(takeBefore.has(i) ? bs.exercises[j] : ps.exercises[i]));
       else if (i != null) {
         if (!takeBefore.has(i)) out.push(structuredClone(ps.exercises[i]));
-      } else if (j != null && takeAdded.has(j)) out.push(structuredClone(bs.exercises[j]));
+      } else if (j != null && takeAdded.has(j)) {
+        const e = structuredClone(bs.exercises[j]);
+        added.add(e);
+        out.push(e);
+      }
     }
-    session.exercises = out;
+    session.exercises = outsideGroups(out, added);
     return session;
   });
 
   return { draft, discarded };
+}
+
+/**
+ * An added exercise the AI slotted between two members of one superset would
+ * split the group in two; it moves to just after the group instead. An add
+ * that carries the group's own letter joined the group and stays put.
+ */
+function outsideGroups<T extends { group?: string | null }>(list: T[], added: ReadonlySet<T>): T[] {
+  const out = [...list];
+  // Bubble each add past the group members that follow it, until none is inside a group.
+  for (let moved = true; moved; ) {
+    moved = false;
+    for (let i = 0; i < out.length - 1; i++) {
+      const e = out[i];
+      if (!added.has(e)) continue;
+      let k = i - 1;
+      while (k >= 0 && added.has(out[k])) k--;
+      const g = k >= 0 ? out[k].group : null;
+      if (g && e.group !== g && out[i + 1].group === g) {
+        [out[i], out[i + 1]] = [out[i + 1], e];
+        moved = true;
+      }
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
