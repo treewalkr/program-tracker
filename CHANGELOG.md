@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.24 — 2026-11-11
+
 ### New
 - AI answers to your feedback now show how confident the AI was (High or Medium).
 - Rate an AI answer with 👍 or 👎. On 👎 you can pick what was wrong and add a comment, and the AI takes another look.
