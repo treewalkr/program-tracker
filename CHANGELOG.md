@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.19 — 2026-11-11
+
 ### New
 - Feedback tickets close themselves when their fix goes live. The ticket shows "Release marked it Done" with the version, and the reporter is told to reload.
 - Training week on a Monday: last week's missed and not-yet-logged sessions still count in the counter and row order, shown as e.g. "3 from last week".
