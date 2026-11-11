@@ -2,8 +2,12 @@
   import type { SlotChange } from "@pt/shared";
   import { changeSummary, type VersionView } from "$lib/chatRefine";
   import { draftSessionTags } from "$lib/draftReview";
-  import SessionCard, { type SlotMark } from "$lib/components/SessionCard.svelte";
+  import SessionCard, { type SessionEditable, type SlotMark } from "$lib/components/SessionCard.svelte";
+  import DraftEditDock from "$lib/components/DraftEditDock.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import type { DraftEditor } from "$lib/draftEditor.svelte";
+  import { rowMenuItems } from "$lib/draftEditMenu";
+  import { roleLabels } from "$lib/roleLabelStore.svelte";
 
   /**
    * Draft pane beside the chat. Shows one version of the draft (switchable),
@@ -12,6 +16,10 @@
    * builds — keeps the current one visible, dimmed, with elapsed time and
    * Cancel. Approving happens only on the review page. On narrow screens the
    * pane collapses to its head row (`open` toggles it).
+   *
+   * With an `editor`, the latest version can be rearranged by hand: a ⋯ menu
+   * per row, and a Select mode whose bar acts on the ticked rows. Each edit
+   * saves the next version. Older versions and a running build lock it.
    */
   interface Props {
     view: VersionView;
@@ -26,6 +34,8 @@
     oncancel?: () => void;
     /** Narrow screens: expanded or collapsed to the head row. */
     open?: boolean;
+    /** Hand edits on the latest version; omit for a read-only pane. */
+    editor?: DraftEditor;
   }
 
   let {
@@ -37,6 +47,7 @@
     onview,
     oncancel,
     open = $bindable(false),
+    editor,
   }: Props = $props();
 
   let showChanges = $state(true);
@@ -46,6 +57,39 @@
 
   const keyOf = (c: SlotChange) => `${c.day}:${c.beforeSlot}:${c.afterSlot}:${c.kind}`;
   const unproposedKeys = $derived(new Set(unproposed.map(keyOf)));
+
+  const isLatest = $derived(view.version === latest);
+  /** Why hand edits are off right now, or null when they are on. */
+  const lockReason = $derived(
+    !editor
+      ? null
+      : building
+        ? `Editing pauses while v${building.next} builds`
+        : !isLatest
+          ? `Only the latest version (v${latest}) can be edited`
+          : view.generation.kind === "week"
+            ? "Week drafts can't be edited by hand"
+            : null
+  );
+  const canEdit = $derived(!!editor && lockReason === null && !!view.generation.draft);
+
+  // A locked pane leaves select mode.
+  $effect(() => {
+    if (!canEdit && editor?.selecting) editor.setSelecting(false);
+  });
+
+  function editableFor(day: number): SessionEditable | undefined {
+    const ed = editor;
+    const d = view.generation.draft;
+    if (!ed || !canEdit || !d) return undefined;
+    return {
+      selecting: ed.selecting,
+      disabled: ed.busy,
+      isSelected: (slot) => ed.isSelected({ day, slot }),
+      ontoggle: (slot) => ed.toggle({ day, slot }),
+      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => ed.run(ops), roleLabels.all),
+    };
+  }
 
   /** "Session N" / "Cardio N" per draft session (drafts carry no weekdays). */
   const tags = $derived(draftSessionTags(view.sessions));
@@ -77,7 +121,20 @@
       {/if}
     </div>
     <span class="counter days">{plural(view.sessions.length, "session")}</span>
+    {#if view.generation.manualEdit}<span class="pill neutral">edited by you</span>{/if}
     {#if view.version !== latest}<span class="pill neutral">older version</span>{/if}
+    {#if editor}
+      <button
+        type="button"
+        class="btn small select-toggle"
+        aria-pressed={editor.selecting}
+        disabled={!canEdit}
+        title={lockReason ?? (editor.selecting ? "Leave select mode" : "Tick exercises to move or superset them together")}
+        onclick={() => editor.setSelecting(!editor.selecting)}
+      >
+        <Icon name="list-check" />{editor.selecting ? "Done" : "Select"}
+      </button>
+    {/if}
     <button type="button" class="strip-toggle" aria-expanded={open} onclick={() => (open = !open)}>
       {open ? "Hide" : "Show"} draft <Icon name="chevron" />
     </button>
@@ -100,17 +157,34 @@
       <span class="muted">First draft</span>
     {/if}
     <label class="mark-toggle"><input type="checkbox" bind:checked={showChanges} /> Mark changes</label>
+    {#if lockReason}
+      <span class="edit-hint"><Icon name="lock" />{lockReason}</span>
+    {:else if editor?.selecting}
+      <span class="edit-hint">Tick exercises, then act from the bar below.</span>
+    {/if}
   </div>
 
   <div class="scroll">
     <div class="body" class:dim={building !== null}>
       {#each view.sessions as s, i (i)}
         <div class="session-slot" data-day={i + 1}>
-          <SessionCard name={s.name} tag={tags[i]} kind={s.kind} cardio={s.cardio} exercises={s.exercises} marks={marksByDay[i]} />
+          <SessionCard
+            name={s.name}
+            tag={tags[i]}
+            kind={s.kind}
+            cardio={s.cardio}
+            exercises={s.exercises}
+            marks={marksByDay[i]}
+            editable={s.kind === "cardio" ? undefined : editableFor(i + 1)}
+          />
         </div>
       {/each}
     </div>
   </div>
+
+  {#if editor && view.generation.draft}
+    <DraftEditDock {editor} draft={view.generation.draft} labels={roleLabels.all} />
+  {/if}
 
   <div class="foot">
     <Icon name="lock" />
@@ -168,6 +242,31 @@
   }
   .strip-toggle {
     display: none;
+  }
+  .select-toggle {
+    margin-left: auto;
+  }
+  .select-toggle[aria-pressed="true"] {
+    background: var(--hover-ink);
+    color: var(--on-ink);
+    border-color: var(--hover-ink);
+  }
+  .select-toggle :global(svg) {
+    width: 14px;
+    height: 14px;
+  }
+  .edit-hint {
+    flex-basis: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .edit-hint :global(svg) {
+    width: 12px;
+    height: 12px;
+    flex: none;
   }
   .building {
     display: flex;
@@ -320,6 +419,15 @@
     }
     .vswitch button {
       padding: 7px 9px;
+    }
+    .select-toggle {
+      padding-inline: 8px;
+    }
+    .pane:not(.open) .select-toggle {
+      display: none;
+    }
+    .pane.open .select-toggle ~ .strip-toggle {
+      margin-left: 0;
     }
     .strip-toggle {
       display: inline-flex;
