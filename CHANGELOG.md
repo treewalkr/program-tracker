@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.21 — 2026-11-11
+
 ### New
 - After you save a log, a recap shows what was logged, plus a "Next" button to the next client still due today.
 - Exercise cards on the log sheet are tidier. Swap, Flag and Skip are now in a "More" menu, and "+ Set" stays visible.
