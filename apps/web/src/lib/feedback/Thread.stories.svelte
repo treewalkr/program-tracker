@@ -40,6 +40,9 @@
     context: unpinnedContext('/settings', { viewport: { width: 1280, height: 800, dpr: 2 }, userAgent: 'sb', appVersion: '0.1.11+abc1234' }),
     attachments: [],
     reachable: true,
+    duplicateOf: null,
+    duplicates: [],
+    fixPr: null,
     shippedIn: null,
     thread,
     editedAt: null,
@@ -119,6 +122,7 @@
           confidence: 'low',
           citations: ['apps/web/src/lib/feedback/Thread.svelte:88'],
           risk: 'medium',
+          ready: false,
           fixPlan: [
             'In apps/api/src/lib/feedback.ts, skip muted items when computing unread.',
             'Add a case to apps/api/src/feedback.test.ts for a muted ticket with a new reply.',

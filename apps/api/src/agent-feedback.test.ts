@@ -477,7 +477,7 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
       expect((await shipped([], kai)).status).toBe(401);
       expect((await shipped([], "admin")).status).toBe(401);
       expect((await shipped([{ sha: "not-a-sha", subject: "x", handles: [1] }])).status).toBe(422);
-      expect(await json(await shipped([]))).toEqual({ version: API_VERSION, closed: [], skipped: [], unknown: [] });
+      expect(await json(await shipped([]))).toEqual({ version: API_VERSION, closed: [], closedDuplicates: [], skipped: [], unknown: [] });
     });
 
     test("closes new and accepted tickets with the live version, a release entry, a note and the status email", async () => {

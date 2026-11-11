@@ -39,6 +39,7 @@ const normalize = (i: FeedbackItem): FeedbackItem => ({
   ...i,
   thread: i.thread.map(normalizeComment),
   editedAt: i.editedAt === null ? null : iso(i.editedAt),
+  fixPr: i.fixPr ? { ...i.fixPr, at: iso(i.fixPr.at) } : null,
   createdAt: iso(i.createdAt),
   updatedAt: iso(i.updatedAt),
 });
@@ -94,6 +95,9 @@ export const feedbackApi = {
   /** Stop (or resume) emails about one item, for the signed-in trainer. */
   setMuted: (id: string, muted: boolean) =>
     unwrap<{ muted: boolean }>(muted ? client.v1.feedback({ id }).mute.put() : client.v1.feedback({ id }).mute.delete()),
+  /** Admin: mark it a duplicate of open ticket number `of`, or unlink it (null). */
+  setDuplicate: async (id: string, of: number | null) =>
+    normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).duplicate.put({ of }))),
   seen: (id: string) => unwrap<{ ok: boolean }>(client.v1.feedback({ id }).seen.post()),
   unread: async () => (await unwrap<{ count: number }>(client.v1.feedback.unread.get())).count,
   exportMarkdown: async (status: string) =>

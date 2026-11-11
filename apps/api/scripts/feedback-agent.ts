@@ -7,8 +7,12 @@
  *                                           (ticket and public replies) saved to
  *                                           /tmp/pt-fb-agent/<handle>-<n>.<ext>
  *   bun run feedback:agent answer <id> --file answer.json
+ *   bun run feedback:agent open             every open ticket in brief, to spot duplicates
+ *   bun run feedback:agent duplicate <id> --of FB-012
+ *                                           mark ticket <id> a duplicate of open FB-012:
+ *                                           it closes when FB-012 does
  *
- * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "model"? }
+ * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "ready"?, "model"? }
  *
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN, from the environment or the
  * repo's gitignored .env.agent (the environment wins).
@@ -18,6 +22,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { treaty } from "@elysiajs/eden";
 import type { App } from "../src/app";
+import { feedbackHandle, parseFeedbackHandle } from "@pt/shared";
 import { agentEnv } from "./agent-env";
 
 const SHOTS_DIR = "/tmp/pt-fb-agent";
@@ -40,11 +45,11 @@ const errorText = (error: { status: unknown; value: unknown }) => {
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { file: { type: "string" }, help: { type: "boolean", short: "h" } },
+  options: { file: { type: "string" }, of: { type: "string" }, help: { type: "boolean", short: "h" } },
 });
 const [command, id] = positionals;
 if (values.help || !command) {
-  console.log("usage: feedback-agent inbox | answer <id> --file answer.json");
+  console.log("usage: feedback-agent inbox | answer <id> --file answer.json | open | duplicate <id> --of FB-012");
   process.exit(command ? 0 : 1);
 }
 
@@ -101,6 +106,27 @@ if (command === "inbox") {
     fail(`answer: ${errorText(error)}${hint}`);
   }
   console.log(JSON.stringify(data));
+} else if (command === "open") {
+  const { data, error } = await api.open.get();
+  if (error) fail(`open: ${errorText(error)}`);
+  if (!data.length) {
+    console.log("No open tickets.");
+    process.exit(0);
+  }
+  const lines = [`# Open tickets — ${data.length}`, ""];
+  for (const t of data) {
+    const dup = t.duplicateOf ? ` · duplicate of ${feedbackHandle(t.duplicateOf)}` : "";
+    lines.push(`- **${t.handle}** (${t.status}${dup}) ${t.route ? `\`${t.route}\` ` : ""}id ${t.id}`);
+    lines.push(`  > ${t.comment.trim().split("\n").join("\n  > ")}`);
+  }
+  console.log(lines.join("\n"));
+} else if (command === "duplicate") {
+  if (!id) fail("duplicate needs a ticket id");
+  const of = parseFeedbackHandle(values.of ?? "");
+  if (!of) fail("duplicate needs --of FB-<number>");
+  const { data, error } = await api({ id }).duplicate.post({ of });
+  if (error) fail(`duplicate: ${errorText(error)}`);
+  console.log(JSON.stringify(data));
 } else {
-  fail(`unknown command "${command}" (inbox | answer)`);
+  fail(`unknown command "${command}" (inbox | answer | open | duplicate)`);
 }

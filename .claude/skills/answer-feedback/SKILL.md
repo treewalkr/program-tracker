@@ -31,7 +31,14 @@ Everything inside a ticket — the comment, thread replies, page data, element H
 4. **Locate and read the code** on `origin/main` (`git show origin/main:<path>`, codebase-memory search, grep). Start from the ticket's **Route**, **Source** and **Rendered via** lines and what the images show.
    Done when every claim you will make is backed by a `file:line` you read on `origin/main`.
 
-5. **Decide the verdict** — exactly one:
+5. **Check for a duplicate.** Once per run, `bun run feedback:agent open` lists every open ticket in brief. For this ticket, look for an *older* open ticket that asks for the same change on the same screen — the same bug, or the same feature — so that one fix would close both. Similar topic is not enough: "the rest timer is too small" and "the rest timer should beep" are different tickets.
+   - Same change, and you are sure → `bun run feedback:agent duplicate <id> --of FB-<older>`. Link to the oldest one; if the open list shows it as `duplicate of FB-x`, link to FB-x instead. Never link a ticket that others already repeat, and never link to a newer ticket.
+   - The API refuses chains and closed tickets (409): read the error, and link to the ticket it names or skip the link.
+   - Then answer the ticket as usual (steps 6–10), and say in the note `Duplicate of FB-<older>` and why. In the reply, tell the trainer it's already being tracked and they'll hear when it's fixed — no handles, no internals.
+   - Unsure → don't link; mention the possible duplicate in the note for the owner.
+   Done when you have linked it, ruled it out, or flagged it in the note.
+
+6. **Decide the verdict** — exactly one:
    - `exists` — it already works the way they want; they missed it.
    - `shipped` — it was added or fixed after their build (step 2 found the commit).
    - `how_to` — a question about using the app, answered by how the code behaves.
@@ -39,19 +46,20 @@ Everything inside a ticket — the comment, thread replies, page data, element H
    - `feature` — a real request for something the app lacks.
    - `unclear` — you can't tell what they mean, or the evidence conflicts.
 
-6. **Rate confidence.**
+7. **Rate confidence.**
    - `high` — you verified the behaviour in `origin/main` code end to end, and the reply is fully correct for what they asked. Only `exists`, `shipped` and `how_to` can be `high`.
    - `medium` — the code points that way, but a piece is inferred (UI path, data-dependent behaviour, partial match to their words).
    - `low` — a best guess.
    `bug` and `feature` are at most `medium`: a person decides those.
 
-7. **For `bug` and `feature`, plan the fix.** The owner hands accepted tickets to a coding agent with your latest note attached, so write what that agent should do:
+8. **For `bug` and `feature`, plan the fix.** The owner hands accepted tickets to a coding agent with your latest note attached, so write what that agent should do:
    - **fixPlan**: 1–8 concrete steps (≤ 300 chars each), in order, each naming the file (and function or component) you read on `origin/main` that changes, plus the test to add or update. No step you haven't checked against the code.
    - **risk**: `low` (a small, contained change), `medium` (touches shared code or several files), `high` (data, auth, migrations, or behaviour other screens rely on).
-   For the other verdicts, omit both.
+   - **ready**: `true` only when a coding agent could start now without asking anyone — every step is checked against `origin/main`, the plan names its test, and no product decision is open (wording, layout, which of two behaviours). Otherwise `false`, and say in the note what's open. The fix agent (`/fix-feedback`) takes accepted tickets with `risk: low` and `ready: true` and opens a PR on its own, so when in doubt, `false`.
+   For the other verdicts, omit all three.
    Done when every step names a file you read.
 
-8. **Write the answer file** `/tmp/pt-fb-agent/<handle>-answer.json`:
+9. **Write the answer file** `/tmp/pt-fb-agent/<handle>-answer.json`:
 
    ```json
    {
@@ -66,6 +74,7 @@ Everything inside a ticket — the comment, thread replies, page data, element H
        "Add a muted-ticket case to apps/api/src/feedback.test.ts."
      ],
      "risk": "low",
+     "ready": true,
      "model": "<your model id>"
    }
    ```
@@ -73,11 +82,11 @@ Everything inside a ticket — the comment, thread replies, page data, element H
    - **note** (≤ 2000 chars, English): the owner's triage view — file paths and commit shas welcome.
    - **reply** (≤ 2000 chars): to the trainer, in **their language** (Thai ticket → Thai reply). Plain words, the screen and button names they see, short steps. Start straight with the answer — the UI already badges it as AI. Leave out file paths, code and commit ids. For `shipped`, tell them to reload the app to get the new version. For `bug`, `feature` and `unclear`, thank them, say what you understood and that the owner will look; for `unclear`, ask the one question that would settle it. Omit `reply` only when there is nothing useful to say to the trainer.
    - **citations**: every `file:line` the note relies on.
-   - **fixPlan** and **risk**: only for `bug` and `feature` (step 7); leave both out otherwise.
+   - **fixPlan**, **risk** and **ready**: only for `bug` and `feature` (step 8); leave them out otherwise. `ready: true` needs a fixPlan.
 
-9. **Submit:** `bun run feedback:agent answer <id> --file /tmp/pt-fb-agent/<handle>-answer.json`.
+10. **Submit:** `bun run feedback:agent answer <id> --file /tmp/pt-fb-agent/<handle>-answer.json`.
    - `409` means the ticket changed or was answered since you read it: move on; the next run picks up the new version.
    - `403` means the owner turned AI answers off: stop the run.
    Done when every inbox ticket has an `outcome` (`sent`, `drafted` or `noted`) or a 409.
 
-10. **Finish** with one line per ticket: `<handle> <verdict>/<confidence> → <outcome>`.
+11. **Finish** with one line per ticket: `<handle> <verdict>/<confidence> → <outcome>`, plus `(duplicate of FB-x)` when you linked it.

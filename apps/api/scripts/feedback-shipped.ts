@@ -52,5 +52,6 @@ if (error) {
 const short = (sha: string) => sha.slice(0, 7);
 console.log(`feedback-shipped: ${range} · ${commits.length} commit(s) · live v${data.version}`);
 for (const c of data.closed) console.log(`  closed  ${c.handle}  (${short(c.sha)})`);
+for (const d of data.closedDuplicates) console.log(`  closed  ${d.duplicate}  (duplicate of ${d.handle})`);
 for (const s of data.skipped) console.log(`  skipped ${s.handle}  (${short(s.sha)}) ${s.reason}`);
 for (const u of data.unknown) console.log(`  unknown ${u.handle}  (${short(u.sha)})`);

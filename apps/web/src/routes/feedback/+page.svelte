@@ -2,7 +2,15 @@
   import { onMount, tick } from "svelte";
   import { fade } from "svelte/transition";
   import { page } from "$app/state";
-  import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
+  import {
+    feedbackHandle,
+    isOpenFeedback,
+    isPinned,
+    parseFeedbackHandle,
+    unpinnedContext,
+    type FeedbackItem,
+    type FeedbackStatus,
+  } from "@pt/shared";
   import {
     attachmentImages,
     attachmentUrl,
@@ -55,7 +63,7 @@
   let copied = $state(false);
   /** Triage-note drafts keyed by item id; saved on blur. */
   let notes = $state<Record<string, string>>({});
-  type CardAction = FeedbackStatus | "delete";
+  type CardAction = FeedbackStatus | "delete" | "duplicate";
   /** The action running on each card: its button spins, the card's other actions wait. */
   let pending = $state<Record<string, CardAction | null>>({});
   /** A failed triage or delete, shown beside that card's actions. */
@@ -236,6 +244,31 @@
     }
   }
 
+  /** Each card's "Duplicate of" field, as typed (`FB-012`, `12`). */
+  let dupDrafts = $state<Record<string, string>>({});
+
+  /** Admin: link the card to the open ticket it repeats, or unlink it (null). */
+  async function setDuplicate(item: FeedbackItem, of: number | null) {
+    if (pending[item.id]) return;
+    pending[item.id] = "duplicate";
+    cardError[item.id] = null;
+    try {
+      replace(await feedbackApi.setDuplicate(item.id, of));
+      dupDrafts[item.id] = "";
+      // the other side's list of duplicates changed too
+      const other = of ?? item.duplicateOf?.number;
+      const original = items.find((i) => i.number === other);
+      if (original) replace(await feedbackApi.get(original.id));
+    } catch (err) {
+      cardError[item.id] = err instanceof Error ? err.message : "Could not link the duplicate";
+    } finally {
+      pending[item.id] = null;
+    }
+  }
+
+  /** A ticket number this viewer has on the page (a reporter only has their own). */
+  const listed = (n: number) => items.some((i) => i.number === n);
+
   /** The card whose Won't-fix row is open, and each card's reason draft. */
   let closing = $state<string | null>(null);
   let reasons = $state<Record<string, string>>({});
@@ -332,8 +365,14 @@
 </script>
 
 <svelte:head><title>Feedback · Program Tracker</title></svelte:head>
+<svelte:window onhashchange={jumpToHash} />
 
 {#snippet spinner()}<span class="spinner" aria-hidden="true"></span>{/snippet}
+
+<!-- A ticket handle: a jump link when it's on this page, plain text otherwise. -->
+{#snippet ticketRef(n: number)}
+  {#if listed(n)}<a href="#{feedbackHandle(n)}">{feedbackHandle(n)}</a>{:else}{feedbackHandle(n)}{/if}
+{/snippet}
 
 <!-- Another trainer's client or program page would 404: show the path, don't link it. -->
 {#snippet pageLink(item: FeedbackItem)}
@@ -488,30 +527,41 @@
             use:seenWhenVisible={item}
           >
             <div class="body">
+              <!-- Info wraps inside its own box; the bell stays top-right on the first line, even at 390px. -->
               <div class="meta">
-                {#if fresh.has(item.id)}<span class="lamp" aria-hidden="true"></span>{/if}
-                <span class="handle">{feedbackHandle(item.number)}</span>
-                <Pill tone={STATUS_TONE[item.status]}>
-                  {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
-                </Pill>
-                {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
-                <span class="by"><Author author={item.author} fallback="Filed before sign-in" /></span>
-                <Tooltip text={fmtDateTime(item.createdAt)}>
-                  {#snippet children(tipId)}
-                    <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
-                  {/snippet}
-                </Tooltip>
-                {#if item.editedAt}
-                  {@const by = item.editedBy && item.editedBy.id !== item.author?.id ? item.editedBy.name : null}
-                  <Tooltip text="Edited {fmtDateTime(item.editedAt)}{item.editedBy ? ` by ${item.editedBy.name}` : ''}">
+                <div class="meta-info">
+                  {#if fresh.has(item.id)}<span class="lamp" aria-hidden="true"></span>{/if}
+                  <span class="handle">{feedbackHandle(item.number)}</span>
+                  <Pill tone={STATUS_TONE[item.status]}>
+                    {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
+                  </Pill>
+                  {#if item.duplicateOf}
+                    <span class="dup" title="Closes when {feedbackHandle(item.duplicateOf.number)} does">Duplicate of {@render ticketRef(item.duplicateOf.number)}</span>
+                  {/if}
+                  {#if item.duplicates.length}
+                    <span class="dup" title="These close when this ticket does">
+                      {item.duplicates.length === 1 ? "Duplicate" : "Duplicates"}:
+                      {#each item.duplicates as d, i (d.number)}{#if i}{", "}{/if}{@render ticketRef(d.number)}{/each}
+                    </span>
+                  {/if}
+                  {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
+                  <span class="by"><Author author={item.author} fallback="Filed before sign-in" /></span>
+                  <Tooltip text={fmtDateTime(item.createdAt)}>
                     {#snippet children(tipId)}
-                      <button type="button" class="when" aria-describedby={tipId}>
-                        edited · <time datetime={item.editedAt}>{ago(item.editedAt!)}</time>{#if by}&nbsp;by {by}{/if}
-                      </button>
+                      <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
                     {/snippet}
                   </Tooltip>
-                {/if}
-                <span class="spacer"></span>
+                  {#if item.editedAt}
+                    {@const by = item.editedBy && item.editedBy.id !== item.author?.id ? item.editedBy.name : null}
+                    <Tooltip text="Edited {fmtDateTime(item.editedAt)}{item.editedBy ? ` by ${item.editedBy.name}` : ''}">
+                      {#snippet children(tipId)}
+                        <button type="button" class="when" aria-describedby={tipId}>
+                          edited · <time datetime={item.editedAt}>{ago(item.editedAt!)}</time>{#if by}&nbsp;by {by}{/if}
+                        </button>
+                      {/snippet}
+                    </Tooltip>
+                  {/if}
+                </div>
                 <MuteToggle {item} onchange={(muted) => (items = items.map((i) => (i.id === item.id ? { ...i, muted } : i)))} />
               </div>
 
@@ -611,6 +661,55 @@
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
                   ></textarea>
                 </div>
+                {#if item.fixPr}
+                  <p class="dup-row">
+                    <a href={item.fixPr.url} target="_blank" rel="noreferrer">Fix PR #{item.fixPr.url.split("/").at(-1)}</a>
+                    <span class="muted">— opened by the fix agent {fmtDate(item.fixPr.at)}; merging it closes the ticket on deploy</span>
+                  </p>
+                {/if}
+                {#if item.duplicateOf}
+                  <div class="dup-row">
+                    <span>
+                      Duplicate of {@render ticketRef(item.duplicateOf.number)}
+                      <span class="muted">— closes when it does</span>
+                    </span>
+                    <Button
+                      small
+                      variant="ghost"
+                      disabled={busy}
+                      aria-label="Unlink {handle} from {feedbackHandle(item.duplicateOf.number)}"
+                      icon={pending[item.id] === "duplicate" ? spinner : undefined}
+                      onclick={() => setDuplicate(item, null)}>Unlink</Button
+                    >
+                  </div>
+                {:else if isOpenFeedback(item.status) && item.duplicates.length === 0}
+                  {@const of = parseFeedbackHandle(dupDrafts[item.id] ?? "")}
+                  <form
+                    class="dup-row"
+                    onsubmit={(e) => {
+                      e.preventDefault();
+                      if (of) setDuplicate(item, of);
+                    }}
+                  >
+                    <label for="fb-dup-{item.id}">Duplicate of</label>
+                    <input
+                      id="fb-dup-{item.id}"
+                      type="text"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="FB-012"
+                      bind:value={dupDrafts[item.id]}
+                    />
+                    <Button
+                      small
+                      type="submit"
+                      disabled={busy || !of}
+                      aria-label="Mark {handle} a duplicate"
+                      icon={pending[item.id] === "duplicate" ? spinner : undefined}>Link</Button
+                    >
+                  </form>
+                {/if}
                 <div class="actions">
                 {#if item.status === "new"}
                   <Button
@@ -822,9 +921,19 @@
   .skel-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .meta {
     display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .meta-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 8px;
+  }
+  .meta > :global(.mute) {
+    flex: none;
   }
   .by {
     display: inline-flex;
@@ -1008,6 +1117,39 @@
     background: var(--bg);
   }
   .triage textarea:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--focus);
+  }
+  /* Duplicate links: quiet text in the header, a one-line field in the triage box. */
+  .dup {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .dup a {
+    font-weight: 600;
+  }
+  .dup-row {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    font: 500 12px/1.2 var(--font-ui);
+  }
+  .dup-row .muted {
+    font-weight: 400;
+  }
+  .dup-row input {
+    width: 7rem;
+    font: 400 13px/1.5 var(--font-mono);
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--ink);
+    background: var(--bg);
+  }
+  .dup-row input:focus {
     outline: none;
     border-color: var(--blue);
     box-shadow: 0 0 0 3px var(--focus);

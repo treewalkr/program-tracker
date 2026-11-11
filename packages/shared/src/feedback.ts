@@ -161,6 +161,12 @@ export interface FeedbackAiMeta {
   fixPlan?: string[];
   /** `bug` / `feature` only: how risky the fix is. */
   risk?: FeedbackAiRisk;
+  /**
+   * `bug` / `feature` only: the fix plan is complete, checked against the code
+   * and leaves no product question open — a coding agent could start now.
+   * With `risk: low` on an accepted ticket, the fix agent may pick it up.
+   */
+  ready?: boolean;
   /** `ticketBasis` of the ticket the agent answered. */
   basis: string;
   model: string | null;
@@ -291,6 +297,24 @@ export function ticketBasis(
   return h.toString(16).padStart(8, "0");
 }
 
+/** Another ticket, by handle number and where it stands — all a duplicate link shows. */
+export interface FeedbackTicketRef {
+  number: number;
+  status: FeedbackStatus;
+}
+
+export const OPEN_FEEDBACK_STATUSES: readonly FeedbackStatus[] = ["new", "accepted"];
+export const isOpenFeedback = (status: FeedbackStatus): boolean => OPEN_FEEDBACK_STATUSES.includes(status);
+
+/**
+ * `FB-12`, `fb-012`, `#FB-12` or a bare `12` → 12; null when it isn't a
+ * ticket number. For the "Duplicate of" field and the agent CLI.
+ */
+export function parseFeedbackHandle(raw: string): number | null {
+  const m = /^\s*#?(?:FB-?)?0*([1-9]\d{0,8})\s*$/i.exec(raw);
+  return m ? Number(m[1]) : null;
+}
+
 export interface FeedbackItem {
   id: string;
   /** Human handle: FB-<number>. */
@@ -315,6 +339,12 @@ export interface FeedbackItem {
   editedAt: string | null;
   /** Who made that edit (the reporter or the admin); null if never edited or the trainer was deleted. */
   editedBy: FeedbackAuthor | null;
+  /** The open ticket this one repeats: it closes when that one does. Null = not a duplicate. */
+  duplicateOf: FeedbackTicketRef | null;
+  /** Tickets marked as duplicates of this one, by number. */
+  duplicates: FeedbackTicketRef[];
+  /** The fix agent's pull request for it; admin only (always null for anyone else). */
+  fixPr: { url: string; at: string } | null;
   /** Someone else did something on it since the caller last looked. */
   unread: boolean;
   /** The caller muted emails about it. */
@@ -482,11 +512,23 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       `- **Edited:** ${item.editedAt} by ${item.editedBy?.name ?? "unknown"} — the comment and images above are the edited version; replies before that answered the earlier text`,
     );
   }
+  if (item.duplicateOf) {
+    lines.push(`- **Duplicate of:** ${feedbackHandle(item.duplicateOf.number)} (${item.duplicateOf.status}) — it closes when that ticket does`);
+  }
+  if (item.duplicates?.length) {
+    lines.push(`- **Duplicates:** ${item.duplicates.map((d) => `${feedbackHandle(d.number)} (${d.status})`).join(", ")} — they close with this ticket`);
+  }
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
+  if (item.fixPr) lines.push(`- **Fix PR:** ${item.fixPr.url} (opened ${item.fixPr.at.slice(0, 10)})`);
   if (ai) {
     const m = ai.aiMeta;
-    const rated = [m.verdict.replace(/_/g, " "), `${m.confidence} confidence`, ...(m.risk ? [`${m.risk} risk`] : [])];
+    const rated = [
+      m.verdict.replace(/_/g, " "),
+      `${m.confidence} confidence`,
+      ...(m.risk ? [`${m.risk} risk`] : []),
+      ...(m.ready === undefined ? [] : [m.ready ? "ready to fix" : "not ready to fix"]),
+    ];
     lines.push(`- **AI triage (read the code, ${ai.createdAt.slice(0, 10)}):** ${rated.join(" · ")}`);
     lines.push(`  > ${(ai.body ?? "").trim().split("\n").join("\n  > ")}`);
     if (m.fixPlan?.length) {

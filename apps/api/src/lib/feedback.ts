@@ -18,6 +18,7 @@ import {
   type FeedbackComment,
   type FeedbackItem,
   type FeedbackStatus,
+  type FeedbackTicketRef,
 } from "@pt/shared";
 import { attachmentsByItem } from "./feedback-attachments";
 
@@ -40,13 +41,19 @@ const listColumns = {
   editedAt: feedbackItems.editedAt,
   editorId: feedbackItems.editedBy,
   editedBy: { id: editors.id, name: editors.name, avatarUrl: editors.avatarUrl },
+  duplicateOfId: feedbackItems.duplicateOf,
+  fixPrUrl: feedbackItems.fixPr,
+  fixPrAt: feedbackItems.fixPrAt,
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
 };
 
-type ListRow = Omit<FeedbackItemRow, "editedBy"> & {
+type ListRow = Omit<FeedbackItemRow, "editedBy" | "duplicateOf" | "fixPr" | "fixPrAt"> & {
+  fixPrUrl: string | null;
+  fixPrAt: Date | null;
   author: FeedbackItem["author"];
   editorId: string | null;
+  duplicateOfId: string | null;
   editedBy: FeedbackAuthor | null;
 };
 
@@ -74,6 +81,36 @@ async function reachableItems(rows: ListRow[], viewerId: string): Promise<Set<st
     for (const f of found) owned.add(`${kind}:${f.id}`);
   }
   return new Set(refs.filter(({ ref }) => !ref || owned.has(`${ref.kind}:${ref.id}`)).map((r) => r.itemId));
+}
+
+/**
+ * Both sides of the duplicate links on these rows, as handle numbers and
+ * statuses (two queries at most): the original each row repeats, and the
+ * rows that repeat each one, oldest first. Whatever the viewer may see —
+ * a handle and a status give nothing away.
+ */
+async function duplicateLinks(rows: ListRow[]) {
+  const originals = new Map<string, FeedbackTicketRef>();
+  const duplicates = new Map<string, FeedbackTicketRef[]>();
+  const wanted = [...new Set(rows.map((r) => r.duplicateOfId).filter((id): id is string => id !== null))];
+  if (wanted.length) {
+    const found = await db
+      .select({ id: feedbackItems.id, number: feedbackItems.number, status: feedbackItems.status })
+      .from(feedbackItems)
+      .where(inArray(feedbackItems.id, wanted));
+    for (const f of found) originals.set(f.id, { number: f.number, status: f.status });
+  }
+  const repeats = await db
+    .select({ of: feedbackItems.duplicateOf, number: feedbackItems.number, status: feedbackItems.status })
+    .from(feedbackItems)
+    .where(inArray(feedbackItems.duplicateOf, rows.map((r) => r.id)))
+    .orderBy(asc(feedbackItems.number));
+  for (const d of repeats) {
+    const list = duplicates.get(d.of!) ?? [];
+    list.push({ number: d.number, status: d.status });
+    duplicates.set(d.of!, list);
+  }
+  return { originals, duplicates };
 }
 
 /**
@@ -124,8 +161,9 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
   }
   // No viewer (the export): nobody is opening pages, so don't flag any.
   const reachable = viewerId ? await reachableItems(rows, viewerId) : null;
+  const links = await duplicateLinks(rows);
 
-  return rows.map(({ trainerId, editorId, ...r }) => {
+  return rows.map(({ trainerId, editorId, duplicateOfId, fixPrUrl, fixPrAt, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
     if (r.editedAt && editorId !== viewerId && (!last || r.editedAt > last)) last = r.editedAt;
@@ -156,6 +194,10 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       unread: viewerId !== null && last !== null && (!seenAt || last > seenAt),
       muted: muted.has(r.id),
       reachable: reachable ? reachable.has(r.id) : true,
+      duplicateOf: (duplicateOfId && links.originals.get(duplicateOfId)) || null,
+      duplicates: links.duplicates.get(r.id) ?? [],
+      // Admin only: the repo and its PRs are the owner's business.
+      fixPr: admin && fixPrUrl ? { url: fixPrUrl, at: (fixPrAt ?? r.updatedAt).toISOString() } : null,
       editedAt: r.editedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
