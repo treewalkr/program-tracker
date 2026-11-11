@@ -82,7 +82,7 @@
   /** The logger, opened on a session and date. */
   const logHref = (clientId: string, sessionId: string | null | undefined, date: string) =>
     sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
-  /** Extra sessions on a day show as marks under the tag — one each, up to this many. */
+  /** Extra sessions on a day show as marks under the tag — one each, up to this many, then "+n". */
   const MAX_MARKS = 3;
   /** In-cell state word at wider widths; today's cell has none (ring + header say it). */
   const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", missed: "missed", unlogged: "to log" };
@@ -104,6 +104,7 @@
   const legend = $derived.by(() => {
     const seen = new Set<string>();
     let ramp = false;
+    let extras = false;
     for (const s of visible) {
       s.weeks.forEach((w, i) => {
         const current = i === s.weeks.length - 1;
@@ -111,10 +112,11 @@
           // Past logged days read on the ramp; this week's done cells get their own swatch.
           if (d.status === "logged" && !current) ramp = true;
           else seen.add(d.status);
+          if (current && marks(d) && d.sessions.length > 1) extras = true;
         }
       });
     }
-    return { ramp, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
+    return { ramp, extras, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
   });
 
   // ── Tooltip / popover: one floating card, anchored to the square or cell ──
@@ -250,7 +252,7 @@
     </div>
 
     {#each s.weeks[s.weeks.length - 1] as d (d.date)}
-      {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
+      {@const extras = d.sessions.slice(1)}
       <div class="wk-cell" class:now={d.date === today} role="cell">
         {#if marks(d)}
           {@const label = daySentence(s.client.name, d)}
@@ -258,7 +260,8 @@
             {@const tag = tagOf(d.sessions[0].name)}
             <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
             <span class="foot">
-              {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
+              {#each extras.slice(0, MAX_MARKS) as x, i (i)}<span class="mk {x.kind}"></span>{/each}
+              {#if extras.length > MAX_MARKS}<span class="more">+{extras.length - MAX_MARKS}</span>{/if}
               {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
             </span>
           {/snippet}
@@ -370,6 +373,9 @@
         {#each legend.states as st (st)}
           <span class="lg"><span class="sw {st}"></span>{LEGEND_WORDS[st]}</span>
         {/each}
+        {#if legend.extras}
+          <span class="lg marks"><span class="mk lifting"></span><span class="mk cardio"></span>Extra lift / cardio</span>
+        {/if}
       </div>
     {/if}
   </div>
@@ -549,7 +555,9 @@
   .cell .tag.word, .cell .tag.longword { display: block; white-space: nowrap; text-overflow: ellipsis; }
   .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
   .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
-  .cell .mk + .state { margin-left: 2px; }
+  .cell .mk + .state, .cell .more + .state { margin-left: 2px; }
+  /* Past three extras: the count, in the cell's ink — never a "more" word. */
+  .cell .more { font: 400 11px/1 var(--font-mono); white-space: nowrap; }
   /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
   .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
   .mk.cardio { border-radius: 99px; }
@@ -626,6 +634,7 @@
   }
   .lg { display: inline-flex; align-items: center; gap: 3px; }
   .lg .sq + :not(.sq) { margin-left: 2px; }
+  .lg.marks .mk { background: var(--muted); }
   /* State swatches are the cells in miniature: same edge, radius and fill. */
   .sw {
     width: 16px;
