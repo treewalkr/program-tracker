@@ -157,13 +157,16 @@
 
   const preview = $derived(draftPreviewModel(allGens, building !== null, catalogById, roleLabels.all));
 
-  /** Hand edits on the latest version: each saves the next one and posts its note to the thread. */
+  /** Hand edits on the latest version: each saves (or folds into) a version and posts or updates its note. */
   const editor = new DraftEditor({
     api,
     target: () => (busy ? null : preview.target),
     onsaved: ({ generation, message }) => {
       allGens = [generation, ...allGens.filter((g) => g.id !== generation.id)];
-      messages = [...messages, message];
+      // A folded edit rewrites its note in place; otherwise the note is new.
+      messages = messages.some((m) => m.id === message.id)
+        ? messages.map((m) => (m.id === message.id ? message : m))
+        : [...messages, message];
       view = null;
     },
   });

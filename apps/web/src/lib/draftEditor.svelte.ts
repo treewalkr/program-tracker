@@ -14,8 +14,9 @@ const TOAST_MS = 8000;
 /**
  * Hand edits on the latest draft version, shared by the chat draft pane and
  * the review page: select mode and its ticked rows, the save in flight, and
- * the "edited · Undo" toast. Each action saves one new version (server
- * replays the ops); Undo saves another that restores the previous one.
+ * the "edited · Undo" toast. Each action is saved by the server (which
+ * replays the ops): as a new version, or folded into the latest one when that
+ * is already a hand-edit version. Undo saves the inverse the same way.
  */
 export class DraftEditor {
   selecting = $state(false);
@@ -74,8 +75,8 @@ export class DraftEditor {
       this.selected = opts.keep ? followSelection(this.selected, res.undo) : [];
       this.opts.onsaved(res);
       this.#show({
-        version: Number(res.message.content.match(/\(v(\d+)\)/)?.[1] ?? 0),
-        text: res.generation.revisionMessage?.replace(/^Edited by you: /, "") ?? "Edited",
+        version: res.version,
+        text: res.changes.join("; ") || "Edited",
         undo: opts.undoing ? null : res.undo,
       });
     } catch (err) {

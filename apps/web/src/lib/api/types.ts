@@ -522,6 +522,12 @@ export interface DraftEditResultDto {
   generation: GenerationDto;
   message: ChatMessageDto;
   undo: DraftEditOp[];
+  /** True: folded into the target version (same id, its label and note updated); false: a new version. */
+  folded: boolean;
+  /** Version number of `generation` (v1 = first draft). */
+  version: number;
+  /** This edit's own changes; the version's label accumulates every hand edit. */
+  changes: string[];
 }
 
 export interface ChatMessageDto {
