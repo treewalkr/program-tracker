@@ -37,7 +37,7 @@ import {
   ProgramWeeksDocument,
   selectExamples,
   normalizeGroups,
-  sortExercisesByRole,
+  shownExerciseOrder,
   placeWeeks,
   sessionKey,
   stampWeeks,
@@ -282,6 +282,7 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
     error: null,
     parentGenerationId: gen.id,
     revisionMessage: message,
+    trainerOrder: gen.trainerOrder ?? false,
     instructions: null,
     rejectReason: null,
     approvedProgramId: null,
@@ -1139,7 +1140,7 @@ export const mockApi: TrainerApi = {
     if (!parsed.success) throw new Error("invalid edit");
     let edit: ReturnType<typeof applyDraftEdit>;
     try {
-      edit = applyDraftEdit(parent.draft as AiProgramDraftSchema, parsed.data, mergedLabels());
+      edit = applyDraftEdit(parent.draft as AiProgramDraftSchema, parsed.data, mergedLabels(), { keepOrder: parent.trainerOrder });
     } catch (err) {
       if (err instanceof DraftEditError) throw new Error(err.message);
       throw err;
@@ -1156,6 +1157,7 @@ export const mockApi: TrainerApi = {
       parentGenerationId: parent.id,
       revisionMessage: draftEditRevisionMessage(edit.changes),
       manualEdit: true,
+      trainerOrder: true,
       approvedProgramId: null,
       rejectReason: null,
       createdAt: now,
@@ -1195,6 +1197,7 @@ export const mockApi: TrainerApi = {
       error: null,
       parentGenerationId: parent.id,
       revisionMessage: message,
+      trainerOrder: parent.trainerOrder ?? false,
       instructions: null,
       rejectReason: null,
       approvedProgramId: null,
@@ -1526,7 +1529,7 @@ export const mockApi: TrainerApi = {
         kind === "cardio"
           ? []
           : normalizeGroups(
-              sortExercisesByRole(s.exercises, mergedLabels()).map((e, ei) => ({
+              shownExerciseOrder(s.exercises, mergedLabels(), { keepOrder: gen.trainerOrder }).map((e, ei) => ({
                 id: uuid(),
                 exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
                 exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),

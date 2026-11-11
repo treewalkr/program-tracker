@@ -62,7 +62,9 @@ export async function saveDraftEdit(parentId: string, rawOps: unknown): Promise<
 
   let edit: ReturnType<typeof applyDraftEdit>;
   try {
-    edit = applyDraftEdit(parent.draft, parsed.data, await loadRoleLabels(parent.trainerId));
+    edit = applyDraftEdit(parent.draft, parsed.data, await loadRoleLabels(parent.trainerId), {
+      keepOrder: parent.trainerOrder,
+    });
   } catch (err) {
     if (err instanceof DraftEditError) return { ok: false, status: 422, error: err.message };
     throw err;
@@ -92,6 +94,8 @@ export async function saveDraftEdit(parentId: string, rawOps: unknown): Promise<
         parentGenerationId: parent.id,
         revisionMessage: draftEditRevisionMessage(edit.changes),
         manualEdit: true,
+        // From now on the exercise order is the trainer's.
+        trainerOrder: true,
         exampleProgramIds: parent.exampleProgramIds ?? [],
       })
       .returning();

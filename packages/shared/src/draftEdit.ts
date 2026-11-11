@@ -2,10 +2,13 @@
  * Hand edits on an AI draft: move exercises, make or break supersets, move
  * them between sessions — no AI call. Pure functions on `AiProgramDraft`.
  *
- * The trainer edits what they see, and drafts are shown (and approved) in role
- * order, so every op works on the role-sorted list and the result is stored
- * role-sorted with groups tidied (normalizeGroups). An op whose result looks
- * the same as before is reported as `changed: false` (the UI disables it).
+ * The trainer edits what they see. An AI-made draft is shown in role order, so
+ * the first edit starts from the role-sorted list; a draft the trainer has
+ * already edited (`keepOrder`) is shown as stored. Either way the result is
+ * stored in the trainer's order, never re-sorted, with groups tidied
+ * (normalizeGroups) — the trainer's order wins from then on. An op whose
+ * result looks the same as before is reported as `changed: false` (the UI
+ * disables it).
  *
  * `ref` = { day, slot }, both 1-based, into the draft as stored — the same
  * addressing `diffDrafts` uses.
@@ -109,9 +112,27 @@ export function draftSessionLabels(sessions: readonly { kind?: string | null }[]
   return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.lifting}`));
 }
 
-/** Role order, then groups tidied and lettered by appearance — what the trainer sees. */
-function canonicalList<T extends Ex>(l: readonly T[], labels?: readonly RoleRank[]): T[] {
-  return normalizeGroups(sortExercisesByRole(normalizeGroups(l), labels));
+/**
+ * How a draft is shown. `keepOrder` = the trainer has hand-edited it, so its
+ * stored order is theirs and is never role-sorted (the generation's
+ * `trainerOrder`).
+ */
+export interface DraftOrderOpts {
+  keepOrder?: boolean;
+}
+
+/** A session's exercises in display order: role order for an AI-made draft, as stored once the order is the trainer's. */
+export function shownExerciseOrder<T extends { role?: string | null; group?: string | null }>(
+  l: readonly T[],
+  labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+): T[] {
+  return opts.keepOrder ? [...l] : sortExercisesByRole(l, labels);
+}
+
+/** Groups tidied and lettered by appearance, in role order unless the order is the trainer's — what the trainer sees. */
+function canonicalList<T extends Ex>(l: readonly T[], labels?: readonly RoleRank[], keepOrder = false): T[] {
+  return keepOrder ? normalizeGroups(l) : normalizeGroups(sortExercisesByRole(normalizeGroups(l), labels));
 }
 
 function strip(e: W): Ex {
@@ -127,9 +148,12 @@ const canon = (v: unknown): string =>
       : val
   );
 
-/** The draft as shown: each session's exercises in role order with tidy groups. */
-export function canonicalDraft(d: AiProgramDraft, labels?: readonly RoleRank[]): AiProgramDraft {
-  return { ...d, sessions: d.sessions.map((s) => ({ ...s, exercises: canonicalList(s.exercises, labels) })) };
+/** The draft as shown: each session's exercises with tidy groups, role-sorted unless `keepOrder`. */
+export function canonicalDraft(d: AiProgramDraft, labels?: readonly RoleRank[], opts: DraftOrderOpts = {}): AiProgramDraft {
+  return {
+    ...d,
+    sessions: d.sessions.map((s) => ({ ...s, exercises: canonicalList(s.exercises, labels, opts.keepOrder) })),
+  };
 }
 
 export function sameDraft(a: AiProgramDraft, b: AiProgramDraft): boolean {
@@ -140,15 +164,18 @@ export function sameDraft(a: AiProgramDraft, b: AiProgramDraft): boolean {
 class Work {
   lists: W[][];
   readonly tags: string[];
+  /** Starts from the draft as shown (role-sorted unless `keepOrder`). */
   constructor(
     readonly draft: AiProgramDraft,
-    readonly labels?: readonly RoleRank[]
+    labels: readonly RoleRank[] | undefined,
+    keepOrder: boolean
   ) {
     this.tags = draftSessionLabels(draft.sessions);
     this.lists = draft.sessions.map((s, d) =>
       canonicalList(
         s.exercises.map((e, i) => ({ ...clone(e), __k: `${d}:${i}` })),
-        labels
+        labels,
+        keepOrder
       )
     );
   }
@@ -171,9 +198,9 @@ class Work {
     throw new DraftEditError("exercise not found");
   }
 
-  /** Tidy every session: groups re-lettered, one-member groups dropped, role order. */
+  /** Tidy every session: groups re-lettered, one-member groups dropped. Order stays the trainer's. */
   settle() {
-    this.lists = this.lists.map((l) => canonicalList(l, this.labels));
+    this.lists = this.lists.map((l) => normalizeGroups(l));
   }
 
   /** Re-find an exercise after settle() (objects are copied when groups change). */
@@ -292,8 +319,10 @@ function applyMove(w: Work, refs: readonly DraftRef[], dir: "up" | "down"): stri
 }
 
 /** Move one row up or down within its session. */
-export function moveDraftExercise(draft: AiProgramDraft, ref: DraftRef, dir: "up" | "down", labels?: readonly RoleRank[]) {
-  return applyDraftEdit(draft, [{ op: "move", refs: [ref], dir }], labels);
+export function moveDraftExercise(draft: AiProgramDraft, ref: DraftRef, dir: "up" | "down", labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+) {
+  return applyDraftEdit(draft, [{ op: "move", refs: [ref], dir }], labels, opts);
 }
 
 // ---- supersets ---------------------------------------------------------------
@@ -314,8 +343,10 @@ function applySuperset(w: Work, ref: DraftRef, side: "above" | "below"): string[
 }
 
 /** Join the neighbour's superset, or start one with it. */
-export function supersetWith(draft: AiProgramDraft, ref: DraftRef, side: "above" | "below", labels?: readonly RoleRank[]) {
-  return applyDraftEdit(draft, [{ op: "superset", ref, with: side }], labels);
+export function supersetWith(draft: AiProgramDraft, ref: DraftRef, side: "above" | "below", labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+) {
+  return applyDraftEdit(draft, [{ op: "superset", ref, with: side }], labels, opts);
 }
 
 function applyLeave(w: Work, ref: DraftRef): string[] {
@@ -334,8 +365,10 @@ function applyLeave(w: Work, ref: DraftRef): string[] {
 }
 
 /** Take a row out of its superset; it lands just after the group, and a one-member group dissolves. */
-export function leaveSuperset(draft: AiProgramDraft, ref: DraftRef, labels?: readonly RoleRank[]) {
-  return applyDraftEdit(draft, [{ op: "leave", ref }], labels);
+export function leaveSuperset(draft: AiProgramDraft, ref: DraftRef, labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+) {
+  return applyDraftEdit(draft, [{ op: "leave", ref }], labels, opts);
 }
 
 function applyGroup(w: Work, refs: readonly DraftRef[]): string[] {
@@ -357,8 +390,10 @@ function applyGroup(w: Work, refs: readonly DraftRef[]): string[] {
 }
 
 /** Make the selected rows (2+, one session) one superset at the first one's place. */
-export function supersetSelected(draft: AiProgramDraft, refs: DraftRef[], labels?: readonly RoleRank[]) {
-  return applyDraftEdit(draft, [{ op: "group", refs }], labels);
+export function supersetSelected(draft: AiProgramDraft, refs: DraftRef[], labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+) {
+  return applyDraftEdit(draft, [{ op: "group", refs }], labels, opts);
 }
 
 // ---- sessions ------------------------------------------------------------------
@@ -379,9 +414,11 @@ function applyMoveTo(w: Work, refs: readonly DraftRef[], day: number): string[] 
   return [`moved ${list(picked.map(nameOf))} to ${w.tags[t]}`];
 }
 
-/** Append rows to the end of a session (out of any superset); role order then places them. */
-export function moveToSession(draft: AiProgramDraft, refs: DraftRef[], day: number, labels?: readonly RoleRank[]) {
-  return applyDraftEdit(draft, [{ op: "moveTo", refs, day }], labels);
+/** Append rows to the end of a session (out of any superset). */
+export function moveToSession(draft: AiProgramDraft, refs: DraftRef[], day: number, labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+) {
+  return applyDraftEdit(draft, [{ op: "moveTo", refs, day }], labels, opts);
 }
 
 // ---- undo ---------------------------------------------------------------------------
@@ -412,20 +449,27 @@ function applyRestore(w: Work, sessions: Extract<DraftEditOp, { op: "restore" }>
 
 /**
  * Replay ops on a draft. Refs in each op address the draft as it stands before
- * that op (as stored). Throws DraftEditError when an op cannot apply.
+ * that op (as stored). The first op starts from the draft as shown (role order
+ * unless `keepOrder`); the result is in the trainer's order. Throws
+ * DraftEditError when an op cannot apply.
  */
 export function applyDraftEdit(
   draft: AiProgramDraft,
   ops: readonly DraftEditOp[],
-  labels?: readonly RoleRank[]
+  labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
 ): DraftEditResult {
+  const keepOrder = opts.keepOrder ?? false;
+  // The draft as the trainer saw it; Undo puts this back.
+  const shownAt = new Work(draft, labels, keepOrder).lists;
   let cur = draft;
   const changes: string[] = [];
   let restoring = false;
   // Where each exercise of `cur` sat in the input draft ("day:slot", 0-based).
   let origin = draft.sessions.map((s, d) => s.exercises.map((_, i) => `${d}:${i}`));
-  for (const op of ops) {
-    const w = new Work(cur, labels);
+  for (const [n, op] of ops.entries()) {
+    // After the first op `cur` is already in the trainer's order.
+    const w = new Work(cur, labels, keepOrder || n > 0);
     if (op.op === "move") changes.push(...applyMove(w, op.refs, op.dir));
     else if (op.op === "superset") changes.push(...applySuperset(w, op.ref, op.with));
     else if (op.op === "leave") changes.push(...applyLeave(w, op.ref));
@@ -445,25 +489,30 @@ export function applyDraftEdit(
     cur = w.result();
   }
 
-  // Undo: every input exercise back to its old place, group and set count.
+  // Undo: every input exercise back to where it was shown, with its group and set count.
   const at = new Map<string, DraftRef>();
   origin.forEach((l, d) => l.forEach((k, i) => at.set(k, { day: d + 1, slot: i + 1 })));
   const inverse: DraftEditOp = {
     op: "restore",
-    sessions: draft.sessions.map((s, d) =>
-      s.exercises.map((e, i) => ({ from: at.get(`${d}:${i}`)!, group: e.group ?? null, sets: e.prescribedSets.length }))
+    sessions: shownAt.map((l) =>
+      l.map((e) => ({ from: at.get(e.__k)!, group: e.group ?? null, sets: e.prescribedSets.length }))
     ),
   };
 
   // A restore is exact; other ops count only what the trainer can see.
-  const changed = !sameDraft(restoring ? draft : canonicalDraft(draft, labels), cur);
+  const changed = !sameDraft(restoring ? draft : canonicalDraft(draft, labels, { keepOrder }), cur);
   return { draft: cur, changes, changed, inverse };
 }
 
 /** Would this op change what the trainer sees? (Menus disable the ones that would not.) */
-export function canApplyDraftEdit(draft: AiProgramDraft, op: DraftEditOp, labels?: readonly RoleRank[]): boolean {
+export function canApplyDraftEdit(
+  draft: AiProgramDraft,
+  op: DraftEditOp,
+  labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+): boolean {
   try {
-    return applyDraftEdit(draft, [op], labels).changed;
+    return applyDraftEdit(draft, [op], labels, opts).changed;
   } catch (err) {
     if (err instanceof DraftEditError) return false;
     throw err;

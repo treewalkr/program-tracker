@@ -65,7 +65,9 @@ export function draftTemplateSessions(
   /** Trainer's session types: a draft `type` naming one of the right format becomes typeId/typeName. */
   types: SessionTypeLike[] = [],
   /** The trainer's role labels (loadRoleLabels) — exercises sort by their ranks; absent = built-ins. */
-  labels?: readonly RoleRank[]
+  labels?: readonly RoleRank[],
+  /** The generation's trainerOrder: keep the exercises as stored, no role sort. */
+  keepOrder = false
 ): { sessions: ProgramSession[]; createdNames: string[]; unresolvable: string[] } {
   const byId = new Map(catalog.map((c) => [c.id, c.name.toLowerCase()]));
   const nameById = new Map(catalog.map((c) => [c.id, c.name]));
@@ -78,7 +80,7 @@ export function draftTemplateSessions(
     const isCardio = s.kind === "cardio";
     const exercises = isCardio
       ? []
-      : sortExercisesByRole(s.exercises ?? [], labels).flatMap((ref, ei) => {
+      : (keepOrder ? (s.exercises ?? []) : sortExercisesByRole(s.exercises ?? [], labels)).flatMap((ref, ei) => {
           const res = resolveRef(ref, byId, byName);
           if (res.kind === "unresolvable") {
             unresolvable.push(res.ref);
@@ -134,9 +136,10 @@ export function draftToWeeks(
   /** Client availability (trainingDays, cardioDays, longRunDay) or bare training days. */
   days?: PlacementDaysInput,
   types: SessionTypeLike[] = [],
-  labels?: readonly RoleRank[]
+  labels?: readonly RoleRank[],
+  keepOrder = false
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types, labels);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types, labels, keepOrder);
   // AI weekdays that pass the placement rules stay; the rest are re-placed.
   const weeks = placeWeeks(stampWeeks(sessions, plannedWeeks), days, patternLookup(catalog), { keepWeekdays: true });
   return { weeks, createdNames, unresolvable };
@@ -160,9 +163,10 @@ export function replaceWeek(
   catalog: CatalogLike[],
   days?: PlacementDaysInput,
   types: SessionTypeLike[] = [],
-  labels?: readonly RoleRank[]
+  labels?: readonly RoleRank[],
+  keepOrder = false
 ): { weeks: ProgramWeek[]; createdNames: string[]; unresolvable: string[] } {
-  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types, labels);
+  const { sessions, createdNames, unresolvable } = draftTemplateSessions(draft, catalog, types, labels, keepOrder);
   const oldWeek = weeks.find((w) => w.week === weekNumber);
   const oldAt = new Map(
     (oldWeek?.sessions ?? []).map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }])

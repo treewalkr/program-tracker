@@ -176,3 +176,60 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
     expect(w.status).toBe(201);
   });
 });
+
+describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
+  const names = (gen: any, day = 1) => gen.draft.sessions[day - 1].exercises.map((e: any) => e.exerciseName as string);
+  let clientId = "";
+  let genId = "";
+  let editedId = "";
+  let order: string[] = [];
+  let draft: any = null;
+
+  test("moving a Str row above Primary is saved, and the version is trainer-ordered", async () => {
+    const c = await call("POST", "/v1/clients", { name: "Trainer Order Client", email: `order-${crypto.randomUUID()}@test.dev`, sessionsPerWeek: 2 });
+    clientId = c.body.id;
+    const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
+    genId = g.body.id;
+    expect(g.body.trainerOrder).toBe(false);
+    const ex = g.body.draft.sessions[0].exercises;
+    expect([ex[0].role, ex[1].role]).toEqual(["primary", "strength"]);
+
+    const res = await call("POST", `/v1/ai/generations/${genId}/edit`, { ops: [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up" }] });
+    expect(res.status).toBe(201);
+    editedId = res.body.generation.id;
+    order = names(res.body.generation);
+    expect(order.slice(0, 2)).toEqual([ex[1].exerciseName, ex[0].exerciseName]);
+    expect(res.body.generation.trainerOrder).toBe(true);
+  });
+
+  test("a second edit starts from the stored order: Primary can land below an accessory", async () => {
+    const res = await call("POST", `/v1/ai/generations/${editedId}/edit`, { ops: [{ op: "moveTo", refs: [{ day: 1, slot: 2 }], day: 2 }] });
+    expect(res.status).toBe(201);
+    expect(names(res.body.generation)).toEqual([order[0]]);
+    const day2 = res.body.generation.draft.sessions[1].exercises;
+    expect(day2.at(-1).exerciseName).toBe(order[1]);
+    expect(day2.at(-1).role).toBe("primary");
+    expect(day2.at(-2).role).toBe("accessory");
+    editedId = res.body.generation.id;
+  });
+
+  test("a revision child inherits the trainer order", async () => {
+    const res = await call("POST", `/v1/ai/generations/${editedId}/revise`, { message: "Keep it as is" });
+    expect(res.status).toBe(201);
+    expect(res.body.trainerOrder).toBe(true);
+    editedId = res.body.id;
+    draft = res.body.draft;
+    // The mock revision keeps the sessions, so the order is still not role order.
+    expect(draft.sessions[1].exercises.at(-1).role).toBe("primary");
+  });
+
+  test("approve keeps the trainer order", async () => {
+    const res = await call("POST", `/v1/ai/generations/${editedId}/approve`, {});
+    expect(res.status).toBe(201);
+    const lifting = draft.sessions.filter((s: any) => s.kind !== "cardio");
+    lifting.forEach((d: any, i: number) => {
+      const s = res.body.weeks[0].sessions.find((x: any) => x.kind === "lifting" && x.seq === i + 1);
+      expect(s.exercises.map((e: any) => e.exerciseName)).toEqual(d.exercises.map((e: any) => e.exerciseName));
+    });
+  });
+});

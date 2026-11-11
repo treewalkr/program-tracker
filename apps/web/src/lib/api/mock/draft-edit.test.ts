@@ -43,4 +43,29 @@ describe("mock adapter: draft hand edits", () => {
     },
     15000
   );
+
+  test(
+    "a hand-edited draft keeps its order: across roles, through a revision, and on approve",
+    async () => {
+      const g = await mockApi.generate({ clientId: "cl-maya" });
+      expect(g.trainerOrder ?? false).toBe(false);
+      const day = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1) + 1;
+      const last = g.draft!.sessions[day - 1].exercises.length;
+      // The bottom row moves up, whatever its role.
+      const res = await mockApi.editDraft(g.id, [{ op: "move", refs: [{ day, slot: last }], dir: "up" }]);
+      expect(res.generation.trainerOrder).toBe(true);
+      const order = res.generation.draft!.sessions[day - 1].exercises.map((e) => e.exerciseName);
+
+      const again = await mockApi.editDraft(res.generation.id, [{ op: "move", refs: [{ day, slot: 1 }], dir: "down" }]);
+      expect(again.generation.trainerOrder).toBe(true);
+      const next = again.generation.draft!.sessions[day - 1].exercises.map((e) => e.exerciseName);
+      expect(next.slice(0, 2)).toEqual([order[1], order[0]]);
+
+      const program = await mockApi.approveGeneration(again.generation.id);
+      const seq = g.draft!.sessions.slice(0, day).filter((s) => s.kind !== "cardio").length;
+      const s = program.weeks[0].sessions.find((x) => x.kind === "lifting" && x.seq === seq)!;
+      expect(s.exercises.map((e) => e.exerciseName)).toEqual(next);
+    },
+    15000
+  );
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { effortSummary } from "$lib/effort";
-  import { diffDrafts, sortExercisesByRole, type SlotChange } from "@pt/shared";
+  import { diffDrafts, shownExerciseOrder, type SlotChange } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
   import { DraftEditor } from "$lib/draftEditor.svelte";
   import { rowMenuItems } from "$lib/draftEditMenu";
@@ -110,6 +110,8 @@
 
 
   const draft = $derived(gen.draft!);
+  /** Role order for an AI-made draft; the stored order once the trainer has hand-edited it. */
+  const order = $derived({ keepOrder: gen.trainerOrder });
   const chain = $derived(revisionChain(gens, gen.id));
   const version = $derived(chain.length);
   const prev = $derived(chain.length >= 2 ? chain[chain.length - 2] : null);
@@ -169,7 +171,7 @@
       disabled: editor.busy,
       isSelected: (slot) => editor.isSelected({ day, slot }),
       ontoggle: (slot) => editor.toggle({ day, slot }),
-      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => editor.run(ops), roleLabels.all),
+      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => editor.run(ops), roleLabels.all, order),
     };
   }
   /** The phone approve bar (fixed, ≤700px; 0 when hidden): the edit dock floats above it. */
@@ -229,7 +231,7 @@
       name: s.name,
       kind: s.kind ?? "lifting",
       cardio: s.cardio ?? null,
-      exercises: sortExercisesByRole(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), roleLabels.all).map((e) => ({
+      exercises: shownExerciseOrder(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), roleLabels.all, order).map((e) => ({
         name: e.exerciseName ?? "",
         role: e.role,
         movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
@@ -571,7 +573,7 @@
 {/if}
 
 {#if mode === "sessions" || version < 2}
-  <DraftEditDock {editor} {draft} labels={roleLabels.all} variant="page" lift={mbarHeight} />
+  <DraftEditDock {editor} {draft} labels={roleLabels.all} keepOrder={gen.trainerOrder} variant="page" lift={mbarHeight} />
 {/if}
 
 <div class="more">

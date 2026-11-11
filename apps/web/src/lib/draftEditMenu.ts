@@ -1,8 +1,9 @@
 import {
   canApplyDraftEdit,
   draftSessionLabels,
-  sortExercisesByRole,
+  shownExerciseOrder,
   type AiProgramDraft,
+  type DraftOrderOpts,
   type DraftEditOp,
   type DraftRef,
   type RoleRank,
@@ -13,20 +14,23 @@ import type { AiDraftDto } from "$lib/api/types";
 /**
  * What the hand-edit controls offer for a draft (row ⋯ menu, select bar).
  * Every action is simulated with the shared ops first: one that would not
- * change what the trainer sees (role order wins, a session can't empty, …)
- * is disabled rather than saving a no-op version.
+ * change what the trainer sees (top row can't move up, a session can't
+ * empty, …) is disabled rather than saving a no-op version. Rows show in role
+ * order for an AI-made draft and as stored once the trainer has hand-edited
+ * it (`keepOrder`); either way the trainer may then reorder across roles.
  *
  * Takes the DTO (session `kind` may be absent = lifting, as the schema defaults it).
  */
 
 const nameOf = (e: { exerciseName?: string; exerciseId?: string }) => e.exerciseName || e.exerciseId || "exercise";
 
-/** A session's rows as shown: role order, each with its stored slot. */
-function shown(draft: AiDraftDto, day: number, labels?: readonly RoleRank[]) {
+/** A session's rows as shown, each with its stored slot. */
+function shown(draft: AiDraftDto, day: number, labels: readonly RoleRank[] | undefined, opts: DraftOrderOpts) {
   const s = draft.sessions[day - 1];
-  return sortExercisesByRole(
+  return shownExerciseOrder(
     (s?.exercises ?? []).map((e, i) => ({ ...e, slot: i + 1 })),
-    labels
+    labels,
+    opts
   );
 }
 
@@ -40,11 +44,12 @@ export function rowMenuItems(
   dto: AiDraftDto,
   ref: DraftRef,
   run: (ops: DraftEditOp[]) => void,
-  labels?: readonly RoleRank[]
+  labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
 ): OverflowItem[] {
   const draft = dto as AiProgramDraft;
-  const can = (op: DraftEditOp) => canApplyDraftEdit(draft, op, labels);
-  const rows = shown(dto, ref.day, labels);
+  const can = (op: DraftEditOp) => canApplyDraftEdit(draft, op, labels, opts);
+  const rows = shown(dto, ref.day, labels, opts);
   const at = rows.findIndex((e) => e.slot === ref.slot);
   const me = rows[at];
   if (!me) return [];
@@ -76,9 +81,14 @@ export interface SelectionActions {
   moveTo: { label: string; op: DraftEditOp; disabled: boolean }[];
 }
 
-export function selectionActions(dto: AiDraftDto, refs: DraftRef[], labels?: readonly RoleRank[]): SelectionActions {
+export function selectionActions(
+  dto: AiDraftDto,
+  refs: DraftRef[],
+  labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+): SelectionActions {
   const draft = dto as AiProgramDraft;
-  const can = (op: DraftEditOp) => canApplyDraftEdit(draft, op, labels);
+  const can = (op: DraftEditOp) => canApplyDraftEdit(draft, op, labels, opts);
   const ok = (op: DraftEditOp) => (refs.length && can(op) ? op : null);
   const oneSession = new Set(refs.map((r) => r.day)).size === 1;
   return {

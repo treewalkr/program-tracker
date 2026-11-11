@@ -66,6 +66,7 @@ export async function savePhasingEdit(parentId: string, rawPhasing: unknown): Pr
       parentGenerationId: parent.id,
       revisionMessage: PHASING_EDIT_MESSAGE,
       manualEdit: true,
+      trainerOrder: parent.trainerOrder,
       exampleProgramIds: parent.exampleProgramIds ?? [],
     })
     .returning();

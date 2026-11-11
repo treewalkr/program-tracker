@@ -277,6 +277,8 @@ export const aiGenerations = pgTable("ai_generations", {
   revisionMessage: text("revision_message"),
   /** True when the trainer edited this version by hand (no AI call), e.g. the block plan. */
   manualEdit: boolean("manual_edit").notNull().default(false),
+  /** True once the trainer has hand-edited the exercise order: it is kept as stored (no role sort) on screen and through approve. Children inherit it. */
+  trainerOrder: boolean("trainer_order").notNull().default(false),
   /** Proposal builds: the AI's changes outside the proposal, reverted before storing (null = not a scoped build). */
   discardedChanges: jsonb("discarded_changes").$type<SlotChange[]>(),
   instructions: text("instructions"),

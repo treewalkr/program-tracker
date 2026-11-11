@@ -298,7 +298,8 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
           client,
           await ensureSessionTypes(trainerId),
-          await loadRoleLabels(trainerId)
+          await loadRoleLabels(trainerId),
+          gen.trainerOrder
         );
         if (unresolvable.length > 0) {
           return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
@@ -347,7 +348,8 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         gen.draft.phasing?.plannedWeeks ?? 4,
         client,
         await ensureSessionTypes(trainerId),
-        await loadRoleLabels(trainerId)
+        await loadRoleLabels(trainerId),
+        gen.trainerOrder
       );
       if (unresolvable.length > 0) {
         return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });

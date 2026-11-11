@@ -85,7 +85,7 @@
       disabled: ed.busy,
       isSelected: (slot) => ed.isSelected({ day, slot }),
       ontoggle: (slot) => ed.toggle({ day, slot }),
-      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => ed.run(ops), roleLabels.all),
+      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => ed.run(ops), roleLabels.all, { keepOrder: view.generation.trainerOrder }),
     };
   }
 
@@ -181,7 +181,7 @@
   </div>
 
   {#if editor && view.generation.draft}
-    <DraftEditDock {editor} draft={view.generation.draft} labels={roleLabels.all} />
+    <DraftEditDock {editor} draft={view.generation.draft} labels={roleLabels.all} keepOrder={view.generation.trainerOrder} />
   {/if}
 
   <div class="foot">

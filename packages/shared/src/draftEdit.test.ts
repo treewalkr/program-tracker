@@ -95,9 +95,39 @@ describe("move", () => {
     expect(canApplyDraftEdit(base(), { op: "move", refs: [r(1, 1)], dir: "up" })).toBe(false);
   });
 
-  test("role order wins: moving past a higher-ranked exercise changes nothing", () => {
+  test("the trainer's order wins: a row moves up past a higher-ranked role", () => {
     const d = draft([ex("Squat", { role: "primary" }), ex("Curl", { role: "accessory" })]);
-    expect(moveDraftExercise(d, r(1, 2), "up").changed).toBe(false);
+    const res = moveDraftExercise(d, r(1, 2), "up");
+    expect(res.changed).toBe(true);
+    expect(shape(res.draft)).toBe("Curl·Squat");
+    expect(canApplyDraftEdit(d, { op: "move", refs: [r(1, 1)], dir: "down" })).toBe(true);
+  });
+
+  test("an AI draft is edited as shown (role-sorted), then stored in the trainer's order", () => {
+    // Stored Str first; shown Primary first.
+    const d = draft([ex("Lunge", { role: "strength" }), ex("Squat", { role: "primary" }), aux("Curl")]);
+    expect(canApplyDraftEdit(d, { op: "move", refs: [r(1, 2)], dir: "up" })).toBe(false); // already on top as shown
+    const res = moveDraftExercise(d, r(1, 2), "down");
+    expect(shape(res.draft)).toBe("Lunge·Squat·Curl");
+    expect(res.changed).toBe(true);
+  });
+
+  test("a trainer-ordered draft is edited as stored, Primary below Str", () => {
+    const d = draft([ex("Lunge", { role: "strength" }), ex("Squat", { role: "primary" }), aux("Curl")]);
+    const keep = { keepOrder: true };
+    expect(canApplyDraftEdit(d, { op: "move", refs: [r(1, 2)], dir: "up" }, undefined, keep)).toBe(true);
+    expect(canApplyDraftEdit(d, { op: "move", refs: [r(1, 1)], dir: "up" }, undefined, keep)).toBe(false);
+    const res = moveDraftExercise(d, r(1, 2), "down", undefined, keep);
+    expect(shape(res.draft)).toBe("Lunge·Curl·Squat");
+    // A second edit keeps the first one's order.
+    const again = moveDraftExercise(res.draft, r(1, 2), "up", undefined, keep);
+    expect(shape(again.draft)).toBe("Curl·Lunge·Squat");
+  });
+
+  test("moving up past a superset steps over the whole group, across roles", () => {
+    const d = draft([ex("Squat", { role: "primary", group: "A" }), aux("Curl", "A"), ex("Lunge", { role: "strength" })]);
+    const res = moveDraftExercise(d, r(1, 3), "up", undefined, { keepOrder: true });
+    expect(shape(res.draft)).toBe("Lunge·A[Squat Curl]");
   });
 
   test("several rows move together; a selected neighbour blocks", () => {
@@ -171,10 +201,10 @@ describe("move to another session", () => {
     expect(res.changes).toEqual(["moved P, X to Session 2"]);
   });
 
-  test("role order then places the moved exercise", () => {
+  test("the moved exercise stays at the end, whatever its role", () => {
     const d = draft([ex("Squat", { role: "primary" }), aux("Curl")], [aux("Row")]);
     const res = moveToSession(d, [r(1, 1)], 2);
-    expect(res.draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Squat", "Row"]);
+    expect(res.draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Row", "Squat"]);
   });
 
   test("never empties a session, and never lands in a cardio session", () => {
@@ -232,6 +262,14 @@ describe("undo", () => {
       expect(undone.changes).toEqual(["undid the last hand edit"]);
     });
   }
+
+  test("undoing the first edit of an AI draft puts back the role order it was shown in", () => {
+    const before = draft([ex("Lunge", { role: "strength" }), ex("Squat", { role: "primary" }), aux("Curl")]);
+    const res = moveDraftExercise(before, r(1, 3), "up");
+    expect(shape(res.draft)).toBe("Squat·Curl·Lunge");
+    const undone = applyDraftEdit(res.draft, [res.inverse], undefined, { keepOrder: true });
+    expect(shape(undone.draft)).toBe("Squat·Lunge·Curl");
+  });
 
   test("a request of several ops undoes as one", () => {
     const before = base();

@@ -241,6 +241,8 @@ export interface GenerationDto {
   revisionMessage: string | null;
   /** True when the trainer edited this version by hand (no AI), e.g. the block plan. */
   manualEdit?: boolean;
+  /** True once the trainer has hand-edited the exercise order: shown and approved as stored, never role-sorted. */
+  trainerOrder?: boolean;
   /** Proposal builds: the AI's changes outside the proposal, reverted before storing; null otherwise. */
   discardedChanges?: SlotChange[] | null;
   instructions: string | null;
