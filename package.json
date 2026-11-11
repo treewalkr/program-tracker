@@ -18,6 +18,7 @@
     "backfill:patterns": "bun run --filter @pt/db backfill:patterns",
     "feedback:export": "bun run apps/api/scripts/feedback-export.ts",
     "feedback:agent": "bun run apps/api/scripts/feedback-agent.ts",
+    "feedback:fix": "bun run apps/api/scripts/feedback-fix.ts",
     "llm:export": "bun run apps/api/scripts/llm-export.ts",
     "llm:prune": "bun run apps/api/scripts/llm-prune.ts",
     "eval:import": "bun run apps/api/scripts/eval-import.ts",
