@@ -42,6 +42,7 @@
     reachable: true,
     duplicateOf: null,
     duplicates: [],
+    fixPr: null,
     shippedIn: null,
     thread,
     editedAt: null,

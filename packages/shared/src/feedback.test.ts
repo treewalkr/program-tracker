@@ -46,6 +46,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   reachable: true,
   duplicateOf: null,
   duplicates: [],
+  fixPr: null,
   shippedIn: null,
   thread: [],
   editedAt: null,

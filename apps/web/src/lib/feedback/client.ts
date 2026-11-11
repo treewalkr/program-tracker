@@ -39,6 +39,7 @@ const normalize = (i: FeedbackItem): FeedbackItem => ({
   ...i,
   thread: i.thread.map(normalizeComment),
   editedAt: i.editedAt === null ? null : iso(i.editedAt),
+  fixPr: i.fixPr ? { ...i.fixPr, at: iso(i.fixPr.at) } : null,
   createdAt: iso(i.createdAt),
   updatedAt: iso(i.updatedAt),
 });

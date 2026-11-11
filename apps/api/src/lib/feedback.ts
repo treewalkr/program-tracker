@@ -42,11 +42,15 @@ const listColumns = {
   editorId: feedbackItems.editedBy,
   editedBy: { id: editors.id, name: editors.name, avatarUrl: editors.avatarUrl },
   duplicateOfId: feedbackItems.duplicateOf,
+  fixPrUrl: feedbackItems.fixPr,
+  fixPrAt: feedbackItems.fixPrAt,
   createdAt: feedbackItems.createdAt,
   updatedAt: feedbackItems.updatedAt,
 };
 
-type ListRow = Omit<FeedbackItemRow, "editedBy" | "duplicateOf"> & {
+type ListRow = Omit<FeedbackItemRow, "editedBy" | "duplicateOf" | "fixPr" | "fixPrAt"> & {
+  fixPrUrl: string | null;
+  fixPrAt: Date | null;
   author: FeedbackItem["author"];
   editorId: string | null;
   duplicateOfId: string | null;
@@ -159,7 +163,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
   const reachable = viewerId ? await reachableItems(rows, viewerId) : null;
   const links = await duplicateLinks(rows);
 
-  return rows.map(({ trainerId, editorId, duplicateOfId, ...r }) => {
+  return rows.map(({ trainerId, editorId, duplicateOfId, fixPrUrl, fixPrAt, ...r }) => {
     const mine = comments.filter((c) => c.itemId === r.id);
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
     if (r.editedAt && editorId !== viewerId && (!last || r.editedAt > last)) last = r.editedAt;
@@ -192,6 +196,8 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       reachable: reachable ? reachable.has(r.id) : true,
       duplicateOf: (duplicateOfId && links.originals.get(duplicateOfId)) || null,
       duplicates: links.duplicates.get(r.id) ?? [],
+      // Admin only: the repo and its PRs are the owner's business.
+      fixPr: admin && fixPrUrl ? { url: fixPrUrl, at: (fixPrAt ?? r.updatedAt).toISOString() } : null,
       editedAt: r.editedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),

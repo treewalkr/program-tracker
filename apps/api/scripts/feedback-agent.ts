@@ -12,7 +12,7 @@
  *                                           mark ticket <id> a duplicate of open FB-012:
  *                                           it closes when FB-012 does
  *
- * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "model"? }
+ * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "ready"?, "model"? }
  *
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN, from the environment or the
  * repo's gitignored .env.agent (the environment wins).

@@ -23,7 +23,7 @@ import { getFeedback, listFeedback } from "../lib/feedback";
 import { attachmentBytes } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, type ClosedDuplicate } from "../lib/feedback-duplicates";
-import { agentTokenMatches, feedbackAiMode, needsAnswer, routeAnswer } from "../lib/feedback-ai";
+import { agentTokenMatches, feedbackAiMode, fixCandidate, needsAnswer, routeAnswer } from "../lib/feedback-ai";
 
 /**
  * Bearer FEEDBACK_AGENT_TOKEN, nothing else: no session, no trainer. Only the
@@ -101,6 +101,9 @@ async function shipTicket(
   });
 }
 const MAX_TEXT = 2000;
+/** Most tickets one fix-agent run may take. */
+const FIX_LIMIT = 5;
+const GITHUB_PR_URL = "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$";
 
 /** Stands in for an image URL in the inbox Markdown; the CLI swaps in the downloaded file's path. */
 export const agentImageRef = (a: Pick<FeedbackAttachment, "id">) => `attachment:${a.id}`;
@@ -193,6 +196,66 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
     { detail: { summary: "Open tickets in brief, for duplicate checks" } },
   )
   /**
+   * Tickets the fix agent may take (`fixCandidate`), oldest first, at most
+   * `limit` (default and cap 5): Markdown brief, basis and any recorded PR,
+   * which the caller checks with `gh` — an open or merged one means skip.
+   * `skipped` lists the other accepted tickets and why, for the dry run.
+   */
+  .get(
+    "/fixable",
+    async ({ query }) => {
+      const accepted = await listFeedback(["accepted"], "oldest");
+      const ready = [] as FeedbackItem[];
+      const skipped: { handle: string; reason: string }[] = [];
+      for (const item of accepted) {
+        const verdict = fixCandidate(item);
+        if (verdict.ok) ready.push(item);
+        else skipped.push({ handle: feedbackHandle(item.number), reason: verdict.reason });
+      }
+      return {
+        tickets: ready.slice(0, query.limit ?? FIX_LIMIT).map((item) => ({
+          id: item.id,
+          number: item.number,
+          handle: feedbackHandle(item.number),
+          basis: ticketBasis(item),
+          fixPr: item.fixPr?.url ?? null,
+          markdown: feedbackItemMarkdown(item, { imageUrl: () => null }),
+        })),
+        /** Candidates beyond `limit`. */
+        more: Math.max(0, ready.length - (query.limit ?? FIX_LIMIT)),
+        skipped,
+      };
+    },
+    {
+      query: t.Object({ limit: t.Optional(t.Integer({ minimum: 1, maximum: FIX_LIMIT })) }),
+      detail: { summary: "Accepted, low-risk, ready tickets for the fix agent" },
+    },
+  )
+  /**
+   * Record the fix agent's pull request on an accepted ticket. Replaces an
+   * older one (the agent only reopens a ticket whose PR was closed unmerged).
+   */
+  .post(
+    "/:id/fix-pr",
+    async ({ params, body, status }) => {
+      const [row] = await db
+        .update(feedbackItems)
+        .set({ fixPr: body.url, fixPrAt: new Date() })
+        .where(and(eq(feedbackItems.id, params.id), eq(feedbackItems.status, "accepted")))
+        .returning({ number: feedbackItems.number });
+      if (!row) {
+        const [exists] = await db.select({ id: feedbackItems.id }).from(feedbackItems).where(eq(feedbackItems.id, params.id));
+        return exists ? status(409, { error: "only an accepted ticket takes a fix PR" }) : status(404, NOT_FOUND);
+      }
+      return { handle: feedbackHandle(row.number), fixPr: body.url };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: t.Object({ url: t.String({ pattern: GITHUB_PR_URL, maxLength: 300 }) }),
+      detail: { summary: "Record the fix agent's pull request on a ticket" },
+    },
+  )
+  /**
    * Link a ticket to the open ticket it repeats (`of` = its number). Same
    * rules as the admin's link: both open, no chains. The agent still answers
    * the ticket as usual; the link only makes it close with the original.
@@ -259,6 +322,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       const note = body.note.trim();
       if (!note) return status(422, { error: "note is empty" });
       const fixPlan = (body.fixPlan ?? []).map((s) => s.trim()).filter(Boolean);
+      if (body.ready && !fixPlan.length) return status(422, { error: "ready needs a fix plan" });
 
       const out = await db.transaction(async (tx) => {
         // Serialises answers per ticket: a second run waits here, then sees the first one's entries.
@@ -283,6 +347,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           citations: body.citations,
           ...(fixPlan.length ? { fixPlan } : {}),
           ...(body.risk ? { risk: body.risk } : {}),
+          ...(body.ready !== undefined ? { ready: body.ready } : {}),
           basis,
           model: body.model ?? null,
           runAt: new Date(now).toISOString(),
@@ -330,6 +395,8 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         ),
         // Literal union, not t.UnionEnum: UnionEnum's default (its first value) would fill an absent risk with "low".
         risk: t.Optional(t.Union(FEEDBACK_AI_RISKS.map((r) => t.Literal(r)))),
+        /** For `bug` / `feature`: the plan is complete and checked, nothing left to ask — the fix agent may take it (with low risk). */
+        ready: t.Optional(t.Boolean()),
         model: t.Optional(t.String({ maxLength: 100 })),
       }),
       detail: { summary: "Record the auto-reply agent's answer: a private note, plus a sent or drafted reply" },

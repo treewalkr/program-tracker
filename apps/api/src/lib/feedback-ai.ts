@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, trainers } from "@pt/db";
 import {
+  currentAiNote,
+  feedbackHandle,
   ticketBasis,
   DEFAULT_FEEDBACK_AI_MODE,
   FEEDBACK_AI_AUTO_VERDICTS,
@@ -102,4 +104,30 @@ export function routeAnswer(
   const confident =
     mode === "auto" && answer.confidence === "high" && FEEDBACK_AI_AUTO_VERDICTS.includes(answer.verdict);
   return confident && !aiRepliedSinceReporter(item) ? "sent" : "drafted";
+}
+
+/** Verdicts the fix agent may take: something to change in the code. */
+const FIXABLE_VERDICTS = new Set(["bug", "feature"]);
+
+export type FixCandidate = { ok: true } | { ok: false; reason: string };
+
+/**
+ * May the fix agent take this ticket? Pure; expects the admin view. Only an
+ * accepted ticket that isn't a duplicate, whose current AI note (same basis —
+ * an edit since makes it stale) calls it a bug or feature with a ready,
+ * low-risk fix plan. A recorded PR is the caller's to check: it may be
+ * closed, and then the ticket is fair game again.
+ */
+export function fixCandidate(item: FeedbackItem): FixCandidate {
+  const no = (reason: string): FixCandidate => ({ ok: false, reason });
+  if (item.status !== "accepted") return no(`status ${item.status}`);
+  if (item.duplicateOf) return no(`duplicate of ${feedbackHandle(item.duplicateOf.number)}`);
+  const note = currentAiNote(item);
+  if (!note) return no("no current AI note");
+  const m = note.aiMeta;
+  if (!FIXABLE_VERDICTS.has(m.verdict)) return no(`verdict ${m.verdict}`);
+  if (m.risk !== "low") return no(`risk ${m.risk ?? "unrated"}`);
+  if (!m.fixPlan?.length) return no("no fix plan");
+  if (m.ready !== true) return no("not ready");
+  return { ok: true };
 }

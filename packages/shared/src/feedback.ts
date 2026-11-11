@@ -161,6 +161,12 @@ export interface FeedbackAiMeta {
   fixPlan?: string[];
   /** `bug` / `feature` only: how risky the fix is. */
   risk?: FeedbackAiRisk;
+  /**
+   * `bug` / `feature` only: the fix plan is complete, checked against the code
+   * and leaves no product question open — a coding agent could start now.
+   * With `risk: low` on an accepted ticket, the fix agent may pick it up.
+   */
+  ready?: boolean;
   /** `ticketBasis` of the ticket the agent answered. */
   basis: string;
   model: string | null;
@@ -337,6 +343,8 @@ export interface FeedbackItem {
   duplicateOf: FeedbackTicketRef | null;
   /** Tickets marked as duplicates of this one, by number. */
   duplicates: FeedbackTicketRef[];
+  /** The fix agent's pull request for it; admin only (always null for anyone else). */
+  fixPr: { url: string; at: string } | null;
   /** Someone else did something on it since the caller last looked. */
   unread: boolean;
   /** The caller muted emails about it. */
@@ -512,9 +520,15 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   }
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
+  if (item.fixPr) lines.push(`- **Fix PR:** ${item.fixPr.url} (opened ${item.fixPr.at.slice(0, 10)})`);
   if (ai) {
     const m = ai.aiMeta;
-    const rated = [m.verdict.replace(/_/g, " "), `${m.confidence} confidence`, ...(m.risk ? [`${m.risk} risk`] : [])];
+    const rated = [
+      m.verdict.replace(/_/g, " "),
+      `${m.confidence} confidence`,
+      ...(m.risk ? [`${m.risk} risk`] : []),
+      ...(m.ready === undefined ? [] : [m.ready ? "ready to fix" : "not ready to fix"]),
+    ];
     lines.push(`- **AI triage (read the code, ${ai.createdAt.slice(0, 10)}):** ${rated.join(" · ")}`);
     lines.push(`  > ${(ai.body ?? "").trim().split("\n").join("\n  > ")}`);
     if (m.fixPlan?.length) {
