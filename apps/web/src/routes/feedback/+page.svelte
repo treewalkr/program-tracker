@@ -488,30 +488,32 @@
             use:seenWhenVisible={item}
           >
             <div class="body">
+              <!-- Info wraps inside its own box; the bell stays top-right on the first line, even at 390px. -->
               <div class="meta">
-                {#if fresh.has(item.id)}<span class="lamp" aria-hidden="true"></span>{/if}
-                <span class="handle">{feedbackHandle(item.number)}</span>
-                <Pill tone={STATUS_TONE[item.status]}>
-                  {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
-                </Pill>
-                {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
-                <span class="by"><Author author={item.author} fallback="Filed before sign-in" /></span>
-                <Tooltip text={fmtDateTime(item.createdAt)}>
-                  {#snippet children(tipId)}
-                    <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
-                  {/snippet}
-                </Tooltip>
-                {#if item.editedAt}
-                  {@const by = item.editedBy && item.editedBy.id !== item.author?.id ? item.editedBy.name : null}
-                  <Tooltip text="Edited {fmtDateTime(item.editedAt)}{item.editedBy ? ` by ${item.editedBy.name}` : ''}">
+                <div class="meta-info">
+                  {#if fresh.has(item.id)}<span class="lamp" aria-hidden="true"></span>{/if}
+                  <span class="handle">{feedbackHandle(item.number)}</span>
+                  <Pill tone={STATUS_TONE[item.status]}>
+                    {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
+                  </Pill>
+                  {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
+                  <span class="by"><Author author={item.author} fallback="Filed before sign-in" /></span>
+                  <Tooltip text={fmtDateTime(item.createdAt)}>
                     {#snippet children(tipId)}
-                      <button type="button" class="when" aria-describedby={tipId}>
-                        edited · <time datetime={item.editedAt}>{ago(item.editedAt!)}</time>{#if by}&nbsp;by {by}{/if}
-                      </button>
+                      <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
                     {/snippet}
                   </Tooltip>
-                {/if}
-                <span class="spacer"></span>
+                  {#if item.editedAt}
+                    {@const by = item.editedBy && item.editedBy.id !== item.author?.id ? item.editedBy.name : null}
+                    <Tooltip text="Edited {fmtDateTime(item.editedAt)}{item.editedBy ? ` by ${item.editedBy.name}` : ''}">
+                      {#snippet children(tipId)}
+                        <button type="button" class="when" aria-describedby={tipId}>
+                          edited · <time datetime={item.editedAt}>{ago(item.editedAt!)}</time>{#if by}&nbsp;by {by}{/if}
+                        </button>
+                      {/snippet}
+                    </Tooltip>
+                  {/if}
+                </div>
                 <MuteToggle {item} onchange={(muted) => (items = items.map((i) => (i.id === item.id ? { ...i, muted } : i)))} />
               </div>
 
@@ -822,9 +824,19 @@
   .skel-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .meta {
     display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .meta-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 8px;
+  }
+  .meta > :global(.mute) {
+    flex: none;
   }
   .by {
     display: inline-flex;
