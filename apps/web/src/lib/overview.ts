@@ -291,6 +291,19 @@ export function exceptionOrder(strips: ClientStrip[]): ClientStrip[] {
   return [...strips].sort((a, b) => EXCEPTION_RANK[a.exception] - EXCEPTION_RANK[b.exception]);
 }
 
+/** Fold on-track clients into one line only past this many active rows… */
+export const FOLD_MIN_ROWS = 8;
+/** …and only when at least this many of them are on track (a fold of one or two saves nothing). */
+export const FOLD_MIN_ON_TRACK = 3;
+
+/** Whether the grid folds its on-track rows: more than `FOLD_MIN_ROWS` active clients (idle ones
+ *  excluded — they already share a line) and at least `FOLD_MIN_ON_TRACK` on track. */
+export function foldsOnTrack(strips: ClientStrip[]): boolean {
+  const active = strips.filter((s) => s.exception !== "none");
+  const onTrack = active.filter((s) => s.exception === "on-track").length;
+  return active.length > FOLD_MIN_ROWS && onTrack >= FOLD_MIN_ON_TRACK;
+}
+
 /** This week's planned sessions across clients. */
 export function weekTally(strips: ClientStrip[]): {
   logged: number;

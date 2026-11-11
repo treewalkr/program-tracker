@@ -6,6 +6,8 @@ import {
   daySentence,
   volumeLabel,
   exceptionOrder,
+  FOLD_MIN_ROWS,
+  foldsOnTrack,
   GRACE_DAYS,
   LOOKBACK_DAYS,
   idleReason,
@@ -357,5 +359,30 @@ describe("partly done days", () => {
     expect(current(none)[0]).toMatchObject({ status: "missed", partial: false });
     const today = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-02");
     expect(current(today)[0]).toMatchObject({ status: "today", partial: false });
+  });
+});
+
+describe("folding on-track clients", () => {
+  const strip = (exception: ClientStrip["exception"]) => ({ exception }) as unknown as ClientStrip;
+  const rows = (onTrack: number, other: number, idle = 0) => [
+    ...Array.from({ length: other }, () => strip("missed")),
+    ...Array.from({ length: onTrack }, () => strip("on-track")),
+    ...Array.from({ length: idle }, () => strip("none")),
+  ];
+
+  test("folds past eight active rows with at least three on track", () => {
+    expect(FOLD_MIN_ROWS).toBe(8);
+    expect(foldsOnTrack(rows(3, 6))).toBe(true);
+    expect(foldsOnTrack(rows(9, 0))).toBe(true);
+  });
+
+  test("eight active rows or fewer never fold, idle clients don't count", () => {
+    expect(foldsOnTrack(rows(8, 0))).toBe(false);
+    expect(foldsOnTrack(rows(4, 4, 10))).toBe(false);
+  });
+
+  test("fewer than three on track never fold", () => {
+    expect(foldsOnTrack(rows(2, 20))).toBe(false);
+    expect(foldsOnTrack(rows(0, 12))).toBe(false);
   });
 });
