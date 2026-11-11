@@ -2,7 +2,10 @@
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { effortSummary } from "$lib/effort";
   import { diffDrafts, sortExercisesByRole, type SlotChange } from "@pt/shared";
-  import type { ClientDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
+  import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
+  import { DraftEditor } from "$lib/draftEditor.svelte";
+  import { rowMenuItems } from "$lib/draftEditMenu";
+  import DraftEditDock from "./DraftEditDock.svelte";
   import { api } from "$lib/api";
   import { revisionChain } from "$lib/generation";
   import { renderMarkdown } from "$lib/chatRefine";
@@ -18,7 +21,7 @@
     reviewChecks,
     type PlanChange,
   } from "$lib/draftReview";
-  import SessionCard, { type SlotMark } from "./SessionCard.svelte";
+  import SessionCard, { type SessionEditable, type SlotMark } from "./SessionCard.svelte";
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import BlockPlanEditor from "./BlockPlanEditor.svelte";
   import StatusPill from "./StatusPill.svelte";
@@ -34,7 +37,9 @@
    * version (read from the drafts), automatic checks, how the draft evolved,
    * and Approve with its reassurance. Then the block plan (editable by hand —
    * saving creates the next version), then the week: each session beside its own
-   * reasoning, or before/after against any earlier version.
+   * reasoning, or before/after against any earlier version. With
+   * `oneditsaved`, the latest version's sessions can be rearranged by hand
+   * (row ⋯ menu, Select mode) — each edit saves the next version.
    */
   interface Props {
     gen: GenerationDto;
@@ -53,6 +58,8 @@
     onsaveplan: (phasing: ProgramPhasingDto) => Promise<void>;
     /** A note was applied: show this new version. Without it, notes can't be applied. */
     onrevised?: (child: GenerationDto) => Promise<void> | void;
+    /** A hand edit saved the next version: show it. Without it, sessions are read-only. */
+    oneditsaved?: (res: DraftEditResultDto) => void;
   }
 
   let {
@@ -70,6 +77,7 @@
     onreset,
     onsaveplan,
     onrevised,
+    oneditsaved,
   }: Props = $props();
 
   let rejectOpen = $state(false);
@@ -137,6 +145,35 @@
   }
 
   const canApply = $derived(gen.status === "validated" && !newProgram && !!onrevised);
+
+  /** A newer version exists (this one was reopened): only the latest is editable. */
+  const superseded = $derived(gens.some((g) => g.parentGenerationId === gen.id && (g.status === "validated" || g.status === "pending")));
+  const handEditable = $derived(!!oneditsaved && canEdit && !superseded && !editing && !approving && !rejecting);
+  const editLock = $derived(
+    !oneditsaved || !canEdit ? null : superseded ? "Only the latest version can be edited" : editing ? "Finish editing the plan to edit sessions" : null
+  );
+  const editor = new DraftEditor({
+    api,
+    target: () => (handEditable ? gen : null),
+    onsaved: (res) => oneditsaved?.(res),
+  });
+  $effect(() => {
+    if (!handEditable && editor.selecting) editor.setSelecting(false);
+  });
+
+  function editableFor(day: number): SessionEditable | undefined {
+    if (!handEditable) return undefined;
+    const d = draft;
+    return {
+      selecting: editor.selecting,
+      disabled: editor.busy,
+      isSelected: (slot) => editor.isSelected({ day, slot }),
+      ontoggle: (slot) => editor.toggle({ day, slot }),
+      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => editor.run(ops), roleLabels.all),
+    };
+  }
+  /** The phasing editor's own label; a session edit says "Edited by you: …". */
+  const planEdit = $derived(gen.manualEdit && gen.revisionMessage === "Block plan edited by you");
 
   async function applyNote(note: LlmNoteDto) {
     const child = await api.applyNote(note.id);
@@ -265,8 +302,10 @@
     <p class="sub">
       <span>{draft.name.replace(/\s*\(rev\. \d+\)$/, "")}</span>
       <span>·</span>
-      {#if gen.manualEdit}
+      {#if planEdit}
         <span>plan edited by you · sessions by <span class="mono">{gen.model}</span></span>
+      {:else if gen.manualEdit}
+        <span>edited by you · drafted by <span class="mono">{gen.model}</span></span>
       {:else}
         <span>drafted by <span class="mono">{gen.model}</span>{gen.effort ? ` (${effortSummary(gen.effort)})` : ""}</span>
       {/if}
@@ -332,7 +371,7 @@
           {/each}
         </ul>
         {#if slotChanges.length > 5}<p class="subtle m0 mt6">+ {slotChanges.length - 5} more — see Compare below</p>{/if}
-        <p class="subtle m0 mt10">{gen.manualEdit ? `Plan only — sessions are identical to v${version - 1}.` : "Read from the drafts, not from the AI's description."}</p>
+        <p class="subtle m0 mt10">{planEdit ? `Plan only — sessions are identical to v${version - 1}.` : gen.manualEdit ? "Edited by hand — no AI call." : "Read from the drafts, not from the AI's description."}</p>
       {/if}
       {#if kept.length}
         <details class="kept mt6">
@@ -435,6 +474,19 @@
   {:else}
     <span class="subtle">{plural(draft.sessions.length, "session")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
   {/if}
+  {#if handEditable && (mode === "sessions" || version < 2)}
+    <button
+      type="button"
+      class="btn small select-toggle"
+      aria-pressed={editor.selecting}
+      title={editor.selecting ? "Leave select mode" : "Tick exercises to move or superset them together"}
+      onclick={() => editor.setSelecting(!editor.selecting)}
+    >
+      <Icon name="list-check" />{editor.selecting ? "Done" : "Select"}
+    </button>
+  {:else if editLock}
+    <span class="subtle edit-lock"><Icon name="lock" />{editLock}</span>
+  {/if}
   {#if gen.status === "validated" && !newProgram}
     <a class="ask" href={`/clients/${client.id}/chat`}><Icon name="sparkle" />Ask for exercise changes in Draft chat →</a>
   {/if}
@@ -453,6 +505,7 @@
           marks={marksByDay[i]}
           noted={notedByDay[i]}
           onnote={editing ? undefined : (slot) => (noteAt = { day: i, slot })}
+          editable={s.kind === "cardio" ? undefined : editableFor(i + 1)}
         />
         {#if noteAt?.day === i}
           {#key noteAt.slot}
@@ -513,6 +566,10 @@
       {/if}
     </section>
   {/each}
+{/if}
+
+{#if mode === "sessions" || version < 2}
+  <DraftEditDock {editor} {draft} labels={roleLabels.all} variant="page" />
 {/if}
 
 <div class="more">
@@ -594,6 +651,12 @@
   .base { width: auto; }
   .count { font-size: 13px; }
   .ask { margin-left: auto; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .select-toggle, .edit-lock { margin-left: auto; }
+  .select-toggle ~ .ask, .edit-lock ~ .ask { margin-left: 8px; }
+  .select-toggle :global(svg) { width: 14px; height: 14px; }
+  .select-toggle[aria-pressed="true"] { background: var(--hover-ink); color: var(--on-ink); border-color: var(--hover-ink); }
+  .edit-lock { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .edit-lock :global(svg) { width: 12px; height: 12px; }
   .ask :global(svg) { width: 14px; height: 14px; }
 
   .day { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }

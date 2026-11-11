@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { DEFAULT_PROVIDER_ID, selectExamples } from "@pt/shared";
-  import type { ClientDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
+  import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
@@ -227,6 +227,12 @@
     const child = await api.savePhasing(gen.id, phasing);
     allGens = [child, ...allGens.filter((g) => g.id !== child.id)];
     gen = child;
+  }
+
+  /** A hand edit saved the next version: it becomes the one under review. */
+  function showEdit({ generation }: DraftEditResultDto) {
+    allGens = [generation, ...allGens.filter((g) => g.id !== generation.id)];
+    gen = generation;
   }
 
   /** A note applied as a revision: the new version becomes the one under review. */
@@ -662,6 +668,7 @@
     onreset={reset}
     onsaveplan={savePlan}
     onrevised={showRevision}
+    oneditsaved={showEdit}
   />
 {/if}
 
