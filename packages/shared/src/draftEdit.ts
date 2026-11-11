@@ -81,14 +81,93 @@ export interface DraftEditResult {
 /** Prefix of the chat line that tells the AI about a hand edit. */
 export const DRAFT_EDIT_NOTE_PREFIX = "Edited the draft by hand";
 
-/** Version-history label: "Edited by you: moved Plank to Session 2". */
-export function draftEditRevisionMessage(changes: string[]): string {
-  return `Edited by you: ${changes.join("; ")}`;
+const REVISION_PREFIX = "Edited by you: ";
+/** Longest version-history label before the rest is summarised as "…and N more". */
+const REVISION_MAX = 160;
+const REVISION_MORE = /\s…and (\d+) more$/;
+/** What a hand-edit version says once its edits cancel out. */
+export const DRAFT_EDIT_UNDONE = "changes undone";
+
+/**
+ * Version-history label: "Edited by you: moved Plank to Session 2". Kept short:
+ * changes past REVISION_MAX chars (plus `more` already hidden) read "…and N more".
+ */
+export function draftEditRevisionMessage(changes: string[], more = 0): string {
+  if (changes.length === 0 && more === 0) return `${REVISION_PREFIX}${DRAFT_EDIT_UNDONE}`;
+  const shown: string[] = [];
+  let len = 0;
+  for (const c of changes) {
+    // The first change always shows (cut if it alone is too long).
+    if (shown.length > 0 && len + 2 + c.length > REVISION_MAX) break;
+    shown.push(shown.length === 0 && c.length > REVISION_MAX ? `${c.slice(0, REVISION_MAX - 1)}…` : c);
+    len += (shown.length > 1 ? 2 : 0) + c.length;
+  }
+  const hidden = changes.length - shown.length + more;
+  if (shown.length === 0) return `${REVISION_PREFIX}${hidden} changes`;
+  return `${REVISION_PREFIX}${shown.join("; ")}${hidden > 0 ? ` …and ${hidden} more` : ""}`;
 }
 
+/** The changes a hand-edit label lists, and how many it summarised away. */
+export function parseDraftEditRevision(message: string | null | undefined): { changes: string[]; more: number } {
+  if (!message?.startsWith(REVISION_PREFIX)) return { changes: [], more: 0 };
+  let body = message.slice(REVISION_PREFIX.length);
+  const m = body.match(REVISION_MORE);
+  const more = m ? Number(m[1]) : 0;
+  if (m) body = body.slice(0, m.index);
+  if (body === DRAFT_EDIT_UNDONE || body === "") return { changes: [], more };
+  return { changes: body.split("; "), more };
+}
+
+export interface DraftEditNoteOpts {
+  /** A later note for the same version (the trainer chatted in between). */
+  continued?: boolean;
+  /** The edits cancel out: the version shows the same as the one before it. */
+  undone?: boolean;
+}
+
+const NOTE_HEAD = new RegExp(`^${DRAFT_EDIT_NOTE_PREFIX} \\(v(\\d+)(, continued)?\\): `);
+const undoneBody = (version: number) => `${DRAFT_EDIT_UNDONE}, the draft is back to v${version - 1}`;
+
 /** Chat line the AI reads: "Edited the draft by hand (v3): moved Plank to Session 2." */
-export function draftEditNote(version: number, changes: string[]): string {
-  return `${DRAFT_EDIT_NOTE_PREFIX} (v${version}): ${changes.join("; ")}.`.slice(0, 4000);
+export function draftEditNote(version: number, changes: string[], opts: DraftEditNoteOpts = {}): string {
+  const head = `${DRAFT_EDIT_NOTE_PREFIX} (v${version}${opts.continued ? ", continued" : ""})`;
+  const body = opts.undone ? undoneBody(version) : changes.join("; ");
+  return `${head}: ${body}.`.slice(0, 4000);
+}
+
+/** Read a hand-edit note back: its version, whether it continues one, and its changes. */
+export function parseDraftEditNote(content: string): { version: number; continued: boolean; changes: string[] } | null {
+  const m = content.match(NOTE_HEAD);
+  if (!m) return null;
+  const version = Number(m[1]);
+  const body = content.slice(m[0].length).replace(/\.$/, "");
+  const changes = body === "" || body === undoneBody(version) ? [] : body.split("; ");
+  return { version, continued: !!m[2], changes };
+}
+
+/**
+ * Fold one more hand edit into the latest hand-edit version instead of a new
+ * one. `lastNote` = the version's edit note when it is still the newest chat
+ * line (it is rewritten); null when the trainer chatted since (a new
+ * "continued" note is added). `same` = the version now shows the same as its
+ * parent: kept, but labelled "changes undone".
+ */
+export function foldDraftEdit(opts: {
+  version: number;
+  revisionMessage: string | null | undefined;
+  lastNote: string | null;
+  changes: string[];
+  same: boolean;
+}): { revisionMessage: string; note: string } {
+  const prev = parseDraftEditRevision(opts.revisionMessage);
+  const before = opts.lastNote ? parseDraftEditNote(opts.lastNote) : null;
+  const continued = opts.lastNote ? (before?.continued ?? false) : true;
+  return {
+    revisionMessage: opts.same
+      ? `${REVISION_PREFIX}${DRAFT_EDIT_UNDONE}`
+      : draftEditRevisionMessage([...prev.changes, ...opts.changes], prev.more),
+    note: draftEditNote(opts.version, [...(before?.changes ?? []), ...opts.changes], { continued, undone: opts.same }),
+  };
 }
 
 // ---------------------------------------------------------------------------

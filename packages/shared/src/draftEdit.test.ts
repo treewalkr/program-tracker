@@ -8,6 +8,9 @@ import {
   DraftEditOps,
   draftEditNote,
   draftEditRevisionMessage,
+  foldDraftEdit,
+  parseDraftEditNote,
+  parseDraftEditRevision,
   leaveSuperset,
   moveDraftExercise,
   moveToSession,
@@ -310,6 +313,53 @@ describe("refs and wording", () => {
     expect(draftEditRevisionMessage(changes)).toBe(
       "Edited by you: moved Plank to Session 2; superset A in Session 1: Box Jump + Plank"
     );
+  });
+
+  test("a long revision message is summarised as …and N more, and reads back", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `moved Exercise Number ${i + 1} to Session 2`);
+    const msg = draftEditRevisionMessage(many);
+    expect(msg.length).toBeLessThan(200);
+    expect(msg).toMatch(/ …and \d+ more$/);
+    const back = parseDraftEditRevision(msg);
+    expect(back.changes.length + back.more).toBe(12);
+    expect(back.changes[0]).toBe(many[0]);
+    expect(draftEditRevisionMessage(back.changes, back.more)).toBe(msg);
+    expect(parseDraftEditRevision("Edited by you: changes undone")).toEqual({ changes: [], more: 0 });
+    expect(parseDraftEditRevision("Block plan edited by you")).toEqual({ changes: [], more: 0 });
+  });
+
+  test("notes read back, continued or undone", () => {
+    expect(parseDraftEditNote(draftEditNote(4, ["a", "b"]))).toEqual({ version: 4, continued: false, changes: ["a", "b"] });
+    const cont = draftEditNote(5, ["c"], { continued: true });
+    expect(cont).toBe("Edited the draft by hand (v5, continued): c.");
+    expect(parseDraftEditNote(cont)).toEqual({ version: 5, continued: true, changes: ["c"] });
+    const undone = draftEditNote(5, ["c"], { undone: true });
+    expect(undone).toBe("Edited the draft by hand (v5): changes undone, the draft is back to v4.");
+    expect(parseDraftEditNote(undone)?.changes).toEqual([]);
+    expect(parseDraftEditNote("Why is this better?")).toBeNull();
+  });
+
+  test("folding accumulates the label and the note", () => {
+    const first = { revisionMessage: draftEditRevisionMessage(["a"]), note: draftEditNote(3, ["a"]) };
+    const inPlace = foldDraftEdit({ version: 3, revisionMessage: first.revisionMessage, lastNote: first.note, changes: ["b"], same: false });
+    expect(inPlace).toEqual({ revisionMessage: "Edited by you: a; b", note: "Edited the draft by hand (v3): a; b." });
+
+    const after = foldDraftEdit({ version: 3, revisionMessage: inPlace.revisionMessage, lastNote: null, changes: ["c"], same: false });
+    expect(after).toEqual({ revisionMessage: "Edited by you: a; b; c", note: "Edited the draft by hand (v3, continued): c." });
+
+    const more = foldDraftEdit({ version: 3, revisionMessage: after.revisionMessage, lastNote: after.note, changes: ["d"], same: false });
+    expect(more.note).toBe("Edited the draft by hand (v3, continued): c; d.");
+
+    const undone = foldDraftEdit({ version: 3, revisionMessage: more.revisionMessage, lastNote: more.note, changes: ["undid the last hand edit"], same: true });
+    expect(undone).toEqual({
+      revisionMessage: "Edited by you: changes undone",
+      note: "Edited the draft by hand (v3, continued): changes undone, the draft is back to v2.",
+    });
+    // Editing on from "changes undone" starts a fresh list.
+    expect(foldDraftEdit({ version: 3, revisionMessage: undone.revisionMessage, lastNote: undone.note, changes: ["e"], same: false })).toEqual({
+      revisionMessage: "Edited by you: e",
+      note: "Edited the draft by hand (v3, continued): e.",
+    });
   });
 
   test("works on proxied drafts (Svelte $state), which structuredClone refuses", () => {
