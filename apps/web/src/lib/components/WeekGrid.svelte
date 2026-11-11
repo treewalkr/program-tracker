@@ -222,6 +222,8 @@
       <div class="hist-days" onkeydown={(e) => rove(e, s)} role="group" aria-label={`${s.client.name}, earlier weeks`}>
         {#each s.weeks.slice(0, -1) as w (w[0].date)}
           <div class="hw">
+            <span class="hw-date" aria-hidden="true">{shortDate(w[0].date)}</span>
+            <div class="hw-days">
             {#each w as d (d.date)}
               {#if marks(d)}
                 <button
@@ -246,6 +248,7 @@
                 <span class="sq rest" aria-hidden="true"></span>
               {/if}
             {/each}
+            </div>
           </div>
         {/each}
       </div>
@@ -488,7 +491,10 @@
   /* Past weeks */
   .hist[role="cell"] { padding-right: 12px; }
   .hist-days { display: flex; gap: 5px; }
-  .hw { display: flex; gap: var(--sq-gap); }
+  .hw { display: flex; flex-direction: column; }
+  .hw-days { display: flex; gap: var(--sq-gap); }
+  /* The week-start date over each narrow history week (the wide header carries them otherwise). */
+  .hw-date { display: none; font: 400 11px/14px var(--font-mono); color: var(--faint); text-align: right; margin-bottom: 2px; }
   .sq {
     width: var(--sq);
     height: var(--sq);
@@ -721,6 +727,7 @@
     /* 48px cells: a two-line tag plus the word would stack three lines. Fill and
        edge carry the state; the word is in the label, tooltip and legend. */
     .cell .state { display: none; }
+    .hw-date { display: block; }
     .wk-head .hist {
       position: absolute;
       width: 1px;
