@@ -1682,6 +1682,27 @@ describe("revision conversation threading", () => {
 });
 
 describe("draftToText shows rest and duration", () => {
+  test("superset members carry their tag", () => {
+    const set = { setNumber: 1, type: "working" as const, reps: 8, amrap: false };
+    const text = draftToText({
+      name: "B",
+      rationale: "",
+      clientSummary: "",
+      sessions: [
+        {
+          name: "Day A",
+          kind: "lifting",
+          exercises: [
+            { exerciseName: "Curl", group: "A", prescribedSets: [set] },
+            { exerciseName: "Pushdown", group: "A", prescribedSets: [set] },
+            { exerciseName: "Plank", prescribedSets: [set] },
+          ],
+        },
+      ],
+    });
+    expect(text).toContain("A1 Curl [8 reps], A2 Pushdown [8 reps], Plank [8 reps]");
+  });
+
   const withSets = (sets: Array<{ setNumber: number; type: "working"; reps: number; amrap: boolean; durationSeconds?: number; targetRpe?: number; restSeconds?: number }>): AiProgramDraft => ({
     name: "Block",
     rationale: "",

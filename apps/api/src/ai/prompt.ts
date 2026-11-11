@@ -772,8 +772,10 @@ export function draftToText(d: AiProgramDraft): string {
     d.rationale,
     ...d.sessions.map((s) => {
       const exercises = s.exercises
-        .map((e) => {
-          const name = e.exerciseName ?? e.exerciseId ?? "";
+        .map((e, i) => {
+          // Superset tag ("A1 "), so a revision keeps the trainer's groups.
+          const tag = groupTag(s.exercises, i);
+          const name = `${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}`;
           const sets = e.prescribedSets.map((ps) => {
             const amount = ps.durationSeconds != null ? `${ps.durationSeconds}s` : `${ps.reps}${ps.amrap ? "+" : ""} reps`;
             const rpe = ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : "";
