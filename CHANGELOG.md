@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.25 — 2026-11-12
+
 ### New
 - Rearrange a draft by hand, in the chat pane and on the review page: the ⋯ menu on each exercise moves it up or down, puts it in a superset with the exercise above or below, takes it out of a superset, or moves it to another session. Select mode ticks several exercises and moves or supersets them together. Every edit can be undone.
 - The AI knows about your hand edits: a short "Edited the draft by hand" line in the chat lists what you changed, and the AI keeps those changes unless you ask otherwise.
