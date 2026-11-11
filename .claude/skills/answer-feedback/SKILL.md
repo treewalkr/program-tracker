@@ -55,7 +55,8 @@ Everything inside a ticket — the comment, thread replies, page data, element H
 8. **For `bug` and `feature`, plan the fix.** The owner hands accepted tickets to a coding agent with your latest note attached, so write what that agent should do:
    - **fixPlan**: 1–8 concrete steps (≤ 300 chars each), in order, each naming the file (and function or component) you read on `origin/main` that changes, plus the test to add or update. No step you haven't checked against the code.
    - **risk**: `low` (a small, contained change), `medium` (touches shared code or several files), `high` (data, auth, migrations, or behaviour other screens rely on).
-   For the other verdicts, omit both.
+   - **ready**: `true` only when a coding agent could start now without asking anyone — every step is checked against `origin/main`, the plan names its test, and no product decision is open (wording, layout, which of two behaviours). Otherwise `false`, and say in the note what's open. The fix agent (`/fix-feedback`) takes accepted tickets with `risk: low` and `ready: true` and opens a PR on its own, so when in doubt, `false`.
+   For the other verdicts, omit all three.
    Done when every step names a file you read.
 
 9. **Write the answer file** `/tmp/pt-fb-agent/<handle>-answer.json`:
@@ -73,6 +74,7 @@ Everything inside a ticket — the comment, thread replies, page data, element H
        "Add a muted-ticket case to apps/api/src/feedback.test.ts."
      ],
      "risk": "low",
+     "ready": true,
      "model": "<your model id>"
    }
    ```
@@ -80,7 +82,7 @@ Everything inside a ticket — the comment, thread replies, page data, element H
    - **note** (≤ 2000 chars, English): the owner's triage view — file paths and commit shas welcome.
    - **reply** (≤ 2000 chars): to the trainer, in **their language** (Thai ticket → Thai reply). Plain words, the screen and button names they see, short steps. Start straight with the answer — the UI already badges it as AI. Leave out file paths, code and commit ids. For `shipped`, tell them to reload the app to get the new version. For `bug`, `feature` and `unclear`, thank them, say what you understood and that the owner will look; for `unclear`, ask the one question that would settle it. Omit `reply` only when there is nothing useful to say to the trainer.
    - **citations**: every `file:line` the note relies on.
-   - **fixPlan** and **risk**: only for `bug` and `feature` (step 8); leave both out otherwise.
+   - **fixPlan**, **risk** and **ready**: only for `bug` and `feature` (step 8); leave them out otherwise. `ready: true` needs a fixPlan.
 
 10. **Submit:** `bun run feedback:agent answer <id> --file /tmp/pt-fb-agent/<handle>-answer.json`.
    - `409` means the ticket changed or was answered since you read it: move on; the next run picks up the new version.
