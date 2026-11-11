@@ -590,15 +590,9 @@
               {@const note = noteState[item.id]}
               <div class="triage-box">
                 <div class="triage">
-                  <label for="fb-note-{item.id}">Triage note <span class="muted">— private, read by the agent</span></label>
-                  <textarea
-                    id="fb-note-{item.id}"
-                    rows="2"
-                    bind:value={notes[item.id]}
-                    onblur={() => saveNote(item)}
-                    placeholder="e.g. Yes — show warm-up sets as muted chips"
-                  ></textarea>
-                  <p class="note-state" class:bad={note?.kind === "error"} aria-live="polite">
+                  <div class="note-head">
+                    <label for="fb-note-{item.id}">Triage note <span class="muted">— private, read by the agent</span></label>
+                    <p class="note-state" class:bad={note?.kind === "error"} aria-live="polite">
                     {#if note?.kind === "saving"}
                       Saving…
                     {:else if note?.kind === "saved"}
@@ -607,7 +601,15 @@
                       Not saved: {note.message}
                       <button type="button" class="linkish" onclick={() => saveNote(item)}>Retry</button>
                     {/if}
-                  </p>
+                    </p>
+                  </div>
+                  <textarea
+                    id="fb-note-{item.id}"
+                    rows="2"
+                    bind:value={notes[item.id]}
+                    onblur={() => saveNote(item)}
+                    placeholder="e.g. Yes — show warm-up sets as muted chips"
+                  ></textarea>
                 </div>
                 <div class="actions">
                 {#if item.status === "new"}
@@ -960,9 +962,16 @@
   .triage .muted {
     font-weight: 400;
   }
+  /* Label left, save state right: "Saving…" / "Saved" / the error never shifts the layout. */
+  .note-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 12px;
+  }
   .note-state {
-    min-height: 1.2em;
-    margin: 2px 0 0;
+    margin: 0;
     font: 400 12px/1.4 var(--font-ui);
     color: var(--muted);
   }
