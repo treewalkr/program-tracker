@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.23 — 2026-11-11
+
 ### New
 - Program sessions are easier to scan. Each session is its own card with a header band, exercise rows alternate shading, and a superset or circuit is one framed block with its rounds in the header. This applies on the client's program tab, the draft chat preview and the draft review.
 - In the narrower chat preview, set chips stay on the same line as the exercise name when they fit.
