@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.22 — 2026-11-11
+
 ### New
 - Duplicate feedback tickets: a ticket can be linked to an earlier one about the same thing. It shows "Duplicate of FB-nnn", and when the original is fixed or closed, its duplicates close with it and their reporters are told.
 - For admins: each ticket shows whether it's ready for an automatic fix, and links to the fix's pull request once one exists.
