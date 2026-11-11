@@ -42,6 +42,7 @@ import { toProgramDto } from "./programs";
 import { loadContext } from "../lib/context";
 import { runRevision } from "../lib/revision";
 import { savePhasingEdit } from "../lib/phasing-edit";
+import { saveDraftEdit } from "../lib/draft-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 
 /** Approve verdict: unedited when the approved week matches the AI draft, else edited with the diff. */
@@ -460,6 +461,23 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     {
       params: t.Object({ id: t.String() }),
       body: t.Object({ phasing: t.Unknown() }),
+    }
+  )
+  /**
+   * Save a hand edit (move, superset, move to session, undo) as the next draft
+   * version (no AI call). Ops replay on the stored draft (@pt/shared draftEdit);
+   * `undo` is the op list that puts the previous version back.
+   */
+  .post(
+    "/generations/:id/edit",
+    async ({ params, body, status }) => {
+      const res = await saveDraftEdit(params.id, body.ops);
+      if (!res.ok) return status(res.status, { error: res.error, ...(res.issues ? { issues: res.issues } : {}) });
+      return status(201, { generation: res.generation, message: res.message, undo: res.undo });
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({ ops: t.Array(t.Unknown(), { minItems: 1, maxItems: 20 }) }),
     }
   )
   .post(

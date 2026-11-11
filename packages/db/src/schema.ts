@@ -418,8 +418,8 @@ export const chatMessages = pgTable("chat_messages", {
     .references(() => clients.id, { onDelete: "cascade" }),
   /** "trainer" = the human; "assistant" = the AI. */
   role: text("role").$type<"trainer" | "assistant">().notNull(),
-  /** chat = plain Q&A · revision = trainer's revise send · draft = draft-ready notice · error = failed call · proposal = AI-proposed change list awaiting Build. */
-  kind: text("kind").$type<"chat" | "revision" | "draft" | "error" | "proposal">().notNull().default("chat"),
+  /** chat = plain Q&A · revision = trainer's revise send · draft = draft-ready notice · error = failed call · proposal = AI-proposed change list awaiting Build · edit = trainer's hand edit of a draft (no AI call). */
+  kind: text("kind").$type<"chat" | "revision" | "draft" | "error" | "proposal" | "edit">().notNull().default("chat"),
   content: text("content").notNull(),
   /** Generation this message concerns (revision sends and their draft/error replies). */
   generationId: uuid("generation_id").references((): AnyPgColumn => aiGenerations.id, {

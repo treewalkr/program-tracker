@@ -251,7 +251,7 @@ export type AiClientMessageDraft = z.infer<typeof AiClientMessageDraft>;
 
 export const CHAT_ROLES = ["trainer", "assistant"] as const;
 export type ChatRole = (typeof CHAT_ROLES)[number];
-export const CHAT_MESSAGE_KINDS = ["chat", "revision", "draft", "error", "proposal"] as const;
+export const CHAT_MESSAGE_KINDS = ["chat", "revision", "draft", "error", "proposal", "edit"] as const;
 export type ChatMessageKind = (typeof CHAT_MESSAGE_KINDS)[number];
 
 export const ChatMessage = z.object({
