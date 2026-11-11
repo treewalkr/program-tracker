@@ -40,7 +40,11 @@
 		| 'more'
 		| 'swap'
 		| 'skip'
-		| 'undo';
+		| 'undo'
+		| 'arrow-up'
+		| 'arrow-down'
+		| 'arrow-right'
+		| 'unlink';
 </script>
 
 <script lang="ts">
@@ -143,6 +147,13 @@
 		swap: { d: 'm16 3 4 4-4 4M20 7H4', d2: 'm8 21-4-4 4-4M4 17h16' },
 		skip: { d: 'm5.7 5.7 12.6 12.6', circle: { cx: 12, cy: 12, r: 9 } },
 		undo: { d: 'M9 14 4 9l5-5', d2: 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11' },
+		'arrow-up': { d: 'M12 19V5', d2: 'm6 11 6-6 6 6' },
+		'arrow-down': { d: 'M12 5v14', d2: 'm6 13 6 6 6-6' },
+		'arrow-right': { d: 'M5 12h14', d2: 'm13 6 6 6-6 6' },
+		unlink: {
+			d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',
+			d2: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71M3 3l18 18',
+		},
 	};
 
 	const icon = $derived(ICONS[name]);

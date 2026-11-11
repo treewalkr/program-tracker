@@ -8,6 +8,8 @@
     hint?: string;
     disabled?: boolean;
     tone?: "danger";
+    /** Group heading shown above the first item of a run with this section ("Move to"). */
+    section?: string;
     onselect: () => void;
   }
 </script>
@@ -26,11 +28,16 @@
     items: OverflowItem[];
     /** The trigger's accessible name: "More actions for Bench press". */
     label: string;
-    /** Visible trigger word beside the dots; omit for an icon-only trigger. */
+    /** Visible trigger word beside the icon; omit for an icon-only trigger. */
     text?: string;
+    /** Trigger icon (default the ⋯ dots). */
+    icon?: IconName;
+    /** Trigger button classes (default a small ghost button). */
+    triggerClass?: string;
+    disabled?: boolean;
   }
 
-  let { items, label, text }: Props = $props();
+  let { items, label, text, icon = "more", triggerClass = "btn ghost small", disabled = false }: Props = $props();
 
   const uid = $props.id();
   const menuId = `overflow-${uid}`;
@@ -115,7 +122,7 @@
 
 <button
   type="button"
-  class="btn ghost small trigger"
+  class="{triggerClass} trigger"
   class:open
   class:icon-only={!text}
   bind:this={trigger}
@@ -123,9 +130,10 @@
   aria-expanded={open}
   aria-controls={menuId}
   aria-label={label}
+  {disabled}
   onclick={toggle}
 >
-  <Icon name="more" />
+  <Icon name={icon} />
   {#if text}<span>{text}</span>{/if}
 </button>
 
@@ -142,7 +150,10 @@
   ontoggle={onToggle}
   onkeydown={onKey}
 >
-  {#each items as item (item.label)}
+  {#each items as item, i (item.label)}
+    {#if item.section && item.section !== items[i - 1]?.section}
+      <div class="section" role="presentation">{item.section}</div>
+    {/if}
     <button
       type="button"
       class="item"
@@ -210,6 +221,14 @@
   .item:disabled :global(svg) { color: var(--faint); }
   .item.danger { color: var(--bad); }
   .item.danger :global(svg) { color: var(--bad); }
+  .section {
+    padding: 8px 8px 4px;
+    border-top: 1px solid var(--line);
+    margin-top: 4px;
+    font: 500 12px/1.2 var(--font-ui);
+    color: var(--muted);
+  }
+  .section:first-child { border-top: 0; margin-top: 0; }
   .hint { margin-left: auto; padding-left: 16px; font-size: 12px; color: var(--muted); }
 
   /* Touch: rows a thumb can hit. */
