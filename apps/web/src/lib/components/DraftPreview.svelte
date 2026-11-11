@@ -215,7 +215,12 @@
     overscroll-behavior: contain;
     position: relative;
   }
+  /* session cards on the canvas, a gap between each */
   .body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
     transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .body.dim {
@@ -223,9 +228,6 @@
   }
   .body :global(.session-body) {
     --row-pad-l: 24px;
-  }
-  .session-slot + .session-slot {
-    border-top: 1px solid var(--line);
   }
   .body :global(.exrow.flash) {
     animation: flash 1.6s cubic-bezier(0.16, 1, 0.3, 1);

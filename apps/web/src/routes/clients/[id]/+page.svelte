@@ -1034,12 +1034,13 @@
   }
 
   .week-line { margin: 10px 16px 2px; font-size: 13px; color: var(--muted); }
+  /* day label over that day's session cards; the cards themselves separate sessions */
+  .day-h ~ :global(.session) { margin: 8px 14px 0; }
   .day-h {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 12px 14px 0;
-    border-top: 1px solid var(--line);
+    padding: 16px 14px 0;
     font-size: 12px;
     color: var(--muted);
   }

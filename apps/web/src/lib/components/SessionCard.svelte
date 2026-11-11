@@ -137,10 +137,10 @@
           <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} {cols} />
         </div>
       {/snippet}
-      <!-- stripes alternate per unit: a superset shares one tint, so the band itself groups it -->
-      {#each units as u, ui (u.start)}
+      <!-- rows stripe by exercise index; a superset is one framed, tinted block that pauses them -->
+      {#each units as u (u.start)}
         {#if u.group}
-          <div class="xgroup" class:stripe={ui % 2 === 1} role="group" aria-label="{groupKind(u.items.length)} {u.group}">
+          <div class="xgroup" role="group" aria-label="{groupKind(u.items.length)} {u.group}">
             <div class="grouphead">
               <span><span class="gletter">{u.group}</span><strong>{groupKind(u.items.length)}</strong></span>
               <span class="rounds">{u.items[0].sets.length} {u.items[0].sets.length === 1 ? "round" : "rounds"}</span>
@@ -148,7 +148,7 @@
             {#each u.items as e, k (u.start + k)}{@render exrow(e, u.start + k)}{/each}
           </div>
         {:else}
-          {@render exrow(u.items[0], u.start, ui % 2 === 1)}
+          {@render exrow(u.items[0], u.start, u.start % 2 === 1)}
         {/if}
       {/each}
     </div>
@@ -210,22 +210,37 @@
     white-space: nowrap;
     margin-left: 6px;
   }
-  /* a superset/circuit: one stripe band under a header band; members split
-     by full hairlines so the band reads as one unit. Rows stay on the card's columns. */
+  /* a superset/circuit: one Well-tinted block framed by strong hairlines,
+     header band on top, members split by hairlines (no stripes inside).
+     Rows stay on the card's columns. */
   .xgroup {
     display: flex;
     flex-direction: column;
+    background: var(--well);
+    border-top: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .xgroup + .xgroup {
+    border-top: 0;
+  }
+  .xgroup:last-child {
+    border-bottom: 0;
   }
   .xgroup > :global(.exrow + .exrow) {
     border-top: 1px solid var(--line);
+  }
+  /* A1/A2 lift off the tint so the order reads first */
+  .xgroup :global(.gtag) {
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--line-strong);
   }
   .grouphead {
     display: flex;
     justify-content: space-between;
     gap: 8px;
     padding: 5px 14px 5px var(--row-pad-l, 14px);
-    background: var(--well);
-    border-bottom: 2px solid var(--line-soft);
+    border-bottom: 1px solid var(--line);
     font: 500 12px/1.4 var(--font-ui);
     color: var(--muted);
   }
@@ -277,7 +292,6 @@
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
   /* column labels over the aligned set chips; tight to the first row */
   .colhead { padding-top: 6px; padding-bottom: 0; }
-  .session-body > :global(.colhead + *) { border-top: 0; }
   .legend { font: 400 11px/1.6 var(--font-mono); }
   /* stacked rows (app.css): a tag that wraps starts flush with the role chip;
      chips no longer form columns, so the labels go */

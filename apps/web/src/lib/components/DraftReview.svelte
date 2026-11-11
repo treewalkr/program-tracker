@@ -604,6 +604,8 @@
   .day.has-why .day-main { flex: 1 1 520px; }
   .day.has-why .why { flex: 1 0 300px; border-left: 0; box-shadow: -1px -1px 0 var(--line); }
   .day :global(.session-body) { --row-pad-l: 24px; }
+  /* the day article is already the card: the session inside drops its own frame */
+  .day :global(.session) { border: 0; border-radius: 0; }
   .day-main { min-width: 0; }
   .note-slot { padding: 0 14px 14px 24px; }
   .why { border-left: 1px solid var(--line); background: var(--well); padding: 12px 16px; font-size: 13px; line-height: 1.55; }

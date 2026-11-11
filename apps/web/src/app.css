@@ -792,12 +792,23 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 
 /* —— program sessions (client detail, drafts) */
 
+/* Each session is its own card: Well header band over its exercise rows.
+   Lists put a canvas gap between cards, so a session never reads as a row. */
+.session {
+  container: session / inline-size;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.session + .session { margin-top: 10px; }
 .session-head {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--line-soft);
+  padding: 10px 14px;
+  background: var(--well);
+  border-bottom: 1px solid var(--line);
 }
 .session-head h3 { margin: 0; }
 .session-head .when {
@@ -822,17 +833,15 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .session-head .cond svg { width: 10px; height: 10px; fill: currentColor; flex: none; }
 /* A cardio-only card's line is the whole body: let it wrap on a narrow card
    instead of pushing the page sideways. */
+.session-head.cond-row { background: none; border-bottom: none; }
 .cond-row .cond { margin-left: 0; white-space: normal; min-width: 0; line-height: 1.35; align-items: flex-start; }
 .cond-row .cond svg { margin-top: 3px; }
-/* The body is one striped table: each unit (a lone exercise, or a whole
-   superset/circuit) is a flush row band, alternate units tinted (`.stripe`).
-   Rows own their padding; --row-pad-l widens the left gutter where the
-   chat preview draws change marks. */
+/* The body is one striped table: exercise rows alternate (`.stripe`, by
+   exercise index). A superset/circuit is one framed, tinted block that
+   pauses the stripes (SessionCard). Rows own their padding; --row-pad-l
+   widens the left gutter where the chat preview draws change marks. */
 .session-body { display: flex; flex-direction: column; --row-pad-l: 14px; }
-.session-body > * + * { border-top: 1px solid var(--line-soft); }
 .session-body > .stripe { background: var(--well-2); }
-.session { container: session / inline-size; }
-.session + .session { border-top: 1px solid var(--line); }
 .exrow { display: grid; grid-template-columns: minmax(min(16rem, 55%), 1fr) minmax(0, auto); gap: 12px; align-items: center; padding: 7px 14px 7px var(--row-pad-l); }
 /* wraps so tags drop a line instead of squeezing the name to a letter per line */
 .exrow .ex { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 500; font-size: 14px; min-width: 0; }
