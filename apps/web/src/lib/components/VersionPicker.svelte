@@ -171,7 +171,8 @@
         <Icon name={r.by === "you" ? "pencil" : "sparkle"} />{r.by === "you" ? "You" : "AI"}
       </span>
       <span class="label">{r.label}</span>
-      {#if r.version === latest}<span class="latest">latest</span>{/if}
+      <!-- The trigger already says "latest" while it is shown; the chip helps find it from an older one. -->
+      <span>{#if r.version === latest && !isLatest}<span class="latest">latest</span>{/if}</span>
       <span class="tick" aria-hidden="true">{#if r.version === current}<Icon name="check" />{/if}</span>
     </button>
   {/each}
@@ -248,7 +249,8 @@
 
   .row {
     display: grid;
-    grid-template-columns: 3.2ch auto minmax(0, 1fr) auto 16px;
+    /* vN · who · label · latest · tick — fixed lead columns so labels line up. */
+    grid-template-columns: 3.4ch 3.6em minmax(0, 1fr) auto 16px;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -276,7 +278,7 @@
     cursor: default;
     color: var(--muted);
     background: var(--pulse-now-bg);
-    grid-template-columns: 3.2ch auto minmax(0, 1fr);
+    grid-template-columns: 3.4ch 3.6em minmax(0, 1fr);
   }
   .by {
     display: inline-flex;
