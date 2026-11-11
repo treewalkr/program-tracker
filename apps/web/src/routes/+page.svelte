@@ -15,7 +15,7 @@
   } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
-  import WeekGrid from "$lib/components/WeekGrid.svelte";
+  import WeekBoard from "$lib/components/WeekBoard.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import WeekGridSkeleton from "$lib/components/WeekGridSkeleton.svelte";
@@ -118,7 +118,7 @@
 {:else}
   <Panel class="week-panel" title="Training week" count={rowsReady ? weekCount : undefined}>
     {#if rowsReady}
-      <WeekGrid {strips} {today} />
+      <WeekBoard {strips} {today} />
     {:else if loadError}
       <p class="clear err">Couldn't load sessions — {loadError}. <Button small onclick={load}>Try again</Button></p>
     {:else}
