@@ -358,10 +358,12 @@
     margin-left: auto;
     font-size: 12px;
   }
+  /* The reporter's words in a well — no left-edge stripe. */
   blockquote {
     margin: 0;
-    padding: 2px 0 2px 10px;
-    border-left: 3px solid var(--line-strong);
+    padding: 6px 10px;
+    background: var(--well);
+    border-radius: var(--radius);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
