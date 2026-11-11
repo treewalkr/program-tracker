@@ -17,8 +17,9 @@
   /**
    * The reporter's 👍/👎 on one sent AI answer, under it in the thread. Same
    * shape as the AI-output Verdict: two quiet icon buttons; 👍 saves at once,
-   * 👎 opens a small tray for quick tags and an optional comment. A new
-   * rating replaces the old. Anyone else on the ticket (the admin) sees the
+   * 👎 opens a small tray for quick tags and an optional comment (its summary
+   * reopens it to edit). A new rating replaces the old; clicking the chosen
+   * thumb again takes it back. Anyone else on the ticket (the admin) sees the
    * reporter's rating read-only, or nothing when there is none.
    */
   interface Props {
@@ -32,9 +33,9 @@
   }
   let { itemId, answer, reporterName = null, onchange }: Props = $props();
 
-  /** Saved here before the parent refreshes `answer`. */
-  let saved = $state<FeedbackAnswerRating | null>(null);
-  const rating = $derived(saved ?? answer.aiPublic?.rating ?? null);
+  /** Saved (or removed: null) here before the parent refreshes `answer`. */
+  let saved = $state<FeedbackAnswerRating | null | undefined>(undefined);
+  const rating = $derived(saved !== undefined ? saved : (answer.aiPublic?.rating ?? null));
   const canRate = $derived(answer.aiPublic?.canRate ?? false);
   const isUp = $derived(rating?.score === 1);
   const isDown = $derived(rating?.score === -1);
@@ -64,10 +65,26 @@
     }
   }
 
+  async function clear() {
+    saving = true;
+    error = null;
+    try {
+      const next = await feedbackApi.unrateAnswer(itemId, answer.id);
+      saved = null;
+      open = false;
+      thanked = false;
+      onchange?.(next);
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Not removed";
+    } finally {
+      saving = false;
+    }
+  }
+
   function up() {
-    if (isUp || saving) return;
+    if (saving) return;
     open = false;
-    void save(1);
+    void (isUp ? clear() : save(1));
   }
 
   function down() {
@@ -75,6 +92,15 @@
       open = false;
       return;
     }
+    if (isDown) {
+      void clear();
+      return;
+    }
+    edit();
+  }
+
+  /** Open the 👎 tray, filled from the saved rating when there is one. */
+  function edit() {
     tags = isDown ? [...rating!.tags] : [];
     comment = isDown ? (rating!.comment ?? "") : "";
     error = null;
@@ -94,8 +120,8 @@
         class="thumb"
         class:up={isUp}
         aria-pressed={isUp}
-        aria-label="Helpful"
-        title="Helpful"
+        aria-label={isUp ? "Remove rating" : "Helpful"}
+        title={isUp ? "Remove rating" : "Helpful"}
         disabled={saving}
         onclick={up}
       >
@@ -108,14 +134,14 @@
         class:open
         aria-pressed={isDown}
         aria-expanded={open}
-        aria-label="Not helpful"
-        title="Not helpful"
+        aria-label={isDown ? "Remove rating" : "Not helpful"}
+        title={isDown ? "Remove rating" : "Not helpful"}
         disabled={saving}
         onclick={down}
       >
         <Icon name="thumbs-down" />
       </button>
-      {#if summary}<span class="summary">{summary}</span>{/if}
+      {#if summary}<button type="button" class="summary" title="Edit what was wrong" disabled={saving} onclick={edit}>{summary}</button>{/if}
       {#if thanked && isDown && !open}<span class="thanks" role="status">Thanks — we'll take another look.</span>{/if}
       {#if error && !open}<span class="err" role="alert">{error}</span>{/if}
     </div>
@@ -213,6 +239,23 @@
     color: var(--bad);
     background: var(--bad-bg);
     border-color: var(--bad-line);
+  }
+  .summary {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .summary:hover:not(:disabled) {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .summary:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
   }
   .summary,
   .thanks {

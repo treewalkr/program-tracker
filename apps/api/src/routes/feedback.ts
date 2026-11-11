@@ -27,7 +27,7 @@ import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
-import { rateAnswer, recordDraftVerdict } from "../lib/feedback-answers";
+import { rateAnswer, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
 
@@ -466,6 +466,20 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       }),
       detail: { summary: "Rate an AI answer 👍/👎 (the ticket's reporter only)" },
     },
+  )
+  /** The reporter removes their rating. A 👎 that already re-ran the agent stays run. */
+  .delete(
+    "/:id/comments/:cid/rating",
+    async ({ params, status, who }) => {
+      const item = await getFeedback(params.id, who);
+      if (!item) return status(404, NOT_FOUND);
+      const answer = item.thread.find((c) => c.id === params.cid);
+      if (!answer?.aiPublic) return status(404, { error: "AI answer not found" });
+      if (!answer.aiPublic.canRate) return status(403, { error: "only the reporter can rate this answer" });
+      await unrateAnswer(answer.id);
+      return (await getFeedback(params.id, who))!;
+    },
+    { params: CommentParams, detail: { summary: "Remove the rating on an AI answer (the ticket's reporter only)" } },
   )
   /**
    * Admin: mark the ticket a duplicate of open ticket number `of`, or unlink

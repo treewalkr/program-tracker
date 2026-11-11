@@ -82,6 +82,19 @@ export async function rateAnswer(input: {
   });
 }
 
+/** The reporter takes their 👍/👎 back: every rating row on the answer goes. */
+export async function unrateAnswer(commentId: string): Promise<void> {
+  await db
+    .delete(llmFeedback)
+    .where(
+      and(
+        eq(llmFeedback.subjectKind, "feedback_answer"),
+        eq(llmFeedback.subjectId, commentId),
+        inArray(llmFeedback.signal, RATING_SIGNALS),
+      ),
+    );
+}
+
 /**
  * The owner sent or discarded an AI draft: an implicit verdict on it. An
  * edited send keeps the agent's original text (payload) and the sent text

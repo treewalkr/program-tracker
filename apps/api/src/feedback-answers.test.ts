@@ -255,6 +255,21 @@ describe.skipIf(!dbUp)("AI answer ratings and logging (API)", () => {
     expect((await asAdmin(id)).thread.find((c) => c.id === replyId)!.aiPublic!.rating!.score).toBe(1);
   });
 
+  test("the reporter can take a rating back; nobody else can", async () => {
+    const { id, replyId } = await answered("Where are my invoices?");
+    await rate(id, replyId, { score: -1, tags: ["wrong"] });
+    await rate(id, replyId, { score: 1 });
+    const unrate = (as: As = kai) => call("DELETE", `/v1/feedback/${id}/comments/${replyId}/rating`, undefined, as);
+    expect((await unrate("admin")).status).toBe(403);
+    expect((await unrate(lee)).status).toBe(404);
+    const ok = await unrate();
+    expect(ok.status).toBe(200);
+    expect(((await json(ok)) as FeedbackItem).thread.find((c) => c.id === replyId)!.aiPublic!.rating).toBeNull();
+    expect((await asAdmin(id)).thread.find((c) => c.id === replyId)!.aiPublic!.rating).toBeNull();
+    // nothing to remove is fine
+    expect((await unrate()).status).toBe(200);
+  });
+
   test("👎 sends the ticket back once, with the comment; the re-answer is always a draft", async () => {
     const { id, replyId } = await answered("How do I archive a client?");
     expect(await inInbox(id)).toBeUndefined();

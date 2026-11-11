@@ -114,6 +114,8 @@ export const feedbackApi = {
   /** The reporter's 👍 (1) or 👎 (-1, optional tags and comment) on a sent AI answer; replaces any earlier rating. */
   rateAnswer: async (id: string, cid: string, rating: RateAnswerBody) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).rating.put(rating))),
+  unrateAnswer: async (id: string, cid: string) =>
+    normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).rating.delete())),
   /** Admin: discard an AI draft or private note. */
   discardAi: async (id: string, cid: string) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).delete())),
