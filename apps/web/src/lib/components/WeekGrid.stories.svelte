@@ -3,7 +3,7 @@
   import { dayIntensityLevels } from '@pt/shared';
   import WeekGrid, { type ClientStrip, type StripDay, type StripSession } from './WeekGrid.svelte';
   import Panel from '$lib/ui/Panel.svelte';
-  import { GRACE_DAYS, LOOKBACK_DAYS, addDays, exceptionOrder, stripWeeks, weekCounter } from '$lib/overview';
+  import { GRACE_DAYS, LOOKBACK_DAYS, addDays, exceptionOrder, isPartial, stripWeeks, weekCounter } from '$lib/overview';
   import type { ClientDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -89,12 +89,14 @@
           sessions,
           volume: logged ? { basis: 'tonnage' as const, amount: Math.round(2500 + r() * 4000) } : null,
           level: 0,
+          partial: isPartial(sessions),
           openSessionId: sessions.find((s) => s.status !== 'logged')?.id ?? undefined,
         };
       })
     );
     const flat = days.flat();
     dayIntensityLevels(flat.map((d) => d.volume)).forEach((l, i) => (flat[i].level = l));
+    for (const d of flat) if (d.partial && d.level === 0) d.level = 1;
     const now = days[days.length - 1];
     const recent = flat.filter((d) => d.date >= lookFrom && d.date < today);
     const exception: ClientStrip['exception'] = recent.some((d) => d.status === 'missed')

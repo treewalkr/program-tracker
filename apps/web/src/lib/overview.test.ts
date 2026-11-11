@@ -329,3 +329,33 @@ test("labels read as full sentences", () => {
   expect(daySentence("Ada", current(s)[0])).toBe("Ada, Monday, Nov 2: Session 1 logged — 500 kg, usual day.");
   expect(daySentence("Ada", current(s)[2])).toBe("Ada, Wednesday, Nov 4: Session 2 logged Tue, Nov 3.");
 });
+
+describe("partly done days", () => {
+  // Thu 5 Nov: Mon holds two sessions.
+  const p = thisWeekOnly([session("a", 1, 1), session("a2", 1, 2, "cardio"), session("b", 3, 3)]);
+
+  test("one logged and one missed: partial, but the day still counts as missed", () => {
+    const s = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-05");
+    const mon = current(s)[0];
+    expect(mon.status).toBe("missed");
+    expect(mon.partial).toBe(true);
+    expect(mon.level).toBeGreaterThan(0);
+    expect(s.exception).toBe("missed");
+    expect(weekDayTally([s], "2026-11-05").missed).toBe(1);
+    expect(daySentence("Ada", mon)).toBe("Ada, Monday, Nov 2: Session 1 logged; Session 2 missed — 500 kg, usual day.");
+  });
+
+  test("one logged and one inside the grace period: partial, not logged", () => {
+    const s = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-04");
+    expect(current(s)[0]).toMatchObject({ status: "unlogged", partial: true });
+  });
+
+  test("all logged, nothing logged, or only due today/upcoming left: not partial", () => {
+    const all = buildClientStrip(client, p, [log("2026-11-02", "a"), log("2026-11-02", "a2")], weeks, "2026-11-05");
+    expect(current(all)[0]).toMatchObject({ status: "logged", partial: false });
+    const none = buildClientStrip(client, p, [], weeks, "2026-11-05");
+    expect(current(none)[0]).toMatchObject({ status: "missed", partial: false });
+    const today = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-02");
+    expect(current(today)[0]).toMatchObject({ status: "today", partial: false });
+  });
+});

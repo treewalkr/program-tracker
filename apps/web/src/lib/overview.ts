@@ -47,6 +47,9 @@ export interface StripDay {
   level: 0 | 1 | 2 | 3 | 4;
   /** The session the logger opens on: the day's first planned session not logged yet. */
   openSessionId?: string;
+  /** Partly done: something was logged, and a planned session is still missed or not logged.
+   *  Drawing only — `status` keeps the worst state for counting and sorting. */
+  partial: boolean;
 }
 
 /** missed → not logged yet → due today → on track → nothing this week. Missed and not-logged
@@ -238,6 +241,7 @@ export function buildClientStrip(
           weekday,
           status,
           sessions,
+          partial: isPartial(sessions),
           volume: date <= today ? dayVolume(dayLogs, timed) : null,
           level: 0,
           ...(open?.id ? { openSessionId: open.id } : {}),
@@ -249,7 +253,7 @@ export function buildClientStrip(
   const days = strip.weeks.flat();
   const levels = dayIntensityLevels(days.map((d) => d.volume));
   days.forEach((d, i) => {
-    d.level = d.status === "logged" && levels[i] === 0 ? 1 : levels[i];
+    d.level = (d.status === "logged" || d.partial) && levels[i] === 0 ? 1 : levels[i];
   });
 
   const now = strip.weeks[strip.weeks.length - 1];
@@ -264,6 +268,14 @@ export function buildClientStrip(
           ? "on-track"
           : "none";
   return strip;
+}
+
+/** ≥1 session logged and ≥1 planned session missed or not logged yet. */
+export function isPartial(sessions: StripSession[]): boolean {
+  return (
+    sessions.some((s) => s.status === "logged") &&
+    sessions.some((s) => s.planned && (s.status === "missed" || s.status === "unlogged"))
+  );
 }
 
 /** The look-back window: the `LOOKBACK_DAYS` before today, oldest first. */
