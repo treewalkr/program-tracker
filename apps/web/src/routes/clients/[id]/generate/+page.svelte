@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { DEFAULT_PROVIDER_ID, selectExamples } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, selectExamples } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -61,7 +61,15 @@
   let activateError = $state<string | null>(null);
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
   let weekMode = $state<number | null>(null);
-  let templates = $state<InstructionTemplateDto[]>([]);
+  /** Built-in rules first (read-only, ids `builtin:<key>`), then the trainer's own. */
+  const BUILTIN_TEMPLATES: InstructionTemplateDto[] = INSTRUCTION_PRESETS.map((p) => ({
+    id: `builtin:${p.key}`,
+    name: p.name,
+    content: p.content,
+    updatedAt: "",
+  }));
+  let own = $state<InstructionTemplateDto[]>([]);
+  const templates = $derived([...BUILTIN_TEMPLATES, ...own]);
   let learned = $state<string | null>(null);
   let periodContext = $state<string | null>(null);
   let selected = $state<string[]>([]);
@@ -366,7 +374,7 @@
     savingTpl = true;
     try {
       const tpl = await api.createInstructionTemplate({ name: tplName.trim(), content: instructions.trim() });
-      templates = [...templates, tpl];
+      own = [...own, tpl];
       tplName = "";
       instructions = "";
       selected = [...selected, tpl.id];
@@ -389,7 +397,7 @@
     programs = detail.programs;
     providers = (await api.providers()).filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
-    templates = await api.instructionTemplates();
+    own = await api.instructionTemplates();
 
     // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>&week=<targetWeek>
     const params = new URLSearchParams(page.url.search);
@@ -556,12 +564,11 @@
                 {t.name}
               </ToggleChip>
             {/each}
-            {#if templates.length}
-              <Button variant="ghost" small type="button" onclick={() => (peek = !peek)}>
-                {peek ? "Hide rules" : "Read rules"}
-              </Button>
-            {:else}
-              <span class="subtle">No templates yet — write a note above and save it as one.</span>
+            <Button variant="ghost" small type="button" onclick={() => (peek = !peek)}>
+              {peek ? "Hide rules" : "Read rules"}
+            </Button>
+            {#if own.length === 0}
+              <span class="subtle">Write a note above and save it as your own rule.</span>
             {/if}
             <a class="manage" href="/templates">Manage templates →</a>
           </div>

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api } from "$lib/api";
   import { fmtDate } from "$lib/format";
+  import { INSTRUCTION_PRESETS, type InstructionPreset } from "@pt/shared";
   import type { ClientDto, InstructionTemplateDto, PreferencesDto } from "$lib/api/types";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
@@ -105,6 +106,22 @@
       listError = (e as Error).message;
     } finally {
       savingEdit = false;
+    }
+  }
+
+  let copyingKey = $state<string | null>(null);
+
+  /** Built-ins are read-only; copying makes an editable one in the library. */
+  async function copyPreset(p: InstructionPreset) {
+    copyingKey = p.key;
+    listError = null;
+    try {
+      await api.createInstructionTemplate({ name: p.name, content: p.content });
+      await load();
+    } catch (e) {
+      listError = (e as Error).message;
+    } finally {
+      copyingKey = null;
     }
   }
 
@@ -212,6 +229,33 @@
 </div>
 
 <div class="prefs">
+  <Panel title="Built-in" count={INSTRUCTION_PRESETS.length}>
+    <div class="list">
+      <p class="lede builtin-lede">
+        Science-based starting rules, always available under Rules on the Generate page. They can't be edited —
+        copy one to your library to make it yours.
+      </p>
+      {#each INSTRUCTION_PRESETS as p (p.key)}
+        <div class="item">
+          <div class="item-head">
+            <h3>{p.name}</h3>
+            <Button small onclick={() => copyPreset(p)} disabled={copyingKey === p.key}>
+              {copyingKey === p.key ? "Copying…" : "Copy to library"}
+            </Button>
+          </div>
+          <p class="summary">{p.summary}</p>
+          <details>
+            <summary>Read rules</summary>
+            <pre class="body">{p.content}</pre>
+          </details>
+          <p class="subtle sources">{p.sources.join(" · ")}</p>
+        </div>
+      {/each}
+    </div>
+  </Panel>
+</div>
+
+<div class="prefs">
   <Panel title="Learned preferences" count={prefs.length}>
     <div class="panel-body">
       <p class="lede">
@@ -307,6 +351,11 @@
     overflow-wrap: anywhere;
   }
   .mono-body { font: 12px/1.65 var(--font-mono); }
+
+  .builtin-lede { padding: 16px 16px 0; margin-bottom: 0; }
+  .summary { margin: 0 0 8px; color: var(--muted); }
+  details summary { cursor: pointer; font-size: 13px; margin-bottom: 8px; }
+  .sources { margin: 0; }
 
   .row-actions { display: flex; gap: 8px; align-items: center; }
 
