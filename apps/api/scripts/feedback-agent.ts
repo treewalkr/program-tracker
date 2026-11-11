@@ -14,7 +14,7 @@
  * repo's gitignored .env.agent (the environment wins).
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { treaty } from "@elysiajs/eden";
 import type { App } from "../src/app";
