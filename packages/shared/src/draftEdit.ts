@@ -121,6 +121,15 @@ export interface DraftOrderOpts {
   keepOrder?: boolean;
 }
 
+/** A session's exercises in display order: role order for an AI-made draft, as stored once the order is the trainer's. */
+export function shownExerciseOrder<T extends { role?: string | null; group?: string | null }>(
+  l: readonly T[],
+  labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+): T[] {
+  return opts.keepOrder ? [...l] : sortExercisesByRole(l, labels);
+}
+
 /** Groups tidied and lettered by appearance, in role order unless the order is the trainer's — what the trainer sees. */
 function canonicalList<T extends Ex>(l: readonly T[], labels?: readonly RoleRank[], keepOrder = false): T[] {
   return keepOrder ? normalizeGroups(l) : normalizeGroups(sortExercisesByRole(normalizeGroups(l), labels));
