@@ -313,14 +313,14 @@
   --well-2: #2a313c;
   --active: #2f3742;
 
-  --blue: #539bf5;
+  --blue: #62adfa; /* lifted from #539bf5: due-today text needs 4.5:1 on its tint over the today band */
   --blue-hov: #6cb6ff;
   --good: #57ab5a;
   --good-bg: rgba(70, 149, 74, 0.15);
   --good-line: rgba(70, 149, 74, 0.4);
   --green-btn: #347d39;
   --green-btn-hov: #3b8640;
-  --bad: #f47067;
+  --bad: #f77a71; /* lifted from #f47067: the red counter Label needs 4.5:1 on its tint */
   --bad-bg: rgba(229, 83, 75, 0.1);
   --bad-line: rgba(229, 83, 75, 0.4);
   --warn: #d29922; /* lifted from #c69026: amber Labels need 4.5:1 on the warn tint */
