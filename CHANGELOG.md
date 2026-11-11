@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### New
+- Program sessions are easier to scan. Each session is its own card with a header band, exercise rows alternate shading, and a superset or circuit is one framed block with its rounds in the header. This applies on the client's program tab, the draft chat preview and the draft review.
+- In the narrower chat preview, set chips stay on the same line as the exercise name when they fit.
+- The clients list is redesigned: search by name or email, filter by status (Needs review, No program), sort by name, last trained or recently added, and page through long rosters.
+- Overview shows this training week as a day board.
+- For admins: with "Auto-send confident" on, AI answers to feedback now go out on their own at medium confidence too, not only high.
+
+### Fixed
+- Set chips no longer spill past the edge of a mid-width session card.
+- When you build a chat change that adds an exercise, it no longer lands in the middle of a superset and splits it in two.
+- A client's last session shows the right calendar day in the clients list.
+
 ## v0.1.22 — 2026-11-11
 
 ### New
