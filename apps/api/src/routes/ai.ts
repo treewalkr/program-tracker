@@ -467,15 +467,17 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
   )
   /**
    * Save a hand edit (move, superset, move to session, undo) as the next draft
-   * version (no AI call). Ops replay on the stored draft (@pt/shared draftEdit);
-   * `undo` is the op list that puts the previous version back.
+   * version (no AI call), or fold it into the target when that is already the
+   * latest hand-edit version (`folded`, 200). Ops replay on the stored draft
+   * (@pt/shared draftEdit); `undo` is the op list that puts the previous draft back.
    */
   .post(
     "/generations/:id/edit",
     async ({ params, body, status }) => {
       const res = await saveDraftEdit(params.id, body.ops);
       if (!res.ok) return status(res.status, { error: res.error, ...(res.issues ? { issues: res.issues } : {}) });
-      return status(201, { generation: res.generation, message: res.message, undo: res.undo });
+      const { generation, message, undo, folded, version, changes } = res;
+      return status(folded ? 200 : 201, { generation, message, undo, folded, version, changes });
     },
     {
       params: t.Object({ id: t.String() }),
