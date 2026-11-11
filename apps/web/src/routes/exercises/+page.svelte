@@ -32,19 +32,24 @@
   import Icon from "$lib/ui/Icon.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import ListToolbar from "$lib/ui/ListToolbar.svelte";
+  import Pager from "$lib/ui/Pager.svelte";
+  import { listUrlState } from "$lib/list/urlState.svelte";
+  import { pageOf } from "@pt/shared";
 
-  const PAGE = 25;
+  const TABS = ["all", "mine", "untagged", "archived"] as const satisfies readonly Tab[];
   const MAP_KEY = "pt.exercises.map";
 
   let list = $state<ExerciseDto[]>([]);
   let loading = $state(true);
   let loadError = $state("");
 
-  let tab = $state<Tab>("all");
-  let q = $state("");
+  /** Tab, search, page and rows-per-page live in the URL; filters and sort stay local. */
+  const view = listUrlState({ tab: TABS });
+  const tab = $derived<Tab>(view.params.tab);
+  const q = $derived(view.q);
   let filters = $state<Filters>(emptyFilters());
   let sort = $state<Sort>("name");
-  let page = $state(0);
   let selected = $state<string[]>([]);
   let mapOpen = $state(true);
 
@@ -53,21 +58,19 @@
   const editingExercise = $derived(editing && editing.id !== "new" ? (list.find((e) => e.id === editing!.id) ?? null) : null);
 
   const rows = $derived(visibleRows(list, { tab, q, filters, sort }));
-  const pages = $derived(Math.max(1, Math.ceil(rows.length / PAGE)));
-  const pageRows = $derived(rows.slice(page * PAGE, page * PAGE + PAGE));
+  // Paged in the browser: the coverage map and bulk select need the whole library.
+  const paged = $derived(pageOf(rows, view.page, view.limit));
+  const pageRows = $derived(paged.items);
   const counts = $derived(tabCounts(list));
   const live = $derived(list.filter((e) => !e.archivedAt));
   const allOnPage = $derived(pageRows.length > 0 && pageRows.every((e) => selected.includes(e.id)));
   const pre = $derived(prefillFrom(filters));
+  const narrowed = $derived(!!q.trim() || filters.muscle.length + filters.pattern.length + filters.equipment.length > 0);
   /** Filters point at exactly one pattern × equipment cell and it's empty. */
   const gap = $derived(
     !q && (tab === "all" || tab === "untagged") && !filters.muscle.length && filters.pattern.length === 1 &&
       filters.equipment.length === 1 && pre.movementPattern && rows.length === 0
   );
-
-  $effect(() => {
-    if (page > pages - 1) page = pages - 1;
-  });
 
   async function load() {
     loading = true;
@@ -218,10 +221,8 @@
     // Stay on a map cell the new exercise fills; otherwise show it under Mine.
     const fillsCell = pre.movementPattern === row.movementPattern && (!pre.equipment || pre.equipment === row.equipment);
     if (!fillsCell) {
-      tab = "mine";
-      q = "";
       filters = emptyFilters();
-      page = 0;
+      view.update({ q: "", params: { tab: "mine" } });
     }
     editing = { id: row.id, nonce: Date.now() };
     flash(`Created ${row.name} in your exercises.`);
@@ -241,8 +242,7 @@
   const smooth = (): ScrollBehavior => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 
   function setTab(t: string) {
-    tab = t as Tab;
-    page = 0;
+    view.set({ tab: t as Tab });
     selected = [];
   }
 
@@ -250,9 +250,7 @@
     const next = pickCell(filters, pattern, equipment);
     const cleared = !next.pattern.length && !next.equipment.length;
     filters = next;
-    if (tab === "archived" || tab === "mine") tab = "all";
-    q = "";
-    page = 0;
+    view.update({ q: "", ...(tab === "archived" || tab === "mine" ? { params: { tab: "all" } } : {}) });
     selected = [];
     if (!cleared) tick().then(() => splitEl?.scrollIntoView({ block: "start", behavior: smooth() }));
   }
@@ -264,7 +262,7 @@
 
   const toggleFilter = (k: keyof Filters, v: string) => {
     filters[k] = filters[k].includes(v) ? filters[k].filter((x) => x !== v) : [...filters[k], v];
-    page = 0;
+    view.setPage(1);
   };
 
   function toggleSelectPage() {
@@ -381,6 +379,26 @@
   {/snippet}
 </PageHead>
 
+  {#snippet toolbarFilters()}
+    {#each [["muscle", "Muscle"], ["pattern", "Pattern"], ["equipment", "Equipment"]] as [k, label] (k)}
+      {@const n = filters[k as keyof Filters].length}
+      <button
+        type="button"
+        class="btn fbtn"
+        aria-haspopup="menu"
+        aria-expanded={menu?.label === label}
+        onclick={(ev) => openMenu(ev, label, () => filterItems(k as keyof Filters))}
+      >
+        {label}{#if n}<span class="n">{n}</span>{/if}<Icon name="chevron" />
+      </button>
+    {/each}
+    <select class="select sortsel" bind:value={sort} onchange={() => view.setPage(1)} aria-label="Sort">
+      <option value="name">Sort: Name</option>
+      <option value="uses">Sort: Most used</option>
+      <option value="muscle">Sort: Muscle</option>
+    </select>
+  {/snippet}
+
 {#if loading}
   <SkeletonPanel rows={8} dense label="Loading exercises…" />
 {:else if loadError}
@@ -404,36 +422,14 @@
     ]}
   />
 
-  <div class="toolbar">
-    <div class="search">
-      <input
-        bind:this={searchEl}
-        class="input"
-        type="search"
-        placeholder="Search exercises"
-        aria-label="Search exercises"
-        bind:value={q}
-        oninput={() => (page = 0)}
-      /><kbd>/</kbd>
-    </div>
-    {#each [["muscle", "Muscle"], ["pattern", "Pattern"], ["equipment", "Equipment"]] as [k, label] (k)}
-      {@const n = filters[k as keyof Filters].length}
-      <button
-        type="button"
-        class="btn fbtn"
-        aria-haspopup="menu"
-        aria-expanded={menu?.label === label}
-        onclick={(ev) => openMenu(ev, label, () => filterItems(k as keyof Filters))}
-      >
-        {label}{#if n}<span class="n">{n}</span>{/if}<Icon name="chevron" />
-      </button>
-    {/each}
-    <select class="select sortsel" bind:value={sort} aria-label="Sort">
-      <option value="name">Sort: Name</option>
-      <option value="uses">Sort: Most used</option>
-      <option value="muscle">Sort: Muscle</option>
-    </select>
-  </div>
+  <ListToolbar
+    bind:value={view.search}
+    bind:input={searchEl}
+    label="Search exercises"
+    kbd="/"
+    count={narrowed ? `${rows.length} of ${counts[tab]}` : undefined}
+    filters={toolbarFilters}
+  />
 
   {#if filters.muscle.length || filters.pattern.length || filters.equipment.length}
     <div class="active-f">
@@ -444,7 +440,7 @@
           </button>
         {/each}
       {/each}
-      <button type="button" class="linkbtn" onclick={() => ((filters = emptyFilters()), (page = 0))}>Clear filters</button>
+      <button type="button" class="linkbtn" onclick={() => ((filters = emptyFilters()), view.setPage(1))}>Clear filters</button>
     </div>
   {/if}
 
@@ -528,11 +524,14 @@
             </tbody>
           </table>
         </div>
-        <div class="pager">
-          <span class="fig">{page * PAGE + 1}–{Math.min(rows.length, page * PAGE + PAGE)} of {rows.length}</span>
-          <Button small disabled={page === 0} onclick={() => page--}>Previous</Button>
-          <Button small disabled={page >= pages - 1} onclick={() => page++}>Next</Button>
-        </div>
+        <Pager
+          page={paged.page}
+          limit={paged.limit}
+          total={paged.total}
+          noun="Exercises"
+          onpage={(p) => view.setPage(p)}
+          onlimit={(l) => view.setLimit(l)}
+        />
       {:else if gap}
         <div class="gapnote">
           <span>
@@ -610,17 +609,9 @@
 </div>
 
 <style>
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
-  .search { position: relative; flex: 1 1 260px; max-width: 360px; }
-  .search .input { padding-right: 36px; width: 100%; }
-  .search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
-  kbd {
-    font: 500 11px/1 var(--font-mono); padding: 2px 5px; border: 1px solid var(--line); border-bottom-width: 2px;
-    border-radius: 4px; background: var(--surface); color: var(--muted);
-  }
   .fbtn :global(svg) { width: 12px; height: 12px; }
   .fbtn .n { font: 500 11px/1 var(--font-ui); background: var(--hover-ink); color: var(--on-ink); border-radius: 99px; padding: 2px 6px; }
-  .sortsel { width: auto; margin-left: auto; }
+  .sortsel { width: auto; }
   .active-f { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: -4px 0 12px; }
   .active-f .tchip :global(svg) { width: 10px; height: 10px; margin-left: 4px; }
   .active-f .linkbtn { font-size: 12px; margin-left: 6px; }
@@ -665,8 +656,6 @@
   .linkbtn { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: var(--blue); cursor: pointer; }
   .linkbtn:hover { text-decoration: underline; }
 
-  .pager { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); }
-  .pager .fig { color: var(--muted); margin-right: auto; }
   .gapnote { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 22px 16px; color: var(--muted); }
   .gapnote b { color: var(--ink); }
 

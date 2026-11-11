@@ -88,6 +88,15 @@ export class ListUrlState<P extends ParamSpec> {
   setLimit(n: number) {
     this.#write({ limit: n });
   }
+  /** Several changes in one URL write (a change to q also resets the search box). */
+  update(change: ListChange<P>) {
+    if (change.q !== undefined) {
+      clearTimeout(this.#timer);
+      this.#timer = undefined;
+      this.#search = change.q;
+    }
+    this.#write(change);
+  }
   /** Drop search and every param not in `keep` (rows-per-page stays). */
   clear(keep: (keyof P)[] = []) {
     clearTimeout(this.#timer);
