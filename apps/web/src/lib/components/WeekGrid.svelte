@@ -268,7 +268,7 @@
             <span class="foot">
               {#each extras.slice(0, MAX_MARKS) as x, i (i)}<span class="mk {x.kind}"></span>{/each}
               {#if extras.length > MAX_MARKS}<span class="more">+{extras.length - MAX_MARKS}</span>{/if}
-              {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
+              {#if STATE_WORDS[d.status] && extras.length <= MAX_MARKS}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
             </span>
           {/snippet}
           {#if loggable(d)}
@@ -574,7 +574,7 @@
   .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
   .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
   .cell .mk + .state, .cell .more + .state { margin-left: 2px; }
-  /* Past three extras: the count, in the cell's ink — never a "more" word. */
+  /* Past three extras: the count, in the cell's ink — never a "more" word; the state word gives way (fill and edge carry it). */
   .cell .more { font: 400 11px/1 var(--font-mono); white-space: nowrap; }
   /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
   .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
