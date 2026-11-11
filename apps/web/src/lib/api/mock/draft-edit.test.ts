@@ -4,7 +4,7 @@ import { mockApi } from "./api";
 
 describe("mock adapter: draft hand edits", () => {
   test(
-    "an edit makes the next version and an edit note; undo puts the draft back as another version",
+    "an edit makes the next version and an edit note; undo folds back into it as 'changes undone'",
     async () => {
       const clientId = "cl-maya";
       await mockApi.clearChat(clientId);
@@ -25,7 +25,11 @@ describe("mock adapter: draft hand edits", () => {
       await expect(mockApi.editDraft(g.id, res.undo)).rejects.toThrow("only the latest version can be edited");
 
       const undone = await mockApi.editDraft(res.generation.id, res.undo);
-      expect(undone.message.content).toBe("Edited the draft by hand (v3): undid the last hand edit.");
+      expect(undone.folded).toBe(true);
+      expect(undone.generation.id).toBe(res.generation.id);
+      expect(undone.message.id).toBe(res.message.id);
+      expect(undone.message.content).toBe("Edited the draft by hand (v2): changes undone, the draft is back to v1.");
+      expect(undone.generation.revisionMessage).toBe("Edited by you: changes undone");
       expect(sameDraft(undone.generation.draft as AiProgramDraft, g.draft as AiProgramDraft)).toBe(true);
     },
     15000
@@ -65,6 +69,58 @@ describe("mock adapter: draft hand edits", () => {
       const seq = g.draft!.sessions.slice(0, day).filter((s) => s.kind !== "cardio").length;
       const s = program.weeks[0].sessions.find((x) => x.kind === "lifting" && x.seq === seq)!;
       expect(s.exercises.map((e) => e.exerciseName)).toEqual(next);
+    },
+    15000
+  );
+
+  test(
+    "consecutive edits fold; a chat line in between adds a continued note; a revision starts a new version",
+    async () => {
+      const clientId = "cl-maya";
+      await mockApi.clearChat(clientId);
+      const g = await mockApi.generate({ clientId });
+      const day = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 2) + 1;
+      expect(day).toBeGreaterThan(0);
+      const up = (slot: number) => [{ op: "move" as const, refs: [{ day, slot }], dir: "up" as const }];
+
+      const a = await mockApi.editDraft(g.id, up(2));
+      expect(a.folded).toBe(false);
+      expect(a.version).toBe(2);
+      const b = await mockApi.editDraft(a.generation.id, up(3));
+      expect(b.folded).toBe(true);
+      expect(b.version).toBe(2);
+      expect(b.generation.id).toBe(a.generation.id);
+      expect(b.message.id).toBe(a.message.id);
+      expect(b.generation.revisionMessage).toBe(`Edited by you: ${a.changes[0]}; ${b.changes[0]}`);
+      expect(b.message.content).toBe(`Edited the draft by hand (v2): ${a.changes[0]}; ${b.changes[0]}.`);
+
+      await mockApi.sendChatMessage({ clientId, message: "Is this order fine?" });
+      const c = await mockApi.editDraft(a.generation.id, up(2));
+      expect(c.folded).toBe(true);
+      expect(c.message.id).not.toBe(a.message.id);
+      expect(c.message.content).toBe(`Edited the draft by hand (v2, continued): ${c.changes[0]}.`);
+      const thread = await mockApi.chatMessages(clientId);
+      expect(thread.filter((m) => m.kind === "edit")).toHaveLength(2);
+      expect(thread.at(-1)?.content).toBe(c.message.content);
+
+      const rev = await mockApi.reviseGeneration(a.generation.id, "Keep it");
+      const d = await mockApi.editDraft(rev.id, up(2));
+      expect(d.folded).toBe(false);
+      expect(d.version).toBe(4);
+    },
+    15000
+  );
+
+  test(
+    "an open proposal on the hand-edit version stops the fold",
+    async () => {
+      const g = await mockApi.generate({ clientId: "cl-maya" });
+      const day = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 2) + 1;
+      const a = await mockApi.editDraft(g.id, [{ op: "move", refs: [{ day, slot: 2 }], dir: "up" }]);
+      await mockApi.chatTurn({ clientId: "cl-maya", generationId: a.generation.id, message: "Cut accessories to 2 sets" });
+      const b = await mockApi.editDraft(a.generation.id, [{ op: "move", refs: [{ day, slot: 3 }], dir: "up" }]);
+      expect(b.folded).toBe(false);
+      expect(b.generation.parentGenerationId).toBe(a.generation.id);
     },
     15000
   );
