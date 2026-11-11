@@ -98,14 +98,8 @@ export async function readImage(file: File, kind: FeedbackAttachmentKind): Promi
  * came from (default "upload"): the ticket form sends its captured element
  * and page screenshots in `images` too. At most one of each captured kind and
  * FEEDBACK_MAX_IMAGES uploads; the screenshots don't count.
- *
- * `elementShot` / `pageShot` are the v0.1.19 form's fields, still read so a
- * tab opened before the deploy can file its ticket. They go first; drop them
- * once v0.1.20 is live (see docs/feedback-workflow-plan.md).
  */
 export async function readImages(input: {
-  elementShot?: File;
-  pageShot?: File;
   images?: File[];
   kinds?: FeedbackAttachmentKind[];
 }): Promise<{ images: NewImage[] } | { error: string }> {
@@ -113,8 +107,6 @@ export async function readImages(input: {
   const kinds = input.kinds ?? [];
   if (kinds.length > files.length) return { error: "more image kinds than images" };
   const queue: [File, FeedbackAttachmentKind][] = [
-    ...(input.elementShot ? [[input.elementShot, "element"] as [File, FeedbackAttachmentKind]] : []),
-    ...(input.pageShot ? [[input.pageShot, "page"] as [File, FeedbackAttachmentKind]] : []),
     ...files.map((f, i) => [f, kinds[i] ?? "upload"] as [File, FeedbackAttachmentKind]),
   ];
   const count = (kind: FeedbackAttachmentKind) => queue.filter(([, k]) => k === kind).length;
@@ -193,22 +185,6 @@ export async function attachmentBytes(itemId: string, attachmentId: string) {
     })
     .from(feedbackAttachments)
     .where(and(eq(feedbackAttachments.id, attachmentId), eq(feedbackAttachments.itemId, itemId)));
-  return row ?? null;
-}
-
-/** The ticket's captured element or page screenshot — the old `/shot/:kind` URLs read it. */
-export async function ticketShot(itemId: string, kind: "element" | "page") {
-  const [row] = await db
-    .select({ mime: feedbackAttachments.mime, bytes: feedbackAttachments.bytes })
-    .from(feedbackAttachments)
-    .where(
-      and(
-        eq(feedbackAttachments.itemId, itemId),
-        isNull(feedbackAttachments.commentId),
-        eq(feedbackAttachments.kind, kind),
-      ),
-    )
-    .limit(1);
   return row ?? null;
 }
 

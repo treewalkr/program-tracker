@@ -119,9 +119,8 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
   describe("on a new ticket", () => {
     test("stores the screenshots first, then the uploads in order", async () => {
       const res = await file_({
-        elementShot: file(PNG),
-        pageShot: file(JPEG, "page.jpg", "image/jpeg"),
-        images: [file(WEBP, "one.webp", "image/webp"), file(PNG, "two.png")],
+        images: [file(PNG), file(JPEG, "page.jpg", "image/jpeg"), file(WEBP, "one.webp", "image/webp"), file(PNG, "two.png")],
+        kinds: "element,page,upload,upload",
       });
       expect(res.status).toBe(200);
       const item = await json(await call("GET", `/v1/feedback/${(await json(res)).id}`));
@@ -131,9 +130,6 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
         ["upload", "image/webp", 100, 50, 2],
         ["upload", "image/png", 1, 1, 3],
       ]);
-      // nothing is written to the old columns any more
-      const [row] = await db.select().from(feedbackItems).where(eq(feedbackItems.id, item.id));
-      expect([row.elementShot, row.pageShot]).toEqual([null, null]);
     });
 
     test("takes the screenshots in `images`, kinds naming each", async () => {
@@ -168,7 +164,7 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
 
     test("refuses a seventh upload; the screenshots don't count", async () => {
       const six = Array.from({ length: 6 }, (_, i) => file(PNG, `${i}.png`));
-      expect((await file_({ elementShot: file(PNG), pageShot: file(PNG), images: six })).status).toBe(200);
+      expect((await file_({ images: [file(PNG), file(PNG), ...six], kinds: "element,page" })).status).toBe(200);
       const res = await file_({ images: [...six, file(PNG, "7.png")] });
       expect(res.status).toBe(422);
       expect((await json(res)).error).toBe("at most 6 images — 7 were attached");
@@ -185,7 +181,7 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
       const gif = await file_({ images: [file(GIF, "anim.gif", "image/gif")] });
       expect(gif.status).toBe(422);
       expect((await json(gif)).error).toBe(`"anim.gif" isn't a PNG, JPEG or WebP image`);
-      const disguised = await file_({ elementShot: file(Buffer.from("<html>"), "x.png", "image/png") });
+      const disguised = await file_({ images: [file(Buffer.from("<html>"), "x.png", "image/png")], kinds: "element" });
       expect(disguised.status).toBe(422);
     });
 
@@ -292,26 +288,36 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
     });
   });
 
-  describe("migration 0046 copy", () => {
-    const copy = readFileSync(new URL("../../../packages/db/drizzle/0047_feedback_attachments.sql", import.meta.url), "utf8")
+  describe("migration 0051: copy the old screenshot columns, then drop them", () => {
+    const statements = readFileSync(new URL("../../../packages/db/drizzle/0051_drop_feedback_shot_columns.sql", import.meta.url), "utf8")
       .split("--> statement-breakpoint")
-      .find((s) => s.includes('INSERT INTO "feedback_attachments"'))!
-      .split("\n")
-      .filter((l) => !l.startsWith("--"))
-      .join("\n");
+      .map((s) => s.split("\n").filter((l) => !l.startsWith("--")).join("\n").trim())
+      .filter(Boolean);
+    const columns = async () =>
+      [
+        ...(await db.execute<{ column_name: string }>(
+          sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'feedback_items' AND column_name IN ('element_shot', 'page_shot')`,
+        )),
+      ].map((r) => r.column_name);
 
-    test("turns old screenshot columns into ticket attachments, once", async () => {
+    test("keeps a ticket an older API wrote into the columns, once, and drops them", async () => {
+      // An older API filed this ticket during the deploy window: bring the columns back to stage it.
+      await db.execute(sql`ALTER TABLE feedback_items ADD COLUMN IF NOT EXISTS element_shot bytea, ADD COLUMN IF NOT EXISTS page_shot bytea`);
       const [old] = await db
         .insert(feedbackItems)
-        .values({ comment: "Old ticket", route: "/", context, elementShot: PNG, pageShot: JPEG })
+        .values({ comment: "Old ticket", route: "/", context })
         .returning({ id: feedbackItems.id });
       const [none] = await db
         .insert(feedbackItems)
         .values({ comment: "No shots", route: "/", context })
         .returning({ id: feedbackItems.id });
       items.push(old.id, none.id);
+      await db.execute(sql`UPDATE feedback_items SET element_shot = ${PNG}, page_shot = ${JPEG} WHERE id = ${old.id}`);
+      // already copied once (by 0047): the re-run must not duplicate it
+      await db.execute(sql.raw(statements[0]));
 
-      await db.execute(sql.raw(copy));
+      for (const statement of statements) await db.execute(sql.raw(statement));
+
       const rows = await db
         .select()
         .from(feedbackAttachments)
@@ -322,15 +328,10 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
       ]);
       expect(rows.find((r) => r.kind === "element")!.bytes.equals(PNG)).toBe(true);
       expect(await countFor(none.id)).toBe(0);
+      expect(await columns()).toEqual([]);
 
-      // idempotent: a re-run (the later drop migration) copies nothing twice
-      await db.execute(sql.raw(copy));
-      expect(await countFor(old.id)).toBe(2);
-
-      // and the API serves the copies, through both URLs
       const item = await json(await call("GET", `/v1/feedback/${old.id}`));
       expect(item.attachments.map((a: any) => a.kind)).toEqual(["element", "page"]);
-      expect((await call("GET", `/v1/feedback/${old.id}/shot/page`)).headers.get("content-type")).toBe("image/jpeg");
     });
   });
 });

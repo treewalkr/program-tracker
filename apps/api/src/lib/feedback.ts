@@ -44,7 +44,7 @@ const listColumns = {
   updatedAt: feedbackItems.updatedAt,
 };
 
-type ListRow = Omit<FeedbackItemRow, "elementShot" | "pageShot" | "editedBy"> & {
+type ListRow = Omit<FeedbackItemRow, "editedBy"> & {
   author: FeedbackItem["author"];
   editorId: string | null;
   editedBy: FeedbackAuthor | null;

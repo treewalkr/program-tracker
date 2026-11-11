@@ -20,7 +20,7 @@ import {
 } from "@pt/shared";
 import { API_VERSION } from "../lib/build";
 import { getFeedback, listFeedback } from "../lib/feedback";
-import { attachmentBytes, ticketShot } from "../lib/feedback-attachments";
+import { attachmentBytes } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { agentTokenMatches, feedbackAiMode, needsAnswer, routeAnswer } from "../lib/feedback-ai";
 
@@ -148,11 +148,6 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         basis: ticketBasis(item),
         /** Reporter's build: `x.y.z+sha` or a bare sha. */
         build: item.context.appVersion,
-        /** Deprecated: read by CLIs older than attachments. Use `attachments`. */
-        shots: {
-          element: item.attachments.some((a) => a.kind === "element"),
-          page: item.attachments.some((a) => a.kind === "page"),
-        },
         /** Every image on the ticket and its public replies. */
         attachments,
         markdown: feedbackItemMarkdown(item, { imageUrl: (_, a) => (listed.has(a.id) ? agentImageRef(a) : null) }),
@@ -194,19 +189,6 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
     {
       params: t.Object({ id: t.String({ format: "uuid" }), attachmentId: t.String({ format: "uuid" }) }),
       detail: { summary: "Image bytes for the auto-reply agent" },
-    },
-  )
-  /** Deprecated: CLIs older than attachments read the two screenshots here. Remove after one release. */
-  .get(
-    "/:id/shots/:kind",
-    async ({ params, status }) => {
-      const shot = await ticketShot(params.id, params.kind);
-      if (!shot) return status(404, { error: "screenshot not found" });
-      return imageResponse(shot.bytes, shot.mime);
-    },
-    {
-      params: t.Object({ id: t.String({ format: "uuid" }), kind: t.UnionEnum(["element", "page"]) }),
-      detail: { summary: "Screenshot bytes for the auto-reply agent (deprecated)" },
     },
   )
   /**

@@ -591,15 +591,6 @@ export const feedbackItems = pgTable("feedback_items", {
   /** `file:line:column` of the clicked element. */
   source: text("source"),
   context: jsonb("context").$type<FeedbackContext>().notNull(),
-  /**
-   * Unused since 0046 moved screenshots to `feedback_attachments`; due to be
-   * dropped. Kept one release so the previous API keeps reading them while the
-   * deploy rolls out. The drop migration must first re-run 0046's copy (it is
-   * idempotent — `WHERE NOT EXISTS`) to pick up tickets filed in that window.
-   */
-  elementShot: bytea("element_shot"),
-  /** Unused, due to be dropped — see `elementShot`. */
-  pageShot: bytea("page_shot"),
   /** App version that was live when the item was marked done. */
   shippedIn: text("shipped_in"),
   /** Last edit of the comment or the ticket's images (reporter or admin); null = never edited. No history is kept. */
