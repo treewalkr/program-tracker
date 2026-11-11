@@ -34,6 +34,9 @@ const normalizeComment = (c: FeedbackComment): FeedbackComment => ({
   ...c,
   createdAt: iso(c.createdAt),
   aiMeta: c.aiMeta ? { ...c.aiMeta, runAt: iso(c.aiMeta.runAt) } : null,
+  aiPublic: c.aiPublic
+    ? { ...c.aiPublic, rating: c.aiPublic.rating ? { ...c.aiPublic.rating, at: iso(c.aiPublic.rating.at) } : null }
+    : null,
 });
 const normalize = (i: FeedbackItem): FeedbackItem => ({
   ...i,
@@ -46,6 +49,9 @@ const normalize = (i: FeedbackItem): FeedbackItem => ({
 
 /** PATCH /v1/feedback/:id body, straight from the API's type. */
 export type TriagePatch = Parameters<ReturnType<typeof client.v1.feedback>["patch"]>[0];
+
+/** PUT /v1/feedback/:id/comments/:cid/rating body, straight from the API's type. */
+export type RateAnswerBody = Parameters<ReturnType<ReturnType<typeof client.v1.feedback>["comments"]>["rating"]["put"]>[0];
 
 /** A screenshot the feedback form captured, and which one it is. */
 export type CapturedShot = { kind: "element" | "page"; file: File };
@@ -105,6 +111,9 @@ export const feedbackApi = {
   /** Admin: send an AI draft reply, edited when `body` is given. */
   publishDraft: async (id: string, cid: string, body?: string) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).publish.post(body === undefined ? {} : { body }))),
+  /** The reporter's 👍 (1) or 👎 (-1, optional tags and comment) on a sent AI answer; replaces any earlier rating. */
+  rateAnswer: async (id: string, cid: string, rating: RateAnswerBody) =>
+    normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).rating.put(rating))),
   /** Admin: discard an AI draft or private note. */
   discardAi: async (id: string, cid: string) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).delete())),

@@ -13,14 +13,16 @@
   import AttachmentStrip from "./AttachmentStrip.svelte";
   import { ImageTray } from "./tray.svelte";
   import { entryAuthorName, statusLine } from "./status";
-  import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL } from "./ai";
+  import AnswerRating from "./AnswerRating.svelte";
+  import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL, publicConfidence } from "./ai";
 
   /**
    * A feedback item's conversation: replies between the reporter and the
    * admin, with status changes as quiet system lines. Used on the feedback
    * page and in feedback-mode pins.
    *
-   * AI entries: a sent answer is badged; an unsent draft is a card the admin
+   * AI entries: a sent answer is badged with how sure the AI was, and its
+   * reporter rates it 👍/👎 (others see that rating); an unsent draft is a card the admin
    * sends (as is or edited) or discards; a private triage note is a muted
    * block. Only the admin's item ever carries drafts and notes.
    */
@@ -147,6 +149,8 @@
               {#if c.authorKind === "ai"}
                 {@render aiAuthor()}
                 <span class="ai-badge">AI answer</span>
+                {@const sure = c.aiPublic ? publicConfidence(c.aiPublic.confidence) : null}
+                {#if sure}<Pill tone={sure.tone}>{sure.label}</Pill>{/if}
               {:else if c.authorKind === "system"}
                 <span class="release-author"><span class="release-mark" aria-hidden="true"><Icon name="check" /></span>{entryAuthorName(c)}</span>
                 {#if c.ship}<code class="sha" title="Commit {c.ship.sha}">{c.ship.sha.slice(0, 7)}</code>{/if}
@@ -162,6 +166,11 @@
                   images={attachmentImages(item.id, c.attachments, (_, n) => `image ${n} of ${c.attachments.length} in ${replyOf(c)}`)}
                   label="Images in {replyOf(c)} on {feedbackHandle(item.number)}"
                 />
+              </div>
+            {/if}
+            {#if c.aiPublic}
+              <div class="body rate">
+                <AnswerRating itemId={item.id} answer={c} reporterName={item.author?.name ?? null} onchange={(next) => onchange?.(next)} />
               </div>
             {/if}
           {/if}
@@ -627,6 +636,9 @@
     gap: 6px;
   }
   .images {
+    margin-top: 6px;
+  }
+  .rate {
     margin-top: 6px;
   }
   .composer textarea {
