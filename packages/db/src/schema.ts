@@ -627,6 +627,8 @@ export const feedbackComments = pgTable("feedback_comments", {
   aiMeta: jsonb("ai_meta").$type<FeedbackAiMeta>(),
   /** Release rows (author_kind 'system'): the commit that closed the ticket and the version it went live in. */
   ship: jsonb("ship").$type<FeedbackShip>(),
+  /** AI rows: the logged agent run that wrote it (llm_calls, purpose `feedback_answer`). */
+  llmCallId: uuid("llm_call_id").references((): AnyPgColumn => llmCalls.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("feedback_comments_item_idx").on(t.itemId, t.createdAt)]);
 export type FeedbackCommentRow = typeof feedbackComments.$inferSelect;

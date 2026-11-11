@@ -2,11 +2,14 @@ import { Elysia, t, type Static } from "elysia";
 import { and, eq, ne } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems, feedbackMutes } from "@pt/db";
 import {
+  FEEDBACK_ANSWER_COMMENT_MAX,
+  FEEDBACK_ANSWER_TAGS,
   FEEDBACK_ATTACHMENT_KINDS,
   FEEDBACK_STATUSES,
   feedbackHandle,
   feedbackMarkdown,
   formatSourceLoc,
+  type FeedbackAnswerTag,
   type FeedbackAttachmentKind,
   type FeedbackContext,
   type FeedbackStatus,
@@ -24,6 +27,7 @@ import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
+import { rateAnswer, recordDraftVerdict } from "../lib/feedback-answers";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
 
@@ -56,6 +60,10 @@ const Context = t.Object({
 const Status = t.Union([t.Literal("new"), t.Literal("accepted"), t.Literal("done"), t.Literal("wontfix")]);
 // Keeps the literal list in step with FEEDBACK_STATUSES.
 true satisfies (typeof FEEDBACK_STATUSES)[number] extends Static<typeof Status> ? true : false;
+// Written out (not t.UnionEnum) so Eden keeps the literals; the check keeps them in step with @pt/shared.
+const AnswerTag = t.Union([t.Literal("wrong"), t.Literal("missed_question"), t.Literal("unclear"), t.Literal("outdated")]);
+true satisfies (typeof FEEDBACK_ANSWER_TAGS)[number] extends Static<typeof AnswerTag> ? true : false;
+true satisfies Static<typeof AnswerTag> extends FeedbackAnswerTag ? true : false;
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 const CommentParams = t.Object({ id: t.String({ format: "uuid" }), cid: t.String({ format: "uuid" }) });
 /**
@@ -372,6 +380,10 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       if (!isAdmin) return status(403, ADMIN_ONLY);
       const text = body.body?.trim();
       if (body.body !== undefined && !text) return status(422, { error: "reply is empty" });
+      const [before] = await db
+        .select({ body: feedbackComments.body, authorKind: feedbackComments.authorKind })
+        .from(feedbackComments)
+        .where(and(eq(feedbackComments.id, params.cid), eq(feedbackComments.itemId, params.id)));
       const [row] = await db
         .update(feedbackComments)
         .set({ visibility: "public", createdAt: new Date(), ...(text ? { body: text } : {}) })
@@ -384,6 +396,16 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         )
         .returning({ id: feedbackComments.id });
       if (!row) return status(404, { error: "draft not found" });
+      if (before?.authorKind === "ai") {
+        const edited = text !== undefined && text !== before.body?.trim();
+        await recordDraftVerdict({
+          trainerId,
+          commentId: row.id,
+          signal: edited ? "draft_approved_edited" : "draft_approved_unedited",
+          original: before.body,
+          sent: edited ? text : null,
+        });
+      }
       notifyFeedback({ kind: "reply", itemId: params.id, commentId: row.id, by: trainerId });
       await markSeen(trainerId, params.id);
       return (await getFeedback(params.id, who))!;
@@ -397,7 +419,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
   /** Admin: discard an AI draft or private note. Sent replies stay. */
   .delete(
     "/:id/comments/:cid",
-    async ({ params, status, isAdmin, who }) => {
+    async ({ params, status, isAdmin, trainerId, who }) => {
       if (!isAdmin) return status(403, ADMIN_ONLY);
       const [row] = await db
         .delete(feedbackComments)
@@ -408,11 +430,42 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             ne(feedbackComments.visibility, "public"),
           ),
         )
-        .returning({ id: feedbackComments.id });
+        .returning({ id: feedbackComments.id, visibility: feedbackComments.visibility, authorKind: feedbackComments.authorKind });
       if (!row) return status(404, { error: "draft not found" });
+      if (row.authorKind === "ai" && row.visibility === "draft") {
+        await recordDraftVerdict({ trainerId, commentId: row.id, signal: "draft_rejected" });
+      }
       return (await getFeedback(params.id, who))!;
     },
     { params: CommentParams, detail: { summary: "Discard an AI draft or private note" } },
+  )
+  /**
+   * The reporter rates a sent AI answer: 👍 (score 1) or 👎 (score -1, with
+   * optional quick tags and a comment). A second rating replaces the first.
+   * Only the ticket's reporter may rate, and only sent AI answers. A 👎 on
+   * the latest answer sends the ticket back to the agent once; its new answer
+   * waits as a draft for the admin (lib/feedback-ai).
+   */
+  .put(
+    "/:id/comments/:cid/rating",
+    async ({ params, body, status, trainerId, who }) => {
+      const item = await getFeedback(params.id, who);
+      if (!item) return status(404, NOT_FOUND);
+      const answer = item.thread.find((c) => c.id === params.cid);
+      if (!answer?.aiPublic) return status(404, { error: "AI answer not found" });
+      if (!answer.aiPublic.canRate) return status(403, { error: "only the reporter can rate this answer" });
+      await rateAnswer({ trainerId, commentId: answer.id, score: body.score, tags: body.tags, comment: body.comment });
+      return (await getFeedback(params.id, who))!;
+    },
+    {
+      params: CommentParams,
+      body: t.Object({
+        score: t.Union([t.Literal(1), t.Literal(-1)]),
+        tags: t.Optional(t.Array(AnswerTag, { maxItems: FEEDBACK_ANSWER_TAGS.length })),
+        comment: t.Optional(t.String({ maxLength: FEEDBACK_ANSWER_COMMENT_MAX })),
+      }),
+      detail: { summary: "Rate an AI answer 👍/👎 (the ticket's reporter only)" },
+    },
   )
   /**
    * Admin: mark the ticket a duplicate of open ticket number `of`, or unlink

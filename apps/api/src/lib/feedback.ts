@@ -21,6 +21,7 @@ import {
   type FeedbackTicketRef,
 } from "@pt/shared";
 import { attachmentsByItem } from "./feedback-attachments";
+import { answerRatings } from "./feedback-answers";
 
 /** The trainer who last edited a ticket (a second join on trainers). */
 const editors = alias(trainers, "editors");
@@ -118,6 +119,7 @@ async function duplicateLinks(rows: ListRow[]) {
  * queries) and, for a viewer, the unread and muted flags (two more). Unread = someone other than the viewer filed it,
  * edited it, replied or changed its status after the viewer last looked. Only the admin
  * gets AI drafts, private notes and the triage note (which then count as news for them too).
+ * Sent AI answers carry `aiPublic` for everyone: confidence and the reporter's 👍/👎 (one more query).
  */
 async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean): Promise<FeedbackItem[]> {
   if (rows.length === 0) return [];
@@ -143,6 +145,9 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     .where(and(inArray(feedbackComments.itemId, ids), admin ? undefined : eq(feedbackComments.visibility, "public")))
     .orderBy(asc(feedbackComments.createdAt));
   const images = await attachmentsByItem(ids);
+  const isAnswer = (c: (typeof comments)[number]) =>
+    c.authorKind === "ai" && c.kind === "reply" && c.visibility === "public" && c.aiMeta !== null;
+  const ratings = await answerRatings(comments.filter(isAnswer).map((c) => c.id));
   const seen = new Map<string, Date>();
   if (viewerId) {
     const reads = await db
@@ -178,6 +183,14 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
         authorKind: c.authorKind,
         visibility: c.visibility,
         aiMeta: admin ? c.aiMeta : null,
+        // Every viewer: how sure a sent answer was, and the reporter's verdict on it. The rest of aiMeta stays admin-only.
+        aiPublic: isAnswer(c)
+          ? {
+              confidence: c.aiMeta!.confidence,
+              rating: ratings.get(c.id) ?? null,
+              canRate: viewerId !== null && r.author !== null && r.author.id === viewerId,
+            }
+          : null,
         ship: c.ship,
         body: c.body,
         status: c.status,

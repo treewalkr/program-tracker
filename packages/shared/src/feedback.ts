@@ -173,6 +173,38 @@ export interface FeedbackAiMeta {
   runAt: string;
 }
 
+/**
+ * Why a reporter gave an AI answer 👎 — quick tags beside the optional comment.
+ * Stored as `llm_feedback.reason_tags` on subject kind `feedback_answer`.
+ */
+export const FEEDBACK_ANSWER_TAGS = ["wrong", "missed_question", "unclear", "outdated"] as const;
+export type FeedbackAnswerTag = (typeof FEEDBACK_ANSWER_TAGS)[number];
+export const FEEDBACK_ANSWER_TAG_LABELS: Record<FeedbackAnswerTag, string> = {
+  wrong: "Wrong",
+  missed_question: "Didn't answer my question",
+  unclear: "Unclear",
+  outdated: "Outdated",
+};
+/** Longest comment on a 👎. */
+export const FEEDBACK_ANSWER_COMMENT_MAX = 1000;
+
+/** The reporter's latest verdict on one AI answer (a later one replaces it). */
+export interface FeedbackAnswerRating {
+  score: 1 | -1;
+  tags: FeedbackAnswerTag[];
+  comment: string | null;
+  /** When it was given — a 👎 sends the ticket back to the agent once. */
+  at: string;
+}
+
+/** What every viewer sees about a sent AI answer: how sure it was, and the reporter's verdict. */
+export interface FeedbackAiPublic {
+  confidence: FeedbackAiConfidence;
+  rating: FeedbackAnswerRating | null;
+  /** The viewer is the ticket's reporter, the only one who may rate it. */
+  canRate: boolean;
+}
+
 /** Display name for AI-written entries (they have no trainer author). */
 export const FEEDBACK_AI_AUTHOR_NAME = "AI assistant";
 /** Display name for entries a release wrote when it closed a ticket. */
@@ -255,6 +287,8 @@ export interface FeedbackComment {
   visibility: FeedbackVisibility;
   /** AI entries, admin only; null otherwise. */
   aiMeta: FeedbackAiMeta | null;
+  /** Sent AI answers, for every viewer: confidence and the reporter's rating; null otherwise. */
+  aiPublic: FeedbackAiPublic | null;
   /** Release entries: the commit and version that closed the ticket; null otherwise. */
   ship: FeedbackShip | null;
   /** Reply text; null for status entries. */
@@ -479,6 +513,34 @@ export function currentAiNote(item: FeedbackItem): (FeedbackComment & { aiMeta: 
   return note?.aiMeta ? (note as FeedbackComment & { aiMeta: FeedbackAiMeta }) : null;
 }
 
+/**
+ * The reporter's 👎 the agent hasn't acted on, or null. It counts when it's on
+ * the latest sent AI answer and nothing came after it — no AI entry (an
+ * answer, a draft or a note) and no reply from the owner. So a ticket goes
+ * back to the agent at most once per 👎. Pure; works on any viewer's item.
+ */
+export function pendingDownvote(
+  item: Pick<FeedbackItem, "author" | "thread">,
+): { commentId: string; rating: FeedbackAnswerRating } | null {
+  const answer = item.thread.findLast((c) => c.kind === "reply" && c.visibility === "public" && c.authorKind === "ai");
+  const rating = answer?.aiPublic?.rating;
+  if (!answer || !rating || rating.score !== -1) return null;
+  const after = item.thread.some(
+    (c) =>
+      c.createdAt > rating.at &&
+      (c.authorKind === "ai" ||
+        (c.kind === "reply" && c.visibility === "public" && c.authorKind === "human" && c.author?.id !== item.author?.id)),
+  );
+  return after ? null : { commentId: answer.id, rating };
+}
+
+/** "👎 Wrong, Unclear — “It's under Settings”", for Markdown and the CLI. */
+export function answerRatingText(r: FeedbackAnswerRating): string {
+  const tags = r.tags.map((t) => FEEDBACK_ANSWER_TAG_LABELS[t]).join(", ");
+  const said = r.comment ? `“${r.comment.trim().split("\n").join(" ")}”` : "";
+  return [r.score === 1 ? "👍" : "👎", [tags, said].filter(Boolean).join(" — ")].filter(Boolean).join(" ");
+}
+
 /** One item as a self-contained Markdown section. */
 export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
   const c = item.context;
@@ -519,6 +581,12 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     lines.push(`- **Duplicates:** ${item.duplicates.map((d) => `${feedbackHandle(d.number)} (${d.status})`).join(", ")} — they close with this ticket`);
   }
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
+  const downvote = pendingDownvote(item);
+  if (downvote) {
+    lines.push(
+      `- **Reporter rated the last AI answer ${answerRatingText(downvote.rating)}** (${downvote.rating.at.slice(0, 10)}) — answer again; this answer waits as a draft for the owner`,
+    );
+  }
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
   if (item.fixPr) lines.push(`- **Fix PR:** ${item.fixPr.url} (opened ${item.fixPr.at.slice(0, 10)})`);
   if (ai) {
@@ -558,6 +626,8 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
           : `- **${who}**${tag} (${c.createdAt.slice(0, 10)}): ${(c.body ?? "").trim().split("\n").join("\n  ")}`,
       );
       for (const img of imageLines(item, c.attachments ?? [], opts, "reply")) lines.push(`  - ${img.label}: ${img.md}`);
+      const rating = c.aiPublic?.rating;
+      if (rating) lines.push(`  - _Reporter's rating (${rating.at.slice(0, 10)}):_ ${answerRatingText(rating)}`);
     }
   }
   if (pinned) {

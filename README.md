@@ -139,6 +139,23 @@ answered that version of the ticket yet. `inbox` downloads every image on the ti
 its public replies to `/tmp/pt-fb-agent/<handle>-<n>.<ext>`, lists which entry each came
 from, and the skill opens them all before deciding.
 
+**Confidence and ratings.** A sent answer shows the reporter how sure the AI was
+(*High* or *Medium confidence*) and, only to them, 👍 / 👎 — a 👎 takes optional quick
+tags (*wrong*, *didn't answer my question*, *unclear*, *outdated*) and a comment; a new
+rating replaces the old. The admin sees the rating under the answer and a tally on
+`/feedback`. A 👎 on the latest answer sends the ticket back to the agent once, with the
+trainer's comment in the inbox; that re-answer is always a draft. Ratings live in
+`llm_feedback` (subject kind `feedback_answer`), alongside the owner's implicit verdicts
+(sent as is, sent edited, discarded).
+
+**Logging and learning.** Every answer is logged in `llm_calls` (purpose
+`feedback_answer`): the ticket as the agent read it, the answer, and — under the watcher —
+the run's stream-json transcript (in `llm_blobs`, capped at 2 MB, the agent token
+scrubbed) with model, tokens, cost and duration. The note and reply link to it.
+`bun run feedback:agent lessons` prints recent 👎 answers and owner rewrites; the skill
+reads it before answering. `bun run feedback:agent dataset [--since <iso>]` prints every
+AI answer with its ticket, thread, meta, rating and run as JSONL.
+
 **Duplicates.** Before answering, the agent compares each ticket with every open one
 (`bun run feedback:agent open`) and links a ticket that asks for the same change to the
 older one: `bun run feedback:agent duplicate <id> --of FB-012`. The admin links and
@@ -153,7 +170,7 @@ original is never itself a duplicate; reopening the original leaves duplicates c
 Instead of waking the agent every 30 minutes, a local poller asks the API once a minute
 whether there is work (`GET /v1/agent/feedback/pending`: inbox and fixable counts plus a
 cursor that changes exactly when the inbox does) and starts the agent only then — on a new
-ticket, a reporter's reply or an edit, or as a retry 30 minutes after a run that left
+ticket, a reporter's reply, edit or 👎, or as a retry 30 minutes after a run that left
 tickets behind. Runs never overlap, and a second watcher refuses to start.
 
 ```sh
@@ -161,8 +178,11 @@ bun run feedback:watch --once --dry-run   # what it would do now
 bun run feedback:watch                    # poll every 60s (--interval 120 to slow it)
 ```
 
-The agent it starts is `claude -p /answer-feedback` with a read-only tool allowlist, run
-from the repo root; set `FEEDBACK_WATCH_CMD` to use something else. To switch over:
+The agent it starts is `claude -p /answer-feedback --output-format stream-json --verbose`
+with a read-only tool allowlist, run from the repo root; set `FEEDBACK_WATCH_CMD` to use
+something else. Its output goes to `/tmp/pt-fb-agent/run-<start>.jsonl` (the newest 20
+are kept; the log gets one summary line per run), and `feedback:agent answer` uploads the
+current one with each answer (`--transcript <file>` names another, `--no-transcript` sends none). To switch over:
 
 1. Load it with launchd so it survives logins — save as
    `~/Library/LaunchAgents/com.pinroj.pt-feedback-watch.plist` (fix the paths; launchd has no login PATH, so `bun` and `claude` must be on the PATH given), then

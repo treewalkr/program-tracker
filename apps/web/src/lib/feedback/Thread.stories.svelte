@@ -1,6 +1,12 @@
 <script module lang="ts">
   import { defineMeta } from '@storybook/addon-svelte-csf';
-  import { unpinnedContext, type FeedbackAiMeta, type FeedbackComment, type FeedbackItem } from '@pt/shared';
+  import {
+    unpinnedContext,
+    type FeedbackAiMeta,
+    type FeedbackAiPublic,
+    type FeedbackComment,
+    type FeedbackItem,
+  } from '@pt/shared';
   import Thread from './Thread.svelte';
 
   const kai = { id: 't-kai', name: 'Kai Trainer', avatarUrl: null };
@@ -21,6 +27,7 @@
     authorKind: 'human',
     visibility: 'public',
     aiMeta: null,
+    aiPublic: null,
     ship: null,
     body: null,
     status: null,
@@ -52,6 +59,19 @@
     createdAt: '2026-11-09T09:00:00.000Z',
     updatedAt: '2026-11-09T09:00:00.000Z',
   });
+
+  const sent = (over: Partial<FeedbackAiPublic> = {}): FeedbackAiPublic => ({
+    confidence: 'high',
+    rating: null,
+    canRate: false,
+    ...over,
+  });
+  const downvote = {
+    score: -1 as const,
+    tags: ['wrong' as const, 'missed_question' as const],
+    comment: "I meant the client emails, not mine",
+    at: '2026-11-09T11:00:00.000Z',
+  };
 
   const answer =
     'Open **Settings → Email** and untick *Email me about feedback*.\n\n- Replies only: keep it on, untick **Status changes**\n- One ticket: use **Mute** on it';
@@ -98,7 +118,28 @@
   }}
 />
 
-<Story name="AI answer (sent)" args={{ item: item([entry({ authorKind: 'ai', body: answer })]) }} />
+<Story name="AI answer (sent)" args={{ item: item([entry({ authorKind: 'ai', aiPublic: sent(), body: answer })]) }} />
+
+<Story
+  name="AI answer: reporter rates it"
+  args={{ item: item([entry({ authorKind: 'ai', aiPublic: sent({ confidence: 'medium', canRate: true }), body: answer })]) }}
+/>
+
+<Story
+  name="AI answer: reporter rated it down"
+  args={{ item: item([entry({ authorKind: 'ai', aiPublic: sent({ canRate: true, rating: downvote }), body: answer })]) }}
+/>
+
+<Story
+  name="Admin: AI answer the reporter rated down"
+  args={{
+    item: item([
+      entry({ authorKind: 'ai', aiMeta: meta(), aiPublic: sent({ rating: downvote }), body: answer }),
+      entry({ authorKind: 'ai', visibility: 'private', aiMeta: meta({ confidence: 'medium' }), body: note, createdAt: '2026-11-09T11:30:00.000Z' }),
+      entry({ authorKind: 'ai', visibility: 'draft', aiMeta: meta({ confidence: 'medium' }), body: 'Client emails live on each client: open the client, then **Settings → Messages**.', createdAt: '2026-11-09T11:30:00.001Z' }),
+    ]),
+  }}
+/>
 
 <Story
   name="Admin: draft + private note"

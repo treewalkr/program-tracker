@@ -4,6 +4,7 @@ import { db, trainers } from "@pt/db";
 import {
   currentAiNote,
   feedbackHandle,
+  pendingDownvote,
   ticketBasis,
   DEFAULT_FEEDBACK_AI_MODE,
   FEEDBACK_AI_AUTO_VERDICTS,
@@ -22,9 +23,11 @@ import { getDefaultTrainerId } from "./trainer";
  * token. Policy lives here, pure where it can be:
  *
  * - inbox: open tickets where the reporter spoke last (a reply, or an edit
- *   of their ticket) and the agent hasn't answered this version of it yet
+ *   of their ticket) and the agent hasn't answered this version of it yet,
+ *   or where the reporter gave the last AI answer 👎 (once per 👎)
  * - send vs draft: only auto mode, medium or high confidence, an "it already works"
- *   verdict, and at most one AI answer per reporter message goes out alone
+ *   verdict, and at most one AI answer per reporter message goes out alone;
+ *   an answer after a 👎 is always a draft
  */
 
 /** The admin's trainer id: ADMIN_EMAIL's row, or with auth off the oldest trainer (who acts as admin). */
@@ -78,6 +81,7 @@ const reporterEditedAt = (item: FeedbackItem): string | null =>
  */
 export function needsAnswer(item: FeedbackItem): boolean {
   if (!OPEN.has(item.status)) return false;
+  if (pendingDownvote(item)) return true;
   const last = publicReplies(item.thread).at(-1);
   const edited = reporterEditedAt(item);
   if (last && !byReporter(item, last) && !(edited && edited > last.createdAt)) return false;
@@ -95,12 +99,13 @@ export function aiRepliedSinceReporter(item: FeedbackItem): boolean {
 
 export type AnswerOutcome = "sent" | "drafted";
 
-/** Send the reply on its own, or leave it as a draft for the admin. Pure. */
+/** Send the reply on its own, or leave it as a draft for the admin. Pure. A re-answer after a 👎 is always a draft. */
 export function routeAnswer(
   mode: FeedbackAiMode,
   answer: { verdict: FeedbackAiVerdict; confidence: FeedbackAiConfidence },
   item: FeedbackItem,
 ): AnswerOutcome {
+  if (pendingDownvote(item)) return "drafted";
   const confident =
     mode === "auto" && answer.confidence !== "low" && FEEDBACK_AI_AUTO_VERDICTS.includes(answer.verdict);
   return confident && !aiRepliedSinceReporter(item) ? "sent" : "drafted";
@@ -133,8 +138,17 @@ export function fixCandidate(item: FeedbackItem): FixCandidate {
 }
 
 /**
+ * The version of a ticket the inbox waits on: its basis, plus the pending 👎
+ * (if any) — a 👎 changes no text, but it is new work all the same.
+ */
+export function inboxVersion(item: FeedbackItem): string {
+  const down = pendingDownvote(item);
+  return down ? `${ticketBasis(item)}:down:${down.rating.at}` : ticketBasis(item);
+}
+
+/**
  * Fingerprint of the inbox: which tickets wait, at which version. It changes
- * exactly when there's new work (a new ticket, a reporter's reply or edit),
+ * exactly when there's new work (a new ticket, a reporter's reply, edit or 👎),
  * so a watcher can start the agent once per change. Empty inbox → "".
  */
 export function inboxCursor(entries: { id: string; basis: string }[]): string {

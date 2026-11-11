@@ -1,4 +1,12 @@
-import type { FeedbackAiConfidence, FeedbackAiMode, FeedbackAiRisk, FeedbackAiVerdict } from "@pt/shared";
+import {
+  FEEDBACK_ANSWER_TAG_LABELS,
+  type FeedbackAiConfidence,
+  type FeedbackAiMode,
+  type FeedbackAiRisk,
+  type FeedbackAiVerdict,
+  type FeedbackAnswerRating,
+  type FeedbackItem,
+} from "@pt/shared";
 
 /** How the feedback AI's verdicts read in the thread (admin only). */
 export const AI_VERDICT_LABEL: Record<FeedbackAiVerdict, string> = {
@@ -45,3 +53,33 @@ export const AI_MODE_OPTIONS: { value: FeedbackAiMode; label: string; help: stri
     help: "Answers it verified in the code (already exists, shipped, how-to) go to the reporter; the rest wait as drafts.",
   },
 ];
+
+/**
+ * The confidence a reporter sees beside a sent AI answer. Only high and
+ * medium: a low-confidence answer goes out only after the admin sent it,
+ * and then the admin's judgement, not the AI's guess, stands behind it.
+ */
+export function publicConfidence(c: FeedbackAiConfidence): { label: string; tone: "good" | "warn" } | null {
+  if (c === "low") return null;
+  return { label: AI_CONFIDENCE_LABEL[c], tone: c === "high" ? "good" : "warn" };
+}
+
+/** "Wrong · Unclear · “It moved”" — a 👎's tags and comment in one quiet line. */
+export function ratingSummary(r: FeedbackAnswerRating): string {
+  return [...r.tags.map((t) => FEEDBACK_ANSWER_TAG_LABELS[t]), r.comment ? `“${r.comment}”` : null].filter(Boolean).join(" · ");
+}
+
+/** How reporters rated the sent AI answers on these tickets (latest rating per answer). */
+export function aiAnswerTally(items: Pick<FeedbackItem, "thread">[]): { up: number; down: number; unrated: number } {
+  const out = { up: 0, down: 0, unrated: 0 };
+  for (const i of items) {
+    for (const c of i.thread) {
+      if (!c.aiPublic) continue;
+      const s = c.aiPublic.rating?.score;
+      if (s === 1) out.up++;
+      else if (s === -1) out.down++;
+      else out.unrated++;
+    }
+  }
+  return out;
+}
