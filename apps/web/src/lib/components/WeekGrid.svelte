@@ -430,7 +430,7 @@
   .sq.logged[data-level="2"] { background: var(--done-2); }
   .sq.logged[data-level="3"] { background: var(--done-3); }
   .sq.logged[data-level="4"] { background: var(--done-4); }
-  .sq.missed { background: var(--bad-bg); border-color: var(--bad); }
+  .sq.missed { background: var(--bad-fill); border-color: var(--bad); }
   .sq.unlogged { background: var(--warn-bg); border-color: var(--warn); }
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
   /* Faint, not line-strong: the planned outline needs 3:1 on canvas in every palette. */
@@ -484,13 +484,16 @@
   /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
   .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
   .mk.cardio { border-radius: 99px; }
-  .cell.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
-  .cell.logged:hover { border-color: var(--ink); }
+  /* Loudest first: missed > to log > due today > planned ≈ done. Done is history
+     already handled, so it takes the quiet success tint; missed takes the only
+     heavy fill and a 2px full-strength edge; to log a 1px full-strength amber edge. */
+  .cell.logged { background: var(--good-bg); border-color: var(--good-line); color: var(--done-ink); }
   .cell.today { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--pulse-now-bg); color: var(--blue); }
-  .cell.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
-  .cell.missed:hover { border-color: var(--bad); }
-  .cell.unlogged { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
-  .cell.unlogged:hover { border-color: var(--warn); }
+  .cell.missed { background: var(--bad-fill); border-color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad); color: var(--bad-ink); }
+  .cell.missed .state { font-weight: 600; }
+  .cell.missed:hover { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .cell.unlogged { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
+  .cell.unlogged:hover { border-color: var(--ink); }
   .cell.upcoming { background: var(--well); color: var(--muted); }
   .offday {
     width: 4px;
@@ -550,9 +553,9 @@
   }
   /* A short stroke in the cell's text colour stands in for its tag. */
   .sw::after { content: ""; width: 6px; height: 2px; background: currentColor; }
-  .sw.logged { background: var(--done-4); border-color: var(--done-4); color: var(--on-done); }
-  .sw.missed { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
-  .sw.unlogged { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
+  .sw.logged { background: var(--good-bg); border-color: var(--good-line); color: var(--done-ink); }
+  .sw.missed { background: var(--bad-fill); border-color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad); color: var(--bad-ink); }
+  .sw.unlogged { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
   .sw.today { background: var(--pulse-now-bg); border-color: var(--blue); color: var(--blue); }
   .sw.upcoming { background: var(--well); color: var(--muted); }
 
@@ -578,14 +581,15 @@
   .tip-head span { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
   .tip ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
   .tip li { display: grid; grid-template-columns: 8px 1fr auto auto; gap: 6px; align-items: baseline; }
-  .tip .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--done-3); align-self: center; }
-  .tip li.missed .dot { background: var(--bad); }
+  /* Dots are the cells in miniature: soft green done, solid red missed (the loudest). */
+  .tip .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--good-bg); box-shadow: inset 0 0 0 1px var(--done-ink); align-self: center; }
+  .tip li.missed .dot { background: var(--bad); box-shadow: none; }
   .tip li.unlogged .dot { background: var(--warn-bg); box-shadow: inset 0 0 0 1px var(--warn); }
   /* Hollow, so it never reads as a logged dot where the ramp is blue (colourblind). */
   .tip li.today .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--blue); }
-  .tip li.upcoming .dot { background: transparent; border: 1px solid var(--line-strong); }
+  .tip li.upcoming .dot { background: transparent; box-shadow: none; border: 1px solid var(--line-strong); }
   .tip .st { color: var(--muted); white-space: nowrap; }
-  .tip li.missed .st { color: var(--bad); }
+  .tip li.missed .st { color: var(--bad); font-weight: 600; }
   .tip li.unlogged .st { color: var(--warn-ink); }
   .tip li.today .st { color: var(--blue); }
   .tip .go { font-weight: 600; }

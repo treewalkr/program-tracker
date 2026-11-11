@@ -64,6 +64,9 @@
   --on-ink: #ffffff; /* text on Inverted Ink (--hover-ink) fills */
   --on-done: #ffffff; /* text on the darkest ramp step (logged week cells) */
   --warn-ink: #4d3800; /* body text on warn tint */
+  --bad-fill: #ffcecb; /* missed week cells: heavier than the tint so they lead the panel */
+  --bad-ink: #a40e26; /* text on --bad-fill */
+  --done-ink: var(--good); /* text on the done week cell's success tint */
 
   /* small one-off marks */
   --blue-line: #b6e3ff; /* hairline around Pulse Blue Tint surfaces */
@@ -149,6 +152,8 @@
   --on-ink: #0d1117;
   --on-done: #0d1117;
   --warn-ink: #e3b341;
+  --bad-fill: rgba(248, 81, 73, 0.3);
+  --bad-ink: #ffa198;
 
   --blue-line: rgba(56, 139, 253, 0.4);
   --tab-on: #f78166;
@@ -213,6 +218,8 @@
   --focus: rgba(3, 73, 180, 0.7);
   --focus-ring: rgba(3, 73, 180, 0.25);
   --warn-ink: #3f2200;
+  --bad-fill: #ffc8c3;
+  --bad-ink: #86061d;
   --blue-line: #0349b4;
   --lamp-gray: #59636e;
   --btn-border: #20252c;
@@ -229,6 +236,8 @@
   --bad: #bc4c00;
   --bad-bg: #fff1e5;
   --bad-line: #ffd8b5;
+  --bad-fill: #ffd8b5;
+  --bad-ink: #953800;
 
   --done-1: #b6e3ff;
   --done-2: #54aeff;
@@ -286,6 +295,8 @@
   --selection: rgba(29, 90, 158, 0.18);
   --on-ink: #fbf7ee;
   --warn-ink: #4a3200;
+  --bad-fill: #f0cbb9;
+  --bad-ink: #82220f;
   --blue-line: #bcd0e4;
   --tab-on: #c4673f;
   --lamp-amber: #a87400;
@@ -347,6 +358,9 @@
   --on-ink: #212830;
   --on-done: #212830;
   --warn-ink: #daaa3f;
+  --bad-fill: rgba(229, 83, 75, 0.3);
+  --bad-ink: #ffb8b0;
+  --done-ink: #6bc46d; /* --good is 4.0:1 on the done tint over the today band */
   --blue-line: rgba(65, 132, 228, 0.4);
   --tab-on: #ec775c;
   --lamp-amber: #c69026;
@@ -406,6 +420,8 @@
   --on-ink: #010409;
   --on-done: #010409;
   --warn-ink: #f7c843;
+  --bad-fill: rgba(255, 106, 105, 0.35);
+  --bad-ink: #ffdcd7;
   --blue-line: #74b9ff;
   --lamp-gray: #9ea7b3;
   --btn-border: #b7bdc8;
@@ -422,6 +438,8 @@
   --bad: #f0883e;
   --bad-bg: rgba(219, 109, 40, 0.1);
   --bad-line: rgba(219, 109, 40, 0.4);
+  --bad-fill: rgba(219, 109, 40, 0.3);
+  --bad-ink: #ffc680;
 
   --done-1: #0c2d6b;
   --done-2: #1158c7;
