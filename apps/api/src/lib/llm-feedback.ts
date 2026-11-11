@@ -5,6 +5,7 @@ import {
   chatMessages,
   clientMessages,
   exercises,
+  feedbackComments,
   llmCalls,
   llmFeedback,
   type AiGenerationRow,
@@ -90,6 +91,10 @@ const DRAFT_PURPOSES: LlmPurpose[] = ["block_generate", "week_generate", "revisi
 /** The last successful call that produced the subject, or null. */
 export async function resolveCallId(kind: LlmSubjectKind, id: string): Promise<string | null> {
   if (kind === "call") return id;
+  if (kind === "feedback_answer") {
+    const [c] = await db.select({ id: feedbackComments.llmCallId }).from(feedbackComments).where(eq(feedbackComments.id, id));
+    return c?.id ?? null;
+  }
   const ok = eq(llmCalls.status, "ok");
   let where: SQL | undefined;
   if (kind === "chat_message") where = and(eq(llmCalls.chatMessageId, id), ok);

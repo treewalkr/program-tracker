@@ -6,11 +6,15 @@ import {
   feedbackMarkdown,
   isMostlyThai,
   parseFeedbackHandle,
+  pendingDownvote,
+  answerRatingText,
   shippedNote,
   ownedRouteRef,
   snapshotJson,
   toRepoPath,
   unpinnedContext,
+  type FeedbackAnswerRating,
+  type FeedbackComment,
   type FeedbackItem,
 } from "./feedback";
 
@@ -120,7 +124,7 @@ describe("feedbackMarkdown", () => {
       ({ id, kind, mime: "image/webp", width: 10, height: 10, position });
     const reply = (id: string, attachments: ReturnType<typeof img>[]) => ({
       id, kind: "reply" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: "See these", status: null,
-      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, ship: null, attachments,
+      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, attachments,
     });
     const out = feedbackMarkdown(
       [
@@ -152,8 +156,8 @@ describe("feedbackMarkdown", () => {
         item({
           shippedIn: "0.1.3",
           thread: [
-            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, ship: null, attachments: [] },
-            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, ship: null, attachments: [] },
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, attachments: [] },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, attachments: [] },
           ],
         }),
       ],
@@ -167,7 +171,7 @@ describe("feedbackMarkdown", () => {
   test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, ship: null, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, aiPublic: null, ship: null, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
     });
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
@@ -177,7 +181,7 @@ describe("feedbackMarkdown", () => {
   describe("AI triage", () => {
     const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
     const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, ship: null, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, aiPublic: null, ship: null, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
       aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
     });
     const current = ticketBasis(item());
@@ -380,5 +384,57 @@ describe("feedbackMarkdown duplicate links", () => {
       "- **Duplicates:** FB-015 (new), FB-020 (done) — they close with this ticket",
     );
     expect(md({})).not.toContain("Duplicate");
+  });
+});
+
+describe("pendingDownvote", () => {
+  const kai = { id: "t1", name: "Kai", avatarUrl: null };
+  const ana = { id: "t0", name: "Ana", avatarUrl: null };
+  const at = (min: number) => `2026-11-10T10:${String(min).padStart(2, "0")}:00.000Z`;
+  const down = (min: number, over: Partial<FeedbackAnswerRating> = {}): FeedbackAnswerRating => ({
+    score: -1, tags: ["wrong"], comment: "It's not under Settings", at: at(min), ...over,
+  });
+  const entry = (over: Partial<FeedbackComment>): FeedbackComment => ({
+    id: crypto.randomUUID(), kind: "reply", author: null, authorKind: "human", visibility: "public", aiMeta: null,
+    aiPublic: null, ship: null, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
+  });
+  const answer = (min: number, rating: FeedbackAnswerRating | null, id = `a${min}`) =>
+    entry({ id, authorKind: "ai", createdAt: at(min), aiPublic: { confidence: "medium", rating, canRate: false } });
+
+  test("a 👎 on the latest sent answer, with nothing after it, is pending", () => {
+    const out = pendingDownvote(item({ thread: [answer(1, down(2))] }));
+    expect(out?.commentId).toBe("a1");
+    expect(out?.rating.comment).toBe("It's not under Settings");
+  });
+  test("👍, no rating, or a 👎 on an older answer is not", () => {
+    expect(pendingDownvote(item({ thread: [answer(1, down(2, { score: 1 }))] }))).toBeNull();
+    expect(pendingDownvote(item({ thread: [answer(1, null)] }))).toBeNull();
+    expect(pendingDownvote(item({ thread: [answer(1, down(5)), answer(3, null)] }))).toBeNull();
+  });
+  test("an AI entry or an owner reply after the 👎 settles it — once per 👎", () => {
+    const rated = answer(1, down(2));
+    expect(pendingDownvote(item({ thread: [rated, entry({ authorKind: "ai", visibility: "draft", createdAt: at(3) })] }))).toBeNull();
+    expect(pendingDownvote(item({ thread: [rated, entry({ authorKind: "ai", visibility: "private", createdAt: at(3) })] }))).toBeNull();
+    expect(pendingDownvote(item({ thread: [rated, entry({ author: ana, createdAt: at(3) })] }))).toBeNull();
+    // the reporter's own reply doesn't settle it (it re-queues the ticket on its own)
+    expect(pendingDownvote(item({ thread: [rated, entry({ author: kai, createdAt: at(3) })] }))).not.toBeNull();
+    // a fresh 👎 after the draft counts again
+    expect(
+      pendingDownvote(item({ thread: [answer(1, down(4)), entry({ authorKind: "ai", visibility: "private", createdAt: at(3) })] })),
+    ).not.toBeNull();
+  });
+  test("Markdown flags the 👎 for the agent and shows each rating in the thread", () => {
+    const md = feedbackMarkdown([item({ thread: [answer(1, down(2, { tags: ["wrong", "unclear"] }))] })], { imageUrl: () => null });
+    expect(md).toContain("**Reporter rated the last AI answer 👎 Wrong, Unclear — “It's not under Settings”** (2026-11-10)");
+    expect(md).toContain("this answer waits as a draft for the owner");
+    expect(md).toContain("  - _Reporter's rating (2026-11-10):_ 👎 Wrong, Unclear — “It's not under Settings”");
+    const settled = feedbackMarkdown([item({ thread: [answer(1, down(2)), entry({ author: ana, createdAt: at(3) })] })], { imageUrl: () => null });
+    expect(settled).not.toContain("Reporter rated the last AI answer");
+    expect(settled).toContain("_Reporter's rating");
+  });
+  test("answerRatingText reads plainly", () => {
+    expect(answerRatingText({ score: 1, tags: [], comment: null, at: at(0) })).toBe("👍");
+    expect(answerRatingText({ score: -1, tags: [], comment: null, at: at(0) })).toBe("👎");
+    expect(answerRatingText({ score: -1, tags: ["missed_question"], comment: "a\nb", at: at(0) })).toBe("👎 Didn't answer my question — “a b”");
   });
 });
