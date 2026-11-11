@@ -165,7 +165,7 @@ The agent it starts is `claude -p /answer-feedback` with a read-only tool allowl
 from the repo root; set `FEEDBACK_WATCH_CMD` to use something else. To switch over:
 
 1. Load it with launchd so it survives logins — save as
-   `~/Library/LaunchAgents/com.pinroj.pt-feedback-watch.plist` (fix the two paths), then
+   `~/Library/LaunchAgents/com.pinroj.pt-feedback-watch.plist` (fix the paths; launchd has no login PATH, so `bun` and `claude` must be on the PATH given), then
    `launchctl load ~/Library/LaunchAgents/com.pinroj.pt-feedback-watch.plist`:
    ```xml
    <?xml version="1.0" encoding="UTF-8"?>
@@ -173,6 +173,9 @@ from the repo root; set `FEEDBACK_WATCH_CMD` to use something else. To switch ov
    <plist version="1.0"><dict>
      <key>Label</key><string>com.pinroj.pt-feedback-watch</string>
      <key>WorkingDirectory</key><string>/Users/you/dev/program-tracker</string>
+     <key>EnvironmentVariables</key><dict>
+       <key>PATH</key><string>/Users/you/.bun/bin:/Users/you/.local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+     </dict>
      <key>ProgramArguments</key><array>
        <string>/bin/zsh</string><string>-lc</string><string>bun run feedback:watch</string>
      </array>
