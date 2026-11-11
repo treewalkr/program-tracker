@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### New
+- Rearrange a draft by hand, in the chat pane and on the review page: the ⋯ menu on each exercise moves it up or down, puts it in a superset with the exercise above or below, takes it out of a superset, or moves it to another session. Select mode ticks several exercises and moves or supersets them together. Every edit can be undone.
+- The AI knows about your hand edits: a short "Edited the draft by hand" line in the chat lists what you changed, and the AI keeps those changes unless you ask otherwise.
+- Your exercise order sticks: once you edit a draft, it is no longer re-sorted by role, in later versions or after approving.
+- Back-to-back hand edits stay in one draft version, and the row of version buttons is now one compact picker that says who made each version (You or AI) and what changed.
+- Click your chosen 👍/👎 on an AI answer again to remove the rating.
+
+### Fixed
+- When the AI rebuilds a draft, it now sees which exercises are in a superset, so supersets aren't lost.
+- A change the AI proposed before your hand edit can no longer be built over that edit.
+
 ## v0.1.24 — 2026-11-11
 
 ### New
