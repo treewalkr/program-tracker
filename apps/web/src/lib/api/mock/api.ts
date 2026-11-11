@@ -1132,7 +1132,6 @@ export const mockApi: TrainerApi = {
     const parent = state.generations.find((g) => g.id === generationId);
     if (!parent) throw new Error("generation not found");
     if (parent.status !== "validated" || !parent.draft) throw new Error(`generation is ${parent.status}, not validated`);
-    if (parent.kind === "week") throw new Error("week drafts can't be edited by hand");
     const child = state.generations.find((g) => g.parentGenerationId === parent.id && (g.status === "pending" || g.status === "validated"));
     if (child?.status === "pending") throw new Error("a revision is already running for this generation");
     if (child) throw new Error("only the latest version can be edited");

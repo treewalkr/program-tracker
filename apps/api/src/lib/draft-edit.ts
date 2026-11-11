@@ -45,9 +45,6 @@ export async function saveDraftEdit(parentId: string, rawOps: unknown): Promise<
   if (parent.status !== "validated" || !parent.draft) {
     return { ok: false, status: 409, error: `generation is ${parent.status}, not validated` };
   }
-  if (parent.kind === "week") {
-    return { ok: false, status: 409, error: "week drafts can't be edited by hand" };
-  }
 
   const [child] = await db
     .select({ status: aiGenerations.status })

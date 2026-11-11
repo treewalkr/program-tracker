@@ -148,9 +148,9 @@
 
   /** A newer version exists (this one was reopened): only the latest is editable. */
   const superseded = $derived(gens.some((g) => g.parentGenerationId === gen.id && (g.status === "validated" || g.status === "pending")));
-  const handEditable = $derived(!!oneditsaved && canEdit && !superseded && !editing && !approving && !rejecting);
+  const handEditable = $derived(!!oneditsaved && gen.status === "validated" && !newProgram && !superseded && !editing && !approving && !rejecting);
   const editLock = $derived(
-    !oneditsaved || !canEdit ? null : superseded ? "Only the latest version can be edited" : editing ? "Finish editing the plan to edit sessions" : null
+    !oneditsaved || gen.status !== "validated" || newProgram ? null : superseded ? "Only the latest version can be edited" : editing ? "Finish editing the plan to edit sessions" : null
   );
   const editor = new DraftEditor({
     api,

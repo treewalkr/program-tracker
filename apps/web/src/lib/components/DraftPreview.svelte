@@ -67,9 +67,7 @@
         ? `Editing pauses while v${building.next} builds`
         : !isLatest
           ? `Only the latest version (v${latest}) can be edited`
-          : view.generation.kind === "week"
-            ? "Week drafts can't be edited by hand"
-            : null
+          : null
   );
   const canEdit = $derived(!!editor && lockReason === null && !!view.generation.draft);
 

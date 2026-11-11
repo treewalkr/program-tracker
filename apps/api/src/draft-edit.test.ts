@@ -158,7 +158,7 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
     expect(edits).toHaveLength(2);
   });
 
-  test("week drafts and drafts that are not validated are refused", async () => {
+  test("drafts that are not validated are refused; week drafts edit like blocks", async () => {
     const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, genId));
     const [pending] = await db
       .insert(aiGenerations)
@@ -172,7 +172,7 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
       .insert(aiGenerations)
       .values({ trainerId: gen.trainerId, clientId, kind: "week", targetWeek: 2, providerId: "mock", model: "mock-draft-v1", status: "validated", draft: gen.draft })
       .returning();
-    const w = await call("POST", `/v1/ai/generations/${week.id}/edit`, { ops: undo });
-    expect(w.status).toBe(409);
+    const w = await call("POST", `/v1/ai/generations/${week.id}/edit`, { ops: [{ op: "moveTo", refs: [{ day: 1, slot: 2 }], day: 2 }] });
+    expect(w.status).toBe(201);
   });
 });
