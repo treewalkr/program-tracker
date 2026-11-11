@@ -379,6 +379,13 @@
       "when": 1797400000000,
       "tag": "0054_feedback_answer_call",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1797500000000,
+      "tag": "0055_generation_trainer_order",
+      "breakpoints": true
     }
   ]
 }
