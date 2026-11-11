@@ -358,6 +358,13 @@
       "when": 1797100000000,
       "tag": "0051_drop_feedback_shot_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1797200000000,
+      "tag": "0052_feedback_duplicates",
+      "breakpoints": true
     }
   ]
 }

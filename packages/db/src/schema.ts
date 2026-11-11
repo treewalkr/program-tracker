@@ -596,9 +596,14 @@ export const feedbackItems = pgTable("feedback_items", {
   /** Last edit of the comment or the ticket's images (reporter or admin); null = never edited. No history is kept. */
   editedAt: timestamp("edited_at", { withTimezone: true }),
   editedBy: uuid("edited_by").references(() => trainers.id, { onDelete: "set null" }),
+  /** The open ticket this one repeats; closing that one closes this one too. Never a chain. */
+  duplicateOf: uuid("duplicate_of").references((): AnyPgColumn => feedbackItems.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("feedback_items_trainer_idx").on(t.trainerId)]);
+}, (t) => [
+  index("feedback_items_trainer_idx").on(t.trainerId),
+  index("feedback_items_duplicate_of_idx").on(t.duplicateOf),
+]);
 export type FeedbackItemRow = typeof feedbackItems.$inferSelect;
 
 /** A feedback item's thread: replies, plus one entry per status change. */
