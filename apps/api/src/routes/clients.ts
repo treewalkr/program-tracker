@@ -4,6 +4,7 @@ import { db, clients, programs } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 import { clientDto, trainerDeloadSettings } from "../lib/deload";
+import { clientRoster } from "../lib/roster";
 import {
   BODYWEIGHT_KG_RANGE,
   HEIGHT_CM_RANGE,
@@ -11,6 +12,11 @@ import {
   birthDateError,
   startedOnError,
   DeloadSettings,
+  DEFAULT_PAGE_LIMIT,
+  PAGE_LIMITS,
+  isPageLimit,
+  ROSTER_SORTS,
+  ROSTER_STATUSES,
 } from "@pt/shared";
 
 /** exerciseId → { kg, date } (mirrors shared `OneRepMaxes`). */
@@ -65,6 +71,32 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     const mine = await trainerDeloadSettings(trainerId);
     return rows.map((c) => clientDto(c, mine));
   })
+  // Before "/:id", so "roster" is never read as a client id.
+  .get(
+    "/roster",
+    ({ query, status, trainerId }) => {
+      const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+      if (!isPageLimit(limit)) return status(422, { error: `limit must be one of ${PAGE_LIMITS.join(", ")}` });
+      return clientRoster(trainerId, {
+        q: query.q,
+        status: query.status ?? "all",
+        sort: query.sort ?? "name",
+        page: query.page ?? 1,
+        limit,
+      });
+    },
+    {
+      query: t.Object({
+        q: t.Optional(t.String({ maxLength: 100 })),
+        status: t.Optional(t.UnionEnum(ROSTER_STATUSES)),
+        sort: t.Optional(t.UnionEnum(ROSTER_SORTS)),
+        page: t.Optional(t.Integer({ minimum: 1 })),
+        // A literal union isn't coerced from the query string — checked against PAGE_LIMITS above.
+        limit: t.Optional(t.Integer()),
+      }),
+      detail: { summary: "One page of the client roster with each client's training status" },
+    }
+  )
   .get(
     "/:id",
     async ({ params, status, trainerId }) => {

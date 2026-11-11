@@ -36,6 +36,7 @@ import type {
   Readiness,
   SessionFlag,
 } from "@pt/shared";
+import type { client } from "./treaty";
 
 export type PrescribedSetDto = PrescribedSet;
 export type ExerciseRole = Er;
@@ -51,6 +52,14 @@ export type CardioLogDto = CardioLog;
 export type ReadinessDto = Readiness;
 export type SessionFlagDto = SessionFlag;
 export type WeekSummaryStatsDto = WeekSummaryStats;
+
+/** GET /v1/clients/roster, inferred from the Elysia route via Eden Treaty. */
+type RosterGet = typeof client.v1.clients.roster.get;
+export type RosterQuery = NonNullable<NonNullable<Parameters<RosterGet>[0]>["query"]>;
+/** One page of the roster + per-status counts (counts honour `q`, not `status`). */
+export type RosterPageDto = Extract<NonNullable<Awaited<ReturnType<RosterGet>>["data"]>, { items: unknown }>;
+/** A roster row: the client's list fields plus training status. */
+export type RosterRowDto = RosterPageDto["items"][number];
 
 export interface ClientDto {
   id: string;
@@ -616,6 +625,8 @@ export interface TrainerApi {
   /** Unused types only, never the last one; everything else archives via patchSessionType. */
   deleteSessionType(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
+  /** One page of the client roster (server-paged): search, status, sort, page, limit. */
+  roster(query: RosterQuery): Promise<RosterPageDto>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;
   createClient(input: Omit<ClientDto, "id" | "status">): Promise<ClientDto>;
   updateClient(id: string, patch: Partial<ClientDto>): Promise<ClientDto>;

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
-  import { CLIENT_STATUSES, type ClientStatus } from "@pt/shared";
+  import { CLIENT_STATUSES, pageOf, type ClientStatus } from "@pt/shared";
+  import { listUrlState } from "$lib/list/urlState.svelte";
+  import ListToolbar from "$lib/ui/ListToolbar.svelte";
+  import Pager from "$lib/ui/Pager.svelte";
   import { apiMode } from "$lib/api";
   import { adminApi, type AdminClient } from "$lib/api/admin";
   import { filterClients, lastSessionLabel, localToday, programmeLabel, sampleAdminClients, shortDay, trainersOf } from "$lib/adminClients";
@@ -48,26 +50,15 @@
   });
 
   // Filters live in the URL so a trainer's client count can link straight here.
-  const params = $derived(page.url.searchParams);
-  const q = $derived(params.get("q") ?? "");
-  const trainerId = $derived(params.get("trainer") ?? "");
-  const status = $derived((CLIENT_STATUSES as readonly string[]).includes(params.get("status") ?? "") ? (params.get("status") as ClientStatus) : "");
-  const filtering = $derived(q.trim() !== "" || trainerId !== "" || status !== "");
-
-  function setParam(key: string, value: string) {
-    const url = new URL(page.url);
-    if (value) url.searchParams.set(key, value);
-    else url.searchParams.delete(key);
-    goto(url, { replaceState: true, keepFocus: true, noScroll: true });
-  }
-  function clearFilters() {
-    const url = new URL(page.url);
-    for (const k of ["q", "trainer", "status"]) url.searchParams.delete(k);
-    goto(url, { replaceState: true, keepFocus: true, noScroll: true });
-  }
+  const view = listUrlState({ trainer: null, status: ["", ...CLIENT_STATUSES] });
+  const q = $derived(view.q);
+  const trainerId = $derived(view.params.trainer);
+  const status = $derived(view.params.status as ClientStatus | "");
 
   const trainers = $derived(trainersOf(rows ?? []));
   const shown = $derived(filterClients(rows ?? [], { q, trainerId, status }));
+  // Paged in the browser: the directory is one read, and `?demo` swaps in sample rows.
+  const paged = $derived(pageOf(shown, view.page, view.limit));
   const summary = $derived.by(() => {
     if (rows == null) return "Every trainer's clients, read-only";
     const n = rows.length;
@@ -97,35 +88,30 @@
 {:else if rows.length === 0}
   <section class="panel"><EmptyState>No clients yet — trainers' clients show up here once they add them.</EmptyState></section>
 {:else}
-  <div class="filters" role="search">
-    <input
-      class="input search"
-      type="search"
-      placeholder="Search client or trainer"
-      aria-label="Search client or trainer"
-      value={q}
-      oninput={(e) => setParam("q", e.currentTarget.value)}
-    />
-    <select class="select" aria-label="Trainer" value={trainerId} onchange={(e) => setParam("trainer", e.currentTarget.value)}>
+  {#snippet toolbarFilters()}
+    <select class="select" aria-label="Trainer" value={trainerId} onchange={(e) => view.set({ trainer: e.currentTarget.value })}>
       <option value="">All trainers</option>
       {#each trainers as t (t.id)}
         <option value={t.id}>{t.name}{t.access === "disabled" ? " (disabled)" : ""}</option>
       {/each}
     </select>
-    <select class="select" aria-label="Status" value={status} onchange={(e) => setParam("status", e.currentTarget.value)}>
+    <select class="select" aria-label="Status" value={status} onchange={(e) => view.set({ status: e.currentTarget.value as ClientStatus | "" })}>
       <option value="">Any status</option>
       {#each CLIENT_STATUSES as s (s)}<option value={s}>{STATUS_LABEL[s]}</option>{/each}
     </select>
-    {#if filtering}
-      <span class="subtle count" role="status">{shown.length} of {rows.length}</span>
-    {/if}
-  </div>
+  {/snippet}
+  <ListToolbar
+    bind:value={view.search}
+    label="Search client or trainer"
+    count={view.filtering ? `${shown.length} of ${rows.length}` : undefined}
+    filters={toolbarFilters}
+  />
 
   {#if shown.length === 0}
     <section class="panel">
       <EmptyState>
         No clients match these filters.
-        {#snippet actions()}<Button onclick={clearFilters}>Clear filters</Button>{/snippet}
+        {#snippet actions()}<Button onclick={() => view.clear()}>Clear filters</Button>{/snippet}
       </EmptyState>
     </section>
   {:else}
@@ -135,7 +121,7 @@
           <tr><th>Client</th><th>Trainer</th><th>Status</th><th>Programme</th><th>Client since</th><th>Last session</th></tr>
         </thead>
         <tbody>
-          {#each shown as c (c.id)}
+          {#each paged.items as c (c.id)}
             {@const last = lastSessionLabel(c.lastSessionAt, today)}
             <tr class:dim={c.status !== "active"}>
               <td>
@@ -167,16 +153,21 @@
           {/each}
         </tbody>
       </table>
+      <Pager
+        page={paged.page}
+        limit={paged.limit}
+        total={paged.total}
+        noun="Clients"
+        onpage={(p) => view.setPage(p)}
+        onlimit={(l) => view.setLimit(l)}
+      />
     </section>
   {/if}
 {/if}
 
 <style>
   :global(.note.sample-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-  .search { width: 260px; max-width: 100%; }
-  .filters .select { width: auto; }
-  .count { margin-left: 4px; }
+  :global(.list-toolbar) .select { width: auto; }
   .who { display: flex; align-items: center; gap: 10px; }
   .who :global(.avatar) { width: 24px; height: 24px; font-size: 10px; flex: none; }
   .name { font-weight: 600; color: var(--ink); white-space: nowrap; }
@@ -197,8 +188,7 @@
   /* Sized to the room beside the sidebar, not the window: the six columns
      need ~700px, which the sidebar takes away long before a phone width. */
   @container main (max-width: 760px) {
-    .search { width: 100%; }
-    .filters .select { flex: 1; }
+    :global(.list-toolbar) .select { flex: 1; }
     .roster thead { display: none; }
     .roster, .roster tbody, .roster tr, .roster td { display: block; width: 100%; }
     .roster tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }

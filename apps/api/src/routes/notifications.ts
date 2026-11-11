@@ -1,8 +1,7 @@
 import { Elysia, t } from "elysia";
-import { eq } from "drizzle-orm";
 import { db, signalSnoozes } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
-import { computeTrainerSignals } from "../lib/signals-service";
+import { openSignals } from "../lib/signals-service";
 
 export const notificationRoutes = new Elysia({ prefix: "/v1/notifications", tags: ["notifications"] })
   .use(trainerContext)
@@ -10,18 +9,7 @@ export const notificationRoutes = new Elysia({ prefix: "/v1/notifications", tags
    * Signals are derived state — computed on read by the shared rule engine,
    * never stored as truth. Snoozed rows (until in the future) are filtered out.
    */
-  .get("/", async ({ trainerId }) => {
-    const signals = await computeTrainerSignals(trainerId);
-    const snoozed = await db
-      .select()
-      .from(signalSnoozes)
-      .where(eq(signalSnoozes.trainerId, trainerId));
-    const now = Date.now();
-    const hidden = new Set(
-      snoozed.filter((s) => s.snoozedUntil.getTime() > now).map((s) => s.signalId)
-    );
-    return { signals: signals.filter((s) => !hidden.has(s.id)) };
-  })
+  .get("/", async ({ trainerId }) => ({ signals: await openSignals(trainerId) }))
   .put(
     "/:signalId/snooze",
     async ({ params, body, status, trainerId }) => {

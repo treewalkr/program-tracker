@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
   clients,
+  signalSnoozes,
   exercises,
   programs,
   sessionLogs,
@@ -160,6 +161,17 @@ export async function computeTrainerSignals(
     signals.push(...painFlagSignals({ programId: program?.id ?? null, clientId: client.id }, clientLogs, nameOf, now));
   }
   return signals;
+}
+
+/** The trainer's signals minus the snoozed ones (snooze still in the future) —
+ *  what the notifications feed shows and the client roster counts. */
+export async function openSignals(trainerId: string, now = Date.now()): Promise<Signal[]> {
+  const [signals, snoozed] = await Promise.all([
+    computeTrainerSignals(trainerId),
+    db.select().from(signalSnoozes).where(eq(signalSnoozes.trainerId, trainerId)),
+  ]);
+  const hidden = new Set(snoozed.filter((s) => s.snoozedUntil.getTime() > now).map((s) => s.signalId));
+  return signals.filter((s) => !hidden.has(s.id));
 }
 
 /** Write path: queue unseen signal ids for the (L5) email dispatcher.

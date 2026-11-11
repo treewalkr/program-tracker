@@ -372,12 +372,24 @@ Weekly volume bars on the contributions ramp, with an average-RPE line on a fixe
 ### Generate Inputs & Client Message
 The generate page opens with an **InputLedger**: "What the AI reads", one lamp row per generation input. Empty inputs link to where they're filled in. While a draft runs, **GeneratingState** shows phase and elapsed time. The client message page puts the approved text next to a **CopyButton** ("Copy" → "Copied ✓" for 2s, errors shown in place). The trainer pastes the message into LINE by hand; the app never sends it.
 
+### Lists
+Every list page (Clients, Exercise library, Admin › All clients) follows one standard, built from **ListToolbar**, **Pager** and the URL state helper `listUrlState` (`$lib/list/urlState.svelte.ts`).
+- **Where paging happens:** page on the server when the page doesn't otherwise need the full set and per-row data is costly (Clients — `GET /v1/clients/roster`); otherwise page in the browser with `pageOf` (Exercises, whose coverage map and bulk select need the whole library; Admin › All clients, one read plus the `?demo` sample). The UI is identical either way.
+- **Page size:** default 10; the rows-per-page select offers 10 / 25 / 50 (`PAGE_LIMITS` in `@pt/shared`). A page past the end clamps to the last page.
+- **Toolbar order:** search → filters or tabs → sort → result count. The count ("3 matches", "12 of 584") is a polite live region and only shows while something narrows the list. A Box header may carry the status filter instead, Primer issue-list style: Clients puts All / Active / Paused / Archived with counters on the left of its panel head and Sort on the right, so the counts sit on the rows they describe. Status counts honour the search but not the status itself, so each one says what clicking it gives.
+- **Pager:** at the panel foot under a hairline — `11–19 of 19` (mono figures), Rows select, "Page 2 of 2" (hidden ≤700px container), Previous / Next. `nav aria-label="Pagination"`. Hidden entirely while the whole list fits the smallest page.
+- **State in the URL:** `q`, filters, sort, `page`, `limit`; defaults stay out of the URL. Writes replace the history entry (focus and scroll kept), so reload, a shared link and Back from a row all restore the page. Search waits 250ms after the last keystroke. Any search, filter, sort or rows change resets to page 1.
+- **Loading:** a skeleton only on first load; between pages the previous page stays visible at 55% opacity (`aria-busy`) until the next one lands — no skeleton flash.
+- **Empty vs no match:** an empty roster is an on-ramp (centered message + the create action); a list that filters to nothing says what was searched and offers **Clear filters** (sort and rows-per-page stay).
+- **Rows:** the whole row opens the item, except clicks on links and buttons inside it; the name stays a real anchor. Under a 700px main container rows stack into cards (name + attention on line one, then program, last trained, schedule with 88px muted labels).
+- **Clients row:** avatar + name (status pill when not active, amber flag when limitations exist; email · goal on a muted second line, goal in the row tooltip) · program name with `wk 3/6` and a 4px Link Blue progress track (amber "over" past the plan; "No program · Write one" otherwise) · last trained, relative, amber after 7 days, faint "Never" · schedule `3×` + days, cardio target below · open-signal count as an amber Label linking to the client.
+
 ## Component Library & Storybook
 
 Reusable UI lives in code, catalogued in Storybook:
 
 - **Run:** `bun run storybook` (repo root) → http://localhost:6006. Stories are Svelte 5 CSF (`defineMeta` + `Story`) via `@storybook/addon-svelte-csf`.
-- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonRows/SkeletonPanel/SkeletonHead, Counter, Icon, EmptyState, Avatar, GeneratingState). `src/lib/components/` holds domain components, grouped by surface:
+- **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonRows/SkeletonPanel/SkeletonHead, Counter, Icon, EmptyState, Avatar, GeneratingState, ListToolbar, Pager). `src/lib/components/` holds domain components, grouped by surface:
   - **Overview & client:** StatusPill, SignalRow, WeekGrid, PulseChart, SessionCard, SetChips, RoleChip, DirChip
   - **Draft review & chat:** DraftReview, DraftPreview, ChatProposal, VersionStamp, BlockPlanStrip, BlockPlanEditor
   - **Program editing:** WeekCalendar, SessionHeadEditor, ExerciseEditor, PhasingEditor
