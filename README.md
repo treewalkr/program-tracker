@@ -94,8 +94,7 @@ Element source comes from Svelte's dev-build metadata, so it needs the dev serve
    Each item carries the auto-reply agent's latest **AI triage** (verdict, confidence, risk,
    fix plan, citations) while it still matches the ticket; once the ticket changes, it's left out.
 3. **Over HTTP**: `GET /v1/feedback/export?status=accepted&format=md|json`. The Markdown
-   links every image as `/v1/feedback/<id>/attachments/<attachmentId>`; the old
-   `/v1/feedback/<id>/shot/element|page` links still work.
+   links every image as `/v1/feedback/<id>/attachments/<attachmentId>`.
 4. **Close the loop**: end the fix commit with the ticket, e.g.
    `fix: clearer rest timer (FB-012)`. Once that commit is live, CI's last deploy step
    (`apps/api/scripts/feedback-shipped.ts`) moves the ticket to **Done** with the live
@@ -138,8 +137,7 @@ under the note, and the export hands them to the coding agent.
 The inbox holds open tickets where the reporter wrote last and the agent hasn't
 answered that version of the ticket yet. `inbox` downloads every image on the ticket and
 its public replies to `/tmp/pt-fb-agent/<handle>-<n>.<ext>`, lists which entry each came
-from, and the skill opens them all before deciding. The old
-`/v1/agent/feedback/<id>/shots/:kind` route stays for one release for older CLIs.
+from, and the skill opens them all before deciding.
 
 ## Releases
 
