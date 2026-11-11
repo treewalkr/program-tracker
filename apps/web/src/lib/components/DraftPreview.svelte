@@ -222,7 +222,7 @@
     opacity: 0.5;
   }
   .body :global(.session-body) {
-    padding-left: 24px;
+    --row-pad-l: 24px;
   }
   .session-slot + .session-slot {
     border-top: 1px solid var(--line);

@@ -116,9 +116,9 @@
       {#if exercises.length > 1}
         <div class="exrow colhead" aria-hidden="true"><span></span><SetChips sets={[]} {cols} head /></div>
       {/if}
-      {#snippet exrow(e: (typeof exercises)[number], i: number)}
+      {#snippet exrow(e: (typeof exercises)[number], i: number, striped = false)}
         {@const m = e.slot != null ? marks?.get(e.slot) : undefined}
-        <div class="exrow" class:is-primary={e.role === "primary"} class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
+        <div class="exrow" class:stripe={striped} class:is-primary={e.role === "primary"} class:is-changed={!!m} class:is-unasked={m?.kind === "unproposed"} data-slot={e.slot}>
           <div class="ex">
             {#if e.group}<GroupTag tag={groupTag(exercises, i) ?? e.group} />{/if}
             {#if e.role}<RoleChip role={e.role} />{/if}
@@ -137,17 +137,18 @@
           <SetChips sets={e.sets} oneRepMaxKg={e.oneRepMaxKg} {cols} />
         </div>
       {/snippet}
-      {#each units as u (u.start)}
+      <!-- stripes alternate per unit: a superset shares one tint, so the band itself groups it -->
+      {#each units as u, ui (u.start)}
         {#if u.group}
-          <div class="xgroup" role="group" aria-label="{groupKind(u.items.length)} {u.group}">
+          <div class="xgroup" class:stripe={ui % 2 === 1} role="group" aria-label="{groupKind(u.items.length)} {u.group}">
             <div class="grouphead">
-              <span class="gletter">{u.group}</span>
-              <strong>{groupKind(u.items.length)}</strong> · {u.items[0].sets.length} {u.items[0].sets.length === 1 ? "round" : "rounds"}
+              <span><span class="gletter">{u.group}</span><strong>{groupKind(u.items.length)}</strong></span>
+              <span class="rounds">{u.items[0].sets.length} {u.items[0].sets.length === 1 ? "round" : "rounds"}</span>
             </div>
             {#each u.items as e, k (u.start + k)}{@render exrow(e, u.start + k)}{/each}
           </div>
         {:else}
-          {@render exrow(u.items[0], u.start)}
+          {@render exrow(u.items[0], u.start, ui % 2 === 1)}
         {/if}
       {/each}
     </div>
@@ -173,8 +174,8 @@
   .exrow.is-changed::before {
     content: "~";
     position: absolute;
-    left: -13px;
-    top: 1px;
+    left: calc(var(--row-pad-l, 14px) - 13px);
+    top: 8px;
     font: 700 13px/1.4 var(--font-mono);
     color: var(--blue);
   }
@@ -209,26 +210,27 @@
     white-space: nowrap;
     margin-left: 6px;
   }
-  /* a superset: hairline box around its members; contents stay on the card's columns */
+  /* a superset/circuit: one stripe band under a header band; members split
+     by full hairlines so the band reads as one unit. Rows stay on the card's columns. */
   .xgroup {
     display: flex;
     flex-direction: column;
-    gap: 9px;
-    margin: 0 -8px;
-    padding: 0 8px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+  }
+  .xgroup > :global(.exrow + .exrow) {
+    border-top: 1px solid var(--line);
   }
   .grouphead {
-    margin: 0 -8px;
-    padding: 4px 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 14px 5px var(--row-pad-l, 14px);
     background: var(--well);
-    border-bottom: 1px solid var(--line);
-    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 2px solid var(--line-soft);
     font: 500 12px/1.4 var(--font-ui);
     color: var(--muted);
   }
   .grouphead strong { color: var(--ink); font-weight: 600; }
+  .rounds { font: 500 11px/1.4 var(--font-mono); font-variant-numeric: tabular-nums; }
   .gletter { font: 600 11px/1 var(--font-mono); margin-right: 4px; }
   .balance {
     display: flex;
@@ -274,7 +276,8 @@
   @media (hover: none) { .note-btn { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
   /* column labels over the aligned set chips; tight to the first row */
-  .colhead { margin: -4px 0 -6px; }
+  .colhead { padding-top: 6px; padding-bottom: 0; }
+  .session-body > :global(.colhead + *) { border-top: 0; }
   .legend { font: 400 11px/1.6 var(--font-mono); }
   /* stacked rows (app.css): a tag that wraps starts flush with the role chip;
      chips no longer form columns, so the labels go */

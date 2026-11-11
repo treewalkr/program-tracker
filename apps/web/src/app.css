@@ -824,17 +824,27 @@ a.rowlink { color: var(--ink); font-weight: 600; }
    instead of pushing the page sideways. */
 .cond-row .cond { margin-left: 0; white-space: normal; min-width: 0; line-height: 1.35; align-items: flex-start; }
 .cond-row .cond svg { margin-top: 3px; }
-.session-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+/* The body is one striped table: each unit (a lone exercise, or a whole
+   superset/circuit) is a flush row band, alternate units tinted (`.stripe`).
+   Rows own their padding; --row-pad-l widens the left gutter where the
+   chat preview draws change marks. */
+.session-body { display: flex; flex-direction: column; --row-pad-l: 14px; }
+.session-body > * + * { border-top: 1px solid var(--line-soft); }
+.session-body > .stripe { background: var(--well-2); }
 .session { container: session / inline-size; }
 .session + .session { border-top: 1px solid var(--line); }
-.exrow { display: grid; grid-template-columns: minmax(min(16rem, 55%), 1fr) minmax(0, auto); gap: 12px; align-items: center; }
+.exrow { display: grid; grid-template-columns: minmax(min(16rem, 55%), 1fr) minmax(0, auto); gap: 12px; align-items: center; padding: 7px 14px 7px var(--row-pad-l); }
 /* wraps so tags drop a line instead of squeezing the name to a letter per line */
 .exrow .ex { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 500; font-size: 14px; min-width: 0; }
 
 /* Sized to the card, not the viewport: the card is narrow beside a sidebar
-   and side column long before the screen is. Set chips drop under the name. */
+   and side column long before the screen is. Mid-width cards keep one line
+   per exercise with natural-width chips; only a phone-narrow card drops the
+   set chips under the name. */
 @container session (max-width: 660px) {
-  .session-body { gap: 14px; }
+  .exrow { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+}
+@container session (max-width: 420px) {
   .exrow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .exrow .ex { align-items: baseline; }
   .exrow > :last-child { justify-self: start; }
