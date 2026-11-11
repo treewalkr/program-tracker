@@ -26,7 +26,6 @@
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import Tooltip from "$lib/ui/Tooltip.svelte";
-  import Icon from "$lib/ui/Icon.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -436,7 +435,19 @@
     </form>
   {/if}
 
-  <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
+  <div class="tabbar">
+    <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
+    <!-- One choice for every ticket: page, source and device under each comment. -->
+    <button
+      type="button"
+      class="details-toggle"
+      aria-pressed={ticketDetails.open}
+      aria-controls={visible.map((i) => `fb-details-${i.id}`).join(" ") || undefined}
+      onclick={ticketDetails.toggle}
+    >
+      Show details
+    </button>
+  </div>
 
   <div role="tabpanel" id="panel-{filter}" aria-labelledby="fb-{filter}">
     {#if !loaded}
@@ -517,16 +528,6 @@
               {/if}
 
               <div class="ticket-bar">
-                <button
-                  type="button"
-                  class="details-toggle"
-                  class:open={ticketDetails.open}
-                  aria-expanded={ticketDetails.open}
-                  aria-controls="fb-details-{item.id}"
-                  onclick={ticketDetails.toggle}
-                >
-                  Details<span class="chev" aria-hidden="true"><Icon name="chevron" /></span>
-                </button>
                 {#if canEdit(item) && editingId !== item.id}
                   <button
                     type="button"
@@ -580,7 +581,7 @@
 
               {#if editingId !== item.id}{@render ticketImages(item)}{/if}
 
-              <Thread {item} onchange={replace} />
+              <Thread {item} onchange={replace} collapsible />
             </div>
 
             {#if isAdmin}
@@ -612,7 +613,6 @@
                 {#if item.status === "new"}
                   <Button
                     small
-                    variant="primary"
                     disabled={busy}
                     aria-label="Accept {handle}"
                     icon={pending[item.id] === "accepted" ? spinner : undefined}
@@ -885,7 +885,10 @@
   .muted {
     color: var(--muted);
   }
-  /* Under the comment: the Details toggle, then Show me. */
+  /* Under the comment: Edit, then Show me. */
+  .ticket-bar:empty {
+    display: none;
+  }
   .ticket-bar {
     display: flex;
     align-items: center;
@@ -915,17 +918,6 @@
   .details-toggle:focus-visible {
     outline: 2px solid var(--blue);
     outline-offset: 2px;
-  }
-  .chev {
-    display: inline-flex;
-    transition: transform 120ms;
-  }
-  .chev :global(svg) {
-    width: 14px;
-    height: 14px;
-  }
-  .details-toggle.open .chev {
-    transform: rotate(180deg);
   }
   dl[hidden] {
     display: none;
@@ -1074,8 +1066,29 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+  }
+  .tabbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin: 16px 0 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tabbar :global(.tabs) {
+    flex: 1 1 auto;
+    margin: 0 0 -1px;
+    border-bottom: 0;
+  }
+  .tabbar .details-toggle {
+    margin-left: auto;
+  }
+  .details-toggle[aria-pressed="true"] {
+    color: var(--ink);
+    background: var(--well-2);
   }
   .spacer {
     flex: 1;
@@ -1096,8 +1109,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .item,
-    .chev {
+    .item {
       transition: none;
     }
     .spinner {
