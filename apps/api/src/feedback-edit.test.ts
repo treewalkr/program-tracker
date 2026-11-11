@@ -354,7 +354,7 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
     const base = (over: Partial<FeedbackItem>): FeedbackItem => ({
       id: "i", number: 1, author: kaiAuthor, status: "new", comment: "c", triageNote: null, route: "/", source: null, context,
       attachments: [], shippedIn: null, thread: [aiReply(5)], editedAt: null, editedBy: null, unread: false, muted: false,
-      reachable: true, createdAt: at(0), updatedAt: at(0), ...over,
+      reachable: true, duplicateOf: null, duplicates: [], createdAt: at(0), updatedAt: at(0), ...over,
     });
 
     test("a reporter's edit after the answer re-queues; one before it doesn't", () => {

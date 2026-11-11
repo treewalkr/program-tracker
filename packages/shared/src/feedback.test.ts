@@ -43,6 +43,8 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   },
   attachments: [{ id: "a-el", kind: "element", mime: "image/png", width: 30, height: 20, position: 0 }],
   reachable: true,
+  duplicateOf: null,
+  duplicates: [],
   shippedIn: null,
   thread: [],
   editedAt: null,

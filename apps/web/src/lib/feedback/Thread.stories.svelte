@@ -40,6 +40,8 @@
     context: unpinnedContext('/settings', { viewport: { width: 1280, height: 800, dpr: 2 }, userAgent: 'sb', appVersion: '0.1.11+abc1234' }),
     attachments: [],
     reachable: true,
+    duplicateOf: null,
+    duplicates: [],
     shippedIn: null,
     thread,
     editedAt: null,
