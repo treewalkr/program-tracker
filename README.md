@@ -128,7 +128,7 @@ under the note, and the export hands them to the coding agent.
    ```
    Check it with `bun run feedback:agent inbox`.
 3. **Mode** (Settings → Email → *AI answers to feedback*, admin only):
-   **Off**, **Drafts only** (default) or **Auto-send confident** — only high-confidence
+   **Off**, **Drafts only** (default) or **Auto-send confident** — only medium- or high-confidence
    "exists / shipped / how-to" answers go out alone, at most one per reporter message.
 4. **Run it**: on new work with the local watcher (below), or as a T3 scheduled task in
    the project root every 30 minutes, prompt `/answer-feedback` (the skill in

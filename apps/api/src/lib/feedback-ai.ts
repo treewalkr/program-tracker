@@ -23,7 +23,7 @@ import { getDefaultTrainerId } from "./trainer";
  *
  * - inbox: open tickets where the reporter spoke last (a reply, or an edit
  *   of their ticket) and the agent hasn't answered this version of it yet
- * - send vs draft: only auto mode, high confidence, an "it already works"
+ * - send vs draft: only auto mode, medium or high confidence, an "it already works"
  *   verdict, and at most one AI answer per reporter message goes out alone
  */
 
@@ -102,7 +102,7 @@ export function routeAnswer(
   item: FeedbackItem,
 ): AnswerOutcome {
   const confident =
-    mode === "auto" && answer.confidence === "high" && FEEDBACK_AI_AUTO_VERDICTS.includes(answer.verdict);
+    mode === "auto" && answer.confidence !== "low" && FEEDBACK_AI_AUTO_VERDICTS.includes(answer.verdict);
   return confident && !aiRepliedSinceReporter(item) ? "sent" : "drafted";
 }
 

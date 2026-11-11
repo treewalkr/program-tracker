@@ -128,7 +128,7 @@ export interface FeedbackAuthor {
  */
 export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear"] as const;
 export type FeedbackAiVerdict = (typeof FEEDBACK_AI_VERDICTS)[number];
-/** Verdicts an AI answer may go out on by itself (auto mode, high confidence). */
+/** Verdicts an AI answer may go out on by itself (auto mode, medium or high confidence). */
 export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists", "shipped", "how_to"];
 
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
