@@ -661,6 +661,12 @@
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
                   ></textarea>
                 </div>
+                {#if item.fixPr}
+                  <p class="dup-row">
+                    <a href={item.fixPr.url} target="_blank" rel="noreferrer">Fix PR #{item.fixPr.url.split("/").at(-1)}</a>
+                    <span class="muted">— opened by the fix agent {fmtDate(item.fixPr.at)}; merging it closes the ticket on deploy</span>
+                  </p>
+                {/if}
                 {#if item.duplicateOf}
                   <div class="dup-row">
                     <span>
@@ -1124,6 +1130,7 @@
     font-weight: 600;
   }
   .dup-row {
+    margin: 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;

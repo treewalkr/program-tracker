@@ -122,6 +122,7 @@
           confidence: 'low',
           citations: ['apps/web/src/lib/feedback/Thread.svelte:88'],
           risk: 'medium',
+          ready: false,
           fixPlan: [
             'In apps/api/src/lib/feedback.ts, skip muted items when computing unread.',
             'Add a case to apps/api/src/feedback.test.ts for a muted ticket with a new reply.',

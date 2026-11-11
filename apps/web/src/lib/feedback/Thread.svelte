@@ -260,6 +260,11 @@
         <div class="plan-head">
           <span class="plan-label">Fix plan</span>
           {#if c.aiMeta.risk}<Pill tone={AI_RISK_TONE[c.aiMeta.risk]}>{AI_RISK_LABEL[c.aiMeta.risk]}</Pill>{/if}
+          {#if c.aiMeta.ready !== undefined}
+            <span class="ready" title={c.aiMeta.ready ? "Plan checked, nothing left to ask — with low risk, the fix agent may take it once accepted" : "Something is still open: the owner decides first"}>
+              {c.aiMeta.ready ? "Ready to fix" : "Not ready"}
+            </span>
+          {/if}
         </div>
         {#if c.aiMeta.fixPlan?.length}
           <ol aria-label="Fix plan">
@@ -511,6 +516,10 @@
   }
   .plan-label {
     font: 600 12px/1 var(--font-ui);
+    color: var(--muted);
+  }
+  .ready {
+    font: 500 12px/1 var(--font-ui);
     color: var(--muted);
   }
   .plan ol {
