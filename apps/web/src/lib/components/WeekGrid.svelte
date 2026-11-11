@@ -104,6 +104,7 @@
   const legend = $derived.by(() => {
     const seen = new Set<string>();
     let ramp = false;
+    let partial = false;
     let extras = false;
     for (const s of visible) {
       s.weeks.forEach((w, i) => {
@@ -112,11 +113,12 @@
           // Past logged days read on the ramp; this week's done cells get their own swatch.
           if (d.status === "logged" && !current) ramp = true;
           else seen.add(d.status);
+          if (!current && d.partial) partial = ramp = true;
           if (current && marks(d) && d.sessions.length > 1) extras = true;
         }
       });
     }
-    return { ramp, extras, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
+    return { ramp, partial, extras, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
   });
 
   // ── Tooltip / popover: one floating card, anchored to the square or cell ──
@@ -229,7 +231,8 @@
                 <button
                   type="button"
                   class="sq {d.status}"
-                  data-level={d.status === "logged" ? d.level : undefined}
+                  class:partial={d.partial}
+                  data-level={d.status === "logged" || d.partial ? d.level : undefined}
                   data-date={d.date}
                   tabindex={stopOf(s) === d.date ? 0 : -1}
                   aria-label={daySentence(s.client.name, d)}
@@ -372,6 +375,9 @@
             {#each [1, 2, 3, 4] as l (l)}<span class="sq logged" data-level={l}></span>{/each}
             More
           </span>
+        {/if}
+        {#if legend.partial}
+          <span class="lg"><span class="sq missed partial" data-level="3"></span>Partly done</span>
         {/if}
         {#each legend.states as st (st)}
           <span class="lg"><span class="sw {st}"></span>{LEGEND_WORDS[st]}</span>
@@ -516,6 +522,12 @@
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
   /* Faint, not line-strong: the planned outline needs 3:1 on canvas in every palette. */
   .sq.upcoming { background: var(--surface); border-color: var(--faint); }
+  /* Partly done: the ramp fill for what was logged, the missed / not-logged edge
+     (from .missed / .unlogged) for what wasn't — red or amber on green. */
+  .sq.partial[data-level="1"] { background: var(--done-1); }
+  .sq.partial[data-level="2"] { background: var(--done-2); }
+  .sq.partial[data-level="3"] { background: var(--done-3); }
+  .sq.partial[data-level="4"] { background: var(--done-4); }
   button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
 
   /* This week */
@@ -641,6 +653,7 @@
   .lg { display: inline-flex; align-items: center; gap: 3px; }
   .lg .sq + :not(.sq) { margin-left: 2px; }
   .lg.marks .mk { background: var(--muted); }
+  .lg > .sq.partial { margin-right: 2px; }
   /* State swatches are the cells in miniature: same edge, radius and fill. */
   .sw {
     width: 16px;
