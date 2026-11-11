@@ -126,6 +126,29 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
       detail: { summary: "Rate an AI output (thumbs, reasons, comment, what instead) or record a UI-side signal" },
     }
   )
+  /** Take a 👍/👎 back: the trainer's thumbs rows on the subject go. Rules it already proposed stay. */
+  .delete(
+    "/",
+    async ({ query, status, trainerId }) => {
+      const owner = await subjectOwner(query.subjectKind, query.subjectId);
+      if (!owner || owner.trainerId !== trainerId) return status(404, { error: "subject not found" });
+      await db
+        .delete(llmFeedback)
+        .where(
+          and(
+            eq(llmFeedback.trainerId, trainerId),
+            eq(llmFeedback.subjectKind, query.subjectKind),
+            eq(llmFeedback.subjectId, query.subjectId),
+            inArray(llmFeedback.signal, [...LLM_EXPLICIT_SIGNALS])
+          )
+        );
+      return status(204);
+    },
+    {
+      query: t.Object({ subjectKind: SubjectKind, subjectId: t.String({ format: "uuid" }) }),
+      detail: { summary: "Remove the thumbs verdict on an AI output" },
+    }
+  )
   /** A note pinned to one part of an output (an exercise, a session, a quoted sentence). */
   .post(
     "/notes",

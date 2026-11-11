@@ -10,9 +10,10 @@
 
 	/**
 	 * The trainer's 👍/👎 on one AI output. Thumbs up records at once; thumbs
-	 * down opens a small inline tray for optional reasons and a note. Insert-only
-	 * on the API — the latest verdict wins. Quiet by design: two muted icon
-	 * buttons until used, then ink-on-tint for the chosen one.
+	 * down opens a small inline tray for optional reasons and a note; the 👎
+	 * summary reopens it to edit. Clicking the chosen thumb again takes the
+	 * verdict back. Quiet by design: two muted icon buttons until used, then
+	 * ink-on-tint for the chosen one.
 	 */
 	interface Props {
 		subjectKind: LlmSubjectKindDto;
@@ -88,10 +89,25 @@
 		}
 	}
 
+	async function clear() {
+		saving = true;
+		error = null;
+		try {
+			await api.clearLlmVerdict(subjectKind, subjectId);
+			verdict = null;
+			learned = null;
+			open = false;
+		} catch (err) {
+			error = (err as Error).message || 'Not removed';
+		} finally {
+			saving = false;
+		}
+	}
+
 	function up() {
-		if (verdict?.signal === 'thumbs_up' || saving) return;
+		if (saving) return;
 		open = false;
-		void save('thumbs_up');
+		void (verdict?.signal === 'thumbs_up' ? clear() : save('thumbs_up'));
 	}
 
 	function down() {
@@ -99,6 +115,15 @@
 			open = false;
 			return;
 		}
+		if (verdict?.signal === 'thumbs_down') {
+			void clear();
+			return;
+		}
+		edit();
+	}
+
+	/** Open the 👎 tray, filled from the saved verdict when there is one. */
+	function edit() {
 		tags = verdict?.signal === 'thumbs_down' ? [...verdict.reasonTags] : [];
 		comment = verdict?.signal === 'thumbs_down' ? (verdict.comment ?? '') : '';
 		correction = verdict?.signal === 'thumbs_down' ? (verdict.correction ?? '') : '';
@@ -133,8 +158,8 @@
 			class="thumb"
 			class:up={isUp}
 			aria-pressed={isUp}
-			aria-label="Good {noun}"
-			title="Good {noun}"
+			aria-label={isUp ? `Remove rating on this ${noun}` : `Good ${noun}`}
+			title={isUp ? 'Remove rating' : `Good ${noun}`}
 			disabled={saving}
 			onclick={up}
 		>
@@ -147,14 +172,14 @@
 			class:open
 			aria-pressed={isDown}
 			aria-expanded={open}
-			aria-label="Bad {noun}"
-			title="Bad {noun}"
+			aria-label={isDown ? `Remove rating on this ${noun}` : `Bad ${noun}`}
+			title={isDown ? 'Remove rating' : `Bad ${noun}`}
 			disabled={saving}
 			onclick={down}
 		>
 			<Icon name="thumbs-down" />
 		</button>
-		{#if summary}<span class="summary">{summary}</span>{/if}
+		{#if summary}<button type="button" class="summary" title="Edit what was off" disabled={saving} onclick={edit}>{summary}</button>{/if}
 		{#if error && !open}<span class="err" role="alert">{error}</span>{/if}
 	</div>
 
@@ -264,6 +289,12 @@
 	}
 	.summary {
 		margin-left: 6px;
+		padding: 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
 		font-size: 12px;
 		color: var(--muted);
 		overflow: hidden;
@@ -308,6 +339,15 @@
 		align-items: center;
 		gap: 8px;
 		flex-wrap: wrap;
+	}
+	.summary:hover:not(:disabled) {
+		color: var(--ink);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.summary:focus-visible {
+		outline: 2px solid var(--blue);
+		outline-offset: 2px;
 	}
 	.err {
 		font-size: 12px;

@@ -795,6 +795,8 @@ export interface TrainerApi {
     scope?: NoteScopeDto;
     violatedRuleId?: string;
   }): Promise<LlmVerdictDto & Partial<LearnedDto>>;
+  /** Take the 👍/👎 on an AI output back. */
+  clearLlmVerdict(subjectKind: LlmSubjectKindDto, subjectId: string): Promise<void>;
   /** Latest verdict per subject (subjects without one are absent). */
   llmVerdicts(subjectIds: string[]): Promise<LlmVerdictDto[]>;
   /** UI-side implicit signals: Adjust on a proposal, Copy on a client message. */

@@ -255,6 +255,22 @@ describe.skipIf(!dbUp)("POST /v1/ai/feedback (explicit)", () => {
     expect(await feedbackFor(reply.id)).toHaveLength(2); // append-only
   });
 
+  test("DELETE takes the thumbs back and leaves implicit signals", async () => {
+    const clientId = await newClient();
+    const gen = await mockDraft(clientId);
+    const turn = await call("POST", "/v1/ai/chat/turn", { clientId, generationId: gen.id, message: "swap rows for pull-ups", providerId: "mock" });
+    const proposal = turn.body.messages[1];
+    await call("POST", "/v1/ai/feedback", { subjectKind: "chat_message", subjectId: proposal.id, signal: "proposal_adjusted" });
+    await call("POST", "/v1/ai/feedback", { subjectKind: "chat_message", subjectId: proposal.id, signal: "thumbs_down" });
+    await call("POST", "/v1/ai/feedback", { subjectKind: "chat_message", subjectId: proposal.id, signal: "thumbs_up" });
+
+    const del = await call("DELETE", `/v1/ai/feedback?subjectKind=chat_message&subjectId=${proposal.id}`);
+    expect(del.status).toBe(204);
+    expect((await call("GET", `/v1/ai/feedback?subjectIds=${proposal.id}`)).body.verdicts).toEqual([]);
+    expect((await feedbackFor(proposal.id)).map((f) => f.signal)).toEqual(["proposal_adjusted"]);
+    expect((await call("DELETE", `/v1/ai/feedback?subjectKind=generation&subjectId=${crypto.randomUUID()}`)).status).toBe(404);
+  });
+
   test("UI-side signals: Adjust on a proposal, Copy on a client message", async () => {
     const clientId = await newClient();
     const gen = await mockDraft(clientId);

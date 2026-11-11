@@ -1949,6 +1949,10 @@ export const mockApi: TrainerApi = {
     });
     return { ...verdict, reasonTags: [...verdict.reasonTags], ...learned };
   },
+  async clearLlmVerdict(_kind, subjectId) {
+    await delay(120);
+    verdicts.delete(subjectId);
+  },
   async llmVerdicts(subjectIds) {
     await delay(80);
     return subjectIds.flatMap((id) => {

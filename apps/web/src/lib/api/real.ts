@@ -293,6 +293,9 @@ export const realApi: TrainerApi = {
   clearChat: (clientId) => unwrap<void>(client.v1.ai.chat.delete(undefined, { query: { clientId } })),
 
   rateLlmOutput: (input) => unwrap<LlmVerdictDto & LearnedDto>(client.v1.ai.feedback.post(input)),
+  clearLlmVerdict: async (subjectKind, subjectId) => {
+    await unwrap<unknown>(client.v1.ai.feedback.delete(undefined, { query: { subjectKind, subjectId } }));
+  },
   llmVerdicts: async (subjectIds) =>
     subjectIds.length === 0
       ? []
