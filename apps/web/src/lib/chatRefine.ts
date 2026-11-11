@@ -309,6 +309,31 @@ export function versionView(
   return { version, generation: gen, sessions, changes: prev ? diffDrafts(prev, gen.draft) : [] };
 }
 
+/** One row of the draft version switcher. */
+export interface VersionRow {
+  version: number;
+  /** Who made it: "you" for a hand edit (or block plan edit), else "ai". */
+  by: "you" | "ai";
+  /** One line: "First draft", the hand edit's changes, or the AI version's change summary. */
+  label: string;
+}
+
+const HAND_EDIT_LABEL = /^Edited by you: /;
+
+/** Switcher rows for a revision chain (oldest first, v1 = chain[0]). */
+export function versionRows(chain: GenerationDto[]): VersionRow[] {
+  return chain.map((g, i) => {
+    const version = i + 1;
+    const by = g.manualEdit ? "you" : "ai";
+    if (i === 0) return { version, by, label: "First draft" };
+    const message = g.revisionMessage?.trim() || "";
+    if (g.manualEdit) return { version, by, label: message.replace(HAND_EDIT_LABEL, "") || "Edited by hand" };
+    const prev = chain[i - 1].draft;
+    const summary = prev && g.draft ? changeSummary(diffDrafts(prev, g.draft)) : "";
+    return { version, by, label: summary || message || "No changes" };
+  });
+}
+
 /** "Day 2 · 5 changes" style counts for the draft pane summary. */
 export function changeSummary(changes: SlotChange[]): string {
   const swaps = changes.filter((c) => c.kind === "swap").length;

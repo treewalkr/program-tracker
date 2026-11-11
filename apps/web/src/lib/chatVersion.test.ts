@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { changeSummary, fmtElapsed, renderMarkdown, stripDraftNotice, versionView } from "./chatRefine";
+import { changeSummary, fmtElapsed, renderMarkdown, stripDraftNotice, versionRows, versionView } from "./chatRefine";
 import type { AiDraftDto, GenerationDto } from "./api/types";
 
 const set = (reps: number, restSeconds: number) => ({ setNumber: 1, type: "working" as const, reps, amrap: false, restSeconds });
@@ -83,5 +83,20 @@ describe("chat text helpers", () => {
   test("fmtElapsed and stripDraftNotice", () => {
     expect(fmtElapsed(62_500)).toBe("1:02");
     expect(stripDraftNotice("Done.\n\nDraft ready: B — 3 sessions. Open review to inspect and approve.")).toBe("Done.");
+  });
+});
+
+describe("versionRows", () => {
+  test("first draft, AI change summary, and the hand edit's own label", () => {
+    const v1 = gen("a", null, [{ name: "A", exercises: [{ exerciseName: "Squat", prescribedSets: [set(5, 120)] }] }]);
+    const v2 = { ...gen("b", "a", [{ name: "A", exercises: [{ exerciseName: "Squat", prescribedSets: [set(3, 120)] }] }]), revisionMessage: "Heavier squats" };
+    const v3 = { ...gen("c", "b", v2.draft!.sessions), manualEdit: true, revisionMessage: "Edited by you: moved Squat up in Session 1" };
+    const v4 = { ...gen("d", "c", v2.draft!.sessions), revisionMessage: "Keep it" };
+    expect(versionRows([v1, v2, v3, v4])).toEqual([
+      { version: 1, by: "ai", label: "First draft" },
+      { version: 2, by: "ai", label: "1 prescription edit" },
+      { version: 3, by: "you", label: "moved Squat up in Session 1" },
+      { version: 4, by: "ai", label: "Keep it" },
+    ]);
   });
 });
