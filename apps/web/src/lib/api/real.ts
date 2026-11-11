@@ -80,7 +80,11 @@ export const realApi: TrainerApi = {
   providers: async () =>
     (await unwrap<{ providers: ProviderDto[] }>(client.v1.ai.providers.get())).providers,
   clients: () => unwrap<ClientDto[]>(client.v1.clients.get()),
-  roster: (query) => unwrap<RosterPageDto>(client.v1.clients.roster.get({ query })),
+  roster: async (query) => {
+    const page = await unwrap<RosterPageDto>(client.v1.clients.roster.get({ query }));
+    // Eden revives the calendar day into a Date; hand pages the YYYY-MM-DD the API sent.
+    return { ...page, items: page.items.map((c) => ({ ...c, lastSessionAt: c.lastSessionAt?.slice(0, 10) ?? null })) };
+  },
   client: (id) =>
     unwrap<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>(
       client.v1.clients({ id }).get()
