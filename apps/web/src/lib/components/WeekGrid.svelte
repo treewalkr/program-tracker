@@ -17,16 +17,28 @@
    */
   import { tick } from "svelte";
   import type { ClientStrip, StripDay } from "$lib/overview";
-  import { LEVEL_WORDS, SESSION_WORDS, dayDateLabel, daySentence, idleReason, plural, sessionLine, volumeLabel } from "$lib/overview";
+  import {
+    LEVEL_WORDS,
+    SESSION_WORDS,
+    dayDateLabel,
+    daySentence,
+    foldsOnTrack,
+    idleReason,
+    plural,
+    sessionLine,
+    volumeLabel,
+  } from "$lib/overview";
 
   interface Props {
     /** Built by `buildClientStrip`, ordered by `exceptionOrder`; every strip has the same weeks. */
     strips: ClientStrip[];
     /** Today as an ISO date. */
     today: string;
+    /** Start with folded on-track rows shown; overrides the saved choice (stories). */
+    showOnTrack?: boolean;
   }
 
-  let { strips, today }: Props = $props();
+  let { strips, today, showOnTrack: initialShow }: Props = $props();
 
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -34,6 +46,35 @@
 
   const active = $derived(strips.filter((s) => s.exception !== "none"));
   const idle = $derived(strips.filter((s) => s.exception === "none"));
+
+  // ── Fold: past eight active rows, on-track clients share one line (missed / to log / due today never fold) ──
+  const SHOW_KEY = "pt.weekgrid.showOnTrack";
+  /** Names the folded line lists before "+N" — fewer at ≤520px so it stays about one line. */
+  const FOLD_NAMES = 5;
+  const FOLD_NAMES_NARROW = 2;
+  function savedShow(): boolean {
+    try {
+      return typeof localStorage !== "undefined" && localStorage.getItem(SHOW_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+  // svelte-ignore state_referenced_locally
+  let showOnTrack = $state(initialShow ?? savedShow());
+  function toggleOnTrack() {
+    showOnTrack = !showOnTrack;
+    try {
+      localStorage.setItem(SHOW_KEY, showOnTrack ? "1" : "0");
+    } catch {
+      // Private mode or storage off: the choice lasts until reload.
+    }
+  }
+  const fold = $derived(foldsOnTrack(strips));
+  const onTrack = $derived(fold ? active.filter((s) => s.exception === "on-track") : []);
+  /** Rows above the fold line: every active row, or only the exceptions when folding. */
+  const lead = $derived(fold ? active.filter((s) => s.exception !== "on-track") : active);
+  /** The rows on screen — the legend draws only what these show. */
+  const visible = $derived(fold && !showOnTrack ? lead : active);
   /** Calendar weeks, from any strip (they all share them). */
   const calendar = $derived(strips[0]?.weeks.map((w) => w.map((d) => d.date)) ?? []);
   const thisWeek = $derived(calendar[calendar.length - 1] ?? []);
@@ -42,7 +83,7 @@
   /** The logger, opened on a session and date. */
   const logHref = (clientId: string, sessionId: string | null | undefined, date: string) =>
     sessionId ? `/clients/${clientId}/log?session=${encodeURIComponent(sessionId)}&date=${date}` : `/clients/${clientId}/log`;
-  /** Extra sessions on a day show as marks under the tag — one each, up to this many. */
+  /** Extra sessions on a day show as marks under the tag — one each, up to this many, then "+n". */
   const MAX_MARKS = 3;
   /** In-cell state word at wider widths; today's cell has none (ring + header say it). */
   const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", missed: "missed", unlogged: "to log" };
@@ -64,17 +105,21 @@
   const legend = $derived.by(() => {
     const seen = new Set<string>();
     let ramp = false;
-    for (const s of active) {
+    let partial = false;
+    let extras = false;
+    for (const s of visible) {
       s.weeks.forEach((w, i) => {
         const current = i === s.weeks.length - 1;
         for (const d of w) {
           // Past logged days read on the ramp; this week's done cells get their own swatch.
           if (d.status === "logged" && !current) ramp = true;
           else seen.add(d.status);
+          if (!current && d.partial) partial = ramp = true;
+          if (current && marks(d) && d.sessions.length > 1) extras = true;
         }
       });
     }
-    return { ramp, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
+    return { ramp, partial, extras, states: (Object.keys(LEGEND_WORDS) as LegendState[]).filter((st) => seen.has(st)) };
   });
 
   // ── Tooltip / popover: one floating card, anchored to the square or cell ──
@@ -84,6 +129,7 @@
   let card = $state<HTMLDivElement>();
   const uid = $props.id();
   const tipId = `wk-tip-${uid}`;
+  const foldId = `wk-ontrack-${uid}`;
 
   function place(anchor: HTMLElement) {
     const r = anchor.getBoundingClientRect();
@@ -161,6 +207,103 @@
   }
 </script>
 
+{#snippet row(s: ClientStrip)}
+  {@const meta = metaOf(s)}
+  <div class="wk-tr" role="row">
+    <div class="wk-client" role="rowheader">
+      <a href={`/clients/${s.client.id}`} title={s.program ?? undefined}>{s.client.name}</a>
+      {#if meta.length}
+        <span class="meta">
+          {#each meta as m, i (m)}<span>{m}{i < meta.length - 1 ? " ·" : ""}</span>{/each}
+        </span>
+      {/if}
+    </div>
+
+    <div class="hist" role="cell">
+      <!-- Roving focus: arrow keys bubble up from the day buttons inside. -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div class="hist-days" onkeydown={(e) => rove(e, s)} role="group" aria-label={`${s.client.name}, earlier weeks`}>
+        {#each s.weeks.slice(0, -1) as w (w[0].date)}
+          <div class="hw">
+            <span class="hw-date" aria-hidden="true">{shortDate(w[0].date)}</span>
+            <div class="hw-days">
+            {#each w as d (d.date)}
+              {#if marks(d)}
+                <button
+                  type="button"
+                  class="sq {d.status}"
+                  class:partial={d.partial}
+                  data-level={d.status === "logged" || d.partial ? d.level : undefined}
+                  data-date={d.date}
+                  tabindex={stopOf(s) === d.date ? 0 : -1}
+                  aria-label={daySentence(s.client.name, d)}
+                  aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
+                  aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
+                  onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+                  onpointerleave={hide}
+                  onfocus={(e) => {
+                    current[s.client.id] = d.date;
+                    show(s, d, e.currentTarget, 0);
+                  }}
+                  onblur={hide}
+                  onclick={(e) => pin(e, s, d)}
+                ></button>
+              {:else}
+                <span class="sq rest" aria-hidden="true"></span>
+              {/if}
+            {/each}
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    {#each s.weeks[s.weeks.length - 1] as d (d.date)}
+      {@const extras = d.sessions.slice(1)}
+      <div class="wk-cell" class:now={d.date === today} role="cell">
+        {#if marks(d)}
+          {@const label = daySentence(s.client.name, d)}
+          {#snippet body()}
+            {@const tag = tagOf(d.sessions[0].name)}
+            <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
+            <span class="foot">
+              {#each extras.slice(0, MAX_MARKS) as x, i (i)}<span class="mk {x.kind}"></span>{/each}
+              {#if extras.length > MAX_MARKS}<span class="more">+{extras.length - MAX_MARKS}</span>{/if}
+              {#if STATE_WORDS[d.status] && extras.length <= MAX_MARKS}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
+            </span>
+          {/snippet}
+          {#if loggable(d)}
+            <a
+              class="cell {d.status}"
+              href={logHref(s.client.id, d.openSessionId, d.date)}
+              aria-label={`${label} Open the logger.`}
+              onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+              onpointerleave={hide}
+              onfocus={(e) => show(s, d, e.currentTarget, 0)}
+              onblur={hide}
+            >{@render body()}</a>
+          {:else}
+            <button
+              type="button"
+              class="cell {d.status}"
+              aria-label={label}
+              aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
+              aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
+              onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
+              onpointerleave={hide}
+              onfocus={(e) => show(s, d, e.currentTarget, 0)}
+              onblur={hide}
+              onclick={(e) => pin(e, s, d)}
+            >{@render body()}</button>
+          {/if}
+        {:else}
+          <span class="offday" aria-hidden="true"></span>
+        {/if}
+      </div>
+    {/each}
+  </div>
+{/snippet}
+
 <div class="week-wrap">
   <div class="wk-in">
     <div class="wk" role="table" aria-label="Training week by client, this week and the five before">
@@ -181,100 +324,37 @@
         </div>
       </div>
 
+      {#if lead.length > 0 || fold}
       <div class="wk-body" role="rowgroup">
-        {#each active as s (s.client.id)}
-          {@const meta = metaOf(s)}
-          <div class="wk-tr" role="row">
-            <div class="wk-client" role="rowheader">
-              <a href={`/clients/${s.client.id}`} title={s.program ?? undefined}>{s.client.name}</a>
-              {#if meta.length}
-                <span class="meta">
-                  {#each meta as m, i (m)}<span>{m}{i < meta.length - 1 ? " ·" : ""}</span>{/each}
-                </span>
+        {#each lead as s (s.client.id)}{@render row(s)}{/each}
+        {#if fold}
+          <div class="wk-tr idle fold" role="row">
+            <div class="idle-line" role="cell" aria-colspan={9}>
+              {#if !showOnTrack}
+                <span class="idle-count">On track:</span>
+                <ul class="idle-names" aria-label={plural(onTrack.length, "client") + " on track"}>
+                  {#each onTrack.slice(0, FOLD_NAMES) as s, i (s.client.id)}
+                    <li class:wide={i >= FOLD_NAMES_NARROW}><a href={`/clients/${s.client.id}`}>{s.client.name}</a></li>
+                  {/each}
+                  {#if onTrack.length > FOLD_NAMES}<li class="more wide" aria-hidden="true">+{onTrack.length - FOLD_NAMES}</li>{/if}
+                  {#if onTrack.length > FOLD_NAMES_NARROW}<li class="more narrow" aria-hidden="true">+{onTrack.length - FOLD_NAMES_NARROW}</li>{/if}
+                </ul>
               {/if}
+              <button type="button" class="linkbtn" aria-expanded={showOnTrack} aria-controls={foldId} onclick={toggleOnTrack}>
+                {showOnTrack ? "Hide on-track" : `Show all ${onTrack.length}`}
+              </button>
             </div>
-
-            <div class="hist" role="cell">
-              <!-- Roving focus: arrow keys bubble up from the day buttons inside. -->
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <div class="hist-days" onkeydown={(e) => rove(e, s)} role="group" aria-label={`${s.client.name}, earlier weeks`}>
-                {#each s.weeks.slice(0, -1) as w (w[0].date)}
-                  <div class="hw">
-                    {#each w as d (d.date)}
-                      {#if marks(d)}
-                        <button
-                          type="button"
-                          class="sq {d.status}"
-                          data-level={d.status === "logged" ? d.level : undefined}
-                          data-date={d.date}
-                          tabindex={stopOf(s) === d.date ? 0 : -1}
-                          aria-label={daySentence(s.client.name, d)}
-                          aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
-                          aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
-                          onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
-                          onpointerleave={hide}
-                          onfocus={(e) => {
-                            current[s.client.id] = d.date;
-                            show(s, d, e.currentTarget, 0);
-                          }}
-                          onblur={hide}
-                          onclick={(e) => pin(e, s, d)}
-                        ></button>
-                      {:else}
-                        <span class="sq rest" aria-hidden="true"></span>
-                      {/if}
-                    {/each}
-                  </div>
-                {/each}
-              </div>
-            </div>
-
-            {#each s.weeks[s.weeks.length - 1] as d (d.date)}
-              {@const extras = d.sessions.slice(1, 1 + MAX_MARKS)}
-              <div class="wk-cell" class:now={d.date === today} role="cell">
-                {#if marks(d)}
-                  {@const label = daySentence(s.client.name, d)}
-                  {#snippet body()}
-                    {@const tag = tagOf(d.sessions[0].name)}
-                    <span class="tag" class:word={!tag.includes(" ")} class:longword={tag.split(" ").some((w) => w.length > 8)}>{tag}</span>
-                    <span class="foot">
-                      {#each extras as x, i (i)}<span class="mk {x.kind}"></span>{/each}
-                      {#if STATE_WORDS[d.status]}<span class="state">{STATE_WORDS[d.status]}</span>{/if}
-                    </span>
-                  {/snippet}
-                  {#if loggable(d)}
-                    <a
-                      class="cell {d.status}"
-                      href={logHref(s.client.id, d.openSessionId, d.date)}
-                      aria-label={`${label} Open the logger.`}
-                      onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
-                      onpointerleave={hide}
-                      onfocus={(e) => show(s, d, e.currentTarget, 0)}
-                      onblur={hide}
-                    >{@render body()}</a>
-                  {:else}
-                    <button
-                      type="button"
-                      class="cell {d.status}"
-                      aria-label={label}
-                      aria-expanded={tip?.pinned && tip.day === d ? "true" : "false"}
-                      aria-controls={tip?.pinned && tip.day === d ? tipId : undefined}
-                      onpointerenter={(e) => e.pointerType === "mouse" && show(s, d, e.currentTarget, 150)}
-                      onpointerleave={hide}
-                      onfocus={(e) => show(s, d, e.currentTarget, 0)}
-                      onblur={hide}
-                      onclick={(e) => pin(e, s, d)}
-                    >{@render body()}</button>
-                  {/if}
-                {:else}
-                  <span class="offday" aria-hidden="true"></span>
-                {/if}
-              </div>
-            {/each}
           </div>
-        {/each}
-
-        {#if idle.length > 0}
+        {/if}
+      </div>
+      {/if}
+      {#if fold}
+        <div class="wk-body" role="rowgroup" id={foldId} hidden={!showOnTrack}>
+          {#if showOnTrack}{#each onTrack as s (s.client.id)}{@render row(s)}{/each}{/if}
+        </div>
+      {/if}
+      {#if idle.length > 0}
+        <div class="wk-body" role="rowgroup">
           <div class="wk-tr idle" role="row">
             <div class="idle-line" role="cell" aria-colspan={9}>
               <span class="idle-count">No sessions this week:</span>
@@ -285,11 +365,11 @@
               </ul>
             </div>
           </div>
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
 
-    {#if active.length > 0}
+    {#if visible.length > 0}
       <div class="legend" aria-hidden="true">
         {#if legend.ramp}
           <span class="lg ramp">
@@ -298,9 +378,15 @@
             More
           </span>
         {/if}
+        {#if legend.partial}
+          <span class="lg"><span class="sq missed partial" data-level="3"></span>Partly done</span>
+        {/if}
         {#each legend.states as st (st)}
           <span class="lg"><span class="sw {st}"></span>{LEGEND_WORDS[st]}</span>
         {/each}
+        {#if legend.extras}
+          <span class="lg marks"><span class="mk lifting"></span><span class="mk cardio"></span>Extra lift / cardio</span>
+        {/if}
       </div>
     {/if}
   </div>
@@ -413,7 +499,10 @@
   /* Past weeks */
   .hist[role="cell"] { padding-right: 12px; }
   .hist-days { display: flex; gap: 5px; }
-  .hw { display: flex; gap: var(--sq-gap); }
+  .hw { display: flex; flex-direction: column; }
+  .hw-days { display: flex; gap: var(--sq-gap); }
+  /* The week-start date over each narrow history week (the wide header carries them otherwise). */
+  .hw-date { display: none; font: 400 11px/14px var(--font-mono); color: var(--faint); text-align: right; margin-bottom: 2px; }
   .sq {
     width: var(--sq);
     height: var(--sq);
@@ -435,6 +524,12 @@
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
   /* Faint, not line-strong: the planned outline needs 3:1 on canvas in every palette. */
   .sq.upcoming { background: var(--surface); border-color: var(--faint); }
+  /* Partly done: the ramp fill for what was logged, the missed / not-logged edge
+     (from .missed / .unlogged) for what wasn't — red or amber on green. */
+  .sq.partial[data-level="1"] { background: var(--done-1); }
+  .sq.partial[data-level="2"] { background: var(--done-2); }
+  .sq.partial[data-level="3"] { background: var(--done-3); }
+  .sq.partial[data-level="4"] { background: var(--done-4); }
   button.sq:hover { outline: 1px solid var(--ink); outline-offset: 1px; }
 
   /* This week */
@@ -480,7 +575,9 @@
   .cell .tag.word, .cell .tag.longword { display: block; white-space: nowrap; text-overflow: ellipsis; }
   .cell .foot { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; }
   .cell .state { font: 400 11px/1.2 var(--font-ui); white-space: nowrap; }
-  .cell .mk + .state { margin-left: 2px; }
+  .cell .mk + .state, .cell .more + .state { margin-left: 2px; }
+  /* Past three extras: the count, in the cell's ink — never a "more" word; the state word gives way (fill and edge carry it). */
+  .cell .more { font: 400 11px/1 var(--font-mono); white-space: nowrap; }
   /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
   .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
   .mk.cardio { border-radius: 99px; }
@@ -525,6 +622,25 @@
   .idle-names li { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
   .idle-names a { font-weight: 500; text-underline-offset: 3px; }
   .idle-names .pill { font-size: 11px; padding: 0 6px; }
+  /* Row groups (lead · on-track · idle) keep the hairline between rows. */
+  .wk-body + .wk-body > .wk-tr:first-child { border-top: 1px solid var(--line-soft); }
+  /* The fold line sits between rows, so it pads evenly; names stay on ~one line. */
+  .fold .idle-line { padding: 8px 4px; }
+  .fold .more { color: var(--muted); font: 400 12px/1.5 var(--font-mono); }
+  .fold .more.narrow { display: none; }
+  .fold .idle-names { align-items: baseline; }
+  .linkbtn {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    font: 500 13px/1.5 var(--font-ui);
+    color: var(--blue);
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .linkbtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   /* Legend */
   .legend {
@@ -540,6 +656,8 @@
   }
   .lg { display: inline-flex; align-items: center; gap: 3px; }
   .lg .sq + :not(.sq) { margin-left: 2px; }
+  .lg.marks .mk { background: var(--muted); }
+  .lg > .sq.partial { margin-right: 2px; }
   /* State swatches are the cells in miniature: same edge, radius and fill. */
   .sw {
     width: 16px;
@@ -626,6 +744,7 @@
     /* 48px cells: a two-line tag plus the word would stack three lines. Fill and
        edge carry the state; the word is in the label, tooltip and legend. */
     .cell .state { display: none; }
+    .hw-date { display: block; }
     .wk-head .hist {
       position: absolute;
       width: 1px;
@@ -663,6 +782,8 @@
     .wk-body .wk-cell { padding: 4px 0 8px; }
     .cell { height: 44px; padding: 3px 2px; }
     .legend { justify-content: flex-start; }
+    .fold .wide { display: none; }
+    .fold .more.narrow { display: inline-flex; }
     /* The ramp reads the history squares, the states read the cells: one line each. */
     .lg.ramp { flex-basis: 100%; }
   }

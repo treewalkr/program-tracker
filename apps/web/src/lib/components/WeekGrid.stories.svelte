@@ -3,7 +3,7 @@
   import { dayIntensityLevels } from '@pt/shared';
   import WeekGrid, { type ClientStrip, type StripDay, type StripSession } from './WeekGrid.svelte';
   import Panel from '$lib/ui/Panel.svelte';
-  import { GRACE_DAYS, LOOKBACK_DAYS, addDays, exceptionOrder, stripWeeks, weekCounter } from '$lib/overview';
+  import { GRACE_DAYS, LOOKBACK_DAYS, addDays, exceptionOrder, isPartial, stripWeeks, weekCounter } from '$lib/overview';
   import type { ClientDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -13,7 +13,7 @@
       docs: {
         description: {
           component:
-            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned), then this week as fixed-height labelled cells, loudest first: red fill + 2px red edge = missed, amber edge = not logged yet (within two days), blue ring = due today, grey = upcoming, soft green tint = done; extra sessions on a day are marks under the tag (square = lifting, disc = cardio). Rows sort missed → not logged → due today → on track, looking back seven days (on Monday, last Fri–Sun still count; the counter adds them as "from last week"); clients with nothing this week collapse into one line with a reason label. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
+            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned; a ramp fill with a red or amber edge = partly done), then this week as fixed-height labelled cells, loudest first: red fill + 2px red edge = missed, amber edge = not logged yet (within two days), blue ring = due today, grey = upcoming, soft green tint = done; extra sessions on a day are marks under the tag (square = lifting, disc = cardio), "+n" past three. Rows sort missed → not logged → due today → on track, looking back seven days (on Monday, last Fri–Sun still count; the counter adds them as "from last week"); past eight active rows, on-track clients fold into one line ("Show all N"); clients with nothing this week collapse into one line with a reason label. The counter is one Label per part, coloured per part. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
         },
       },
     },
@@ -89,12 +89,14 @@
           sessions,
           volume: logged ? { basis: 'tonnage' as const, amount: Math.round(2500 + r() * 4000) } : null,
           level: 0,
+          partial: isPartial(sessions),
           openSessionId: sessions.find((s) => s.status !== 'logged')?.id ?? undefined,
         };
       })
     );
     const flat = days.flat();
     dayIntensityLevels(flat.map((d) => d.volume)).forEach((l, i) => (flat[i].level = l));
+    for (const d of flat) if (d.partial && d.level === 0) d.level = 1;
     const now = days[days.length - 1];
     const recent = flat.filter((d) => d.date >= lookFrom && d.date < today);
     const exception: ClientStrip['exception'] = recent.some((d) => d.status === 'missed')
@@ -139,8 +141,8 @@
   ];
   const PLANS: Record<number, string[]>[] = [
     { 1: ['Upper'], 3: ['Lower'], 5: ['Full body'] },
-    { 2: ['Push'], 4: ['Pull'], 6: ['Legs'] },
-    { 1: ['Lower — squat'], 4: ['Upper — press'] },
+    { 2: ['Push'], 5: ['Pull'], 6: ['Legs'] },
+    { 1: ['Lower — squat'], 3: ['Upper — press'] },
     { 1: ['Strength A'], 2: ['Zone 2 run'], 4: ['Strength B'], 7: ['Long ride'] },
   ];
   const many = exceptionOrder(
@@ -166,7 +168,7 @@
     strip({ id: 'ada', name: 'Ada Okoye', plan: { 2: ['Strength A'], 4: ['Strength B'] }, skip: 0, seed: 4 }),
   ]);
 
-  /** Only logging is behind: the counter turns amber, not red. */
+  /** Only logging is behind: the counter shows amber Labels only, no red. */
   const behind = exceptionOrder([
     strip({ id: 'maya', name: 'Maya Chen', plan: { 3: ['Lower'], 6: ['Upper'] }, skip: 1 }),
     strip({ id: 'ada', name: 'Ada Okoye', plan: { 1: ['Strength A'], 2: ['Zone 2 run'], 4: ['Strength B'] }, skip: 0, seed: 4 }),
@@ -200,10 +202,10 @@
 
 </script>
 
-{#snippet template(args: { strips: ClientStrip[]; today: string })}
+{#snippet template(args: { strips: ClientStrip[]; today: string; showOnTrack?: boolean })}
   {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 1140px;">
-    <Panel title="Training week" count={count?.label} countTone={count?.tone}>
+    <Panel title="Training week" {count}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -212,7 +214,7 @@
 {#snippet narrow(args: { strips: ClientStrip[]; today: string })}
   {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 360px;">
-    <Panel title="Training week" count={count?.label} countTone={count?.tone}>
+    <Panel title="Training week" {count}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -220,7 +222,10 @@
 
 <Story name="Three clients" {template} args={{ strips: three, today }} />
 
-<Story name="25 clients" exportName="TwentyFiveClients" {template} args={{ strips: many, today }} />
+<!-- Past eight active rows, on-track clients fold into one line (collapsed here whatever was saved). -->
+<Story name="25 clients" exportName="TwentyFiveClients" {template} args={{ strips: many, today, showOnTrack: false }} />
+
+<Story name="On-track expanded" {template} args={{ strips: many, today, showOnTrack: true }} />
 
 <Story name="Idle clients" {template} args={{ strips: idleReasons, today }} />
 

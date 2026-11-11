@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
-	import Counter from './Counter.svelte';
+	import Counter, { type CounterPart } from './Counter.svelte';
 
 	/**
 	 * Primer Box: canvas-white surface on a hairline border, 6px radius.
@@ -12,8 +12,9 @@
 	 */
 	interface Props {
 		title?: string;
-		/** Evidence counter next to the title ("9 of 12 logged"). */
-		count?: string | number;
+		/** Evidence counter next to the title ("9 of 12 logged"); an array of
+		 *  parts draws one Label per part, each in its own tone. */
+		count?: string | number | CounterPart[];
 		/** Tones the counter as a Primer Label when it calls for action. */
 		countTone?: 'bad' | 'warn';
 		/** Right-aligned head content — render `<a class="act">` inside. */
@@ -30,7 +31,7 @@
 	{#if title || act}
 		<div class="panel-head">
 			{#if title}<h2>{title}</h2>{/if}
-			{#if count}<Counter value={count} tone={countTone} />{/if}
+			{#if count !== undefined && (Array.isArray(count) ? count.length : count)}<Counter value={count} tone={countTone} />{/if}
 			{@render act?.()}
 		</div>
 	{/if}

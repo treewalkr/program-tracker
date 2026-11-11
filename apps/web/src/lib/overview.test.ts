@@ -6,6 +6,8 @@ import {
   daySentence,
   volumeLabel,
   exceptionOrder,
+  FOLD_MIN_ROWS,
+  foldsOnTrack,
   GRACE_DAYS,
   LOOKBACK_DAYS,
   idleReason,
@@ -224,17 +226,17 @@ test("week tally counts this week's planned sessions only", () => {
   expect(weekTally([s])).toEqual({ logged: 0, planned: 3, dueToday: 1, unlogged: 1, missed: 0 });
 });
 
-test("the counter counts client-days (cells), not sessions, and tones by the worst", () => {
+test("the counter counts client-days (cells), not sessions, one toned Label per part", () => {
   // Mon holds two sessions — one cell. Today Thu 5: Mon missed, Wed to log, Thu due.
   const p = thisWeekOnly([session("a", 1, 1), session("a2", 1, 2, "cardio"), session("b", 3, 3), session("c", 4, 4), session("d", 6, 5)]);
   const s = buildClientStrip(client, p, [], weeks, "2026-11-05");
   expect(weekTally([s]).missed).toBe(2);
   expect(weekDayTally([s], "2026-11-05")).toEqual({ missed: 1, unlogged: 1, today: 1, planned: 4, carried: { missed: 0, unlogged: 0 } });
-  expect(weekCounter([s, s], "2026-11-05")).toEqual({ label: "2 missed · 2 to log · 2 due today", tone: "bad" });
-  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-03")], "2026-11-03")).toEqual({ label: "1 to log", tone: "warn" });
-  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-02")], "2026-11-02")).toEqual({ label: "1 due today", tone: undefined });
+  expect(weekCounter([s, s], "2026-11-05")).toEqual([{ text: "2 missed", tone: "bad" }, { text: "2 to log", tone: "warn" }, { text: "2 due today" }]);
+  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-03")], "2026-11-03")).toEqual([{ text: "1 to log", tone: "warn" }]);
+  expect(weekCounter([buildClientStrip(client, p, [], weeks, "2026-11-02")], "2026-11-02")).toEqual([{ text: "1 due today" }]);
   const done = buildClientStrip(client, program([session("a", 1, 1)]), [log("2026-11-02", "a")], weeks, "2026-11-05");
-  expect(weekCounter([done], "2026-11-05")).toEqual({ label: "all on track" });
+  expect(weekCounter([done], "2026-11-05")).toEqual([{ text: "all on track" }]);
   expect(weekCounter([buildClientStrip(client, null, [], weeks, "2026-11-05")], "2026-11-05")).toBeUndefined();
 });
 
@@ -263,13 +265,13 @@ describe("Monday carry-over (7-day look-back)", () => {
     expect(current(s)[0].status).toBe("today");
     expect(s.exception).toBe("missed");
     expect(weekDayTally([s], "2026-11-09")).toMatchObject({ missed: 0, unlogged: 0, today: 1, carried: { missed: 1, unlogged: 2 } });
-    expect(weekCounter([s], "2026-11-09")).toEqual({ label: "3 from last week · 1 due today", tone: "bad" });
+    expect(weekCounter([s], "2026-11-09")).toEqual([{ text: "3 from last week", tone: "bad" }, { text: "1 due today" }]);
   });
 
   test("only unlogged days carried: amber, and the exception is unlogged", () => {
     const s = buildClientStrip(client, p, [lastMon, log("2026-11-06", "w3-5")], monday, "2026-11-09");
     expect(s.exception).toBe("unlogged");
-    expect(weekCounter([s], "2026-11-09")).toEqual({ label: "2 from last week · 1 due today", tone: "warn" });
+    expect(weekCounter([s], "2026-11-09")).toEqual([{ text: "2 from last week", tone: "warn" }, { text: "1 due today" }]);
   });
 
   test("carried days say missed / not logged in their label", () => {
@@ -296,7 +298,7 @@ describe("Monday carry-over (7-day look-back)", () => {
     const s = buildClientStrip(client, q, [log("2026-11-11", "w3-3")], thursday, "2026-11-12");
     expect(day(s, "2026-11-04").status).toBe("missed");
     expect(s.exception).toBe("on-track");
-    expect(weekCounter([s], "2026-11-12")).toEqual({ label: "all on track" });
+    expect(weekCounter([s], "2026-11-12")).toEqual([{ text: "all on track" }]);
     // Planned on Thu instead: last Thu 5 is exactly seven days back — inside.
     const r = (() => {
       const m = multiWeek("2026-10-19T08:00:00.000Z");
@@ -305,7 +307,7 @@ describe("Monday carry-over (7-day look-back)", () => {
     const t = buildClientStrip(client, r, [], thursday, "2026-11-12");
     expect(day(t, "2026-11-05").status).toBe("missed");
     expect(t.exception).toBe("missed");
-    expect(weekCounter([t], "2026-11-12")).toEqual({ label: "1 from last week · 1 due today", tone: "bad" });
+    expect(weekCounter([t], "2026-11-12")).toEqual([{ text: "1 from last week", tone: "bad" }, { text: "1 due today" }]);
   });
 
   test("week tally (the head line) still counts this week's sessions only", () => {
@@ -328,4 +330,59 @@ test("labels read as full sentences", () => {
   const s = buildClientStrip(client, program([session("a", 1, 1), session("b", 3, 2)]), [log("2026-11-02", "a"), log("2026-11-03", "b")], weeks, "2026-11-04");
   expect(daySentence("Ada", current(s)[0])).toBe("Ada, Monday, Nov 2: Session 1 logged — 500 kg, usual day.");
   expect(daySentence("Ada", current(s)[2])).toBe("Ada, Wednesday, Nov 4: Session 2 logged Tue, Nov 3.");
+});
+
+describe("partly done days", () => {
+  // Thu 5 Nov: Mon holds two sessions.
+  const p = thisWeekOnly([session("a", 1, 1), session("a2", 1, 2, "cardio"), session("b", 3, 3)]);
+
+  test("one logged and one missed: partial, but the day still counts as missed", () => {
+    const s = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-05");
+    const mon = current(s)[0];
+    expect(mon.status).toBe("missed");
+    expect(mon.partial).toBe(true);
+    expect(mon.level).toBeGreaterThan(0);
+    expect(s.exception).toBe("missed");
+    expect(weekDayTally([s], "2026-11-05").missed).toBe(1);
+    expect(daySentence("Ada", mon)).toBe("Ada, Monday, Nov 2: Session 1 logged; Session 2 missed — 500 kg, usual day.");
+  });
+
+  test("one logged and one inside the grace period: partial, not logged", () => {
+    const s = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-04");
+    expect(current(s)[0]).toMatchObject({ status: "unlogged", partial: true });
+  });
+
+  test("all logged, nothing logged, or only due today/upcoming left: not partial", () => {
+    const all = buildClientStrip(client, p, [log("2026-11-02", "a"), log("2026-11-02", "a2")], weeks, "2026-11-05");
+    expect(current(all)[0]).toMatchObject({ status: "logged", partial: false });
+    const none = buildClientStrip(client, p, [], weeks, "2026-11-05");
+    expect(current(none)[0]).toMatchObject({ status: "missed", partial: false });
+    const today = buildClientStrip(client, p, [log("2026-11-02", "a")], weeks, "2026-11-02");
+    expect(current(today)[0]).toMatchObject({ status: "today", partial: false });
+  });
+});
+
+describe("folding on-track clients", () => {
+  const strip = (exception: ClientStrip["exception"]) => ({ exception }) as unknown as ClientStrip;
+  const rows = (onTrack: number, other: number, idle = 0) => [
+    ...Array.from({ length: other }, () => strip("missed")),
+    ...Array.from({ length: onTrack }, () => strip("on-track")),
+    ...Array.from({ length: idle }, () => strip("none")),
+  ];
+
+  test("folds past eight active rows with at least three on track", () => {
+    expect(FOLD_MIN_ROWS).toBe(8);
+    expect(foldsOnTrack(rows(3, 6))).toBe(true);
+    expect(foldsOnTrack(rows(9, 0))).toBe(true);
+  });
+
+  test("eight active rows or fewer never fold, idle clients don't count", () => {
+    expect(foldsOnTrack(rows(8, 0))).toBe(false);
+    expect(foldsOnTrack(rows(4, 4, 10))).toBe(false);
+  });
+
+  test("fewer than three on track never fold", () => {
+    expect(foldsOnTrack(rows(2, 20))).toBe(false);
+    expect(foldsOnTrack(rows(0, 12))).toBe(false);
+  });
 });

@@ -116,7 +116,7 @@
     </EmptyState>
   </section>
 {:else}
-  <Panel class="week-panel" title="Training week" count={rowsReady ? weekCount?.label : undefined} countTone={weekCount?.tone}>
+  <Panel class="week-panel" title="Training week" count={rowsReady ? weekCount : undefined}>
     {#if rowsReady}
       <WeekGrid {strips} {today} />
     {:else if loadError}

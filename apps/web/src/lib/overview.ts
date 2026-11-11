@@ -47,6 +47,9 @@ export interface StripDay {
   level: 0 | 1 | 2 | 3 | 4;
   /** The session the logger opens on: the day's first planned session not logged yet. */
   openSessionId?: string;
+  /** Partly done: something was logged, and a planned session is still missed or not logged.
+   *  Drawing only — `status` keeps the worst state for counting and sorting. */
+  partial: boolean;
 }
 
 /** missed → not logged yet → due today → on track → nothing this week. Missed and not-logged
@@ -238,6 +241,7 @@ export function buildClientStrip(
           weekday,
           status,
           sessions,
+          partial: isPartial(sessions),
           volume: date <= today ? dayVolume(dayLogs, timed) : null,
           level: 0,
           ...(open?.id ? { openSessionId: open.id } : {}),
@@ -249,7 +253,7 @@ export function buildClientStrip(
   const days = strip.weeks.flat();
   const levels = dayIntensityLevels(days.map((d) => d.volume));
   days.forEach((d, i) => {
-    d.level = d.status === "logged" && levels[i] === 0 ? 1 : levels[i];
+    d.level = (d.status === "logged" || d.partial) && levels[i] === 0 ? 1 : levels[i];
   });
 
   const now = strip.weeks[strip.weeks.length - 1];
@@ -266,6 +270,14 @@ export function buildClientStrip(
   return strip;
 }
 
+/** ≥1 session logged and ≥1 planned session missed or not logged yet. */
+export function isPartial(sessions: StripSession[]): boolean {
+  return (
+    sessions.some((s) => s.status === "logged") &&
+    sessions.some((s) => s.planned && (s.status === "missed" || s.status === "unlogged"))
+  );
+}
+
 /** The look-back window: the `LOOKBACK_DAYS` before today, oldest first. */
 function recentDays(strip: ClientStrip, today: string): StripDay[] {
   const from = addDays(today, -LOOKBACK_DAYS);
@@ -277,6 +289,19 @@ const EXCEPTION_RANK: Record<ClientException, number> = { missed: 0, unlogged: 1
 /** Exceptions first: missed → not logged → due today → on track → nothing this week; roster order within each. */
 export function exceptionOrder(strips: ClientStrip[]): ClientStrip[] {
   return [...strips].sort((a, b) => EXCEPTION_RANK[a.exception] - EXCEPTION_RANK[b.exception]);
+}
+
+/** Fold on-track clients into one line only past this many active rows… */
+export const FOLD_MIN_ROWS = 8;
+/** …and only when at least this many of them are on track (a fold of one or two saves nothing). */
+export const FOLD_MIN_ON_TRACK = 3;
+
+/** Whether the grid folds its on-track rows: more than `FOLD_MIN_ROWS` active clients (idle ones
+ *  excluded — they already share a line) and at least `FOLD_MIN_ON_TRACK` on track. */
+export function foldsOnTrack(strips: ClientStrip[]): boolean {
+  const active = strips.filter((s) => s.exception !== "none");
+  const onTrack = active.filter((s) => s.exception === "on-track").length;
+  return active.length > FOLD_MIN_ROWS && onTrack >= FOLD_MIN_ON_TRACK;
 }
 
 /** This week's planned sessions across clients. */
@@ -330,24 +355,29 @@ export function weekDayTally(
   return t;
 }
 
+/** One Label in the Training week counter; no tone = the neutral Counter. */
+export interface CounterPart {
+  text: string;
+  tone?: "bad" | "warn";
+}
+
 /**
  * The Training week counter: client-days that need the trainer, counted like
- * the cells ("2 missed · 3 to log · 2 from last week · 1 due today"; zero parts
- * omitted), toned red when anything is missed — this week or carried — amber
- * when only logging is behind. Undefined when nothing is planned or carried.
+ * the cells, as separate Labels — "2 missed" (red) · "3 to log" (amber) ·
+ * "2 from last week" (red if any carried day is missed, else amber) ·
+ * "1 due today" (neutral); zero parts omitted, "all on track" (neutral) when
+ * nothing needs the trainer. Undefined when nothing is planned or carried.
  */
-export function weekCounter(strips: ClientStrip[], today: string): { label: string; tone?: "bad" | "warn" } | undefined {
+export function weekCounter(strips: ClientStrip[], today: string): CounterPart[] | undefined {
   const t = weekDayTally(strips, today);
   const carried = t.carried.missed + t.carried.unlogged;
-  const parts = [
-    t.missed ? `${t.missed} missed` : null,
-    t.unlogged ? `${t.unlogged} to log` : null,
-    carried ? `${carried} from last week` : null,
-    t.today ? `${t.today} due today` : null,
-  ].filter((p): p is string => !!p);
-  const tone = t.missed || t.carried.missed ? "bad" : t.unlogged || t.carried.unlogged ? "warn" : undefined;
-  if (parts.length) return { label: parts.join(" · "), tone };
-  return t.planned ? { label: "all on track" } : undefined;
+  const parts: CounterPart[] = [];
+  if (t.missed) parts.push({ text: `${t.missed} missed`, tone: "bad" });
+  if (t.unlogged) parts.push({ text: `${t.unlogged} to log`, tone: "warn" });
+  if (carried) parts.push({ text: `${carried} from last week`, tone: t.carried.missed ? "bad" : "warn" });
+  if (t.today) parts.push({ text: `${t.today} due today` });
+  if (parts.length) return parts;
+  return t.planned ? [{ text: "all on track" }] : undefined;
 }
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
