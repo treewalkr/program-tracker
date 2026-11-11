@@ -5,7 +5,9 @@
   import { beforeNavigate } from "$app/navigation";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
-  import { localIso } from "$lib/overview";
+  import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
+  import { nextToLog, recapCounts, recapNotes, saveRecap, type RecapNote } from "$lib/logRecap";
+  import SaveRecap, { type NextState } from "$lib/components/SaveRecap.svelte";
   import {
     DuplicateLogError,
     type ClientDto,
@@ -149,7 +151,9 @@
   let flagOpen = $state<string | null>(null);
   let notes = $state("");
   let saving = $state(false);
-  let savedCount = $state(0);
+  /** The last save's recap and who's next — shown in the save bar until the sheet is touched again. */
+  let recap = $state<{ title: string; counts: string | null; notes: RecapNote[] } | null>(null);
+  let next = $state<NextState>({ state: "loading" });
   /** The log this page just saved: its own "Already logged" warning would only echo the save. */
   let savedLogId = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -305,7 +309,7 @@
 
   /** Reset the sheet to the selected session — or to its draft, when one was left on this device. */
   function loadSession() {
-    savedCount = 0;
+    recap = null;
     savedLogId = null;
     error = null;
     fieldErrors = {};
@@ -651,7 +655,8 @@
     localStorage.removeItem(draftKey(id, sessionId));
     pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
     loadSession();
-    savedCount = p.count;
+    recap = recapOf(p, saved);
+    void findNext();
     savedLogId = saved.id;
     undo = {
       logId: saved.id,
@@ -662,6 +667,39 @@
       sessionName: sessionName(),
     };
     undoLeft = UNDO_SECONDS;
+  }
+
+  function recapOf(p: Pending, saved: SavedLogDto): NonNullable<typeof recap> {
+    const name = sessionName();
+    const replaced: RecapNote[] = saved.replaced?.length
+      ? [{ tone: "muted", text: `Replaced the ${saved.replaced.map((l) => fmtDay(l.date)).join(", ")} log` }]
+      : [];
+    if (p.sent === null) return { title: `${name} logged`, counts: "counts toward this week's cardio", notes: replaced };
+    const r = saveRecap(p.snapshot.rows, p.snapshot.flags);
+    return { title: `${name} logged`, counts: recapCounts(r), notes: [...recapNotes(r, nameOf), ...replaced] };
+  }
+
+  /** Who's next today: every active client's week, read like the overview reads it. */
+  let nextToken = 0;
+  async function findNext() {
+    const token = ++nextToken;
+    next = { state: "loading" };
+    try {
+      const weeks = stripWeeks(new Date(), 1);
+      const roster = await api.clients();
+      const strips = await Promise.all(
+        roster.map(async (c) => {
+          // This client was just logged, others that aren't training can't be next: no need to fetch them.
+          if (c.id === id || c.status !== "active") return buildClientStrip(c, null, [], weeks, today);
+          const [detail, logs] = await Promise.all([api.client(c.id), api.sessionLogs(c.id)]);
+          return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
+        })
+      );
+      if (token === nextToken) next = { state: "ready", client: nextToLog(strips, id, today) };
+    } catch {
+      // No roster: the overview link still gets the trainer on.
+      if (token === nextToken) next = { state: "ready", client: null };
+    }
   }
 
   async function submit(e: SubmitEvent) {
@@ -867,7 +905,7 @@
       for (const old of u.replaced) await api.logSession(logToInput(old));
       await api.deleteSessionLog(u.logId);
       undo = null;
-      savedCount = 0;
+      recap = null;
       savedLogId = null;
       error = null;
       fieldErrors = {};
@@ -1563,24 +1601,15 @@
           <p class="err-msg" role="alert">{error}</p>
         {/if}
         <!-- The save confirms where the eye already is: in the bar, beside Save. -->
-        {#if undo}
-          <div class="undo-bar" role="status">
-            <span class="undo-msg">
-              {undo.cardio ? "Logged — counting toward this week's cardio target." : `Logged ${undo.count} ${undo.count === 1 ? "set" : "sets"}.`}
-              {#if undo.replaced.length}Replaced the {undo.replaced.map((l) => fmtDay(l.date)).join(", ")} log.{/if}
-            </span>
-            <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
-            <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
-            <span class="undo-drain" aria-hidden="true" style:animation-duration={`${UNDO_SECONDS}s`}></span>
-          </div>
-        {:else if savedCount > 0}
-          <p class="ok-msg" role="status">
-            {#if isCardioSession}
-              Logged — counting toward this week's cardio target.
-            {:else}
-              Logged {savedCount} {savedCount === 1 ? "set" : "sets"} — now counting toward history and the next AI draft.
-            {/if}
-          </p>
+        {#if recap && (undo || !dirty)}
+          <SaveRecap title={recap.title} counts={recap.counts} notes={recap.notes} {next} drain={undo ? UNDO_SECONDS : null}>
+            {#snippet action()}
+              {#if undo}
+                <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
+                <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
+              {/if}
+            {/snippet}
+          </SaveRecap>
         {/if}
         <div class="submit-row">
           <span class="subtle tally" aria-live="polite">{status}</span>
@@ -1807,38 +1836,9 @@
     text-underline-offset: 2px;
     cursor: pointer;
   }
-  /* ---- Undo window: the save stands once the line drains ---- */
-  .undo-bar {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 14px;
-    padding: 8px 12px 10px;
-    color: var(--good);
-    background: var(--good-bg);
-    border: 1px solid var(--good-line);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .undo-msg { font-weight: 600; }
-  .undo-left { margin-left: auto; font-size: 12px; color: var(--muted); }
-  .undo-drain {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 2px;
-    background: var(--good);
-    transform-origin: left;
-    animation: drain linear forwards;
-  }
-  @keyframes drain {
-    from { transform: scaleX(1); }
-    to { transform: scaleX(0); }
-  }
+  /* ---- Undo window: the recap's hairline drains, then the save stands ---- */
+  .undo-left { font-size: 12px; color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
-    .undo-drain { display: none; }
     .rd-toggle :global(svg) { transition: none; }
   }
 
@@ -2076,7 +2076,7 @@
   .save-bar .submit-row { justify-content: flex-end; }
   .save-bar .tally { margin-right: auto; }
   .save-bar .err-msg { margin: 0 0 8px; }
-  .save-bar .undo-bar, .save-bar .ok-msg { margin: 0 0 8px; }
+  .save-bar :global(.recap) { margin: 0 0 8px; }
   .fb-dock {
     display: inline-flex;
     align-items: center;
@@ -2124,7 +2124,6 @@
   .reason-chip:hover { color: var(--ink); background: var(--well-2); }
   .reason-chip[aria-pressed="true"] { color: var(--ink); background: var(--well); border-color: var(--line-strong); font-weight: 600; }
 
-  .ok-msg { color: var(--good); font-weight: 600; margin-top: 14px; }
   .err-msg { color: var(--bad); font-weight: 600; margin-top: 14px; }
   .hint { margin-top: 10px; max-width: var(--measure-prose); }
 
@@ -2317,8 +2316,7 @@
     .kbd-hint { display: none; }
     .fb-dock { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 6px; }
     .fb-word { display: none; }
-    .save-bar .undo-bar { padding-top: 4px; padding-bottom: 6px; }
-    .undo-bar :global(.btn) { min-height: 44px; padding: 0 16px; }
+    .save-bar :global(.recap .action .btn) { min-height: 44px; padding: 0 16px; }
     .blk-act { flex-wrap: wrap; }
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 44px; padding: 0 6px; font-size: 14px; flex: 1; }
