@@ -106,7 +106,7 @@ export async function answerChat(
   }));
 
   const providerMessages: ProviderChatMessage[] = [
-    { role: "system", content: buildChatSystem({ ...ctx, latestDraft }) },
+    { role: "system", content: buildChatSystem({ ...ctx, latestDraft, handEdits: historyRows.some((r) => r.kind === "edit") }) },
     ...history,
     { role: "user", content: message },
   ];
