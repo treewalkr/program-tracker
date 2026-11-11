@@ -26,10 +26,12 @@
     stripDraftNotice,
     submitBuild,
     submitChatTurn,
+    versionRows,
     versionStamps,
     versionView,
     type VersionStamp as Stamp,
   } from "$lib/chatRefine";
+  import { revisionChain } from "$lib/generation";
   import DraftPreview from "$lib/components/DraftPreview.svelte";
   import ChatProposal from "$lib/components/ChatProposal.svelte";
   import { draftSessionTags } from "$lib/draftReview";
@@ -173,6 +175,7 @@
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
   const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById, roleLabels.all) : null);
+  const vrows = $derived(preview.target ? versionRows(revisionChain(allGens, preview.target.id)) : []);
   const stamps = $derived(versionStamps(messages, allGens));
   /** Track labels for the draft a proposal targets (`change.day` = draft position). */
   const tagsFor = (genId: string | null | undefined) =>
@@ -648,6 +651,7 @@
         <DraftPreview
           view={vview}
           {latest}
+          history={vrows}
           unproposed={shownUnproposed}
           building={building ? { next: latest + 1, elapsed: elapsed ?? "0:00" } : null}
           reviewHref={`/clients/${id}/generate`}
