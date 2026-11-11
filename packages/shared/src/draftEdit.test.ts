@@ -274,6 +274,13 @@ describe("refs and wording", () => {
     );
   });
 
+  test("works on proxied drafts (Svelte $state), which structuredClone refuses", () => {
+    const d = base();
+    const proxied = new Proxy(d, {}) as AiProgramDraft;
+    expect(() => structuredClone(proxied)).toThrow();
+    expect(applyDraftEdit(proxied, [{ op: "leave", ref: r(1, 3) }]).changed).toBe(true);
+  });
+
   test("the input draft is never mutated", () => {
     const d = base();
     const copy = structuredClone(d);

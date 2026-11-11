@@ -94,6 +94,12 @@ type Ex = DraftExerciseRef;
 /** A working copy of an exercise, tagged with where it came from ("day:slot", 0-based). */
 type W = Ex & { __k: string };
 
+/**
+ * Deep copy of plain draft JSON. Not structuredClone: UI state proxies
+ * (Svelte $state) can't be structured-cloned, and drafts are JSON anyway.
+ */
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
 const nameOf = (e: Ex) => e.exerciseName ?? e.exerciseId ?? "exercise";
 const list = (names: string[]) => names.join(", ");
 
@@ -141,7 +147,7 @@ class Work {
     this.tags = draftSessionLabels(draft.sessions);
     this.lists = draft.sessions.map((s, d) =>
       canonicalList(
-        s.exercises.map((e, i) => ({ ...structuredClone(e), __k: `${d}:${i}` })),
+        s.exercises.map((e, i) => ({ ...clone(e), __k: `${d}:${i}` })),
         labels
       )
     );
@@ -182,8 +188,8 @@ class Work {
   /** The draft the lists describe. */
   result(): AiProgramDraft {
     return {
-      ...structuredClone(this.draft),
-      sessions: this.draft.sessions.map((s, d) => ({ ...structuredClone(s), exercises: this.lists[d].map(strip) })),
+      ...clone(this.draft),
+      sessions: this.draft.sessions.map((s, d) => ({ ...clone(s), exercises: this.lists[d].map(strip) })),
     };
   }
 }
