@@ -94,23 +94,35 @@ export async function readImage(file: File, kind: FeedbackAttachmentKind): Promi
 }
 
 /**
- * A ticket's or reply's images, in order: the captured screenshots (ticket
- * only) first, then up to FEEDBACK_MAX_IMAGES uploads.
+ * A ticket's or reply's images, in order. `kinds[i]` says where `images[i]`
+ * came from (default "upload"): the ticket form sends its captured element
+ * and page screenshots in `images` too. At most one of each captured kind and
+ * FEEDBACK_MAX_IMAGES uploads; the screenshots don't count.
+ *
+ * `elementShot` / `pageShot` are the v0.1.19 form's fields, still read so a
+ * tab opened before the deploy can file its ticket. They go first; drop them
+ * once v0.1.20 is live (see docs/feedback-workflow-plan.md).
  */
 export async function readImages(input: {
   elementShot?: File;
   pageShot?: File;
   images?: File[];
+  kinds?: FeedbackAttachmentKind[];
 }): Promise<{ images: NewImage[] } | { error: string }> {
-  const uploads = input.images ?? [];
-  if (uploads.length > FEEDBACK_MAX_IMAGES) {
-    return { error: `at most ${FEEDBACK_MAX_IMAGES} images — ${uploads.length} were attached` };
-  }
+  const files = input.images ?? [];
+  const kinds = input.kinds ?? [];
+  if (kinds.length > files.length) return { error: "more image kinds than images" };
   const queue: [File, FeedbackAttachmentKind][] = [
     ...(input.elementShot ? [[input.elementShot, "element"] as [File, FeedbackAttachmentKind]] : []),
     ...(input.pageShot ? [[input.pageShot, "page"] as [File, FeedbackAttachmentKind]] : []),
-    ...uploads.map((f) => [f, "upload"] as [File, FeedbackAttachmentKind]),
+    ...files.map((f, i) => [f, kinds[i] ?? "upload"] as [File, FeedbackAttachmentKind]),
   ];
+  const count = (kind: FeedbackAttachmentKind) => queue.filter(([, k]) => k === kind).length;
+  const uploads = count("upload");
+  if (uploads > FEEDBACK_MAX_IMAGES) {
+    return { error: `at most ${FEEDBACK_MAX_IMAGES} images — ${uploads} were attached` };
+  }
+  if (count("element") > 1 || count("page") > 1) return { error: "at most one element and one page screenshot" };
   const images: NewImage[] = [];
   for (const [file, kind] of queue) {
     const img = await readImage(file, kind);

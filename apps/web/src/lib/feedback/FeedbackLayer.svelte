@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { feedbackMode } from "./mode.svelte";
   import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
-  import { feedbackApi } from "./client";
+  import { feedbackApi, type CapturedShot } from "./client";
   import TicketPins from "./TicketPins.svelte";
   import AttachmentInput from "./AttachmentInput.svelte";
   import { compressImage, dataUrlToBlob } from "./images";
@@ -213,7 +213,11 @@
           target.style.outlineOffset = prevOffset;
         }
       }
-      const res = await feedbackApi.submit({ comment, context, elementShot, pageShot, images: tray.files });
+      const shots: CapturedShot[] = [
+        ...(elementShot ? [{ kind: "element" as const, file: elementShot }] : []),
+        ...(pageShot ? [{ kind: "page" as const, file: pageShot }] : []),
+      ];
+      const res = await feedbackApi.submit({ comment, context, shots, uploads: tray.files });
       feedbackMode.sent += 1;
       showToast(`${res.handle} saved`);
       close();

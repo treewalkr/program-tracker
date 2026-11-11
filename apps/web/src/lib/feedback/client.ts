@@ -46,6 +46,9 @@ const normalize = (i: FeedbackItem): FeedbackItem => ({
 /** PATCH /v1/feedback/:id body, straight from the API's type. */
 export type TriagePatch = Parameters<ReturnType<typeof client.v1.feedback>["patch"]>[0];
 
+/** A screenshot the feedback form captured, and which one it is. */
+export type CapturedShot = { kind: "element" | "page"; file: File };
+
 /** Leaves out an empty image list so a text-only post stays JSON. */
 function withImages<T extends { images?: File[] }>(body: T): T {
   if (body.images?.length) return body;
@@ -54,9 +57,18 @@ function withImages<T extends { images?: File[] }>(body: T): T {
 }
 
 export const feedbackApi = {
-  /** Multipart when it carries images (Eden switches to FormData for File fields). */
-  submit: (body: { comment: string; context: FeedbackContext; elementShot?: File; pageShot?: File; images?: File[] }) =>
-    unwrap<{ id: string; number: number; handle: string }>(client.v1.feedback.post(withImages(body))),
+  /**
+   * Multipart when it carries images (Eden switches to FormData for File
+   * fields). The captured screenshots go first in `images`; `kinds` names
+   * each image so the API stores them as element / page / upload.
+   */
+  submit: ({ shots = [], uploads = [], ...body }: { comment: string; context: FeedbackContext; shots?: CapturedShot[]; uploads?: File[] }) => {
+    const images = [...shots.map((s) => s.file), ...uploads];
+    const kinds = [...shots.map((s) => s.kind), ...uploads.map(() => "upload" as const)].join(",");
+    return unwrap<{ id: string; number: number; handle: string }>(
+      client.v1.feedback.post(images.length ? { ...body, images, kinds } : body),
+    );
+  },
   list: async (status?: FeedbackStatus[]) =>
     (await unwrap<FeedbackItem[]>(client.v1.feedback.get({ query: { status: status?.join(",") } }))).map(normalize),
   /** Status and/or note; `reason` (Won't fix only) posts as a reply the email quotes. */

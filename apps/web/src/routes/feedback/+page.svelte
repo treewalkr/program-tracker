@@ -296,7 +296,7 @@
         userAgent: navigator.userAgent,
         appVersion: __APP_VERSION__,
       });
-      const { id } = await feedbackApi.submit({ comment, context, images: draftImages.files });
+      const { id } = await feedbackApi.submit({ comment, context, uploads: draftImages.files });
       const item = await feedbackApi.get(id);
       items = [item, ...items];
       notes[item.id] = "";
