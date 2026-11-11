@@ -23,6 +23,7 @@
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
+  import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
@@ -992,6 +993,28 @@
     flags = setFlagNote(flags, pe, note);
   }
 
+  /** Open a card's swap picker or flag chips and put focus in it — the menu that opened it is gone. */
+  async function openPanel(kind: "swap" | "flag", pe: string) {
+    if (kind === "swap") swapOpen = pe;
+    else flagOpen = pe;
+    await tick();
+    document.querySelector<HTMLElement>(`#blk-${kind}-${CSS.escape(pe)} button`)?.focus();
+  }
+
+  /** A card's "More" menu: everything but +Set, which stays on the card. */
+  function cardActions(b: { programExerciseId: string; rows: Row[] }, swapped: boolean, flagged: boolean): OverflowItem[] {
+    const pe = b.programExerciseId;
+    const head = b.rows[0];
+    return [
+      ...(swapped
+        ? [{ label: `Undo swap`, icon: "undo" as const, hint: nameOf(head.slotExerciseId), onselect: () => swap(pe, head.slotExerciseId) }]
+        : []),
+      { label: swapped ? "Swap again" : "Swap exercise", icon: "swap", onselect: () => openPanel("swap", pe) },
+      { label: flagged ? "Edit flag" : "Flag", icon: "flag", hint: flagged ? undefined : "pain · technique", onselect: () => openPanel("flag", pe) },
+      { label: "Skip exercise", icon: "skip", onselect: () => skipBlock(b) },
+    ];
+  }
+
   function go(i: number) {
     current = Math.max(0, Math.min(blocks.length - 1, i));
     document.getElementById("log-sheet")?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -1292,17 +1315,7 @@
                 {#if exSkip}
                   <Button variant="ghost" small type="button" aria-label={`Undo skip on ${blockName(b)}`} onclick={() => undoSkipBlock(b.programExerciseId)}>Undo skip</Button>
                 {:else}
-                {#if swapped}
-                  <Button variant="ghost" small type="button" aria-label={`Undo swap on ${blockName(b)}`} onclick={() => swap(b.programExerciseId, head.slotExerciseId)}>Undo swap</Button>
-                {/if}
-                <Button
-                  variant="ghost"
-                  small
-                  type="button"
-                  aria-label={`Swap ${blockName(b)}`}
-                  aria-expanded={swapOpen === b.programExerciseId}
-                  onclick={() => (swapOpen = swapOpen === b.programExerciseId ? null : b.programExerciseId)}
-                >Swap</Button>
+                <!-- +Set stays out: it's the one card action a normal session reaches for. The rest change what the card logs. -->
                 <Button
                   variant="ghost"
                   small
@@ -1314,18 +1327,7 @@
                   {#snippet icon()}<Icon name="plus" />{/snippet}
                   Set
                 </Button>
-                <Button
-                  variant="ghost"
-                  small
-                  type="button"
-                  aria-label={`Flag ${blockName(b)}: pain or technique`}
-                  aria-expanded={flagOpen === b.programExerciseId}
-                  onclick={() => (flagOpen = flagOpen === b.programExerciseId ? null : b.programExerciseId)}
-                >
-                  {#snippet icon()}<Icon name="flag" />{/snippet}
-                  Flag
-                </Button>
-                <Button variant="ghost" small type="button" aria-label={`Skip ${blockName(b)}`} onclick={() => skipBlock(b)}>Skip exercise</Button>
+                <OverflowMenu label={`More actions for ${blockName(b)}`} text="More" items={cardActions(b, swapped, flag != null)} />
                 {/if}
               </div>
               {#if exSkip}
@@ -1342,7 +1344,7 @@
                 </div>
               {/if}
               {#if flagOpen === b.programExerciseId}
-                <div class="blk-flag" role="group" aria-label={`Flag ${blockName(b)}`}>
+                <div class="blk-flag" id={`blk-flag-${b.programExerciseId}`} role="group" aria-label={`Flag ${blockName(b)}`}>
                   <span class="subtle">Flag</span>
                   {#each FLAG_KINDS as k (k)}
                     <button
@@ -1369,7 +1371,7 @@
                 </div>
               {/if}
               {#if swapOpen === b.programExerciseId && !exSkip}
-                <div class="blk-swap">
+                <div class="blk-swap" id={`blk-swap-${b.programExerciseId}`}>
                   <ExercisePicker
                     value={head.exerciseId}
                     {catalog}
@@ -1377,6 +1379,7 @@
                     onpick={(ex) => swap(b.programExerciseId, ex.id)}
                   />
                   <span class="subtle">Every set of this exercise logs under the pick. History shows the swap.</span>
+                  <Button variant="ghost" small type="button" onclick={() => (swapOpen = null)}>Cancel</Button>
                 </div>
               {/if}
             </header>

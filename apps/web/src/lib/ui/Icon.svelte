@@ -36,7 +36,11 @@
 		| 'pin'
 		| 'bell'
 		| 'bell-off'
-		| 'image';
+		| 'image'
+		| 'more'
+		| 'swap'
+		| 'skip'
+		| 'undo';
 </script>
 
 <script lang="ts">
@@ -133,6 +137,12 @@
 			circle: { cx: 9, cy: 9, r: 2 },
 			rect: { x: 3, y: 3, w: 18, h: 18, rx: 2 },
 		},
+		more: {
+			d: 'M6.25 12a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0ZM13.25 12a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0ZM20.25 12a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z',
+		},
+		swap: { d: 'm16 3 4 4-4 4M20 7H4', d2: 'm8 21-4-4 4-4M4 17h16' },
+		skip: { d: 'm5.7 5.7 12.6 12.6', circle: { cx: 12, cy: 12, r: 9 } },
+		undo: { d: 'M9 14 4 9l5-5', d2: 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11' },
 	};
 
 	const icon = $derived(ICONS[name]);
