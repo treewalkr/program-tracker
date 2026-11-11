@@ -2,7 +2,15 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { feedbackHandle, isPinned, unpinnedContext, type FeedbackItem, type FeedbackStatus } from "@pt/shared";
-  import { attachmentImages, attachmentUrl, feedbackApi, exportUrl, ticketImageCaption, ticketShots } from "$lib/feedback/client";
+  import {
+    attachmentImages,
+    attachmentUrl,
+    feedbackApi,
+    exportUrl,
+    ticketImageCaption,
+    ticketShots,
+    type TriagePatch,
+  } from "$lib/feedback/client";
   import AttachmentInput from "$lib/feedback/AttachmentInput.svelte";
   import AttachmentStrip from "$lib/feedback/AttachmentStrip.svelte";
   import { ImageTray } from "$lib/feedback/tray.svelte";
@@ -169,19 +177,46 @@
    */
   const seq: Record<string, number> = {};
 
-  async function triage(item: FeedbackItem, patch: { status?: FeedbackStatus; triageNote?: string | null }) {
+  /** True once the change landed (or a newer one superseded it). */
+  async function triage(item: FeedbackItem, patch: TriagePatch): Promise<boolean> {
     const n = (seq[item.id] = (seq[item.id] ?? 0) + 1);
     busy[item.id] = true;
     try {
       const next = await feedbackApi.triage(item.id, patch);
-      if (seq[item.id] !== n) return;
+      if (seq[item.id] !== n) return true;
       replace(next);
       error = null;
+      return true;
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not update feedback";
+      return false;
     } finally {
       if (seq[item.id] === n) busy[item.id] = false;
     }
+  }
+
+  /** The card whose Won't-fix row is open, and each card's reason draft. */
+  let closing = $state<string | null>(null);
+  let reasons = $state<Record<string, string>>({});
+
+  async function openWontfix(item: FeedbackItem) {
+    closing = item.id;
+    await tick();
+    document.getElementById(`fb-reason-${item.id}`)?.focus();
+  }
+
+  async function cancelWontfix(item: FeedbackItem) {
+    closing = null;
+    await tick();
+    document.getElementById(`fb-wontfix-${item.id}`)?.focus();
+  }
+
+  /** The reason, when given, posts as a public reply and the Won't-fix email quotes it. */
+  async function confirmWontfix(item: FeedbackItem) {
+    const reason = (reasons[item.id] ?? "").trim();
+    if (!(await triage(item, { status: "wontfix", ...(reason ? { reason } : {}) }))) return;
+    closing = null;
+    reasons[item.id] = "";
   }
 
   function saveNote(item: FeedbackItem) {
@@ -528,7 +563,13 @@
                 <div class="actions">
                 {#if item.status === "new"}
                   <Button small variant="primary" onclick={() => triage(item, { status: "accepted" })}>Accept</Button>
-                  <Button small onclick={() => triage(item, { status: "wontfix" })}>Won't fix</Button>
+                  <Button
+                    small
+                    id="fb-wontfix-{item.id}"
+                    aria-expanded={closing === item.id}
+                    aria-controls="fb-closing-{item.id}"
+                    onclick={() => (closing === item.id ? cancelWontfix(item) : openWontfix(item))}>Won't fix</Button
+                  >
                 {:else if item.status === "accepted"}
                   <Button
                     small
@@ -542,6 +583,28 @@
                 <span class="spacer"></span>
                 <ConfirmButton small variant="ghost" class="danger" onconfirm={() => remove(item)} />
                 </div>
+                {#if closing === item.id && item.status === "new"}
+                  <div class="closing" id="fb-closing-{item.id}">
+                    <label class="triage">
+                      <span>Reason for the reporter <span class="muted">(optional) — posts as a reply</span></span>
+                      <textarea
+                        id="fb-reason-{item.id}"
+                        rows="2"
+                        maxlength="5000"
+                        bind:value={reasons[item.id]}
+                        placeholder="e.g. Supersets log as one block on purpose, so totals match the program"
+                        onkeydown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) confirmWontfix(item);
+                          if (e.key === "Escape") cancelWontfix(item);
+                        }}
+                      ></textarea>
+                    </label>
+                    <div class="actions">
+                      <Button small variant="primary" disabled={busy[item.id]} onclick={() => confirmWontfix(item)}>Won't fix</Button>
+                      <Button small variant="ghost" onclick={() => cancelWontfix(item)}>Cancel</Button>
+                    </div>
+                  </div>
+                {/if}
               </div>
             {/if}
           </li>
@@ -797,6 +860,14 @@
     outline: none;
     border-color: var(--blue);
     box-shadow: 0 0 0 3px var(--focus);
+  }
+  /* Won't fix: the optional reason, inline under the actions. */
+  .closing {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
   }
   .composer.dropping {
     outline: 2px dashed var(--blue);
