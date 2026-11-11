@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.20 — 2026-11-11
+
 ### New
 - Won't fix can carry a reason. It's posted as a reply, and the reporter's email quotes it, so they get one email.
 - Feedback cards are calmer. The reply box opens from a Reply link, Accept is no longer green, and one "Show details" toggle covers the whole list.
