@@ -351,6 +351,13 @@
       "when": 1797000000000,
       "tag": "0050_drop_feedback_agent_check",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1797100000000,
+      "tag": "0051_drop_feedback_shot_columns",
+      "breakpoints": true
     }
   ]
 }

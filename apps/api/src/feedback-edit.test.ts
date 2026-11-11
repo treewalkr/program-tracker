@@ -207,7 +207,7 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
 
   describe("images", () => {
     test("removes captured screenshots, adds uploads and reorders, as multipart", async () => {
-      const item = await ticket("With shots", { elementShot: png(), pageShot: png(), images: [png("one.png")] });
+      const item = await ticket("With shots", { images: [png(), png(), png("one.png")], kinds: "element,page,upload" });
       expect(item.attachments.map((a) => a.kind)).toEqual(["element", "page", "upload"]);
       const [el, , one] = item.attachments;
       const res = await edit(
@@ -222,12 +222,12 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
       expect(next.attachments[3].id).toBe(el.id);
       expect(next.attachments.map((a) => a.position)).toEqual([0, 1, 2, 3]);
       // the page shot is gone for good
-      expect((await call("GET", `/v1/feedback/${item.id}/shot/page`)).status).toBe(404);
+      expect((await call("GET", `/v1/feedback/${item.id}/attachments/${item.attachments[1].id}`)).status).toBe(404);
       expect((await call("GET", `/v1/feedback/${item.id}/attachments/${next.attachments[0].id}`)).status).toBe(200);
     });
 
     test("removing every image works over JSON", async () => {
-      const item = await ticket("Too many shots", { elementShot: png(), images: [png()] });
+      const item = await ticket("Too many shots", { images: [png(), png()], kinds: "element" });
       const next = await json(await edit(item, { layout: [] }, kai));
       expect(next.attachments).toEqual([]);
       expect(next.comment).toBe("Too many shots");
@@ -235,7 +235,7 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
     });
 
     test("the upload limit applies to the result, screenshots aside", async () => {
-      const item = await ticket("Full", { elementShot: png(), images: [1, 2, 3, 4, 5].map((n) => png(`${n}.png`)) });
+      const item = await ticket("Full", { images: [png(), ...[1, 2, 3, 4, 5].map((n) => png(`${n}.png`))], kinds: "element" });
       const ok = await edit(item, { layout: [...keepAll(item), { upload: 0 }], images: [png()] }, kai);
       expect(ok.status).toBe(200);
       const full = (await json(ok)) as FeedbackItem;
@@ -333,7 +333,7 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
     });
 
     test("new uploads change the basis, so the old answer goes stale", async () => {
-      const item = await ticket("Looks off", { elementShot: png() });
+      const item = await ticket("Looks off", { images: [png()], kinds: "element" });
       const before = ticketBasis(await get(item.id));
       const shotsOnly = await json(await edit(await get(item.id), { layout: [] }, kai));
       expect(ticketBasis(shotsOnly)).toBe(before);

@@ -91,7 +91,7 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     const res = await call(
       "POST",
       "/v1/feedback",
-      form({ comment: "  I can't tell which sets are warm-ups.  ", context, elementShot: png() }),
+      form({ comment: "  I can't tell which sets are warm-ups.  ", context, images: [png()], kinds: "element" }),
     );
     expect(res.status).toBe(200);
     const body = await json(res);
@@ -115,17 +115,12 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(res.status).toBe(422);
   });
 
-  test("serves the screenshot bytes, by attachment and by the old shot URL", async () => {
+  test("serves the screenshot bytes by attachment", async () => {
     const [shot] = (await json(await call("GET", `/v1/feedback/${id}`))).attachments;
     const res = await call("GET", `/v1/feedback/${id}/attachments/${shot.id}`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(Buffer.from(await res.arrayBuffer()).equals(Buffer.from(PNG_B64, "base64"))).toBe(true);
-
-    const compat = await call("GET", `/v1/feedback/${id}/shot/element`);
-    expect(compat.status).toBe(200);
-    expect(compat.headers.get("content-type")).toBe("image/png");
-    expect((await call("GET", `/v1/feedback/${id}/shot/page`)).status).toBe(404);
   });
 
   test("new items stay out of the default export until accepted", async () => {
@@ -184,7 +179,7 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
       .returning({ id: trainers.id });
     kai = (await createSession(rows[0].id)).token;
     mo = (await createSession(rows[1].id)).token;
-    kaiItem = (await json(await call("POST", "/v1/feedback", { comment: "Kai's note", context }, kai))).id;
+    kaiItem = (await json(await call("POST", "/v1/feedback", form({ comment: "Kai's note", context, images: [png()], kinds: "element" }), kai))).id;
     adminItem = (await json(await call("POST", "/v1/feedback", { comment: "Admin's note", context }))).id;
   });
   afterAll(async () => {
@@ -205,7 +200,9 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
   test("someone else's item and its screenshot are 404", async () => {
     expect((await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai)).status).toBe(200);
     expect((await call("GET", `/v1/feedback/${kaiItem}`, undefined, mo)).status).toBe(404);
-    expect((await call("GET", `/v1/feedback/${adminItem}/shot/element`, undefined, kai)).status).toBe(404);
+    const [shot] = (await json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai))).attachments;
+    expect((await call("GET", `/v1/feedback/${kaiItem}/attachments/${shot.id}`, undefined, kai)).status).toBe(200);
+    expect((await call("GET", `/v1/feedback/${kaiItem}/attachments/${shot.id}`, undefined, mo)).status).toBe(404);
   });
 
   test("reporter and admin talk on the thread; strangers cannot", async () => {

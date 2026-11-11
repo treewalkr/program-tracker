@@ -19,7 +19,6 @@ import {
   relayoutTicketImages,
   saveAttachments,
   ticketImages,
-  ticketShot,
 } from "../lib/feedback-attachments";
 import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
@@ -167,9 +166,6 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       body: t.Object({
         comment: t.String({ minLength: 1, maxLength: 5000 }),
         context: Context,
-        /** v0.1.19 form only — see `readImages`. */
-        elementShot: t.Optional(t.File()),
-        pageShot: t.Optional(t.File()),
         images: Images,
         kinds: ImageKinds,
       }),
@@ -466,20 +462,5 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       params: t.Object({ id: t.String({ format: "uuid" }), attachmentId: t.String({ format: "uuid" }) }),
       detail: { summary: "Image bytes for a feedback item or reply" },
     },
-  )
-  /** Old screenshot URLs (pre-attachments export links): the ticket's captured element or page image. */
-  .get(
-    "/:id/shot/:kind",
-    async ({ params, status, who }) => {
-      if (!(await getFeedback(params.id, who))) return status(404, { error: "screenshot not found" });
-      const shot = await ticketShot(params.id, params.kind);
-      if (!shot) return status(404, { error: "screenshot not found" });
-      return new Response(new Uint8Array(shot.bytes), {
-        headers: { "content-type": shot.mime, "cache-control": IMAGE_CACHE },
-      });
-    },
-    {
-      params: t.Object({ id: t.String({ format: "uuid" }), kind: t.UnionEnum(["element", "page"]) }),
-      detail: { summary: "Screenshot bytes for a feedback item (compatibility alias)" },
-    },
   );
+

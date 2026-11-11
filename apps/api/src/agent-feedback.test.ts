@@ -162,7 +162,7 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect(entry).toMatchObject({ handle: expect.stringMatching(/^FB-\d+$/), status: "new", build: "0.1.12+abc1234" });
     expect(entry.basis).toMatch(/^[0-9a-f]{8}$/);
     expect(entry.markdown).toContain("> Where do I turn off emails?");
-    expect(entry.shots).toEqual({ element: false, page: false });
+    expect(entry.attachments).toEqual([]);
 
     await call("POST", `/v1/feedback/${id}/comments`, { body: "Looking into it" });
     expect(await inInbox(id)).toBeUndefined();
@@ -180,12 +180,12 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     const body = new FormData();
     body.append("comment", "shot");
     body.append("context", JSON.stringify(context));
-    body.append("elementShot", pngFile());
+    body.append("images", pngFile());
+    body.append("kinds", "element");
     const id = (await json(await call("POST", "/v1/feedback", body, kai))).id as string;
     items.push(id);
     await flush();
     const entry = await inInbox(id);
-    expect(entry.shots).toEqual({ element: true, page: false });
     expect(entry.attachments).toEqual([
       { id: expect.any(String), kind: "element", mime: "image/png", entry: "ticket", commentId: null, file: `${entry.handle}-1.png` },
     ]);
@@ -195,13 +195,6 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect(res.headers.get("x-shot-type")).toBe("image/png");
     expect(Buffer.from(await res.arrayBuffer()).equals(Buffer.from(PNG_B64, "base64"))).toBe(true);
     expect((await call("GET", `/v1/agent/feedback/${id}/attachments/${entry.attachments[0].id}`, undefined, kai)).status).toBe(401);
-
-    // the old CLI's route still works for one release
-    const old = await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, agent);
-    expect(old.status).toBe(200);
-    expect(old.headers.get("x-shot-type")).toBe("image/png");
-    expect((await call("GET", `/v1/agent/feedback/${id}/shots/page`, undefined, agent)).status).toBe(404);
-    expect((await call("GET", `/v1/agent/feedback/${id}/shots/element`, undefined, kai)).status).toBe(401);
   });
 
   test("the inbox lists the images on public replies, not on drafts", async () => {
