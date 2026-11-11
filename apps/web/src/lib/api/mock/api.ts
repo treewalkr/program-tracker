@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema, schemePreset } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf } from "@pt/shared";
 import {
   aiDraftToDiffSource,
   cardioBehindSignal,
@@ -97,6 +97,8 @@ import type {
   SessionLogInput,
   SessionTypeDto,
   RoleLabelDto,
+  RosterPageDto,
+  RosterQuery,
   TrainerApi,
 } from "../types";
 import { activeSignals, snoozeUntil } from "../../signals";
@@ -706,6 +708,11 @@ export const mockApi: TrainerApi = {
   async clients() {
     await delay(250);
     return state.clients.filter((c) => c.status !== "archived").map(clientDto);
+  },
+
+  async roster(query) {
+    await delay(250);
+    return mockRoster(query);
   },
 
   async client(id) {
@@ -1699,29 +1706,7 @@ export const mockApi: TrainerApi = {
   /** Same shared rule engine the API runs — over the in-memory fixtures. */
   async notifications(): Promise<SignalDto[]> {
     await delay(250);
-    const signals: SignalDto[] = [];
-    for (const client of state.clients) {
-      if (client.status === "archived") continue;
-      const current =
-        state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
-      const clientLogs = state.logs
-        .filter((l) => l.clientId === client.id)
-        .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets }));
-      if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
-      // Cardio targets are a client attribute — checked with or without a program (F18).
-      if (client.cardioTarget) {
-        const behind = cardioBehindSignal(
-          { programId: current?.id ?? null, clientId: client.id },
-          client.cardioTarget,
-          clientLogs,
-          Date.now(),
-          client.createdAt ?? null
-        );
-        if (behind) signals.push(behind);
-      }
-      signals.push(...painFlagSignals({ programId: current?.id ?? null, clientId: client.id }, clientLogs, nameOf));
-    }
-    return activeSignals(signals);
+    return openSignals();
   },
 
   async snoozeSignal(id, until) {
@@ -2164,3 +2149,88 @@ async function learnFrom(input: {
 
 /** Demo verdicts: latest 👍/👎 per subject, in memory. */
 const verdicts = new Map<string, LlmVerdictDto>();
+
+/** Open signals over the demo fixtures, snooze-filtered — the mock of the API's openSignals. */
+function openSignals(): SignalDto[] {
+  const signals: SignalDto[] = [];
+  for (const client of state.clients) {
+    if (client.status === "archived") continue;
+    const current =
+      state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
+    const clientLogs = state.logs
+      .filter((l) => l.clientId === client.id)
+      .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets }));
+    if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
+    // Cardio targets are a client attribute — checked with or without a program (F18).
+    if (client.cardioTarget) {
+      const behind = cardioBehindSignal(
+        { programId: current?.id ?? null, clientId: client.id },
+        client.cardioTarget,
+        clientLogs,
+        Date.now(),
+        client.createdAt ?? null
+      );
+      if (behind) signals.push(behind);
+    }
+    signals.push(...painFlagSignals({ programId: current?.id ?? null, clientId: client.id }, clientLogs, nameOf));
+  }
+  return activeSignals(signals);
+}
+
+const ROSTER_RANK = { active: 0, paused: 1, archived: 2 } as const;
+
+/** Same filter/sort/page as GET /v1/clients/roster, over the demo state. */
+function mockRoster(query: RosterQuery): RosterPageDto {
+  const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+  if (!isPageLimit(limit)) throw Object.assign(new Error(`limit must be one of ${PAGE_LIMITS.join(", ")}`), { status: 422 });
+  const status = query.status ?? "all";
+  const q = query.q?.trim().toLowerCase() ?? "";
+  const scoped = state.clients.filter(
+    (c) => !q || c.name.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q)
+  );
+  const counts = { all: scoped.length, active: 0, paused: 0, archived: 0 };
+  for (const c of scoped) counts[c.status]++;
+
+  const lastOf = new Map<string, string>();
+  for (const l of state.logs) {
+    const d = l.date.slice(0, 10);
+    if ((lastOf.get(l.clientId) ?? "") < d) lastOf.set(l.clientId, d);
+  }
+  const byName = (a: ClientDto, b: ClientDto) => a.name.localeCompare(b.name);
+  const sorted = scoped
+    .filter((c) => status === "all" || c.status === status)
+    .sort(
+      query.sort === "last"
+        ? (a, b) => (lastOf.get(b.id) ?? "").localeCompare(lastOf.get(a.id) ?? "") || byName(a, b)
+        : query.sort === "recent"
+          ? (a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+          : (a, b) => ROSTER_RANK[a.status] - ROSTER_RANK[b.status] || byName(a, b)
+    );
+  const page = pageOf(sorted, query.page ?? 1, limit);
+
+  const attention = new Map<string, number>();
+  for (const s of openSignals()) if (s.clientId) attention.set(s.clientId, (attention.get(s.clientId) ?? 0) + 1);
+
+  const items = page.items.map((c) => {
+    const p = state.programs.find((x) => x.clientId === c.id && x.status === "active");
+    const logs = p ? state.logs.filter((l) => l.programId === p.id).map((l) => ({ programId: l.programId, date: l.date, sets: [] })) : [];
+    return {
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      status: c.status,
+      goals: c.goals,
+      limitations: c.limitations,
+      sessionsPerWeek: c.sessionsPerWeek,
+      trainingDays: c.trainingDays ?? [],
+      cardioTarget: c.cardioTarget ?? null,
+      createdAt: c.createdAt ?? "",
+      lastSessionAt: lastOf.get(c.id) ?? null,
+      program: p
+        ? { id: p.id, name: p.name, week: weekOf(p, logs), weeks: p.phasing?.plannedWeeks ?? p.weeks.length }
+        : null,
+      attention: attention.get(c.id) ?? 0,
+    };
+  });
+  return { ...page, items, counts };
+}

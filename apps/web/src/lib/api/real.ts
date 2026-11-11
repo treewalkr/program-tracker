@@ -22,6 +22,7 @@ import type {
   ProgramDto,
   ProgramExampleDto,
   ProviderDto,
+  RosterPageDto,
   RoleLabelDto,
   SavedLogDto,
   SessionLogDto,
@@ -79,6 +80,7 @@ export const realApi: TrainerApi = {
   providers: async () =>
     (await unwrap<{ providers: ProviderDto[] }>(client.v1.ai.providers.get())).providers,
   clients: () => unwrap<ClientDto[]>(client.v1.clients.get()),
+  roster: (query) => unwrap<RosterPageDto>(client.v1.clients.roster.get({ query })),
   client: (id) =>
     unwrap<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>(
       client.v1.clients({ id }).get()
