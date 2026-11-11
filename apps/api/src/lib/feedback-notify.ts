@@ -30,7 +30,8 @@ export type FeedbackEvent =
   | { kind: "created"; itemId: string }
   /** `by`: who made it public when that isn't the comment's author (the admin sending an AI draft). */
   | { kind: "reply"; itemId: string; commentId: string; by?: string }
-  | { kind: "status"; itemId: string; commentId: string };
+  /** `reasonId`: the reply posted with a Won't fix, quoted in its email. */
+  | { kind: "status"; itemId: string; commentId: string; reasonId?: string | null };
 
 export interface Person {
   id: string;
@@ -53,7 +54,6 @@ export interface FeedbackSnapshot {
     number: number;
     comment: string;
     route: string;
-    triageNote: string | null;
     shippedIn: string | null;
   };
   reporter: Person | null;
@@ -64,6 +64,8 @@ export interface FeedbackSnapshot {
   actor: Person | null;
   /** The reply or status entry behind a reply/status event. */
   comment: { body: string | null; status: FeedbackStatus | null; authorKind: FeedbackAuthorKind } | null;
+  /** Won't fix: the reason posted with it, as a public reply; null when none was given. */
+  reason: string | null;
   appUrl: string;
 }
 
@@ -199,7 +201,7 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
     return send(`[${handle}] Won't fix`, {
       lead: `${actorName} decided not to change this:`,
       quote,
-      after: item.triageNote ? `Reason: ${item.triageNote}` : "Reply on the item if you want to talk it through.",
+      after: snap.reason ? `Reason: ${snap.reason}` : "Reply on the item if you want to talk it through.",
     }, "Won't fix");
   }
   if (status !== "done") return [];
@@ -227,7 +229,6 @@ async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> 
       number: feedbackItems.number,
       comment: feedbackItems.comment,
       route: feedbackItems.route,
-      triageNote: feedbackItems.triageNote,
       shippedIn: feedbackItems.shippedIn,
       trainerId: feedbackItems.trainerId,
     })
@@ -248,6 +249,7 @@ async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> 
     // drafts and private notes are not part of the conversation anyone is emailed about
     .where(and(eq(feedbackComments.itemId, event.itemId), eq(feedbackComments.visibility, "public")));
   const comment = "commentId" in event ? (thread.find((c) => c.id === event.commentId) ?? null) : null;
+  const reason = event.kind === "status" && event.reasonId ? (thread.find((c) => c.id === event.reasonId)?.body ?? null) : null;
 
   const adminEmail = adminEmailFromEnv();
   const ids = new Set<string>();
@@ -285,6 +287,7 @@ async function snapshot(event: FeedbackEvent): Promise<FeedbackSnapshot | null> 
     repliers: thread.filter((c) => c.kind === "reply" && c.trainerId).map((c) => byId.get(c.trainerId!)!).filter(Boolean),
     actor: actorId ? (byId.get(actorId) ?? null) : null,
     comment: comment ? { body: comment.body, status: comment.status, authorKind: comment.authorKind } : null,
+    reason: reason?.trim() || null,
     appUrl: appUrl(),
   };
 }
