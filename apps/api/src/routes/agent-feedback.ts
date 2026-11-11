@@ -23,7 +23,7 @@ import { getFeedback, listFeedback } from "../lib/feedback";
 import { attachmentBytes } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, type ClosedDuplicate } from "../lib/feedback-duplicates";
-import { agentTokenMatches, feedbackAiMode, fixCandidate, needsAnswer, routeAnswer } from "../lib/feedback-ai";
+import { agentTokenMatches, feedbackAiMode, fixCandidate, inboxCursor, needsAnswer, routeAnswer } from "../lib/feedback-ai";
 
 /**
  * Bearer FEEDBACK_AGENT_TOKEN, nothing else: no session, no trainer. Only the
@@ -272,6 +272,24 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       body: t.Object({ of: t.Integer({ minimum: 1, maximum: 999_999_999 }) }),
       detail: { summary: "Mark a ticket a duplicate of an open one" },
     },
+  )
+  /**
+   * The cheap check a local watcher polls: how many tickets wait for an
+   * answer, how many the fix agent could take, and `cursor`, which changes
+   * exactly when the inbox does. No Markdown, no images.
+   */
+  .get(
+    "/pending",
+    async () => {
+      const open = await listFeedback(["new", "accepted"], "oldest");
+      const inbox = open.filter(needsAnswer);
+      return {
+        inbox: inbox.length,
+        fixable: open.filter((i) => fixCandidate(i).ok).length,
+        cursor: inboxCursor(inbox.map((i) => ({ id: i.id, basis: ticketBasis(i) }))),
+      };
+    },
+    { detail: { summary: "Inbox and fixable counts, plus a cursor that changes with the inbox" } },
   )
   /**
    * Tickets by number (`?numbers=12,14`), any status: what `changelog:draft`

@@ -131,3 +131,14 @@ export function fixCandidate(item: FeedbackItem): FixCandidate {
   if (m.ready !== true) return no("not ready");
   return { ok: true };
 }
+
+/**
+ * Fingerprint of the inbox: which tickets wait, at which version. It changes
+ * exactly when there's new work (a new ticket, a reporter's reply or edit),
+ * so a watcher can start the agent once per change. Empty inbox → "".
+ */
+export function inboxCursor(entries: { id: string; basis: string }[]): string {
+  if (!entries.length) return "";
+  const text = entries.map((e) => `${e.id}:${e.basis}`).sort().join(",");
+  return createHash("sha256").update(text).digest("hex").slice(0, 16);
+}

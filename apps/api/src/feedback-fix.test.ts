@@ -150,6 +150,25 @@ describe.skipIf(!dbUp)("fix agent API", () => {
     expect((await call("GET", "/v1/agent/feedback/fixable?limit=6", undefined, agent)).status).toBe(422);
   });
 
+  test("pending counts the inbox and fixable tickets; its cursor moves only when the inbox does", async () => {
+    const pending = async () => json(await call("GET", "/v1/agent/feedback/pending", undefined, agent));
+    expect((await call("GET", "/v1/agent/feedback/pending", undefined, kai)).status).toBe(401);
+    const before = await pending();
+    expect(await pending()).toEqual(before);
+    const t = await ticket("Pending check");
+    const after = await pending();
+    expect(after.inbox).toBe(before.inbox + 1);
+    expect(after.cursor).not.toBe(before.cursor);
+    expect(after.cursor).toMatch(/^[0-9a-f]{16}$/);
+    // answering it takes it out of the inbox; accepting it makes it fixable
+    expect((await answer(t.id)).status).toBe(200);
+    await accept(t.id);
+    const done = await pending();
+    expect(done.inbox).toBe(before.inbox);
+    expect(done.cursor).toBe(before.cursor);
+    expect(done.fixable).toBe(before.fixable + 1);
+  });
+
   test("fix-pr records a GitHub PR on an accepted ticket, for the admin's eyes only", async () => {
     const t = await readyTicket("Record my PR");
     const post = (url: string, id = t.id, as: As = agent) => call("POST", `/v1/agent/feedback/${id}/fix-pr`, { url }, as);
