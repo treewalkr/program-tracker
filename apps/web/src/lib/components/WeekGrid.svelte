@@ -49,8 +49,9 @@
 
   // ── Fold: past eight active rows, on-track clients share one line (missed / to log / due today never fold) ──
   const SHOW_KEY = "pt.weekgrid.showOnTrack";
-  /** Names the folded line lists before "+N". */
+  /** Names the folded line lists before "+N" — fewer at ≤520px so it stays about one line. */
   const FOLD_NAMES = 5;
+  const FOLD_NAMES_NARROW = 2;
   function savedShow(): boolean {
     try {
       return typeof localStorage !== "undefined" && localStorage.getItem(SHOW_KEY) === "1";
@@ -332,10 +333,11 @@
               {#if !showOnTrack}
                 <span class="idle-count">On track:</span>
                 <ul class="idle-names" aria-label={plural(onTrack.length, "client") + " on track"}>
-                  {#each onTrack.slice(0, FOLD_NAMES) as s (s.client.id)}
-                    <li><a href={`/clients/${s.client.id}`}>{s.client.name}</a></li>
+                  {#each onTrack.slice(0, FOLD_NAMES) as s, i (s.client.id)}
+                    <li class:wide={i >= FOLD_NAMES_NARROW}><a href={`/clients/${s.client.id}`}>{s.client.name}</a></li>
                   {/each}
-                  {#if onTrack.length > FOLD_NAMES}<li class="more" aria-hidden="true">+{onTrack.length - FOLD_NAMES}</li>{/if}
+                  {#if onTrack.length > FOLD_NAMES}<li class="more wide" aria-hidden="true">+{onTrack.length - FOLD_NAMES}</li>{/if}
+                  {#if onTrack.length > FOLD_NAMES_NARROW}<li class="more narrow" aria-hidden="true">+{onTrack.length - FOLD_NAMES_NARROW}</li>{/if}
                 </ul>
               {/if}
               <button type="button" class="linkbtn" aria-expanded={showOnTrack} aria-controls={foldId} onclick={toggleOnTrack}>
@@ -625,6 +627,8 @@
   /* The fold line sits between rows, so it pads evenly; names stay on ~one line. */
   .fold .idle-line { padding: 8px 4px; }
   .fold .more { color: var(--muted); font: 400 12px/1.5 var(--font-mono); }
+  .fold .more.narrow { display: none; }
+  .fold .idle-names { align-items: baseline; }
   .linkbtn {
     appearance: none;
     background: none;
@@ -778,6 +782,8 @@
     .wk-body .wk-cell { padding: 4px 0 8px; }
     .cell { height: 44px; padding: 3px 2px; }
     .legend { justify-content: flex-start; }
+    .fold .wide { display: none; }
+    .fold .more.narrow { display: inline-flex; }
     /* The ramp reads the history squares, the states read the cells: one line each. */
     .lg.ramp { flex-basis: 100%; }
   }
