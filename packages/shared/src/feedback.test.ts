@@ -5,6 +5,7 @@ import {
   feedbackHandlesIn,
   feedbackMarkdown,
   isMostlyThai,
+  parseFeedbackHandle,
   shippedNote,
   ownedRouteRef,
   snapshotJson,
@@ -350,5 +351,33 @@ describe("shippedNote", () => {
     expect(isMostlyThai("ปุ่ม Save กดไม่ได้ในหน้าลูกค้า")).toBe(true);
     expect(isMostlyThai("The ปุ่ม on the Save screen is broken")).toBe(false);
     expect(isMostlyThai("")).toBe(false);
+  });
+});
+
+describe("parseFeedbackHandle", () => {
+  test("handles, bare numbers and hash links", () => {
+    expect(parseFeedbackHandle("FB-012")).toBe(12);
+    expect(parseFeedbackHandle("fb-12")).toBe(12);
+    expect(parseFeedbackHandle(" #FB-7 ")).toBe(7);
+    expect(parseFeedbackHandle("FB12")).toBe(12);
+    expect(parseFeedbackHandle("42")).toBe(42);
+  });
+  test("anything else is null", () => {
+    for (const bad of ["", "FB-", "FB-0", "0", "FB-1a", "12 13", "-3", "FB-1234567890"]) {
+      expect(parseFeedbackHandle(bad)).toBeNull();
+    }
+  });
+});
+
+describe("feedbackMarkdown duplicate links", () => {
+  const md = (over: Partial<FeedbackItem>) => feedbackMarkdown([item(over)], { imageUrl: () => null });
+  test("a duplicate names its original, an original its duplicates", () => {
+    expect(md({ duplicateOf: { number: 12, status: "accepted" } })).toContain(
+      "- **Duplicate of:** FB-012 (accepted) — it closes when that ticket does",
+    );
+    expect(md({ duplicates: [{ number: 15, status: "new" }, { number: 20, status: "done" }] })).toContain(
+      "- **Duplicates:** FB-015 (new), FB-020 (done) — they close with this ticket",
+    );
+    expect(md({})).not.toContain("Duplicate");
   });
 });

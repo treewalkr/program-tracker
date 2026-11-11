@@ -22,6 +22,7 @@ import { API_VERSION } from "../lib/build";
 import { getFeedback, listFeedback } from "../lib/feedback";
 import { attachmentBytes } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
+import { closeDuplicates, linkDuplicate, type ClosedDuplicate } from "../lib/feedback-duplicates";
 import { agentTokenMatches, feedbackAiMode, needsAnswer, routeAnswer } from "../lib/feedback-ai";
 
 /**
@@ -48,7 +49,10 @@ type ShipOutcome =
  * writes a status entry and a public note to the reporter; returns the status
  * entry's id for the email.
  */
-async function shipTicket(number: number, ship: FeedbackShip): Promise<ShipOutcome & { itemId?: string; statusId?: string }> {
+async function shipTicket(
+  number: number,
+  ship: FeedbackShip,
+): Promise<ShipOutcome & { itemId?: string; statusId?: string; duplicates?: ClosedDuplicate[] }> {
   return db.transaction(async (tx) => {
     const [item] = await tx
       .select({ id: feedbackItems.id, status: feedbackItems.status, comment: feedbackItems.comment })
@@ -83,7 +87,17 @@ async function shipTicket(number: number, ship: FeedbackShip): Promise<ShipOutco
     await tx
       .insert(feedbackComments)
       .values({ ...release, kind: "reply", body: shippedNote(ship.version, item.comment), createdAt: new Date(now + 1) });
-    return { closed: true, itemId: item.id, statusId: entry.id };
+    // Its open duplicates ship with it: same status entry and note on each.
+    const duplicates = await closeDuplicates(tx, item.id, {
+      status: "done",
+      shippedIn: ship.version,
+      trainerId: null,
+      authorKind: "system",
+      ship,
+      note: (comment) => shippedNote(ship.version, comment),
+      at: now + 2,
+    });
+    return { closed: true, itemId: item.id, statusId: entry.id, duplicates };
   });
 }
 const MAX_TEXT = 2000;
@@ -155,6 +169,46 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       });
     },
     { detail: { summary: "Tickets the auto-reply agent should answer" } },
+  )
+  /**
+   * Every open ticket in brief, oldest first — what the agent compares a new
+   * ticket against before calling it a duplicate. Comments clipped to 400
+   * characters; `duplicateOf` is the number of the ticket it already repeats.
+   */
+  .get(
+    "/open",
+    async () => {
+      const items = await listFeedback(["new", "accepted"], "oldest");
+      return items.map((i) => ({
+        id: i.id,
+        number: i.number,
+        handle: feedbackHandle(i.number),
+        status: i.status,
+        route: i.context.route.path,
+        comment: i.comment.length > 400 ? `${i.comment.slice(0, 399)}…` : i.comment,
+        duplicateOf: i.duplicateOf?.number ?? null,
+        createdAt: i.createdAt,
+      }));
+    },
+    { detail: { summary: "Open tickets in brief, for duplicate checks" } },
+  )
+  /**
+   * Link a ticket to the open ticket it repeats (`of` = its number). Same
+   * rules as the admin's link: both open, no chains. The agent still answers
+   * the ticket as usual; the link only makes it close with the original.
+   */
+  .post(
+    "/:id/duplicate",
+    async ({ params, body, status }) => {
+      const out = await linkDuplicate(params.id, body.of);
+      if (!out.ok) return status(out.status, { error: out.error });
+      return { linked: true as const, changed: out.changed, of: feedbackHandle(body.of) };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: t.Object({ of: t.Integer({ minimum: 1, maximum: 999_999_999 }) }),
+      detail: { summary: "Mark a ticket a duplicate of an open one" },
+    },
   )
   /**
    * Tickets by number (`?numbers=12,14`), any status: what `changelog:draft`
@@ -294,6 +348,8 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       const closed: ShipRef[] = [];
       const skipped: (ShipRef & { reason: string })[] = [];
       const unknown: ShipRef[] = [];
+      /** Duplicates closed along with a ticket in `closed`. */
+      const closedDuplicates: (ShipRef & { duplicate: string })[] = [];
       for (const commit of body.commits) {
         const sha = commit.sha.toLowerCase();
         for (const number of new Set(commit.handles)) {
@@ -302,11 +358,15 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           if (out.closed) {
             closed.push(ref);
             notifyFeedback({ kind: "status", itemId: out.itemId!, commentId: out.statusId! });
+            for (const d of out.duplicates ?? []) {
+              closedDuplicates.push({ ...ref, duplicate: feedbackHandle(d.number) });
+              notifyFeedback({ kind: "status", itemId: d.itemId, commentId: d.statusId });
+            }
           } else if (out.reason === "unknown") unknown.push(ref);
           else skipped.push({ ...ref, reason: out.reason });
         }
       }
-      return { version: API_VERSION, closed, skipped, unknown };
+      return { version: API_VERSION, closed, closedDuplicates, skipped, unknown };
     },
     {
       body: t.Object({

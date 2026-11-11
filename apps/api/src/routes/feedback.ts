@@ -22,6 +22,7 @@ import {
 } from "../lib/feedback-attachments";
 import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
+import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
@@ -209,7 +210,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             updatedAt: new Date(),
           })
           .where(eq(feedbackItems.id, params.id));
-        if (!moved) return { statusCommentId: null, reasonId: null };
+        if (!moved) return { statusCommentId: null, reasonId: null, duplicates: [] };
         // Explicit times: both rows would otherwise share the transaction's now().
         const at = Date.now();
         const [why] = reason
@@ -228,13 +229,28 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             ...(why ? { createdAt: new Date(at + 1) } : {}),
           })
           .returning({ id: feedbackComments.id });
-        return { statusCommentId: entry.id, reasonId: why?.id ?? null };
+        // Closing an original closes the open tickets that repeat it, the same way.
+        const duplicates =
+          patch.status === "done" || patch.status === "wontfix"
+            ? await closeDuplicates(tx, params.id, {
+                status: patch.status,
+                shippedIn: patch.status === "done" ? API_VERSION : null,
+                trainerId,
+                authorKind: "human",
+                reason,
+                at: at + 2,
+              })
+            : [];
+        return { statusCommentId: entry.id, reasonId: why?.id ?? null, duplicates };
       });
       if (!found) return status(404, NOT_FOUND);
       if ("fail" in found) return status(409, { error: "Already Won't fix — reply on the thread instead." });
       // One email: the status one, quoting the reason. The reason reply sends none of its own.
       if (found.statusCommentId) {
         notifyFeedback({ kind: "status", itemId: params.id, commentId: found.statusCommentId, reasonId: found.reasonId });
+      }
+      for (const d of found.duplicates) {
+        notifyFeedback({ kind: "status", itemId: d.itemId, commentId: d.statusId, reasonId: d.reasonId });
       }
       await markSeen(trainerId, params.id);
       return (await getFeedback(params.id, who))!;
@@ -397,6 +413,28 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       return (await getFeedback(params.id, who))!;
     },
     { params: CommentParams, detail: { summary: "Discard an AI draft or private note" } },
+  )
+  /**
+   * Admin: mark the ticket a duplicate of open ticket number `of`, or unlink
+   * it (`of: null`). It closes when that ticket does (lib/feedback-duplicates).
+   */
+  .put(
+    "/:id/duplicate",
+    async ({ params, body, status, isAdmin, who }) => {
+      if (!isAdmin) return status(403, ADMIN_ONLY);
+      if (body.of === null) {
+        if (!(await unlinkDuplicate(params.id))) return status(404, NOT_FOUND);
+      } else {
+        const out = await linkDuplicate(params.id, body.of);
+        if (!out.ok) return status(out.status, { error: out.error });
+      }
+      return (await getFeedback(params.id, who))!;
+    },
+    {
+      params: IdParams,
+      body: t.Object({ of: t.Nullable(t.Integer({ minimum: 1, maximum: 999_999_999 })) }),
+      detail: { summary: "Mark a ticket a duplicate of another open one, or unlink it" },
+    },
   )
   /** The caller has looked at this item: clears it from their unread count. */
   .post(
