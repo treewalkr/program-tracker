@@ -598,6 +598,9 @@ export const feedbackItems = pgTable("feedback_items", {
   editedBy: uuid("edited_by").references(() => trainers.id, { onDelete: "set null" }),
   /** The open ticket this one repeats; closing that one closes this one too. Never a chain. */
   duplicateOf: uuid("duplicate_of").references((): AnyPgColumn => feedbackItems.id, { onDelete: "set null" }),
+  /** The fix agent's pull request (a GitHub URL) and when it was opened; admin-only. A closed-unmerged PR may be replaced. */
+  fixPr: text("fix_pr"),
+  fixPrAt: timestamp("fix_pr_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
