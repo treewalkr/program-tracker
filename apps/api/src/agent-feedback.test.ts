@@ -446,6 +446,31 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect(await json(await call("GET", "/v1/account/feedback-ai"))).toEqual({ mode: "auto" });
     await setMode("drafts");
   });
+  describe("tickets: changelog:draft reads the wording of the tickets a release names", () => {
+    const tickets = (numbers: string, as: As = agent) => call("GET", `/v1/agent/feedback/tickets?numbers=${numbers}`, undefined, as);
+
+    test("only the agent token gets in, and only a list of numbers", async () => {
+      expect((await tickets("1", { bearer: null })).status).toBe(401);
+      expect((await tickets("1", kai)).status).toBe(401);
+      expect((await tickets("1,x")).status).toBe(422);
+      expect((await tickets("0")).status).toBe(422);
+    });
+
+    test("returns each known ticket once, in number order, whatever its status", async () => {
+      const a = await ticket("Rest timer digits are too small");
+      const b = await ticket("Sets look the same as warm-ups");
+      await call("PATCH", `/v1/feedback/${b}`, { status: "done" });
+      await flush();
+      const [na, nb] = [(await asAdmin(a)).number as number, (await asAdmin(b)).number as number];
+      const res = await tickets(`${nb},${na},${nb},999999999`);
+      expect(res.status).toBe(200);
+      expect(await json(res)).toEqual([
+        { number: na, handle: feedbackHandle(na), status: "new", comment: "Rest timer digits are too small" },
+        { number: nb, handle: feedbackHandle(nb), status: "done", comment: "Sets look the same as warm-ups" },
+      ]);
+    });
+  });
+
   describe("shipped: CI closes the tickets live commits name", () => {
     const SHA = "9f3c2a1d0b7e4c5a6b7c8d9e0f1a2b3c4d5e6f70";
     const SHA2 = "1111111111111111111111111111111111111111";

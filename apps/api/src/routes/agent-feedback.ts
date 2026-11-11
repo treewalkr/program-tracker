@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems } from "@pt/db";
 import {
   ticketBasis,
@@ -160,6 +160,26 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       });
     },
     { detail: { summary: "Tickets the auto-reply agent should answer" } },
+  )
+  /**
+   * Tickets by number (`?numbers=12,14`), any status: what `changelog:draft`
+   * words a release line from. Unknown numbers are left out.
+   */
+  .get(
+    "/tickets",
+    async ({ query }) => {
+      const numbers = [...new Set(query.numbers.split(",").map(Number))];
+      const rows = await db
+        .select({ number: feedbackItems.number, status: feedbackItems.status, comment: feedbackItems.comment })
+        .from(feedbackItems)
+        .where(inArray(feedbackItems.number, numbers))
+        .orderBy(feedbackItems.number);
+      return rows.map((r) => ({ ...r, handle: feedbackHandle(r.number) }));
+    },
+    {
+      query: t.Object({ numbers: t.String({ pattern: "^[1-9][0-9]{0,8}(,[1-9][0-9]{0,8}){0,99}$" }) }),
+      detail: { summary: "Tickets by number, for release notes" },
+    },
   )
   /** One image on a ticket or a public reply. */
   .get(
