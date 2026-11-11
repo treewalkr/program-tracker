@@ -2,8 +2,11 @@
   import type { FeedbackAuthor } from "@pt/shared";
   import Avatar from "$lib/ui/Avatar.svelte";
 
-  /** Who wrote a feedback item or reply: Google photo when known, else initials. */
-  let { author }: { author: FeedbackAuthor | null } = $props();
+  /**
+   * Who wrote a feedback item or reply: Google photo when known, else initials.
+   * `fallback` names a missing author (e.g. a ticket filed before sign-in).
+   */
+  let { author, fallback = "Unknown" }: { author: FeedbackAuthor | null; fallback?: string } = $props();
 </script>
 
 <span class="author" class:unknown={!author}>
@@ -12,7 +15,7 @@
   {:else if author}
     <span class="mini"><Avatar name={author.name} /></span>
   {/if}
-  <span class="name">{author?.name ?? "Unknown"}</span>
+  <span class="name">{author?.name ?? fallback}</span>
 </span>
 
 <style>

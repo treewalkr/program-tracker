@@ -323,11 +323,16 @@
   {#if images.length}
     {@const strip = { ref: undefined as AttachmentStrip | undefined }}
     {#if el >= 0}
+      {@const path = item.context.route.path}
       <figure class="shot">
-        <button type="button" class="shot-open" onclick={() => strip.ref?.show(el)} aria-label="Open {images[el].alt}">
+        <figcaption>
+          <span class="shot-kind">Screenshot</span>
+          <span>{images[el].caption}{#if path}&nbsp;· <span class="shot-route">{path}</span>{/if}</span>
+        </figcaption>
+        <button type="button" class="shot-open" onclick={() => strip.ref?.show(el)} aria-label="Enlarge {images[el].alt}">
           <img
             src={attachmentUrl(item.id, item.attachments[el].id)}
-            alt=""
+            alt="Screenshot of the element {feedbackHandle(item.number)} is pinned to{path ? ` on ${path}` : ''}"
             loading="lazy"
             onload={(e) => fitShot(e.currentTarget as HTMLImageElement, item.context.viewport.dpr)}
           />
@@ -450,7 +455,7 @@
                   {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
                 </Pill>
                 {#if fresh.has(item.id)}<span class="news">New activity</span>{/if}
-                <span class="by"><Author author={item.author} /></span>
+                <span class="by"><Author author={item.author} fallback="Filed before sign-in" /></span>
                 <Tooltip text={fmtDateTime(item.createdAt)}>
                   {#snippet children(tipId)}
                     <button type="button" class="when" aria-describedby={tipId}><time datetime={item.createdAt}>{fmtDate(item.createdAt)}</time></button>
@@ -552,7 +557,7 @@
             {#if isAdmin}
               <div class="triage-box">
                 <label class="triage">
-                  <span>Triage note <span class="muted">— your call, read by the agent</span></span>
+                  <span>Triage note <span class="muted">— private, read by the agent</span></span>
                   <textarea
                     rows="2"
                     bind:value={notes[item.id]}
@@ -659,6 +664,7 @@
     font: 600 12px/1 var(--font-ui);
     color: var(--blue);
   }
+  /* The pinned element: a framed screenshot, capped so it never outweighs the comment. */
   .shot {
     margin: 0;
     align-self: flex-start;
@@ -666,13 +672,35 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    padding: 6px 8px 8px;
+    background: var(--well);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+  }
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .shot-kind {
+    font: 600 12px/1.4 var(--font-ui);
+    color: var(--ink);
+  }
+  .shot-route {
+    font-family: var(--font-mono);
   }
   .shot img {
     display: block;
     max-width: 100%;
-    max-height: 280px;
+    max-height: 200px;
     object-fit: contain;
     object-position: left top;
+    border: 1px solid var(--line-soft);
     border-radius: 4px;
     background: var(--surface);
   }
@@ -680,6 +708,7 @@
     display: block;
     padding: 0;
     border: 0;
+    border-radius: 4px;
     background: none;
     cursor: zoom-in;
     max-width: 100%;
@@ -687,14 +716,6 @@
   .shot-open:focus-visible {
     outline: 2px solid var(--blue);
     outline-offset: 2px;
-    border-radius: var(--radius);
-  }
-  .shot-open > img {
-    box-sizing: content-box;
-    padding: 6px;
-    background: var(--well);
-    border: 1px solid var(--line-soft);
-    border-radius: var(--radius);
   }
   .body {
     display: flex;
