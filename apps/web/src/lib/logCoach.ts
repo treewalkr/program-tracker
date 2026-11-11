@@ -253,3 +253,28 @@ export function chipFor(r: CoachRow, s: Suggestion | undefined, equipment: Equip
   if (against == null || !Number.isFinite(against)) return null;
   return Math.abs(s.kg - against) >= step - 1e-9 ? s.kg : null;
 }
+
+/** The line under a set that explains a suggested load — and offers it, when it came from the chip. */
+export interface SuggestionNote {
+  text: string;
+  /** The kg a "Use" button fills; null when there's nothing to fill. */
+  use: number | null;
+}
+
+/**
+ * What the coach line says about a row's suggestion. A used chip keeps saying
+ * where its kg came from; otherwise nothing shows until the trainer taps the
+ * chip ("→ 62.5") or the "suggested" link — a tap explains, it never fills.
+ * The chip's line offers the load with a Use button; the link's only explains
+ * (its kg is already the placeholder, so "as prescribed" logs it).
+ */
+export function suggestionNote(
+  s: Suggestion | undefined,
+  o: { used?: Suggestion; open: boolean; chip: number | null; unplannedBlank: boolean }
+): SuggestionNote | null {
+  if (o.used) return { text: `Used ${o.used.kg} kg · ${o.used.source}`, use: null };
+  if (!s || !o.open) return null;
+  if (o.chip != null) return { text: `Suggested ${o.chip} kg · ${s.source}`, use: o.chip };
+  if (o.unplannedBlank) return { text: `Suggested ${s.kg} kg · ${s.source}`, use: null };
+  return null;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { e1rmAtRpe, loadFor, roundLoad, type E1rmHistorySet, type Equipment } from "@pt/shared";
-import { chipFor, coachSheet, historySets, rpeOff, type CoachCtx, type CoachRow } from "./logCoach";
+import { chipFor, coachSheet, historySets, rpeOff, suggestionNote, type CoachCtx, type CoachRow, type Suggestion } from "./logCoach";
 import { rowsToSave } from "./logSheet";
 
 const row = (over: Partial<CoachRow> = {}): CoachRow => ({
@@ -213,4 +213,36 @@ test("historySets flattens logs and marks holds", () => {
     { exerciseId: "plank", date: "2026-11-02", kg: null, reps: 60, rpe: null, timed: true },
     { exerciseId: "squat", date: "2026-11-02", kg: 100, reps: 5, rpe: 8, timed: false },
   ]);
+});
+
+describe("suggestionNote", () => {
+  const s: Suggestion = { kg: 62.5, source: "From set 1: 60 × 5 @ 6 · e1RM 72", adjusted: true };
+  const closed = { open: false, chip: 62.5, unplannedBlank: false };
+
+  test("says nothing until the chip or link is tapped", () => {
+    expect(suggestionNote(s, closed)).toBeNull();
+    expect(suggestionNote(undefined, { ...closed, open: true })).toBeNull();
+  });
+
+  test("a tapped chip explains the load and offers it", () => {
+    expect(suggestionNote(s, { ...closed, open: true })).toEqual({
+      text: "Suggested 62.5 kg · From set 1: 60 × 5 @ 6 · e1RM 72",
+      use: 62.5,
+    });
+  });
+
+  test("a tapped link on an unplanned blank cell only explains", () => {
+    expect(suggestionNote(s, { open: true, chip: null, unplannedBlank: true })).toEqual({
+      text: "Suggested 62.5 kg · From set 1: 60 × 5 @ 6 · e1RM 72",
+      use: null,
+    });
+    expect(suggestionNote(s, { open: true, chip: null, unplannedBlank: false })).toBeNull();
+  });
+
+  test("a used chip keeps naming where its kg came from", () => {
+    expect(suggestionNote(undefined, { ...closed, used: s })).toEqual({
+      text: "Used 62.5 kg · From set 1: 60 × 5 @ 6 · e1RM 72",
+      use: null,
+    });
+  });
 });

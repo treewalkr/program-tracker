@@ -19,7 +19,7 @@
   } from "$lib/api/types";
   import { groupKind, logToInput, oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
-  import { chipFor, coachSheet, historySets, type Suggestion } from "$lib/logCoach";
+  import { chipFor, coachSheet, historySets, suggestionNote, type Suggestion } from "$lib/logCoach";
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -248,7 +248,7 @@
     return historySets(pastLogs, (s) => (!!s.programExerciseId && slots.has(s.programExerciseId)) || lifts.has(s.exerciseId));
   });
   const coach = $derived(coachSheet(rows, { equipmentOf, history, stored: client?.oneRepMaxes, now: date }));
-  /** Rows whose suggestion source is open (tapped). */
+  /** Rows whose suggestion is explained (chip or "suggested" link tapped). */
   const sourceOpen = new SvelteSet<string>();
   /** Rows filled from a "→" chip: what was used and where it came from, until the cell is edited. */
   const usedSuggestion = new SvelteMap<string, Suggestion>();
@@ -260,7 +260,11 @@
     r.weight = s.kg;
     edited(key, "weight");
     usedSuggestion.set(key, s);
+    sourceOpen.delete(key);
     fillKg(key);
+    // The Use button leaves with its line: carry on from the cell it filled. Not on touch,
+    // where focusing a cell would throw the keyboard over the sheet.
+    if (!matchMedia("(pointer: coarse)").matches) void focusCell(key, "weight");
   }
 
   function toggleSource(key: string) {
@@ -1387,7 +1391,7 @@
               {@const chip = chipFor(r, sg, equipmentOf(r.exerciseId))}
               {@const fb = coach.feedback.get(r.key)}
               {@const used = usedSuggestion.get(r.key)}
-              {@const src = used ? `Used ${used.kg} kg · ${used.source}` : sg && sourceOpen.has(r.key) && r.rx?.targetWeightKg == null && isBlank(r.weight) ? `Suggested ${sg.kg} kg · ${sg.source}` : null}
+              {@const why = suggestionNote(sg, { used, open: sourceOpen.has(r.key), chip, unplannedBlank: r.rx?.targetWeightKg == null && isBlank(r.weight) })}
               <div class="set" class:skipped={r.skipped} class:filled={!r.skipped && !isBlank(r.reps)} class:extra={r.extra}>
                 <div class="meta">
                   <span class="m-set">
@@ -1400,9 +1404,10 @@
                     {#if tag}<span class="m-who">{nameOf(r.exerciseId)}</span>{/if}
                     {fmtRx(r)}
                     {#if chip != null && sg}
-                      <button type="button" class="sugg-chip" title={`${sg.source} — tap to use`} aria-label={`Use ${chip} kg for ${label}. ${sg.source}`} onclick={() => useSuggestion(r.key, sg)}>→ {chip}</button>
+                      <!-- A tap explains first: the load differs from the plan, so the trainer sees why before using it. -->
+                      <button type="button" class="sugg-chip" title={`Suggested ${chip} kg · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${chip} kg for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {chip}</button>
                     {:else if sg && r.rx?.targetWeightKg == null && isBlank(r.weight)}
-                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-label={`Suggested ${sg.kg} kg for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
+                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${sg.kg} kg for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
                     {/if}
                   </span>
                   <span class="m-last tnum" title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
@@ -1436,9 +1441,16 @@
                     </button>
                   {/if}
                 </div>
-                {#if !r.skipped && (src || fb)}
-                  <div class="coach-line">
-                    {#if src}<span class="cl-src">{src}</span>{/if}
+                {#if !r.skipped && (why || fb)}
+                  <div class="coach-line" id={`${r.key}-why`}>
+                    {#if why}
+                      <span class="cl-src">
+                        {why.text}
+                        {#if why.use != null && sg}
+                          <button type="button" class="cl-use" aria-label={`Use ${why.use} kg for ${label}`} onclick={() => useSuggestion(r.key, sg)}>Use {why.use} kg</button>
+                        {/if}
+                      </span>
+                    {/if}
                     {#if fb?.e1rm != null}
                       <span class="cl-e1rm tnum" title="Estimated 1RM — Epley, with reps in reserve from the RPE">e1RM {fb.e1rm}{#if fb.pr}<span class="pill good cl-pr" title="Best e1RM ever logged for this exercise">PR</span>{/if}</span>
                     {/if}
@@ -1932,6 +1944,19 @@
   /* The plan's kg stays; the chip offers the load today's numbers give. */
   .sugg-chip { color: var(--blue); background: transparent; border: 1px solid var(--line); }
   .sugg-chip:hover { background: var(--well-2); border-color: var(--line-strong); }
+  .sugg-chip[aria-expanded="true"] { background: var(--well-2); border-color: var(--blue-line); }
+  .cl-use {
+    margin-left: 6px;
+    padding: 1px 8px;
+    font: 600 11px/1.4 var(--font-ui);
+    color: var(--blue);
+    background: transparent;
+    border: 1px solid var(--blue-line);
+    border-radius: 99px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .cl-use:hover { background: var(--well-2); }
   .sugg-src {
     padding: 0;
     font-family: var(--font-ui);
@@ -2218,6 +2243,7 @@
     .cl-src { flex-basis: 100%; }
     .cl-e1rm { margin-right: auto; }
     .sugg-chip { padding: 4px 10px; font-size: 13px; }
+    .cl-use { display: inline-block; margin: 4px 0 0 0; padding: 0 14px; min-height: 36px; font-size: 13px; }
     .sugg-src { font-size: 13px; }
     .coach-adjust { padding: 8px 14px; font-size: 13px; }
 
