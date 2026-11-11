@@ -105,7 +105,9 @@ Element source comes from Svelte's dev-build metadata, so it needs the dev serve
    open) and leaves done or won't-fix tickets alone. It needs the GitHub secret
    `FEEDBACK_AGENT_TOKEN` (same value as the API's); without it the step only prints a
    notice, and it never fails the deploy. **Done** by hand still works for anything
-   fixed without a commit.
+   fixed without a commit. `bun run changelog:draft` words such a commit's line from
+   the ticket itself (with `.env.agent`), so the trainer's own words start the
+   changelog line; without the token it falls back to the commit text.
 
 ### Feedback auto-reply
 
