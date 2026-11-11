@@ -8,7 +8,7 @@
     type DraftEditOp,
   } from "@pt/shared";
   import type { AiDraftDto, ChatMessageDto, DraftEditResultDto, GenerationDto } from "$lib/api/types";
-  import { draftPreviewModel, versionView } from "$lib/chatRefine";
+  import { draftPreviewModel, versionRows, versionView } from "$lib/chatRefine";
   import { revisionChain } from "$lib/generation";
   import { DraftEditor } from "$lib/draftEditor.svelte";
   import DraftPreview from "../DraftPreview.svelte";
@@ -137,6 +137,7 @@
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
   const vview = $derived(preview.target ? versionView(gens, preview.target.id, shown, new Map()) : null);
+  const history = $derived(preview.target ? versionRows(revisionChain(gens, preview.target.id)) : []);
 
   const editor = new DraftEditor({
     api: fakeApi,
@@ -159,6 +160,7 @@
     <DraftPreview
       view={vview}
       {latest}
+      {history}
       building={building ? { next: latest + 1, elapsed: "0:42" } : null}
       reviewHref="/clients/cl-story/generate"
       onview={(v) => (view = v)}
