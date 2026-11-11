@@ -41,7 +41,7 @@
   const tally = $derived(weekTally(strips));
   const trainingClients = $derived(strips.filter((s) => s.program).length);
   /** Says what the head line doesn't: which days need the trainer now, counted like the cells. */
-  const weekCount = $derived(weekCounter(strips));
+  const weekCount = $derived(weekCounter(strips, today));
   const providersDown = $derived(providers.filter((p) => !p.configured));
   const headLine = $derived(
     [

@@ -3,7 +3,7 @@
   import { dayIntensityLevels } from '@pt/shared';
   import WeekGrid, { type ClientStrip, type StripDay, type StripSession } from './WeekGrid.svelte';
   import Panel from '$lib/ui/Panel.svelte';
-  import { GRACE_DAYS, exceptionOrder, stripWeeks, weekCounter } from '$lib/overview';
+  import { GRACE_DAYS, LOOKBACK_DAYS, addDays, exceptionOrder, stripWeeks, weekCounter } from '$lib/overview';
   import type { ClientDto } from '$lib/api/types';
 
   const { Story } = defineMeta({
@@ -13,7 +13,7 @@
       docs: {
         description: {
           component:
-            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned), then this week as fixed-height labelled cells (green = done, blue ring = due today, amber = not logged yet (within two days), red = missed, grey = upcoming); extra sessions on a day are marks under the tag (square = lifting, disc = cardio). Rows sort missed → not logged → due today → on track; clients with nothing this week collapse into one line with a reason label. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
+            'Contributions grid: five past weeks as squares shaded by logged volume vs the client\'s usual day (done-1 → done-4; red edge = missed, amber = not logged yet, hairline = planned), then this week as fixed-height labelled cells, loudest first: red fill + 2px red edge = missed, amber edge = not logged yet (within two days), blue ring = due today, grey = upcoming, soft green tint = done; extra sessions on a day are marks under the tag (square = lifting, disc = cardio). Rows sort missed → not logged → due today → on track, looking back seven days (on Monday, last Fri–Sun still count; the counter adds them as "from last week"); clients with nothing this week collapse into one line with a reason label. Hover/focus a day for its sessions; click (tap) pins it, with Log links for due sessions.',
         },
       },
     },
@@ -21,13 +21,12 @@
 
   // Week of Mon 2026-10-12 … Sun 2026-10-18, today Thursday; history from Sep 7.
   const today = '2026-10-15';
-  /** Past sessions on or after this date are still in the grace period (GRACE_DAYS before today). */
-  const graceFrom = (() => {
-    const d = new Date(2026, 9, 15 - GRACE_DAYS);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
   const CARDIO = /bike|run|ride|zone|interval|conditioning/i;
-  const weeks = stripWeeks(new Date(2026, 9, 15, 9));
+  /** The calendar a story is drawn on: today and the six weeks ending with its week. */
+  interface At { today: string; weeks: string[][] }
+  const thursday: At = { today, weeks: stripWeeks(new Date(2026, 9, 15, 9)) };
+  /** The Monday after: last Fri–Sun are history now, but still inside the look-back. */
+  const monday: At = { today: '2026-10-19', weeks: stripWeeks(new Date(2026, 9, 19, 9)) };
 
   /** Deterministic noise so stories don't shift between renders. */
   function rng(seed: number) {
@@ -47,7 +46,9 @@
     program?: string | null;
     /** 0–1 chance a past session was skipped */
     skip?: number;
-    /** Force every past and today's session logged / missed. */
+    /** Exactly these dates were skipped (overrides `skip`). */
+    skipped?: string[];
+    /** Every past session logged, or none (missed — or not logged yet inside the grace period). */
     all?: 'logged' | 'missed';
     cardio?: ClientStrip['cardio'];
     unscheduled?: number;
@@ -55,25 +56,28 @@
     seed?: number;
   }
 
-  function strip(spec: Spec): ClientStrip {
+  function strip(spec: Spec, { today, weeks }: At = thursday): ClientStrip {
     const r = rng(spec.seed ?? spec.id.length * 7919);
+    /** Past sessions on or after this date are still in the grace period. */
+    const graceFrom = addDays(today, -GRACE_DAYS);
+    const lookFrom = addDays(today, -LOOKBACK_DAYS);
     const plan = spec.plan ?? {};
     const days: StripDay[][] = weeks.map((w) =>
       w.map((date, i): StripDay => {
         const names = plan[i + 1] ?? [];
         const sessions: StripSession[] = names.map((name, k) => {
           const id = `${spec.id}-${i + 1}-${k}`;
-          let status: StripSession['status'] =
+          const skipped = spec.all ? spec.all === 'missed' : spec.skipped ? spec.skipped.includes(date) : r() < (spec.skip ?? 0.15);
+          const status: StripSession['status'] =
             date > today
               ? 'upcoming'
               : date === today
                 ? 'today'
-                : r() < (spec.skip ?? 0.15)
+                : skipped
                   ? date >= graceFrom
                     ? 'unlogged'
                     : 'missed'
                   : 'logged';
-          if (spec.all && date <= today) status = spec.all;
           return { id, name, status, planned: true, kind: CARDIO.test(name) ? 'cardio' : 'lifting' };
         });
         const logged = sessions.some((s) => s.status === 'logged');
@@ -92,9 +96,10 @@
     const flat = days.flat();
     dayIntensityLevels(flat.map((d) => d.volume)).forEach((l, i) => (flat[i].level = l));
     const now = days[days.length - 1];
-    const exception: ClientStrip['exception'] = now.some((d) => d.status === 'missed')
+    const recent = flat.filter((d) => d.date >= lookFrom && d.date < today);
+    const exception: ClientStrip['exception'] = recent.some((d) => d.status === 'missed')
       ? 'missed'
-      : now.some((d) => d.status === 'unlogged')
+      : recent.some((d) => d.status === 'unlogged')
         ? 'unlogged'
         : now.some((d) => d.status === 'today')
         ? 'today'
@@ -177,6 +182,15 @@
     strip({ id: 'jonas', name: 'Jonas Berg', plan: { 1: ['Push'], 3: ['Pull'], 5: ['Legs'] }, all: 'missed', seed: 11 }),
   ]);
 
+  /** Today Mon: last week's tail is history now but still inside the look-back — Jonas skipped Fri
+   *  (missed) and hasn't reported Sun, Maya hasn't reported Sat — so they sort first and the counter
+   *  reads "3 from last week". */
+  const carryOver = exceptionOrder([
+    strip({ id: 'ada', name: 'Ada Okoye', plan: { 1: ['Strength A'], 4: ['Strength B'] }, skip: 0, seed: 4 }, monday),
+    strip({ id: 'jonas', name: 'Jonas Berg', plan: { 1: ['Push'], 5: ['Pull'], 6: ['Legs'], 7: ['Long ride'] }, skipped: ['2026-10-16', '2026-10-18'], seed: 3 }, monday),
+    strip({ id: 'maya', name: 'Maya Chen', plan: { 1: ['Upper'], 3: ['Lower'], 6: ['Full body'], 7: ['Zone 2 bike'] }, skipped: ['2026-10-17'], seed: 9 }, monday),
+  ]);
+
   const multi = exceptionOrder([
     strip({ id: 'nat', name: 'Nattapong W.', plan: { 1: ['Back / Biceps', 'Zone 2 run'], 2: ['Core / VO2max', 'Mobility'], 4: ['Chest / Triceps', 'Intervals', 'Stretch'] }, cardio: { done: 35, target: 180, unitLabel: 'min' } }),
     strip({ id: 'maya', name: 'Maya Chen', plan: { 3: ['Full body', 'Zone 2 bike'], 5: ['Upper', 'Lower'] }, seed: 5 }),
@@ -187,16 +201,18 @@
 </script>
 
 {#snippet template(args: { strips: ClientStrip[]; today: string })}
+  {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 1140px;">
-    <Panel title="Training week" count={weekCounter(args.strips)?.label} countTone={weekCounter(args.strips)?.tone}>
+    <Panel title="Training week" count={count?.label} countTone={count?.tone}>
       <WeekGrid {...args} />
     </Panel>
   </div>
 {/snippet}
 
 {#snippet narrow(args: { strips: ClientStrip[]; today: string })}
+  {@const count = weekCounter(args.strips, args.today)}
   <div style="max-width: 360px;">
-    <Panel title="Training week" count={weekCounter(args.strips)?.label} countTone={weekCounter(args.strips)?.tone}>
+    <Panel title="Training week" count={count?.label} countTone={count?.tone}>
       <WeekGrid {...args} />
     </Panel>
   </div>
@@ -214,7 +230,10 @@
 
 <Story name="All logged" {template} args={{ strips: allLogged, today }} />
 
+<!-- Nothing logged: past days are missed, the last two still to log, today due. -->
 <Story name="All missed" {template} args={{ strips: allMissed, today }} />
+
+<Story name="Monday carry-over" {template} args={{ strips: carryOver, today: monday.today }} />
 
 <Story name="Multi-session days" {template} args={{ strips: multi, today }} />
 
