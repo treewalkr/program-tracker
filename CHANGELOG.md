@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### New
+- After you save a log, a recap shows what was logged, plus a "Next" button to the next client still due today.
+- Exercise cards on the log sheet are tidier. Swap, Flag and Skip are now in a "More" menu, and "+ Set" stays visible.
+
+### Fixed
+- Tapping a suggested load like "→ 62.5" now explains where it comes from before you use it, including on phones.
+
 ## v0.1.20 — 2026-11-11
 
 ### New
