@@ -1,0 +1,46 @@
+import { describe, expect, test } from "bun:test";
+import { sameDraft, type AiProgramDraft } from "@pt/shared";
+import { mockApi } from "./api";
+
+describe("mock adapter: draft hand edits", () => {
+  test(
+    "an edit makes the next version and an edit note; undo puts the draft back as another version",
+    async () => {
+      const clientId = "cl-maya";
+      await mockApi.clearChat(clientId);
+      const g = await mockApi.generate({ clientId });
+      const first = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1);
+      const target = g.draft!.sessions.findIndex((s, i) => i !== first && s.kind !== "cardio");
+      expect(first).toBeGreaterThanOrEqual(0);
+      expect(target).toBeGreaterThanOrEqual(0);
+
+      const res = await mockApi.editDraft(g.id, [{ op: "moveTo", refs: [{ day: first + 1, slot: 1 }], day: target + 1 }]);
+      expect(res.generation.parentGenerationId).toBe(g.id);
+      expect(res.generation.manualEdit).toBe(true);
+      expect(res.generation.revisionMessage).toStartWith("Edited by you: moved ");
+      expect(res.message.kind).toBe("edit");
+      expect(res.message.content).toStartWith("Edited the draft by hand (v2): moved ");
+      expect((await mockApi.chatMessages(clientId)).at(-1)?.id).toBe(res.message.id);
+
+      await expect(mockApi.editDraft(g.id, res.undo)).rejects.toThrow("only the latest version can be edited");
+
+      const undone = await mockApi.editDraft(res.generation.id, res.undo);
+      expect(undone.message.content).toBe("Edited the draft by hand (v3): undid the last hand edit.");
+      expect(sameDraft(undone.generation.draft as AiProgramDraft, g.draft as AiProgramDraft)).toBe(true);
+    },
+    15000
+  );
+
+  test(
+    "a proposal made before a hand edit can't be built",
+    async () => {
+      const g = await mockApi.generate({ clientId: "cl-maya" });
+      const turn = await mockApi.chatTurn({ clientId: "cl-maya", generationId: g.id, message: "Cut accessories to 2 sets" });
+      const first = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1);
+      const target = g.draft!.sessions.findIndex((s, i) => i !== first && s.kind !== "cardio");
+      await mockApi.editDraft(g.id, [{ op: "moveTo", refs: [{ day: first + 1, slot: 1 }], day: target + 1 }]);
+      await expect(mockApi.buildProposal(turn.messages[1].id, {})).rejects.toThrow("edited by hand");
+    },
+    15000
+  );
+});

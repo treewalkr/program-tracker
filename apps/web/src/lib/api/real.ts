@@ -6,6 +6,7 @@ import type {
   ClientDto,
   ExerciseDto,
   GenerationDto,
+  DraftEditResultDto,
   GlossaryTermDto,
   HistoryEntryDto,
   ImportDto,
@@ -189,6 +190,8 @@ export const realApi: TrainerApi = {
   generation: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).get()),
   savePhasing: (generationId, phasing) =>
     unwrap<GenerationDto>(client.v1.ai.generations({ id: generationId }).phasing.post({ phasing })),
+  editDraft: (generationId, ops) =>
+    unwrap<DraftEditResultDto>(client.v1.ai.generations({ id: generationId }).edit.post({ ops })),
   reviseGeneration: (id, message) =>
     unwrap<GenerationDto>(client.v1.ai.generations({ id }).revise.post({ message })),
   approveGeneration: (id) => unwrap<ProgramDto>(client.v1.ai.generations({ id }).approve.post()),

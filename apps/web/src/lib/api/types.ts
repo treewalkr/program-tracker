@@ -3,6 +3,7 @@
  *  remaining interfaces are the seam contract both adapters are checked against. */
 import type {
   CardioLog,
+  DraftEditOp,
   CardioPrescription,
   DeloadSettings,
   ExerciseRole as Er,
@@ -513,10 +514,19 @@ export interface ChainWeekDto {
 
 export type ChatProposalDto = StoredChatProposal;
 
+export type DraftEditOpDto = DraftEditOp;
+
+export interface DraftEditResultDto {
+  generation: GenerationDto;
+  message: ChatMessageDto;
+  undo: DraftEditOp[];
+}
+
 export interface ChatMessageDto {
   id: string;
   role: "trainer" | "assistant";
-  kind: "chat" | "revision" | "draft" | "error" | "proposal";
+  /** edit = the trainer's hand edit of a draft, shown as a system line. */
+  kind: "chat" | "revision" | "draft" | "error" | "proposal" | "edit";
   content: string;
   generationId: string | null;
   /** Proposal payload for kind "proposal"; null/absent otherwise. */
@@ -704,6 +714,11 @@ export interface TrainerApi {
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;
   /** Save an edited block plan as the next draft version (no AI call). */
   savePhasing(generationId: string, phasing: ProgramPhasingDto): Promise<GenerationDto>;
+  /**
+   * Hand edit (move, superset, move to session, undo) → the next draft version
+   * plus its chat note; `undo` is the op list that puts this version's parent back.
+   */
+  editDraft(generationId: string, ops: DraftEditOp[]): Promise<DraftEditResultDto>;
   approveGeneration(id: string): Promise<ProgramDto>;
   rejectGeneration(id: string, reason?: string): Promise<GenerationDto>;
   cancelGeneration(id: string): Promise<GenerationDto>;
