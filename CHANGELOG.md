@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### New
+- Feedback tickets close themselves when their fix goes live. The ticket shows "Release marked it Done" with the version, and the reporter is told to reload.
+- Training week on a Monday: last week's missed and not-yet-logged sessions still count in the counter and row order, shown as e.g. "3 from last week".
+
+### Fixed
+- Training week: missed sessions now stand out the most, with a strong red border and bold label. Done sessions are a quiet green tint.
+- Better contrast for due-today text and the red counter in the dimmed dark theme.
+
 ## v0.1.18 — 2026-11-10
 
 ### New
