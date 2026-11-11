@@ -10,6 +10,7 @@ import {
   FEEDBACK_FIX_PLAN_STEP_MAX,
   feedbackHandle,
   feedbackItemMarkdown,
+  pendingDownvote,
   imageExt,
   shippedNote,
   type FeedbackAiMeta,
@@ -23,7 +24,17 @@ import { getFeedback, listFeedback } from "../lib/feedback";
 import { attachmentBytes } from "../lib/feedback-attachments";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, type ClosedDuplicate } from "../lib/feedback-duplicates";
-import { agentTokenMatches, feedbackAiMode, fixCandidate, inboxCursor, needsAnswer, routeAnswer } from "../lib/feedback-ai";
+import {
+  agentTokenMatches,
+  feedbackAiMode,
+  fixCandidate,
+  inboxCursor,
+  inboxVersion,
+  needsAnswer,
+  routeAnswer,
+} from "../lib/feedback-ai";
+import { answerExtras, answerRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
+import { TRANSCRIPT_MAX_CHARS } from "../lib/agent-transcript";
 
 /**
  * Bearer FEEDBACK_AGENT_TOKEN, nothing else: no session, no trainer. Only the
@@ -286,7 +297,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       return {
         inbox: inbox.length,
         fixable: open.filter((i) => fixCandidate(i).ok).length,
-        cursor: inboxCursor(inbox.map((i) => ({ id: i.id, basis: ticketBasis(i) }))),
+        cursor: inboxCursor(inbox.map((i) => ({ id: i.id, basis: inboxVersion(i) }))),
       };
     },
     { detail: { summary: "Inbox and fixable counts, plus a cursor that changes with the inbox" } },
@@ -327,6 +338,40 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
     },
   )
   /**
+   * Every AI answer (sent or draft) with its ticket, the thread before it,
+   * the note, the reporter's rating, the owner's edit, the next reply and
+   * the logged run — oldest ticket first. `feedback:agent dataset` prints
+   * it as JSONL. `since` (ISO) keeps answers from then on.
+   */
+  .get(
+    "/dataset",
+    async ({ query }) => {
+      const items = await listFeedback(null, "oldest");
+      const records = answerRecords(items, await answerExtras(items));
+      return query.since ? records.filter((r) => r.answer.at >= query.since!) : records;
+    },
+    {
+      query: t.Object({ since: t.Optional(t.String({ format: "date-time" })) }),
+      detail: { summary: "AI answers with context, rating and run, for a dataset" },
+    },
+  )
+  /**
+   * What went wrong lately, newest first: answers the reporter gave 👎 (with
+   * their comment) and drafts the owner rewrote before sending, each with the
+   * reply that followed. The answer-feedback skill reads it before answering.
+   */
+  .get(
+    "/lessons",
+    async ({ query }) => {
+      const items = await listFeedback(null, "oldest");
+      return lessonRecords(answerRecords(items, await answerExtras(items)), query.limit ?? 20);
+    },
+    {
+      query: t.Object({ limit: t.Optional(t.Integer({ minimum: 1, maximum: 100 })) }),
+      detail: { summary: "Recent 👎 answers and owner rewrites, for the agent to learn from" },
+    },
+  )
+  /**
    * Record an answer for the ticket version `basis`. The note is stored as a
    * private AI entry; the reply goes out only when `routeAnswer` says so,
    * otherwise it waits as a draft for the admin.
@@ -354,7 +399,9 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         if (item.status !== "new" && item.status !== "accepted") return { error: "closed" as const };
         const basis = ticketBasis(item);
         if (basis !== body.basis) return { error: "stale" as const, basis };
-        if (item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis)) {
+        // A 👎 on the last answer reopens this version once; the new answer is a draft (routeAnswer).
+        const downvote = pendingDownvote(item) !== null;
+        if (!downvote && item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis)) {
           return { error: "answered" as const, basis };
         }
         const outcome = reply ? routeAnswer(mode, body, item) : null;
@@ -384,7 +431,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
                 .returning({ id: feedbackComments.id })
             )[0]
           : null;
-        return { outcome, noteId: noteRow.id, replyId: replyRow?.id ?? null };
+        return { outcome, noteId: noteRow.id, replyId: replyRow?.id ?? null, item, basis, downvote };
       });
 
       if ("error" in out) {
@@ -396,7 +443,19 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       if (out.outcome === "sent" && out.replyId) {
         notifyFeedback({ kind: "reply", itemId: params.id, commentId: out.replyId });
       }
-      return { outcome: out.outcome ?? ("noted" as const), noteId: out.noteId, replyId: out.replyId };
+      const outcome = out.outcome ?? ("noted" as const);
+      // Logged after the commit: a logging failure never loses the answer.
+      const callId = await logAgentAnswer({
+        item: out.item,
+        markdown: feedbackItemMarkdown(out.item, { imageUrl: () => null }),
+        basis: out.basis,
+        answer: { ...body, fixPlan, reply, note },
+        outcome,
+        commentIds: [out.noteId, ...(out.replyId ? [out.replyId] : [])],
+        downvote: out.downvote,
+        run: body.run,
+      });
+      return { outcome, noteId: out.noteId, replyId: out.replyId, callId };
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
@@ -416,6 +475,15 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         /** For `bug` / `feature`: the plan is complete and checked, nothing left to ask — the fix agent may take it (with low risk). */
         ready: t.Optional(t.Boolean()),
         model: t.Optional(t.String({ maxLength: 100 })),
+        /** The agent run behind it, logged in llm_calls (purpose `feedback_answer`). */
+        run: t.Optional(
+          t.Object({
+            /** Claude Code `stream-json` output so far; the CLI trims it to the cap. */
+            transcript: t.Optional(t.String({ maxLength: TRANSCRIPT_MAX_CHARS })),
+            durationMs: t.Optional(t.Integer({ minimum: 0 })),
+            promptVersion: t.Optional(t.String({ maxLength: 100 })),
+          }),
+        ),
       }),
       detail: { summary: "Record the auto-reply agent's answer: a private note, plus a sent or drafted reply" },
     },
