@@ -71,7 +71,7 @@ export const DEFAULT_AGENT_CMD = [
     "Read",
     "Grep",
     "Glob",
-    "Write(//tmp/pt-fb-agent/**)",
+    "Edit(//tmp/pt-fb-agent/**)",
     "Bash(git fetch:*)",
     "Bash(git log:*)",
     "Bash(git show:*)",

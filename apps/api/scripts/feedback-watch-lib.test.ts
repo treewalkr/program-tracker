@@ -45,6 +45,7 @@ describe("DEFAULT_AGENT_CMD", () => {
     expect(DEFAULT_AGENT_CMD.slice(0, 3)).toEqual(["claude", "-p", "/answer-feedback"]);
     const allowed = DEFAULT_AGENT_CMD[DEFAULT_AGENT_CMD.indexOf("--allowedTools") + 1];
     expect(allowed).toContain("Bash(bun run feedback:agent:*)");
-    expect(allowed).not.toMatch(/Bash\(\*\)|git push|Edit/);
+    expect(allowed).toContain("Edit(//tmp/pt-fb-agent/**)");
+    expect(allowed).not.toMatch(/Bash\(\*\)|git push|Edit\((?!\/\/tmp\/pt-fb-agent\/)/);
   });
 });
