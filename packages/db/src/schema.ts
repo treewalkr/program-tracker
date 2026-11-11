@@ -602,8 +602,6 @@ export const feedbackItems = pgTable("feedback_items", {
   pageShot: bytea("page_shot"),
   /** App version that was live when the item was marked done. */
   shippedIn: text("shipped_in"),
-  /** Unused since the readiness check was removed; due to be dropped in a later migration. */
-  agentCheck: jsonb("agent_check"),
   /** Last edit of the comment or the ticket's images (reporter or admin); null = never edited. No history is kept. */
   editedAt: timestamp("edited_at", { withTimezone: true }),
   editedBy: uuid("edited_by").references(() => trainers.id, { onDelete: "set null" }),

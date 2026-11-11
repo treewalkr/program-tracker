@@ -2,10 +2,12 @@ import { Elysia, t, type Static } from "elysia";
 import { and, eq, ne } from "drizzle-orm";
 import { db, feedbackComments, feedbackItems, feedbackMutes } from "@pt/db";
 import {
+  FEEDBACK_ATTACHMENT_KINDS,
   FEEDBACK_STATUSES,
   feedbackHandle,
   feedbackMarkdown,
   formatSourceLoc,
+  type FeedbackAttachmentKind,
   type FeedbackContext,
   type FeedbackStatus,
 } from "@pt/shared";
@@ -73,6 +75,13 @@ const ImageLayout = t.Array(
   { maxItems: 40 },
 );
 
+/**
+ * Where each file in `images` came from, in the same order, comma-separated:
+ * `element,page,upload`. One string, because multipart sends an array as one
+ * field per value and a lone value would arrive bare.
+ */
+const ImageKinds = t.Optional(t.String({ pattern: `^(${FEEDBACK_ATTACHMENT_KINDS.join("|")})(,(${FEEDBACK_ATTACHMENT_KINDS.join("|")}))*$`, maxLength: 200 }));
+
 const OPEN_STATUSES: readonly FeedbackStatus[] = ["new", "accepted"];
 
 const IMAGE_CACHE = "private, max-age=31536000, immutable";
@@ -127,12 +136,14 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
   )
   /**
    * File a ticket. Multipart when it carries images: the captured element and
-   * page screenshots, plus up to FEEDBACK_MAX_IMAGES uploads.
+   * page screenshots plus up to FEEDBACK_MAX_IMAGES uploads, all in `images`,
+   * with `kinds` naming each one.
    */
   .post(
     "/",
     async ({ body, status, trainerId }) => {
-      const read = await readImages(body);
+      const { kinds, ...files } = body;
+      const read = await readImages({ ...files, kinds: kinds?.split(",") as FeedbackAttachmentKind[] | undefined });
       if ("error" in read) return status(422, { error: read.error });
       const context = body.context as FeedbackContext;
       const row = await db.transaction(async (tx) => {
@@ -156,9 +167,11 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       body: t.Object({
         comment: t.String({ minLength: 1, maxLength: 5000 }),
         context: Context,
+        /** v0.1.19 form only — see `readImages`. */
         elementShot: t.Optional(t.File()),
         pageShot: t.Optional(t.File()),
         images: Images,
+        kinds: ImageKinds,
       }),
       detail: { summary: "Submit a feedback item" },
     },

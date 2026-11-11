@@ -74,24 +74,50 @@ function renderBody(sections: Map<string, string[]>): string[] {
   return out;
 }
 
-/** One commit subject → draft text: type prefix dropped, first letter capitalised. */
-function draftText(subject: string, type: string): string | null {
+/** Ticket numbers a subject names: `fix: clearer rest timer (FB-012)` → [12]. Same rule as the deploy step. */
+export function ticketNumbers(subject: string): number[] {
+  return [...new Set([...subject.matchAll(/\bFB-(\d{1,9})\b/g)].map((m) => Number(m[1])))];
+}
+
+const handle = (n: number) => `FB-${String(n).padStart(3, "0")}`;
+
+/** A ticket's comment as one line: first paragraph, whitespace collapsed, at most 140 characters. */
+function ticketLine(comment: string): string {
+  const text = comment.trim().split(/\n\s*\n/)[0].replace(/\s+/g, " ");
+  const capped = text.length > 140 ? `${text.slice(0, 139).trimEnd()}…` : text;
+  return capped.charAt(0).toUpperCase() + capped.slice(1);
+}
+
+/**
+ * One commit subject → draft text: type prefix dropped, first letter
+ * capitalised. When the subject names tickets that `tickets` knows, the line
+ * is worded from the tickets (the trainer's own words) and keeps the handles
+ * and the commit text as a hint: `Rest timer is hard to read (FB-012) — commit: clearer rest timer`.
+ */
+function draftText(subject: string, type: string, tickets: ReadonlyMap<number, string>): string | null {
   const m = new RegExp(`^${type}(\\([^)]*\\))?!?:\\s*(.+)$`).exec(subject);
   if (!m) return null;
+  const numbers = ticketNumbers(m[2]).filter((n) => tickets.has(n));
+  if (numbers.length) {
+    const words = numbers.map((n) => ticketLine(tickets.get(n)!)).join("; ");
+    const commit = m[2].replace(/\s*\((?:FB-\d+(?:,\s*)?)+\)\s*$/, "").trim();
+    return `${words} (${numbers.map(handle).join(", ")}) — commit: ${commit}`;
+  }
   return m[2].charAt(0).toUpperCase() + m[2].slice(1);
 }
 
 /**
  * Fill `## Unreleased` with draft lines from feat/fix subjects (New / Fixed), each marked `[draft]`.
  * Earlier `[draft]` lines are replaced; hand-written lines (no `[draft]`) are kept as they are.
+ * `tickets` (number → comment) words the lines of subjects that name a ticket.
  */
-export function draftChangelog(changelog: string, subjects: string[]): string {
+export function draftChangelog(changelog: string, subjects: string[], tickets: ReadonlyMap<number, string> = new Map()): string {
   const lines = changelog.split("\n");
   const [start, end] = unreleasedRange(lines);
   const sections = bodySections(lines.slice(start, end));
   for (const [k, items] of sections) sections.set(k, items.filter((l) => !l.includes(DRAFT)));
   const add = (kind: string, type: string) => {
-    const drafts = subjects.map((s) => draftText(s, type)).filter((t): t is string => !!t);
+    const drafts = subjects.map((s) => draftText(s, type, tickets)).filter((t): t is string => !!t);
     if (!drafts.length) return;
     sections.set(kind, [...(sections.get(kind) ?? []), ...drafts.map((t) => `- ${DRAFT} ${t}`)]);
   };

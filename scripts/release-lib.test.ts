@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { draftChangelog, nextVersion, releaseNotes, stampChangelog, unreleasedProblem } from "./release-lib";
+import { draftChangelog, ticketNumbers, nextVersion, releaseNotes, stampChangelog, unreleasedProblem } from "./release-lib";
 
 describe("nextVersion", () => {
   test("bumps the patch by default", () => {
@@ -40,6 +40,20 @@ describe("draftChangelog", () => {
     const out = draftChangelog(LOG, ["fix: clearer rest timer (FB-012)", "feat: goal chips (FB-3, FB-014)"]);
     expect(out).toContain("- [draft] Goal chips (FB-3, FB-014)");
     expect(out).toContain("- [draft] Clearer rest timer (FB-012)");
+  });
+  test("words a line from the tickets it names, keeping the handles and the commit as a hint", () => {
+    const tickets = new Map([
+      [12, "the rest timer is hard to read\n\nespecially   in the gym"],
+      [14, "x".repeat(200)],
+    ]);
+    const out = draftChangelog(LOG, ["fix: clearer rest timer (FB-012)", "feat: goal chips (FB-3, FB-014)", "fix: plain"], tickets);
+    expect(out).toContain("- [draft] The rest timer is hard to read (FB-012) — commit: clearer rest timer");
+    // FB-3 is unknown: only the known ticket words the line
+    expect(out).toContain(`- [draft] ${"X" + "x".repeat(138)}… (FB-014) — commit: goal chips`);
+    expect(out).toContain("- [draft] Plain");
+  });
+  test("ticketNumbers reads FB handles once each, upper case only", () => {
+    expect(ticketNumbers("fix: a (FB-012, FB-3, FB-12) fb-4")).toEqual([12, 3]);
   });
   test("re-running replaces drafts but keeps hand-written lines", () => {
     const first = draftChangelog(LOG, ["feat: a", "fix: b"]);

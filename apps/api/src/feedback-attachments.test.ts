@@ -136,6 +136,36 @@ describe.skipIf(!dbUp)("feedback attachments", () => {
       expect([row.elementShot, row.pageShot]).toEqual([null, null]);
     });
 
+    test("takes the screenshots in `images`, kinds naming each", async () => {
+      const res = await file_({
+        images: [file(PNG, "element.png"), file(JPEG, "page.jpg", "image/jpeg"), file(WEBP, "one.webp", "image/webp")],
+        kinds: "element,page,upload",
+      });
+      expect(res.status).toBe(200);
+      const item = await json(await call("GET", `/v1/feedback/${(await json(res)).id}`));
+      expect(item.attachments.map((a: any) => [a.kind, a.mime])).toEqual([
+        ["element", "image/png"],
+        ["page", "image/jpeg"],
+        ["upload", "image/webp"],
+      ]);
+    });
+
+    test("images past the kinds are uploads", async () => {
+      const res = await file_({ images: [file(PNG), file(PNG, "two.png")], kinds: "element" });
+      expect(res.status).toBe(200);
+      const item = await json(await call("GET", `/v1/feedback/${(await json(res)).id}`));
+      expect(item.attachments.map((a: any) => a.kind)).toEqual(["element", "upload"]);
+    });
+
+    test("refuses two element screenshots, or more kinds than images", async () => {
+      const twice = await file_({ images: [file(PNG), file(PNG)], kinds: "element,element" });
+      expect(twice.status).toBe(422);
+      expect((await json(twice)).error).toBe("at most one element and one page screenshot");
+      const extra = await file_({ images: [file(PNG)], kinds: "page,upload" });
+      expect(extra.status).toBe(422);
+      expect((await file_({ images: [file(PNG)], kinds: "selfie" })).status).toBe(422);
+    });
+
     test("refuses a seventh upload; the screenshots don't count", async () => {
       const six = Array.from({ length: 6 }, (_, i) => file(PNG, `${i}.png`));
       expect((await file_({ elementShot: file(PNG), pageShot: file(PNG), images: six })).status).toBe(200);
