@@ -223,6 +223,16 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
     expect(item.thread.map((c: { body: string }) => c.body)).toEqual(["It's the log screen.", "Got it"]);
   });
 
+  test("the triage note stays private: the reporter never sees it", async () => {
+    await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: "agent: check the log screen" });
+    const own = await json(await call("GET", `/v1/feedback/${kaiItem}`, undefined, kai));
+    expect(own.triageNote).toBeNull();
+    const listed = await json(await call("GET", "/v1/feedback", undefined, kai));
+    expect(listed.find((i: { id: string }) => i.id === kaiItem).triageNote).toBeNull();
+    expect((await json(await call("GET", `/v1/feedback/${kaiItem}`))).triageNote).toBe("agent: check the log screen");
+    await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: null });
+  });
+
   test("status changes land in the thread; done stamps the version", async () => {
     await call("PATCH", `/v1/feedback/${adminItem}`, { triageNote: "note only" });
     let item = await json(await call("GET", `/v1/feedback/${adminItem}`));

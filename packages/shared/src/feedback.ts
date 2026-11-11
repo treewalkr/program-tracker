@@ -299,6 +299,7 @@ export interface FeedbackItem {
   author: FeedbackAuthor | null;
   status: FeedbackStatus;
   comment: string;
+  /** The admin's private memo for the agent; always null for anyone else. */
   triageNote: string | null;
   route: string;
   /** `file:line:column` of the clicked element, or null. */

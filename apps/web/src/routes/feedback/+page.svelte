@@ -512,13 +512,6 @@
               {#if editingId !== item.id}{@render ticketImages(item)}{/if}
 
               <Thread {item} onchange={replace} />
-
-              {#if !isAdmin && item.triageNote}
-                <div class="team-note">
-                  <span class="label">Note from the team</span>
-                  <p>{item.triageNote}</p>
-                </div>
-              {/if}
             </div>
 
             {#if isAdmin}
@@ -671,24 +664,6 @@
   .when:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
-  }
-  .team-note {
-    max-width: var(--measure-prose);
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    background: var(--well);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .team-note .label {
-    display: block;
-    font: 500 12px/1.2 var(--font-ui);
-    color: var(--muted);
-    margin-bottom: 2px;
-  }
-  .team-note p {
-    margin: 0;
-    white-space: pre-wrap;
   }
   .handle {
     font: 600 13px/1 var(--font-mono);
