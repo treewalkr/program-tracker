@@ -127,8 +127,10 @@
     background: none;
   }
   /* Wide session card: fixed slots so right-aligned chips form columns.
-     Widths in ch of the 12px chip mono; longer values (loads) just grow. */
-  @container session (min-width: 521px) {
+     Widths in ch of the 12px chip mono; longer values (loads) just grow.
+     A full chip is ~330px; with the 16rem name column and card padding the
+     row needs ~625px — below 661px the chips would spill, so rows stack. */
+  @container session (min-width: 661px) {
     /* runs (top set, back-offs) stack so every run sits in the columns */
     .aligned { flex-direction: column; align-items: flex-end; gap: 3px; }
     .aligned .slot { display: inline-block; text-align: left; }

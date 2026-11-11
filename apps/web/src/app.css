@@ -833,7 +833,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 
 /* Sized to the card, not the viewport: the card is narrow beside a sidebar
    and side column long before the screen is. Set chips drop under the name. */
-@container session (max-width: 520px) {
+@container session (max-width: 660px) {
   .session-body { gap: 14px; }
   .exrow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .exrow .ex { align-items: baseline; }

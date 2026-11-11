@@ -152,7 +152,7 @@
       {/each}
     </div>
     {#if hasPattern || legend}
-      <!-- the notation key lives here, not over the columns: it must survive the stacked (<520px) card -->
+      <!-- the notation key lives here, not over the columns: it must survive the stacked (≤660px) card -->
       <div class="balance">
         {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises))}</span>{/if}
         {#if legend}<span class="legend">RPE {legend}</span>{/if}
@@ -278,7 +278,7 @@
   .legend { font: 400 11px/1.6 var(--font-mono); }
   /* stacked rows (app.css): a tag that wraps starts flush with the role chip;
      chips no longer form columns, so the labels go */
-  @container session (max-width: 520px) {
+  @container session (max-width: 660px) {
     .mp-tag { margin-left: 0; }
     .colhead { display: none; }
   }
