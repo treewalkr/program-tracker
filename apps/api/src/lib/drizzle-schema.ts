@@ -9,7 +9,10 @@ import { Kind, type TObject } from "@sinclair/typebox";
 import { createSchemaFactory, type BuildSchema } from "drizzle-typebox";
 import type { Table } from "drizzle-orm";
 
-const { createInsertSchema, createSelectSchema } = createSchemaFactory({ typeboxInstance: t });
+/** drizzle-typebox bound to elysia's `t`. Refine with callbacks — drizzle re-applies null/optional after. */
+export const { createInsertSchema, createSelectSchema, createUpdateSchema } = createSchemaFactory({
+  typeboxInstance: t,
+});
 
 type Spread<T extends TObject | Table, Mode extends "select" | "insert" | undefined> =
   T extends TObject<infer Fields>
