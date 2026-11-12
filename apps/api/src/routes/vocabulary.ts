@@ -4,7 +4,7 @@ import { db, exerciseAliases, exercises, glossaryTerms } from "@pt/db";
 import { normalizeAlias, type GlossaryTerm } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { loadAliases, loadGlossary } from "../lib/vocabulary";
-import { VocabularyModel } from "../models";
+import { VocabularyModel } from "../models/vocabulary";
 
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 

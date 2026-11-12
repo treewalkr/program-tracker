@@ -5,19 +5,14 @@ import {
   aiImports,
   chatMessages,
   clientMessages,
-  exerciseAliases,
   feedbackComments,
   feedbackItems,
-  glossaryTerms,
   llmFeedback,
   trainerPreferences,
 } from "@pt/db/schema";
 import {
   CLIENT_MESSAGE_MAX_CHARS,
   FEEDBACK_STATUSES,
-  GLOSSARY_KINDS,
-  GLOSSARY_MEANING_MAX,
-  GLOSSARY_TERM_MAX,
   IMPORT_MAX_CHARS,
   LLM_CLIENT_SIGNALS,
   LLM_REASON_TAGS,
@@ -25,33 +20,6 @@ import {
 } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utility";
 import { str, oneOf, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
-
-// ---------------------------------------------------------------------------
-// Vocabulary: exercise aliases and glossary
-// ---------------------------------------------------------------------------
-
-const AliasInsert = createInsertSchema(exerciseAliases, {
-  alias: str({ minLength: 1, maxLength: 200 }),
-  /** "seed" is written by the seeder only. */
-  source: as(oneOf(["import", "manual"])),
-});
-
-const glossaryFields = {
-  term: str({ minLength: 1, maxLength: GLOSSARY_TERM_MAX }),
-  meaning: str({ minLength: 1, maxLength: GLOSSARY_MEANING_MAX }),
-  kind: as(oneOf(GLOSSARY_KINDS)),
-};
-const GlossaryInsert = createInsertSchema(glossaryTerms, glossaryFields);
-const GlossaryUpdate = createUpdateSchema(glossaryTerms, glossaryFields);
-
-export const VocabularyModel = {
-  saveAliases: t.Object({
-    items: t.Array(t.Pick(AliasInsert, ["alias", "exerciseId", "source"]), { minItems: 1, maxItems: 200 }),
-  }),
-  moveAlias: t.Pick(AliasInsert, ["exerciseId"]),
-  createTerm: t.Pick(GlossaryInsert, ["term", "meaning", "kind"]),
-  updateTerm: t.Pick(GlossaryUpdate, ["term", "meaning", "kind"]),
-};
 
 // ---------------------------------------------------------------------------
 // Trainer preferences
