@@ -18,7 +18,7 @@ import { mockClientMessage } from "../ai/mock";
 import { ContextError, providerRuntime } from "../ai/runtime";
 import { trainerContext } from "../lib/trainer-context";
 import { toSignalLog, toSignalProgram } from "../lib/signals-service";
-import { ClientMessageModel } from "../models";
+import { ClientMessageModel } from "../models/client-messages";
 
 /**
  * Client-facing weekly messages: deterministic stats → AI phrasing → trainer
