@@ -5,6 +5,7 @@ import { db, programs } from "@pt/db";
 import { Phasing, ProgramWeeksDocument } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordProgramEdit } from "../lib/llm-feedback";
+import { ErrorBody, ProgramModel } from "../models";
 
 /** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema. */
 const WeeksDoc = ProgramWeeksDocument;
@@ -37,7 +38,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
           .where(eq(programs.trainerId, trainerId))
           .orderBy(desc(programs.createdAt));
     return rows.map(toProgramDto);
-  })
+  }, { response: t.Array(ProgramModel.dto) })
   .get(
     "/:id",
     async ({ params, status }) => {
@@ -45,7 +46,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
       if (!row) return status(404, { error: "program not found" });
       return toProgramDto(row);
     },
-    { params: t.Object({ id: t.String() }) }
+    { params: t.Object({ id: t.String() }), response: { 200: ProgramModel.dto, 404: ErrorBody } }
   )
   .post(
     "/",
@@ -75,16 +76,8 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
       return status(201, toProgramDto(created));
     },
     {
-      body: t.Object({
-        name: t.String({ minLength: 1, maxLength: 160 }),
-        clientId: t.Optional(t.String()),
-        description: t.Optional(t.Union([t.String({ maxLength: 2000 }), t.Null()])),
-        direction: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
-        weeks: t.Any(),
-        phasing: t.Optional(t.Any()),
-        aiAssisted: t.Optional(t.Boolean()),
-        createdFromProgramId: t.Optional(t.String()),
-      }),
+      body: ProgramModel.create,
+      response: { 201: ProgramModel.dto, 422: ErrorBody },
     }
   )
   /** Replace the whole weeks document (trainer edited an active program) → version++.
@@ -121,11 +114,8 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({
-        weeks: t.Any(),
-        phasing: t.Optional(t.Any()),
-        direction: t.Optional(t.Union([t.String({ maxLength: 500 }), t.Null()])),
-      }),
+      body: ProgramModel.replace,
+      response: { 200: ProgramModel.dto, 404: ErrorBody, 422: ErrorBody },
     }
   )
   .patch(
@@ -143,9 +133,8 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({
-        direction: t.Union([t.String({ maxLength: 500 }), t.Null()]),
-      }),
+      body: ProgramModel.direction,
+      response: { 200: ProgramModel.dto, 404: ErrorBody },
     }
   )
   /** Status transitions; activating a program archives the client's other active ones
@@ -177,6 +166,7 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({ status: t.Union([t.Literal("draft"), t.Literal("active"), t.Literal("archived")]) }),
+      body: ProgramModel.status,
+      response: { 200: ProgramModel.dto, 404: ErrorBody },
     }
   );

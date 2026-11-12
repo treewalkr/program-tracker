@@ -859,7 +859,6 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
   test("non-contiguous weeks document is a 422", async () => {
     const { status, body } = await call("POST", "/v1/programs", {
       name: "Non-contiguous",
-      clientId,
       weeks: [
         {
           week: 1,
