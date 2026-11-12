@@ -30,9 +30,11 @@ playwright-report/
 
 # local editor/agent files
 .agents/
+.claude/
+.pi/
+.zcode/
 .vscode/
 .zcodeignore
-.zcode/plans/
 .prototypes/
 .impeccable/
 docs/
