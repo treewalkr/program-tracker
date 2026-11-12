@@ -25,6 +25,19 @@ bun run dev            # api :4000 + web :5173
 Or run everything in Docker: `docker compose up -d`. Demo (mock) mode needs no sign-in.
 API reference: `/openapi` (Scalar) while the API runs.
 
+## Tests
+
+```bash
+bun run db:up             # postgres via docker compose
+bun run test              # all workspaces
+cd apps/api && bun test   # api suite only
+```
+
+DB-backed api tests (e2e) run against a dedicated `program_tracker_test` database on the
+compose Postgres (`localhost:5433`), created, migrated and reseeded on every run. The live
+database is never touched; tests refuse any database whose name does not end in `_test`.
+Point at another one with `TEST_DATABASE_URL`.
+
 ## More
 
 - [Sign-in](docs/auth.md) — Google login, trainers, sessions
