@@ -48,14 +48,11 @@ import {
   type Phasing,
   type ProgramWeek,
 } from "@pt/shared";
-import { createInsertSchema, createSelectSchema, createUpdateSchema, spread } from "./lib/drizzle-schema";
+import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "./lib/drizzle-schema";
 
 type StringOptions = Parameters<typeof t.String>[0];
 /** Keep the generated string schema (e.g. uuid format) and add limits. */
 const str = (limits: StringOptions) => (schema: ReturnType<typeof t.String>) => t.String({ ...schema, ...limits });
-/** A nullable column's schema without `| null` — for bodies that only take a string. */
-const nonNull = <S extends TSchema>(schema: S) => t.Exclude(schema, t.Null());
-
 /** `t.UnionEnum` without its implicit `default: values[0]` — Elysia fills defaults into bodies,
  *  so an omitted optional field (e.g. a client's status on PATCH) would silently become values[0]. */
 const oneOf = <const V extends readonly [string, ...string[]]>(values: V) => {

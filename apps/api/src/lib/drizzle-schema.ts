@@ -5,7 +5,7 @@
  * accepts ISO strings like the rest of the API.
  */
 import { t } from "elysia";
-import { Kind, type TObject } from "@sinclair/typebox";
+import { Kind, type TExclude, type TNull, type TObject, type TSchema } from "@sinclair/typebox";
 import { createSchemaFactory, type BuildSchema } from "drizzle-typebox";
 import type { Table } from "drizzle-orm";
 
@@ -60,4 +60,15 @@ export const spreads = <T extends Record<string, TObject | Table>, Mode extends 
   const newSchema: Record<string, unknown> = {};
   for (const key of Object.keys(models)) newSchema[key] = spread(models[key], mode);
   return newSchema as { [K in keyof T]: Spread<T[K], Mode> };
+};
+
+/**
+ * A nullable column's schema without `| null` (for bodies that take a value or nothing).
+ * Filters the union by hand: `t.Exclude` throws on elysia kinds such as `UnionEnum`.
+ */
+export const nonNull = <S extends TSchema>(schema: S): TExclude<S, TNull> => {
+  const members = (schema as { anyOf?: TSchema[] }).anyOf;
+  if (!members) return schema as unknown as TExclude<S, TNull>;
+  const rest = members.filter((m) => m[Kind] !== "Null");
+  return (rest.length === 1 ? rest[0] : t.Union(rest)) as unknown as TExclude<S, TNull>;
 };
