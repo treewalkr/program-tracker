@@ -14,7 +14,7 @@ import { activeRuleOf, afterNote, toNoteDto, toRuleDto } from "../lib/notes";
 import { runRevision } from "../lib/revision";
 import { ContextError } from "../ai/runtime";
 import { LlmFeedbackModel } from "../models";
-import { spread } from "../lib/drizzle-schema";
+import { spread } from "../utility";
 
 // The note anchor is a JSON document mirrored here; `satisfies` keeps it in step with
 // @pt/shared. Row fields come from the llm_feedback table (models.ts).

@@ -28,7 +28,7 @@ import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback
 import { trainerContext } from "../lib/trainer-context";
 import { rateAnswer, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
 import { FeedbackModel } from "../models";
-import { spread } from "../lib/drizzle-schema";
+import { spread } from "../utility";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
 

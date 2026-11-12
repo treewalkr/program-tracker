@@ -63,7 +63,7 @@ import {
   type Phasing,
   type ProgramWeek,
 } from "@pt/shared";
-import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "./lib/drizzle-schema";
+import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "./utility";
 
 type StringOptions = Parameters<typeof t.String>[0];
 /** Keep the generated string schema (e.g. uuid format) and add limits. */
