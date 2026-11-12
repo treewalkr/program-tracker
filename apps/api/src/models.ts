@@ -35,19 +35,26 @@ const as =
 // Programs
 // ---------------------------------------------------------------------------
 
-const programFields = {
-  name: str({ minLength: 1, maxLength: 160 }),
-  description: str({ maxLength: 2000 }),
-  direction: str({ maxLength: 500 }),
+/** Narrow types only — shared by request and response schemas. */
+const programRow = {
   status: as(t.UnionEnum(PROGRAM_STATUSES)),
   // zod-validated documents (ProgramWeeksDocument / Phasing) — typed, not checked here
   sessions: as(t.Unsafe<ProgramWeek[]>(t.Any())),
   phasing: as(t.Unsafe<Phasing>(t.Any())),
 };
+/** Write limits — request bodies only, so an older row past a limit still reads back. */
+const programFields = {
+  ...programRow,
+  name: str({ minLength: 1, maxLength: 160 }),
+  description: str({ maxLength: 2000 }),
+  direction: str({ maxLength: 500 }),
+};
 
 export const ProgramInsert = createInsertSchema(programs, programFields);
 export const ProgramUpdate = createUpdateSchema(programs, programFields);
-export const ProgramSelect = createSelectSchema(programs, programFields);
+export const ProgramSelect = createSelectSchema(programs, programRow);
+
+/** Request bodies use `*Fields`; responses use `*Row` (no write limits). */
 
 /** Expected-failure body (`status(4xx, { error })`); 422s may carry zod `issues`. */
 export const ErrorBody = t.Object({ error: t.String(), issues: t.Optional(t.Unknown()) });
