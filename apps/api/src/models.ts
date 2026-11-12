@@ -16,6 +16,7 @@
 import { t, type TSchema } from "elysia";
 import {
   clients,
+  coachingRules,
   exercises,
   programs,
   roleLabels,
@@ -27,6 +28,7 @@ import {
   CLIENT_EXPERIENCES,
   CLIENT_SEXES,
   CLIENT_STATUSES,
+  COACHING_RULE_CATEGORIES,
   ROLE_LABEL_CHIP_MAX,
   ROLE_LABEL_DESCRIPTION_MAX,
   ROLE_LABEL_NAME_MAX,
@@ -276,5 +278,34 @@ export const RoleLabelModel = {
     chip: t.Optional(roleLabel.chip),
     description: t.Optional(roleLabel.description),
     rank: t.Optional(t.Number()),
+  }),
+};
+
+// ---------------------------------------------------------------------------
+// Coaching rules
+// ---------------------------------------------------------------------------
+
+const coachingRuleFields = {
+  text: str({ minLength: 3, maxLength: 400 }),
+  category: as(oneOf(COACHING_RULE_CATEGORIES)),
+  /** A trainer activates or retires; only the extractor proposes. */
+  status: as(oneOf(["active", "retired"])),
+};
+const CoachingRuleInsert = createInsertSchema(coachingRules, coachingRuleFields);
+const CoachingRuleUpdate = createUpdateSchema(coachingRules, coachingRuleFields);
+
+export const RuleScope = oneOf(["client", "always"]);
+
+export const CoachingRuleModel = {
+  create: t.Object({
+    ...spread(t.Pick(CoachingRuleInsert, ["text"])),
+    /** null = all clients. */
+    ...spread(t.Pick(CoachingRuleUpdate, ["category", "clientId"])),
+  }),
+  update: t.Pick(CoachingRuleUpdate, ["text", "category", "clientId", "status"]),
+  confirm: t.Object({
+    scope: RuleScope,
+    clientId: t.Optional(nonNull(CoachingRuleUpdate.properties.clientId)),
+    text: CoachingRuleUpdate.properties.text,
   }),
 };
