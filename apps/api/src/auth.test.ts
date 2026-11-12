@@ -100,6 +100,12 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
     const kai = (await added.json()) as { id: string };
     expect(kai).toMatchObject({ email: "kai@example.com", access: "invited", isAdmin: false });
     expect((await call("POST", "/v1/admin/trainers", admin, { name: "Kai", email: "kai@example.com" })).status).toBe(409);
+    // a bad email, an empty or long name, and a non-boolean switch are refused before any write
+    expect((await call("POST", "/v1/admin/trainers", admin, { name: "Ana", email: "not-an-email" })).status).toBe(422);
+    expect((await call("POST", "/v1/admin/trainers", admin, { name: "", email: "ana@example.com" })).status).toBe(422);
+    expect((await call("POST", "/v1/admin/trainers", admin, { name: "x".repeat(121), email: "ana@example.com" })).status).toBe(422);
+    expect((await call("PATCH", `/v1/admin/trainers/${kai.id}`, admin, { name: "x".repeat(121) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/admin/trainers/${kai.id}`, admin, { disabled: "yes" })).status).toBe(422);
 
     const claim = await claimTrainer(cfg, profile({ sub: "sub-kai", email: "kai@example.com", name: "Kai K" }));
     expect(claim).toEqual({ trainerId: kai.id });

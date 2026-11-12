@@ -431,7 +431,14 @@ export const LlmFeedbackModel = {
 // Account (the signed-in trainer's own settings)
 // ---------------------------------------------------------------------------
 
-const TrainerUpdate = createUpdateSchema(trainers, { feedbackAiMode: as(oneOf(FEEDBACK_AI_MODES)) });
+const trainerFields = {
+  name: str({ minLength: 1, maxLength: 120 }),
+  email: as(t.String({ format: "email", maxLength: 254 })),
+  feedbackAiMode: as(oneOf(FEEDBACK_AI_MODES)),
+};
+const TrainerInsert = createInsertSchema(trainers, trainerFields);
+const TrainerUpdate = createUpdateSchema(trainers, trainerFields);
+
 const TrainerAiMode = t.Required(t.Pick(TrainerUpdate, ["feedbackAiMode"]));
 
 export const AccountModel = {
@@ -531,4 +538,14 @@ const AiImportInsert = createInsertSchema(aiImports, { text: str({ minLength: 1,
 
 export const ImportModel = {
   create: t.Object({ ...spread(t.Pick(AiImportInsert, ["clientId", "text"])), ...ProviderChoice }),
+};
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+export const AdminModel = {
+  invite: t.Pick(TrainerInsert, ["name", "email"]),
+  /** `disabled` toggles the server-owned `disabledAt` stamp. */
+  editTrainer: t.Object({ ...spread(t.Pick(TrainerUpdate, ["name"])), disabled: t.Optional(t.Boolean()) }),
 };
