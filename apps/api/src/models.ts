@@ -23,6 +23,7 @@ import {
   programs,
   roleLabels,
   sessionTypes,
+  trainerPreferences,
 } from "@pt/db/schema";
 import {
   BODYWEIGHT_KG_RANGE,
@@ -340,4 +341,15 @@ export const VocabularyModel = {
   moveAlias: t.Pick(AliasInsert, ["exerciseId"]),
   createTerm: t.Pick(GlossaryInsert, ["term", "meaning", "kind"]),
   updateTerm: t.Pick(GlossaryUpdate, ["term", "meaning", "kind"]),
+};
+
+// ---------------------------------------------------------------------------
+// Trainer preferences
+// ---------------------------------------------------------------------------
+
+const PreferenceUpdate = createUpdateSchema(trainerPreferences);
+
+export const PreferenceModel = {
+  /** clientId null/absent = the trainer-wide document; providerId/model pick the distiller. */
+  distill: t.Pick(PreferenceUpdate, ["clientId", "providerId", "model"]),
 };

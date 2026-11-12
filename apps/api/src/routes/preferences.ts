@@ -4,6 +4,7 @@ import { db, clients, trainerPreferences } from "@pt/db";
 import { mockDistillPreferences, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { gatherPreferenceSignals } from "../lib/preferences";
+import { PreferenceModel } from "../models";
 import { buildDistillMessages } from "../ai/prompt";
 import { callLlm } from "../ai/llm";
 import { ContextError, providerRuntime } from "../ai/runtime";
@@ -145,11 +146,7 @@ export const preferenceRoutes = new Elysia({
       }
     },
     {
-      body: t.Object({
-        clientId: t.Optional(t.Union([t.String(), t.Null()])),
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-      }),
+      body: PreferenceModel.distill,
     }
   )
   .delete(
