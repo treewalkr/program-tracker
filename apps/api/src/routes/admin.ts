@@ -10,7 +10,7 @@ import { appUrl } from "../lib/email-links";
 import { emailPreviews } from "../lib/email-previews";
 import { setLoginTheme } from "../lib/login-theme";
 import { LoginThemeBody } from "./public";
-import { AdminModel } from "../models";
+import { AdminModel } from "../models/admin";
 
 type TrainerRow = typeof trainers.$inferSelect;
 
