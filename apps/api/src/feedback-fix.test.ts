@@ -176,6 +176,8 @@ describe.skipIf(!dbUp)("fix agent API", () => {
     expect((await post(PR, t.id, kai)).status).toBe(401);
     expect((await post("https://evil.example/pull/1")).status).toBe(422);
     expect((await post("https://github.com/a/b/issues/1")).status).toBe(422);
+    expect((await post(null as unknown as string)).status).toBe(422);
+    expect((await post(`https://github.com/a/${"b".repeat(300)}/pull/1`)).status).toBe(422);
     const open = await ticket("Still new");
     expect((await post(PR, open.id)).status).toBe(409);
     expect((await post(PR, "00000000-0000-4000-8000-000000000000")).status).toBe(404);

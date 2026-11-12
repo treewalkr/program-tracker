@@ -437,6 +437,8 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect((await call("GET", "/v1/account/feedback-ai", undefined, kai)).status).toBe(403);
     expect((await call("PUT", "/v1/account/feedback-ai", { mode: "auto" }, kai)).status).toBe(403);
     expect((await call("PUT", "/v1/account/feedback-ai", { mode: "sometimes" })).status).toBe(422);
+    // an empty body is refused, not quietly read as the first mode ("off")
+    expect((await call("PUT", "/v1/account/feedback-ai", {})).status).toBe(422);
     await setMode("auto");
     expect(await json(await call("GET", "/v1/account/feedback-ai"))).toEqual({ mode: "auto" });
     await setMode("drafts");

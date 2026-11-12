@@ -7,8 +7,8 @@ next block with AI assistance, and log workouts against the assigned program.
 
 - `apps/web` — SvelteKit (Svelte 5) trainer UI
 - `apps/api` — ElysiaJS on Bun
-- `packages/shared` — zod domain schemas (shared by API, web and AI output)
-- `packages/db` — Drizzle ORM schema + migrations (Postgres)
+- `packages/shared` — zod schemas for nested JSON documents and AI output (shared by API and web)
+- `packages/db` — Drizzle ORM schema + migrations (Postgres); the source for API row fields
 
 ## Quick start
 
@@ -24,6 +24,19 @@ bun run dev            # api :4000 + web :5173
 
 Or run everything in Docker: `docker compose up -d`. Demo (mock) mode needs no sign-in.
 API reference: `/openapi` (Scalar) while the API runs.
+
+## Tests
+
+```bash
+bun run db:up             # postgres via docker compose
+bun run test              # all workspaces
+cd apps/api && bun test   # api suite only
+```
+
+DB-backed api tests (e2e) run against a dedicated `program_tracker_test` database on the
+compose Postgres (`localhost:5433`), created, migrated and reseeded on every run. The live
+database is never touched; tests refuse any database whose name does not end in `_test`.
+Point at another one with `TEST_DATABASE_URL`.
 
 ## More
 

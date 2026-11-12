@@ -35,6 +35,7 @@ import {
 } from "../lib/feedback-ai";
 import { answerExtras, answerRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
 import { TRANSCRIPT_MAX_CHARS } from "../lib/agent-transcript";
+import { FeedbackModel } from "../models/feedback";
 
 /**
  * Bearer FEEDBACK_AGENT_TOKEN, nothing else: no session, no trainer. Only the
@@ -114,7 +115,6 @@ async function shipTicket(
 const MAX_TEXT = 2000;
 /** Most tickets one fix-agent run may take. */
 const FIX_LIMIT = 5;
-const GITHUB_PR_URL = "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$";
 
 /** Stands in for an image URL in the inbox Markdown; the CLI swaps in the downloaded file's path. */
 export const agentImageRef = (a: Pick<FeedbackAttachment, "id">) => `attachment:${a.id}`;
@@ -262,7 +262,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({ url: t.String({ pattern: GITHUB_PR_URL, maxLength: 300 }) }),
+      body: FeedbackModel.fixPr,
       detail: { summary: "Record the fix agent's pull request on a ticket" },
     },
   )

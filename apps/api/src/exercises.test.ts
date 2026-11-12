@@ -81,6 +81,17 @@ describe.skipIf(!dbUp)("exercise library", () => {
     expect((await create({ movementPattern: "sideways" })).status).toBe(422);
   });
 
+  test("over-length or missing fields are refused on create and edit", async () => {
+    expect((await create({ name: "x".repeat(161) })).status).toBe(422);
+    expect((await create({ name: "" })).status).toBe(422);
+    expect((await create({ note: "x".repeat(281) })).status).toBe(422);
+    expect((await create({ secondaryMuscleGroups: ["biceps", "triceps", "chest", "core", "glutes"] })).status).toBe(422);
+    expect((await call("POST", "/v1/exercises", { name: uniq(), equipment: "dumbbell" })).status).toBe(422);
+    const { body: ex } = await create();
+    expect((await call("PATCH", `/v1/exercises/${ex.id}`, { name: "x".repeat(161) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/exercises/${ex.id}`, { archived: "yes" })).status).toBe(422);
+  });
+
   test("custom exercises are fully editable", async () => {
     const { body: ex } = await create();
     const name = uniq();

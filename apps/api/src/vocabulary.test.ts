@@ -147,6 +147,26 @@ describe.skipIf(!dbUp)("/v1/vocabulary aliases and glossary", () => {
     expect((await call("GET", "/v1/vocabulary/glossary")).body.find((g: any) => g.term === "SA").scope).toBe("global");
   });
 
+  test("over-length, seed-sourced or malformed vocabulary bodies are refused", async () => {
+    const aliases = (items: unknown[]) => call("POST", "/v1/vocabulary/aliases", { items });
+    expect((await aliases([])).status).toBe(422);
+    expect((await aliases([{ alias: "x".repeat(201), exerciseId: squatId, source: "manual" }])).status).toBe(422);
+    expect((await aliases([{ alias: uniq("zz "), exerciseId: squatId, source: "seed" }])).status).toBe(422);
+    expect((await aliases([{ alias: uniq("zz "), exerciseId: "squat", source: "manual" }])).status).toBe(422);
+    const term = (body: Record<string, unknown>) => call("POST", "/v1/vocabulary/glossary", body);
+    expect((await term({ term: "x".repeat(61), meaning: "y", kind: "other" })).status).toBe(422);
+    expect((await term({ term: "x", meaning: "y".repeat(201), kind: "other" })).status).toBe(422);
+    expect((await term({ term: "x", meaning: "y" })).status).toBe(422);
+    const made = await term({ term: uniq("Zz"), meaning: "x", kind: "technique" });
+    try {
+      expect((await call("PATCH", `/v1/vocabulary/glossary/${made.body.id}`, { kind: "nope" })).status).toBe(422);
+      // a PATCH without kind leaves it alone
+      expect((await call("PATCH", `/v1/vocabulary/glossary/${made.body.id}`, { meaning: "z" })).body.kind).toBe("technique");
+    } finally {
+      await call("DELETE", `/v1/vocabulary/glossary/${made.body.id}`);
+    }
+  });
+
   test("glossary: global rows are read-only; another trainer's reads as not found", async () => {
     const [global] = await db.select().from(glossaryTerms).where(and(isNull(glossaryTerms.trainerId), eq(glossaryTerms.term, "RPE")));
     expect((await call("PATCH", `/v1/vocabulary/glossary/${global.id}`, { meaning: "mine" })).status).toBe(403);

@@ -72,6 +72,19 @@ describe.skipIf(!dbUp)("role labels", () => {
     expect((await call("PATCH", `/v1/vocabulary/role-labels/${made.id}`, { description: "" })).status).toBe(422);
   });
 
+  test("over-length, null or mistyped fields are refused on create and edit", async () => {
+    const post = (body: Record<string, unknown>) => call("POST", "/v1/vocabulary/role-labels", body);
+    expect((await post({ name: "x".repeat(41), description: "x" })).status).toBe(422);
+    expect((await post({ name: uniq(), chip: "x".repeat(13), description: "x" })).status).toBe(422);
+    expect((await post({ name: uniq(), description: "x".repeat(201) })).status).toBe(422);
+    expect((await post({ name: uniq(), description: null })).status).toBe(422);
+    const { body: made } = await post({ name: uniq(), description: "a" });
+    const patch = (body: Record<string, unknown>) => call("PATCH", `/v1/vocabulary/role-labels/${made.id}`, body);
+    expect((await patch({ chip: null })).status).toBe(422);
+    expect((await patch({ name: "x".repeat(41) })).status).toBe(422);
+    expect((await patch({ rank: "first" })).status).toBe(422);
+  });
+
   test("a built-in's meaning, chip and rank can change; its name can't; empty resets", async () => {
     const res = await call("PATCH", "/v1/vocabulary/role-labels/strength", { description: "Heavy stuff.", chip: "S" });
     expect(res.status).toBe(200);

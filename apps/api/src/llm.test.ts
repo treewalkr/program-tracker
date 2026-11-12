@@ -320,4 +320,12 @@ describe.skipIf(!dbUp)("callLlm logging", () => {
     expect(row.model).toBe("mock-distill-v1");
     expect(row.responseRaw).toBe(res.body.document);
   });
+
+  test("distill refuses a malformed client id or provider before any call is logged", async () => {
+    const before = await db.select().from(llmCalls).where(eq(llmCalls.purpose, "distill"));
+    expect((await call("POST", "/v1/ai/preferences/distill", { clientId: "nope", providerId: "mock" })).status).toBe(422);
+    expect((await call("POST", "/v1/ai/preferences/distill", { providerId: 7 })).status).toBe(422);
+    const after = await db.select().from(llmCalls).where(eq(llmCalls.purpose, "distill"));
+    expect(after.length).toBe(before.length);
+  });
 });

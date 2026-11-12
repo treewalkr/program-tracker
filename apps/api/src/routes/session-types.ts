@@ -2,13 +2,10 @@ import { Elysia, t } from "elysia";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db, sessionTypes, type SessionTypeRow } from "@pt/db";
 import { ensureSessionTypes } from "../lib/session-types";
-import { SESSION_KINDS, SESSION_TYPE_NAME_MAX, normalizeTypeName, type SessionKind } from "@pt/shared";
+import { SESSION_KINDS, normalizeTypeName, type SessionKind } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
+import { SessionTypeModel } from "../models/session-types";
 
-const Name = t.String({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX });
-// A plain string checked in the handler: t.UnionEnum fills an absent optional
-// field with its first member, which would turn a partial PATCH into a format change.
-const Format = t.String({ maxLength: 20 });
 const isFormat = (f: string): f is SessionKind => (SESSION_KINDS as readonly string[]).includes(f);
 const badFormat = { error: "format must be lifting or cardio" };
 
@@ -68,7 +65,7 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
       const [created] = await db.insert(sessionTypes).values({ trainerId, name, format: body.format }).returning();
       return status(201, toDto(created, 0));
     },
-    { body: t.Object({ name: Name, format: Format }) }
+    { body: SessionTypeModel.create }
   )
   /** Rename, change format or archive/restore. Programs keep the name they captured. */
   .patch(
@@ -101,7 +98,7 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({ name: t.Optional(Name), format: t.Optional(Format), archived: t.Optional(t.Boolean()) }),
+      body: SessionTypeModel.update,
     }
   )
   /** Delete for good — only unused types, and never the last one (it would re-seed the defaults). */

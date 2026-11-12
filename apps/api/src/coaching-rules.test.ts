@@ -246,6 +246,24 @@ describe.skipIf(!dbUp)("detailed notes", () => {
     expect((await call("POST", "/v1/ai/rules/extract", { generationId: gen.id })).status).toBe(422);
   });
 
+  test("hand-written rules: short, long, unknown category or proposed status are refused", async () => {
+    const post = (body: Record<string, unknown>) => call("POST", "/v1/ai/rules", body);
+    expect((await post({ text: "no" })).status).toBe(422);
+    expect((await post({ text: "x".repeat(401) })).status).toBe(422);
+    expect((await post({ text: "Keep it short", category: "vibes" })).status).toBe(422);
+    expect((await post({ text: "Keep it short", clientId: "nope" })).status).toBe(422);
+    const made = await post({ text: "Keep sets under ten reps" });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ category: "style", status: "active" });
+    const id = made.body.id;
+    expect((await call("PATCH", `/v1/ai/rules/${id}`, { status: "proposed" })).status).toBe(422);
+    expect((await call("PATCH", `/v1/ai/rules/${id}`, { text: "x".repeat(401) })).status).toBe(422);
+    expect((await call("POST", `/v1/ai/rules/${id}/confirm`, { scope: "sometimes" })).status).toBe(422);
+    // a PATCH without category leaves it alone
+    expect((await call("PATCH", `/v1/ai/rules/${id}`, { text: "Keep sets under eight reps" })).body.category).toBe("style");
+    expect((await call("DELETE", `/v1/ai/rules/${id}`)).status).toBe(204);
+  });
+
   test("rules list carries client names and source notes", async () => {
     const clientId = await newClient("Listed Client");
     const gen = await mockDraft(clientId);

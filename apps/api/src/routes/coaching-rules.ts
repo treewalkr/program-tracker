@@ -1,27 +1,12 @@
-import { Elysia, t, type Static } from "elysia";
+import { Elysia, t } from "elysia";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, clients, coachingRules, llmFeedback } from "@pt/db";
-import { anchorText, type CoachingRuleCategory } from "@pt/shared";
+import { anchorText } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { extractRule, linkSourceNotes, sourceNotes } from "../lib/coaching-rules";
 import { toRuleDto } from "../lib/notes";
+import { CoachingRuleModel, RuleScope } from "../models/coaching-rules";
 
-// Written out (not built from the shared arrays) so the types survive Eden.
-const Category = t.Union([
-  t.Literal("ignored_limitation"),
-  t.Literal("wrong_exercise"),
-  t.Literal("volume_off"),
-  t.Literal("load_off"),
-  t.Literal("invented_number"),
-  t.Literal("off_topic"),
-  t.Literal("tone"),
-  t.Literal("too_long"),
-  t.Literal("format"),
-  t.Literal("style"),
-]);
-true satisfies CoachingRuleCategory extends Static<typeof Category> ? true : false;
-const RuleScope = t.Union([t.Literal("client"), t.Literal("always")]);
-const RuleText = t.String({ minLength: 3, maxLength: 400 });
 
 async function clientNames(trainerId: string): Promise<Map<string, string>> {
   const rows = await db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.trainerId, trainerId));
@@ -83,7 +68,7 @@ export const coachingRuleRoutes = new Elysia({ prefix: "/v1/ai/rules", tags: ["a
       return status(201, (await ruleDto(rule.id))!);
     },
     {
-      body: t.Object({ text: RuleText, category: t.Optional(Category), clientId: t.Optional(t.Nullable(t.String({ format: "uuid" }))) }),
+      body: CoachingRuleModel.create,
       detail: { summary: "Write a rule by hand (active at once)" },
     }
   )
@@ -108,13 +93,7 @@ export const coachingRuleRoutes = new Elysia({ prefix: "/v1/ai/rules", tags: ["a
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({
-        text: t.Optional(RuleText),
-        category: t.Optional(Category),
-        /** null = all clients. */
-        clientId: t.Optional(t.Nullable(t.String({ format: "uuid" }))),
-        status: t.Optional(t.Union([t.Literal("active"), t.Literal("retired")])),
-      }),
+      body: CoachingRuleModel.update,
       detail: { summary: "Edit text, switch scope, retire or reactivate a rule" },
     }
   )
@@ -142,7 +121,7 @@ export const coachingRuleRoutes = new Elysia({ prefix: "/v1/ai/rules", tags: ["a
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({ scope: RuleScope, clientId: t.Optional(t.String({ format: "uuid" })), text: t.Optional(RuleText) }),
+      body: CoachingRuleModel.confirm,
       detail: { summary: "Confirm a proposed rule — it reaches prompts from now on" },
     }
   )

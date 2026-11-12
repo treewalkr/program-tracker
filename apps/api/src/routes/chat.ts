@@ -8,6 +8,7 @@ import { runProposalTurn } from "../lib/proposal-turn";
 import { trainerContext } from "../lib/trainer-context";
 import { linkTurn } from "../ai/llm";
 import { recordFeedback, recordIgnoredProposals } from "../lib/llm-feedback";
+import { ChatModel } from "../models/chat";
 
 /**
  * The trainer's request that produced a proposal.
@@ -77,13 +78,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       return status(201, { messages: res.messages });
     },
     {
-      body: t.Object({
-        clientId: t.String(),
-        message: t.String({ minLength: 1, maxLength: 2000 }),
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-        effort: t.Optional(t.String()),
-      }),
+      body: ChatModel.ask,
     }
   )
   /**
@@ -149,14 +144,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       return status(201, { messages: [trainerRow, assistantRow], generation: null });
     },
     {
-      body: t.Object({
-        clientId: t.String(),
-        generationId: t.Optional(t.Nullable(t.String())),
-        message: t.String({ minLength: 1, maxLength: 2000 }),
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-        effort: t.Optional(t.String()),
-      }),
+      body: ChatModel.turn,
     }
   )
   /** Build a proposal (propose → build): runs one revision bound to the proposal. */
@@ -240,11 +228,7 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
     },
     {
       params: t.Object({ messageId: t.String() }),
-      body: t.Object({
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-        effort: t.Optional(t.String()),
-      }),
+      body: ChatModel.retry,
     }
   )
   .delete(

@@ -10,6 +10,7 @@ import { appUrl } from "../lib/email-links";
 import { emailPreviews } from "../lib/email-previews";
 import { setLoginTheme } from "../lib/login-theme";
 import { LoginThemeBody } from "./public";
+import { AdminModel } from "../models/admin";
 
 type TrainerRow = typeof trainers.$inferSelect;
 
@@ -133,10 +134,7 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
       return status(201, toDto(created, 0));
     },
     {
-      body: t.Object({
-        name: t.String({ minLength: 1, maxLength: 120 }),
-        email: t.String({ format: "email", maxLength: 254 }),
-      }),
+      body: AdminModel.invite,
       detail: { summary: "Add a trainer (they can then sign in with Google)" },
     },
   )
@@ -158,10 +156,7 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({
-        name: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
-        disabled: t.Optional(t.Boolean()),
-      }),
+      body: AdminModel.editTrainer,
       detail: { summary: "Rename, disable or re-enable a trainer" },
     },
   )

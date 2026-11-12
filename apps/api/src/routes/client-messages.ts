@@ -10,7 +10,7 @@ import {
   setLogs,
   type SetLogRow,
 } from "@pt/db";
-import { AiClientMessageDraft, CLIENT_MESSAGE_MAX_CHARS, weekSummary, DEFAULT_PROVIDER_ID } from "@pt/shared";
+import { AiClientMessageDraft, weekSummary, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { callLlm } from "../ai/llm";
 import { recordFeedback } from "../lib/llm-feedback";
 import { buildClientMessageMessages } from "../ai/prompt";
@@ -18,6 +18,7 @@ import { mockClientMessage } from "../ai/mock";
 import { ContextError, providerRuntime } from "../ai/runtime";
 import { trainerContext } from "../lib/trainer-context";
 import { toSignalLog, toSignalProgram } from "../lib/signals-service";
+import { ClientMessageModel } from "../models/client-messages";
 
 /**
  * Client-facing weekly messages: deterministic stats → AI phrasing → trainer
@@ -136,13 +137,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
       }
     },
     {
-      body: t.Object({
-        clientId: t.String(),
-        programId: t.String(),
-        week: t.Integer({ minimum: 1, maximum: 26 }),
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-      }),
+      body: ClientMessageModel.create,
     }
   )
   .get(
@@ -199,9 +194,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({
-        text: t.Optional(t.String({ minLength: 1, maxLength: CLIENT_MESSAGE_MAX_CHARS })),
-      }),
+      body: ClientMessageModel.edit,
     }
   )
   .post(

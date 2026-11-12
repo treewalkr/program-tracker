@@ -61,6 +61,14 @@ describe.skipIf(!dbUp)("session types", () => {
     expect((await call("POST", "/v1/session-types", { name: "x", format: "yoga" })).status).toBe(422);
   });
 
+  test("over-length or missing fields are refused on create and edit", async () => {
+    expect((await call("POST", "/v1/session-types", { name: "x".repeat(41), format: "lifting" })).status).toBe(422);
+    expect((await call("POST", "/v1/session-types", { name: uniq() })).status).toBe(422);
+    const made = (await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" })).body;
+    expect((await call("PATCH", `/v1/session-types/${made.id}`, { name: "x".repeat(41) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/session-types/${made.id}`, { archived: "yes" })).status).toBe(422);
+  });
+
   test("rename, change format, archive and restore", async () => {
     const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
     const renamed = uniq();

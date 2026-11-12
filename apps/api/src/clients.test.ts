@@ -123,6 +123,33 @@ describe.skipIf(!dbUp)("client basics", () => {
     const patch = await call("PATCH", `/v1/clients/${ids[0]}`, { birthDate: "2999-01-01" });
     expect(patch.status).toBe(422);
   });
+
+  test("name, list and status limits are refused on create and update", async () => {
+    const bad = [
+      { name: "x".repeat(121) },
+      { name: "" },
+      { goals: "x".repeat(2001) },
+      { sessionsPerWeek: 8 },
+      { trainingDays: [1, 1] },
+      { cardioTarget: { unit: "laps", value: 3 } },
+      { oneRepMaxes: { squat: { kg: 0, date: "2026-01-01" } } },
+    ];
+    for (const fields of bad) {
+      const res = await call("POST", "/v1/clients", { name: "Bad", ...fields });
+      expect([res.status, fields]).toEqual([422, fields]);
+    }
+    expect((await call("POST", "/v1/clients", {})).status).toBe(422);
+    expect((await call("PATCH", `/v1/clients/${ids[0]}`, { status: "deleted" })).status).toBe(422);
+    expect((await call("PATCH", `/v1/clients/${ids[0]}`, { name: "x".repeat(121) })).status).toBe(422);
+  });
+
+  test("a PATCH that omits status or basics leaves them unchanged (no schema defaults leak in)", async () => {
+    const id = ids[0];
+    expect((await call("PATCH", `/v1/clients/${id}`, { status: "paused", experience: null })).status).toBe(200);
+    const renamed = await call("PATCH", `/v1/clients/${id}`, { goals: "stay paused" });
+    expect(renamed.body).toMatchObject({ status: "paused", experience: null, sex: "female", goals: "stay paused" });
+    await call("PATCH", `/v1/clients/${id}`, { status: "active" });
+  });
 });
 
 describe.skipIf(!dbUp)("client roster", () => {

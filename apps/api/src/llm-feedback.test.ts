@@ -297,4 +297,31 @@ describe.skipIf(!dbUp)("POST /v1/ai/feedback (explicit)", () => {
     const implicit = await call("POST", "/v1/ai/feedback", { subjectKind: "generation", subjectId: gen.id, signal: "draft_rejected" });
     expect(implicit.status).toBe(422);
   });
+
+  test("server-only subject kinds, long text, null fields and bad scopes are refused", async () => {
+    const clientId = await newClient();
+    const gen = await mockDraft(clientId);
+    const post = (body: Record<string, unknown>) =>
+      call("POST", "/v1/ai/feedback", { subjectKind: "generation", subjectId: gen.id, signal: "thumbs_down", ...body });
+    expect((await post({ subjectKind: "call" })).status).toBe(422);
+    expect((await post({ comment: "x".repeat(2001) })).status).toBe(422);
+    expect((await post({ correction: null })).status).toBe(422);
+    expect((await post({ scope: "forever" })).status).toBe(422);
+    expect((await post({ reasonTags: ["tone", "tone"] })).status).toBe(422);
+    expect((await post({ violatedRuleId: "nope" })).status).toBe(422);
+    const note = (body: Record<string, unknown>) =>
+      call("POST", "/v1/ai/feedback/notes", {
+        subjectKind: "generation",
+        subjectId: gen.id,
+        anchor: { type: "text", quote: "x", start: 0, end: 1 },
+        comment: "fine",
+        ...body,
+      });
+    expect((await note({ comment: null })).status).toBe(422);
+    expect((await note({ scope: "forever" })).status).toBe(422);
+    expect((await note({ anchor: { type: "page" } })).status).toBe(422);
+    const ok = await note({ comment: "  keep it  " });
+    expect(ok.status).toBe(201);
+    expect(ok.body.note.scope).toBe("once"); // absent scope is not filled by the schema
+  });
 });

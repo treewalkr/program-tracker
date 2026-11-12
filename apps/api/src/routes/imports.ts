@@ -1,12 +1,13 @@
 import { Elysia, t } from "elysia";
 import { and, eq } from "drizzle-orm";
 import { aiImports, db } from "@pt/db";
-import { DEFAULT_PROVIDER_ID, IMPORT_MAX_CHARS, chunkLines, importLines } from "@pt/shared";
+import { DEFAULT_PROVIDER_ID, chunkLines, importLines } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 import { extractChunks, importResult, recentImports, saveImportHistory, settleImport, undoImportHistory } from "../lib/imports";
 import { loadGlossary } from "../lib/vocabulary";
+import { ImportModel } from "../models/imports";
 
 /** Paste notes → a stored, resumable, cancellable import (docs/paste-import-plan.md §1). */
 export const importRoutes = new Elysia({ prefix: "/v1/ai/imports", tags: ["ai"] })
@@ -57,13 +58,7 @@ export const importRoutes = new Elysia({ prefix: "/v1/ai/imports", tags: ["ai"] 
       }
     },
     {
-      body: t.Object({
-        clientId: t.String(),
-        text: t.String({ minLength: 1, maxLength: IMPORT_MAX_CHARS }),
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-        effort: t.Optional(t.String()),
-      }),
+      body: ImportModel.create,
     }
   )
   /** The client's 5 most recent imports, newest first (no result — open one to get it). */

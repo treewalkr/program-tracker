@@ -859,7 +859,6 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
   test("non-contiguous weeks document is a 422", async () => {
     const { status, body } = await call("POST", "/v1/programs", {
       name: "Non-contiguous",
-      clientId,
       weeks: [
         {
           week: 1,
@@ -2272,6 +2271,18 @@ describe.skipIf(!dbUp)("client messages (mock provider)", () => {
     expect(asIs.body.finalText).toBe(asIs.body.draft.message);
   });
 
+  test("client message bodies: weeks out of range, bad ids, null or long text are refused", async () => {
+    const gen = (body: Record<string, unknown>) =>
+      call("POST", "/v1/client-messages/generate", { clientId, programId, week: 1, providerId: "mock", ...body });
+    expect((await gen({ week: 0 })).status).toBe(422);
+    expect((await gen({ week: 27 })).status).toBe(422);
+    expect((await gen({ programId: null })).status).toBe(422);
+    expect((await gen({ clientId: "nope" })).status).toBe(422);
+    const approve = (body: Record<string, unknown>) => call("POST", `/v1/client-messages/${asIsGenId}/approve`, body);
+    expect((await approve({ text: null })).status).toBe(422);
+    expect((await approve({ text: "x".repeat(1201) })).status).toBe(422);
+  });
+
   test("approve guards 409/422; reject marks discarded; list filters by clientId", async () => {
     // approving an already-approved row → 409
     const reApprove = await call("POST", `/v1/client-messages/${editedGenId}/approve`, {});
@@ -2344,6 +2355,31 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(genRes.status).toBe(201);
     expect(genRes.body.status).toBe("validated");
     genId = genRes.body.id;
+  });
+
+  test("chat bodies: empty or long messages, bad ids and null effort are refused", async () => {
+    const ask = (body: Record<string, unknown>) => call("POST", "/v1/ai/chat", { clientId, message: "hi", providerId: "mock", ...body });
+    expect((await ask({ message: "" })).status).toBe(422);
+    expect((await ask({ message: "x".repeat(2001) })).status).toBe(422);
+    expect((await ask({ clientId: "nope" })).status).toBe(422);
+    expect((await ask({ effort: null })).status).toBe(422);
+    const turn = (body: Record<string, unknown>) =>
+      call("POST", "/v1/ai/chat/turn", { clientId, generationId: genId, message: "hi", providerId: "mock", ...body });
+    expect((await turn({ generationId: "nope" })).status).toBe(422);
+    expect((await turn({ message: "" })).status).toBe(422);
+  });
+
+  test("generation bodies: long or null text, bad ids and empty revisions are refused", async () => {
+    const gen = (body: Record<string, unknown>) => call("POST", "/v1/ai/generate", { clientId, providerId: "mock", ...body });
+    expect((await gen({ instructions: "x".repeat(2001) })).status).toBe(422);
+    expect((await gen({ direction: "x".repeat(501) })).status).toBe(422);
+    expect((await gen({ instructions: null })).status).toBe(422);
+    expect((await gen({ clientId: "nope" })).status).toBe(422);
+    expect((await gen({ basedOnProgramId: "nope" })).status).toBe(422);
+    expect((await gen({ targetWeek: 1.5 })).status).toBe(422);
+    expect((await call("POST", `/v1/ai/generations/${genId}/revise`, { message: "" })).status).toBe(422);
+    expect((await call("POST", `/v1/ai/generations/${genId}/revise`, { message: "x".repeat(2001) })).status).toBe(422);
+    expect((await call("POST", `/v1/ai/generations/${genId}/reject`, { reason: "x".repeat(2001) })).status).toBe(422);
   });
 
   test("chat: send a message, get the mock reply, transcript persists", async () => {
