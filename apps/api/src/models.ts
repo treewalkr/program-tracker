@@ -6,18 +6,6 @@ import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utili
 import { str, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
 
 // ---------------------------------------------------------------------------
-// Account (the signed-in trainer's own settings)
-// ---------------------------------------------------------------------------
-
-const TrainerAiMode = t.Required(t.Pick(TrainerUpdate, ["feedbackAiMode"]));
-
-export const AccountModel = {
-  feedbackEmails: TrainerUpdate.properties.feedbackEmails,
-  /** Required, with no implicit default: an empty body is a 422, not "off". */
-  feedbackAiMode: t.Object({ mode: TrainerAiMode.properties.feedbackAiMode }),
-};
-
-// ---------------------------------------------------------------------------
 // AI generations and the calls that start them
 // ---------------------------------------------------------------------------
 

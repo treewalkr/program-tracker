@@ -5,7 +5,7 @@ import { DEFAULT_DELOAD, DeloadSettings, feedbackEmailPrefs, feedbackHandle } fr
 import { trainerContext } from "../lib/trainer-context";
 import { trainerDeload } from "../lib/deload";
 import { feedbackAiMode } from "../lib/feedback-ai";
-import { AccountModel } from "../models";
+import { AccountModel } from "../models/account";
 
 const ADMIN_ONLY = { error: "admin only" } as const;
 
