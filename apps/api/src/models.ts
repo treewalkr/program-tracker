@@ -1,19 +1,5 @@
-/**
- * Row-field schemas for HTTP validation, derived from the Drizzle tables (the source of truth
- * for column names, types and nullability). Refinements add the API contract on top: length
- * limits, literal unions from @pt/shared, and JSON shapes. Nested JSON documents (program weeks,
- * phasing, …) stay zod in @pt/shared — their columns are `t.Unsafe<T>(t.Any())` here (typed,
- * unchecked) and the handler `safeParse`s them.
- *
- * Create bodies take required fields from `*Insert` and optional ones from `*Update`:
- * drizzle-typebox 0.3 types a refined optional insert column as required (runtime is right),
- * while update schemas type every field optional.
- *
- * Each generated schema is bound to a variable before `t.Pick`/`t.Omit` (Elysia drizzle docs:
- * inlining it trips "type instantiation is possibly infinite"). Routes always Pick the writable
- * fields — never id, trainerId or timestamps.
- */
-import { t, type TSchema } from "elysia";
+/** Feature models not yet moved to ./models/<feature>.ts. */
+import { t } from "elysia";
 import {
   aiGenerations,
   aiImports,
@@ -31,7 +17,6 @@ import {
   roleLabels,
   sessionTypes,
   trainerPreferences,
-  trainers,
 } from "@pt/db/schema";
 import {
   BODYWEIGHT_KG_RANGE,
@@ -41,7 +26,6 @@ import {
   CLIENT_MESSAGE_MAX_CHARS,
   CLIENT_STATUSES,
   COACHING_RULE_CATEGORIES,
-  FEEDBACK_AI_MODES,
   FEEDBACK_STATUSES,
   GLOSSARY_KINDS,
   GLOSSARY_MEANING_MAX,
@@ -64,21 +48,7 @@ import {
   type ProgramWeek,
 } from "@pt/shared";
 import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "./utility";
-
-type StringOptions = Parameters<typeof t.String>[0];
-/** Keep the generated string schema (e.g. uuid format) and add limits. */
-const str = (limits: StringOptions) => (schema: ReturnType<typeof t.String>) => t.String({ ...schema, ...limits });
-/** `t.UnionEnum` without its implicit `default: values[0]` — Elysia fills defaults into bodies,
- *  so an omitted optional field (e.g. a client's status on PATCH) would silently become values[0]. */
-const oneOf = <const V extends readonly [string, ...string[]]>(values: V) => {
-  const { default: _default, ...schema } = t.UnionEnum(values);
-  return schema as ReturnType<typeof t.UnionEnum<V>>;
-};
-/** Replace the column schema. A callback (not a bare schema) so drizzle still adds null/optional. */
-const as =
-  <S extends TSchema>(schema: S) =>
-  () =>
-    schema;
+import { str, oneOf, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
 
 // ---------------------------------------------------------------------------
 // Programs
@@ -102,11 +72,6 @@ const programFields = {
 export const ProgramInsert = createInsertSchema(programs, programFields);
 export const ProgramUpdate = createUpdateSchema(programs, programFields);
 export const ProgramSelect = createSelectSchema(programs, programRow);
-
-/** Request bodies use `*Fields`; responses use `*Row` (no write limits). */
-
-/** Expected-failure body (`status(4xx, { error })`); 422s may carry zod `issues`. */
-export const ErrorBody = t.Object({ error: t.String(), issues: t.Optional(t.Unknown()) });
 
 export const ProgramModel = {
   /** The API names the `sessions` column `weeks`. */
@@ -437,14 +402,6 @@ export const LlmFeedbackModel = {
 // Account (the signed-in trainer's own settings)
 // ---------------------------------------------------------------------------
 
-const trainerFields = {
-  name: str({ minLength: 1, maxLength: 120 }),
-  email: as(t.String({ format: "email", maxLength: 254 })),
-  feedbackAiMode: as(oneOf(FEEDBACK_AI_MODES)),
-};
-const TrainerInsert = createInsertSchema(trainers, trainerFields);
-const TrainerUpdate = createUpdateSchema(trainers, trainerFields);
-
 const TrainerAiMode = t.Required(t.Pick(TrainerUpdate, ["feedbackAiMode"]));
 
 export const AccountModel = {
@@ -466,14 +423,8 @@ const AiGenerationUpdate = createUpdateSchema(aiGenerations, {
 });
 /** Optional values (never null) — handlers trim or pass them on as-is. */
 const AiGenerationValues = t.Required(
-  t.Pick(AiGenerationUpdate, ["effort", "instructions", "direction", "targetWeek", "revisionMessage", "rejectReason"])
+  t.Pick(AiGenerationUpdate, ["instructions", "direction", "targetWeek", "revisionMessage", "rejectReason"])
 );
-
-/** Which model runs a call; absent = the default provider. Every AI route takes these. */
-export const ProviderChoice = {
-  ...spread(t.Pick(AiGenerationUpdate, ["providerId", "model"])),
-  effort: t.Optional(nonNull(AiGenerationValues.properties.effort)),
-};
 
 export const AiGenerationModel = {
   generate: t.Object({

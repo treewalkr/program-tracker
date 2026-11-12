@@ -5,7 +5,8 @@ import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 import { clientDto, trainerDeloadSettings } from "../lib/deload";
 import { clientRoster } from "../lib/roster";
-import { ClientModel, ErrorBody, ProgramModel } from "../models";
+import { ClientModel, ProgramModel } from "../models";
+import { ErrorBody } from "../models/shared";
 import {
   birthDateError,
   startedOnError,

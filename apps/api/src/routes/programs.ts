@@ -5,7 +5,8 @@ import { db, programs } from "@pt/db";
 import { Phasing, ProgramWeeksDocument } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordProgramEdit } from "../lib/llm-feedback";
-import { ErrorBody, ProgramModel } from "../models";
+import { ProgramModel } from "../models";
+import { ErrorBody } from "../models/shared";
 
 /** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema. */
 const WeeksDoc = ProgramWeeksDocument;
