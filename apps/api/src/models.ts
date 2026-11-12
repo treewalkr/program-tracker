@@ -8,7 +8,6 @@ import {
   feedbackComments,
   feedbackItems,
   llmFeedback,
-  trainerPreferences,
 } from "@pt/db/schema";
 import {
   CLIENT_MESSAGE_MAX_CHARS,
@@ -20,17 +19,6 @@ import {
 } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utility";
 import { str, oneOf, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
-
-// ---------------------------------------------------------------------------
-// Trainer preferences
-// ---------------------------------------------------------------------------
-
-const PreferenceUpdate = createUpdateSchema(trainerPreferences);
-
-export const PreferenceModel = {
-  /** clientId null/absent = the trainer-wide document; providerId/model pick the distiller. */
-  distill: t.Pick(PreferenceUpdate, ["clientId", "providerId", "model"]),
-};
 
 // ---------------------------------------------------------------------------
 // Feedback (tickets and their threads)

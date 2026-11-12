@@ -4,7 +4,7 @@ import { db, clients, trainerPreferences } from "@pt/db";
 import { mockDistillPreferences, DEFAULT_PROVIDER_ID } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { gatherPreferenceSignals } from "../lib/preferences";
-import { PreferenceModel } from "../models";
+import { PreferenceModel } from "../models/preferences";
 import { buildDistillMessages } from "../ai/prompt";
 import { callLlm } from "../ai/llm";
 import { ContextError, providerRuntime } from "../ai/runtime";
