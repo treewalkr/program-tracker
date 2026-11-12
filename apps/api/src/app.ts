@@ -28,6 +28,7 @@ import { accountRoutes } from "./routes/account";
 import { authRoutes } from "./routes/auth";
 import { emailRoutes } from "./routes/email";
 import { adminRoutes } from "./routes/admin";
+import { publicRoutes } from "./routes/public";
 import { trainerContext } from "./lib/trainer-context";
 import { API_BUILD } from "./lib/build";
 
@@ -39,6 +40,7 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
 const TAGS = [
   { name: "health", description: "Liveness and provider discovery" },
   { name: "auth", description: "Google sign-in for invited trainers; every other /v1 route needs a session" },
+  { name: "public", description: "Unauthenticated, read-only data for the signed-out app (the login page's theme)" },
   { name: "admin", description: "Platform admin console — invite, disable and remove trainer accounts" },
   { name: "ai", description: "AI draft generation, audit trail, and approval gate" },
   { name: "chat", description: "Conversational surface — client Q&A and draft revision over chat" },
@@ -88,6 +90,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
     detail: { summary: "API build id", tags: ["health"] },
   })
   .use(authRoutes)
+  // public: what the login page needs before anyone signs in
+  .use(publicRoutes)
   // public: the token in an email's unsubscribe link is the credential
   .use(emailRoutes)
   // the feedback auto-reply agent: its own bearer token, never a session — so before the trainer guard

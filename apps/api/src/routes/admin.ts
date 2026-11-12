@@ -8,6 +8,8 @@ import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
 import { appUrl } from "../lib/email-links";
 import { emailPreviews } from "../lib/email-previews";
+import { setLoginTheme } from "../lib/login-theme";
+import { LoginThemeBody } from "./public";
 
 type TrainerRow = typeof trainers.$inferSelect;
 
@@ -163,6 +165,12 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
       detail: { summary: "Rename, disable or re-enable a trainer" },
     },
   )
+  /** The login page's layout and accent — read back by the public GET /v1/public/login-theme. */
+  .put("/login-theme", ({ body, trainerId }) => setLoginTheme(body, trainerId), {
+    body: LoginThemeBody,
+    response: LoginThemeBody,
+    detail: { summary: "Set the login page's layout and accent" },
+  })
   /** Only invites nobody has used yet — real accounts get disabled, never deleted (that would cascade their data). */
   .delete(
     "/trainers/:id",
