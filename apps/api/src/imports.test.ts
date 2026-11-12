@@ -136,6 +136,9 @@ describe.skipIf(!dbUp)("/v1/ai/imports", () => {
     expect(tooLong.status).toBe(422);
     const blank = await call("POST", "/v1/ai/imports", { clientId, text: "\n————\n", providerId: "mock" });
     expect(blank.status).toBe(422);
+    expect((await call("POST", "/v1/ai/imports", { clientId, text: "", providerId: "mock" })).status).toBe(422);
+    expect((await call("POST", "/v1/ai/imports", { clientId: "nope", text: "squat 5x5", providerId: "mock" })).status).toBe(422);
+    expect((await call("POST", "/v1/ai/imports", { clientId, text: "squat 5x5", effort: null })).status).toBe(422);
   });
 
   test("another trainer's client and import read as not found", async () => {

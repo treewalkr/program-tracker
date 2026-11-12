@@ -16,6 +16,7 @@
 import { t, type TSchema } from "elysia";
 import {
   aiGenerations,
+  aiImports,
   chatMessages,
   clientMessages,
   clients,
@@ -50,6 +51,7 @@ import {
   ROLE_LABEL_NAME_MAX,
   SESSION_TYPE_NAME_MAX,
   HEIGHT_CM_RANGE,
+  IMPORT_MAX_CHARS,
   LLM_CLIENT_SIGNALS,
   LLM_REASON_TAGS,
   NOTE_SCOPES,
@@ -519,4 +521,14 @@ export const ClientMessageModel = {
   }),
   /** Stored as `finalText` on approve. */
   edit: t.Object({ text: t.Optional(nonNull(ClientMessageText.properties.finalText)) }),
+};
+
+// ---------------------------------------------------------------------------
+// Paste imports
+// ---------------------------------------------------------------------------
+
+const AiImportInsert = createInsertSchema(aiImports, { text: str({ minLength: 1, maxLength: IMPORT_MAX_CHARS }) });
+
+export const ImportModel = {
+  create: t.Object({ ...spread(t.Pick(AiImportInsert, ["clientId", "text"])), ...ProviderChoice }),
 };
