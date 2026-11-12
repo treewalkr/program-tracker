@@ -25,6 +25,12 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema, spread } fr
 type StringOptions = Parameters<typeof t.String>[0];
 /** Keep the generated string schema (e.g. uuid format) and add limits. */
 const str = (limits: StringOptions) => (schema: ReturnType<typeof t.String>) => t.String({ ...schema, ...limits });
+/** `t.UnionEnum` without its implicit `default: values[0]` — Elysia fills defaults into bodies,
+ *  so an omitted optional field (e.g. a client's status on PATCH) would silently become values[0]. */
+const oneOf = <const V extends readonly [string, ...string[]]>(values: V) => {
+  const { default: _default, ...schema } = t.UnionEnum(values);
+  return schema as ReturnType<typeof t.UnionEnum<V>>;
+};
 /** Replace the column schema. A callback (not a bare schema) so drizzle still adds null/optional. */
 const as =
   <S extends TSchema>(schema: S) =>
@@ -37,7 +43,7 @@ const as =
 
 /** Narrow types only — shared by request and response schemas. */
 const programRow = {
-  status: as(t.UnionEnum(PROGRAM_STATUSES)),
+  status: as(oneOf(PROGRAM_STATUSES)),
   // zod-validated documents (ProgramWeeksDocument / Phasing) — typed, not checked here
   sessions: as(t.Unsafe<ProgramWeek[]>(t.Any())),
   phasing: as(t.Unsafe<Phasing>(t.Any())),
