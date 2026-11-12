@@ -95,7 +95,7 @@ interface Parts {
 function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person, subject: string, parts: Parts, label: string): Email {
   const handle = feedbackHandle(snap.item.number);
   const link = `${snap.appUrl}/feedback#${handle}`;
-  const settings = `${snap.appUrl}/settings`;
+  const settings = `${snap.appUrl}/settings/notifications`;
   const unsub = (scope: UnsubscribeScope) => (to.token ? unsubscribeUrl(snap.appUrl, to.token, scope) : null);
   const footer = [
     { label: `Mute ${handle}`, href: unsub({ kind: "ticket", itemId: snap.item.id }) },

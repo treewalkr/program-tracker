@@ -48,7 +48,7 @@ function page(title: string, body: string, status = 200): Response {
 <body style="margin:0;padding:48px 16px;background:#f6f8fa">
 <main style="font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;max-width:440px;margin:0 auto;padding:24px;background:#fff;border:1px solid #d0d7de;border-radius:6px">
 ${body}
-<p style="margin:24px 0 0;font-size:12px;color:#656d76">Program Tracker feedback · <a href="${esc(appUrl())}/settings" style="color:#656d76">Manage in Settings</a></p>
+<p style="margin:24px 0 0;font-size:12px;color:#656d76">Program Tracker feedback · <a href="${esc(appUrl())}/settings/notifications" style="color:#656d76">Manage in Settings</a></p>
 </main></body></html>`;
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }

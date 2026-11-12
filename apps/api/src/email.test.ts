@@ -106,7 +106,7 @@ describe.skipIf(!dbUp)("email unsubscribe", () => {
     const html = await res.text();
     expect(html).toContain("Done");
     expect(html).toContain('name="undo" value="1"');
-    expect(html).toContain("/settings");
+    expect(html).toContain("/settings/notifications");
     expect((await state()).on).toBe(false);
     await post("all", { undo: "1" });
     expect(await state()).toEqual(fresh);
