@@ -27,6 +27,7 @@ import {
   roleLabels,
   sessionTypes,
   trainerPreferences,
+  trainers,
 } from "@pt/db/schema";
 import {
   BODYWEIGHT_KG_RANGE,
@@ -35,6 +36,7 @@ import {
   CLIENT_SEXES,
   CLIENT_STATUSES,
   COACHING_RULE_CATEGORIES,
+  FEEDBACK_AI_MODES,
   FEEDBACK_STATUSES,
   GLOSSARY_KINDS,
   GLOSSARY_MEANING_MAX,
@@ -415,4 +417,18 @@ export const LlmFeedbackModel = {
   }),
   /** The anchor (a JSON document) is added by the route. */
   note: t.Object({ ...spread(t.Pick(LlmFeedbackInsert, ["subjectKind", "subjectId"])), ...note }),
+};
+
+// ---------------------------------------------------------------------------
+// Account (the signed-in trainer's own settings)
+// ---------------------------------------------------------------------------
+
+const TrainerUpdate = createUpdateSchema(trainers, { feedbackAiMode: as(oneOf(FEEDBACK_AI_MODES)) });
+
+const TrainerAiMode = t.Required(t.Pick(TrainerUpdate, ["feedbackAiMode"]));
+
+export const AccountModel = {
+  feedbackEmails: TrainerUpdate.properties.feedbackEmails,
+  /** Required, with no implicit default: an empty body is a 422, not "off". */
+  feedbackAiMode: t.Object({ mode: TrainerAiMode.properties.feedbackAiMode }),
 };

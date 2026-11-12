@@ -1,10 +1,11 @@
 import { Elysia, t } from "elysia";
 import { desc, eq } from "drizzle-orm";
 import { db, feedbackItems, feedbackMutes, trainers } from "@pt/db";
-import { DEFAULT_DELOAD, DeloadSettings, FEEDBACK_AI_MODES, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
+import { DEFAULT_DELOAD, DeloadSettings, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { trainerDeload } from "../lib/deload";
 import { feedbackAiMode } from "../lib/feedback-ai";
+import { AccountModel } from "../models";
 
 const ADMIN_ONLY = { error: "admin only" } as const;
 
@@ -56,7 +57,7 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
     },
     {
       body: t.Object({
-        feedbackEmails: t.Optional(t.Boolean()),
+        feedbackEmails: AccountModel.feedbackEmails,
         prefs: t.Optional(
           t.Partial(
             t.Object({
@@ -84,7 +85,7 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
       return { mode: body.mode };
     },
     {
-      body: t.Object({ mode: t.UnionEnum(FEEDBACK_AI_MODES) }),
+      body: AccountModel.feedbackAiMode,
       detail: { summary: "Set AI answers on feedback (admin)" },
     },
   )
