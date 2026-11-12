@@ -18,13 +18,13 @@
   import { whatsNew } from "$lib/whatsNew.svelte";
   import VersionLink from "$lib/components/VersionLink.svelte";
   import AccountMenu from "$lib/components/AccountMenu.svelte";
+  import { isAdminSession } from "$lib/settingsNav";
 
   let { children, data } = $props();
 
   const bare = $derived(page.url.pathname === "/login");
   const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
-  /** AUTH_DISABLED ("open") runs as admin server-side too. */
-  const isAdmin = $derived(trainer?.isAdmin || data.session.kind === "open");
+  const isAdmin = $derived(isAdminSession(data.session));
 
   async function signOut() {
     clearAllNewClientDrafts();

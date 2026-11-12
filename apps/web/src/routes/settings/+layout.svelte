@@ -2,11 +2,11 @@
   import { page } from "$app/state";
   import PageHead from "$lib/ui/PageHead.svelte";
   import SettingsRail from "$lib/components/SettingsRail.svelte";
-  import { activeSection, settingsGroups } from "$lib/settingsNav";
+  import { activeSection, isAdminSession, settingsGroups } from "$lib/settingsNav";
 
-  let { children } = $props();
+  let { children, data } = $props();
 
-  const groups = $derived(settingsGroups());
+  const groups = $derived(settingsGroups(isAdminSession(data.session)));
   const section = $derived(activeSection(groups, page.url.pathname));
 </script>
 

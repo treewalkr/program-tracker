@@ -1,4 +1,5 @@
 import type { IconName } from "./ui/Icon.svelte";
+import type { Session } from "./api/auth";
 
 /** One settings page: its rail entry and the line under the Settings title. */
 export type SettingsSection = { href: string; label: string; icon: IconName; sub: string };
@@ -19,14 +20,26 @@ const YOU: SettingsGroup = {
   ],
 };
 
+/** Workspace-wide settings; only admins see them, and the API enforces it too. */
+const WORKSPACE: SettingsGroup = {
+  label: "Workspace",
+  note: "Admin",
+  items: [],
+};
+
 const ABOUT: SettingsGroup = {
   label: null,
   items: [{ href: "/settings/about", label: "About", icon: "pulse", sub: "This app's version and its API" }],
 };
 
+/** AUTH_DISABLED ("open") runs as admin server-side too. */
+export function isAdminSession(session: Session): boolean {
+  return session.kind === "open" || (session.kind === "signedIn" && session.trainer.isAdmin);
+}
+
 /** The rail's groups. Trainers see their own settings; admins also see the workspace's. */
-export function settingsGroups(): SettingsGroup[] {
-  return [YOU, ABOUT];
+export function settingsGroups(isAdmin: boolean): SettingsGroup[] {
+  return [YOU, ...(isAdmin && WORKSPACE.items.length ? [WORKSPACE] : []), ABOUT];
 }
 
 /** The section the path is on; unknown paths fall back to the first one. */
