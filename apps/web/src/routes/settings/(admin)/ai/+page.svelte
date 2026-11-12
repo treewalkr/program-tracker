@@ -38,11 +38,11 @@
   }
 
   onMount(() => {
-    accountApi.feedbackAiMode().then(
-      (m) => (aiMode = m),
-      () => (aiMode = null),
-    );
     if (live) {
+      accountApi.feedbackAiMode().then(
+        (m) => (aiMode = m),
+        () => (aiMode = null),
+      );
       adminApi
         .llmStats()
         .then((s) => (llmStats = s))
@@ -57,7 +57,9 @@
       A scheduled agent reads new tickets against the code and replies. Every answer is badged as AI and comes with a
       private note for you.
     </p>
-    {#if aiMode === undefined}
+    {#if !live}
+      <p class="muted">This setting lives on the server — switch to the live API to change it.</p>
+    {:else if aiMode === undefined}
       <Skeleton shape="line" w="min(220px, 100%)" h="12px" />
     {:else if aiMode === null}
       <p class="muted">This setting isn't available right now.</p>
