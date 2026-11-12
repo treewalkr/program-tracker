@@ -15,9 +15,24 @@
   }
 
   let { groups, current }: Props = $props();
+
+  let nav = $state<HTMLElement>();
+
+  /** As a tab strip, keep the current page's tab in view. Scrolls only the
+      strip, never the page; a no-op as a column, where nothing overflows. */
+  $effect(() => {
+    current;
+    const on = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !on || nav.scrollWidth <= nav.clientWidth) return;
+    const box = nav.getBoundingClientRect();
+    const tab = on.getBoundingClientRect();
+    if (tab.left < box.left || tab.right > box.right) {
+      nav.scrollLeft += tab.left - box.left - (box.width - tab.width) / 2;
+    }
+  });
 </script>
 
-<nav class="rail" aria-label="Settings">
+<nav class="rail" aria-label="Settings" bind:this={nav}>
   {#each groups as g, i (g.label ?? `foot-${i}`)}
     {@const headId = g.label ? `settings-rail-${i}` : undefined}
     <div class={["group", !g.label && "foot", g.note && "fenced"]} data-group={g.label ?? "foot"}>
