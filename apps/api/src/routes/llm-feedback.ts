@@ -13,7 +13,7 @@ import { recordFeedback, subjectOwner } from "../lib/llm-feedback";
 import { activeRuleOf, afterNote, toNoteDto, toRuleDto } from "../lib/notes";
 import { runRevision } from "../lib/revision";
 import { ContextError } from "../ai/runtime";
-import { LlmFeedbackModel } from "../models";
+import { LlmFeedbackModel } from "../models/llm-feedback";
 import { spread } from "../utility";
 
 // The note anchor is a JSON document mirrored here; `satisfies` keeps it in step with
