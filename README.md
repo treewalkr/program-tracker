@@ -7,8 +7,8 @@ next block with AI assistance, and log workouts against the assigned program.
 
 - `apps/web` — SvelteKit (Svelte 5) trainer UI
 - `apps/api` — ElysiaJS on Bun
-- `packages/shared` — zod domain schemas (shared by API, web and AI output)
-- `packages/db` — Drizzle ORM schema + migrations (Postgres)
+- `packages/shared` — zod schemas for nested JSON documents and AI output (shared by API and web)
+- `packages/db` — Drizzle ORM schema + migrations (Postgres); the source for API row fields
 
 ## Quick start
 
