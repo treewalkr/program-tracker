@@ -18,6 +18,7 @@ import {
   clients,
   exercises,
   programs,
+  roleLabels,
   sessionTypes,
 } from "@pt/db/schema";
 import {
@@ -26,6 +27,9 @@ import {
   CLIENT_EXPERIENCES,
   CLIENT_SEXES,
   CLIENT_STATUSES,
+  ROLE_LABEL_CHIP_MAX,
+  ROLE_LABEL_DESCRIPTION_MAX,
+  ROLE_LABEL_NAME_MAX,
   SESSION_TYPE_NAME_MAX,
   HEIGHT_CM_RANGE,
   PHONE_MAX,
@@ -41,6 +45,9 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema, spread } fr
 type StringOptions = Parameters<typeof t.String>[0];
 /** Keep the generated string schema (e.g. uuid format) and add limits. */
 const str = (limits: StringOptions) => (schema: ReturnType<typeof t.String>) => t.String({ ...schema, ...limits });
+/** A nullable column's schema without `| null` — for bodies that only take a string. */
+const nonNull = <S extends TSchema>(schema: S) => t.Exclude(schema, t.Null());
+
 /** `t.UnionEnum` without its implicit `default: values[0]` — Elysia fills defaults into bodies,
  *  so an omitted optional field (e.g. a client's status on PATCH) would silently become values[0]. */
 const oneOf = <const V extends readonly [string, ...string[]]>(values: V) => {
@@ -236,5 +243,38 @@ export const SessionTypeModel = {
   update: t.Object({
     ...spread(t.Partial(t.Pick(SessionTypeInsert, ["name", "format"]))),
     archived: t.Optional(t.Boolean()),
+  }),
+};
+
+// ---------------------------------------------------------------------------
+// Role labels
+// ---------------------------------------------------------------------------
+
+const RoleLabelUpdate = createUpdateSchema(roleLabels, {
+  name: str({ minLength: 1, maxLength: ROLE_LABEL_NAME_MAX }),
+  chip: str({ maxLength: ROLE_LABEL_CHIP_MAX }),
+  description: str({ maxLength: ROLE_LABEL_DESCRIPTION_MAX }),
+});
+const RoleLabelText = t.Required(t.Pick(RoleLabelUpdate, ["name", "chip", "description"]));
+/** The route clears chip/description with "" (→ NULL), so bodies take strings, not null. */
+const roleLabel = {
+  name: RoleLabelText.properties.name,
+  chip: nonNull(RoleLabelText.properties.chip),
+  description: nonNull(RoleLabelText.properties.description),
+};
+
+export const RoleLabelModel = {
+  create: t.Object({
+    name: roleLabel.name,
+    chip: t.Optional(roleLabel.chip),
+    description: roleLabel.description,
+    /** Key of the label this one sorts right after; absent = last. */
+    after: t.Optional(t.String({ maxLength: 60 })),
+  }),
+  update: t.Object({
+    name: t.Optional(roleLabel.name),
+    chip: t.Optional(roleLabel.chip),
+    description: t.Optional(roleLabel.description),
+    rank: t.Optional(t.Number()),
   }),
 };

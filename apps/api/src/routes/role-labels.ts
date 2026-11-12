@@ -3,9 +3,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, roleLabels } from "@pt/db";
 import {
   EXERCISE_ROLE_INFO,
-  ROLE_LABEL_CHIP_MAX,
-  ROLE_LABEL_DESCRIPTION_MAX,
-  ROLE_LABEL_NAME_MAX,
   customRoleKey,
   isBuiltinRole,
   rankAfter,
@@ -13,10 +10,7 @@ import {
 } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { loadRoleLabels } from "../lib/role-labels";
-
-const Name = t.String({ minLength: 1, maxLength: ROLE_LABEL_NAME_MAX });
-const Chip = t.String({ maxLength: ROLE_LABEL_CHIP_MAX });
-const Description = t.String({ maxLength: ROLE_LABEL_DESCRIPTION_MAX });
+import { RoleLabelModel } from "../models";
 
 /** Single spaces, trimmed. */
 const clean = (s: string) => s.trim().replace(/\s+/g, " ");
@@ -62,13 +56,7 @@ export const roleLabelRoutes = new Elysia({ prefix: "/v1/vocabulary/role-labels"
       return status(201, (await loadRoleLabels(trainerId)).find((l) => l.key === customRoleKey(row.id))!);
     },
     {
-      body: t.Object({
-        name: Name,
-        chip: t.Optional(Chip),
-        description: Description,
-        /** Key of the label this one sorts right after; absent = last. */
-        after: t.Optional(t.String({ maxLength: 60 })),
-      }),
+      body: RoleLabelModel.create,
     }
   )
   /**
@@ -126,12 +114,7 @@ export const roleLabelRoutes = new Elysia({ prefix: "/v1/vocabulary/role-labels"
     },
     {
       params: t.Object({ id: t.String({ maxLength: 60 }) }),
-      body: t.Object({
-        name: t.Optional(Name),
-        chip: t.Optional(Chip),
-        description: t.Optional(Description),
-        rank: t.Optional(t.Number()),
-      }),
+      body: RoleLabelModel.update,
     }
   )
   /** Archive an own label: out of the picker and the AI list; programs still show it. */
