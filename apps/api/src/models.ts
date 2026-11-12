@@ -14,13 +14,19 @@
  * fields — never id, trainerId or timestamps.
  */
 import { t, type TSchema } from "elysia";
-import { clients, exercises, programs } from "@pt/db/schema";
+import {
+  clients,
+  exercises,
+  programs,
+  sessionTypes,
+} from "@pt/db/schema";
 import {
   BODYWEIGHT_KG_RANGE,
   CARDIO_TARGET_UNITS,
   CLIENT_EXPERIENCES,
   CLIENT_SEXES,
   CLIENT_STATUSES,
+  SESSION_TYPE_NAME_MAX,
   HEIGHT_CM_RANGE,
   PHONE_MAX,
   PROGRAM_STATUSES,
@@ -211,6 +217,24 @@ export const ExerciseModel = {
         "note",
       ])
     ),
+    archived: t.Optional(t.Boolean()),
+  }),
+};
+
+// ---------------------------------------------------------------------------
+// Session types
+// ---------------------------------------------------------------------------
+
+const SessionTypeInsert = createInsertSchema(sessionTypes, {
+  name: str({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX }),
+  /** Plain string: the route answers a bad value with "format must be lifting or cardio". */
+  format: as(t.String({ maxLength: 20 })),
+});
+
+export const SessionTypeModel = {
+  create: t.Pick(SessionTypeInsert, ["name", "format"]),
+  update: t.Object({
+    ...spread(t.Partial(t.Pick(SessionTypeInsert, ["name", "format"]))),
     archived: t.Optional(t.Boolean()),
   }),
 };
