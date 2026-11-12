@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### New
+- A fresh sign-in page. Admins can pick its layout (classic, split, bold or minimal) and accent colour in Settings › Login page, with a live preview before saving.
+- Settings is split into pages: Appearance, Notifications, Coaching and About, with a side menu (tabs at the top on a phone). Each page has its own link.
+- Admins get a Workspace section in Settings with the Login page, AI answers (with the AI dataset counts) and Email templates. Old links to these pages still work.
+
+### Fixed
+- "Manage in Settings" in feedback emails now opens your notification settings.
+
 ## v0.1.26 — 2026-11-12
 
 ### New
