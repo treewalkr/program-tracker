@@ -44,7 +44,7 @@ import { runRevision } from "../lib/revision";
 import { savePhasingEdit } from "../lib/phasing-edit";
 import { saveDraftEdit } from "../lib/draft-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
-import { AiGenerationModel } from "../models";
+import { AiGenerationModel } from "../models/ai-generations";
 
 /** Approve verdict: unedited when the approved week matches the AI draft, else edited with the diff. */
 async function recordApproval(
