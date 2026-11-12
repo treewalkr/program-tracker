@@ -7,7 +7,7 @@ import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 import { extractChunks, importResult, recentImports, saveImportHistory, settleImport, undoImportHistory } from "../lib/imports";
 import { loadGlossary } from "../lib/vocabulary";
-import { ImportModel } from "../models";
+import { ImportModel } from "../models/imports";
 
 /** Paste notes → a stored, resumable, cancellable import (docs/paste-import-plan.md §1). */
 export const importRoutes = new Elysia({ prefix: "/v1/ai/imports", tags: ["ai"] })
