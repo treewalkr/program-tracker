@@ -10,6 +10,8 @@ import type {
   OneRepMaxes,
   Phasing,
   PrescribedSet,
+  ProgramExercise,
+  ProgramSession,
   ProgramWeek,
   SessionKind,
   SetType,
@@ -103,35 +105,8 @@ export interface ClientDto {
   effectiveDeload?: DeloadSettings;
 }
 
-export interface ProgramExerciseDto {
-  id: string;
-  exerciseId: string;
-  exerciseName?: string;
-  role?: ExerciseRole;
-  order: number;
-  prescribedSets: PrescribedSetDto[];
-  notes?: string;
-  /** Superset / circuit letter shared by adjacent members (A1, A2…). */
-  group?: string;
-}
-
-export interface ProgramSessionDto {
-  id: string;
-  name: string;
-  /** 1-based position on its kind's track ("Session N" / "Cardio N"); stable across weeks. */
-  seq: number;
-  /** ISO 1=Mon…7=Sun; null/absent = unscheduled. */
-  weekday?: number | null;
-  /** Order within its weekday. */
-  order: number;
-  kind: SessionKind;
-  /** Trainer's session type; the name is captured when the session is saved. */
-  typeId?: string;
-  typeName?: string;
-  notes?: string;
-  exercises: ProgramExerciseDto[];
-  cardio?: CardioPrescriptionDto | null;
-}
+export type ProgramExerciseDto = ProgramExercise;
+export type ProgramSessionDto = ProgramSession;
 
 export interface ProgramDto {
   id: string;
