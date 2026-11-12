@@ -25,5 +25,18 @@ export const BLOCK_WEEKS: TrainingWeeks = [
   [1, 0, 2, 0, 1, 0, 0],
 ];
 
-/** Decorative: three of those blocks back to back — a training season. */
-export const SEASON_WEEKS: TrainingWeeks = [...BLOCK_WEEKS, ...BLOCK_WEEKS, ...BLOCK_WEEKS];
+/** Decorative: a twelve-week season — three blocks of build, build, peak, deload, each a notch heavier. */
+export const SEASON_WEEKS: TrainingWeeks = [
+  [2, 0, 2, 0, 1, 1, 0],
+  [2, 0, 3, 0, 2, 1, 0],
+  [3, 1, 3, 0, 3, 2, 0],
+  [1, 0, 1, 0, 1, 0, 0],
+  [2, 0, 3, 0, 2, 1, 0],
+  [3, 0, 3, 1, 3, 2, 0],
+  [3, 1, 4, 0, 3, 2, 0],
+  [1, 0, 2, 0, 1, 0, 0],
+  [3, 0, 3, 1, 3, 2, 0],
+  [3, 1, 4, 1, 3, 2, 1],
+  [4, 1, 4, 0, 4, 3, 0],
+  [2, 0, 1, 0, 2, 0, 0],
+];

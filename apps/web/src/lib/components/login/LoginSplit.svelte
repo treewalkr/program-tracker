@@ -21,7 +21,7 @@
     </div>
 
     <figure class="season" aria-hidden="true">
-      <TrainingBlock weeks={SEASON_WEEKS} axis="columns" cell={14} gap={3} />
+      <TrainingBlock weeks={SEASON_WEEKS} axis="columns" cell={20} gap={4} />
       <figcaption class="legend">
         <span>12 weeks · 3 blocks</span>
         <span class="ramp">
