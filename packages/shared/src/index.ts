@@ -31,3 +31,4 @@ export * from "./logRestore";
 export * from "./schemePresets";
 export * from "./instructionPresets";
 export * from "./paging";
+export * from "./loginTheme";
