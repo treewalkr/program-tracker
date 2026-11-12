@@ -2345,6 +2345,18 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     genId = genRes.body.id;
   });
 
+  test("chat bodies: empty or long messages, bad ids and null effort are refused", async () => {
+    const ask = (body: Record<string, unknown>) => call("POST", "/v1/ai/chat", { clientId, message: "hi", providerId: "mock", ...body });
+    expect((await ask({ message: "" })).status).toBe(422);
+    expect((await ask({ message: "x".repeat(2001) })).status).toBe(422);
+    expect((await ask({ clientId: "nope" })).status).toBe(422);
+    expect((await ask({ effort: null })).status).toBe(422);
+    const turn = (body: Record<string, unknown>) =>
+      call("POST", "/v1/ai/chat/turn", { clientId, generationId: genId, message: "hi", providerId: "mock", ...body });
+    expect((await turn({ generationId: "nope" })).status).toBe(422);
+    expect((await turn({ message: "" })).status).toBe(422);
+  });
+
   test("generation bodies: long or null text, bad ids and empty revisions are refused", async () => {
     const gen = (body: Record<string, unknown>) => call("POST", "/v1/ai/generate", { clientId, providerId: "mock", ...body });
     expect((await gen({ instructions: "x".repeat(2001) })).status).toBe(422);

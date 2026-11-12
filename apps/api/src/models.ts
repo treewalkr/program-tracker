@@ -16,6 +16,7 @@
 import { t, type TSchema } from "elysia";
 import {
   aiGenerations,
+  chatMessages,
   clients,
   coachingRules,
   exerciseAliases,
@@ -470,4 +471,27 @@ export const AiGenerationModel = {
   reject: t.Optional(t.Object({ reason: t.Optional(nonNull(AiGenerationValues.properties.rejectReason)) })),
   /** Stored as `revisionMessage`. */
   revise: t.Object({ message: nonNull(AiGenerationValues.properties.revisionMessage) }),
+};
+
+// ---------------------------------------------------------------------------
+// Chat
+// ---------------------------------------------------------------------------
+
+const ChatMessageInsert = createInsertSchema(chatMessages, { content: str({ minLength: 1, maxLength: 2000 }) });
+const ChatMessageUpdate = createUpdateSchema(chatMessages);
+
+export const ChatModel = {
+  /** The trainer's message (stored as `content`) and the model that answers it. */
+  ask: t.Object({
+    ...spread(t.Pick(ChatMessageInsert, ["clientId"])),
+    message: ChatMessageInsert.properties.content,
+    ...ProviderChoice,
+  }),
+  turn: t.Object({
+    ...spread(t.Pick(ChatMessageInsert, ["clientId"])),
+    ...spread(t.Pick(ChatMessageUpdate, ["generationId"])),
+    message: ChatMessageInsert.properties.content,
+    ...ProviderChoice,
+  }),
+  retry: t.Object(ProviderChoice),
 };
