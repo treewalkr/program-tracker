@@ -4,7 +4,7 @@ import { db, sessionTypes, type SessionTypeRow } from "@pt/db";
 import { ensureSessionTypes } from "../lib/session-types";
 import { SESSION_KINDS, normalizeTypeName, type SessionKind } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
-import { SessionTypeModel } from "../models";
+import { SessionTypeModel } from "../models/session-types";
 
 const isFormat = (f: string): f is SessionKind => (SESSION_KINDS as readonly string[]).includes(f);
 const badFormat = { error: "format must be lifting or cardio" };

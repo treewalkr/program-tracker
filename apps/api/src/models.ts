@@ -13,7 +13,6 @@ import {
   glossaryTerms,
   llmFeedback,
   roleLabels,
-  sessionTypes,
   trainerPreferences,
 } from "@pt/db/schema";
 import {
@@ -26,7 +25,6 @@ import {
   ROLE_LABEL_CHIP_MAX,
   ROLE_LABEL_DESCRIPTION_MAX,
   ROLE_LABEL_NAME_MAX,
-  SESSION_TYPE_NAME_MAX,
   IMPORT_MAX_CHARS,
   LLM_CLIENT_SIGNALS,
   LLM_REASON_TAGS,
@@ -34,24 +32,6 @@ import {
 } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utility";
 import { str, oneOf, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
-
-// ---------------------------------------------------------------------------
-// Session types
-// ---------------------------------------------------------------------------
-
-const SessionTypeInsert = createInsertSchema(sessionTypes, {
-  name: str({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX }),
-  /** Plain string: the route answers a bad value with "format must be lifting or cardio". */
-  format: as(t.String({ maxLength: 20 })),
-});
-
-export const SessionTypeModel = {
-  create: t.Pick(SessionTypeInsert, ["name", "format"]),
-  update: t.Object({
-    ...spread(t.Partial(t.Pick(SessionTypeInsert, ["name", "format"]))),
-    archived: t.Optional(t.Boolean()),
-  }),
-};
 
 // ---------------------------------------------------------------------------
 // Role labels
