@@ -31,6 +31,12 @@ const WORKSPACE: SettingsGroup = {
       icon: "monitor",
       sub: "What trainers see before they sign in — the layout and its accent",
     },
+    {
+      href: "/settings/ai",
+      label: "AI answers",
+      icon: "sparkle",
+      sub: "How the feedback agent replies, and what the AI log has collected",
+    },
   ],
 };
 
