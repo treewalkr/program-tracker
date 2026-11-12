@@ -387,7 +387,7 @@ export const FeedbackModel = {
 // LLM feedback (verdicts and notes on AI output)
 // ---------------------------------------------------------------------------
 
-const LlmFeedbackInsert = createInsertSchema(llmFeedback, {
+const llmFeedbackFields = {
   /** What a trainer can rate; `call` and `feedback_answer` rows are written server-side. */
   subjectKind: as(oneOf(["chat_message", "generation", "client_message"])),
   signal: as(oneOf(LLM_CLIENT_SIGNALS)),
@@ -395,7 +395,9 @@ const LlmFeedbackInsert = createInsertSchema(llmFeedback, {
   comment: str({ maxLength: 2000 }),
   correction: str({ maxLength: 2000 }),
   scope: as(oneOf(NOTE_SCOPES)),
-});
+};
+const LlmFeedbackInsert = createInsertSchema(llmFeedback, llmFeedbackFields);
+const LlmFeedbackUpdate = createUpdateSchema(llmFeedback, llmFeedbackFields);
 /** Bodies send these as values or leave them out — never null. */
 const LlmFeedbackNote = t.Required(t.Pick(LlmFeedbackInsert, ["comment", "correction", "scope", "ruleId"]));
 const note = {
@@ -403,7 +405,7 @@ const note = {
   correction: t.Optional(nonNull(LlmFeedbackNote.properties.correction)),
   /** Should it apply again? Anything but "once" proposes a coaching rule. */
   scope: t.Optional(nonNull(LlmFeedbackNote.properties.scope)),
-  reasonTags: LlmFeedbackInsert.properties.reasonTags,
+  reasonTags: LlmFeedbackUpdate.properties.reasonTags,
   /** Stored as `ruleId`: the rule the trainer says was broken. */
   violatedRuleId: t.Optional(nonNull(LlmFeedbackNote.properties.ruleId)),
 };
