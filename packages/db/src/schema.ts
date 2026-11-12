@@ -691,6 +691,18 @@ export const emailLog = pgTable("email_log", {
 }, (t) => [index("email_log_created_at_idx").on(t.createdAt)]);
 
 // ---------------------------------------------------------------------------
+// App settings — platform-wide, admin-owned values keyed by name (e.g. `login_theme`)
+// ---------------------------------------------------------------------------
+
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Who saved it last; null once that account is removed. */
+  updatedBy: uuid("updated_by").references(() => trainers.id, { onDelete: "set null" }),
+});
+
+// ---------------------------------------------------------------------------
 // Session types — trainer-owned labels over the fixed formats (see @pt/shared sessionTypes)
 // ---------------------------------------------------------------------------
 

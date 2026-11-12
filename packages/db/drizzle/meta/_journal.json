@@ -386,6 +386,13 @@
       "when": 1797500000000,
       "tag": "0055_generation_trainer_order",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1797600000000,
+      "tag": "0056_app_settings",
+      "breakpoints": true
     }
   ]
 }
