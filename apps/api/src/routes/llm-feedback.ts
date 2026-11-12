@@ -5,38 +5,19 @@ import {
   LLM_EXPLICIT_SIGNALS,
   LLM_NOTE_SIGNAL,
   noteRevisionText,
-  type LlmClientSignal,
   type LlmReasonTag,
   type NoteAnchor,
-  type NoteScope,
 } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordFeedback, subjectOwner } from "../lib/llm-feedback";
 import { activeRuleOf, afterNote, toNoteDto, toRuleDto } from "../lib/notes";
 import { runRevision } from "../lib/revision";
 import { ContextError } from "../ai/runtime";
+import { LlmFeedbackModel } from "../models";
+import { spread } from "../lib/drizzle-schema";
 
-// Written-out literal unions (not built from the shared arrays) so the types
-// survive Eden; the `satisfies` lines keep them in step with @pt/shared.
-const SubjectKind = t.Union([t.Literal("chat_message"), t.Literal("generation"), t.Literal("client_message")]);
-const Signal = t.Union([
-  t.Literal("thumbs_up"),
-  t.Literal("thumbs_down"),
-  t.Literal("proposal_adjusted"),
-  t.Literal("client_message_copied"),
-]);
-const ReasonTag = t.Union([
-  t.Literal("ignored_limitation"),
-  t.Literal("wrong_exercise"),
-  t.Literal("volume_off"),
-  t.Literal("load_off"),
-  t.Literal("invented_number"),
-  t.Literal("off_topic"),
-  t.Literal("tone"),
-  t.Literal("too_long"),
-  t.Literal("format"),
-]);
-const Scope = t.Union([t.Literal("once"), t.Literal("client"), t.Literal("always")]);
+// The note anchor is a JSON document mirrored here; `satisfies` keeps it in step with
+// @pt/shared. Row fields come from the llm_feedback table (models.ts).
 const Anchor = t.Union([
   t.Object({
     type: t.Literal("slot"),
@@ -55,9 +36,6 @@ const Anchor = t.Union([
     end: t.Integer({ minimum: 0 }),
   }),
 ]);
-true satisfies LlmClientSignal extends Static<typeof Signal> ? true : false;
-true satisfies LlmReasonTag extends Static<typeof ReasonTag> ? true : false;
-true satisfies NoteScope extends Static<typeof Scope> ? true : false;
 true satisfies Static<typeof Anchor> extends NoteAnchor ? true : false;
 
 const toVerdict = (r: typeof llmFeedback.$inferSelect) => ({
@@ -111,18 +89,7 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
       });
     },
     {
-      body: t.Object({
-        subjectKind: SubjectKind,
-        subjectId: t.String({ format: "uuid" }),
-        signal: Signal,
-        reasonTags: t.Optional(t.Array(ReasonTag, { maxItems: 9, uniqueItems: true })),
-        comment: t.Optional(t.String({ maxLength: 2000 })),
-        /** "What instead" — the trainer's correction. */
-        correction: t.Optional(t.String({ maxLength: 2000 })),
-        /** Should it apply again? Anything but "once" proposes a coaching rule. */
-        scope: t.Optional(Scope),
-        violatedRuleId: t.Optional(t.String({ format: "uuid" })),
-      }),
+      body: LlmFeedbackModel.verdict,
       detail: { summary: "Rate an AI output (thumbs, reasons, comment, what instead) or record a UI-side signal" },
     }
   )
@@ -145,7 +112,7 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
       return status(204);
     },
     {
-      query: t.Object({ subjectKind: SubjectKind, subjectId: t.String({ format: "uuid" }) }),
+      query: LlmFeedbackModel.subject,
       detail: { summary: "Remove the thumbs verdict on an AI output" },
     }
   )
@@ -181,16 +148,7 @@ export const llmFeedbackRoutes = new Elysia({ prefix: "/v1/ai/feedback", tags: [
       });
     },
     {
-      body: t.Object({
-        subjectKind: SubjectKind,
-        subjectId: t.String({ format: "uuid" }),
-        anchor: Anchor,
-        comment: t.String({ maxLength: 2000 }),
-        correction: t.Optional(t.String({ maxLength: 2000 })),
-        scope: t.Optional(Scope),
-        reasonTags: t.Optional(t.Array(ReasonTag, { maxItems: 9, uniqueItems: true })),
-        violatedRuleId: t.Optional(t.String({ format: "uuid" })),
-      }),
+      body: t.Object({ ...spread(LlmFeedbackModel.note), anchor: Anchor }),
       detail: { summary: "Pin a note to part of an AI output; scope client/always proposes a coaching rule" },
     }
   )

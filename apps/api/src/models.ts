@@ -22,6 +22,7 @@ import {
   feedbackComments,
   feedbackItems,
   glossaryTerms,
+  llmFeedback,
   programs,
   roleLabels,
   sessionTypes,
@@ -43,6 +44,9 @@ import {
   ROLE_LABEL_NAME_MAX,
   SESSION_TYPE_NAME_MAX,
   HEIGHT_CM_RANGE,
+  LLM_CLIENT_SIGNALS,
+  LLM_REASON_TAGS,
+  NOTE_SCOPES,
   PHONE_MAX,
   PROGRAM_STATUSES,
   type CardioTarget,
@@ -375,4 +379,40 @@ export const FeedbackModel = {
   triage: t.Pick(FeedbackItemUpdate, ["status", "triageNote"]),
   /** Reply text; the column is null only for status entries. */
   replyBody: nonNull(FeedbackReplyText.properties.body),
+};
+
+// ---------------------------------------------------------------------------
+// LLM feedback (verdicts and notes on AI output)
+// ---------------------------------------------------------------------------
+
+const LlmFeedbackInsert = createInsertSchema(llmFeedback, {
+  /** What a trainer can rate; `call` and `feedback_answer` rows are written server-side. */
+  subjectKind: as(oneOf(["chat_message", "generation", "client_message"])),
+  signal: as(oneOf(LLM_CLIENT_SIGNALS)),
+  reasonTags: as(t.Array(oneOf(LLM_REASON_TAGS), { maxItems: 9, uniqueItems: true })),
+  comment: str({ maxLength: 2000 }),
+  correction: str({ maxLength: 2000 }),
+  scope: as(oneOf(NOTE_SCOPES)),
+});
+/** Bodies send these as values or leave them out — never null. */
+const LlmFeedbackNote = t.Required(t.Pick(LlmFeedbackInsert, ["comment", "correction", "scope", "ruleId"]));
+const note = {
+  comment: nonNull(LlmFeedbackNote.properties.comment),
+  correction: t.Optional(nonNull(LlmFeedbackNote.properties.correction)),
+  /** Should it apply again? Anything but "once" proposes a coaching rule. */
+  scope: t.Optional(nonNull(LlmFeedbackNote.properties.scope)),
+  reasonTags: LlmFeedbackInsert.properties.reasonTags,
+  /** Stored as `ruleId`: the rule the trainer says was broken. */
+  violatedRuleId: t.Optional(nonNull(LlmFeedbackNote.properties.ruleId)),
+};
+
+export const LlmFeedbackModel = {
+  subject: t.Pick(LlmFeedbackInsert, ["subjectKind", "subjectId"]),
+  verdict: t.Object({
+    ...spread(t.Pick(LlmFeedbackInsert, ["subjectKind", "subjectId", "signal"])),
+    ...note,
+    comment: t.Optional(note.comment),
+  }),
+  /** The anchor (a JSON document) is added by the route. */
+  note: t.Object({ ...spread(t.Pick(LlmFeedbackInsert, ["subjectKind", "subjectId"])), ...note }),
 };
