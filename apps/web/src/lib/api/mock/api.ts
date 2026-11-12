@@ -847,6 +847,7 @@ export const mockApi: TrainerApi = {
     await delay(450);
     const program: ProgramDto = {
       id: `pg-${uuid().slice(0, 8)}`,
+      trainerId: "me",
       clientId: input.clientId,
       name: input.name,
       description: input.description ?? null,
@@ -854,6 +855,7 @@ export const mockApi: TrainerApi = {
       version: 1,
       aiAssisted: false,
       createdFromProgramId: input.createdFromProgramId ?? null,
+      direction: null,
       weeks: input.weeks,
       createdAt: new Date().toISOString(),
       activatedAt: null,
@@ -1347,6 +1349,7 @@ export const mockApi: TrainerApi = {
     const saved = plan.programs.map((p) => {
       const program: ProgramDto = {
         id: `pg-${uuid().slice(0, 8)}`,
+        trainerId: "me",
         clientId: row.clientId,
         name: p.name,
         description: `Imported from notes on ${savedOn}`,
@@ -1354,6 +1357,7 @@ export const mockApi: TrainerApi = {
         version: 1,
         aiAssisted: false,
         createdFromProgramId: null,
+        direction: null,
         weeks: p.weeks,
         createdAt: new Date().toISOString(),
         activatedAt: `${p.activatedAt}T00:00:00.000Z`,
@@ -1616,6 +1620,7 @@ export const mockApi: TrainerApi = {
     const weeks = placeWeeks(stampWeeks(template, plannedWeeks), client, patternOf, { keepWeekdays: true });
     const program: ProgramDto = {
       id: uuid(),
+      trainerId: "me",
       clientId: gen.clientId,
       name: gen.draft.name,
       description: gen.draft.clientSummary,
@@ -1623,7 +1628,10 @@ export const mockApi: TrainerApi = {
       version: 1,
       aiAssisted: true,
       createdFromProgramId: gen.basedOnProgramId,
+      direction: null,
       createdAt: new Date().toISOString(),
+      activatedAt: null,
+      phasing: null,
       weeks,
     };
     state.programs.unshift(program);

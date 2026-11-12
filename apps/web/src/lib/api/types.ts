@@ -10,6 +10,8 @@ import type {
   OneRepMaxes,
   Phasing,
   PrescribedSet,
+  ProgramExercise,
+  ProgramSession,
   ProgramWeek,
   SessionKind,
   SetType,
@@ -37,6 +39,7 @@ import type {
   Readiness,
   SessionFlag,
 } from "@pt/shared";
+import type { Treaty } from "@elysiajs/eden";
 import type { client } from "./treaty";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -103,51 +106,21 @@ export interface ClientDto {
   effectiveDeload?: DeloadSettings;
 }
 
-export interface ProgramExerciseDto {
-  id: string;
-  exerciseId: string;
-  exerciseName?: string;
-  role?: ExerciseRole;
-  order: number;
-  prescribedSets: PrescribedSetDto[];
-  notes?: string;
-  /** Superset / circuit letter shared by adjacent members (A1, A2…). */
-  group?: string;
-}
+export type ProgramExerciseDto = ProgramExercise;
+export type ProgramSessionDto = ProgramSession;
 
-export interface ProgramSessionDto {
-  id: string;
-  name: string;
-  /** 1-based position on its kind's track ("Session N" / "Cardio N"); stable across weeks. */
-  seq: number;
-  /** ISO 1=Mon…7=Sun; null/absent = unscheduled. */
-  weekday?: number | null;
-  /** Order within its weekday. */
-  order: number;
-  kind: SessionKind;
-  /** Trainer's session type; the name is captured when the session is saved. */
-  typeId?: string;
-  typeName?: string;
-  notes?: string;
-  exercises: ProgramExerciseDto[];
-  cardio?: CardioPrescriptionDto | null;
-}
+/** A wire shape as pages see it: `unwrap` in real.ts turns every Eden-revived
+ *  Date back into its ISO string (`datesToIso`), so the mock can share it. */
+export type Wire<T> = T extends Date
+  ? string
+  : T extends readonly (infer U)[]
+    ? Wire<U>[]
+    : T extends object
+      ? { [K in keyof T]: Wire<T[K]> }
+      : T;
 
-export interface ProgramDto {
-  id: string;
-  clientId: string | null;
-  name: string;
-  description: string | null;
-  status: "draft" | "active" | "archived";
-  version: number;
-  aiAssisted: boolean;
-  createdFromProgramId: string | null;
-  weeks: ProgramWeekDto[];
-  direction?: string | null;
-  createdAt: string;
-  activatedAt?: string | null;
-  phasing?: ProgramPhasingDto | null;
-}
+/** GET /v1/programs/:id, inferred from the Elysia route via Eden Treaty. */
+export type ProgramDto = Wire<Treaty.Data<ReturnType<typeof client.v1.programs>["get"]>>;
 
 export interface ExerciseDto {
   id: string;
