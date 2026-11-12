@@ -17,6 +17,7 @@ import { t, type TSchema } from "elysia";
 import {
   aiGenerations,
   chatMessages,
+  clientMessages,
   clients,
   coachingRules,
   exerciseAliases,
@@ -36,6 +37,7 @@ import {
   CARDIO_TARGET_UNITS,
   CLIENT_EXPERIENCES,
   CLIENT_SEXES,
+  CLIENT_MESSAGE_MAX_CHARS,
   CLIENT_STATUSES,
   COACHING_RULE_CATEGORIES,
   FEEDBACK_AI_MODES,
@@ -494,4 +496,27 @@ export const ChatModel = {
     ...ProviderChoice,
   }),
   retry: t.Object(ProviderChoice),
+};
+
+// ---------------------------------------------------------------------------
+// Client messages (weekly check-ins)
+// ---------------------------------------------------------------------------
+
+const clientMessageFields = {
+  week: as(t.Integer({ minimum: 1, maximum: 26 })),
+  finalText: str({ minLength: 1, maxLength: CLIENT_MESSAGE_MAX_CHARS }),
+};
+const ClientMessageInsert = createInsertSchema(clientMessages, clientMessageFields);
+const ClientMessageUpdate = createUpdateSchema(clientMessages, clientMessageFields);
+const ClientMessageText = t.Required(t.Pick(ClientMessageUpdate, ["finalText"]));
+
+export const ClientMessageModel = {
+  create: t.Object({
+    ...spread(t.Pick(ClientMessageInsert, ["clientId", "week"])),
+    /** Required here: a check-in is about one program. */
+    programId: nonNull(t.Required(t.Pick(ClientMessageUpdate, ["programId"])).properties.programId),
+    ...spread(t.Pick(ClientMessageUpdate, ["providerId", "model"])),
+  }),
+  /** Stored as `finalText` on approve. */
+  edit: t.Object({ text: t.Optional(nonNull(ClientMessageText.properties.finalText)) }),
 };

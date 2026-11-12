@@ -2271,6 +2271,18 @@ describe.skipIf(!dbUp)("client messages (mock provider)", () => {
     expect(asIs.body.finalText).toBe(asIs.body.draft.message);
   });
 
+  test("client message bodies: weeks out of range, bad ids, null or long text are refused", async () => {
+    const gen = (body: Record<string, unknown>) =>
+      call("POST", "/v1/client-messages/generate", { clientId, programId, week: 1, providerId: "mock", ...body });
+    expect((await gen({ week: 0 })).status).toBe(422);
+    expect((await gen({ week: 27 })).status).toBe(422);
+    expect((await gen({ programId: null })).status).toBe(422);
+    expect((await gen({ clientId: "nope" })).status).toBe(422);
+    const approve = (body: Record<string, unknown>) => call("POST", `/v1/client-messages/${asIsGenId}/approve`, body);
+    expect((await approve({ text: null })).status).toBe(422);
+    expect((await approve({ text: "x".repeat(1201) })).status).toBe(422);
+  });
+
   test("approve guards 409/422; reject marks discarded; list filters by clientId", async () => {
     // approving an already-approved row → 409
     const reApprove = await call("POST", `/v1/client-messages/${editedGenId}/approve`, {});
