@@ -243,7 +243,8 @@
 
   .stagebox { padding: 16px; background: var(--well); }
 
-  @media (max-width: 1100px) {
+  /* Sized to the settings area (rail included), not the viewport. */
+  @container settings (max-width: 1010px) {
     .editor { grid-template-columns: minmax(0, 1fr); }
   }
 

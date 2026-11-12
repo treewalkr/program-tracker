@@ -101,7 +101,7 @@ describe("feedbackEmails", () => {
     const [e] = feedbackEmails("created", snap({ item: { ...snap().item, comment: "<script>x</script> broken" } }));
     for (const body of [e.text, e.html]) {
       expect(body).toContain("https://pt.test/feedback#FB-012");
-      expect(body).toContain("https://pt.test/settings");
+      expect(body).toContain("https://pt.test/settings/notifications");
     }
     expect(e.html).not.toContain("<script>");
     expect(e.html).toContain("&lt;script&gt;");
@@ -154,7 +154,7 @@ describe("feedbackEmails", () => {
       expect(body).toContain(`${base}ticket%3A11111111-2222-3333-4444-555555555555`);
       expect(body).toContain(`${base}event%3Areplies`);
       expect(body).toContain(`${base}all`);
-      expect(body).toContain("https://pt.test/settings");
+      expect(body).toContain("https://pt.test/settings/notifications");
       expect(body).not.toContain("tok-boss");
     }
     expect(kaiMail.text).toContain("Mute FB-012: ");
@@ -179,7 +179,7 @@ describe("feedbackEmails", () => {
   test("no token yet: only the Settings link, no list headers", () => {
     const [e] = feedbackEmails("created", snap({ admin: { ...boss, token: null } }));
     expect(e.text).not.toContain("/v1/email/unsubscribe");
-    expect(e.text).toContain("Manage in Settings: https://pt.test/settings");
+    expect(e.text).toContain("Manage in Settings: https://pt.test/settings/notifications");
     expect(e.headers).toBeUndefined();
   });
 });

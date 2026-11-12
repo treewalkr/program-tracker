@@ -2,8 +2,7 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { apiMode } from "$lib/api";
-  import { adminApi, type LlmDatasetStats, type TrainerAccount } from "$lib/api/admin";
-  import LlmDatasetPanel from "$lib/components/LlmDatasetPanel.svelte";
+  import { adminApi, type TrainerAccount } from "$lib/api/admin";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -24,8 +23,6 @@
 
   let trainers = $state<TrainerAccount[] | null>(null);
   let loadError = $state<string | null>(null);
-  let llmStats = $state<LlmDatasetStats | null>(null);
-  let llmStatsError = $state<string | null>(null);
 
   let name = $state("");
   let email = $state("");
@@ -120,13 +117,7 @@
   }
 
   onMount(() => {
-    if (apiMode === "live") {
-      load();
-      adminApi
-        .llmStats()
-        .then((s) => (llmStats = s))
-        .catch((err) => (llmStatsError = (err as Error).message));
-    }
+    if (apiMode === "live") load();
   });
 </script>
 
@@ -181,7 +172,7 @@
           <span class="subtle">Then send them</span>
           <code>{loginUrl}</code>
           <Button small variant="ghost" type="button" onclick={copyLink}>{copied ? "Copied" : "Copy link"}</Button>
-          <a class="restyle" href="/admin/login-theme">Change how it looks</a>
+          <a class="restyle" href="/settings/login-page">Change how it looks</a>
         </div>
       </form>
     </Panel>
@@ -248,23 +239,9 @@
       </Panel>
     {/if}
   </div>
-
-  <div class="dataset">
-    {#if llmStatsError}
-      <Note tone="bad">Couldn't load AI dataset counts — {llmStatsError}.</Note>
-    {:else if llmStats}
-      <LlmDatasetPanel stats={llmStats} />
-    {:else}
-      <SkeletonPanel title="AI dataset" count height={120} />
-    {/if}
-  </div>
 {/if}
 
 <style>
-  .dataset {
-    margin-top: 18px;
-    max-width: var(--measure-form);
-  }
   .cols {
     display: grid;
     gap: 18px;

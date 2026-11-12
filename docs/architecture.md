@@ -178,7 +178,7 @@ See [notifications.md](notifications.md).
 - **Email** (`lib/mailer.ts`, `lib/feedback-notify.ts`) — Resend over HTTPS
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`); unset = silent no-op. Sends are recorded
   in `email_log`; unsubscribe links carry a per-person token and a scope. Admins
-  preview templates and the outbox at `/admin/emails`.
+  preview templates at `/settings/email-templates` and the outbox at `/admin/emails/outbox`.
 - **Trainer libraries** — session types, kinetic chains, vocabulary + role labels,
   coaching rules (proposed from notes, active only once confirmed), prompt templates,
   periodization schemes, gold-standard examples (AI few-shot), and distilled
