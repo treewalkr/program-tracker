@@ -186,6 +186,7 @@ function makeWeeks(
 export const programs: ProgramDto[] = [
   {
     id: "pg-maya-a",
+    trainerId: "me",
     clientId: "cl-maya",
     name: "Strength Base A",
     description: "Full-body strength base, 4 days. Neutral-grip pressing only.",
@@ -193,6 +194,7 @@ export const programs: ProgramDto[] = [
     version: 3,
     aiAssisted: false,
     createdFromProgramId: null,
+    direction: null,
     createdAt: "2026-07-14T09:00:00Z",
     activatedAt: new Date(Date.now() - 35 * 86400_000).toISOString(),
     phasing: {
@@ -296,6 +298,7 @@ export const programs: ProgramDto[] = [
   },
   {
     id: "pg-maya-0",
+    trainerId: "me",
     clientId: "cl-maya",
     name: "Onboarding Intro",
     description: "Two weeks of technique work.",
@@ -303,7 +306,10 @@ export const programs: ProgramDto[] = [
     version: 1,
     aiAssisted: false,
     createdFromProgramId: null,
+    direction: null,
     createdAt: "2026-06-30T09:00:00Z",
+    activatedAt: null,
+    phasing: null,
     weeks: makeWeeks(
       [
         { sessions: [{ id: "ps-maya-i1", name: "Full body A", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-split", order: 0, prescribedSets: [S(1, 10), S(2, 10), S(3, 10)] }, { id: uuid(), exerciseId: "ex-hinge", order: 1, prescribedSets: [S(1, 12), S(2, 12)] }] }] },
@@ -315,6 +321,7 @@ export const programs: ProgramDto[] = [
   },
   {
     id: "pg-jonas-a",
+    trainerId: "me",
     clientId: "cl-jonas",
     name: "Hypertrophy Block 2",
     description: "3-day upper/lower/upper split, 8–12 rep focus.",
@@ -350,6 +357,7 @@ export const programs: ProgramDto[] = [
   },
   {
     id: "pg-jonas-0",
+    trainerId: "me",
     clientId: "cl-jonas",
     name: "Hypertrophy Block 1",
     description: null,
@@ -357,7 +365,10 @@ export const programs: ProgramDto[] = [
     version: 1,
     aiAssisted: false,
     createdFromProgramId: null,
+    direction: null,
     createdAt: "2026-06-15T09:00:00Z",
+    activatedAt: null,
+    phasing: null,
     weeks: makeWeeks(
       [{ sessions: [{ id: uuid(), name: "Full body", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-bench", order: 0, prescribedSets: [S(1, 10), S(2, 10), S(3, 10)] }] }] }],
       1,
@@ -366,6 +377,7 @@ export const programs: ProgramDto[] = [
   },
   {
     id: "pg-priya-a",
+    trainerId: "me",
     clientId: "cl-priya",
     name: "Maintain & Move",
     description: "2×/week, joint-friendly.",
@@ -373,7 +385,10 @@ export const programs: ProgramDto[] = [
     version: 1,
     aiAssisted: false,
     createdFromProgramId: null,
+    direction: null,
     createdAt: "2026-09-10T09:00:00Z",
+    activatedAt: null,
+    phasing: null,
     weeks: makeWeeks(
       [{ sessions: [{ id: uuid(), name: "Full body", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-press", order: 0, prescribedSets: [S(1, 12), S(2, 12)] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12), S(2, 12)] }] }] }],
       1,
@@ -598,6 +613,7 @@ const toFailure = (n: number) => many(n, 0, { amrap: true });
 
 export const trainerProgram: ProgramDto = {
   id: "pg-nat-a",
+  trainerId: "me",
   clientId: "cl-nat",
   name: "Sarcoplasmic Hypertrophy",
   description: "4 days + cardio. Rest day + easy run 1–2 days per week.",
@@ -605,6 +621,7 @@ export const trainerProgram: ProgramDto = {
   version: 2,
   aiAssisted: false,
   createdFromProgramId: null,
+  direction: null,
   activatedAt: new Date(Date.now() - 6 * 86400_000).toISOString(),
   phasing: {
     plannedWeeks: 6,

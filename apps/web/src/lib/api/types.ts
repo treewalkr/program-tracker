@@ -39,6 +39,7 @@ import type {
   Readiness,
   SessionFlag,
 } from "@pt/shared";
+import type { Treaty } from "@elysiajs/eden";
 import type { client } from "./treaty";
 
 export type PrescribedSetDto = PrescribedSet;
@@ -108,21 +109,18 @@ export interface ClientDto {
 export type ProgramExerciseDto = ProgramExercise;
 export type ProgramSessionDto = ProgramSession;
 
-export interface ProgramDto {
-  id: string;
-  clientId: string | null;
-  name: string;
-  description: string | null;
-  status: "draft" | "active" | "archived";
-  version: number;
-  aiAssisted: boolean;
-  createdFromProgramId: string | null;
-  weeks: ProgramWeekDto[];
-  direction?: string | null;
-  createdAt: string;
-  activatedAt?: string | null;
-  phasing?: ProgramPhasingDto | null;
-}
+/** A wire shape as pages see it: `unwrap` in real.ts turns every Eden-revived
+ *  Date back into its ISO string (`datesToIso`), so the mock can share it. */
+export type Wire<T> = T extends Date
+  ? string
+  : T extends readonly (infer U)[]
+    ? Wire<U>[]
+    : T extends object
+      ? { [K in keyof T]: Wire<T[K]> }
+      : T;
+
+/** GET /v1/programs/:id, inferred from the Elysia route via Eden Treaty. */
+export type ProgramDto = Wire<Treaty.Data<ReturnType<typeof client.v1.programs>["get"]>>;
 
 export interface ExerciseDto {
   id: string;
