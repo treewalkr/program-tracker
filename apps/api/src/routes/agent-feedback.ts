@@ -35,7 +35,7 @@ import {
 } from "../lib/feedback-ai";
 import { answerExtras, answerRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
 import { TRANSCRIPT_MAX_CHARS } from "../lib/agent-transcript";
-import { FeedbackModel } from "../models";
+import { FeedbackModel } from "../models/feedback";
 
 /**
  * Bearer FEEDBACK_AGENT_TOKEN, nothing else: no session, no trainer. Only the

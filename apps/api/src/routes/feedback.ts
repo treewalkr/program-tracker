@@ -27,7 +27,7 @@ import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
 import { rateAnswer, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
-import { FeedbackModel } from "../models";
+import { FeedbackModel } from "../models/feedback";
 import { spread } from "../utility";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
