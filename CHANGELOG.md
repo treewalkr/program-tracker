@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.27 — 2026-11-12
+
 ### New
 - A fresh sign-in page. Admins can pick its layout (classic, split, bold or minimal) and accent colour in Settings › Login page, with a live preview before saving.
 - Settings is split into pages: Appearance, Notifications, Coaching and About, with a side menu (tabs at the top on a phone). Each page has its own link.
