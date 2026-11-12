@@ -230,6 +230,16 @@ describe.skipIf(!dbUp)("feedback visibility", () => {
     await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: null });
   });
 
+  test("over-length or null text is refused; a note-only triage keeps the status", async () => {
+    const before = (await json(await call("GET", `/v1/feedback/${kaiItem}`))).status;
+    expect((await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: "x".repeat(5001) })).status).toBe(422);
+    expect((await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: null }, kai)).status).toBe(422);
+    expect((await call("POST", `/v1/feedback/${kaiItem}/comments`, { body: "x".repeat(5001) }, kai)).status).toBe(422);
+    const noted = await json(await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: "still looking" }));
+    expect(noted.status).toBe(before);
+    await call("PATCH", `/v1/feedback/${kaiItem}`, { triageNote: null });
+  });
+
   test("status changes land in the thread; done stamps the version", async () => {
     await call("PATCH", `/v1/feedback/${adminItem}`, { triageNote: "note only" });
     let item = await json(await call("GET", `/v1/feedback/${adminItem}`));

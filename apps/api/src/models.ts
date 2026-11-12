@@ -19,6 +19,8 @@ import {
   coachingRules,
   exerciseAliases,
   exercises,
+  feedbackComments,
+  feedbackItems,
   glossaryTerms,
   programs,
   roleLabels,
@@ -32,6 +34,7 @@ import {
   CLIENT_SEXES,
   CLIENT_STATUSES,
   COACHING_RULE_CATEGORIES,
+  FEEDBACK_STATUSES,
   GLOSSARY_KINDS,
   GLOSSARY_MEANING_MAX,
   GLOSSARY_TERM_MAX,
@@ -349,4 +352,27 @@ const PreferenceUpdate = createUpdateSchema(trainerPreferences);
 export const PreferenceModel = {
   /** clientId null/absent = the trainer-wide document; providerId/model pick the distiller. */
   distill: t.Pick(PreferenceUpdate, ["clientId", "providerId", "model"]),
+};
+
+// ---------------------------------------------------------------------------
+// Feedback (tickets and their threads)
+// ---------------------------------------------------------------------------
+
+const FeedbackText = { maxLength: 5000 };
+const feedbackItemFields = {
+  comment: str({ minLength: 1, ...FeedbackText }),
+  triageNote: str(FeedbackText),
+  status: as(oneOf(FEEDBACK_STATUSES)),
+};
+const FeedbackItemInsert = createInsertSchema(feedbackItems, feedbackItemFields);
+const FeedbackItemUpdate = createUpdateSchema(feedbackItems, feedbackItemFields);
+const FeedbackCommentUpdate = createUpdateSchema(feedbackComments, { body: str(FeedbackText) });
+const FeedbackReplyText = t.Required(t.Pick(FeedbackCommentUpdate, ["body"]));
+
+/** Multipart images, the captured context and edit bookkeeping stay in the route: not columns. */
+export const FeedbackModel = {
+  comment: FeedbackItemInsert.properties.comment,
+  triage: t.Pick(FeedbackItemUpdate, ["status", "triageNote"]),
+  /** Reply text; the column is null only for status entries. */
+  replyBody: nonNull(FeedbackReplyText.properties.body),
 };

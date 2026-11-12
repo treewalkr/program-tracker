@@ -5,7 +5,6 @@ import {
   FEEDBACK_ANSWER_COMMENT_MAX,
   FEEDBACK_ANSWER_TAGS,
   FEEDBACK_ATTACHMENT_KINDS,
-  FEEDBACK_STATUSES,
   feedbackHandle,
   feedbackMarkdown,
   formatSourceLoc,
@@ -28,6 +27,8 @@ import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
 import { rateAnswer, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
+import { FeedbackModel } from "../models";
+import { spread } from "../lib/drizzle-schema";
 
 const Loc = t.Object({ file: t.String(), line: t.Number(), column: t.Number() });
 
@@ -54,12 +55,6 @@ const Context = t.Object({
   appVersion: t.String(),
 });
 
-// Literal union, not t.UnionEnum: UnionEnum carries a default (its first
-// value), so an absent optional status would arrive as "new" and a note-only
-// PATCH would silently reopen the item.
-const Status = t.Union([t.Literal("new"), t.Literal("accepted"), t.Literal("done"), t.Literal("wontfix")]);
-// Keeps the literal list in step with FEEDBACK_STATUSES.
-true satisfies (typeof FEEDBACK_STATUSES)[number] extends Static<typeof Status> ? true : false;
 // Written out (not t.UnionEnum) so Eden keeps the literals; the check keeps them in step with @pt/shared.
 const AnswerTag = t.Union([t.Literal("wrong"), t.Literal("missed_question"), t.Literal("unclear"), t.Literal("outdated")]);
 true satisfies (typeof FEEDBACK_ANSWER_TAGS)[number] extends Static<typeof AnswerTag> ? true : false;
@@ -173,7 +168,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     },
     {
       body: t.Object({
-        comment: t.String({ minLength: 1, maxLength: 5000 }),
+        comment: FeedbackModel.comment,
         context: Context,
         images: Images,
         kinds: ImageKinds,
@@ -266,8 +261,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     {
       params: IdParams,
       body: t.Object({
-        status: t.Optional(Status),
-        triageNote: t.Optional(t.Nullable(t.String({ maxLength: 5000 }))),
+        ...spread(FeedbackModel.triage),
         /** Won't fix only: shown to the reporter as a reply and quoted in the email. */
         reason: t.Optional(t.String({ maxLength: 5000 })),
       }),
@@ -333,7 +327,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     {
       params: IdParams,
       body: t.Object({
-        comment: t.String({ minLength: 1, maxLength: 5000 }),
+        comment: FeedbackModel.comment,
         version: t.String({ minLength: 1, maxLength: 64 }),
         layout: ImageLayout,
         images: Images,
@@ -366,7 +360,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     {
       params: IdParams,
       // Text, images or both; empty text is fine when images come with it.
-      body: t.Object({ body: t.String({ maxLength: 5000 }), images: Images }),
+      body: t.Object({ body: FeedbackModel.replyBody, images: Images }),
       detail: { summary: "Reply on a feedback item" },
     },
   )
@@ -412,7 +406,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     },
     {
       params: CommentParams,
-      body: t.Object({ body: t.Optional(t.String({ maxLength: 5000 })) }),
+      body: t.Object({ body: t.Optional(FeedbackModel.replyBody) }),
       detail: { summary: "Send an AI draft reply (optionally edited)" },
     },
   )
