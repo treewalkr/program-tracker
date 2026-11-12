@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.26 — 2026-11-12
+
 ### New
 - 8 built-in rule templates based on training research (weekly volume, effort, rep ranges and rest, frequency, double progression, exercise selection, warm-up order, short on time). Switch them on under Rules on a client's Generate page, or copy one to your library to edit it.
 - The Templates page is easier to browse: a searchable list on the left, and the chosen template opens on the right with its summary, evidence and exact text.
