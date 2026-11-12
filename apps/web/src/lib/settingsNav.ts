@@ -37,6 +37,12 @@ const WORKSPACE: SettingsGroup = {
       icon: "sparkle",
       sub: "How the feedback agent replies, and what the AI log has collected",
     },
+    {
+      href: "/settings/email-templates",
+      label: "Email templates",
+      icon: "mail",
+      sub: "What each email says and when it sends, rendered by the live templates with sample data",
+    },
   ],
 };
 

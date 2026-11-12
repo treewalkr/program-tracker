@@ -68,12 +68,6 @@
             items: [
               { href: "/admin", label: "Trainers", icon: "lock" },
               { href: "/admin/clients", label: "All clients", icon: "users" },
-            ],
-          },
-          {
-            label: "Email",
-            items: [
-              { href: "/admin/emails/templates", label: "Email templates", icon: "mail" },
               { href: "/admin/emails/outbox", label: "Outbox", icon: "send" },
             ],
           },
