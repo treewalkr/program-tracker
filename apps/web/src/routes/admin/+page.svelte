@@ -181,6 +181,7 @@
           <span class="subtle">Then send them</span>
           <code>{loginUrl}</code>
           <Button small variant="ghost" type="button" onclick={copyLink}>{copied ? "Copied" : "Copy link"}</Button>
+          <a class="restyle" href="/admin/login-theme">Change how it looks</a>
         </div>
       </form>
     </Panel>
@@ -305,6 +306,9 @@
     padding-top: 12px;
     border-top: 1px solid var(--line-soft);
     font-size: 13px;
+  }
+  .share .restyle {
+    margin-left: auto;
   }
   .share code {
     font: 12px/1.4 var(--font-mono);
