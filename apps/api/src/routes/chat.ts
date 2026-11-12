@@ -8,7 +8,7 @@ import { runProposalTurn } from "../lib/proposal-turn";
 import { trainerContext } from "../lib/trainer-context";
 import { linkTurn } from "../ai/llm";
 import { recordFeedback, recordIgnoredProposals } from "../lib/llm-feedback";
-import { ChatModel } from "../models";
+import { ChatModel } from "../models/chat";
 
 /**
  * The trainer's request that produced a proposal.

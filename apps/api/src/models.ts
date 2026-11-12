@@ -1,32 +1,9 @@
 /** Feature models not yet moved to ./models/<feature>.ts. */
 import { t } from "elysia";
-import { aiImports, chatMessages, clientMessages } from "@pt/db/schema";
+import { aiImports, clientMessages } from "@pt/db/schema";
 import { CLIENT_MESSAGE_MAX_CHARS, IMPORT_MAX_CHARS } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utility";
 import { str, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
-
-// ---------------------------------------------------------------------------
-// Chat
-// ---------------------------------------------------------------------------
-
-const ChatMessageInsert = createInsertSchema(chatMessages, { content: str({ minLength: 1, maxLength: 2000 }) });
-const ChatMessageUpdate = createUpdateSchema(chatMessages);
-
-export const ChatModel = {
-  /** The trainer's message (stored as `content`) and the model that answers it. */
-  ask: t.Object({
-    ...spread(t.Pick(ChatMessageInsert, ["clientId"])),
-    message: ChatMessageInsert.properties.content,
-    ...ProviderChoice,
-  }),
-  turn: t.Object({
-    ...spread(t.Pick(ChatMessageInsert, ["clientId"])),
-    ...spread(t.Pick(ChatMessageUpdate, ["generationId"])),
-    message: ChatMessageInsert.properties.content,
-    ...ProviderChoice,
-  }),
-  retry: t.Object(ProviderChoice),
-};
 
 // ---------------------------------------------------------------------------
 // Client messages (weekly check-ins)
