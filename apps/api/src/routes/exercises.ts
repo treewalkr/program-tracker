@@ -3,17 +3,7 @@ import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exercises, setLogs, type ExerciseRow } from "@pt/db";
 import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
-
-// Plain strings checked with zod in the handler: t.UnionEnum fills an absent
-// optional field with its first member (turning a partial PATCH into an edit),
-// and literal unions built from arrays lose their types through Eden.
-const Muscle = t.String({ maxLength: 40 });
-const Equip = t.String({ maxLength: 40 });
-const Pattern = t.Union([t.String({ maxLength: 40 }), t.Null()]);
-const Functional = t.Union([t.String({ maxLength: 40 }), t.Null()]);
-const Name = t.String({ minLength: 1, maxLength: 160 });
-const Secondary = t.Array(Muscle, { maxItems: 4 });
-const Note = t.Union([t.String({ maxLength: 280 }), t.Null()]);
+import { ExerciseModel } from "../models";
 
 interface Fields {
   primaryMuscleGroup?: string;
@@ -119,15 +109,7 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
       return status(201, toDto(created, 0));
     },
     {
-      body: t.Object({
-        name: Name,
-        primaryMuscleGroup: Muscle,
-        secondaryMuscleGroups: t.Optional(Secondary),
-        equipment: Equip,
-        movementPattern: t.Optional(Pattern),
-        functionalMovement: t.Optional(Functional),
-        note: t.Optional(Note),
-      }),
+      body: ExerciseModel.create,
     }
   )
   /**
@@ -182,16 +164,7 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({
-        name: t.Optional(Name),
-        primaryMuscleGroup: t.Optional(Muscle),
-        secondaryMuscleGroups: t.Optional(Secondary),
-        equipment: t.Optional(Equip),
-        movementPattern: t.Optional(Pattern),
-        functionalMovement: t.Optional(Functional),
-        note: t.Optional(Note),
-        archived: t.Optional(t.Boolean()),
-      }),
+      body: ExerciseModel.update,
     }
   )
   /**
