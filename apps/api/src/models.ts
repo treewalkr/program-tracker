@@ -5,8 +5,6 @@ import {
   aiImports,
   chatMessages,
   clientMessages,
-  clients,
-  coachingRules,
   exerciseAliases,
   feedbackComments,
   feedbackItems,
@@ -16,7 +14,6 @@ import {
 } from "@pt/db/schema";
 import {
   CLIENT_MESSAGE_MAX_CHARS,
-  COACHING_RULE_CATEGORIES,
   FEEDBACK_STATUSES,
   GLOSSARY_KINDS,
   GLOSSARY_MEANING_MAX,
@@ -28,35 +25,6 @@ import {
 } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utility";
 import { str, oneOf, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
-
-// ---------------------------------------------------------------------------
-// Coaching rules
-// ---------------------------------------------------------------------------
-
-const coachingRuleFields = {
-  text: str({ minLength: 3, maxLength: 400 }),
-  category: as(oneOf(COACHING_RULE_CATEGORIES)),
-  /** A trainer activates or retires; only the extractor proposes. */
-  status: as(oneOf(["active", "retired"])),
-};
-const CoachingRuleInsert = createInsertSchema(coachingRules, coachingRuleFields);
-const CoachingRuleUpdate = createUpdateSchema(coachingRules, coachingRuleFields);
-
-export const RuleScope = oneOf(["client", "always"]);
-
-export const CoachingRuleModel = {
-  create: t.Object({
-    ...spread(t.Pick(CoachingRuleInsert, ["text"])),
-    /** null = all clients. */
-    ...spread(t.Pick(CoachingRuleUpdate, ["category", "clientId"])),
-  }),
-  update: t.Pick(CoachingRuleUpdate, ["text", "category", "clientId", "status"]),
-  confirm: t.Object({
-    scope: RuleScope,
-    clientId: t.Optional(nonNull(CoachingRuleUpdate.properties.clientId)),
-    text: CoachingRuleUpdate.properties.text,
-  }),
-};
 
 // ---------------------------------------------------------------------------
 // Vocabulary: exercise aliases and glossary

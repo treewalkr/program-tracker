@@ -5,7 +5,7 @@ import { anchorText } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { extractRule, linkSourceNotes, sourceNotes } from "../lib/coaching-rules";
 import { toRuleDto } from "../lib/notes";
-import { CoachingRuleModel, RuleScope } from "../models";
+import { CoachingRuleModel, RuleScope } from "../models/coaching-rules";
 
 
 async function clientNames(trainerId: string): Promise<Map<string, string>> {
