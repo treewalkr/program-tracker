@@ -1,4 +1,4 @@
-/** AI generations and the calls that start them — request/response schemas derived from the Drizzle table(s). See ./shared.ts. */
+/** AI generations (and the calls that start them) — schemas derived from the Drizzle table. See ./shared.ts. */
 import { t } from "elysia";
 import { aiGenerations } from "@pt/db/schema";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "../utility";
