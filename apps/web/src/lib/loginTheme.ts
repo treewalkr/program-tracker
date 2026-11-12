@@ -40,3 +40,17 @@ export const SEASON_WEEKS: TrainingWeeks = [
   [4, 1, 4, 0, 4, 3, 0],
   [2, 0, 1, 0, 2, 0, 0],
 ];
+
+/** Screens the admin preview renders the real login page at, in CSS pixels. */
+export const PREVIEW_DEVICES = {
+  desktop: { label: "Desktop", width: 1280, height: 800 },
+  phone: { label: "Phone", width: 390, height: 780 },
+} as const;
+export type PreviewDevice = keyof typeof PREVIEW_DEVICES;
+
+/** Tallest the preview may draw, so a phone screen fits a laptop viewport beside the controls. */
+export const PREVIEW_MAX_HEIGHT = 600;
+
+/** Scale that fits a screen into `available` px wide and PREVIEW_MAX_HEIGHT tall — never enlarged; before layout, a half-size guess. */
+export const previewScale = (available: number, screen: { width: number; height: number }): number =>
+  available > 0 ? Math.min(1, available / screen.width, PREVIEW_MAX_HEIGHT / screen.height) : 0.5;
