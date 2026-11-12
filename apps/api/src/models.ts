@@ -17,7 +17,9 @@ import { t, type TSchema } from "elysia";
 import {
   clients,
   coachingRules,
+  exerciseAliases,
   exercises,
+  glossaryTerms,
   programs,
   roleLabels,
   sessionTypes,
@@ -29,6 +31,9 @@ import {
   CLIENT_SEXES,
   CLIENT_STATUSES,
   COACHING_RULE_CATEGORIES,
+  GLOSSARY_KINDS,
+  GLOSSARY_MEANING_MAX,
+  GLOSSARY_TERM_MAX,
   ROLE_LABEL_CHIP_MAX,
   ROLE_LABEL_DESCRIPTION_MAX,
   ROLE_LABEL_NAME_MAX,
@@ -308,4 +313,31 @@ export const CoachingRuleModel = {
     clientId: t.Optional(nonNull(CoachingRuleUpdate.properties.clientId)),
     text: CoachingRuleUpdate.properties.text,
   }),
+};
+
+// ---------------------------------------------------------------------------
+// Vocabulary: exercise aliases and glossary
+// ---------------------------------------------------------------------------
+
+const AliasInsert = createInsertSchema(exerciseAliases, {
+  alias: str({ minLength: 1, maxLength: 200 }),
+  /** "seed" is written by the seeder only. */
+  source: as(oneOf(["import", "manual"])),
+});
+
+const glossaryFields = {
+  term: str({ minLength: 1, maxLength: GLOSSARY_TERM_MAX }),
+  meaning: str({ minLength: 1, maxLength: GLOSSARY_MEANING_MAX }),
+  kind: as(oneOf(GLOSSARY_KINDS)),
+};
+const GlossaryInsert = createInsertSchema(glossaryTerms, glossaryFields);
+const GlossaryUpdate = createUpdateSchema(glossaryTerms, glossaryFields);
+
+export const VocabularyModel = {
+  saveAliases: t.Object({
+    items: t.Array(t.Pick(AliasInsert, ["alias", "exerciseId", "source"]), { minItems: 1, maxItems: 200 }),
+  }),
+  moveAlias: t.Pick(AliasInsert, ["exerciseId"]),
+  createTerm: t.Pick(GlossaryInsert, ["term", "meaning", "kind"]),
+  updateTerm: t.Pick(GlossaryUpdate, ["term", "meaning", "kind"]),
 };

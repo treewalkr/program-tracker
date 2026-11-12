@@ -1,15 +1,11 @@
-import { Elysia, t, type Static } from "elysia";
+import { Elysia, t } from "elysia";
 import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exerciseAliases, exercises, glossaryTerms } from "@pt/db";
-import { GLOSSARY_KINDS, GLOSSARY_MEANING_MAX, GLOSSARY_TERM_MAX, normalizeAlias, type GlossaryTerm } from "@pt/shared";
+import { normalizeAlias, type GlossaryTerm } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { loadAliases, loadGlossary } from "../lib/vocabulary";
+import { VocabularyModel } from "../models";
 
-// Literal union, not t.UnionEnum (which defaults an absent optional to its first value).
-const Kind = t.Union([t.Literal("abbreviation"), t.Literal("technique"), t.Literal("equipment"), t.Literal("other")]);
-true satisfies (typeof GLOSSARY_KINDS)[number] extends Static<typeof Kind> ? true : false;
-const Term = t.String({ minLength: 1, maxLength: GLOSSARY_TERM_MAX });
-const Meaning = t.String({ minLength: 1, maxLength: GLOSSARY_MEANING_MAX });
 const IdParams = t.Object({ id: t.String({ format: "uuid" }) });
 
 const GLOBAL_READ_ONLY = { error: "global entries are read-only — override it to make your own" } as const;
@@ -89,16 +85,7 @@ export const vocabularyRoutes = new Elysia({ prefix: "/v1/vocabulary", tags: ["v
       return status(201, { aliases: rows });
     },
     {
-      body: t.Object({
-        items: t.Array(
-          t.Object({
-            alias: t.String({ minLength: 1, maxLength: 200 }),
-            exerciseId: t.String({ format: "uuid" }),
-            source: t.Union([t.Literal("import"), t.Literal("manual")]),
-          }),
-          { minItems: 1, maxItems: 200 }
-        ),
-      }),
+      body: VocabularyModel.saveAliases,
     }
   )
   /** Point a personal alias at another exercise. */
@@ -115,7 +102,7 @@ export const vocabularyRoutes = new Elysia({ prefix: "/v1/vocabulary", tags: ["v
         .where(and(eq(exerciseAliases.id, params.id), eq(exerciseAliases.trainerId, trainerId)));
       return (await loadAliases(trainerId)).find((a) => a.id === params.id)!;
     },
-    { params: IdParams, body: t.Object({ exerciseId: t.String({ format: "uuid" }) }) }
+    { params: IdParams, body: VocabularyModel.moveAlias }
   )
   .delete(
     "/aliases/:id",
@@ -142,7 +129,7 @@ export const vocabularyRoutes = new Elysia({ prefix: "/v1/vocabulary", tags: ["v
       const [row] = await db.insert(glossaryTerms).values({ trainerId, term, meaning, kind: body.kind }).returning();
       return status(201, personal(row));
     },
-    { body: t.Object({ term: Term, meaning: Meaning, kind: Kind }) }
+    { body: VocabularyModel.createTerm }
   )
   .patch(
     "/glossary/:id",
@@ -171,7 +158,7 @@ export const vocabularyRoutes = new Elysia({ prefix: "/v1/vocabulary", tags: ["v
         .returning();
       return personal(updated);
     },
-    { params: IdParams, body: t.Object({ term: t.Optional(Term), meaning: t.Optional(Meaning), kind: t.Optional(Kind) }) }
+    { params: IdParams, body: VocabularyModel.updateTerm }
   )
   .delete(
     "/glossary/:id",
