@@ -10,7 +10,7 @@ import {
 } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { loadRoleLabels } from "../lib/role-labels";
-import { RoleLabelModel } from "../models";
+import { RoleLabelModel } from "../models/role-labels";
 
 /** Single spaces, trimmed. */
 const clean = (s: string) => s.trim().replace(/\s+/g, " ");

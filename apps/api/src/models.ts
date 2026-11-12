@@ -12,7 +12,6 @@ import {
   feedbackItems,
   glossaryTerms,
   llmFeedback,
-  roleLabels,
   trainerPreferences,
 } from "@pt/db/schema";
 import {
@@ -22,9 +21,6 @@ import {
   GLOSSARY_KINDS,
   GLOSSARY_MEANING_MAX,
   GLOSSARY_TERM_MAX,
-  ROLE_LABEL_CHIP_MAX,
-  ROLE_LABEL_DESCRIPTION_MAX,
-  ROLE_LABEL_NAME_MAX,
   IMPORT_MAX_CHARS,
   LLM_CLIENT_SIGNALS,
   LLM_REASON_TAGS,
@@ -32,39 +28,6 @@ import {
 } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "./utility";
 import { str, oneOf, as, ProviderChoice, TrainerInsert, TrainerUpdate } from "./models/shared";
-
-// ---------------------------------------------------------------------------
-// Role labels
-// ---------------------------------------------------------------------------
-
-const RoleLabelUpdate = createUpdateSchema(roleLabels, {
-  name: str({ minLength: 1, maxLength: ROLE_LABEL_NAME_MAX }),
-  chip: str({ maxLength: ROLE_LABEL_CHIP_MAX }),
-  description: str({ maxLength: ROLE_LABEL_DESCRIPTION_MAX }),
-});
-const RoleLabelText = t.Required(t.Pick(RoleLabelUpdate, ["name", "chip", "description"]));
-/** The route clears chip/description with "" (→ NULL), so bodies take strings, not null. */
-const roleLabel = {
-  name: RoleLabelText.properties.name,
-  chip: nonNull(RoleLabelText.properties.chip),
-  description: nonNull(RoleLabelText.properties.description),
-};
-
-export const RoleLabelModel = {
-  create: t.Object({
-    name: roleLabel.name,
-    chip: t.Optional(roleLabel.chip),
-    description: roleLabel.description,
-    /** Key of the label this one sorts right after; absent = last. */
-    after: t.Optional(t.String({ maxLength: 60 })),
-  }),
-  update: t.Object({
-    name: t.Optional(roleLabel.name),
-    chip: t.Optional(roleLabel.chip),
-    description: t.Optional(roleLabel.description),
-    rank: t.Optional(t.Number()),
-  }),
-};
 
 // ---------------------------------------------------------------------------
 // Coaching rules
