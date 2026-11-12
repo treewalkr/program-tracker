@@ -3,7 +3,7 @@ import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exercises, setLogs, type ExerciseRow } from "@pt/db";
 import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
-import { ExerciseModel } from "../models";
+import { ExerciseModel } from "../models/exercises";
 
 interface Fields {
   primaryMuscleGroup?: string;
