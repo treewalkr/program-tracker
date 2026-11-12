@@ -15,6 +15,7 @@
  */
 import { t, type TSchema } from "elysia";
 import {
+  aiGenerations,
   clients,
   coachingRules,
   exerciseAliases,
@@ -426,11 +427,47 @@ export const LlmFeedbackModel = {
 // ---------------------------------------------------------------------------
 
 const TrainerUpdate = createUpdateSchema(trainers, { feedbackAiMode: as(oneOf(FEEDBACK_AI_MODES)) });
-
 const TrainerAiMode = t.Required(t.Pick(TrainerUpdate, ["feedbackAiMode"]));
 
 export const AccountModel = {
   feedbackEmails: TrainerUpdate.properties.feedbackEmails,
   /** Required, with no implicit default: an empty body is a 422, not "off". */
   feedbackAiMode: t.Object({ mode: TrainerAiMode.properties.feedbackAiMode }),
+};
+
+// ---------------------------------------------------------------------------
+// AI generations and the calls that start them
+// ---------------------------------------------------------------------------
+
+const AiGenerationInsert = createInsertSchema(aiGenerations);
+const AiGenerationUpdate = createUpdateSchema(aiGenerations, {
+  instructions: str({ maxLength: 2000 }),
+  direction: str({ maxLength: 500 }),
+  revisionMessage: str({ minLength: 1, maxLength: 2000 }),
+  rejectReason: str({ maxLength: 2000 }),
+});
+/** Optional values (never null) — handlers trim or pass them on as-is. */
+const AiGenerationValues = t.Required(
+  t.Pick(AiGenerationUpdate, ["effort", "instructions", "direction", "targetWeek", "revisionMessage", "rejectReason"])
+);
+
+/** Which model runs a call; absent = the default provider. Every AI route takes these. */
+export const ProviderChoice = {
+  ...spread(t.Pick(AiGenerationUpdate, ["providerId", "model"])),
+  effort: t.Optional(nonNull(AiGenerationValues.properties.effort)),
+};
+
+export const AiGenerationModel = {
+  generate: t.Object({
+    ...spread(t.Pick(AiGenerationInsert, ["clientId"])),
+    ...spread(t.Pick(AiGenerationUpdate, ["basedOnProgramId"])),
+    ...ProviderChoice,
+    instructions: t.Optional(nonNull(AiGenerationValues.properties.instructions)),
+    direction: t.Optional(nonNull(AiGenerationValues.properties.direction)),
+    targetWeek: t.Optional(nonNull(AiGenerationValues.properties.targetWeek)),
+  }),
+  /** Stored as `rejectReason`. */
+  reject: t.Optional(t.Object({ reason: t.Optional(nonNull(AiGenerationValues.properties.rejectReason)) })),
+  /** Stored as `revisionMessage`. */
+  revise: t.Object({ message: nonNull(AiGenerationValues.properties.revisionMessage) }),
 };

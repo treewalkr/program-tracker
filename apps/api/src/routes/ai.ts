@@ -44,6 +44,7 @@ import { runRevision } from "../lib/revision";
 import { savePhasingEdit } from "../lib/phasing-edit";
 import { saveDraftEdit } from "../lib/draft-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
+import { AiGenerationModel } from "../models";
 
 /** Approve verdict: unedited when the approved week matches the AI draft, else edited with the diff. */
 async function recordApproval(
@@ -229,16 +230,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       }
     },
     {
-      body: t.Object({
-        clientId: t.String(),
-        basedOnProgramId: t.Optional(t.Union([t.String(), t.Null()])),
-        providerId: t.Optional(t.String()),
-        model: t.Optional(t.String()),
-        effort: t.Optional(t.String()),
-        instructions: t.Optional(t.String({ maxLength: 2000 })),
-        direction: t.Optional(t.String({ maxLength: 500 })),
-        targetWeek: t.Optional(t.Integer()),
-      }),
+      body: AiGenerationModel.generate,
     }
   )
   .get(
@@ -429,7 +421,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 2000 })) })),
+      body: AiGenerationModel.reject,
     }
   )
   .post(
@@ -506,6 +498,6 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     },
     {
       params: t.Object({ id: t.String() }),
-      body: t.Object({ message: t.String({ minLength: 1, maxLength: 2000 }) }),
+      body: AiGenerationModel.revise,
     }
   );
