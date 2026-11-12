@@ -68,7 +68,6 @@
             items: [
               { href: "/admin", label: "Trainers", icon: "lock" },
               { href: "/admin/clients", label: "All clients", icon: "users" },
-              { href: "/admin/login-theme", label: "Login page", icon: "monitor" },
             ],
           },
           {

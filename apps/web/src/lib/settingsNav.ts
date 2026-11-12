@@ -24,7 +24,14 @@ const YOU: SettingsGroup = {
 const WORKSPACE: SettingsGroup = {
   label: "Workspace",
   note: "Admin",
-  items: [],
+  items: [
+    {
+      href: "/settings/login-page",
+      label: "Login page",
+      icon: "monitor",
+      sub: "What trainers see before they sign in — the layout and its accent",
+    },
+  ],
 };
 
 const ABOUT: SettingsGroup = {

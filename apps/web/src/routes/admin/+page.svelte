@@ -181,7 +181,7 @@
           <span class="subtle">Then send them</span>
           <code>{loginUrl}</code>
           <Button small variant="ghost" type="button" onclick={copyLink}>{copied ? "Copied" : "Copy link"}</Button>
-          <a class="restyle" href="/admin/login-theme">Change how it looks</a>
+          <a class="restyle" href="/settings/login-page">Change how it looks</a>
         </div>
       </form>
     </Panel>
