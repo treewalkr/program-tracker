@@ -9,6 +9,10 @@
     addSet,
     addSession,
     applyPlacementToAllWeeks,
+    copyWeekTargets,
+    copyWeekTo,
+    isAlternating,
+    setAlternating,
     DEFAULT_DELOAD,
     deloadRulesText,
     type DeloadSettings,
@@ -43,7 +47,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
-  import { programSubline, snapshot } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
@@ -58,6 +62,7 @@
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
+  import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
@@ -156,6 +161,44 @@
   const nameOf = (exerciseId: string) => catalogById.get(exerciseId)?.name ?? "Exercise";
   const liftingCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "lifting").length;
   const indexOf = (sid: string) => currentWeek?.sessions.findIndex((x) => x.id === sid) ?? -1;
+
+  // —— Alternate A/B and "Copy this week to…" (FB-013) ——————————————————
+  const alternating = $derived(program ? isAlternating(program.weeks) : false);
+  /** Tag weeks odd A / even B, or drop the tags. Content is untouched. */
+  function setRotation(on: boolean) {
+    if (!program) return;
+    program.weeks = setAlternating($state.snapshot(program.weeks) as ProgramWeek[], on);
+  }
+  const hasLogs = (week: number) => {
+    const wi = program?.weeks.findIndex((w) => w.week === week) ?? -1;
+    return wi >= 0 && weekLogCount(program!.weeks[wi], wi) > 0;
+  };
+  const copyItems = $derived.by<OverflowItem[]>(() => {
+    if (!program || !currentWeek) return [];
+    const letterOf = (n: number) => program?.weeks.find((w) => w.week === n)?.rotation;
+    return copyWeekTargets(program.weeks, currentWeek.week).map((t) => ({
+      ...copyTargetLabel(t),
+      ...(t.kind === "week" ? { section: "One week", hint: letterOf(t.weeks[0]) } : {}),
+      onselect: () => copyTo(t.weeks),
+    }));
+  });
+  /** After a copy: what changed (logged weeks are skipped), with Undo. */
+  let copyToast = $state<{ text: string; before: ProgramWeek[] | null } | null>(null);
+  let copyToastTimer: ReturnType<typeof setTimeout> | undefined;
+  function copyTo(targets: number[]) {
+    if (!program || !currentWeek) return;
+    const before = $state.snapshot(program.weeks) as ProgramWeek[];
+    const { weeks, skipped } = copyWeekTo(before, currentWeek.week, targets, hasLogs);
+    const changed = skipped.length < targets.length;
+    if (changed) program.weeks = weeks;
+    clearTimeout(copyToastTimer);
+    copyToast = { text: copyNotice(currentWeek.week, targets, skipped), before: changed ? before : null };
+    copyToastTimer = setTimeout(() => (copyToast = null), 10000);
+  }
+  function undoCopy() {
+    if (program && copyToast?.before) program.weeks = copyToast.before;
+    copyToast = null;
+  }
 
   function setWeek(next: ProgramWeek) {
     if (!program) return;
@@ -405,24 +448,41 @@
   {/if}
 
   {#if program.weeks.length > 1}
-    <div class="week-tabs">
-      {#each program.weeks as w, wi (w.week)}
-        <button
-          type="button"
-          class="tab-btn"
-          class:active={wi === currentWeekIndex}
-          onclick={() => (currentWeekIndex = wi)}
-        >
-          W{w.week}
-          {#if weekLogCount(w, wi) > 0}<span class="tab-logs" title="{weekLogCount(w, wi)} logged">{weekLogCount(w, wi)}</span>{/if}
-        </button>
-      {/each}
+    <div class="weeks-row">
+      <div class="week-tabs">
+        {#each program.weeks as w, wi (w.week)}
+          <button
+            type="button"
+            class="tab-btn"
+            class:active={wi === currentWeekIndex}
+            onclick={() => (currentWeekIndex = wi)}
+          >
+            W{w.week}{#if w.rotation}<span class="tab-letter" aria-label="week {w.rotation}">{w.rotation}</span>{/if}
+            {#if weekLogCount(w, wi) > 0}<span class="tab-logs" title="{weekLogCount(w, wi)} logged">{weekLogCount(w, wi)}</span>{/if}
+          </button>
+        {/each}
+      </div>
+      {#if editable}
+        <Segmented
+          label="Weeks"
+          lead="Weeks"
+          value={alternating ? "ab" : "same"}
+          onchange={(v) => setRotation(v === "ab")}
+          items={[
+            { value: "same", label: "Same every week" },
+            { value: "ab", label: "Alternate A/B", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
+          ]}
+        />
+      {/if}
     </div>
   {/if}
 
   {#if currentWeek}
     <div class="week-bar">
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(sessionsPatternBalance(currentWeek.sessions, patternOf))}</p>
+      {#if editable && program.weeks.length > 1}
+        <OverflowMenu items={copyItems} label="Copy week {currentWeek.week} to other weeks" text="Copy this week to…" icon="layers" />
+      {/if}
       {#if editable}
         <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${deloadRulesText(deload)}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
         <button class="btn ghost small" aria-expanded={showPhasing} onclick={() => (showPhasing = !showPhasing)}>Block phasing {showPhasing ? "▴" : "▾"}</button>
@@ -645,6 +705,17 @@
     {/if}
   {/if}
 
+  {#if copyToast}
+    <div class="copy-toast" role="status">
+      <Icon name="layers" />
+      <span class="msg">{copyToast.text}</span>
+      {#if copyToast.before}
+        <button type="button" class="btn small" onclick={undoCopy}><Icon name="undo" />Undo</button>
+      {/if}
+      <button type="button" class="btn ghost small icon" aria-label="Dismiss" onclick={() => (copyToast = null)}><Icon name="x" /></button>
+    </div>
+  {/if}
+
   {#if dirty}
     <div class="savebar" role="region" aria-label="Unsaved changes">
       <span class="savemsg">
@@ -688,7 +759,31 @@
   .readonly-note { margin: 0; }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
-  .week-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .tab-letter { margin-left: 4px; font: 500 11px var(--font-mono); color: var(--muted); }
+  .tab-btn.active .tab-letter { color: inherit; }
+  /* Floats like the save bar, just above it; same look as the draft edit dock's toast. */
+  .copy-toast {
+    position: sticky;
+    bottom: 12px;
+    z-index: 6;
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--well);
+    box-shadow: var(--shadow-overlay);
+    font-size: 13px;
+  }
+  .copy-toast:has(+ .savebar) { bottom: 68px; }
+  .copy-toast + :global(.savebar) { margin-top: 8px; }
+  .copy-toast > :global(svg) { width: 14px; height: 14px; color: var(--muted); flex: none; }
+  .copy-toast .msg { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 700px) { .copy-toast { bottom: 60px; } .copy-toast:has(+ .savebar) { bottom: 120px; } }
+  .weeks-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .week-tabs { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
   .tab-btn {
     border: none;
     background: none;
