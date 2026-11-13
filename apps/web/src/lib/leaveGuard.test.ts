@@ -119,7 +119,7 @@ describe("LeaveGuard dialog", () => {
     const labels = [...body.matchAll(/<button[^>]*>\s*([^<]+?)\s*<\/button>/g)].map((m) => m[1]);
     expect(labels).toEqual(["Skip", "Keep draft", "Cancel"]);
     expect(body).toMatch(/<button[^>]*class="btn primary[^"]*"[^>]*autofocus[^>]*>\s*Cancel/);
-    expect(body).toMatch(/class="btn[^"]* danger quiet"[^>]*>\s*Skip/);
+    expect(body).toMatch(/class="btn[^"]* danger ghost"[^>]*>\s*Skip/);
   });
 
   test("danger: false keeps the action neutral", () => {

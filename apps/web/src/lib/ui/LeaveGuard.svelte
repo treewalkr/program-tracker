@@ -52,7 +52,7 @@
         type="button"
         class="btn"
         class:danger={req.danger !== false}
-        class:quiet={req.danger !== false}
+        class:ghost={req.danger !== false}
         disabled={guard.busy}
         onclick={() => guard.answer("confirm")}>{req.confirmLabel}</button
       >
@@ -111,11 +111,6 @@
   }
   .grow {
     flex: 1;
-  }
-  .quiet {
-    background: transparent;
-    border-color: transparent;
-    box-shadow: none;
   }
   @media (max-width: 480px) {
     .grow {
