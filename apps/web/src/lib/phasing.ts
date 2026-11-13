@@ -1,5 +1,5 @@
 import {
-  applyProgression,
+  progressBlock,
   diffDrafts,
   plannedVolume,
   progressionLabel,
@@ -90,15 +90,19 @@ export function progressionPreview(
   phasing: ProgramPhasingDto,
   maxes: OneRepMaxes | null | undefined
 ): { weeks: ProgramWeekDto[]; rows: ProgressionPreviewRow[] } {
-  const next = applyProgression(weeks as ProgramWeek[], phasing);
+  const { weeks: next, firstOfLetter } = progressBlock(weeks as ProgramWeek[], phasing);
   const rows = next.slice(1).map((w) => {
     const saved = weeks.find((x) => x.week === w.week);
     const plan = phasing.weeks?.find((p) => p.week === w.week);
-    const rule = plan?.progression
-      ? progressionLabel(plan.progression)
-      : plan?.directive === "deload" && saved
-        ? "kept (deload)"
-        : "copy of the week before";
+    const rule = firstOfLetter.includes(w.week)
+      ? `first ${w.rotation} week, kept`
+      : plan?.progression
+        ? progressionLabel(plan.progression)
+        : plan?.directive === "deload" && saved
+          ? "kept (deload)"
+          : w.rotation
+            ? `copy of the last ${w.rotation} week`
+            : "copy of the week before";
     return {
       week: w.week,
       rule,

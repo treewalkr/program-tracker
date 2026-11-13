@@ -1,4 +1,4 @@
-import { sessionKey, type Phasing, type PrescribedSet, type ProgramExercise, type ProgramSession, type ProgramWeek, type WeekProgression } from "./domain";
+import { isAlternating, rotationOfWeek, sessionKey, type Phasing, type PrescribedSet, type ProgramExercise, type ProgramSession, type ProgramWeek, type WeekProgression } from "./domain";
 
 // ---------------------------------------------------------------------------
 // Block progression: generate weeks 2…n from week 1 with each week's rule. Pure.
@@ -59,7 +59,7 @@ function deriveWeek(base: ProgramWeek, week: number, rule: WeekProgression | und
       }),
     };
   });
-  return { week, sessions };
+  return base.rotation ? { week, rotation: rotationOfWeek(week), sessions } : { week, sessions };
 }
 
 /**
@@ -68,23 +68,50 @@ function deriveWeek(base: ProgramWeek, week: number, rule: WeekProgression | und
  * as-is. A deload week without a rule keeps its own sets (when it exists), and
  * the week after a deload builds on the last non-deload week. Existing session
  * and exercise ids are reused so logged sets stay linked.
+ *
+ * Alternating (A/B) blocks progress each letter on its own track: the first
+ * week of each letter is kept as written (W1 A, W2 B), and a later week builds
+ * on the last non-deload week with its letter (W5 from W3, W6 from W4).
  */
 export function applyProgression(weeks: ProgramWeek[], phasing: Pick<Phasing, "plannedWeeks" | "weeks">): ProgramWeek[] {
+  return progressBlock(weeks, phasing).weeks;
+}
+
+/** `applyProgression`, plus the weeks kept as written because they start their
+ *  letter's track (`firstOfLetter`: [2] for a usual A/B block). */
+export function progressBlock(
+  weeks: ProgramWeek[],
+  phasing: Pick<Phasing, "plannedWeeks" | "weeks">
+): { weeks: ProgramWeek[]; firstOfLetter: number[] } {
+  const firstOfLetter: number[] = [];
   const w1 = weeks.find((w) => w.week === 1);
-  if (!w1) return weeks;
+  if (!w1) return { weeks, firstOfLetter };
+  const alternating = isAlternating(weeks);
   const planOf = (n: number) => phasing.weeks?.find((p) => p.week === n);
   const out: ProgramWeek[] = [w1];
-  let base = w1;
+  // Last non-deload output week per letter ("" = the only track when not alternating).
+  const base = new Map<string, ProgramWeek>([[alternating ? "A" : "", w1]]);
   for (let n = 2; n <= phasing.plannedWeeks; n++) {
     const plan = planOf(n);
     const existing = weeks.find((w) => w.week === n);
+    const track = alternating ? rotationOfWeek(n) : "";
+    const from = base.get(track);
+    if (!from) {
+      // First week of this letter: kept as written; with nothing written, start from A.
+      const first = existing ?? deriveWeek(w1, n, undefined, undefined);
+      const tagged = { ...first, rotation: rotationOfWeek(n) };
+      out.push(tagged);
+      firstOfLetter.push(n);
+      if (plan?.directive !== "deload") base.set(track, tagged);
+      continue;
+    }
     if (plan?.directive === "deload" && !plan.progression && existing) {
       out.push(existing);
       continue;
     }
-    const next = deriveWeek(base, n, plan?.progression, existing);
+    const next = deriveWeek(from, n, plan?.progression, existing);
     out.push(next);
-    if (plan?.directive !== "deload") base = next;
+    if (plan?.directive !== "deload") base.set(track, next);
   }
-  return out;
+  return { weeks: out, firstOfLetter };
 }
