@@ -76,7 +76,7 @@
   let oneRepMaxes = $state<OneRepMaxes | null>(null);
   /** The client's deload rule in force — the Deload button applies it. */
   let deload = $state<DeloadSettings>(DEFAULT_DELOAD);
-  /** Placement edits apply to every week (the block's template) unless narrowed to this week. */
+  /** Placement edits apply to every week (every same-letter week in an A/B block) unless narrowed to this week. */
   let placeAllWeeks = $state(true);
   let selected = $state<string | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
@@ -93,10 +93,13 @@
     types.push(created);
     return created;
   }
-  /** A type labels the session for the whole block: copy it to the same session (kind + seq) in every week. */
+  /** A type labels the session for the whole block: copy it to the same session (kind + seq) in every
+   *  week — every same-letter week in an A/B block, since A and B sessions differ. */
   function labelAllWeeks(key: string, t: SessionTypeDto) {
     if (!program) return;
+    const letter = currentWeek?.rotation;
     for (const w of program.weeks) {
+      if (letter && w.rotation !== letter) continue;
       for (const x of w.sessions) {
         if (sessionKey(x) === key && x.kind === t.format) {
           x.typeId = t.id;
@@ -442,7 +445,7 @@
         {#if program.weeks.length > 1}
           <div class="scope" role="radiogroup" aria-label="Placement changes apply to">
             <span class="subtle">Moves apply to</span>
-            <button type="button" role="radio" aria-checked={placeAllWeeks} class:on={placeAllWeeks} onclick={() => (placeAllWeeks = true)}>every week</button>
+            <button type="button" role="radio" aria-checked={placeAllWeeks} class:on={placeAllWeeks} onclick={() => (placeAllWeeks = true)}>every {currentWeek.rotation ? `${currentWeek.rotation} ` : ""}week</button>
             <button type="button" role="radio" aria-checked={!placeAllWeeks} class:on={!placeAllWeeks} onclick={() => (placeAllWeeks = false)}>week {currentWeek.week} only</button>
           </div>
         {/if}

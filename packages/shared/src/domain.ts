@@ -1103,14 +1103,15 @@ export function placeSession(w: ProgramWeek, id: string, weekday: number | null,
   return { ...w, sessions: compactOrder(sessions) };
 }
 
-/** Copy week `from`'s placement (by session key) onto every other week. Content untouched;
- *  sessions with no match in `from` keep their own placement. */
+/** Copy week `from`'s placement (by session key) onto every other week — in an A/B
+ *  block, only onto weeks with the same letter. Content untouched; sessions with
+ *  no match in `from` keep their own placement. */
 export function applyPlacementToAllWeeks(weeks: ProgramWeek[], from: number): ProgramWeek[] {
   const src = weeks.find((w) => w.week === from);
   if (!src) return weeks;
   const at = new Map(src.sessions.map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }]));
   return weeks.map((w) =>
-    w.week === from
+    w.week === from || (src.rotation != null && w.rotation !== src.rotation)
       ? w
       : { ...w, sessions: compactOrder(w.sessions.map((s) => ({ ...s, ...(at.get(sessionKey(s)) ?? {}) }))) }
   );
