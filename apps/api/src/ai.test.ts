@@ -1861,6 +1861,10 @@ describe("buildImportMessages", () => {
     expect(system).toContain('"newTerms": [{"term": string, "line": number, "meaning": string|null}]');
     expect(system).toContain("Never translate");
     expect(system).toContain("prescription null");
+    // A/B weeks (FB-013): tagged only when the notes say so
+    expect(system).toContain('"rotation"?: "A"|"B"');
+    expect(system).toContain("Never guess it from the exercises");
+    expect(ImportChunk.parse({ weeks: [{ label: "Week A", line: 1, rotation: "A", days: [] }] }).weeks[0].rotation).toBe("A");
     // the example output shape the prompt describes is what the schema accepts
     expect(ImportChunk.safeParse(WEEK11_12_EXTRACTION).success).toBe(true);
   });
