@@ -694,10 +694,17 @@ export type ProgramSession = z.infer<typeof ProgramSession>;
 
 export const MAX_SESSIONS_PER_WEEKDAY = 4;
 
+/** Week letters for alternating blocks (FB-013): odd weeks are A, even weeks B. */
+export const ROTATIONS = ["A", "B"] as const;
+export const Rotation = z.enum(ROTATIONS);
+export type Rotation = z.infer<typeof Rotation>;
+
 /** A week = a set of sessions, each placed on a weekday (or unscheduled). */
 export const ProgramWeek = z
   .object({
     week: z.number().int().min(1).max(26),
+    /** A/B letter when the block alternates; absent = same every week. Always odd = A, even = B. */
+    rotation: Rotation.optional(),
     sessions: z.array(ProgramSession).min(1).max(14),
   })
   .superRefine((w, ctx) => {
@@ -776,6 +783,107 @@ export function stampWeeks(template: ProgramSession[], plannedWeeks: number): Pr
     });
   }
   return weeks;
+}
+
+/** Copy two templates into weeks 1..plannedWeeks: odd weeks from `a` tagged "A",
+ *  even weeks from `b` tagged "B"; fresh ids per week, like `stampWeeks`. */
+export function stampAlternating(a: ProgramSession[], b: ProgramSession[], plannedWeeks: number): ProgramWeek[] {
+  const odd = stampWeeks(a, plannedWeeks);
+  const even = stampWeeks(b, plannedWeeks);
+  return odd.map((w, i) => {
+    const rotation = rotationOfWeek(w.week);
+    return { week: w.week, rotation, sessions: rotation === "A" ? w.sessions : even[i].sessions };
+  });
+}
+
+/** The letter week `week` gets in an alternating block: odd = A, even = B. */
+export function rotationOfWeek(week: number): Rotation {
+  return week % 2 === 1 ? "A" : "B";
+}
+
+/** True when any week carries an A/B letter. */
+export function isAlternating(weeks: readonly Pick<ProgramWeek, "rotation">[]): boolean {
+  return weeks.some((w) => w.rotation != null);
+}
+
+/** Tag every week odd A / even B (`on`), or drop the tags. Content untouched. Pure. */
+export function setAlternating(weeks: ProgramWeek[], on: boolean): ProgramWeek[] {
+  return weeks.map(({ rotation: _r, ...w }) => (on ? { ...w, rotation: rotationOfWeek(w.week) } : w));
+}
+
+/**
+ * The week a later week builds on: the last earlier week with the same letter
+ * (W5 → W3 when alternating), else the week before. null for week 1, or for
+ * the first week of a letter (W2 in an A/B block). `skip` drops candidates
+ * (e.g. deload weeks).
+ */
+export function basisWeek(
+  weeks: readonly Pick<ProgramWeek, "week" | "rotation">[],
+  week: number,
+  skip: (week: number) => boolean = () => false
+): number | null {
+  const letter = weeks.find((w) => w.week === week)?.rotation;
+  for (let n = week - 1; n >= 1; n--) {
+    if (skip(n)) continue;
+    const w = weeks.find((x) => x.week === n);
+    if (!letter || w?.rotation === letter) return n;
+  }
+  return null;
+}
+
+/** First week of the block with `week`'s letter (W2 for a B week); 1 when the block doesn't alternate. */
+export function firstWeekOfLetter(weeks: readonly Pick<ProgramWeek, "week" | "rotation">[], week: number): number {
+  const letter = weeks.find((w) => w.week === week)?.rotation;
+  if (!letter) return 1;
+  return weeks.filter((w) => w.rotation === letter).reduce((m, w) => Math.min(m, w.week), week);
+}
+
+/** Targets for "Copy this week to…": every same-letter week (alternating only),
+ *  every week, then each single week. `weeks` lists the target week numbers. */
+export type CopyTarget =
+  | { kind: "letter"; letter: Rotation; weeks: number[] }
+  | { kind: "all"; weeks: number[] }
+  | { kind: "week"; weeks: [number] };
+
+export function copyWeekTargets(weeks: readonly Pick<ProgramWeek, "week" | "rotation">[], from: number): CopyTarget[] {
+  const others = weeks.filter((w) => w.week !== from);
+  const out: CopyTarget[] = [];
+  const letter = weeks.find((w) => w.week === from)?.rotation;
+  if (letter) {
+    const same = others.filter((w) => w.rotation === letter).map((w) => w.week);
+    if (same.length > 0) out.push({ kind: "letter", letter, weeks: same });
+  }
+  if (others.length > 0) out.push({ kind: "all", weeks: others.map((w) => w.week) });
+  for (const w of others) out.push({ kind: "week", weeks: [w.week] });
+  return out;
+}
+
+/**
+ * Copy week `from`'s sessions onto each target week with fresh session and
+ * exercise ids (seq, placement and catalog refs kept, each target keeps its
+ * own week number and letter). Weeks where `hasLogs` is true are left alone
+ * and returned in `skipped`: new ids would orphan their logged sets. Pure.
+ */
+export function copyWeekTo(
+  weeks: ProgramWeek[],
+  from: number,
+  targets: readonly number[],
+  hasLogs: (week: number) => boolean
+): { weeks: ProgramWeek[]; skipped: number[] } {
+  const src = weeks.find((w) => w.week === from);
+  if (!src) return { weeks, skipped: [] };
+  const want = new Set(targets.filter((t) => t !== from));
+  const skipped: number[] = [];
+  const out = weeks.map((w) => {
+    if (!want.has(w.week)) return w;
+    if (hasLogs(w.week)) {
+      skipped.push(w.week);
+      return w;
+    }
+    const { rotation: _r, ...copy } = cloneProgramWeeks([src])[0];
+    return w.rotation ? { ...copy, week: w.week, rotation: w.rotation } : { ...copy, week: w.week };
+  });
+  return { weeks: out, skipped };
 }
 
 /** Deep-copy program weeks with fresh session/exercise ids; catalog
