@@ -28,6 +28,7 @@
     unlink,
     placeSessions,
     sessionTag,
+    stampAlternating,
     stampWeeks,
     type ProgramSession,
     type WeekPlan,
@@ -36,7 +37,7 @@
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
-  import { exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
+  import { cloneSessionRows, exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import SessionTypePicker from "$lib/components/SessionTypePicker.svelte";
@@ -54,6 +55,7 @@
   import Tabs from "$lib/ui/Tabs.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PasteImport from "$lib/components/PasteImport.svelte";
+  import Segmented from "$lib/ui/Segmented.svelte";
 
   const id = $derived(page.params.id ?? "");
 
@@ -110,24 +112,35 @@
     exercises: [],
   });
 
+  /** The template week — Week A when the block alternates. */
   let sessions = $state<SessionRow[]>([newRow()]);
+  /** Alternate A/B (FB-013): the even-week routine; null = same every week. */
+  let weekB = $state<SessionRow[] | null>(null);
+  /** Week B as it was when Alternate was switched off, so switching back doesn't lose it (not kept on the device). */
+  let parkedB: SessionRow[] | null = null;
+  /** Which routine the session editor shows. */
+  let editing = $state<"A" | "B">("A");
+  /** The session list being edited. */
+  const rows = $derived(editing === "B" && weekB ? weekB : sessions);
 
   /** seq per kind in list order — "Session 1", "Session 2", "Cardio 1"… */
-  const seqs = $derived.by(() => {
+  function seqsOf(list: SessionRow[]): number[] {
     const n = { lifting: 0, cardio: 0 };
-    return sessions.map((s) => ++n[s.kind]);
-  });
+    return list.map((s) => ++n[s.kind]);
+  }
+  const seqs = $derived(seqsOf(rows));
 
   /**
    * Days aren't picked here: sessions are spread over the client's training
    * days on save, and the trainer rearranges them on the program's calendar.
+   * A and B weeks are placed each on their own.
    */
-  const placement = $derived.by(() => {
+  function placementOf(list: SessionRow[], listSeqs: number[]) {
     const patternOf = (exId: string) => catalog.find((c) => c.id === exId)?.movementPattern ?? null;
-    const draft = sessions.map((s, i) => ({
+    const draft = list.map((s, i) => ({
       id: s.key,
       name: s.name || "x",
-      seq: seqs[i],
+      seq: listSeqs[i],
       order: 0,
       kind: s.kind,
       exercises: s.exercises.map((e, ei) => ({ id: e.id, exerciseId: e.exerciseId, order: ei, prescribedSets: [] })),
@@ -135,7 +148,30 @@
     })) as ProgramSession[];
     const placed = placeSessions(draft, client, patternOf);
     return new Map(placed.map((p) => [p.id, p.weekday ?? null]));
-  });
+  }
+
+  /** Weeks toggle: on, Week B starts as a copy of A (or what it was before it was switched off). */
+  function setAlternate(on: boolean) {
+    if (on === (weekB !== null)) return;
+    if (on) {
+      weekB = parkedB ?? cloneSessionRows($state.snapshot(sessions), uuid);
+    } else {
+      parkedB = $state.snapshot(weekB);
+      weekB = null;
+    }
+    editing = "A";
+  }
+
+  /** Reset Week B to a fresh copy of Week A. */
+  function copyFromA() {
+    weekB = cloneSessionRows($state.snapshot(sessions), uuid);
+  }
+
+  /** Odd weeks run A, even weeks B: how many weeks each routine covers. */
+  const weeksOf = (letter: "A" | "B") => {
+    const n = Number(plannedWeeks) || 4;
+    return letter === "A" ? Math.ceil(n / 2) : Math.floor(n / 2);
+  };
 
 
   let schemeMode = $state<"saved" | "custom" | "none">("saved");
@@ -161,7 +197,7 @@
   const formSnapshot = (): DraftForm =>
     $state.snapshot({
       name, description, plannedWeeks, phase, nextPhase, usePhasing,
-      schemeMode, selectedSchemeId, customWeeks, schemeName, sessions,
+      schemeMode, selectedSchemeId, customWeeks, schemeName, sessions, weekB,
     });
 
   function applyForm(f: DraftForm) {
@@ -174,6 +210,9 @@
     schemeName = f.schemeName;
     customWeeks = f.customWeeks;
     sessions = f.sessions.length > 0 ? f.sessions : [newRow()];
+    weekB = f.weekB && f.weekB.length > 0 ? f.weekB : null;
+    parkedB = null;
+    editing = "A";
     if (f.schemeMode === "saved" && !pickable(f.selectedSchemeId)) {
       const fallback = defaultPick();
       schemeMode = fallback ? "saved" : "none";
@@ -210,6 +249,7 @@
     clearDraft(draftKey);
     if (defaults) applyForm(structuredClone(defaults));
     sessions = [newRow()];
+    weekB = null;
     restoredAt = null;
     keptAt = null;
     baseline = JSON.stringify(formSnapshot());
@@ -298,14 +338,18 @@
 
 
   /** Session label as the trainer sees it: their name, else the track tag. */
-  const labelOf = (s: SessionRow, i: number) => s.name.trim() || sessionTag({ kind: s.kind, seq: seqs[i] });
+  const labelOf = (s: SessionRow, i: number, listSeqs = seqs) => s.name.trim() || sessionTag({ kind: s.kind, seq: listSeqs[i] });
 
   /** First thing standing between the trainer and Save — shown beside the disabled button. */
   const blocker = $derived.by<string | null>(() => {
     if (name.trim() === "") return "Name the program to save it.";
-    for (const [i, s] of sessions.entries()) {
-      if (s.kind === "lifting" && s.exercises.length === 0) return `${labelOf(s, i)} needs an exercise.`;
-      if (s.kind === "cardio" && !s.cardio.modality.trim()) return `${labelOf(s, i)} needs a modality.`;
+    const lists: [string, SessionRow[]][] = weekB ? [["Week A · ", sessions], ["Week B · ", weekB]] : [["", sessions]];
+    for (const [prefix, list] of lists) {
+      const listSeqs = seqsOf(list);
+      for (const [i, s] of list.entries()) {
+        if (s.kind === "lifting" && s.exercises.length === 0) return `${prefix}${labelOf(s, i, listSeqs)} needs an exercise.`;
+        if (s.kind === "cardio" && !s.cardio.modality.trim()) return `${prefix}${labelOf(s, i, listSeqs)} needs a modality.`;
+      }
     }
     return null;
   });
@@ -313,11 +357,12 @@
   const MAX_SESSIONS = 14;
 
   function addSession() {
-    if (sessions.length < MAX_SESSIONS) sessions.push(newRow());
+    if (rows.length < MAX_SESSIONS) rows.push(newRow());
   }
 
   function removeSession(key: string) {
-    sessions = sessions.filter((s) => s.key !== key);
+    if (editing === "B" && weekB) weekB = weekB.filter((s) => s.key !== key);
+    else sessions = sessions.filter((s) => s.key !== key);
   }
 
   const newSet = (setNumber: number): PrescribedSetDto => ({
@@ -350,10 +395,12 @@
     s.exercises = normalizeGroups(s.exercises.filter((_, j) => j !== i));
   }
 
-  function toTemplateSessions(): ProgramSession[] {
+  function toTemplateSessions(list: SessionRow[]): ProgramSession[] {
     const used = new Map<number, number>();
-    return sessions.map((s, si) => {
-      const seq = seqs[si];
+    const listSeqs = seqsOf(list);
+    const placement = placementOf(list, listSeqs);
+    return list.map((s, si) => {
+      const seq = listSeqs[si];
       const weekday = placement.get(s.key) ?? null;
       const order = used.get(weekday ?? 0) ?? 0;
       used.set(weekday ?? 0, order + 1);
@@ -406,7 +453,9 @@
     error = null;
     try {
       const numWeeks = Number(plannedWeeks) || 4;
-      const weeks = stampWeeks(toTemplateSessions(), numWeeks);
+      const weeks = weekB
+        ? stampAlternating(toTemplateSessions(sessions), toTemplateSessions(weekB), numWeeks)
+        : stampWeeks(toTemplateSessions(sessions), numWeeks);
 
       const program = await api.createProgram({
         clientId: id,
@@ -641,9 +690,47 @@
     </Panel>
 
     <div class="builder-col">
-      {#each sessions as s, si (s.key)}
+      <div class="weeks-bar">
+        <Segmented
+          label="Weeks"
+          lead="Weeks"
+          value={weekB ? "ab" : "same"}
+          onchange={(v) => setAlternate(v === "ab")}
+          items={[
+            { value: "same", label: "Same every week" },
+            { value: "ab", label: "Alternate A/B", title: "Two routines: odd weeks run A, even weeks run B" },
+          ]}
+        />
+        {#if weekB}<span class="subtle">Odd weeks run A, even weeks B.</span>{/if}
+      </div>
+
+      {#if weekB}
+        <div class="ab-tabs">
+          <Tabs
+            label="Routine"
+            idPrefix="np-week"
+            value={`week-${editing.toLowerCase()}`}
+            onchange={(t) => (editing = t === "week-b" ? "B" : "A")}
+            items={[
+              { id: "week-a", label: "Week A", count: `${weeksOf("A")} wks` },
+              { id: "week-b", label: "Week B", count: `${weeksOf("B")} wks` },
+            ]}
+          />
+          {#if editing === "B"}
+            <ConfirmButton label="Copy from A" confirmLabel="Replace week B with A?" variant="default" class="ghost" small onconfirm={copyFromA} />
+          {/if}
+        </div>
+      {/if}
+
+      <div
+        class="sess-list"
+        role={weekB ? "tabpanel" : undefined}
+        id={weekB ? `panel-week-${editing.toLowerCase()}` : undefined}
+        aria-labelledby={weekB ? `np-week-week-${editing.toLowerCase()}` : undefined}
+      >
+      {#each rows as s, si (s.key)}
         {@const tag = sessionTag({ kind: s.kind, seq: seqs[si] })}
-        <section class="panel" aria-label={labelOf(s, si)}>
+        <section class="panel" aria-label={weekB ? `Week ${editing} · ${labelOf(s, si)}` : labelOf(s, si)}>
           <div class="panel-head sess-head">
             <span class="track" class:cardio={s.kind === "cardio"}>{tag}</span>
             <input
@@ -665,7 +752,7 @@
               }}
               oncreate={addType}
             />
-            {#if sessions.length > 1}
+            {#if rows.length > 1}
               <ConfirmButton
                 label="Remove"
                 confirmLabel="Remove {tag}?"
@@ -761,10 +848,11 @@
           </div>
         </section>
       {/each}
+      </div>
 
       <div class="builder-foot">
-        <Button onclick={addSession} disabled={sessions.length >= MAX_SESSIONS}>+ Add session</Button>
-        {#if sessions.length >= MAX_SESSIONS}<span class="subtle">{MAX_SESSIONS} sessions is the weekly limit.</span>{/if}
+        <Button onclick={addSession} disabled={rows.length >= MAX_SESSIONS}>+ Add session{weekB ? ` to week ${editing}` : ""}</Button>
+        {#if rows.length >= MAX_SESSIONS}<span class="subtle">{MAX_SESSIONS} sessions is the weekly limit.</span>{/if}
       </div>
       <p class="subtle hint">
         {#if client.trainingDays?.length}
@@ -826,6 +914,11 @@
 
   /* —— sessions —— */
   .builder-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .sess-list { display: flex; flex-direction: column; gap: 16px; }
+  .weeks-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
+  .ab-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 8px; margin-bottom: -4px; }
+  .ab-tabs :global(.tabs) { margin: 0; flex: 1 0 auto; flex-wrap: nowrap; }
+  .ab-tabs :global(.btn) { margin-bottom: 6px; }
   .sess-head { flex-wrap: nowrap; }
   .track { font: 500 12px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
   .track.cardio { color: var(--good); }

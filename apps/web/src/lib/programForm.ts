@@ -28,7 +28,11 @@ export interface DraftForm {
   selectedSchemeId: string;
   customWeeks: CustomWeekRow[];
   schemeName: string;
+  /** Week A when `weekB` is set, else the one template week. */
   sessions: SessionRow[];
+  /** Alternate A/B weeks (FB-013): the even-week routine. null/missing = same every
+   *  week, so older kept drafts and Paste notes results load unchanged. */
+  weekB?: SessionRow[] | null;
 }
 
 /** A session's exercises as saved: always the editor's order — what the trainer built is
@@ -37,4 +41,14 @@ export function exercisesForSave<
   T extends { group?: string | null; prescribedSets?: readonly { setNumber: number }[] },
 >(list: readonly T[]): T[] {
   return normalizeGroups([...list]);
+}
+
+/** A deep copy of a template week for Week B: fresh row keys and exercise ids, so
+ *  editing B never touches A. */
+export function cloneSessionRows(rows: readonly SessionRow[], newId: () => string): SessionRow[] {
+  return structuredClone(rows as SessionRow[]).map((s) => ({
+    ...s,
+    key: newId(),
+    exercises: s.exercises.map((e) => ({ ...e, id: newId() })),
+  }));
 }
