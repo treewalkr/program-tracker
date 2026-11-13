@@ -831,6 +831,18 @@ export function basisWeek(
   return null;
 }
 
+/**
+ * The week a weekly AI re-draft of week `currentWeek + 1` builds on. Without
+ * letters it is the current week; in an A/B block it is the last earlier week
+ * with the target's letter (W5 from W3), or the target itself when it is the
+ * first week of its letter (W2 is the B routine as written).
+ */
+export function weekDraftBasis(weeks: readonly Pick<ProgramWeek, "week" | "rotation">[], currentWeek: number): number {
+  const target = currentWeek + 1;
+  if (!weeks.find((w) => w.week === target)?.rotation) return currentWeek;
+  return basisWeek(weeks, target) ?? target;
+}
+
 /** First week of the block with `week`'s letter (W2 for a B week); 1 when the block doesn't alternate. */
 export function firstWeekOfLetter(weeks: readonly Pick<ProgramWeek, "week" | "rotation">[], week: number): number {
   const letter = weeks.find((w) => w.week === week)?.rotation;

@@ -350,6 +350,39 @@ describe("buildWeekMessages", () => {
   });
 });
 
+describe("buildWeekMessages on A/B weeks", () => {
+  const base = {
+    client: { name: "Jonas", sessionsPerWeek: 2 },
+    plannedWeeks: 6,
+    targetDirective: null,
+    target: null,
+    direction: null,
+    periodization: null,
+    chainBalance: null,
+    history: [],
+    catalog: [],
+    trainerInstructions: "",
+  };
+  const prev = (week: number, rotation: "A" | "B") => ({
+    name: "AB Block",
+    week,
+    rotation,
+    sessions: [{ name: "Upper B", exercises: [{ name: "Bench Press", sets: ["5 reps"] }] }],
+  });
+
+  test("builds on the last same-letter week and names the letter", () => {
+    const { user } = buildWeekMessages({ ...base, targetWeek: 6, previousProgram: prev(4, "B") });
+    expect(user).toContain("LAST WEEK B (week 4 — the block alternates A/B weeks; week 6 builds on this one):");
+    expect(user).toContain("NEXT WEEK: week 6 of 6 · week B (keep the B routine)");
+    expect(user).not.toContain("CURRENT WEEK");
+  });
+
+  test("the first B week revises its own routine", () => {
+    const { user } = buildWeekMessages({ ...base, targetWeek: 2, previousProgram: prev(2, "B") });
+    expect(user).toContain("WEEK B ROUTINE (week 2 as written");
+  });
+});
+
 describe("weekly prompts: learned preferences", () => {
   test("learned preferences section lands in weekly generation prompt", () => {
     const { user } = buildWeekMessages({
@@ -1058,6 +1091,16 @@ describe("replaceWeek", () => {
   });
   const draftLift = (name: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
   const draftCardio = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Row", durationMin: 25 }, exercises: [] });
+
+  test("replaceWeek keeps the week's A/B letter", () => {
+    const initialWeeks = [
+      { week: 1, rotation: "A" as const, sessions: [oldLift("W1 S1", 1, 1)] },
+      { week: 2, rotation: "B" as const, sessions: [oldLift("W2 S1", 1, 2)] },
+    ];
+    const draft: AiProgramDraft = { name: "W2", rationale: "r", clientSummary: "c", sessions: [draftLift("W2 S1-New")] };
+    const { weeks } = replaceWeek(initialWeeks, 2, draft, catalog, [1, 2]);
+    expect(weeks.map((w) => w.rotation)).toEqual(["A", "B"]);
+  });
 
   test("replaceWeek splices fresh ids, carries placement by kind:seq, leaves other weeks untouched", () => {
     const initialWeeks = [

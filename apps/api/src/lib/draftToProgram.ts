@@ -216,6 +216,8 @@ export function replaceWeek(
 
   const newWeek: ProgramWeek = {
     week: weekNumber,
+    // A re-drafted A/B week keeps its letter.
+    ...(oldWeek?.rotation ? { rotation: oldWeek.rotation } : {}),
     sessions: sessions.map((s) => placed.get(s.id)!),
   };
 

@@ -57,6 +57,9 @@ export interface ClientContext {
 
 export interface ProgramSummary {
   name: string;
+  /** Week the summary was read from (weekly drafts), and its A/B letter when the block alternates. */
+  week?: number;
+  rotation?: "A" | "B";
   sessions: {
     name: string;
     kind?: "lifting" | "cardio";
@@ -84,6 +87,17 @@ export interface CatalogEntry {
   functionalMovement: string | null;
   /** Trainer's coaching note (setup, cues), if any. */
   note?: string | null;
+}
+
+/** Heading over the week a weekly draft builds on. A/B blocks build on the last
+ *  week with the same letter, not the week before. */
+export function currentWeekHeading(prev: ProgramSummary, targetWeek: number): string {
+  if (prev.rotation && prev.week != null) {
+    return prev.week === targetWeek
+      ? `WEEK ${prev.rotation} ROUTINE (week ${prev.week} as written — the block alternates A/B weeks; revise this week):`
+      : `LAST WEEK ${prev.rotation} (week ${prev.week} — the block alternates A/B weeks; week ${targetWeek} builds on this one):`;
+  }
+  return `CURRENT WEEK (week ${targetWeek - 1} — what the client is doing now):`;
 }
 
 export interface ExampleProgramSummary {
@@ -639,12 +653,14 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "",
     ctx.previousProgram
       ? [
-          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          currentWeekHeading(ctx.previousProgram, ctx.targetWeek),
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
     "",
     `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.previousProgram?.rotation ? ` · week ${ctx.previousProgram.rotation} (keep the ${ctx.previousProgram.rotation} routine)` : ""
+    }${
       ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
     }${
       ctx.target
@@ -725,12 +741,14 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "",
     ctx.previousProgram
       ? [
-          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          currentWeekHeading(ctx.previousProgram, ctx.targetWeek),
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
     "",
     `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.previousProgram?.rotation ? ` · week ${ctx.previousProgram.rotation} (keep the ${ctx.previousProgram.rotation} routine)` : ""
+    }${
       ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
     }${
       ctx.target

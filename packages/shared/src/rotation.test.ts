@@ -11,6 +11,7 @@ import {
   setAlternating,
   stampAlternating,
   stampWeeks,
+  weekDraftBasis,
   type ProgramSession,
 } from "./index";
 
@@ -95,6 +96,13 @@ describe("basisWeek / firstWeekOfLetter", () => {
     expect(basisWeek(plain, 1)).toBeNull();
     expect(basisWeek(plain, 4)).toBe(3);
     expect(basisWeek(plain, 4, (n) => n === 3)).toBe(2);
+  });
+
+  test("weekDraftBasis: same-letter week for A/B, the current week otherwise", () => {
+    expect(weekDraftBasis(ab, 4)).toBe(3); // W5 A from W3
+    expect(weekDraftBasis(ab, 5)).toBe(4); // W6 B from W4
+    expect(weekDraftBasis(ab, 1)).toBe(2); // W2 is the first B week
+    expect(weekDraftBasis(plain, 4)).toBe(4);
   });
 
   test("firstWeekOfLetter", () => {

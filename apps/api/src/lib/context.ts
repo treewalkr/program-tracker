@@ -20,6 +20,7 @@ import {
   pulseSummary,
   selectExamples,
   sessionsInSeqOrder,
+  weekDraftBasis,
   weekOf,
 } from "@pt/shared";
 import { ContextError } from "../ai/runtime";
@@ -53,12 +54,15 @@ export async function loadContext(
     if (p) {
       basedOnProgram = p;
       const nameById = new Map(catalogByTrainer.map((e) => [e.id, e.name]));
-      const targetWeekObj = focus?.focusWeek
-        ? p.sessions.find((w) => w.week === focus.focusWeek) ?? p.sessions[p.sessions.length - 1]
+      const basis = focus?.focusWeek ? weekDraftBasis(p.sessions, focus.focusWeek) : null;
+      const targetWeekObj = basis
+        ? p.sessions.find((w) => w.week === basis) ?? p.sessions[p.sessions.length - 1]
         : p.sessions[p.sessions.length - 1];
       const targetSessions = targetWeekObj ? sessionsInSeqOrder(targetWeekObj.sessions) : [];
       previous = {
         name: p.name,
+        ...(basis && targetWeekObj ? { week: targetWeekObj.week } : {}),
+        ...(basis && targetWeekObj?.rotation ? { rotation: targetWeekObj.rotation } : {}),
         sessions: targetSessions.map((s) => ({
           name: s.name,
           kind: s.kind,
