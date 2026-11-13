@@ -57,6 +57,7 @@
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Field from "$lib/ui/Field.svelte";
+  import Segmented from "$lib/ui/Segmented.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
@@ -443,11 +444,16 @@
     {#if editable}
       <div class="cal-bar">
         {#if program.weeks.length > 1}
-          <div class="scope" role="radiogroup" aria-label="Placement changes apply to">
-            <span class="subtle">Moves apply to</span>
-            <button type="button" role="radio" aria-checked={placeAllWeeks} class:on={placeAllWeeks} onclick={() => (placeAllWeeks = true)}>every {currentWeek.rotation ? `${currentWeek.rotation} ` : ""}week</button>
-            <button type="button" role="radio" aria-checked={!placeAllWeeks} class:on={!placeAllWeeks} onclick={() => (placeAllWeeks = false)}>week {currentWeek.week} only</button>
-          </div>
+          <Segmented
+            label="Placement changes apply to"
+            lead="Moves apply to"
+            value={placeAllWeeks ? "all" : "one"}
+            onchange={(v) => (placeAllWeeks = v === "all")}
+            items={[
+              { value: "all", label: `every ${currentWeek.rotation ? `${currentWeek.rotation} ` : ""}week` },
+              { value: "one", label: `week ${currentWeek.week} only` },
+            ]}
+          />
         {/if}
         <span class="grow"></span>
         {#if trainingDays.length > 0}
@@ -744,19 +750,6 @@
   .balance { margin: 0 auto 0 0; color: var(--muted); }
   .cal-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
   .grow { flex: 1; }
-  .scope { display: inline-flex; align-items: center; gap: 0; font-size: 12.5px; }
-  .scope .subtle { margin-right: 8px; }
-  .scope button {
-    border: 1px solid var(--line);
-    background: none;
-    font: 500 12px var(--font-ui);
-    color: var(--muted);
-    padding: 3px 10px;
-    cursor: pointer;
-  }
-  .scope button:first-of-type { border-radius: var(--radius) 0 0 var(--radius); }
-  .scope button + button { border-left: none; border-radius: 0 var(--radius) var(--radius) 0; }
-  .scope button.on { background: var(--well-2); color: var(--ink); font-weight: 600; }
   .eyebrow { font: 500 11.5px var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; margin-right: auto; }
   .stype { color: var(--ink); }
   .panel.sel { border-color: var(--focus); }
