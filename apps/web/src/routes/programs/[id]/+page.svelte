@@ -268,6 +268,10 @@
 
   const leaveGuard = createLeaveGuard({
     dirty: () => dirty,
+    prompt: () => ({
+      title: "Save your program changes?",
+      body: "You have edits that haven't been saved. Saving creates a new version; leaving drops them.",
+    }),
     save: async () => {
       await save();
       return !saveError;
@@ -644,7 +648,7 @@
   {/if}
 {/if}
 
-<LeaveGuard guard={leaveGuard} title="Save your program changes?" body="You have edits that haven't been saved. Saving creates a new version; leaving drops them." />
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   h1 { display: flex; align-items: center; gap: 10px; }

@@ -485,7 +485,15 @@
     pickNote = pickText(pick, next);
   }
 
-  const leaveGuard = createLeaveGuard({ dirty: () => dirty && !saving });
+  const leaveGuard = createLeaveGuard({
+    dirty: () => dirty && !saving,
+    prompt: () => ({
+      title: "Leave this session?",
+      body: `${sessionName()} isn't saved yet. What you've entered stays as a draft on this device, so you can pick it up later.`,
+      leaveLabel: "Leave, keep draft",
+      danger: false,
+    }),
+  });
 
   /** Fill the cardio form from a prescription (or a prior actual). */
   function prefillCardio(c?: ProgramSessionDto["cardio"]) {
@@ -1722,7 +1730,7 @@
   {/if}
 </dialog>
 
-<LeaveGuard guard={leaveGuard} title="Leave this session?" body={`${sessionName()} isn't saved yet. What you've entered stays as a draft on this device, so you can pick it up later.`} leaveLabel="Leave, keep draft" />
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   .head-controls {

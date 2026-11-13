@@ -1,59 +1,73 @@
 <script lang="ts">
-  import type { LeaveGuard } from "$lib/leaveGuard.svelte";
+  import type { Asker } from "$lib/leaveGuard.svelte";
 
   /**
-   * "Unsaved changes" dialog on a native modal `<dialog>`. "Keep editing" is
-   * the safe default (initial focus, Esc, backdrop click); leaving without
-   * saving is a quiet danger action; "Save and leave" shows only when the
-   * guard can save.
+   * The page's one confirm dialog, on a native modal `<dialog>`: the
+   * "unsaved changes" prompt from `createLeaveGuard` and any `guard.ask()`.
+   * The safe choice sits on the right as the primary button and takes initial
+   * focus, Esc and backdrop clicks; the asked-about action is a quiet button
+   * on the left (red when it drops work); an optional third choice sits
+   * between. Focus goes back to whatever opened it.
    */
-  let {
-    guard,
-    title = "Leave without saving?",
-    body,
-    leaveLabel = "Leave without saving",
-  }: {
-    guard: LeaveGuard;
-    title?: string;
-    body: string;
-    leaveLabel?: string;
-  } = $props();
+  let { guard }: { guard: Asker } = $props();
 
   let dialog = $state<HTMLDialogElement>();
+  let opener: HTMLElement | null = null;
+  const uid = $props.id();
+  const req = $derived(guard.request);
 
   $effect(() => {
     if (!dialog) return;
-    if (guard.open && !dialog.open) dialog.showModal();
-    else if (!guard.open && dialog.open) dialog.close();
+    if (req && !dialog.open) {
+      opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+    } else if (!req && dialog.open) {
+      dialog.close();
+      // The dialog hands focus back itself; this covers an opener it couldn't reach.
+      if (opener?.isConnected && (!document.activeElement || document.activeElement === document.body))
+        opener.focus({ preventScroll: true });
+      opener = null;
+    }
   });
 </script>
 
 <dialog
   bind:this={dialog}
   class="leave"
-  aria-labelledby="leave-title"
-  aria-describedby="leave-body"
+  aria-labelledby="{uid}-title"
+  aria-describedby="{uid}-body"
   oncancel={(e) => {
     e.preventDefault();
-    guard.stay();
+    guard.answer("cancel");
   }}
   onclick={(e) => {
-    if (e.target === dialog) guard.stay();
+    if (e.target === dialog) guard.answer("cancel");
   }}
 >
-  <h2 id="leave-title">{title}</h2>
-  <p id="leave-body">{body}</p>
-  <div class="actions">
-    <button type="button" class="btn danger ghost-danger" disabled={guard.busy} onclick={() => guard.leave()}>{leaveLabel}</button>
-    <span class="grow"></span>
-    {#if guard.canSave}
-      <button type="button" class="btn" disabled={guard.busy} onclick={() => guard.saveAndLeave()}>
-        {guard.busy ? "Saving…" : "Save and leave"}
-      </button>
-    {/if}
-    <!-- svelte-ignore a11y_autofocus -->
-    <button type="button" class="btn primary" autofocus disabled={guard.busy} onclick={() => guard.stay()}>Keep editing</button>
-  </div>
+  {#if req}
+    <h2 id="{uid}-title">{req.title}</h2>
+    <p id="{uid}-body">{req.body}</p>
+    <div class="actions">
+      <button
+        type="button"
+        class="btn"
+        class:danger={req.danger !== false}
+        class:quiet={req.danger !== false}
+        disabled={guard.busy}
+        onclick={() => guard.answer("confirm")}>{req.confirmLabel}</button
+      >
+      <span class="grow"></span>
+      {#if req.alt}
+        <button type="button" class="btn" disabled={guard.busy} onclick={() => guard.answer("alt")}>
+          {guard.busy ? (req.alt.busyLabel ?? req.alt.label) : req.alt.label}
+        </button>
+      {/if}
+      <!-- svelte-ignore a11y_autofocus -->
+      <button type="button" class="btn primary" autofocus disabled={guard.busy} onclick={() => guard.answer("cancel")}
+        >{req.cancelLabel ?? "Cancel"}</button
+      >
+    </div>
+  {/if}
 </dialog>
 
 <style>
@@ -66,17 +80,28 @@
     color: var(--ink);
     box-shadow: var(--shadow-overlay);
   }
+  .leave[open] {
+    animation: leave-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
   .leave::backdrop {
-    background: rgba(13, 17, 23, 0.5);
+    background: var(--scrim);
+  }
+  @keyframes leave-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+    }
   }
   h2 {
     margin: 0 0 6px;
     font: 600 16px/1.3 var(--font-ui);
+    text-wrap: balance;
   }
   p {
     margin: 0 0 18px;
     font: 400 13.5px/1.5 var(--font-ui);
     color: var(--muted);
+    text-wrap: pretty;
   }
   .actions {
     display: flex;
@@ -87,7 +112,7 @@
   .grow {
     flex: 1;
   }
-  .ghost-danger {
+  .quiet {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
@@ -99,6 +124,15 @@
     .actions {
       flex-direction: column-reverse;
       align-items: stretch;
+    }
+    .btn {
+      justify-content: center;
+      min-height: 44px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .leave[open] {
+      animation: none;
     }
   }
 </style>

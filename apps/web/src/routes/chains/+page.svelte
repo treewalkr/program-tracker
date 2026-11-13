@@ -38,7 +38,13 @@
     dirty = next;
   }
 
-  const leaveGuard = createLeaveGuard({ dirty: () => dirty.size > 0 });
+  const leaveGuard = createLeaveGuard({
+    dirty: () => dirty.size > 0,
+    prompt: () => ({
+      title: "Leave with unsaved chains?",
+      body: `${dirty.size === 1 ? "A chain has" : `${dirty.size} chains have`} edits that haven't been saved. Leaving drops them.`,
+    }),
+  });
 
   onMount(load);
 </script>
@@ -73,7 +79,7 @@
   </Panel>
 {/if}
 
-<LeaveGuard guard={leaveGuard} title="Leave with unsaved chains?" body={`${dirty.size === 1 ? "A chain has" : `${dirty.size} chains have`} edits that haven't been saved. Leaving drops them.`} />
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   .lede {
