@@ -4,6 +4,7 @@ import {
   historyExerciseKey,
   liftingNames,
   templateWeekIndex,
+  type ImportAb,
   type ImportFlag,
   type ImportMatch,
   type ImportResult,
@@ -55,18 +56,25 @@ export function defaultChoice(m: ImportMatch | undefined, fallbackName: string):
 export const choiceFor = (choices: Record<string, ChoiceState>, key: string, ex: ReviewExercise): MatchChoice =>
   choices[key]?.choice ?? defaultChoice(ex.match, ex.name);
 
-/** Every exercise of the block's template week, with its key. */
-export function templateExercises(r: ImportResult, block: number): { key: string; ex: ReviewExercise }[] {
-  const w = templateWeekIndex(r, block);
-  return (r.weeks[w]?.days ?? []).flatMap((d, di) =>
-    d.sessions.flatMap((s, si) => s.exercises.map((ex, ei) => ({ key: exerciseKey(w, di, si, ei), ex }))),
+/** The weeks "Use this" drafts: the block's template week, or Week A and Week B
+ *  when the trainer keeps the A/B weeks found in the notes (FB-013). */
+export function draftWeekIndexes(r: ImportResult, block: number, ab?: ImportAb | null): number[] {
+  return ab ? [ab.a, ab.b] : [templateWeekIndex(r, block)];
+}
+
+/** Every exercise of the weeks being drafted (the block's template week, or A and B), with its key. */
+export function templateExercises(r: ImportResult, block: number, ab?: ImportAb | null): { key: string; ex: ReviewExercise }[] {
+  return draftWeekIndexes(r, block, ab).flatMap((w) =>
+    (r.weeks[w]?.days ?? []).flatMap((d, di) =>
+      d.sessions.flatMap((s, si) => s.exercises.map((ex, ei) => ({ key: exerciseKey(w, di, si, ei), ex }))),
+    ),
   );
 }
 
 /** Custom exercises "Use this" has to create first (unique, case-insensitive). */
-export function newExerciseNames(r: ImportResult, block: number, choices: Record<string, ChoiceState>): string[] {
+export function newExerciseNames(r: ImportResult, block: number, choices: Record<string, ChoiceState>, ab?: ImportAb | null): string[] {
   const seen = new Map<string, string>();
-  for (const { key, ex } of templateExercises(r, block)) {
+  for (const { key, ex } of templateExercises(r, block, ab)) {
     const c = choiceFor(choices, key, ex);
     if (c.kind === "new" && c.exerciseName.trim()) seen.set(c.exerciseName.trim().toLowerCase(), c.exerciseName.trim());
   }
@@ -83,9 +91,10 @@ export function aliasesToSave(
   block: number,
   choices: Record<string, ChoiceState>,
   createdIds: Map<string, string> = new Map(),
+  ab?: ImportAb | null,
 ): { alias: string; exerciseId: string; source: "import" }[] {
   const out = new Map<string, { alias: string; exerciseId: string; source: "import" }>();
-  for (const { key, ex } of templateExercises(r, block)) {
+  for (const { key, ex } of templateExercises(r, block, ab)) {
     const state = choices[key];
     if (!state?.confirmed) continue;
     const picked = state.choice;
@@ -186,6 +195,7 @@ export function historyAliasesToSave(
  * order, named after the day labels, sets as mapped, notes kept (Save keeps
  * the exercises' order). `resolve`
  * turns an exercise's choice into a catalog id (created ones included).
+ * With `ab` (A/B weeks kept), Week A fills `sessions` and Week B `weekB`.
  */
 export function formFromImport(
   r: ImportResult,
@@ -197,11 +207,13 @@ export function formFromImport(
     newKey: () => string;
     /** Catalog fields for the suggested roles (pattern, muscle); names alone otherwise. */
     catalog?: Parameters<typeof suggestRoleIn>[2];
+    /** A/B weeks the trainer kept: draft both routines. */
+    ab?: ImportAb | null;
   },
 ): DraftForm {
-  const wi = templateWeekIndex(r, block);
+  const [wi, wb] = draftWeekIndexes(r, block, opts.ab);
   const week = r.weeks[wi];
-  const sessions: SessionRow[] = (week?.days ?? []).flatMap((d, di) =>
+  const sessionsOf = (wi: number): SessionRow[] => (r.weeks[wi]?.days ?? []).flatMap((d, di) =>
     d.sessions.map((s, si): SessionRow => {
       if (s.kind === "cardio") {
         return {
@@ -234,12 +246,13 @@ export function formFromImport(
       };
     }),
   );
-  const weeksInBlock = r.blocks[block]?.weeks.length ?? 1;
+  const weeksInBlock = opts.ab ? 1 : (r.blocks[block]?.weeks.length ?? 1);
   return {
     ...structuredClone(base),
     name: (liftingNames(week).join(" / ") || base.name).slice(0, 120),
     plannedWeeks: weeksInBlock > 1 ? weeksInBlock : base.plannedWeeks,
-    sessions,
+    sessions: sessionsOf(wi),
+    weekB: wb !== undefined ? sessionsOf(wb) : null,
   };
 }
 
@@ -270,17 +283,20 @@ const flagsOfWeek = (w: ReviewWeek | undefined): ImportFlag[] =>
         ]),
       ];
 
-export function flagSummary(r: ImportResult, block: number, choices: Record<string, ChoiceState> = {}): FlagSummary {
-  const flags = flagsOfWeek(r.weeks[templateWeekIndex(r, block)]);
-  // a session cap counts once per session, wherever it was raised
-  const totalSessions = (r.weeks[templateWeekIndex(r, block)]?.days ?? []).reduce((n, d) => n + d.sessions.length, 0);
+export function flagSummary(r: ImportResult, block: number, choices: Record<string, ChoiceState> = {}, ab?: ImportAb | null): FlagSummary {
+  const drafted = draftWeekIndexes(r, block, ab).map((w) => r.weeks[w]);
+  const flags = drafted.flatMap(flagsOfWeek);
   const blocking = flags.filter((f) => f.blocking).map((f) => f.message);
-  if (totalSessions > 14) blocking.push(`${totalSessions} sessions — more than the 14 a week can hold`);
+  // a session cap counts once per session, wherever it was raised
+  for (const w of drafted) {
+    const totalSessions = (w?.days ?? []).reduce((n, d) => n + d.sessions.length, 0);
+    if (totalSessions > 14) blocking.push(`${totalSessions} sessions — more than the 14 a week can hold`);
+  }
   return {
     amber: flags.filter((f) => f.level === "warn").length,
     info: flags.filter((f) => f.level === "info").length,
     blocking,
-    matched: templateExercises(r, block).filter(({ key, ex }) => ex.match?.kind === "fuzzy" && !!ex.match.exerciseId && !choices[key]?.confirmed).length,
+    matched: templateExercises(r, block, ab).filter(({ key, ex }) => ex.match?.kind === "fuzzy" && !!ex.match.exerciseId && !choices[key]?.confirmed).length,
     unused: r.unused.length,
     unread: r.unread.reduce((n, u) => n + (u.to - u.from + 1), 0),
   };
