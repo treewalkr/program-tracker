@@ -946,6 +946,25 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
     expect(reactivated.body.activatedAt).toBe(firstActivation);
   });
 
+  test("A/B week letters survive create and read; a bad letter is a 422", async () => {
+    const session = (exerciseId: string) => ({
+      id: crypto.randomUUID(),
+      name: "Day",
+      seq: 1,
+      order: 0,
+      kind: "lifting",
+      exercises: [{ id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }] }],
+    });
+    const weeks = [1, 2, 3, 4].map((week) => ({ week, rotation: week % 2 ? "A" : "B", sessions: [session(squatId)] }));
+    const created = await call("POST", "/v1/programs", { name: "AB Block", weeks });
+    expect(created.status).toBe(201);
+    const read = await call("GET", `/v1/programs/${created.body.id}`);
+    expect(read.body.weeks.map((w: { rotation?: string }) => w.rotation)).toEqual(["A", "B", "A", "B"]);
+
+    const bad = await call("POST", "/v1/programs", { name: "Bad", weeks: [{ ...weeks[0], rotation: "C" }] });
+    expect(bad.status).toBe(422);
+  });
+
   test("invalid phasing document is a 422", async () => {
     const { status } = await call("POST", "/v1/programs", {
       name: "Bad Phasing",
