@@ -13,6 +13,8 @@
   import Pill from "$lib/ui/Pill.svelte";
   import Field from "$lib/ui/Field.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
 
   let templates = $state<InstructionTemplateDto[]>([]);
   let loaded = $state(false);
@@ -180,25 +182,40 @@
     const t = editingId ? templates.find((x) => x.id === editingId) : null;
     return !!t && (editName !== t.name || editContent !== t.content);
   });
-  const leaveEdit = () => !dirty || confirm("Discard your unsaved changes to this template?");
+  const editingName = () => templates.find((x) => x.id === editingId)?.name || "this template";
+  const leaveGuard = createLeaveGuard({
+    dirty: () => dirty,
+    prompt: () => ({ title: "Leave without saving?", body: `Your changes to ${editingName()} haven't been saved. Leaving drops them.` }),
+  });
+  /** True when there's no unsaved edit, or the trainer agrees to drop it. */
+  async function leaveEdit() {
+    if (!dirty) return true;
+    const a = await leaveGuard.ask({
+      title: "Discard your changes?",
+      body: `Your changes to ${editingName()} haven't been saved.`,
+      confirmLabel: "Discard changes",
+      cancelLabel: "Keep editing",
+    });
+    return a === "confirm";
+  }
 
   async function pick(id: string) {
-    if (id !== editingId && !leaveEdit()) return;
+    if (id !== editingId && !(await leaveEdit())) return;
     selId = id;
     composing = false;
     editingId = null;
     await tick();
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
-  function startNew() {
-    if (!leaveEdit()) return;
+  async function startNew() {
+    if (!(await leaveEdit())) return;
     composing = true;
     editingId = null;
   }
   async function copyAndSelect(p: InstructionPreset) {
     await copyPreset(p);
     const mine = [...templates].reverse().find((t) => t.name === p.name);
-    if (!listError && mine) pick(mine.id);
+    if (!listError && mine) await pick(mine.id);
   }
 
   const ruleCount = (e: Entry) => parseRule(e.content).reduce((n, b) => n + b.items.length, 0);
@@ -450,6 +467,8 @@
     </div>
   </Panel>
 </div>
+
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   .stack { display: flex; flex-direction: column; gap: 14px; }
