@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { beforeNavigate } from "$app/navigation";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
   import type { KineticChainDto } from "$lib/api/types";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -37,11 +38,7 @@
     dirty = next;
   }
 
-  beforeNavigate((nav) => {
-    if (dirty.size === 0) return;
-    if (nav.type === "leave") nav.cancel();
-    else if (!confirm(`Leave without saving ${dirty.size === 1 ? "a chain" : `${dirty.size} chains`}?`)) nav.cancel();
-  });
+  const leaveGuard = createLeaveGuard({ dirty: () => dirty.size > 0 });
 
   onMount(load);
 </script>
@@ -75,6 +72,8 @@
     {/if}
   </Panel>
 {/if}
+
+<LeaveGuard guard={leaveGuard} title="Leave with unsaved chains?" body={`${dirty.size === 1 ? "A chain has" : `${dirty.size} chains have`} edits that haven't been saved. Leaving drops them.`} />
 
 <style>
   .lede {

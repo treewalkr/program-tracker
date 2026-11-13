@@ -2,7 +2,8 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { browser } from "$app/environment";
-  import { beforeNavigate } from "$app/navigation";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
@@ -484,12 +485,7 @@
     pickNote = pickText(pick, next);
   }
 
-  beforeNavigate((nav) => {
-    if (!dirty || saving) return;
-    // Closing or reloading the tab: cancel() raises the browser's own prompt; confirm() is blocked there.
-    if (nav.type === "leave") nav.cancel();
-    else if (!confirm(`Leave without saving ${sessionName()}? What you've entered stays as a draft on this device.`)) nav.cancel();
-  });
+  const leaveGuard = createLeaveGuard({ dirty: () => dirty && !saving });
 
   /** Fill the cardio form from a prescription (or a prior actual). */
   function prefillCardio(c?: ProgramSessionDto["cardio"]) {
@@ -1725,6 +1721,8 @@
     </div>
   {/if}
 </dialog>
+
+<LeaveGuard guard={leaveGuard} title="Leave this session?" body={`${sessionName()} isn't saved yet. What you've entered stays as a draft on this device, so you can pick it up later.`} leaveLabel="Leave, keep draft" />
 
 <style>
   .head-controls {
