@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import { beforeNavigate } from "$app/navigation";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
   import {
     addExercise,
@@ -265,11 +266,16 @@
     saveError = null;
   }
 
-  beforeNavigate((nav) => {
-    if (!dirty) return;
-    // Closing or reloading the tab: cancel() raises the browser's own prompt; confirm() is blocked there.
-    if (nav.type === "leave") nav.cancel();
-    else if (!confirm("Leave without saving your program changes?")) nav.cancel();
+  const leaveGuard = createLeaveGuard({
+    dirty: () => dirty,
+    prompt: () => ({
+      title: "Save your program changes?",
+      body: "You have edits that haven't been saved. Saving creates a new version; leaving drops them.",
+    }),
+    save: async () => {
+      await save();
+      return !saveError;
+    },
   });
 
   async function activate() {
@@ -641,6 +647,8 @@
     </div>
   {/if}
 {/if}
+
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   h1 { display: flex; align-items: center; gap: 10px; }

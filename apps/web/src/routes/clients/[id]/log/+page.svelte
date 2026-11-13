@@ -2,7 +2,8 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { browser } from "$app/environment";
-  import { beforeNavigate } from "$app/navigation";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
   import { fmtSet } from "$lib/format";
   import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
@@ -380,11 +381,22 @@
 
   const sessionName = () => selectedSession?.name ?? "this session";
 
-  /** True when there's nothing to lose, or the trainer agrees to drop it (and its draft). */
-  function confirmDiscard(): boolean {
+  /**
+   * True when there's nothing to lose, or the trainer agrees to move on —
+   * keeping what they entered as this session's draft, or dropping it.
+   */
+  async function confirmSwitch(): Promise<boolean> {
     if (!dirty) return true;
-    if (!confirm(`Discard the sets you've entered for ${sessionName()}?`)) return false;
-    if (sessionId) localStorage.removeItem(draftKey(id, sessionId));
+    const from = sessionId;
+    const a = await leaveGuard.ask({
+      title: `Switch away from ${sessionName()}?`,
+      body: "The sets you've entered aren't saved. Keep them as a draft on this device to pick up later, or discard them.",
+      confirmLabel: "Discard sets",
+      alt: { label: "Keep draft" },
+      cancelLabel: "Stay here",
+    });
+    if (a === "cancel") return false;
+    if (a === "confirm" && from) localStorage.removeItem(draftKey(id, from));
     return true;
   }
 
@@ -430,15 +442,15 @@
       : `Dated ${fmtLongDay(d.date)}: the day ${sessionName()} is scheduled.`;
   }
 
-  function changeWeek(e: Event & { currentTarget: HTMLSelectElement }) {
+  async function changeWeek(e: Event & { currentTarget: HTMLSelectElement }) {
     const el = e.currentTarget;
-    if (!confirmDiscard()) {
-      el.value = String(selectedWeekNumber);
-      return;
-    }
+    const next = Number(el.value);
+    el.value = String(selectedWeekNumber); // until the trainer agrees
+    if (!(await confirmSwitch())) return;
+    el.value = String(next);
     // Stay on the same session slot ("Session 2") in the new week when it has one.
     const was = selectedSession;
-    selectedWeekNumber = Number(el.value);
+    selectedWeekNumber = next;
     undo = null;
     const same = weekSessionsList.find((ws) => ws.session.kind === was?.kind && ws.session.seq === was?.seq);
     sessionId = (same ?? weekSessionsList[0])?.id ?? "";
@@ -446,19 +458,19 @@
     dateFromSession();
   }
 
-  function changeSession(e: Event & { currentTarget: HTMLSelectElement }) {
+  async function changeSession(e: Event & { currentTarget: HTMLSelectElement }) {
     const el = e.currentTarget;
-    if (!confirmDiscard()) {
-      el.value = sessionId;
-      return;
-    }
-    sessionId = el.value;
+    const next = el.value;
+    el.value = sessionId; // until the trainer agrees
+    if (!(await confirmSwitch())) return;
+    el.value = next;
+    sessionId = next;
     undo = null;
     loadSession();
     dateFromSession();
   }
 
-  function changeDate(e: Event & { currentTarget: HTMLInputElement }) {
+  async function changeDate(e: Event & { currentTarget: HTMLInputElement }) {
     const el = e.currentTarget;
     let next = el.value;
     // Mid-typing ("0202-…") or cleared: wait for a real date; blur puts the old one back.
@@ -471,10 +483,8 @@
       pickNote = null;
       return;
     }
-    if (!confirmDiscard()) {
-      el.value = date;
-      return;
-    }
+    el.value = date; // until the trainer agrees
+    if (!(await confirmSwitch())) return;
     selectedWeekNumber = pick.week;
     sessionId = pick.sessionId;
     undo = null;
@@ -484,11 +494,14 @@
     pickNote = pickText(pick, next);
   }
 
-  beforeNavigate((nav) => {
-    if (!dirty || saving) return;
-    // Closing or reloading the tab: cancel() raises the browser's own prompt; confirm() is blocked there.
-    if (nav.type === "leave") nav.cancel();
-    else if (!confirm(`Leave without saving ${sessionName()}? What you've entered stays as a draft on this device.`)) nav.cancel();
+  const leaveGuard = createLeaveGuard({
+    dirty: () => dirty && !saving,
+    prompt: () => ({
+      title: "Leave this session?",
+      body: `${sessionName()} isn't saved yet. What you've entered stays as a draft on this device, so you can pick it up later.`,
+      leaveLabel: "Leave, keep draft",
+      danger: false,
+    }),
   });
 
   /** Fill the cardio form from a prescription (or a prior actual). */
@@ -998,9 +1011,16 @@
   /** A slot's rows as they were before "Skip exercise" — Undo skip puts them back. */
   const skipBefore = new Map<string, Row[]>();
 
-  function skipBlock(b: { programExerciseId: string; rows: Row[] }) {
+  async function skipBlock(b: { programExerciseId: string; rows: Row[] }) {
     const pe = b.programExerciseId;
-    if (extrasHoldValues(rows, pe) && !confirm(`Skip ${blockName(b)} and drop the extra sets you entered?`)) return;
+    if (extrasHoldValues(rows, pe)) {
+      const a = await leaveGuard.ask({
+        title: `Skip ${blockName(b)}?`,
+        body: "The extra sets you entered for it will be dropped from this session.",
+        confirmLabel: "Skip and drop sets",
+      });
+      if (a !== "confirm") return;
+    }
     skipBefore.set(pe, $state.snapshot(b.rows) as Row[]);
     rows = skipExercise(rows, pe);
     const keys = new Set(b.rows.map((r) => r.key));
@@ -1725,6 +1745,8 @@
     </div>
   {/if}
 </dialog>
+
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   .head-controls {
