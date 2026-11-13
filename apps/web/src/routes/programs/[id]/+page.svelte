@@ -32,6 +32,7 @@
     sessionKey,
     sessionTag,
     sessionsByWeekday,
+    deloadBasisWeek,
     oneRepMaxKg,
     type OneRepMaxes,
     type ProgramWeek,
@@ -288,7 +289,8 @@
     }
   }
 
-  /** Deload the viewed week by the client's rule (deloadWeek); the week-1 basis reads week 1's loads. */
+  /** Deload the viewed week by the client's rule (deloadWeek); the week-1 basis reads week 1's loads
+   *  (the first same-letter week in an A/B block). */
   /** Pre-deload copies per week, so a second press undoes instead of deloading twice. */
   let deloadUndo = $state.raw<DeloadUndo>(new Map());
   const weekDeloaded = $derived(currentWeek ? isDeloaded(deloadUndo, $state.snapshot(currentWeek) as ProgramWeek) : false);
@@ -296,7 +298,10 @@
   function applyDeload() {
     if (!currentWeek) return;
     const undo = new Map(deloadUndo);
-    const week1 = deload.loadBasis === "week1" ? ($state.snapshot(program?.weeks.find((w) => w.week === 1) ?? program?.weeks[0]) as ProgramWeek | undefined) : undefined;
+    const week1 =
+      deload.loadBasis === "week1" && program
+        ? deloadBasisWeek($state.snapshot(program.weeks) as ProgramWeek[], $state.snapshot(currentWeek)?.week ?? 1)
+        : undefined;
     setWeek(toggleDeload(undo, $state.snapshot(currentWeek) as ProgramWeek, $state.snapshot(deload), week1));
     deloadUndo = undo;
   }
