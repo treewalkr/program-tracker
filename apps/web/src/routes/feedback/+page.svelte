@@ -357,6 +357,19 @@
     img.style.width = `${img.naturalWidth / Math.min(Math.max(dpr, 1), 2)}px`;
   }
 
+  let copiedHandle = $state<string | null>(null);
+  let copiedHandleTimer: ReturnType<typeof setTimeout> | undefined;
+  async function copyHandle(handle: string) {
+    try {
+      await navigator.clipboard.writeText(handle);
+      copiedHandle = handle;
+      clearTimeout(copiedHandleTimer);
+      copiedHandleTimer = setTimeout(() => (copiedHandle = null), 1500);
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Could not copy";
+    }
+  }
+
   async function copyForAgent() {
     try {
       await navigator.clipboard.writeText(await feedbackApi.exportMarkdown("accepted"));
@@ -543,7 +556,12 @@
               <div class="meta">
                 <div class="meta-info">
                   {#if fresh.has(item.id)}<span class="lamp" aria-hidden="true"></span>{/if}
-                  <span class="handle">{feedbackHandle(item.number)}</span>
+                  <button
+                    type="button"
+                    class="handle"
+                    title="Copy {feedbackHandle(item.number)}"
+                    onclick={() => copyHandle(feedbackHandle(item.number))}
+                  >{copiedHandle === feedbackHandle(item.number) ? "Copied ✓" : feedbackHandle(item.number)}</button>
                   <Pill tone={STATUS_TONE[item.status]}>
                     {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
                   </Pill>
@@ -969,6 +987,18 @@
   }
   .handle {
     font: 600 13px/1 var(--font-mono);
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: copy;
+  }
+  .handle:hover {
+    text-decoration: underline dotted;
+  }
+  .handle:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
   }
   .when {
     font-size: 12px;
