@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### New
+- Leaving a page with unsaved changes now asks in a proper in-app dialog instead of the browser's pop-up. On the log sheet you can leave and keep your entries as a draft on this device; in the program editor you can save and leave in one tap.
+- Skipping or switching a block on the log sheet, and discarding template edits, ask in the same dialog.
+- Click a feedback ticket's handle (like FB-012) to copy it.
+
 ## v0.1.27 — 2026-11-12
 
 ### New
