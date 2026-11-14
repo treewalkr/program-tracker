@@ -104,6 +104,17 @@ describe("mockApi.saveProgram", () => {
     expect(clearedPhasing.phasing).toBeNull();
   });
 
+  test("saveProgram stores a copy, not the page's live state", async () => {
+    const original = await mockApi.program("pg-maya-a");
+    const live = structuredClone(original.weeks);
+    // The program page passes its $state proxy; a Proxy is what structuredClone rejects in the browser.
+    await mockApi.saveProgram("pg-maya-a", new Proxy(live, {}));
+    live[0].sessions[0].name = "Edited after save";
+    const saved = await mockApi.program("pg-maya-a");
+    expect(saved.weeks[0].sessions[0].name).toBe(original.weeks[0].sessions[0].name);
+    expect(() => structuredClone(saved.weeks)).not.toThrow();
+  });
+
   test("saveProgram rejects an invalid weeks document", async () => {
     // Empty lifting session (no exercises)
     const invalidWeeks: ProgramWeekDto[] = [

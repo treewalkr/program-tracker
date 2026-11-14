@@ -834,13 +834,15 @@ export const mockApi: TrainerApi = {
     const i = state.programs.findIndex((p) => p.id === id);
     if (i < 0) throw new Error("program not found");
     const current = state.programs[i];
+    // Copy like the wire does: the page passes its live $state proxy, which structuredClone can't copy
+    // and which later edits would change behind the "saved" version.
     const updated: ProgramDto = {
       ...current,
-      weeks,
+      weeks: JSON.parse(JSON.stringify(weeks)),
       version: current.version + 1,
     };
     if (phasing !== undefined) {
-      updated.phasing = phasing;
+      updated.phasing = phasing == null ? phasing : JSON.parse(JSON.stringify(phasing));
     }
     state.programs[i] = updated;
     return withNames(updated);
