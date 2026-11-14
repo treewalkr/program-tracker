@@ -188,6 +188,10 @@ export const DraftWeek = z.object({
 });
 export type DraftWeek = z.infer<typeof DraftWeek>;
 
+/** The generate page's Weeks setting: same every week, or alternate A/B. */
+export const WEEKS_CHOICES = ["same", "alternate"] as const;
+export type WeeksChoice = (typeof WEEKS_CHOICES)[number];
+
 /** Most weeks a draft carries (a block is 2–26 weeks). */
 export const MAX_DRAFT_WEEKS = 26;
 /** Most weeks the AI writes in one block draft or fill (the builder still allows 26). */

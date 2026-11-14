@@ -23,6 +23,7 @@ import {
 import { sql } from "drizzle-orm";
 import { upgradeDraft } from "@pt/shared";
 import type {
+  WeeksChoice,
   AiClientMessageDraft,
   AiProgramDraft,
   GenerationKind,
@@ -102,6 +103,8 @@ export const trainers = pgTable("trainers", {
   deloadSettings: jsonb("deload_settings").$type<DeloadSettings>(),
   /** Built-in scheme presets (SCHEME_PRESETS keys) this trainer has hidden from the picker. */
   hiddenSchemePresets: text("hidden_scheme_presets").array().notNull().default(sql`'{}'::text[]`),
+  /** The generate page's last Weeks choice (FB-013); null = same every week. */
+  lastWeeksChoice: text("last_weeks_choice").$type<WeeksChoice>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
