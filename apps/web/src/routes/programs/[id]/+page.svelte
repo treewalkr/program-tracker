@@ -470,7 +470,7 @@
           onchange={(v) => setRotation(v === "ab")}
           items={[
             { value: "same", label: "Same every week" },
-            { value: "ab", label: "Alternate A/B", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
+            { value: "ab", label: "A/B weeks", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
           ]}
         />
       {/if}

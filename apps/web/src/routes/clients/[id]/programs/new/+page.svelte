@@ -712,7 +712,7 @@
           onchange={(v) => setAlternate(v === "ab")}
           items={[
             { value: "same", label: "Same every week" },
-            { value: "ab", label: "Alternate A/B", title: "Two routines: odd weeks run A, even weeks run B" },
+            { value: "ab", label: "A/B weeks", title: "Two routines: odd weeks run A, even weeks run B" },
           ]}
         />
         {#if weekB}<span class="subtle">Odd weeks run A, even weeks B.</span>{/if}

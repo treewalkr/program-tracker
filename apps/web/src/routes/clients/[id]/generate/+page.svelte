@@ -621,7 +621,7 @@
                 onchange={(v) => (weeksChoice = v)}
                 items={[
                   { value: "same", label: "Same every week" },
-                  { value: "alternate", label: "Alternate A/B", title: "Odd weeks run routine A, even weeks routine B. The AI writes both and progresses each." },
+                  { value: "alternate", label: "A/B weeks", title: "Odd weeks run routine A, even weeks routine B. The AI writes both and progresses each." },
                 ]}
               />
             </div>
@@ -632,7 +632,7 @@
               <div class="box-note">
                 <Note tone="warn">
                   Your note mentions A/B weeks, but Weeks is set to Same every week.
-                  <button type="button" class="linkish" onclick={() => (weeksChoice = "alternate")}>Turn on Alternate A/B?</button>
+                  <button type="button" class="linkish" onclick={() => (weeksChoice = "alternate")}>Turn on A/B weeks?</button>
                 </Note>
               </div>
             {/if}
