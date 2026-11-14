@@ -161,6 +161,7 @@ export async function saveDraftEdit(targetId: string, rawOps: unknown): Promise<
           trainerId: target.trainerId,
           clientId: target.clientId,
           basedOnProgramId: target.basedOnProgramId,
+      basedOnProgramVersion: target.basedOnProgramVersion,
           kind: target.kind,
           targetWeek: target.targetWeek,
           direction: target.direction,

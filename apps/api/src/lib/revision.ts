@@ -95,6 +95,7 @@ export async function runRevision(
       trainerId: parent.trainerId,
       clientId: parent.clientId,
       basedOnProgramId: parent.basedOnProgramId,
+      basedOnProgramVersion: parent.basedOnProgramVersion,
       kind: parent.kind,
       targetWeek: parent.targetWeek,
       direction: parent.direction,

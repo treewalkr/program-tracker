@@ -85,6 +85,7 @@ export async function startFill(
       trainerId,
       clientId: body.clientId,
       basedOnProgramId: program.id,
+      basedOnProgramVersion: program.version,
       kind: "fill",
       direction: program.direction ?? null,
       instructions: body.instructions ?? null,
@@ -150,6 +151,10 @@ export async function applyFill(trainerId: string, gen: AiGenerationRow): Promis
   const [prog] = await db.select().from(programs).where(eq(programs.id, gen.basedOnProgramId));
   if (!prog) return { ok: false, status: 404, error: "program not found" };
   if (prog.status === "archived") return { ok: false, status: 409, error: "program is archived" };
+  // The fill was written against this version; edits since would be overwritten.
+  if (gen.basedOnProgramVersion != null && gen.basedOnProgramVersion !== prog.version) {
+    return { ok: false, status: 409, error: "This program changed after the fill was drafted. Draft the fill again." };
+  }
 
   const logged = new Set(await programLoggedWeeks(prog));
   const [client] = await db.select().from(clients).where(eq(clients.id, gen.clientId));

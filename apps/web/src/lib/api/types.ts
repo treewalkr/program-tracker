@@ -216,6 +216,8 @@ export interface GenerationDto {
   id: string;
   clientId: string;
   basedOnProgramId: string | null;
+  /** Fill: the program's version when the fill was drafted (apply refuses a changed program). */
+  basedOnProgramVersion?: number | null;
   kind: "block" | "week" | "fill";
   targetWeek: number | null;
   direction?: string | null;

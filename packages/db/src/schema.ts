@@ -278,6 +278,8 @@ export const aiGenerations = pgTable("ai_generations", {
   basedOnProgramId: uuid("based_on_program_id").references(() => programs.id, {
     onDelete: "set null",
   }),
+  /** Fill: the program's version when the fill was drafted (revisions inherit it) — apply refuses a changed program. */
+  basedOnProgramVersion: integer("based_on_program_version"),
   kind: text("kind").$type<GenerationKind>().notNull().default("block"),
   targetWeek: integer("target_week"),
   direction: text("direction"),

@@ -50,6 +50,8 @@
     catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>;
     newProgram: ProgramDto | null;
     approving?: boolean;
+    /** Why the last approve was refused; shown above the review. */
+    approveError?: string | null;
     rejecting?: boolean;
     revisionCancelled?: boolean;
     onapprove: () => void;
@@ -71,6 +73,7 @@
     catalogById,
     newProgram,
     approving = false,
+    approveError = null,
     rejecting = false,
     revisionCancelled = false,
     onapprove,
@@ -369,6 +372,7 @@
 </div>
 
 {#if revisionCancelled}<Note tone="warn" role="status">Revision cancelled — the previous draft is untouched.</Note>{/if}
+{#if approveError && !newProgram}<Note tone="bad" role="alert">{approveError}</Note>{/if}
 {#if newProgram}
   <Note tone="ok" class="flash" role="status">
     {isFill

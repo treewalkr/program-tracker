@@ -93,4 +93,16 @@ describe("mockApi fill (FB-013)", () => {
     expect(after.weeks[2].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBe(102.5);
     expect(after.weeks[2].sessions[0].weekday).toBe(1);
   });
+
+  test("a program saved after the fill was drafted refuses the fill", async () => {
+    const wk = (week: number) => ({
+      week,
+      sessions: [{ id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "lifting" as const, weekday: 1,
+        exercises: [{ id: crypto.randomUUID(), exerciseId: "ex-squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }],
+    });
+    const before = await mockApi.createProgram({ clientId: "cl-maya", name: "Stale", weeks: [1, 2, 3].map(wk) });
+    const gen = await mockApi.fillProgram({ clientId: "cl-maya", programId: before.id, providerId: "mock" });
+    await mockApi.saveProgram(before.id, before.weeks);
+    await expect(mockApi.approveGeneration(gen.id)).rejects.toThrow("This program changed after the fill was drafted. Draft the fill again.");
+  });
 });

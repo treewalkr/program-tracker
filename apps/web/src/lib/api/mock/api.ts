@@ -289,6 +289,7 @@ function reviseDraftInState(s: typeof state, id: string, message: string): Gener
     id: uuid(),
     clientId: gen.clientId,
     basedOnProgramId: gen.basedOnProgramId,
+    basedOnProgramVersion: gen.basedOnProgramVersion ?? null,
     kind: gen.kind ?? "block",
     targetWeek: gen.targetWeek ?? null,
     direction: gen.direction ?? null,
@@ -1154,6 +1155,7 @@ export const mockApi: TrainerApi = {
       id: uuid(),
       clientId: input.clientId,
       basedOnProgramId: program.id,
+      basedOnProgramVersion: program.version,
       kind: "fill",
       targetWeek: null,
       direction: program.direction ?? null,
@@ -1317,6 +1319,7 @@ export const mockApi: TrainerApi = {
       id: uuid(),
       clientId: parent.clientId,
       basedOnProgramId: parent.basedOnProgramId,
+      basedOnProgramVersion: parent.basedOnProgramVersion ?? null,
       kind: parent.kind ?? "block",
       targetWeek: parent.targetWeek ?? null,
       direction: parent.direction ?? null,
@@ -1692,6 +1695,9 @@ export const mockApi: TrainerApi = {
       // Same as the API: only the AI's weeks, skipping any logged since; each keeps its calendar and letter.
       const prog = state.programs.find((p) => p.id === gen.basedOnProgramId);
       if (!prog) throw new Error("program not found");
+      if (gen.basedOnProgramVersion != null && gen.basedOnProgramVersion !== prog.version) {
+        throw Object.assign(new Error("This program changed after the fill was drafted. Draft the fill again."), { status: 409 });
+      }
       const logged = new Set(loggedWeeks(prog as unknown as SignalProgram, state.logs));
       for (const w of gen.draft.weeks) {
         if (w.locked || logged.has(w.week)) continue;

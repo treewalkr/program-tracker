@@ -64,6 +64,8 @@
   let activated = $state<ProgramDto | null>(null);
   let activating = $state(false);
   let activateError = $state<string | null>(null);
+  /** Why approve was refused (e.g. a fill drafted before the program changed) — shown for that version only. */
+  let approveError = $state<{ id: string; message: string } | null>(null);
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
   let weekMode = $state<number | null>(null);
   /** Block drafts: how many weeks, and same every week or A/B (the setting decides, not the note). */
@@ -281,9 +283,12 @@
   async function approve() {
     if (!gen) return;
     approving = true;
+    approveError = null;
     try {
       newProgram = await api.approveGeneration(gen.id);
       gen = { ...gen, status: "approved" }; // backend flips it; keep the pill in sync
+    } catch (err) {
+      approveError = { id: gen.id, message: (err as Error).message || "Could not apply this draft" };
     } finally {
       approving = false;
     }
@@ -759,6 +764,7 @@
     {catalogById}
     {newProgram}
     {approving}
+    approveError={approveError?.id === gen.id ? approveError.message : null}
     {rejecting}
     revisionCancelled={cancelledNote === "revision"}
     onapprove={approve}

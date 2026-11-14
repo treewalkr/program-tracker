@@ -424,6 +424,33 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(again.body.draft.weeks.filter((w: any) => w.locked).map((w: any) => w.week)).toEqual([1, 2, 3]);
   });
 
+  test("Fill with AI: a program edited after the fill was drafted refuses the fill (409)", async () => {
+    const wk = (week: number) => ({
+      week,
+      sessions: [{
+        id: crypto.randomUUID(),
+        name: "Lower",
+        seq: 1,
+        order: 0,
+        kind: "lifting",
+        exercises: [{ id: crypto.randomUUID(), exerciseId: squatId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] }],
+      }],
+    });
+    const p = await call("POST", "/v1/programs", { name: "Stale fill", clientId, weeks: [1, 2, 3, 4].map(wk) });
+    const g = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    // The trainer edits W3 by hand after the fill was drafted.
+    const edited = structuredClone(p.body.weeks);
+    edited[2].sessions[0].exercises[0].prescribedSets[0].reps = 3;
+    expect((await call("PUT", `/v1/programs/${p.body.id}`, { weeks: edited })).status).toBe(200);
+    const applied = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(applied.status).toBe(409);
+    expect(applied.body.error).toBe("This program changed after the fill was drafted. Draft the fill again.");
+    const after = await call("GET", `/v1/programs/${p.body.id}`);
+    expect(after.body.weeks[2].sessions[0].exercises[0].prescribedSets[0].reps).toBe(3);
+    expect((await call("GET", `/v1/ai/generations/${g.body.id}`)).body.status).toBe("validated");
+  });
+
   test("AI block drafts are capped at 12 weeks", async () => {
     const { status } = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 13 });
     expect(status).toBe(422);
