@@ -348,6 +348,28 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.error).toBe("generation not found");
   });
 
+  test("block length and A/B: every week drafted, odd A / even B, B ≠ A; approve keeps the letters", async () => {
+    const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 6, alternate: true });
+    expect(g.status).toBe(201);
+    const weeks = g.body.draft.weeks;
+    expect(weeks.map((w: any) => `${w.week}${w.rotation}`)).toEqual(["1A", "2B", "3A", "4B", "5A", "6B"]);
+    const names = (w: any) => w.sessions.flatMap((s: any) => s.exercises.map((e: any) => e.exerciseName)).join("|");
+    expect(names(weeks[0])).toBe(names(weeks[2]));
+    expect(names(weeks[0])).not.toBe(names(weeks[1]));
+    expect(g.body.draft.phasing.plannedWeeks).toBe(6);
+    const prog = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(prog.status).toBe(201);
+    expect(prog.body.weeks.map((w: any) => w.rotation)).toEqual(["A", "B", "A", "B", "A", "B"]);
+    // Loads progress per letter: W3's squat is heavier than W1's.
+    const squat = (w: any) => w.sessions[0].exercises.find((e: any) => /Squat/.test(e.exerciseName ?? ""))?.prescribedSets[0].targetWeightKg;
+    expect(squat(weeks[2])).toBeGreaterThan(squat(weeks[0]));
+  });
+
+  test("AI block drafts are capped at 12 weeks", async () => {
+    const { status } = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 13 });
+    expect(status).toBe(422);
+  });
+
   test("approve creates an AI-assisted DRAFT program (not client-visible)", async () => {
     const { status, body } = await call("POST", `/v1/ai/generations/${(globalThis as any).__genId}/approve`, {});
     expect(status).toBe(201);
@@ -355,9 +377,10 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.status).toBe("draft");
     expect(body.createdFromProgramId).toBe(programId);
     expect(body.clientId).toBe(clientId);
-    // mock draft proposes phasing — approve carries it into the program
-    expect(body.phasing?.plannedWeeks).toBe(4);
-    expect(body.phasing?.weeks?.some((w: any) => w.directive === "deload")).toBe(true);
+    // mock draft proposes phasing — approve carries it into the program; the
+    // block length defaults to the current program's (2 weeks here)
+    expect(body.phasing?.plannedWeeks).toBe(2);
+    expect(body.weeks.map((w: any) => w.week)).toEqual([1, 2]);
     // every week holds the two lifting sessions and the cardio session on its own track
     for (const w of body.weeks) {
       expect(w.sessions).toHaveLength(3);
@@ -368,7 +391,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       expect(cardio.exercises).toEqual([]);
     }
     // every exercise carries its display name — the UI renders it directly
-    expect(body.weeks).toHaveLength(4);
+    expect(body.weeks).toHaveLength(2);
     for (const w of body.weeks) {
       for (const s of w.sessions) {
         for (const e of s.exercises) {

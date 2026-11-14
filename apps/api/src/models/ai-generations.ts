@@ -3,6 +3,7 @@ import { t } from "elysia";
 import { aiGenerations } from "@pt/db/schema";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "../utility";
 import { str, as, ProviderChoice } from "./shared";
+import { MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS } from "@pt/shared";
 
 const AiGenerationInsert = createInsertSchema(aiGenerations);
 const AiGenerationUpdate = createUpdateSchema(aiGenerations, {
@@ -24,6 +25,10 @@ export const AiGenerationModel = {
     instructions: t.Optional(nonNull(AiGenerationValues.properties.instructions)),
     direction: t.Optional(nonNull(AiGenerationValues.properties.direction)),
     targetWeek: t.Optional(nonNull(AiGenerationValues.properties.targetWeek)),
+    /** Block drafts: weeks to write (the trainer's field wins over the AI's plan). Not a column. */
+    plannedWeeks: t.Optional(t.Integer({ minimum: MIN_BLOCK_WEEKS, maximum: MAX_AI_BLOCK_WEEKS })),
+    /** Block drafts: odd weeks A, even weeks B. Not a column. */
+    alternate: t.Optional(t.Boolean()),
   }),
   /** Stored as `rejectReason`. */
   reject: t.Optional(t.Object({ reason: t.Optional(nonNull(AiGenerationValues.properties.rejectReason)) })),

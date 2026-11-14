@@ -190,6 +190,10 @@ export type DraftWeek = z.infer<typeof DraftWeek>;
 
 /** Most weeks a draft carries (a block is 2–26 weeks). */
 export const MAX_DRAFT_WEEKS = 26;
+/** Most weeks the AI writes in one block draft or fill (the builder still allows 26). */
+export const MAX_AI_BLOCK_WEEKS = 12;
+/** Fewest weeks in a block. */
+export const MIN_BLOCK_WEEKS = 2;
 
 const DraftBody = z
   .object({

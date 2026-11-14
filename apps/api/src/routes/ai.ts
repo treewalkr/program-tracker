@@ -14,6 +14,9 @@ import {
 } from "@pt/db";
 import {
   AiProgramDraft,
+  MAX_AI_BLOCK_WEEKS,
+  blockDraftSchema,
+  isAlternating,
   ProgramWeeksDocument,
   blockPulse,
   chainBalanceText,
@@ -21,7 +24,7 @@ import {
   combinePreferenceDocs,
   pulseSummary,
   type ProgramWeek, DEFAULT_PROVIDER_ID } from "@pt/shared";
-import { callLlm, contextSnapshot } from "../ai/llm";
+import { callLlm, contextSnapshot, isMockRuntime } from "../ai/llm";
 import { settleGeneration } from "../lib/settle-generation";
 import { draftToWeekDiff, recordFeedback, recordRegenerated } from "../lib/llm-feedback";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
@@ -30,7 +33,8 @@ import {
   buildWeekMessages,
   periodizationContext,
 } from "../ai/prompt";
-import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
+import { mockBlockDraft, mockWeekDraft } from "../ai/mock";
+import { stampWeekDraft } from "../lib/draft-weeks";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
 import { loadRoleLabels } from "../lib/role-labels";
 import { ensureSessionTypes } from "../lib/session-types";
@@ -101,6 +105,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           const effort = resolveEffort(rt, body.effort);
 
           const targetWeek = body.targetWeek;
+          const targetRotation = basedProg.sessions.find((w) => w.week === targetWeek)?.rotation;
           const targetPlan = basedProg.phasing?.weeks?.find((w) => w.week === body.targetWeek);
           const targetDirective = targetPlan?.directive ?? null;
           const target = targetPlan?.target ?? null;
@@ -160,9 +165,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               signal: ac.signal,
               mode: "json",
               schema: AiProgramDraft,
-              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective)),
+              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective, targetRotation)),
             });
-            const { code, row } = await settleGeneration(generation.id, out);
+            // The draft is the target week, with its A/B letter.
+            const { code, row } = await settleGeneration(generation.id, out.ok ? { ...out, data: stampWeekDraft(out.data, targetWeek, targetRotation) } : out);
             return status(code, row);
           } finally {
             deregisterGeneration(generation.id);
@@ -172,8 +178,17 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
         const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
         const effort = resolveEffort(rt, body.effort);
+        // The trainer's block length and Weeks choice; else the current program's.
+        const [current] = body.basedOnProgramId
+          ? await db.select({ sessions: programs.sessions, phasing: programs.phasing }).from(programs).where(eq(programs.id, body.basedOnProgramId))
+          : [];
+        const block = {
+          weeks: body.plannedWeeks ?? Math.min(MAX_AI_BLOCK_WEEKS, Math.max(2, current?.phasing?.plannedWeeks ?? current?.sessions.length ?? 4)),
+          alternate: body.alternate ?? (current ? isAlternating(current.sessions) : false),
+        };
         const messages = buildGenerationMessages({
           ...ctx,
+          block,
           direction: body.direction ?? null,
           trainerInstructions: body.instructions ?? "",
         });
@@ -207,6 +222,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               basedOnProgramId: body.basedOnProgramId ?? null,
               direction: body.direction ?? null,
               trainerInstructions: body.instructions ?? "",
+              block,
             }),
             messages: [
               { role: "system", content: messages.system },
@@ -216,8 +232,14 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             effort,
             signal: ac.signal,
             mode: "json",
-            schema: AiProgramDraft,
-            mock: () => JSON.stringify(MOCK_DRAFT),
+            long: true,
+            // Every week, the client's lifting count, letters odd A / even B, B ≠ A.
+            schema: blockDraftSchema({
+              plannedWeeks: block.weeks,
+              alternate: block.alternate,
+              liftingSessions: isMockRuntime(rt) ? null : ctx.client.sessionsPerWeek ?? null,
+            }),
+            mock: () => JSON.stringify(mockBlockDraft({ plannedWeeks: block.weeks, alternate: block.alternate })),
           });
           const { code, row } = await settleGeneration(generation.id, out);
           return status(code, row);

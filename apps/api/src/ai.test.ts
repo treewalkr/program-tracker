@@ -1961,6 +1961,43 @@ describe("hand edits reach the prompt", () => {
   });
 });
 
+describe("whole-block prompts (FB-013)", () => {
+  const ctx = {
+    client: { name: "Jonas", sessionsPerWeek: 2 },
+    previousProgram: null,
+    periodization: null,
+    chainBalance: null,
+    history: [],
+    catalog: [],
+    trainerInstructions: "",
+  };
+
+  test("a block prompt asks for every week; A/B asks for two routines; one-week schema without a block", () => {
+    const plain = buildGenerationMessages({ ...ctx, block: { weeks: 6, alternate: false } }).system;
+    expect(plain).toContain('"weeks": [');
+    expect(plain).toContain("The block is exactly 6 weeks");
+    expect(plain).toContain('Do not set "rotation"');
+    const ab = buildGenerationMessages({ ...ctx, block: { weeks: 4, alternate: true } }).system;
+    expect(ab).toContain('odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B")');
+    expect(buildGenerationMessages(ctx).system).not.toContain('"weeks": [                        // every week');
+  });
+
+  test("draft text and slots are per week; slots show the first week of each letter", () => {
+    const s = (n: string) => [{ name: "Lower", kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+    const d: AiProgramDraft = {
+      name: "AB",
+      rationale: "",
+      clientSummary: "",
+      weeks: [1, 2, 3, 4].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: s(week % 2 ? "Squat" : "Deadlift") })),
+    };
+    expect(draftToText(d)).toContain("WEEK 4 (B):\n- Lower: Deadlift");
+    const slots = draftSlotsText(d);
+    expect(slots).toContain("WEEK 1 (A) — week A routine, also W3");
+    expect(slots).toContain("WEEK 2 (B) — week B routine, also W4");
+    expect(slots).not.toContain("WEEK 3");
+  });
+});
+
 describe("block output cap", () => {
   test("a whole-block call asks for the provider's block ceiling", async () => {
     const { completionParams } = await import("./ai/provider");

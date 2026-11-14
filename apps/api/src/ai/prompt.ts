@@ -137,6 +137,16 @@ export interface GenerationContext {
   coachingRules?: CoachingRulePrompt[];
   /** The client's deload rule in force (effectiveDeload); absent = the default. */
   deload?: DeloadSettings;
+  /** Block drafts: how many weeks to write and whether they alternate A/B (the trainer's setting). */
+  block?: BlockShape;
+}
+
+/** The block a draft writes in full: its length, A/B alternation, and the trainer's own weeks (fill). */
+export interface BlockShape {
+  weeks: number;
+  alternate: boolean;
+  /** Fill: weeks the trainer wrote — shown, never written. */
+  lockedWeeks?: number[];
 }
 
 export interface CoachingRulePrompt {
@@ -166,8 +176,33 @@ function guidanceBlocks(ctx: Pick<GenerationContext, "learnedPreferences" | "coa
   ];
 }
 
-/** The draft JSON shape; the role line lists the trainer's live labels. */
-function draftSchemaSpec(labels: readonly RoleLabel[]): string {
+/**
+ * The draft JSON shape; the role line lists the trainer's live labels.
+ * `weeks`: a block — every week in full under "weeks". `sessions`: one week (weekly re-drafts).
+ */
+function draftSchemaSpec(labels: readonly RoleLabel[], shape: "weeks" | "sessions" = "sessions"): string {
+  const spec = draftSchemaSpecSessions(labels);
+  if (shape === "sessions") return spec;
+  // Wrap the one-week "sessions" list in a week entry; the plan stays as it is.
+  const at = spec.indexOf('  "sessions": [');
+  const body = spec
+    .slice(at)
+    .replace(/\n\}$/, "")
+    .split("\n")
+    .map((l) => `    ${l}`)
+    .join("\n")
+    .replace('"sessions": [                     // one week: the lifting sessions, then any cardio sessions', '"sessions": [                 // this week: the lifting sessions, then any cardio sessions');
+  return `${spec.slice(0, at)}  "weeks": [                        // every week of the block in full, week 1 first
+    {
+      "week": number,                // 1, 2, 3 … in order
+      "rotation"?: "A" | "B",        // only when the block alternates: odd weeks "A", even weeks "B"
+${body}
+    }
+  ]
+}`;
+}
+
+function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
   return `{
   "name": string,                    // short program name
   "rationale": string,              // trainer-facing: progression logic, volume/intensity changes, and why
@@ -323,6 +358,27 @@ function weekdayRule(client: ClientContext, days: number[]): string {
   ].join("\n");
 }
 
+/**
+ * Rules for writing a whole block: one entry per week with its own loads
+ * following that week's directive, A/B routines when alternating, lean JSON
+ * (the whole block is one answer), and the trainer's locked weeks left out.
+ */
+export function blockWeekRules(b: BlockShape): string[] {
+  const locked = b.lockedWeeks ?? [];
+  const write = Array.from({ length: b.weeks }, (_, i) => i + 1).filter((w) => !locked.includes(w));
+  return [
+    `- The block is exactly ${b.weeks} weeks: phasing.plannedWeeks = ${b.weeks}, one phasing.weeks entry per week.`,
+    locked.length
+      ? `- "weeks" lists weeks ${write.join(", ")} in full, in order — leave out week${locked.length > 1 ? "s" : ""} ${locked.join(", ")} (the trainer wrote ${locked.length > 1 ? "them" : "it"}; see LOCKED WEEKS). Build each week from the locked week${locked.length > 1 ? "s" : ""}: keep their exercises and progress the loads.`
+      : `- "weeks" lists every week 1–${b.weeks} in full, in order: each week's own sets, reps and loads, following that week's directive (+volume adds sets or reps, +intensity adds load, deload follows the deload rule).`,
+    "- Keep the same sessions in the same order every week (lifting first, then cardio) so each one keeps its calendar slot.",
+    b.alternate
+      ? '- This block ALTERNATES two routines: odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B"). A and B have the same sessions and days but different exercises (e.g. back squat in A, front squat in B). Weeks with the same letter keep the same exercises and progress their loads from the last week with that letter (week 3 builds on week 1, week 4 on week 2).'
+      : '- Every week keeps the same exercises; only the prescription progresses. Do not set "rotation".',
+    "- Keep the JSON lean: leave out optional fields at their defaults, no per-set notes unless needed, weekday only on week 1's sessions when the others match.",
+  ];
+}
+
 const WEEK_STABILITY_RULE =
   "- sessions is exactly one week. Keep the current week's sessions in the same order (lifting first, then cardio) so each one keeps its calendar slot; add or drop a session only with a reason stated in rationale.";
 
@@ -356,7 +412,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    draftSchemaSpec(activeLabels(ctx.roleLabels)),
+    draftSchemaSpec(activeLabels(ctx.roleLabels), ctx.block ? "weeks" : "sessions"),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
@@ -365,6 +421,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    ...(ctx.block ? blockWeekRules(ctx.block) : []),
     deloadRule(ctx),
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
@@ -469,7 +526,7 @@ export interface RevisionContext extends GenerationContext {
 }
 
 /** Output schema spec for proposal turns (propose → build). */
-const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4")}]} | null}`;
+const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"week"?: number (the WEEK heading in DRAFT SLOTS the day/slot numbers read; the change reaches every week with that week's letter — omit for week 1 or a one-week draft), "day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4")}]} | null}`;
 
 /**
  * Hand edits reach the model as "Edited the draft by hand (vN): …" lines in
@@ -523,7 +580,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : draftSchemaSpec(activeLabels(ctx.roleLabels)),
+    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : draftSchemaSpec(activeLabels(ctx.roleLabels), ctx.block ? "weeks" : "sessions"),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
@@ -532,6 +589,8 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    ...(ctx.block && !proposal ? blockWeekRules(ctx.block) : []),
+    ...(ctx.block && !proposal ? ["- A revision keeps the block's length and its week letters; a change to one routine reaches every week with that letter."] : []),
     deloadRule(ctx),
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",

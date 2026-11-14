@@ -1,9 +1,10 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
-import { AiProgramDraft, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
+import { AiProgramDraft, blockDraftSchema, draftAlternates, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
 import { currentBlockWeek } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
+import { stampWeekDraft } from "./draft-weeks";
 import { recordFeedback } from "./llm-feedback";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import {
@@ -119,6 +120,8 @@ export async function runRevision(
     payload: { childGenerationId: generation.id, fromProposal: Boolean(opts.mockProposal || opts.feedback) },
   });
 
+  // The block as the parent drafted it: its length and A/B letters.
+  const block = { weeks: parent.draft!.weeks.length, alternate: draftAlternates(parent.draft!) };
   const ac = registerGeneration(generation.id);
   try {
     let messages: { system: string; user: string } | null = null;
@@ -173,6 +176,7 @@ export async function runRevision(
           .where(eq(aiGenerations.id, generation.id));
         messages = buildRevisionMessages({
           ...ctx,
+          block,
           trainerInstructions: "",
           direction: parent.direction,
           previousDraft: parent.draft!,
@@ -186,6 +190,7 @@ export async function runRevision(
     }
 
     // Call + validate, with exactly one retry on validation failure.
+    const isWeek = parent.kind === "week";
     const out = await callLlm({
       purpose: parent.kind === "week" ? "week_revision" : "revision",
       builder: parent.kind === "week" ? "buildWeekRevisionMessages" : "buildRevisionMessages",
@@ -201,7 +206,9 @@ export async function runRevision(
       effort,
       signal: ac.signal,
       mode: "json",
-      schema: AiProgramDraft,
+      long: !isWeek,
+      // A block revision keeps the block's length and letters.
+      schema: isWeek ? AiProgramDraft : blockDraftSchema({ plannedWeeks: block.weeks, alternate: block.alternate }),
       mock: () =>
         JSON.stringify(
           mockApplyProposal(
@@ -212,18 +219,18 @@ export async function runRevision(
           )
         ),
     });
-    let settled = out;
+    let settled = isWeek && out.ok ? { ...out, data: stampWeekDraft(out.data, parent.targetWeek ?? out.data.weeks[0].week, parent.draft!.weeks[0]?.rotation) } : out;
     let discardedChanges: SlotChange[] | undefined;
-    if (out.ok && opts.scope) {
-      const scoped = scopeToProposal(parent.draft!, out.data, opts.scope);
+    if (settled.ok && opts.scope) {
+      const scoped = scopeToProposal(parent.draft!, settled.data, opts.scope);
       const valid = AiProgramDraft.safeParse(scoped.draft);
       settled = valid.success
-        ? { ...out, data: valid.data }
-        : { turnId: out.turnId, callId: out.callId, attempts: out.attempts, ok: false, kind: "validation", error: `scoped draft invalid: ${valid.error.message}` };
+        ? { ...settled, data: valid.data }
+        : { turnId: settled.turnId, callId: settled.callId, attempts: settled.attempts, ok: false, kind: "validation", error: `scoped draft invalid: ${valid.error.message}` };
       discardedChanges = scoped.discarded;
-    } else if (out.ok && opts.lockPhasing) {
-      const locked = lockPhasing(parent.draft!, out.data, trimmedMessage);
-      settled = { ...out, data: locked.draft };
+    } else if (settled.ok && opts.lockPhasing) {
+      const locked = lockPhasing(parent.draft!, settled.data, trimmedMessage);
+      settled = { ...settled, data: locked.draft };
       discardedChanges = locked.discarded;
     }
     const { row } = await settleGeneration(generation.id, settled, { discardedChanges });
