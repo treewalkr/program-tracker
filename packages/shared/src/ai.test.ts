@@ -28,6 +28,7 @@ import {
   sameLetterWeeks,
   resizeDraftWeeks,
   mentionsAlternating,
+  withLockedWeeks,
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
@@ -385,5 +386,14 @@ describe("mentionsAlternating", () => {
       expect(mentionsAlternating(n)).toBe(true);
     }
     for (const n of ["more volume on bench", "a bit heavier", "about 4 weeks"]) expect(mentionsAlternating(n)).toBe(false);
+  });
+});
+
+describe("withLockedWeeks", () => {
+  test("the trainer's weeks come back locked, in order; an AI copy of a locked week is dropped", () => {
+    const s = (n: string) => [{ name: n, kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+    const ai: AiProgramDraft = { name: "F", rationale: "", clientSummary: "", weeks: [{ week: 1, sessions: s("AI W1") }, { week: 2, sessions: s("W2") }, { week: 3, sessions: s("W3") }] };
+    const merged = withLockedWeeks(ai, [{ week: 1, sessions: s("Mine") }]);
+    expect(merged.weeks.map((w) => `${w.week}:${w.sessions[0].name}:${w.locked ?? false}`)).toEqual(["1:Mine:true", "2:W2:false", "3:W3:false"]);
   });
 });

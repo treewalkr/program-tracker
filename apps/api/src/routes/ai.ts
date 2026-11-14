@@ -36,6 +36,7 @@ import {
 } from "../ai/prompt";
 import { mockBlockDraft, mockWeekDraft } from "../ai/mock";
 import { stampWeekDraft } from "../lib/draft-weeks";
+import { applyFill, startFill } from "../lib/fill";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
 import { loadRoleLabels } from "../lib/role-labels";
 import { ensureSessionTypes } from "../lib/session-types";
@@ -260,6 +261,25 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       body: AiGenerationModel.generate,
     }
   )
+  /**
+   * Fill with AI (FB-013): the AI writes every week after the last logged one
+   * (and after the first week of each letter) of an existing program; the
+   * trainer's weeks ride in the draft as locked weeks.
+   */
+  .post(
+    "/fill",
+    async ({ body, status, trainerId }) => {
+      try {
+        const res = await startFill(trainerId, body);
+        if (!res.ok) return status(res.status, { error: res.error });
+        return status(res.code, res.row);
+      } catch (err) {
+        if (err instanceof ContextError) return status(err.status, { error: err.message });
+        throw err;
+      }
+    },
+    { body: AiGenerationModel.fill }
+  )
   .get(
     "/generations",
     async ({ query, trainerId }) => {
@@ -294,6 +314,12 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         ? await db.select().from(clients).where(eq(clients.id, gen.clientId))
         : [null];
 
+      if (gen.kind === "fill") {
+        const res = await applyFill(trainerId, gen);
+        if (!res.ok) return status(res.status, { error: res.error, ...(res.refs ? { refs: res.refs } : {}) });
+        await recordApproval(trainerId, gen, res.program.sessions.find((w) => w.week === res.written[0]), res.program.id);
+        return status(201, toProgramDto(res.program));
+      }
       const catalog = await db.select().from(exercises);
       if (gen.kind === "week") {
         if (!gen.basedOnProgramId) return status(404, { error: "program not found" });

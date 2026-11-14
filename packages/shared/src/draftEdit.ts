@@ -547,6 +547,7 @@ export function applyDraftEdit(
   if (ops.some((op) => (op.week ?? draft.weeks[0].week) !== weekNo)) throw new DraftEditError("edit one week at a time");
   const wi = draft.weeks.findIndex((w) => w.week === weekNo);
   if (wi < 0) throw new DraftEditError(`no week ${weekNo}`);
+  if (draft.weeks[wi].locked) throw new DraftEditError(`week ${weekNo} is yours — it stays as you wrote it`);
   const start = draft.weeks[wi].sessions;
   // The week as the trainer saw it; Undo puts this back.
   const shownAt = new Work(start, labels, keepOrder).lists;

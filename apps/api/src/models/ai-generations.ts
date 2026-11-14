@@ -30,6 +30,13 @@ export const AiGenerationModel = {
     /** Block drafts: odd weeks A, even weeks B. Not a column. */
     alternate: t.Optional(t.Boolean()),
   }),
+  /** Fill with AI: the program whose remaining weeks the AI writes. */
+  fill: t.Object({
+    ...spread(t.Pick(AiGenerationInsert, ["clientId"])),
+    basedOnProgramId: nonNull(AiGenerationUpdate.properties.basedOnProgramId),
+    ...ProviderChoice,
+    instructions: t.Optional(nonNull(AiGenerationValues.properties.instructions)),
+  }),
   /** Stored as `rejectReason`. */
   reject: t.Optional(t.Object({ reason: t.Optional(nonNull(AiGenerationValues.properties.rejectReason)) })),
   /** Stored as `revisionMessage`. */

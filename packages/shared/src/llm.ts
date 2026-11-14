@@ -7,6 +7,8 @@
 export const LLM_PURPOSES = [
   "block_generate",
   "week_generate",
+  /** Fill with AI: the weeks after the trainer's own (FB-013). */
+  "fill_generate",
   "revision",
   "week_revision",
   "proposal_turn",

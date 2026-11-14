@@ -1,10 +1,11 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
-import { AiProgramDraft, blockDraftSchema, draftAlternates, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
+import { AiProgramDraft, blockDraftSchema, draftAlternates, lockedDraftWeeks, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
 import { currentBlockWeek } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
 import { stampWeekDraft } from "./draft-weeks";
+import { refillLocked } from "./fill";
 import { recordFeedback } from "./llm-feedback";
 import { providerRuntime, resolveEffort, ContextError } from "../ai/runtime";
 import {
@@ -121,7 +122,8 @@ export async function runRevision(
   });
 
   // The block as the parent drafted it: its length and A/B letters.
-  const block = { weeks: parent.draft!.weeks.length, alternate: draftAlternates(parent.draft!) };
+  // A fill's locked weeks (the trainer's) stay out of the AI's answer and come back from the parent.
+  const block = { weeks: parent.draft!.weeks.length, alternate: draftAlternates(parent.draft!), lockedWeeks: lockedDraftWeeks(parent.draft!) };
   const ac = registerGeneration(generation.id);
   try {
     let messages: { system: string; user: string } | null = null;
@@ -208,18 +210,25 @@ export async function runRevision(
       mode: "json",
       long: !isWeek,
       // A block revision keeps the block's length and letters.
-      schema: isWeek ? AiProgramDraft : blockDraftSchema({ plannedWeeks: block.weeks, alternate: block.alternate }),
-      mock: () =>
-        JSON.stringify(
-          mockApplyProposal(
-            mockReviseDraft(parent.draft!, trimmedMessage),
-            opts.mockProposal ?? { summary: "", changes: [] },
-            // Opt-in for tests: the mock also edits phasing and cardio unasked (see mockApplyProposal).
-            { rogue: process.env.MOCK_ROGUE === "1" }
-          )
-        ),
+      schema: isWeek ? AiProgramDraft : blockDraftSchema({ plannedWeeks: block.weeks, alternate: block.alternate, lockedWeeks: block.lockedWeeks }),
+      mock: () => {
+        const d = mockApplyProposal(
+          mockReviseDraft(parent.draft!, trimmedMessage),
+          opts.mockProposal ?? { summary: "", changes: [] },
+          // Opt-in for tests: the mock also edits phasing and cardio unasked (see mockApplyProposal).
+          { rogue: process.env.MOCK_ROGUE === "1" }
+        );
+        // Like a live model told to leave the locked weeks out.
+        return JSON.stringify({ ...d, weeks: d.weeks.filter((w) => !w.locked) });
+      },
     });
-    let settled = isWeek && out.ok ? { ...out, data: stampWeekDraft(out.data, parent.targetWeek ?? out.data.weeks[0].week, parent.draft!.weeks[0]?.rotation) } : out;
+    let settled = !out.ok
+      ? out
+      : isWeek
+        ? { ...out, data: stampWeekDraft(out.data, parent.targetWeek ?? out.data.weeks[0].week, parent.draft!.weeks[0]?.rotation) }
+        : parent.kind === "fill"
+          ? { ...out, data: refillLocked(out.data, parent.draft!) }
+          : out;
     let discardedChanges: SlotChange[] | undefined;
     if (settled.ok && opts.scope) {
       const scoped = scopeToProposal(parent.draft!, settled.data, opts.scope);

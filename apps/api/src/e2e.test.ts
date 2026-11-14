@@ -374,6 +374,56 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect((await call("PUT", "/v1/account/weeks-choice", { choice: "same" })).body).toEqual({ choice: "same" });
   });
 
+  test("Fill with AI: writes the weeks after the trainer's; logged weeks lock everything before them (FB-013)", async () => {
+    const wk = (week: number, exerciseId: string) => ({
+      week,
+      rotation: week % 2 ? "A" : "B",
+      sessions: [{
+        id: crypto.randomUUID(),
+        name: "Lower",
+        seq: 1,
+        order: 0,
+        kind: "lifting",
+        exercises: [{ id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] }],
+      }],
+    });
+    const p = await call("POST", "/v1/programs", { name: "Fill me", clientId, weeks: [1, 2, 3, 4, 5, 6].map((w) => wk(w, w % 2 ? squatId : benchId)) });
+    expect(p.status).toBe(201);
+
+    const g = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    expect(g.body.kind).toBe("fill");
+    const weeks = g.body.draft.weeks;
+    expect(weeks.map((w: any) => `${w.week}${w.rotation}${w.locked ? "*" : ""}`)).toEqual(["1A*", "2B*", "3A", "4B", "5A", "6B"]);
+    // A weeks build on W1 (squat), B weeks on W2 (bench), loads up.
+    expect(weeks[2].sessions[0].exercises[0].exerciseId).toBe(squatId);
+    expect(weeks[3].sessions[0].exercises[0].exerciseId).toBe(benchId);
+    expect(weeks[2].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBeGreaterThan(100);
+
+    // A hand edit on a locked week is refused.
+    const locked = await call("POST", `/v1/ai/generations/${g.body.id}/edit`, { ops: [{ op: "move", refs: [{ day: 1, slot: 1 }], dir: "down", week: 1 }] });
+    expect(locked.status).toBe(422);
+
+    // Logging W3 before Apply: W3 is skipped, W4–W6 are written, W1–W2 untouched.
+    const w3 = p.body.weeks[2];
+    const log = await call("POST", "/v1/logs/sessions", {
+      clientId, programId: p.body.id, programSessionId: w3.sessions[0].id, date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+    });
+    expect(log.status).toBe(201);
+    const applied = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(applied.status).toBe(201);
+    expect(applied.body.id).toBe(p.body.id);
+    expect(applied.body.weeks[0]).toEqual(p.body.weeks[0]);
+    expect(applied.body.weeks[2]).toEqual(p.body.weeks[2]);
+    expect(applied.body.weeks[3].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBeGreaterThan(100);
+    expect(applied.body.weeks.map((w: any) => w.rotation)).toEqual(["A", "B", "A", "B", "A", "B"]);
+
+    // A new fill now locks everything up to the logged W3.
+    const again = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(again.body.draft.weeks.filter((w: any) => w.locked).map((w: any) => w.week)).toEqual([1, 2, 3]);
+  });
+
   test("AI block drafts are capped at 12 weeks", async () => {
     const { status } = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 13 });
     expect(status).toBe(422);

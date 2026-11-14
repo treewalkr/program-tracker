@@ -404,3 +404,10 @@ describe("weeks", () => {
     ).toThrow(DraftEditError);
   });
 });
+
+test("a locked week (the trainer's, in a fill) can't be edited", () => {
+  const d = draft([aux("A"), aux("B")]);
+  const locked: AiProgramDraft = { ...d, weeks: [{ ...d.weeks[0], locked: true }, { week: 2, sessions: structuredClone(d.weeks[0].sessions) }] };
+  expect(() => applyDraftEdit(locked, [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 1 }])).toThrow("week 1 is yours");
+  expect(applyDraftEdit(locked, [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 2 }]).changed).toBe(true);
+});

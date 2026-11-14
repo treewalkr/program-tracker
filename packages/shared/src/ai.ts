@@ -324,6 +324,23 @@ export function resizeDraftWeeks(d: AiProgramDraft, weeks: number): AiProgramDra
   return { ...d, weeks: out };
 }
 
+/** Week numbers a fill draft keeps as the trainer wrote them. */
+export const lockedDraftWeeks = (d: Pick<AiProgramDraft, "weeks">): number[] => d.weeks.filter((w) => w.locked).map((w) => w.week);
+
+/**
+ * A fill draft whole again: the AI's weeks plus the trainer's `locked` weeks
+ * (flagged locked, in week order). An AI week with a locked number is dropped —
+ * the trainer's week wins.
+ */
+export function withLockedWeeks(ai: AiProgramDraft, locked: readonly DraftWeek[]): AiProgramDraft {
+  const lockedNos = new Set(locked.map((w) => w.week));
+  const weeks = [
+    ...locked.map((w) => ({ ...structuredClone(w), locked: true })),
+    ...ai.weeks.filter((w) => !lockedNos.has(w.week)).map(({ locked: _l, ...w }) => w),
+  ].sort((a, b) => a.week - b.week);
+  return { ...ai, weeks };
+}
+
 /** True when the draft's weeks carry A/B letters. */
 export const draftAlternates = (d: { weeks: { rotation?: string | null }[] }): boolean => d.weeks.some((w) => w.rotation != null);
 

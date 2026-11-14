@@ -371,7 +371,7 @@ export function blockWeekRules(b: BlockShape): string[] {
   return [
     `- The block is exactly ${b.weeks} weeks: phasing.plannedWeeks = ${b.weeks}, one phasing.weeks entry per week.`,
     locked.length
-      ? `- "weeks" lists weeks ${write.join(", ")} in full, in order — leave out week${locked.length > 1 ? "s" : ""} ${locked.join(", ")} (the trainer wrote ${locked.length > 1 ? "them" : "it"}; see LOCKED WEEKS). Build each week from the locked week${locked.length > 1 ? "s" : ""}: keep their exercises and progress the loads.`
+      ? `- "weeks" lists weeks ${write.join(", ")} in full, in order — leave out week${locked.length > 1 ? "s" : ""} ${locked.join(", ")} (the trainer wrote ${locked.length > 1 ? "them" : "it"}; shown as locked). Build each week from the trainer's weeks: keep their exercises and sessions, and progress the loads from the last week with the same letter, following each week's directive.`
       : `- "weeks" lists every week 1–${b.weeks} in full, in order: each week's own sets, reps and loads, following that week's directive (+volume adds sets or reps, +intensity adds load, deload follows the deload rule).`,
     "- Keep the same sessions in the same order every week (lifting first, then cardio) so each one keeps its calendar slot.",
     b.alternate
@@ -486,6 +486,46 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     `TRAINER INSTRUCTIONS: ${ctx.trainerInstructions || "none"}`,
   ].join("\n");
 
+  return { system, user };
+}
+
+export interface FillContext extends GenerationContext {
+  block: BlockShape & { lockedWeeks: number[] };
+  /** The program being filled. */
+  programName: string;
+  /** Its block plan — the fill follows it. */
+  plan: Phasing | null;
+  /** The trainer's weeks, as draft weeks (locked). */
+  lockedWeeks: DraftWeek[];
+}
+
+/**
+ * Fill with AI (FB-013): the trainer wrote the first week(s); the AI writes
+ * the rest of the block in full, following the program's plan, the client's
+ * profile, limitations and logs. Same output contract as a block draft, with
+ * the locked weeks left out.
+ */
+export function buildFillMessages(ctx: FillContext): { system: string; user: string } {
+  const base = buildGenerationMessages({ ...ctx, previousProgram: null });
+  const system = [
+    "You are an expert strength & conditioning coach FILLING IN the rest of a training block the trainer started: they wrote the first week(s) themselves, you write every remaining week.",
+    ...base.system.split("\n").slice(1),
+    "- phasing: copy the BLOCK PLAN below unchanged.",
+  ].join("\n");
+  const planLines = ctx.plan
+    ? [
+        `BLOCK PLAN (follow it): ${ctx.plan.plannedWeeks} weeks · ${ctx.plan.phase}${ctx.plan.nextPhase ? ` → next: ${ctx.plan.nextPhase}` : ""}`,
+        ...(ctx.plan.weeks ?? []).map((w) => `- W${w.week}: ${w.directive}${w.target ? ` (${w.target.deltaPercent > 0 ? "+" : ""}${w.target.deltaPercent}% ${w.target.metric})` : ""}${w.note ? ` — ${w.note}` : ""}`),
+      ]
+    : [`BLOCK PLAN: ${ctx.block.weeks} weeks, no week directives — progress conservatively and keep the last week of 4+ lighter only if the logs call for it.`];
+  const locked = [
+    `PROGRAM BEING FILLED: ${ctx.programName}`,
+    ...planLines,
+    "",
+    "LOCKED WEEKS (written by the trainer — keep their exercises and sessions; never output these weeks):",
+    ...ctx.lockedWeeks.flatMap((w) => [draftWeekHeading(w), ...w.sessions.map(draftSessionLine)]),
+  ].join("\n");
+  const user = base.user.replace("CURRENT PROGRAM: none (cold start — design a sensible first block).", locked);
   return { system, user };
 }
 
