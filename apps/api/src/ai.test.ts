@@ -1982,6 +1982,19 @@ describe("whole-block prompts (FB-013)", () => {
     expect(buildGenerationMessages(ctx).system).not.toContain('"weeks": [                        // every week');
   });
 
+  test("next block from an A/B program shows both routines", () => {
+    const routine = (n: string) => [{ name: "Lower", exercises: [{ name: n, sets: ["5 reps"] }] }];
+    const user = buildGenerationMessages({
+      ...ctx,
+      previousProgram: { name: "AB", sessions: routine("Back Squat"), routines: [
+        { week: 3, rotation: "A", sessions: routine("Back Squat") },
+        { week: 4, rotation: "B", sessions: routine("Front Squat") },
+      ] },
+    }).user;
+    expect(user).toContain("WEEK A (week 3):");
+    expect(user).toContain("WEEK B (week 4):\n- Lower: Front Squat [5 reps]");
+  });
+
   test("draft text and slots are per week; slots show the first week of each letter", () => {
     const s = (n: string) => [{ name: "Lower", kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
     const d: AiProgramDraft = {

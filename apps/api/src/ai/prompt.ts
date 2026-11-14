@@ -70,6 +70,8 @@ export interface ProgramSummary {
     /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
     exercises: { name: string; role?: string; group?: string; sets: string[] }[];
   }[];
+  /** An A/B program followed up by a new block: both routines (latest week of each letter). */
+  routines?: { week: number; rotation: "A" | "B"; sessions: ProgramSummary["sessions"] }[];
 }
 
 export interface ExerciseHistoryEntry {
@@ -915,6 +917,12 @@ function sameLetterNote(d: AiProgramDraft, w: DraftWeek): string {
 }
 
 function programToText(p: ProgramSummary): string {
+  if (p.routines?.length) {
+    return [
+      "(The current program alternates two routines: odd weeks A, even weeks B.)",
+      ...p.routines.flatMap((r) => [`WEEK ${r.rotation} (week ${r.week}):`, programToText({ name: p.name, sessions: r.sessions })]),
+    ].join("\n");
+  }
   return p.sessions
     .map(
       (s) =>
