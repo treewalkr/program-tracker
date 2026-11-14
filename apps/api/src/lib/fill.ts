@@ -179,6 +179,9 @@ export async function applyFill(trainerId: string, gen: AiGenerationRow): Promis
     written.push(w.week);
   }
   if (unresolvable.size) return { ok: false, status: 422, error: "draft references unresolvable exercises", refs: [...unresolvable] };
+  if (!written.length) {
+    return { ok: false, status: 409, error: "Every remaining week has been logged since this fill was drafted; nothing to write." };
+  }
 
   const nameToId = new Map<string, string>();
   for (const name of created) {

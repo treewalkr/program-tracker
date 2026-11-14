@@ -451,6 +451,35 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect((await call("GET", `/v1/ai/generations/${g.body.id}`)).body.status).toBe("validated");
   });
 
+  test("Fill with AI: every remaining week logged since drafting → nothing written (409)", async () => {
+    const wk = (week: number) => ({
+      week,
+      sessions: [{
+        id: crypto.randomUUID(),
+        name: "Lower",
+        seq: 1,
+        order: 0,
+        kind: "lifting",
+        exercises: [{ id: crypto.randomUUID(), exerciseId: squatId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] }],
+      }],
+    });
+    const p = await call("POST", "/v1/programs", { name: "All logged", clientId, weeks: [1, 2, 3].map(wk) });
+    const g = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    for (const w of p.body.weeks.slice(1)) {
+      const log = await call("POST", "/v1/logs/sessions", {
+        clientId, programId: p.body.id, programSessionId: w.sessions[0].id, date: new Date().toISOString().slice(0, 10),
+        sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+      });
+      expect(log.status).toBe(201);
+    }
+    const applied = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(applied.status).toBe(409);
+    expect(applied.body.error).toBe("Every remaining week has been logged since this fill was drafted; nothing to write.");
+    expect((await call("GET", `/v1/programs/${p.body.id}`)).body.version).toBe(p.body.version);
+    expect((await call("GET", `/v1/ai/generations/${g.body.id}`)).body.status).toBe("validated");
+  });
+
   test("AI block drafts are capped at 12 weeks", async () => {
     const { status } = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 13 });
     expect(status).toBe(422);

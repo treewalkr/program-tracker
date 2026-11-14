@@ -1699,8 +1699,11 @@ export const mockApi: TrainerApi = {
         throw Object.assign(new Error("This program changed after the fill was drafted. Draft the fill again."), { status: 409 });
       }
       const logged = new Set(loggedWeeks(prog as unknown as SignalProgram, state.logs));
-      for (const w of gen.draft.weeks) {
-        if (w.locked || logged.has(w.week)) continue;
+      const writes = gen.draft.weeks.filter((w) => !w.locked && !logged.has(w.week) && prog.weeks.some((x) => x.week === w.week));
+      if (!writes.length) {
+        throw Object.assign(new Error("Every remaining week has been logged since this fill was drafted; nothing to write."), { status: 409 });
+      }
+      for (const w of writes) {
         const old = prog.weeks.find((x) => x.week === w.week);
         if (!old) continue;
         const oldAt = new Map(old.sessions.map((s) => [sessionKey(s), s]));
