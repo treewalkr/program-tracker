@@ -753,30 +753,34 @@
     {/if}
   {/if}
 
-  {#if copyToast}
-    <div class="copy-toast" role="status">
-      <Icon name="layers" />
-      <span class="msg">{copyToast.text}</span>
-      {#if copyToast.before}
-        <button type="button" class="btn small" onclick={undoCopy}><Icon name="undo" />Undo</button>
+  {#if copyToast || dirty}
+    <div class="dock">
+      {#if copyToast}
+        <div class="copy-toast" role="status">
+          <Icon name="layers" />
+          <span class="msg">{copyToast.text}</span>
+          {#if copyToast.before}
+            <button type="button" class="btn small" onclick={undoCopy}><Icon name="undo" />Undo</button>
+          {/if}
+          <button type="button" class="btn ghost small icon" aria-label="Dismiss" onclick={() => (copyToast = null)}><Icon name="x" /></button>
+        </div>
       {/if}
-      <button type="button" class="btn ghost small icon" aria-label="Dismiss" onclick={() => (copyToast = null)}><Icon name="x" /></button>
-    </div>
-  {/if}
 
-  {#if dirty}
-    <div class="savebar" role="region" aria-label="Unsaved changes">
-      <span class="savemsg">
-        {#if !validation.ok}
-          <span class="gate-error">{validation.message}</span>
-        {:else if saveError}
-          <span class="gate-error">Save failed: {saveError}</span>
-        {:else}
-          Unsaved changes · saving makes v{program.version + 1}. Clients log their own actual weights.
-        {/if}
-      </span>
-      <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
-      <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+      {#if dirty}
+        <div class="savebar" role="region" aria-label="Unsaved changes">
+          <span class="savemsg">
+            {#if !validation.ok}
+              <span class="gate-error">{validation.message}</span>
+            {:else if saveError}
+              <span class="gate-error">Save failed: {saveError}</span>
+            {:else}
+              Unsaved changes · saving makes v{program.version + 1}. Clients log their own actual weights.
+            {/if}
+          </span>
+          <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
+          <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+        </div>
+      {/if}
     </div>
   {/if}
 {/if}
@@ -809,12 +813,20 @@
 
   .tab-letter { margin-left: 4px; font: 500 11px var(--font-mono); color: var(--muted); }
   .tab-btn.active .tab-letter { color: inherit; }
-  /* Floats like the save bar, just above it; same look as the draft edit dock's toast. */
-  .copy-toast {
+  /* The copy toast and the save bar float together, toast on top, so the toast clears the bar at any height. */
+  .dock {
     position: sticky;
     bottom: 12px;
     z-index: 6;
     margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dock > :global(.savebar) { position: static; margin-top: 0; }
+  @media (max-width: 700px) { .dock { bottom: 60px; } }
+  /* Same look as the draft edit dock's toast. */
+  .copy-toast {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -825,11 +837,8 @@
     box-shadow: var(--shadow-overlay);
     font-size: 13px;
   }
-  .copy-toast:has(+ .savebar) { bottom: 68px; }
-  .copy-toast + :global(.savebar) { margin-top: 8px; }
   .copy-toast > :global(svg) { width: 14px; height: 14px; color: var(--muted); flex: none; }
   .copy-toast .msg { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
-  @media (max-width: 700px) { .copy-toast { bottom: 60px; } .copy-toast:has(+ .savebar) { bottom: 120px; } }
   .btn.disabled { opacity: 0.55; cursor: default; }
   .weeks-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
   .week-tabs { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
