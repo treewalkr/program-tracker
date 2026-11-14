@@ -397,3 +397,17 @@ test("findBuildingChild finds the pending child", () => {
   expect(findBuildingChild([parent, pending, other], parent.id)?.id).toBe(pending.id);
   expect(findBuildingChild([parent, other], parent.id)).toBeNull();
 });
+
+describe("versionView weeks", () => {
+  test("shows the picked week, and only that week's changes", () => {
+    const ex = (n: string) => ({ exerciseName: n, prescribedSets: [set(5)] });
+    const wk = (week: number, rotation: "A" | "B", n: string) => ({ week, rotation, sessions: [{ name: "Lower", exercises: [ex(n)] }] });
+    const v1 = gen({ draft: { weeks: [wk(1, "A", "Squat"), wk(2, "B", "Deadlift")] } });
+    const v2 = gen({ parentGenerationId: v1.id, draft: { weeks: [wk(1, "A", "Squat"), wk(2, "B", "RDL")] } });
+    const w2 = versionView([v1, v2], v2.id, 2, catalogById, undefined, 2)!;
+    expect(w2.week).toBe(2);
+    expect(w2.sessions[0].exercises[0].name).toBe("RDL");
+    expect(w2.changes.map((c) => c.week)).toEqual([2]);
+    expect(versionView([v1, v2], v2.id, 2, catalogById, undefined, 1)!.changes).toEqual([]);
+  });
+});

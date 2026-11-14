@@ -25,6 +25,7 @@
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import BlockPlanEditor from "./BlockPlanEditor.svelte";
   import StatusPill from "./StatusPill.svelte";
+  import DraftWeekTabs from "./DraftWeekTabs.svelte";
   import Verdict from "./Verdict.svelte";
   import NoteEditor from "./NoteEditor.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -168,7 +169,8 @@
   });
 
   function editableFor(day: number): SessionEditable | undefined {
-    if (!handEditable) return undefined;
+    // The trainer's own weeks in a fill stay as written.
+    if (!handEditable || shown.locked) return undefined;
     const d = draft;
     return {
       selecting: editor.selecting,
@@ -194,6 +196,16 @@
   const sinceRows = $derived(mergeWeekChanges(slotChanges));
   const keptRows = $derived(mergeWeekChanges(gen.discardedChanges ?? []));
   const weeksLabel = (c: { weeks: number[] }) => (c.weeks.length && c.weeks.length < draft.weeks.length ? `W${c.weeks.join(", W")} · ` : "");
+  /** Weeks this version changed (a dot on their tab). */
+  const changedDraftWeeks = $derived(new Set(slotChanges.map((c) => c.week).filter((w): w is number => w != null)));
+  const multiWeek = $derived(draft.weeks.length > 1);
+  /** Another week: ticked rows belong to the old one, so leave select mode. */
+  function pickWeek(n: number) {
+    if (n === week) return;
+    if (editor.selecting) editor.setSelecting(false);
+    noteAt = null;
+    week = n;
+  }
   /** The shown week's changes (they mark its rows). */
   const weekChanges = $derived(slotChanges.filter((c) => c.week == null || c.week === shown.week));
   const plan = $derived(draft.phasing ?? null);
@@ -469,8 +481,14 @@
   </section>
 {/if}
 
+{#if multiWeek}
+  <div class="draft-weeks">
+    <DraftWeekTabs weeks={draft.weeks} value={shown.week} onchange={pickWeek} changed={changedDraftWeeks} />
+  </div>
+{/if}
 <div class="week-head">
-  <h2>The week</h2>
+  <h2>{multiWeek ? `Week ${shown.week}${shown.rotation ? ` · ${shown.rotation}` : ""}` : "The week"}</h2>
+  {#if shown.locked}<span class="pill neutral" title="You wrote this week; Apply leaves it as it is">yours · kept</span>{/if}
   <div class="seg" role="group" aria-label="View">
     <button type="button" aria-pressed={mode === "sessions"} onclick={() => (mode = "sessions")}>Sessions</button>
     <button type="button" aria-pressed={mode === "compare"} disabled={version < 2} onclick={() => (mode = "compare")}>Compare</button>
@@ -653,6 +671,7 @@
   .plan .panel-body { padding: 12px 16px; }
   .legend { margin: 8px 2px 0; font-size: 12px; color: var(--muted); }
 
+  .draft-weeks { margin: 24px 0 -12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
   .week-head { display: flex; align-items: center; gap: 12px; margin: 24px 0 12px; flex-wrap: wrap; }
   .week-head h2 { font-size: 16px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
