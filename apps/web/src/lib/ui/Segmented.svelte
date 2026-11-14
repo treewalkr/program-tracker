@@ -1,6 +1,7 @@
 <script lang="ts" generics="T extends string">
   /**
    * A small hairline segmented control (ARIA radiogroup): one choice of a few,
+   * the picked one filled Inverted Ink,
    * e.g. "Moves apply to: every week · week 3 only". Controlled: the parent
    * owns `value` and updates it in `onchange`. Arrow keys move the choice.
    */
@@ -66,11 +67,13 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  button + button { border-left: none; }
+  button + button { margin-left: -1px; }
   button:first-of-type { border-radius: var(--radius) 0 0 var(--radius); }
   button:last-of-type { border-radius: 0 var(--radius) var(--radius) 0; }
   button:only-of-type { border-radius: var(--radius); }
   button:hover:not(:disabled):not(.on) { color: var(--ink); background: var(--well); }
-  button.on { background: var(--well-2); color: var(--ink); font-weight: 600; }
+  /* Selected fills Inverted Ink like the toggle chips, so it reads at a glance in light and dark. */
+  button.on { background: var(--hover-ink); border-color: var(--hover-ink); color: var(--on-ink); font-weight: 600; position: relative; }
+  button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--focus); outline-offset: 1px; }
   button:disabled { cursor: default; opacity: 0.6; }
 </style>
