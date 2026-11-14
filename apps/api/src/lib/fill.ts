@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, aiGenerations, clients, exercises, programs, sessionLogs, type AiGenerationRow, type ProgramRow } from "@pt/db";
 import {
+  DEFAULT_PROVIDER_ID,
   MAX_AI_BLOCK_WEEKS,
   ProgramWeeksDocument,
   blockDraftSchema,
@@ -64,7 +65,7 @@ export async function startFill(
   const lockedWeeks = weeks.filter((w) => locked.includes(w.week)).map((w) => programWeekToDraftWeek(w, { locked: true }));
   const block = { weeks: weeks.length, alternate, lockedWeeks: locked };
   const ctx = await loadContext(trainerId, body.clientId, null);
-  const rt = providerRuntime(body.providerId ?? "deepseek", body.model);
+  const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
   const effort = resolveEffort(rt, body.effort);
   const messages = buildFillMessages({
     ...ctx,
@@ -85,7 +86,7 @@ export async function startFill(
       kind: "fill",
       direction: program.direction ?? null,
       instructions: body.instructions ?? null,
-      providerId: body.providerId ?? "deepseek",
+      providerId: body.providerId ?? DEFAULT_PROVIDER_ID,
       model: rt.model,
       effort,
       status: "pending",
