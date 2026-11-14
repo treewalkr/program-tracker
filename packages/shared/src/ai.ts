@@ -192,6 +192,15 @@ export type DraftWeek = z.infer<typeof DraftWeek>;
 export const WEEKS_CHOICES = ["same", "alternate"] as const;
 export type WeeksChoice = (typeof WEEKS_CHOICES)[number];
 
+/**
+ * True when a note asks for alternating weeks ("A/B weeks", "alternate",
+ * "odd/even weeks", Thai สัปดาห์คี่/คู่, สลับ). The generate page only hints —
+ * the Weeks setting decides, never the note.
+ */
+export function mentionsAlternating(note: string): boolean {
+  return /(\ba\s*\/\s*b\b|\balternat\w*|\bodd\s*(\/|and|&)\s*even\b|\bweek\s*[ab]\b|สัปดาห์\s*(คี่|คู่)|สลับ)/i.test(note);
+}
+
 /** Most weeks a draft carries (a block is 2–26 weeks). */
 export const MAX_DRAFT_WEEKS = 26;
 /** Most weeks the AI writes in one block draft or fill (the builder still allows 26). */

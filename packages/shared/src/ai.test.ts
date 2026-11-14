@@ -27,6 +27,7 @@ import {
   draftWeekIssues,
   sameLetterWeeks,
   resizeDraftWeeks,
+  mentionsAlternating,
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
@@ -375,5 +376,14 @@ describe("resizeDraftWeeks", () => {
     const grown = resizeDraftWeeks(ab, 5);
     expect(grown.weeks.map((w) => `${w.week}${w.rotation}:${w.sessions[0].name}`)).toEqual(["1A:Squat", "2B:Deadlift", "3A:Squat", "4B:Deadlift", "5A:Squat"]);
     expect(resizeDraftWeeks(grown, 3).weeks.map((w) => w.week)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("mentionsAlternating", () => {
+  test("A/B, alternate, odd/even and Thai say alternate; plain notes don't", () => {
+    for (const n of ["make it A/B weeks", "Alternate lower focus", "odd/even weeks differ", "Week B is lighter", "สัปดาห์คี่ squat", "สลับท่า"]) {
+      expect(mentionsAlternating(n)).toBe(true);
+    }
+    for (const n of ["more volume on bench", "a bit heavier", "about 4 weeks"]) expect(mentionsAlternating(n)).toBe(false);
   });
 });

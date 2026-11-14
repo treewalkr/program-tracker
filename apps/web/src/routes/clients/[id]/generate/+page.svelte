@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, selectExamples } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, mentionsAlternating, selectExamples, type WeeksChoice } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -10,6 +10,11 @@
   import { effectivePreferences } from "$lib/preferences";
   import {
     composeRequest,
+    defaultBlockWeeks,
+    defaultWeeksChoice,
+    estimatedWaitSeconds,
+    LONG_WAIT_SECONDS,
+    waitLabel,
     generateSubtitle,
     generateTitle,
     instructionsPreview,
@@ -22,6 +27,7 @@
   } from "$lib/generateForm";
   import DraftReview from "$lib/components/DraftReview.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
+  import Segmented from "$lib/ui/Segmented.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -61,6 +67,14 @@
   let activateError = $state<string | null>(null);
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
   let weekMode = $state<number | null>(null);
+  /** Block drafts: how many weeks, and same every week or A/B (the setting decides, not the note). */
+  let blockWeeks = $state(4);
+  let weeksChoice = $state<WeeksChoice>("same");
+  const blockWeeksValid = $derived(Number.isInteger(blockWeeks) && blockWeeks >= MIN_BLOCK_WEEKS && blockWeeks <= MAX_AI_BLOCK_WEEKS);
+  /** The note asks for A/B weeks while the setting says same every week: offer the switch. */
+  const abHint = $derived(!weekMode && weeksChoice === "same" && mentionsAlternating(instructions));
+  const waitSeconds = $derived(estimatedWaitSeconds(providerId, weekMode ? 1 : blockWeeks));
+  const fasterProvider = $derived(providers.find((p) => p.id === "deepseek" && p.id !== providerId) ?? null);
   /** Built-in rules first (read-only, ids `builtin:<key>`), then the trainer's own. */
   const BUILTIN_TEMPLATES: InstructionTemplateDto[] = INSTRUCTION_PRESETS.map((p) => ({
     id: `builtin:${p.key}`,
@@ -189,6 +203,8 @@
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         targetWeek: weekMode ?? undefined,
+        plannedWeeks: weekMode ? undefined : blockWeeks,
+        alternate: weekMode ? undefined : weeksChoice === "alternate",
         direction: weekMode ? undefined : request.direction || undefined,
         providerId,
         model: model || undefined,
@@ -421,6 +437,8 @@
     }
 
     await loadProgramContext();
+    blockWeeks = defaultBlockWeeks(current);
+    weeksChoice = defaultWeeksChoice(current, await api.weeksChoice().catch(() => "same" as const));
 
     const gens = await api.generations(id);
     examples = await api.examples();
@@ -551,6 +569,45 @@
               <input type="checkbox" bind:checked={keep} /> Keep as the block's direction — every weekly draft follows it
             </label>
           {/if}
+          {#if !weekMode}
+            <div class="block-shape">
+              <label class="len">
+                <span>Block length</span>
+                <input
+                  class="input num"
+                  type="number"
+                  inputmode="numeric"
+                  min={MIN_BLOCK_WEEKS}
+                  max={MAX_AI_BLOCK_WEEKS}
+                  bind:value={blockWeeks}
+                  aria-invalid={!blockWeeksValid}
+                  aria-describedby="g-len-help"
+                />
+                <span class="subtle">weeks</span>
+              </label>
+              <Segmented
+                label="Weeks"
+                lead="Weeks"
+                value={weeksChoice}
+                onchange={(v) => (weeksChoice = v)}
+                items={[
+                  { value: "same", label: "Same every week" },
+                  { value: "alternate", label: "Alternate A/B", title: "Odd weeks run routine A, even weeks routine B. The AI writes both and progresses each." },
+                ]}
+              />
+            </div>
+            {#if !blockWeeksValid}
+              <p class="box-help bad" id="g-len-help">AI drafts are {MIN_BLOCK_WEEKS}–{MAX_AI_BLOCK_WEEKS} weeks. Longer blocks: build them by hand.</p>
+            {/if}
+            {#if abHint}
+              <div class="box-note">
+                <Note tone="warn">
+                  Your note mentions A/B weeks, but Weeks is set to Same every week.
+                  <button type="button" class="linkish" onclick={() => (weeksChoice = "alternate")}>Turn on Alternate A/B?</button>
+                </Note>
+              </div>
+            {/if}
+          {/if}
           {#if request.directionTooLong}
             <div class="box-note">
               <Note tone="bad">A block direction is limited to 500 characters — shorten it or untick “Keep”.</Note>
@@ -575,12 +632,21 @@
           <div class="row">
             <ModelSettings {providers} bind:providerId bind:model bind:effort hint="Applies to this draft." />
             <span class="spacer"></span>
-            <Button variant="primary" type="submit" disabled={request.directionTooLong || !providerId}>
+            {#if !weekMode}
+              <span class="wait" title="One week's typical time × {blockWeeks} weeks">{waitLabel(waitSeconds)}</span>
+            {/if}
+            <Button variant="primary" type="submit" disabled={request.directionTooLong || !providerId || (!weekMode && !blockWeeksValid)}>
               {#snippet icon()}<Icon name="sparkle" />{/snippet}
               {weekMode ? `Draft week ${weekMode}` : "Generate draft"}
             </Button>
           </div>
         </form>
+        {#if !weekMode && waitSeconds > LONG_WAIT_SECONDS && fasterProvider}
+          <p class="wait-hint">
+            {blockWeeks} weeks on this model take {waitLabel(waitSeconds)}.
+            <button type="button" class="linkish" onclick={() => (providerId = fasterProvider.id)}>Try {fasterProvider.label}</button> — usually under a minute.
+          </p>
+        {/if}
         <p class="safe">Nothing goes live — the draft waits for your review.</p>
 
         {#if peek}
@@ -756,6 +822,15 @@
     font: 15px/1.5 var(--font-ui); color: var(--ink); background: transparent; outline: none;
   }
   .box textarea::placeholder { color: var(--muted); }
+  .block-shape { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 6px 14px 10px; }
+  .len { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .len > span:first-child { font-weight: 600; color: var(--ink); }
+  .num { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .box-help { margin: -4px 14px 10px; font-size: 12px; }
+  .box-help.bad { color: var(--bad); }
+  .wait { font: 500 12px/1 var(--font-mono); color: var(--muted); }
+  .wait-hint { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
+  .linkish { border: 0; background: none; padding: 0; font: inherit; color: var(--blue); text-decoration: underline; cursor: pointer; }
   .keep { display: flex; align-items: center; gap: 8px; padding: 4px 14px 10px; font-size: 13px; color: var(--muted); }
   .keep input { margin: 0; }
   .keep.on { color: var(--ink); }

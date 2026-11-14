@@ -1,3 +1,4 @@
+import { MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, isAlternating, typicalGenerationSeconds, type WeeksChoice } from "@pt/shared";
 import { localIso } from "./overview";
 import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, SessionLogDto } from "./api/types";
 
@@ -220,4 +221,31 @@ export function summaryLine(i: {
     n > 0 ? { lamp: "green", text: `${n} session${s(n)} logged` } : { lamp: "gray", text: "No logs" },
     { lamp: rulesOn > 0 ? "green" : "gray", text: `${rulesOn} rule${s(rulesOn)}` },
   ];
+}
+
+// ---- block length and Weeks (FB-013) ----
+
+/** Block length the field starts at: the current program's (2–12), else 4. */
+export function defaultBlockWeeks(current: Pick<ProgramDto, "phasing" | "weeks"> | null): number {
+  const n = current?.phasing?.plannedWeeks ?? current?.weeks.length ?? 4;
+  return Math.min(MAX_AI_BLOCK_WEEKS, Math.max(MIN_BLOCK_WEEKS, n));
+}
+
+/** The Weeks choice the page starts on: the current program's setting, else the trainer's last choice. */
+export function defaultWeeksChoice(current: Pick<ProgramDto, "weeks"> | null, last: WeeksChoice): WeeksChoice {
+  if (current) return isAlternating(current.weeks) ? "alternate" : "same";
+  return last;
+}
+
+/** Waits longer than this suggest a faster provider. */
+export const LONG_WAIT_SECONDS = 180;
+
+/** Rough wait for a whole block: one week's typical time per week. */
+export function estimatedWaitSeconds(providerId: string, weeks: number): number {
+  return typicalGenerationSeconds(providerId) * weeks;
+}
+
+/** "about 20 s" / "about 4 min". */
+export function waitLabel(seconds: number): string {
+  return seconds < 90 ? `about ${Math.max(5, Math.round(seconds / 5) * 5)} s` : `about ${Math.round(seconds / 60)} min`;
 }
