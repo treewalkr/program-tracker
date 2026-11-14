@@ -1,7 +1,7 @@
 <script lang="ts">
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { effortSummary } from "$lib/effort";
-  import { diffDrafts, shownExerciseOrder, type SlotChange } from "@pt/shared";
+  import { diffDrafts, draftWeek, mergeWeekChanges, shownExerciseOrder, type SlotChange } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
   import { DraftEditor } from "$lib/draftEditor.svelte";
   import { rowMenuItems } from "$lib/draftEditMenu";
@@ -110,6 +110,8 @@
 
 
   const draft = $derived(gen.draft!);
+  /** The draft week on screen (the block plan strip and the week tabs pick it). */
+  const shown = $derived(draftWeek(draft, week));
   /** Role order for an AI-made draft; the stored order once the trainer has hand-edited it. */
   const order = $derived({ keepOrder: gen.trainerOrder });
   const chain = $derived(revisionChain(gens, gen.id));
@@ -122,22 +124,24 @@
 
   /** Noted slots per session (0 = the session itself), for the row marks. */
   const notedByDay = $derived(
-    draft.sessions.map(
+    shown.sessions.map(
       (_, i) =>
         new Set(
           notes.flatMap((n) =>
-            n.anchor?.type === "slot" && n.anchor.sessionIndex === i ? [n.anchor.exerciseIndex != null ? n.anchor.exerciseIndex + 1 : 0] : []
+            n.anchor?.type === "slot" && n.anchor.sessionIndex === i && (n.anchor.week == null || n.anchor.week === shown.week)
+              ? [n.anchor.exerciseIndex != null ? n.anchor.exerciseIndex + 1 : 0]
+              : []
           )
         )
     )
   );
 
   function anchorFor(day: number, slot: number | null): NoteAnchorDto {
-    const s = draft.sessions[day];
+    const s = shown.sessions[day];
     const ex = slot != null ? s.exercises[slot - 1] : null;
     return {
       type: "slot",
-      week: isWeek ? gen.targetWeek : null,
+      week: isWeek ? gen.targetWeek : draft.weeks.length > 1 ? shown.week : null,
       session: s.name,
       sessionIndex: day,
       exerciseIndex: slot != null ? slot - 1 : null,
@@ -171,7 +175,7 @@
       disabled: editor.busy,
       isSelected: (slot) => editor.isSelected({ day, slot }),
       ontoggle: (slot) => editor.toggle({ day, slot }),
-      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => editor.run(ops), roleLabels.all, order),
+      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => editor.run(ops), roleLabels.all, { ...order, week: d.weeks.length > 1 ? shown.week : null }),
     };
   }
   /** The phone approve bar (fixed, ≤700px; 0 when hidden): the edit dock floats above it. */
@@ -186,23 +190,27 @@
   }
   /** Every change since the previous version; plan changes are listed from planDelta (they carry the week). */
   const slotChanges = $derived(prev?.draft ? diffDrafts(prev.draft, draft).filter((c) => c.kind !== "plan") : []);
+  /** The same change made in several weeks reads once, with its weeks ("W1, W3"). */
+  const sinceRows = $derived(mergeWeekChanges(slotChanges));
+  const keptRows = $derived(mergeWeekChanges(gen.discardedChanges ?? []));
+  const weeksLabel = (c: { weeks: number[] }) => (c.weeks.length && c.weeks.length < draft.weeks.length ? `W${c.weeks.join(", W")} · ` : "");
+  /** The shown week's changes (they mark its rows). */
+  const weekChanges = $derived(slotChanges.filter((c) => c.week == null || c.week === shown.week));
   const plan = $derived(draft.phasing ?? null);
-  /** AI edits the server reverted (outside the proposal, or plan edits nobody asked for). */
-  const kept = $derived(gen.discardedChanges ?? []);
   const planDelta = $derived(prev?.draft ? planChanges(prev.draft.phasing ?? null, plan) : []);
   const changedWeeks = $derived(new Set(planDelta.map((c) => c.week).filter((w): w is number => w !== null)));
-  const checks = $derived(reviewChecks(draft, client.sessionsPerWeek, catalogById, client));
+  const checks = $derived(reviewChecks(shown, client.sessionsPerWeek, catalogById, client));
   /** This client's deload rule: the default plan's deload cut and the load index follow it. */
   const deload = $derived(clientDeload(client));
   const noDeload = $derived(!isWeek && plan !== null && !(plan.weeks ?? []).some((w) => w.directive === "deload"));
-  const why = $derived(rationaleByDay(draft.rationale, draft.sessions.length, draft.sessions));
+  const why = $derived(rationaleByDay(draft.rationale, shown.sessions.length, shown.sessions));
 
   const history = $derived(
     historyEntries(chain)
       .map((h, i) => {
         const before = i > 0 ? chain[i - 1].draft : null;
         const after = h.generation.draft;
-        const n = before && after ? diffDrafts(before, after).length : 0;
+        const n = before && after ? mergeWeekChanges(diffDrafts(before, after)).length : 0;
         return { ...h, changes: n };
       })
       .reverse()
@@ -211,12 +219,12 @@
   const baseVersion = $derived(base !== null && base < version ? base : Math.max(1, version - 1));
   const baseGen = $derived(chain[baseVersion - 1] ?? null);
   const compareAll = $derived(baseGen?.draft ? diffDrafts(baseGen.draft, draft) : []);
-  const compareChanges = $derived(compareAll.filter((c) => c.kind !== "plan"));
+  const compareChanges = $derived(compareAll.filter((c) => c.kind !== "plan" && (c.week == null || c.week === shown.week)));
 
   /** Slot marks for the sessions view, keyed per day by the slot in this version. */
   const marksByDay = $derived.by(() => {
-    const days: Map<number, SlotMark>[] = draft.sessions.map(() => new Map());
-    for (const c of slotChanges) {
+    const days: Map<number, SlotMark>[] = shown.sessions.map(() => new Map());
+    for (const c of weekChanges) {
       if (c.afterSlot == null) continue;
       days[c.day - 1]?.set(c.afterSlot, { kind: "changed", was: c.kind === "swap" || c.kind === "rx" ? c.from : null });
     }
@@ -224,10 +232,10 @@
   });
 
   /** "Session N" / "Cardio N" per draft session — drafts carry no weekdays. */
-  const tags = $derived(draftSessionTags(draft.sessions));
+  const tags = $derived(draftSessionTags(shown.sessions));
 
   const cards = $derived(
-    draft.sessions.map((s) => ({
+    shown.sessions.map((s) => ({
       name: s.name,
       kind: s.kind ?? "lifting",
       cardio: s.cardio ?? null,
@@ -352,16 +360,16 @@
 <section class="panel band" aria-label="Decision summary">
   <section>
     {#if prev}
-      <h3>Since v{version - 1} <span class="counter">{plural(slotChanges.length + planDelta.length, "change")}</span></h3>
-      {#if slotChanges.length + planDelta.length === 0}
+      <h3>Since v{version - 1} <span class="counter">{plural(sinceRows.length + planDelta.length, "change")}</span></h3>
+      {#if sinceRows.length + planDelta.length === 0}
         <p class="subtle m0">No changes.</p>
       {:else}
         <ul class="chg">
-          {#each slotChanges.slice(0, 5) as c, i (i)}
+          {#each sinceRows.slice(0, 5) as c, i (i)}
             <li>
               <span class="sign" aria-hidden="true">{c.kind === "added" ? "+" : c.kind === "removed" ? "−" : "~"}</span>
               <span>
-                <span class="where">{tags[c.day - 1] ?? `Session ${c.day}`} ·</span>
+                <span class="where">{weeksLabel(c)}{tags[c.day - 1] ?? `Session ${c.day}`} ·</span>
                 {#if c.kind === "swap"}<s>{c.from}</s> → {c.to}
                 {:else if c.kind === "rx"}{c.exercise} <span class="rx"><s>{c.from}</s> → {c.to}</span>
                 {:else if c.kind === "session" || c.kind === "cardio"}{c.kind === "cardio" ? `${c.exercise} cardio` : "Session"} <span class="rx">{#if c.from}<s>{c.from}</s> → {/if}{c.to}</span>
@@ -374,16 +382,16 @@
             <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{p.where} ·</span> {#if p.from}<s>{p.from}</s>{" → "}{/if}{p.to}</span></li>
           {/each}
         </ul>
-        {#if slotChanges.length > 5}<p class="subtle m0 mt6">+ {slotChanges.length - 5} more — see Compare below</p>{/if}
+        {#if sinceRows.length > 5}<p class="subtle m0 mt6">+ {sinceRows.length - 5} more — see Compare below</p>{/if}
         <p class="subtle m0 mt10">{planEdit ? `Plan only — sessions are identical to v${version - 1}.` : gen.manualEdit ? "Edited by hand — no AI call." : "Read from the drafts, not from the AI's description."}</p>
       {/if}
-      {#if kept.length}
+      {#if keptRows.length}
         <details class="kept mt6">
-          <summary class="subtle">The AI also changed {plural(kept.length, "thing")} it wasn't asked to. Kept as before.</summary>
+          <summary class="subtle">The AI also changed {plural(keptRows.length, "thing")} it wasn't asked to. Kept as before.</summary>
           <ul class="chg">
-            {#each kept as c, i (i)}
+            {#each keptRows as c, i (i)}
               <!-- Reverted change: what stayed is plain, what the AI tried is struck. -->
-              <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{c.kind === "plan" ? "Block plan" : tags[c.day - 1] ?? `Session ${c.day}`} ·</span>
+              <li><span class="sign" aria-hidden="true">~</span><span><span class="where">{c.kind === "plan" ? "Block plan" : `${weeksLabel(c)}${tags[c.day - 1] ?? `Session ${c.day}`}`} ·</span>
                 {#if c.kind === "swap"}kept {c.from} <span class="subtle">· AI tried <s>{c.to}</s></span>
                 {:else if c.kind === "added"}<span class="subtle">AI tried to add <s>{c.exercise} {c.to}</s></span>
                 {:else if c.kind === "removed"}kept {c.exercise} <span class="subtle">· AI tried to remove it</span>
@@ -474,9 +482,9 @@
         <option value={i + 1}>v{i + 1}{i === 0 ? " — first draft" : g.revisionMessage ? ` — “${g.revisionMessage.slice(0, 28)}${g.revisionMessage.length > 28 ? "…" : ""}”` : ""}</option>
       {/each}
     </select>
-    <strong class="count">{plural(compareAll.length, "change")}</strong>
+    <strong class="count">{plural(mergeWeekChanges(compareAll).length, "change")}</strong>
   {:else}
-    <span class="subtle">{plural(draft.sessions.length, "session")} · {draft.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
+    <span class="subtle">{plural(shown.sessions.length, "session")} · {shown.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
   {/if}
   {#if handEditable && (mode === "sessions" || version < 2)}
     <button
@@ -537,7 +545,7 @@
     </article>
   {/each}
 {:else}
-  {#each draft.sessions as s, di (di)}
+  {#each shown.sessions as s, di (di)}
     {@const rows = compareRows(di + 1)}
     <section class="panel cmp-day">
       <div class="panel-head"><span class="track">{tags[di]}</span><h2>{s.name}</h2><span class="counter">{rows.length} changed</span></div>
@@ -573,7 +581,7 @@
 {/if}
 
 {#if mode === "sessions" || version < 2}
-  <DraftEditDock {editor} {draft} labels={roleLabels.all} keepOrder={gen.trainerOrder} variant="page" lift={mbarHeight} />
+  <DraftEditDock {editor} {draft} week={draft.weeks.length > 1 ? shown.week : null} labels={roleLabels.all} keepOrder={gen.trainerOrder} variant="page" lift={mbarHeight} />
 {/if}
 
 <div class="more">

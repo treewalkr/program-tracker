@@ -21,9 +21,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { upgradeDraft } from "@pt/shared";
 import type {
   AiClientMessageDraft,
   AiProgramDraft,
+  GenerationKind,
   SlotChange,
   CardioLog,
   CardioTarget,
@@ -251,6 +253,17 @@ export const setLogs = pgTable("set_logs", {
 // AI generation audit trail
 // ---------------------------------------------------------------------------
 
+/**
+ * jsonb AI program draft. Old one-week drafts (`sessions`) read back as
+ * `weeks[]` (upgradeDraft), so every reader sees the current shape; the
+ * column itself is unchanged.
+ */
+const draftJsonb = customType<{ data: AiProgramDraft; driverData: unknown }>({
+  dataType: () => "jsonb",
+  toDriver: (v) => JSON.stringify(v),
+  fromDriver: (v) => upgradeDraft(typeof v === "string" ? JSON.parse(v) : v) as AiProgramDraft,
+});
+
 export const aiGenerations = pgTable("ai_generations", {
   id: uuid("id").primaryKey().defaultRandom(),
   trainerId: uuid("trainer_id")
@@ -262,14 +275,14 @@ export const aiGenerations = pgTable("ai_generations", {
   basedOnProgramId: uuid("based_on_program_id").references(() => programs.id, {
     onDelete: "set null",
   }),
-  kind: text("kind").$type<"block" | "week">().notNull().default("block"),
+  kind: text("kind").$type<GenerationKind>().notNull().default("block"),
   targetWeek: integer("target_week"),
   direction: text("direction"),
   providerId: text("provider_id").notNull(),
   model: text("model").notNull(),
   effort: text("effort"),
   status: text("status").$type<GenerationStatus>().notNull().default("pending"),
-  draft: jsonb("draft").$type<AiProgramDraft>(),
+  draft: draftJsonb("draft"),
   error: text("error"),
   parentGenerationId: uuid("parent_generation_id").references((): AnyPgColumn => aiGenerations.id, {
     onDelete: "set null",

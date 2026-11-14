@@ -31,7 +31,7 @@
     name: 'Block 2 — base build',
     rationale: 'Base volume before intensity.',
     clientSummary: 'Three lifting days.',
-    sessions: [session('Day A'), session('Day B'), session('Day C')],
+    weeks: [{ week: 1, sessions: [session('Day A'), session('Day B'), session('Day C')] }],
   };
 
   let seq = 0;
@@ -67,7 +67,7 @@
     parentGenerationId: v1.id,
     draft: {
       ...baseDraft,
-      sessions: [session('Day A', 5), session('Day B', 3), session('Day C')],
+      weeks: [{ week: 1, sessions: [session('Day A', 5), session('Day B', 3), session('Day C')] }],
     },
   });
   const gens = [v2, v1];
@@ -98,7 +98,7 @@
         parentGenerationId: prev.id,
         manualEdit,
         revisionMessage,
-        draft: { ...baseDraft, sessions: [session('Day A', manualEdit ? 5 : 5 + (i % 3)), session('Day B'), session('Day C')] },
+        draft: { ...baseDraft, weeks: [{ week: 1, sessions: [session('Day A', manualEdit ? 5 : 5 + (i % 3)), session('Day B'), session('Day C')] }] },
       })
     );
   }

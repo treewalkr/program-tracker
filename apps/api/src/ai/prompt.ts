@@ -9,6 +9,10 @@ import {
   cardioLabel,
   cardioUnitLabel,
   type AiProgramDraft,
+  type DraftSession,
+  type DraftWeek,
+  draftAlternates,
+  sameLetterWeeks,
   type CardioTarget,
   type SessionKind,
   type Phasing,
@@ -483,19 +487,31 @@ const PROPOSAL_RULES = [
   '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. To change a cardio session (modality, duration, zone, intensity, distance, RPE), add one "edit" with that session\'s day, slot null and the full new cardio prescription in "detail". Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
 ];
 
-/** Numbered slot listing the proposal contract refers to. */
+/**
+ * Numbered slot listing the proposal contract refers to: the first week of
+ * each A/B letter (week 1 alone when the block doesn't alternate). A change
+ * there reaches every week with that letter.
+ */
 export function draftSlotsText(d: AiProgramDraft): string {
-  const seq = { lifting: 0, cardio: 0 };
-  return d.sessions
-    .map((s, di) => {
-      const kind = s.kind === "cardio" ? "cardio" : "lifting";
-      const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
-      const rows = s.exercises.map((e, ei) => {
-        const tag = groupTag(s.exercises, ei);
-        return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+  const firsts = draftAlternates(d)
+    ? d.weeks.filter((w, i) => d.weeks.findIndex((x) => x.rotation === w.rotation) === i)
+    : d.weeks.slice(0, 1);
+  const multi = d.weeks.length > 1;
+  return firsts
+    .map((w) => {
+      const seq = { lifting: 0, cardio: 0 };
+      const head = multi ? [`WEEK ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${sameLetterNote(d, w)}`] : [];
+      const body = w.sessions.map((s, di) => {
+        const kind = s.kind === "cardio" ? "cardio" : "lifting";
+        const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
+        const rows = s.exercises.map((e, ei) => {
+          const tag = groupTag(s.exercises, ei);
+          return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+        });
+        if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
+        return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
       });
-      if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
-      return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
+      return [...head, ...body].join("\n");
     })
     .join("\n");
 }
@@ -798,29 +814,45 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
   return { system, user };
 }
 
+/** One draft session as a text line: "- Name: A1 Squat (primary) [5 reps @ RPE 8, rest 180s; …], …". */
+function draftSessionLine(s: DraftSession): string {
+  const exercises = s.exercises
+    .map((e, i) => {
+      // Superset tag ("A1 "), so a revision keeps the trainer's groups.
+      const tag = groupTag(s.exercises, i);
+      const name = `${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}`;
+      const sets = e.prescribedSets.map((ps) => {
+        const amount = ps.durationSeconds != null ? `${ps.durationSeconds}s` : `${ps.reps}${ps.amrap ? "+" : ""} reps`;
+        const load = ps.targetWeightKg != null ? ` × ${ps.targetWeightKg} kg` : ps.percent1rm != null ? ` @ ${ps.percent1rm}%` : "";
+        const rpe = ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : "";
+        const rest = ps.restSeconds != null ? `, rest ${ps.restSeconds}s` : "";
+        return `${amount}${load}${rpe}${rest}`;
+      });
+      return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
+    })
+    .join(", ");
+  const cardio = s.cardio ? ` cardio ${cardioLabel(s.cardio)}` : "";
+  return `- ${s.name}:${cardio}${exercises ? ` ${exercises}` : ""}`;
+}
+
+/** "WEEK 3 (A)" heading over a draft week; "(locked)" marks the trainer's own weeks in a fill. */
+const draftWeekHeading = (w: DraftWeek) => `WEEK ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${w.locked ? " (locked — the trainer's, unchanged)" : ""}:`;
+
+/** The draft as text, week by week (one-week drafts print just their sessions). */
 export function draftToText(d: AiProgramDraft): string {
-  const lines = [
+  const one = d.weeks.length === 1;
+  return [
     d.name,
     d.rationale,
-    ...d.sessions.map((s) => {
-      const exercises = s.exercises
-        .map((e, i) => {
-          // Superset tag ("A1 "), so a revision keeps the trainer's groups.
-          const tag = groupTag(s.exercises, i);
-          const name = `${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}`;
-          const sets = e.prescribedSets.map((ps) => {
-            const amount = ps.durationSeconds != null ? `${ps.durationSeconds}s` : `${ps.reps}${ps.amrap ? "+" : ""} reps`;
-            const rpe = ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : "";
-            const rest = ps.restSeconds != null ? `, rest ${ps.restSeconds}s` : "";
-            return `${amount}${rpe}${rest}`;
-          });
-          return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
-        })
-        .join(", ");
-      return `- ${s.name}: ${exercises}`;
-    }),
-  ];
-  return lines.join("\n");
+    ...d.weeks.flatMap((w) => [...(one ? [] : [draftWeekHeading(w)]), ...w.sessions.map(draftSessionLine)]),
+  ].join("\n");
+}
+
+/** Weeks a reader of `week` should know share its routine: "also W3, W5". */
+function sameLetterNote(d: AiProgramDraft, w: DraftWeek): string {
+  const others = sameLetterWeeks(d, w.week).filter((n) => n !== w.week);
+  if (others.length === 0) return "";
+  return w.rotation ? ` — week ${w.rotation} routine, also W${others.join(", W")}` : ` — every week, also W${others.join(", W")}`;
 }
 
 function programToText(p: ProgramSummary): string {

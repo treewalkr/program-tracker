@@ -179,7 +179,7 @@
   const stamps = $derived(versionStamps(messages, allGens));
   /** Track labels for the draft a proposal targets (`change.day` = draft position). */
   const tagsFor = (genId: string | null | undefined) =>
-    draftSessionTags(allGens.find((g) => g.id === genId)?.draft?.sessions ?? []);
+    draftSessionTags(allGens.find((g) => g.id === genId)?.draft?.weeks[0]?.sessions ?? []);
   const shownUnproposed = $derived.by(() => {
     if (!vview) return [];
     for (const s of stamps.values()) if (s.generationId === vview.generation.id) return s.unproposed ?? [];

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db, aiGenerations, coachingRules, type CoachingRuleRow, type LlmFeedbackRow } from "@pt/db";
-import { anchorText, rxLabel, type LlmReasonTag, type NoteAnchor, type NoteScope } from "@pt/shared";
+import { anchorText, draftWeek, rxLabel, type LlmReasonTag, type NoteAnchor, type NoteScope } from "@pt/shared";
 import { bumpViolated, extractRule, providerOfCall } from "./coaching-rules";
 
 /**
@@ -52,7 +52,7 @@ export async function subjectTextAt(kind: string, id: string, anchor: NoteAnchor
   if (anchor.type === "text") return anchor.quote;
   if (kind !== "generation") return null;
   const [gen] = await db.select({ draft: aiGenerations.draft }).from(aiGenerations).where(eq(aiGenerations.id, id));
-  const session = gen?.draft?.sessions[anchor.sessionIndex];
+  const session = gen?.draft ? draftWeek(gen.draft, anchor.week).sessions[anchor.sessionIndex] : undefined;
   if (!session) return null;
   if (anchor.exerciseIndex == null) {
     return `${session.name}: ${session.exercises.map((e) => e.exerciseName ?? e.exerciseId).join(", ")}`;

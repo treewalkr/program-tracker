@@ -154,7 +154,8 @@ describe("block plan helpers with a custom deload rule", () => {
 
 describe("review checks, rationale, history", () => {
   const set = (rpe: number) => ({ setNumber: 1, type: "working" as const, reps: 5, amrap: false, targetRpe: rpe });
-  const draft: AiDraftDto = {
+  /** One draft week (what the review checks read). */
+  const draft = {
     name: "B",
     rationale: "",
     clientSummary: "",
@@ -191,12 +192,12 @@ describe("review checks, rationale, history", () => {
   });
 
   test("reviewChecks counts only lifting sessions against sessionsPerWeek", () => {
-    const withCardio: AiDraftDto = { ...draft, sessions: [...draft.sessions, { name: "Bike", kind: "cardio", exercises: [] }] };
+    const withCardio: typeof draft = { ...draft, sessions: [...draft.sessions, { name: "Bike", kind: "cardio", exercises: [] }] };
     expect(reviewChecks(withCardio, 2, catalog)[0]).toEqual({ tone: "ok", text: "2 lifting sessions — matches the client's 2/week" });
   });
 
   test("reviewChecks lists AI weekdays that break a placement rule (F03, F26)", () => {
-    const priya: AiDraftDto = {
+    const priya: typeof draft = {
       ...draft,
       sessions: [
         { ...draft.sessions[0], name: "Heavy lower", weekday: 1, exercises: [{ exerciseId: "sq", prescribedSets: [set(7)] }] },

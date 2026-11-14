@@ -41,7 +41,7 @@
     name: "Block 3 — strength",
     rationale: "",
     clientSummary: "",
-    sessions: [
+    weeks: [{ week: 1, sessions: [
       {
         name: "Lower A — Back Squat",
         kind: "lifting",
@@ -67,7 +67,7 @@
         ],
       },
       { name: "Zone 2 run", kind: "cardio", exercises: [], cardio: { modality: "run", durationMin: 35, hrZone: 2 } },
-    ],
+    ] }],
   };
 
   const v1: GenerationDto = {

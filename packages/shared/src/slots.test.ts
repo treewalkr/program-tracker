@@ -3,7 +3,7 @@ import { diffDraftSlots, rxLabel, unproposedChanges, type SlotDiffDraft, type Sl
 
 const set = (reps: number, rpe: number, rest: number) => ({ reps, targetRpe: rpe, restSeconds: rest });
 const ex = (name: string, sets: SlotDiffSet[] = [set(5, 7, 120)]) => ({ exerciseName: name, prescribedSets: sets });
-const draft = (...days: ReturnType<typeof ex>[][]): SlotDiffDraft => ({ sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })) });
+const draft = (...days: ReturnType<typeof ex>[][]): SlotDiffDraft => ({ weeks: [{ week: 1, sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })) }] });
 
 test("rxLabel", () => {
   expect(rxLabel([set(5, 7, 180), set(5, 8, 180)])).toBe("2×5 @RPE 7–8 · rest 180s");
@@ -13,19 +13,19 @@ test("rxLabel", () => {
 test("diffDraftSlots covers swap, rx, added, removed", () => {
   const before = draft([ex("Squat"), ex("RDL"), ex("Plank")], [ex("Bench"), ex("Row")]);
   const after = draft([ex("Paused Squat"), ex("RDL", [set(5, 7, 150)]), ex("Plank")], [ex("Bench"), ex("Row"), ex("Face Pull")]);
-  expect(diffDraftSlots(before, after)).toEqual([
+  expect(diffDraftSlots(before.weeks[0], after.weeks[0])).toEqual([
     { day: 1, beforeSlot: 1, afterSlot: 1, kind: "swap", exercise: "Paused Squat", from: "Squat", to: "Paused Squat" },
     { day: 1, beforeSlot: 2, afterSlot: 2, kind: "rx", exercise: "RDL", from: "rest 120s", to: "rest 150s" },
     { day: 2, beforeSlot: null, afterSlot: 3, kind: "added", exercise: "Face Pull", from: null, to: "1×5 @RPE 7 · rest 120s" },
   ]);
-  const removed = diffDraftSlots(draft([ex("A"), ex("B"), ex("C")]), draft([ex("A"), ex("C")]));
+  const removed = diffDraftSlots(draft([ex("A"), ex("B"), ex("C")]).weeks[0], draft([ex("A"), ex("C")]).weeks[0]);
   expect(removed).toEqual([{ day: 1, beforeSlot: 2, afterSlot: null, kind: "removed", exercise: "B", from: "1×5 @RPE 7 · rest 120s", to: null }]);
 });
 
 test("unproposedChanges", () => {
   const before = draft([ex("Squat"), ex("RDL")]);
   const after = draft([ex("Paused Squat"), ex("RDL", [set(5, 7, 150)])]);
-  const extra = unproposedChanges(diffDraftSlots(before, after), { changes: [{ day: 1, slot: 1, kind: "swap" }] });
+  const extra = unproposedChanges(diffDraftSlots(before.weeks[0], after.weeks[0]), { changes: [{ day: 1, slot: 1, kind: "swap" }] });
   expect(extra.map((c) => c.exercise)).toEqual(["RDL"]);
 });
 
@@ -52,10 +52,10 @@ const ranged = (repsMin: number, reps: number, extra: Record<string, unknown> = 
 
 const v1 = (): SlotDiffDraft => ({
   phasing: phasing(true),
-  sessions: [
+  weeks: [{ week: 1, sessions: [
     lift("Lower A", [ex("Squat", [ranged(4, 5), ranged(4, 5), ranged(4, 5)]), ex("RDL")]),
     cardio("Tempo Ride", {}),
-  ],
+  ] }],
 });
 
 test("rxParts renders rep ranges, loads and back-off sets", () => {
@@ -70,7 +70,7 @@ test("rxParts renders rep ranges, loads and back-off sets", () => {
 
 test("F04: rep range 4–5 → 5 is an rx change", () => {
   const after = v1();
-  after.sessions[0].exercises[0] = ex("Squat", [ranged(5, 5), ranged(5, 5), ranged(5, 5)]);
+  after.weeks[0].sessions[0].exercises[0] = ex("Squat", [ranged(5, 5), ranged(5, 5), ranged(5, 5)]);
   expect(diffDrafts(v1(), after)).toEqual([
     { day: 1, beforeSlot: 1, afterSlot: 1, kind: "rx", exercise: "Squat", from: "3×4–5", to: "3×5" },
   ]);
@@ -86,7 +86,7 @@ test("load and set type changes are rx changes", () => {
 
 test("F04: cardio zone, RPE and modality changes surface", () => {
   const after = v1();
-  after.sessions[1] = cardio("Tempo Ride", { modality: "Bike", hrZone: 4, targetRpe: 3 });
+  after.weeks[0].sessions[1] = cardio("Tempo Ride", { modality: "Bike", hrZone: 4, targetRpe: 3 });
   expect(diffDrafts(v1(), after)).toEqual([
     {
       day: 2,
@@ -102,7 +102,7 @@ test("F04: cardio zone, RPE and modality changes surface", () => {
 
 test("session rename and kind/type changes surface", () => {
   const after = v1();
-  after.sessions[0] = { ...after.sessions[0], name: "Lower B", type: "Strength" } as (typeof after.sessions)[number];
+  after.weeks[0].sessions[0] = { ...after.weeks[0].sessions[0], name: "Lower B", type: "Strength" } as SlotDiffDraft["weeks"][number]["sessions"][number];
   expect(diffDrafts(v1(), after)).toEqual([
     { day: 1, beforeSlot: null, afterSlot: null, kind: "session", exercise: "Lower B", from: "Lower A, no type", to: "Lower B, Strength" },
   ]);
@@ -111,7 +111,7 @@ test("session rename and kind/type changes surface", () => {
 test("added and removed sessions surface as session changes", () => {
   const before = v1();
   const after = v1();
-  after.sessions.pop();
+  after.weeks[0].sessions.pop();
   expect(diffDrafts(before, after)).toEqual([
     { day: 2, beforeSlot: null, afterSlot: null, kind: "session", exercise: "Tempo Ride", from: "Tempo Ride", to: "removed" },
   ]);
@@ -136,17 +136,17 @@ test("planChanges lives in shared", () => {
 test("F04: an exercise-only proposal covers none of the off-proposal changes", () => {
   const after = v1();
   after.phasing = phasing(false, "deload");
-  after.sessions[0].exercises[0] = ex("Squat", [ranged(5, 5), ranged(5, 5), ranged(5, 5)]);
-  after.sessions[0].exercises[1] = ex("RDL", [set(5, 7, 150)]);
-  after.sessions[0].name = "Lower B";
-  after.sessions[1] = cardio("Tempo Ride", { modality: "Bike", hrZone: 4, targetRpe: 3 });
+  after.weeks[0].sessions[0].exercises[0] = ex("Squat", [ranged(5, 5), ranged(5, 5), ranged(5, 5)]);
+  after.weeks[0].sessions[0].exercises[1] = ex("RDL", [set(5, 7, 150)]);
+  after.weeks[0].sessions[0].name = "Lower B";
+  after.weeks[0].sessions[1] = cardio("Tempo Ride", { modality: "Bike", hrZone: 4, targetRpe: 3 });
   const extra = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 1, slot: 2, kind: "edit" }] });
   expect(extra.map((c) => c.kind).sort()).toEqual(["cardio", "plan", "plan", "rx", "session"]);
 });
 
 test("a cardio edit (slot null) covers that day's cardio change only", () => {
   const after = v1();
-  after.sessions[1] = cardio("Tempo Ride", { durationMin: 40 });
+  after.weeks[0].sessions[1] = cardio("Tempo Ride", { durationMin: 40 });
   after.phasing = phasing(false);
   const extra = unproposedChanges(diffDrafts(v1(), after), { changes: [{ day: 2, slot: null, kind: "edit" }] });
   expect(extra.map((c) => c.kind)).toEqual(["plan"]);
@@ -170,14 +170,14 @@ test("rxParts and rxLabel carry %1RM, RPE ranges, RIR, tempo and stop RPE", () =
 test("an RPE range is not the same as a ramp of single RPEs", () => {
   const ramp = [{ reps: 5, targetRpe: 7 }, { reps: 5, targetRpe: 8 }];
   const range = [{ reps: 5, targetRpeMin: 7, targetRpe: 8 }, { reps: 5, targetRpeMin: 7, targetRpe: 8 }];
-  const d = (sets: object[]) => ({ sessions: [lift("Lower A", [ex("Squat", sets as never)])] });
+  const d = (sets: object[]) => ({ weeks: [{ week: 1, sessions: [lift("Lower A", [ex("Squat", sets as never)])] }] });
   expect(diffDrafts(d(ramp), d(range))).toEqual([
     { day: 1, beforeSlot: 1, afterSlot: 1, kind: "rx", exercise: "Squat", from: "RPE 7–8 ramp", to: "RPE 7–8 range" },
   ]);
 });
 
 test("diffDrafts sees tempo, %1RM, RIR and stop-RPE edits", () => {
-  const d = (extra: Record<string, unknown>) => ({ sessions: [lift("Lower A", [ex("Squat", [{ reps: 5, amrap: true, ...extra }])])] });
+  const d = (extra: Record<string, unknown>) => ({ weeks: [{ week: 1, sessions: [lift("Lower A", [ex("Squat", [{ reps: 5, amrap: true, ...extra }])])] }] });
   const rx = (a: Record<string, unknown>, b: Record<string, unknown>) => diffDrafts(d(a), d(b)).map((c) => [c.from, c.to]);
   expect(rx({ tempo: "3-1-1-0" }, { tempo: "2-0-1-0" })).toEqual([["tempo 3-1-1-0", "tempo 2-0-1-0"]]);
   expect(rx({ percent1rm: 75 }, { percent1rm: 77.5 })).toEqual([["75% 1RM", "77.5% 1RM"]]);
@@ -190,4 +190,22 @@ test("planChanges sees a week's progression rule", () => {
   const a = { plannedWeeks: 2, phase: "acc", weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "+intensity" }] };
   const b = { ...a, weeks: [a.weeks[0], { ...a.weeks[1], progression: { kind: "kg", amount: 2.5 } }] };
   expect(planChanges(a, b)).toEqual([{ week: 2, where: "W2 progression", from: "no progression", to: "+2.5 kg" }]);
+});
+
+test("diffDrafts tags each change with its week; unproposedChanges reaches every same-letter week", () => {
+  const wk = (week: number, rotation: "A" | "B", ...days: ReturnType<typeof ex>[][]) => ({
+    week,
+    rotation,
+    sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })),
+  });
+  const before: SlotDiffDraft = { weeks: [wk(1, "A", [ex("Squat")]), wk(2, "B", [ex("Deadlift")]), wk(3, "A", [ex("Squat")])] };
+  const after: SlotDiffDraft = { weeks: [wk(1, "A", [ex("Front Squat")]), wk(2, "B", [ex("Deadlift")]), wk(3, "A", [ex("Front Squat")])] };
+  const changes = diffDrafts(before, after);
+  expect(changes.map((c) => [c.week, c.kind, c.exercise])).toEqual([
+    [1, "swap", "Front Squat"],
+    [3, "swap", "Front Squat"],
+  ]);
+  // One proposal change in W1 covers W3 (both A), never W2.
+  expect(unproposedChanges(changes, { changes: [{ week: 1, day: 1, slot: 1, kind: "swap" }] }, before.weeks)).toEqual([]);
+  expect(unproposedChanges(changes, { changes: [{ week: 2, day: 1, slot: 1, kind: "swap" }] }, before.weeks)).toHaveLength(2);
 });

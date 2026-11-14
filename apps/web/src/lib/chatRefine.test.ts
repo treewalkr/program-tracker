@@ -22,18 +22,22 @@ const set = (reps: number, weightKg?: number): PrescribedSetDto =>
 const catalogById = new Map([["ex-squat", { movementPattern: "squat" }]]);
 
 let seq = 0;
-function gen(overrides: Partial<GenerationDto> & { draft?: AiDraftDto | null } = {}): GenerationDto {
-  const session = (name: string, reps = 5): AiDraftDto["sessions"][number] => ({
+type LegacyDraftOverride = Partial<AiDraftDto> & { sessions?: AiDraftDto["weeks"][number]["sessions"] };
+function gen(overrides: Partial<Omit<GenerationDto, "draft">> & { draft?: LegacyDraftOverride | null } = {}): GenerationDto {
+  const session = (name: string, reps = 5): AiDraftDto["weeks"][number]["sessions"][number] => ({
     name,
     exercises: [{ exerciseId: "ex-squat", exerciseName: "Back Squat", role: "primary", prescribedSets: [set(reps, 100)] }],
   });
-  const { draft: draftOverride, ...rest } = overrides;
+  const { draft: rawOverride, ...rest } = overrides;
+  // A one-week override written with `sessions` becomes week 1.
+  const { sessions: legacySessions, ...draftOverride } = rawOverride ?? {};
   const draft: AiDraftDto = {
     name: "Block 1",
     rationale: "r",
     clientSummary: "c",
-    sessions: [session("A"), session("B"), session("C")],
-    ...(draftOverride ?? {}),
+    weeks: [{ week: 1, sessions: [session("A"), session("B"), session("C")] }],
+    ...draftOverride,
+    ...(legacySessions ? { weeks: [{ week: 1, sessions: legacySessions }] } : {}),
   };
   seq += 1;
   return {
@@ -228,9 +232,9 @@ describe("draftPreviewModel", () => {
     const childDraft: AiDraftDto = {
       ...v1.draft!,
       sessions: [
-        v1.draft!.sessions[0],
-        { ...v1.draft!.sessions[1], exercises: [{ exerciseId: "ex-squat", exerciseName: "Back Squat", role: "primary", prescribedSets: [set(3, 100)] }] },
-        v1.draft!.sessions[2],
+        v1.draft!.weeks[0].sessions[0],
+        { ...v1.draft!.weeks[0].sessions[1], exercises: [{ exerciseId: "ex-squat", exerciseName: "Back Squat", role: "primary", prescribedSets: [set(3, 100)] }] },
+        v1.draft!.weeks[0].sessions[2],
         { name: "D", exercises: [{ exerciseId: "ex-squat", exerciseName: "Back Squat", role: "primary", prescribedSets: [set(5, 100)] }] },
       ],
     };
@@ -306,7 +310,7 @@ const draftR = (...days: { exerciseName: string; prescribedSets: PrescribedSetDt
   name: "Block",
   rationale: "r",
   clientSummary: "c",
-  sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })),
+  weeks: [{ week: 1, sessions: days.map((exercises, i) => ({ name: `Day ${i + 1}`, exercises })) }],
 });
 
 describe("versionStamps", () => {
@@ -347,11 +351,11 @@ describe("versionStamps", () => {
     const parentDraft: AiDraftDto = {
       ...base,
       phasing: { phase: "accumulation", nextPhase: "build", plannedWeeks: 2, weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "deload", target: { metric: "overall_volume", deltaPercent: -40 } }] },
-      sessions: [...base.sessions, { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", hrZone: 3 }, exercises: [] }],
+      weeks: [{ week: 1, sessions: [...base.weeks[0].sessions, { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", hrZone: 3 }, exercises: [] }] }],
     };
     const childDraft = structuredClone(parentDraft);
     childDraft.phasing!.weeks![1] = { week: 2, directive: "deload" };
-    childDraft.sessions[1].cardio = { modality: "Bike", hrZone: 4 };
+    childDraft.weeks[0].sessions[1].cardio = { modality: "Bike", hrZone: 4 };
     const parent = gen({ draft: parentDraft });
     const child = gen({ parentGenerationId: parent.id, draft: childDraft });
     const draftRow: ChatMessageDto = { ...msg("m-full"), role: "assistant", kind: "draft", generationId: child.id };

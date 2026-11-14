@@ -12,7 +12,7 @@ const RATIONALE_MAX = 4000;
  * rationale (left for the trainer to decide).
  */
 export async function checkDraftRoles(trainerId: string, draft: AiProgramDraft): Promise<AiProgramDraft> {
-  const ids = draft.sessions.flatMap((s) => (s.exercises ?? []).map((e) => e.exerciseId).filter((id): id is string => !!id));
+  const ids = [...new Set(draft.weeks.flatMap((w) => w.sessions.flatMap((s) => (s.exercises ?? []).map((e) => e.exerciseId).filter((id): id is string => !!id))))];
   const [labels, hints] = await Promise.all([loadRoleLabels(trainerId), roleHintsFor(ids)]);
   const { draft: fixed, notes } = fixDraftRoles(draft, labels, hints);
   if (!notes.length) return fixed;

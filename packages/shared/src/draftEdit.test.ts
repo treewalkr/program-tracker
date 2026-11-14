@@ -35,7 +35,7 @@ function draft(...sessions: ReturnType<typeof ex>[][]): AiProgramDraft {
     name: "Block",
     rationale: "",
     clientSummary: "",
-    sessions: sessions.map((exs, i) => lifting(`Day ${i + 1}`, exs)),
+    weeks: [{ week: 1, sessions: sessions.map((exs, i) => lifting(`Day ${i + 1}`, exs)) }],
   } as AiProgramDraft;
 }
 const aux = (name: string, group?: string, sets?: number) => ex(name, { role: "accessory", group, sets });
@@ -43,7 +43,7 @@ const aux = (name: string, group?: string, sets?: number) => ex(name, { role: "a
 /** "A·B·[C D]·E" — groups bracketed with their letter. */
 function shape(d: AiProgramDraft, day = 1): string {
   const out: string[] = [];
-  const l = d.sessions[day - 1].exercises;
+  const l = d.weeks[0].sessions[day - 1].exercises;
   for (let i = 0; i < l.length; i++) {
     const g = l[i].group;
     if (!g) {
@@ -84,7 +84,7 @@ describe("move", () => {
   test("first member moving up leaves the group and steps over the row above; a two-member group dissolves", () => {
     const res = moveDraftExercise(base(), r(1, 3), "up");
     expect(shape(res.draft)).toBe("P·R·Q·S·T");
-    expect(groupIssues(res.draft.sessions[0].exercises)).toEqual([]);
+    expect(groupIssues(res.draft.weeks[0].sessions[0].exercises)).toEqual([]);
   });
 
   test("last member moving down leaves the group, a three-member group stays", () => {
@@ -164,7 +164,7 @@ describe("superset with a neighbour", () => {
   test("set counts match the group's largest", () => {
     const d = draft([aux("P", undefined, 3), aux("Q", undefined, 5)]);
     const res = supersetWith(d, r(1, 1), "below");
-    expect(res.draft.sessions[0].exercises.map((e) => e.prescribedSets.length)).toEqual([5, 5]);
+    expect(res.draft.weeks[0].sessions[0].exercises.map((e) => e.prescribedSets.length)).toEqual([5, 5]);
   });
 
   test("no neighbour, or already together, is refused", () => {
@@ -207,13 +207,13 @@ describe("move to another session", () => {
   test("the moved exercise stays at the end, whatever its role", () => {
     const d = draft([ex("Squat", { role: "primary" }), aux("Curl")], [aux("Row")]);
     const res = moveToSession(d, [r(1, 1)], 2);
-    expect(res.draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Row", "Squat"]);
+    expect(res.draft.weeks[0].sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Row", "Squat"]);
   });
 
   test("never empties a session, and never lands in a cardio session", () => {
     expect(() => moveToSession(base(), [r(2, 1), r(2, 2)], 1)).toThrow("Session 2 would have no exercises");
     const d = base();
-    d.sessions.push({ name: "Run", kind: "cardio", exercises: [], cardio: { modality: "run", durationMin: 30 } } as never);
+    d.weeks[0].sessions.push({ name: "Run", kind: "cardio", exercises: [], cardio: { modality: "run", durationMin: 30 } } as never);
     expect(() => moveToSession(d, [r(1, 1)], 3)).toThrow("cardio session");
   });
 });
@@ -256,7 +256,7 @@ describe("undo", () => {
   for (const op of ops) {
     test(`the inverse of ${op.op} restores the draft exactly`, () => {
       const before = base();
-      before.sessions[0].exercises[0].prescribedSets.push(set(4)); // uneven sets, grown by a superset
+      before.weeks[0].sessions[0].exercises[0].prescribedSets.push(set(4)); // uneven sets, grown by a superset
       const res = applyDraftEdit(before, [op]);
       expect(res.changed).toBe(true);
       const undone = applyDraftEdit(res.draft, [res.inverse]);
@@ -374,5 +374,33 @@ describe("refs and wording", () => {
     const copy = structuredClone(d);
     applyDraftEdit(d, [{ op: "group", refs: [r(1, 1), r(1, 5)] }]);
     expect(d).toEqual(copy);
+  });
+});
+
+describe("weeks", () => {
+  const twoWeeks = (): AiProgramDraft => {
+    const d = draft([aux("A"), aux("B")]);
+    return { ...d, weeks: [d.weeks[0], { week: 2, sessions: structuredClone(d.weeks[0].sessions) }] };
+  };
+
+  test("an op edits only its week, and its undo names that week", () => {
+    const d = twoWeeks();
+    const res = applyDraftEdit(d, [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 2 }]);
+    expect(shape(res.draft)).toBe("A·B");
+    expect(res.draft.weeks[1].sessions[0].exercises.map((e) => e.exerciseName)).toEqual(["B", "A"]);
+    expect(res.changes[0]).toEndWith("(W2)");
+    expect(res.inverse).toMatchObject({ op: "restore", week: 2 });
+    const back = applyDraftEdit(res.draft, [res.inverse], undefined, { keepOrder: true });
+    expect(back.draft.weeks[1].sessions[0].exercises.map((e) => e.exerciseName)).toEqual(["A", "B"]);
+  });
+
+  test("one request edits one week", () => {
+    const d = twoWeeks();
+    expect(() =>
+      applyDraftEdit(d, [
+        { op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 1 },
+        { op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 2 },
+      ])
+    ).toThrow(DraftEditError);
   });
 });

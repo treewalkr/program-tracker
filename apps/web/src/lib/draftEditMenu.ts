@@ -1,6 +1,7 @@
 import {
   canApplyDraftEdit,
   draftSessionLabels,
+  draftWeek,
   shownExerciseOrder,
   type AiProgramDraft,
   type DraftOrderOpts,
@@ -20,13 +21,20 @@ import type { AiDraftDto } from "$lib/api/types";
  * it (`keepOrder`); either way the trainer may then reorder across roles.
  *
  * Takes the DTO (session `kind` may be absent = lifting, as the schema defaults it).
+ * `opts.week` = the draft week the controls edit (absent = the first week);
+ * every op carries it.
  */
+
+export type MenuOpts = DraftOrderOpts & { week?: number | null };
+
+/** The op as sent: tagged with the edited week when one is chosen. */
+const inWeek = <T extends DraftEditOp>(op: T, week: number | null | undefined): T => (week != null ? { ...op, week } : op);
 
 const nameOf = (e: { exerciseName?: string; exerciseId?: string }) => e.exerciseName || e.exerciseId || "exercise";
 
 /** A session's rows as shown, each with its stored slot. */
-function shown(draft: AiDraftDto, day: number, labels: readonly RoleRank[] | undefined, opts: DraftOrderOpts) {
-  const s = draft.sessions[day - 1];
+function shown(draft: AiDraftDto, day: number, labels: readonly RoleRank[] | undefined, opts: MenuOpts) {
+  const s = draftWeek(draft, opts.week).sessions[day - 1];
   return shownExerciseOrder(
     (s?.exercises ?? []).map((e, i) => ({ ...e, slot: i + 1 })),
     labels,
@@ -35,9 +43,10 @@ function shown(draft: AiDraftDto, day: number, labels: readonly RoleRank[] | und
 }
 
 /** "Session 2 · Upper" per lifting session; cardio sessions take no exercises. */
-export function moveTargets(draft: AiDraftDto): { day: number; label: string }[] {
-  const tags = draftSessionLabels(draft.sessions);
-  return draft.sessions.flatMap((s, i) => (s.kind === "cardio" ? [] : [{ day: i + 1, label: `${tags[i]} · ${s.name}` }]));
+export function moveTargets(draft: AiDraftDto, week?: number | null): { day: number; label: string }[] {
+  const sessions = draftWeek(draft, week).sessions;
+  const tags = draftSessionLabels(sessions);
+  return sessions.flatMap((s, i) => (s.kind === "cardio" ? [] : [{ day: i + 1, label: `${tags[i]} · ${s.name}` }]));
 }
 
 export function rowMenuItems(
@@ -45,7 +54,7 @@ export function rowMenuItems(
   ref: DraftRef,
   run: (ops: DraftEditOp[]) => void,
   labels?: readonly RoleRank[],
-  opts: DraftOrderOpts = {}
+  opts: MenuOpts = {}
 ): OverflowItem[] {
   const draft = dto as AiProgramDraft;
   const can = (op: DraftEditOp) => canApplyDraftEdit(draft, op, labels, opts);
@@ -54,8 +63,10 @@ export function rowMenuItems(
   const me = rows[at];
   if (!me) return [];
   const items: OverflowItem[] = [];
-  const add = (label: string, icon: OverflowItem["icon"], op: DraftEditOp, section?: string) =>
+  const add = (label: string, icon: OverflowItem["icon"], bare: DraftEditOp, section?: string) => {
+    const op = inWeek(bare, opts.week);
     items.push({ label, icon, section, disabled: !can(op), onselect: () => run([op]) });
+  };
 
   add("Move up", "arrow-up", { op: "move", refs: [ref], dir: "up" });
   add("Move down", "arrow-down", { op: "move", refs: [ref], dir: "down" });
@@ -65,7 +76,7 @@ export function rowMenuItems(
     add(`Superset with ${nameOf(n)}`, "link", { op: "superset", ref, with: side });
   }
   if (me.group) add(`Leave superset ${me.group}`, "unlink", { op: "leave", ref });
-  for (const t of moveTargets(draft)) {
+  for (const t of moveTargets(dto, opts.week)) {
     if (t.day === ref.day) continue;
     add(t.label, "arrow-right", { op: "moveTo", refs: [ref], day: t.day }, "Move to");
   }
@@ -85,18 +96,21 @@ export function selectionActions(
   dto: AiDraftDto,
   refs: DraftRef[],
   labels?: readonly RoleRank[],
-  opts: DraftOrderOpts = {}
+  opts: MenuOpts = {}
 ): SelectionActions {
   const draft = dto as AiProgramDraft;
   const can = (op: DraftEditOp) => canApplyDraftEdit(draft, op, labels, opts);
-  const ok = (op: DraftEditOp) => (refs.length && can(op) ? op : null);
+  const ok = (bare: DraftEditOp) => {
+    const op = inWeek(bare, opts.week);
+    return refs.length && can(op) ? op : null;
+  };
   const oneSession = new Set(refs.map((r) => r.day)).size === 1;
   return {
     up: ok({ op: "move", refs, dir: "up" }),
     down: ok({ op: "move", refs, dir: "down" }),
     superset: refs.length >= 2 && oneSession ? ok({ op: "group", refs }) : null,
-    moveTo: moveTargets(draft).map((t) => {
-      const op: DraftEditOp = { op: "moveTo", refs, day: t.day };
+    moveTo: moveTargets(dto, opts.week).map((t) => {
+      const op: DraftEditOp = inWeek({ op: "moveTo", refs, day: t.day }, opts.week);
       return { label: t.label, op, disabled: !refs.length || !can(op) };
     }),
   };

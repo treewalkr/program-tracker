@@ -29,11 +29,11 @@ const parent = (): AiProgramDraft => ({
       { week: 4, directive: "deload", target: { metric: "overall_volume", deltaPercent: -40 } },
     ],
   },
-  sessions: [
+  weeks: [{ week: 1, sessions: [
     { name: "Lower A", kind: "lifting", exercises: [ex("Squat", [set(5, 180, { repsMin: 4 })]), ex("RDL"), ex("Plank")] },
     { name: "Upper A", kind: "lifting", exercises: [ex("Bench"), ex("Row"), ex("Curl")] },
     { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", durationMin: 30, hrZone: 3, targetRpe: 4 }, exercises: [] },
-  ],
+  ] }],
 });
 
 const proposal = (changes: ChatProposal["changes"]): ChatProposal => ({ summary: "s", changes });
@@ -42,9 +42,9 @@ test("keeps off-proposal cardio and phasing, takes the proposed slot", () => {
   const built = parent();
   built.name = "Block 1b";
   built.rationale = "Why v2.";
-  built.sessions[0].exercises[1] = ex("RDL", [set(8, 90)]);
-  built.sessions[0].exercises[0] = ex("Squat", [set(5, 180)]); // rep range 4–5 → 5, not asked
-  built.sessions[2].cardio = { modality: "Bike", durationMin: 30, hrZone: 4, targetRpe: 3 };
+  built.weeks[0].sessions[0].exercises[1] = ex("RDL", [set(8, 90)]);
+  built.weeks[0].sessions[0].exercises[0] = ex("Squat", [set(5, 180)]); // rep range 4–5 → 5, not asked
+  built.weeks[0].sessions[2].cardio = { modality: "Bike", durationMin: 30, hrZone: 4, targetRpe: 3 };
   delete built.phasing!.weeks![3].target;
   built.phasing!.nextPhase = "deload";
 
@@ -54,8 +54,8 @@ test("keeps off-proposal cardio and phasing, takes the proposed slot", () => {
     proposal([{ day: 1, slot: 2, kind: "edit", from: "RDL", to: "RDL", detail: "1×8 · rest 90s" }])
   );
   const want = parent();
-  want.sessions[0].exercises[1] = ex("RDL", [set(8, 90)]);
-  expect(draft.sessions).toEqual(want.sessions);
+  want.weeks[0].sessions[0].exercises[1] = ex("RDL", [set(8, 90)]);
+  expect(draft.weeks[0].sessions).toEqual(want.weeks[0].sessions);
   expect(draft.phasing).toEqual(want.phasing);
   expect(draft.name).toBe("Block 1b");
   expect(draft.rationale).toStartWith("Why v2.");
@@ -70,7 +70,7 @@ test("keeps off-proposal cardio and phasing, takes the proposed slot", () => {
 
 test("remove + add on the same day keep the built order", () => {
   const built = parent();
-  built.sessions[1].exercises = [ex("Row"), ex("Curl"), ex("Face Pull")];
+  built.weeks[0].sessions[1].exercises = [ex("Row"), ex("Curl"), ex("Face Pull")];
   const { draft, discarded } = scopeToProposal(
     parent(),
     built,
@@ -79,47 +79,47 @@ test("remove + add on the same day keep the built order", () => {
       { day: 2, slot: null, kind: "add", from: null, to: "Face Pull", detail: "1×5" },
     ])
   );
-  expect(draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Row", "Curl", "Face Pull"]);
+  expect(draft.weeks[0].sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Row", "Curl", "Face Pull"]);
   expect(discarded).toEqual([]);
 });
 
 test("an unproposed add is dropped, a proposed add lands after its aligned predecessor", () => {
   const built = parent();
-  built.sessions[1].exercises = [ex("Bench"), ex("Push-up"), ex("Row"), ex("Curl"), ex("Dip")];
+  built.weeks[0].sessions[1].exercises = [ex("Bench"), ex("Push-up"), ex("Row"), ex("Curl"), ex("Dip")];
   const { draft, discarded } = scopeToProposal(
     parent(),
     built,
     proposal([{ day: 2, slot: null, kind: "add", from: null, to: "Push-up", detail: "1×5" }])
   );
-  expect(draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Bench", "Push-up", "Row", "Curl"]);
+  expect(draft.weeks[0].sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Bench", "Push-up", "Row", "Curl"]);
   expect(discarded.map((c) => `${c.kind}:${c.exercise}`)).toEqual(["added:Dip"]);
 });
 
 test("a swap keeps the slot position; an unproposed swap reverts", () => {
   const built = parent();
-  built.sessions[0].exercises[0] = ex("Front Squat");
-  built.sessions[0].exercises[2] = ex("Dead Bug");
+  built.weeks[0].sessions[0].exercises[0] = ex("Front Squat");
+  built.weeks[0].sessions[0].exercises[2] = ex("Dead Bug");
   const { draft, discarded } = scopeToProposal(
     parent(),
     built,
     proposal([{ day: 1, slot: 1, kind: "swap", from: "Squat", to: "Front Squat", detail: "1×5" }])
   );
-  expect(draft.sessions[0].exercises.map((e) => e.exerciseName)).toEqual(["Front Squat", "RDL", "Plank"]);
+  expect(draft.weeks[0].sessions[0].exercises.map((e) => e.exerciseName)).toEqual(["Front Squat", "RDL", "Plank"]);
   expect(discarded.map((c) => `${c.kind}:${c.from}→${c.to}`)).toEqual(["swap:Plank→Dead Bug"]);
 });
 
 test("off-proposal session renames and extra sessions are discarded", () => {
   const built = parent();
-  built.sessions[0].name = "Legs";
-  built.sessions.push({ name: "Extra", kind: "lifting", exercises: [ex("Lunge")] });
+  built.weeks[0].sessions[0].name = "Legs";
+  built.weeks[0].sessions.push({ name: "Extra", kind: "lifting", exercises: [ex("Lunge")] });
   const { draft, discarded } = scopeToProposal(parent(), built, proposal([{ day: 1, slot: 1, kind: "edit", from: "Squat", to: "Squat", detail: "" }]));
-  expect(draft.sessions).toEqual(parent().sessions);
+  expect(draft.weeks[0].sessions).toEqual(parent().weeks[0].sessions);
   expect(discarded.map((c) => `${c.kind}:${c.day}`)).toEqual(["session:1", "session:4", "added:4"]);
 });
 
 test("a built draft equal to parent + proposal has nothing to discard", () => {
   const built = parent();
-  built.sessions[1].exercises[2] = ex("Hammer Curl");
+  built.weeks[0].sessions[1].exercises[2] = ex("Hammer Curl");
   const { draft, discarded } = scopeToProposal(
     parent(),
     built,
@@ -141,13 +141,13 @@ test("a draft without phasing stays without phasing", () => {
 
 test("a proposed cardio edit takes the built cardio prescription", () => {
   const built = parent();
-  built.sessions[2].cardio = { modality: "Stationary Bike", durationMin: 40, hrZone: 3, targetRpe: 4 };
+  built.weeks[0].sessions[2].cardio = { modality: "Stationary Bike", durationMin: 40, hrZone: 3, targetRpe: 4 };
   const { draft, discarded } = scopeToProposal(
     parent(),
     built,
     proposal([{ day: 3, slot: null, kind: "edit", from: "Tempo Ride", to: "Tempo Ride", detail: "40 min · Z3" }])
   );
-  expect(draft.sessions[2].cardio!.durationMin).toBe(40);
+  expect(draft.weeks[0].sessions[2].cardio!.durationMin).toBe(40);
   expect(discarded).toEqual([]);
 });
 
@@ -179,11 +179,11 @@ test("mentionsPlan: block plan words count, exercise talk does not", () => {
 test("lockPhasing keeps the parent's plan unless the message is about it", () => {
   const p = parent();
   const revised = parent();
-  revised.sessions[0].exercises[0] = ex("Front Squat");
+  revised.weeks[0].sessions[0].exercises[0] = ex("Front Squat");
   delete revised.phasing!.weeks![3].target;
   const locked = lockPhasing(p, revised, "Swap the squat");
   expect(locked.draft.phasing).toEqual(p.phasing);
-  expect(locked.draft.sessions).toEqual(revised.sessions);
+  expect(locked.draft.weeks[0].sessions).toEqual(revised.weeks[0].sessions);
   expect(locked.discarded.map((c) => c.exercise)).toEqual(["W4 target"]);
   const asked = lockPhasing(p, revised, "Drop the week 4 target");
   expect(asked.draft.phasing).toEqual(revised.phasing);
@@ -195,11 +195,11 @@ test("lockPhasing keeps the parent's plan unless the message is about it", () =>
 
 test("a proposed add never lands inside a superset: it goes after the group", () => {
   const p = parent();
-  p.sessions[1].exercises = [ex("Bench"), { ...ex("Lunge"), group: "A" }, { ...ex("Side Plank"), group: "A" }, ex("Curl")];
+  p.weeks[0].sessions[1].exercises = [ex("Bench"), { ...ex("Lunge"), group: "A" }, { ...ex("Side Plank"), group: "A" }, ex("Curl")];
   const built = structuredClone(p);
-  built.sessions[1].exercises.splice(2, 0, ex("Push-up")); // the AI slots it between A1 and A2
+  built.weeks[0].sessions[1].exercises.splice(2, 0, ex("Push-up")); // the AI slots it between A1 and A2
   const { draft } = scopeToProposal(p, built, proposal([{ day: 2, slot: null, kind: "add", from: null, to: "Push-up", detail: "2×10" }]));
-  expect(draft.sessions[1].exercises.map((e) => `${e.exerciseName}${e.group ? `:${e.group}` : ""}`)).toEqual([
+  expect(draft.weeks[0].sessions[1].exercises.map((e) => `${e.exerciseName}${e.group ? `:${e.group}` : ""}`)).toEqual([
     "Bench",
     "Lunge:A",
     "Side Plank:A",
@@ -210,9 +210,9 @@ test("a proposed add never lands inside a superset: it goes after the group", ()
 
 test("two adds inside one superset both move after it, in order", () => {
   const p = parent();
-  p.sessions[1].exercises = [{ ...ex("Lunge"), group: "A" }, { ...ex("Side Plank"), group: "A" }, ex("Curl")];
+  p.weeks[0].sessions[1].exercises = [{ ...ex("Lunge"), group: "A" }, { ...ex("Side Plank"), group: "A" }, ex("Curl")];
   const built = structuredClone(p);
-  built.sessions[1].exercises.splice(1, 0, ex("Push-up"), ex("Dip"));
+  built.weeks[0].sessions[1].exercises.splice(1, 0, ex("Push-up"), ex("Dip"));
   const { draft } = scopeToProposal(
     p,
     built,
@@ -221,5 +221,25 @@ test("two adds inside one superset both move after it, in order", () => {
       { day: 2, slot: null, kind: "add", from: null, to: "Dip", detail: "2×10" },
     ])
   );
-  expect(draft.sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Lunge", "Side Plank", "Push-up", "Dip", "Curl"]);
+  expect(draft.weeks[0].sessions[1].exercises.map((e) => e.exerciseName)).toEqual(["Lunge", "Side Plank", "Push-up", "Dip", "Curl"]);
+});
+
+test("A/B drafts: a proposal change in W1 reaches every A week; B weeks and off-proposal edits stay", () => {
+  const p = parent();
+  const lift = p.weeks[0].sessions.slice(0, 2);
+  const ab: AiProgramDraft = {
+    ...p,
+    weeks: [1, 2, 3].map((week) => ({
+      week,
+      rotation: week % 2 ? ("A" as const) : ("B" as const),
+      sessions: structuredClone(week % 2 ? lift : [lift[1], lift[0]]),
+    })),
+  };
+  const built = structuredClone(ab);
+  for (const w of built.weeks) w.sessions[0].exercises[1] = ex("Good Morning");
+  const { draft, discarded } = scopeToProposal(ab, built, proposal([{ week: 1, day: 1, slot: 2, kind: "swap", from: "RDL", to: "Good Morning", detail: "" }]));
+  expect(draft.weeks[0].sessions[0].exercises[1].exerciseName).toBe("Good Morning");
+  expect(draft.weeks[2].sessions[0].exercises[1].exerciseName).toBe("Good Morning");
+  expect(draft.weeks[1]).toEqual(ab.weeks[1]);
+  expect(discarded.map((c) => c.week)).toEqual([2]);
 });

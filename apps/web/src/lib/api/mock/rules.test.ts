@@ -9,10 +9,10 @@ async function draft(clientId = "cl-maya") {
 
 const anchorOf = (gen: Awaited<ReturnType<typeof draft>>) => ({
   type: "slot" as const,
-  session: gen.draft!.sessions[0].name,
+  session: gen.draft!.weeks[0].sessions[0].name,
   sessionIndex: 0,
   exerciseIndex: 0,
-  exerciseName: gen.draft!.sessions[0].exercises[0].exerciseName ?? null,
+  exerciseName: gen.draft!.weeks[0].sessions[0].exercises[0].exerciseName ?? null,
 });
 
 describe("mock adapter: notes and coaching rules", () => {

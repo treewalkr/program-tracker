@@ -337,7 +337,6 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       const { weeks, createdNames, unresolvable } = draftToWeeks(
         gen.draft,
         catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-        gen.draft.phasing?.plannedWeeks ?? 4,
         client,
         await ensureSessionTypes(trainerId),
         await loadRoleLabels(trainerId),

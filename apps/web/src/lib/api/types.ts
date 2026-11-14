@@ -186,22 +186,36 @@ export interface AiDraftDto {
   clientSummary: string;
   /** Proposed periodization for the block (week drafts have none). */
   phasing?: ProgramPhasingDto | null;
-  sessions: {
-    name: string;
-    kind?: SessionKind;
-    /** AI-suggested ISO weekday; kept on approval when it passes the placement rules. */
-    weekday?: number | null;
-    notes?: string;
-    exercises: DraftExerciseRef[];
-    cardio?: CardioPrescriptionDto | null;
-  }[];
+  /** Every week in full (a week draft has just its target week). */
+  weeks: AiDraftWeekDto[];
+}
+
+export interface AiDraftSessionDto {
+  name: string;
+  kind?: SessionKind;
+  /** Name of one of the trainer's session types. */
+  type?: string;
+  /** AI-suggested ISO weekday; kept on approval when it passes the placement rules. */
+  weekday?: number | null;
+  notes?: string;
+  exercises: DraftExerciseRef[];
+  cardio?: CardioPrescriptionDto | null;
+}
+
+export interface AiDraftWeekDto {
+  week: number;
+  /** A/B letter when the block alternates (odd = A, even = B). */
+  rotation?: "A" | "B";
+  /** Fill drafts: a week the trainer wrote, kept as is. */
+  locked?: boolean;
+  sessions: AiDraftSessionDto[];
 }
 
 export interface GenerationDto {
   id: string;
   clientId: string;
   basedOnProgramId: string | null;
-  kind: "block" | "week";
+  kind: "block" | "week" | "fill";
   targetWeek: number | null;
   direction?: string | null;
   providerId: string;
@@ -684,6 +698,10 @@ export interface TrainerApi {
     clientId: string;
     basedOnProgramId?: string | null;
     targetWeek?: number;
+    /** Block drafts: weeks in the block (the trainer's field wins over the AI's plan). */
+    plannedWeeks?: number;
+    /** Block drafts: odd weeks A, even weeks B. */
+    alternate?: boolean;
     direction?: string;
     providerId?: string;
     model?: string;
