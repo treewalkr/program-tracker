@@ -295,6 +295,6 @@ describe("block length and Weeks (FB-013)", () => {
   test("estimated wait scales with weeks", () => {
     expect(estimatedWaitSeconds("zai", 8)).toBe(210 * 8);
     expect(waitLabel(estimatedWaitSeconds("zai", 8))).toBe("about 28 min");
-    expect(waitLabel(estimatedWaitSeconds("deepseek", 4))).toBe("about 80 s");
+    expect(waitLabel(estimatedWaitSeconds("deepseek", 4))).toBe("about 2 min");
   });
 });

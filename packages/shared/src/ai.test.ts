@@ -57,7 +57,7 @@ describe("KNOWN_PROVIDERS", () => {
 
 describe("typicalGenerationSeconds", () => {
   test("T2 typicalGenerationSeconds knows deepseek", () => {
-    expect(typicalGenerationSeconds("deepseek")).toBe(20);
+    expect(typicalGenerationSeconds("deepseek")).toBe(35);
     expect(typicalGenerationSeconds("zai")).toBe(210);
     expect(typicalGenerationSeconds("mock")).toBe(3);
     expect(typicalGenerationSeconds("unknown")).toBe(240);

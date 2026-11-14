@@ -104,7 +104,7 @@ export const DEFAULT_PROVIDER_ID = "deepseek" satisfies keyof typeof KNOWN_PROVI
 /** Rough wall-clock seconds one generation takes, for UI expectation-setting. */
 export const TYPICAL_GENERATION_SECONDS: Record<string, number> = {
   zai: 210, // live GLM ≈ 3.5 min per draft
-  deepseek: 20, // live deepseek-chat ≈ 10 s per draft (2026-11-05 run)
+  deepseek: 35, // per week: live deepseek-flash whole-block drafts ran 22–44 s per week (eval:block, 2026-11-14)
   mock: 3, // mock generate delays 2.2 s
 };
 export const DEFAULT_GENERATION_SECONDS = 240;
