@@ -1101,14 +1101,20 @@ export const mockApi: TrainerApi = {
     }
     // Mirror what the real API guarantees: every draft exercise is nameable,
     // and working sets carry a load target (last + 2.5kg, or leave RPE-driven).
-    for (const s of draft.weeks.flatMap((w) => w.sessions)) {
-      for (const e of s.exercises) {
-        if (!e.exerciseName && e.exerciseId) e.exerciseName = nameOf(e.exerciseId);
-        const last = e.exerciseId ? lastW.get(e.exerciseId) : undefined;
-        if (last == null) continue;
-        const next = Math.round((last + 2.5) * 2) / 2;
-        for (const ps of e.prescribedSets) {
-          if (ps.type === "working") ps.targetWeightKg = next;
+    // Later weeks step on from there: +2.5 kg per earlier week with the same letter.
+    const alternating = draft.weeks.some((w) => w.rotation);
+    for (const [wi, w] of draft.weeks.entries()) {
+      const steps = isWeek ? 0 : alternating ? Math.floor(wi / 2) : wi;
+      const deload = draft.phasing?.weeks?.find((p) => p.week === w.week)?.directive === "deload";
+      for (const s of w.sessions) {
+        for (const e of s.exercises) {
+          if (!e.exerciseName && e.exerciseId) e.exerciseName = nameOf(e.exerciseId);
+          const last = e.exerciseId ? lastW.get(e.exerciseId) : undefined;
+          if (last == null) continue;
+          const next = Math.round((last + 2.5 * (1 + steps)) * (deload ? 0.9 : 1) * 2) / 2;
+          for (const ps of e.prescribedSets) {
+            if (ps.type === "working") ps.targetWeightKg = next;
+          }
         }
       }
     }
