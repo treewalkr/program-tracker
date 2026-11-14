@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fillLockedWeeks, loggedWeeks, weekRangeLabel } from "./fill";
+import { fillLockedWeeks, loggedWeeks, newBlockFillBlocker, weekRangeLabel } from "./fill";
 import type { SignalProgram } from "./metrics";
 
 const weeks = (n: number, ab = false) =>
@@ -26,6 +26,13 @@ describe("fill lock rule", () => {
       { programId: "other", programSessionId: "s4", date: "2026-11-02" },
     ];
     expect(loggedWeeks(program, logs)).toEqual([2, 3]);
+  });
+  test("a new block can be filled only when some week is left after the trainer's", () => {
+    expect(newBlockFillBlocker(2, true)).toContain("W1 and W2 are yours");
+    expect(newBlockFillBlocker(3, true)).toBeNull();
+    expect(newBlockFillBlocker(1, false)).toContain("W1 is yours");
+    expect(newBlockFillBlocker(2, false)).toBeNull();
+    expect(newBlockFillBlocker(13, false)).toBe("AI fills blocks of up to 12 weeks");
   });
   test("week labels", () => {
     expect(weekRangeLabel([3, 4, 5, 6])).toBe("W3–W6");

@@ -1,4 +1,5 @@
-import { ROTATIONS, isAlternating, type ProgramWeek } from "./domain";
+import { MAX_AI_BLOCK_WEEKS } from "./ai";
+import { ROTATIONS, isAlternating, rotationOfWeek, type ProgramWeek } from "./domain";
 import { blockWeekOfDate, type SignalProgram } from "./metrics";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,20 @@ export function fillLockedWeeks(weeks: readonly Pick<ProgramWeek, "week" | "rota
     : weeks.slice(0, 1).map((w) => w.week);
   const cutoff = Math.max(0, ...logged, ...firsts);
   return weeks.filter((w) => w.week <= cutoff).map((w) => w.week);
+}
+
+/**
+ * Why a new block of `plannedWeeks` can't be saved and filled with AI (null =
+ * it can): longer than the AI writes, or no week left after the trainer's own
+ * (fillLockedWeeks — W1, or W1 + W2 with A/B weeks).
+ */
+export function newBlockFillBlocker(plannedWeeks: number, alternate: boolean): string | null {
+  if (plannedWeeks > MAX_AI_BLOCK_WEEKS) return `AI fills blocks of up to ${MAX_AI_BLOCK_WEEKS} weeks`;
+  const weeks = Array.from({ length: plannedWeeks }, (_, i) => ({ week: i + 1, ...(alternate ? { rotation: rotationOfWeek(i + 1) } : {}) }));
+  if (fillLockedWeeks(weeks, []).length < weeks.length) return null;
+  return alternate
+    ? "W1 and W2 are yours with A/B weeks — make the block 3 weeks or longer to fill the rest with AI"
+    : "W1 is yours — make the block 2 weeks or longer to fill the rest with AI";
 }
 
 /** "W3–W8", "W4", "W2, W5" — compact week lists for buttons and notes. */

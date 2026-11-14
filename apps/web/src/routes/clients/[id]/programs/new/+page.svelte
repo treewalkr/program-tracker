@@ -33,7 +33,7 @@
     type ProgramSession,
     type WeekPlan,
   } from "@pt/shared";
-  import { MAX_AI_BLOCK_WEEKS, SCHEME_PRESETS, schemePreset } from "@pt/shared";
+  import { SCHEME_PRESETS, newBlockFillBlocker, schemePreset } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
@@ -448,6 +448,9 @@
     });
   }
 
+  /** Why "Save & fill with AI" is off: too long for the AI, or no week left after the trainer's. */
+  const fillBlocker = $derived(newBlockFillBlocker(Number(plannedWeeks) || 4, weekB !== null));
+
   /** Save, then open the generate page to fill the remaining weeks with AI. */
   async function save(fill = false) {
     saving = true;
@@ -541,12 +544,11 @@
       {#if blocker && !saving}<span class="blocker" id="np-blocker">{blocker}</span>{/if}
       <Button
         onclick={() => save(true)}
-        disabled={saving || blocker !== null || (Number(plannedWeeks) || 4) < 2 || (Number(plannedWeeks) || 4) > MAX_AI_BLOCK_WEEKS}
-        title={(Number(plannedWeeks) || 4) > MAX_AI_BLOCK_WEEKS
-          ? `AI fills blocks of up to ${MAX_AI_BLOCK_WEEKS} weeks`
-          : weekB
+        disabled={saving || blocker !== null || fillBlocker !== null}
+        title={fillBlocker
+          ?? (weekB
             ? "Save, then the AI writes W3 onward from your Week A and Week B"
-            : "Save, then the AI writes W2 onward from your week"}
+            : "Save, then the AI writes W2 onward from your week")}
         aria-describedby={blocker ? "np-blocker" : undefined}
       >
         {#snippet icon()}<Icon name="sparkle" />{/snippet}
