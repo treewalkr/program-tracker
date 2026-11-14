@@ -3,6 +3,7 @@ import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
   mergeWeekChanges,
+  resizeDraftWeeks,
   applyDraftEdit,
   DraftEditError,
   DraftEditOps,
@@ -1126,12 +1127,14 @@ export const mockApi: TrainerApi = {
     const parent = state.generations.find((g) => g.id === generationId);
     if (!parent || parent.status !== "validated" || !parent.draft) throw new Error("generation is not validated");
     if (parent.kind === "week") throw new Error("week drafts follow the block's plan");
+    if (parent.kind === "fill") throw new Error("fill drafts follow the program's plan");
     if (canon(parent.draft.phasing ?? null) === canon(phasing)) throw new Error("phasing is unchanged");
     const child: GenerationDto = {
       ...structuredClone(parent),
       id: uuid(),
       status: "validated",
-      draft: { ...structuredClone(parent.draft), phasing: structuredClone(phasing) },
+      // Same as the API: a new length grows or cuts the draft's weeks.
+      draft: { ...(resizeDraftWeeks(structuredClone(parent.draft) as AiProgramDraftSchema, phasing.plannedWeeks) as GenerationDto["draft"] & object), phasing: structuredClone(phasing) },
       parentGenerationId: parent.id,
       revisionMessage: "Block plan edited by you",
       manualEdit: true,

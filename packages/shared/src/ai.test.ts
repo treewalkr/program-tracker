@@ -26,6 +26,7 @@ import {
   blockDraftSchema,
   draftWeekIssues,
   sameLetterWeeks,
+  resizeDraftWeeks,
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
@@ -356,5 +357,23 @@ describe("draft weeks", () => {
     const next = mockApplyProposal(ab, { summary: "s", changes: [{ week: 1, day: 1, slot: 1, kind: "edit", from: "Squat", to: "Squat", detail: "" }] });
     const rest = next.weeks.map((w) => w.sessions[0].exercises[0].prescribedSets[0].restSeconds);
     expect(rest).toEqual([75, undefined, 75]);
+  });
+});
+
+describe("resizeDraftWeeks", () => {
+  const s = (n: string) => [{ name: n, kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+  const ab: AiProgramDraft = {
+    name: "B",
+    rationale: "",
+    clientSummary: "",
+    weeks: [
+      { week: 1, rotation: "A", sessions: s("Squat") },
+      { week: 2, rotation: "B", sessions: s("Deadlift") },
+    ],
+  };
+  test("grows by copying the last week with the new week's letter, and cuts", () => {
+    const grown = resizeDraftWeeks(ab, 5);
+    expect(grown.weeks.map((w) => `${w.week}${w.rotation}:${w.sessions[0].name}`)).toEqual(["1A:Squat", "2B:Deadlift", "3A:Squat", "4B:Deadlift", "5A:Squat"]);
+    expect(resizeDraftWeeks(grown, 3).weeks.map((w) => w.week)).toEqual([1, 2, 3]);
   });
 });

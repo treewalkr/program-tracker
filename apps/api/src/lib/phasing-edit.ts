@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, aiGenerations, type AiGenerationRow } from "@pt/db";
-import { Phasing } from "@pt/shared";
+import { MAX_AI_BLOCK_WEEKS, Phasing, resizeDraftWeeks } from "@pt/shared";
 
 /** JSON with object keys sorted — jsonb does not keep key order, so compare canonically. */
 const canon = (v: unknown): string =>
@@ -32,6 +32,9 @@ export async function savePhasingEdit(parentId: string, rawPhasing: unknown): Pr
   if (parent.kind === "week") {
     return { ok: false, status: 409, error: "week drafts follow the block's plan" };
   }
+  if (parent.kind === "fill") {
+    return { ok: false, status: 409, error: "fill drafts follow the program's plan" };
+  }
 
   const parsed = Phasing.safeParse(rawPhasing);
   if (!parsed.success) {
@@ -39,6 +42,9 @@ export async function savePhasingEdit(parentId: string, rawPhasing: unknown): Pr
   }
   if (canon(parsed.data) === canon(parent.draft.phasing ?? null)) {
     return { ok: false, status: 422, error: "phasing is unchanged" };
+  }
+  if (parsed.data.plannedWeeks > MAX_AI_BLOCK_WEEKS) {
+    return { ok: false, status: 422, error: `AI block drafts are at most ${MAX_AI_BLOCK_WEEKS} weeks` };
   }
 
   const [pendingChild] = await db
@@ -62,7 +68,8 @@ export async function savePhasingEdit(parentId: string, rawPhasing: unknown): Pr
       model: parent.model,
       effort: parent.effort,
       status: "validated",
-      draft: { ...parent.draft, phasing: parsed.data },
+      // A new length grows or cuts the draft's weeks to match.
+      draft: { ...resizeDraftWeeks(parent.draft, parsed.data.plannedWeeks), phasing: parsed.data },
       parentGenerationId: parent.id,
       revisionMessage: PHASING_EDIT_MESSAGE,
       manualEdit: true,

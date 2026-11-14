@@ -294,6 +294,23 @@ export function programWeekToDraftWeek(w: ProgramWeek, opts: { locked?: boolean 
   };
 }
 
+/**
+ * The draft cut or grown to `weeks` weeks (a block plan edit changed its
+ * length): extra weeks are dropped; a new week copies the last earlier week
+ * with its letter (odd A / even B when the draft alternates), else the last week.
+ */
+export function resizeDraftWeeks(d: AiProgramDraft, weeks: number): AiProgramDraft {
+  const alternate = d.weeks.some((w) => w.rotation != null);
+  const out = d.weeks.filter((w) => w.week <= weeks).map((w) => structuredClone(w));
+  for (let week = (out.at(-1)?.week ?? 0) + 1; week <= weeks; week++) {
+    const letter = alternate ? rotationOfWeek(week) : undefined;
+    const src = [...out].reverse().find((w) => !letter || w.rotation === letter) ?? out[out.length - 1];
+    const { locked: _l, ...copy } = structuredClone(src);
+    out.push({ ...copy, week, ...(letter ? { rotation: letter } : {}) });
+  }
+  return { ...d, weeks: out };
+}
+
 /** True when the draft's weeks carry A/B letters. */
 export const draftAlternates = (d: { weeks: { rotation?: string | null }[] }): boolean => d.weeks.some((w) => w.rotation != null);
 
