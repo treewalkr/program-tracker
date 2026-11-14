@@ -86,3 +86,25 @@ export function mockBlock(d: LegacyMockDraft, opts: { plannedWeeks: number; alte
   });
   return { ...rest, phasing: mockPhasing(opts.plannedWeeks), weeks };
 }
+
+/**
+ * Mock fill (Fill with AI): every week not in `locked` is built from the last
+ * earlier week with its letter (the trainer's to start) at +2.5 kg; the
+ * trainer's weeks ride along locked. Same shape the API returns.
+ */
+export function mockFillWeeks(
+  locked: AiDraftWeekDto[],
+  opts: { plannedWeeks: number; alternate: boolean; phasing?: ProgramPhasingDto | null }
+): AiDraftWeekDto[] {
+  const all = locked.map((w) => ({ ...w, locked: true }));
+  const lockedNos = new Set(locked.map((w) => w.week));
+  for (let week = 1; week <= opts.plannedWeeks; week++) {
+    if (lockedNos.has(week)) continue;
+    const letter = opts.alternate ? rotationOfWeek(week) : undefined;
+    const basis = [...all].reverse().find((w) => w.week < week && (!letter || w.rotation === letter)) ?? all[0];
+    const deload = opts.phasing?.weeks?.find((w) => w.week === week)?.directive === "deload";
+    all.push({ week, ...(letter ? { rotation: letter } : {}), locked: false, sessions: progressedSessions(basis.sessions, 1, deload) });
+    all.sort((a, b) => a.week - b.week);
+  }
+  return all.map(({ locked: l, ...w }) => (l ? { ...w, locked: true } : w));
+}

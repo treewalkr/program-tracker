@@ -187,6 +187,7 @@ export const realApi: TrainerApi = {
     unwrap<void>(client.v1.notifications({ signalId: id }).snooze.put({ until })),
 
   generate: (input) => unwrap<GenerationDto>(client.v1.ai.generate.post(input)),
+  fillProgram: ({ programId, ...rest }) => unwrap<GenerationDto>(client.v1.ai.fill.post({ ...rest, basedOnProgramId: programId })),
   generations: (clientId) =>
     unwrap<GenerationDto[]>(client.v1.ai.generations.get({ query: { clientId } })),
   generation: (id) => unwrap<GenerationDto>(client.v1.ai.generations({ id }).get()),

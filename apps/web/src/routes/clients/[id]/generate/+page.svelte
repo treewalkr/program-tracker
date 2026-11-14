@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, mentionsAlternating, selectExamples, type WeeksChoice } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, fillLockedWeeks, loggedWeeks, mentionsAlternating, selectExamples, weekRangeLabel, type SignalProgram, type WeeksChoice } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -72,8 +72,14 @@
   let weeksChoice = $state<WeeksChoice>("same");
   const blockWeeksValid = $derived(Number.isInteger(blockWeeks) && blockWeeks >= MIN_BLOCK_WEEKS && blockWeeks <= MAX_AI_BLOCK_WEEKS);
   /** The note asks for A/B weeks while the setting says same every week: offer the switch. */
-  const abHint = $derived(!weekMode && weeksChoice === "same" && mentionsAlternating(instructions));
-  const waitSeconds = $derived(estimatedWaitSeconds(providerId, weekMode ? 1 : blockWeeks));
+  /** Fill with AI (?fill=<programId>): the program whose remaining weeks the AI writes. */
+  let fillTarget = $state<ProgramDto | null>(null);
+  /** Weeks the fill keeps (the trainer's and logged ones) and the weeks it writes. */
+  const fillKept = $derived(fillTarget ? fillLockedWeeks(fillTarget.weeks, loggedWeeks(fillTarget as unknown as SignalProgram, logs)) : []);
+  const fillWrites = $derived(fillTarget ? fillTarget.weeks.map((w) => w.week).filter((w) => !fillKept.includes(w)) : []);
+  const fillTooLong = $derived(fillTarget !== null && fillTarget.weeks.length > MAX_AI_BLOCK_WEEKS);
+  const abHint = $derived(!weekMode && !fillTarget && weeksChoice === "same" && mentionsAlternating(instructions));
+  const waitSeconds = $derived(estimatedWaitSeconds(providerId, weekMode ? 1 : fillTarget ? fillWrites.length : blockWeeks));
   const fasterProvider = $derived(providers.find((p) => p.id === "deepseek" && p.id !== providerId) ?? null);
   /** Built-in rules first (read-only, ids `builtin:<key>`), then the trainer's own. */
   const BUILTIN_TEMPLATES: InstructionTemplateDto[] = INSTRUCTION_PRESETS.map((p) => ({
@@ -185,7 +191,7 @@
     selected.map((id) => templates.find((t) => t.id === id)).filter((t) => t !== undefined)
   );
   /** The generate body: templates first, then the note — or the note as the block direction when "Keep" is ticked. */
-  const request = $derived(composeRequest({ note: instructions, keep, weekMode, templates: selectedTemplates }));
+  const request = $derived(composeRequest({ note: instructions, keep: keep && !fillTarget, weekMode, templates: selectedTemplates }));
   const recentLogs = $derived(recentLogCount(logs));
 
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
@@ -199,7 +205,16 @@
     phase = "generating";
     cancelledNote = null;
     try {
-      const row = await api.generate({
+      const row = fillTarget
+        ? await api.fillProgram({
+            clientId: id,
+            programId: fillTarget.id,
+            providerId,
+            model: model || undefined,
+            effort: effort || undefined,
+            instructions: request.instructions || undefined,
+          })
+        : await api.generate({
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         targetWeek: weekMode ?? undefined,
@@ -422,9 +437,14 @@
     if (note) instructions = note;
     if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
 
+    // Fill with AI handoff from the builder or the program page: ?fill=<programId>
+    const fillParam = params.get("fill");
+    if (fillParam) fillTarget = programs.find((p) => p.id === fillParam) ?? (await api.program(fillParam).catch(() => null));
+
     const weekParam = params.get("week");
     const parsedWeek = weekParam ? Number.parseInt(weekParam, 10) : NaN;
     if (
+      !fillTarget &&
       current &&
       current.status === "active" &&
       !Number.isNaN(parsedWeek) &&
@@ -474,15 +494,21 @@
   </div>
 {:else if phase !== "review" || !gen?.draft}
   <PageHead
-    title={phase === "form"
+    title={fillTarget
+      ? `Fill “${fillTarget.name}” with AI`
+      : phase === "form"
       ? generateTitle(current, weekMode)
       : weekMode ? `Draft week ${weekMode} with AI` : "Draft next block with AI"}
-    sub={phase === "form"
+    sub={fillTarget
+      ? fillWrites.length
+        ? `Writes ${weekRangeLabel(fillWrites)} in full from your ${weekRangeLabel(fillKept)}, following the block plan. ${weekRangeLabel(fillKept)} stay${fillKept.length === 1 ? "s" : ""} exactly as ${fillKept.length === 1 ? "it is" : "they are"}.`
+        : "Every week is yours or logged — nothing left to fill."
+      : phase === "form"
       ? generateSubtitle({ firstName: client.name.split(" ")[0], current, weekMode, plannedWeeks, recentLogs })
       : weekMode
       ? `Re-drafts week ${weekMode} of ${plannedWeeks} from this week's logs — the pre-drafted week ${weekMode} is replaced on approval.`
       : `Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
-    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: weekMode ? `Draft week ${weekMode}` : "Generate" }]}
+    crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: fillTarget ? "Fill with AI" : weekMode ? `Draft week ${weekMode}` : "Generate" }]}
   />
 
   {#if phase === "form"}
@@ -564,12 +590,15 @@
           ></textarea>
           {#if weekMode && current?.direction}
             <div class="standing"><strong>Block direction</strong> · {current.direction}</div>
-          {:else if !weekMode}
+          {:else if !weekMode && !fillTarget}
             <label class="keep" class:on={keep}>
               <input type="checkbox" bind:checked={keep} /> Keep as the block's direction — every weekly draft follows it
             </label>
           {/if}
-          {#if !weekMode}
+          {#if fillTarget && fillTooLong}
+            <p class="box-help bad">AI fills blocks of up to {MAX_AI_BLOCK_WEEKS} weeks; this one has {fillTarget.weeks.length}. Fill the rest by hand.</p>
+          {/if}
+          {#if !weekMode && !fillTarget}
             <div class="block-shape">
               <label class="len">
                 <span>Block length</span>
@@ -633,17 +662,21 @@
             <ModelSettings {providers} bind:providerId bind:model bind:effort hint="Applies to this draft." />
             <span class="spacer"></span>
             {#if !weekMode}
-              <span class="wait" title="One week's typical time × {blockWeeks} weeks">{waitLabel(waitSeconds)}</span>
+              <span class="wait" title="One week's typical time × {fillTarget ? fillWrites.length : blockWeeks} weeks">{waitLabel(waitSeconds)}</span>
             {/if}
-            <Button variant="primary" type="submit" disabled={request.directionTooLong || !providerId || (!weekMode && !blockWeeksValid)}>
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={request.directionTooLong || !providerId || (fillTarget ? fillTooLong || fillWrites.length === 0 : !weekMode && !blockWeeksValid)}
+            >
               {#snippet icon()}<Icon name="sparkle" />{/snippet}
-              {weekMode ? `Draft week ${weekMode}` : "Generate draft"}
+              {fillTarget ? `Fill ${weekRangeLabel(fillWrites)}` : weekMode ? `Draft week ${weekMode}` : "Generate draft"}
             </Button>
           </div>
         </form>
         {#if !weekMode && waitSeconds > LONG_WAIT_SECONDS && fasterProvider}
           <p class="wait-hint">
-            {blockWeeks} weeks on this model take {waitLabel(waitSeconds)}.
+            {fillTarget ? fillWrites.length : blockWeeks} weeks on this model take {waitLabel(waitSeconds)}.
             <button type="button" class="linkish" onclick={() => (providerId = fasterProvider.id)}>Try {fasterProvider.label}</button> — usually under a minute.
           </p>
         {/if}

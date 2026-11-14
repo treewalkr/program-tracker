@@ -712,6 +712,18 @@ export interface TrainerApi {
     effort?: string;
     instructions?: string;
   }): Promise<GenerationDto>;
+  /**
+   * Fill with AI: the AI writes every week of `programId` after the last
+   * logged week (and after the first week of each letter); those stay locked.
+   */
+  fillProgram(input: {
+    clientId: string;
+    programId: string;
+    providerId?: string;
+    model?: string;
+    effort?: string;
+    instructions?: string;
+  }): Promise<GenerationDto>;
   generations(clientId: string): Promise<GenerationDto[]>;
   generation(id: string): Promise<GenerationDto>;
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;

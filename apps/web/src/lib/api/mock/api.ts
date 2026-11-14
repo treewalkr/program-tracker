@@ -2,6 +2,11 @@ import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMI
 import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
+  fillLockedWeeks,
+  isAlternating,
+  loggedWeeks,
+  programWeekToDraftWeek,
+  type SignalProgram,
   MAX_AI_BLOCK_WEEKS,
   mergeWeekChanges,
   resizeDraftWeeks,
@@ -110,6 +115,7 @@ import type {
   ProgramSessionDto,
   ProgramWeekDto,
   AiDraftSessionDto,
+  AiDraftWeekDto,
   SessionLogInput,
   SessionTypeDto,
   RoleLabelDto,
@@ -118,7 +124,7 @@ import type {
   TrainerApi,
 } from "../types";
 import { revisionChain } from "../../generation";
-import { mockBlock, type LegacyMockDraft } from "./blockDraft";
+import { mockBlock, mockFillWeeks, type LegacyMockDraft } from "./blockDraft";
 import { activeSignals, snoozeUntil } from "../../signals";
 import {
   clients as seedClients,
@@ -1128,6 +1134,52 @@ export const mockApi: TrainerApi = {
     return structuredClone(gen);
   },
 
+  async fillProgram(input) {
+    const program = state.programs.find((p) => p.id === input.programId && p.clientId === input.clientId);
+    if (!program) throw new Error("program not found");
+    if (program.weeks.length > MAX_AI_BLOCK_WEEKS) throw new Error(`AI fills blocks of at most ${MAX_AI_BLOCK_WEEKS} weeks`);
+    // Same rule as the API: up to the last logged week, at least the first week of each letter.
+    const locked = fillLockedWeeks(program.weeks, loggedWeeks(program as unknown as SignalProgram, state.logs));
+    if (locked.length >= program.weeks.length) throw new Error("nothing left to fill: every week is yours or logged");
+    const gen: GenerationDto = {
+      id: uuid(),
+      clientId: input.clientId,
+      basedOnProgramId: program.id,
+      kind: "fill",
+      targetWeek: null,
+      direction: program.direction ?? null,
+      providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
+      model: "mock-draft-v1",
+      effort: input.effort ?? null,
+      status: "pending",
+      draft: null,
+      error: null,
+      parentGenerationId: null,
+      revisionMessage: null,
+      instructions: input.instructions ?? null,
+      rejectReason: null,
+      approvedProgramId: null,
+      exampleProgramIds: [],
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(gen);
+    await delay(2200);
+    if (gen.status !== "pending") return structuredClone(gen);
+    const lockedWeeks = program.weeks
+      .filter((w) => locked.includes(w.week))
+      .map((w) => programWeekToDraftWeek(w as never, { locked: true }) as unknown as AiDraftWeekDto);
+    for (const s of lockedWeeks.flatMap((w) => w.sessions)) for (const e of s.exercises) e.exerciseName ??= nameOf(e.exerciseId ?? "");
+    gen.draft = {
+      name: program.name,
+      rationale: "Filled the rest of the block from your weeks: same exercises, +2.5 kg per week on loaded sets, lighter in the deload.",
+      clientSummary: program.description ?? "",
+      ...(program.phasing ? { phasing: program.phasing } : {}),
+      weeks: mockFillWeeks(lockedWeeks, { plannedWeeks: program.weeks.length, alternate: isAlternating(program.weeks), phasing: program.phasing }),
+    };
+    gen.status = "validated";
+    return structuredClone(gen);
+  },
+
   async generations(clientId) {
     await delay(200);
     return state.generations.filter((g) => g.clientId === clientId);
@@ -1626,6 +1678,30 @@ export const mockApi: TrainerApi = {
       });
     };
     const template = toSessions(draftWeek(gen.draft).sessions);
+
+    if (gen.kind === "fill") {
+      // Same as the API: only the AI's weeks, skipping any logged since; each keeps its calendar and letter.
+      const prog = state.programs.find((p) => p.id === gen.basedOnProgramId);
+      if (!prog) throw new Error("program not found");
+      const logged = new Set(loggedWeeks(prog as unknown as SignalProgram, state.logs));
+      for (const w of gen.draft.weeks) {
+        if (w.locked || logged.has(w.week)) continue;
+        const old = prog.weeks.find((x) => x.week === w.week);
+        if (!old) continue;
+        const oldAt = new Map(old.sessions.map((s) => [sessionKey(s), s]));
+        const sessions = withCompactOrder(
+          toSessions(w.sessions).map((s) => {
+            const o = oldAt.get(sessionKey(s));
+            return o ? { ...s, weekday: o.weekday ?? null, order: o.order } : { ...s, weekday: null, order: 99 };
+          })
+        );
+        prog.weeks = prog.weeks.map((x) => (x.week === w.week ? { ...x, sessions } : x));
+      }
+      prog.version += 1;
+      gen.status = "approved";
+      gen.approvedProgramId = prog.id;
+      return withNames(prog);
+    }
 
     if (gen.kind === "week") {
       const targetProg = state.programs.find((p) => p.id === gen.basedOnProgramId);

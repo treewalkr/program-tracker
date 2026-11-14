@@ -1,7 +1,7 @@
 <script lang="ts">
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { effortSummary } from "$lib/effort";
-  import { diffDrafts, draftWeek, mergeWeekChanges, shownExerciseOrder, type SlotChange } from "@pt/shared";
+  import { diffDrafts, draftWeek, mergeWeekChanges, shownExerciseOrder, weekRangeLabel, type SlotChange } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
   import { DraftEditor } from "$lib/draftEditor.svelte";
   import { rowMenuItems } from "$lib/draftEditMenu";
@@ -121,7 +121,8 @@
   const firstName = $derived(client.name.split(" ")[0]);
   const isWeek = $derived(gen.kind === "week");
   const decided = $derived(newProgram !== null || gen.status === "rejected" || gen.status === "approved");
-  const canEdit = $derived(gen.status === "validated" && !newProgram && !isWeek);
+  // Week and fill drafts follow the program's plan: no plan editing here.
+  const canEdit = $derived(gen.status === "validated" && !newProgram && !isWeek && gen.kind !== "fill");
 
   /** Noted slots per session (0 = the session itself), for the row marks. */
   const notedByDay = $derived(
@@ -152,15 +153,21 @@
   }
 
   const canApply = $derived(gen.status === "validated" && !newProgram && !!onrevised);
-  /** A block creates a draft program; a week draft replaces that week. */
+  /** Fill: the weeks Apply rewrites, and the trainer's weeks it keeps. */
+  const isFill = $derived(gen.kind === "fill");
+  const fillWrites = $derived(isFill ? draft.weeks.filter((w) => !w.locked).map((w) => w.week) : []);
+  const fillKeeps = $derived(isFill ? draft.weeks.filter((w) => w.locked).map((w) => w.week) : []);
+  /** A block creates a draft program; a week draft replaces that week; a fill rewrites its weeks. */
   const approveLabel = $derived(
     approving
-      ? isWeek
+      ? isWeek || isFill
         ? "Applying…"
         : "Creating…"
-      : isWeek
-        ? `Apply v${version} to week ${gen.targetWeek ?? ""}`
-        : `Create program from v${version}`
+      : isFill
+        ? `Apply: rewrite ${weekRangeLabel(fillWrites)}`
+        : isWeek
+          ? `Apply v${version} to week ${gen.targetWeek ?? ""}`
+          : `Create program from v${version}`
   );
 
   /** A newer version exists (this one was reopened): only the latest is editable. */
@@ -320,7 +327,11 @@
     {#if editing}
       <span class="paused">Finish editing the plan first.</span>
     {:else}
-      <span class="lock"><Icon name="lock" />Creates a draft program. {firstName} sees nothing until you activate it.</span>
+      {#if isFill}
+        <span class="lock"><Icon name="lock" />Rewrites {weekRangeLabel(fillWrites)} of the program. {weekRangeLabel(fillKeeps)} stay{fillKeeps.length === 1 ? "s" : ""} as you wrote {fillKeeps.length === 1 ? "it" : "them"}; a week logged before you apply is skipped.</span>
+      {:else}
+        <span class="lock"><Icon name="lock" />Creates a draft program. {firstName} sees nothing until you activate it.</span>
+      {/if}
     {/if}
   {/if}
 {/snippet}
@@ -329,7 +340,7 @@
 <div class="rv-head">
   <div class="rv-title">
     <h1>
-      {isWeek ? `${firstName}'s week ${gen.targetWeek ?? ""} draft` : `${firstName}'s next block`}
+      {isFill ? `${firstName}'s block, filled in` : isWeek ? `${firstName}'s week ${gen.targetWeek ?? ""} draft` : `${firstName}'s next block`}
       <span class="vtag">v{version}</span>
       <StatusPill status={gen.status} />
     </h1>
@@ -360,7 +371,9 @@
 {#if revisionCancelled}<Note tone="warn" role="status">Revision cancelled — the previous draft is untouched.</Note>{/if}
 {#if newProgram}
   <Note tone="ok" class="flash" role="status">
-    {isWeek
+    {isFill
+      ? `${weekRangeLabel(fillWrites)} written into “${newProgram.name}” (v${newProgram.version}). Weeks logged in the meantime were left as they were.`
+      : isWeek
       ? `Week ${gen.targetWeek} replaced in “${newProgram.name}” (v${newProgram.version}) — the rest of the block is untouched.`
       : `Approved. “${newProgram.name}” is now a draft program — edit it, then activate when ready.`}
   </Note>
