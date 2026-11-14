@@ -56,7 +56,7 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
     maxOutputTokens: 65536,
-    blockOutputTokens: 65536,
+    blockOutputTokens: 131072, // accepted live 2026-11-14 (eval:block --probe); a 12-week A/B block at effort max needs more than 65536
     // "none" switches thinking off (reasoning_effort: none, api-docs.deepseek.com/guides/thinking_mode)
     effortLevels: ["none", "low", "high", "max"],
     defaultEffort: "max", // sent on every call that picks none (callLlm)
