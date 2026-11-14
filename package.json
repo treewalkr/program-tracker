@@ -23,6 +23,7 @@
     "llm:export": "bun run apps/api/scripts/llm-export.ts",
     "llm:prune": "bun run apps/api/scripts/llm-prune.ts",
     "eval:import": "bun run apps/api/scripts/eval-import.ts",
+    "eval:block": "bun run apps/api/scripts/eval-block.ts",
     "release": "bun run scripts/release.ts",
     "changelog:draft": "bun run scripts/changelog-draft.ts",
     "db:up": "docker compose up -d postgres",
