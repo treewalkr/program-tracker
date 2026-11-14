@@ -21,6 +21,8 @@ export interface ProviderRuntime {
   model: string;
   apiKey: string;
   maxOutputTokens: number;
+  /** Output ceiling for calls that write a whole block (`long`); absent = maxOutputTokens. */
+  blockOutputTokens?: number;
   /** Set by providerRuntime(); call sites building literal runtimes may omit it. */
   providerId?: string;
   effortLevels?: readonly string[];
@@ -93,19 +95,22 @@ export interface ProviderErrorMeta {
 
 export interface CompletionOpts {
   temperature?: number;
+  /** A whole-block answer: ask for blockOutputTokens. */
+  long?: boolean;
   signal?: AbortSignal;
   effort?: string;
 }
 
 /** Wire params a call is sent with — shared by the request and the log row. */
-export function completionParams(rt: ProviderRuntime, opts: { temperature?: number } = {}) {
+export function completionParams(rt: ProviderRuntime, opts: { temperature?: number; long?: boolean } = {}) {
   // GLM 5.x always thinks and rejects "disabled" (Z.ai error 1210): budget low
   // so the JSON draft still fits; give those models a roomier token cap since
   // reasoning shares it.
   const glm5 = /^glm-5/.test(rt.model);
   return {
     temperature: opts.temperature ?? 0.7,
-    maxTokens: glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens,
+    // A whole block (every week, one answer) asks for the model's real ceiling.
+    maxTokens: opts.long && rt.blockOutputTokens ? rt.blockOutputTokens : glm5 ? Math.max(rt.maxOutputTokens, 16384) : rt.maxOutputTokens,
     thinking: glm5 ? { type: "enabled", budget: "low" } : undefined,
   };
 }

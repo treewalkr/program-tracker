@@ -1960,3 +1960,12 @@ describe("hand edits reach the prompt", () => {
     expect(buildChatSystem(ctx)).not.toContain(HAND_EDIT_RULE);
   });
 });
+
+describe("block output cap", () => {
+  test("a whole-block call asks for the provider's block ceiling", async () => {
+    const { completionParams } = await import("./ai/provider");
+    const rt = { baseUrl: "x", model: "glm-5.3", apiKey: "k", maxOutputTokens: 8192, blockOutputTokens: 131072 };
+    expect(completionParams(rt).maxTokens).toBe(16384);
+    expect(completionParams(rt, { long: true }).maxTokens).toBe(131072);
+  });
+});

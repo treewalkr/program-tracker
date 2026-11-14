@@ -30,6 +30,11 @@ export const AiProviderConfig = z.object({
   /** Max output tokens for program generation. */
   maxOutputTokens: z.number().int().min(256).max(65536).default(8192),
   /**
+   * The model's real output ceiling, asked for by calls that write a whole
+   * block (every week in one answer; thinking shares it). Absent = maxOutputTokens.
+   */
+  blockOutputTokens: z.number().int().min(256).max(131072).optional(),
+  /**
    * Reasoning-effort levels the trainer may pick for this provider's models
    * (UI selector; absent = the provider takes no effort parameter).
    */
@@ -51,6 +56,7 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
     maxOutputTokens: 65536,
+    blockOutputTokens: 65536,
     // "none" switches thinking off (reasoning_effort: none, api-docs.deepseek.com/guides/thinking_mode)
     effortLevels: ["none", "low", "high", "max"],
     defaultEffort: "max", // sent on every call that picks none (callLlm)
@@ -65,6 +71,7 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.z.ai/api/paas/v4",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
+    blockOutputTokens: 131072, // glm-5.x max_tokens ceiling (docs.z.ai, concept-param)
     effortLevels: ["low", "high", "max"],
     defaultEffort: "low", // glm-5 budget low is the shipped default; max maps to the provider's top budget
     models: [

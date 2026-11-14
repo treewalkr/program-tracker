@@ -71,6 +71,8 @@ export interface CallLlmArgs<T> {
   mock?: () => string;
   /** Default: 2 (one retry on parse/validation failure) for json, 1 for text. */
   maxAttempts?: number;
+  /** The answer is a whole block (every week): asks for the provider's block output ceiling. */
+  long?: boolean;
   /** Group several calls of one user action. Default: a fresh id. */
   turnId?: string;
 }
@@ -118,7 +120,7 @@ async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
         result = { content, reasoning: null, usage: null, finishReason: "stop", latencyMs: Math.round(performance.now() - started) };
       } else {
         const call = args.mode === "json" ? chatJson : chatText;
-        result = await call(args.rt, args.messages, { signal: args.signal, effort, temperature: args.temperature });
+        result = await call(args.rt, args.messages, { signal: args.signal, effort, temperature: args.temperature, long: args.long });
       }
     } catch (err) {
       if ((err as Error)?.name === "AbortError") {
@@ -144,7 +146,13 @@ async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
     const parsed = parseContent(args, result.content);
     // A cut-off answer won't fit on a retry either — say why and stop.
     const cutOff = !parsed.ok && result.finishReason === "length";
-    const error = parsed.ok ? null : cutOff ? "response cut off at the token limit — try a lower effort" : parsed.error;
+    const error = parsed.ok
+      ? null
+      : cutOff
+        ? args.long
+          ? "block too long for this model — try DeepSeek or a shorter block"
+          : "response cut off at the token limit — try a lower effort"
+        : parsed.error;
     lastCallId = await writeCall(prepared, args, {
       turnId,
       attempt,
@@ -226,7 +234,7 @@ interface CallOutcome {
 async function writeCall(prep: PreparedRequest, args: CallLlmArgs<unknown>, o: CallOutcome): Promise<string | null> {
   try {
     if (prep.blobs.length) await db.insert(llmBlobs).values(prep.blobs).onConflictDoNothing();
-    const params = completionParams(args.rt, { temperature: args.temperature });
+    const params = completionParams(args.rt, { temperature: args.temperature, long: args.long });
     const [row] = await db
       .insert(llmCalls)
       .values({

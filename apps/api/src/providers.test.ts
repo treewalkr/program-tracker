@@ -106,6 +106,7 @@ describe("providerRuntime (deepseek)", () => {
       model: "deepseek-flash",
       apiKey: "k",
       maxOutputTokens: 65536,
+      blockOutputTokens: 65536,
       effortLevels: ["none", "low", "high", "max"],
       defaultEffort: "max",
     });

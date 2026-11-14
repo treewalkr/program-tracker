@@ -16,7 +16,7 @@ export function providerRuntime(providerId: string, model?: string) {
   if (id === "mock") {
     if (model && model !== "mock-draft-v1")
       throw new ContextError(400, `model "${model}" not available for provider "mock"`);
-    return { baseUrl: "mock://local", model: "mock-draft-v1", apiKey: "mock", maxOutputTokens: 4096, providerId: id };
+    return { baseUrl: "mock://local", model: "mock-draft-v1", apiKey: "mock", maxOutputTokens: 4096, blockOutputTokens: 4096, providerId: id };
   }
   const envKey = known?.apiKeyEnvVar ?? `${id.toUpperCase()}_API_KEY`;
   const apiKey = process.env[envKey];
@@ -34,6 +34,7 @@ export function providerRuntime(providerId: string, model?: string) {
     model: model ?? defaultModel,
     apiKey,
     maxOutputTokens: known?.maxOutputTokens ?? 8192,
+    blockOutputTokens: known?.blockOutputTokens ?? known?.maxOutputTokens ?? 8192,
     effortLevels: known?.effortLevels,
     defaultEffort: known?.defaultEffort,
   };
