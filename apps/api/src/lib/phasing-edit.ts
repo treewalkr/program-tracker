@@ -43,7 +43,8 @@ export async function savePhasingEdit(parentId: string, rawPhasing: unknown): Pr
   if (canon(parsed.data) === canon(parent.draft.phasing ?? null)) {
     return { ok: false, status: 422, error: "phasing is unchanged" };
   }
-  if (parsed.data.plannedWeeks > MAX_AI_BLOCK_WEEKS) {
+  // Only a new length is capped: an older, longer draft still takes plan edits that keep its length.
+  if (parsed.data.plannedWeeks !== parent.draft.weeks.length && parsed.data.plannedWeeks > MAX_AI_BLOCK_WEEKS) {
     return { ok: false, status: 422, error: `AI block drafts are at most ${MAX_AI_BLOCK_WEEKS} weeks` };
   }
 

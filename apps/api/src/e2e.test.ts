@@ -3083,6 +3083,24 @@ describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
     expect(res.body.error).toBe("week drafts follow the block's plan");
   });
 
+  test("a draft longer than 12 weeks takes plan edits that keep its length; growing it past 12 is refused", async () => {
+    const parent = (await call("GET", `/v1/ai/generations/${genId}`)).body.draft as AiProgramDraft;
+    const plan = (n: number) => ({ ...structuredClone(original), plannedWeeks: n, weeks: Array.from({ length: n }, (_, i) => ({ week: i + 1, directive: "base" })) });
+    const long = { ...parent, weeks: Array.from({ length: 14 }, (_, i) => ({ ...structuredClone(parent.weeks[0]), week: i + 1 })), phasing: plan(14) };
+    const [row] = await db
+      .insert(aiGenerations)
+      .values({ trainerId, clientId, kind: "block", providerId: "mock", model: "mock-draft-v1", status: "validated", draft: long })
+      .returning();
+    const edited = plan(14);
+    edited.weeks[13] = { week: 14, directive: "deload" };
+    const res = await call("POST", `/v1/ai/generations/${row.id}/phasing`, { phasing: edited });
+    expect(res.status).toBe(201);
+    expect(res.body.draft.weeks).toHaveLength(14);
+    const grown = await call("POST", `/v1/ai/generations/${res.body.id}/phasing`, { phasing: plan(15) });
+    expect(grown.status).toBe(422);
+    expect(grown.body.error).toBe("AI block drafts are at most 12 weeks");
+  });
+
   test("a plan edit while a revision is running is refused", async () => {
     const [running] = await db
       .insert(aiGenerations)
