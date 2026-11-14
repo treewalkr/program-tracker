@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
-import { isUniform, parseRange, patchAll, programSubline, setMode, snapshot, withMode, withSetCount } from "./programEdit";
+import { copyNotice, copyTargetLabel, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, withMode, withSetCount } from "./programEdit";
 
 const set = (o: Partial<PrescribedSetDto> = {}): PrescribedSetDto => ({
   setNumber: 1,
@@ -109,5 +109,19 @@ describe("snapshot", () => {
   test("still sees a real change", () => {
     const a = { weeks: [], phasing: { plannedWeeks: 2, phase: "acc" } };
     expect(snapshot(a)).not.toBe(snapshot({ ...a, phasing: { ...a.phasing, phase: "int" } }));
+  });
+});
+
+describe("copy this week to…", () => {
+  test("menu rows list the weeks each group target covers", () => {
+    expect(copyTargetLabel({ kind: "letter", letter: "B", weeks: [4, 6] })).toEqual({ label: "Every B week", hint: "W4, W6" });
+    expect(copyTargetLabel({ kind: "all", weeks: [1, 3] })).toEqual({ label: "Every week", hint: "W1, W3" });
+    expect(copyTargetLabel({ kind: "week", weeks: [5] })).toEqual({ label: "Week 5" });
+  });
+
+  test("notice names the copied weeks and the logged weeks it kept", () => {
+    expect(copyNotice(2, [4, 6], [])).toBe("Copied W2 to W4, W6.");
+    expect(copyNotice(2, [1, 3, 4], [1])).toBe("Copied W2 to W3, W4. W1 kept: has logs.");
+    expect(copyNotice(2, [1, 3], [1, 3])).toBe("Nothing copied. W1, W3 kept: have logs.");
   });
 });

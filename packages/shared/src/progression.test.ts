@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyProgression, progressionLabel, WeekPlan, WeekProgression, type Phasing, type ProgramWeek } from "./index";
+import { applyProgression, progressBlock, progressionLabel, WeekPlan, WeekProgression, type Phasing, type ProgramWeek } from "./index";
 
 const set = (n: number, over: object = {}) => ({ setNumber: n, type: "working" as const, reps: 5, amrap: false, ...over });
 
@@ -121,5 +121,75 @@ describe("applyProgression", () => {
     expect(loads(out2[2], "sq")).toEqual([0, 0, 0]);
     const out3 = applyProgression([week1()], plan([{ week: 1, directive: "base" }, { week: 2, directive: "base", progression: { kind: "percent", amount: -50 } }, { week: 3, directive: "base", progression: { kind: "percent", amount: -50 } }]));
     expect(loads(out3[2], "dl")).toEqual([1, 1]);
+  });
+});
+
+describe("applyProgression with A/B weeks", () => {
+  function weekB(): ProgramWeek {
+    return {
+      week: 2,
+      rotation: "B",
+      sessions: [
+        {
+          id: "s1b",
+          name: "Upper",
+          seq: 1,
+          weekday: 1,
+          order: 0,
+          kind: "lifting",
+          exercises: [{ id: "e-bp", exerciseId: "bp", order: 0, prescribedSets: [set(1, { targetWeightKg: 60 })] }],
+        },
+      ],
+    };
+  }
+  const exOf = (w: ProgramWeek) => w.sessions[0].exercises.map((e) => e.exerciseId);
+  const kg = { kind: "kg", amount: 2.5 } as const;
+
+  test("each letter progresses on its own track; the first B week is kept", () => {
+    const a = { ...week1(), rotation: "A" as const };
+    const b = weekB();
+    const { weeks: out, firstOfLetter } = progressBlock([a, b], plan([
+      { week: 1, directive: "base" },
+      { week: 2, directive: "base" },
+      { week: 3, directive: "+intensity", progression: kg },
+      { week: 4, directive: "+intensity", progression: kg },
+      { week: 5, directive: "+intensity", progression: kg },
+      { week: 6, directive: "deload" },
+    ]));
+    expect(firstOfLetter).toEqual([2]);
+    expect(out.map((w) => w.rotation)).toEqual(["A", "B", "A", "B", "A", "B"]);
+    expect(out[1]).toEqual(b);
+    expect(exOf(out[2])).toEqual(["sq", "dl", "plank"]);
+    expect(exOf(out[3])).toEqual(["bp"]);
+    expect(loads(out[2], "sq")).toEqual([102.5, 102.5, 82.5]);
+    expect(loads(out[4], "sq")).toEqual([105, 105, 85]);
+    expect(out[3].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBe(62.5);
+    // Deload week with nothing written yet: a copy of the last B week.
+    expect(exOf(out[5])).toEqual(["bp"]);
+    expect(out[5].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBe(62.5);
+  });
+
+  test("a written deload B week keeps its sets; the next B week builds on the last non-deload B week", () => {
+    const a = { ...week1(), rotation: "A" as const };
+    const b = weekB();
+    const b4: ProgramWeek = { ...weekB(), week: 4, sessions: [{ ...weekB().sessions[0], id: "s4", exercises: [{ id: "e4", exerciseId: "bp", order: 0, prescribedSets: [set(1, { targetWeightKg: 40 })] }] }] };
+    const out = applyProgression([a, b, { ...a, week: 3 }, b4], plan([
+      { week: 1, directive: "base" },
+      { week: 2, directive: "base" },
+      { week: 3, directive: "base" },
+      { week: 4, directive: "deload" },
+      { week: 5, directive: "base" },
+      { week: 6, directive: "+intensity", progression: kg },
+    ]));
+    expect(out[3]).toEqual(b4);
+    expect(out[5].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBe(62.5);
+    expect(out[5].rotation).toBe("B");
+  });
+
+  test("programs without letters still build every week from week 1", () => {
+    const { weeks: out, firstOfLetter } = progressBlock([week1()], plan([{ week: 1, directive: "base" }, { week: 2, directive: "base" }]));
+    expect(firstOfLetter).toEqual([]);
+    expect(exOf(out[1])).toEqual(["sq", "dl", "plank"]);
+    expect("rotation" in out[1]).toBe(false);
   });
 });

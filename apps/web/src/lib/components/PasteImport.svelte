@@ -9,6 +9,7 @@
     groupKind,
     WEEK_HEADER,
     importLines,
+    liftingNames,
     typicalGenerationSeconds,
     type ImportFlag,
     type ImportResult,
@@ -48,6 +49,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Pill from "$lib/ui/Pill.svelte";
+  import Tabs from "$lib/ui/Tabs.svelte";
   import sample from "../../../../../packages/shared/fixtures/import/week11-12.txt?raw";
 
   /**
@@ -93,6 +95,10 @@
   let using = $state(false);
 
   let block = $state(0);
+  /** "Found A/B weeks": keep both routines (Week A + Week B) or draft one template week. */
+  let keepAb = $state(true);
+  /** Which A/B routine the right pane shows. */
+  let showing = $state<"A" | "B">("A");
   let choices = $state<Record<string, ChoiceState>>({});
   /** Line under the pointer (or tapped) — its items light up, and vice versa. */
   let hotLine = $state<number | null>(null);
@@ -131,6 +137,8 @@
     } else if (r.status === "done" && r.result) {
       phase = "review";
       block = r.result.defaultBlock;
+      keepAb = true;
+      showing = "A";
       choices = {};
       hotLine = null;
       keep();
@@ -267,8 +275,17 @@
   const byLine = $derived(result ? itemsByLine(result) : new Map<number, string[]>());
   const lineOf = $derived(result ? lineOfItem(result) : new Map<string, number>());
   const hotKeys = $derived(new Set(hotLine !== null ? (byLine.get(hotLine) ?? []) : []));
-  const summary = $derived(result ? flagSummary(result, block, choices) : null);
-  const wi = $derived(result ? templateWeekIndex(result, block) : 0);
+  /** The A/B weeks being drafted, when found and kept. */
+  const ab = $derived(result?.ab && keepAb ? result.ab : null);
+  const summary = $derived(result ? flagSummary(result, block, choices, ab) : null);
+  const wi = $derived(result ? (ab ? (showing === "B" ? ab.b : ab.a) : templateWeekIndex(result, block)) : 0);
+  /** "Week 11 (Upper Push · Lower)". */
+  const weekName = (i: number) => {
+    const w = result?.weeks[i];
+    const names = liftingNames(w);
+    const head = w?.label ?? `Week ${i + 1}`;
+    return names.length ? `${head} (${names.join(" · ")})` : head;
+  };
   const week = $derived(result?.weeks[wi]);
   const exerciseCount = $derived(week?.days.reduce((n, d) => n + d.sessions.reduce((m, s) => m + s.exercises.length, 0), 0) ?? 0);
   const skippedReason = $derived(new Map((result?.skipped ?? []).map((s) => [s.line, s.reason])));
@@ -293,7 +310,7 @@
   /** The chosen block's line span: its first week header up to the next week's header. */
   const blockSpan = $derived.by<[number, number]>(() => {
     if (!result) return [1, Infinity];
-    const idx = result.blocks[block]?.weeks ?? [];
+    const idx = ab ? [Math.min(ab.a, ab.b), Math.max(ab.a, ab.b)] : (result.blocks[block]?.weeks ?? []);
     const first = result.weeks[idx[0]]?.line ?? 1;
     const next = result.weeks.slice((idx.at(-1) ?? 0) + 1).find((w) => w.line !== null)?.line;
     return [idx[0] === 0 ? 1 : first, next ? next - 1 : Infinity];
@@ -339,15 +356,17 @@
     try {
       // custom exercises first, so every row points at a real catalog entry
       const ids = new Map<string, string>();
-      for (const name of newExerciseNames(result_, block, choices_)) {
+      const ab_ = ab ? { ...ab } : null;
+      for (const name of newExerciseNames(result_, block, choices_, ab_)) {
         const existing = catalog.find((c) => c.name.trim().toLowerCase() === name.toLowerCase());
         const ex = existing ?? (await oncreate({ name, primaryMuscleGroup: "full_body", equipment: "other" }));
         ids.set(name.toLowerCase(), ex.id);
       }
-      const aliases = aliasesToSave(result_, block, choices_, ids);
+      const aliases = aliasesToSave(result_, block, choices_, ids, ab_);
       // aliases only help the next import — never block the draft on them
       if (aliases.length) await api.saveAliases(aliases).catch(() => {});
       const form = formFromImport(result_, block, base(), {
+        ab: ab_,
         choices: choices_,
         newKey: uuid,
         catalog,
@@ -559,12 +578,43 @@
             aria-describedby={blocked.length ? "pi-blocker" : undefined}
           >{using ? "Filling the editor…" : "Use this"}</Button>
         </div>
-        <p class="subtle fine">Fills the editor with {week.label ?? "these notes"}. Nothing is saved until you save the draft.</p>
+        <p class="subtle fine">
+          {#if ab}
+            Fills Week A with {result.weeks[ab.a]?.label ?? "the A week"} and Week B with {result.weeks[ab.b]?.label ?? "the B week"}. Nothing is saved until you save the draft.
+          {:else}
+            Fills the editor with {week.label ?? "these notes"}. Nothing is saved until you save the draft.
+          {/if}
+        </p>
       </div>
     </div>
   </section>
 
-  {#if result.blocks.length > 1}
+  {#if result.ab}
+    {@const found = result.ab}
+    <fieldset class="blocks ab">
+      <legend>Found A/B weeks</legend>
+      <p class="subtle fine">
+        {found.source === "notes"
+          ? "Your notes mark the weeks A and B."
+          : "The first two weeks differ, and each week after repeats the one two weeks before."}
+        Odd weeks run A, even weeks B.
+      </p>
+      <label class="block-opt" class:on={keepAb}>
+        <input type="radio" name="pi-ab" checked={keepAb} onchange={() => (keepAb = true)} />
+        <span>
+          <span class="opt-title">Alternate A/B</span>
+          <span class="ab-line"><b>A</b> {weekName(found.a)}</span>
+          <span class="ab-line"><b>B</b> {weekName(found.b)}</span>
+        </span>
+      </label>
+      <label class="block-opt" class:on={!keepAb}>
+        <input type="radio" name="pi-ab" checked={!keepAb} onchange={() => (keepAb = false)} />
+        <span><span class="opt-title">Same every week</span> <span class="subtle">one template week: {blockLabel(result, block)}</span></span>
+      </label>
+    </fieldset>
+  {/if}
+
+  {#if result.blocks.length > 1 && !ab}
     <fieldset class="blocks">
       <legend>Found <span class="num">{result.blocks.length}</span> blocks. Draft which one?</legend>
       {#each result.blocks as _, bi (bi)}
@@ -615,10 +665,30 @@
       <div class="panel-head">
         <h2 class="panel-title" id="pi-parsed-title">{week.label ?? "Read from your notes"}</h2>
         <Counter value="{week.days.length} {week.days.length === 1 ? 'day' : 'days'}" />
-        {#if (result.blocks[block]?.weeks.length ?? 1) > 1}
+        {#if !ab && (result.blocks[block]?.weeks.length ?? 1) > 1}
           <span class="subtle fine">latest week of {result.blocks[block].weeks.length} — the template</span>
         {/if}
       </div>
+      {#if ab}
+        <div class="ab-tabs">
+          <Tabs
+            label="Routine"
+            idPrefix="pi-ab"
+            value={`week-${showing.toLowerCase()}`}
+            onchange={(t) => (showing = t === "week-b" ? "B" : "A")}
+            items={[
+              { id: "week-a", label: "Week A" },
+              { id: "week-b", label: "Week B" },
+            ]}
+          />
+        </div>
+      {/if}
+      <div
+        class="parsed-body"
+        role={ab ? "tabpanel" : undefined}
+        id={ab ? `panel-week-${showing.toLowerCase()}` : undefined}
+        aria-labelledby={ab ? `pi-ab-week-${showing.toLowerCase()}` : undefined}
+      >
       {@render flagLines(week.flags)}
       {#each week.days as d, di (di)}
         <div class="day" id="pi-{dayKey(wi, di)}" class:hot={hotKeys.has(dayKey(wi, di))}>
@@ -717,6 +787,7 @@
           {/each}
         </div>
       {/each}
+      </div>
     </section>
   </div>
 
@@ -802,6 +873,15 @@
   .blocks legend { font: 600 14px var(--font-ui); padding: 0 4px; }
   .block-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: var(--radius); }
   .block-opt.on { background: var(--well); }
+  .ab .block-opt { align-items: flex-start; }
+  .ab .block-opt input { margin-top: 3px; }
+  .ab .block-opt > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ab .block-opt > span:not(:has(.ab-line)) { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .opt-title { font-weight: 600; }
+  .ab-line { font-size: 13px; color: var(--muted); }
+  .ab-line b { font: 600 12px var(--font-mono); color: var(--ink); margin-right: 4px; }
+  .ab-tabs { padding: 0 16px; }
+  .ab-tabs :global(.tabs) { margin: 0; }
 
   /* —— panes —— */
   .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
@@ -831,7 +911,7 @@
   .tag.amber { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
   .tag.red { color: var(--bad); border-color: var(--bad-line); }
 
-  .parsed > .flags { padding: 8px 16px 0; }
+  .parsed-body > .flags { padding: 8px 16px 0; }
   .day { padding: 4px 0 8px; }
   .day + .day { border-top: 1px solid var(--line); }
   .day-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px 4px; }

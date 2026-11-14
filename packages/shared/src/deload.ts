@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PrescribedSet, ProgramExercise, ProgramWeek } from "./domain";
+import { firstWeekOfLetter, type PrescribedSet, type ProgramExercise, type ProgramWeek } from "./domain";
 
 /**
  * The deload rule. Deloads mainly cut volume and hold or slightly reduce
@@ -138,8 +138,18 @@ function deloadExercise(e: ProgramExercise, s: DeloadSettings, base: ProgramExer
 }
 
 /**
+ * The week the week-1 load basis reads for deloading week `week`: week 1, or in
+ * an A/B block the first week with the same letter (W2 for a B week).
+ */
+export function deloadBasisWeek(weeks: readonly ProgramWeek[], week: number): ProgramWeek | undefined {
+  const first = firstWeekOfLetter(weeks, week);
+  return weeks.find((w) => w.week === first) ?? weeks[0];
+}
+
+/**
  * A deloaded copy of `week` by the rule `settings`: lifting sessions only;
- * cardio is left as planned. With the week-1 basis, pass the block's `week1`.
+ * cardio is left as planned. With the week-1 basis, pass the block's `week1`
+ * (`deloadBasisWeek`: the first same-letter week in an A/B block).
  */
 export function deloadWeek(week: ProgramWeek, settings: DeloadSettings = DEFAULT_DELOAD, week1?: ProgramWeek): ProgramWeek {
   const copy = structuredClone(week);

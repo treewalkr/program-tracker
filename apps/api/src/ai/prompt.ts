@@ -57,6 +57,9 @@ export interface ClientContext {
 
 export interface ProgramSummary {
   name: string;
+  /** Week the summary was read from (weekly drafts), and its A/B letter when the block alternates. */
+  week?: number;
+  rotation?: "A" | "B";
   sessions: {
     name: string;
     kind?: "lifting" | "cardio";
@@ -84,6 +87,17 @@ export interface CatalogEntry {
   functionalMovement: string | null;
   /** Trainer's coaching note (setup, cues), if any. */
   note?: string | null;
+}
+
+/** Heading over the week a weekly draft builds on. A/B blocks build on the last
+ *  week with the same letter, not the week before. */
+export function currentWeekHeading(prev: ProgramSummary, targetWeek: number): string {
+  if (prev.rotation && prev.week != null) {
+    return prev.week === targetWeek
+      ? `WEEK ${prev.rotation} ROUTINE (week ${prev.week} as written — the block alternates A/B weeks; revise this week):`
+      : `LAST WEEK ${prev.rotation} (week ${prev.week} — the block alternates A/B weeks; week ${targetWeek} builds on this one):`;
+  }
+  return `CURRENT WEEK (week ${targetWeek - 1} — what the client is doing now):`;
 }
 
 export interface ExampleProgramSummary {
@@ -639,12 +653,14 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "",
     ctx.previousProgram
       ? [
-          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          currentWeekHeading(ctx.previousProgram, ctx.targetWeek),
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
     "",
     `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.previousProgram?.rotation ? ` · week ${ctx.previousProgram.rotation} (keep the ${ctx.previousProgram.rotation} routine)` : ""
+    }${
       ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
     }${
       ctx.target
@@ -725,12 +741,14 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "",
     ctx.previousProgram
       ? [
-          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          currentWeekHeading(ctx.previousProgram, ctx.targetWeek),
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
     "",
     `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.previousProgram?.rotation ? ` · week ${ctx.previousProgram.rotation} (keep the ${ctx.previousProgram.rotation} routine)` : ""
+    }${
       ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
     }${
       ctx.target
@@ -1146,10 +1164,11 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
   const system = [
     "You read a personal trainer's training notes, pasted as numbered lines, and turn them into structured JSON. You never invent anything: every value you output must be written in its line.",
     "Respond with a single JSON object only, this shape (? = optional; omit a field the text does not give):",
-    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
+    `{"weeks": [{"label": string|null, "line": number|null, "rotation"?: "A"|"B", "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
     "Trainers write notes in many styles (day numbers or weekday names, \"4x8\" or \"3 sets of 10\", bullets, tables, copied chat messages, Thai or English). Read what each line means, not its exact wording.",
     "Structure:",
     '- A week header ("Week 3", "WEEK 1", "สัปดาห์ 2") starts a week: label as written, its line. No week headers → one week with label null and line null.',
+    '- rotation = "A" or "B" only when the notes say the weeks alternate two routines: "Week A" / "Week B", "Week 1 (A)", "odd/even weeks", "A week / B week", "สัปดาห์ A", "สัปดาห์คี่ / สัปดาห์คู่" (odd = A, even = B). Same letter → same routine. Never guess it from the exercises; leave it out otherwise.',
     '- A day or session header starts a day: "Day 1 Back/Biceps", "Mon - Upper A", "Fri: Upper B", "Upper A", "วันที่ 1 ขา". label = the header as written. Its lifting exercises form one session (kind "lifting") whose line is the header line and whose name is the focus without the day marker ("Day 1 Back/Biceps" → "Back/Biceps", "Mon - Upper A" → "Upper A", "Upper A" → "Upper A"), or the whole label when there is no focus.',
     "- No day or session headers at all → one day with label \"\" and line = the first exercise's line.",
     '- A cardio line ("Cardio Zone 2-3 : 40-60 mins", "Long run 10 km", "Bike 20 min easy") is its own session in that day: kind "cardio", exercises [], line = that line, a short name, cardio filled from the line. Ranges: the upper value in hrZone/durationMin, the lower in hrZoneLow/durationMinLow.',

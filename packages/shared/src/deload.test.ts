@@ -9,6 +9,7 @@ import {
   deloadSetCount,
   deloadVolumeDeltaPercent,
   deloadWeek,
+  deloadBasisWeek,
   effectiveDeload,
 } from "./deload";
 import type { PrescribedSet, ProgramWeek } from "./domain";
@@ -242,5 +243,16 @@ describe("effectiveDeload", () => {
     expect(effectiveDeload({ ...mine, loadPercent: 5 }, "x")).toEqual(DEFAULT_DELOAD);
     expect(DeloadSettings.safeParse({ ...DEFAULT_DELOAD, loadPercent: -3 }).success).toBe(false);
     expect(DeloadSettings.safeParse({ ...DEFAULT_DELOAD, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("deloadBasisWeek", () => {
+  const wk = (week: number, rotation?: "A" | "B") => ({ week, ...(rotation ? { rotation } : {}), sessions: [] });
+
+  test("week 1 without letters; the first same-letter week in an A/B block", () => {
+    expect(deloadBasisWeek([wk(1), wk(2), wk(3), wk(4)], 4)?.week).toBe(1);
+    const ab = [wk(1, "A"), wk(2, "B"), wk(3, "A"), wk(4, "B")];
+    expect(deloadBasisWeek(ab, 4)?.week).toBe(2);
+    expect(deloadBasisWeek(ab, 3)?.week).toBe(1);
   });
 });
