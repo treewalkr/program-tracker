@@ -423,7 +423,8 @@ const exerciseSet = (w: Pick<DraftWeek, "sessions">) =>
  * Problems with a block draft's weeks, as plain sentences (empty = fine):
  * one entry per planned week (locked weeks left out), each with the lifting
  * session count, letters odd = A / even = B when alternating (none
- * otherwise), and an A routine that differs from the B routine.
+ * otherwise), and — block drafts only, not fills — an A routine that
+ * differs from the B routine.
  */
 export function draftWeekIssues(d: Pick<AiProgramDraft, "weeks">, rules: DraftWeekRules): string[] {
   const out: string[] = [];
@@ -444,7 +445,8 @@ export function draftWeekIssues(d: Pick<AiProgramDraft, "weeks">, rules: DraftWe
     }
     if (!rules.alternate && w.rotation != null) out.push(`week ${w.week} has rotation "${w.rotation}" but the block does not alternate`);
   }
-  if (rules.alternate) {
+  // A fill keeps the trainer's own A/B routines (their locked weeks define them), so only a block draft must differ.
+  if (rules.alternate && !rules.lockedWeeks?.length) {
     const a = d.weeks.find((w) => w.rotation === "A");
     const b = d.weeks.find((w) => w.rotation === "B");
     if (a && b && exerciseSet(a) === exerciseSet(b)) out.push("the B routine repeats the A routine: B weeks must use different exercises");

@@ -63,6 +63,9 @@ describe("buildFillMessages", () => {
     });
     expect(system).toContain('Lifting sessions (kind "lifting") per week: A weeks exactly 2, B weeks exactly 3');
     expect(system).not.toContain("per week: exactly 4");
+    // The trainer's A/B routines stand: no "B must use different exercises" for a fill.
+    expect(system).toContain("ALTERNATES the trainer's two routines");
+    expect(system).not.toContain("different exercises");
   });
 });
 

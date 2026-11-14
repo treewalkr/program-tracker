@@ -382,8 +382,12 @@ export function blockWeekRules(b: BlockShape): string[] {
     locked.length
       ? `- "weeks" lists weeks ${write.join(", ")} in full, in order — leave out week${locked.length > 1 ? "s" : ""} ${locked.join(", ")} (the trainer wrote ${locked.length > 1 ? "them" : "it"}; shown as locked). Build each week from the trainer's weeks: keep their exercises and sessions, and progress the loads from the last week with the same letter, following each week's directive.`
       : `- "weeks" lists every week 1–${b.weeks} in full, in order: each week's own sets, reps and loads, following that week's directive (+volume adds sets or reps, +intensity adds load, deload follows the deload rule).`,
-    "- Keep the same sessions in the same order every week (lifting first, then cardio) so each one keeps its calendar slot.",
-    b.alternate
+    locked.length && b.alternate
+      ? "- Keep each week's sessions in the same order as the trainer's locked week with its letter (lifting first, then cardio) so each one keeps its calendar slot."
+      : "- Keep the same sessions in the same order every week (lifting first, then cardio) so each one keeps its calendar slot.",
+    locked.length && b.alternate
+      ? '- This block ALTERNATES the trainer\'s two routines: odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B"). Each week keeps the exercises of the trainer\'s locked week with its letter and progresses its loads from the last week with that letter.'
+      : b.alternate
       ? '- This block ALTERNATES two routines: odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B"). A and B have the same sessions and days but different exercises (e.g. back squat in A, front squat in B). Weeks with the same letter keep the same exercises and progress their loads from the last week with that letter (week 3 builds on week 1, week 4 on week 2).'
       : '- Every week keeps the same exercises; only the prescription progresses. Do not set "rotation".',
     "- Keep the JSON lean: leave out optional fields at their defaults, no per-set notes unless needed, weekday only on week 1's sessions when the others match.",

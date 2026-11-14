@@ -383,6 +383,15 @@ describe("draft weeks", () => {
     ]);
   });
 
+  test("fill: keeping the trainer's own A/B lifts is not 'B repeats A'", () => {
+    const a = [session("Lower", "Squat"), session("Upper", "Bench")];
+    const fill = block([3, 4, 5, 6].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: a })));
+    expect(draftWeekIssues(fill, { plannedWeeks: 6, alternate: true, lockedWeeks: [1, 2] })).toEqual([]);
+    // A block draft still must differ.
+    const ab = block([1, 2].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: a })));
+    expect(draftWeekIssues(ab, { plannedWeeks: 2, alternate: true })).toHaveLength(1);
+  });
+
   test("sameLetterWeeks: every week with the letter, or every week without letters", () => {
     const s = [session("Lower", "Squat")];
     const ab = block([1, 2, 3, 4].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: s })));
