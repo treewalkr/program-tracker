@@ -152,6 +152,16 @@
   }
 
   const canApply = $derived(gen.status === "validated" && !newProgram && !!onrevised);
+  /** A block creates a draft program; a week draft replaces that week. */
+  const approveLabel = $derived(
+    approving
+      ? isWeek
+        ? "Applying…"
+        : "Creating…"
+      : isWeek
+        ? `Apply v${version} to week ${gen.targetWeek ?? ""}`
+        : `Create program from v${version}`
+  );
 
   /** A newer version exists (this one was reopened): only the latest is editable. */
   const superseded = $derived(gens.some((g) => g.parentGenerationId === gen.id && (g.status === "validated" || g.status === "pending")));
@@ -304,11 +314,11 @@
     <div class="row">
       <Button variant="danger" disabled={editing} onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
       <Button variant="primary" disabled={editing || approving} onclick={onapprove}>
-        {#snippet icon()}<Icon name="check" />{/snippet}{approving ? "Approving…" : `Approve v${version} as draft program`}
+        {#snippet icon()}<Icon name="check" />{/snippet}{approveLabel}
       </Button>
     </div>
     {#if editing}
-      <span class="paused">Finish editing the plan to approve.</span>
+      <span class="paused">Finish editing the plan first.</span>
     {:else}
       <span class="lock"><Icon name="lock" />Creates a draft program. {firstName} sees nothing until you activate it.</span>
     {/if}
