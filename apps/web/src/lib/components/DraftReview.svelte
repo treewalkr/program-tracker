@@ -527,7 +527,7 @@
   {:else}
     <span class="subtle">{plural(shown.sessions.length, "session")} · {shown.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
   {/if}
-  {#if handEditable && (mode === "sessions" || version < 2)}
+  {#if handEditable && !shown.locked && (mode === "sessions" || version < 2)}
     <button
       type="button"
       class="btn small select-toggle"
