@@ -1,6 +1,15 @@
 import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf } from "@pt/shared";
 import {
   AiProgramDraft as AiProgramDraftSchema,
+  draftWeek,
+  fillLockedWeeks,
+  isAlternating,
+  loggedWeeks,
+  programWeekToDraftWeek,
+  type SignalProgram,
+  MAX_AI_BLOCK_WEEKS,
+  mergeWeekChanges,
+  resizeDraftWeeks,
   applyDraftEdit,
   DraftEditError,
   DraftEditOps,
@@ -18,6 +27,7 @@ import {
   deloadRulesText,
   effectiveDeload,
   type DeloadSettings,
+  type WeeksChoice,
   computeSignals,
   diffRowsToText,
   diffSources,
@@ -104,6 +114,8 @@ import type {
   ProgramPhasingDto,
   ProgramSessionDto,
   ProgramWeekDto,
+  AiDraftSessionDto,
+  AiDraftWeekDto,
   SessionLogInput,
   SessionTypeDto,
   RoleLabelDto,
@@ -112,6 +124,7 @@ import type {
   TrainerApi,
 } from "../types";
 import { revisionChain } from "../../generation";
+import { mockBlock, mockFillWeeks, type LegacyMockDraft } from "./blockDraft";
 import { activeSignals, snoozeUntil } from "../../signals";
 import {
   clients as seedClients,
@@ -231,6 +244,8 @@ const clientDto = (c: ClientDto): ClientDto => ({
 const state = {
   /** The trainer's deload rule; null = the default. */
   deload: null as DeloadSettings | null,
+  /** The generate page's last Weeks choice (trainers.last_weeks_choice). */
+  weeksChoice: "same" as WeeksChoice,
   clients: [...seedClients],
   programs: [...seedPrograms],
   logs: [...seedLogs],
@@ -406,7 +421,7 @@ function exampleDto(e: ProgramExampleDto): ProgramExampleDto {
 }
 
 /** Maya's handcrafted draft — references her real logged numbers + limitation. */
-function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
+function mayaDraft(basedOn: ProgramDto | null): LegacyMockDraft {
   return {
     name: "Strength Base B",
     rationale:
@@ -490,7 +505,7 @@ function mayaDraft(basedOn: ProgramDto | null): AiDraftDto {
 }
 
 /** Generic fallback for clients without a handcrafted draft. */
-function genericDraft(): AiDraftDto {
+function genericDraft(): LegacyMockDraft {
   return {
     name: "Next Block — Draft",
     rationale: "Generic progression: +2.5% on primary lifts, volume held.",
@@ -751,6 +766,17 @@ export const mockApi: TrainerApi = {
     const i = state.clients.findIndex((c) => c.id === id);
     state.clients[i] = { ...state.clients[i], ...patch };
     return clientDto(state.clients[i]);
+  },
+
+  async weeksChoice() {
+    await delay(100);
+    return state.weeksChoice;
+  },
+
+  async setWeeksChoice(choice) {
+    await delay(150);
+    state.weeksChoice = choice;
+    return choice;
   },
 
   async deloadSettings() {
@@ -1053,10 +1079,18 @@ export const mockApi: TrainerApi = {
       return structuredClone(gen);
     }
 
-    const draft = client?.id === "cl-maya" ? mayaDraft(basedOn) : genericDraft();
+    const routine = client?.id === "cl-maya" ? mayaDraft(basedOn) : genericDraft();
+    let draft: AiDraftDto;
     if (isWeek) {
-      draft.name = `Week ${input.targetWeek}`;
-      delete (draft as any).phasing;
+      // One week: the target week, keeping its A/B letter.
+      const rotation = basedOn?.weeks.find((w) => w.week === input.targetWeek)?.rotation;
+      const { sessions, ...rest } = routine;
+      draft = { ...rest, name: `Week ${input.targetWeek}`, weeks: [{ week: input.targetWeek!, ...(rotation ? { rotation } : {}), sessions }] };
+    } else {
+      // Same as the API: the choice becomes the trainer's default for the next block.
+      if (input.alternate !== undefined) state.weeksChoice = input.alternate ? "alternate" : "same";
+      const plannedWeeks = input.plannedWeeks ?? Math.min(MAX_AI_BLOCK_WEEKS, basedOn?.phasing?.plannedWeeks ?? basedOn?.weeks.length ?? 4);
+      draft = mockBlock(routine, { plannedWeeks, alternate: input.alternate ?? false });
     }
     // Last logged working weight per exercise — drafts propose the next small jump.
     const lastW = new Map<string, number>();
@@ -1067,14 +1101,20 @@ export const mockApi: TrainerApi = {
     }
     // Mirror what the real API guarantees: every draft exercise is nameable,
     // and working sets carry a load target (last + 2.5kg, or leave RPE-driven).
-    for (const s of draft.sessions) {
-      for (const e of s.exercises) {
-        if (!e.exerciseName && e.exerciseId) e.exerciseName = nameOf(e.exerciseId);
-        const last = e.exerciseId ? lastW.get(e.exerciseId) : undefined;
-        if (last == null) continue;
-        const next = Math.round((last + 2.5) * 2) / 2;
-        for (const ps of e.prescribedSets) {
-          if (ps.type === "working") ps.targetWeightKg = next;
+    // Later weeks step on from there: +2.5 kg per earlier week with the same letter.
+    const alternating = draft.weeks.some((w) => w.rotation);
+    for (const [wi, w] of draft.weeks.entries()) {
+      const steps = isWeek ? 0 : alternating ? Math.floor(wi / 2) : wi;
+      const deload = draft.phasing?.weeks?.find((p) => p.week === w.week)?.directive === "deload";
+      for (const s of w.sessions) {
+        for (const e of s.exercises) {
+          if (!e.exerciseName && e.exerciseId) e.exerciseName = nameOf(e.exerciseId);
+          const last = e.exerciseId ? lastW.get(e.exerciseId) : undefined;
+          if (last == null) continue;
+          const next = Math.round((last + 2.5 * (1 + steps)) * (deload ? 0.9 : 1) * 2) / 2;
+          for (const ps of e.prescribedSets) {
+            if (ps.type === "working") ps.targetWeightKg = next;
+          }
         }
       }
     }
@@ -1100,6 +1140,52 @@ export const mockApi: TrainerApi = {
     return structuredClone(gen);
   },
 
+  async fillProgram(input) {
+    const program = state.programs.find((p) => p.id === input.programId && p.clientId === input.clientId);
+    if (!program) throw new Error("program not found");
+    if (program.weeks.length > MAX_AI_BLOCK_WEEKS) throw new Error(`AI fills blocks of at most ${MAX_AI_BLOCK_WEEKS} weeks`);
+    // Same rule as the API: up to the last logged week, at least the first week of each letter.
+    const locked = fillLockedWeeks(program.weeks, loggedWeeks(program as unknown as SignalProgram, state.logs));
+    if (locked.length >= program.weeks.length) throw new Error("nothing left to fill: every week is yours or logged");
+    const gen: GenerationDto = {
+      id: uuid(),
+      clientId: input.clientId,
+      basedOnProgramId: program.id,
+      kind: "fill",
+      targetWeek: null,
+      direction: program.direction ?? null,
+      providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
+      model: "mock-draft-v1",
+      effort: input.effort ?? null,
+      status: "pending",
+      draft: null,
+      error: null,
+      parentGenerationId: null,
+      revisionMessage: null,
+      instructions: input.instructions ?? null,
+      rejectReason: null,
+      approvedProgramId: null,
+      exampleProgramIds: [],
+      createdAt: new Date().toISOString(),
+    };
+    state.generations.unshift(gen);
+    await delay(2200);
+    if (gen.status !== "pending") return structuredClone(gen);
+    const lockedWeeks = program.weeks
+      .filter((w) => locked.includes(w.week))
+      .map((w) => programWeekToDraftWeek(w as never, { locked: true }) as unknown as AiDraftWeekDto);
+    for (const s of lockedWeeks.flatMap((w) => w.sessions)) for (const e of s.exercises) e.exerciseName ??= nameOf(e.exerciseId ?? "");
+    gen.draft = {
+      name: program.name,
+      rationale: "Filled the rest of the block from your weeks: same exercises, +2.5 kg per week on loaded sets, lighter in the deload.",
+      clientSummary: program.description ?? "",
+      ...(program.phasing ? { phasing: program.phasing } : {}),
+      weeks: mockFillWeeks(lockedWeeks, { plannedWeeks: program.weeks.length, alternate: isAlternating(program.weeks), phasing: program.phasing }),
+    };
+    gen.status = "validated";
+    return structuredClone(gen);
+  },
+
   async generations(clientId) {
     await delay(200);
     return state.generations.filter((g) => g.clientId === clientId);
@@ -1116,12 +1202,14 @@ export const mockApi: TrainerApi = {
     const parent = state.generations.find((g) => g.id === generationId);
     if (!parent || parent.status !== "validated" || !parent.draft) throw new Error("generation is not validated");
     if (parent.kind === "week") throw new Error("week drafts follow the block's plan");
+    if (parent.kind === "fill") throw new Error("fill drafts follow the program's plan");
     if (canon(parent.draft.phasing ?? null) === canon(phasing)) throw new Error("phasing is unchanged");
     const child: GenerationDto = {
       ...structuredClone(parent),
       id: uuid(),
       status: "validated",
-      draft: { ...structuredClone(parent.draft), phasing: structuredClone(phasing) },
+      // Same as the API: a new length grows or cuts the draft's weeks.
+      draft: { ...(resizeDraftWeeks(structuredClone(parent.draft) as AiProgramDraftSchema, phasing.plannedWeeks) as GenerationDto["draft"] & object), phasing: structuredClone(phasing) },
       parentGenerationId: parent.id,
       revisionMessage: "Block plan edited by you",
       manualEdit: true,
@@ -1563,36 +1651,63 @@ export const mockApi: TrainerApi = {
     if (!gen || !gen.draft) throw new Error("generation not found");
     const client = state.clients.find((c) => c.id === gen.clientId);
     // Mirrors the API: draft sessions get seq per kind in draft order; code places them.
-    const seq = { lifting: 0, cardio: 0 };
-    const template: ProgramSessionDto[] = gen.draft.sessions.map((s) => {
-      const kind = s.kind === "cardio" ? ("cardio" as const) : ("lifting" as const);
-      const exercises =
-        kind === "cardio"
-          ? []
-          : normalizeGroups(
-              shownExerciseOrder(s.exercises, mergedLabels(), { keepOrder: gen.trainerOrder }).map((e, ei) => ({
-                id: uuid(),
-                exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
-                exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
-                role: e.role,
-                order: ei,
-                prescribedSets: e.prescribedSets,
-                notes: e.notes,
-                ...(e.group ? { group: e.group } : {}),
-              }))
-            );
-      return {
-        id: uuid(),
-        name: s.name,
-        seq: ++seq[kind],
-        weekday: s.weekday ?? null,
-        order: 0,
-        kind,
-        notes: s.notes,
-        exercises,
-        cardio: kind === "cardio" ? s.cardio : null,
-      };
-    });
+    const toSessions = (draftSessions: AiDraftSessionDto[]): ProgramSessionDto[] => {
+      const seq = { lifting: 0, cardio: 0 };
+      return draftSessions.map((s) => {
+        const kind = s.kind === "cardio" ? ("cardio" as const) : ("lifting" as const);
+        const exercises =
+          kind === "cardio"
+            ? []
+            : normalizeGroups(
+                shownExerciseOrder(s.exercises, mergedLabels(), { keepOrder: gen.trainerOrder }).map((e, ei) => ({
+                  id: uuid(),
+                  exerciseId: e.exerciseId ?? e.exerciseName ?? uuid(),
+                  exerciseName: e.exerciseName ?? nameOf(e.exerciseId ?? ""),
+                  role: e.role,
+                  order: ei,
+                  prescribedSets: e.prescribedSets,
+                  notes: e.notes,
+                  ...(e.group ? { group: e.group } : {}),
+                }))
+              );
+        return {
+          id: uuid(),
+          name: s.name,
+          seq: ++seq[kind],
+          weekday: s.weekday ?? null,
+          order: 0,
+          kind,
+          notes: s.notes,
+          exercises,
+          cardio: kind === "cardio" ? s.cardio : null,
+        };
+      });
+    };
+    const template = toSessions(draftWeek(gen.draft).sessions);
+
+    if (gen.kind === "fill") {
+      // Same as the API: only the AI's weeks, skipping any logged since; each keeps its calendar and letter.
+      const prog = state.programs.find((p) => p.id === gen.basedOnProgramId);
+      if (!prog) throw new Error("program not found");
+      const logged = new Set(loggedWeeks(prog as unknown as SignalProgram, state.logs));
+      for (const w of gen.draft.weeks) {
+        if (w.locked || logged.has(w.week)) continue;
+        const old = prog.weeks.find((x) => x.week === w.week);
+        if (!old) continue;
+        const oldAt = new Map(old.sessions.map((s) => [sessionKey(s), s]));
+        const sessions = withCompactOrder(
+          toSessions(w.sessions).map((s) => {
+            const o = oldAt.get(sessionKey(s));
+            return o ? { ...s, weekday: o.weekday ?? null, order: o.order } : { ...s, weekday: null, order: 99 };
+          })
+        );
+        prog.weeks = prog.weeks.map((x) => (x.week === w.week ? { ...x, sessions } : x));
+      }
+      prog.version += 1;
+      gen.status = "approved";
+      gen.approvedProgramId = prog.id;
+      return withNames(prog);
+    }
 
     if (gen.kind === "week") {
       const targetProg = state.programs.find((p) => p.id === gen.basedOnProgramId);
@@ -1615,9 +1730,14 @@ export const mockApi: TrainerApi = {
       return withNames(targetProg);
     }
 
-    const plannedWeeks = 4;
-    // AI weekdays that pass the placement rules stay; the rest are re-placed.
-    const weeks = placeWeeks(stampWeeks(template, plannedWeeks), client, patternOf, { keepWeekdays: true });
+    // Every draft week becomes its program week (letter kept); AI weekdays that
+    // pass the placement rules stay, the rest are re-placed.
+    const built: ProgramWeekDto[] = gen.draft.weeks.map((w) => ({
+      week: w.week,
+      ...(w.rotation ? { rotation: w.rotation } : {}),
+      sessions: w.week === gen.draft!.weeks[0].week ? template : toSessions(w.sessions),
+    }));
+    const weeks = placeWeeks(built, client, patternOf, { keepWeekdays: true });
     const program: ProgramDto = {
       id: uuid(),
       trainerId: "me",
@@ -1631,7 +1751,7 @@ export const mockApi: TrainerApi = {
       direction: null,
       createdAt: new Date().toISOString(),
       activatedAt: null,
-      phasing: null,
+      phasing: gen.draft.phasing ?? null,
       weeks,
     };
     state.programs.unshift(program);
@@ -2008,8 +2128,9 @@ export const mockApi: TrainerApi = {
     child.draft = scoped.draft as any;
     child.discardedChanges = scoped.discarded;
     row.proposal.builtGenerationId = child.id;
-    const n = diffDrafts(parent!.draft as any, child.draft as any).length;
-    const d = scoped.discarded.length;
+    // Same as the API: a change repeated across weeks counts once.
+    const n = mergeWeekChanges(diffDrafts(parent!.draft as any, child.draft as any)).length;
+    const d = mergeWeekChanges(scoped.discarded).length;
     const out: ChatMessageDto & { clientId: string } = {
       id: uuid(),
       clientId: row.clientId,

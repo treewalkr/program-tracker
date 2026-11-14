@@ -11,10 +11,11 @@
  * disables it).
  *
  * `ref` = { day, slot }, both 1-based, into the draft as stored — the same
- * addressing `diffDrafts` uses.
+ * addressing `diffDrafts` uses. Each op edits one week (`week`, by number;
+ * absent = the draft's first week); one request edits one week.
  */
 import { z } from "zod";
-import type { AiProgramDraft, DraftExerciseRef } from "./ai";
+import type { AiProgramDraft, DraftExerciseRef, DraftSession } from "./ai";
 import { sortExercisesByRole, type RoleRank } from "./domain";
 import { exerciseUnits, groupKind, normalizeGroups, withSetCount } from "./groups";
 
@@ -25,19 +26,21 @@ export const DraftRef = z.object({
 export type DraftRef = z.infer<typeof DraftRef>;
 
 const Refs = z.array(DraftRef).min(1).max(40);
+/** The draft week an op edits (by number); absent = the first week. */
+const OpWeek = z.number().int().min(1).max(26).optional();
 
 /** One step of a hand edit. A request replays its ops in order on the stored draft. */
 export const DraftEditOp = z.discriminatedUnion("op", [
   /** Move rows up or down inside their session. A row stepping out of a superset leaves it. */
-  z.object({ op: z.literal("move"), refs: Refs, dir: z.enum(["up", "down"]) }),
+  z.object({ op: z.literal("move"), refs: Refs, dir: z.enum(["up", "down"]), week: OpWeek }),
   /** Join the neighbour's superset (or start one with it). */
-  z.object({ op: z.literal("superset"), ref: DraftRef, with: z.enum(["above", "below"]) }),
+  z.object({ op: z.literal("superset"), ref: DraftRef, with: z.enum(["above", "below"]), week: OpWeek }),
   /** Take a row out of its superset; it lands just after the group. */
-  z.object({ op: z.literal("leave"), ref: DraftRef }),
+  z.object({ op: z.literal("leave"), ref: DraftRef, week: OpWeek }),
   /** Append rows to the end of a session, out of any superset. */
-  z.object({ op: z.literal("moveTo"), refs: Refs, day: z.number().int().min(1).max(14) }),
+  z.object({ op: z.literal("moveTo"), refs: Refs, day: z.number().int().min(1).max(14), week: OpWeek }),
   /** Make the rows (2+, one session) one new superset at the first row's place. */
-  z.object({ op: z.literal("group"), refs: Refs.min(2) }),
+  z.object({ op: z.literal("group"), refs: Refs.min(2), week: OpWeek }),
   /**
    * Undo: put the draft's own exercises back in an earlier arrangement. Each
    * entry names an exercise of the current draft, so nothing new comes in;
@@ -45,6 +48,7 @@ export const DraftEditOp = z.discriminatedUnion("op", [
    */
   z.object({
     op: z.literal("restore"),
+    week: OpWeek,
     sessions: z
       .array(
         z
@@ -231,7 +235,10 @@ const canon = (v: unknown): string =>
 export function canonicalDraft(d: AiProgramDraft, labels?: readonly RoleRank[], opts: DraftOrderOpts = {}): AiProgramDraft {
   return {
     ...d,
-    sessions: d.sessions.map((s) => ({ ...s, exercises: canonicalList(s.exercises, labels, opts.keepOrder) })),
+    weeks: d.weeks.map((w) => ({
+      ...w,
+      sessions: w.sessions.map((s) => ({ ...s, exercises: canonicalList(s.exercises, labels, opts.keepOrder) })),
+    })),
   };
 }
 
@@ -239,18 +246,18 @@ export function sameDraft(a: AiProgramDraft, b: AiProgramDraft): boolean {
   return canon(a) === canon(b);
 }
 
-/** Working state: one list per session, every exercise tagged with its origin. */
+/** Working state of one week: one list per session, every exercise tagged with its origin. */
 class Work {
   lists: W[][];
   readonly tags: string[];
-  /** Starts from the draft as shown (role-sorted unless `keepOrder`). */
+  /** Starts from the week as shown (role-sorted unless `keepOrder`). */
   constructor(
-    readonly draft: AiProgramDraft,
+    readonly sessions: DraftSession[],
     labels: readonly RoleRank[] | undefined,
     keepOrder: boolean
   ) {
-    this.tags = draftSessionLabels(draft.sessions);
-    this.lists = draft.sessions.map((s, d) =>
+    this.tags = draftSessionLabels(sessions);
+    this.lists = sessions.map((s, d) =>
       canonicalList(
         s.exercises.map((e, i) => ({ ...clone(e), __k: `${d}:${i}` })),
         labels,
@@ -291,12 +298,9 @@ class Work {
     throw new DraftEditError("exercise not found");
   }
 
-  /** The draft the lists describe. */
-  result(): AiProgramDraft {
-    return {
-      ...clone(this.draft),
-      sessions: this.draft.sessions.map((s, d) => ({ ...clone(s), exercises: this.lists[d].map(strip) })),
-    };
+  /** The week's sessions the lists describe. */
+  result(): DraftSession[] {
+    return this.sessions.map((s, d) => ({ ...clone(s), exercises: this.lists[d].map(strip) }));
   }
 }
 
@@ -325,12 +329,12 @@ function describeGroup(w: Work, key: string, verb = ""): string {
 
 /** Sessions an exercise may live in. */
 function assertLifting(w: Work, d: number) {
-  if (w.draft.sessions[d]?.kind === "cardio") throw new DraftEditError(`${w.tags[d]} is a cardio session`);
+  if (w.sessions[d]?.kind === "cardio") throw new DraftEditError(`${w.tags[d]} is a cardio session`);
 }
 
 function assertNotEmpty(w: Work) {
   w.lists.forEach((l, d) => {
-    if (w.draft.sessions[d].kind !== "cardio" && l.length === 0) {
+    if (w.sessions[d].kind !== "cardio" && l.length === 0) {
       throw new DraftEditError(`${w.tags[d]} would have no exercises`);
     }
     if (l.length > 20) throw new DraftEditError(`${w.tags[d]} would have more than 20 exercises`);
@@ -539,13 +543,19 @@ export function applyDraftEdit(
   opts: DraftOrderOpts = {}
 ): DraftEditResult {
   const keepOrder = opts.keepOrder ?? false;
-  // The draft as the trainer saw it; Undo puts this back.
-  const shownAt = new Work(draft, labels, keepOrder).lists;
-  let cur = draft;
+  const weekNo = ops[0]?.week ?? draft.weeks[0].week;
+  if (ops.some((op) => (op.week ?? draft.weeks[0].week) !== weekNo)) throw new DraftEditError("edit one week at a time");
+  const wi = draft.weeks.findIndex((w) => w.week === weekNo);
+  if (wi < 0) throw new DraftEditError(`no week ${weekNo}`);
+  if (draft.weeks[wi].locked) throw new DraftEditError(`week ${weekNo} is yours — it stays as you wrote it`);
+  const start = draft.weeks[wi].sessions;
+  // The week as the trainer saw it; Undo puts this back.
+  const shownAt = new Work(start, labels, keepOrder).lists;
+  let cur = start;
   const changes: string[] = [];
   let restoring = false;
-  // Where each exercise of `cur` sat in the input draft ("day:slot", 0-based).
-  let origin = draft.sessions.map((s, d) => s.exercises.map((_, i) => `${d}:${i}`));
+  // Where each exercise of `cur` sat in the input week ("day:slot", 0-based).
+  let origin = start.map((s, d) => s.exercises.map((_, i) => `${d}:${i}`));
   for (const [n, op] of ops.entries()) {
     // After the first op `cur` is already in the trainer's order.
     const w = new Work(cur, labels, keepOrder || n > 0);
@@ -571,16 +581,27 @@ export function applyDraftEdit(
   // Undo: every input exercise back to where it was shown, with its group and set count.
   const at = new Map<string, DraftRef>();
   origin.forEach((l, d) => l.forEach((k, i) => at.set(k, { day: d + 1, slot: i + 1 })));
+  const multiWeek = draft.weeks.length > 1;
   const inverse: DraftEditOp = {
     op: "restore",
+    ...(multiWeek ? { week: weekNo } : {}),
     sessions: shownAt.map((l) =>
       l.map((e) => ({ from: at.get(e.__k)!, group: e.group ?? null, sets: e.prescribedSets.length }))
     ),
   };
+  // In a block of several weeks the change list says which week it edited.
+  const said = multiWeek && !restoring ? changes.map((c) => `${c} (W${weekNo})`) : changes;
 
+  // Other weeks are stored as shown, so the order the trainer saw stays theirs.
+  const shown = canonicalDraft(draft, labels, { keepOrder });
+  const out: AiProgramDraft = {
+    ...clone(draft),
+    weeks: shown.weeks.map((w, i) => (i === wi ? { ...clone(w), sessions: cur } : clone(w))),
+  };
   // A restore is exact; other ops count only what the trainer can see.
-  const changed = !sameDraft(restoring ? draft : canonicalDraft(draft, labels, { keepOrder }), cur);
-  return { draft: cur, changes, changed, inverse };
+  const before = restoring ? start : shown.weeks[wi].sessions;
+  const changed = canon(before) !== canon(cur);
+  return { draft: out, changes: said, changed, inverse };
 }
 
 /** Would this op change what the trainer sees? (Menus disable the ones that would not.) */

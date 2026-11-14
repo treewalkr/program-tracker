@@ -43,7 +43,7 @@
     type SessionKind,
     type SignalProgram,
   } from "@pt/shared";
-  import { EXAMPLE_LEVELS } from "@pt/shared";
+  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
@@ -470,7 +470,7 @@
           onchange={(v) => setRotation(v === "ab")}
           items={[
             { value: "same", label: "Same every week" },
-            { value: "ab", label: "Alternate A/B", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
+            { value: "ab", label: "A/B weeks", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
           ]}
         />
       {/if}
@@ -482,6 +482,16 @@
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(sessionsPatternBalance(currentWeek.sessions, patternOf))}</p>
       {#if editable && program.weeks.length > 1}
         <OverflowMenu items={copyItems} label="Copy week {currentWeek.week} to other weeks" text="Copy this week to…" icon="layers" />
+      {/if}
+      {#if editable && program.weeks.length > 1 && program.weeks.length <= MAX_AI_BLOCK_WEEKS && program.clientId}
+        <a
+          class="btn ghost small"
+          href={`/clients/${program.clientId}/generate?fill=${program.id}`}
+          title={dirty ? "Save your changes first — the AI reads the saved program" : "The AI rewrites every week after the last logged one; logged weeks and the ones before stay"}
+          aria-disabled={dirty}
+          class:disabled={dirty}
+          onclick={(e) => { if (dirty) e.preventDefault(); }}
+        >Fill remaining weeks with AI</a>
       {/if}
       {#if editable}
         <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${deloadRulesText(deload)}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
@@ -782,6 +792,7 @@
   .copy-toast > :global(svg) { width: 14px; height: 14px; color: var(--muted); flex: none; }
   .copy-toast .msg { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
   @media (max-width: 700px) { .copy-toast { bottom: 60px; } .copy-toast:has(+ .savebar) { bottom: 120px; } }
+  .btn.disabled { opacity: 0.55; cursor: default; }
   .weeks-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
   .week-tabs { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
   .tab-btn {

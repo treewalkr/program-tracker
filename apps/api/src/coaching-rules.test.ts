@@ -50,10 +50,10 @@ const ruleRow = async (id: string) => (await db.select().from(coachingRules).whe
 
 const slotAnchor = (gen: any, exerciseIndex = 0) => ({
   type: "slot" as const,
-  session: gen.draft.sessions[0].name,
+  session: gen.draft.weeks[0].sessions[0].name,
   sessionIndex: 0,
   exerciseIndex,
-  exerciseName: gen.draft.sessions[0].exercises[exerciseIndex].exerciseName,
+  exerciseName: gen.draft.weeks[0].sessions[0].exercises[exerciseIndex].exerciseName,
 });
 
 async function note(gen: any, extra: Record<string, unknown> = {}) {

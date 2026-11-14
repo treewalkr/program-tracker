@@ -29,7 +29,7 @@
     onchange={(v) => (weeks = v)}
     items={[
       { value: 'same', label: 'Same every week' },
-      { value: 'ab', label: 'Alternate A/B' },
+      { value: 'ab', label: 'A/B weeks' },
     ]}
   />
 </Story>

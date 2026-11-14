@@ -93,8 +93,11 @@ describe.skipIf(!dbUp)("llm datasets", () => {
     const records = (await exportRecords("sft", { includeMock: true, purposes: ["block_generate"] })) as any[];
     const target = records
       .map((r) => JSON.parse(r.messages.at(-1).content))
-      .find((d) => d.sessions?.[0]?.exercises?.length === dropped - 1 && d.name === gen.draft.name);
+      .find((d) => d.weeks?.[0]?.sessions?.[0]?.exercises?.length === dropped - 1 && d.name === gen.draft.name);
     expect(target).toBeDefined();
+    // A block target carries every approved week, as the prompt asked.
+    expect(target.weeks.map((w: any) => w.week)).toEqual(approved.body.weeks.map((w: any) => w.week));
+    expect(target.sessions).toBeUndefined();
     expect(target.rationale).toBe(gen.draft.rationale);
 
     const gold = (await exportRecords("sft", { includeMock: true, purposes: ["block_generate"], minLabel: "gold" })) as any[];

@@ -10,10 +10,14 @@ import {
   sessionLogs,
   setLogs,
   trainerPreferences,
+  trainers,
   type AiGenerationRow,
 } from "@pt/db";
 import {
   AiProgramDraft,
+  MAX_AI_BLOCK_WEEKS,
+  blockDraftSchema,
+  isAlternating,
   ProgramWeeksDocument,
   blockPulse,
   chainBalanceText,
@@ -21,7 +25,7 @@ import {
   combinePreferenceDocs,
   pulseSummary,
   type ProgramWeek, DEFAULT_PROVIDER_ID } from "@pt/shared";
-import { callLlm, contextSnapshot } from "../ai/llm";
+import { callLlm, contextSnapshot, isMockRuntime } from "../ai/llm";
 import { settleGeneration } from "../lib/settle-generation";
 import { draftToWeekDiff, recordFeedback, recordRegenerated } from "../lib/llm-feedback";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
@@ -30,7 +34,9 @@ import {
   buildWeekMessages,
   periodizationContext,
 } from "../ai/prompt";
-import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
+import { mockBlockDraft, mockWeekDraft } from "../ai/mock";
+import { stampWeekDraft } from "../lib/draft-weeks";
+import { applyFill, startFill } from "../lib/fill";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
 import { loadRoleLabels } from "../lib/role-labels";
 import { ensureSessionTypes } from "../lib/session-types";
@@ -101,6 +107,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           const effort = resolveEffort(rt, body.effort);
 
           const targetWeek = body.targetWeek;
+          const targetRotation = basedProg.sessions.find((w) => w.week === targetWeek)?.rotation;
           const targetPlan = basedProg.phasing?.weeks?.find((w) => w.week === body.targetWeek);
           const targetDirective = targetPlan?.directive ?? null;
           const target = targetPlan?.target ?? null;
@@ -160,9 +167,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               signal: ac.signal,
               mode: "json",
               schema: AiProgramDraft,
-              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective)),
+              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective, targetRotation)),
             });
-            const { code, row } = await settleGeneration(generation.id, out);
+            // The draft is the target week, with its A/B letter.
+            const { code, row } = await settleGeneration(generation.id, out.ok ? { ...out, data: stampWeekDraft(out.data, targetWeek, targetRotation) } : out);
             return status(code, row);
           } finally {
             deregisterGeneration(generation.id);
@@ -172,8 +180,21 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
         const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
         const effort = resolveEffort(rt, body.effort);
+        // The trainer's block length and Weeks choice; else the current program's.
+        const [current] = body.basedOnProgramId
+          ? await db.select({ sessions: programs.sessions, phasing: programs.phasing }).from(programs).where(eq(programs.id, body.basedOnProgramId))
+          : [];
+        const block = {
+          weeks: body.plannedWeeks ?? Math.min(MAX_AI_BLOCK_WEEKS, Math.max(2, current?.phasing?.plannedWeeks ?? current?.sessions.length ?? 4)),
+          alternate: body.alternate ?? (current ? isAlternating(current.sessions) : false),
+        };
+        // The generate page's choice becomes the trainer's default for the next block.
+        if (body.alternate !== undefined) {
+          await db.update(trainers).set({ lastWeeksChoice: body.alternate ? "alternate" : "same" }).where(eq(trainers.id, trainerId));
+        }
         const messages = buildGenerationMessages({
           ...ctx,
+          block,
           direction: body.direction ?? null,
           trainerInstructions: body.instructions ?? "",
         });
@@ -207,6 +228,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               basedOnProgramId: body.basedOnProgramId ?? null,
               direction: body.direction ?? null,
               trainerInstructions: body.instructions ?? "",
+              block,
             }),
             messages: [
               { role: "system", content: messages.system },
@@ -216,8 +238,14 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
             effort,
             signal: ac.signal,
             mode: "json",
-            schema: AiProgramDraft,
-            mock: () => JSON.stringify(MOCK_DRAFT),
+            long: true,
+            // Every week, the client's lifting count, letters odd A / even B, B ≠ A.
+            schema: blockDraftSchema({
+              plannedWeeks: block.weeks,
+              alternate: block.alternate,
+              liftingSessions: isMockRuntime(rt) ? null : ctx.client.sessionsPerWeek ?? null,
+            }),
+            mock: () => JSON.stringify(mockBlockDraft({ plannedWeeks: block.weeks, alternate: block.alternate })),
           });
           const { code, row } = await settleGeneration(generation.id, out);
           return status(code, row);
@@ -232,6 +260,25 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     {
       body: AiGenerationModel.generate,
     }
+  )
+  /**
+   * Fill with AI (FB-013): the AI writes every week after the last logged one
+   * (and after the first week of each letter) of an existing program; the
+   * trainer's weeks ride in the draft as locked weeks.
+   */
+  .post(
+    "/fill",
+    async ({ body, status, trainerId }) => {
+      try {
+        const res = await startFill(trainerId, body);
+        if (!res.ok) return status(res.status, { error: res.error });
+        return status(res.code, res.row);
+      } catch (err) {
+        if (err instanceof ContextError) return status(err.status, { error: err.message });
+        throw err;
+      }
+    },
+    { body: AiGenerationModel.fill }
   )
   .get(
     "/generations",
@@ -267,6 +314,12 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         ? await db.select().from(clients).where(eq(clients.id, gen.clientId))
         : [null];
 
+      if (gen.kind === "fill") {
+        const res = await applyFill(trainerId, gen);
+        if (!res.ok) return status(res.status, { error: res.error, ...(res.refs ? { refs: res.refs } : {}) });
+        await recordApproval(trainerId, gen, res.program.sessions.find((w) => w.week === res.written[0]), res.program.id);
+        return status(201, toProgramDto(res.program));
+      }
       const catalog = await db.select().from(exercises);
       if (gen.kind === "week") {
         if (!gen.basedOnProgramId) return status(404, { error: "program not found" });
@@ -337,7 +390,6 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       const { weeks, createdNames, unresolvable } = draftToWeeks(
         gen.draft,
         catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-        gen.draft.phasing?.plannedWeeks ?? 4,
         client,
         await ensureSessionTypes(trainerId),
         await loadRoleLabels(trainerId),

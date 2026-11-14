@@ -4,7 +4,11 @@ import {
   ExerciseRole,
   Phasing,
   PrescribedSet,
+  Rotation,
   SessionKind,
+  rotationOfWeek,
+  sessionsInSeqOrder,
+  type ProgramWeek,
 } from "./domain";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +29,11 @@ export const AiProviderConfig = z.object({
   apiKeyEnvVar: z.string().min(1),
   /** Max output tokens for program generation. */
   maxOutputTokens: z.number().int().min(256).max(65536).default(8192),
+  /**
+   * The model's real output ceiling, asked for by calls that write a whole
+   * block (every week in one answer; thinking shares it). Absent = maxOutputTokens.
+   */
+  blockOutputTokens: z.number().int().min(256).max(131072).optional(),
   /**
    * Reasoning-effort levels the trainer may pick for this provider's models
    * (UI selector; absent = the provider takes no effort parameter).
@@ -47,6 +56,7 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.deepseek.com",
     apiKeyEnvVar: "DEEPSEEK_API_KEY",
     maxOutputTokens: 65536,
+    blockOutputTokens: 65536,
     // "none" switches thinking off (reasoning_effort: none, api-docs.deepseek.com/guides/thinking_mode)
     effortLevels: ["none", "low", "high", "max"],
     defaultEffort: "max", // sent on every call that picks none (callLlm)
@@ -61,6 +71,7 @@ export const KNOWN_PROVIDERS = {
     baseUrl: "https://api.z.ai/api/paas/v4",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,
+    blockOutputTokens: 131072, // glm-5.x max_tokens ceiling (docs.z.ai, concept-param)
     effortLevels: ["low", "high", "max"],
     defaultEffort: "low", // glm-5 budget low is the shipped default; max maps to the provider's top budget
     models: [
@@ -166,27 +177,246 @@ export const DraftSession = z
   });
 export type DraftSession = z.infer<typeof DraftSession>;
 
+/** One week of an AI draft: its sessions, and its A/B letter when the block alternates. */
+export const DraftWeek = z.object({
+  week: z.number().int().min(1).max(26),
+  /** A/B letter (odd = A, even = B); absent = same every week. */
+  rotation: Rotation.optional(),
+  /** Fill drafts: a week the trainer wrote — kept as is, never written by the AI. */
+  locked: z.boolean().optional(),
+  sessions: z.array(DraftSession).min(1).max(14),
+});
+export type DraftWeek = z.infer<typeof DraftWeek>;
+
+/** The generate page's Weeks setting: same every week, or alternate A/B. */
+export const WEEKS_CHOICES = ["same", "alternate"] as const;
+export type WeeksChoice = (typeof WEEKS_CHOICES)[number];
+
+/**
+ * True when a note asks for alternating weeks ("A/B weeks", "alternate",
+ * "odd/even weeks", Thai สัปดาห์คี่/คู่, สลับ). The generate page only hints —
+ * the Weeks setting decides, never the note.
+ */
+export function mentionsAlternating(note: string): boolean {
+  return /(\ba\s*\/\s*b\b|\balternat\w*|\bodd\s*(\/|and|&)\s*even\b|\bweek\s*[ab]\b|สัปดาห์\s*(คี่|คู่)|สลับ)/i.test(note);
+}
+
+/** Most weeks a draft carries (a block is 2–26 weeks). */
+export const MAX_DRAFT_WEEKS = 26;
+/** Most weeks the AI writes in one block draft or fill (the builder still allows 26). */
+export const MAX_AI_BLOCK_WEEKS = 12;
+/** Fewest weeks in a block. */
+export const MIN_BLOCK_WEEKS = 2;
+
+const DraftBody = z
+  .object({
+    /** Short program name, e.g. "Lower/Hypertrophy Block 2". */
+    name: z.string().min(1).max(160),
+    /** Trainer-facing rationale: progression logic, volume changes, why. */
+    rationale: z.string().max(4000),
+    /** Client-facing blurb the trainer can edit before sending. */
+    clientSummary: z.string().max(2000),
+    /** Proposed periodization for the new block (week directives from the scheme). */
+    phasing: Phasing.optional(),
+    /**
+     * Every week in full, in week order: a block draft has one entry per
+     * planned week, a week draft (`kind: "week"`) has just its target week.
+     */
+    weeks: z.array(DraftWeek).min(1).max(MAX_DRAFT_WEEKS),
+  })
+  .superRefine((d, ctx) => {
+    d.weeks.forEach((w, i) => {
+      if (i > 0 && w.week <= d.weeks[i - 1].week) {
+        ctx.addIssue({ code: "custom", message: "weeks must be in week order, each week once", path: ["weeks", i, "week"] });
+      }
+    });
+  });
+
+/** The pre-FB-013 draft: one week of sessions, stamped onto every week on approve. */
+export type LegacyDraft = Omit<AiProgramDraft, "weeks"> & { sessions: DraftSession[] };
+
+/**
+ * Read an old one-week draft (`sessions`) as `weeks[]`: the week copied to
+ * every planned week (phasing.plannedWeeks, else one week), as approve used to
+ * stamp it. Anything else passes through untouched.
+ */
+export function upgradeDraft(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const r = raw as Record<string, unknown>;
+  if (r.weeks !== undefined || !Array.isArray(r.sessions)) return raw;
+  const { sessions, ...rest } = r;
+  const planned = (r.phasing as { plannedWeeks?: unknown } | undefined)?.plannedWeeks;
+  const n = typeof planned === "number" && Number.isInteger(planned) ? Math.min(Math.max(planned, 1), MAX_DRAFT_WEEKS) : 1;
+  return {
+    ...rest,
+    weeks: Array.from({ length: n }, (_, i) => ({ week: i + 1, sessions: JSON.parse(JSON.stringify(sessions)) })),
+  };
+}
+
 /**
  * Structured output of the "generate next program" call. Validated with this
  * schema before anything is stored or shown; a failed validation is retried
- * once, then surfaced as an error to the trainer.
+ * once, then surfaced as an error to the trainer. Old one-week drafts
+ * (`sessions`) read as `weeks[]` (upgradeDraft).
  */
-export const AiProgramDraft = z.object({
-  /** Short program name, e.g. "Lower/Hypertrophy Block 2". */
-  name: z.string().min(1).max(160),
-  /** Trainer-facing rationale: progression logic, volume changes, why. */
-  rationale: z.string().max(4000),
-  /** Client-facing blurb the trainer can edit before sending. */
-  clientSummary: z.string().max(2000),
-  /** Proposed periodization for the new block (week directives from the scheme). */
-  phasing: Phasing.optional(),
-  sessions: z.array(DraftSession).min(1).max(14),
-});
-export type AiProgramDraft = z.infer<typeof AiProgramDraft>;
+export const AiProgramDraft = z.preprocess(upgradeDraft, DraftBody);
+export type AiProgramDraft = z.infer<typeof DraftBody>;
+
+/** A one-week draft written the old way (tests, mocks) as `weeks[]`: its week copied `weeks` times (default 1). No validation. */
+export function draftFromSessions(d: LegacyDraft, weeks = 1): AiProgramDraft {
+  const { sessions, ...rest } = d;
+  return {
+    ...rest,
+    weeks: Array.from({ length: weeks }, (_, i) => ({ week: i + 1, sessions: JSON.parse(JSON.stringify(sessions)) as DraftSession[] })),
+  };
+}
+
+/** The draft's week `week` (by number); the first week when absent. */
+export function draftWeek<T extends { weeks: { week: number }[] }>(d: T, week?: number | null): T["weeks"][number] {
+  return (week != null ? d.weeks.find((w) => w.week === week) : undefined) ?? d.weeks[0];
+}
+
+/**
+ * A program week as a draft week (fill drafts show the trainer's weeks this
+ * way): sessions in draft order (lifting, then cardio), catalog refs, roles,
+ * sets, groups, weekdays and session types kept.
+ */
+export function programWeekToDraftWeek(w: ProgramWeek, opts: { locked?: boolean } = {}): DraftWeek {
+  return {
+    week: w.week,
+    ...(w.rotation ? { rotation: w.rotation } : {}),
+    ...(opts.locked ? { locked: true } : {}),
+    sessions: sessionsInSeqOrder(w.sessions).map((s) => ({
+      name: s.name,
+      kind: s.kind,
+      ...(s.typeName ? { type: s.typeName } : {}),
+      ...(s.weekday != null ? { weekday: s.weekday } : {}),
+      ...(s.cardio ? { cardio: s.cardio } : {}),
+      ...(s.notes ? { notes: s.notes } : {}),
+      exercises: [...s.exercises]
+        .sort((a, b) => a.order - b.order)
+        .map((e) => ({
+          ...(e.exerciseId.startsWith("pending:") ? {} : { exerciseId: e.exerciseId }),
+          ...(e.exerciseName ? { exerciseName: e.exerciseName } : {}),
+          ...(e.role ? { role: e.role } : {}),
+          prescribedSets: e.prescribedSets,
+          ...(e.notes ? { notes: e.notes } : {}),
+          ...(e.group ? { group: e.group } : {}),
+        })),
+    })),
+  };
+}
+
+/**
+ * The draft cut or grown to `weeks` weeks (a block plan edit changed its
+ * length): extra weeks are dropped; a new week copies the last earlier week
+ * with its letter (odd A / even B when the draft alternates), else the last week.
+ */
+export function resizeDraftWeeks(d: AiProgramDraft, weeks: number): AiProgramDraft {
+  const alternate = d.weeks.some((w) => w.rotation != null);
+  const out = d.weeks.filter((w) => w.week <= weeks).map((w) => structuredClone(w));
+  for (let week = (out.at(-1)?.week ?? 0) + 1; week <= weeks; week++) {
+    const letter = alternate ? rotationOfWeek(week) : undefined;
+    const src = [...out].reverse().find((w) => !letter || w.rotation === letter) ?? out[out.length - 1];
+    const { locked: _l, ...copy } = structuredClone(src);
+    out.push({ ...copy, week, ...(letter ? { rotation: letter } : {}) });
+  }
+  return { ...d, weeks: out };
+}
+
+/** Week numbers a fill draft keeps as the trainer wrote them. */
+export const lockedDraftWeeks = (d: Pick<AiProgramDraft, "weeks">): number[] => d.weeks.filter((w) => w.locked).map((w) => w.week);
+
+/**
+ * A fill draft whole again: the AI's weeks plus the trainer's `locked` weeks
+ * (flagged locked, in week order). An AI week with a locked number is dropped —
+ * the trainer's week wins.
+ */
+export function withLockedWeeks(ai: AiProgramDraft, locked: readonly DraftWeek[]): AiProgramDraft {
+  const lockedNos = new Set(locked.map((w) => w.week));
+  const weeks = [
+    ...locked.map((w) => ({ ...structuredClone(w), locked: true })),
+    ...ai.weeks.filter((w) => !lockedNos.has(w.week)).map(({ locked: _l, ...w }) => w),
+  ].sort((a, b) => a.week - b.week);
+  return { ...ai, weeks };
+}
+
+/** True when the draft's weeks carry A/B letters. */
+export const draftAlternates = (d: { weeks: { rotation?: string | null }[] }): boolean => d.weeks.some((w) => w.rotation != null);
+
+/** What a block draft must look like: its length, letters and session count. */
+export interface DraftWeekRules {
+  /** Weeks the block has (one entry each, numbered 1..n). */
+  plannedWeeks: number;
+  /** Odd weeks A, even weeks B, and the two routines must differ. */
+  alternate: boolean;
+  /** Lifting sessions every week must have; null = only "the same every week". */
+  liftingSessions?: number | null;
+  /** Weeks the trainer wrote (fill): the AI must leave them out. */
+  lockedWeeks?: readonly number[];
+}
+
+const liftingCount = (w: Pick<DraftWeek, "sessions">) => w.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length;
+const exerciseSet = (w: Pick<DraftWeek, "sessions">) =>
+  [...new Set(w.sessions.flatMap((s) => s.exercises.map((e) => (e.exerciseId ?? e.exerciseName ?? "").toLowerCase())))].sort().join("|");
+
+/**
+ * Problems with a block draft's weeks, as plain sentences (empty = fine):
+ * one entry per planned week (locked weeks left out), each with the lifting
+ * session count, letters odd = A / even = B when alternating (none
+ * otherwise), and an A routine that differs from the B routine.
+ */
+export function draftWeekIssues(d: Pick<AiProgramDraft, "weeks">, rules: DraftWeekRules): string[] {
+  const out: string[] = [];
+  const locked = new Set(rules.lockedWeeks ?? []);
+  const want = Array.from({ length: rules.plannedWeeks }, (_, i) => i + 1).filter((w) => !locked.has(w));
+  const got = d.weeks.map((w) => w.week);
+  for (const w of got) if (locked.has(w)) out.push(`week ${w} is the trainer's (locked): leave it out`);
+  const missing = want.filter((w) => !got.includes(w));
+  const extra = got.filter((w) => !locked.has(w) && !want.includes(w));
+  if (missing.length) out.push(`missing week${missing.length > 1 ? "s" : ""} ${missing.join(", ")}: write every week of the block in full`);
+  if (extra.length) out.push(`week${extra.length > 1 ? "s" : ""} ${extra.join(", ")} beyond the ${rules.plannedWeeks}-week block`);
+  const lifting = rules.liftingSessions ?? (d.weeks[0] ? liftingCount(d.weeks[0]) : 0);
+  for (const w of d.weeks) {
+    if (liftingCount(w) !== lifting) out.push(`week ${w.week} has ${liftingCount(w)} lifting sessions, not ${lifting}`);
+    if (rules.alternate && w.rotation !== rotationOfWeek(w.week)) {
+      out.push(`week ${w.week} must be rotation "${rotationOfWeek(w.week)}" (odd weeks A, even weeks B)`);
+    }
+    if (!rules.alternate && w.rotation != null) out.push(`week ${w.week} has rotation "${w.rotation}" but the block does not alternate`);
+  }
+  if (rules.alternate) {
+    const a = d.weeks.find((w) => w.rotation === "A");
+    const b = d.weeks.find((w) => w.rotation === "B");
+    if (a && b && exerciseSet(a) === exerciseSet(b)) out.push("the B routine repeats the A routine: B weeks must use different exercises");
+  }
+  return out;
+}
+
+/** AiProgramDraft plus the block's week rules — a failing draft is retried like any invalid output. */
+export function blockDraftSchema(rules: DraftWeekRules) {
+  return AiProgramDraft.transform((d) => (rules.alternate ? d : withoutLetters(d))).superRefine((d, ctx) => {
+    for (const message of draftWeekIssues(d, rules)) ctx.addIssue({ code: "custom", message, path: ["weeks"] });
+  });
+}
+
+/** The draft with every A/B letter dropped (a "same every week" block never alternates on its own). */
+export function withoutLetters(d: AiProgramDraft): AiProgramDraft {
+  return { ...d, weeks: d.weeks.map(({ rotation: _r, ...w }) => w) };
+}
+
+/** Weeks a change made in week `week` reaches: every week with its letter, or every week when the draft doesn't alternate. */
+export function sameLetterWeeks(d: Pick<AiProgramDraft, "weeks">, week: number): number[] {
+  const letter = d.weeks.find((w) => w.week === week)?.rotation;
+  return d.weeks.filter((w) => w.rotation === letter).map((w) => w.week);
+}
 
 // ---------------------------------------------------------------------------
 // Generation audit record
 // ---------------------------------------------------------------------------
+
+/** block: a new block · week: re-draft the next week · fill: write the weeks the trainer left empty. */
+export const GENERATION_KINDS = ["block", "week", "fill"] as const;
+export type GenerationKind = (typeof GENERATION_KINDS)[number];
 
 export const GENERATION_STATUSES = [
   "pending",
@@ -206,7 +436,7 @@ export const AiGeneration = z.object({
   clientId: z.string().uuid(),
   /** Program this draft was generated from; null for a cold start. */
   basedOnProgramId: z.string().uuid().nullable(),
-  kind: z.enum(["block", "week"]).default("block"),
+  kind: z.enum(GENERATION_KINDS).default("block"),
   targetWeek: z.number().int().min(1).max(26).nullable().optional(),
   direction: z.string().max(500).nullable().optional(),
   providerId: z.string(),
@@ -271,7 +501,9 @@ export function mockChatReply(message: string, clientName: string | null): strin
 }
 
 export function draftNoticeText(d: AiProgramDraft): string {
-  return `Draft ready: ${d.name} — ${d.sessions.length} sessions. Open review to inspect and approve.`;
+  const n = d.weeks[0]?.sessions.length ?? 0;
+  const weeks = d.weeks.length > 1 ? ` × ${d.weeks.length} weeks${draftAlternates(d) ? " (A/B)" : ""}` : "";
+  return `Draft ready: ${d.name} — ${n} sessions${weeks}. Open review to inspect and approve.`;
 }
 
 
@@ -280,6 +512,12 @@ export function draftNoticeText(d: AiProgramDraft): string {
 // ---------------------------------------------------------------------------
 
 export const ChatProposalChange = z.object({
+  /**
+   * Week whose DRAFT SLOTS the day/slot numbers read (absent = week 1). The
+   * change reaches every week with that week's A/B letter — every week when
+   * the block doesn't alternate.
+   */
+  week: z.number().int().min(1).max(MAX_DRAFT_WEEKS).nullable().optional(),
   /** 1-based session number in the draft being changed. */
   day: z.number().int().min(1),
   /**
@@ -317,7 +555,7 @@ export interface StoredChatProposal extends ChatProposal {
 
 /** Deterministic mock proposal: an "edit" on day 1, slot 1 (+15s rest). */
 export function mockProposal(draft: AiProgramDraft, message: string): ChatProposal {
-  const ex = draft.sessions[0]?.exercises[0];
+  const ex = draft.weeks[0]?.sessions[0]?.exercises[0];
   const name = ex?.exerciseName ?? ex?.exerciseId ?? "Exercise 1";
   return {
     summary: `Mock proposal for: ${message}`,
@@ -327,7 +565,8 @@ export function mockProposal(draft: AiProgramDraft, message: string): ChatPropos
 
 /**
  * Mock build: applies each "edit" as +15s rest on that slot (+5 min for a cardio
- * session edit, slot null); other kinds are ignored.
+ * session edit, slot null) in every week the change reaches (sameLetterWeeks);
+ * other kinds are ignored.
  * `rogue` also makes the off-proposal edits a live model made in F04 (next block →
  * "deload", last week's target dropped, first cardio session one zone harder), so
  * tests can prove the build scope reverts them.
@@ -340,19 +579,25 @@ export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal,
       const last = next.phasing.weeks?.at(-1);
       if (last) delete last.target;
     }
-    const cardio = next.sessions.find((s) => s.cardio)?.cardio;
-    if (cardio) cardio.hrZone = Math.min(5, (cardio.hrZone ?? 2) + 1);
+    for (const w of next.weeks) {
+      const cardio = w.sessions.find((s) => s.cardio)?.cardio;
+      if (cardio) cardio.hrZone = Math.min(5, (cardio.hrZone ?? 2) + 1);
+    }
   }
   for (const c of proposal.changes) {
     if (c.kind !== "edit") continue;
-    if (c.slot == null) {
-      const cardio = next.sessions[c.day - 1]?.cardio;
-      if (cardio) cardio.durationMin = Math.min(300, (cardio.durationMin ?? 30) + 5);
-      continue;
+    const reach = new Set(sameLetterWeeks(next, c.week ?? next.weeks[0].week));
+    for (const w of next.weeks) {
+      if (!reach.has(w.week)) continue;
+      if (c.slot == null) {
+        const cardio = w.sessions[c.day - 1]?.cardio;
+        if (cardio) cardio.durationMin = Math.min(300, (cardio.durationMin ?? 30) + 5);
+        continue;
+      }
+      const ex = w.sessions[c.day - 1]?.exercises[c.slot - 1];
+      if (!ex) continue;
+      ex.prescribedSets = ex.prescribedSets.map((s) => ({ ...s, restSeconds: (s.restSeconds ?? 60) + 15 }));
     }
-    const ex = next.sessions[c.day - 1]?.exercises[c.slot - 1];
-    if (!ex) continue;
-    ex.prescribedSets = ex.prescribedSets.map((s) => ({ ...s, restSeconds: (s.restSeconds ?? 60) + 15 }));
   }
   return next;
 }
@@ -360,7 +605,8 @@ export function mockApplyProposal(draft: AiProgramDraft, proposal: ChatProposal,
 /** Revision feedback text that turns an approved proposal into a draft. */
 export function proposalToFeedback(message: string, proposal: ChatProposal): string {
   const lines = proposal.changes.map((c) => {
-    const where = c.slot != null ? `Day ${c.day}, slot ${c.slot}` : c.kind === "edit" ? `Day ${c.day}, cardio session` : `Day ${c.day}, new slot`;
+    const at = c.week != null && c.week > 1 ? `Week ${c.week}, day` : "Day";
+    const where = c.slot != null ? `${at} ${c.day}, slot ${c.slot}` : c.kind === "edit" ? `${at} ${c.day}, cardio session` : `${at} ${c.day}, new slot`;
     return `- ${where} (${c.kind}): ${c.from ?? "—"} → ${c.to ?? "removed"} — ${c.detail}`;
   });
   return [
@@ -368,7 +614,8 @@ export function proposalToFeedback(message: string, proposal: ChatProposal): str
     `Trainer request: ${message}`,
     "Changes:",
     ...lines,
-    "Do not change: the block plan / phasing (weeks, targets, next block), cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.",
+    "Each change applies to that slot in every week with the same A/B letter (every week when the block does not alternate); keep each week's own loads and progression.",
+    "Do not change: the block plan / phasing (weeks, targets, next block), the week letters, cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.",
   ].join("\n");
 }
 

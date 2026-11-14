@@ -20,7 +20,15 @@ import {
   GenerationStatus,
   GENERATION_STATUSES,
   scopeToProposal,
-  type AiProgramDraft,
+  draftFromSessions,
+  upgradeDraft,
+  AiProgramDraft,
+  blockDraftSchema,
+  draftWeekIssues,
+  sameLetterWeeks,
+  resizeDraftWeeks,
+  mentionsAlternating,
+  withLockedWeeks,
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
@@ -67,7 +75,7 @@ describe("typicalGenerationSeconds", () => {
 
 describe("mockReviseDraft", () => {
   test("mockReviseDraft clones, annotates rationale, leaves the original untouched", () => {
-    const draft: AiProgramDraft = {
+    const draft: AiProgramDraft = draftFromSessions({
       name: "Block 1",
       rationale: "Original rationale",
       clientSummary: "Summary",
@@ -83,12 +91,12 @@ describe("mockReviseDraft", () => {
           ],
         },
       ],
-    };
+    });
     const clonedBefore = structuredClone(draft);
     const revised = mockReviseDraft(draft, "swap bench for incline DB");
 
     expect(revised.rationale).toBe(`${draft.rationale}\n\nRevision: swap bench for incline DB`);
-    expect(revised.sessions).toEqual(draft.sessions);
+    expect(revised.weeks).toEqual(draft.weeks);
     expect(revised.name).toBe(draft.name);
     expect(revised.clientSummary).toBe(draft.clientSummary);
     expect(draft).toEqual(clonedBefore);
@@ -204,7 +212,7 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
       "(this client) You asked: “hi” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
     );
 
-    const draftSample: AiProgramDraft = {
+    const draftSample: AiProgramDraft = draftFromSessions({
       name: "Strength Block A",
       rationale: "Rationale",
       clientSummary: "Summary",
@@ -212,40 +220,42 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
         { name: "Day 1", kind: "lifting", exercises: [] },
         { name: "Day 2", kind: "lifting", exercises: [] },
       ],
-    };
+    });
     expect(draftNoticeText(draftSample)).toBe(
       "Draft ready: Strength Block A — 2 sessions. Open review to inspect and approve."
     );
+    const ab = { ...draftSample, weeks: draftSample.weeks.concat({ ...draftSample.weeks[0], week: 2 }).map((w) => ({ ...w, rotation: w.week === 1 ? ("A" as const) : ("B" as const) })) };
+    expect(draftNoticeText(ab)).toBe("Draft ready: Strength Block A — 2 sessions × 2 weeks (A/B). Open review to inspect and approve.");
   });
 });
 
 describe("chat proposals", () => {
-  const draft: AiProgramDraft = {
+  const draft: AiProgramDraft = draftFromSessions({
     name: "B", rationale: "", clientSummary: "",
     sessions: [{ name: "Day 1", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, restSeconds: 120 }] }] }],
-  };
+  });
   test("mockProposal is a valid ChatProposal", () => {
     expect(ChatProposal.safeParse(mockProposal(draft, "more rest")).success).toBe(true);
   });
   test("mockApplyProposal adds 15s rest to the edited slot", () => {
     const next = mockApplyProposal(draft, mockProposal(draft, "x"));
-    expect(next.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(135);
+    expect(next.weeks[0].sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(135);
   });
   test("mockApplyProposal rogue mode also edits phasing and cardio, which the scope reverts", () => {
     const withExtras: AiProgramDraft = {
       ...structuredClone(draft),
       phasing: { plannedWeeks: 2, phase: "accumulation", nextPhase: "build", weeks: [{ week: 1, directive: "base" }, { week: 2, directive: "deload", target: { metric: "overall_volume", deltaPercent: -40 } }] },
-      sessions: [...structuredClone(draft.sessions), { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", hrZone: 3 }, exercises: [] }],
+      weeks: [{ week: 1, sessions: [...structuredClone(draft.weeks[0].sessions), { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", hrZone: 3 }, exercises: [] }] }],
     };
     const proposal = mockProposal(withExtras, "x");
     const rogue = mockApplyProposal(withExtras, proposal, { rogue: true });
     expect(rogue.phasing!.nextPhase).toBe("deload");
     expect(rogue.phasing!.weeks![1].target).toBeUndefined();
-    expect(rogue.sessions.at(-1)!.cardio!.hrZone).toBe(4);
+    expect(rogue.weeks[0].sessions.at(-1)!.cardio!.hrZone).toBe(4);
     const { draft: scoped, discarded } = scopeToProposal(withExtras, rogue, proposal);
     expect(scoped.phasing).toEqual(withExtras.phasing);
-    expect(scoped.sessions.at(-1)).toEqual(withExtras.sessions.at(-1));
-    expect(scoped.sessions[0].exercises[0]).toEqual(rogue.sessions[0].exercises[0]);
+    expect(scoped.weeks[0].sessions.at(-1)).toEqual(withExtras.weeks[0].sessions.at(-1));
+    expect(scoped.weeks[0].sessions[0].exercises[0]).toEqual(rogue.weeks[0].sessions[0].exercises[0]);
     expect(discarded.map((c) => c.kind)).toEqual(["cardio", "plan", "plan"]);
     // Plain mode leaves phasing and cardio alone
     expect(mockApplyProposal(withExtras, proposal).phasing).toEqual(withExtras.phasing);
@@ -256,9 +266,9 @@ describe("chat proposals", () => {
     expect(ChatProposal.safeParse({ summary: "s", changes: [{ ...c, kind: "swap" }] }).success).toBe(false);
     const withCardio: AiProgramDraft = {
       ...structuredClone(draft),
-      sessions: [structuredClone(draft.sessions[0]), { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] }],
+      weeks: [{ week: 1, sessions: [structuredClone(draft.weeks[0].sessions[0]), { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] }] }],
     };
-    expect(mockApplyProposal(withCardio, { summary: "s", changes: [c] }).sessions[1].cardio!.durationMin).toBe(35);
+    expect(mockApplyProposal(withCardio, { summary: "s", changes: [c] }).weeks[0].sessions[1].cardio!.durationMin).toBe(35);
     expect(proposalToFeedback("longer ride", { summary: "s", changes: [c] })).toContain("- Day 2, cardio session (edit): Tempo Ride → Tempo Ride — 35 min · Z3");
   });
   test("proposalToFeedback lists each change", () => {
@@ -268,6 +278,122 @@ describe("chat proposals", () => {
   });
   test("proposalToFeedback names the areas the build must not touch", () => {
     const text = proposalToFeedback("swap it", { summary: "s", changes: [{ day: 1, slot: 1, kind: "swap", from: "A", to: "B", detail: "3×5" }] });
-    expect(text).toContain("Do not change: the block plan / phasing (weeks, targets, next block), cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.");
+    expect(text).toContain("Do not change: the block plan / phasing (weeks, targets, next block), the week letters, cardio sessions not listed, session names, kinds and types, or any slot not listed. Keep rep ranges, loads and set types exactly as they are.");
+  });
+});
+
+describe("draft weeks", () => {
+  const session = (name: string, ...exercises: string[]) => ({
+    name,
+    kind: "lifting" as const,
+    exercises: exercises.map((n) => ({ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] })),
+  });
+  const block = (weeks: { week: number; rotation?: "A" | "B"; sessions: ReturnType<typeof session>[] }[]) => ({
+    name: "Block",
+    rationale: "",
+    clientSummary: "",
+    weeks,
+  });
+
+  test("an old one-week draft reads as that week copied to every planned week", () => {
+    const old = { name: "Old", rationale: "", clientSummary: "", phasing: { plannedWeeks: 3, phase: "accumulation" }, sessions: [session("Lower", "Squat")] };
+    const d = AiProgramDraft.parse(old);
+    expect(d.weeks.map((w) => w.week)).toEqual([1, 2, 3]);
+    expect(d.weeks[2].sessions[0].exercises[0].exerciseName).toBe("Squat");
+    expect("sessions" in d).toBe(false);
+    // Without phasing it is one week; a draft with weeks passes through.
+    expect((upgradeDraft({ ...old, phasing: undefined }) as AiProgramDraft).weeks).toHaveLength(1);
+    const already = block([{ week: 1, sessions: [session("Lower", "Squat")] }]);
+    expect(upgradeDraft(already)).toBe(already);
+  });
+
+  test("weeks must be in order, each once", () => {
+    const s = [session("Lower", "Squat")];
+    expect(AiProgramDraft.safeParse(block([{ week: 2, sessions: s }, { week: 1, sessions: s }])).success).toBe(false);
+    expect(AiProgramDraft.safeParse(block([{ week: 1, sessions: s }, { week: 1, sessions: s }])).success).toBe(false);
+  });
+
+  test("block rules: every planned week, same lifting count, odd A / even B, B differs from A", () => {
+    const a = [session("Lower", "Squat"), session("Upper", "Bench")];
+    const b = [session("Lower", "Deadlift"), session("Upper", "Overhead Press")];
+    const ab = block([
+      { week: 1, rotation: "A", sessions: a },
+      { week: 2, rotation: "B", sessions: b },
+      { week: 3, rotation: "A", sessions: a },
+      { week: 4, rotation: "B", sessions: b },
+    ]);
+    expect(draftWeekIssues(ab, { plannedWeeks: 4, alternate: true })).toEqual([]);
+    expect(draftWeekIssues(ab, { plannedWeeks: 5, alternate: true })).toEqual(["missing week 5: write every week of the block in full"]);
+    const sameAsA = { ...ab, weeks: ab.weeks.map((w) => ({ ...w, sessions: a })) };
+    expect(draftWeekIssues(sameAsA, { plannedWeeks: 4, alternate: true })).toEqual([
+      "the B routine repeats the A routine: B weeks must use different exercises",
+    ]);
+    const swapped = { ...ab, weeks: ab.weeks.map((w) => ({ ...w, rotation: w.rotation === "A" ? ("B" as const) : ("A" as const) })) };
+    expect(draftWeekIssues(swapped, { plannedWeeks: 4, alternate: true })[0]).toContain('week 1 must be rotation "A"');
+    const short = { ...ab, weeks: [ab.weeks[0], { ...ab.weeks[1], sessions: [b[0]] }] };
+    expect(draftWeekIssues(short, { plannedWeeks: 2, alternate: true })).toEqual(["week 2 has 1 lifting sessions, not 2"]);
+    expect(draftWeekIssues(ab, { plannedWeeks: 4, alternate: true, liftingSessions: 3 })).toHaveLength(4);
+  });
+
+  test("a same-every-week block drops letters the AI added; fill drafts leave locked weeks out", () => {
+    const s = [session("Lower", "Squat")];
+    const lettered = block([{ week: 1, rotation: "A", sessions: s }, { week: 2, rotation: "B", sessions: s }]);
+    const parsed = blockDraftSchema({ plannedWeeks: 2, alternate: false }).parse(lettered);
+    expect(parsed.weeks.map((w) => w.rotation)).toEqual([undefined, undefined]);
+    const fill = block([{ week: 2, sessions: s }, { week: 3, sessions: s }]);
+    expect(draftWeekIssues(fill, { plannedWeeks: 3, alternate: false, lockedWeeks: [1] })).toEqual([]);
+    expect(draftWeekIssues(block([{ week: 1, sessions: s }, ...fill.weeks]), { plannedWeeks: 3, alternate: false, lockedWeeks: [1] })).toEqual([
+      "week 1 is the trainer's (locked): leave it out",
+    ]);
+  });
+
+  test("sameLetterWeeks: every week with the letter, or every week without letters", () => {
+    const s = [session("Lower", "Squat")];
+    const ab = block([1, 2, 3, 4].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: s })));
+    expect(sameLetterWeeks(ab, 2)).toEqual([2, 4]);
+    expect(sameLetterWeeks(block([1, 2, 3].map((week) => ({ week, sessions: s }))), 2)).toEqual([1, 2, 3]);
+  });
+
+  test("mockApplyProposal edits every week the change reaches", () => {
+    const ab = block([1, 2, 3].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: [session("Lower", "Squat")] })));
+    const next = mockApplyProposal(ab, { summary: "s", changes: [{ week: 1, day: 1, slot: 1, kind: "edit", from: "Squat", to: "Squat", detail: "" }] });
+    const rest = next.weeks.map((w) => w.sessions[0].exercises[0].prescribedSets[0].restSeconds);
+    expect(rest).toEqual([75, undefined, 75]);
+  });
+});
+
+describe("resizeDraftWeeks", () => {
+  const s = (n: string) => [{ name: n, kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+  const ab: AiProgramDraft = {
+    name: "B",
+    rationale: "",
+    clientSummary: "",
+    weeks: [
+      { week: 1, rotation: "A", sessions: s("Squat") },
+      { week: 2, rotation: "B", sessions: s("Deadlift") },
+    ],
+  };
+  test("grows by copying the last week with the new week's letter, and cuts", () => {
+    const grown = resizeDraftWeeks(ab, 5);
+    expect(grown.weeks.map((w) => `${w.week}${w.rotation}:${w.sessions[0].name}`)).toEqual(["1A:Squat", "2B:Deadlift", "3A:Squat", "4B:Deadlift", "5A:Squat"]);
+    expect(resizeDraftWeeks(grown, 3).weeks.map((w) => w.week)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("mentionsAlternating", () => {
+  test("A/B, alternate, odd/even and Thai say alternate; plain notes don't", () => {
+    for (const n of ["make it A/B weeks", "Alternate lower focus", "odd/even weeks differ", "Week B is lighter", "สัปดาห์คี่ squat", "สลับท่า"]) {
+      expect(mentionsAlternating(n)).toBe(true);
+    }
+    for (const n of ["more volume on bench", "a bit heavier", "about 4 weeks"]) expect(mentionsAlternating(n)).toBe(false);
+  });
+});
+
+describe("withLockedWeeks", () => {
+  test("the trainer's weeks come back locked, in order; an AI copy of a locked week is dropped", () => {
+    const s = (n: string) => [{ name: n, kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+    const ai: AiProgramDraft = { name: "F", rationale: "", clientSummary: "", weeks: [{ week: 1, sessions: s("AI W1") }, { week: 2, sessions: s("W2") }, { week: 3, sessions: s("W3") }] };
+    const merged = withLockedWeeks(ai, [{ week: 1, sessions: s("Mine") }]);
+    expect(merged.weeks.map((w) => `${w.week}:${w.sessions[0].name}:${w.locked ?? false}`)).toEqual(["1:Mine:true", "2:W2:false", "3:W3:false"]);
   });
 });

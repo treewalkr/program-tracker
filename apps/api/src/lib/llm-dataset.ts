@@ -14,6 +14,7 @@ import {
   type LlmCallRow,
 } from "@pt/db";
 import { anchorText, type LlmLabel, type LlmPurpose, type NoteAnchor } from "@pt/shared";
+import type { ProgramWeek } from "@pt/shared";
 
 /**
  * Reusable datasets over the LLM log (docs/llm-logging-plan.md §7): SFT and
@@ -139,10 +140,16 @@ async function targetFor(
   const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, ex.generationId));
   const [prog] = await db.select().from(programs).where(eq(programs.id, programId));
   if (!gen || !prog) return null;
+  const draft = call.parsed as Record<string, unknown>;
+  // What the prompt asked for: one week (week drafts and calls from before
+  // FB-013, whose output had `sessions`), else every week the AI wrote
+  // (a fill leaves the trainer's locked weeks out).
+  const oneWeek = gen.kind === "week" || (Array.isArray(draft.sessions) && !Array.isArray(draft.weeks));
+  const lockedNos = new Set(gen.draft?.weeks.filter((w) => w.locked).map((w) => w.week) ?? []);
   const weekNo = gen.kind === "week" ? gen.targetWeek : prog.sessions[0]?.week;
-  const week = prog.sessions.find((w) => w.week === weekNo);
-  if (!week) return null;
-  const ids = [...new Set(week.sessions.flatMap((s) => s.exercises.map((e) => e.exerciseId)))];
+  const target = oneWeek ? prog.sessions.filter((w) => w.week === weekNo) : prog.sessions.filter((w) => !lockedNos.has(w.week));
+  if (!target.length) return null;
+  const ids = [...new Set(target.flatMap((w) => w.sessions.flatMap((s) => s.exercises.map((e) => e.exerciseId))))];
   const names = new Map(
     ids.length
       ? (await db.select({ id: exercises.id, name: exercises.name }).from(exercises).where(inArray(exercises.id, ids))).map(
@@ -150,10 +157,8 @@ async function targetFor(
         )
       : []
   );
-  const draft = call.parsed as Record<string, unknown>;
-  return JSON.stringify({
-    ...draft,
-    sessions: week.sessions.map((s) => ({
+  const sessionsOf = (week: ProgramWeek) =>
+    week.sessions.map((s) => ({
       name: s.name,
       kind: s.kind,
       ...(s.typeName ? { type: s.typeName } : {}),
@@ -164,8 +169,13 @@ async function targetFor(
         ...(e.group ? { group: e.group } : {}),
         prescribedSets: e.prescribedSets,
       })),
-    })),
-  });
+    }));
+  const { sessions: _s, weeks: _w, ...rest } = draft;
+  return JSON.stringify(
+    oneWeek
+      ? { ...rest, sessions: sessionsOf(target[0]) }
+      : { ...rest, weeks: target.map((w) => ({ week: w.week, ...(w.rotation ? { rotation: w.rotation } : {}), sessions: sessionsOf(w) })) }
+  );
 }
 
 // ---------------------------------------------------------------------------

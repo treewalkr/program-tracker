@@ -1,6 +1,6 @@
 import {
   progressBlock,
-  diffDrafts,
+  diffWeekSessions,
   plannedVolume,
   progressionLabel,
   sessionsInSeqOrder,
@@ -108,7 +108,7 @@ export function progressionPreview(
       rule,
       isNew: !saved,
       changes: saved
-        ? diffDrafts({ sessions: sessionsInSeqOrder(saved.sessions) }, { sessions: sessionsInSeqOrder(w.sessions) })
+        ? diffWeekSessions({ sessions: sessionsInSeqOrder(saved.sessions) }, { sessions: sessionsInSeqOrder(w.sessions) })
         : [],
       planned: plannedVolume(w.sessions, maxes),
     };

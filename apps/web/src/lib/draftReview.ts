@@ -13,7 +13,7 @@ import {
   type ProgramSession,
   type ProgressionKind,
 } from "@pt/shared";
-import type { AiDraftDto, ClientDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
+import type { AiDraftWeekDto, ClientDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
 
 // ---- block plan ----
 
@@ -130,7 +130,8 @@ export interface ReviewCheck {
 
 /** Facts a trainer checks before approving, computed from the draft and catalog. */
 export function reviewChecks(
-  draft: AiDraftDto,
+  /** One draft week (the one shown). */
+  draft: Pick<AiDraftWeekDto, "sessions">,
   sessionsPerWeek: number | null,
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
   /** Client availability; when given, AI weekdays are checked against the placement rules. */
@@ -173,7 +174,7 @@ export function reviewChecks(
 
 /** AI weekdays vs the placement rules: each break is re-placed on approval (F03, F26). */
 function weekdayChecks(
-  draft: AiDraftDto,
+  draft: Pick<AiDraftWeekDto, "sessions">,
   days: PlacementDaysInput,
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>
 ): ReviewCheck[] {

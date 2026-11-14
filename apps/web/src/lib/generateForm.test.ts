@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, SessionLogDto } from "./api/types";
 import {
+  defaultBlockWeeks,
+  defaultWeeksChoice,
+  estimatedWaitSeconds,
+  waitLabel,
   composeRequest,
   generateSubtitle,
   instructionsPreview,
@@ -273,4 +277,24 @@ test("preview mirrors the prompt lines", () => {
   expect(instructionsPreview({ direction: "D", learned: "L", instructions: "" })).toBe(
     "STANDING DIRECTION (block-level — applies to every generation of this block): D\n\nLEARNED PREFERENCES (the trainer's standing style, distilled from past feedback — apply alongside the rules above):\nL\n\nTRAINER INSTRUCTIONS: none"
   );
+});
+
+describe("block length and Weeks (FB-013)", () => {
+  const prog = (weeks: number, ab = false) =>
+    ({ phasing: null, weeks: Array.from({ length: weeks }, (_, i) => ({ week: i + 1, ...(ab ? { rotation: i % 2 ? "B" : "A" } : {}), sessions: [] })) }) as never;
+  test("length follows the current program, capped 2–12; else 4", () => {
+    expect(defaultBlockWeeks(null)).toBe(4);
+    expect(defaultBlockWeeks(prog(6))).toBe(6);
+    expect(defaultBlockWeeks(prog(16))).toBe(12);
+  });
+  test("Weeks follows the current program, else the trainer's last choice", () => {
+    expect(defaultWeeksChoice(prog(4, true), "same")).toBe("alternate");
+    expect(defaultWeeksChoice(prog(4), "alternate")).toBe("same");
+    expect(defaultWeeksChoice(null, "alternate")).toBe("alternate");
+  });
+  test("estimated wait scales with weeks", () => {
+    expect(estimatedWaitSeconds("zai", 8)).toBe(210 * 8);
+    expect(waitLabel(estimatedWaitSeconds("zai", 8))).toBe("about 28 min");
+    expect(waitLabel(estimatedWaitSeconds("deepseek", 4))).toBe("about 80 s");
+  });
 });

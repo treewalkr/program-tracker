@@ -14,7 +14,7 @@ const draft: AiProgramDraft = {
   name: "Block",
   rationale: "",
   clientSummary: "",
-  sessions: [
+  weeks: [{ week: 1, sessions: [
     {
       name: "Lower",
       kind: "lifting",
@@ -22,7 +22,7 @@ const draft: AiProgramDraft = {
     },
     { name: "Run", kind: "cardio", exercises: [], cardio: { modality: "run", durationMin: 30 } },
     { name: "Upper", kind: "lifting", exercises: [ex("Bench", "primary"), ex("Row", "strength")] },
-  ],
+  ] }],
 } as AiProgramDraft;
 
 const labelsOf = (items: { label: string; disabled?: boolean; section?: string }[]) =>
@@ -58,7 +58,8 @@ describe("row menu", () => {
   });
 
   test("a trainer-ordered draft is offered moves as stored: Primary below Str can move up", () => {
-    const d = { ...draft, sessions: [draft.sessions[0], draft.sessions[1], { ...draft.sessions[2], exercises: [ex("Row", "strength"), ex("Bench", "primary")] }] };
+    const w = draft.weeks[0].sessions;
+    const d = { ...draft, weeks: [{ week: 1, sessions: [w[0], w[1], { ...w[2], exercises: [ex("Row", "strength"), ex("Bench", "primary")] }] }] };
     const keep = { keepOrder: true };
     expect(labelsOf(rowMenuItems(d, { day: 3, slot: 2 }, () => {}, undefined, keep)).slice(0, 3)).toEqual([
       "Move up",

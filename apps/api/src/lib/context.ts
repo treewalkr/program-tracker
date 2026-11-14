@@ -21,6 +21,9 @@ import {
   selectExamples,
   sessionsInSeqOrder,
   weekDraftBasis,
+  isAlternating,
+  ROTATIONS,
+  type ProgramWeek,
   weekOf,
 } from "@pt/shared";
 import { ContextError } from "../ai/runtime";
@@ -58,12 +61,8 @@ export async function loadContext(
       const targetWeekObj = basis
         ? p.sessions.find((w) => w.week === basis) ?? p.sessions[p.sessions.length - 1]
         : p.sessions[p.sessions.length - 1];
-      const targetSessions = targetWeekObj ? sessionsInSeqOrder(targetWeekObj.sessions) : [];
-      previous = {
-        name: p.name,
-        ...(basis && targetWeekObj ? { week: targetWeekObj.week } : {}),
-        ...(basis && targetWeekObj?.rotation ? { rotation: targetWeekObj.rotation } : {}),
-        sessions: targetSessions.map((s) => ({
+      const summarize = (w: ProgramWeek | undefined) =>
+        (w ? sessionsInSeqOrder(w.sessions) : []).map((s) => ({
           name: s.name,
           kind: s.kind,
           exercises: s.exercises.map((e, i) => ({
@@ -75,7 +74,21 @@ export async function loadContext(
                 `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
             ),
           })),
-        })),
+        }));
+      // Next block from an A/B program: the AI sees both routines (the latest week of each letter).
+      const routines =
+        !basis && isAlternating(p.sessions)
+          ? ROTATIONS.flatMap((r) => {
+              const w = p.sessions.filter((x) => x.rotation === r).at(-1);
+              return w ? [{ week: w.week, rotation: r, sessions: summarize(w) }] : [];
+            })
+          : [];
+      previous = {
+        name: p.name,
+        ...(basis && targetWeekObj ? { week: targetWeekObj.week } : {}),
+        ...(basis && targetWeekObj?.rotation ? { rotation: targetWeekObj.rotation } : {}),
+        sessions: summarize(targetWeekObj),
+        ...(routines.length > 1 ? { routines } : {}),
       };
     }
   }

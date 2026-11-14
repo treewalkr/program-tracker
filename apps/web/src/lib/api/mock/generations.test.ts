@@ -73,3 +73,24 @@ describe("mock seed programs", () => {
     expect(w1.some((s) => s.weekday == null)).toBe(true);
   });
 });
+
+describe("mockApi fill (FB-013)", () => {
+  test("A/B: W1 and W2 stay the trainer's, W3–W6 are written from them on approve", async () => {
+    const wk = (week: number) => ({
+      week,
+      rotation: week % 2 ? ("A" as const) : ("B" as const),
+      sessions: [{ id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "lifting" as const, weekday: 1,
+        exercises: [{ id: crypto.randomUUID(), exerciseId: week % 2 ? "ex-squat" : "ex-dead", order: 0, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false, targetWeightKg: 100 }] }] }],
+    });
+    const before = await mockApi.createProgram({ clientId: "cl-maya", name: "Fill me", weeks: [1, 2, 3, 4, 5, 6].map(wk) });
+    const gen = await mockApi.fillProgram({ clientId: "cl-maya", programId: before.id, providerId: "mock" });
+    expect(gen.kind).toBe("fill");
+    expect(gen.draft!.weeks.map((w) => `${w.week}${w.rotation}${w.locked ? "*" : ""}`)).toEqual(["1A*", "2B*", "3A", "4B", "5A", "6B"]);
+    expect(gen.draft!.weeks[3].sessions[0].exercises[0].exerciseId).toBe("ex-dead");
+    const after = await mockApi.approveGeneration(gen.id);
+    expect(after.weeks[0]).toEqual(before.weeks[0]);
+    expect(after.weeks[1]).toEqual(before.weeks[1]);
+    expect(after.weeks[2].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBe(102.5);
+    expect(after.weeks[2].sessions[0].weekday).toBe(1);
+  });
+});

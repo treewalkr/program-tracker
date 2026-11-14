@@ -9,8 +9,8 @@ describe("mock adapter: draft hand edits", () => {
       const clientId = "cl-maya";
       await mockApi.clearChat(clientId);
       const g = await mockApi.generate({ clientId });
-      const first = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1);
-      const target = g.draft!.sessions.findIndex((s, i) => i !== first && s.kind !== "cardio");
+      const first = g.draft!.weeks[0].sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1);
+      const target = g.draft!.weeks[0].sessions.findIndex((s, i) => i !== first && s.kind !== "cardio");
       expect(first).toBeGreaterThanOrEqual(0);
       expect(target).toBeGreaterThanOrEqual(0);
 
@@ -40,8 +40,8 @@ describe("mock adapter: draft hand edits", () => {
     async () => {
       const g = await mockApi.generate({ clientId: "cl-maya" });
       const turn = await mockApi.chatTurn({ clientId: "cl-maya", generationId: g.id, message: "Cut accessories to 2 sets" });
-      const first = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1);
-      const target = g.draft!.sessions.findIndex((s, i) => i !== first && s.kind !== "cardio");
+      const first = g.draft!.weeks[0].sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1);
+      const target = g.draft!.weeks[0].sessions.findIndex((s, i) => i !== first && s.kind !== "cardio");
       await mockApi.editDraft(g.id, [{ op: "moveTo", refs: [{ day: first + 1, slot: 1 }], day: target + 1 }]);
       await expect(mockApi.buildProposal(turn.messages[1].id, {})).rejects.toThrow("edited by hand");
     },
@@ -53,20 +53,20 @@ describe("mock adapter: draft hand edits", () => {
     async () => {
       const g = await mockApi.generate({ clientId: "cl-maya" });
       expect(g.trainerOrder ?? false).toBe(false);
-      const day = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1) + 1;
-      const last = g.draft!.sessions[day - 1].exercises.length;
+      const day = g.draft!.weeks[0].sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 1) + 1;
+      const last = g.draft!.weeks[0].sessions[day - 1].exercises.length;
       // The bottom row moves up, whatever its role.
       const res = await mockApi.editDraft(g.id, [{ op: "move", refs: [{ day, slot: last }], dir: "up" }]);
       expect(res.generation.trainerOrder).toBe(true);
-      const order = res.generation.draft!.sessions[day - 1].exercises.map((e) => e.exerciseName);
+      const order = res.generation.draft!.weeks[0].sessions[day - 1].exercises.map((e) => e.exerciseName);
 
       const again = await mockApi.editDraft(res.generation.id, [{ op: "move", refs: [{ day, slot: 1 }], dir: "down" }]);
       expect(again.generation.trainerOrder).toBe(true);
-      const next = again.generation.draft!.sessions[day - 1].exercises.map((e) => e.exerciseName);
+      const next = again.generation.draft!.weeks[0].sessions[day - 1].exercises.map((e) => e.exerciseName);
       expect(next.slice(0, 2)).toEqual([order[1], order[0]]);
 
       const program = await mockApi.approveGeneration(again.generation.id);
-      const seq = g.draft!.sessions.slice(0, day).filter((s) => s.kind !== "cardio").length;
+      const seq = g.draft!.weeks[0].sessions.slice(0, day).filter((s) => s.kind !== "cardio").length;
       const s = program.weeks[0].sessions.find((x) => x.kind === "lifting" && x.seq === seq)!;
       expect(s.exercises.map((e) => e.exerciseName)).toEqual(next);
     },
@@ -79,7 +79,7 @@ describe("mock adapter: draft hand edits", () => {
       const clientId = "cl-maya";
       await mockApi.clearChat(clientId);
       const g = await mockApi.generate({ clientId });
-      const day = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 2) + 1;
+      const day = g.draft!.weeks[0].sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 2) + 1;
       expect(day).toBeGreaterThan(0);
       const up = (slot: number) => [{ op: "move" as const, refs: [{ day, slot }], dir: "up" as const }];
 
@@ -115,7 +115,7 @@ describe("mock adapter: draft hand edits", () => {
     "an open proposal on the hand-edit version stops the fold",
     async () => {
       const g = await mockApi.generate({ clientId: "cl-maya" });
-      const day = g.draft!.sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 2) + 1;
+      const day = g.draft!.weeks[0].sessions.findIndex((s) => s.kind !== "cardio" && s.exercises.length > 2) + 1;
       const a = await mockApi.editDraft(g.id, [{ op: "move", refs: [{ day, slot: 2 }], dir: "up" }]);
       await mockApi.chatTurn({ clientId: "cl-maya", generationId: a.generation.id, message: "Cut accessories to 2 sets" });
       const b = await mockApi.editDraft(a.generation.id, [{ op: "move", refs: [{ day, slot: 3 }], dir: "up" }]);

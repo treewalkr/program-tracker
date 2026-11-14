@@ -174,12 +174,14 @@
   });
   const latest = $derived(preview.version);
   const shown = $derived(view !== null && view <= latest ? view : latest);
-  const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById, roleLabels.all) : null);
+  /** Draft week shown in the pane (drafts with several weeks); null = the first. */
+  let draftWeekShown = $state<number | null>(null);
+  const vview = $derived(preview.target ? versionView(allGens, preview.target.id, shown, catalogById, roleLabels.all, draftWeekShown) : null);
   const vrows = $derived(preview.target ? versionRows(revisionChain(allGens, preview.target.id)) : []);
   const stamps = $derived(versionStamps(messages, allGens));
   /** Track labels for the draft a proposal targets (`change.day` = draft position). */
   const tagsFor = (genId: string | null | undefined) =>
-    draftSessionTags(allGens.find((g) => g.id === genId)?.draft?.sessions ?? []);
+    draftSessionTags(allGens.find((g) => g.id === genId)?.draft?.weeks[0]?.sessions ?? []);
   const shownUnproposed = $derived.by(() => {
     if (!vview) return [];
     for (const s of stamps.values()) if (s.generationId === vview.generation.id) return s.unproposed ?? [];
@@ -429,6 +431,7 @@
   /** Change row clicked: show that version and point at the row. */
   async function pick(c: SlotChange, s: Stamp) {
     view = s.version;
+    if (c.week != null) draftWeekShown = c.week;
     stripOpen = true;
     await tick();
     const day = paneEl?.querySelector<HTMLElement>(`.session-slot[data-day="${c.day}"]`);
@@ -659,6 +662,7 @@
           oncancel={cancel}
           bind:open={stripOpen}
           {editor}
+          onweek={(w) => (draftWeekShown = w)}
         />
       </div>
     </div>
