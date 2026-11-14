@@ -237,9 +237,6 @@ export function defaultWeeksChoice(current: Pick<ProgramDto, "weeks"> | null, la
   return last;
 }
 
-/** Waits longer than this suggest a faster provider. */
-export const LONG_WAIT_SECONDS = 180;
-
 /** Rough wait for a whole block: one week's typical time per week. */
 export function estimatedWaitSeconds(providerId: string, weeks: number): number {
   return typicalGenerationSeconds(providerId) * weeks;

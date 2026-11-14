@@ -19,7 +19,7 @@
  * filled). The fixture program is created as a draft and deleted afterwards
  * (--keep-fixture keeps it); the trainer's Weeks choice is restored.
  *
- * Usage: bun --env-file=.env.local run eval:block [--provider deepseek,zai]
+ * Usage: bun --env-file=.env.local run eval:block [--provider deepseek]
  *        [--model glm-5.3] [--effort low] [--only deepseek:b6-ab,fill-ab]
  *        [--concurrency 8] [--out /tmp/fb013-eval] [--probe 131072,65536]
  * --probe sends one tiny "long" call per max_tokens value (first provider)
@@ -32,7 +32,7 @@ import { parseArgs } from "node:util";
 
 const { values } = parseArgs({
   options: {
-    provider: { type: "string", default: "deepseek,zai" },
+    provider: { type: "string", default: "deepseek" },
     model: { type: "string" },
     effort: { type: "string" },
     only: { type: "string" },

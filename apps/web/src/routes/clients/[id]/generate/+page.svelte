@@ -13,7 +13,6 @@
     defaultBlockWeeks,
     defaultWeeksChoice,
     estimatedWaitSeconds,
-    LONG_WAIT_SECONDS,
     waitLabel,
     generateSubtitle,
     generateTitle,
@@ -80,7 +79,6 @@
   const fillTooLong = $derived(fillTarget !== null && fillTarget.weeks.length > MAX_AI_BLOCK_WEEKS);
   const abHint = $derived(!weekMode && !fillTarget && weeksChoice === "same" && mentionsAlternating(instructions));
   const waitSeconds = $derived(estimatedWaitSeconds(providerId, weekMode ? 1 : fillTarget ? fillWrites.length : blockWeeks));
-  const fasterProvider = $derived(providers.find((p) => p.id === "deepseek" && p.id !== providerId) ?? null);
   /** Built-in rules first (read-only, ids `builtin:<key>`), then the trainer's own. */
   const BUILTIN_TEMPLATES: InstructionTemplateDto[] = INSTRUCTION_PRESETS.map((p) => ({
     id: `builtin:${p.key}`,
@@ -674,12 +672,6 @@
             </Button>
           </div>
         </form>
-        {#if !weekMode && waitSeconds > LONG_WAIT_SECONDS && fasterProvider}
-          <p class="wait-hint">
-            {fillTarget ? fillWrites.length : blockWeeks} weeks on this model take {waitLabel(waitSeconds)}.
-            <button type="button" class="linkish" onclick={() => (providerId = fasterProvider.id)}>Try {fasterProvider.label}</button> — usually under a minute.
-          </p>
-        {/if}
         <p class="safe">Nothing goes live — the draft waits for your review.</p>
 
         {#if peek}
@@ -862,7 +854,6 @@
   .box-help { margin: -4px 14px 10px; font-size: 12px; }
   .box-help.bad { color: var(--bad); }
   .wait { font: 500 12px/1 var(--font-mono); color: var(--muted); }
-  .wait-hint { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
   .linkish { border: 0; background: none; padding: 0; font: inherit; color: var(--blue); text-decoration: underline; cursor: pointer; }
   .keep { display: flex; align-items: center; gap: 8px; padding: 4px 14px 10px; font-size: 13px; color: var(--muted); }
   .keep input { margin: 0; }

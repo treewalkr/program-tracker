@@ -4,7 +4,7 @@ import { mockApi } from "./api";
 describe("mockApi.providers (demo registry)", () => {
   test("T9 demo registry lists deepseek first — the default provider", async () => {
     const providers = await mockApi.providers();
-    expect(providers.map((p) => p.id)).toEqual(["deepseek", "zai", "mock"]);
+    expect(providers.map((p) => p.id)).toEqual(["deepseek", "mock"]); // zai is turned off
     const deepseek = providers.find((p) => p.id === "deepseek");
     expect(deepseek).toEqual({
       id: "deepseek",

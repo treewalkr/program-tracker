@@ -1,5 +1,5 @@
 import type { AiProviderConfig } from "@pt/shared";
-import { KNOWN_PROVIDERS } from "@pt/shared";
+import { DEFAULT_PROVIDER_ID, KNOWN_PROVIDERS } from "@pt/shared";
 
 /** Guard failure with an HTTP status — routes map it onto their error envelope. */
 export class ContextError extends Error {
@@ -13,6 +13,8 @@ export class ContextError extends Error {
 export function providerRuntime(providerId: string, model?: string) {
   const known: AiProviderConfig | undefined = KNOWN_PROVIDERS[providerId as keyof typeof KNOWN_PROVIDERS];
   const id = known?.id ?? providerId;
+  // A stale page or saved choice may still name a turned-off provider.
+  if (known?.disabled) throw new ContextError(400, `${known.label} is turned off; use ${KNOWN_PROVIDERS[DEFAULT_PROVIDER_ID].label}`);
   if (id === "mock") {
     if (model && model !== "mock-draft-v1")
       throw new ContextError(400, `model "${model}" not available for provider "mock"`);

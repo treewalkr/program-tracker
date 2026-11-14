@@ -17,7 +17,7 @@ import {
 
 /**
  * Every provider speaks the OpenAI chat-completions dialect.
- * Z.ai GLM flash is the default; more slot in by config when needed.
+ * DeepSeek is the default; more slot in by config when needed (`disabled` turns one off).
  */
 export const AiProviderConfig = z.object({
   /** Stable key used in DB records, e.g. "zai". */
@@ -46,6 +46,12 @@ export const AiProviderConfig = z.object({
    * default. Overridable via `<ID>_MODELS` (csv) / `<ID>_MODEL` (default).
    */
   models: z.array(z.string().min(1)).min(1),
+  /**
+   * Turned off: never offered (GET /v1/ai/providers) and never called
+   * (providerRuntime → 400). The entry stays so old generations and
+   * llm_calls that name it still display.
+   */
+  disabled: z.literal(true).optional(),
 });
 export type AiProviderConfig = z.infer<typeof AiProviderConfig>;
 
@@ -68,6 +74,8 @@ export const KNOWN_PROVIDERS = {
   zai: {
     id: "zai",
     label: "Z.ai GLM",
+    // Off since 2026-11-14 (owner): too slow for whole-block drafts and unverified at the block ceiling.
+    disabled: true,
     baseUrl: "https://api.z.ai/api/paas/v4",
     apiKeyEnvVar: "ZAI_API_KEY",
     maxOutputTokens: 8192,

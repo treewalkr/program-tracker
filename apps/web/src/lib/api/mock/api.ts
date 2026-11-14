@@ -545,7 +545,8 @@ export const mockApi: TrainerApi = {
   },
   async providers() {
     await delay(150);
-    return Object.values(KNOWN_PROVIDERS).map((p) => ({
+    // like GET /v1/ai/providers: a turned-off provider is never offered
+    return Object.values(KNOWN_PROVIDERS).filter((p) => !("disabled" in p && p.disabled)).map((p) => ({
       id: p.id,
       label: p.label,
       model: p.models[0],
@@ -1057,7 +1058,7 @@ export const mockApi: TrainerApi = {
       targetWeek: input.targetWeek ?? null,
       direction: input.direction ?? basedOn?.direction ?? null,
       providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
-      model: input.providerId === "openai" ? "gpt-4o-mini" : "glm-5.3-flash",
+      model: input.providerId === "openai" ? "gpt-4o-mini" : "deepseek-flash",
       effort: input.effort ?? null,
       status: "pending",
       draft: null,
@@ -1914,7 +1915,7 @@ export const mockApi: TrainerApi = {
         : null,
       document,
       providerId: input.providerId ?? DEFAULT_PROVIDER_ID,
-      model: input.model ?? "glm-5.3-flash",
+      model: input.model ?? "deepseek-flash",
       updatedAt: new Date().toISOString(),
     };
     state.preferences.unshift(row);
