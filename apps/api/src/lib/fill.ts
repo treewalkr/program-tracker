@@ -7,6 +7,7 @@ import {
   blockDraftSchema,
   fillLockedWeeks,
   isAlternating,
+  lockedLiftingSessions,
   loggedWeeks,
   programWeekToDraftWeek,
   withLockedWeeks,
@@ -63,7 +64,8 @@ export async function startFill(
 
   const alternate = isAlternating(weeks);
   const lockedWeeks = weeks.filter((w) => locked.includes(w.week)).map((w) => programWeekToDraftWeek(w, { locked: true }));
-  const block = { weeks: weeks.length, alternate, lockedWeeks: locked };
+  // Each AI week's lifting count: the trainer's locked week of its letter (prompt and schema agree).
+  const block = { weeks: weeks.length, alternate, lockedWeeks: locked, liftingSessions: lockedLiftingSessions(lockedWeeks, alternate) };
   const ctx = await loadContext(trainerId, body.clientId, null);
   const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
   const effort = resolveEffort(rt, body.effort);
@@ -96,7 +98,6 @@ export async function startFill(
   await recordRegenerated(trainerId, body.clientId, "fill", generation.id);
   const ac = registerGeneration(generation.id);
   try {
-    const lifting = lockedWeeks[0].sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length;
     const out = await callLlm({
       purpose: "fill_generate",
       builder: "buildFillMessages",
@@ -111,8 +112,8 @@ export async function startFill(
       signal: ac.signal,
       mode: "json",
       long: true,
-      // The weeks after the trainer's, each with their lifting count; letters odd A / even B.
-      schema: blockDraftSchema({ plannedWeeks: weeks.length, alternate, lockedWeeks: locked, liftingSessions: isMockRuntime(rt) ? null : lifting }),
+      // The weeks after the trainer's, each with its letter's lifting count; letters odd A / even B.
+      schema: blockDraftSchema({ plannedWeeks: weeks.length, alternate, lockedWeeks: locked, liftingSessions: isMockRuntime(rt) ? null : block.liftingSessions }),
       mock: () => JSON.stringify(mockFillDraft(lockedWeeks, { plannedWeeks: weeks.length, alternate, lockedWeeks: locked, phasing: program.phasing })),
     });
     const whole = out.ok ? { ...out, data: completeFill(out.data, program, lockedWeeks) } : out;

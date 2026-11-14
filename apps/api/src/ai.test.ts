@@ -4,6 +4,7 @@ import {
   buildChatSystem,
   buildDistillMessages,
   buildGenerationMessages,
+  buildFillMessages,
   buildImportMessages,
   buildRevisionMessages,
   buildWeekMessages,
@@ -36,6 +37,32 @@ describe("extractJsonObject", () => {
 
   test("extracts from surrounding prose", () => {
     expect(extractJsonObject('Here you go: {"a": {"b": 2}} — hope it helps!')).toBe('{"a": {"b": 2}}');
+  });
+});
+
+describe("buildFillMessages", () => {
+  test("the lifting-session line follows the trainer's locked weeks, per letter", () => {
+    const sess = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ name: `S${i + 1}`, kind: "lifting" as const, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }));
+    const lockedWeeks = [
+      { week: 1, rotation: "A" as const, locked: true, sessions: sess(2) },
+      { week: 2, rotation: "B" as const, locked: true, sessions: sess(3) },
+    ];
+    const { system } = buildFillMessages({
+      client: { name: "Ada", sessionsPerWeek: 4 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      block: { weeks: 6, alternate: true, lockedWeeks: [1, 2], liftingSessions: { A: 2, B: 3 } },
+      programName: "Block",
+      plan: null,
+      lockedWeeks,
+    });
+    expect(system).toContain('Lifting sessions (kind "lifting") per week: A weeks exactly 2, B weeks exactly 3');
+    expect(system).not.toContain("per week: exactly 4");
   });
 });
 

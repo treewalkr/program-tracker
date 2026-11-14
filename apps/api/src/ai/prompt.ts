@@ -11,6 +11,7 @@ import {
   type AiProgramDraft,
   type DraftSession,
   type DraftWeek,
+  type LiftingSessions,
   draftAlternates,
   sameLetterWeeks,
   type CardioTarget,
@@ -149,6 +150,8 @@ export interface BlockShape {
   alternate: boolean;
   /** Fill: weeks the trainer wrote — shown, never written. */
   lockedWeeks?: number[];
+  /** Fill: lifting sessions per week (per A/B letter), from the trainer's locked weeks — overrides the client's count. */
+  liftingSessions?: LiftingSessions | null;
 }
 
 export interface CoachingRulePrompt {
@@ -327,8 +330,14 @@ function oneRepMaxLines(client: ClientContext): string[] {
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** How many lifting sessions to ask for: the client's setting, else the current program's. */
-function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | null): string {
+/** How many lifting sessions to ask for: a fill's locked weeks, else the client's setting, else the current program's. */
+function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string {
+  const fill = block?.liftingSessions;
+  if (typeof fill === "number") return `exactly ${fill} (as in the trainer's locked weeks)`;
+  if (fill && (fill.A != null || fill.B != null)) {
+    const per = (["A", "B"] as const).flatMap((r) => (fill[r] != null ? [`${r} weeks exactly ${fill[r]}`] : []));
+    return `${per.join(", ")} (as in the trainer's locked weeks of the same letter)`;
+  }
   if (client.sessionsPerWeek) return `exactly ${client.sessionsPerWeek}`;
   const prev = previous?.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length ?? 0;
   return prev > 0
@@ -337,10 +346,10 @@ function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | 
 }
 
 /** Session-structure rules shared by every draft-producing prompt. */
-function sessionStructureRules(client: ClientContext, previous: ProgramSummary | null): string[] {
+function sessionStructureRules(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string[] {
   const days = [...new Set(client.trainingDays ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   return [
-    `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous)}. List them in the order they should be trained.`,
+    `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous, block)}. List them in the order they should be trained.`,
     '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the lifting session number and do not use up a training day. List cardio sessions after the lifting ones.',
     '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
     weekdayRule(client, days),
@@ -429,7 +438,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     GOLD_STANDARD_RULE,
-    ...sessionStructureRules(ctx.client, ctx.previousProgram),
+    ...sessionStructureRules(ctx.client, ctx.previousProgram, ctx.block),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
@@ -638,7 +647,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     GOLD_STANDARD_RULE,
-    ...sessionStructureRules(ctx.client, ctx.previousProgram),
+    ...sessionStructureRules(ctx.client, ctx.previousProgram, ctx.block),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",

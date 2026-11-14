@@ -29,6 +29,7 @@ import {
   resizeDraftWeeks,
   mentionsAlternating,
   withLockedWeeks,
+  lockedLiftingSessions,
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
@@ -358,6 +359,27 @@ describe("draft weeks", () => {
     expect(draftWeekIssues(fill, { plannedWeeks: 3, alternate: false, lockedWeeks: [1] })).toEqual([]);
     expect(draftWeekIssues(block([{ week: 1, sessions: s }, ...fill.weeks]), { plannedWeeks: 3, alternate: false, lockedWeeks: [1] })).toEqual([
       "week 1 is the trainer's (locked): leave it out",
+    ]);
+  });
+
+  test("fill: each AI week's lifting count comes from the trainer's locked week of its letter", () => {
+    const a = [session("Lower", "Squat"), session("Upper", "Bench")];
+    const b = [session("Lower", "Deadlift"), session("Upper", "Press"), session("Full", "Row")];
+    const locked = [
+      { week: 1, rotation: "A" as const, locked: true, sessions: a },
+      { week: 2, rotation: "B" as const, locked: true, sessions: b },
+    ];
+    const lifting = lockedLiftingSessions(locked, true);
+    expect(lifting).toEqual({ A: 2, B: 3 });
+    expect(lockedLiftingSessions(locked, false)).toBe(2);
+    const fill = block([
+      { week: 3, rotation: "A", sessions: a },
+      { week: 4, rotation: "B", sessions: b },
+    ]);
+    expect(draftWeekIssues(fill, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], liftingSessions: lifting })).toEqual([]);
+    const wrongB = { ...fill, weeks: [fill.weeks[0], { ...fill.weeks[1], sessions: b.slice(0, 2) }] };
+    expect(draftWeekIssues(wrongB, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], liftingSessions: lifting })).toEqual([
+      "week 4 has 2 lifting sessions, not 3",
     ]);
   });
 
