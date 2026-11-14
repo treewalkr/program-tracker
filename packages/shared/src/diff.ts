@@ -1,4 +1,4 @@
-import type { AiProgramDraft } from "./ai";
+import { draftWeek, type AiProgramDraft } from "./ai";
 import type { ProgramWeek } from "./domain";
 import { groupTag, type Groupable } from "./groups";
 
@@ -36,9 +36,10 @@ export function diffRowsToText(rows: DiffRow[]): string {
     .join("\n");
 }
 
-export function aiDraftToDiffSource(d: AiProgramDraft): DiffSource {
+/** One week of a draft (by number; the first week when absent) as a diff source. */
+export function aiDraftToDiffSource(d: AiProgramDraft, week?: number | null): DiffSource {
   return {
-    sessions: d.sessions.map((s) => ({
+    sessions: draftWeek(d, week).sessions.map((s) => ({
       name: s.name,
       ...(s.weekday != null ? { weekday: s.weekday } : {}),
       exercises: s.exercises.map((e, i) => ({

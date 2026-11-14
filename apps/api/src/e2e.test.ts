@@ -53,6 +53,25 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     clientId = body.id;
   });
 
+  test("an old one-week draft row reads back as weeks[] (legacy read)", async () => {
+    const trainerId = await getDefaultTrainerId();
+    const old = {
+      name: "Old",
+      rationale: "",
+      clientSummary: "",
+      phasing: { plannedWeeks: 3, phase: "accumulation" },
+      sessions: [{ name: "Lower", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] }],
+    };
+    const [{ id }] = (await db.execute(
+      sql`insert into ai_generations (trainer_id, client_id, provider_id, model, status, draft) values (${trainerId}, ${clientId}, 'mock', 'mock-draft-v1', 'validated', ${JSON.stringify(old)}::jsonb) returning id`
+    )) as unknown as { id: string }[];
+    const { body } = await call("GET", `/v1/ai/generations/${id}`);
+    expect(body.draft.sessions).toBeUndefined();
+    expect(body.draft.weeks.map((w: { week: number }) => w.week)).toEqual([1, 2, 3]);
+    expect(body.draft.weeks[2].sessions[0].exercises[0].exerciseName).toBe("Squat");
+    await db.delete(aiGenerations).where(eq(aiGenerations.id, id));
+  });
+
   test("find seeded exercises", async () => {
     const { body } = await call("GET", "/v1/exercises?q=squat");
     expect(body.length).toBeGreaterThan(0);
@@ -289,7 +308,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     });
     expect(status).toBe(201);
     expect(body.status).toBe("validated");
-    expect(body.draft.sessions.length).toBeGreaterThan(0);
+    expect(body.draft.weeks[0].sessions.length).toBeGreaterThan(0);
     (globalThis as any).__genId = body.id;
   });
 
@@ -320,13 +339,150 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.id).toBe(genId);
     expect(body.status).toBe("validated");
     expect(body.draft).toBeDefined();
-    expect(body.draft.sessions.length).toBeGreaterThan(0);
+    expect(body.draft.weeks[0].sessions.length).toBeGreaterThan(0);
   });
 
   test("GET /v1/ai/generations/:id 404s for unknown id", async () => {
     const { status, body } = await call("GET", `/v1/ai/generations/${crypto.randomUUID()}`);
     expect(status).toBe(404);
     expect(body.error).toBe("generation not found");
+  });
+
+  test("block length and A/B: every week drafted, odd A / even B, B ≠ A; approve keeps the letters", async () => {
+    const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 6, alternate: true });
+    expect(g.status).toBe(201);
+    const weeks = g.body.draft.weeks;
+    expect(weeks.map((w: any) => `${w.week}${w.rotation}`)).toEqual(["1A", "2B", "3A", "4B", "5A", "6B"]);
+    const names = (w: any) => w.sessions.flatMap((s: any) => s.exercises.map((e: any) => e.exerciseName)).join("|");
+    expect(names(weeks[0])).toBe(names(weeks[2]));
+    expect(names(weeks[0])).not.toBe(names(weeks[1]));
+    expect(g.body.draft.phasing.plannedWeeks).toBe(6);
+    const prog = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(prog.status).toBe(201);
+    expect(prog.body.weeks.map((w: any) => w.rotation)).toEqual(["A", "B", "A", "B", "A", "B"]);
+    // Loads progress per letter: W3's squat is heavier than W1's.
+    const squat = (w: any) => w.sessions[0].exercises.find((e: any) => /Squat/.test(e.exerciseName ?? ""))?.prescribedSets[0].targetWeightKg;
+    expect(squat(weeks[2])).toBeGreaterThan(squat(weeks[0]));
+  });
+
+  test("the trainer's last Weeks choice: generate records it, settings read and set it", async () => {
+    await call("PUT", "/v1/account/weeks-choice", { choice: "same" });
+    expect((await call("GET", "/v1/account/weeks-choice")).body).toEqual({ choice: "same" });
+    await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 2, alternate: true });
+    expect((await call("GET", "/v1/account/weeks-choice")).body).toEqual({ choice: "alternate" });
+    expect((await call("PUT", "/v1/account/weeks-choice", { choice: "abab" })).status).toBe(422);
+    expect((await call("PUT", "/v1/account/weeks-choice", { choice: "same" })).body).toEqual({ choice: "same" });
+  });
+
+  test("Fill with AI: writes the weeks after the trainer's; logged weeks lock everything before them (FB-013)", async () => {
+    const wk = (week: number, exerciseId: string) => ({
+      week,
+      rotation: week % 2 ? "A" : "B",
+      sessions: [{
+        id: crypto.randomUUID(),
+        name: "Lower",
+        seq: 1,
+        order: 0,
+        kind: "lifting",
+        exercises: [{ id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] }],
+      }],
+    });
+    const p = await call("POST", "/v1/programs", { name: "Fill me", clientId, weeks: [1, 2, 3, 4, 5, 6].map((w) => wk(w, w % 2 ? squatId : benchId)) });
+    expect(p.status).toBe(201);
+
+    const g = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    expect(g.body.kind).toBe("fill");
+    const weeks = g.body.draft.weeks;
+    expect(weeks.map((w: any) => `${w.week}${w.rotation}${w.locked ? "*" : ""}`)).toEqual(["1A*", "2B*", "3A", "4B", "5A", "6B"]);
+    // A weeks build on W1 (squat), B weeks on W2 (bench), loads up.
+    expect(weeks[2].sessions[0].exercises[0].exerciseId).toBe(squatId);
+    expect(weeks[3].sessions[0].exercises[0].exerciseId).toBe(benchId);
+    expect(weeks[2].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBeGreaterThan(100);
+
+    // A hand edit on a locked week is refused.
+    const locked = await call("POST", `/v1/ai/generations/${g.body.id}/edit`, { ops: [{ op: "move", refs: [{ day: 1, slot: 1 }], dir: "down", week: 1 }] });
+    expect(locked.status).toBe(422);
+
+    // Logging W3 before Apply: W3 is skipped, W4–W6 are written, W1–W2 untouched.
+    const w3 = p.body.weeks[2];
+    const log = await call("POST", "/v1/logs/sessions", {
+      clientId, programId: p.body.id, programSessionId: w3.sessions[0].id, date: new Date().toISOString().slice(0, 10),
+      sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+    });
+    expect(log.status).toBe(201);
+    const applied = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(applied.status).toBe(201);
+    expect(applied.body.id).toBe(p.body.id);
+    expect(applied.body.weeks[0]).toEqual(p.body.weeks[0]);
+    expect(applied.body.weeks[2]).toEqual(p.body.weeks[2]);
+    expect(applied.body.weeks[3].sessions[0].exercises[0].prescribedSets[0].targetWeightKg).toBeGreaterThan(100);
+    expect(applied.body.weeks.map((w: any) => w.rotation)).toEqual(["A", "B", "A", "B", "A", "B"]);
+
+    // A new fill now locks everything up to the logged W3.
+    const again = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(again.body.draft.weeks.filter((w: any) => w.locked).map((w: any) => w.week)).toEqual([1, 2, 3]);
+  });
+
+  test("Fill with AI: a program edited after the fill was drafted refuses the fill (409)", async () => {
+    const wk = (week: number) => ({
+      week,
+      sessions: [{
+        id: crypto.randomUUID(),
+        name: "Lower",
+        seq: 1,
+        order: 0,
+        kind: "lifting",
+        exercises: [{ id: crypto.randomUUID(), exerciseId: squatId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] }],
+      }],
+    });
+    const p = await call("POST", "/v1/programs", { name: "Stale fill", clientId, weeks: [1, 2, 3, 4].map(wk) });
+    const g = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    // The trainer edits W3 by hand after the fill was drafted.
+    const edited = structuredClone(p.body.weeks);
+    edited[2].sessions[0].exercises[0].prescribedSets[0].reps = 3;
+    expect((await call("PUT", `/v1/programs/${p.body.id}`, { weeks: edited })).status).toBe(200);
+    const applied = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(applied.status).toBe(409);
+    expect(applied.body.error).toBe("This program changed after the fill was drafted. Draft the fill again.");
+    const after = await call("GET", `/v1/programs/${p.body.id}`);
+    expect(after.body.weeks[2].sessions[0].exercises[0].prescribedSets[0].reps).toBe(3);
+    expect((await call("GET", `/v1/ai/generations/${g.body.id}`)).body.status).toBe("validated");
+  });
+
+  test("Fill with AI: every remaining week logged since drafting → nothing written (409)", async () => {
+    const wk = (week: number) => ({
+      week,
+      sessions: [{
+        id: crypto.randomUUID(),
+        name: "Lower",
+        seq: 1,
+        order: 0,
+        kind: "lifting",
+        exercises: [{ id: crypto.randomUUID(), exerciseId: squatId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] }],
+      }],
+    });
+    const p = await call("POST", "/v1/programs", { name: "All logged", clientId, weeks: [1, 2, 3].map(wk) });
+    const g = await call("POST", "/v1/ai/fill", { clientId, basedOnProgramId: p.body.id, providerId: "mock" });
+    expect(g.status).toBe(201);
+    for (const w of p.body.weeks.slice(1)) {
+      const log = await call("POST", "/v1/logs/sessions", {
+        clientId, programId: p.body.id, programSessionId: w.sessions[0].id, date: new Date().toISOString().slice(0, 10),
+        sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
+      });
+      expect(log.status).toBe(201);
+    }
+    const applied = await call("POST", `/v1/ai/generations/${g.body.id}/approve`, {});
+    expect(applied.status).toBe(409);
+    expect(applied.body.error).toBe("Every remaining week has been logged since this fill was drafted; nothing to write.");
+    expect((await call("GET", `/v1/programs/${p.body.id}`)).body.version).toBe(p.body.version);
+    expect((await call("GET", `/v1/ai/generations/${g.body.id}`)).body.status).toBe("validated");
+  });
+
+  test("AI block drafts are capped at 12 weeks", async () => {
+    const { status } = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 13 });
+    expect(status).toBe(422);
   });
 
   test("approve creates an AI-assisted DRAFT program (not client-visible)", async () => {
@@ -336,9 +492,10 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(body.status).toBe("draft");
     expect(body.createdFromProgramId).toBe(programId);
     expect(body.clientId).toBe(clientId);
-    // mock draft proposes phasing — approve carries it into the program
-    expect(body.phasing?.plannedWeeks).toBe(4);
-    expect(body.phasing?.weeks?.some((w: any) => w.directive === "deload")).toBe(true);
+    // mock draft proposes phasing — approve carries it into the program; the
+    // block length defaults to the current program's (2 weeks here)
+    expect(body.phasing?.plannedWeeks).toBe(2);
+    expect(body.weeks.map((w: any) => w.week)).toEqual([1, 2]);
     // every week holds the two lifting sessions and the cardio session on its own track
     for (const w of body.weeks) {
       expect(w.sessions).toHaveLength(3);
@@ -349,7 +506,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       expect(cardio.exercises).toEqual([]);
     }
     // every exercise carries its display name — the UI renders it directly
-    expect(body.weeks).toHaveLength(4);
+    expect(body.weeks).toHaveLength(2);
     for (const w of body.weeks) {
       for (const s of w.sessions) {
         for (const e of s.exercises) {
@@ -484,7 +641,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       name: "Breach Block",
       rationale: "15 sessions exceeds the 14-session week limit",
       clientSummary: "boundary test",
-      sessions: Array.from({ length: 15 }, (_, i) => ({
+      weeks: [{ week: 1, sessions: Array.from({ length: 15 }, (_, i) => ({
         name: `Day ${i + 1}`,
         kind: "lifting",
         exercises: [
@@ -493,7 +650,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
             prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }],
           },
         ],
-      })),
+      })) }],
     };
 
     const [gen] = await db
@@ -647,7 +804,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(locked.body.draft.phasing).toEqual(parent.body.draft.phasing);
     expect(locked.body.discardedChanges.map((c: any) => c.kind)).toContain("plan");
     // The rogue mock's cardio edit is not phasing: it stays and shows in the diff.
-    expect(locked.body.draft.sessions).not.toEqual(parent.body.draft.sessions);
+    expect(locked.body.draft.weeks[0].sessions).not.toEqual(parent.body.draft.weeks[0].sessions);
 
     const asked = await revise("make week 4 a lighter deload");
     expect(asked.status).toBe(201);
@@ -1763,7 +1920,7 @@ describe.skipIf(!dbUp)("weekly generation cadence", () => {
     expect(body.kind).toBe("week");
     expect(body.targetWeek).toBe(2);
     expect(body.status).toBe("validated");
-    expect(body.draft.sessions.length).toBe(3);
+    expect(body.draft.weeks[0].sessions.length).toBe(3);
     expect(body.draft.phasing).toBeUndefined();
     week2GenId = body.id;
   });
@@ -2510,7 +2667,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
   test("building a proposal creates the next version", async () => {
     const parent = await call("GET", `/v1/ai/generations/${genId}`);
     expect(parent.status).toBe(200);
-    const parentRest = parent.body.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds ?? 60;
+    const parentRest = parent.body.draft.weeks[0].sessions[0].exercises[0].prescribedSets[0].restSeconds ?? 60;
 
     const turn = await call("POST", "/v1/ai/chat/turn", {
       clientId,
@@ -2542,7 +2699,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(row.proposal.builtGenerationId).toBe(generation.id);
 
     // The mock build applies a +15s rest edit on day 1 slot 1
-    expect(generation.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(parentRest + 15);
+    expect(generation.draft.weeks[0].sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(parentRest + 15);
   });
 
   test("a proposal build keeps off-proposal AI edits out and lists them (F04)", async () => {
@@ -2564,17 +2721,19 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
     expect(gen.status).toBe("validated");
     // The rogue mock moved phasing and cardio; the stored draft keeps the parent's.
     expect(gen.draft.phasing).toEqual(parentDraft.phasing);
-    const cardioIdx = parentDraft.sessions.findIndex((s: any) => s.kind === "cardio");
-    expect(gen.draft.sessions[cardioIdx]).toEqual(parentDraft.sessions[cardioIdx]);
+    const cardioIdx = parentDraft.weeks[0].sessions.findIndex((s: any) => s.kind === "cardio");
+    expect(gen.draft.weeks[0].sessions[cardioIdx]).toEqual(parentDraft.weeks[0].sessions[cardioIdx]);
     // The proposed edit landed.
-    expect(gen.draft.sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(
-      (parentDraft.sessions[0].exercises[0].prescribedSets[0].restSeconds ?? 60) + 15
+    expect(gen.draft.weeks[0].sessions[0].exercises[0].prescribedSets[0].restSeconds).toBe(
+      (parentDraft.weeks[0].sessions[0].exercises[0].prescribedSets[0].restSeconds ?? 60) + 15
     );
     expect(gen.discardedChanges.map((c: any) => c.kind)).toContain("plan");
     expect(gen.discardedChanges.map((c: any) => c.kind)).toContain("cardio");
     // The confirmation names the exact count and the discarded ones.
     expect(res.body.messages[0].content).toStartWith("Built from the proposal: 1 change.");
-    expect(res.body.messages[0].content).toContain(`The AI also changed ${gen.discardedChanges.length} things outside the proposal. Kept as before.`);
+    // The cardio change repeated in all 4 weeks counts once, plus the next-phase change.
+    expect(gen.discardedChanges.filter((c: any) => c.kind === "cardio").map((c: any) => c.week)).toEqual([1, 2, 3, 4]);
+    expect(res.body.messages[0].content).toContain("The AI also changed 2 things outside the proposal. Kept as before.");
 
     const stored = await call("GET", `/v1/ai/generations/${gen.id}`);
     expect(stored.body.discardedChanges).toEqual(gen.discardedChanges);
@@ -2873,7 +3032,7 @@ describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
     expect(res.body.draft.phasing.weeks[1].directive).toBe("deload");
 
     const parent = await call("GET", `/v1/ai/generations/${genId}`);
-    expect(res.body.draft.sessions).toEqual(parent.body.draft.sessions);
+    expect(res.body.draft.weeks[0].sessions).toEqual(parent.body.draft.weeks[0].sessions);
     expect(parent.body.manualEdit).toBe(false);
   });
 
@@ -2922,6 +3081,24 @@ describe.skipIf(!dbUp)("block plan edit (no AI)", () => {
     const res = await call("POST", `/v1/ai/generations/${week.id}/phasing`, { phasing: original });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("week drafts follow the block's plan");
+  });
+
+  test("a draft longer than 12 weeks takes plan edits that keep its length; growing it past 12 is refused", async () => {
+    const parent = (await call("GET", `/v1/ai/generations/${genId}`)).body.draft as AiProgramDraft;
+    const plan = (n: number) => ({ ...structuredClone(original), plannedWeeks: n, weeks: Array.from({ length: n }, (_, i) => ({ week: i + 1, directive: "base" })) });
+    const long = { ...parent, weeks: Array.from({ length: 14 }, (_, i) => ({ ...structuredClone(parent.weeks[0]), week: i + 1 })), phasing: plan(14) };
+    const [row] = await db
+      .insert(aiGenerations)
+      .values({ trainerId, clientId, kind: "block", providerId: "mock", model: "mock-draft-v1", status: "validated", draft: long })
+      .returning();
+    const edited = plan(14);
+    edited.weeks[13] = { week: 14, directive: "deload" };
+    const res = await call("POST", `/v1/ai/generations/${row.id}/phasing`, { phasing: edited });
+    expect(res.status).toBe(201);
+    expect(res.body.draft.weeks).toHaveLength(14);
+    const grown = await call("POST", `/v1/ai/generations/${res.body.id}/phasing`, { phasing: plan(15) });
+    expect(grown.status).toBe(422);
+    expect(grown.body.error).toBe("AI block drafts are at most 12 weeks");
   });
 
   test("a plan edit while a revision is running is refused", async () => {

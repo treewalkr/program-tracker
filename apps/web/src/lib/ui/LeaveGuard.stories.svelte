@@ -85,3 +85,18 @@
     })}
   />
 </Story>
+
+<Story name="Several choices" asChild>
+  <LeaveGuard
+    guard={fake({
+      title: 'Make every week the same?',
+      body: 'Week A and week B have different workouts. Logged and deload weeks stay as they are.',
+      cancelLabel: 'Keep A/B weeks',
+      choices: [
+        { id: 'a', label: 'Use Week A for every week', hint: 'Week 2 copies week 1, week 4 copies week 3, and so on.' },
+        { id: 'b', label: 'Use Week B for every week', hint: 'Week 1 copies week 2, week 3 copies week 4, and so on.' },
+        { id: 'keep', label: "Keep each week's workouts", hint: 'Only the A/B letters go. B weeks keep their own workouts.' },
+      ],
+    })}
+  />
+</Story>

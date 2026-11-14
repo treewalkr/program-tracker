@@ -14,7 +14,7 @@ function gen(id: string, parent: string | null, sessions: AiDraftDto["sessions"]
     providerId: "mock",
     model: "mock",
     status: "validated",
-    draft: { name: "B", rationale: "", clientSummary: "", sessions },
+    draft: { name: "B", rationale: "", clientSummary: "", weeks: [{ week: 1, sessions }] },
     error: null,
     parentGenerationId: parent,
     revisionMessage: null,
@@ -90,8 +90,8 @@ describe("versionRows", () => {
   test("first draft, AI change summary, and the hand edit's own label", () => {
     const v1 = gen("a", null, [{ name: "A", exercises: [{ exerciseName: "Squat", prescribedSets: [set(5, 120)] }] }]);
     const v2 = { ...gen("b", "a", [{ name: "A", exercises: [{ exerciseName: "Squat", prescribedSets: [set(3, 120)] }] }]), revisionMessage: "Heavier squats" };
-    const v3 = { ...gen("c", "b", v2.draft!.sessions), manualEdit: true, revisionMessage: "Edited by you: moved Squat up in Session 1" };
-    const v4 = { ...gen("d", "c", v2.draft!.sessions), revisionMessage: "Keep it" };
+    const v3 = { ...gen("c", "b", v2.draft!.weeks[0].sessions), manualEdit: true, revisionMessage: "Edited by you: moved Squat up in Session 1" };
+    const v4 = { ...gen("d", "c", v2.draft!.weeks[0].sessions), revisionMessage: "Keep it" };
     expect(versionRows([v1, v2, v3, v4])).toEqual([
       { version: 1, by: "ai", label: "First draft" },
       { version: 2, by: "ai", label: "1 prescription edit" },

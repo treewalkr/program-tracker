@@ -7,6 +7,7 @@ import {
   programWeeksToDiffSource,
   type DiffRow,
   type AiProgramDraft,
+  draftFromSessions,
   type ProgramWeek,
 } from "./index";
 
@@ -29,7 +30,7 @@ describe("diffRowsToText", () => {
 
 describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
   test("aiDraftToDiffSource and programWeeksToDiffSource project domain shapes", () => {
-    const draft: AiProgramDraft = {
+    const draft: AiProgramDraft = draftFromSessions({
       name: "Draft 1",
       rationale: "Rationale",
       clientSummary: "Summary",
@@ -52,7 +53,7 @@ describe("aiDraftToDiffSource and programWeeksToDiffSource", () => {
           ],
         },
       ],
-    };
+    });
 
     const draftSource = aiDraftToDiffSource(draft);
     expect(draftSource).toEqual({
@@ -169,7 +170,7 @@ describe("diffSources sees moved sessions", () => {
   });
 
   test("sources carry weekdays: AI suggestions when given, program placement always", () => {
-    const draft = { name: "D", rationale: "", clientSummary: "", sessions: [{ name: "A", kind: "lifting", weekday: 5, exercises: [] }, { name: "B", kind: "lifting", weekday: null, exercises: [] }] } as unknown as AiProgramDraft;
+    const draft = { name: "D", rationale: "", clientSummary: "", weeks: [{ week: 1, sessions: [{ name: "A", kind: "lifting", weekday: 5, exercises: [] }, { name: "B", kind: "lifting", weekday: null, exercises: [] }] }] } as unknown as AiProgramDraft;
     expect(aiDraftToDiffSource(draft).sessions.map((s) => s.weekday)).toEqual([5, undefined]);
     const weeks = [{ week: 1, sessions: [{ id: "s", name: "A", seq: 1, order: 0, kind: "lifting", exercises: [] }] }] as unknown as ProgramWeek[];
     expect(programWeeksToDiffSource(weeks).sessions[0].weekday).toBeNull();

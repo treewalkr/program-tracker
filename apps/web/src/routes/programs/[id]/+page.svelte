@@ -11,7 +11,9 @@
     applyPlacementToAllWeeks,
     copyWeekTargets,
     copyWeekTo,
+    alternatingWeeksDiffer,
     isAlternating,
+    matchAlternatingWeeks,
     setAlternating,
     DEFAULT_DELOAD,
     deloadRulesText,
@@ -43,11 +45,11 @@
     type SessionKind,
     type SignalProgram,
   } from "@pt/shared";
-  import { EXAMPLE_LEVELS } from "@pt/shared";
+  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, programSubline, snapshot } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, matchNotice, programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
@@ -164,11 +166,41 @@
 
   // —— Alternate A/B and "Copy this week to…" (FB-013) ——————————————————
   const alternating = $derived(program ? isAlternating(program.weeks) : false);
-  /** Tag weeks odd A / even B, or drop the tags. Content is untouched. */
-  function setRotation(on: boolean) {
+  /** Tag weeks odd A / even B. Turning them off makes every week match: when the A and B
+   *  routines differ, the trainer picks Week A, Week B, or keeping each week as it is. */
+  async function setRotation(on: boolean) {
     if (!program) return;
-    program.weeks = setAlternating($state.snapshot(program.weeks) as ProgramWeek[], on);
+    const before = $state.snapshot(program.weeks) as ProgramWeek[];
+    if (on || !alternatingWeeksDiffer(before)) {
+      program.weeks = setAlternating(before, on);
+      return;
+    }
+    const a = await leaveGuard.ask({
+      title: "Make every week the same?",
+      body: "Week A and week B have different workouts. Logged and deload weeks stay as they are.",
+      cancelLabel: "Keep A/B weeks",
+      choices: [
+        { id: "A", label: "Use Week A for every week", hint: "Week 2 copies week 1, week 4 copies week 3, and so on." },
+        { id: "B", label: "Use Week B for every week", hint: "Week 1 copies week 2, week 3 copies week 4, and so on." },
+        { id: "keep", label: "Keep each week's workouts", hint: "Only the A/B letters go. B weeks keep their own workouts." },
+      ],
+    });
+    if (!program || a === "cancel" || a === "confirm" || a === "alt") return;
+    if (a === "choice:keep") {
+      program.weeks = setAlternating(before, false);
+      return;
+    }
+    const use = a === "choice:B" ? "B" : "A";
+    const { weeks, skipped } = matchAlternatingWeeks(before, use, hasLogs, isDeloadWeek);
+    program.weeks = weeks;
+    showToast(matchNotice(use, skipped), before);
   }
+  /** Planned deload weeks (block phasing) and weeks deloaded with the button: never overwritten. */
+  const isDeloadWeek = (week: number) => {
+    if (program?.phasing?.weeks?.some((p) => p.week === week && p.directive === "deload")) return true;
+    const w = program?.weeks.find((x) => x.week === week);
+    return w != null && isDeloaded(deloadUndo, $state.snapshot(w) as ProgramWeek);
+  };
   const hasLogs = (week: number) => {
     const wi = program?.weeks.findIndex((w) => w.week === week) ?? -1;
     return wi >= 0 && weekLogCount(program!.weeks[wi], wi) > 0;
@@ -191,8 +223,11 @@
     const { weeks, skipped } = copyWeekTo(before, currentWeek.week, targets, hasLogs);
     const changed = skipped.length < targets.length;
     if (changed) program.weeks = weeks;
+    showToast(copyNotice(currentWeek.week, targets, skipped), changed ? before : null);
+  }
+  function showToast(text: string, before: ProgramWeek[] | null) {
     clearTimeout(copyToastTimer);
-    copyToast = { text: copyNotice(currentWeek.week, targets, skipped), before: changed ? before : null };
+    copyToast = { text, before };
     copyToastTimer = setTimeout(() => (copyToast = null), 10000);
   }
   function undoCopy() {
@@ -451,14 +486,17 @@
     <div class="weeks-row">
       <div class="week-tabs">
         {#each program.weeks as w, wi (w.week)}
+          {@const logged = weekLogCount(w, wi)}
+          {@const loggedText = `${logged} ${logged === 1 ? "session" : "sessions"} logged`}
           <button
             type="button"
             class="tab-btn"
             class:active={wi === currentWeekIndex}
+            aria-label={[`W${w.week}`, w.rotation && `week ${w.rotation}`, logged > 0 && loggedText].filter(Boolean).join(", ")}
             onclick={() => (currentWeekIndex = wi)}
           >
-            W{w.week}{#if w.rotation}<span class="tab-letter" aria-label="week {w.rotation}">{w.rotation}</span>{/if}
-            {#if weekLogCount(w, wi) > 0}<span class="tab-logs" title="{weekLogCount(w, wi)} logged">{weekLogCount(w, wi)}</span>{/if}
+            W{w.week}{#if w.rotation}<span class="tab-letter">{w.rotation}</span>{/if}
+            {#if logged > 0}<span class="tab-logs" title={loggedText}><Icon name="check" />{logged}</span>{/if}
           </button>
         {/each}
       </div>
@@ -470,7 +508,7 @@
           onchange={(v) => setRotation(v === "ab")}
           items={[
             { value: "same", label: "Same every week" },
-            { value: "ab", label: "Alternate A/B", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
+            { value: "ab", label: "A/B weeks", title: "Tag odd weeks A and even weeks B. Nothing in the weeks changes; edit W2, then copy it to every B week." },
           ]}
         />
       {/if}
@@ -482,6 +520,16 @@
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(sessionsPatternBalance(currentWeek.sessions, patternOf))}</p>
       {#if editable && program.weeks.length > 1}
         <OverflowMenu items={copyItems} label="Copy week {currentWeek.week} to other weeks" text="Copy this week to…" icon="layers" />
+      {/if}
+      {#if editable && program.weeks.length > 1 && program.weeks.length <= MAX_AI_BLOCK_WEEKS && program.clientId}
+        <a
+          class="btn ghost small"
+          href={`/clients/${program.clientId}/generate?fill=${program.id}`}
+          title={dirty ? "Save your changes first — the AI reads the saved program" : "The AI rewrites every week after the last logged one; logged weeks and the ones before stay"}
+          aria-disabled={dirty}
+          class:disabled={dirty}
+          onclick={(e) => { if (dirty) e.preventDefault(); }}
+        >Fill remaining weeks with AI</a>
       {/if}
       {#if editable}
         <button class="btn ghost small" onclick={applyDeload} title={weekDeloaded ? `Restore week ${currentWeek.week} as it was before the deload` : `Deload week ${currentWeek.week}: ${deloadRulesText(deload)}`}>{weekDeloaded ? "Undo deload" : "Deload this week"}</button>
@@ -705,30 +753,34 @@
     {/if}
   {/if}
 
-  {#if copyToast}
-    <div class="copy-toast" role="status">
-      <Icon name="layers" />
-      <span class="msg">{copyToast.text}</span>
-      {#if copyToast.before}
-        <button type="button" class="btn small" onclick={undoCopy}><Icon name="undo" />Undo</button>
+  {#if copyToast || dirty}
+    <div class="dock">
+      {#if copyToast}
+        <div class="copy-toast" role="status">
+          <Icon name="layers" />
+          <span class="msg">{copyToast.text}</span>
+          {#if copyToast.before}
+            <button type="button" class="btn small" onclick={undoCopy}><Icon name="undo" />Undo</button>
+          {/if}
+          <button type="button" class="btn ghost small icon" aria-label="Dismiss" onclick={() => (copyToast = null)}><Icon name="x" /></button>
+        </div>
       {/if}
-      <button type="button" class="btn ghost small icon" aria-label="Dismiss" onclick={() => (copyToast = null)}><Icon name="x" /></button>
-    </div>
-  {/if}
 
-  {#if dirty}
-    <div class="savebar" role="region" aria-label="Unsaved changes">
-      <span class="savemsg">
-        {#if !validation.ok}
-          <span class="gate-error">{validation.message}</span>
-        {:else if saveError}
-          <span class="gate-error">Save failed: {saveError}</span>
-        {:else}
-          Unsaved changes · saving makes v{program.version + 1}. Clients log their own actual weights.
-        {/if}
-      </span>
-      <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
-      <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+      {#if dirty}
+        <div class="savebar" role="region" aria-label="Unsaved changes">
+          <span class="savemsg">
+            {#if !validation.ok}
+              <span class="gate-error">{validation.message}</span>
+            {:else if saveError}
+              <span class="gate-error">Save failed: {saveError}</span>
+            {:else}
+              Unsaved changes · saving makes v{program.version + 1}. Clients log their own actual weights.
+            {/if}
+          </span>
+          <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
+          <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+        </div>
+      {/if}
     </div>
   {/if}
 {/if}
@@ -761,12 +813,20 @@
 
   .tab-letter { margin-left: 4px; font: 500 11px var(--font-mono); color: var(--muted); }
   .tab-btn.active .tab-letter { color: inherit; }
-  /* Floats like the save bar, just above it; same look as the draft edit dock's toast. */
-  .copy-toast {
+  /* The copy toast and the save bar float together, toast on top, so the toast clears the bar at any height. */
+  .dock {
     position: sticky;
     bottom: 12px;
     z-index: 6;
     margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dock > :global(.savebar) { position: static; margin-top: 0; }
+  @media (max-width: 700px) { .dock { bottom: 60px; } }
+  /* Same look as the draft edit dock's toast. */
+  .copy-toast {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -777,11 +837,9 @@
     box-shadow: var(--shadow-overlay);
     font-size: 13px;
   }
-  .copy-toast:has(+ .savebar) { bottom: 68px; }
-  .copy-toast + :global(.savebar) { margin-top: 8px; }
   .copy-toast > :global(svg) { width: 14px; height: 14px; color: var(--muted); flex: none; }
   .copy-toast .msg { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
-  @media (max-width: 700px) { .copy-toast { bottom: 60px; } .copy-toast:has(+ .savebar) { bottom: 120px; } }
+  .btn.disabled { opacity: 0.55; cursor: default; }
   .weeks-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
   .week-tabs { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
   .tab-btn {
@@ -792,7 +850,10 @@
     color: var(--muted);
     cursor: pointer;
     border-radius: var(--radius);
+    white-space: nowrap;
+    flex: none;
   }
+  @media (max-width: 700px) { .tab-btn { padding: 6px 10px; } }
   .tab-btn.active {
     background: var(--well);
     color: var(--ink);
@@ -863,14 +924,20 @@
   .sess-notes, .exnotes { margin: 0; font-size: 12.5px; }
 
   /* What was done, under what was planned */
+  /* Logged sessions: a green check + count, set apart from the A/B letter by the tint and a gap. */
   .tab-logs {
-    margin-left: 6px;
-    font: 600 10.5px/1 var(--font-mono, ui-monospace, monospace);
-    padding: 2px 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 8px;
+    vertical-align: 1px;
+    font: 600 10.5px/1 var(--font-mono);
+    padding: 2px 6px 2px 4px;
     border-radius: 99px;
-    background: var(--good-bg, var(--well-2));
-    color: var(--good, var(--ink));
+    background: var(--good-bg);
+    color: var(--good);
   }
+  .tab-logs :global(svg) { width: 11px; height: 11px; stroke-width: 2.4; }
   .logged { display: flex; flex-direction: column; gap: 4px; }
   .logged-tag { display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px var(--font-ui); color: var(--good, var(--muted)); }
   .log-notes { margin: 0; font-size: 12px; white-space: pre-line; }

@@ -46,7 +46,7 @@ describe("GET /v1/ai/providers (deepseek)", () => {
   test("T3 providers route lists deepseek with its default model", async () => {
     const { status, body } = await call("GET", "/v1/ai/providers");
     expect(status).toBe(200);
-    expect(body.providers.map((p: any) => p.id)).toEqual(["deepseek", "zai", "mock"]);
+    expect(body.providers.map((p: any) => p.id)).toEqual(["deepseek", "mock"]);
     const deepseek = body.providers.find((p: any) => p.id === "deepseek");
     expect(deepseek.label).toBe("DeepSeek");
     expect(deepseek.model).toBe("deepseek-flash");
@@ -66,8 +66,14 @@ describe("GET /v1/ai/providers (deepseek)", () => {
     expect(JSON.stringify(body)).not.toContain("sk-test-not-real");
   });
 
-  test("T5 env overrides apply identically to zai and deepseek in the providers route", async () => {
-    for (const id of ["zai", "deepseek"] as const) {
+  test("T4b a turned-off provider (zai) is never offered, even with a key", async () => {
+    process.env.ZAI_API_KEY = "k";
+    const { body } = await call("GET", "/v1/ai/providers");
+    expect(body.providers.some((p: any) => p.id === "zai")).toBe(false);
+  });
+
+  test("T5 env overrides apply in the providers route", async () => {
+    for (const id of ["deepseek"] as const) {
       const upper = id.toUpperCase();
       process.env[`${upper}_MODELS`] = "m1,m2";
       process.env[`${upper}_MODEL`] = "m9";
@@ -106,14 +112,30 @@ describe("providerRuntime (deepseek)", () => {
       model: "deepseek-flash",
       apiKey: "k",
       maxOutputTokens: 65536,
+      blockOutputTokens: 131072,
       effortLevels: ["none", "low", "high", "max"],
       defaultEffort: "max",
     });
     expect(providerRuntime("deepseek", "deepseek-v4-pro").model).toBe("deepseek-v4-pro");
   });
 
-  test("T7 providerRuntime env overrides behave the same for zai and deepseek", () => {
-    for (const id of ["zai", "deepseek"] as const) {
+  test("T6b providerRuntime rejects a turned-off provider (zai) with a 400, key or not", () => {
+    process.env.ZAI_API_KEY = "k";
+    for (const model of [undefined, "glm-5.3-flash"]) {
+      let caught: any;
+      try {
+        providerRuntime("zai", model);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ContextError);
+      expect(caught.status).toBe(400);
+      expect(caught.message).toBe("Z.ai GLM is turned off; use DeepSeek");
+    }
+  });
+
+  test("T7 providerRuntime env overrides", () => {
+    for (const id of ["deepseek"] as const) {
       const upper = id.toUpperCase();
       process.env[`${upper}_API_KEY`] = "k";
 
@@ -203,9 +225,9 @@ describe("chatJson (deepseek request shape)", () => {
     };
 
     process.env.DEEPSEEK_API_KEY = "k";
-    process.env.ZAI_API_KEY = "k";
     const ds = providerRuntime("deepseek");
-    const glm5 = providerRuntime("zai", "glm-5.3-flash");
+    // zai is turned off; the GLM-5 wire params stay covered on a literal runtime
+    const glm5 = { ...ds, providerId: "zai", baseUrl: "https://api.z.ai/api/paas/v4", model: "glm-5.3-flash" };
 
     expect((await capture(ds, "max")).reasoning_effort).toBe("max");
     expect((await capture(ds, "none")).reasoning_effort).toBe("none"); // thinking off

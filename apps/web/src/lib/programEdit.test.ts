@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
-import { copyNotice, copyTargetLabel, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, withMode, withSetCount } from "./programEdit";
+import { copyNotice, copyTargetLabel, matchNotice, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, withMode, withSetCount } from "./programEdit";
 
 const set = (o: Partial<PrescribedSetDto> = {}): PrescribedSetDto => ({
   setNumber: 1,
@@ -123,5 +123,12 @@ describe("copy this week to…", () => {
     expect(copyNotice(2, [4, 6], [])).toBe("Copied W2 to W4, W6.");
     expect(copyNotice(2, [1, 3, 4], [1])).toBe("Copied W2 to W3, W4. W1 kept: has logs.");
     expect(copyNotice(2, [1, 3], [1, 3])).toBe("Nothing copied. W1, W3 kept: have logs.");
+  });
+});
+
+describe("matchNotice", () => {
+  test("names the letter and the weeks kept", () => {
+    expect(matchNotice("A", { logged: [], deload: [] })).toBe("Every week now follows Week A.");
+    expect(matchNotice("B", { logged: [1, 3], deload: [6] })).toBe("Every week now follows Week B. W1, W3 kept: have logs. W6 kept: deload week.");
   });
 });

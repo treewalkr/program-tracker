@@ -53,12 +53,12 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
     const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
     expect(g.status).toBe(201);
     genId = g.body.id;
-    expect(g.body.draft.sessions[0].exercises.length).toBeGreaterThan(1);
+    expect(g.body.draft.weeks[0].sessions[0].exercises.length).toBeGreaterThan(1);
   });
 
   test("an edit saves the next version, replayed on the server, with an edit note in the chat", async () => {
     const parent = (await call("GET", `/v1/ai/generations/${genId}`)).body;
-    const moved = parent.draft.sessions[0].exercises[1];
+    const moved = parent.draft.weeks[0].sessions[0].exercises[1];
     const res = await call("POST", `/v1/ai/generations/${genId}/edit`, {
       ops: [{ op: "moveTo", refs: [{ day: 1, slot: 2 }], day: 2 }],
     });
@@ -74,8 +74,8 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
     expect(generation.status).toBe("validated");
     expect(generation.manualEdit).toBe(true);
     expect(generation.revisionMessage).toStartWith("Edited by you: moved ");
-    expect(generation.draft.sessions[0].exercises).toHaveLength(parent.draft.sessions[0].exercises.length - 1);
-    expect(generation.draft.sessions[1].exercises).toContainEqual(moved);
+    expect(generation.draft.weeks[0].sessions[0].exercises).toHaveLength(parent.draft.weeks[0].sessions[0].exercises.length - 1);
+    expect(generation.draft.weeks[0].sessions[1].exercises).toContainEqual(moved);
 
     expect(message.kind).toBe("edit");
     expect(message.role).toBe("trainer");
@@ -151,7 +151,7 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
     expect(res.status).toBe(201);
     const original = (await call("GET", `/v1/ai/generations/${genId}`)).body;
     expect(res.body.generation.parentGenerationId).toBe(editedId);
-    expect(res.body.generation.draft.sessions).toEqual(original.draft.sessions);
+    expect(res.body.generation.draft.weeks[0].sessions).toEqual(original.draft.weeks[0].sessions);
     expect(res.body.message.content).toBe(`${DRAFT_EDIT_NOTE_PREFIX} (v3): undid the last hand edit.`);
 
     const edits = await db
@@ -181,7 +181,7 @@ describe.skipIf(!dbUp)("draft hand edits (no AI)", () => {
 });
 
 describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
-  const names = (gen: any, day = 1) => gen.draft.sessions[day - 1].exercises.map((e: any) => e.exerciseName as string);
+  const names = (gen: any, day = 1) => gen.draft.weeks[0].sessions[day - 1].exercises.map((e: any) => e.exerciseName as string);
   let clientId = "";
   let genId = "";
   let editedId = "";
@@ -194,7 +194,7 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
     const g = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock" });
     genId = g.body.id;
     expect(g.body.trainerOrder).toBe(false);
-    const ex = g.body.draft.sessions[0].exercises;
+    const ex = g.body.draft.weeks[0].sessions[0].exercises;
     expect([ex[0].role, ex[1].role]).toEqual(["primary", "strength"]);
 
     const res = await call("POST", `/v1/ai/generations/${genId}/edit`, { ops: [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up" }] });
@@ -210,7 +210,7 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
     expect(res.status).toBe(200);
     expect(res.body.folded).toBe(true);
     expect(names(res.body.generation)).toEqual([order[0]]);
-    const day2 = res.body.generation.draft.sessions[1].exercises;
+    const day2 = res.body.generation.draft.weeks[0].sessions[1].exercises;
     expect(day2.at(-1).exerciseName).toBe(order[1]);
     expect(day2.at(-1).role).toBe("primary");
     expect(day2.at(-2).role).toBe("accessory");
@@ -224,13 +224,13 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
     editedId = res.body.id;
     draft = res.body.draft;
     // The mock revision keeps the sessions, so the order is still not role order.
-    expect(draft.sessions[1].exercises.at(-1).role).toBe("primary");
+    expect(draft.weeks[0].sessions[1].exercises.at(-1).role).toBe("primary");
   });
 
   test("approve keeps the trainer order", async () => {
     const res = await call("POST", `/v1/ai/generations/${editedId}/approve`, {});
     expect(res.status).toBe(201);
-    const lifting = draft.sessions.filter((s: any) => s.kind !== "cardio");
+    const lifting = draft.weeks[0].sessions.filter((s: any) => s.kind !== "cardio");
     lifting.forEach((d: any, i: number) => {
       const s = res.body.weeks[0].sessions.find((x: any) => x.kind === "lifting" && x.seq === i + 1);
       expect(s.exercises.map((e: any) => e.exerciseName)).toEqual(d.exercises.map((e: any) => e.exerciseName));
@@ -312,10 +312,10 @@ describe.skipIf(!dbUp)("consecutive hand edits fold into one version", () => {
     const [cur] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, v2));
     const key = (e: any) => e.exerciseName;
     const at = new Map<string, { day: number; slot: number }>();
-    cur.draft!.sessions.forEach((s, d) => s.exercises.forEach((e, i) => at.set(key(e), { day: d + 1, slot: i + 1 })));
+    cur.draft!.weeks[0].sessions.forEach((s, d) => s.exercises.forEach((e, i) => at.set(key(e), { day: d + 1, slot: i + 1 })));
     const restore = {
       op: "restore",
-      sessions: root.draft!.sessions.map((s) =>
+      sessions: root.draft!.weeks[0].sessions.map((s) =>
         s.exercises.map((e) => ({ from: at.get(key(e))!, group: e.group ?? null, sets: e.prescribedSets.length }))
       ),
     };
@@ -370,6 +370,6 @@ describe.skipIf(!dbUp)("consecutive hand edits fold into one version", () => {
     const [after] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, last.id));
     const { changes, more } = parseDraftEditRevision(after.revisionMessage);
     expect(changes.length + more).toBe(3);
-    expect(after.draft!.sessions[0].exercises.every((e) => e.group)).toBe(true);
+    expect(after.draft!.weeks[0].sessions[0].exercises.every((e) => e.group)).toBe(true);
   });
 });

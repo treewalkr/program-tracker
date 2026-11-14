@@ -36,7 +36,7 @@
       <li>
         <span class="sign" aria-hidden="true">{c.kind === "add" ? "+" : c.kind === "remove" ? "−" : "~"}</span>
         <span>
-          <span class="where">{tags[c.day - 1] ?? `Session ${c.day}`}{c.slot != null ? ` · slot ${c.slot}` : ""} ·</span>
+          <span class="where">{c.week != null && c.week > 1 ? `W${c.week} · ` : ""}{tags[c.day - 1] ?? `Session ${c.day}`}{c.slot != null ? ` · slot ${c.slot}` : ""} ·</span>
           {#if c.kind === "swap"}
             <s class="from">{c.from}</s> → {c.to}
           {:else if c.kind === "add"}

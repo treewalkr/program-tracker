@@ -88,12 +88,18 @@ export async function gatherPreferenceSignals(
     if (row.approvedProgramId && row.draft) {
       const prog = programMap.get(row.approvedProgramId);
       if (prog && prog.sessions) {
-        const diffText = diffRowsToText(
-          diffSources(
-            aiDraftToDiffSource(row.draft),
-            programWeeksToDiffSource(prog.sessions)
-          )
-        );
+        // Each draft week against the program week with its number; a change repeated across weeks reads once.
+        const diffText = [
+          ...new Set(
+            row.draft.weeks.flatMap((w) =>
+              diffRowsToText(
+                diffSources(aiDraftToDiffSource(row.draft!, w.week), programWeeksToDiffSource(prog.sessions, w.week))
+              )
+                .split("\n")
+                .filter(Boolean)
+            )
+          ),
+        ].join("\n");
         if (diffText.length > 0) {
           signals.push({
             kind: "approved-diff",

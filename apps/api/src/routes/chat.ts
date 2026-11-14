@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, type ChatMessageRow } from "@pt/db";
-import { diffDrafts, draftNoticeText, proposalToFeedback } from "@pt/shared";
+import { diffDrafts, draftNoticeText, mergeWeekChanges, proposalToFeedback } from "@pt/shared";
 import { answerChat } from "../lib/chat-qa";
 import { loadRevisionConversation, runRevision } from "../lib/revision";
 import { runProposalTurn } from "../lib/proposal-turn";
@@ -201,8 +201,9 @@ export const chatRoutes = new Elysia({ prefix: "/v1/ai/chat", tags: ["chat"] })
       if (built) {
         // Count from the stored (scoped) draft, not from the proposal's length.
         const parentDraft = await parentDraftOf(gen.parentGenerationId);
-        const n = parentDraft ? diffDrafts(parentDraft, gen.draft!).length : row.proposal.changes.length;
-        const d = gen.discardedChanges?.length ?? 0;
+        // The same change in several weeks counts once.
+        const n = parentDraft ? mergeWeekChanges(diffDrafts(parentDraft, gen.draft!)).length : row.proposal.changes.length;
+        const d = mergeWeekChanges(gen.discardedChanges ?? []).length;
         builtText = [
           `Built from the proposal: ${n} ${n === 1 ? "change" : "changes"}.`,
           d ? ` The AI also changed ${d} ${d === 1 ? "thing" : "things"} outside the proposal. Kept as before.` : "",

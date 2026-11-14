@@ -33,7 +33,7 @@
     type ProgramSession,
     type WeekPlan,
   } from "@pt/shared";
-  import { SCHEME_PRESETS, schemePreset } from "@pt/shared";
+  import { SCHEME_PRESETS, newBlockFillBlocker, schemePreset } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
@@ -117,7 +117,7 @@
   /** Alternate A/B (FB-013): the even-week routine; null = same every week. */
   let weekB = $state<SessionRow[] | null>(null);
   /** Week B as it was when Alternate was switched off, so switching back doesn't lose it (not kept on the device). */
-  let parkedB: SessionRow[] | null = null;
+  let parkedB = $state.raw<SessionRow[] | null>(null);
   /** Which routine the session editor shows. */
   let editing = $state<"A" | "B">("A");
   /** The session list being edited. */
@@ -448,7 +448,11 @@
     });
   }
 
-  async function save() {
+  /** Why "Save & fill with AI" is off: too long for the AI, or no week left after the trainer's. */
+  const fillBlocker = $derived(newBlockFillBlocker(Number(plannedWeeks) || 4, weekB !== null));
+
+  /** Save, then open the generate page to fill the remaining weeks with AI. */
+  async function save(fill = false) {
     saving = true;
     error = null;
     try {
@@ -474,7 +478,7 @@
       autosave = false;
       clearTimeout(persistTimer);
       clearDraft(draftKey);
-      await goto(`/programs/${program.id}`);
+      await goto(fill ? `/clients/${id}/generate?fill=${program.id}` : `/programs/${program.id}`);
     } catch (err) {
       error = (err as Error).message;
     } finally {
@@ -539,8 +543,20 @@
       {#if mode === "hand"}
       {#if blocker && !saving}<span class="blocker" id="np-blocker">{blocker}</span>{/if}
       <Button
+        onclick={() => save(true)}
+        disabled={saving || blocker !== null || fillBlocker !== null}
+        title={fillBlocker
+          ?? (weekB
+            ? "Save, then the AI writes W3 onward from your Week A and Week B"
+            : "Save, then the AI writes W2 onward from your week")}
+        aria-describedby={blocker ? "np-blocker" : undefined}
+      >
+        {#snippet icon()}<Icon name="sparkle" />{/snippet}
+        Save & fill with AI
+      </Button>
+      <Button
         variant="primary"
-        onclick={save}
+        onclick={() => save()}
         disabled={saving || blocker !== null}
         aria-describedby={blocker ? "np-blocker" : undefined}
       >
@@ -698,10 +714,11 @@
           onchange={(v) => setAlternate(v === "ab")}
           items={[
             { value: "same", label: "Same every week" },
-            { value: "ab", label: "Alternate A/B", title: "Two routines: odd weeks run A, even weeks run B" },
+            { value: "ab", label: "A/B weeks", title: "Two routines: odd weeks run A, even weeks run B" },
           ]}
         />
-        {#if weekB}<span class="subtle">Odd weeks run A, even weeks B.</span>{/if}
+        {#if weekB}<span class="subtle">Odd weeks run A, even weeks B.</span>
+        {:else if parkedB}<span class="subtle">Every week runs Week A. Week B is set aside until you switch back.</span>{/if}
       </div>
 
       {#if weekB}

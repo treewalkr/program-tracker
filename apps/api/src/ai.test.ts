@@ -4,6 +4,7 @@ import {
   buildChatSystem,
   buildDistillMessages,
   buildGenerationMessages,
+  buildFillMessages,
   buildImportMessages,
   buildRevisionMessages,
   buildWeekMessages,
@@ -19,6 +20,12 @@ import { AiProgramDraft, DEFAULT_GLOSSARY, applyDraftEdit, draftEditNote, DELOAD
 import { readFileSync } from "node:fs";
 import { mockImportContent } from "./ai/mock";
 
+/** A one-week draft copied to `n` weeks (approve used to stamp the week; drafts now carry every week). */
+const stretch = (d: AiProgramDraft, n: number): AiProgramDraft => ({
+  ...d,
+  weeks: Array.from({ length: n }, (_, i) => ({ ...structuredClone(d.weeks[0]), week: i + 1 })),
+});
+
 describe("extractJsonObject", () => {
   test("passes through clean JSON", () => {
     expect(extractJsonObject('{"a":1}')).toBe('{"a":1}');
@@ -30,6 +37,35 @@ describe("extractJsonObject", () => {
 
   test("extracts from surrounding prose", () => {
     expect(extractJsonObject('Here you go: {"a": {"b": 2}} — hope it helps!')).toBe('{"a": {"b": 2}}');
+  });
+});
+
+describe("buildFillMessages", () => {
+  test("the lifting-session line follows the trainer's locked weeks, per letter", () => {
+    const sess = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ name: `S${i + 1}`, kind: "lifting" as const, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }));
+    const lockedWeeks = [
+      { week: 1, rotation: "A" as const, locked: true, sessions: sess(2) },
+      { week: 2, rotation: "B" as const, locked: true, sessions: sess(3) },
+    ];
+    const { system } = buildFillMessages({
+      client: { name: "Ada", sessionsPerWeek: 4 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+      block: { weeks: 6, alternate: true, lockedWeeks: [1, 2], liftingSessions: { A: 2, B: 3 } },
+      programName: "Block",
+      plan: null,
+      lockedWeeks,
+    });
+    expect(system).toContain('Lifting sessions (kind "lifting") per week: A weeks exactly 2, B weeks exactly 3');
+    expect(system).not.toContain("per week: exactly 4");
+    // The trainer's A/B routines stand: no "B must use different exercises" for a fill.
+    expect(system).toContain("ALTERNATES the trainer's two routines");
+    expect(system).not.toContain("different exercises");
   });
 });
 
@@ -108,7 +144,7 @@ describe("buildGenerationMessages", () => {
       catalog: [],
       trainerInstructions: "",
     };
-    const previousDraft: AiProgramDraft = { name: "B", rationale: "r", clientSummary: "c", sessions: [] };
+    const previousDraft: AiProgramDraft = { name: "B", rationale: "r", clientSummary: "c", weeks: [{ week: 1, sessions: [] }] };
     const week = { ...base, targetWeek: 2, plannedWeeks: 4, targetDirective: null, target: null };
     const systems = [
       buildGenerationMessages(base).system,
@@ -415,13 +451,13 @@ describe("weekly prompts: learned preferences", () => {
       name: "Block 1",
       rationale: "r",
       clientSummary: "s",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
           kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
-      ],
+      ] }],
     };
     const { user } = buildWeekRevisionMessages({
       client: { name: "Jonas", sessionsPerWeek: 3 },
@@ -472,13 +508,13 @@ describe("weekly prompts: learned preferences", () => {
       name: "Block 1",
       rationale: "r",
       clientSummary: "s",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
           kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
-      ],
+      ] }],
     };
     const revision = buildWeekRevisionMessages({ ...baseCtx, previousDraft, feedback: "fix reps" });
     expect(revision.user).toContain("function n/a)\n\nPREVIOUS DRAFT (your earlier output — revise it):");
@@ -497,7 +533,7 @@ describe("buildRevisionMessages", () => {
       name: "Block 1",
       rationale: "Initial mesocycle rationale",
       clientSummary: "Client summary",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -512,7 +548,7 @@ describe("buildRevisionMessages", () => {
             },
           ],
         },
-      ],
+      ] }],
     };
 
     const feedback = "swap bench for incline DB press; cut one set";
@@ -546,7 +582,7 @@ describe("buildRevisionMessages", () => {
       name: "Block 1",
       rationale: "Initial mesocycle rationale",
       clientSummary: "Client summary",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -560,7 +596,7 @@ describe("buildRevisionMessages", () => {
             },
           ],
         },
-      ],
+      ] }],
     };
 
     const withBalance = buildRevisionMessages({
@@ -611,13 +647,13 @@ describe("buildRevisionMessages", () => {
       name: "Block 1",
       rationale: "r",
       clientSummary: "s",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
           kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
-      ],
+      ] }],
     };
     const rev = buildRevisionMessages({
       client: { name: "Maya", sessionsPerWeek: 2 },
@@ -656,13 +692,13 @@ describe("buildRevisionMessages", () => {
       name: "Block 1",
       rationale: "r",
       clientSummary: "s",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
           kind: "lifting",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
-      ],
+      ] }],
     };
     const rev = buildRevisionMessages({
       client: { name: "Maya", sessionsPerWeek: 2 },
@@ -723,7 +759,7 @@ const draft: AiProgramDraft = {
   name: "Block 2",
   rationale: "hold volume, add load",
   clientSummary: "same split, heavier",
-  sessions: [
+  weeks: [{ week: 1, sessions: [
     {
       name: "Day A",
       kind: "lifting",
@@ -732,7 +768,7 @@ const draft: AiProgramDraft = {
         { exerciseName: "Cable Crunch", prescribedSets: [{ setNumber: 1, reps: 12, type: "working", amrap: false }] },
       ],
     },
-  ],
+  ] }],
 };
 
 const catalog = [
@@ -769,14 +805,14 @@ describe("draftToWeeks", () => {
   });
 
   test("name refs that exactly match the catalog reuse the catalog id", () => {
-    const d2 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseName: "back squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }] }] };
+    const d2 = { ...draft, weeks: [{ week: 1, sessions: [{ ...draft.weeks[0].sessions[0], exercises: [{ exerciseName: "back squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }] }] }] };
     const { createdNames, weeks } = draftToWeeks(d2, catalog);
     expect(createdNames).toEqual([]);
     expect(weeks[0].sessions[0].exercises[0].exerciseId).toBe("11111111-1111-1111-1111-111111111111");
   });
 
   test("bogus id without name is unresolvable, not silently dropped", () => {
-    const d3 = { ...draft, sessions: [{ ...draft.sessions[0], exercises: [{ exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }] }] };
+    const d3 = { ...draft, weeks: [{ week: 1, sessions: [{ ...draft.weeks[0].sessions[0], exercises: [{ exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }] }] }] }] };
     const { unresolvable } = draftToWeeks(d3, catalog);
     expect(unresolvable).toEqual(["99999999-9999-9999-9999-999999999999"]);
   });
@@ -785,7 +821,7 @@ describe("draftToWeeks", () => {
     const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
     const d4: AiProgramDraft = {
       ...draft,
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -796,7 +832,7 @@ describe("draftToWeeks", () => {
             { exerciseId: "11111111-1111-1111-1111-111111111111", role: "primary", prescribedSets: sets },
           ],
         },
-      ],
+      ] }],
     };
     const { weeks } = draftToWeeks(d4, catalog);
     const ex = weeks[0].sessions[0].exercises;
@@ -805,7 +841,7 @@ describe("draftToWeeks", () => {
     expect(ex.map((e) => e.order)).toEqual([0, 1, 2, 3]);
 
     // A trainer-ordered draft keeps its stored order.
-    const kept = draftToWeeks(d4, catalog, 4, undefined, [], undefined, true).weeks[0].sessions[0].exercises;
+    const kept = draftToWeeks(stretch(d4, 4), catalog, undefined, [], undefined, true).weeks[0].sessions[0].exercises;
     expect(kept.map((e) => e.exerciseName)).toEqual(["Cable Crunch", "Lateral Raise", "Bench Press", "Back Squat"]);
     expect(kept.map((e) => e.order)).toEqual([0, 1, 2, 3]);
   });
@@ -814,7 +850,7 @@ describe("draftToWeeks", () => {
     const sets = (n: number) => Array.from({ length: n }, (_, i) => ({ setNumber: i + 1, reps: 10, type: "working" as const, amrap: false }));
     const d5: AiProgramDraft = {
       ...draft,
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -826,7 +862,7 @@ describe("draftToWeeks", () => {
             { exerciseName: "Plank", role: "core", group: "C", prescribedSets: sets(3) },
           ],
         },
-      ],
+      ] }],
     };
     const { weeks } = draftToWeeks(d5, catalog);
     const ex = weeks[0].sessions[0].exercises;
@@ -840,14 +876,14 @@ describe("draftToWeeks", () => {
   test("draftToWeeks maps cardio draft sessions into cardio sessions", () => {
     const draftWithCardio: AiProgramDraft = {
       ...draft,
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Cardio 1",
           kind: "cardio",
           cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
           exercises: [],
         },
-      ],
+      ] }],
     };
     const { weeks } = draftToWeeks(draftWithCardio, catalog);
     const sessions = weeks[0].sessions;
@@ -866,14 +902,14 @@ describe("draftToWeeks", () => {
     const z2 = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Bike", durationMin: 40 }, exercises: [] });
     const d: AiProgramDraft = {
       ...draft,
-      sessions: [lift("Lower A", catalog[0].id), z2("Z2 A"), lift("Upper", catalog[1].id), lift("Lower B", catalog[0].id), z2("Z2 B")],
+      weeks: [{ week: 1, sessions: [lift("Lower A", catalog[0].id), z2("Z2 A"), lift("Upper", catalog[1].id), lift("Lower B", catalog[0].id), z2("Z2 B")] }],
     };
     const patterned = [
       { ...catalog[0], movementPattern: "knee_dominant" },
       { ...catalog[1], movementPattern: "horizontal_push" },
     ];
     // Mon, Tue, Wed, Fri, Sat
-    const { weeks } = draftToWeeks(d, patterned, 3, [1, 2, 3, 5, 6]);
+    const { weeks } = draftToWeeks(stretch(d, 3), patterned, [1, 2, 3, 5, 6]);
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
     const tags = (w: (typeof weeks)[number]) =>
       Object.fromEntries(w.sessions.map((s) => [s.name, `${s.kind}:${s.seq}@${s.weekday}`]));
@@ -904,15 +940,15 @@ describe("draftToWeeks", () => {
     ];
     const d: AiProgramDraft = {
       ...draft,
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         // Monday is the day after the Sunday long run: must move.
         { name: "Heavy lower", kind: "lifting", weekday: 1, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] },
         { name: "Upper", kind: "lifting", weekday: 4, exercises: [{ exerciseId: catalog[1].id, prescribedSets: sets }] },
         { name: "Easy run", kind: "cardio", weekday: 3, cardio: { modality: "Run", durationMin: 40, hrZone: 2 }, exercises: [] },
         { name: "Long run", kind: "cardio", weekday: 7, cardio: { modality: "Run", durationMin: 80, hrZone: 2 }, exercises: [] },
-      ],
+      ] }],
     };
-    const { weeks } = draftToWeeks(d, patterned, 2, { trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 });
+    const { weeks } = draftToWeeks(stretch(d, 2), patterned, { trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 });
     const dayOf = (name: string) => weeks[0].sessions.find((s) => s.name === name)!.weekday;
     expect([dayOf("Upper"), dayOf("Easy run"), dayOf("Long run")]).toEqual([4, 3, 7]);
     expect(dayOf("Heavy lower")).not.toBe(1);
@@ -922,7 +958,7 @@ describe("draftToWeeks", () => {
   test("the mock draft suggests weekdays that a Mon-Wed-Fri client keeps", async () => {
     const { MOCK_DRAFT } = await import("./ai/mock");
     expect(AiProgramDraft.safeParse(MOCK_DRAFT).success).toBe(true);
-    const { weeks } = draftToWeeks(MOCK_DRAFT, catalog, 1, [1, 3, 5]);
+    const { weeks } = draftToWeeks(stretch(MOCK_DRAFT, 1), catalog, [1, 3, 5]);
     expect(weeks[0].sessions.map((s) => [s.name, s.weekday])).toEqual([
       ["Day A — Lower", 1],
       ["Day B — Upper", 5],
@@ -932,20 +968,20 @@ describe("draftToWeeks", () => {
 
   test("a weekday outside 1–7 doesn't fail the draft", () => {
     const session = { name: "A", weekday: 9, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] }] };
-    const parsed = AiProgramDraft.safeParse({ ...draft, sessions: [session] });
+    const parsed = AiProgramDraft.safeParse({ ...draft, weeks: [{ week: 1, sessions: [session] }] });
     expect(parsed.success).toBe(true);
-    expect(parsed.data?.sessions[0].weekday ?? null).toBeNull();
+    expect(parsed.data?.weeks[0].sessions[0].weekday ?? null).toBeNull();
   });
 
   test("no training days → every session unscheduled", () => {
-    const { weeks } = draftToWeeks(draft, catalog, 2, null);
+    const { weeks } = draftToWeeks(stretch(draft, 2), catalog, null);
     expect(weeks.every((w) => w.sessions.every((s) => s.weekday == null))).toBe(true);
   });
 
   test("drafts with more than 14 sessions produce a document that fails the boundary", () => {
     const fifteenSessionDraft: AiProgramDraft = {
       ...draft,
-      sessions: Array.from({ length: 15 }, (_, i) => ({
+      weeks: [{ week: 1, sessions: Array.from({ length: 15 }, (_, i) => ({
         name: `Day ${i + 1}`,
         kind: "lifting",
         exercises: [
@@ -954,7 +990,7 @@ describe("draftToWeeks", () => {
             prescribedSets: [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }],
           },
         ],
-      })),
+      })) }],
     };
     const { weeks } = draftToWeeks(fifteenSessionDraft, catalog);
     expect(weeks[0].sessions).toHaveLength(15);
@@ -1044,7 +1080,7 @@ describe("cardio target prompt context", () => {
       name: "Block 1",
       rationale: "r",
       clientSummary: "c",
-      sessions: [],
+      weeks: [{ week: 1, sessions: [] }],
     };
 
     const withTarget = buildRevisionMessages({
@@ -1097,7 +1133,7 @@ describe("replaceWeek", () => {
       { week: 1, rotation: "A" as const, sessions: [oldLift("W1 S1", 1, 1)] },
       { week: 2, rotation: "B" as const, sessions: [oldLift("W2 S1", 1, 2)] },
     ];
-    const draft: AiProgramDraft = { name: "W2", rationale: "r", clientSummary: "c", sessions: [draftLift("W2 S1-New")] };
+    const draft: AiProgramDraft = { name: "W2", rationale: "r", clientSummary: "c", weeks: [{ week: 1, sessions: [draftLift("W2 S1-New")] }] };
     const { weeks } = replaceWeek(initialWeeks, 2, draft, catalog, [1, 2]);
     expect(weeks.map((w) => w.rotation)).toEqual(["A", "B"]);
   });
@@ -1116,7 +1152,7 @@ describe("replaceWeek", () => {
       name: "Week 2 Replacement",
       rationale: "Re-drafted week 2",
       clientSummary: "New week 2",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         draftLift("W2 S1-New"),
         {
           name: "W2 S2-New",
@@ -1128,7 +1164,7 @@ describe("replaceWeek", () => {
         },
         draftCardio("W2 C1-New"),
         draftLift("W2 S3-New"),
-      ],
+      ] }],
     };
 
     const { weeks, createdNames, unresolvable } = replaceWeek(initialWeeks, 2, week2Draft, catalog, [4, 1]);
@@ -1173,7 +1209,7 @@ describe("replaceWeek", () => {
     ];
     const d: AiProgramDraft = {
       ...draft,
-      sessions: [draftLift("S1"), draftLift("S2"), draftLift("S3"), draftLift("S4"), draftCardio("C1"), draftCardio("C2")],
+      weeks: [{ week: 1, sessions: [draftLift("S1"), draftLift("S2"), draftLift("S3"), draftLift("S4"), draftCardio("C1"), draftCardio("C2")] }],
     };
     const { weeks } = replaceWeek(initialWeeks, 1, d, catalog, [1]);
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
@@ -1189,7 +1225,7 @@ describe("replaceWeek", () => {
     const { weeks: w2 } = replaceWeek(
       [{ week: 1, sessions: [oldCardio("C1", 1, 3)] }],
       1,
-      { ...draft, sessions: [draftLift("S1")] },
+      { ...draft, weeks: [{ week: 1, sessions: [draftLift("S1")] }] },
       catalog,
       null
     );
@@ -1204,11 +1240,11 @@ describe("draftSlotsText", () => {
   test("labels sessions by position (#N) and track tag, never by day", () => {
     const text = draftSlotsText({
       ...draft,
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         draftLift("Lower — squat focus"),
         draftCardio("Zone 2 row"),
         draftLift("Upper — push"),
-      ],
+      ] }],
     });
     expect(text.split("\n").filter((l) => l.startsWith("#"))).toEqual([
       "#1 Session 1 · Lower — squat focus",
@@ -1220,7 +1256,7 @@ describe("draftSlotsText", () => {
   });
 
   test("lists each cardio session's current prescription for cardio proposals", () => {
-    const text = draftSlotsText({ ...draft, sessions: [draftLift("Lower"), draftCardio("Zone 2 row")] });
+    const text = draftSlotsText({ ...draft, weeks: [{ week: 1, sessions: [draftLift("Lower"), draftCardio("Zone 2 row")] }] });
     expect(text).toContain("#2 Cardio 1 · Zone 2 row\n  cardio Row · 25 min");
   });
 });
@@ -1272,7 +1308,7 @@ describe("example library few-shot", () => {
       name: "Block 1",
       rationale: "Initial mesocycle rationale",
       clientSummary: "Client summary",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -1284,7 +1320,7 @@ describe("example library few-shot", () => {
             },
           ],
         },
-      ],
+      ] }],
     };
     const { system, user } = buildRevisionMessages({
       client: { name: "Jonas", goals: "lean bulk to 80 kg", sessionsPerWeek: 4 },
@@ -1322,7 +1358,7 @@ describe("example library few-shot", () => {
         name: "Block 1",
         rationale: "r",
         clientSummary: "c",
-        sessions: [],
+        weeks: [{ week: 1, sessions: [] }],
       },
       feedback: "tighten volume",
     });
@@ -1432,7 +1468,7 @@ describe("buildChatSystem", () => {
       name: "Strength Block 1",
       rationale: "Progress squat and bench",
       clientSummary: "Great work coming up",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
           kind: "lifting",
@@ -1443,7 +1479,7 @@ describe("buildChatSystem", () => {
             },
           ],
         },
-      ],
+      ] }],
     };
 
     const sys = buildChatSystem({
@@ -1605,7 +1641,7 @@ describe("revision conversation threading", () => {
       name: "Block 1",
       rationale: "Initial mesocycle rationale",
       clientSummary: "Client summary",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -1613,7 +1649,7 @@ describe("revision conversation threading", () => {
             { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           ],
         },
-      ],
+      ] }],
     };
     const conversation = "Trainer: a\nAssistant: b";
     const expected =
@@ -1657,7 +1693,7 @@ describe("revision conversation threading", () => {
       name: "Block 1",
       rationale: "Initial mesocycle rationale",
       clientSummary: "Client summary",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -1665,7 +1701,7 @@ describe("revision conversation threading", () => {
             { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           ],
         },
-      ],
+      ] }],
     };
 
     const plain = buildRevisionMessages({
@@ -1737,7 +1773,7 @@ describe("draftToText shows rest and duration", () => {
       name: "B",
       rationale: "",
       clientSummary: "",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
           kind: "lifting",
@@ -1747,7 +1783,7 @@ describe("draftToText shows rest and duration", () => {
             { exerciseName: "Plank", prescribedSets: [set] },
           ],
         },
-      ],
+      ] }],
     });
     expect(text).toContain("A1 Curl [8 reps], A2 Pushdown [8 reps], Plank [8 reps]");
   });
@@ -1756,7 +1792,7 @@ describe("draftToText shows rest and duration", () => {
     name: "Block",
     rationale: "",
     clientSummary: "",
-    sessions: [{ name: "Day", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: sets }] }],
+    weeks: [{ week: 1, sessions: [{ name: "Day", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: sets }] }] }],
   });
 
   test("prints rest after RPE", () => {
@@ -1797,16 +1833,16 @@ describe("session types in AI drafts", () => {
   test("a draft type resolves case-insensitively when its format matches; others are dropped", () => {
     const d: AiProgramDraft = {
       ...draft,
-      sessions: [
-        { ...draft.sessions[0], type: "strength" },
+      weeks: [{ week: 1, sessions: [
+        { ...draft.weeks[0].sessions[0], type: "strength" },
         { name: "Easy ride", kind: "cardio", type: "Zone 2", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] },
-        { ...draft.sessions[0], name: "Wrong format", type: "Zone 2" },
-        { ...draft.sessions[0], name: "Unknown", type: "Yoga" },
-      ],
+        { ...draft.weeks[0].sessions[0], name: "Wrong format", type: "Zone 2" },
+        { ...draft.weeks[0].sessions[0], name: "Unknown", type: "Yoga" },
+      ] }],
     };
-    const { weeks } = draftToWeeks(d, catalog, 1, null, types);
+    const { weeks } = draftToWeeks(stretch(d, 1), catalog, null, types);
     const byName = new Map(weeks[0].sessions.map((s) => [s.name, s]));
-    expect(byName.get(draft.sessions[0].name)).toMatchObject({ typeId: "t-str", typeName: "Strength" });
+    expect(byName.get(draft.weeks[0].sessions[0].name)).toMatchObject({ typeId: "t-str", typeName: "Strength" });
     expect(byName.get("Easy ride")).toMatchObject({ typeId: "t-z2", typeName: "Zone 2" });
     expect(byName.get("Wrong format")?.typeId).toBeUndefined();
     expect(byName.get("Unknown")?.typeId).toBeUndefined();
@@ -1816,7 +1852,7 @@ describe("session types in AI drafts", () => {
 
 describe("client PROFILE line", () => {
   const base = { previousProgram: null, periodization: null, chainBalance: null, history: [], catalog: [], trainerInstructions: "" };
-  const draft: AiProgramDraft = { name: "Block 1", rationale: "r", clientSummary: "s", sessions: [] } as unknown as AiProgramDraft;
+  const draft: AiProgramDraft = { name: "Block 1", rationale: "r", clientSummary: "s", weeks: [{ week: 1, sessions: [] }] } as unknown as AiProgramDraft;
   const userBlocks = (client: Parameters<typeof buildGenerationMessages>[0]["client"]) => [
     buildGenerationMessages({ ...base, client }).user,
     buildRevisionMessages({ ...base, client, previousDraft: draft, feedback: "more rows" } as Parameters<typeof buildRevisionMessages>[0]).user,
@@ -1889,7 +1925,7 @@ describe("hand edits reach the prompt", () => {
     name: "Block 1",
     rationale: "r",
     clientSummary: "c",
-    sessions: [
+    weeks: [{ week: 1, sessions: [
       {
         name: "Day A",
         kind: "lifting",
@@ -1898,7 +1934,7 @@ describe("hand edits reach the prompt", () => {
           { exerciseName: "Plank", role: "accessory", prescribedSets: [{ setNumber: 1, type: "working", reps: 1, amrap: false }] },
         ],
       },
-    ],
+    ] }],
   };
   const edit = applyDraftEdit(previousDraft, [{ op: "superset", ref: { day: 1, slot: 2 }, with: "above" }]);
   const note = draftEditNote(2, edit.changes);
@@ -1952,5 +1988,64 @@ describe("hand edits reach the prompt", () => {
     const ctx = { ...base, latestDraft: null };
     expect(buildChatSystem({ ...ctx, handEdits: true })).toContain(HAND_EDIT_RULE);
     expect(buildChatSystem(ctx)).not.toContain(HAND_EDIT_RULE);
+  });
+});
+
+describe("whole-block prompts (FB-013)", () => {
+  const ctx = {
+    client: { name: "Jonas", sessionsPerWeek: 2 },
+    previousProgram: null,
+    periodization: null,
+    chainBalance: null,
+    history: [],
+    catalog: [],
+    trainerInstructions: "",
+  };
+
+  test("a block prompt asks for every week; A/B asks for two routines; one-week schema without a block", () => {
+    const plain = buildGenerationMessages({ ...ctx, block: { weeks: 6, alternate: false } }).system;
+    expect(plain).toContain('"weeks": [');
+    expect(plain).toContain("The block is exactly 6 weeks");
+    expect(plain).toContain('Do not set "rotation"');
+    const ab = buildGenerationMessages({ ...ctx, block: { weeks: 4, alternate: true } }).system;
+    expect(ab).toContain('odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B")');
+    expect(buildGenerationMessages(ctx).system).not.toContain('"weeks": [                        // every week');
+  });
+
+  test("next block from an A/B program shows both routines", () => {
+    const routine = (n: string) => [{ name: "Lower", exercises: [{ name: n, sets: ["5 reps"] }] }];
+    const user = buildGenerationMessages({
+      ...ctx,
+      previousProgram: { name: "AB", sessions: routine("Back Squat"), routines: [
+        { week: 3, rotation: "A", sessions: routine("Back Squat") },
+        { week: 4, rotation: "B", sessions: routine("Front Squat") },
+      ] },
+    }).user;
+    expect(user).toContain("WEEK A (week 3):");
+    expect(user).toContain("WEEK B (week 4):\n- Lower: Front Squat [5 reps]");
+  });
+
+  test("draft text and slots are per week; slots show the first week of each letter", () => {
+    const s = (n: string) => [{ name: "Lower", kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+    const d: AiProgramDraft = {
+      name: "AB",
+      rationale: "",
+      clientSummary: "",
+      weeks: [1, 2, 3, 4].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: s(week % 2 ? "Squat" : "Deadlift") })),
+    };
+    expect(draftToText(d)).toContain("WEEK 4 (B):\n- Lower: Deadlift");
+    const slots = draftSlotsText(d);
+    expect(slots).toContain("WEEK 1 (A) — week A routine, also W3");
+    expect(slots).toContain("WEEK 2 (B) — week B routine, also W4");
+    expect(slots).not.toContain("WEEK 3");
+  });
+});
+
+describe("block output cap", () => {
+  test("a whole-block call asks for the provider's block ceiling", async () => {
+    const { completionParams } = await import("./ai/provider");
+    const rt = { baseUrl: "x", model: "glm-5.3", apiKey: "k", maxOutputTokens: 8192, blockOutputTokens: 131072 };
+    expect(completionParams(rt).maxTokens).toBe(16384);
+    expect(completionParams(rt, { long: true }).maxTokens).toBe(131072);
   });
 });

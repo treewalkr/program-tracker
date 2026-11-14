@@ -208,23 +208,26 @@ export const suggestRoles = (session: readonly RoleHints[]): BuiltinRole[] =>
 // Draft checks — every AI draft exercise ends with a known label
 // ---------------------------------------------------------------------------
 
+interface DraftSessionLike {
+  name: string;
+  kind?: string;
+  exercises?: {
+    exerciseId?: string;
+    exerciseName?: string;
+    role?: ExerciseRole;
+    prescribedSets: readonly { reps?: number | null; repsMin?: number | null; amrap?: boolean | null; type?: string | null }[];
+  }[];
+}
+
 interface DraftLike {
   rationale: string;
-  sessions: {
-    name: string;
-    kind?: string;
-    exercises?: {
-      exerciseId?: string;
-      exerciseName?: string;
-      role?: ExerciseRole;
-      prescribedSets: readonly { reps?: number | null; repsMin?: number | null; amrap?: boolean | null; type?: string | null }[];
-    }[];
-  }[];
+  weeks: { sessions: DraftSessionLike[] }[];
 }
 
 /**
  * A missing or unknown (or archived) label → suggestRole; a lifting session
- * with more than one Primary keeps them, with an info note for the trainer.
+ * with more than one Primary keeps them, with an info note for the trainer
+ * (once per session name, however many weeks repeat it).
  * `hintsFor` supplies catalog fields (pattern, muscle, equipment) by id.
  */
 export function fixDraftRoles<D extends DraftLike>(
@@ -232,9 +235,9 @@ export function fixDraftRoles<D extends DraftLike>(
   labels: readonly RoleLabel[],
   hintsFor: (exerciseId: string | undefined) => Omit<RoleHints, "name" | "prescribedSets"> | undefined = () => undefined
 ): { draft: D; notes: string[]; filled: number } {
-  const notes: string[] = [];
+  const notes = new Set<string>();
   let filled = 0;
-  const sessions = draft.sessions.map((s) => {
+  const fixSession = <S extends DraftSessionLike>(s: S): S => {
     if (!s.exercises?.length) return s;
     const hints: RoleHints[] = s.exercises.map((e) => ({
       ...hintsFor(e.exerciseId),
@@ -247,9 +250,10 @@ export function fixDraftRoles<D extends DraftLike>(
       return { ...e, role: suggestRole(hints[i], hints, i) };
     });
     if (exercises.filter((e) => e.role === "primary").length > 1) {
-      notes.push(`${s.name} has more than one Primary lift — usually one leads the session.`);
+      notes.add(`${s.name} has more than one Primary lift — usually one leads the session.`);
     }
     return { ...s, exercises };
-  });
-  return { draft: { ...draft, sessions }, notes, filled };
+  };
+  const weeks = draft.weeks.map((w) => ({ ...w, sessions: w.sessions.map(fixSession) }));
+  return { draft: { ...draft, weeks }, notes: [...notes], filled };
 }

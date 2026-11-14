@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Hairline segmented control (radiogroup) for one choice of a few: the placement scope on the program calendar, the builder\'s Weeks toggle. Controlled — the parent owns `value`. Arrow keys move the choice.',
+            'Hairline segmented control (radiogroup) for one choice of a few (the placement scope on the program calendar, the Weeks toggle); the picked option fills Inverted Ink. Controlled — the parent owns `value`. Arrow keys move the choice.',
         },
       },
     },
@@ -29,7 +29,7 @@
     onchange={(v) => (weeks = v)}
     items={[
       { value: 'same', label: 'Same every week' },
-      { value: 'ab', label: 'Alternate A/B' },
+      { value: 'ab', label: 'A/B weeks' },
     ]}
   />
 </Story>

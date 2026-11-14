@@ -602,7 +602,7 @@
       <label class="block-opt" class:on={keepAb}>
         <input type="radio" name="pi-ab" checked={keepAb} onchange={() => (keepAb = true)} />
         <span>
-          <span class="opt-title">Alternate A/B</span>
+          <span class="opt-title">A/B weeks</span>
           <span class="ab-line"><b>A</b> {weekName(found.a)}</span>
           <span class="ab-line"><b>B</b> {weekName(found.b)}</span>
         </span>
@@ -625,7 +625,7 @@
         </label>
       {/each}
       {#if result.alternating}
-        <p class="subtle fine">Looks like alternating weeks, so both are kept as notes. One block is drafted — the editor builds a single template week.</p>
+        <p class="subtle fine">Looks like A/B weeks, so both are kept as notes. One block is drafted — the editor builds a single template week.</p>
       {/if}
     </fieldset>
   {/if}
