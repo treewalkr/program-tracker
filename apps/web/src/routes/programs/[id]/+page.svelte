@@ -486,14 +486,17 @@
     <div class="weeks-row">
       <div class="week-tabs">
         {#each program.weeks as w, wi (w.week)}
+          {@const logged = weekLogCount(w, wi)}
+          {@const loggedText = `${logged} ${logged === 1 ? "session" : "sessions"} logged`}
           <button
             type="button"
             class="tab-btn"
             class:active={wi === currentWeekIndex}
+            aria-label={[`W${w.week}`, w.rotation && `week ${w.rotation}`, logged > 0 && loggedText].filter(Boolean).join(", ")}
             onclick={() => (currentWeekIndex = wi)}
           >
-            W{w.week}{#if w.rotation}<span class="tab-letter" aria-label="week {w.rotation}">{w.rotation}</span>{/if}
-            {#if weekLogCount(w, wi) > 0}<span class="tab-logs" title="{weekLogCount(w, wi)} logged">{weekLogCount(w, wi)}</span>{/if}
+            W{w.week}{#if w.rotation}<span class="tab-letter">{w.rotation}</span>{/if}
+            {#if logged > 0}<span class="tab-logs" title={loggedText}><Icon name="check" />{logged}</span>{/if}
           </button>
         {/each}
       </div>
@@ -838,7 +841,10 @@
     color: var(--muted);
     cursor: pointer;
     border-radius: var(--radius);
+    white-space: nowrap;
+    flex: none;
   }
+  @media (max-width: 700px) { .tab-btn { padding: 6px 10px; } }
   .tab-btn.active {
     background: var(--well);
     color: var(--ink);
@@ -909,14 +915,20 @@
   .sess-notes, .exnotes { margin: 0; font-size: 12.5px; }
 
   /* What was done, under what was planned */
+  /* Logged sessions: a green check + count, set apart from the A/B letter by the tint and a gap. */
   .tab-logs {
-    margin-left: 6px;
-    font: 600 10.5px/1 var(--font-mono, ui-monospace, monospace);
-    padding: 2px 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 8px;
+    vertical-align: 1px;
+    font: 600 10.5px/1 var(--font-mono);
+    padding: 2px 6px 2px 4px;
     border-radius: 99px;
-    background: var(--good-bg, var(--well-2));
-    color: var(--good, var(--ink));
+    background: var(--good-bg);
+    color: var(--good);
   }
+  .tab-logs :global(svg) { width: 11px; height: 11px; stroke-width: 2.4; }
   .logged { display: flex; flex-direction: column; gap: 4px; }
   .logged-tag { display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px var(--font-ui); color: var(--good, var(--muted)); }
   .log-notes { margin: 0; font-size: 12px; white-space: pre-line; }
