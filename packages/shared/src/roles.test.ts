@@ -159,7 +159,7 @@ describe("fixDraftRoles", () => {
     name: "d",
     rationale: "why",
     clientSummary: "",
-    sessions: [{ name: "Lower", kind: "lifting", exercises: exercises.map((e) => ({ exerciseName: e.exerciseName, role: e.role, prescribedSets: sets(e.reps ?? 5) })) }],
+    weeks: [{ sessions: [{ name: "Lower", kind: "lifting", exercises: exercises.map((e) => ({ exerciseName: e.exerciseName, role: e.role, prescribedSets: sets(e.reps ?? 5) })) }] }],
   });
 
   test("missing and unknown labels are filled by suggestRole; known ones stay", () => {
@@ -172,15 +172,15 @@ describe("fixDraftRoles", () => {
       ]),
       merged
     );
-    expect(out.draft.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "accessory", `label:${id1}`]);
+    expect(out.draft.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "accessory", `label:${id1}`]);
     expect(out.filled).toBe(2);
     expect(out.notes).toEqual([]);
   });
 
   test("catalog hints feed the suggestion", () => {
-    const d = { ...draft([{ exerciseName: "Thing" }]), sessions: [{ name: "A", exercises: [{ exerciseId: "x", role: undefined as ExerciseRole | undefined, prescribedSets: sets(10) }] }] };
+    const d = { ...draft([{ exerciseName: "Thing" }]), weeks: [{ sessions: [{ name: "A", exercises: [{ exerciseId: "x", role: undefined as ExerciseRole | undefined, prescribedSets: sets(10) }] }] }] };
     const out = fixDraftRoles(d, BUILTIN_ROLE_LABELS, () => ({ movementPattern: "anti_extension" }));
-    expect(out.draft.sessions[0].exercises[0].role).toBe("core");
+    expect(out.draft.weeks[0].sessions[0].exercises[0].role).toBe("core");
   });
 
   test("two Primaries in a session → a note, not a change", () => {
@@ -191,9 +191,21 @@ describe("fixDraftRoles", () => {
       ]),
       BUILTIN_ROLE_LABELS
     );
-    expect(out.draft.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary"]);
+    expect(out.draft.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary"]);
     expect(out.notes).toHaveLength(1);
     expect(out.notes[0]).toContain("Lower");
+  });
+
+  test("every week is checked; a note repeated across weeks shows once", () => {
+    const one = draft([
+      { exerciseName: "Squat", role: "primary" },
+      { exerciseName: "Deadlift", role: "primary" },
+      { exerciseName: "Back Squat" },
+    ]);
+    const out = fixDraftRoles({ ...one, weeks: [one.weeks[0], one.weeks[0]] }, BUILTIN_ROLE_LABELS);
+    expect(out.draft.weeks[1].sessions[0].exercises[2].role).toBeDefined();
+    expect(out.filled).toBe(2);
+    expect(out.notes).toHaveLength(1);
   });
 
   test("the draft gate drops an unknown role instead of failing", () => {

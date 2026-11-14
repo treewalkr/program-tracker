@@ -17,7 +17,7 @@
  */
 import { t, type TSchema } from "elysia";
 import { aiGenerations, trainers } from "@pt/db/schema";
-import { FEEDBACK_AI_MODES } from "@pt/shared";
+import { FEEDBACK_AI_MODES, WEEKS_CHOICES } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull, spread } from "../utility";
 
 type StringOptions = Parameters<typeof t.String>[0];
@@ -44,6 +44,7 @@ const trainerFields = {
   name: str({ minLength: 1, maxLength: 120 }),
   email: as(t.String({ format: "email", maxLength: 254 })),
   feedbackAiMode: as(oneOf(FEEDBACK_AI_MODES)),
+  lastWeeksChoice: as(oneOf(WEEKS_CHOICES)),
 };
 export const TrainerInsert = createInsertSchema(trainers, trainerFields);
 export const TrainerUpdate = createUpdateSchema(trainers, trainerFields);

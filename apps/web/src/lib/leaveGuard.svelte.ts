@@ -1,13 +1,21 @@
 import { beforeNavigate, goto } from "$app/navigation";
 
-/** Which button closed the dialog. Esc and a backdrop click count as "cancel". */
-export type Answer = "confirm" | "alt" | "cancel";
+/** Which button closed the dialog: `choice:<id>` for one of `choices`. Esc and a backdrop click count as "cancel". */
+export type Answer = "confirm" | "alt" | "cancel" | `choice:${string}`;
+
+/** One of several ways forward, listed as a stack of buttons above Cancel. */
+export interface AskChoice {
+  id: string;
+  label: string;
+  /** What it does, in one short line under the label. */
+  hint?: string;
+}
 
 export interface AskOptions {
   title: string;
   body: string;
-  /** The action being asked about: the left-hand button. */
-  confirmLabel: string;
+  /** The action being asked about: the left-hand button. Omit when `choices` lists the ways forward. */
+  confirmLabel?: string;
   /** Colour the action red because it drops work. Default true. */
   danger?: boolean;
   /** The safe choice: it takes initial focus and answers Esc and backdrop clicks. Default "Cancel". */
@@ -17,6 +25,8 @@ export interface AskOptions {
    * until it settles: `true` answers "alt", `false` answers "cancel".
    */
   alt?: { label: string; busyLabel?: string; run?: () => Promise<boolean> };
+  /** More than two ways forward: each answers `choice:<id>`. */
+  choices?: readonly AskChoice[];
 }
 
 /**

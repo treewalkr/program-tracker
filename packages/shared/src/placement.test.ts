@@ -92,6 +92,22 @@ describe("placeWeeks", () => {
     const weeks = placeWeeks([wk(1), wk(2)], [2, 5], patternOf);
     expect(weeks[1].sessions.map((s) => s.weekday)).toEqual(weeks[0].sessions.map((s) => s.weekday));
   });
+
+  test("A/B weeks: each letter's first week is placed and its letter's weeks follow it", () => {
+    const wk = (n: number, sessions: ProgramSession[]) => ({
+      week: n,
+      rotation: n % 2 ? ("A" as const) : ("B" as const),
+      sessions: sessions.map((s) => ({ ...s, id: `${s.id}-w${n}`, weekday: 7 })),
+    });
+    const a = () => [lift(1, ["squat"]), lift(2, ["bench"])];
+    const b = () => [lift(1, ["deadlift"])];
+    const weeks = placeWeeks([wk(1, a()), wk(2, b()), wk(3, a()), wk(4, b())], [2, 5], patternOf);
+    const days = (i: number) => weeks[i].sessions.map((s) => s.weekday);
+    expect(days(0)).not.toContain(7);
+    expect(days(1)).not.toContain(7);
+    expect(days(2)).toEqual(days(0));
+    expect(days(3)).toEqual(days(1));
+  });
 });
 
 describe("placement editing", () => {
@@ -110,6 +126,15 @@ describe("placement editing", () => {
     const moved = w.sessions.find((s) => s.id === "L1")!;
     expect(moved.weekday).toBeNull();
     expect(moved.exercises).toEqual(before.sessions[0].exercises);
+  });
+
+  test("applyPlacementToAllWeeks on A/B weeks only reaches the same letter", () => {
+    const tag = (w: ReturnType<typeof week>, n: number) => ({ ...w, week: n, rotation: n % 2 ? ("A" as const) : ("B" as const) });
+    const w2 = { ...tag(week(), 2), sessions: week().sessions.map((s) => ({ ...s, weekday: 7 })) };
+    const w3 = { ...tag(week(), 3), sessions: week().sessions.map((s) => ({ ...s, weekday: 6 })) };
+    const out = applyPlacementToAllWeeks([tag(week(), 1), w2, w3], 1);
+    expect(out[1]).toBe(w2);
+    expect(out[2].sessions.map((s) => s.weekday)).toEqual([1, 3, null]);
   });
 
   test("applyPlacementToAllWeeks copies by key, not id", () => {

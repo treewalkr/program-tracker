@@ -57,7 +57,7 @@ export interface WeekMetrics {
   e1rmByExercise: Record<string, number>;
   /** Exercise behind `bestE1rm`; null when nothing loaded was logged. */
   topE1rmExerciseId: string | null;
-  /** % change vs previous logged week. */
+  /** % change vs previous logged week (in A/B blocks: the last logged week with the same letter). */
   overallVolumeDelta: number | null;
   /** % change of Σ reps */
   repsDelta: number | null;
@@ -197,6 +197,9 @@ export function blockPulse(
   const totalWeeks = Math.max(ph.plannedWeeks, weekOf(program, logs, now));
   const out: WeekMetrics[] = [];
   let prev: WeekMetrics | null = null;
+  // A/B blocks compare each week with the last logged week of the same letter.
+  const letterOf = (n: number) => program.weeks?.find((x) => x.week === n)?.rotation;
+  const lastByLetter = new Map<string, WeekMetrics>();
   for (let w = 1; w <= totalWeeks; w++) {
     const e = weeks.get(w);
     const weekPlan = ph.weeks?.find((x) => x.week === w);
@@ -222,11 +225,13 @@ export function blockPulse(
       targetMet: null,
       plannedOnly: !e,
     };
-    if (prev && !metric.plannedOnly && !prev.plannedOnly) {
-      if (prev.overallVolume > 0) metric.overallVolumeDelta = Math.round(((metric.overallVolume - prev.overallVolume) / prev.overallVolume) * 100);
-      if (prev.reps > 0) metric.repsDelta = Math.round(((metric.reps - prev.reps) / prev.reps) * 100);
-      const prevTop = metric.topE1rmExerciseId ? prev.e1rmByExercise[metric.topE1rmExerciseId] : undefined;
-      if (prevTop) metric.e1rmDelta = Math.round(((metric.bestE1rm - prevTop) / prevTop) * 100);
+    const letter = letterOf(w);
+    const ref = letter ? (lastByLetter.get(letter) ?? null) : prev;
+    if (ref && !metric.plannedOnly && !ref.plannedOnly) {
+      if (ref.overallVolume > 0) metric.overallVolumeDelta = Math.round(((metric.overallVolume - ref.overallVolume) / ref.overallVolume) * 100);
+      if (ref.reps > 0) metric.repsDelta = Math.round(((metric.reps - ref.reps) / ref.reps) * 100);
+      const refTop = metric.topE1rmExerciseId ? ref.e1rmByExercise[metric.topE1rmExerciseId] : undefined;
+      if (refTop) metric.e1rmDelta = Math.round(((metric.bestE1rm - refTop) / refTop) * 100);
 
       if (target) {
         if (target.metric === "overall_volume") {
@@ -246,6 +251,7 @@ export function blockPulse(
     }
     out.push(metric);
     prev = metric;
+    if (letter && !metric.plannedOnly) lastByLetter.set(letter, metric);
   }
   return out;
 }

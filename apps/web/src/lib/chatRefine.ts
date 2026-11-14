@@ -10,7 +10,7 @@ import type {
   TrainerApi,
 } from "./api/types";
 import { latestValidatedDraft, revisionChain } from "./generation";
-import { diffDrafts, shownExerciseOrder, unproposedChanges, type RoleRank, type SlotChange } from "@pt/shared";
+import { diffDrafts, draftWeek, mergeWeekChanges, shownExerciseOrder, unproposedChanges, type RoleRank, type SlotChange } from "@pt/shared";
 import type { ChatProposalDto } from "./api/types";
 
 // ---- turn submission (what Send does) ----
@@ -122,7 +122,7 @@ interface SessionKey {
   }[];
 }
 
-function sessionKey(s: AiDraftDto["sessions"][number]): SessionKey {
+function sessionKey(s: AiDraftDto["weeks"][number]["sessions"][number]): SessionKey {
   return {
     name: s.name,
     kind: s.kind ?? "lifting",
@@ -142,12 +142,14 @@ function sessionKey(s: AiDraftDto["sessions"][number]): SessionKey {
  * sessions count as changed, removals shift nothing before them. Sorted
  * ascending; empty when there is no previous draft.
  */
-export function changedSessionIndexes(prev: AiDraftDto | null, next: AiDraftDto): number[] {
+export function changedSessionIndexes(prev: AiDraftDto | null, next: AiDraftDto, week?: number | null): number[] {
   if (prev === null) return [];
   const changed: number[] = [];
-  for (let i = 0; i < next.sessions.length; i++) {
-    const before = prev.sessions[i];
-    if (before === undefined || JSON.stringify(sessionKey(before)) !== JSON.stringify(sessionKey(next.sessions[i]))) {
+  const after = draftWeek(next, week).sessions;
+  const was = draftWeek(prev, week).sessions;
+  for (let i = 0; i < after.length; i++) {
+    const before = was[i];
+    if (before === undefined || JSON.stringify(sessionKey(before)) !== JSON.stringify(sessionKey(after[i]))) {
       changed.push(i);
     }
   }
@@ -166,6 +168,8 @@ export function draftPreviewModel(
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
   /** The trainer's role labels — display order follows their ranks; absent = built-ins. */
   labels?: readonly RoleRank[],
+  /** Draft week shown (by number); absent = the first week. */
+  week?: number | null,
 ): DraftPreviewModel {
   const target = latestValidatedDraft(gens);
   if (!target || !target.draft) {
@@ -176,9 +180,9 @@ export function draftPreviewModel(
   const version = chain.length;
   const generating = pending && target !== null;
   const parentDraft = chain.length >= 2 ? chain[chain.length - 2].draft : null;
-  const changed = new Set(changedSessionIndexes(parentDraft, target.draft));
+  const changed = new Set(changedSessionIndexes(parentDraft, target.draft, week));
 
-  const sessions: PreviewSession[] = target.draft.sessions.map((s, index) => {
+  const sessions: PreviewSession[] = draftWeek(target.draft, week).sessions.map((s, index) => {
     // Raw draft index travels with the exercise: slot marks must not move when
     // display order is role-sorted (AI-made order only).
     const slotted = s.exercises.map((e, i) => ({ ...e, slot: i + 1 }));
@@ -241,7 +245,7 @@ export function versionStamps(messages: ChatMessageDto[], gens: GenerationDto[])
       generationId: gen.id,
       version: revisionChain(gens, gen.id).length,
       changes,
-      unproposed: proposal ? unproposedChanges(changes, proposal) : null,
+      unproposed: proposal ? unproposedChanges(changes, proposal, parent?.draft?.weeks ?? gen.draft.weeks) : null,
       discarded: gen.discardedChanges ?? [],
     });
   }
@@ -271,9 +275,11 @@ export function findBuildingChild(gens: GenerationDto[], parentGenerationId: str
 export interface VersionView {
   /** 1-based version shown. */
   version: number;
+  /** Draft week shown (by number). */
+  week: number;
   generation: GenerationDto;
   sessions: PreviewSessionCard[];
-  /** Changes from the previous version; empty for v1. */
+  /** The shown week's changes from the previous version; empty for v1. */
   changes: SlotChange[];
 }
 
@@ -288,12 +294,15 @@ export function versionView(
   version: number,
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
   labels?: readonly RoleRank[],
+  /** Draft week shown (by number); absent = the first week. */
+  week?: number | null,
 ): VersionView | null {
   const chain = revisionChain(gens, targetId);
   const gen = chain[version - 1];
   if (!gen?.draft) return null;
   const prev = version >= 2 ? chain[version - 2]?.draft ?? null : null;
-  const sessions: PreviewSessionCard[] = gen.draft.sessions.map((s) => ({
+  const shown = draftWeek(gen.draft, week);
+  const sessions: PreviewSessionCard[] = shown.sessions.map((s) => ({
     name: s.name,
     kind: s.kind ?? "lifting",
     cardio: s.cardio ?? null,
@@ -306,7 +315,9 @@ export function versionView(
       group: e.group,
     })),
   }));
-  return { version, generation: gen, sessions, changes: prev ? diffDrafts(prev, gen.draft) : [] };
+  // Only the shown week's changes mark its rows (plan changes have no rows).
+  const changes = prev ? diffDrafts(prev, gen.draft).filter((c) => c.kind !== "plan" && (c.week == null || c.week === shown.week)) : [];
+  return { version, week: shown.week, generation: gen, sessions, changes };
 }
 
 /** One row of the draft version switcher. */
@@ -334,8 +345,9 @@ export function versionRows(chain: GenerationDto[]): VersionRow[] {
   });
 }
 
-/** "Day 2 · 5 changes" style counts for the draft pane summary. */
-export function changeSummary(changes: SlotChange[]): string {
+/** "Day 2 · 5 changes" style counts for the draft pane summary. The same change in several weeks counts once. */
+export function changeSummary(all: SlotChange[]): string {
+  const changes = mergeWeekChanges(all);
   const swaps = changes.filter((c) => c.kind === "swap").length;
   const rx = changes.filter((c) => c.kind === "rx").length;
   const added = changes.filter((c) => c.kind === "added").length;

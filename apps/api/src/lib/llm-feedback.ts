@@ -20,6 +20,7 @@ import {
   groupedSetsOf,
   setsOf,
   type AiProgramDraft,
+  type GenerationKind,
   type DiffRow,
   type DiffSource,
   type LlmPurpose,
@@ -86,7 +87,7 @@ export async function recordFeedback(input: FeedbackInput): Promise<LlmFeedbackR
   }
 }
 
-const DRAFT_PURPOSES: LlmPurpose[] = ["block_generate", "week_generate", "revision", "week_revision"];
+const DRAFT_PURPOSES: LlmPurpose[] = ["block_generate", "week_generate", "fill_generate", "revision", "week_revision"];
 
 /** The last successful call that produced the subject, or null. */
 export async function resolveCallId(kind: LlmSubjectKind, id: string): Promise<string | null> {
@@ -163,7 +164,8 @@ export async function draftToWeekDiff(
   draft: AiProgramDraft,
   week: ProgramWeek | undefined
 ): Promise<DiffRow[]> {
-  return changed(diffSources(aiDraftToDiffSource(draft), weekSource(week, await exerciseNames(trainerId), false)));
+  // The draft week with the approved week's number (the only week of a week draft).
+  return changed(diffSources(aiDraftToDiffSource(draft, week?.week), weekSource(week, await exerciseNames(trainerId), false)));
 }
 
 /** Every changed week between two versions of a program. */
@@ -195,7 +197,7 @@ export async function programVersionDiff(
 export async function recordRegenerated(
   trainerId: string,
   clientId: string,
-  kind: "block" | "week",
+  kind: GenerationKind,
   newGenerationId: string
 ): Promise<void> {
   try {

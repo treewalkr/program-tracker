@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SlotChange } from "@pt/shared";
+  import { mergeWeekChanges, type SlotChange, type WeeksChange } from "@pt/shared";
   import type { VersionStamp } from "$lib/chatRefine";
   import Pill from "$lib/ui/Pill.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -20,16 +20,22 @@
 
   let { stamp, onpick }: Props = $props();
 
-  const n = $derived(stamp.changes.length);
-  const extra = $derived(stamp.unproposed ?? []);
-  const isExtra = (c: SlotChange) => extra.includes(c);
+  /** The same change in several weeks is one row naming its weeks. */
+  const rows = $derived(mergeWeekChanges(stamp.changes));
+  const n = $derived(rows.length);
+  const extraRaw = $derived(new Set(stamp.unproposed ?? []));
+  /** A row is unasked when any of its weeks' changes is. */
+  const isExtra = (c: WeeksChange) =>
+    stamp.changes.some((x) => extraRaw.has(x) && x.kind === c.kind && x.day === c.day && x.beforeSlot === c.beforeSlot && x.afterSlot === c.afterSlot && x.exercise === c.exercise && x.from === c.from && x.to === c.to);
+  const extra = $derived(rows.filter(isExtra));
   /** Changes the AI made outside the proposal that the build reverted. */
-  const kept = $derived(stamp.discarded ?? []);
+  const kept = $derived(mergeWeekChanges(stamp.discarded ?? []));
+  const weeksOf = (c: WeeksChange) => (c.weeks.length ? `W${c.weeks.join(", W")} · ` : "");
   const plural = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
 </script>
 
-{#snippet what(c: SlotChange)}
-  <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
+{#snippet what(c: WeeksChange)}
+  <span class="where">{c.kind === "plan" ? "Block plan" : `${weeksOf(c)}Day ${c.day}`} ·</span>
   {#if c.kind === "swap"}
     <s class="from">{c.from}</s>{" → "}{c.to}
   {:else if c.kind === "rx"}
@@ -45,8 +51,8 @@
 {/snippet}
 
 <!-- A reverted change reads the other way round: what stayed is plain, what the AI tried is struck. -->
-{#snippet keptWhat(c: SlotChange)}
-  <span class="where">{c.kind === "plan" ? "Block plan" : `Day ${c.day}`} ·</span>
+{#snippet keptWhat(c: WeeksChange)}
+  <span class="where">{c.kind === "plan" ? "Block plan" : `${weeksOf(c)}Day ${c.day}`} ·</span>
   {#if c.kind === "swap"}
     kept {c.from} <span class="tried">· AI tried <s>{c.to}</s></span>
   {:else if c.kind === "added"}
@@ -85,7 +91,7 @@
     <p class="none">No changes.</p>
   {:else}
     <ul class="changes">
-      {#each stamp.changes as c, i (i)}
+      {#each rows as c, i (i)}
         <li>
           <button type="button" class="row" class:unasked={isExtra(c)} onclick={() => onpick?.(c)}>
             {@render sign(c)}

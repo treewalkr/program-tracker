@@ -101,6 +101,8 @@ export const ImportWeek = z.object({
   /** "Week 11"; null when the text has no week headers. */
   label: z.string().max(80).nullable(),
   line: line.nullable(),
+  /** A/B when the notes say the weeks alternate two routines ("Week A", "odd/even weeks"); absent otherwise. */
+  rotation: z.enum(["A", "B"]).nullish(),
   days: z.array(ImportDay).max(20).default([]),
 });
 export type ImportWeek = z.infer<typeof ImportWeek>;
@@ -237,8 +239,18 @@ export interface ReviewDay {
 export interface ReviewWeek {
   label: string | null;
   line: number | null;
+  /** The notes' own A/B letter for the week (ImportWeek.rotation). */
+  rotation?: "A" | "B";
   days: ReviewDay[];
   flags: ImportFlag[];
+}
+
+/** "Found A/B weeks": indexes into `weeks` of the latest A and the latest B week. */
+export interface ImportAb {
+  a: number;
+  b: number;
+  /** "notes": the notes say so (week letters); "pattern": W1 ≠ W2 and every week matches the one two before. */
+  source: "notes" | "pattern";
 }
 
 export interface ImportBlock {
@@ -259,6 +271,8 @@ export interface ImportResult {
   defaultBlock: number;
   /** Blocks alternate A, B, A, B — both are kept as notes, one is drafted. */
   alternating: boolean;
+  /** A/B weeks found (FB-013): the weeks to draft as Week A and Week B. Absent/null = one template week (and on older imports). */
+  ab?: ImportAb | null;
   /** Words the trainer may add to their glossary (filterNewTerms). Absent on imports before v1.1. */
   newTerms?: ImportNewTerm[];
 }
@@ -718,6 +732,27 @@ export function groupBlocks(weeks: { days: { sessions: { exercises: { sourceName
   return { blocks, alternating };
 }
 
+/**
+ * A/B weeks (FB-013). The notes' own letters win: the latest A week and the
+ * latest B week. Else the pattern: three or more weeks where week 1's and
+ * week 2's exercises differ and every later week matches the week two before
+ * (W3 ≈ W1, W4 ≈ W2…); odd weeks are A. null when neither holds.
+ */
+export function detectAb(
+  weeks: { rotation?: "A" | "B" | null; days: { sessions: { exercises: { sourceName: string }[] }[] }[] }[]
+): ImportAb | null {
+  const lastOf = (letter: "A" | "B") => weeks.findLastIndex((w) => w.rotation === letter);
+  const [ta, tb] = [lastOf("A"), lastOf("B")];
+  if (ta >= 0 && tb >= 0) return { a: ta, b: tb, source: "notes" };
+  if (weeks.length < 3) return null;
+  const names = weeks.map(weekExerciseNames);
+  if (names.some((n) => n.size === 0)) return null;
+  if (jaccard(names[0], names[1]) >= BLOCK_SIMILARITY) return null;
+  for (let i = 2; i < names.length; i++) if (jaccard(names[i], names[i - 2]) < BLOCK_SIMILARITY) return null;
+  const last = weeks.length - 1;
+  return last % 2 === 0 ? { a: last, b: last - 1, source: "pattern" } : { a: last - 1, b: last, source: "pattern" };
+}
+
 // ---------------------------------------------------------------------------
 // Chunks → result
 // ---------------------------------------------------------------------------
@@ -785,6 +820,7 @@ export function buildImportResult(
     return {
       label: w.label,
       line: w.line,
+      ...(w.rotation ? { rotation: w.rotation } : {}),
       flags,
       days: w.days.map((d, di) => ({
         label: d.label || `Day ${di + 1}`,
@@ -823,6 +859,7 @@ export function buildImportResult(
     blocks,
     defaultBlock: Math.max(0, blocks.length - 1),
     alternating,
+    ab: detectAb(weeks),
     newTerms: filterNewTerms(ok.flatMap((c) => c.newTerms ?? []), lines, glossary),
   };
 }

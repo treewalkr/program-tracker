@@ -114,6 +114,26 @@ describe("blockPulse & pulseSummary", () => {
     },
   };
 
+  test("blockPulse on A/B weeks compares with the last logged week of the same letter", () => {
+    const ab: SignalProgram = {
+      ...baseProgram,
+      weeks: [1, 2, 3, 4].map((week) => ({ week, rotation: week % 2 ? ("A" as const) : ("B" as const), sessions: [] })),
+    };
+    const log = (date: string, exerciseId: string, weightKg: number): SignalLog => ({
+      programId: "prog-1",
+      date,
+      sets: [{ exerciseId, type: "working", weightKg, reps: 10 }],
+    });
+    // W1 A squat 1000 · W2 B bench 500 · W3 A squat 1100 · W4 B bench 550.
+    const logs = [log("2026-10-02", "sq", 100), log("2026-10-09", "bp", 50), log("2026-10-16", "sq", 110), log("2026-10-23", "bp", 55)];
+    const pulse = blockPulse(ab, logs, Date.parse("2026-10-24T00:00:00Z"));
+    expect(pulse.map((w) => w.overallVolumeDelta)).toEqual([null, null, 10, 10]);
+    expect(pulse[2].e1rmDelta).toBe(10);
+    expect(pulse[2].targetDelta).toBe(0); // W3 targets rep volume: same reps as W1
+    // Without letters W2 compares with W1 as before.
+    expect(blockPulse(baseProgram, logs, Date.parse("2026-10-24T00:00:00Z"))[1].overallVolumeDelta).toBe(-50);
+  });
+
   test("blockPulse carries target and computes targetMet for overall_volume", () => {
     // Week 1: 1000kg
     const logsMeet: SignalLog[] = [

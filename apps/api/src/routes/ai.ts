@@ -26,11 +26,13 @@ import { settleGeneration } from "../lib/settle-generation";
 import { draftToWeekDiff, recordFeedback, recordRegenerated } from "../lib/llm-feedback";
 import { ContextError, providerRuntime, resolveEffort } from "../ai/runtime";
 import {
-  buildGenerationMessages,
   buildWeekMessages,
   periodizationContext,
 } from "../ai/prompt";
-import { MOCK_DRAFT, mockWeekDraft } from "../ai/mock";
+import { mockWeekDraft } from "../ai/mock";
+import { stampWeekDraft } from "../lib/draft-weeks";
+import { applyFill, startFill } from "../lib/fill";
+import { startBlock } from "../lib/block";
 import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
 import { loadRoleLabels } from "../lib/role-labels";
 import { ensureSessionTypes } from "../lib/session-types";
@@ -101,6 +103,7 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           const effort = resolveEffort(rt, body.effort);
 
           const targetWeek = body.targetWeek;
+          const targetRotation = basedProg.sessions.find((w) => w.week === targetWeek)?.rotation;
           const targetPlan = basedProg.phasing?.weeks?.find((w) => w.week === body.targetWeek);
           const targetDirective = targetPlan?.directive ?? null;
           const target = targetPlan?.target ?? null;
@@ -160,70 +163,18 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
               signal: ac.signal,
               mode: "json",
               schema: AiProgramDraft,
-              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective)),
+              mock: () => JSON.stringify(mockWeekDraft(targetWeek, targetDirective, targetRotation)),
             });
-            const { code, row } = await settleGeneration(generation.id, out);
+            // The draft is the target week, with its A/B letter.
+            const { code, row } = await settleGeneration(generation.id, out.ok ? { ...out, data: stampWeekDraft(out.data, targetWeek, targetRotation) } : out);
             return status(code, row);
           } finally {
             deregisterGeneration(generation.id);
           }
         }
 
-        const ctx = await loadContext(trainerId, body.clientId, body.basedOnProgramId ?? null);
-        const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
-        const effort = resolveEffort(rt, body.effort);
-        const messages = buildGenerationMessages({
-          ...ctx,
-          direction: body.direction ?? null,
-          trainerInstructions: body.instructions ?? "",
-        });
-
-        const [generation] = await db
-          .insert(aiGenerations)
-          .values({
-            trainerId,
-            clientId: body.clientId,
-            basedOnProgramId: body.basedOnProgramId ?? null,
-            kind: "block",
-            direction: body.direction ?? null,
-            instructions: body.instructions ?? null,
-            providerId: body.providerId ?? DEFAULT_PROVIDER_ID,
-            model: rt.model,
-            effort,
-            status: "pending",
-            exampleProgramIds: ctx.examples.map((e) => e.programId),
-          })
-          .returning();
-
-        await recordRegenerated(trainerId, body.clientId, "block", generation.id);
-        const ac = registerGeneration(generation.id);
-        try {
-          // Call + validate, with exactly one retry on validation failure.
-          const out = await callLlm({
-            purpose: "block_generate",
-            builder: "buildGenerationMessages",
-            links: { trainerId, clientId: body.clientId, generationId: generation.id },
-            context: contextSnapshot(ctx, {
-              basedOnProgramId: body.basedOnProgramId ?? null,
-              direction: body.direction ?? null,
-              trainerInstructions: body.instructions ?? "",
-            }),
-            messages: [
-              { role: "system", content: messages.system },
-              { role: "user", content: messages.user },
-            ],
-            rt,
-            effort,
-            signal: ac.signal,
-            mode: "json",
-            schema: AiProgramDraft,
-            mock: () => JSON.stringify(MOCK_DRAFT),
-          });
-          const { code, row } = await settleGeneration(generation.id, out);
-          return status(code, row);
-        } finally {
-          deregisterGeneration(generation.id);
-        }
+        const { code, row } = await startBlock(trainerId, body);
+        return status(code, row);
       } catch (err) {
         if (err instanceof ContextError) return status(err.status, { error: err.message });
         throw err;
@@ -232,6 +183,25 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     {
       body: AiGenerationModel.generate,
     }
+  )
+  /**
+   * Fill with AI (FB-013): the AI writes every week after the last logged one
+   * (and after the first week of each letter) of an existing program; the
+   * trainer's weeks ride in the draft as locked weeks.
+   */
+  .post(
+    "/fill",
+    async ({ body, status, trainerId }) => {
+      try {
+        const res = await startFill(trainerId, body);
+        if (!res.ok) return status(res.status, { error: res.error });
+        return status(res.code, res.row);
+      } catch (err) {
+        if (err instanceof ContextError) return status(err.status, { error: err.message });
+        throw err;
+      }
+    },
+    { body: AiGenerationModel.fill }
   )
   .get(
     "/generations",
@@ -267,6 +237,12 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         ? await db.select().from(clients).where(eq(clients.id, gen.clientId))
         : [null];
 
+      if (gen.kind === "fill") {
+        const res = await applyFill(trainerId, gen);
+        if (!res.ok) return status(res.status, { error: res.error, ...(res.refs ? { refs: res.refs } : {}) });
+        await recordApproval(trainerId, gen, res.program.sessions.find((w) => w.week === res.written[0]), res.program.id);
+        return status(201, toProgramDto(res.program));
+      }
       const catalog = await db.select().from(exercises);
       if (gen.kind === "week") {
         if (!gen.basedOnProgramId) return status(404, { error: "program not found" });
@@ -337,7 +313,6 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       const { weeks, createdNames, unresolvable } = draftToWeeks(
         gen.draft,
         catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-        gen.draft.phasing?.plannedWeeks ?? 4,
         client,
         await ensureSessionTypes(trainerId),
         await loadRoleLabels(trainerId),

@@ -9,6 +9,11 @@ import {
   cardioLabel,
   cardioUnitLabel,
   type AiProgramDraft,
+  type DraftSession,
+  type DraftWeek,
+  type LiftingSessions,
+  draftAlternates,
+  sameLetterWeeks,
   type CardioTarget,
   type SessionKind,
   type Phasing,
@@ -57,12 +62,17 @@ export interface ClientContext {
 
 export interface ProgramSummary {
   name: string;
+  /** Week the summary was read from (weekly drafts), and its A/B letter when the block alternates. */
+  week?: number;
+  rotation?: "A" | "B";
   sessions: {
     name: string;
     kind?: "lifting" | "cardio";
     /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
     exercises: { name: string; role?: string; group?: string; sets: string[] }[];
   }[];
+  /** An A/B program followed up by a new block: both routines (latest week of each letter). */
+  routines?: { week: number; rotation: "A" | "B"; sessions: ProgramSummary["sessions"] }[];
 }
 
 export interface ExerciseHistoryEntry {
@@ -84,6 +94,17 @@ export interface CatalogEntry {
   functionalMovement: string | null;
   /** Trainer's coaching note (setup, cues), if any. */
   note?: string | null;
+}
+
+/** Heading over the week a weekly draft builds on. A/B blocks build on the last
+ *  week with the same letter, not the week before. */
+export function currentWeekHeading(prev: ProgramSummary, targetWeek: number): string {
+  if (prev.rotation && prev.week != null) {
+    return prev.week === targetWeek
+      ? `WEEK ${prev.rotation} ROUTINE (week ${prev.week} as written — the block alternates A/B weeks; revise this week):`
+      : `LAST WEEK ${prev.rotation} (week ${prev.week} — the block alternates A/B weeks; week ${targetWeek} builds on this one):`;
+  }
+  return `CURRENT WEEK (week ${targetWeek - 1} — what the client is doing now):`;
 }
 
 export interface ExampleProgramSummary {
@@ -119,6 +140,18 @@ export interface GenerationContext {
   coachingRules?: CoachingRulePrompt[];
   /** The client's deload rule in force (effectiveDeload); absent = the default. */
   deload?: DeloadSettings;
+  /** Block drafts: how many weeks to write and whether they alternate A/B (the trainer's setting). */
+  block?: BlockShape;
+}
+
+/** The block a draft writes in full: its length, A/B alternation, and the trainer's own weeks (fill). */
+export interface BlockShape {
+  weeks: number;
+  alternate: boolean;
+  /** Fill: weeks the trainer wrote — shown, never written. */
+  lockedWeeks?: number[];
+  /** Fill: lifting sessions per week (per A/B letter), from the trainer's locked weeks — overrides the client's count. */
+  liftingSessions?: LiftingSessions | null;
 }
 
 export interface CoachingRulePrompt {
@@ -148,8 +181,33 @@ function guidanceBlocks(ctx: Pick<GenerationContext, "learnedPreferences" | "coa
   ];
 }
 
-/** The draft JSON shape; the role line lists the trainer's live labels. */
-function draftSchemaSpec(labels: readonly RoleLabel[]): string {
+/**
+ * The draft JSON shape; the role line lists the trainer's live labels.
+ * `weeks`: a block — every week in full under "weeks". `sessions`: one week (weekly re-drafts).
+ */
+function draftSchemaSpec(labels: readonly RoleLabel[], shape: "weeks" | "sessions" = "sessions"): string {
+  const spec = draftSchemaSpecSessions(labels);
+  if (shape === "sessions") return spec;
+  // Wrap the one-week "sessions" list in a week entry; the plan stays as it is.
+  const at = spec.indexOf('  "sessions": [');
+  const body = spec
+    .slice(at)
+    .replace(/\n\}$/, "")
+    .split("\n")
+    .map((l) => `    ${l}`)
+    .join("\n")
+    .replace('"sessions": [                     // one week: the lifting sessions, then any cardio sessions', '"sessions": [                 // this week: the lifting sessions, then any cardio sessions');
+  return `${spec.slice(0, at)}  "weeks": [                        // every week of the block in full, week 1 first
+    {
+      "week": number,                // 1, 2, 3 … in order
+      "rotation"?: "A" | "B",        // only when the block alternates: odd weeks "A", even weeks "B"
+${body}
+    }
+  ]
+}`;
+}
+
+function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
   return `{
   "name": string,                    // short program name
   "rationale": string,              // trainer-facing: progression logic, volume/intensity changes, and why
@@ -272,8 +330,14 @@ function oneRepMaxLines(client: ClientContext): string[] {
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** How many lifting sessions to ask for: the client's setting, else the current program's. */
-function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | null): string {
+/** How many lifting sessions to ask for: a fill's locked weeks, else the client's setting, else the current program's. */
+function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string {
+  const fill = block?.liftingSessions;
+  if (typeof fill === "number") return `exactly ${fill} (as in the trainer's locked weeks)`;
+  if (fill && (fill.A != null || fill.B != null)) {
+    const per = (["A", "B"] as const).flatMap((r) => (fill[r] != null ? [`${r} weeks exactly ${fill[r]}`] : []));
+    return `${per.join(", ")} (as in the trainer's locked weeks of the same letter)`;
+  }
   if (client.sessionsPerWeek) return `exactly ${client.sessionsPerWeek}`;
   const prev = previous?.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length ?? 0;
   return prev > 0
@@ -282,10 +346,10 @@ function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | 
 }
 
 /** Session-structure rules shared by every draft-producing prompt. */
-function sessionStructureRules(client: ClientContext, previous: ProgramSummary | null): string[] {
+function sessionStructureRules(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string[] {
   const days = [...new Set(client.trainingDays ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   return [
-    `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous)}. List them in the order they should be trained.`,
+    `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous, block)}. List them in the order they should be trained.`,
     '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the lifting session number and do not use up a training day. List cardio sessions after the lifting ones.',
     '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
     weekdayRule(client, days),
@@ -303,6 +367,31 @@ function weekdayRule(client: ClientContext, days: number[]): string {
     `- Give every session a "weekday" (1=Mon … 7=Sun). Lifting only on ${days.length ? dayList(days) : "no day (leave lifting weekday out)"}; cardio on ${dayList(cardio)}${long ? `; the long run on ${long}` : ""}. Sessions may share a day.`,
     "  Concurrent-training rules (the app keeps weekdays that follow them and re-places the rest): key runs are the long run (≥ 60 min) and hard runs (tempo, threshold, intervals, zone ≥ 4) — never two key runs on one day; heavy lower-body lifting is never the day after a key run and at least 48 h before one; easy runs go on different days where possible.",
   ].join("\n");
+}
+
+/**
+ * Rules for writing a whole block: one entry per week with its own loads
+ * following that week's directive, A/B routines when alternating, lean JSON
+ * (the whole block is one answer), and the trainer's locked weeks left out.
+ */
+export function blockWeekRules(b: BlockShape): string[] {
+  const locked = b.lockedWeeks ?? [];
+  const write = Array.from({ length: b.weeks }, (_, i) => i + 1).filter((w) => !locked.includes(w));
+  return [
+    `- The block is exactly ${b.weeks} weeks: phasing.plannedWeeks = ${b.weeks}, one phasing.weeks entry per week.`,
+    locked.length
+      ? `- "weeks" lists weeks ${write.join(", ")} in full, in order — leave out week${locked.length > 1 ? "s" : ""} ${locked.join(", ")} (the trainer wrote ${locked.length > 1 ? "them" : "it"}; shown as locked). Build each week from the trainer's weeks: keep their exercises and sessions, and progress the loads from the last week with the same letter, following each week's directive.`
+      : `- "weeks" lists every week 1–${b.weeks} in full, in order: each week's own sets, reps and loads, following that week's directive (+volume adds sets or reps, +intensity adds load, deload follows the deload rule).`,
+    locked.length && b.alternate
+      ? "- Keep each week's sessions in the same order as the trainer's locked week with its letter (lifting first, then cardio) so each one keeps its calendar slot."
+      : "- Keep the same sessions in the same order every week (lifting first, then cardio) so each one keeps its calendar slot.",
+    locked.length && b.alternate
+      ? '- This block ALTERNATES the trainer\'s two routines: odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B"). Each week keeps the exercises of the trainer\'s locked week with its letter and progresses its loads from the last week with that letter.'
+      : b.alternate
+      ? '- This block ALTERNATES two routines: odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B"). A and B have the same sessions and days but different exercises (e.g. back squat in A, front squat in B). Weeks with the same letter keep the same exercises and progress their loads from the last week with that letter (week 3 builds on week 1, week 4 on week 2).'
+      : '- Every week keeps the same exercises; only the prescription progresses. Do not set "rotation".',
+    "- Keep the JSON lean: leave out optional fields at their defaults, no per-set notes unless needed, weekday only on week 1's sessions when the others match.",
+  ];
 }
 
 const WEEK_STABILITY_RULE =
@@ -338,7 +427,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    draftSchemaSpec(activeLabels(ctx.roleLabels)),
+    draftSchemaSpec(activeLabels(ctx.roleLabels), ctx.block ? "weeks" : "sessions"),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
@@ -347,12 +436,13 @@ export function buildGenerationMessages(ctx: GenerationContext) {
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    ...(ctx.block ? blockWeekRules(ctx.block) : []),
     deloadRule(ctx),
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     GOLD_STANDARD_RULE,
-    ...sessionStructureRules(ctx.client, ctx.previousProgram),
+    ...sessionStructureRules(ctx.client, ctx.previousProgram, ctx.block),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
@@ -412,6 +502,46 @@ export function buildGenerationMessages(ctx: GenerationContext) {
   return { system, user };
 }
 
+export interface FillContext extends GenerationContext {
+  block: BlockShape & { lockedWeeks: number[] };
+  /** The program being filled. */
+  programName: string;
+  /** Its block plan — the fill follows it. */
+  plan: Phasing | null;
+  /** The trainer's weeks, as draft weeks (locked). */
+  lockedWeeks: DraftWeek[];
+}
+
+/**
+ * Fill with AI (FB-013): the trainer wrote the first week(s); the AI writes
+ * the rest of the block in full, following the program's plan, the client's
+ * profile, limitations and logs. Same output contract as a block draft, with
+ * the locked weeks left out.
+ */
+export function buildFillMessages(ctx: FillContext): { system: string; user: string } {
+  const base = buildGenerationMessages({ ...ctx, previousProgram: null });
+  const system = [
+    "You are an expert strength & conditioning coach FILLING IN the rest of a training block the trainer started: they wrote the first week(s) themselves, you write every remaining week.",
+    ...base.system.split("\n").slice(1),
+    "- phasing: copy the BLOCK PLAN below unchanged.",
+  ].join("\n");
+  const planLines = ctx.plan
+    ? [
+        `BLOCK PLAN (follow it): ${ctx.plan.plannedWeeks} weeks · ${ctx.plan.phase}${ctx.plan.nextPhase ? ` → next: ${ctx.plan.nextPhase}` : ""}`,
+        ...(ctx.plan.weeks ?? []).map((w) => `- W${w.week}: ${w.directive}${w.target ? ` (${w.target.deltaPercent > 0 ? "+" : ""}${w.target.deltaPercent}% ${w.target.metric})` : ""}${w.note ? ` — ${w.note}` : ""}`),
+      ]
+    : [`BLOCK PLAN: ${ctx.block.weeks} weeks, no week directives — progress conservatively and keep the last week of 4+ lighter only if the logs call for it.`];
+  const locked = [
+    `PROGRAM BEING FILLED: ${ctx.programName}`,
+    ...planLines,
+    "",
+    "LOCKED WEEKS (written by the trainer — keep their exercises and sessions; never output these weeks):",
+    ...ctx.lockedWeeks.flatMap((w) => [draftWeekHeading(w), ...w.sessions.map(draftSessionLine)]),
+  ].join("\n");
+  const user = base.user.replace("CURRENT PROGRAM: none (cold start — design a sensible first block).", locked);
+  return { system, user };
+}
+
 /** Chat-history window threaded into revision prompts (chat refine loop). */
 export const REVISION_CONVERSATION_LIMIT = 10;
 /** Max characters per conversation line, after whitespace collapsing. */
@@ -451,7 +581,7 @@ export interface RevisionContext extends GenerationContext {
 }
 
 /** Output schema spec for proposal turns (propose → build). */
-const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4")}]} | null}`;
+const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"week"?: number (the WEEK heading in DRAFT SLOTS the day/slot numbers read; the change reaches every week with that week's letter — omit for week 1 or a one-week draft), "day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4")}]} | null}`;
 
 /**
  * Hand edits reach the model as "Edited the draft by hand (vN): …" lines in
@@ -469,19 +599,31 @@ const PROPOSAL_RULES = [
   '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. To change a cardio session (modality, duration, zone, intensity, distance, RPE), add one "edit" with that session\'s day, slot null and the full new cardio prescription in "detail". Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
 ];
 
-/** Numbered slot listing the proposal contract refers to. */
+/**
+ * Numbered slot listing the proposal contract refers to: the first week of
+ * each A/B letter (week 1 alone when the block doesn't alternate). A change
+ * there reaches every week with that letter.
+ */
 export function draftSlotsText(d: AiProgramDraft): string {
-  const seq = { lifting: 0, cardio: 0 };
-  return d.sessions
-    .map((s, di) => {
-      const kind = s.kind === "cardio" ? "cardio" : "lifting";
-      const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
-      const rows = s.exercises.map((e, ei) => {
-        const tag = groupTag(s.exercises, ei);
-        return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+  const firsts = draftAlternates(d)
+    ? d.weeks.filter((w, i) => d.weeks.findIndex((x) => x.rotation === w.rotation) === i)
+    : d.weeks.slice(0, 1);
+  const multi = d.weeks.length > 1;
+  return firsts
+    .map((w) => {
+      const seq = { lifting: 0, cardio: 0 };
+      const head = multi ? [`WEEK ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${sameLetterNote(d, w)}`] : [];
+      const body = w.sessions.map((s, di) => {
+        const kind = s.kind === "cardio" ? "cardio" : "lifting";
+        const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
+        const rows = s.exercises.map((e, ei) => {
+          const tag = groupTag(s.exercises, ei);
+          return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+        });
+        if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
+        return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
       });
-      if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
-      return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
+      return [...head, ...body].join("\n");
     })
     .join("\n");
 }
@@ -493,7 +635,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "You reason about progressive overload from logged training data and design sensible mesocycles.",
     "SAFETY: any injury, pain, or limitation listed for the client is a hard constraint — never prescribe movements that conflict with it.",
     "Respond with a single JSON object only, no prose outside the JSON. The JSON must match this schema:",
-    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : draftSchemaSpec(activeLabels(ctx.roleLabels)),
+    proposal ? PROPOSAL_TURN_SCHEMA_SPEC : draftSchemaSpec(activeLabels(ctx.roleLabels), ctx.block ? "weeks" : "sessions"),
     "Rules:",
     "- Reference exercises by catalog exerciseId when a suitable one exists; use exerciseName only for genuinely new movements.",
     "- Keep exercises the client has been performing (and progressing) unless there is a stated reason to swap.",
@@ -502,12 +644,14 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
     "- Progress load conservatively: set targetWeightKg on working sets from the most recent logged load, stepping ~2.5 kg (smaller steps for upper body); regress if RPEs were 9+ or reps were missed. Omit targetWeightKg for bodyweight or RPE-driven work.",
     PRESCRIPTION_RULE,
     "- Propose phasing for the new block: plannedWeeks, phase name, and week directives (base → +volume → +intensity → deload/transition). Follow the periodization context when provided.",
+    ...(ctx.block && !proposal ? blockWeekRules(ctx.block) : []),
+    ...(ctx.block && !proposal ? ["- A revision keeps the block's length and its week letters; a change to one routine reaches every week with that letter."] : []),
     deloadRule(ctx),
     CARDIO_TARGET_RULE,
     "- Quantify +volume/+intensity weeks with targets: set target { metric, deltaPercent } on WeekPlan where appropriate (overall volume ≈ +5%/wk, intensity ≈ +2.5% load).",
     "- Read the trainer's five kinetic chains descriptively: the counts are sets touching each chain, not a score to equalise. A chain with no sets touching it may deserve some accessory work, without regressing the main lifts.",
     GOLD_STANDARD_RULE,
-    ...sessionStructureRules(ctx.client, ctx.previousProgram),
+    ...sessionStructureRules(ctx.client, ctx.previousProgram, ctx.block),
     "- rationale and clientSummary must be concrete and reference actual numbers from the history.",
     MARKDOWN_RULE,
     "- Keep rationale under 2500 characters and clientSummary under 1200 — longer text is rejected.",
@@ -639,12 +783,14 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     "",
     ctx.previousProgram
       ? [
-          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          currentWeekHeading(ctx.previousProgram, ctx.targetWeek),
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
     "",
     `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.previousProgram?.rotation ? ` · week ${ctx.previousProgram.rotation} (keep the ${ctx.previousProgram.rotation} routine)` : ""
+    }${
       ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
     }${
       ctx.target
@@ -725,12 +871,14 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     "",
     ctx.previousProgram
       ? [
-          `CURRENT WEEK (week ${ctx.targetWeek - 1} — what the client is doing now):`,
+          currentWeekHeading(ctx.previousProgram, ctx.targetWeek),
           programToText(ctx.previousProgram),
         ].join("\n")
       : "CURRENT PROGRAM: none (cold start — design a sensible first block).",
     "",
     `NEXT WEEK: week ${ctx.targetWeek} of ${ctx.plannedWeeks}${
+      ctx.previousProgram?.rotation ? ` · week ${ctx.previousProgram.rotation} (keep the ${ctx.previousProgram.rotation} routine)` : ""
+    }${
       ctx.targetDirective ? ` · directive ${ctx.targetDirective}` : ""
     }${
       ctx.target
@@ -780,32 +928,54 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
   return { system, user };
 }
 
+/** One draft session as a text line: "- Name: A1 Squat (primary) [5 reps @ RPE 8, rest 180s; …], …". */
+function draftSessionLine(s: DraftSession): string {
+  const exercises = s.exercises
+    .map((e, i) => {
+      // Superset tag ("A1 "), so a revision keeps the trainer's groups.
+      const tag = groupTag(s.exercises, i);
+      const name = `${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}`;
+      const sets = e.prescribedSets.map((ps) => {
+        const amount = ps.durationSeconds != null ? `${ps.durationSeconds}s` : `${ps.reps}${ps.amrap ? "+" : ""} reps`;
+        const load = ps.targetWeightKg != null ? ` × ${ps.targetWeightKg} kg` : ps.percent1rm != null ? ` @ ${ps.percent1rm}%` : "";
+        const rpe = ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : "";
+        const rest = ps.restSeconds != null ? `, rest ${ps.restSeconds}s` : "";
+        return `${amount}${load}${rpe}${rest}`;
+      });
+      return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
+    })
+    .join(", ");
+  const cardio = s.cardio ? ` cardio ${cardioLabel(s.cardio)}` : "";
+  return `- ${s.name}:${cardio}${exercises ? ` ${exercises}` : ""}`;
+}
+
+/** "WEEK 3 (A)" heading over a draft week; "(locked)" marks the trainer's own weeks in a fill. */
+const draftWeekHeading = (w: DraftWeek) => `WEEK ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${w.locked ? " (locked — the trainer's, unchanged)" : ""}:`;
+
+/** The draft as text, week by week (one-week drafts print just their sessions). */
 export function draftToText(d: AiProgramDraft): string {
-  const lines = [
+  const one = d.weeks.length === 1;
+  return [
     d.name,
     d.rationale,
-    ...d.sessions.map((s) => {
-      const exercises = s.exercises
-        .map((e, i) => {
-          // Superset tag ("A1 "), so a revision keeps the trainer's groups.
-          const tag = groupTag(s.exercises, i);
-          const name = `${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}`;
-          const sets = e.prescribedSets.map((ps) => {
-            const amount = ps.durationSeconds != null ? `${ps.durationSeconds}s` : `${ps.reps}${ps.amrap ? "+" : ""} reps`;
-            const rpe = ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : "";
-            const rest = ps.restSeconds != null ? `, rest ${ps.restSeconds}s` : "";
-            return `${amount}${rpe}${rest}`;
-          });
-          return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
-        })
-        .join(", ");
-      return `- ${s.name}: ${exercises}`;
-    }),
-  ];
-  return lines.join("\n");
+    ...d.weeks.flatMap((w) => [...(one ? [] : [draftWeekHeading(w)]), ...w.sessions.map(draftSessionLine)]),
+  ].join("\n");
+}
+
+/** Weeks a reader of `week` should know share its routine: "also W3, W5". */
+function sameLetterNote(d: AiProgramDraft, w: DraftWeek): string {
+  const others = sameLetterWeeks(d, w.week).filter((n) => n !== w.week);
+  if (others.length === 0) return "";
+  return w.rotation ? ` — week ${w.rotation} routine, also W${others.join(", W")}` : ` — every week, also W${others.join(", W")}`;
 }
 
 function programToText(p: ProgramSummary): string {
+  if (p.routines?.length) {
+    return [
+      "(The current program alternates two routines: odd weeks A, even weeks B.)",
+      ...p.routines.flatMap((r) => [`WEEK ${r.rotation} (week ${r.week}):`, programToText({ name: p.name, sessions: r.sessions })]),
+    ].join("\n");
+  }
   return p.sessions
     .map(
       (s) =>
@@ -1146,10 +1316,11 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
   const system = [
     "You read a personal trainer's training notes, pasted as numbered lines, and turn them into structured JSON. You never invent anything: every value you output must be written in its line.",
     "Respond with a single JSON object only, this shape (? = optional; omit a field the text does not give):",
-    `{"weeks": [{"label": string|null, "line": number|null, "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
+    `{"weeks": [{"label": string|null, "line": number|null, "rotation"?: "A"|"B", "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
     "Trainers write notes in many styles (day numbers or weekday names, \"4x8\" or \"3 sets of 10\", bullets, tables, copied chat messages, Thai or English). Read what each line means, not its exact wording.",
     "Structure:",
     '- A week header ("Week 3", "WEEK 1", "สัปดาห์ 2") starts a week: label as written, its line. No week headers → one week with label null and line null.',
+    '- rotation = "A" or "B" only when the notes say the weeks alternate two routines: "Week A" / "Week B", "Week 1 (A)", "odd/even weeks", "A week / B week", "สัปดาห์ A", "สัปดาห์คี่ / สัปดาห์คู่" (odd = A, even = B). Same letter → same routine. Never guess it from the exercises; leave it out otherwise.',
     '- A day or session header starts a day: "Day 1 Back/Biceps", "Mon - Upper A", "Fri: Upper B", "Upper A", "วันที่ 1 ขา". label = the header as written. Its lifting exercises form one session (kind "lifting") whose line is the header line and whose name is the focus without the day marker ("Day 1 Back/Biceps" → "Back/Biceps", "Mon - Upper A" → "Upper A", "Upper A" → "Upper A"), or the whole label when there is no focus.',
     "- No day or session headers at all → one day with label \"\" and line = the first exercise's line.",
     '- A cardio line ("Cardio Zone 2-3 : 40-60 mins", "Long run 10 km", "Bike 20 min easy") is its own session in that day: kind "cardio", exercises [], line = that line, a short name, cardio filled from the line. Ranges: the upper value in hrZone/durationMin, the lower in hrZoneLow/durationMinLow.',

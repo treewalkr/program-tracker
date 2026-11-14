@@ -5,6 +5,7 @@
   import SessionCard, { type SessionEditable, type SlotMark } from "$lib/components/SessionCard.svelte";
   import DraftEditDock from "$lib/components/DraftEditDock.svelte";
   import VersionPicker from "$lib/components/VersionPicker.svelte";
+  import DraftWeekTabs from "$lib/components/DraftWeekTabs.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import type { DraftEditor } from "$lib/draftEditor.svelte";
   import { rowMenuItems } from "$lib/draftEditMenu";
@@ -40,6 +41,8 @@
     open?: boolean;
     /** Hand edits on the latest version; omit for a read-only pane. */
     editor?: DraftEditor;
+    /** Pick the draft week shown (drafts with several weeks get week tabs). */
+    onweek?: (week: number) => void;
   }
 
   let {
@@ -53,7 +56,17 @@
     oncancel,
     open = $bindable(false),
     editor,
+    onweek,
   }: Props = $props();
+
+  const weeks = $derived(view.generation.draft?.weeks ?? []);
+  /** The op week for hand edits: the shown week when the draft has several. */
+  const opWeek = $derived(weeks.length > 1 ? view.week : null);
+  const shownLocked = $derived(weeks.find((w) => w.week === view.week)?.locked === true);
+  function pickWeek(n: number) {
+    if (editor?.selecting) editor.setSelecting(false);
+    onweek?.(n);
+  }
 
   let showChanges = $state(true);
 
@@ -64,7 +77,7 @@
   );
   const plural = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
 
-  const keyOf = (c: SlotChange) => `${c.day}:${c.beforeSlot}:${c.afterSlot}:${c.kind}`;
+  const keyOf = (c: SlotChange) => `${c.week ?? ""}:${c.day}:${c.beforeSlot}:${c.afterSlot}:${c.kind}`;
   const unproposedKeys = $derived(new Set(unproposed.map(keyOf)));
 
   const isLatest = $derived(view.version === latest);
@@ -88,13 +101,13 @@
   function editableFor(day: number): SessionEditable | undefined {
     const ed = editor;
     const d = view.generation.draft;
-    if (!ed || !canEdit || !d) return undefined;
+    if (!ed || !canEdit || !d || shownLocked) return undefined;
     return {
       selecting: ed.selecting,
       disabled: ed.busy,
       isSelected: (slot) => ed.isSelected({ day, slot }),
       ontoggle: (slot) => ed.toggle({ day, slot }),
-      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => ed.run(ops), roleLabels.all, { keepOrder: view.generation.trainerOrder }),
+      items: (slot) => rowMenuItems(d, { day, slot }, (ops) => ed.run(ops), roleLabels.all, { keepOrder: view.generation.trainerOrder, week: opWeek }),
     };
   }
 
@@ -148,10 +161,16 @@
     </div>
   {/if}
 
+  {#if weeks.length > 1 && onweek}
+    <div class="weeks">
+      <DraftWeekTabs {weeks} value={view.week} onchange={pickWeek} />
+    </div>
+  {/if}
+
   <div class="summary">
     {#if view.version > 1}
       <strong>{plural(view.changes.length, "change")}</strong>
-      <span class="muted">since v{view.version - 1}{view.changes.length ? ` · ${changeSummary(view.changes)}` : ""}</span>
+      <span class="muted">since v{view.version - 1}{weeks.length > 1 ? ` in W${view.week}` : ""}{view.changes.length ? ` · ${changeSummary(view.changes)}` : ""}</span>
     {:else}
       <span class="muted">First draft</span>
     {/if}
@@ -182,7 +201,7 @@
   </div>
 
   {#if editor && view.generation.draft}
-    <DraftEditDock {editor} draft={view.generation.draft} labels={roleLabels.all} keepOrder={view.generation.trainerOrder} />
+    <DraftEditDock {editor} draft={view.generation.draft} week={opWeek} labels={roleLabels.all} keepOrder={view.generation.trainerOrder} />
   {/if}
 
   <div class="foot">
@@ -211,6 +230,11 @@
   }
   .strip-toggle {
     display: none;
+  }
+  .weeks {
+    flex: none;
+    padding: 6px 12px 0;
+    border-bottom: 1px solid var(--line);
   }
   .select-toggle {
     margin-left: auto;

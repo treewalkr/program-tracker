@@ -105,6 +105,38 @@ describe("progression rules (F23)", () => {
     expect(rows[1].changes).toEqual([]);
   });
 
+  test("progressionPreview on A/B weeks labels the first B week as kept", () => {
+    const w1: ProgramWeekDto = {
+      week: 1,
+      rotation: "A",
+      sessions: [
+        { id: "s1", name: "Lower", seq: 1, order: 0, kind: "lifting", exercises: [
+          { id: "e1", exerciseId: "sq", exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] },
+        ] },
+      ],
+    };
+    const w2: ProgramWeekDto = { ...structuredClone(w1), week: 2, rotation: "B" };
+    w2.sessions[0].exercises[0] = { ...w2.sessions[0].exercises[0], exerciseId: "bp", exerciseName: "Bench" };
+    const phasing: ProgramPhasingDto = {
+      plannedWeeks: 4,
+      phase: "acc",
+      weeks: [
+        { week: 1, directive: "base" },
+        { week: 2, directive: "+intensity", progression: { kind: "kg", amount: 2.5 } },
+        { week: 3, directive: "+intensity", progression: { kind: "kg", amount: 2.5 } },
+        { week: 4, directive: "base" },
+      ],
+    };
+    const { weeks, rows } = progressionPreview([w1, w2], phasing, null);
+    expect(rows.map((r) => [r.week, r.rule])).toEqual([
+      [2, "first B week, kept"],
+      [3, "+2.5 kg"],
+      [4, "copy of the last B week"],
+    ]);
+    expect(rows[0].changes).toEqual([]);
+    expect(weeks[3].sessions[0].exercises[0].exerciseName).toBe("Bench");
+  });
+
   test("weekPlansToRows / rowsToWeekPlans round-trip every preset, notes and rules included", () => {
     for (const p of SCHEME_PRESETS) expect(rowsToWeekPlans(weekPlansToRows(p.weeks))).toEqual(p.weeks);
   });

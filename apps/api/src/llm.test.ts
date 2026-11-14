@@ -237,6 +237,16 @@ describe.skipIf(!dbUp)("callLlm logging", () => {
     expect(rows[0].error).toContain("cut off at the token limit");
   });
 
+  test("a cut-off block suggests DeepSeek only when the provider is another one", async () => {
+    const cutOff = async (rt: ProviderRuntime) => {
+      stubProvider([{ body: { choices: [{ message: { content: '{"answer": ' }, finish_reason: "length" }] } }]);
+      const out = await callLlm({ purpose: "chat_qa", builder: "testBuilder", links: {}, messages: [{ role: "user", content: "x" }], rt, mode: "json", schema: Answer, long: true });
+      return !out.ok && out.kind === "validation" ? out.error : "";
+    };
+    expect(await cutOff({ ...fakeRt, providerId: "zai", model: "glm-5.3" })).toBe("block too long for this model — try DeepSeek or a shorter block");
+    expect(await cutOff({ ...fakeRt, providerId: "deepseek", model: "deepseek-flash" })).toBe("block too long for this model — try a shorter block");
+  });
+
   test("a failed log write never fails the call", async () => {
     stubProvider([{ content: "plain answer" }]);
     const errors: unknown[] = [];

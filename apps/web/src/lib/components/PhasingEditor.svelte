@@ -101,7 +101,11 @@
             type="button"
             class="btn ghost small"
             disabled={!hasRules}
-            title={hasRules ? "Generate weeks 2 onward from week 1 with each week's rule" : "Set a progression rule on a week first"}
+            title={hasRules
+              ? weeks.some((w) => w.rotation)
+                ? "Generate later A weeks from W1 and B weeks from W2, with each week's rule"
+                : "Generate weeks 2 onward from week 1 with each week's rule"
+              : "Set a progression rule on a week first"}
             aria-expanded={previewOpen}
             onclick={() => (previewOpen = !previewOpen)}>Preview progression</button
           >

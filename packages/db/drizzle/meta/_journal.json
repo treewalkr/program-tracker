@@ -393,6 +393,20 @@
       "when": 1797600000000,
       "tag": "0056_app_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1797700000000,
+      "tag": "0057_trainer_weeks_choice",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1797800000000,
+      "tag": "0058_generation_program_version",
+      "breakpoints": true
     }
   ]
 }

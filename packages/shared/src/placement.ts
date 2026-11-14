@@ -1,6 +1,8 @@
 import {
   MAX_SESSIONS_PER_WEEKDAY,
   applyPlacementToAllWeeks,
+  isAlternating,
+  ROTATIONS,
   sessionsInSeqOrder,
   type ProgramSession,
   type ProgramWeek,
@@ -382,7 +384,8 @@ export function placeSessions(
   return sessionsInSeqOrder(out);
 }
 
-/** Place week 1 by the rules and give every week the same placement. */
+/** Place week 1 by the rules and give every week the same placement. In an A/B
+ *  block the first week of each letter is placed and its letter's weeks follow it. */
 export function placeWeeks(
   weeks: ProgramWeek[],
   days?: PlacementDaysInput,
@@ -390,7 +393,13 @@ export function placeWeeks(
   opts: PlaceOptions = {}
 ): ProgramWeek[] {
   if (weeks.length === 0) return weeks;
-  const first = weeks[0];
-  const placedFirst = { ...first, sessions: placeSessions(first.sessions, days, patternOf, opts) };
-  return applyPlacementToAllWeeks([placedFirst, ...weeks.slice(1)], first.week);
+  const firsts = isAlternating(weeks)
+    ? ROTATIONS.flatMap((r) => weeks.find((w) => w.rotation === r) ?? [])
+    : [weeks[0]];
+  let out = weeks;
+  for (const first of firsts) {
+    const placed = { ...first, sessions: placeSessions(first.sessions, days, patternOf, opts) };
+    out = applyPlacementToAllWeeks(out.map((w) => (w.week === first.week ? placed : w)), first.week);
+  }
+  return out;
 }

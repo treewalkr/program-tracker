@@ -16,6 +16,8 @@
     editor: DraftEditor;
     /** The latest version's draft (what the ticked refs point into). */
     draft: AiDraftDto;
+    /** The draft week the ticked rows are in (absent = the first week). */
+    week?: number | null;
     labels?: readonly RoleRank[];
     /** The version's trainerOrder: rows are shown as stored, not role-sorted. */
     keepOrder?: boolean;
@@ -24,10 +26,10 @@
     lift?: number;
   }
 
-  let { editor, draft, labels, keepOrder = false, variant = "pane", lift = 0 }: Props = $props();
+  let { editor, draft, week = null, labels, keepOrder = false, variant = "pane", lift = 0 }: Props = $props();
 
   const refs = $derived(editor.refs);
-  const acts = $derived(selectionActions(draft, refs, labels, { keepOrder }));
+  const acts = $derived(selectionActions(draft, refs, labels, { keepOrder, week }));
   const showBar = $derived(editor.selecting && refs.length > 0);
   const shown = $derived(showBar || !!editor.toast || !!editor.error);
 

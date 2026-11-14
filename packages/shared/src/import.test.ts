@@ -4,6 +4,7 @@ import {
   ImportChunk,
   buildImportResult,
   chunkLines,
+  detectAb,
   groupBlocks,
   importLines,
   jaccard,
@@ -367,6 +368,48 @@ describe("block grouping", () => {
     const a = week("Squat", "Bench", "Row");
     const b = week("Deadlift", "Press", "Chin up");
     expect(groupBlocks([a, b, a, b]).alternating).toBe(true);
+  });
+
+  test("A/B weeks: W1 ≠ W2 and W3 ≈ W1 suggests the latest A and B weeks", () => {
+    const a = week("Squat", "Bench", "Row");
+    const b = week("Deadlift", "Press", "Chin up");
+    expect(detectAb([a, b, a])).toEqual({ a: 2, b: 1, source: "pattern" });
+    expect(detectAb([a, b, a, b])).toEqual({ a: 2, b: 3, source: "pattern" });
+  });
+
+  test("A/B weeks: no suggestion for two weeks, same weeks, a block change or an empty week", () => {
+    const a = week("Squat", "Bench", "Row");
+    const b = week("Deadlift", "Press", "Chin up");
+    const c = week("Lunge", "Dip", "Curl");
+    expect(detectAb([a, b])).toBeNull();
+    expect(detectAb([a, a, a])).toBeNull();
+    expect(detectAb([a, b, c])).toBeNull();
+    expect(detectAb([a, b, a, c])).toBeNull();
+    expect(detectAb([a, week(), a])).toBeNull();
+  });
+
+  test("A/B weeks: the notes' letters win, even with only two weeks", () => {
+    const a = { ...week("Squat"), rotation: "A" as const };
+    const b = { ...week("Deadlift"), rotation: "B" as const };
+    expect(detectAb([a, b])).toEqual({ a: 0, b: 1, source: "notes" });
+    expect(detectAb([a, b, a, b])).toEqual({ a: 2, b: 3, source: "notes" });
+    expect(detectAb([a, week("Deadlift")])).toBeNull();
+  });
+
+  test("buildImportResult keeps the week letters and suggests A/B", () => {
+    const ex = (line: number, sourceName: string) => ({ line, sourceName, name: sourceName, prescription: { sets: 3, reps: 5 } });
+    const wk = (label: string, line: number, rotation: "A" | "B", name: string) => ({
+      label,
+      line,
+      rotation,
+      days: [{ label: "Day 1", line: line + 1, sessions: [{ name: "Day 1", kind: "lifting" as const, line: line + 1, exercises: [ex(line + 2, name)] }] }],
+    });
+    const text = ["Week A", "Day 1", "Squat 3x5", "Week B", "Day 1", "Deadlift 3x5"].join("\n");
+    const data = ImportChunk.parse({ weeks: [wk("Week A", 1, "A", "Squat"), wk("Week B", 4, "B", "Deadlift")], skipped: [] });
+    const r = buildImportResult(text, [{ from: 1, to: 6, ok: true, data }]);
+    expect(r.weeks.map((w) => w.rotation)).toEqual(["A", "B"]);
+    expect(r.ab).toEqual({ a: 0, b: 1, source: "notes" });
+    expect(fixtureResult().ab).toBeNull();
   });
 
   test("a paste without week headers is one block", () => {

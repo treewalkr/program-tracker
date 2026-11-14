@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ImportChunk, buildImportResult, matchExercise, type ImportExercise } from "@pt/shared";
-import { exercisesForSave, type DraftForm } from "./programForm";
+import { cloneSessionRows, exercisesForSave, type DraftForm, type SessionRow } from "./programForm";
 import { choiceFor, formFromImport, templateExercises, type MatchChoice } from "./pasteImport";
 
 const BASE: DraftForm = {
@@ -27,6 +27,29 @@ describe("exercisesForSave", () => {
     const saved = exercisesForSave(list);
     expect(saved.map((e) => e.id)).toEqual(["squat", "bench", "chin"]);
     expect(saved).not.toBe(list);
+  });
+});
+
+describe("cloneSessionRows", () => {
+  test("Week B starts as a deep copy of A with fresh keys and exercise ids", () => {
+    const a: SessionRow[] = [
+      {
+        key: "k1",
+        name: "Lower",
+        kind: "lifting",
+        cardio: { modality: "", durationMin: 30, hrZone: 2 },
+        exercises: [{ id: "e1", exerciseId: "squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+      },
+    ];
+    let n = 0;
+    const b = cloneSessionRows(a, () => `id${++n}`);
+    expect(b[0].key).toBe("id1");
+    expect(b[0].exercises[0].id).toBe("id2");
+    expect(b[0].exercises[0].exerciseId).toBe("squat");
+    b[0].exercises[0].prescribedSets[0].reps = 8;
+    b[0].name = "Upper";
+    expect(a[0].exercises[0].prescribedSets[0].reps).toBe(5);
+    expect(a[0].name).toBe("Lower");
   });
 });
 

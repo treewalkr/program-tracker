@@ -21,8 +21,8 @@
     <div class="panel" style="padding: 22px 18px;">
       <GeneratingState
         startedAt={args.startedAt ?? new Date(Date.now() - 3 * 60_000).toISOString()}
-        providerLabel={args.providerLabel ?? 'Z.ai GLM'}
-        model={args.model ?? 'glm-5.3-flash'}
+        providerLabel={args.providerLabel ?? 'DeepSeek'}
+        model={args.model ?? 'deepseek-flash'}
         {...args}
       />
     </div>
@@ -34,7 +34,7 @@
   {template}
   args={{
     startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
-    providerLabel: 'Z.ai GLM',
-    model: 'glm-5.3-flash',
+    providerLabel: 'DeepSeek',
+    model: 'deepseek-flash',
   }}
 />

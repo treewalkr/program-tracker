@@ -13,6 +13,7 @@ import {
   aliasesToSave,
   blockLabel,
   choiceFor,
+  draftWeekIndexes,
   defaultChoice,
   flagSummary,
   formFromImport,
@@ -156,6 +157,37 @@ describe("formFromImport", () => {
     const choices: Record<string, ChoiceState> = { [key]: { choice: { kind: "new", exerciseName: "Squat" }, confirmed: true } };
     const form = formFromImport(r, 1, BASE, { choices, resolve, newKey });
     expect(form.sessions[2].exercises[0].exerciseId).toBe("new:Squat");
+  });
+});
+
+describe("A/B weeks found (FB-013)", () => {
+  const AB = { a: 0, b: 1, source: "notes" as const };
+
+  test("kept: Week 11 fills Week A, Week 12 fills Week B", () => {
+    const r = result();
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey, ab: AB });
+    expect(form.sessions.map((s) => s.kind)).toEqual(["lifting", "cardio", "lifting", "cardio", "lifting"]);
+    expect(form.weekB?.map((s) => s.name)).toEqual(["Upper Push", "Upper Pull", "Lower"]);
+    expect(form.plannedWeeks).toBe(4);
+  });
+
+  test("declined: one template week, and no Week B left over from the form", () => {
+    const r = result();
+    const form = formFromImport(r, r.defaultBlock, { ...BASE, weekB: [] }, { choices: {}, resolve, newKey });
+    expect(form.weekB).toBeNull();
+    expect(draftWeekIndexes(r, r.defaultBlock)).toEqual([1]);
+  });
+
+  test("both weeks' exercises are resolved, created and checked", () => {
+    const r = result();
+    expect(draftWeekIndexes(r, r.defaultBlock, AB)).toEqual([0, 1]);
+    const both = templateExercises(r, r.defaultBlock, AB);
+    expect(both.length).toBeGreaterThan(templateExercises(r, r.defaultBlock).length);
+    expect(both.some(({ key }) => key.startsWith("w0"))).toBe(true);
+    expect(newExerciseNames(r, r.defaultBlock, {}, AB).length).toBeGreaterThanOrEqual(newExerciseNames(r, r.defaultBlock, {}).length);
+    const one = flagSummary(r, r.defaultBlock, {});
+    const two = flagSummary(r, r.defaultBlock, {}, AB);
+    expect(two.amber).toBeGreaterThanOrEqual(one.amber);
   });
 });
 

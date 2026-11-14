@@ -1,4 +1,4 @@
-import { TEMPO_PATTERN } from "@pt/shared";
+import { TEMPO_PATTERN, type CopyTarget, type Rotation } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
 
 /** Pure helpers for the inline program editor: set modes, grouped sets, dirty state, header copy. */
@@ -117,4 +117,29 @@ export function programSubline(p: ProgramDto, savedAt: string | null): string {
   if (p.aiAssisted) bits.push(p.createdFromProgramId ? "AI-assisted · built on the previous block" : "AI-assisted");
   if (savedAt) bits.push(`saved ${savedAt}`);
   return bits.join(" · ");
+}
+
+/** "W2, W4, W6". */
+export const weekList = (weeks: readonly number[]) => weeks.map((w) => `W${w}`).join(", ");
+
+/** A "Copy this week to…" menu row: what it targets and, for groups, which weeks. */
+export function copyTargetLabel(t: CopyTarget): { label: string; hint?: string } {
+  if (t.kind === "letter") return { label: `Every ${t.letter} week`, hint: weekList(t.weeks) };
+  if (t.kind === "all") return { label: "Every week", hint: weekList(t.weeks) };
+  return { label: `Week ${t.weeks[0]}` };
+}
+
+/** Toast after "Copy this week to…": what was copied and which logged weeks were kept. */
+export function copyNotice(from: number, targets: readonly number[], skipped: readonly number[]): string {
+  const copied = targets.filter((w) => w !== from && !skipped.includes(w));
+  const kept = skipped.length > 0 ? `${weekList(skipped)} kept: ${skipped.length === 1 ? "has" : "have"} logs.` : "";
+  if (copied.length === 0) return `Nothing copied. ${kept}`.trim();
+  return `Copied W${from} to ${weekList(copied)}.${kept ? ` ${kept}` : ""}`;
+}
+
+/** Toast after turning A/B weeks off with "Use Week A/B for every week": which weeks stayed as they were. */
+export function matchNotice(use: Rotation, skipped: { logged: readonly number[]; deload: readonly number[] }): string {
+  const kept = (weeks: readonly number[], one: string, many: string) =>
+    weeks.length > 0 ? ` ${weekList(weeks)} kept: ${weeks.length === 1 ? one : many}.` : "";
+  return `Every week now follows Week ${use}.${kept(skipped.logged, "has logs", "have logs")}${kept(skipped.deload, "deload week", "deload weeks")}`;
 }

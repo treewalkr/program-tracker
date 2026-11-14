@@ -32,3 +32,4 @@ export * from "./schemePresets";
 export * from "./instructionPresets";
 export * from "./paging";
 export * from "./loginTheme";
+export * from "./fill";

@@ -59,8 +59,13 @@ export interface PlanLike {
     note?: string | null;
   }[];
 }
-export interface SlotDiffDraft {
+/** One week's sessions (a program week, or one week of a draft). */
+export interface SlotDiffWeek {
   sessions: SlotDiffSession[];
+}
+/** A draft: every week (numbered, A/B letter when alternating) and its block plan. */
+export interface SlotDiffDraft {
+  weeks: (SlotDiffWeek & { week: number; rotation?: string | null })[];
   phasing?: PlanLike | null;
 }
 
@@ -91,7 +96,11 @@ export interface SlotChange {
   /** swap: new name · rx: new prescription parts · added: new prescription · removed: null ·
    *  session/cardio: new values of the changed fields · plan: new value. */
   to: string | null;
-  /** plan only: 1-based week, or null for block-level changes. */
+  /**
+   * The week the change is in (by number) when the drafts have more than one
+   * week; absent for one-week drafts. plan: the plan week, or null for
+   * block-level changes.
+   */
   week?: number | null;
 }
 
@@ -257,7 +266,7 @@ export function alignExercises(A: SlotDiffExercise[], B: SlotDiffExercise[]): Al
  * Sessions only in `after` are all "added"; sessions only in `before` are all
  * "removed". Session, cardio and plan changes are in diffDrafts.
  */
-export function diffDraftSlots(before: SlotDiffDraft, after: SlotDiffDraft): SlotChange[] {
+export function diffDraftSlots(before: SlotDiffWeek, after: SlotDiffWeek): SlotChange[] {
   const out: SlotChange[] = [];
   const days = Math.max(before.sessions.length, after.sessions.length);
   for (let d = 0; d < days; d++) {
@@ -406,12 +415,8 @@ export function planChanges(a: PlanLike | null | undefined, b: PlanLike | null |
   return out;
 }
 
-/**
- * Every change from `before` to `after`: per session (in day order) its
- * session/cardio changes then its exercise slot changes, then block plan
- * changes (kind "plan", day 0).
- */
-export function diffDrafts(before: SlotDiffDraft, after: SlotDiffDraft): SlotChange[] {
+/** Session and slot changes of one week, per session in day order (no week tag, no plan). */
+export function diffWeekSessions(before: SlotDiffWeek, after: SlotDiffWeek): SlotChange[] {
   const slots = diffDraftSlots(before, after);
   const out: SlotChange[] = [];
   const days = Math.max(before.sessions.length, after.sessions.length);
@@ -419,44 +424,112 @@ export function diffDrafts(before: SlotDiffDraft, after: SlotDiffDraft): SlotCha
     out.push(...sessionChanges(d + 1, before.sessions[d], after.sessions[d]));
     out.push(...slots.filter((c) => c.day === d + 1));
   }
+  return out;
+}
+
+/**
+ * Every change from `before` to `after`: week by week (matched by number), per
+ * session in day order its session/cardio changes then its exercise slot
+ * changes, then block plan changes (kind "plan", day 0). Changes carry their
+ * `week` when either draft has more than one week.
+ */
+export function diffDrafts(before: SlotDiffDraft, after: SlotDiffDraft): SlotChange[] {
+  const out: SlotChange[] = [];
+  const tag = before.weeks.length > 1 || after.weeks.length > 1;
+  const numbers = [...new Set([...before.weeks, ...after.weeks].map((w) => w.week))].sort((a, b) => a - b);
+  for (const n of numbers) {
+    const empty = { sessions: [] };
+    const changes = diffWeekSessions(before.weeks.find((w) => w.week === n) ?? empty, after.weeks.find((w) => w.week === n) ?? empty);
+    out.push(...(tag ? changes.map((c) => ({ ...c, week: n })) : changes));
+  }
   for (const p of planChanges(before.phasing ?? null, after.phasing ?? null)) {
     out.push({ day: 0, week: p.week, beforeSlot: null, afterSlot: null, kind: "plan", exercise: p.where, from: p.from, to: p.to });
   }
   return out;
 }
 
+/** A change with every week it appears in (same day, slots, kind and values). */
+export type WeeksChange = SlotChange & { weeks: number[] };
+
+/**
+ * Fold the same change made in several weeks into one row listing those
+ * weeks ("swap Squat → Front Squat in W1, W3"), in first-seen order. Plan
+ * changes and one-week changes stay as they are (weeks = [] when untagged).
+ */
+export function mergeWeekChanges(changes: readonly SlotChange[]): WeeksChange[] {
+  const out: WeeksChange[] = [];
+  const at = new Map<string, WeeksChange>();
+  for (const c of changes) {
+    if (c.kind === "plan" || c.week == null) {
+      out.push({ ...c, weeks: c.kind === "plan" || c.week == null ? [] : [c.week] });
+      continue;
+    }
+    const key = JSON.stringify([c.day, c.beforeSlot, c.afterSlot, c.kind, c.exercise, c.from, c.to]);
+    const seen = at.get(key);
+    if (seen) seen.weeks.push(c.week);
+    else {
+      const row = { ...c, weeks: [c.week] };
+      at.set(key, row);
+      out.push(row);
+    }
+  }
+  return out;
+}
+
 /** Minimal proposal shape for matching (see ChatProposal in ai.ts). */
 export interface ProposalChangeRef {
+  /** Week whose slots day/slot address (absent = the first week). */
+  week?: number | null;
   day: number;
   slot: number | null;
   kind: "swap" | "edit" | "add" | "remove";
 }
 
+/** The draft's weeks as the proposal sees them: number and A/B letter. */
+export type ProposalWeeks = readonly { week: number; rotation?: string | null }[];
+
 /**
- * Changes the proposal did not ask for. A proposal change at (day, slot)
- * covers every swap/rx/removed change at that day + beforeSlot; each "add"
- * covers one "added" change on its day; an "edit" with slot null (a cardio
- * session edit) covers that day's cardio change. Session and plan changes
- * are never covered.
+ * Changes the proposal did not ask for. A proposal change at (week, day,
+ * slot) covers every swap/rx/removed change at that day + beforeSlot in every
+ * week with that week's letter (every week when the draft doesn't alternate);
+ * each "add" covers one "added" change on its day per such week; an "edit"
+ * with slot null (a cardio session edit) covers that day's cardio change.
+ * Session and plan changes are never covered. Without `weeks` the draft is
+ * one week.
  */
-export function unproposedChanges(changes: SlotChange[], proposal: { changes: ProposalChangeRef[] }): SlotChange[] {
-  const covered = new Set(
-    proposal.changes.filter((p) => p.slot != null).map((p) => `${p.day}:${p.slot}`)
-  );
-  const addsLeft = new Map<number, number>();
-  for (const p of proposal.changes) if (p.kind === "add") addsLeft.set(p.day, (addsLeft.get(p.day) ?? 0) + 1);
-  const cardioDays = new Set(proposal.changes.filter((p) => p.kind === "edit" && p.slot == null).map((p) => p.day));
+export function unproposedChanges(
+  changes: SlotChange[],
+  proposal: { changes: ProposalChangeRef[] },
+  weeks: ProposalWeeks = []
+): SlotChange[] {
+  const first = weeks[0]?.week ?? 1;
+  const reach = (week: number | null | undefined): number[] => {
+    if (weeks.length === 0) return [first];
+    const letter = weeks.find((w) => w.week === (week ?? first))?.rotation ?? null;
+    return weeks.filter((w) => (w.rotation ?? null) === letter).map((w) => w.week);
+  };
+  const covered = new Set<string>();
+  const addsLeft = new Map<string, number>();
+  const cardioDays = new Set<string>();
+  for (const p of proposal.changes) {
+    for (const w of reach(p.week)) {
+      if (p.slot != null) covered.add(`${w}:${p.day}:${p.slot}`);
+      if (p.kind === "add") addsLeft.set(`${w}:${p.day}`, (addsLeft.get(`${w}:${p.day}`) ?? 0) + 1);
+      if (p.kind === "edit" && p.slot == null) cardioDays.add(`${w}:${p.day}`);
+    }
+  }
   return changes.filter((c) => {
     if (c.kind === "session" || c.kind === "plan") return true;
-    if (c.kind === "cardio") return !cardioDays.has(c.day);
+    const at = `${weeks.length === 0 ? first : (c.week ?? first)}:${c.day}`;
+    if (c.kind === "cardio") return !cardioDays.has(at);
     if (c.kind === "added") {
-      const left = addsLeft.get(c.day) ?? 0;
+      const left = addsLeft.get(at) ?? 0;
       if (left > 0) {
-        addsLeft.set(c.day, left - 1);
+        addsLeft.set(at, left - 1);
         return false;
       }
       return true;
     }
-    return !covered.has(`${c.day}:${c.beforeSlot}`);
+    return !covered.has(`${at}:${c.beforeSlot}`);
   });
 }

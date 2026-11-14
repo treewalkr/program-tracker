@@ -133,7 +133,7 @@ describe.skipIf(!dbUp)("role labels", () => {
       name: "D",
       rationale: "Why.",
       clientSummary: "",
-      sessions: [
+      weeks: [{ week: 1, sessions: [
         {
           name: "Lower",
           kind: "lifting" as const,
@@ -146,10 +146,10 @@ describe.skipIf(!dbUp)("role labels", () => {
             { exerciseName: "Nordic", role: mine.key, prescribedSets: sets },
           ],
         },
-      ],
+      ] }],
     };
     const fixed = await checkDraftRoles(trainerId, draft);
-    expect(fixed.sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "power", "accessory", mine.key]);
+    expect(fixed.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "power", "accessory", mine.key]);
     expect(fixed.rationale).toContain("Role check: Lower has more than one Primary lift");
     // a revision that kept the note doesn't get it twice
     const again = await checkDraftRoles(trainerId, fixed);

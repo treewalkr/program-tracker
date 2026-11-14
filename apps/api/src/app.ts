@@ -103,7 +103,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
    * only — the response carries config, never secrets.
    */
   .get("/v1/ai/providers", () => {
-    const providers = Object.values(KNOWN_PROVIDERS).map((p) => {
+    // a turned-off provider is never offered (nor warned about as unconfigured)
+    const providers = Object.values(KNOWN_PROVIDERS).filter((p) => !("disabled" in p && p.disabled)).map((p) => {
       const parsed = AiProviderConfig.parse(p);
       const id = p.id.toUpperCase();
       const models = process.env[`${id}_MODELS`]?.split(",").map((s) => s.trim()).filter(Boolean)
