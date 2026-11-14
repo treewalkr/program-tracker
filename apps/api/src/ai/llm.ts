@@ -79,6 +79,9 @@ export interface CallLlmArgs<T> {
 
 export const isMockRuntime = (rt: ProviderRuntime) => rt.providerId === "mock" || rt.baseUrl.startsWith("mock://");
 
+/** DeepSeek is the roomiest provider for a whole block — no point suggesting it when it is the one. */
+const isDeepseek = (rt: ProviderRuntime) => rt.providerId === "deepseek" || /^deepseek/.test(rt.model);
+
 /** The effort actually sent: the caller's pick, else the provider's registry default. */
 const effectiveEffort = (args: Pick<CallLlmArgs<unknown>, "effort" | "rt">): string | undefined =>
   args.effort ?? args.rt.defaultEffort ?? undefined;
@@ -150,7 +153,9 @@ async function attemptCalls<T>(args: CallLlmArgs<T>): Promise<LlmOutcome<T>> {
       ? null
       : cutOff
         ? args.long
-          ? "block too long for this model — try DeepSeek or a shorter block"
+          ? isDeepseek(args.rt)
+            ? "block too long for this model — try a shorter block"
+            : "block too long for this model — try DeepSeek or a shorter block"
           : "response cut off at the token limit — try a lower effort"
         : parsed.error;
     lastCallId = await writeCall(prepared, args, {
