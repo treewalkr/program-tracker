@@ -301,8 +301,8 @@ describe("draft weeks", () => {
     expect(d.weeks.map((w) => w.week)).toEqual([1, 2, 3]);
     expect(d.weeks[2].sessions[0].exercises[0].exerciseName).toBe("Squat");
     expect("sessions" in d).toBe(false);
-    // Without phasing it is one week; a draft with weeks passes through.
-    expect((upgradeDraft({ ...old, phasing: undefined }) as AiProgramDraft).weeks).toHaveLength(1);
+    // Without phasing it is four weeks (approve stamped `plannedWeeks ?? 4`); a draft with weeks passes through.
+    expect(AiProgramDraft.parse({ ...old, phasing: undefined }).weeks.map((w) => w.week)).toEqual([1, 2, 3, 4]);
     const already = block([{ week: 1, sessions: [session("Lower", "Squat")] }]);
     expect(upgradeDraft(already)).toBe(already);
   });

@@ -240,7 +240,7 @@ const DraftBody = z
     });
   });
 
-/** The pre-FB-013 draft: one week of sessions, stamped onto every week on approve. */
+/** The pre-FB-013 draft: one week of sessions, stamped onto every planned week (else 4) on approve. */
 export type LegacyDraft = Omit<AiProgramDraft, "weeks"> & { sessions: DraftSession[] };
 
 /**
@@ -271,13 +271,16 @@ function fitPhasingToWeeks(raw: unknown): unknown {
   return { ...r, phasing: { ...p, plannedWeeks: n, ...(plans ? { weeks: plans.filter(fits) } : {}) } };
 }
 
+/** Weeks an old one-week draft without a plan was stamped into on approve. */
+const LEGACY_DRAFT_WEEKS = 4;
+
 function upgradeLegacyDraft(raw: unknown): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const r = raw as Record<string, unknown>;
   if (r.weeks !== undefined || !Array.isArray(r.sessions)) return raw;
   const { sessions, ...rest } = r;
   const planned = (r.phasing as { plannedWeeks?: unknown } | undefined)?.plannedWeeks;
-  const n = typeof planned === "number" && Number.isInteger(planned) ? Math.min(Math.max(planned, 1), MAX_DRAFT_WEEKS) : 1;
+  const n = typeof planned === "number" && Number.isInteger(planned) ? Math.min(Math.max(planned, 1), MAX_DRAFT_WEEKS) : LEGACY_DRAFT_WEEKS;
   return {
     ...rest,
     weeks: Array.from({ length: n }, (_, i) => ({ week: i + 1, sessions: JSON.parse(JSON.stringify(sessions)) })),
