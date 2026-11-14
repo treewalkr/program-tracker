@@ -307,6 +307,20 @@ describe("draft weeks", () => {
     expect(upgradeDraft(already)).toBe(already);
   });
 
+  test("a block draft's plan length follows the weeks it carries; a week draft's plan is left alone", () => {
+    const s = [session("Lower", "Squat")];
+    const plan = (n: number) => ({ plannedWeeks: n, phase: "accumulation", weeks: Array.from({ length: n }, (_, i) => ({ week: i + 1, directive: "base" as const })) });
+    const long = { ...block([1, 2, 3, 4].map((week) => ({ week, sessions: s }))), phasing: plan(6) };
+    const d = AiProgramDraft.parse(long);
+    expect(d.phasing?.plannedWeeks).toBe(4);
+    expect(d.phasing?.weeks?.map((w) => w.week)).toEqual([1, 2, 3, 4]);
+    expect(blockDraftSchema({ plannedWeeks: 4, alternate: false }).parse(long).phasing?.plannedWeeks).toBe(4);
+    // A stored row read back (upgradeDraft runs on every DB read) is fixed the same way.
+    expect((upgradeDraft(long) as AiProgramDraft).phasing?.plannedWeeks).toBe(4);
+    const week = { ...block([{ week: 3, sessions: s }]), phasing: plan(6) };
+    expect(AiProgramDraft.parse(week).phasing?.plannedWeeks).toBe(6);
+  });
+
   test("weeks must be in order, each once", () => {
     const s = [session("Lower", "Squat")];
     expect(AiProgramDraft.safeParse(block([{ week: 2, sessions: s }, { week: 1, sessions: s }])).success).toBe(false);

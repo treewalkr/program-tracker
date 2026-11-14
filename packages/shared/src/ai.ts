@@ -244,11 +244,34 @@ const DraftBody = z
 export type LegacyDraft = Omit<AiProgramDraft, "weeks"> & { sessions: DraftSession[] };
 
 /**
- * Read an old one-week draft (`sessions`) as `weeks[]`: the week copied to
- * every planned week (phasing.plannedWeeks, else one week), as approve used to
- * stamp it. Anything else passes through untouched.
+ * Read a draft in its current shape (runs on every parse and every DB read):
+ * an old one-week draft (`sessions`) becomes `weeks[]` — the week copied to
+ * every planned week, as approve used to stamp it — and a block draft's plan
+ * length follows the weeks it carries (fitPhasingToWeeks).
  */
 export function upgradeDraft(raw: unknown): unknown {
+  return fitPhasingToWeeks(upgradeLegacyDraft(raw));
+}
+
+/**
+ * A block draft (weeks 1..n, n ≥ 2) whose plan says another length: the plan
+ * follows the weeks written — plannedWeeks = n, per-week plans past n dropped.
+ * Week drafts (one week) and anything malformed pass through untouched.
+ */
+function fitPhasingToWeeks(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const r = raw as Record<string, unknown>;
+  const p = r.phasing as Record<string, unknown> | null | undefined;
+  if (!p || typeof p !== "object" || !Array.isArray(r.weeks)) return raw;
+  const n = r.weeks.length;
+  if (n < MIN_BLOCK_WEEKS || !r.weeks.every((w, i) => (w as { week?: unknown } | null)?.week === i + 1)) return raw;
+  const plans = Array.isArray(p.weeks) ? p.weeks : undefined;
+  const fits = (w: unknown) => !(typeof (w as { week?: unknown } | null)?.week === "number" && (w as { week: number }).week > n);
+  if (p.plannedWeeks === n && (!plans || plans.every(fits))) return raw;
+  return { ...r, phasing: { ...p, plannedWeeks: n, ...(plans ? { weeks: plans.filter(fits) } : {}) } };
+}
+
+function upgradeLegacyDraft(raw: unknown): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const r = raw as Record<string, unknown>;
   if (r.weeks !== undefined || !Array.isArray(r.sessions)) return raw;
