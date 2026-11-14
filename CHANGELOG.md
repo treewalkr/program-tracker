@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### New
+- **A/B weeks.** A program can now run two different weeks in turn: Week A on odd weeks, Week B on even weeks. Switch "Weeks" to "A/B weeks" in the program builder or on the program page.
+- In the builder, A/B weeks gives you a Week A and a Week B tab. On the program page each week tab shows its letter.
+- "Copy this week to…" on the program page copies a week to every week with the same letter, or to one week. Weeks your client has already logged are never overwritten, and you can undo.
+- Progression, block pulse, deloads and "Generate next week" follow each letter: week 3 builds on week 1, week 4 on week 2.
+- Paste notes recognises a Week A / Week B program and fills both tabs.
+- **The AI now writes every week of a block**, not one week copied onto every week. Pick the block length (up to 12 weeks) and Same every week or A/B weeks on the generate page; it remembers your last choice. Review and chat show a tab for each week.
+- **Fill remaining weeks with AI**: write the first week (or Week A and Week B) yourself, then let the AI write the rest. Weeks your client has logged stay as they are.
+- "Approve" on an AI draft is now called "Create program".
+
+### Changed
+- AI drafts take longer, about 2–5 minutes, because the AI writes every week. The generate page shows the expected wait.
+- Z.ai is turned off; drafts use DeepSeek.
+
+### Fixed
+- Turning A/B weeks off now asks whether every week should use Week A or Week B, or keep its own workouts, so the program really is the same every week.
+- The selected option in switches like "Same every week | A/B weeks" is easier to see.
+- Week tabs show logged sessions with a check mark (✓2), so the count isn't confused with the A/B letter.
+- Applying an AI fill is refused if the program changed after the fill was drafted, so your edits are never overwritten.
+
 ## v0.1.28 — 2026-11-13
 
 ### New
