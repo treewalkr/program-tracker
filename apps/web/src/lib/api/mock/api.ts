@@ -2,6 +2,7 @@ import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMI
 import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
+  MAX_AI_BLOCK_WEEKS,
   mergeWeekChanges,
   resizeDraftWeeks,
   applyDraftEdit,
@@ -21,6 +22,7 @@ import {
   deloadRulesText,
   effectiveDeload,
   type DeloadSettings,
+  type WeeksChoice,
   computeSignals,
   diffRowsToText,
   diffSources,
@@ -236,6 +238,8 @@ const clientDto = (c: ClientDto): ClientDto => ({
 const state = {
   /** The trainer's deload rule; null = the default. */
   deload: null as DeloadSettings | null,
+  /** The generate page's last Weeks choice (trainers.last_weeks_choice). */
+  weeksChoice: "same" as WeeksChoice,
   clients: [...seedClients],
   programs: [...seedPrograms],
   logs: [...seedLogs],
@@ -758,6 +762,17 @@ export const mockApi: TrainerApi = {
     return clientDto(state.clients[i]);
   },
 
+  async weeksChoice() {
+    await delay(100);
+    return state.weeksChoice;
+  },
+
+  async setWeeksChoice(choice) {
+    await delay(150);
+    state.weeksChoice = choice;
+    return choice;
+  },
+
   async deloadSettings() {
     await delay(150);
     return effectiveDeload(state.deload);
@@ -1066,7 +1081,9 @@ export const mockApi: TrainerApi = {
       const { sessions, ...rest } = routine;
       draft = { ...rest, name: `Week ${input.targetWeek}`, weeks: [{ week: input.targetWeek!, ...(rotation ? { rotation } : {}), sessions }] };
     } else {
-      const plannedWeeks = input.plannedWeeks ?? basedOn?.phasing?.plannedWeeks ?? basedOn?.weeks.length ?? 4;
+      // Same as the API: the choice becomes the trainer's default for the next block.
+      if (input.alternate !== undefined) state.weeksChoice = input.alternate ? "alternate" : "same";
+      const plannedWeeks = input.plannedWeeks ?? Math.min(MAX_AI_BLOCK_WEEKS, basedOn?.phasing?.plannedWeeks ?? basedOn?.weeks.length ?? 4);
       draft = mockBlock(routine, { plannedWeeks, alternate: input.alternate ?? false });
     }
     // Last logged working weight per exercise — drafts propose the next small jump.

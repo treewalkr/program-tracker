@@ -10,6 +10,7 @@ import {
   sessionLogs,
   setLogs,
   trainerPreferences,
+  trainers,
   type AiGenerationRow,
 } from "@pt/db";
 import {
@@ -186,6 +187,10 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
           weeks: body.plannedWeeks ?? Math.min(MAX_AI_BLOCK_WEEKS, Math.max(2, current?.phasing?.plannedWeeks ?? current?.sessions.length ?? 4)),
           alternate: body.alternate ?? (current ? isAlternating(current.sessions) : false),
         };
+        // The generate page's choice becomes the trainer's default for the next block.
+        if (body.alternate !== undefined) {
+          await db.update(trainers).set({ lastWeeksChoice: body.alternate ? "alternate" : "same" }).where(eq(trainers.id, trainerId));
+        }
         const messages = buildGenerationMessages({
           ...ctx,
           block,

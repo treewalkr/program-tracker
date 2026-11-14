@@ -365,6 +365,15 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     expect(squat(weeks[2])).toBeGreaterThan(squat(weeks[0]));
   });
 
+  test("the trainer's last Weeks choice: generate records it, settings read and set it", async () => {
+    await call("PUT", "/v1/account/weeks-choice", { choice: "same" });
+    expect((await call("GET", "/v1/account/weeks-choice")).body).toEqual({ choice: "same" });
+    await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 2, alternate: true });
+    expect((await call("GET", "/v1/account/weeks-choice")).body).toEqual({ choice: "alternate" });
+    expect((await call("PUT", "/v1/account/weeks-choice", { choice: "abab" })).status).toBe(422);
+    expect((await call("PUT", "/v1/account/weeks-choice", { choice: "same" })).body).toEqual({ choice: "same" });
+  });
+
   test("AI block drafts are capped at 12 weeks", async () => {
     const { status } = await call("POST", "/v1/ai/generate", { clientId, providerId: "mock", plannedWeeks: 13 });
     expect(status).toBe(422);

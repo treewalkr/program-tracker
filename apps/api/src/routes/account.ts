@@ -89,6 +89,22 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
       detail: { summary: "Set AI answers on feedback (admin)" },
     },
   )
+  .get(
+    "/weeks-choice",
+    async ({ trainerId }) => {
+      const [row] = await db.select({ choice: trainers.lastWeeksChoice }).from(trainers).where(eq(trainers.id, trainerId));
+      return { choice: row?.choice ?? ("same" as const) };
+    },
+    { detail: { summary: "Your last Weeks choice on the generate page (same every week until you pick)" } },
+  )
+  .put(
+    "/weeks-choice",
+    async ({ trainerId, body }) => {
+      await db.update(trainers).set({ lastWeeksChoice: body.choice }).where(eq(trainers.id, trainerId));
+      return { choice: body.choice };
+    },
+    { body: AccountModel.weeksChoice, detail: { summary: "Remember your Weeks choice for the next block draft" } },
+  )
   .get("/deload", ({ trainerId }) => trainerDeload(trainerId), {
     detail: { summary: "Your deload rule (the default when you haven't set one)" },
   })

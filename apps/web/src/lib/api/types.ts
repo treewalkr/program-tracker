@@ -6,6 +6,7 @@ import type {
   DraftEditOp,
   CardioPrescription,
   DeloadSettings,
+  WeeksChoice,
   ExerciseRole as Er,
   OneRepMaxes,
   Phasing,
@@ -635,6 +636,9 @@ export interface TrainerApi {
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;
   createClient(input: Omit<ClientDto, "id" | "status">): Promise<ClientDto>;
   updateClient(id: string, patch: Partial<ClientDto>): Promise<ClientDto>;
+  /** The generate page's last Weeks choice ("same" until the trainer picks). */
+  weeksChoice(): Promise<WeeksChoice>;
+  setWeeksChoice(choice: WeeksChoice): Promise<WeeksChoice>;
   /** The trainer's deload rule, filled with the default when unset. */
   deloadSettings(): Promise<DeloadSettings>;
   setDeloadSettings(settings: DeloadSettings): Promise<DeloadSettings>;

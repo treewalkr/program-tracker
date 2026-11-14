@@ -34,7 +34,7 @@ import type {
   ExistingLogDto,
 } from "./types";
 import { DuplicateLogError } from "./types";
-import type { DeloadSettings } from "@pt/shared";
+import type { DeloadSettings, WeeksChoice } from "@pt/shared";
 import { browser } from "$app/environment";
 import { toLogin } from "./auth";
 import { client } from "./treaty";
@@ -92,6 +92,8 @@ export const realApi: TrainerApi = {
     ),
   createClient: (input) => unwrap<ClientDto>(client.v1.clients.post(input)),
   updateClient: (id, patch) => unwrap<ClientDto>(client.v1.clients({ id }).patch(patch)),
+  weeksChoice: async () => (await unwrap<{ choice: WeeksChoice }>(client.v1.account["weeks-choice"].get())).choice,
+  setWeeksChoice: async (choice) => (await unwrap<{ choice: WeeksChoice }>(client.v1.account["weeks-choice"].put({ choice }))).choice,
   deloadSettings: () => unwrap<DeloadSettings>(client.v1.account.deload.get()),
   setDeloadSettings: (settings) => unwrap<DeloadSettings>(client.v1.account.deload.put(settings)),
   resetDeloadSettings: () => unwrap<DeloadSettings>(client.v1.account.deload.delete()),
