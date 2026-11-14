@@ -117,7 +117,7 @@
   /** Alternate A/B (FB-013): the even-week routine; null = same every week. */
   let weekB = $state<SessionRow[] | null>(null);
   /** Week B as it was when Alternate was switched off, so switching back doesn't lose it (not kept on the device). */
-  let parkedB: SessionRow[] | null = null;
+  let parkedB = $state.raw<SessionRow[] | null>(null);
   /** Which routine the session editor shows. */
   let editing = $state<"A" | "B">("A");
   /** The session list being edited. */
@@ -715,7 +715,8 @@
             { value: "ab", label: "A/B weeks", title: "Two routines: odd weeks run A, even weeks run B" },
           ]}
         />
-        {#if weekB}<span class="subtle">Odd weeks run A, even weeks B.</span>{/if}
+        {#if weekB}<span class="subtle">Odd weeks run A, even weeks B.</span>
+        {:else if parkedB}<span class="subtle">Every week runs Week A. Week B is set aside until you switch back.</span>{/if}
       </div>
 
       {#if weekB}

@@ -118,13 +118,30 @@ describe("LeaveGuard dialog", () => {
     const body = html({ ...opts, alt: { label: "Keep draft" } });
     const labels = [...body.matchAll(/<button[^>]*>\s*([^<]+?)\s*<\/button>/g)].map((m) => m[1]);
     expect(labels).toEqual(["Skip", "Keep draft", "Cancel"]);
-    expect(body).toMatch(/<button[^>]*class="btn primary[^"]*"[^>]*autofocus[^>]*>\s*Cancel/);
+    expect(body).toMatch(/<button[^>]*class="btn[^"]*\bprimary\b[^"]*"[^>]*autofocus[^>]*>\s*Cancel/);
     expect(body).toMatch(/class="btn[^"]* danger ghost"[^>]*>\s*Skip/);
   });
 
   test("danger: false keeps the action neutral", () => {
     const body = html({ ...opts, danger: false });
     expect(body).not.toContain("danger");
+  });
+
+  test("choices stack above the safe choice and answer with their id", async () => {
+    const choices = [
+      { id: "a", label: "Use Week A", hint: "W2 copies W1." },
+      { id: "keep", label: "Keep each week" },
+    ];
+    const body = html({ title: "Same every week?", body: "A and B differ.", choices });
+    const labels = [...body.matchAll(/<span class="choice-label[^"]*">([^<]+)<\/span>/g)].map((m) => m[1]);
+    expect(labels).toEqual(["Use Week A", "Keep each week"]);
+    expect(body).toContain("W2 copies W1.");
+    expect(body).not.toMatch(/class="btn[^"]* danger/);
+    expect(body).toMatch(/<button[^>]*class="(?![^"]*primary)btn[^"]*"[^>]*autofocus[^>]*>\s*Cancel/);
+    const a = createAsk();
+    const p = a.ask({ title: "t", body: "b", choices });
+    await a.answer("choice:keep");
+    expect(await p).toBe("choice:keep");
   });
 
   test("renders nothing inside the dialog when closed", () => {

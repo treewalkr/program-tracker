@@ -7,7 +7,8 @@
    * The safe choice sits on the right as the primary button and takes initial
    * focus, Esc and backdrop clicks; the asked-about action is a quiet button
    * on the left (red when it drops work); an optional third choice sits
-   * between. Focus goes back to whatever opened it.
+   * between. With `choices`, the ways forward stack as full-width buttons
+   * above Cancel instead. Focus goes back to whatever opened it.
    */
   let { guard }: { guard: Asker } = $props();
 
@@ -47,15 +48,27 @@
   {#if req}
     <h2 id="{uid}-title">{req.title}</h2>
     <p id="{uid}-body">{req.body}</p>
+    {#if req.choices?.length}
+      <div class="choices">
+        {#each req.choices as c (c.id)}
+          <button type="button" class="choice" disabled={guard.busy} onclick={() => guard.answer(`choice:${c.id}`)}>
+            <span class="choice-label">{c.label}</span>
+            {#if c.hint}<span class="choice-hint">{c.hint}</span>{/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
     <div class="actions">
-      <button
-        type="button"
-        class="btn"
-        class:danger={req.danger !== false}
-        class:ghost={req.danger !== false}
-        disabled={guard.busy}
-        onclick={() => guard.answer("confirm")}>{req.confirmLabel}</button
-      >
+      {#if req.confirmLabel}
+        <button
+          type="button"
+          class="btn"
+          class:danger={req.danger !== false}
+          class:ghost={req.danger !== false}
+          disabled={guard.busy}
+          onclick={() => guard.answer("confirm")}>{req.confirmLabel}</button
+        >
+      {/if}
       <span class="grow"></span>
       {#if req.alt}
         <button type="button" class="btn" disabled={guard.busy} onclick={() => guard.answer("alt")}>
@@ -63,7 +76,7 @@
         </button>
       {/if}
       <!-- svelte-ignore a11y_autofocus -->
-      <button type="button" class="btn primary" autofocus disabled={guard.busy} onclick={() => guard.answer("cancel")}
+      <button type="button" class="btn" class:primary={!req.choices?.length} autofocus disabled={guard.busy} onclick={() => guard.answer("cancel")}
         >{req.cancelLabel ?? "Cancel"}</button
       >
     </div>
@@ -102,6 +115,37 @@
     font: 400 13.5px/1.5 var(--font-ui);
     color: var(--muted);
     text-wrap: pretty;
+  }
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 18px;
+  }
+  .choice {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms, background-color 120ms;
+  }
+  .choice:hover:not(:disabled) {
+    border-color: var(--line-strong);
+    background: var(--well);
+  }
+  .choice-label {
+    font: 600 13.5px/1.35 var(--font-ui);
+  }
+  .choice-hint {
+    font: 400 12.5px/1.4 var(--font-ui);
+    color: var(--muted);
   }
   .actions {
     display: flex;

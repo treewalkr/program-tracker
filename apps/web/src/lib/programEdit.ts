@@ -1,4 +1,4 @@
-import { TEMPO_PATTERN, type CopyTarget } from "@pt/shared";
+import { TEMPO_PATTERN, type CopyTarget, type Rotation } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
 
 /** Pure helpers for the inline program editor: set modes, grouped sets, dirty state, header copy. */
@@ -135,4 +135,11 @@ export function copyNotice(from: number, targets: readonly number[], skipped: re
   const kept = skipped.length > 0 ? `${weekList(skipped)} kept: ${skipped.length === 1 ? "has" : "have"} logs.` : "";
   if (copied.length === 0) return `Nothing copied. ${kept}`.trim();
   return `Copied W${from} to ${weekList(copied)}.${kept ? ` ${kept}` : ""}`;
+}
+
+/** Toast after turning A/B weeks off with "Use Week A/B for every week": which weeks stayed as they were. */
+export function matchNotice(use: Rotation, skipped: { logged: readonly number[]; deload: readonly number[] }): string {
+  const kept = (weeks: readonly number[], one: string, many: string) =>
+    weeks.length > 0 ? ` ${weekList(weeks)} kept: ${weeks.length === 1 ? one : many}.` : "";
+  return `Every week now follows Week ${use}.${kept(skipped.logged, "has logs", "have logs")}${kept(skipped.deload, "deload week", "deload weeks")}`;
 }

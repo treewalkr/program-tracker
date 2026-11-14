@@ -898,6 +898,65 @@ export function copyWeekTo(
   return { weeks: out, skipped };
 }
 
+/** A week's routine for A/B comparison: each session's track and its
+ *  exercises (or cardio modality) in order. Names, sets and loads are left out:
+ *  progression changes those from week to week. */
+function routineShape(w: ProgramWeek): string {
+  return JSON.stringify(
+    sessionsInSeqOrder(w.sessions).map((s) => [
+      s.kind,
+      s.seq,
+      s.kind === "cardio"
+        ? (s.cardio?.modality ?? "")
+        : [...s.exercises].sort((a, b) => a.order - b.order).map((e) => e.exerciseId),
+    ])
+  );
+}
+
+/** True when some B week runs a different routine than the A week before it
+ *  (W2 vs W1, W4 vs W3…): other sessions or other exercises. Pure. */
+export function alternatingWeeksDiffer(weeks: readonly ProgramWeek[]): boolean {
+  return weeks.some((w) => {
+    if (w.rotation !== "B") return false;
+    const a = weeks.find((x) => x.week === w.week - 1);
+    return a != null && routineShape(a) !== routineShape(w);
+  });
+}
+
+/**
+ * Turn A/B weeks off and make every week follow letter `use`: each week of
+ * the other letter becomes a copy (fresh ids) of its pair, so per-letter
+ * progression is kept. With A, B week n copies week n-1; with B, A week n
+ * copies week n+1 (a trailing A week copies the week before it). A deload
+ * source falls back to the nearest same-letter week that isn't one. Logged
+ * and deload targets are left alone and listed. Letters are dropped from every
+ * week. Pure.
+ */
+export function matchAlternatingWeeks(
+  weeks: ProgramWeek[],
+  use: Rotation,
+  hasLogs: (week: number) => boolean,
+  isDeload: (week: number) => boolean
+): { weeks: ProgramWeek[]; skipped: { logged: number[]; deload: number[] } } {
+  const skipped = { logged: [] as number[], deload: [] as number[] };
+  const ofLetter = (n: number) => weeks.some((w) => w.week === n && w.rotation === use);
+  const usable = (n: number) => ofLetter(n) && !isDeload(n);
+  let out = weeks;
+  for (const w of weeks) {
+    if (!w.rotation || w.rotation === use) continue;
+    const pair = use === "A" ? w.week - 1 : ofLetter(w.week + 1) ? w.week + 1 : w.week - 1;
+    let src: number | undefined = usable(pair) ? pair : undefined;
+    for (let d = 2; src == null && d <= weeks.length; d += 2) {
+      src = [pair - d, pair + d].find(usable);
+    }
+    if (src == null) continue;
+    if (hasLogs(w.week)) skipped.logged.push(w.week);
+    else if (isDeload(w.week)) skipped.deload.push(w.week);
+    else out = copyWeekTo(out, src, [w.week], () => false).weeks;
+  }
+  return { weeks: setAlternating(out, false), skipped };
+}
+
 /** Deep-copy program weeks with fresh session/exercise ids; catalog
  *  exerciseId refs, seq, placement, roles, sets and week numbers are kept. Pure. */
 export function cloneProgramWeeks(weeks: ProgramWeek[]): ProgramWeek[] {

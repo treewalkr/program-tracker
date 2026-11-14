@@ -11,7 +11,9 @@
     applyPlacementToAllWeeks,
     copyWeekTargets,
     copyWeekTo,
+    alternatingWeeksDiffer,
     isAlternating,
+    matchAlternatingWeeks,
     setAlternating,
     DEFAULT_DELOAD,
     deloadRulesText,
@@ -47,7 +49,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, programSubline, snapshot } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, matchNotice, programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
@@ -164,11 +166,41 @@
 
   // —— Alternate A/B and "Copy this week to…" (FB-013) ——————————————————
   const alternating = $derived(program ? isAlternating(program.weeks) : false);
-  /** Tag weeks odd A / even B, or drop the tags. Content is untouched. */
-  function setRotation(on: boolean) {
+  /** Tag weeks odd A / even B. Turning them off makes every week match: when the A and B
+   *  routines differ, the trainer picks Week A, Week B, or keeping each week as it is. */
+  async function setRotation(on: boolean) {
     if (!program) return;
-    program.weeks = setAlternating($state.snapshot(program.weeks) as ProgramWeek[], on);
+    const before = $state.snapshot(program.weeks) as ProgramWeek[];
+    if (on || !alternatingWeeksDiffer(before)) {
+      program.weeks = setAlternating(before, on);
+      return;
+    }
+    const a = await leaveGuard.ask({
+      title: "Make every week the same?",
+      body: "Week A and week B have different workouts. Logged and deload weeks stay as they are.",
+      cancelLabel: "Keep A/B weeks",
+      choices: [
+        { id: "A", label: "Use Week A for every week", hint: "Week 2 copies week 1, week 4 copies week 3, and so on." },
+        { id: "B", label: "Use Week B for every week", hint: "Week 1 copies week 2, week 3 copies week 4, and so on." },
+        { id: "keep", label: "Keep each week's workouts", hint: "Only the A/B letters go. B weeks keep their own workouts." },
+      ],
+    });
+    if (!program || a === "cancel" || a === "confirm" || a === "alt") return;
+    if (a === "choice:keep") {
+      program.weeks = setAlternating(before, false);
+      return;
+    }
+    const use = a === "choice:B" ? "B" : "A";
+    const { weeks, skipped } = matchAlternatingWeeks(before, use, hasLogs, isDeloadWeek);
+    program.weeks = weeks;
+    showToast(matchNotice(use, skipped), before);
   }
+  /** Planned deload weeks (block phasing) and weeks deloaded with the button: never overwritten. */
+  const isDeloadWeek = (week: number) => {
+    if (program?.phasing?.weeks?.some((p) => p.week === week && p.directive === "deload")) return true;
+    const w = program?.weeks.find((x) => x.week === week);
+    return w != null && isDeloaded(deloadUndo, $state.snapshot(w) as ProgramWeek);
+  };
   const hasLogs = (week: number) => {
     const wi = program?.weeks.findIndex((w) => w.week === week) ?? -1;
     return wi >= 0 && weekLogCount(program!.weeks[wi], wi) > 0;
@@ -191,8 +223,11 @@
     const { weeks, skipped } = copyWeekTo(before, currentWeek.week, targets, hasLogs);
     const changed = skipped.length < targets.length;
     if (changed) program.weeks = weeks;
+    showToast(copyNotice(currentWeek.week, targets, skipped), changed ? before : null);
+  }
+  function showToast(text: string, before: ProgramWeek[] | null) {
     clearTimeout(copyToastTimer);
-    copyToast = { text: copyNotice(currentWeek.week, targets, skipped), before: changed ? before : null };
+    copyToast = { text, before };
     copyToastTimer = setTimeout(() => (copyToast = null), 10000);
   }
   function undoCopy() {
