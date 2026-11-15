@@ -243,6 +243,16 @@ export interface GenerationDto {
   createdAt: string;
 }
 
+/** A running generation, as `GET /v1/ai/generations/pending` lists it (no draft). */
+export interface PendingGenerationDto {
+  id: string;
+  clientId: string;
+  clientName: string;
+  kind: GenerationDto["kind"];
+  targetWeek: number | null;
+  createdAt: string;
+}
+
 /** A stored paste import (ai_imports). `result` is null until done. */
 export interface ImportDto {
   id: string;
@@ -727,6 +737,8 @@ export interface TrainerApi {
     instructions?: string;
   }): Promise<GenerationDto>;
   generations(clientId: string): Promise<GenerationDto[]>;
+  /** The trainer's running generations (newest first, at most 20, none stale) — cheap to poll. */
+  pendingGenerations(): Promise<PendingGenerationDto[]>;
   generation(id: string): Promise<GenerationDto>;
   reviseGeneration(id: string, message: string): Promise<GenerationDto>;
   /** Save an edited block plan as the next draft version (no AI call). */

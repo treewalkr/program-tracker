@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
 import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
@@ -1194,6 +1194,23 @@ export const mockApi: TrainerApi = {
   async generations(clientId) {
     await delay(200);
     return state.generations.filter((g) => g.clientId === clientId);
+  },
+
+  async pendingGenerations() {
+    await delay(80);
+    const cutoff = Date.now() - STALE_PENDING_MS;
+    return state.generations
+      .filter((g) => g.status === "pending" && new Date(g.createdAt).getTime() >= cutoff)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, PENDING_GENERATIONS_LIMIT)
+      .map((g) => ({
+        id: g.id,
+        clientId: g.clientId,
+        clientName: state.clients.find((c) => c.id === g.clientId)?.name ?? "",
+        kind: g.kind,
+        targetWeek: g.targetWeek,
+        createdAt: g.createdAt,
+      }));
   },
 
   async generation(id) {
