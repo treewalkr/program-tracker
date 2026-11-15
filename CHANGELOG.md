@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.29 — 2026-11-16
+
 ### New
 - **A/B weeks.** A program can now run two different weeks in turn: Week A on odd weeks, Week B on even weeks. Switch "Weeks" to "A/B weeks" in the program builder or on the program page.
 - In the builder, A/B weeks gives you a Week A and a Week B tab. On the program page each week tab shows its letter.
