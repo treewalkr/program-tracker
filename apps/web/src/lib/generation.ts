@@ -1,6 +1,7 @@
+import { STALE_PENDING_MS } from "@pt/shared";
 import type { GenerationDto } from "./api/types";
 
-export const STALE_PENDING_MS = 15 * 60_000;
+export { STALE_PENDING_MS };
 export const POLL_INTERVAL_MS = 5_000;
 export type GeneratePhase = "form" | "generating" | "review" | "failed";
 

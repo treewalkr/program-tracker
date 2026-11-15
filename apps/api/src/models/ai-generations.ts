@@ -1,9 +1,9 @@
 /** AI generations (and the calls that start them) — schemas derived from the Drizzle table. See ./shared.ts. */
 import { t } from "elysia";
-import { aiGenerations } from "@pt/db/schema";
-import { createInsertSchema, createUpdateSchema, nonNull, spread } from "../utility";
-import { str, as, ProviderChoice } from "./shared";
-import { MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS } from "@pt/shared";
+import { aiGenerations, clients } from "@pt/db/schema";
+import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "../utility";
+import { str, as, oneOf, ProviderChoice } from "./shared";
+import { GENERATION_KINDS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS } from "@pt/shared";
 
 const AiGenerationInsert = createInsertSchema(aiGenerations);
 const AiGenerationUpdate = createUpdateSchema(aiGenerations, {
@@ -16,6 +16,11 @@ const AiGenerationUpdate = createUpdateSchema(aiGenerations, {
 const AiGenerationValues = t.Required(
   t.Pick(AiGenerationUpdate, ["instructions", "direction", "targetWeek", "revisionMessage", "rejectReason"])
 );
+/** Pending list rows: no draft or prompt fields, so the app-wide watcher can poll it cheaply. */
+const AiGenerationSelect = createSelectSchema(aiGenerations, { kind: as(oneOf(GENERATION_KINDS)) });
+const PendingFields = t.Pick(AiGenerationSelect, ["id", "clientId", "kind", "targetWeek", "createdAt"]);
+const ClientSelect = createSelectSchema(clients);
+const ClientName = t.Pick(ClientSelect, ["name"]);
 
 export const AiGenerationModel = {
   generate: t.Object({
@@ -41,4 +46,6 @@ export const AiGenerationModel = {
   reject: t.Optional(t.Object({ reason: t.Optional(nonNull(AiGenerationValues.properties.rejectReason)) })),
   /** Stored as `revisionMessage`. */
   revise: t.Object({ message: nonNull(AiGenerationValues.properties.revisionMessage) }),
+  /** `GET /generations/pending`: the trainer's running generations, newest first. */
+  pending: t.Array(t.Object({ ...spread(PendingFields), clientName: ClientName.properties.name })),
 };

@@ -20,7 +20,7 @@ import {
   chainSetCounts,
   combinePreferenceDocs,
   pulseSummary,
-  type ProgramWeek, DEFAULT_PROVIDER_ID } from "@pt/shared";
+  type ProgramWeek, DEFAULT_PROVIDER_ID, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "../lib/settle-generation";
 import { draftToWeekDiff, recordFeedback, recordRegenerated } from "../lib/llm-feedback";
@@ -214,6 +214,32 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
         .orderBy(desc(aiGenerations.createdAt));
     },
     { query: t.Object({ clientId: t.Optional(t.String()) }) }
+  )
+  // Before "/generations/:id", so "pending" is never read as a generation id.
+  .get(
+    "/generations/pending",
+    async ({ trainerId }) =>
+      db
+        .select({
+          id: aiGenerations.id,
+          clientId: aiGenerations.clientId,
+          clientName: clients.name,
+          kind: aiGenerations.kind,
+          targetWeek: aiGenerations.targetWeek,
+          createdAt: aiGenerations.createdAt,
+        })
+        .from(aiGenerations)
+        .innerJoin(clients, eq(clients.id, aiGenerations.clientId))
+        .where(
+          and(
+            eq(aiGenerations.trainerId, trainerId),
+            eq(aiGenerations.status, "pending"),
+            gte(aiGenerations.createdAt, new Date(Date.now() - STALE_PENDING_MS))
+          )
+        )
+        .orderBy(desc(aiGenerations.createdAt))
+        .limit(PENDING_GENERATIONS_LIMIT),
+    { response: AiGenerationModel.pending }
   )
   .get(
     "/generations/:id",
