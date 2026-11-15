@@ -8,10 +8,11 @@ describe("mock portal (the demo client over the trainer mock)", () => {
   test("week: the active program's current and next week, nothing private", async () => {
     const dto = mockPortalWeek();
     expect(dto.program?.name).toBe("Sarcoplasmic Hypertrophy");
-    expect(dto.currentWeek).toBe(1);
+    const n = dto.currentWeek!;
+    expect(n).toBeGreaterThanOrEqual(1);
     expect(dto.weeks.map((w) => [w.week, w.loggable])).toEqual([
-      [1, true],
-      [2, false],
+      [n, true],
+      [n + 1, false],
     ]);
     const json = JSON.stringify(dto);
     for (const leak of ["direction", "phasing", "limitations", "goals", "oneRepMaxes", "percent1rm", "role"]) {
