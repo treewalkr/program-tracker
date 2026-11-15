@@ -403,6 +403,19 @@ Reusable UI lives in code, catalogued in Storybook:
 - **The 3-uses rule:** a page-scoped pattern that appears 3+ times gets extracted — into an `app.css` class when it's styling, into `src/lib/ui/` when it's generic, into `src/lib/components/` when it speaks domain language. Never re-hand-roll markup or scoped CSS a library component already wraps.
 - **Design/Tokens** stories render swatches live from `:root`, so the catalog cannot drift from the shipped stylesheet.
 
+## Client Surface — the portal (`/me`)
+
+The trainer's clients see one surface: `/me` (this week, next week), `/me/log/:session`, `/me/login` and `/me/link/:token`. Same Primer world and tokens — all eight themes, light and dark, the system stack plus Noto Sans Thai — but calmer than the trainer app, because the reader is a client on a phone between sets, not a coach reviewing evidence.
+
+- **One column, one size up.** A centred column capped at 600px, 16px base type; the portal's own ramp is 13 (meta, chips) · 14 · 15 (day heads, tabs, links) · 16 (body, buttons) · 17 (session names, the save button) · 20 (the session in focus, the exercise on the log card) · 24 (page titles) · 26 (the greeting). No sidebar, no Feedback launcher, no draft notices.
+- **One green action per screen.** On the week: only the session in focus — today's first open session, else the next open one — gets the full-width green "Log it"; every other session gets a small default button in its head. On the log: the sticky green "Save session" over the safe area. After saving: green "Back to this week" with a default Undo beside it.
+- **Focus leads.** The focus session's name runs 20px with its exercise list open; other sessions fold their exercises behind a "N exercises" summary. Today's day head takes the Pulse Blue Tint band with a "Today" pill — the present moment, as everywhere else.
+- **Prescriptions as set chips, in the client's language.** `4 × 8–12 · 60 kg · RPE 8 · rest 2 min` as mono chips (Thai units `กก.`, `วินาที`, `พัก`), %1RM already resolved to kg. Free-text cardio intensity reads as prose, not a chip. No role chips, pattern balance or effort keys — those are coach vocabulary.
+- **Done is ink-on-tint.** "Logged by you" is the good pill; "Logged by your coach" the neutral pill (and not replaceable from the portal).
+- **44px targets.** Language switch (EN/TH, each language naming itself), tabs, steppers (`LogStepper` in its phone mode via the `logform` container), the readiness scales (`ReadinessStrip variant="touch"`), pager and links.
+- **Patient loading.** Skeletons mirror the cards; after 4 s a muted line says the server is waking (Render cold starts), never an error.
+- **By client, on the trainer side.** A client's log carries the existing neutral pill "by client" in History, on the program page's logged line and in the log page's already-logged notice. The client Settings tab's **Client portal** box holds the link (copy, plus a LINE-ready line), Google status, last seen, and Reset / Turn off behind `ConfirmButton`.
+
 ## Do's and Don'ts
 
 ### Do:
