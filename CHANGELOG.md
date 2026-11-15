@@ -11,16 +11,19 @@
 - **The AI now writes every week of a block**, not one week copied onto every week. Pick the block length (up to 12 weeks) and Same every week or A/B weeks on the generate page; it remembers your last choice. Review and chat show a tab for each week.
 - **Fill remaining weeks with AI**: write the first week (or Week A and Week B) yourself, then let the AI write the rest. Weeks your client has logged stay as they are.
 - "Approve" on an AI draft is now called "Create program".
-
-### Changed
-- AI drafts take longer, about 2–5 minutes, because the AI writes every week. The generate page shows the expected wait.
-- Z.ai is turned off; drafts use DeepSeek.
+- **You're told when an AI draft is done**, wherever you are in the app: "Ada's draft is ready" with a Review button, or a note if it failed. It stays until you dismiss it. If the tab is in the background, your browser shows a notification too. The app asks for permission the first time you generate.
 
 ### Fixed
 - Turning A/B weeks off now asks whether every week should use Week A or Week B, or keep its own workouts, so the program really is the same every week.
 - The selected option in switches like "Same every week | A/B weeks" is easier to see.
 - Week tabs show logged sessions with a check mark (✓2), so the count isn't confused with the A/B letter.
 - Applying an AI fill is refused if the program changed after the fill was drafted, so your edits are never overwritten.
+- Opening the generate page while a draft is being written goes straight to its progress, instead of flashing the form first.
+- On phones, the "copied" message no longer covers the save bar.
+
+### Changed
+- AI drafts take longer, about 2–5 minutes, because the AI writes every week. The generate page shows the expected wait.
+- Z.ai is turned off; drafts use DeepSeek.
 
 ## v0.1.28 — 2026-11-13
 
