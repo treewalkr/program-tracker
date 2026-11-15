@@ -4,6 +4,7 @@
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
+  import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -756,6 +757,7 @@
                     <span class="chev" aria-hidden="true"><Icon name="chevron" size={14} /></span>
                     <span class="sess-date tnum">{s.dateLabel}</span>
                     <span class="sess-name">{s.name}</span>
+                    {#if s.byClient}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}
                     {#if s.flags.length > 0}
                       <span class={`pill sess-flag ${s.pain ? "bad" : "neutral"}`} title={s.flags.map((f) => f.text).join(", ")}>
                         <Icon name="flag" size={11} />{s.pain ? "Pain" : s.flags.length === 1 ? "1 flag" : `${s.flags.length} flags`}
@@ -827,6 +829,9 @@
     <!-- Saves on its own, so it sits outside the profile form and its save bar. -->
     <div class="pf deload-pf">
       <ClientDeloadRule {client} onchange={(c) => (client = c)} />
+    </div>
+    <div class="pf deload-pf">
+      <ClientPortalPanel {client} />
     </div>
     </div>
   {/if}

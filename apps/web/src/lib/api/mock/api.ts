@@ -92,6 +92,7 @@ import type {
   ChainWeekDto,
   ChatMessageDto,
   ClientDto,
+  ClientPortalDto,
   ClientMessageDto,
   ExerciseDto,
   GenerationDto,
@@ -264,11 +265,27 @@ const state = {
   messages: [] as (ChatMessageDto & { clientId: string })[],
   examples: [...seedExamples] as ProgramExampleDto[],
   roleLabels: [] as RoleLabelRowLike[],
+  /** Client portal access per client id; absent = off. The demo client starts on, seen yesterday. */
+  portal: {
+    "cl-nat": { token: "demo-nattapong", lastSeenAt: new Date(Date.now() - 86400_000).toISOString() },
+  } as Record<string, { token: string; lastSeenAt: string | null }>,
   sessionTypes: SESSION_TYPE_DEFAULTS.map((d, i) => ({ id: `st-${i + 1}`, name: d.name, format: d.format, archivedAt: null })) as Omit<
     SessionTypeDto,
     "usedIn"
   >[],
 };
+
+function portalDto(clientId: string): ClientPortalDto {
+  const p = state.portal[clientId];
+  const origin = typeof location === "undefined" ? "http://localhost:5173" : location.origin;
+  return {
+    enabled: !!p,
+    link: p ? `${origin}/me/link/${p.token}` : null,
+    googleLinked: false,
+    email: state.clients.find((c) => c.id === clientId)?.email ?? null,
+    lastSeenAt: p?.lastSeenAt ?? null,
+  };
+}
 
 /** JSON with object keys sorted — mirrors the api: jsonb does not keep key order, so compare canonically. */
 function canon(v: unknown): string {
@@ -1039,6 +1056,26 @@ export const mockApi: TrainerApi = {
     };
     state.logs.push(stored);
     return { ...logDto(stored), replaced: replaced.map(logDto) };
+  },
+
+  async clientPortal(clientId) {
+    await delay(150);
+    return portalDto(clientId);
+  },
+  async enableClientPortal(clientId) {
+    await delay(250);
+    state.portal[clientId] ??= { token: uuid().slice(0, 12), lastSeenAt: null };
+    return portalDto(clientId);
+  },
+  async resetClientPortal(clientId) {
+    await delay(250);
+    if (state.portal[clientId]) state.portal[clientId] = { token: uuid().slice(0, 12), lastSeenAt: null };
+    return portalDto(clientId);
+  },
+  async disableClientPortal(clientId) {
+    await delay(250);
+    delete state.portal[clientId];
+    return portalDto(clientId);
   },
 
   async deleteSessionLog(id: string) {

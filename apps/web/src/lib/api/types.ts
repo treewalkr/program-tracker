@@ -446,6 +446,19 @@ export interface SessionLogDto {
   }[];
 }
 
+/** A trainer's view of one client's portal access. */
+export interface ClientPortalDto {
+  enabled: boolean;
+  /** The personal access link; null while the portal is off. */
+  link: string | null;
+  /** The client has signed in with Google at least once. */
+  googleLinked: boolean;
+  /** The client's email — their Google invite. */
+  email: string | null;
+  /** ISO; null = never opened. */
+  lastSeenAt: string | null;
+}
+
 /** A fresh save. `replaced` holds the logs a Replace removed, in full — Undo writes them back. */
 export type SavedLogDto = SessionLogDto & { replaced: SessionLogDto[] };
 
@@ -714,6 +727,15 @@ export interface TrainerApi {
   logSession(input: SessionLogInput): Promise<SavedLogDto>;
   /** Undo a save: the log and its sets go. */
   deleteSessionLog(id: string): Promise<void>;
+
+  /** The client portal for one client: on/off, the access link, Google and last seen. */
+  clientPortal(clientId: string): Promise<ClientPortalDto>;
+  /** Turn the portal on (creates the access link). */
+  enableClientPortal(clientId: string): Promise<ClientPortalDto>;
+  /** New access link; the old one stops working and the client is signed out. */
+  resetClientPortal(clientId: string): Promise<ClientPortalDto>;
+  /** Portal off: link and Google sign-in removed, client signed out. */
+  disableClientPortal(clientId: string): Promise<ClientPortalDto>;
 
   generate(input: {
     clientId: string;
