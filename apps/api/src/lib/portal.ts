@@ -1,0 +1,97 @@
+import { and, desc, eq } from "drizzle-orm";
+import { clients, db, programs, sessionLogs, type ProgramRow } from "@pt/db";
+import {
+  addDays,
+  blockAnchorDate,
+  blockWeekStart,
+  latestLogBySession,
+  portalSessions,
+  weekOf,
+  weekSessions,
+  type PortalWeek,
+  type PortalWeekDto,
+} from "@pt/shared";
+import { withExerciseNames } from "./exercise-names";
+import { toSignalProgram } from "./signals-service";
+
+/**
+ * What the portal shows: the client's active program, this block week and
+ * the next. Drafts and archived programs never reach a client.
+ */
+
+/** The client's active program (the latest activated when there are several). */
+export async function activeProgramOf(clientId: string): Promise<ProgramRow | null> {
+  const [row] = await db
+    .select()
+    .from(programs)
+    .where(and(eq(programs.clientId, clientId), eq(programs.status, "active")))
+    .orderBy(desc(programs.activatedAt), desc(programs.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
+export interface PortalWeekContext {
+  program: ProgramRow;
+  currentWeek: number;
+  /** First and last day of the current block week. */
+  startDate: string;
+  endDate: string;
+  /** Program session ids planned in the current week. */
+  currentSessionIds: Set<string>;
+}
+
+/** Block-week math for the active program — the same anchor as signals and the client page. */
+export async function portalWeekContext(clientId: string, now = Date.now()): Promise<PortalWeekContext | null> {
+  const program = await activeProgramOf(clientId);
+  if (!program) return null;
+  const logs = await db.select({ date: sessionLogs.date }).from(sessionLogs).where(eq(sessionLogs.programId, program.id));
+  const signalLogs = logs.map((l) => ({ programId: program.id, date: l.date, sets: [] }));
+  const sp = toSignalProgram(program);
+  const currentWeek = weekOf(sp, signalLogs, now);
+  const startDate = blockWeekStart(blockAnchorDate(sp, signalLogs).slice(0, 10), currentWeek);
+  return {
+    program,
+    currentWeek,
+    startDate,
+    endDate: addDays(startDate, 6),
+    currentSessionIds: new Set(weekSessions(program.sessions, currentWeek).map((s) => s.id)),
+  };
+}
+
+/** `GET /v1/portal/week` — current + next week, projected through the client-safe allow-list. */
+export async function loadPortalWeek(clientId: string, now = Date.now()): Promise<PortalWeekDto> {
+  const ctx = await portalWeekContext(clientId, now);
+  if (!ctx) return { program: null, currentWeek: null, weeks: [] };
+  const { program, currentWeek, startDate } = ctx;
+  const [client] = await db.select({ oneRepMaxes: clients.oneRepMaxes }).from(clients).where(eq(clients.id, clientId));
+  const logs = await db
+    .select({
+      id: sessionLogs.id,
+      programSessionId: sessionLogs.programSessionId,
+      date: sessionLogs.date,
+      loggedBy: sessionLogs.loggedBy,
+      createdAt: sessionLogs.createdAt,
+    })
+    .from(sessionLogs)
+    .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));
+  const done = latestLogBySession(logs);
+
+  const weeks: PortalWeek[] = [];
+  for (const week of [currentWeek, currentWeek + 1]) {
+    const doc = program.sessions.find((w) => w.week === week);
+    // next week shows only once it's planned; the current week always shows (possibly empty)
+    if (!doc && week !== currentWeek) continue;
+    const named = doc ? await withExerciseNames(doc) : null;
+    const start = week === currentWeek ? startDate : addDays(startDate, 7);
+    weeks.push({
+      week,
+      startDate: start,
+      endDate: addDays(start, 6),
+      loggable: week === currentWeek,
+      sessions: named
+        ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null))
+        : [],
+    });
+  }
+  return { program: { id: program.id, name: program.name }, currentWeek, weeks };
+}

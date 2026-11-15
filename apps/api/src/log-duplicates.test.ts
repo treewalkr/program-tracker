@@ -79,7 +79,7 @@ describe.skipIf(!dbUp)("session log duplicates", () => {
     expect(codes).toEqual([201, 409]);
     const created = results.find((r) => r.status === 201)!;
     const conflict = results.find((r) => r.status === 409)!;
-    expect(conflict.body).toEqual({ error: "already logged", existing: { id: created.body.id, date: "2026-11-07", setCount: 1 } });
+    expect(conflict.body).toEqual({ error: "already logged", existing: { id: created.body.id, date: "2026-11-07", setCount: 1, loggedBy: "trainer" } });
     expect(await mine(sessionA)).toHaveLength(1);
   });
 

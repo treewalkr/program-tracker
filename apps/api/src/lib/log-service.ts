@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
-import { CardioLog, Readiness, SessionFlag, SessionKind, SetType } from "@pt/shared";
+import { CardioLog, Readiness, SessionFlag, SessionKind, SetType, type LoggedBy } from "@pt/shared";
 import { queueSignalsForOutbox } from "./signals-service";
 
 /**
@@ -102,7 +102,10 @@ export type CreateSessionLogResult =
   | { outcome: "program_not_found" }
   | { outcome: "program_mismatch" }
   | { outcome: "unknown_exercises"; ids: string[] }
-  | { outcome: "conflict"; existing: { id: string; date: string; setCount: number } };
+  | { outcome: "conflict"; existing: { id: string; date: string; setCount: number; loggedBy: LoggedBy } };
+
+/** Which duplicates a `replace` may remove: any (the trainer), or only the client's own (the portal). */
+export type ReplacePolicy = "any" | "own";
 
 /**
  * Write a validated session log for a client of `trainerId`: checks the
@@ -112,9 +115,13 @@ export type CreateSessionLogResult =
 export async function createSessionLog({
   trainerId,
   input,
+  loggedBy = "trainer",
+  replacePolicy = "any",
 }: {
   trainerId: string;
   input: SessionLogInput;
+  loggedBy?: LoggedBy;
+  replacePolicy?: ReplacePolicy;
 }): Promise<CreateSessionLogResult> {
   const [program] = await db.select().from(programs).where(eq(programs.id, input.programId));
   if (!program) return { outcome: "program_not_found" };
@@ -138,7 +145,7 @@ export async function createSessionLog({
     }
     const duplicates = programSessionId
       ? await tx
-          .select({ id: sessionLogs.id, date: sessionLogs.date })
+          .select({ id: sessionLogs.id, date: sessionLogs.date, loggedBy: sessionLogs.loggedBy })
           .from(sessionLogs)
           .where(
             and(
@@ -149,10 +156,12 @@ export async function createSessionLog({
           )
           .orderBy(desc(sessionLogs.date))
       : [];
-    if (duplicates.length > 0 && input.onDuplicate === "reject") {
-      const [latest] = duplicates;
+    // Under "own", a log someone else entered is never replaced (nor added beside): it's a 409.
+    const locked = replacePolicy === "own" ? duplicates.find((d) => d.loggedBy !== loggedBy) : undefined;
+    if ((duplicates.length > 0 && input.onDuplicate === "reject") || locked) {
+      const latest = locked ?? duplicates[0];
       const [{ setCount }] = await tx.select({ setCount: count() }).from(setLogs).where(eq(setLogs.sessionLogId, latest.id));
-      return { conflict: { id: latest.id, date: latest.date, setCount } } as const;
+      return { conflict: { id: latest.id, date: latest.date, setCount, loggedBy: latest.loggedBy } } as const;
     }
     // Replace hands back what it removed, in full, so Undo can write it back.
     let replaced: ReplacedLog[] = [];
@@ -177,6 +186,7 @@ export async function createSessionLog({
         // An empty readiness or flag list stores as null, like an old row.
         readiness: input.readiness && Object.keys(input.readiness).length > 0 ? input.readiness : null,
         flags: input.flags?.length ? input.flags : null,
+        loggedBy,
       })
       .returning();
 

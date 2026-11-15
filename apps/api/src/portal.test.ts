@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
-import { clientSessions, clients, db, trainers } from "@pt/db";
+import { and, eq, inArray, isNull, like } from "drizzle-orm";
+import { clientSessions, clients, db, exercises, programs, sessionLogs, signalOutbox, trainers } from "@pt/db";
+import { addDays, localDateOf } from "@pt/shared";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { CLIENT_COOKIE, claimClient, createClientSession, deleteClientSessions } from "./lib/client-auth";
 import type { GoogleProfile } from "./lib/auth";
@@ -220,5 +221,203 @@ describe.skipIf(!dbUp)("portal Google sign-in", () => {
         else process.env[k] = v;
       }
     }
+  });
+});
+
+describe.skipIf(!dbUp)("portal week and logs", () => {
+  const RUN_W = `${RUN}-w`;
+  let trainerId = "";
+  let otherTrainerId = "";
+  let clientId = "";
+  let siblingId = "";
+  let strangerId = "";
+  let programId = "";
+  let token = "";
+  let siblingToken = "";
+  let squatId = "";
+  const s1 = crypto.randomUUID();
+  const s2 = crypto.randomUUID();
+  const next1 = crypto.randomUUID();
+  const cardio1 = crypto.randomUUID();
+  const slot1 = crypto.randomUUID();
+  const slot2 = crypto.randomUUID();
+  const today = localDateOf(Date.now());
+
+  const lifting = (id: string, slot: string, name: string, seq: number, weekday: number | null) => ({
+    id,
+    name,
+    seq,
+    order: 0,
+    weekday,
+    kind: "lifting" as const,
+    notes: "Brace hard",
+    exercises: [
+      {
+        id: slot,
+        exerciseId: squatId,
+        order: 0,
+        role: "primary" as const,
+        notes: "Pause at the bottom",
+        prescribedSets: [
+          { setNumber: 1, type: "working" as const, reps: 5, amrap: false, percent1rm: 80, targetRpe: 8, restSeconds: 180, tempo: "3-1-1-0" },
+          { setNumber: 2, type: "working" as const, reps: 5, amrap: false, targetWeightKg: 60 },
+        ],
+      },
+    ],
+  });
+
+  const logBody = (programSessionId: string, over: Record<string, unknown> = {}) => ({
+    programSessionId,
+    date: today,
+    sets: [{ programExerciseId: slot1, exerciseId: squatId, setNumber: 1, weightKg: 100, reps: 5, rpe: 8 }],
+    ...over,
+  });
+
+  beforeAll(async () => {
+    [{ id: squatId }] = await db.select({ id: exercises.id }).from(exercises).where(isNull(exercises.trainerId)).limit(1);
+    const [tr] = await db.insert(trainers).values({ name: "Coach Week", email: `${RUN_W}@coach.dev` }).returning();
+    const [other] = await db.insert(trainers).values({ name: "Coach Other", email: `${RUN_W}-o@coach.dev` }).returning();
+    trainerId = tr.id;
+    otherTrainerId = other.id;
+    const [c] = await db
+      .insert(clients)
+      .values({
+        trainerId,
+        name: "Mai",
+        portalEnabledAt: new Date(),
+        goals: "SECRET-GOAL",
+        limitations: "SECRET-LIMIT bad knee",
+        oneRepMaxes: { [squatId]: { kg: 125, date: "2026-10-01" } },
+      })
+      .returning();
+    clientId = c.id;
+    const [sib] = await db.insert(clients).values({ trainerId, name: "Sibling", portalEnabledAt: new Date() }).returning();
+    siblingId = sib.id;
+    const [stranger] = await db.insert(clients).values({ trainerId: otherTrainerId, name: "Stranger" }).returning();
+    strangerId = stranger.id;
+    const [p] = await db
+      .insert(programs)
+      .values({
+        trainerId,
+        clientId,
+        name: "Spring Block",
+        status: "active",
+        activatedAt: new Date(),
+        direction: "SECRET-DIRECTION push the squat",
+        phasing: { SECRET: "phasing" } as never,
+        sessions: [
+          {
+            week: 1,
+            sessions: [
+              lifting(s1, slot1, "Lower A", 1, 1),
+              lifting(s2, slot2, "Upper A", 2, null),
+              { id: cardio1, name: "Easy run", seq: 1, order: 0, weekday: 3, kind: "cardio", exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 2 } },
+            ],
+          },
+          { week: 2, sessions: [lifting(next1, crypto.randomUUID(), "Lower B", 1, 1)] },
+        ],
+      })
+      .returning();
+    programId = p.id;
+    // an older draft for the same client never shows
+    await db.insert(programs).values({ trainerId, clientId, name: "Draft Block", status: "draft", sessions: [] });
+    token = (await createClientSession(clientId)).token;
+    siblingToken = (await createClientSession(siblingId)).token;
+  });
+  afterAll(async () => {
+    await db.delete(trainers).where(inArray(trainers.id, [trainerId, otherTrainerId]));
+  });
+
+  test("/week: the active program's current and next week, kg resolved from %1RM", async () => {
+    const r = await call("GET", "/v1/portal/week", { token });
+    expect(r.status).toBe(200);
+    expect(r.body.program).toEqual({ id: programId, name: "Spring Block" });
+    expect(r.body.currentWeek).toBe(1);
+    expect(r.body.weeks.map((w: any) => [w.week, w.loggable])).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+    const [w1] = r.body.weeks;
+    expect(w1.startDate).toBe(today);
+    const lower = w1.sessions.find((s: any) => s.id === s1);
+    expect(lower).toMatchObject({ name: "Lower A", weekday: 1, notes: "Brace hard", log: null });
+    expect(lower.exercises[0]).toMatchObject({ id: slot1, exerciseId: squatId, notes: "Pause at the bottom" });
+    expect(lower.exercises[0].exerciseName.length).toBeGreaterThan(0);
+    // 80% of 125 → 100 kg; a plain kg target passes through
+    expect(lower.exercises[0].prescribedSets.map((s: any) => s.targetWeightKg)).toEqual([100, 60]);
+    expect(lower.exercises[0].prescribedSets[0]).toMatchObject({ reps: 5, targetRpe: 8, restSeconds: 180, tempo: "3-1-1-0" });
+    expect(w1.sessions.find((s: any) => s.id === cardio1).cardio).toEqual({ modality: "Run", durationMin: 30, hrZone: 2 });
+  });
+
+  test("/week never carries direction, phasing, limitations, goals, 1RMs or %1RM", async () => {
+    const r = await call("GET", "/v1/portal/week", { token });
+    for (const leak of ["SECRET", "direction", "phasing", "limitations", "oneRepMaxes", "goals", "percent1rm", "role", "2026-10-01"]) {
+      expect(r.text).not.toContain(leak);
+    }
+  });
+
+  test("a client with no active program sees none", async () => {
+    const r = await call("GET", "/v1/portal/week", { token: siblingToken });
+    expect(r.body).toEqual({ program: null, currentWeek: null, weeks: [] });
+  });
+
+  test("logging: next week's session, a future date, or a date before the week → 422", async () => {
+    expect((await call("POST", "/v1/portal/logs", { token, body: logBody(next1) })).status).toBe(422);
+    expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, 2) }) })).status).toBe(422);
+    expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -3) }) })).status).toBe(422);
+    expect((await call("POST", "/v1/portal/logs", { token, body: { ...logBody(s1), sets: [] } })).status).toBe(422);
+    expect((await call("POST", "/v1/portal/logs", { body: logBody(s1) })).status).toBe(401);
+  });
+
+  test("a client log lands as logged_by client, shows done, reaches the trainer, and queues signals", async () => {
+    const pain = { programExerciseId: slot1, exerciseId: squatId, kind: "pain", note: "knee twinge" };
+    const r = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { flags: [pain], perceivedEnergy: 7 }) });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ programSessionId: s1, date: today, loggedBy: "client" });
+
+    const week = await call("GET", "/v1/portal/week", { token });
+    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s1).log).toEqual({ id: r.body.id, loggedBy: "client", date: today });
+
+    const [row] = await db.select().from(sessionLogs).where(eq(sessionLogs.id, r.body.id));
+    expect(row).toMatchObject({ clientId, programId, loggedBy: "client", perceivedEnergy: 7 });
+    const queued = await db.select().from(signalOutbox).where(like(signalOutbox.signalId, `pain-flag:${clientId}:%`));
+    expect(queued.length).toBeGreaterThan(0);
+  });
+
+  test("replacing your own log works; replacing the trainer's is a 409", async () => {
+    const again = await call("POST", "/v1/portal/logs", { token, body: logBody(s1) });
+    expect(again.status).toBe(409);
+    expect(again.body.existing.loggedBy).toBe("client");
+    const swapped = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { onDuplicate: "replace" }) });
+    expect(swapped.status).toBe(201);
+    expect(await db.select().from(sessionLogs).where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programSessionId, s1)))).toHaveLength(1);
+
+    const [trainerLog] = await db
+      .insert(sessionLogs)
+      .values({ clientId, programId, programSessionId: s2, date: today, kind: "lifting" })
+      .returning();
+    const blocked = await call("POST", "/v1/portal/logs", { token, body: logBody(s2, { onDuplicate: "replace" }) });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.existing).toMatchObject({ id: trainerLog.id, loggedBy: "trainer" });
+    const week = await call("GET", "/v1/portal/week", { token });
+    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s2).log).toMatchObject({ loggedBy: "trainer" });
+    // and the client can't delete it either
+    expect((await call("DELETE", `/v1/portal/logs/${trainerLog.id}`, { token })).status).toBe(404);
+  });
+
+  test("another client can't delete my log; I can (Undo)", async () => {
+    const week = await call("GET", "/v1/portal/week", { token });
+    const mine = week.body.weeks[0].sessions.find((s: any) => s.id === s1).log.id;
+    expect((await call("DELETE", `/v1/portal/logs/${mine}`, { token: siblingToken })).status).toBe(404);
+    expect((await call("DELETE", `/v1/portal/logs/${mine}`, { token })).status).toBe(204);
+    expect(await db.select().from(sessionLogs).where(eq(sessionLogs.id, mine))).toHaveLength(0);
+  });
+
+  test("a client can't log against another client's session or another trainer's client", async () => {
+    // the sibling has no active program; s1 belongs to Mai's program
+    expect((await call("POST", "/v1/portal/logs", { token: siblingToken, body: logBody(s1) })).status).toBe(422);
+    const strangerToken = (await createClientSession(strangerId)).token;
+    // the stranger's portal is off: no session counts
+    expect((await call("GET", "/v1/portal/week", { token: strangerToken })).status).toBe(401);
   });
 });

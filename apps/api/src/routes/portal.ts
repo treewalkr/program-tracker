@@ -1,6 +1,8 @@
 import { Elysia, t } from "elysia";
+import { z } from "zod";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
-import { clients, db, trainers } from "@pt/db";
+import { clients, db, sessionLogs, trainers } from "@pt/db";
+import { addDays, localDateOf, PortalWeekDto } from "@pt/shared";
 import {
   CLIENT_COOKIE,
   clientCookieSecure,
@@ -9,9 +11,21 @@ import {
   deleteClientSession,
 } from "../lib/client-auth";
 import { clientContext } from "../lib/client-context";
+import { createSessionLog, deleteSessionLog, refineLogKind, SessionLogFields } from "../lib/log-service";
+import { loadPortalWeek, portalWeekContext } from "../lib/portal";
 import { ErrorBody } from "../models/shared";
 
 const SEEN_EVERY_MS = 60 * 60 * 1000;
+
+/** A portal log: the trainer's log shape minus who/which program (the session and the
+ *  active program say that), always for a planned session, and never "add" beside one. */
+const PortalLogInput = SessionLogFields.omit({ clientId: true, programId: true, onDuplicate: true, programSessionId: true })
+  .extend({
+    programSessionId: z.string().uuid(),
+    /** Already logged: 409 (reject) or swap the client's own log (replace). */
+    onDuplicate: z.enum(["reject", "replace"]).default("reject"),
+  })
+  .superRefine(refineLogKind);
 
 /**
  * The client portal: sign-in by access link, sign-out, and the signed-in
@@ -98,4 +112,67 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       },
       detail: { summary: "The signed-in portal client" },
     },
+  )
+  /** The active program's current week (and next, when planned) — a client-safe projection. */
+  .get(
+    "/week",
+    async ({ clientId }) => PortalWeekDto.parse(await loadPortalWeek(clientId)),
+    {
+      response: { 200: t.Unsafe<PortalWeekDto>(t.Any()), 401: ErrorBody },
+      detail: { summary: "This week and next for the signed-in client" },
+    },
+  )
+  /** Log a session from the portal: current week only, dated today or earlier. */
+  .post(
+    "/logs",
+    async ({ body, status, clientId, trainerId }) => {
+      const parsed = PortalLogInput.safeParse(body);
+      if (!parsed.success) return status(422, { error: "invalid log", issues: z.treeifyError(parsed.error) });
+      const input = parsed.data;
+      const ctx = await portalWeekContext(clientId);
+      if (!ctx) return status(422, { error: "no active program" });
+      if (!ctx.currentSessionIds.has(input.programSessionId)) {
+        return status(422, { error: "only this week's sessions can be logged" });
+      }
+      // a day of slack each way for time zones; never before the week (it would move the block's anchor)
+      const today = localDateOf(Date.now());
+      if (input.date > addDays(today, 1)) return status(422, { error: "date is in the future" });
+      if (input.date < addDays(ctx.startDate, -1)) return status(422, { error: "date is before this week" });
+
+      const result = await createSessionLog({
+        trainerId,
+        input: { ...input, clientId, programId: ctx.program.id },
+        loggedBy: "client",
+        replacePolicy: "own",
+      });
+      switch (result.outcome) {
+        case "program_not_found":
+        case "program_mismatch":
+          return status(422, { error: "no active program" });
+        case "unknown_exercises":
+          return status(422, { error: "unknown exercises", ids: result.ids });
+        case "conflict":
+          return status(409, { error: "already logged", existing: result.existing });
+      }
+      return status(201, {
+        id: result.log.id,
+        programSessionId: result.log.programSessionId,
+        date: result.log.date,
+        loggedBy: result.log.loggedBy,
+      });
+    },
+    { body: t.Any(), detail: { summary: "Log a session as the signed-in client" } },
+  )
+  /** Undo: delete one of the client's own logs. A trainer's log, or anyone else's, is a 404. */
+  .delete(
+    "/logs/:id",
+    async ({ params, status, clientId, trainerId }) => {
+      const deleted = await deleteSessionLog(
+        trainerId,
+        and(eq(sessionLogs.id, params.id), eq(sessionLogs.clientId, clientId), eq(sessionLogs.loggedBy, "client")),
+      );
+      if (!deleted) return status(404, { error: "log not found" });
+      return status(204);
+    },
+    { params: t.Object({ id: t.String({ format: "uuid" }) }), detail: { summary: "Delete one of the client's own logs" } },
   );
