@@ -45,6 +45,7 @@
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Verdict from "$lib/components/Verdict.svelte";
+  import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { DraftEditor } from "$lib/draftEditor.svelte";
 
@@ -377,12 +378,19 @@
       }
     }, 3000);
     try {
-      const res = await submitBuild(api, {
+      const buildRequest = submitBuild(api, {
         messageId: m.id,
         providerId: providerId || undefined,
         model: model || undefined,
         effort: effort || undefined,
       });
+      // Leave the chat mid-build and the app still says when the version is ready.
+      askNotifyPermission();
+      generationWatch.watch(
+        buildRequest.then((r) => r.generation),
+        { clientId: id, clientName: client?.name ?? "", href: `/clients/${id}/chat` }
+      ).catch(() => {});
+      const res = await buildRequest;
       ({ messages, gens: allGens } = applyChatTurn({ messages, gens: allGens }, res));
       messages = await api.chatMessages(id);
       allGens = await api.generations(id);
