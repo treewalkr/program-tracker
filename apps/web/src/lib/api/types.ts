@@ -2,6 +2,7 @@
  *  Domain shapes are re-exported from @pt/shared (single source of truth); the
  *  remaining interfaces are the seam contract both adapters are checked against. */
 import type {
+  LoggedBy,
   CardioLog,
   DraftEditOp,
   CardioPrescription,
@@ -402,6 +403,8 @@ export interface ExistingLogDto {
   id: string;
   date: string;
   setCount: number;
+  /** Who entered it (absent from older mock rows = the trainer). */
+  loggedBy?: LoggedBy;
 }
 
 /** Thrown by `logSession` (409) when the program session is already logged
@@ -416,6 +419,8 @@ export class DuplicateLogError extends Error {
 
 export interface SessionLogDto {
   id: string;
+  /** Who entered it: the trainer, or the client in the portal. */
+  loggedBy: LoggedBy;
   clientId: string;
   programId: string;
   programSessionId: string | null;

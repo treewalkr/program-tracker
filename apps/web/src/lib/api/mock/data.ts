@@ -9,7 +9,7 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
 } from "../types";
-import { placeSession, placeWeeks, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType } from "@pt/shared";
+import { placeSession, placeWeeks, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType, type LoggedBy } from "@pt/shared";
 
 /** The sample trainer's own scheme; built-in presets come from SCHEME_PRESETS (@pt/shared). */
 export const schemes: PeriodizationSchemeDto[] = [
@@ -431,6 +431,8 @@ for (const p of programs) {
 
 export interface StoredLog {
   sessionLogId: string;
+  /** Who entered it; absent = the trainer. */
+  loggedBy?: LoggedBy;
   clientId: string;
   programId: string;
   /** The program session it was logged against; absent = freestyle. */

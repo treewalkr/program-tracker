@@ -1,0 +1,70 @@
+import type { PortalWeekDto } from "@pt/shared";
+import type { CardioLogDto, LogSetInput, ReadinessDto, SessionFlagDto } from "./types";
+
+/** Client portal API types — no SvelteKit imports, so the mock and unit tests load them directly. */
+
+export interface PortalMeDto {
+  client: { id: string; name: string };
+  trainer: { name: string };
+}
+
+export type PortalSession = { kind: "signedIn"; me: PortalMeDto } | { kind: "signedOut" };
+
+/** Whose access link this is. */
+export interface PortalLinkInfo {
+  clientFirstName: string;
+  trainerName: string;
+}
+
+/** A portal log: the trainer's log shape minus who and which program — the session says. */
+export interface PortalLogInput {
+  programSessionId: string;
+  date: string;
+  kind?: "lifting" | "cardio";
+  cardio?: CardioLogDto | null;
+  notes?: string;
+  perceivedEnergy?: number;
+  readiness?: ReadinessDto | null;
+  flags?: SessionFlagDto[] | null;
+  /** Already logged by the client: 409 (reject) or swap it (replace). */
+  onDuplicate?: "reject" | "replace";
+  sets: LogSetInput[];
+}
+
+export interface PortalSavedLog {
+  id: string;
+  programSessionId: string | null;
+  date: string;
+  loggedBy: "trainer" | "client";
+}
+
+/** 409 from a portal save: the session is already logged — by the client (replaceable) or the coach (not). */
+export class PortalDuplicateError extends Error {
+  readonly status = 409;
+  constructor(readonly existing: { id: string; date: string; loggedBy: "trainer" | "client" }) {
+    super("already logged");
+    this.name = "PortalDuplicateError";
+  }
+}
+
+export interface PortalApi {
+  session(): Promise<PortalSession>;
+  week(): Promise<PortalWeekDto>;
+  log(input: PortalLogInput): Promise<PortalSavedLog>;
+  /** Undo: delete one of the client's own logs. */
+  deleteLog(id: string): Promise<void>;
+  /** Null when the link is unknown, reset, or the portal is off. */
+  linkInfo(token: string): Promise<PortalLinkInfo | null>;
+  /** Sign in with an access link (sets the client cookie). */
+  openLink(token: string): Promise<void>;
+  signOut(): Promise<void>;
+  /** Google sign-in for clients — a full-page navigation, not a call. */
+  googleHref: string;
+}
+
+/** Where a signed-out client goes. */
+export const PORTAL_LOGIN = "/me/login";
+
+/** Pages a signed-out client may still see. */
+export const isPortalPublic = (path: string) => path === PORTAL_LOGIN || path.startsWith("/me/link/");
+

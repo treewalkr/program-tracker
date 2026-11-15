@@ -155,6 +155,7 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   readiness: l.readiness ? { ...l.readiness } : null,
   flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
   sets: l.sets.map((s) => ({ ...s })),
+  loggedBy: l.loggedBy ?? "trainer",
 });
 
 const seedTemplates: InstructionTemplateDto[] = [
@@ -2496,3 +2497,6 @@ function mockRoster(query: RosterQuery): RosterPageDto {
   });
   return { ...page, items, counts };
 }
+
+/** The client portal's mock runs over this same state, as the demo client. */
+export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName };
