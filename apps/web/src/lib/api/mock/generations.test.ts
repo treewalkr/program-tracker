@@ -36,6 +36,21 @@ describe("mockApi generation and cancellation", () => {
   });
 });
 
+describe("mockApi pendingGenerations", () => {
+  test("lists a running generation without its draft, and drops it once settled", async () => {
+    const promise = mockApi.generate({ clientId: "cl-maya", instructions: "pending list" });
+    const pending = await mockApi.pendingGenerations();
+    const row = pending.find((g) => g.clientId === "cl-maya");
+    expect(row).toBeDefined();
+    expect(Object.keys(row!).sort()).toEqual(["clientId", "clientName", "createdAt", "id", "kind", "targetWeek"]);
+    expect(row!.clientName).toBeTruthy();
+
+    const done = await promise;
+    expect(done.status).toBe("validated");
+    expect((await mockApi.pendingGenerations()).some((g) => g.id === done.id)).toBe(false);
+  });
+});
+
 describe("mockApi approval places sessions like the API", () => {
   test("block approval: seq per kind in draft order, placed on the client's days", async () => {
     const gen = await mockApi.generate({ clientId: "cl-maya", providerId: "mock" });

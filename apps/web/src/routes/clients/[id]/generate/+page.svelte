@@ -38,6 +38,7 @@
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
+  import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
 
   const id = $derived(page.params.id ?? "");
   /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
@@ -207,9 +208,10 @@
     startedAtIso = new Date().toISOString();
     phase = "generating";
     cancelledNote = null;
+    askNotifyPermission();
     try {
-      const row = fillTarget
-        ? await api.fillProgram({
+      const draftRequest: Promise<GenerationDto> = fillTarget
+        ? api.fillProgram({
             clientId: id,
             programId: fillTarget.id,
             providerId,
@@ -217,7 +219,7 @@
             effort: effort || undefined,
             instructions: request.instructions || undefined,
           })
-        : await api.generate({
+        : api.generate({
         clientId: id,
         basedOnProgramId: current?.id ?? null,
         targetWeek: weekMode ?? undefined,
@@ -229,6 +231,8 @@
         effort: effort || undefined,
         instructions: request.instructions || undefined,
       });
+      // Leave the page mid-draft and the app still says when it's done.
+      const row = await generationWatch.watch(draftRequest, { clientId: id, clientName: client?.name ?? "" });
       allGens = [row, ...allGens.filter((g) => g.id !== row.id)];
       if (row.status === "cancelled") {
         onGenerationCancelled(row);

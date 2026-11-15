@@ -480,6 +480,11 @@ export function sameLetterWeeks(d: Pick<AiProgramDraft, "weeks">, week: number):
 export const GENERATION_KINDS = ["block", "week", "fill"] as const;
 export type GenerationKind = (typeof GENERATION_KINDS)[number];
 
+/** A pending generation older than this is treated as dead (the AI call never settled it). */
+export const STALE_PENDING_MS = 15 * 60_000;
+/** Most pending generations `GET /v1/ai/generations/pending` returns. */
+export const PENDING_GENERATIONS_LIMIT = 20;
+
 export const GENERATION_STATUSES = [
   "pending",
   "validated",

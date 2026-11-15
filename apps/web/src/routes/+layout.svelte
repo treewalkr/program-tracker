@@ -19,6 +19,8 @@
   import VersionLink from "$lib/components/VersionLink.svelte";
   import AccountMenu from "$lib/components/AccountMenu.svelte";
   import { isAdminSession } from "$lib/settingsNav";
+  import DraftNotice from "$lib/components/DraftNotice.svelte";
+  import { generationWatch } from "$lib/draftWatch";
 
   let { children, data } = $props();
 
@@ -198,6 +200,18 @@
     if (!bare) roleLabels.load();
   });
 
+  // AI drafts that finish while the trainer is elsewhere: one watcher for the app.
+  $effect(() => {
+    if (bare) return;
+    untrack(() => void generationWatch.start());
+    return () => generationWatch.stop();
+  });
+
+  function onVisibility() {
+    if (document.visibilityState === "visible") void generationWatch.wake();
+    else generationWatch.reschedule();
+  }
+
   onMount(async () => {
     if (bare) return;
     try {
@@ -237,6 +251,7 @@
 {/snippet}
 
 <svelte:window onkeydown={onKey} />
+<svelte:document onvisibilitychange={onVisibility} />
 
 {#if bare}
   {@render children()}
@@ -376,6 +391,12 @@
 </div>
 
 <FeedbackLayer />
+<DraftNotice
+  notices={generationWatch.notices}
+  onopen={(n) => generationWatch.dismiss(n.id)}
+  ondismiss={(id) => generationWatch.dismiss(id)}
+  ondismissall={() => generationWatch.dismissAll()}
+/>
 {/if}
 
 <style>
