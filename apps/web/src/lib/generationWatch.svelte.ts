@@ -197,10 +197,13 @@ export function createGenerationWatch(deps: WatchDeps) {
       schedule();
     },
 
+    /** Signed out (or the app went away): stop polling and forget this trainer's drafts. */
     stop() {
       started = false;
       if (timer !== null) clearTimer(timer);
       timer = null;
+      watching.clear();
+      notices = [];
     },
 
     /**
