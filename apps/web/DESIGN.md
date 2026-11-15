@@ -349,6 +349,9 @@ A client profile (client Settings tab, New client) is a stack of **ProfileSectio
 ### Sticky Save Bar
 The shared `.savebar` (app.css) floats unsaved edits over the page: sticky at `bottom: 12px` (60px under 700px, clear of the Feedback launcher), Canvas White on a hairline, 6px radius, `--shadow-overlay`, `role="region"` labelled "Unsaved changes". Left: a 12.5px muted `.savemsg` ("Unsaved changes", or the save error in Danger Red); right: a ghost Discard and the green primary save. On the client Settings tab it shows only while the profile is dirty, a save failed, or "Saved" is flashing; Discard restores the stored client and Ctrl/⌘+S saves. The program page uses the same bar for its edits.
 
+### Draft Notice
+The app-wide **DraftNotice** stack tells the trainer an AI draft (generate, fill, chat build) finished or failed while they were elsewhere. Each notice is a Signal Row on a floating box — Canvas White, hairline (Danger Red Tint edge when failed), 6px radius, `--shadow-overlay`: an 8px lamp (green ready, red failed), a 14px/600 sentence title ("Ada’s week 3 is ready", "James’ draft failed") and a 13px muted line ("Ready for your review." or the short failure reason), with a small default **Review** / **Open** button and a ghost × right. It sits bottom-right at 60px (above the Feedback launcher, following `--feedback-lift`), 360px wide; at ≤520px it spans the top under the safe area. Notices stay until dismissed; past three, the older ones fold into a "+N more" pill beside "Dismiss all". `aria-live="polite"`; entries fly up 12px over 180ms (off under reduced motion). No notice shows while the trainer is on that client's generate or chat page — the page moves to review on its own. When the tab is hidden, a browser Notification says the same thing (permission asked once, on the first Generate).
+
 ### AI Draft Review
 The code-review moment (`DraftReview`). Top to bottom:
 - **Head:** crumbs, version title, and the action row: a Danger "Reject…" (opens an optional reason box that future drafts learn from) beside the primary "Approve vN as draft program". Under the buttons, a lock-icon line: "Creates a draft program. {name} sees nothing until you activate it." Below 700px the action row moves into a fixed bottom bar (`--shadow-overlay-up`).
@@ -392,7 +395,7 @@ Reusable UI lives in code, catalogued in Storybook:
 - **Run:** `bun run storybook` (repo root) → http://localhost:6006. Stories are Svelte 5 CSF (`defineMeta` + `Story`) via `@storybook/addon-svelte-csf`.
 - **Layout:** `src/lib/ui/` holds generic primitives (Button, Pill, ToggleChip, Note, ConfirmButton, Field, Tabs, Panel, Crumbs, PageHead, Skeleton/SkeletonRows/SkeletonPanel/SkeletonHead, Counter, Icon, EmptyState, Avatar, GeneratingState, ListToolbar, Pager). `src/lib/components/` holds domain components, grouped by surface:
   - **Overview & client:** StatusPill, SignalRow, WeekGrid, PulseChart, SessionCard, SetChips, RoleChip, DirChip
-  - **Draft review & chat:** DraftReview, DraftPreview, ChatProposal, VersionStamp, BlockPlanStrip, BlockPlanEditor
+  - **Draft review & chat:** DraftReview, DraftNotice, DraftPreview, ChatProposal, VersionStamp, BlockPlanStrip, BlockPlanEditor
   - **Program editing:** WeekCalendar, SessionHeadEditor, ExerciseEditor, PhasingEditor
   - **Generate & settings:** InputLedger, ModelSettings, ProviderPicker, KineticChainEditor, ClientProfileFields, ClientIdentityFields, ProfileSection, TrainingWeekGrid, DayChips, CopyButton
 - **Stories** are colocated as `X.stories.svelte` next to each component.
