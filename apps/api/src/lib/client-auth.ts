@@ -1,6 +1,6 @@
-import { and, eq, gt, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { clientSessions, clients, db, trainers } from "@pt/db";
-import { authConfig, randomToken, secureCookies, sha256 } from "./auth";
+import { authConfig, randomToken, secureCookies, sha256, type GoogleProfile } from "./auth";
 import { appUrl } from "./email-links";
 
 /**
@@ -78,3 +78,34 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 /** A fresh access-link secret. */
 export const newPortalToken = randomToken;
+
+export type ClientSignInRejection = "unverified" | "not_allowed";
+
+/**
+ * Resolve the portal client for a Google profile. Order: the client already
+ * linked to this Google `sub` → a portal-enabled client whose email matches
+ * and isn't linked yet (then link it). Several email matches (two trainers
+ * invited the same person): the most recently enabled wins — a known v1
+ * limit; the other trainer can send their access link instead.
+ */
+export async function claimClient(
+  profile: GoogleProfile
+): Promise<{ clientId: string } | { rejection: ClientSignInRejection }> {
+  if (!profile.emailVerified) return { rejection: "unverified" };
+  const first = (where: SQL | undefined) =>
+    db
+      .select({ id: clients.id })
+      .from(clients)
+      .innerJoin(trainers, eq(trainers.id, clients.trainerId))
+      .where(and(where, portalOpen))
+      .orderBy(desc(clients.portalEnabledAt))
+      .limit(1);
+  const [linked] = await first(eq(clients.portalGoogleSub, profile.sub));
+  if (linked) return { clientId: linked.id };
+  const [invited] = await first(
+    and(sql`lower(${clients.email}) = ${profile.email.toLowerCase()}`, isNull(clients.portalGoogleSub))
+  );
+  if (!invited) return { rejection: "not_allowed" };
+  await db.update(clients).set({ portalGoogleSub: profile.sub }).where(eq(clients.id, invited.id));
+  return { clientId: invited.id };
+}

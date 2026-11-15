@@ -14,6 +14,7 @@ import {
   sha256,
   trainerForToken,
 } from "../lib/auth";
+import { CLIENT_COOKIE, claimClient, clientCookieSecure, createClientSession } from "../lib/client-auth";
 
 const OAUTH_TTL_S = 10 * 60;
 
@@ -21,6 +22,11 @@ const OAUTH_TTL_S = 10 * 60;
 const safeReturnTo = (v: string | undefined) => (v && v.startsWith("/") && !v.startsWith("//") ? v : "/");
 
 const loginError = (code: string) => `/login?error=${code}`;
+/** The client portal's sign-in page — a client never sees the trainer login. */
+const clientLoginError = (code: string) => `/me/login?error=${code}`;
+
+/** Who is signing in: a trainer (default) or a portal client. Rides in the OAuth cookie. */
+type SignInAs = "trainer" | "client";
 
 /**
  * Google sign-in for invited trainers. The browser navigates to
@@ -41,12 +47,14 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
   .get(
     "/google",
     async ({ cookie, query, redirect }) => {
+      const as: SignInAs = query.as === "client" ? "client" : "trainer";
       const cfg = authConfig();
-      if (!cfg) return redirect(loginError("not_configured"));
+      if (!cfg) return redirect((as === "client" ? clientLoginError : loginError)("not_configured"));
       const state = randomToken();
       const verifier = randomToken();
+      const returnTo = as === "client" ? "/me" : safeReturnTo(query.returnTo);
       cookie[OAUTH_COOKIE].set({
-        value: JSON.stringify({ state, verifier, returnTo: safeReturnTo(query.returnTo) }),
+        value: JSON.stringify({ state, verifier, returnTo, as }),
         httpOnly: true,
         sameSite: "lax",
         secure: secureCookies(cfg),
@@ -56,8 +64,12 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
       return redirect(googleAuthUrl(cfg, state, await sha256(verifier)));
     },
     {
-      query: t.Object({ returnTo: t.Optional(t.String()) }),
-      detail: { summary: "Start Google sign-in (browser redirect)" },
+      query: t.Object({
+        returnTo: t.Optional(t.String()),
+        /** `client` signs a portal client in (same Google app and callback). */
+        as: t.Optional(t.String()),
+      }),
+      detail: { summary: "Start Google sign-in (browser redirect); `?as=client` for the client portal" },
     },
   )
   .get(
@@ -68,15 +80,39 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
 
       const raw = cookie[OAUTH_COOKIE].value;
       cookie[OAUTH_COOKIE].remove();
-      if (query.error) return redirect(loginError("cancelled"));
-
-      let pending: { state: string; verifier: string; returnTo: string } | null = null;
+      let pending: { state: string; verifier: string; returnTo: string; as?: SignInAs } | null = null;
       try {
         pending = typeof raw === "string" ? JSON.parse(raw) : (raw as typeof pending);
       } catch {
         pending = null;
       }
-      if (!pending || !query.code || query.state !== pending.state) return redirect(loginError("expired"));
+      // a client's failures land on the portal's sign-in page, a trainer's on /login
+      const fail = pending?.as === "client" ? clientLoginError : loginError;
+      if (query.error) return redirect(fail("cancelled"));
+      if (!pending || !query.code || query.state !== pending.state) return redirect(fail("expired"));
+
+      if (pending.as === "client") {
+        let clientId: string;
+        try {
+          const profile = await fetchGoogleProfile(cfg, query.code, pending.verifier);
+          const claim = await claimClient(profile);
+          if ("rejection" in claim) return redirect(clientLoginError(claim.rejection));
+          clientId = claim.clientId;
+        } catch (err) {
+          console.error("[auth] client google callback failed:", err);
+          return redirect(clientLoginError("google_failed"));
+        }
+        const session = await createClientSession(clientId);
+        cookie[CLIENT_COOKIE].set({
+          value: session.token,
+          httpOnly: true,
+          sameSite: "lax",
+          secure: clientCookieSecure(),
+          path: "/",
+          expires: session.expiresAt,
+        });
+        return redirect("/me");
+      }
 
       let trainerId: string;
       try {
