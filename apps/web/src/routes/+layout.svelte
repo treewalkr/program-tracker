@@ -21,10 +21,12 @@
   import { isAdminSession } from "$lib/settingsNav";
   import DraftNotice from "$lib/components/DraftNotice.svelte";
   import { generationWatch } from "$lib/draftWatch";
+  import { isPortalPath } from "$lib/portal/gate";
 
   let { children, data } = $props();
 
-  const bare = $derived(page.url.pathname === "/login");
+  /** No trainer chrome: the sign-in page and the client portal (/me). */
+  const bare = $derived(page.url.pathname === "/login" || isPortalPath(page.url.pathname));
   const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
   const isAdmin = $derived(isAdminSession(data.session));
 
