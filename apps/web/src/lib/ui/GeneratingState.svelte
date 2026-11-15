@@ -1,16 +1,18 @@
 <script lang="ts">
   import { formatElapsed } from '$lib/generation';
+  import Skeleton from './Skeleton.svelte';
 
+  /** No `startedAt` = still loading: the static chrome renders, the data shimmers. */
   interface Props {
-    startedAt: string;
-    providerLabel: string;
-    model: string;
+    startedAt?: string;
+    providerLabel?: string;
+    model?: string;
   }
 
-  let { startedAt, providerLabel, model }: Props = $props();
+  let { startedAt, providerLabel = '', model = '' }: Props = $props();
 
   let now = $state(Date.now());
-  let startedAtMs = $derived(new Date(startedAt).getTime());
+  let startedAtMs = $derived(startedAt ? new Date(startedAt).getTime() : 0);
 
   $effect(() => {
     now = Date.now();
@@ -26,9 +28,17 @@
     <span class="spinner" aria-hidden="true"></span>
     <!-- status announces once; the ticking timer sits outside it so it isn't re-read every second -->
     <h2 class="title"><span role="status">Drafting your next block…</span></h2>
-    <span class="elapsed mono" title="elapsed">· {formatElapsed(now - startedAtMs)}</span>
+    {#if startedAt}
+      <span class="elapsed mono" title="elapsed">· {formatElapsed(now - startedAtMs)}</span>
+    {:else}
+      <Skeleton shape="line" h="11px" w="36px" />
+    {/if}
   </div>
-  <div class="meta">{providerLabel} · {model}</div>
+  {#if startedAt}
+    <div class="meta">{providerLabel} · {model}</div>
+  {:else}
+    <div class="meta"><Skeleton shape="line" h="11px" w="180px" /></div>
+  {/if}
 
   <p class="reassurance">
     You can leave this page — generation continues on the server, and the draft will wait here for your review.
@@ -75,6 +85,7 @@
     color: var(--ink);
   }
   .meta {
+    min-height: 1lh; /* the loading shimmer keeps the text line's height */
     font-size: 13px;
     color: var(--muted);
   }

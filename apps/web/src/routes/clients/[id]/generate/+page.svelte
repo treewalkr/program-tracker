@@ -40,6 +40,8 @@
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
 
   const id = $derived(page.params.id ?? "");
+  /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
+  const watching = page.url.searchParams.has("watch");
 
   let client = $state<ClientDto | null>(null);
   /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
@@ -129,6 +131,7 @@
         const nextPhase = generationPhase(row);
         if (nextPhase !== "generating") {
           stopPolling();
+          await restLoaded; // the review needs the catalog and examples
           if (nextPhase === "failed") {
             failReason = row.error ?? null;
           }
@@ -421,38 +424,23 @@
     selected = selected.includes(id2) ? selected.filter((s) => s !== id2) : [...selected, id2];
   }
 
+  /** Settles once the form/review data (stage 2 of firstLoad) is in; the review waits on it. */
+  let restLoaded: Promise<void> = Promise.resolve();
+
   async function firstLoad() {
     const params = new URLSearchParams(page.url.search);
-    const fillParam = params.get("fill");
-    // Fetch everything at once; `client` is assigned last so the skeleton holds
-    // until the page knows its state (no form flash before "generating" / review).
-    const [detail, exList, prefs, provList, ownList, savedChoice, gens, exampleList] = await Promise.all([
-      api.client(id),
-      api.exercises(),
-      api.preferences(),
-      api.providers(),
-      api.instructionTemplates(),
-      api.weeksChoice().catch(() => "same" as const),
-      api.generations(id),
-      api.examples(),
-    ]);
-    learned = effectivePreferences(prefs, id);
-    catalogById = new Map(exList.map((e) => [e.id, e]));
+    // Stage 1: just what decides the page state and draws the progress / failed view.
+    const [detail, gens, provList] = await Promise.all([api.client(id), api.generations(id), api.providers()]);
     current = detail.currentProgram;
     programs = detail.programs;
     providers = provList.filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
-    own = ownList;
-
-    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>&week=<targetWeek>
-    const note = params.get("note");
-    const tpl = params.get("tpl");
-    if (note) instructions = note;
-    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
 
     // Fill with AI handoff from the builder or the program page: ?fill=<programId>
+    const fillParam = params.get("fill");
     if (fillParam) fillTarget = programs.find((p) => p.id === fillParam) ?? (await api.program(fillParam).catch(() => null));
 
+    // Phase-signal handoff: ?week=<targetWeek>
     const weekParam = params.get("week");
     const parsedWeek = weekParam ? Number.parseInt(weekParam, 10) : NaN;
     if (
@@ -468,11 +456,6 @@
       weekMode = null;
     }
 
-    await loadProgramContext();
-    blockWeeks = defaultBlockWeeks(current);
-    weeksChoice = defaultWeeksChoice(current, savedChoice);
-
-    examples = exampleList;
     allGens = gens;
     pending = pendingProgram(gens, programs);
     const latest = gens[0] ?? null;
@@ -482,11 +465,39 @@
       phase = initialPhase;
       if (initialPhase === "failed") {
         failReason = latest.error;
-      } else if (initialPhase === "generating") {
-        startPolling(latest.id);
       }
     }
+
+    // Stage 2: the form and review data. The progress and failed views show without it;
+    // the form and review keep the skeleton until it lands.
+    restLoaded = loadRest(params);
+    if (phase === "generating" || phase === "failed") client = detail.client;
+    if (phase === "generating" && latest) startPolling(latest.id);
+    await restLoaded;
     client = detail.client;
+  }
+
+  async function loadRest(params: URLSearchParams) {
+    const [exList, prefs, ownList, savedChoice, exampleList] = await Promise.all([
+      api.exercises(),
+      api.preferences(),
+      api.instructionTemplates(),
+      api.weeksChoice().catch(() => "same" as const),
+      api.examples(),
+      loadProgramContext(),
+    ]);
+    learned = effectivePreferences(prefs, id);
+    catalogById = new Map(exList.map((e) => [e.id, e]));
+    own = ownList;
+    examples = exampleList;
+    blockWeeks = defaultBlockWeeks(current);
+    weeksChoice = defaultWeeksChoice(current, savedChoice);
+
+    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>
+    const note = params.get("note");
+    const tpl = params.get("tpl");
+    if (note) instructions = note;
+    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
   }
 
   onMount(() => {
@@ -498,6 +509,15 @@
 
 {#if loadError}
   <ClientLoadError error={loadError} />
+{:else if client === null && watching}
+  <!-- ?watch=1 (Watch progress): the progress view's own shape, so nothing jumps when it lands -->
+  <SkeletonHead label="Loading generation…" />
+  <section class="panel narrow">
+    <div class="panel-body stack">
+      <GeneratingState />
+      <Button variant="ghost" disabled>Cancel generation</Button>
+    </div>
+  </section>
 {:else if client === null}
   <SkeletonHead label="Loading client…" />
   <div class="skel-stack form">

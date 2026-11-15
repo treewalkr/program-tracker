@@ -373,7 +373,7 @@
   {#if isLivePending(latestGen)}
     <Note tone="warn" role="status" class="gen-banner">
       <span>AI draft is generating in the background — it keeps going even with this page closed.</span>
-      <Button variant="ghost" href={`/clients/${id}/generate`}>Watch progress</Button>
+      <Button variant="ghost" href={`/clients/${id}/generate?watch=1`}>Watch progress</Button>
     </Note>
   {/if}
 
