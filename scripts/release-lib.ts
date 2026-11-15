@@ -20,8 +20,11 @@ export function nextVersion(current: string, explicit?: string): string {
 
 /** Release notes from one-line commit subjects: features, then fixes; chores and docs left out. */
 export function releaseNotes(version: string, subjects: string[]): string {
-  const pick = (type: string) =>
-    subjects.filter((s) => s.startsWith(`${type}:`)).map((s) => `- ${s.slice(type.length + 1).trim()}`);
+  // `type:`, `type(scope):` and breaking `type(scope)!:` all count.
+  const pick = (type: string) => {
+    const re = new RegExp(`^${type}(\\([^)]*\\))?!?:\\s*`);
+    return subjects.filter((s) => re.test(s)).map((s) => `- ${s.replace(re, "").trim()}`);
+  };
   const feats = pick("feat");
   const fixes = pick("fix");
   const out = [`v${version}`];

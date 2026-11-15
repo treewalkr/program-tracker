@@ -25,6 +25,11 @@ describe("releaseNotes", () => {
   test("nothing user-facing → maintenance line", () => {
     expect(releaseNotes("0.1.2", ["chore: deps"])).toBe("v0.1.2\n\nMaintenance only.");
   });
+
+  test("counts scoped and breaking subjects", () => {
+    const notes = releaseNotes("0.1.3", ["feat(app): draft notices", "fix(api)!: refuse stale fill", "chore(app): tidy", "feature: not a type"]);
+    expect(notes).toBe("v0.1.3\n\nFeatures\n- draft notices\n\nFixes\n- refuse stale fill");
+  });
 });
 
 const LOG = "# What's new\n\n## Unreleased\n\n## v0.1.0 — 2026-11-07\n\n### New\n- First release.\n";
