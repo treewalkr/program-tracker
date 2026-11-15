@@ -422,26 +422,35 @@
   }
 
   async function firstLoad() {
-    const [detail, exList] = await Promise.all([api.client(id), api.exercises()]);
-    const prefs = await api.preferences();
+    const params = new URLSearchParams(page.url.search);
+    const fillParam = params.get("fill");
+    // Fetch everything at once; `client` is assigned last so the skeleton holds
+    // until the page knows its state (no form flash before "generating" / review).
+    const [detail, exList, prefs, provList, ownList, savedChoice, gens, exampleList] = await Promise.all([
+      api.client(id),
+      api.exercises(),
+      api.preferences(),
+      api.providers(),
+      api.instructionTemplates(),
+      api.weeksChoice().catch(() => "same" as const),
+      api.generations(id),
+      api.examples(),
+    ]);
     learned = effectivePreferences(prefs, id);
     catalogById = new Map(exList.map((e) => [e.id, e]));
-    client = detail.client;
     current = detail.currentProgram;
     programs = detail.programs;
-    providers = (await api.providers()).filter((p) => p.configured);
+    providers = provList.filter((p) => p.configured);
     if (providers.length) providerId = providers[0].id;
-    own = await api.instructionTemplates();
+    own = ownList;
 
     // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>&week=<targetWeek>
-    const params = new URLSearchParams(page.url.search);
     const note = params.get("note");
     const tpl = params.get("tpl");
     if (note) instructions = note;
     if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
 
     // Fill with AI handoff from the builder or the program page: ?fill=<programId>
-    const fillParam = params.get("fill");
     if (fillParam) fillTarget = programs.find((p) => p.id === fillParam) ?? (await api.program(fillParam).catch(() => null));
 
     const weekParam = params.get("week");
@@ -461,10 +470,9 @@
 
     await loadProgramContext();
     blockWeeks = defaultBlockWeeks(current);
-    weeksChoice = defaultWeeksChoice(current, await api.weeksChoice().catch(() => "same" as const));
+    weeksChoice = defaultWeeksChoice(current, savedChoice);
 
-    const gens = await api.generations(id);
-    examples = await api.examples();
+    examples = exampleList;
     allGens = gens;
     pending = pendingProgram(gens, programs);
     const latest = gens[0] ?? null;
@@ -478,6 +486,7 @@
         startPolling(latest.id);
       }
     }
+    client = detail.client;
   }
 
   onMount(() => {
