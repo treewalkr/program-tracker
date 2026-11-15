@@ -64,6 +64,7 @@ import type {
   ProgramStatus,
   ProgramWeek,
   SessionKind,
+  LoggedBy,
   SetType,
   StoredChatProposal,
   WeekPlan,
@@ -152,8 +153,30 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   /** This client's deload rule — null = the trainer's (read through `effectiveDeload`). */
   deloadSettings: jsonb("deload_settings").$type<DeloadSettings>(),
+  /** Client portal on since — null = off. The client can sign in only while set. */
+  portalEnabledAt: timestamp("portal_enabled_at", { withTimezone: true }),
+  /** The client's Google account id (`sub`) — linked on their first Google sign-in. */
+  portalGoogleSub: text("portal_google_sub").unique(),
+  /** Reusable access-link secret (like `trainers.email_token`); reset rotates it. */
+  portalToken: text("portal_token").unique(),
+  /** Last portal visit, stamped at most hourly. */
+  portalLastSeenAt: timestamp("portal_last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Client portal sessions — mirrors `auth_sessions`; `id` is the sha256 of the cookie token. */
+export const clientSessions = pgTable(
+  "client_sessions",
+  {
+    id: text("id").primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("client_sessions_client_idx").on(t.clientId)]
+);
 
 // ---------------------------------------------------------------------------
 // Exercise library
@@ -231,6 +254,8 @@ export const sessionLogs = pgTable("session_logs", {
   readiness: jsonb("readiness").$type<Readiness>(),
   /** Per-exercise pain / technique / skipped flags; null on older rows. */
   flags: jsonb("flags").$type<SessionFlag[]>(),
+  /** Who entered it: the trainer, or the client in the portal (check constraint). */
+  loggedBy: text("logged_by").$type<LoggedBy>().notNull().default("trainer"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
