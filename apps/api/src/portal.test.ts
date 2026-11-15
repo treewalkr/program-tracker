@@ -6,6 +6,7 @@ import { assertTestDatabaseUrl } from "./testing/test-db";
 import { CLIENT_COOKIE, claimClient, createClientSession, deleteClientSessions } from "./lib/client-auth";
 import type { GoogleProfile } from "./lib/auth";
 import { app } from "./app";
+import { getDefaultTrainerId } from "./lib/trainer";
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
 
@@ -419,5 +420,97 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     const strangerToken = (await createClientSession(strangerId)).token;
     // the stranger's portal is off: no session counts
     expect((await call("GET", "/v1/portal/week", { token: strangerToken })).status).toBe(401);
+  });
+});
+
+describe.skipIf(!dbUp)("trainer portal controls", () => {
+  /** As the default trainer (AUTH_DISABLED in tests). */
+  const asTrainer = (method: string, path: string, body?: unknown) => call(method, path, { body });
+  let clientId = "";
+  let foreignTrainer = "";
+
+  beforeAll(async () => {
+    expect(await getDefaultTrainerId()).toBeTruthy();
+    const c = await asTrainer("POST", "/v1/clients", { name: "Portal Pim", email: `${RUN}-pim@client.dev` });
+    clientId = c.body.id;
+  });
+  afterAll(async () => {
+    await db.delete(clients).where(eq(clients.id, clientId));
+    if (foreignTrainer) await db.delete(trainers).where(eq(trainers.id, foreignTrainer));
+  });
+
+  test("off by default; the client row never carries portal secrets", async () => {
+    const r = await asTrainer("GET", `/v1/clients/${clientId}/portal`);
+    expect(r.body).toMatchObject({ enabled: false, link: null, googleLinked: false, lastSeenAt: null });
+    const detail = await asTrainer("GET", `/v1/clients/${clientId}`);
+    for (const key of ["portalToken", "portalEnabledAt", "portalGoogleSub", "portalLastSeenAt"]) expect(detail.body.client).not.toHaveProperty(key);
+  });
+
+  test("turn on → link works; reset → old link and sessions die; off → everything dies", async () => {
+    const on = await asTrainer("POST", `/v1/clients/${clientId}/portal`);
+    expect(on.status).toBe(200);
+    expect(on.body.enabled).toBe(true);
+    expect(on.body.link).toMatch(/\/me\/link\/[\w-]+$/);
+    // turning on again keeps the same link
+    expect((await asTrainer("POST", `/v1/clients/${clientId}/portal`)).body.link).toBe(on.body.link);
+    const linkToken = on.body.link.split("/me/link/")[1];
+
+    const signIn = await call("POST", `/v1/portal/link/${linkToken}`);
+    const session = /pt_client=([^;]+)/.exec(signIn.setCookie ?? "")![1];
+    expect((await call("GET", "/v1/portal/me", { token: session })).status).toBe(200);
+    expect((await asTrainer("GET", `/v1/clients/${clientId}/portal`)).body.lastSeenAt).not.toBeNull();
+
+    const reset = await asTrainer("POST", `/v1/clients/${clientId}/portal/reset`);
+    expect(reset.body.link).not.toBe(on.body.link);
+    expect((await call("GET", "/v1/portal/me", { token: session })).status).toBe(401);
+    expect((await call("GET", `/v1/portal/link/${linkToken}`)).status).toBe(404);
+
+    const fresh = reset.body.link.split("/me/link/")[1];
+    const again = /pt_client=([^;]+)/.exec((await call("POST", `/v1/portal/link/${fresh}`)).setCookie ?? "")![1];
+    const off = await asTrainer("DELETE", `/v1/clients/${clientId}/portal`);
+    expect(off.body).toMatchObject({ enabled: false, link: null, googleLinked: false });
+    expect((await call("GET", "/v1/portal/me", { token: again })).status).toBe(401);
+    expect((await call("GET", `/v1/portal/link/${fresh}`)).status).toBe(404);
+  });
+
+  test("another trainer's client is a 404", async () => {
+    const [tr] = await db.insert(trainers).values({ name: "Foreign", email: `${RUN}-foreign@coach.dev` }).returning();
+    foreignTrainer = tr.id;
+    const [c] = await db.insert(clients).values({ trainerId: tr.id, name: "Not yours" }).returning();
+    expect((await asTrainer("GET", `/v1/clients/${c.id}/portal`)).status).toBe(404);
+    expect((await asTrainer("POST", `/v1/clients/${c.id}/portal`)).status).toBe(404);
+    expect((await asTrainer("POST", `/v1/clients/${c.id}/portal/reset`)).status).toBe(404);
+    expect((await asTrainer("DELETE", `/v1/clients/${c.id}/portal`)).status).toBe(404);
+  });
+
+  test("a client's log shows in the trainer's logs with loggedBy client", async () => {
+    const sessionId = crypto.randomUUID();
+    const slot = crypto.randomUUID();
+    const [{ id: exId }] = await db.select({ id: exercises.id }).from(exercises).where(isNull(exercises.trainerId)).limit(1);
+    await db.insert(programs).values({
+      trainerId: await getDefaultTrainerId(),
+      clientId,
+      name: "Pim Block",
+      status: "active",
+      activatedAt: new Date(),
+      sessions: [
+        {
+          week: 1,
+          sessions: [
+            { id: sessionId, name: "Day 1", seq: 1, order: 0, kind: "lifting", exercises: [{ id: slot, exerciseId: exId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
+          ],
+        },
+      ],
+    });
+    await asTrainer("POST", `/v1/clients/${clientId}/portal`);
+    const token = (await createClientSession(clientId)).token;
+    const logged = await call("POST", "/v1/portal/logs", {
+      token,
+      body: { programSessionId: sessionId, date: localDateOf(Date.now()), sets: [{ programExerciseId: slot, exerciseId: exId, setNumber: 1, reps: 5 }] },
+    });
+    expect(logged.status).toBe(201);
+    const logs = await asTrainer("GET", `/v1/logs/sessions?clientId=${clientId}`);
+    expect(logs.body.find((l: any) => l.id === logged.body.id)).toMatchObject({ loggedBy: "client" });
+    expect(logs.body.every((l: any) => l.loggedBy === "client" || l.loggedBy === "trainer")).toBe(true);
   });
 });

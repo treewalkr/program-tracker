@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
-import { db, clients, programs } from "@pt/db";
+import { db, clients, programs, type ClientRow } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 import { clientDto, trainerDeloadSettings } from "../lib/deload";
@@ -8,6 +8,7 @@ import { clientRoster } from "../lib/roster";
 import { ClientModel } from "../models/clients";
 import { ProgramModel } from "../models/programs";
 import { ErrorBody } from "../models/shared";
+import { deleteClientSessions, newPortalToken, portalLink } from "../lib/client-auth";
 import {
   birthDateError,
   startedOnError,
@@ -38,6 +39,25 @@ const basicsError = (body: { birthDate?: string | null; startedOn?: string | nul
 /** A blank phone is stored as NULL; otherwise trimmed. */
 const normPhone = <B extends { phone?: string | null }>(body: B): B =>
   typeof body.phone === "string" ? { ...body, phone: body.phone.trim() || null } : body;
+
+/** The trainer's view of a client's portal access. */
+const PortalStatus = t.Object({
+  enabled: t.Boolean(),
+  /** The personal access link; null while the portal is off. */
+  link: t.Nullable(t.String()),
+  /** The client has signed in with Google at least once. */
+  googleLinked: t.Boolean(),
+  email: t.Nullable(t.String()),
+  lastSeenAt: t.Nullable(t.Date()),
+});
+
+const portalStatus = (c: ClientRow) => ({
+  enabled: c.portalEnabledAt != null,
+  link: c.portalEnabledAt != null && c.portalToken ? portalLink(c.portalToken) : null,
+  googleLinked: c.portalGoogleSub != null,
+  email: c.email,
+  lastSeenAt: c.portalLastSeenAt,
+});
 
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
   .use(trainerContext)
@@ -162,5 +182,72 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
       params: t.Object({ id: t.String() }),
       response: { 200: ClientModel.dto, 404: ErrorBody },
       detail: { summary: "Back to your default deload rule for this client" },
+    }
+  )
+  .get(
+    "/:id/portal",
+    async ({ params, status }) => {
+      const [client] = await db.select().from(clients).where(eq(clients.id, params.id));
+      if (!client) return status(404, { error: "client not found" });
+      return portalStatus(client);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      response: { 200: PortalStatus, 404: ErrorBody },
+      detail: { summary: "This client's portal access: on/off, the access link, Google and last seen" },
+    }
+  )
+  .post(
+    "/:id/portal",
+    async ({ params, status }) => {
+      const [client] = await db.select().from(clients).where(eq(clients.id, params.id));
+      if (!client) return status(404, { error: "client not found" });
+      const [updated] = await db
+        .update(clients)
+        .set({ portalEnabledAt: client.portalEnabledAt ?? new Date(), portalToken: client.portalToken ?? newPortalToken() })
+        .where(eq(clients.id, params.id))
+        .returning();
+      return portalStatus(updated);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      response: { 200: PortalStatus, 404: ErrorBody },
+      detail: { summary: "Turn the client portal on (creates the access link)" },
+    }
+  )
+  .post(
+    "/:id/portal/reset",
+    async ({ params, status }) => {
+      const [updated] = await db
+        .update(clients)
+        .set({ portalToken: newPortalToken() })
+        .where(eq(clients.id, params.id))
+        .returning();
+      if (!updated) return status(404, { error: "client not found" });
+      await deleteClientSessions(updated.id);
+      return portalStatus(updated);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      response: { 200: PortalStatus, 404: ErrorBody },
+      detail: { summary: "New access link; the old one stops working and every portal session signs out" },
+    }
+  )
+  .delete(
+    "/:id/portal",
+    async ({ params, status }) => {
+      const [updated] = await db
+        .update(clients)
+        .set({ portalEnabledAt: null, portalToken: null, portalGoogleSub: null })
+        .where(eq(clients.id, params.id))
+        .returning();
+      if (!updated) return status(404, { error: "client not found" });
+      await deleteClientSessions(updated.id);
+      return portalStatus(updated);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      response: { 200: PortalStatus, 404: ErrorBody },
+      detail: { summary: "Turn the client portal off and sign the client out" },
     }
   );
