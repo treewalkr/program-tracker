@@ -29,6 +29,7 @@ import { authRoutes } from "./routes/auth";
 import { emailRoutes } from "./routes/email";
 import { adminRoutes } from "./routes/admin";
 import { publicRoutes } from "./routes/public";
+import { portalRoutes } from "./routes/portal";
 import { trainerContext } from "./lib/trainer-context";
 import { API_BUILD } from "./lib/build";
 
@@ -40,6 +41,7 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
 const TAGS = [
   { name: "health", description: "Liveness and provider discovery" },
   { name: "auth", description: "Google sign-in for invited trainers; every other /v1 route needs a session" },
+  { name: "portal", description: "Client portal — a trainer's client signs in (Google or access link) to see this week and log sessions; its own cookie, never a trainer session" },
   { name: "public", description: "Unauthenticated, read-only data for the signed-out app (the login page's theme)" },
   { name: "admin", description: "Platform admin console — invite, disable and remove trainer accounts" },
   { name: "ai", description: "AI draft generation, audit trail, and approval gate" },
@@ -96,6 +98,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(emailRoutes)
   // the feedback auto-reply agent: its own bearer token, never a session — so before the trainer guard
   .use(agentFeedbackRoutes)
+  // the client portal: its own pt_client cookie and client guard, never a trainer session
+  .use(portalRoutes)
   // everything below needs a signed-in trainer and only sees that trainer's data
   .use(trainerContext)
   /**
