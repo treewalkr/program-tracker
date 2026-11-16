@@ -134,10 +134,10 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       if (!ctx.currentSessionIds.has(input.programSessionId)) {
         return status(422, { error: "only this week's sessions can be logged" });
       }
-      // a day of slack each way for time zones; never before the week (it would move the block's anchor)
+      // a day of slack for time zones; never before the week (it would move the block's anchor)
       const today = localDateOf(Date.now());
       if (input.date > addDays(today, 1)) return status(422, { error: "date is in the future" });
-      if (input.date < addDays(ctx.startDate, -1)) return status(422, { error: "date is before this week" });
+      if (input.date < ctx.startDate) return status(422, { error: "date is before this week" });
 
       const result = await createSessionLog({
         trainerId,

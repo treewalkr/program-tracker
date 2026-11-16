@@ -395,6 +395,8 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((await call("POST", "/v1/portal/logs", { token, body: logBody(next1) })).status).toBe(422);
     expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, 2) }) })).status).toBe(422);
     expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -3) }) })).status).toBe(422);
+    // the day before the week starts is refused too: it would move the block's anchor
+    expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -1) }) })).status).toBe(422);
     expect((await call("POST", "/v1/portal/logs", { token, body: { ...logBody(s1), sets: [] } })).status).toBe(422);
     expect((await call("POST", "/v1/portal/logs", { body: logBody(s1) })).status).toBe(401);
   });
