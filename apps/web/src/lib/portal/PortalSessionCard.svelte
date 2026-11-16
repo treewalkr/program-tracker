@@ -15,9 +15,39 @@
     focus?: boolean;
     /** Its day has passed and it's still open: tagged plainly, never as a failure. */
     notLogged?: boolean;
+    /** Remove the client's own log (this week only); absent = not removable here. */
+    onremove?: (logId: string) => Promise<void>;
   }
 
-  let { session, logHref, focus = false, notLogged = false }: Props = $props();
+  let { session, logHref, focus = false, notLogged = false, onremove }: Props = $props();
+
+  /** Two taps to remove: the first arms it for a few seconds. */
+  let armed = $state(false);
+  let removing = $state(false);
+  let removeFailed = $state(false);
+  let disarm: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => () => clearTimeout(disarm));
+  const removable = $derived(!!onremove && session.log?.loggedBy === "client");
+
+  async function remove() {
+    if (!session.log || !onremove || removing) return;
+    if (!armed) {
+      armed = true;
+      removeFailed = false;
+      disarm = setTimeout(() => (armed = false), 4000);
+      return;
+    }
+    clearTimeout(disarm);
+    armed = false;
+    removing = true;
+    try {
+      await onremove(session.log.id);
+    } catch {
+      removeFailed = true;
+    } finally {
+      removing = false;
+    }
+  }
 
   /** The focus card shows its first few exercises; the rest wait behind "Show all". */
   const PREVIEW = 3;
@@ -55,7 +85,13 @@
         <Icon name="check" />{byCoach ? t("session.loggedByCoach") : t("session.loggedByYou")}
         <span class="when">· {fmtShortDate(session.log.date)}</span>
       </span>
+      {#if removable}
+        <button type="button" class="remove" class:armed disabled={removing} onclick={remove}>
+          {removing ? t("session.removing") : armed ? t("session.removeConfirm") : t("session.remove")}
+        </button>
+      {/if}
     </div>
+    {#if removeFailed}<p class="remove-err" role="alert">{t("session.removeFailed")}</p>{/if}
   {/if}
 
   {#if lead}
@@ -192,7 +228,22 @@
   }
   .act { justify-content: center; min-height: 48px; font-size: 16px; }
   .side { flex: none; justify-content: center; min-width: 64px; min-height: 44px; padding: 0 14px; font-size: 14px; }
-  .status { margin-top: -4px; }
+  .status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-top: -4px; }
+  .remove {
+    min-height: 44px;
+    margin: -10px -4px -10px 0;
+    padding: 0 4px;
+    font: 500 14px/1 var(--font-ui);
+    color: var(--muted);
+    background: none;
+    border: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .remove.armed { color: var(--bad); font-weight: 600; }
+  .remove:disabled { cursor: default; opacity: 0.7; }
+  .remove-err { margin: -4px 0 0; font-size: 14px; color: var(--bad); }
   .when { font-weight: 400; }
   .intensity { margin: 0; font-size: 16px; text-wrap: pretty; }
   @media (prefers-reduced-motion: reduce) {

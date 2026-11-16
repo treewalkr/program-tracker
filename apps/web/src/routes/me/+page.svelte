@@ -61,6 +61,12 @@
   /** A past day of this week whose session is still open. */
   const pastOpen = (date: string | null, loggable = true) => loggable && !!date && date < today;
 
+  /** Remove one of your own logs from this week, then show the week as it now stands. */
+  async function removeLog(id: string) {
+    await portalApi.deleteLog(id);
+    dto = await portalApi.week();
+  }
+
   async function signOut() {
     await portalApi.signOut();
     await goto("/me/login", { invalidateAll: true });
@@ -134,7 +140,7 @@
           </span>
         {/if}
       </h2>
-      <PortalSessionCard session={nextUp} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} />
+      <PortalSessionCard session={nextUp} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} onremove={removeLog} />
     </section>
   {:else if current && current.sessions.length > 0}
     <p class="all-done"><Icon name="check" />{t("week.allDone", { total: current.sessions.length })}</p>
@@ -196,7 +202,7 @@
         </h2>
         <div class="cards">
           {#each g.sessions as s (s.id)}
-            <PortalSessionCard session={s} notLogged={pastOpen(g.date, shown.loggable)} logHref={shown.loggable ? `/me/log/${s.id}` : null} />
+            <PortalSessionCard session={s} notLogged={pastOpen(g.date, shown.loggable)} logHref={shown.loggable ? `/me/log/${s.id}` : null} onremove={shown.loggable ? removeLog : undefined} />
           {/each}
         </div>
       </section>

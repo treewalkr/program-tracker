@@ -195,6 +195,12 @@ export const mockPortalApi: PortalApi = {
   },
   async deleteLog(id) {
     await delay(200);
+    // like the API: only a log whose session is in this week
+    const own = mockState.logs.find((l) => l.sessionLogId === id && l.clientId === CLIENT_ID && l.loggedBy === "client");
+    const ctx = context();
+    if (own && (!ctx || !weekSessions(ctx.program.weeks, ctx.currentWeek).some((s) => s.id === own.programSessionId))) {
+      throw fail(409, "only this week's logs can be removed");
+    }
     const before = mockState.logs.length;
     mockState.logs = mockState.logs.filter((l) => !(l.sessionLogId === id && l.clientId === CLIENT_ID && l.loggedBy === "client"));
     if (mockState.logs.length === before) throw fail(404, "log not found");

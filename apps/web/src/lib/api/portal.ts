@@ -50,7 +50,7 @@ export const livePortalApi: PortalApi = {
   week: () => unwrap<PortalWeekDto>(client.v1.portal.week.get({ query: { today: localDateOf(Date.now()) } })),
   log: (input) => unwrap<PortalSavedLog>(client.v1.portal.logs.post({ ...input, today: input.today ?? localDateOf(Date.now()) })),
   async deleteLog(id) {
-    await unwrap<unknown>(client.v1.portal.logs({ id }).delete());
+    await unwrap<unknown>(client.v1.portal.logs({ id }).delete(undefined, { query: { today: localDateOf(Date.now()) } }));
   },
   async linkInfo(token) {
     const { data, error } = await client.v1.portal.link({ token }).get();
