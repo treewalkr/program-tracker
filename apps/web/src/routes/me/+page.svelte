@@ -207,7 +207,7 @@
     align-items: center;
     gap: 4px 8px;
     margin: 6px 0 0;
-    font-size: 15px;
+    font-size: 14px;
     color: var(--muted);
   }
   .progress {
@@ -221,7 +221,7 @@
   }
 
   .wk { position: sticky; top: 0; z-index: 2; background: var(--bg); align-items: center; }
-  .wk button { min-height: 44px; font-size: 15px; }
+  .wk button { min-height: 44px; font-size: 16px; }
   .range { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; }
 
   .next-up { display: grid; gap: 10px; margin-bottom: 20px; }
@@ -246,7 +246,7 @@
     gap: 8px;
     min-height: 48px;
     padding: 0 16px;
-    font: 600 15px/1.3 var(--font-ui);
+    font: 600 16px/1.3 var(--font-ui);
     cursor: pointer;
     list-style: none;
   }
@@ -266,7 +266,7 @@
     gap: 8px;
     margin: 0;
     padding: 6px 0;
-    font: 600 15px/1.3 var(--font-ui);
+    font: 600 14px/1.3 var(--font-ui);
   }
   .date { font-weight: 400; font-size: 14px; color: var(--muted); }
   .today h2 {

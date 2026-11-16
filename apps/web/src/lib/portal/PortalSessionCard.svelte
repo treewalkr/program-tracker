@@ -116,7 +116,7 @@
   .title { flex: 1; min-width: 0; }
   h3 {
     margin: 0;
-    font: 600 17px/1.3 var(--font-ui);
+    font: 600 16px/1.3 var(--font-ui);
     text-wrap: balance;
   }
   .focus:not(.done) h3 { font-size: 20px; letter-spacing: -0.01em; }
@@ -167,7 +167,7 @@
     padding: 10px 0;
     border-top: 1px solid var(--line-soft);
   }
-  .ex { font: 500 15px/1.35 var(--font-ui); }
+  .ex { font: 500 14px/1.35 var(--font-ui); }
   .grp {
     display: inline-grid;
     place-items: center;
@@ -194,7 +194,7 @@
   .side { flex: none; justify-content: center; min-width: 64px; min-height: 44px; padding: 0 14px; font-size: 14px; }
   .status { margin-top: -4px; }
   .when { font-weight: 400; }
-  .intensity { margin: 0; font-size: 15px; text-wrap: pretty; }
+  .intensity { margin: 0; font-size: 16px; text-wrap: pretty; }
   @media (prefers-reduced-motion: reduce) {
     .list summary :global(svg), .more :global(svg) { transition: none; }
   }

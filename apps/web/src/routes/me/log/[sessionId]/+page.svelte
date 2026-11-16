@@ -471,7 +471,7 @@
     min-height: 44px;
     margin: 4px 0 0 -6px;
     padding: 0 6px;
-    font: 500 15px/1 var(--font-ui);
+    font: 500 16px/1 var(--font-ui);
     color: var(--blue);
   }
   .back :global(svg) { width: 16px; height: 16px; transform: rotate(90deg); }
@@ -483,7 +483,7 @@
   .log { container: logform / inline-size; display: grid; gap: 18px; margin-top: 8px; padding-bottom: 96px; }
   .head { display: grid; gap: 12px; }
   h1 { margin: 0; font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.01em; text-wrap: balance; }
-  .date { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--muted); }
+  .date { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); }
   .date .input { flex: 1; max-width: 220px; min-height: 44px; font-size: 16px; }
   .log :global(.draft) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .link-btn {
@@ -550,7 +550,7 @@
   .sets { display: grid; margin: 0; padding: 0; list-style: none; }
   .set { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
   .set-head { display: flex; align-items: baseline; gap: 8px; min-height: 24px; }
-  .set-n { font: 600 15px/1.3 var(--font-ui); }
+  .set-n { font: 600 16px/1.3 var(--font-ui); }
   .set-ex { font-weight: 400; color: var(--muted); }
   .set-rx { margin-left: auto; font: 500 13px/1.3 var(--font-mono); color: var(--muted); text-align: right; }
   .rm {
@@ -576,14 +576,14 @@
     justify-self: start;
     min-height: 44px;
     padding: 0 4px;
-    font: 500 15px/1 var(--font-ui);
+    font: 500 16px/1 var(--font-ui);
     color: var(--blue);
     background: none;
     border: 0;
     cursor: pointer;
   }
   .add :global(svg) { width: 16px; height: 16px; }
-  .next-ex { justify-content: space-between; min-height: 48px; font-size: 15px; }
+  .next-ex { justify-content: space-between; min-height: 48px; font-size: 16px; }
   .next-ex :global(svg) { width: 16px; height: 16px; transform: rotate(-90deg); }
 
   .feel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -601,7 +601,7 @@
   .feel summary :global(svg) { flex: none; width: 16px; height: 16px; color: var(--muted); transition: transform 150ms ease-out; }
   .feel[open] summary :global(svg) { transform: rotate(180deg); }
   .feel :global(.readiness) { padding: 4px 16px 16px; }
-  .sub-h { margin: 0; font: 600 15px/1.3 var(--font-ui); }
+  .sub-h { margin: 0; font: 600 16px/1.3 var(--font-ui); }
   .opt { font-weight: 400; color: var(--muted); }
   .notes { display: grid; gap: 8px; }
   .notes textarea { min-height: 88px; font-size: 16px; resize: vertical; }
@@ -617,7 +617,7 @@
     background: var(--bg);
     border-top: 1px solid var(--line);
   }
-  .save { justify-content: center; width: 100%; min-height: 52px; font-size: 17px; font-weight: 600; }
+  .save { justify-content: center; width: 100%; min-height: 52px; font-size: 16px; font-weight: 600; }
   .err { margin: 0; font-size: 14px; font-weight: 500; color: var(--bad); }
   .alerts:empty { display: none; }
   .err-btn {

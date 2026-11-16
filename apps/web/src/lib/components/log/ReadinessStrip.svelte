@@ -115,7 +115,7 @@
   .readiness.touch { display: grid; gap: 16px; padding: 4px 0 0; border-bottom: 0; }
   .touch .rd-label { font-size: 14px; color: var(--ink); }
   .touch .rd-scale { display: flex; }
-  .touch .seg button { flex: 1; min-width: 44px; height: 44px; font-size: 15px; }
+  .touch .seg button { flex: 1; min-width: 44px; height: 44px; font-size: 16px; }
   /* 1–10 can't fit ten 44px cells on a phone: two rows of five, hairlines drawn by the gap */
   .touch .rd-scale.wrap { display: grid; grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 1px; background: var(--line); }
   .touch .rd-scale.wrap button + button { border-left: 0; }
