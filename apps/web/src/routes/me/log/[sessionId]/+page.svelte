@@ -387,6 +387,10 @@
         <ReadinessStrip bind:value={readiness} variant="touch" text={readinessText} />
       </details>
 
+      {#if !cardioSession && block}
+        <p class="warmups">{t("log.warmups")}</p>
+      {/if}
+
       {#if cardioSession}
         <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" />
       {:else if block}
@@ -622,6 +626,7 @@
   .cue { margin: 0; font-size: 14px; }
   .session-note { margin: 0; padding: 12px 16px; font-size: 16px; background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .session-note span { font-weight: 600; color: var(--muted); }
+  .warmups { margin: -6px 0; font-size: 13px; color: var(--muted); }
   .cue span { font-weight: 600; color: var(--muted); }
   .last { margin: 0; font-size: 14px; }
   .last > span:first-child { color: var(--muted); }
