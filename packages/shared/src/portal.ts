@@ -1,7 +1,10 @@
 import { z } from "zod";
 import {
+  CardioLog,
   CardioPrescription,
   LoggedBy,
+  Readiness,
+  SessionFlag,
   SessionKind,
   SetType,
   sessionsInSeqOrder,
@@ -52,11 +55,38 @@ export const PortalExercise = z.object({
 });
 export type PortalExercise = z.infer<typeof PortalExercise>;
 
+/** A set the client logged, as they entered it. */
+export const PortalLoggedSet = z.object({
+  programExerciseId: z.string().nullable(),
+  exerciseId: z.string(),
+  setNumber: z.number().int(),
+  type: SetType,
+  weightKg: z.number().nullable(),
+  reps: z.number().int(),
+  rpe: z.number().nullable(),
+  /** Saved untouched from the prescription. */
+  asPlanned: z.boolean(),
+});
+export type PortalLoggedSet = z.infer<typeof PortalLoggedSet>;
+
+/** What the client entered on their own log — so "Edit log" reopens it, not the plan. */
+export const PortalLogEntry = z.object({
+  sets: z.array(PortalLoggedSet),
+  cardio: CardioLog.nullable(),
+  notes: z.string().nullable(),
+  perceivedEnergy: z.number().int().nullable(),
+  readiness: Readiness.nullable(),
+  flags: z.array(SessionFlag).nullable(),
+});
+export type PortalLogEntry = z.infer<typeof PortalLogEntry>;
+
 /** The log on a session, for its done state. */
 export const PortalSessionLog = z.object({
   id: z.string(),
   loggedBy: LoggedBy,
   date: z.string(),
+  /** Only on the client's own log: what they entered. A coach's log never carries it. */
+  entry: PortalLogEntry.optional(),
 });
 export type PortalSessionLog = z.infer<typeof PortalSessionLog>;
 
@@ -96,6 +126,49 @@ export const PortalWeekDto = z.object({
 export type PortalWeekDto = z.infer<typeof PortalWeekDto>;
 
 const opt = <T>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
+
+const num = (v: number | string | null | undefined): number | null => (v == null || v === "" ? null : Number(v));
+
+/** The client's own log entry, every field picked by name (numeric columns arrive as strings). */
+export function portalLogEntry(
+  log: {
+    cardio?: CardioLog | null;
+    notes?: string | null;
+    perceivedEnergy?: number | null;
+    readiness?: Readiness | null;
+    flags?: SessionFlag[] | null;
+  },
+  sets: readonly {
+    programExerciseId?: string | null;
+    exerciseId: string;
+    setNumber: number;
+    type: string;
+    weightKg?: number | string | null;
+    reps: number;
+    rpe?: number | string | null;
+    asPlanned?: boolean | null;
+  }[]
+): PortalLogEntry {
+  return {
+    sets: [...sets]
+      .sort((a, b) => a.setNumber - b.setNumber)
+      .map((s) => ({
+        programExerciseId: s.programExerciseId ?? null,
+        exerciseId: s.exerciseId,
+        setNumber: s.setNumber,
+        type: s.type === "backoff" ? "backoff" : "working",
+        weightKg: num(s.weightKg),
+        reps: s.reps,
+        rpe: num(s.rpe),
+        asPlanned: s.asPlanned ?? false,
+      })),
+    cardio: log.cardio ?? null,
+    notes: log.notes ?? null,
+    perceivedEnergy: log.perceivedEnergy ?? null,
+    readiness: log.readiness ?? null,
+    flags: log.flags ?? null,
+  };
+}
 
 /** What the projection knows beyond the program: equipment and the client's last loads. */
 export interface PortalLoadContext {

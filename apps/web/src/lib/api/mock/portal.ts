@@ -6,6 +6,7 @@ import {
   loadStep,
   latestLogBySession,
   localDateOf,
+  portalLogEntry,
   portalSessions,
   weekOf,
   weekSessions,
@@ -97,11 +98,15 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   if (!ctx) return { program: null, currentWeek: null, weeks: [] };
   const { program, currentWeek, startDate } = ctx;
   const maxes = mockState.clients.find((c) => c.id === CLIENT_ID)?.oneRepMaxes ?? null;
+  const mine = mockState.logs.filter((l) => l.clientId === CLIENT_ID && l.programId === program.id);
   const done = latestLogBySession(
-    mockState.logs
-      .filter((l) => l.clientId === CLIENT_ID && l.programId === program.id)
-      .map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer" })),
+    mine.map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer" })),
   );
+  // the client's own log carries what they entered, like the API
+  for (const [sid, log] of done) {
+    const row = mine.find((l) => l.sessionLogId === log.id);
+    if (row && log.loggedBy === "client") done.set(sid, { ...log, entry: portalLogEntry(row, row.sets) });
+  }
   const loads = {
     isBodyweight: (id: string) => loadStep(exercises.find((e) => e.id === id)?.equipment as Equipment | undefined) === null,
     lastWeights: lastWeightsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID)),

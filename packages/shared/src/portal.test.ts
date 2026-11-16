@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lastWeightsOf } from "./portal";
+import { lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -13,5 +13,27 @@ describe("lastWeightsOf", () => {
     expect(w.get("a#3")).toBe(55);
     expect(w.get("a")).toBe(62.5);
     expect(w.has("b")).toBe(false);
+  });
+});
+
+describe("portalLogEntry", () => {
+  test("picks the client's own entry by name: numbers parsed, ids and timestamps dropped", () => {
+    const EX = "6f1c2c1e-6b1a-4c55-9a51-0d6f1f5c9a10";
+    const entry = portalLogEntry(
+      {
+        id: "log-1", clientId: "c1", programId: "p1", createdAt: new Date(), kind: "lifting", cardio: null, notes: "knee ok",
+        perceivedEnergy: 6, readiness: { sleep: 2 }, flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
+      } as never,
+      [{ id: "s1", sessionLogId: "log-1", programExerciseId: "pe1", exerciseId: EX, setNumber: 1, type: "working", weightKg: "62.50", reps: 8, rpe: null, asPlanned: true, createdAt: new Date() }] as never,
+    );
+    expect(entry).toEqual({
+      sets: [{ programExerciseId: "pe1", exerciseId: EX, setNumber: 1, type: "working", weightKg: 62.5, reps: 8, rpe: null, asPlanned: true }],
+      cardio: null,
+      notes: "knee ok",
+      perceivedEnergy: 6,
+      readiness: { sleep: 2 },
+      flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
+    });
+    expect(PortalLogEntry.parse(entry)).toEqual(entry);
   });
 });

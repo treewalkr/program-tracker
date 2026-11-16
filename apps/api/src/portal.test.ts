@@ -377,7 +377,17 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect(r.body).toMatchObject({ programSessionId: s1, date: today, loggedBy: "client" });
 
     const week = await call("GET", "/v1/portal/week", { token });
-    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s1).log).toEqual({ id: r.body.id, loggedBy: "client", date: today });
+    const done = week.body.weeks[0].sessions.find((s: any) => s.id === s1).log;
+    expect(done).toMatchObject({ id: r.body.id, loggedBy: "client", date: today });
+    // "Edit log" reopens what the client entered, not the plan
+    expect(done.entry).toEqual({
+      sets: [{ programExerciseId: slot1, exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8, asPlanned: false }],
+      cardio: null,
+      notes: null,
+      perceivedEnergy: 7,
+      readiness: null,
+      flags: [pain],
+    });
     // the logged 100 kg becomes the last load: set 1 by its own number, set 2 by the lift's latest
     const squat = week.body.weeks[0].sessions.find((s: any) => s.id === s1).exercises[0];
     expect(squat.bodyweight).toBe(false);
@@ -406,6 +416,8 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect(blocked.body.existing).toMatchObject({ id: trainerLog.id, loggedBy: "trainer" });
     const week = await call("GET", "/v1/portal/week", { token });
     expect(week.body.weeks[0].sessions.find((s: any) => s.id === s2).log).toMatchObject({ loggedBy: "trainer" });
+    // a coach's log never carries an entry
+    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s2).log.entry).toBeUndefined();
     // and the client can't delete it either
     expect((await call("DELETE", `/v1/portal/logs/${trainerLog.id}`, { token })).status).toBe(404);
   });

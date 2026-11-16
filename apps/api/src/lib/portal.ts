@@ -7,10 +7,12 @@ import {
   lastWeightsOf,
   loadStep,
   latestLogBySession,
+  portalLogEntry,
   portalSessions,
   weekOf,
   weekSessions,
   type Equipment,
+  type PortalSessionLog,
   type PortalWeek,
   type PortalWeekDto,
 } from "@pt/shared";
@@ -77,7 +79,7 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
     })
     .from(sessionLogs)
     .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));
-  const done = latestLogBySession(logs);
+  const done = await withClientEntries(latestLogBySession(logs));
   const loads = await loadContext(clientId, program);
 
   const weeks: PortalWeek[] = [];
@@ -98,6 +100,23 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
     });
   }
   return { program: { id: program.id, name: program.name }, currentWeek, weeks };
+}
+
+/** The client's own logs get what they entered (sets, cardio, readiness, flags, notes); a coach's log stays bare. */
+async function withClientEntries(done: Map<string, PortalSessionLog>): Promise<Map<string, PortalSessionLog>> {
+  const ids = [...done.values()].filter((l) => l.loggedBy === "client").map((l) => l.id);
+  if (ids.length === 0) return done;
+  const [rows, sets] = await Promise.all([
+    db.select().from(sessionLogs).where(inArray(sessionLogs.id, ids)),
+    db.select().from(setLogs).where(inArray(setLogs.sessionLogId, ids)),
+  ]);
+  const out = new Map(done);
+  for (const [sessionId, log] of done) {
+    const row = rows.find((r) => r.id === log.id);
+    if (!row || row.loggedBy !== "client") continue;
+    out.set(sessionId, { ...log, entry: portalLogEntry(row, sets.filter((s) => s.sessionLogId === log.id)) });
+  }
+  return out;
 }
 
 /** Which exercises are bodyweight, and the client's last kg per exercise and set (any program). */
