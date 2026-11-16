@@ -799,6 +799,10 @@
     </div>
   {:else}
     <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">
+    <!-- First: the link a trainer comes here to copy. Saves on its own, outside the profile form. -->
+    <div class="pf portal-pf">
+      <ClientPortalPanel {client} />
+    </div>
     <form
       class="pf"
       onsubmit={(e) => {
@@ -830,9 +834,6 @@
     <div class="pf deload-pf">
       <ClientDeloadRule {client} onchange={(c) => (client = c)} />
     </div>
-    <div class="pf deload-pf">
-      <ClientPortalPanel {client} />
-    </div>
     </div>
   {/if}
 {/if}
@@ -853,6 +854,7 @@
 
   .sig-panel { margin: 18px 0 0; }
   .deload-pf { margin-top: 16px; }
+  .portal-pf { margin-bottom: 16px; }
   .sig-panel :global(.signal .act) { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .snooze:disabled { color: var(--muted); cursor: default; }
 

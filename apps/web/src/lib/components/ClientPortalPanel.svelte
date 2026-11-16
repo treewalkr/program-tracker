@@ -7,6 +7,9 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import Segmented from "$lib/ui/Segmented.svelte";
+  import { guessClientLocale, lineMessage } from "$lib/portal/lineMessage";
+  import type { Locale } from "$lib/portal/messages";
 
   /**
    * The client portal for one client: off (one button) or on — their personal
@@ -45,8 +48,10 @@
   }
 
   const firstName = $derived(client.name.trim().split(/\s+/)[0] ?? client.name);
+  /** The LINE line's language: the client's, as best we know it; the trainer can switch. */
+  let lineLang = $derived<Locale>(guessClientLocale(client.name));
   /** The LINE-ready line: one paste, and the link works on their phone. */
-  const message = $derived(portal?.link ? `Your program: ${portal.link}` : "");
+  const message = $derived(portal?.link ? lineMessage(lineLang, firstName, portal.link) : "");
   const email = $derived(portal?.email ?? client.email ?? null);
 </script>
 
@@ -72,9 +77,17 @@
       </div>
     </div>
     <div class="field">
-      <span class="label">For LINE</span>
+      <div class="label-row">
+        <span class="label">For LINE</span>
+        <Segmented
+          label="Message language"
+          items={[{ value: "en", label: "EN" }, { value: "th", label: "ไทย" }]}
+          value={lineLang}
+          onchange={(v) => (lineLang = v)}
+        />
+      </div>
       <div class="link-row">
-        <span class="msg">{message}</span>
+        <span class="msg" lang={lineLang}>{message}</span>
         <CopyButton text={message} label="Copy message" />
       </div>
     </div>
@@ -126,6 +139,7 @@
   .by { font-size: 11px; padding: 0 6px; }
   .field { display: grid; gap: 6px; }
   .field .label { margin: 0; }
+  .label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .link-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
   /* shown whole, wrapped, so the trainer can read the exact link before it goes out */
   .link, .msg {
@@ -148,5 +162,5 @@
   .warn { color: var(--warn); }
   .acts { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
   /* small buttons, but a 32px target: this panel is used on a phone at the gym too */
-  .link-row :global(.btn), .acts :global(.btn) { min-height: 32px; }
+  .link-row :global(.btn), .acts :global(.btn), .label-row :global([role="radio"]) { min-height: 32px; min-width: 44px; }
 </style>
