@@ -9,8 +9,8 @@
     groupKind,
     WEEK_HEADER,
     importLines,
-    liftingNames,
     typicalGenerationSeconds,
+    type ImportAb,
     type ImportFlag,
     type ImportResult,
     type ReviewExercise,
@@ -21,10 +21,12 @@
   import { uuid } from "$lib/uuid";
   import type { DraftForm } from "$lib/programForm";
   import {
+    abPickError,
     aliasesToSave,
     blockLabel,
     cardioLabel,
     choiceFor,
+    defaultAbPick,
     exerciseKey,
     flagSummary,
     formFromImport,
@@ -36,6 +38,7 @@
     sessionKey,
     setsLabel,
     templateWeekIndex,
+    weekName as weekNameOf,
     dayKey,
     type ChoiceState,
     type MatchChoice,
@@ -44,6 +47,7 @@
   import ExercisePicker from "./ExercisePicker.svelte";
   import NewWordsPanel from "./NewWordsPanel.svelte";
   import HistoryImportPanel from "./HistoryImportPanel.svelte";
+  import ImportWeekPicker from "./ImportWeekPicker.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Counter from "$lib/ui/Counter.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -97,6 +101,10 @@
   let block = $state(0);
   /** "Found A/B weeks": keep both routines (Week A + Week B) or draft one template week. */
   let keepAb = $state(true);
+  /** No A/B weeks found: the trainer chose "A/B weeks" in the picker (FB-015)… */
+  let pickAb = $state(false);
+  /** …and these two weeks. Kept while they flip back to a single block. */
+  let pickedAb = $state<ImportAb | null>(null);
   /** Which A/B routine the right pane shows. */
   let showing = $state<"A" | "B">("A");
   let choices = $state<Record<string, ChoiceState>>({});
@@ -138,6 +146,8 @@
       phase = "review";
       block = r.result.defaultBlock;
       keepAb = true;
+      pickAb = false;
+      pickedAb = defaultAbPick(r.result);
       showing = "A";
       choices = {};
       hotLine = null;
@@ -275,17 +285,13 @@
   const byLine = $derived(result ? itemsByLine(result) : new Map<number, string[]>());
   const lineOf = $derived(result ? lineOfItem(result) : new Map<string, number>());
   const hotKeys = $derived(new Set(hotLine !== null ? (byLine.get(hotLine) ?? []) : []));
-  /** The A/B weeks being drafted, when found and kept. */
-  const ab = $derived(result?.ab && keepAb ? result.ab : null);
+  /** The A/B weeks being drafted: found and kept, or picked by the trainer. */
+  const ab = $derived(result?.ab ? (keepAb ? result.ab : null) : pickAb ? pickedAb : null);
+  const pickError = $derived(result?.ab ? null : pickAb ? abPickError(pickedAb) : null);
   const summary = $derived(result ? flagSummary(result, block, choices, ab) : null);
   const wi = $derived(result ? (ab ? (showing === "B" ? ab.b : ab.a) : templateWeekIndex(result, block)) : 0);
   /** "Week 11 (Upper Push · Lower)". */
-  const weekName = (i: number) => {
-    const w = result?.weeks[i];
-    const names = liftingNames(w);
-    const head = w?.label ?? `Week ${i + 1}`;
-    return names.length ? `${head} (${names.join(" · ")})` : head;
-  };
+  const weekName = (i: number) => (result ? weekNameOf(result, i) : `Week ${i + 1}`);
   const week = $derived(result?.weeks[wi]);
   const exerciseCount = $derived(week?.days.reduce((n, d) => n + d.sessions.reduce((m, s) => m + s.exercises.length, 0), 0) ?? 0);
   const skippedReason = $derived(new Map((result?.skipped ?? []).map((s) => [s.line, s.reason])));
@@ -347,7 +353,7 @@
   const blocked = $derived(summary ? summary.blocking : []);
 
   async function useThis() {
-    if (!result || blocked.length > 0 || using) return;
+    if (!result || blocked.length > 0 || pickError || using) return;
     using = true;
     error = null;
     // plain data for the pure helpers (they structuredClone, which proxies refuse)
@@ -574,8 +580,8 @@
           <Button
             variant="primary"
             onclick={useThis}
-            disabled={using || blocked.length > 0}
-            aria-describedby={blocked.length ? "pi-blocker" : undefined}
+            disabled={using || blocked.length > 0 || !!pickError}
+            aria-describedby={blocked.length ? "pi-blocker" : pickError ? "pi-ab-error" : undefined}
           >{using ? "Filling the editor…" : "Use this"}</Button>
         </div>
         <p class="subtle fine">
@@ -614,20 +620,24 @@
     </fieldset>
   {/if}
 
-  {#if result.blocks.length > 1 && !ab}
-    <fieldset class="blocks">
-      <legend>Found <span class="num">{result.blocks.length}</span> blocks. Draft which one?</legend>
-      {#each result.blocks as _, bi (bi)}
-        <label class="block-opt" class:on={block === bi}>
-          <input type="radio" name="pi-block" value={bi} checked={block === bi} onchange={() => (block = bi)} />
-          <span>{blockLabel(result, bi)}</span>
-          {#if bi === result.blocks.length - 1}<span class="subtle">latest</span>{/if}
-        </label>
-      {/each}
-      {#if result.alternating}
-        <p class="subtle fine">Looks like A/B weeks, so both are kept as notes. One block is drafted — the editor builds a single template week.</p>
-      {/if}
-    </fieldset>
+  {#if !(result.ab && keepAb)}
+    <ImportWeekPicker
+      {result}
+      {block}
+      {pickAb}
+      pick={pickedAb}
+      error={pickError}
+      onblock={(bi) => {
+        block = bi;
+        pickAb = false;
+        showing = "A";
+      }}
+      onab={(p) => {
+        pickedAb = p;
+        pickAb = true;
+        showing = "A";
+      }}
+    />
   {/if}
 
   <div class="panes">

@@ -44,6 +44,14 @@ export function defaultAbPick(r: ImportResult): ImportAb | null {
   return a !== undefined && b !== undefined ? { a, b, source: "picked" } : null;
 }
 
+/** "Week 11 (Upper Push · Lower)": a week's label (or its place) and its lifting days. */
+export function weekName(r: ImportResult, i: number): string {
+  const w = r.weeks[i];
+  const names = liftingNames(w);
+  const head = w?.label ?? `Week ${i + 1}`;
+  return names.length ? `${head} (${names.join(" · ")})` : head;
+}
+
 /** Why a pick can't be drafted, or null. */
 export const abPickError = (pick: Pick<ImportAb, "a" | "b"> | null | undefined): string | null =>
   pick && pick.a === pick.b ? "Pick two different weeks for A and B." : null;
