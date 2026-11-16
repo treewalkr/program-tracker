@@ -52,3 +52,22 @@ export function focusSessionId(week: PortalWeek, today: string): string | null {
 }
 
 export const doneCount = (week: PortalWeek) => week.sessions.filter((s) => s.log).length;
+
+/** The focus session itself, or null when everything is logged. */
+export function focusSession(week: PortalWeek, today: string): PortalSession | null {
+  const id = focusSessionId(week, today);
+  return id ? (week.sessions.find((s) => s.id === id) ?? null) : null;
+}
+
+/**
+ * Earlier days of this week that still have unlogged sessions — the quiet
+ * "Earlier this week" list under "Next up". The focus session is left out
+ * (it already leads the page), and so are days with nothing left open.
+ */
+export function earlierOpen(week: PortalWeek, today: string, exclude: string | null = null): DayGroup[] {
+  if (!week.loggable) return [];
+  return dayGroups(week, today)
+    .filter((g) => g.date != null && g.date < today)
+    .map((g) => ({ ...g, sessions: g.sessions.filter((s) => !s.log && s.id !== exclude) }))
+    .filter((g) => g.sessions.length > 0);
+}

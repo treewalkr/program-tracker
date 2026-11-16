@@ -13,9 +13,17 @@
     /** Where "Log it" goes; null = view only (next week). */
     logHref: string | null;
     focus?: boolean;
+    /** Its day has passed and it's still open: tagged plainly, never as a failure. */
+    notLogged?: boolean;
   }
 
-  let { session, logHref, focus = false }: Props = $props();
+  let { session, logHref, focus = false, notLogged = false }: Props = $props();
+
+  /** The focus card shows its first few exercises; the rest wait behind "Show all". */
+  const PREVIEW = 3;
+  let showAll = $state(false);
+  const folded = $derived(focus && !showAll && session.exercises.length > PREVIEW + 1);
+  const listed = $derived(folded ? session.exercises.slice(0, PREVIEW) : session.exercises);
 
   const cardio = $derived(session.kind === "cardio");
   const count = $derived(session.exercises.length === 1 ? t("session.oneExercise") : t("session.exercises", { n: session.exercises.length }));
@@ -38,6 +46,9 @@
       <a class="btn side" href={logHref}>{session.log ? t("session.edit") : t("session.log")}</a>
     {/if}
   </div>
+  {#if notLogged && !session.log}
+    <div class="status"><span class="pill warn state">{t("session.notLogged")}</span></div>
+  {/if}
   {#if session.log}
     <div class="status">
       <span class={["pill", byCoach ? "neutral" : "good", "state"]}>
@@ -63,22 +74,33 @@
       </ul>
     {/if}
     {#if session.cardio.intensity}<p class="intensity">{session.cardio.intensity}</p>{/if}
+  {:else if session.exercises.length && focus}
+    <ol id={`ex-${session.id}`}>
+      {#each listed as e (e.id)}{@render exercise(e)}{/each}
+    </ol>
+    {#if session.exercises.length > PREVIEW + 1}
+      <button type="button" class="more" aria-expanded={showAll} aria-controls={`ex-${session.id}`} onclick={() => (showAll = !showAll)}>
+        <span>{showAll ? t("session.showFewer") : t("session.showAll", { n: session.exercises.length })}</span><Icon name="chevron" />
+      </button>
+    {/if}
   {:else if session.exercises.length}
-    <details class="list" open={focus}>
+    <details class="list">
       <summary><span>{count}</span><Icon name="chevron" /></summary>
       <ol>
-        {#each session.exercises as e (e.id)}
-          <li>
-            <span class="ex">{#if e.group}<span class="grp">{e.group}</span>{/if}{e.exerciseName}</span>
-            <span class="chips">{#each setParts(e.prescribedSets, t) as p}<span class="chip">{p}</span>{/each}</span>
-            {#if e.notes}<span class="ex-note">{e.notes}</span>{/if}
-          </li>
-        {/each}
+        {#each session.exercises as e (e.id)}{@render exercise(e)}{/each}
       </ol>
     </details>
   {/if}
 
 </article>
+
+{#snippet exercise(e: PortalSession["exercises"][number])}
+  <li>
+    <span class="ex">{#if e.group}<span class="grp">{e.group}</span>{/if}{e.exerciseName}</span>
+    <span class="chips">{#each setParts(e.prescribedSets, t) as p}<span class="chip">{p}</span>{/each}</span>
+    {#if e.notes}<span class="ex-note">{e.notes}</span>{/if}
+  </li>
+{/snippet}
 
 <style>
   .card {
@@ -114,7 +136,7 @@
   .note { margin: 0; font-size: 14px; color: var(--ink); text-wrap: pretty; }
   .note-by { font-weight: 600; color: var(--muted); margin-right: 2px; }
 
-  .list summary {
+  .list summary, .more {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -125,6 +147,16 @@
     cursor: pointer;
     list-style: none;
   }
+  .more {
+    width: 100%;
+    margin: -8px 0 -4px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .more[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
+  .more :global(svg) { width: 16px; height: 16px; transition: transform 150ms ease-out; }
   .list summary::-webkit-details-marker { display: none; }
   .list summary :global(svg) { width: 16px; height: 16px; transition: transform 150ms ease-out; }
   .list[open] summary :global(svg) { transform: rotate(180deg); }
@@ -164,6 +196,6 @@
   .when { font-weight: 400; }
   .intensity { margin: 0; font-size: 15px; text-wrap: pretty; }
   @media (prefers-reduced-motion: reduce) {
-    .list summary :global(svg) { transition: none; }
+    .list summary :global(svg), .more :global(svg) { transition: none; }
   }
 </style>

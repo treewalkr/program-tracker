@@ -29,6 +29,10 @@ export const en = {
   "week.slow": "Waking the server up — the first visit of the day can take up to a minute.",
   "week.error": "Couldn't load your program.",
   "week.retry": "Try again",
+  "week.nextUp": "Next up",
+  "week.allDone": "All {total} done this week. Nice work.",
+  "week.earlier": "Earlier this week",
+  "week.earlierCount": "{n} not logged",
 
   "session.loggedByYou": "Logged by you",
   "session.loggedByCoach": "Logged by your coach",
@@ -38,6 +42,9 @@ export const en = {
   "session.exercises": "{n} exercises",
   "session.oneExercise": "1 exercise",
   "session.coachNote": "From your coach",
+  "session.notLogged": "Not logged",
+  "session.showAll": "Show all {n} exercises",
+  "session.showFewer": "Show fewer",
 
   "rx.sets": "{n} × {reps}",
   "rx.reps": "{n} reps",
@@ -159,6 +166,10 @@ export const th: Record<MessageKey, string> = {
   "week.slow": "กำลังปลุกเซิร์ฟเวอร์ — ครั้งแรกของวันอาจใช้เวลาถึงหนึ่งนาที",
   "week.error": "โหลดโปรแกรมไม่สำเร็จ",
   "week.retry": "ลองอีกครั้ง",
+  "week.nextUp": "ถัดไป",
+  "week.allDone": "ครบทั้ง {total} เซสชันของสัปดาห์นี้แล้ว เยี่ยมมาก",
+  "week.earlier": "ก่อนหน้านี้ในสัปดาห์นี้",
+  "week.earlierCount": "ยังไม่ได้บันทึก {n}",
 
   "session.loggedByYou": "คุณบันทึกแล้ว",
   "session.loggedByCoach": "โค้ชบันทึกแล้ว",
@@ -168,6 +179,9 @@ export const th: Record<MessageKey, string> = {
   "session.exercises": "{n} ท่า",
   "session.oneExercise": "1 ท่า",
   "session.coachNote": "จากโค้ช",
+  "session.notLogged": "ยังไม่ได้บันทึก",
+  "session.showAll": "ดูทั้งหมด {n} ท่า",
+  "session.showFewer": "ย่อ",
 
   "rx.sets": "{n} × {reps}",
   "rx.reps": "{n} ครั้ง",
