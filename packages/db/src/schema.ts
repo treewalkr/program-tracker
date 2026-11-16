@@ -274,6 +274,8 @@ export const setLogs = pgTable("set_logs", {
   weightKg: numeric("weight_kg", { precision: 6, scale: 2 }),
   reps: integer("reps").notNull(),
   rpe: numeric("rpe", { precision: 3, scale: 1 }),
+  /** Saved untouched from the prescription (portal one-tap save): not evidence for RPE or stall rules. */
+  asPlanned: boolean("as_planned").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

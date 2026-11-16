@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { and, eq, inArray, isNull, like } from "drizzle-orm";
-import { clientSessions, clients, db, exercises, programs, sessionLogs, signalOutbox, trainers } from "@pt/db";
+import { clientSessions, clients, db, exercises, programs, sessionLogs, setLogs, signalOutbox, trainers } from "@pt/db";
 import { addDays, localDateOf } from "@pt/shared";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { CLIENT_COOKIE, claimClient, createClientSession, deleteClientSessions } from "./lib/client-auth";
@@ -416,6 +416,22 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((await call("DELETE", `/v1/portal/logs/${mine}`, { token: siblingToken })).status).toBe(404);
     expect((await call("DELETE", `/v1/portal/logs/${mine}`, { token })).status).toBe(204);
     expect(await db.select().from(sessionLogs).where(eq(sessionLogs.id, mine))).toHaveLength(0);
+  });
+
+  test("a one-tap save stores the prescription as planned, with no RPE the client never gave", async () => {
+    const body = logBody(s1, {
+      sets: [
+        { programExerciseId: slot1, exerciseId: squatId, setNumber: 1, weightKg: 100, reps: 5, asPlanned: true },
+        { programExerciseId: slot1, exerciseId: squatId, setNumber: 2, weightKg: 62.5, reps: 6, rpe: 8 },
+      ],
+    });
+    const r = await call("POST", "/v1/portal/logs", { token, body });
+    expect(r.status).toBe(201);
+    const rows = await db.select().from(setLogs).where(eq(setLogs.sessionLogId, r.body.id));
+    const bySet = Object.fromEntries(rows.map((s) => [s.setNumber, s]));
+    expect(bySet[1]).toMatchObject({ asPlanned: true, rpe: null });
+    expect(bySet[2]).toMatchObject({ asPlanned: false, rpe: "8.0" });
+    expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
   });
 
   test("a client can't log against another client's session or another trainer's client", async () => {

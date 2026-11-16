@@ -79,6 +79,7 @@ export function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
       weightKg: s.weightKg != null ? Number(s.weightKg) : null,
       reps: s.reps,
       rpe: s.rpe != null ? Number(s.rpe) : null,
+      ...(s.asPlanned ? { asPlanned: true } : {}),
     })),
   };
 }

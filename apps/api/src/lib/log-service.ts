@@ -38,6 +38,8 @@ export const SessionLogFields = z.object({
         weightKg: z.number().min(0).max(600).optional(),
         reps: z.number().int().min(0).max(200),
         rpe: z.number().min(1).max(10).optional(),
+        /** Saved untouched from the prescription (portal one-tap save). */
+        asPlanned: z.boolean().optional(),
       })
     )
     .max(100),
@@ -205,6 +207,7 @@ export async function createSessionLog({
                 weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
                 reps: s.reps,
                 rpe: s.rpe !== undefined ? String(s.rpe) : null,
+                asPlanned: s.asPlanned ?? false,
               }))
             )
             .returning()
