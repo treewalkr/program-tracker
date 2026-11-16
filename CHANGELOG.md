@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.32 — 2026-11-17
+
 ### New
 - Feedback has a new **In progress** status, between Accepted and Done, so you can tell when your ticket is being worked on. You get an email when your ticket moves to In progress, as with the other status changes.
 
