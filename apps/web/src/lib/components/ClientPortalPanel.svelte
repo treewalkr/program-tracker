@@ -126,15 +126,17 @@
   .by { font-size: 11px; padding: 0 6px; }
   .field { display: grid; gap: 6px; }
   .field .label { margin: 0; }
-  .link-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .link-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+  /* shown whole, wrapped, so the trainer can read the exact link before it goes out */
   .link, .msg {
     flex: 1;
     min-width: 0;
-    padding: 5px 10px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    padding: 6px 10px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
     font-size: 13px;
+    line-height: 1.5;
+    user-select: all;
     background: var(--well);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -145,4 +147,6 @@
   .facts dd { margin: 2px 0 0; font-size: 13px; }
   .warn { color: var(--warn); }
   .acts { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+  /* small buttons, but a 32px target: this panel is used on a phone at the gym too */
+  .link-row :global(.btn), .acts :global(.btn) { min-height: 32px; }
 </style>

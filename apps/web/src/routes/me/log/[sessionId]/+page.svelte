@@ -388,7 +388,7 @@
   .date .input { flex: 1; max-width: 220px; min-height: 44px; font-size: 16px; }
   .log :global(.draft) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .link-btn {
-    min-height: 36px;
+    min-height: 44px;
     padding: 0 4px;
     font: 500 14px/1 var(--font-ui);
     color: inherit;
@@ -481,7 +481,7 @@
     background: var(--bg);
     border-top: 1px solid var(--line);
   }
-  .save { justify-content: center; min-height: 52px; font-size: 17px; font-weight: 600; }
+  .save { justify-content: center; width: 100%; min-height: 52px; font-size: 17px; font-weight: 600; }
   .err { margin: 0; font-size: 14px; font-weight: 500; color: var(--bad); }
 
   .recap { display: grid; justify-items: start; gap: 12px; margin-top: 10vh; }

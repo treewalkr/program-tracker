@@ -43,7 +43,7 @@
   }
   button {
     min-width: 44px;
-    min-height: 40px;
+    min-height: 44px;
     padding: 0 12px;
     font: 600 13px/1 var(--font-ui);
     color: var(--muted);

@@ -191,7 +191,7 @@
     color: var(--ink);
   }
   .act { justify-content: center; min-height: 48px; font-size: 16px; }
-  .side { flex: none; min-height: 40px; padding: 0 14px; font-size: 14px; }
+  .side { flex: none; justify-content: center; min-width: 64px; min-height: 44px; padding: 0 14px; font-size: 14px; }
   .status { margin-top: -4px; }
   .when { font-weight: 400; }
   .intensity { margin: 0; font-size: 15px; text-wrap: pretty; }
