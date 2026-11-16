@@ -1,4 +1,4 @@
-import { PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
+import { localDateOf, PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
 import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
@@ -133,6 +133,19 @@ export interface PortalLogForm {
   date: string;
   /** "Something hurt" per exercise (programExerciseId → flag), the trainer sheet's vocabulary. */
   flags: ExerciseFlags;
+  /** When the client first changed anything (ISO), for the session's duration. */
+  startedAt?: string | null;
+}
+
+/** Under this, the form was filled in after the session, not during it. */
+const LIVE_MIN = 5;
+const LIVE_MAX = 300;
+
+/** Minutes from the first entry to Save — only for a session logged live today. */
+export function durationOf(f: Pick<PortalLogForm, "startedAt" | "date">, now: number): number | null {
+  if (!f.startedAt || f.date !== localDateOf(now)) return null;
+  const min = Math.round((now - Date.parse(f.startedAt)) / 60_000);
+  return Number.isFinite(min) && min >= LIVE_MIN && min <= LIVE_MAX ? min : null;
 }
 
 export type BuildResult =
@@ -157,10 +170,12 @@ export function setsMissingKg(session: PortalSession, rows: readonly PortalRow[]
 }
 
 /** The save payload, or why there's nothing to save yet. */
-export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace: boolean): BuildResult {
+export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace: boolean, now = Date.now()): BuildResult {
+  const durationMin = durationOf(f, now);
   const base = {
     programSessionId: session.id,
     date: f.date,
+    ...(durationMin != null ? { durationMin } : {}),
     ...readinessInput(f.readiness),
     notes: f.notes.trim() || undefined,
     ...(replace ? { onDuplicate: "replace" as const } : {}),
@@ -250,6 +265,7 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): Portal
   const r = (d.readiness ?? {}) as Record<string, unknown>;
   return {
     flags: parseFlags(d.flags),
+    startedAt: typeof d.startedAt === "string" && !Number.isNaN(Date.parse(d.startedAt)) ? d.startedAt : null,
     rows: d.rows,
     cardio: d.cardio,
     notes: d.notes,

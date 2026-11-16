@@ -188,6 +188,7 @@ export const mockPortalApi: PortalApi = {
       readiness: input.readiness && Object.keys(input.readiness).length > 0 ? { ...input.readiness } : null,
       flags: input.flags?.length ? input.flags.map((f) => ({ ...f })) : null,
       notes: input.notes,
+      durationMin: input.durationMin ?? null,
       sets: input.sets.map((s) => ({ ...s, type: s.type ?? "working" })),
     });
     return { id, programSessionId: alias, date: input.date, loggedBy: "client" };

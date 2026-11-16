@@ -171,6 +171,11 @@ describe("sessionsByWeek", () => {
     expect(weekLabel("2026-10-19")).toBe("Week of 19 Oct");
   });
 
+  test("a session the client timed in the portal shows how long it took", () => {
+    const [week] = sessionsByWeek([log({ sets: [set("bench", 45, 5)], durationMin: 52 }), log({ date: "2026-10-20", sets: [set("bench", 45, 5)] })], [program], nameOf);
+    expect(week.sessions.map((s) => s.duration)).toEqual([null, "52 min"]);
+  });
+
   test("session names come from the program weeks; sets grouped per exercise", () => {
     const [week] = sessionsByWeek(
       [

@@ -157,6 +157,7 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   perceivedEnergy: l.perceivedEnergy ?? null,
   readiness: l.readiness ? { ...l.readiness } : null,
   flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
+  durationMin: l.durationMin ?? null,
   sets: l.sets.map((s) => ({ ...s })),
   loggedBy: l.loggedBy ?? "trainer",
 });

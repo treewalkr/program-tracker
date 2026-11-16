@@ -29,6 +29,8 @@ export interface PortalLogInput {
   /** Already logged by the client: 409 (reject) or swap it (replace). */
   onDuplicate?: "reject" | "replace";
   sets: LogSetInput[];
+  /** Minutes from the first entry to Save, for a session logged live. */
+  durationMin?: number;
   /** The phone's local date (YYYY-MM-DD); the API seam fills it in. */
   today?: string;
 }

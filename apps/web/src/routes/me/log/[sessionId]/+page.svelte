@@ -51,6 +51,8 @@
   let readiness = $state<ReadinessForm>({ ...EMPTY_READINESS });
   let notes = $state("");
   let flags = $state<ExerciseFlags>({});
+  /** The first change to the form (ISO): Save minus this is how long the session took. */
+  let startedAt = $state<string | null>(null);
   /** A skipped exercise's rows as they were, so Undo skip brings back what was typed. */
   let beforeSkip = $state<Record<string, PortalRow[]>>({});
   let date = $state(today);
@@ -96,6 +98,7 @@
     readiness = f.readiness;
     notes = f.notes;
     flags = f.flags;
+    startedAt = null;
     beforeSkip = {};
     date = f.date;
     current = 0;
@@ -146,6 +149,7 @@
       readiness = draft.readiness;
       notes = draft.notes;
       flags = draft.flags;
+      startedAt = draft.startedAt ?? null;
       date = draft.date >= minDate && draft.date <= maxDate ? draft.date : today;
       restored = true;
     }
@@ -167,9 +171,11 @@
   // Autosave the half-filled form on this phone; a save or "start over" clears it.
   $effect(() => {
     if (loadState !== "ready" || !session || saved || byCoach) return;
-    const form = { rows, cardio, readiness, notes, date, flags };
+    const form = { rows, cardio, readiness, notes, date, flags, startedAt };
     // untouched prefill is not a draft: write nothing until the first real edit
-    const json = sameForm(form, freshForm(session)) ? null : portalDraftJson(form);
+    const dirty = !sameForm(form, freshForm(session));
+    if (dirty && !startedAt) startedAt = new Date().toISOString();
+    const json = dirty ? portalDraftJson(form) : null;
     const key = portalDraftKey(session.id);
     const timer = setTimeout(() => {
       try {
@@ -225,7 +231,7 @@
   async function save() {
     if (!session || saving) return;
     error = null;
-    const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags }, byYou);
+    const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags, startedAt }, byYou);
     if ("error" in built) {
       if (built.error === "kg") {
         kgChecked = true;

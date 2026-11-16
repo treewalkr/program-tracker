@@ -435,6 +435,8 @@ export interface SessionLogDto {
   readiness: ReadinessDto | null;
   /** Null on logs saved before flags existed, or with none set. */
   flags: SessionFlagDto[] | null;
+  /** Minutes from first entry to Save, when the client logged it live in the portal. */
+  durationMin?: number | null;
   sets: {
     id?: string;
     /** The program slot the set was logged against; null = ad-hoc. */

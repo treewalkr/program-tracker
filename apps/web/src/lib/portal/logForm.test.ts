@@ -293,3 +293,18 @@ describe("offline: the opened week is kept on this phone", () => {
     expect(cachedSession(null, "ps1", "2026-11-18")).toBeNull();
   });
 });
+
+describe("session duration: first entry to Save", () => {
+  const at = (iso: string) => Date.parse(iso);
+  const timed = (startedAt: string | null, date = "2026-11-16") => form(lifting, { startedAt, date });
+  test("a session logged live sends its minutes", () => {
+    const r = buildPortalLog(lifting, timed("2026-11-16T10:00:00Z"), false, at("2026-11-16T10:52:20Z"));
+    expect(r).toMatchObject({ input: { durationMin: 52 } });
+  });
+  test("a quick entry after the fact, a back-dated log, or no first entry: no duration", () => {
+    expect(buildPortalLog(lifting, timed("2026-11-16T10:00:00Z"), false, at("2026-11-16T10:03:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(lifting, timed("2026-11-16T10:00:00Z", "2026-11-15"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(lifting, timed(null), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(lifting, timed("2026-11-16T04:00:00Z"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+  });
+});

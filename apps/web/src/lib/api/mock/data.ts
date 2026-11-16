@@ -444,6 +444,8 @@ export interface StoredLog {
   readiness?: Readiness | null;
   flags?: SessionFlag[] | null;
   notes?: string;
+  /** Minutes from first entry to Save (portal, logged live). */
+  durationMin?: number | null;
   sets: {
     programExerciseId?: string | null;
     exerciseId: string;
