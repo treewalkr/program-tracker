@@ -40,6 +40,7 @@
 		| 'more'
 		| 'swap'
 		| 'skip'
+		| 'timer'
 		| 'undo'
 		| 'arrow-up'
 		| 'arrow-down'
@@ -146,6 +147,7 @@
 		},
 		swap: { d: 'm16 3 4 4-4 4M20 7H4', d2: 'm8 21-4-4 4-4M4 17h16' },
 		skip: { d: 'm5.7 5.7 12.6 12.6', circle: { cx: 12, cy: 12, r: 9 } },
+		timer: { d: 'M10 2h4M12 14l3-3', circle: { cx: 12, cy: 14, r: 8 } },
 		undo: { d: 'M9 14 4 9l5-5', d2: 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11' },
 		'arrow-up': { d: 'M12 19V5', d2: 'm6 11 6-6 6 6' },
 		'arrow-down': { d: 'M12 5v14', d2: 'm6 13 6 6 6-6' },

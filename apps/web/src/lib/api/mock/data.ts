@@ -648,9 +648,9 @@ export const trainerProgram: ProgramDto = {
             exercises: [
               { id: "pe-nat-1", exerciseId: "ex-latstretch", order: 0, prescribedSets: timed(2, 15), notes: "Static stretch" },
               { id: "pe-nat-2", exerciseId: "ex-scapdep", order: 1, prescribedSets: many(2, 10), notes: "1–2 sets" },
-              { id: "pe-nat-3", exerciseId: "ex-pullup", order: 2, prescribedSets: many(3, 6), notes: "Power intent — move fast" },
+              { id: "pe-nat-3", exerciseId: "ex-pullup", order: 2, prescribedSets: many(3, 6, { restSeconds: 120 }), notes: "Power intent — move fast" },
               { id: "pe-nat-4", exerciseId: "ex-sarow", order: 3, prescribedSets: range(3, 6, 10) },
-              { id: "pe-nat-5", exerciseId: "ex-bentrow-sup", order: 4, prescribedSets: many(5, 5), notes: "Supinate grip" },
+              { id: "pe-nat-5", exerciseId: "ex-bentrow-sup", order: 4, prescribedSets: many(5, 5, { restSeconds: 150 }), notes: "Supinate grip" },
               { id: "pe-nat-6", exerciseId: "ex-pulldown", order: 5, prescribedSets: [S(1, 10), S(2, 8), S(3, 6), S(4, 5)], notes: "Pyramid" },
               { id: "pe-nat-7", exerciseId: "ex-lowrow", order: 6, prescribedSets: [S(1, 10), S(2, 8), S(3, 6), S(4, 5)], notes: "Pyramid" },
               { id: "pe-nat-8", exerciseId: "ex-bbcurl", order: 7, prescribedSets: many(4, 12) },

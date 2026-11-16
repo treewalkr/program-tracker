@@ -26,6 +26,8 @@
     type PortalRow,
   } from "$lib/portal/logForm";
   import PortalBar from "$lib/portal/PortalBar.svelte";
+  import RestTimer from "$lib/portal/RestTimer.svelte";
+  import { restOf } from "$lib/portal/restTimer";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -76,6 +78,8 @@
   const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
   const missingKeys = $derived(new Set(missingKg.map((r) => r.key)));
   const exerciseOf = (peId: string) => session?.exercises.find((e) => e.id === peId) ?? null;
+  /** The rest this exercise prescribes (a superset: its first member's), for the timer. */
+  const blockRest = $derived(block ? restOf(block.memberIds.flatMap((id) => exerciseOf(id)?.prescribedSets ?? [])) : null);
   // never before the week (the server refuses it), never in the future
   const minDate = $derived(week ? week.startDate : today);
   const maxDate = $derived(week && week.endDate < today ? week.endDate : today);
@@ -495,6 +499,11 @@
               <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1} · {exerciseOf(peId)?.exerciseName}{/if}</button>
             {/if}
           {/each}
+
+          {#if blockRest}
+            <!-- one timer for the whole session: paging to the next exercise doesn't reset a running rest -->
+            <RestTimer seconds={blockRest} />
+          {/if}
 
           {#if current < blocks.length - 1}
             <button type="button" class="btn next-ex" onclick={() => { current += 1; document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
