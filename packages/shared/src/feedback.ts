@@ -295,6 +295,11 @@ export interface FeedbackComment {
   body: string | null;
   /** Status moved to; null for replies. */
   status: FeedbackStatus | null;
+  /**
+   * The admin changed the status (or gave the Won't-fix reason) without telling
+   * the reporter: no email, no unread badge. Admin only — always false for anyone else.
+   */
+  silent: boolean;
   /** Images posted with a reply, in order; empty for status entries. */
   attachments: FeedbackAttachment[];
   createdAt: string;

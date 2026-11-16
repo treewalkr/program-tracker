@@ -185,12 +185,16 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
    * in the thread; done stamps the live version, leaving done clears it.
    * Won't fix may carry a reason for the reporter: it posts as a public reply
    * just before the status entry, and the one Won't-fix email quotes it.
+   * `silent` changes the status without telling the reporter: both rows are marked
+   * silent, no email goes out (duplicates included) and it is no news to them.
    */
   .patch(
     "/:id",
     async ({ params, body, status, isAdmin, trainerId, who }) => {
       if (!isAdmin) return status(403, ADMIN_ONLY);
-      const { reason: rawReason, ...patch } = body;
+      const { reason: rawReason, silent: quiet, ...patch } = body;
+      // Silent: the status line still lands in the thread, but nobody is emailed and it is no news.
+      const silent = quiet === true;
       if (rawReason !== undefined && patch.status !== "wontfix") {
         return status(422, { error: "a reason goes only with Won't fix" });
       }
@@ -218,7 +222,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         const [why] = reason
           ? await tx
               .insert(feedbackComments)
-              .values({ itemId: params.id, trainerId, kind: "reply", body: reason, createdAt: new Date(at) })
+              .values({ itemId: params.id, trainerId, kind: "reply", body: reason, silent, createdAt: new Date(at) })
               .returning({ id: feedbackComments.id })
           : [];
         const [entry] = await tx
@@ -228,6 +232,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             trainerId,
             kind: "status",
             status: patch.status,
+            silent,
             ...(why ? { createdAt: new Date(at + 1) } : {}),
           })
           .returning({ id: feedbackComments.id });
@@ -240,6 +245,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
                 trainerId,
                 authorKind: "human",
                 reason,
+                silent,
                 at: at + 2,
               })
             : [];
@@ -248,10 +254,10 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       if (!found) return status(404, NOT_FOUND);
       if ("fail" in found) return status(409, { error: "Already Won't fix — reply on the thread instead." });
       // One email: the status one, quoting the reason. The reason reply sends none of its own.
-      if (found.statusCommentId) {
+      if (found.statusCommentId && !silent) {
         notifyFeedback({ kind: "status", itemId: params.id, commentId: found.statusCommentId, reasonId: found.reasonId });
       }
-      for (const d of found.duplicates) {
+      for (const d of silent ? [] : found.duplicates) {
         notifyFeedback({ kind: "status", itemId: d.itemId, commentId: d.statusId, reasonId: d.reasonId });
       }
       await markSeen(trainerId, params.id);
@@ -263,6 +269,8 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         ...spread(FeedbackModel.triage),
         /** Won't fix only: shown to the reporter as a reply and quoted in the email. */
         reason: t.Optional(t.String({ maxLength: 5000 })),
+        /** Change the status without telling the reporter: no email, no unread badge. */
+        silent: t.Optional(t.Boolean()),
       }),
       detail: { summary: "Triage a feedback item" },
     },

@@ -29,6 +29,7 @@
     aiMeta: null,
     aiPublic: null,
     ship: null,
+    silent: false,
     body: null,
     status: null,
     attachments: [],

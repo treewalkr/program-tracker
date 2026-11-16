@@ -202,6 +202,23 @@ describe.skipIf(!dbUp)("duplicate tickets", () => {
     expect(moMail.text).toContain("Not this year");
   });
 
+  test("closing the original silently closes its duplicates silently: silent rows, no email, no news", async () => {
+    const orig = await ticket("Bigger fonts");
+    const dup = await ticket("Larger text", mo);
+    await link(dup.id, orig.number);
+    await flush();
+    await call("POST", `/v1/feedback/${dup.id}/seen`, undefined, mo);
+    await call("PATCH", `/v1/feedback/${orig.id}`, { status: "wontfix", reason: "Use browser zoom", silent: true });
+    const d = await get(dup.id);
+    expect(d.status).toBe("wontfix");
+    expect(d.thread.map((c: any) => [c.kind, c.silent])).toEqual([
+      ["reply", true],
+      ["status", true],
+    ]);
+    expect((await get(dup.id, mo)).unread).toBe(false);
+    expect(await flush()).toEqual([]);
+  });
+
   test("a deploy that closes the original ships its duplicates too", async () => {
     const SHA = "abcdefabcdefabcdefabcdefabcdefabcdef0042";
     const orig = await ticket("Bigger buttons");

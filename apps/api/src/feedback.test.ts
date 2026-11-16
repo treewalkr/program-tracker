@@ -492,6 +492,42 @@ describe.skipIf(!dbUp)("feedback emails", () => {
     }
   });
 
+  test("a silent status change: no email, no news for the reporter, tagged silent for the admin only", async () => {
+    const other = (await json(await call("POST", "/v1/feedback", { comment: "Quiet one", context }, ren))).id;
+    try {
+      await flush();
+      await call("POST", `/v1/feedback/${other}/seen`, undefined, ren);
+      expect((await json(await call("GET", `/v1/feedback/${other}`, undefined, ren))).unread).toBe(false);
+
+      const started = await json(await call("PATCH", `/v1/feedback/${other}`, { status: "in_progress", silent: true }));
+      expect(started.status).toBe("in_progress");
+      expect(started.thread.at(-1)).toMatchObject({ kind: "status", status: "in_progress", silent: true });
+      expect(await flush()).toEqual([]);
+
+      const reporter = await json(await call("GET", `/v1/feedback/${other}`, undefined, ren));
+      expect(reporter.unread).toBe(false);
+      expect(reporter.thread.at(-1)).toMatchObject({ kind: "status", status: "in_progress", silent: false });
+
+      // Won't fix with a reason: both rows silent, still no email and no news.
+      const closed = await json(
+        await call("PATCH", `/v1/feedback/${other}`, { status: "wontfix", reason: "Out of scope", silent: true }),
+      );
+      expect(closed.thread.slice(-2).map((c: any) => [c.kind, c.silent])).toEqual([
+        ["reply", true],
+        ["status", true],
+      ]);
+      expect(await flush()).toEqual([]);
+      expect((await json(await call("GET", `/v1/feedback/${other}`, undefined, ren))).unread).toBe(false);
+
+      // Not silent: the reporter hears about it again.
+      await call("PATCH", `/v1/feedback/${other}`, { status: "in_progress" });
+      expect((await flush()).map((e) => e.subject)).toEqual([expect.stringMatching(/In progress$/)]);
+      expect((await json(await call("GET", `/v1/feedback/${other}`, undefined, ren))).unread).toBe(true);
+    } finally {
+      await db.delete(feedbackItems).where(eq(feedbackItems.id, other));
+    }
+  });
+
   test("note edits, unchanged status and deletes send nothing", async () => {
     const noted = await json(await call("PATCH", `/v1/feedback/${item}`, { triageNote: "bigger digits" }));
     expect(noted.status).toBe("accepted"); // a note alone never moves the status

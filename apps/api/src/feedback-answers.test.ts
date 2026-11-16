@@ -95,7 +95,7 @@ describe("answerRecords and lessonRecords (pure)", () => {
   const meta = { verdict: "exists" as const, confidence: "medium" as const, citations: ["a.ts:1"], basis: "b1", model: "m", runAt: at(1) };
   const c = (over: Partial<FeedbackComment>): FeedbackComment => ({
     id: crypto.randomUUID(), kind: "reply", author: null, authorKind: "human", visibility: "public", aiMeta: null, aiPublic: null,
-    ship: null, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
+    ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
   });
   const item = (thread: FeedbackComment[], number = 7): FeedbackItem => ({
     id: `i${number}`, number, author: kai, status: "new", comment: "Where are emails?", triageNote: null, route: "/settings", source: null,

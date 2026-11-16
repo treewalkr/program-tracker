@@ -89,6 +89,8 @@ export interface CloseWith {
   note?: (comment: string) => string;
   /** Won't fix: the reason the admin gave, posted on each duplicate too. */
   reason?: string | null;
+  /** The admin closed it silently: every row written is silent too, and nobody is emailed. */
+  silent?: boolean;
   /** Thread time of the first entry written, ms. */
   at: number;
 }
@@ -120,7 +122,7 @@ export async function closeDuplicates(tx: Tx, originalId: string, w: CloseWith):
       .update(feedbackItems)
       .set({ status: w.status, shippedIn: w.shippedIn, updatedAt: new Date(w.at) })
       .where(eq(feedbackItems.id, d.id));
-    const by = { itemId: d.id, trainerId: w.trainerId, authorKind: w.authorKind };
+    const by = { itemId: d.id, trainerId: w.trainerId, authorKind: w.authorKind, silent: w.silent ?? false };
     const reason = w.reason?.trim();
     const [why] = reason
       ? await tx

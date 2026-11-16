@@ -136,6 +136,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
       visibility: feedbackComments.visibility,
       aiMeta: feedbackComments.aiMeta,
       ship: feedbackComments.ship,
+      silent: feedbackComments.silent,
       createdAt: feedbackComments.createdAt,
       author: authorColumns,
     })
@@ -172,7 +173,8 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
     const mine = comments.filter((c) => c.itemId === r.id);
     let last: Date | null = trainerId !== viewerId ? r.createdAt : null;
     if (r.editedAt && editorId !== viewerId && (!last || r.editedAt > last)) last = r.editedAt;
-    for (const c of mine) if (c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
+    // A silent status change (and its reason) is not news: the admin chose not to tell anyone.
+    for (const c of mine) if (!c.silent && c.trainerId !== viewerId && (!last || c.createdAt > last)) last = c.createdAt;
     const seenAt = seen.get(r.id);
     const itemImages = images.get(r.id);
     const thread = mine.map(
@@ -194,6 +196,7 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
         ship: c.ship,
         body: c.body,
         status: c.status,
+        silent: admin && c.silent,
         attachments: itemImages?.get(c.id) ?? [],
         createdAt: c.createdAt.toISOString(),
       }),
