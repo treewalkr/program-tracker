@@ -463,15 +463,17 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect(await db.select().from(sessionLogs).where(eq(sessionLogs.id, mine))).toHaveLength(0);
   });
 
-  test("a one-tap save stores the prescription as planned, with no RPE the client never gave", async () => {
+  test("a one-tap save stores the prescription as planned, with no RPE the client never gave, and how long it took", async () => {
     const body = logBody(s1, {
       sets: [
         { programExerciseId: slot1, exerciseId: squatId, setNumber: 1, weightKg: 100, reps: 5, asPlanned: true },
         { programExerciseId: slot1, exerciseId: squatId, setNumber: 2, weightKg: 62.5, reps: 6, rpe: 8 },
       ],
     });
-    const r = await call("POST", "/v1/portal/logs", { token, body });
+    const r = await call("POST", "/v1/portal/logs", { token, body: { ...body, durationMin: 52 } });
     expect(r.status).toBe(201);
+    const [saved] = await db.select().from(sessionLogs).where(eq(sessionLogs.id, r.body.id));
+    expect(saved.durationMin).toBe(52);
     const rows = await db.select().from(setLogs).where(eq(setLogs.sessionLogId, r.body.id));
     const bySet = Object.fromEntries(rows.map((s) => [s.setNumber, s]));
     expect(bySet[1]).toMatchObject({ asPlanned: true, rpe: null });

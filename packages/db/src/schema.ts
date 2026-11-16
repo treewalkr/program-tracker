@@ -256,6 +256,8 @@ export const sessionLogs = pgTable("session_logs", {
   flags: jsonb("flags").$type<SessionFlag[]>(),
   /** Who entered it: the trainer, or the client in the portal (check constraint). */
   loggedBy: text("logged_by").$type<LoggedBy>().notNull().default("trainer"),
+  /** Minutes from the first entry to Save, when the client logged it live in the portal; null otherwise. */
+  durationMin: integer("duration_min"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

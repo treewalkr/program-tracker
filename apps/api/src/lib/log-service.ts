@@ -26,6 +26,8 @@ export const SessionLogFields = z.object({
   readiness: Readiness.nullable().optional(),
   /** Per-exercise pain / technique / skipped flags. */
   flags: z.array(SessionFlag).max(100).nullable().optional(),
+  /** Minutes from the first entry to Save (portal, logged live). */
+  durationMin: z.number().int().min(1).max(600).optional(),
   /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
   onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
   sets: z
@@ -188,6 +190,7 @@ export async function createSessionLog({
         // An empty readiness or flag list stores as null, like an old row.
         readiness: input.readiness && Object.keys(input.readiness).length > 0 ? input.readiness : null,
         flags: input.flags?.length ? input.flags : null,
+        durationMin: input.durationMin ?? null,
         loggedBy,
       })
       .returning();
