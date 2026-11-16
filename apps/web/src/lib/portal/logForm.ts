@@ -93,12 +93,17 @@ export type BuildResult =
   | { error: "kg"; sets: number; programExerciseId: string };
 
 /**
- * Filled sets that would save with no kg on a lift that takes weight (timed holds and
- * bodyweight moves don't). Bodyweight is read from the session, not the rows, so a draft
- * saved by an older version still checks right.
+ * Filled sets that would save with no kg on a lift that takes weight. Exempt: bodyweight
+ * moves, and timed holds (prescribed in seconds, so the page shows no kg cell). Both are
+ * read from the session as well as the rows, so a draft saved by an older version (no
+ * `timed` on its rows) still checks right. 0 kg is an answer, not a blank.
  */
 export function setsMissingKg(session: PortalSession, rows: readonly PortalRow[]): PortalRow[] {
-  const noLoad = new Set(session.exercises.filter((e) => e.bodyweight).map((e) => e.id));
+  const noLoad = new Set(
+    session.exercises
+      .filter((e) => e.bodyweight || (e.prescribedSets.length > 0 && e.prescribedSets.every((s) => s.durationSeconds != null)))
+      .map((e) => e.id),
+  );
   return rowsToSave([...rows]).filter((r) => !noLoad.has(r.programExerciseId) && !r.timed && isBlank(r.weight));
 }
 

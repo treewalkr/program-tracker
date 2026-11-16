@@ -54,6 +54,15 @@ describe("portal log form", () => {
     expect(buildPortalLog(noTarget, f, false)).toMatchObject({ sets: 3 });
     // the plank in `lifting` is timed: no kg needed
     expect(buildPortalLog(lifting, form(lifting), false)).toMatchObject({ sets: 3 });
+    // …even from an old draft whose rows don't say `timed`
+    const old = form(lifting);
+    old.rows = old.rows.map(({ timed: _t, ...r }) => r as typeof r & { timed: boolean });
+    expect(buildPortalLog(lifting, old, false)).toMatchObject({ sets: 3 });
+    // and bodyweight stays exempt at 0 or blank
+    const bw = form(noTarget);
+    bw.rows[1].weight = 0;
+    bw.rows[2].weight = 0;
+    expect(buildPortalLog(noTarget, bw, false)).toMatchObject({ sets: 3 });
   });
 
   test("rows come prefilled as prescribed: range bottom, kg, RPE; timed sets log their seconds", () => {

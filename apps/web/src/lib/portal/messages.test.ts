@@ -22,6 +22,10 @@ describe("portal messages", () => {
     }
   });
 
+  test("Thai weight lines say กก., never kg (the cell beside them is labelled กก.)", () => {
+    for (const k of ["log.needKg", "log.needKgOne", "log.kgCell", "log.kg", "rx.kg"] as const) expect([k, /kg/i.test(th[k])]).toEqual([k, false]);
+  });
+
   test("format fills placeholders and leaves unknown ones", () => {
     expect(format("Week {n} of {total}", { n: 2 })).toBe("Week 2 of {total}");
     expect(format("Hi {name}")).toBe("Hi {name}");

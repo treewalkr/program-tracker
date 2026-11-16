@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { page } from "$app/state";
   import { addDays, localDateOf, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
@@ -18,6 +19,7 @@
     portalDraftKey,
     rowsOfSession,
     sameForm,
+    setsMissingKg,
     touchedExercises,
     type PortalLogForm,
     type PortalRow,
@@ -49,6 +51,8 @@
   let showRpe = $state(false);
   let feelOpen = $state(false);
 
+  /** Set after a save was refused for missing kg: from then on the missing cells are ringed live. */
+  let kgChecked = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
   let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean } | null>(null);
@@ -64,6 +68,8 @@
   const freshForm = (s: PortalSession): PortalLogForm => ({ rows: rowsOfSession(s), cardio: cardioFormOf(s.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today });
   const pristine = $derived(session ? rowsOfSession(session) : []);
   const touched = $derived(touchedExercises(pristine, rows));
+  const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
+  const missingKeys = $derived(new Set(missingKg.map((r) => r.key)));
   const exerciseOf = (peId: string) => session?.exercises.find((e) => e.id === peId) ?? null;
   // never before the week (the server refuses it), never in the future
   const minDate = $derived(week ? week.startDate : today);
@@ -76,6 +82,7 @@
     notes = "";
     date = today;
     current = 0;
+    kgChecked = false;
   }
 
   async function load(id: string) {
@@ -141,16 +148,28 @@
     rows = withExtraSet(rows, peId, (n) => extraRow(last, n));
   }
 
+  /** Page to the first set still missing its kg, scroll it into view, ring it, and put the cursor there. */
+  async function jumpToMissing() {
+    const first = missingKg[0];
+    if (!first) return;
+    const at = blocks.findIndex((b) => b.memberIds.includes(first.programExerciseId));
+    if (at >= 0) current = at;
+    await tick();
+    const el = document.getElementById(`kg-${first.key}`);
+    if (!el) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+    el.focus({ preventScroll: true });
+  }
+
   async function save() {
     if (!session || saving) return;
     error = null;
     const built = buildPortalLog(session, { rows, cardio, readiness, notes, date }, byYou);
     if ("error" in built) {
       if (built.error === "kg") {
-        error = t("log.needKg", { n: built.sets });
-        // page to the first lift still missing its kg
-        const at = blocks.findIndex((b) => b.memberIds.includes(built.programExerciseId));
-        if (at >= 0) current = at;
+        kgChecked = true;
+        await jumpToMissing();
         return;
       }
       error = built.error === "nothing" ? t("log.nothing") : t("log.cardioNeedsActivity");
@@ -351,7 +370,12 @@
                 </div>
                 <div class="cells">
                   {#if !r.timed}
-                    <LogStepper bind:value={rows[i].weight} label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${t("log.kg")}`} unit={t("log.kg")} step={2.5} min={0} max={600} from={r.rx?.targetWeightKg ?? null} />
+                    <LogStepper
+                      bind:value={rows[i].weight}
+                      id={`kg-${r.key}`}
+                      error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
+                      errorId={`kg-${r.key}-err`}
+                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${t("log.kg")}`} unit={t("log.kg")} step={2.5} min={0} max={600} from={r.rx?.targetWeightKg ?? null} />
                   {/if}
                   <LogStepper
                     bind:value={rows[i].reps}
@@ -390,7 +414,13 @@
       </label>
 
       <div class="savebar">
-        {#if error}<p class="err" role="alert">{error}</p>{/if}
+        <div role="alert" class="alerts">
+          {#if missingKg.length > 0}
+            <button type="button" class="err err-btn" onclick={jumpToMissing}>
+              {missingKg.length === 1 ? t("log.needKgOne") : t("log.needKg", { n: missingKg.length })}<Icon name="chevron" />
+            </button>
+          {:else if error}<p class="err">{error}</p>{/if}
+        </div>
         <button type="submit" class="btn primary save" disabled={saving}>{saving ? t("log.saving") : t("log.save")}</button>
       </div>
     {/if}
@@ -552,6 +582,25 @@
   }
   .save { justify-content: center; width: 100%; min-height: 52px; font-size: 17px; font-weight: 600; }
   .err { margin: 0; font-size: 14px; font-weight: 500; color: var(--bad); }
+  .alerts:empty { display: none; }
+  .err-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    margin: -8px 0;
+    padding: 0;
+    font-family: var(--font-ui);
+    text-align: left;
+    background: none;
+    border: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .err-btn :global(svg) { flex: none; width: 14px; height: 14px; transform: rotate(-90deg); }
+  /* the missing kg cell: ringed, not just red-bordered, so it's found at arm's length */
+  .log :global(.lstep.invalid .lstep-input) { box-shadow: 0 0 0 2px var(--bad); position: relative; z-index: 1; }
 
   .recap { display: grid; justify-items: start; gap: 12px; margin-top: 10vh; }
   .tick {
