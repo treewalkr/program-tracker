@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### New
+- Client portal: your clients can see their week and log their own sessions on their phone, in English or Thai. It's off until you turn it on in a client's Settings tab, which gives you a personal access link to send them (with a ready-made LINE message). Google sign-in is coming once it's approved.
+- On the portal, clients see what's next, your session note, last time's set for each exercise, a rest timer, this week's cardio against your target, and whether it's a deload or test week. Your block plan itself stays private.
+- Clients can save a set as planned in one tap, add RPE only when they want to, skip an exercise, flag pain, mark a missed set, and rate readiness. The log screen still opens when the phone is offline.
+- Their logs land in History marked "by client", with how long the session took. Low readiness and client notes show up as signals for you, and sets saved untouched count as volume but don't skew RPE, creep or stall signals.
+- Reset a client's link at any time: the old link and every signed-in phone stop working.
+
 ## v0.1.29 — 2026-11-16
 
 ### New
