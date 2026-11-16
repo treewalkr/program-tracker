@@ -8,7 +8,8 @@
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
-  import { fmtDay, fmtShortDate, i18n, t } from "$lib/portal/i18n.svelte";
+  import { fmtDay, fmtShortDate, i18n, t, weekdayName } from "$lib/portal/i18n.svelte";
+  import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
   import { setParts, setTarget } from "$lib/portal/rx";
   import {
     buildPortalLog,
@@ -87,6 +88,13 @@
 
   async function load(id: string) {
     loadState = "loading";
+    // the recap links straight to the next session: same page, fresh state
+    saved = null;
+    undone = false;
+    error = null;
+    restored = false;
+    showRpe = false;
+    feelOpen = false;
     try {
       const dto = await portalApi.week();
       const w = dto.weeks.find((x) => x.loggable) ?? null;
@@ -245,6 +253,17 @@
       .map((k) => `${readinessText.scale[k].label} ${readiness[k]}`)
       .join(" · "),
   );
+  /** The week as it stands after this save: how far along, and what's next. */
+  const after = $derived.by(() => {
+    if (!saved || !week || !session) return null;
+    const id = session.id;
+    const log = { id: saved.log.id, loggedBy: "client" as const, date: saved.log.date };
+    const w: PortalWeek = { ...week, sessions: week.sessions.map((s) => (s.id === id ? { ...s, log } : s)) };
+    const next = focusSession(w, today);
+    const day = next ? (dayGroups(w, today).find((g) => g.sessions.some((s) => s.id === next.id)) ?? null) : null;
+    const when = !day ? "" : day.weekday === 0 ? t("week.anyDay") : day.isToday ? t("week.today") : weekdayName(day.weekday);
+    return { done: doneCount(w), total: w.sessions.length, next, when };
+  });
   const savedLine = $derived(
     !saved ? "" : cardioSession ? t("log.savedCardio") : saved.sets === 1 ? t("log.savedOneSet") : t("log.savedSets", { n: saved.sets }),
   );
@@ -280,6 +299,20 @@
       <span class="tick" aria-hidden="true"><Icon name="check" /></span>
       <h1>{t("log.saved")}</h1>
       <p class="recap-line">{session.name} · {savedLine} · {fmtDay(saved.log.date)}</p>
+      {#if after}
+        <div class="week-now">
+          <p class="count tnum">{t("log.weekCount", { done: after.done, total: after.total })}</p>
+          <div class="bar" aria-hidden="true"><span style:width={`${(after.done / Math.max(1, after.total)) * 100}%`}></span></div>
+          {#if after.next}
+            <p class="next-line">
+              <span class="next-k">{t("log.nextUp")}</span>
+              <a href={`/me/log/${after.next.id}`}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
+            </p>
+          {:else}
+            <p class="next-line">{t("log.weekDone")}</p>
+          {/if}
+        </div>
+      {/if}
       {#if error}<p class="err" role="alert">{error}</p>{/if}
       <div class="recap-actions">
         <a class="btn primary done-btn" href="/me">{t("log.done")}</a>
@@ -616,6 +649,18 @@
     border: 1px solid var(--good-line);
   }
   .tick :global(svg) { width: 24px; height: 24px; }
+  /* the one authored moment: the circle settles, then the tick draws itself */
+  .tick { animation: tick-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .tick :global(path) { stroke-dasharray: 24; animation: tick-draw 380ms 160ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes tick-pop { from { transform: scale(0.72); } }
+  @keyframes tick-draw { from { stroke-dashoffset: 24; } }
+  .week-now { display: grid; gap: 8px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .count { margin: 0; font-weight: 600; }
+  .bar { height: 6px; border-radius: 99px; background: var(--well-2); overflow: hidden; }
+  .bar span { display: block; height: 100%; border-radius: 99px; background: var(--good); }
+  .next-line { margin: 0; font-size: 14px; color: var(--muted); }
+  .next-k { margin-right: 6px; font-weight: 600; color: var(--ink); }
+  .next-line a { display: inline-block; padding: 12px 0; margin: -12px 0; font-weight: 500; }
   .recap-line { margin: 0; color: var(--muted); }
   .recap-actions { display: grid; gap: 10px; width: 100%; margin-top: 12px; }
   .recap-actions :global(.btn) { justify-content: center; min-height: 48px; font-size: 16px; }
@@ -626,6 +671,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .feel summary :global(svg) { transition: none; }
+    .tick, .tick :global(path) { animation: none; }
   }
   @media (min-width: 700px) {
     .savebar { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-overlay-up); bottom: 12px; }

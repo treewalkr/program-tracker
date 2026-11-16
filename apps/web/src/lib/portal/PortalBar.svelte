@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { coachLabel } from "./i18n.svelte";
+  import { coachParts } from "./i18n.svelte";
   import LangToggle from "./LangToggle.svelte";
 
   /** The portal's top line: the PT mark (and the coach, once known) left, language right. */
@@ -11,11 +11,17 @@
   }
 
   let { coach = null, actions }: Props = $props();
+  const who = $derived(coach ? coachParts(coach) : null);
 </script>
 
 <header class="bar">
   <span class="mark" aria-hidden="true">PT</span>
-  {#if coach}<span class="coach">{coachLabel(coach)}</span>{/if}
+  {#if who}
+    <p class="coach">
+      {#if who.by}<span class="by">{who.by}</span>{/if}
+      <span class="name">{who.name}</span>
+    </p>
+  {/if}
   <span class="spacer"></span>
   {@render actions?.()}
   <LangToggle />
@@ -39,13 +45,17 @@
     font: 700 12px/1 var(--font-ui);
     letter-spacing: 0.02em;
   }
+  /* who this program is from: the coach's name is the clearest thing on the bar */
   .coach {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     min-width: 0;
+    margin: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
-    font: 500 14px/1.3 var(--font-ui);
-    color: var(--muted);
   }
+  .by { flex: none; font: 400 14px/1.3 var(--font-ui); color: var(--muted); }
+  .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 600 16px/1.3 var(--font-ui); color: var(--ink); }
   .spacer { flex: 1; }
 </style>

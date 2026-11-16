@@ -38,8 +38,8 @@ export function t(key: MessageKey, vars?: Record<string, string | number>): stri
   return format(MESSAGES[locale][key], vars);
 }
 
-/** "Coached by Ploy" / "โค้ช Ploy" — or the name alone when it already says Coach. */
-export const coachLabel = (name: string) => (carriesCoachLabel(name) ? name.trim() : t("header.coach", { trainer: name.trim() }));
+/** "Coached by" + "Ploy" / "โค้ช" + "Ploy" — no label when the name already says Coach. */
+export const coachParts = (name: string) => ({ by: carriesCoachLabel(name) ? "" : t("header.coachedBy"), name: name.trim() });
 
 const dayFmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlTag(locale), { timeZone: "UTC", ...opts });
 const utc = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);

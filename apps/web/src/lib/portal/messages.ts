@@ -11,7 +11,7 @@ export const en = {
   "app.title": "Your program",
   "lang.label": "Language",
   "header.hi": "Hi {name}",
-  "header.coach": "Coached by {trainer}",
+  "header.coachedBy": "Coached by",
   "header.week": "Week {n}",
   "header.signOut": "Sign out",
 
@@ -141,6 +141,9 @@ export const en = {
   "log.undoing": "Undoing…",
   "log.undone": "Removed. Your log is gone.",
   "log.done": "Back to this week",
+  "log.weekCount": "{done} of {total} done this week",
+  "log.nextUp": "Next up",
+  "log.weekDone": "That's everything for this week.",
 
   "cardio.activity": "What you did",
   "cardio.activityPlaceholder": "Run, bike, rower…",
@@ -159,7 +162,7 @@ export const th: Record<MessageKey, string> = {
   "app.title": "โปรแกรมของคุณ",
   "lang.label": "ภาษา",
   "header.hi": "สวัสดี {name}",
-  "header.coach": "โค้ช {trainer}",
+  "header.coachedBy": "โค้ช",
   "header.week": "สัปดาห์ที่ {n}",
   "header.signOut": "ออกจากระบบ",
 
@@ -289,6 +292,9 @@ export const th: Record<MessageKey, string> = {
   "log.undoing": "กำลังเลิกทำ…",
   "log.undone": "ลบบันทึกแล้ว",
   "log.done": "กลับไปสัปดาห์นี้",
+  "log.weekCount": "สัปดาห์นี้เสร็จแล้ว {done} จาก {total}",
+  "log.nextUp": "ถัดไป",
+  "log.weekDone": "ครบทุกเซสชันของสัปดาห์นี้แล้ว",
 
   "cardio.activity": "ทำอะไร",
   "cardio.activityPlaceholder": "วิ่ง ปั่นจักรยาน กรรเชียงบก…",
