@@ -133,6 +133,13 @@
     error = null;
     const built = buildPortalLog(session, { rows, cardio, readiness, notes, date }, byYou);
     if ("error" in built) {
+      if (built.error === "kg") {
+        error = t("log.needKg", { n: built.sets });
+        // page to the first lift still missing its kg
+        const at = blocks.findIndex((b) => b.memberIds.includes(built.programExerciseId));
+        if (at >= 0) current = at;
+        return;
+      }
       error = built.error === "nothing" ? t("log.nothing") : t("log.cardioNeedsActivity");
       return;
     }

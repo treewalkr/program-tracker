@@ -2,17 +2,21 @@ import {
   addDays,
   blockAnchorDate,
   blockWeekStart,
+  lastWeightsOf,
+  loadStep,
   latestLogBySession,
   localDateOf,
   portalSessions,
   weekOf,
   weekSessions,
+  type Equipment,
   type PortalWeek,
   type PortalWeekDto,
   type ProgramSession,
 } from "@pt/shared";
 import { uuid } from "$lib/uuid";
 import { mockExerciseName, mockState } from "./api";
+import { exercises } from "./data";
 import { trainerClient } from "./data";
 import { PortalDuplicateError, type PortalApi, type PortalLogInput, type PortalSavedLog } from "../portalTypes";
 
@@ -61,6 +65,10 @@ export function mockPortalWeek(now = Date.now()): PortalWeekDto {
       .filter((l) => l.clientId === CLIENT_ID && l.programId === program.id)
       .map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer" })),
   );
+  const loads = {
+    isBodyweight: (id: string) => loadStep(exercises.find((e) => e.id === id)?.equipment as Equipment | undefined) === null,
+    lastWeights: lastWeightsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID)),
+  };
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
     const doc = program.weeks.find((w) => w.week === week);
@@ -71,7 +79,7 @@ export function mockPortalWeek(now = Date.now()): PortalWeekDto {
       startDate: start,
       endDate: addDays(start, 6),
       loggable: week === currentWeek,
-      sessions: doc ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null)) : [],
+      sessions: doc ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads) : [],
     });
   }
   return { program: { id: program.id, name: program.name }, currentWeek, weeks };

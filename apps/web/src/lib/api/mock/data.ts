@@ -543,7 +543,7 @@ export const examples: ProgramExampleDto[] = [
 export const trainerExercises: ExerciseDto[] = ([
   { id: "ex-latstretch", name: "Lateral Stretch", primaryMuscleGroup: "mobility", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: null, functionalMovement: null },
   { id: "ex-scapdep", name: "Scapular Depression", primaryMuscleGroup: "lats", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: null, functionalMovement: null },
-  { id: "ex-pullup", name: "Pull up (Power)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "pull-up bar", movementPattern: "vertical_pull", functionalMovement: "pull" },
+  { id: "ex-pullup", name: "Pull up (Power)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "bodyweight", movementPattern: "vertical_pull", functionalMovement: "pull" },
   { id: "ex-sarow", name: "SA Row", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "dumbbell", movementPattern: "horizontal_pull", functionalMovement: "pull" },
   { id: "ex-bentrow-sup", name: "Bent over row (Supinate)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "barbell", movementPattern: "horizontal_pull", functionalMovement: "pull" },
   { id: "ex-lowrow", name: "Low row", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "cable", movementPattern: "horizontal_pull", functionalMovement: "pull" },

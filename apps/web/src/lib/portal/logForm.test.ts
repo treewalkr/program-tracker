@@ -22,7 +22,40 @@ const form = (s: PortalSession, over: Partial<PortalLogForm> = {}): PortalLogFor
   rows: rowsOfSession(s), cardio: cardioFormOf(s.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: "2026-11-16", ...over,
 });
 
+const noTarget: PortalSession = {
+  ...lifting,
+  id: "ps3",
+  exercises: [
+    {
+      id: "pe3", exerciseId: "ex-pulldown", exerciseName: "Lat Pulldown", order: 0,
+      prescribedSets: [
+        { setNumber: 1, type: "working", reps: 10, amrap: false, targetWeightKg: null, lastWeightKg: 55 },
+        { setNumber: 2, type: "working", reps: 10, amrap: false, targetWeightKg: null, lastWeightKg: null },
+      ],
+    },
+    { id: "pe4", exerciseId: "ex-chin", exerciseName: "Chin-up", order: 1, bodyweight: true, prescribedSets: [{ setNumber: 1, type: "working", reps: 6, amrap: false, targetWeightKg: null }] },
+  ],
+};
+
 describe("portal log form", () => {
+  test("no target kg: prefills the client's last load; never on a bodyweight move", () => {
+    const rows = rowsOfSession(noTarget);
+    expect(rows.map((r) => [r.key, r.weight])).toEqual([
+      ["pe3:1", 55],
+      ["pe3:2", ""],
+      ["pe4:1", ""],
+    ]);
+  });
+
+  test("a weighted set with no kg can't be saved; bodyweight and timed sets can", () => {
+    expect(buildPortalLog(noTarget, form(noTarget), false)).toEqual({ error: "kg", sets: 1, programExerciseId: "pe3" });
+    const f = form(noTarget);
+    f.rows[1].weight = 0;
+    expect(buildPortalLog(noTarget, f, false)).toMatchObject({ sets: 3 });
+    // the plank in `lifting` is timed: no kg needed
+    expect(buildPortalLog(lifting, form(lifting), false)).toMatchObject({ sets: 3 });
+  });
+
   test("rows come prefilled as prescribed: range bottom, kg, RPE; timed sets log their seconds", () => {
     const rows = rowsOfSession(lifting);
     expect(rows.map((r) => [r.key, r.weight, r.reps, r.rpe])).toEqual([

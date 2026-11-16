@@ -33,6 +33,8 @@ export const PortalSet = z.object({
   tempo: z.string().optional(),
   stopRpe: z.number().optional(),
   restSeconds: z.number().int().optional(),
+  /** The client's last logged kg for this exercise and set (any program); prefills a set with no target. */
+  lastWeightKg: z.number().nullable().optional(),
 });
 export type PortalSet = z.infer<typeof PortalSet>;
 
@@ -44,6 +46,8 @@ export const PortalExercise = z.object({
   order: z.number().int(),
   group: z.string().optional(),
   notes: z.string().optional(),
+  /** Bodyweight move: a set with no kg is complete as logged. */
+  bodyweight: z.boolean().optional(),
   prescribedSets: z.array(PortalSet),
 });
 export type PortalExercise = z.infer<typeof PortalExercise>;
@@ -93,11 +97,44 @@ export type PortalWeekDto = z.infer<typeof PortalWeekDto>;
 
 const opt = <T>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
 
+/** What the projection knows beyond the program: equipment and the client's last loads. */
+export interface PortalLoadContext {
+  isBodyweight?: (exerciseId: string) => boolean;
+  lastWeights?: LastWeights;
+}
+
+/** Last logged kg per exercise: `exerciseId#setNumber` first, else the exercise's latest set. */
+export type LastWeights = Map<string, number>;
+
+/**
+ * The client's last logged kg per exercise and set, oldest log first so the newest wins.
+ * Sets with no kg (bodyweight, blank) are ignored.
+ */
+export function lastWeightsOf(
+  logs: readonly { date: string; sets: readonly { exerciseId: string; setNumber: number; weightKg?: number | string | null }[] }[]
+): LastWeights {
+  const out: LastWeights = new Map();
+  for (const log of [...logs].sort((a, b) => a.date.localeCompare(b.date))) {
+    for (const s of [...log.sets].sort((a, b) => a.setNumber - b.setNumber)) {
+      if (s.weightKg == null || s.weightKg === "") continue;
+      const kg = Number(s.weightKg);
+      if (!Number.isFinite(kg) || kg <= 0) continue;
+      out.set(`${s.exerciseId}#${s.setNumber}`, kg);
+      out.set(s.exerciseId, kg);
+    }
+  }
+  return out;
+}
+
+const lastKgOf = (w: LastWeights | undefined, exerciseId: string, setNumber: number) =>
+  w?.get(`${exerciseId}#${setNumber}`) ?? w?.get(exerciseId) ?? null;
+
 /** One program session as the client sees it. */
 export function portalSession(
   s: ProgramSession,
   maxes: OneRepMaxes | null | undefined,
-  log: PortalSessionLog | null
+  log: PortalSessionLog | null,
+  loads: PortalLoadContext = {}
 ): PortalSession {
   return {
     id: s.id,
@@ -119,6 +156,7 @@ export function portalSession(
           order: e.order,
           group: opt(e.group),
           notes: opt(e.notes),
+          bodyweight: loads.isBodyweight?.(e.exerciseId) ?? false,
           prescribedSets: e.prescribedSets.map((ps) => ({
             setNumber: ps.setNumber,
             type: ps.type ?? "working",
@@ -133,6 +171,7 @@ export function portalSession(
             tempo: opt(ps.tempo),
             stopRpe: opt(ps.stopRpe),
             restSeconds: opt(ps.restSeconds),
+            lastWeightKg: lastKgOf(loads.lastWeights, e.exerciseId, ps.setNumber),
           })),
         };
       }),
@@ -154,9 +193,10 @@ export function portalSession(
 export function portalSessions(
   sessions: readonly ProgramSession[],
   maxes: OneRepMaxes | null | undefined,
-  logOf: (sessionId: string) => PortalSessionLog | null
+  logOf: (sessionId: string) => PortalSessionLog | null,
+  loads: PortalLoadContext = {}
 ): PortalSession[] {
-  return sessionsInSeqOrder(sessions).map((s) => portalSession(s, maxes, logOf(s.id)));
+  return sessionsInSeqOrder(sessions).map((s) => portalSession(s, maxes, logOf(s.id), loads));
 }
 
 /** The latest log per program session (by date, then creation). */

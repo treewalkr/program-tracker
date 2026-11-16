@@ -1,7 +1,7 @@
 import type { PortalSession, PortalSet } from "@pt/shared";
 import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
 import { readinessInput, parseReadiness, type ReadinessForm } from "$lib/logFlags";
-import { asPrescribed, cellNumber, rowsToSave, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
+import { asPrescribed, cellNumber, isBlank, rowsToSave, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
 
 /**
@@ -38,7 +38,10 @@ export function rowsOfSession(session: PortalSession): PortalRow[] {
   return session.exercises.flatMap((e) =>
     e.prescribedSets.map((ps) => {
       const rx = prescriptionOfPortal(ps);
-      const plan = asPrescribed(rx, { bodyweight: false, swapped: false, last: null });
+      const bodyweight = e.bodyweight ?? false;
+      // no target kg: the client's own last load on this lift, like the trainer's sheet
+      const last = ps.lastWeightKg != null ? { date: "", weightKg: ps.lastWeightKg, reps: 0, rpe: null } : null;
+      const plan = asPrescribed(rx, { bodyweight, swapped: false, last });
       return {
         key: `${e.id}:${ps.setNumber}`,
         exerciseId: e.exerciseId,
@@ -83,7 +86,21 @@ export interface PortalLogForm {
   date: string;
 }
 
-export type BuildResult = { input: PortalLogInput; sets: number } | { error: "nothing" | "activity" };
+export type BuildResult =
+  | { input: PortalLogInput; sets: number }
+  | { error: "nothing" | "activity" }
+  /** Weighted sets saved with no kg: how many, and the first one's slot (to page to it). */
+  | { error: "kg"; sets: number; programExerciseId: string };
+
+/**
+ * Filled sets that would save with no kg on a lift that takes weight (timed holds and
+ * bodyweight moves don't). Bodyweight is read from the session, not the rows, so a draft
+ * saved by an older version still checks right.
+ */
+export function setsMissingKg(session: PortalSession, rows: readonly PortalRow[]): PortalRow[] {
+  const noLoad = new Set(session.exercises.filter((e) => e.bodyweight).map((e) => e.id));
+  return rowsToSave([...rows]).filter((r) => !noLoad.has(r.programExerciseId) && !r.timed && isBlank(r.weight));
+}
 
 /** The save payload, or why there's nothing to save yet. */
 export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace: boolean): BuildResult {
@@ -116,6 +133,8 @@ export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace
   }
   const saved = rowsToSave(f.rows);
   if (saved.length === 0) return { error: "nothing" };
+  const missing = setsMissingKg(session, saved);
+  if (missing.length > 0) return { error: "kg", sets: missing.length, programExerciseId: missing[0].programExerciseId };
   return { input: { ...base, kind: "lifting", sets: saved.map(toLoggedSet) }, sets: saved.length };
 }
 

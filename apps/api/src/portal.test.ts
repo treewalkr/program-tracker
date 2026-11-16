@@ -378,6 +378,10 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
 
     const week = await call("GET", "/v1/portal/week", { token });
     expect(week.body.weeks[0].sessions.find((s: any) => s.id === s1).log).toEqual({ id: r.body.id, loggedBy: "client", date: today });
+    // the logged 100 kg becomes the last load: set 1 by its own number, set 2 by the lift's latest
+    const squat = week.body.weeks[0].sessions.find((s: any) => s.id === s1).exercises[0];
+    expect(squat.bodyweight).toBe(false);
+    expect(squat.prescribedSets.map((s: any) => s.lastWeightKg)).toEqual([100, 100]);
 
     const [row] = await db.select().from(sessionLogs).where(eq(sessionLogs.id, r.body.id));
     expect(row).toMatchObject({ clientId, programId, loggedBy: "client", perceivedEnergy: 7 });
