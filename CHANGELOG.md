@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.30 — 2026-11-17
+
 ### New
 - Client portal: your clients can see their week and log their own sessions on their phone, in English or Thai. It's off until you turn it on in a client's Settings tab, which gives you a personal access link to send them (with a ready-made LINE message). Google sign-in is coming once it's approved.
 - On the portal, clients see what's next, your session note, last time's set for each exercise, a rest timer, this week's cardio against your target, and whether it's a deload or test week. Your block plan itself stays private.
