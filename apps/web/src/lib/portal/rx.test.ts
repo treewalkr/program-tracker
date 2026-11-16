@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSet } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { cardioParts, setParts } from "./rx";
+import { cardioParts, lastSetText, setParts } from "./rx";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
 const tTh = (k: MessageKey, v?: Record<string, string | number>) => format(th[k], v);
@@ -28,5 +28,13 @@ describe("portal prescription text", () => {
   test("cardio", () => {
     expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2, intensity: "easy" }, tEn)).toEqual(["40 min", "zone 2", "easy"]);
     expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2 }, tTh)).toEqual(["40 นาที", "โซน 2"]);
+  });
+});
+
+describe("last time", () => {
+  test("kg × reps with the RPE the client gave; reps alone with no kg", () => {
+    expect(lastSetText({ date: "2026-11-09", weightKg: 62.5, reps: 8, rpe: 8 }, tEn)).toBe("62.5 kg × 8 · RPE 8");
+    expect(lastSetText({ date: "2026-11-09", weightKg: 60, reps: 8, rpe: null }, tTh)).toBe("60 กก. × 8");
+    expect(lastSetText({ date: "2026-11-09", weightKg: null, reps: 10, rpe: null }, tEn)).toBe("10 reps");
   });
 });

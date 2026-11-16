@@ -15,7 +15,7 @@ describe("portal messages", () => {
   });
 
   test("Thai strings are actually Thai (not a copied English line)", () => {
-    const untranslatable = new Set<MessageKey>(["rx.sets", "rx.rpe", "log.rpe", "cardio.rpe", "week.range"]);
+    const untranslatable = new Set<MessageKey>(["rx.sets", "rx.rpe", "rx.lastReps", "log.rpe", "cardio.rpe", "week.range"]);
     for (const k of Object.keys(en) as MessageKey[]) {
       if (untranslatable.has(k)) continue;
       expect([k, /[฀-๿]/.test(MESSAGES.th[k])]).toEqual([k, true]);

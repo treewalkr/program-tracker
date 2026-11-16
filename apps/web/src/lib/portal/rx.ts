@@ -1,4 +1,4 @@
-import type { CardioPrescription, PortalSet } from "@pt/shared";
+import type { CardioPrescription, PortalLastSet, PortalSet } from "@pt/shared";
 import type { MessageKey } from "./messages";
 
 /**
@@ -68,4 +68,10 @@ export function cardioParts(c: CardioPrescription, t: T): string[] {
   if (c.targetRpe) parts.push(t("rx.rpe", { n: num(c.targetRpe) }));
   if (c.intensity) parts.push(c.intensity);
   return parts;
+}
+
+/** "62.5 kg × 8 · RPE 8" — what the client did last time; RPE only when they gave it. */
+export function lastSetText(s: PortalLastSet, t: T): string {
+  const work = s.weightKg != null && s.weightKg > 0 ? t("rx.lastReps", { kg: t("rx.kg", { n: num(s.weightKg) }), reps: s.reps }) : t("rx.reps", { n: s.reps });
+  return s.rpe != null ? `${work} · ${t("rx.rpe", { n: num(s.rpe) })}` : work;
 }

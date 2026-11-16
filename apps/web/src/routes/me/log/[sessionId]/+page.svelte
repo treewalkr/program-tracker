@@ -10,7 +10,7 @@
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
   import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
-  import { setParts, setTarget } from "$lib/portal/rx";
+  import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
   import {
     buildPortalLog,
     cardioFormOf,
@@ -406,6 +406,10 @@
           {#each block.memberIds as peId (peId)}
             {@const ex = exerciseOf(peId)}
             {#if ex?.notes}<p class="cue"><span>{t("session.coachNote")}</span> {ex.notes}</p>{/if}
+            {#if ex?.last}
+              <!-- a reference to beat or match, not a suggestion: the coach sets the load -->
+              <p class="last"><span>{t("log.last", { date: fmtShortDate(ex.last.date) })}{#if block.memberIds.length > 1} · <span lang={latinLang(ex.exerciseName)}>{ex.exerciseName}</span>{/if}</span> <span class="tnum">{lastSetText(ex.last, t)}</span></p>
+            {/if}
           {/each}
 
           <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain. -->
@@ -603,6 +607,9 @@
   .plus { color: var(--muted); font-weight: 400; }
   .cue { margin: 0; font-size: 14px; }
   .cue span { font-weight: 600; color: var(--muted); }
+  .last { margin: 0; font-size: 14px; }
+  .last > span:first-child { color: var(--muted); }
+  .last .tnum { font-weight: 600; }
 
   .issues { display: grid; gap: 10px; }
   .issue-btns, .reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
