@@ -2,6 +2,7 @@ import {
   addDays,
   blockAnchorDate,
   blockWeekStart,
+  lastSetsOf,
   lastWeightsOf,
   loadStep,
   latestLogBySession,
@@ -110,6 +111,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   const loads = {
     isBodyweight: (id: string) => loadStep(exercises.find((e) => e.id === id)?.equipment as Equipment | undefined) === null,
     lastWeights: lastWeightsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID)),
+    lastSets: lastSetsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID), startDate),
   };
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {

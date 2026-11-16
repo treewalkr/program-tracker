@@ -1,9 +1,10 @@
-import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { clients, db, exercises, programs, sessionLogs, setLogs, type ProgramRow } from "@pt/db";
 import {
   addDays,
   blockAnchorDate,
   blockWeekStart,
+  lastSetsOf,
   lastWeightsOf,
   loadStep,
   latestLogBySession,
@@ -80,7 +81,7 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
     .from(sessionLogs)
     .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));
   const done = await withClientEntries(latestLogBySession(logs));
-  const loads = await loadContext(clientId, program);
+  const loads = await loadContext(clientId, program, startDate);
 
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
@@ -119,8 +120,9 @@ async function withClientEntries(done: Map<string, PortalSessionLog>): Promise<M
   return out;
 }
 
-/** Which exercises are bodyweight, and the client's last kg per exercise and set (any program). */
-async function loadContext(clientId: string, program: ProgramRow) {
+/** Which exercises are bodyweight, the client's last kg per exercise and set, and their
+ *  sets from before this week for the "Last:" line (any program). */
+async function loadContext(clientId: string, program: ProgramRow, weekStart: string) {
   // only catalog ids can be looked up; anything else is simply not bodyweight and has no history
   const ids = [...new Set(program.sessions.flatMap((w) => w.sessions.flatMap((s) => (s.exercises ?? []).map((e) => e.exerciseId))))].filter((id) =>
     UUID.test(id),
@@ -132,14 +134,23 @@ async function loadContext(clientId: string, program: ProgramRow) {
   const bodyweight = new Set(equipment.filter((e) => loadStep(e.equipment as Equipment) === null).map((e) => e.id));
   const rows = ids.length
     ? await db
-        .select({ date: sessionLogs.date, exerciseId: setLogs.exerciseId, setNumber: setLogs.setNumber, weightKg: setLogs.weightKg })
+        .select({
+          date: sessionLogs.date,
+          exerciseId: setLogs.exerciseId,
+          setNumber: setLogs.setNumber,
+          weightKg: setLogs.weightKg,
+          reps: setLogs.reps,
+          rpe: setLogs.rpe,
+        })
         .from(setLogs)
         .innerJoin(sessionLogs, eq(setLogs.sessionLogId, sessionLogs.id))
-        .where(and(eq(sessionLogs.clientId, clientId), isNotNull(setLogs.weightKg), inArray(setLogs.exerciseId, ids)))
+        .where(and(eq(sessionLogs.clientId, clientId), inArray(setLogs.exerciseId, ids)))
     : [];
+  const logs = rows.map((r) => ({ date: r.date, sets: [r] }));
   return {
     isBodyweight: (id: string) => bodyweight.has(id),
-    lastWeights: lastWeightsOf(rows.map((r) => ({ date: r.date, sets: [r] }))),
+    lastWeights: lastWeightsOf(logs),
+    lastSets: lastSetsOf(logs, weekStart),
   };
 }
 

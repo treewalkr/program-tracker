@@ -357,6 +357,23 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     }
   });
 
+  test("last time: the client's own comparable set from before this week, and still nothing private", async () => {
+    const [draft] = await db.select({ id: programs.id }).from(programs).where(and(eq(programs.clientId, clientId), eq(programs.status, "draft")));
+    const [old] = await db.insert(sessionLogs).values({ clientId, programId: draft.id, date: addDays(today, -7), kind: "lifting" }).returning();
+    await db.insert(setLogs).values([
+      { sessionLogId: old.id, exerciseId: squatId, setNumber: 1, weightKg: "90", reps: 5, rpe: "7.5" },
+      { sessionLogId: old.id, exerciseId: squatId, setNumber: 2, weightKg: "95", reps: 12 },
+    ]);
+    const r = await call("GET", "/v1/portal/week", { token });
+    const squat = r.body.weeks[0].sessions.find((s: any) => s.id === s1).exercises[0];
+    // prescribed 5s: the 12-rep set is different work, so the 90 × 5 is "last time"
+    expect(squat.last).toEqual({ date: addDays(today, -7), weightKg: 90, reps: 5, rpe: 7.5 });
+    for (const leak of ["SECRET", "direction", "phasing", "limitations", "oneRepMaxes", "goals", "percent1rm", "role", "2026-10-01"]) {
+      expect(r.text).not.toContain(leak);
+    }
+    await db.delete(sessionLogs).where(eq(sessionLogs.id, old.id));
+  });
+
   test("a client with no active program sees none", async () => {
     const r = await call("GET", "/v1/portal/week", { token: siblingToken });
     expect(r.body).toEqual({ program: null, currentWeek: null, weeks: [] });

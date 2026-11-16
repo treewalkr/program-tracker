@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
+import { lastComparable, lastSetsOf, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -35,5 +35,33 @@ describe("portalLogEntry", () => {
       flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
     });
     expect(PortalLogEntry.parse(entry)).toEqual(entry);
+  });
+});
+
+describe("lastComparableSets (the 'Last:' line)", () => {
+  const log = (date: string, sets: [string, number | null, number, number | null][]) => ({
+    date,
+    sets: sets.map(([exerciseId, weightKg, reps, rpe], i) => ({ exerciseId, setNumber: i + 1, weightKg, reps, rpe })),
+  });
+  const logs = [
+    log("2026-11-02", [["sq", 100, 5, 8]]),
+    log("2026-11-09", [["sq", 60, 8, 7], ["sq", 62.5, 8, 8], ["sq", 50, 15, null], ["bench", 80, 3, 9]]),
+    log("2026-11-16", [["sq", 120, 2, 9]]),
+  ];
+  const last = lastSetsOf(logs, "2026-11-16");
+
+  test("the newest earlier session's heaviest set in a comparable rep range", () => {
+    expect(lastComparable(last, "sq", { min: 6, max: 8 })).toEqual({ date: "2026-11-09", weightKg: 62.5, reps: 8, rpe: 8 });
+  });
+
+  test("a different rep range is not comparable: an older session can be, else nothing", () => {
+    expect(lastComparable(last, "sq", { min: 3, max: 5 })).toEqual({ date: "2026-11-02", weightKg: 100, reps: 5, rpe: 8 });
+    expect(lastComparable(last, "sq", { min: 30, max: 30 })).toBeNull();
+    expect(lastComparable(last, "deadlift", { min: 5, max: 5 })).toBeNull();
+  });
+
+  test("logs on or after the cutoff (this week) are not 'last time'", () => {
+    expect(lastComparable(lastSetsOf(logs, "2026-11-20"), "sq", { min: 1, max: 2 })).toEqual({ date: "2026-11-16", weightKg: 120, reps: 2, rpe: 9 });
+    expect(lastComparable(last, "sq", { min: 1, max: 2 })).toBeNull();
   });
 });
