@@ -45,7 +45,14 @@
   const current = $derived(dto?.weeks.find((w) => w.loggable) ?? null);
   const next = $derived(dto?.weeks.find((w) => !w.loggable) ?? null);
   const shown = $derived(tab === "next" && next ? next : current);
-  const groups = $derived(shown ? dayGroups(shown, today) : []);
+  /** The calendar leaves out the session "Next up" already shows, and any day that leaves empty. */
+  const groups = $derived(
+    shown
+      ? dayGroups(shown, today)
+          .map((g) => (shown === current && nextUp ? { ...g, sessions: g.sessions.filter((s) => s.id !== nextUp.id) } : g))
+          .filter((g) => g.sessions.length > 0)
+      : [],
+  );
   /** "Next up" leads the page: today's first open session, else the next one. */
   const nextUp = $derived(current ? focusSession(current, today) : null);
   const nextUpDay = $derived(current && nextUp ? (dayGroups(current, today).find((g) => g.sessions.some((s) => s.id === nextUp.id)) ?? null) : null);
@@ -164,7 +171,7 @@
 
   <div id="wk-panel" role="tabpanel" tabindex="-1" aria-labelledby={`wk-${tab}`} class="days">
     {#if !shown.loggable}<p class="preview">{t("week.nextPreview")}</p>{/if}
-    {#if groups.length === 0}
+    {#if groups.length === 0 && shown.sessions.length === 0}
       <div class="empty"><p class="empty-title">{t("week.emptyWeek")}</p></div>
     {/if}
     {#each groups as g (g.weekday)}
