@@ -8,7 +8,7 @@
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
-  import { fmtDay, fmtShortDate, i18n, t, weekdayName } from "$lib/portal/i18n.svelte";
+  import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
   import { setParts, setTarget } from "$lib/portal/rx";
   import {
@@ -306,7 +306,7 @@
           {#if after.next}
             <p class="next-line">
               <span class="next-k">{t("log.nextUp")}</span>
-              <a href={`/me/log/${after.next.id}`}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
+              <a href={`/me/log/${after.next.id}`} lang={latinLang(after.next.name)}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
             </p>
           {:else}
             <p class="next-line">{t("log.weekDone")}</p>
@@ -327,7 +327,7 @@
        silently refuse it; buildPortalLog is the one gate. -->
   <form class="log" novalidate onsubmit={(e) => { e.preventDefault(); void save(); }}>
     <header class="head">
-      <h1>{session.name}</h1>
+      <h1 lang={latinLang(session.name)}>{session.name}</h1>
       <label class="date">
         <span>{t("log.date")}</span>
         <input class="input tnum" type="date" bind:value={date} min={minDate} max={maxDate} lang={i18n.locale} disabled={byCoach} />
@@ -379,7 +379,7 @@
 
           <h2 id="ex-title">
             {#each block.memberIds as peId, i (peId)}
-              {#if i > 0}<span class="plus"> + </span>{/if}{exerciseOf(peId)?.exerciseName ?? ""}
+              {#if i > 0}<span class="plus"> + </span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
             {/each}
           </h2>
           {#each block.memberIds as peId (peId)}

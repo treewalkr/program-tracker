@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PortalSession } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
-  import { fmtShortDate, t } from "./i18n.svelte";
+  import { fmtShortDate, latinLang, t } from "./i18n.svelte";
   import { cardioParts, setParts } from "./rx";
 
   /**
@@ -35,7 +35,7 @@
 <article class="card" class:focus class:done={!!session.log} aria-labelledby={`s-${session.id}`}>
   <div class="head">
     <div class="title">
-      <h3 id={`s-${session.id}`}>{session.name}</h3>
+      <h3 id={`s-${session.id}`} lang={latinLang(session.name)}>{session.name}</h3>
       {#if cardio}
         <p class="meta"><Icon name="pulse" />{t("session.cardio")}{#if session.cardio && session.cardio.modality !== session.name} · {session.cardio.modality}{/if}</p>
       {:else if session.typeName}
@@ -96,7 +96,7 @@
 
 {#snippet exercise(e: PortalSession["exercises"][number])}
   <li>
-    <span class="ex">{#if e.group}<span class="grp">{e.group}</span>{/if}{e.exerciseName}</span>
+    <span class="ex">{#if e.group}<span class="grp">{e.group}</span>{/if}<span lang={latinLang(e.exerciseName)}>{e.exerciseName}</span></span>
     <span class="chips">{#each setParts(e.prescribedSets, t) as p}<span class="chip">{p}</span>{/each}</span>
     {#if e.notes}<span class="ex-note">{e.notes}</span>{/if}
   </li>

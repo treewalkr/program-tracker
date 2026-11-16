@@ -55,5 +55,5 @@
   }
   button:hover { color: var(--ink); }
   button[aria-checked="true"] { color: var(--surface); background: var(--ink); }
-  button:focus-visible { outline: 2px solid var(--focus, var(--tab-on)); outline-offset: 2px; }
+  button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 </style>

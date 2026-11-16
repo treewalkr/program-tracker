@@ -20,6 +20,8 @@
 
 <svelte:head><title>{t("app.title")} · Program Tracker</title></svelte:head>
 
+<!-- bar and content share one 400px column, so their edges line up on a wide screen -->
+<div class="narrow">
 <PortalBar />
 
 <main class="signin">
@@ -44,14 +46,15 @@
     {#if showLinkHelp}<p id="link-help" class="alt-help">{t("login.noGoogleHelp")}</p>{/if}
   </div>
 </main>
+</div>
 
 <style>
+  .narrow { max-width: 400px; margin: 0 auto; }
   .signin {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-width: 400px;
-    margin: 12vh auto 0;
+    margin-top: 12vh;
   }
   h1 {
     margin: 0;
@@ -80,7 +83,7 @@
   }
   .google:hover { background: var(--well); border-color: var(--line-strong); text-decoration: none; }
   .google :global(svg) { width: 20px; height: 20px; flex: none; }
-  .link-line { margin: 0; font-size: 14px; color: var(--muted); text-align: center; text-wrap: pretty; }
+  .link-line { margin: 0; font-size: 14px; color: var(--muted); text-wrap: pretty; }
   .alt {
     display: grid;
     gap: 10px;

@@ -47,6 +47,8 @@
 
 <svelte:head><title>{t("app.title")} · Program Tracker</title></svelte:head>
 
+<!-- bar and content share one 400px column, so their edges line up on a wide screen -->
+<div class="narrow">
 <PortalBar coach={info?.trainerName ?? null} />
 
 <main class="link">
@@ -80,14 +82,15 @@
   {/if}
   {/if}
 </main>
+</div>
 
 <style>
+  .narrow { max-width: 400px; margin: 0 auto; }
   .link {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-width: 400px;
-    margin: 12vh auto 0;
+    margin-top: 12vh;
   }
   h1 {
     margin: 0;

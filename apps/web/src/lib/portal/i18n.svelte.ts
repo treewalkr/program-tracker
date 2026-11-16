@@ -41,6 +41,15 @@ export function t(key: MessageKey, vars?: Record<string, string | number>): stri
 /** "Coached by" + "Ploy" / "โค้ช" + "Ploy" — no label when the name already says Coach. */
 export const coachParts = (name: string) => ({ by: carriesCoachLabel(name) ? "" : t("header.coachedBy"), name: name.trim() });
 
+/**
+ * `lang="en"` for Latin-script content (a coach's name, an exercise) shown on a Thai page,
+ * so screen readers and line-breaking treat it as English. Undefined otherwise.
+ */
+export function latinLang(text: string | null | undefined): "en" | undefined {
+  if (locale !== "th" || !text) return undefined;
+  return /[A-Za-z]/.test(text) && !/[\u0E00-\u0E7F]/.test(text) ? "en" : undefined;
+}
+
 const dayFmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlTag(locale), { timeZone: "UTC", ...opts });
 const utc = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
 

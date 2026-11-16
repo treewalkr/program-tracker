@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { coachParts } from "./i18n.svelte";
+  import { coachParts, latinLang } from "./i18n.svelte";
   import LangToggle from "./LangToggle.svelte";
 
   /** The portal's top line: the PT mark (and the coach, once known) left, language right. */
@@ -19,7 +19,7 @@
   {#if who}
     <p class="coach">
       {#if who.by}<span class="by">{who.by}</span>{/if}
-      <span class="name">{who.name}</span>
+      <span class="name" lang={latinLang(who.name)}>{who.name}</span>
     </p>
   {/if}
   <span class="spacer"></span>

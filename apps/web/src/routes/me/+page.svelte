@@ -4,7 +4,7 @@
   import { portalApi } from "$lib/api/portal";
   import type { PortalWeekDto } from "@pt/shared";
   import { localDateOf } from "@pt/shared";
-  import { fmtShortDate, t, weekdayName } from "$lib/portal/i18n.svelte";
+  import { fmtShortDate, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
   import { dayGroups, doneCount, earlierOpen, focusSession } from "$lib/portal/week";
@@ -75,7 +75,7 @@
   <h1>{t("header.hi", { name: firstName })}</h1>
   {#if dto?.program && current}
     <p class="sub">
-      <span>{dto.program.name}</span>
+      <span lang={latinLang(dto.program.name)}>{dto.program.name}</span>
       <span aria-hidden="true">·</span>
       <span>{t("header.week", { n: current.week })}</span>
       <span class="tnum progress">{t("week.progress", { done: doneCount(current), total: current.sessions.length })}</span>
