@@ -1,9 +1,11 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { coachLabel } from "./i18n.svelte";
   import LangToggle from "./LangToggle.svelte";
 
   /** The portal's top line: the PT mark (and the coach, once known) left, language right. */
   interface Props {
+    /** The coach's name as the trainer set it; the label is added here, once. */
     coach?: string | null;
     actions?: Snippet;
   }
@@ -13,7 +15,7 @@
 
 <header class="bar">
   <span class="mark" aria-hidden="true">PT</span>
-  {#if coach}<span class="coach">{coach}</span>{/if}
+  {#if coach}<span class="coach">{coachLabel(coach)}</span>{/if}
   <span class="spacer"></span>
   {@render actions?.()}
   <LangToggle />

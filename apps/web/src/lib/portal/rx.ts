@@ -9,8 +9,8 @@ type T = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, ""));
 
-/** One set's target, without the set count. */
-function setTarget(s: PortalSet, t: T): string {
+/** One set's target, without the set count: "6 reps", "8–12 reps", "45 s". */
+export function setTarget(s: PortalSet, t: T): string {
   if (s.durationSeconds != null) return t("rx.seconds", { n: s.durationSeconds });
   if (s.amrap) return s.reps > 0 ? t("rx.amrapMin", { n: s.reps }) : t("rx.amrap");
   if (s.repsMin != null && s.repsMin < s.reps) return t("rx.repsRange", { min: s.repsMin, max: s.reps });

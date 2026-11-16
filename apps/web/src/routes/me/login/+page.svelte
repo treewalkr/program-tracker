@@ -5,7 +5,10 @@
   import type { MessageKey } from "$lib/portal/messages";
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import GoogleMark from "$lib/components/login/GoogleMark.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
+
+  let showLinkHelp = $state(false);
 
   const ERRORS = ["unverified", "not_allowed", "cancelled", "expired", "google_failed", "not_configured", "disabled"] as const;
 
@@ -32,7 +35,14 @@
     {t("login.google")}
   </a>
 
-  <p class="alt">{t("login.noGoogle")}</p>
+  <p class="link-line">{t("login.linkLine")}</p>
+
+  <div class="alt">
+    <button type="button" class="btn alt-btn" aria-expanded={showLinkHelp} aria-controls="link-help" onclick={() => (showLinkHelp = !showLinkHelp)}>
+      {t("login.noGoogle")}<Icon name="chevron" />
+    </button>
+    {#if showLinkHelp}<p id="link-help" class="alt-help">{t("login.noGoogleHelp")}</p>{/if}
+  </div>
 </main>
 
 <style>
@@ -70,15 +80,19 @@
   }
   .google:hover { background: var(--well); border-color: var(--line-strong); text-decoration: none; }
   .google :global(svg) { width: 20px; height: 20px; flex: none; }
+  .link-line { margin: 0; font-size: 14px; color: var(--muted); text-align: center; text-wrap: pretty; }
   .alt {
+    display: grid;
+    gap: 10px;
     margin: 8px 0 0;
     padding-top: 16px;
     border-top: 1px solid var(--line-soft);
-    font-size: 14px;
-    color: var(--muted);
-    text-wrap: pretty;
   }
+  .alt-btn { justify-content: center; min-height: 44px; font-size: 14px; }
+  .alt-btn :global(svg) { width: 14px; height: 14px; transition: transform 150ms ease-out; }
+  .alt-btn[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
+  .alt-help { margin: 0; font-size: 14px; color: var(--muted); text-wrap: pretty; }
   @media (prefers-reduced-motion: reduce) {
-    .google { transition: none; }
+    .google, .alt-btn :global(svg) { transition: none; }
   }
 </style>

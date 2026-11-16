@@ -69,7 +69,7 @@
 
 <svelte:head><title>{t("app.title")} · Program Tracker</title></svelte:head>
 
-<PortalBar coach={me ? t("header.coach", { trainer: me.trainer.name }) : null} />
+<PortalBar coach={me?.trainer.name ?? null} />
 
 <header class="hello">
   <h1>{t("header.hi", { name: firstName })}</h1>

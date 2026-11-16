@@ -1,5 +1,5 @@
 import { browser } from "$app/environment";
-import { MESSAGES, format, initialLocale, intlTag, type Locale, type MessageKey } from "./messages";
+import { MESSAGES, carriesCoachLabel, format, initialLocale, intlTag, type Locale, type MessageKey } from "./messages";
 
 /**
  * The portal's language: Thai or English, chosen once and remembered on this
@@ -37,6 +37,9 @@ export const i18n = {
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {
   return format(MESSAGES[locale][key], vars);
 }
+
+/** "Coached by Ploy" / "โค้ช Ploy" — or the name alone when it already says Coach. */
+export const coachLabel = (name: string) => (carriesCoachLabel(name) ? name.trim() : t("header.coach", { trainer: name.trim() }));
 
 const dayFmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlTag(locale), { timeZone: "UTC", ...opts });
 const utc = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);

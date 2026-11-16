@@ -8,6 +8,10 @@
   import Note from "$lib/ui/Note.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
 
+  let { data } = $props();
+  /** Already signed in on this phone: we know their coach even when the link is dead. */
+  const me = $derived(data.portal.kind === "signedIn" ? data.portal.me : null);
+
   /** GET only checks the link (scanners prefetch links); the button's POST signs in. */
   let info = $state<PortalLinkInfo | null | undefined>(undefined);
   let failed = $state(false);
@@ -15,8 +19,10 @@
   let openError = $state(false);
 
   const token = $derived(page.params.token ?? "");
+  let attempt = $state(0);
 
   $effect(() => {
+    void attempt;
     const tk = token;
     info = undefined;
     failed = false;
@@ -58,9 +64,20 @@
     <Button variant="primary" class="go" onclick={open} disabled={opening}>
       {opening ? t("link.opening") : t("link.open")}
     </Button>
+    <p class="exit">{t("link.notMe", { name: info.clientFirstName })} <a href="/me/login">{t("link.signIn")}</a></p>
+  {:else}
+  {#if failed}
+    <h1>{t("link.failed")}</h1>
+    <Button class="go" onclick={() => (attempt += 1)}>{t("week.retry")}</Button>
   {:else}
     <h1>{t("link.invalid")}</h1>
-    <p class="lede">{failed ? t("link.failed") : t("link.invalidHint")}</p>
+    <p class="lede">{me ? t("link.invalidHintCoach", { trainer: me.trainer.name }) : t("link.invalidHint")}</p>
+    {#if me}
+      <a class="btn primary go-link" href="/me">{t("link.toProgram")}</a>
+    {:else}
+      <a class="btn go-link" href="/me/login">{t("link.signIn")}</a>
+    {/if}
+  {/if}
   {/if}
 </main>
 
@@ -80,6 +97,8 @@
   }
   .lede { margin: 0; color: var(--muted); text-wrap: pretty; }
   .link :global(.err) { padding: 10px 12px; font-size: 14px; }
+  .exit { margin: 8px 0 0; padding-top: 16px; border-top: 1px solid var(--line-soft); font-size: 14px; color: var(--muted); }
+  .go-link { justify-content: center; min-height: 48px; margin-top: 12px; font-size: 16px; }
   .link :global(.go) { min-height: 48px; margin-top: 12px; justify-content: center; font-size: 16px; }
   .sk { display: grid; gap: 12px; }
   .sk :global(.skeleton) { display: block; }

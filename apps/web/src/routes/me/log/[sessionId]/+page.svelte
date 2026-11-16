@@ -9,7 +9,7 @@
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
   import { fmtDay, fmtShortDate, i18n, t } from "$lib/portal/i18n.svelte";
-  import { setParts } from "$lib/portal/rx";
+  import { setParts, setTarget } from "$lib/portal/rx";
   import {
     buildPortalLog,
     cardioFormOf,
@@ -231,13 +231,13 @@
     rpe: t("cardio.rpe"),
   });
 
-  /** "Set 2 · 6–8 reps @ 100 kg" — the plan beside the cells. */
+  /** "Target 6–8 reps · 100 kg · RPE 8" — the plan beside the cells, always with its unit. */
   function targetOf(r: PortalRow): string {
     const ex = exerciseOf(r.programExerciseId);
     const ps = ex?.prescribedSets.find((s) => s.setNumber === r.setNumber);
     if (!ps || r.extra) return "";
-    const [first, ...rest] = setParts([ps], t);
-    return [`${t("log.target")} ${first.replace(/^1 × /, "")}`, ...rest.filter((p) => !p.startsWith(t("rx.rest", { t: "" }).trim()))].join(" · ");
+    const [, ...rest] = setParts([ps], t);
+    return [`${t("log.target")} ${setTarget(ps, t)}`, ...rest.filter((p) => !p.startsWith(t("rx.rest", { t: "" }).trim()))].join(" · ");
   }
   const feelSummary = $derived(
     (["energy", "sleep", "soreness"] as const)
@@ -252,7 +252,7 @@
 
 <svelte:head><title>{session?.name ?? t("app.title")} · Program Tracker</title></svelte:head>
 
-<PortalBar coach={me ? t("header.coach", { trainer: me.trainer.name }) : null} />
+<PortalBar coach={me?.trainer.name ?? null} />
 
 <a class="back" href="/me"><Icon name="chevron" />{t("log.back")}</a>
 
@@ -352,9 +352,10 @@
             {#if ex?.notes}<p class="cue"><span>{t("session.coachNote")}</span> {ex.notes}</p>{/if}
           {/each}
 
-          <button type="button" class="rpe-toggle" aria-expanded={showRpe} onclick={() => (showRpe = !showRpe)}>
+          <button type="button" class="rpe-toggle" aria-expanded={showRpe} aria-controls="rpe-def" onclick={() => (showRpe = !showRpe)}>
             {showRpe ? t("log.rpeHide") : t("log.rpeShow")}
           </button>
+          {#if showRpe}<p class="rpe-def" id="rpe-def">{t("log.rpeDef")}</p>{/if}
 
           <ol class="sets">
             {#each block.rows as r (r.key)}
@@ -494,6 +495,7 @@
   .steps span.on { box-shadow: inset 0 0 0 2px var(--ink); }
   .steps span.on:not(.done) { background: var(--surface); }
   .steps span :global(svg) { width: 12px; height: 12px; }
+  .rpe-def { margin: 0; font-size: 13px; color: var(--muted); text-wrap: pretty; }
   .rpe-toggle {
     justify-self: end;
     min-height: 44px;

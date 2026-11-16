@@ -64,7 +64,9 @@ export const en = {
   "login.title": "See your program",
   "login.lead": "Sign in with the Google account your coach has on file.",
   "login.google": "Continue with Google",
-  "login.noGoogle": "No Google account? Ask your coach for your personal link.",
+  "login.linkLine": "Got a link from your coach? Open it on this phone and you're in. No password.",
+  "login.noGoogle": "I don't use Google",
+  "login.noGoogleHelp": "Ask your coach to send your personal link in LINE. Open it on this phone and it keeps you signed in.",
   "login.error.unverified": "That Google account's email isn't verified yet.",
   "login.error.not_allowed": "We couldn't find your program for that account. Check with your coach which email they have, or ask for your personal link.",
   "login.error.cancelled": "Sign-in was cancelled.",
@@ -80,6 +82,10 @@ export const en = {
   "link.checking": "Checking your link…",
   "link.invalid": "This link doesn't work any more.",
   "link.invalidHint": "Ask your coach for a new one.",
+  "link.invalidHintCoach": "Ask {trainer} for a new one.",
+  "link.toProgram": "Go to my program",
+  "link.signIn": "Sign in another way",
+  "link.notMe": "Not {name}?",
   "link.failed": "Couldn't open your program. Please try again.",
 
   "log.back": "This week",
@@ -95,6 +101,7 @@ export const en = {
   "log.rpe": "RPE",
   "log.rpeShow": "Log RPE too",
   "log.rpeHide": "Hide RPE",
+  "log.rpeDef": "RPE is how hard a set felt: 10 = nothing left, 8 = two more reps in the tank.",
   "log.addSet": "Add a set",
   "log.removeSet": "Remove set {n}",
   "log.readiness": "How did you feel today?",
@@ -177,7 +184,7 @@ export const th: Record<MessageKey, string> = {
 
   "session.loggedByYou": "คุณบันทึกแล้ว",
   "session.loggedByCoach": "โค้ชบันทึกแล้ว",
-  "session.log": "บันทึก",
+  "session.log": "กรอกผล",
   "session.edit": "แก้ไขบันทึก",
   "session.cardio": "คาร์ดิโอ",
   "session.exercises": "{n} ท่า",
@@ -205,7 +212,9 @@ export const th: Record<MessageKey, string> = {
   "login.title": "ดูโปรแกรมของคุณ",
   "login.lead": "เข้าสู่ระบบด้วยบัญชี Google ที่โค้ชมีอีเมลของคุณ",
   "login.google": "ดำเนินการต่อด้วย Google",
-  "login.noGoogle": "ไม่มีบัญชี Google? ขอลิงก์ส่วนตัวจากโค้ชได้เลย",
+  "login.linkLine": "ได้ลิงก์จากโค้ชแล้ว? เปิดบนมือถือเครื่องนี้ก็เข้าได้เลย ไม่ต้องใช้รหัสผ่าน",
+  "login.noGoogle": "ฉันไม่ได้ใช้ Google",
+  "login.noGoogleHelp": "ขอให้โค้ชส่งลิงก์ส่วนตัวทาง LINE เปิดลิงก์บนมือถือเครื่องนี้ ระบบจะจำการเข้าสู่ระบบไว้ให้",
   "login.error.unverified": "อีเมลของบัญชี Google นี้ยังไม่ได้ยืนยัน",
   "login.error.not_allowed": "ไม่พบโปรแกรมของคุณสำหรับบัญชีนี้ ลองถามโค้ชว่าใช้อีเมลไหน หรือขอลิงก์ส่วนตัว",
   "login.error.cancelled": "ยกเลิกการเข้าสู่ระบบแล้ว",
@@ -221,6 +230,10 @@ export const th: Record<MessageKey, string> = {
   "link.checking": "กำลังตรวจสอบลิงก์…",
   "link.invalid": "ลิงก์นี้ใช้ไม่ได้แล้ว",
   "link.invalidHint": "ขอลิงก์ใหม่จากโค้ชของคุณ",
+  "link.invalidHintCoach": "ขอลิงก์ใหม่จาก {trainer}",
+  "link.toProgram": "ไปที่โปรแกรมของฉัน",
+  "link.signIn": "เข้าสู่ระบบด้วยวิธีอื่น",
+  "link.notMe": "ไม่ใช่ {name}?",
   "link.failed": "เปิดโปรแกรมไม่สำเร็จ กรุณาลองอีกครั้ง",
 
   "log.back": "สัปดาห์นี้",
@@ -236,6 +249,7 @@ export const th: Record<MessageKey, string> = {
   "log.rpe": "RPE",
   "log.rpeShow": "ใส่ RPE ด้วย",
   "log.rpeHide": "ซ่อน RPE",
+  "log.rpeDef": "RPE คือความหนักของเซตที่รู้สึก: 10 = หมดแรง ทำต่อไม่ไหว, 8 = ยังทำได้อีก 2 ครั้ง",
   "log.addSet": "เพิ่มเซต",
   "log.removeSet": "ลบเซต {n}",
   "log.readiness": "วันนี้รู้สึกอย่างไรบ้าง",
@@ -293,6 +307,9 @@ export function format(template: string, vars?: Record<string, string | number>)
   if (!vars) return template;
   return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
+
+/** A coach name that already says "Coach …" / "โค้ช…" — don't add the label twice. */
+export const carriesCoachLabel = (name: string) => /^\s*(coach\b|โค้ช)/i.test(name);
 
 /** The locale a first visit gets: a stored choice, else Thai for a Thai browser, else English. */
 export function initialLocale(stored: string | null, browserLanguage: string | undefined): Locale {
