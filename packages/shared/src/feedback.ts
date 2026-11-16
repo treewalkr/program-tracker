@@ -408,7 +408,7 @@ export interface FeedbackEmailPrefs {
   newTickets: boolean;
   /** "all" = every ticket you can see; "mine" = tickets you filed, replied on or moved; "off" = none. */
   replies: FeedbackReplyScope;
-  /** Accepted / won't fix / shipped on tickets you filed. */
+  /** Accepted / in progress / won't fix / shipped on tickets you filed. */
   status: boolean;
 }
 

@@ -19,7 +19,7 @@ import { emailConfigured, sendEmail, type Email, type SendResult } from "./maile
  * - reply   → everyone on the thread (reporter, admin, other repliers) but the author;
  *             an AI answer is labelled as one and invites a correction. AI drafts
  *             and private notes never notify — only publishing one does.
- * - status  → the reporter, for accepted / won't fix / done (unless they made the change)
+ * - status  → the reporter, for accepted / in progress / won't fix / done (unless they made the change)
  * Nobody hears about their own actions. On top of that each person's own say:
  * `feedback_emails = false` silences everything, a muted ticket silences that
  * ticket, and the prefs turn off one kind of event (replies can also be
@@ -69,7 +69,7 @@ export interface FeedbackSnapshot {
   appUrl: string;
 }
 
-const EMAILED_STATUSES: FeedbackStatus[] = ["accepted", "wontfix", "done"];
+const EMAILED_STATUSES: FeedbackStatus[] = ["accepted", "in_progress", "wontfix", "done"];
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -196,6 +196,13 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
       quote,
       after: "It's on the build list. You'll get another email when it ships.",
     }, "Accepted");
+  }
+  if (status === "in_progress") {
+    return send(`[${handle}] In progress`, {
+      lead: `${actorName} started working on your feedback:`,
+      quote,
+      after: "You'll get another email when it ships.",
+    }, "In progress");
   }
   if (status === "wontfix") {
     return send(`[${handle}] Won't fix`, {

@@ -136,6 +136,15 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       snap: snap({}, ADMIN, { body: null, status: "accepted", authorKind: "human" }, appUrl),
     },
     {
+      id: "status-in-progress",
+      group: "Status changes",
+      title: "In progress",
+      trigger: "The admin moves a ticket to In progress.",
+      recipients: toReporter,
+      kind: "status",
+      snap: snap({}, ADMIN, { body: null, status: "in_progress", authorKind: "human" }, appUrl),
+    },
+    {
       id: "status-wontfix",
       group: "Status changes",
       title: "Won't fix",

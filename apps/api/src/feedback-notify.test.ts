@@ -85,6 +85,16 @@ describe("feedbackEmails", () => {
     expect(done[0].subject).toBe("[FB-012] Shipped in v0.1.3");
   });
 
+  test("in progress emails the reporter, with the same prefs as other status changes", () => {
+    const started = feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "in_progress", authorKind: "human" } }));
+    expect(to(started)).toEqual(["kai@example.com"]);
+    expect(started[0].subject).toBe("[FB-012] In progress");
+    expect(started[0].text).toContain("Ana started working on your feedback:");
+    expect(started[0].text).toContain("You'll get another email when it ships.");
+    expect(started[0].text).toContain("Stop status emails");
+    expect(feedbackEmails("status", snap({ actor: kai, comment: { body: null, status: "in_progress", authorKind: "human" } }))).toEqual([]);
+  });
+
   test("back to new, and changes the reporter made themselves, send nothing", () => {
     expect(feedbackEmails("status", snap({ actor: boss, comment: { body: null, status: "new", authorKind: "human" } }))).toEqual([]);
     expect(feedbackEmails("status", snap({ actor: kai, comment: { body: null, status: "accepted", authorKind: "human" } }))).toEqual([]);

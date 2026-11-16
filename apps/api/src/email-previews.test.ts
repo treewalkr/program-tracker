@@ -11,6 +11,7 @@ describe("email previews", () => {
       "reply",
       "reply-ai",
       "status-accepted",
+      "status-in-progress",
       "status-wontfix",
       "status-done",
     ]);

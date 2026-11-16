@@ -139,7 +139,7 @@
             checked={notif.prefs.status}
             onchange={(e) => saveEmail({ prefs: { status: e.currentTarget.checked } })}
           />
-          <span>Status changes on my tickets <span class="muted">(accepted, won't fix, shipped)</span></span>
+          <span>Status changes on my tickets <span class="muted">(accepted, in progress, won't fix, shipped)</span></span>
         </label>
       </fieldset>
 
