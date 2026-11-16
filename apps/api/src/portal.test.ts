@@ -522,6 +522,17 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect(w.body.currentWeek).toBe(1);
   });
 
+  test("removing your own log works only while its session is in this week", async () => {
+    const [later] = await db
+      .insert(sessionLogs)
+      .values({ clientId, programId, programSessionId: next1, date: today, kind: "lifting", loggedBy: "client" })
+      .returning();
+    const r = await call("DELETE", `/v1/portal/logs/${later.id}`, { token });
+    expect(r.status).toBe(409);
+    expect(await db.select().from(sessionLogs).where(eq(sessionLogs.id, later.id))).toHaveLength(1);
+    await db.delete(sessionLogs).where(eq(sessionLogs.id, later.id));
+  });
+
   test("a client can't log against another client's session or another trainer's client", async () => {
     // the sibling has no active program; s1 belongs to Mai's program
     expect((await call("POST", "/v1/portal/logs", { token: siblingToken, body: logBody(s1) })).status).toBe(422);

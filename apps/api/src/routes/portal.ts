@@ -174,16 +174,27 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
     },
     { body: t.Any(), detail: { summary: "Log a session as the signed-in client" } },
   )
-  /** Undo: delete one of the client's own logs. A trainer's log, or anyone else's, is a 404. */
+  /** Undo: delete one of the client's own logs, while its session is in this week.
+   *  A trainer's log, or anyone else's, is a 404; an earlier week's own log is a 409. */
   .delete(
     "/logs/:id",
-    async ({ params, status, clientId, trainerId }) => {
-      const deleted = await deleteSessionLog(
-        trainerId,
-        and(eq(sessionLogs.id, params.id), eq(sessionLogs.clientId, clientId), eq(sessionLogs.loggedBy, "client")),
-      );
-      if (!deleted) return status(404, { error: "log not found" });
+    async ({ params, query, status, clientId, trainerId }) => {
+      const mine = and(eq(sessionLogs.id, params.id), eq(sessionLogs.clientId, clientId), eq(sessionLogs.loggedBy, "client"));
+      const [own] = await db
+        .select({ programId: sessionLogs.programId, programSessionId: sessionLogs.programSessionId })
+        .from(sessionLogs)
+        .where(mine);
+      if (!own) return status(404, { error: "log not found" });
+      const today = portalToday(query.today, Date.now()) ?? portalToday(undefined, Date.now())!;
+      const ctx = await portalWeekContext(clientId, nowOfDate(today));
+      const thisWeek = !!ctx && own.programId === ctx.program.id && !!own.programSessionId && ctx.currentSessionIds.has(own.programSessionId);
+      if (!thisWeek) return status(409, { error: "only this week's logs can be removed" });
+      if (!(await deleteSessionLog(trainerId, mine))) return status(404, { error: "log not found" });
       return status(204);
     },
-    { params: t.Object({ id: t.String({ format: "uuid" }) }), detail: { summary: "Delete one of the client's own logs" } },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })) }),
+      detail: { summary: "Delete one of the client's own logs from this week" },
+    },
   );
