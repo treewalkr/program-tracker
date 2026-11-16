@@ -10,10 +10,13 @@ import {
   type ImportResult,
 } from "@pt/shared";
 import {
+  abPickError,
+  abWeekOptions,
   aliasesToSave,
   blockLabel,
   choiceFor,
   draftWeekIndexes,
+  defaultAbPick,
   defaultChoice,
   flagSummary,
   formFromImport,
@@ -188,6 +191,58 @@ describe("A/B weeks found (FB-013)", () => {
     const one = flagSummary(r, r.defaultBlock, {});
     const two = flagSummary(r, r.defaultBlock, {}, AB);
     expect(two.amber).toBeGreaterThanOrEqual(one.amber);
+  });
+});
+
+describe("A/B week pick helpers (FB-015)", () => {
+  /** A result of weeks: "lift", "cardio" or "empty" (a header with no sessions). */
+  const weeks = (...kinds: ("lift" | "cardio" | "empty")[]): ImportResult => ({
+    lineCount: 0,
+    weeks: kinds.map((k, i) => ({
+      label: `Week ${i + 1}`,
+      line: null,
+      flags: [],
+      days:
+        k === "empty"
+          ? []
+          : [
+              {
+                label: "Day 1",
+                line: 1,
+                flags: [],
+                sessions: [{ name: k, kind: k === "lift" ? "lifting" : "cardio", line: 1, source: null, cardio: null, exercises: [], flags: [] }],
+              },
+            ],
+    })),
+    skipped: [],
+    unused: [],
+    unread: [],
+    blocks: kinds.map((_, i) => ({ weeks: [i] })),
+    defaultBlock: Math.max(0, kinds.length - 1),
+    alternating: false,
+  });
+
+  test("options: weeks with a session, in order; an empty week is skipped, a cardio-only week counts", () => {
+    expect(abWeekOptions(weeks("empty", "lift", "lift"))).toEqual([1, 2]);
+    expect(abWeekOptions(weeks("lift", "cardio", "empty", "lift"))).toEqual([0, 1, 3]);
+    expect(abWeekOptions(weeks("empty", "empty"))).toEqual([]);
+    expect(abWeekOptions(weeks("lift"))).toEqual([0]);
+    expect(abWeekOptions(weeks("lift", "empty"))).toEqual([0]);
+  });
+
+  test("default pick: the first two weeks with training, or none", () => {
+    expect(defaultAbPick(weeks("empty", "lift", "lift"))).toEqual({ a: 1, b: 2, source: "picked" });
+    expect(defaultAbPick(weeks("lift", "lift"))).toEqual({ a: 0, b: 1, source: "picked" });
+    expect(defaultAbPick(weeks("lift"))).toBeNull();
+    expect(defaultAbPick(weeks("empty", "lift"))).toBeNull();
+    expect(defaultAbPick(weeks())).toBeNull();
+  });
+
+  test("a pick needs two different weeks", () => {
+    expect(abPickError({ a: 1, b: 1 })).toBe("Pick two different weeks for A and B.");
+    expect(abPickError({ a: 1, b: 2 })).toBeNull();
+    expect(abPickError({ a: 2, b: 1 })).toBeNull();
+    expect(abPickError(null)).toBeNull();
   });
 });
 

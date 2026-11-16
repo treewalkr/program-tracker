@@ -32,6 +32,22 @@ export const exerciseKey = (w: number, d: number, s: number, e: number) => `w${w
 /** False when the read found no session at all (not a program) — there is nothing to review. */
 export const hasTraining = (r: ImportResult): boolean => r.weeks.some((w) => w.days.some((d) => d.sessions.length > 0));
 
+// —— A/B weeks the trainer picks (FB-015) ——————————————————————————————————
+
+/** Weeks the trainer can pick as Week A or Week B: any with a session (lifting or cardio), in order. */
+export const abWeekOptions = (r: ImportResult): number[] =>
+  r.weeks.flatMap((w, i) => (w.days.some((d) => d.sessions.length > 0) ? [i] : []));
+
+/** The pick's starting point: the first two weeks with training, or null when there aren't two. */
+export function defaultAbPick(r: ImportResult): ImportAb | null {
+  const [a, b] = abWeekOptions(r);
+  return a !== undefined && b !== undefined ? { a, b, source: "picked" } : null;
+}
+
+/** Why a pick can't be drafted, or null. */
+export const abPickError = (pick: Pick<ImportAb, "a" | "b"> | null | undefined): string | null =>
+  pick && pick.a === pick.b ? "Pick two different weeks for A and B." : null;
+
 /** Moved to @pt/shared (history import names its programs with them); re-exported for the review. */
 export { blockLabel, templateWeekIndex };
 

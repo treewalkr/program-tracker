@@ -249,8 +249,11 @@ export interface ReviewWeek {
 export interface ImportAb {
   a: number;
   b: number;
-  /** "notes": the notes say so (week letters); "pattern": W1 ≠ W2 and every week matches the one two before. */
-  source: "notes" | "pattern";
+  /**
+   * "notes": the notes say so (week letters); "pattern": W1 ≠ W2 and every week matches the one two before;
+   * "picked": the trainer chose the two weeks in the review (FB-015) — never stored.
+   */
+  source: "notes" | "pattern" | "picked";
 }
 
 export interface ImportBlock {
