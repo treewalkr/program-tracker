@@ -134,6 +134,10 @@ export interface SessionRow {
   flags: ReturnType<typeof flagChips>;
   /** Some flag says pain — the row shows it before it's opened. */
   pain: boolean;
+  /** The client logged it themselves, in the portal. */
+  byClient: boolean;
+  /** "52 min" when the client timed it live in the portal; null otherwise. */
+  duration: string | null;
 }
 
 export interface WeekGroup {
@@ -199,6 +203,8 @@ export function sessionsByWeek(
       readiness: readinessLine(l),
       flags,
       pain: flags.some((f) => f.tone === "bad"),
+      byClient: l.loggedBy === "client",
+      duration: l.durationMin ? `${l.durationMin} min` : null,
     };
     const start = mondayOf(date);
     const last = weeks[weeks.length - 1];

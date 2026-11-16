@@ -61,7 +61,9 @@ const clientFields = {
 
 export const ClientInsert = createInsertSchema(clients, clientFields);
 export const ClientUpdate = createUpdateSchema(clients, clientFields);
-const ClientSelect = createSelectSchema(clients, clientRow);
+const ClientSelectRow = createSelectSchema(clients, clientRow);
+/** Portal columns stay out of the client row; `/v1/clients/:id/portal` reports them. */
+const ClientSelect = t.Omit(ClientSelectRow, ["portalEnabledAt", "portalGoogleSub", "portalToken", "portalLastSeenAt"]);
 
 /** Optional client fields a trainer sets on create and edit. */
 const clientWritable = [

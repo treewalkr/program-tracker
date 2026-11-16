@@ -4,6 +4,7 @@
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
+  import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -756,12 +757,13 @@
                     <span class="chev" aria-hidden="true"><Icon name="chevron" size={14} /></span>
                     <span class="sess-date tnum">{s.dateLabel}</span>
                     <span class="sess-name">{s.name}</span>
+                    {#if s.byClient}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}
                     {#if s.flags.length > 0}
                       <span class={`pill sess-flag ${s.pain ? "bad" : "neutral"}`} title={s.flags.map((f) => f.text).join(", ")}>
                         <Icon name="flag" size={11} />{s.pain ? "Pain" : s.flags.length === 1 ? "1 flag" : `${s.flags.length} flags`}
                       </span>
                     {/if}
-                    <span class="sess-count subtle">{s.kind === "cardio" ? "cardio" : `${s.setCount} ${s.setCount === 1 ? "set" : "sets"}`}</span>
+                    <span class="sess-count subtle">{s.kind === "cardio" ? "cardio" : `${s.setCount} ${s.setCount === 1 ? "set" : "sets"}`}{#if s.duration}<span class="tnum" title="First entry to Save, timed in the portal"> · {s.duration}</span>{/if}</span>
                   </button>
                   <a class="sess-prog" href="/programs/{s.programId}" title="Open {s.programName}">{s.programName}</a>
                 </div>
@@ -797,6 +799,10 @@
     </div>
   {:else}
     <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">
+    <!-- First: the link a trainer comes here to copy. Saves on its own, outside the profile form. -->
+    <div class="pf portal-pf">
+      <ClientPortalPanel {client} />
+    </div>
     <form
       class="pf"
       onsubmit={(e) => {
@@ -848,6 +854,7 @@
 
   .sig-panel { margin: 18px 0 0; }
   .deload-pf { margin-top: 16px; }
+  .portal-pf { margin-bottom: 16px; }
   .sig-panel :global(.signal .act) { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .snooze:disabled { color: var(--muted); cursor: default; }
 

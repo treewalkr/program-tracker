@@ -619,6 +619,11 @@ export const SESSION_KINDS = ["lifting", "cardio"] as const;
 export const SessionKind = z.enum(SESSION_KINDS);
 export type SessionKind = z.infer<typeof SessionKind>;
 
+/** Who entered a session log: the trainer, or the client in the portal. */
+export const LOGGED_BY = ["trainer", "client"] as const;
+export const LoggedBy = z.enum(LOGGED_BY);
+export type LoggedBy = z.infer<typeof LoggedBy>;
+
 export const CardioPrescription = z.object({
   modality: z.string().min(1).max(80), // "Bike", "Run", "Rower"…
   durationMin: z.number().int().min(1).max(300).nullable().optional(), // null = unspecified (legacy)

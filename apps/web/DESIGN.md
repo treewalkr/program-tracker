@@ -403,6 +403,22 @@ Reusable UI lives in code, catalogued in Storybook:
 - **The 3-uses rule:** a page-scoped pattern that appears 3+ times gets extracted — into an `app.css` class when it's styling, into `src/lib/ui/` when it's generic, into `src/lib/components/` when it speaks domain language. Never re-hand-roll markup or scoped CSS a library component already wraps.
 - **Design/Tokens** stories render swatches live from `:root`, so the catalog cannot drift from the shipped stylesheet.
 
+## Client Surface — the portal (`/me`)
+
+The trainer's clients see one surface: `/me` (this week, next week), `/me/log/:session`, `/me/login` and `/me/link/:token`. Same Primer world and tokens — all eight themes, light and dark, the system stack plus Noto Sans Thai — but calmer than the trainer app, because the reader is a client on a phone between sets, not a coach reviewing evidence.
+
+- **One column, one size up.** A centred column capped at 600px, 16px base type; the portal's own ramp is 13 (meta, chips, hints) · 14 (day heads, exercise rows, field labels) · 16 (body, buttons, tabs, links, session names, the save button) · 20 (the session in focus, the exercise on the log card) · 24 (page titles) · 26 (the greeting) — no in-between steps, and nothing Thai below 12. No sidebar, no Feedback launcher, no draft notices.
+- **One green action per screen.** On the week: only the session in focus — today's first open session, else the next open one — gets the full-width green "Log it"; every other session gets a small default button in its head. On the log: the sticky green "Save session" over the safe area. After saving: green "Back to this week" with a default Undo beside it.
+- **Focus leads.** The week opens on **Next up**: the focus session's card (20px name, the full-width green "Log it", its first three exercises then "Show all N"). Below it, **Earlier this week** folds past days' open sessions behind one closed disclosure, each tagged with a plain warn Label "Not logged" — never red, never "missed". The full calendar follows for reference; its sessions fold their exercises behind a "N exercises" summary. Today's day head takes the Pulse Blue Tint band (inside the column, no bleed) with a "Today" pill.
+- **The coach is named.** The portal bar carries the coach's name at 16px/600 Ink after a muted "Coached by" — the label is dropped when the name already says Coach / โค้ช.
+- **Logging.** "How did you feel today?" (readiness) is the first, folded, optional step. kg and reps share one row; RPE hides behind "Log RPE too" with a one-line definition. The progress strip ticks every exercise the client changed. A missing kg pages to, rings, and focuses the first empty cell; the count in the save bar is a button back to it. After saving, the recap draws a tick (CSS only, none under reduced motion) and shows "N of M done this week" and what's next.
+- **Focus ring.** Portal controls take a solid 2px Link Blue ring at a 2px offset (the app-wide 45% inset ring is too faint for a client at arm's length); fields keep their halo. Latin-script names on a Thai page carry `lang="en"`.
+- **Prescriptions as set chips, in the client's language.** `4 × 8–12 · 60 kg · RPE 8 · rest 2 min` as mono chips (Thai units `กก.`, `วินาที`, `พัก`), %1RM already resolved to kg. Free-text cardio intensity reads as prose, not a chip. No role chips, pattern balance or effort keys — those are coach vocabulary.
+- **Done is ink-on-tint.** "Logged by you" is the good pill; "Logged by your coach" the neutral pill (and not replaceable from the portal).
+- **44px targets.** Language switch (EN/TH, each language naming itself), tabs, steppers (`LogStepper` in its phone mode via the `logform` container), the readiness scales (`ReadinessStrip variant="touch"`), pager and links.
+- **Patient loading.** Skeletons mirror the cards; after 4 s a muted line says the server is waking (Render cold starts), never an error.
+- **By client, on the trainer side.** A client's log carries the existing neutral pill "by client" in History, on the program page's logged line and in the log page's already-logged notice. The client Settings tab opens with the **Client portal** box: the link shown whole (wrapped, never ellipsised) with Copy, a LINE-ready line with an EN / ไทย switch (Thai when the client's name is written in Thai), Google status, last seen, and Reset / Turn off behind `ConfirmButton` — 32px targets throughout.
+
 ## Do's and Don'ts
 
 ### Do:

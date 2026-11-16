@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Primary user: a personal trainer or S&C coach running their own book of clients (solo professional, ~5–30 clients). They open the app daily to see who trained, weekly to review each client's progress and adjust programming, and per-block (~every 4–8 weeks) to write the next training block. Secondary audience (confirmed positioning decision): **other trainers as SaaS buyers** — the product is built to be sold to trainers as a professional tool, not to athletes directly.
+Primary user: a personal trainer or S&C coach running their own book of clients (solo professional, ~5–30 clients). They open the app daily to see who trained, weekly to review each client's progress and adjust programming, and per-block (~every 4–8 weeks) to write the next training block. Secondary audience (confirmed positioning decision): **other trainers as SaaS buyers** — the product is built to be sold to trainers as a professional tool, not to athletes directly. Secondary user (2026-11-16): **the trainer's own clients**, through the client portal (`/me`) — the trainer turns it on per client; the client sees this week and next on their phone (Thai or English) and logs their own sessions, which land in the trainer's data marked "by client". Clients never see AI rationale, direction, phasing, limitations, goals or 1RMs.
 
 ## Product Purpose
 

@@ -475,7 +475,7 @@
 
   {#if program.status === "draft"}
     <p class="hint">
-      Draft — the client doesn't see it yet. Drag sessions to place them on the week, click any exercise to tweak it, then activate
+      Draft — never shown in the client portal. Drag sessions to place them on the week, click any exercise to tweak it, then activate
       (the previous active program archives automatically).
     </p>
   {:else if program.status === "archived"}
@@ -609,7 +609,8 @@
               {/if}
               {#if logsOf(s.id).length > 0}
                 <div class="logged">
-                  <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}</span>
+                  <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}
+                    {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}</span>
                   {#each logsOf(s.id) as l (l.id)}
                     {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLogLabel(l.cardio)}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
@@ -774,7 +775,7 @@
             {:else if saveError}
               <span class="gate-error">Save failed: {saveError}</span>
             {:else}
-              Unsaved changes · saving makes v{program.version + 1}. Clients log their own actual weights.
+              Unsaved changes · saving makes v{program.version + 1}{program.status === "active" ? " and updates the client portal" : ""}.
             {/if}
           </span>
           <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>

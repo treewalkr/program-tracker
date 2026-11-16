@@ -22,7 +22,9 @@ export type SignalKind =
   | "adherence"
   | "cardio-behind"
   | "week-ending"
-  | "pain-flag";
+  | "pain-flag"
+  | "low-readiness"
+  | "client-note";
 
 export interface Signal {
   /** Deterministic id, e.g. `block-ending:<programId>` — PK for snooze/outbox. */
@@ -54,7 +56,7 @@ function rpeCreep(program: SignalProgram, logs: SignalLog[], nameOf: (id: string
   for (const log of logs) {
     const week = blockWeekOfDate(program, logs, log.date);
     for (const s of log.sets) {
-      if (!s.weightKg || !s.rpe || !s.reps) continue;
+      if (!s.weightKg || !s.rpe || !s.reps || s.asPlanned) continue;
       const key = `${s.exerciseId}@${s.weightKg}x${s.reps}`;
       const weeks = byWork.get(key) ?? new Map<number, { rpeSum: number; n: number }>();
       const w = weeks.get(week) ?? { rpeSum: 0, n: 0 };
@@ -116,7 +118,7 @@ function stall(program: SignalProgram, logs: SignalLog[], nameOf: (id: string) =
   for (const log of logs) {
     const week = blockWeekOfDate(program, logs, log.date);
     for (const s of log.sets) {
-      if (!s.weightKg || !s.reps || s.reps > 12 || timed.has(s.exerciseId)) continue;
+      if (!s.weightKg || !s.reps || s.reps > 12 || s.asPlanned || timed.has(s.exerciseId)) continue;
       const e1rm = estimate1rm(s.weightKg, s.reps);
       const per = weeklyBest.get(s.exerciseId) ?? new Map<number, number>();
       per.set(week, Math.max(per.get(week) ?? 0, e1rm));
@@ -423,4 +425,90 @@ export function painFlagSignals(
     });
   }
   return signals;
+}
+
+/** How far back a readiness rating or a client's note still raises a signal. */
+export const READINESS_DAYS = 7;
+
+/** Logs dated in the last `days` days up to today, newest first. */
+function recentLogs<L extends Pick<SignalLog, "date">>(logs: readonly L[], days: number, now: number): L[] {
+  const today = localDateOf(now);
+  const since = localDateOf(Date.parse(`${today}T12:00:00Z`) - days * 86_400_000);
+  return logs
+    .filter((l) => l.date.slice(0, 10) > since && l.date.slice(0, 10) <= today)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Low readiness, merged by each signal caller next to computeSignals: the client
+ *  slept badly and is very sore going in (sleep ≤ 2 and soreness ≥ 4), or rated
+ *  energy ≤ 3 in each of their last two rated sessions — within the last 7 days.
+ *  Cites the logged values; the id carries the newest cited date, so a fresh low
+ *  day after a snooze shows again. */
+export function lowReadinessSignals<L extends Pick<SignalLog, "date" | "perceivedEnergy" | "readiness">>(
+  owner: { programId: string | null; clientId: string | null },
+  logs: readonly L[],
+  now: number = Date.now()
+): Signal[] {
+  const recent = recentLogs(logs, READINESS_DAYS, now);
+  const cites: { date: string; text: string }[] = [];
+  const beatUp = recent.find((l) => l.readiness?.sleep != null && l.readiness?.soreness != null);
+  if (beatUp && beatUp.readiness!.sleep! <= 2 && beatUp.readiness!.soreness! >= 4) {
+    cites.push({ date: beatUp.date.slice(0, 10), text: `sleep ${beatUp.readiness!.sleep}/5, soreness ${beatUp.readiness!.soreness}/5` });
+  }
+  const rated = recent.filter((l) => l.perceivedEnergy != null).slice(0, 2);
+  if (rated.length === 2 && rated.every((l) => l.perceivedEnergy! <= 3)) {
+    for (const l of rated) cites.push({ date: l.date.slice(0, 10), text: `energy ${l.perceivedEnergy}/10` });
+  }
+  if (cites.length === 0) return [];
+  const newest = cites.map((c) => c.date).sort().at(-1)!;
+  const byDate = new Map<string, string[]>();
+  for (const c of cites) byDate.set(c.date, [...(byDate.get(c.date) ?? []), c.text]);
+  const evidence = [...byDate.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([d, parts]) => `${shortDate(d)}: ${parts.join(", ")}`)
+    .join("; ");
+  return [
+    {
+      id: `low-readiness:${owner.clientId}:${newest}`,
+      kind: "low-readiness",
+      severity: "attention",
+      title: "Low readiness — check in before loading",
+      evidence: `Client-reported going in — ${evidence}. Consider holding loads or trimming volume.`,
+      programId: owner.programId,
+      clientId: owner.clientId,
+      altHref: `/clients/${owner.clientId}`,
+      altLabel: "Review client",
+    },
+  ];
+}
+
+const NOTE_QUOTE_MAX = 140;
+
+/** Client notes, merged by each signal caller next to computeSignals: one signal per
+ *  client quoting every note they wrote on their own logs in the last 7 days, newest
+ *  first. The coach's own notes never raise it. The id carries the newest note's date. */
+export function clientNoteSignals<L extends Pick<SignalLog, "date" | "notes" | "loggedBy">>(
+  owner: { programId: string | null; clientId: string | null },
+  logs: readonly L[],
+  now: number = Date.now()
+): Signal[] {
+  const notes = recentLogs(logs, READINESS_DAYS, now).filter((l) => l.loggedBy === "client" && l.notes?.trim());
+  if (notes.length === 0) return [];
+  const quote = (n: string) => {
+    const t = n.trim().replace(/\s+/g, " ");
+    return t.length > NOTE_QUOTE_MAX ? `${t.slice(0, NOTE_QUOTE_MAX - 1)}…` : t;
+  };
+  return [
+    {
+      id: `client-note:${owner.clientId}:${notes[0].date.slice(0, 10)}`,
+      kind: "client-note",
+      severity: "info",
+      title: notes.length > 1 ? `${notes.length} notes from the client` : "Note from the client",
+      evidence: notes.map((l) => `${shortDate(l.date.slice(0, 10))} “${quote(l.notes!)}”`).join("; "),
+      programId: owner.programId,
+      clientId: owner.clientId,
+      altHref: `/clients/${owner.clientId}`,
+      altLabel: "Review client",
+    },
+  ];
 }

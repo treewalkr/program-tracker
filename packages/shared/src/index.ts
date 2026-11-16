@@ -33,3 +33,4 @@ export * from "./instructionPresets";
 export * from "./paging";
 export * from "./loginTheme";
 export * from "./fill";
+export * from "./portal";

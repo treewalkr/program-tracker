@@ -21,6 +21,8 @@ import {
   aiDraftToDiffSource,
   cardioBehindSignal,
   painFlagSignals,
+  lowReadinessSignals,
+  clientNoteSignals,
   chainSetCounts,
   DELOAD_RULES,
   DEFAULT_DELOAD,
@@ -92,6 +94,7 @@ import type {
   ChainWeekDto,
   ChatMessageDto,
   ClientDto,
+  ClientPortalDto,
   ClientMessageDto,
   ExerciseDto,
   GenerationDto,
@@ -154,7 +157,9 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   perceivedEnergy: l.perceivedEnergy ?? null,
   readiness: l.readiness ? { ...l.readiness } : null,
   flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
+  durationMin: l.durationMin ?? null,
   sets: l.sets.map((s) => ({ ...s })),
+  loggedBy: l.loggedBy ?? "trainer",
 });
 
 const seedTemplates: InstructionTemplateDto[] = [
@@ -263,11 +268,27 @@ const state = {
   messages: [] as (ChatMessageDto & { clientId: string })[],
   examples: [...seedExamples] as ProgramExampleDto[],
   roleLabels: [] as RoleLabelRowLike[],
+  /** Client portal access per client id; absent = off. The demo client starts on, seen yesterday. */
+  portal: {
+    "cl-nat": { token: "demo-nattapong", lastSeenAt: new Date(Date.now() - 86400_000).toISOString() },
+  } as Record<string, { token: string; lastSeenAt: string | null }>,
   sessionTypes: SESSION_TYPE_DEFAULTS.map((d, i) => ({ id: `st-${i + 1}`, name: d.name, format: d.format, archivedAt: null })) as Omit<
     SessionTypeDto,
     "usedIn"
   >[],
 };
+
+function portalDto(clientId: string): ClientPortalDto {
+  const p = state.portal[clientId];
+  const origin = typeof location === "undefined" ? "http://localhost:5173" : location.origin;
+  return {
+    enabled: !!p,
+    link: p ? `${origin}/me/link/${p.token}` : null,
+    googleLinked: false,
+    email: state.clients.find((c) => c.id === clientId)?.email ?? null,
+    lastSeenAt: p?.lastSeenAt ?? null,
+  };
+}
 
 /** JSON with object keys sorted — mirrors the api: jsonb does not keep key order, so compare canonically. */
 function canon(v: unknown): string {
@@ -1038,6 +1059,26 @@ export const mockApi: TrainerApi = {
     };
     state.logs.push(stored);
     return { ...logDto(stored), replaced: replaced.map(logDto) };
+  },
+
+  async clientPortal(clientId) {
+    await delay(150);
+    return portalDto(clientId);
+  },
+  async enableClientPortal(clientId) {
+    await delay(250);
+    state.portal[clientId] ??= { token: uuid().slice(0, 12), lastSeenAt: null };
+    return portalDto(clientId);
+  },
+  async resetClientPortal(clientId) {
+    await delay(250);
+    if (state.portal[clientId]) state.portal[clientId] = { token: uuid().slice(0, 12), lastSeenAt: null };
+    return portalDto(clientId);
+  },
+  async disableClientPortal(clientId) {
+    await delay(250);
+    delete state.portal[clientId];
+    return portalDto(clientId);
   },
 
   async deleteSessionLog(id: string) {
@@ -2421,7 +2462,10 @@ function openSignals(): SignalDto[] {
       state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
     const clientLogs = state.logs
       .filter((l) => l.clientId === client.id)
-      .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets }));
+      .map((l) => ({
+        programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets,
+        perceivedEnergy: l.perceivedEnergy ?? null, readiness: l.readiness ?? null, notes: l.notes ?? null, loggedBy: l.loggedBy ?? "trainer",
+      }));
     if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
     // Cardio targets are a client attribute — checked with or without a program (F18).
     if (client.cardioTarget) {
@@ -2434,7 +2478,8 @@ function openSignals(): SignalDto[] {
       );
       if (behind) signals.push(behind);
     }
-    signals.push(...painFlagSignals({ programId: current?.id ?? null, clientId: client.id }, clientLogs, nameOf));
+    const owner = { programId: current?.id ?? null, clientId: client.id };
+    signals.push(...painFlagSignals(owner, clientLogs, nameOf), ...lowReadinessSignals(owner, clientLogs), ...clientNoteSignals(owner, clientLogs));
   }
   return activeSignals(signals);
 }
@@ -2496,3 +2541,6 @@ function mockRoster(query: RosterQuery): RosterPageDto {
   });
   return { ...page, items, counts };
 }
+
+/** The client portal's mock runs over this same state, as the demo client. */
+export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName };

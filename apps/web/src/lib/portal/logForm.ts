@@ -1,0 +1,322 @@
+import { localDateOf, PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
+import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
+import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
+import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
+import type { PortalLogInput } from "$lib/api/portalTypes";
+
+/**
+ * The portal's log form, pure: a session becomes set rows prefilled with what
+ * was prescribed (so "did it as planned" is one tap on Save), cardio becomes
+ * its form, and a draft survives a reload on this phone. A set saved untouched
+ * goes out marked `asPlanned`, and RPE is never prefilled: the coach only sees
+ * effort the client reported.
+ */
+
+export interface PortalRow extends SheetRow {
+  /** The exercise's name, for superset rounds that mix two lifts on one card. */
+  name: string;
+  /** What was prescribed for this set; null = an extra set. */
+  rx: Prescription | null;
+  timed: boolean;
+  /** The kg and reps the row opened with; a row still on them (and no RPE) saves as planned. */
+  planned?: { weight: string; reps: string };
+}
+
+/** One prescribed set as the logger reads it — the API already resolved %1RM to kg. */
+export function prescriptionOfPortal(ps: PortalSet): Prescription {
+  const rpe = ps.amrap ? (ps.stopRpe ?? ps.targetRpe) : (ps.targetRpe ?? (ps.targetRir != null ? 10 - ps.targetRir : undefined));
+  return {
+    reps: ps.reps,
+    repsMin: ps.repsMin ?? null,
+    amrap: ps.amrap,
+    durationSeconds: ps.durationSeconds ?? null,
+    targetWeightKg: ps.targetWeightKg,
+    targetRpe: rpe ?? null,
+  };
+}
+
+const cell = (v: number | null) => (v == null ? "" : v);
+
+/** Rows for a lifting session, in prescribed order, prefilled as prescribed. */
+export function rowsOfSession(session: PortalSession): PortalRow[] {
+  return session.exercises.flatMap((e) =>
+    e.prescribedSets.map((ps) => {
+      const rx = prescriptionOfPortal(ps);
+      const bodyweight = e.bodyweight ?? false;
+      // no target kg: the client's own last load on this lift, like the trainer's sheet
+      const last = ps.lastWeightKg != null ? { date: "", weightKg: ps.lastWeightKg, reps: 0, rpe: null } : null;
+      const plan = asPrescribed(rx, { bodyweight, swapped: false, last });
+      const weight = cell(plan.weight);
+      const reps = cell(plan.reps);
+      return {
+        key: `${e.id}:${ps.setNumber}`,
+        exerciseId: e.exerciseId,
+        slotExerciseId: e.exerciseId,
+        programExerciseId: e.id,
+        setNumber: ps.setNumber,
+        type: ps.type,
+        prescribedReps: plan.reps,
+        weight,
+        reps,
+        // effort is the client's to report: the target RPE shows beside the cell, never in it
+        rpe: "",
+        name: e.exerciseName,
+        rx,
+        timed: ps.durationSeconds != null,
+        planned: { weight: String(weight), reps: String(reps) },
+        ...(e.group ? { group: e.group } : {}),
+      };
+    }),
+  );
+}
+
+/** An extra set after the exercise's last one: empty, nothing prescribed. */
+export function extraRow(like: PortalRow, setNumber: number): PortalRow {
+  return { ...like, key: `${like.programExerciseId}:x${setNumber}`, setNumber, type: "working", prescribedReps: null, weight: "", reps: "", rpe: "", rx: null, extra: true, copied: undefined, planned: undefined };
+}
+
+export function cardioFormOf(c: PortalSession["cardio"]): CardioForm {
+  return {
+    modality: c?.modality ?? "",
+    durationMin: c?.durationMin != null ? String(c.durationMin) : "",
+    hrZone: c?.hrZone != null ? String(c.hrZone) : "",
+    intensity: c?.intensity ?? "",
+    distanceKm: c?.distanceKm != null ? String(c.distanceKm) : "",
+    // never the target: RPE is saved only when the client gives it
+    rpe: "",
+  };
+}
+
+/** Cardio actuals back into the form's strings. */
+function cardioFormOfLog(c: NonNullable<PortalLogEntry["cardio"]>): CardioForm {
+  const str = (v: number | null | undefined) => (v != null ? String(v) : "");
+  return { modality: c.modality, durationMin: str(c.durationMin), hrZone: str(c.hrZone), intensity: c.intensity ?? "", distanceKm: str(c.distanceKm), rpe: str(c.rpe) };
+}
+
+/**
+ * Rows for the client's own saved log: each prescribed set shows what was saved
+ * (a set left out reopens as missed), sets added on the day come back as extras.
+ * A set saved as planned stays planned until it's edited.
+ */
+export function rowsOfEntry(session: PortalSession, entry: PortalLogEntry): PortalRow[] {
+  const saved = new Map(entry.sets.map((s) => [`${s.programExerciseId}:${s.setNumber}`, s]));
+  const used = new Set<string>();
+  const out: PortalRow[] = [];
+  const fill = (r: PortalRow, s: PortalLogEntry["sets"][number]): PortalRow => {
+    const weight = s.weightKg ?? "";
+    return { ...r, weight, reps: s.reps, rpe: s.rpe ?? "", planned: s.asPlanned ? { weight: String(weight), reps: String(s.reps) } : undefined };
+  };
+  const base = rowsOfSession(session);
+  for (const [i, r] of base.entries()) {
+    const key = `${r.programExerciseId}:${r.setNumber}`;
+    const s = saved.get(key);
+    if (s) used.add(key);
+    out.push(s ? fill(r, s) : { ...r, skipped: true, planned: undefined });
+    // after an exercise's last prescribed set: what the client added on the day
+    if (base[i + 1]?.programExerciseId !== r.programExerciseId) {
+      for (const x of entry.sets) {
+        const k = `${x.programExerciseId}:${x.setNumber}`;
+        if (x.programExerciseId !== r.programExerciseId || used.has(k)) continue;
+        used.add(k);
+        out.push(fill(extraRow(r, x.setNumber), x));
+      }
+    }
+  }
+  return out;
+}
+
+export interface PortalLogForm {
+  rows: PortalRow[];
+  cardio: CardioForm;
+  readiness: ReadinessForm;
+  notes: string;
+  date: string;
+  /** "Something hurt" per exercise (programExerciseId → flag), the trainer sheet's vocabulary. */
+  flags: ExerciseFlags;
+  /** When the client first changed anything (ISO), for the session's duration. */
+  startedAt?: string | null;
+}
+
+/** Under this, the form was filled in after the session, not during it. */
+const LIVE_MIN = 5;
+const LIVE_MAX = 300;
+
+/** Minutes from the first entry to Save — only for a session logged live today. */
+export function durationOf(f: Pick<PortalLogForm, "startedAt" | "date">, now: number): number | null {
+  if (!f.startedAt || f.date !== localDateOf(now)) return null;
+  const min = Math.round((now - Date.parse(f.startedAt)) / 60_000);
+  return Number.isFinite(min) && min >= LIVE_MIN && min <= LIVE_MAX ? min : null;
+}
+
+export type BuildResult =
+  | { input: PortalLogInput; sets: number }
+  | { error: "nothing" | "activity" }
+  /** Weighted sets saved with no kg: how many, and the first one's slot (to page to it). */
+  | { error: "kg"; sets: number; programExerciseId: string };
+
+/**
+ * Filled sets that would save with no kg on a lift that takes weight. Exempt: bodyweight
+ * moves, and timed holds (prescribed in seconds, so the page shows no kg cell). Both are
+ * read from the session as well as the rows, so a draft saved by an older version (no
+ * `timed` on its rows) still checks right. 0 kg is an answer, not a blank.
+ */
+export function setsMissingKg(session: PortalSession, rows: readonly PortalRow[]): PortalRow[] {
+  const noLoad = new Set(
+    session.exercises
+      .filter((e) => e.bodyweight || (e.prescribedSets.length > 0 && e.prescribedSets.every((s) => s.durationSeconds != null)))
+      .map((e) => e.id),
+  );
+  return rowsToSave([...rows]).filter((r) => !noLoad.has(r.programExerciseId) && !r.timed && isBlank(r.weight));
+}
+
+/** The save payload, or why there's nothing to save yet. */
+export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace: boolean, now = Date.now()): BuildResult {
+  const durationMin = durationOf(f, now);
+  const base = {
+    programSessionId: session.id,
+    date: f.date,
+    ...(durationMin != null ? { durationMin } : {}),
+    ...readinessInput(f.readiness),
+    notes: f.notes.trim() || undefined,
+    ...(replace ? { onDuplicate: "replace" as const } : {}),
+  };
+  if (session.kind === "cardio") {
+    const modality = f.cardio.modality.trim();
+    if (!modality) return { error: "activity" };
+    return {
+      input: {
+        ...base,
+        kind: "cardio",
+        cardio: {
+          modality,
+          durationMin: cellNumber(f.cardio.durationMin) ?? null,
+          hrZone: cellNumber(f.cardio.hrZone) ?? null,
+          intensity: f.cardio.intensity.trim() || undefined,
+          distanceKm: cellNumber(f.cardio.distanceKm),
+          rpe: cellNumber(f.cardio.rpe),
+        },
+        sets: [],
+      },
+      sets: 0,
+    };
+  }
+  const saved = rowsToSave(f.rows);
+  if (saved.length === 0) return { error: "nothing" };
+  const missing = setsMissingKg(session, saved);
+  if (missing.length > 0) return { error: "kg", sets: missing.length, programExerciseId: missing[0].programExerciseId };
+  // pain and whole-exercise skips: the same flags the trainer's sheet sends, so the pain signal fires
+  const flags = sessionFlags(f.rows, f.flags ?? {});
+  return { input: { ...base, kind: "lifting", sets: saved.map(portalSet), ...(flags.length ? { flags } : {}) }, sets: saved.length };
+}
+
+/** Untouched since the page opened it: still on the prefilled kg and reps, no RPE given. */
+export const savedAsPlanned = (r: PortalRow): boolean =>
+  r.planned != null && String(r.weight) === r.planned.weight && String(r.reps) === r.planned.reps && isBlank(r.rpe);
+
+function portalSet(r: PortalRow) {
+  const set = toLoggedSet(r);
+  return savedAsPlanned(r) ? { ...set, asPlanned: true } : set;
+}
+
+/** The form the page opens with: the client's own saved log when there is one, else the plan. */
+export function formOfSession(session: PortalSession, today: string): PortalLogForm {
+  const entry = session.log?.loggedBy === "client" ? session.log.entry : undefined;
+  if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today, flags: {} };
+  let rows = session.kind === "cardio" ? rowsOfSession(session) : rowsOfEntry(session, entry);
+  const flags: ExerciseFlags = {};
+  for (const fl of entry.flags ?? []) {
+    const pe = fl.programExerciseId;
+    if (!pe) continue;
+    if (fl.kind === "skipped") rows = setSkipReason(skipExercise(rows, pe), pe, fl.reason ?? null);
+    else flags[pe] = { kind: fl.kind, note: fl.note ?? "" };
+  }
+  return {
+    rows,
+    flags,
+    cardio: entry.cardio ? cardioFormOfLog(entry.cardio) : cardioFormOf(session.cardio),
+    readiness: parseReadiness({ energy: entry.perceivedEnergy, readiness: entry.readiness }),
+    notes: entry.notes ?? "",
+    date: session.log?.date ?? today,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Draft: this phone keeps the half-filled form until it's saved
+// ---------------------------------------------------------------------------
+
+export const portalDraftKey = (sessionId: string) => `pt:portal-log-draft:${sessionId}`;
+
+export function portalDraftJson(f: PortalLogForm): string {
+  return JSON.stringify({ ...f, savedAt: new Date().toISOString() });
+}
+
+/** A stored draft, if it still fits the session (every prescribed row still there). Junk → null. */
+export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): PortalLogForm | null {
+  if (!raw) return null;
+  let d: Partial<PortalLogForm> & { readiness?: unknown };
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.date !== "string" || !d.cardio) return null;
+  const keys = new Set(d.rows.map((r) => r?.key));
+  if (d.rows.filter((r) => !r?.extra).length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
+  const r = (d.readiness ?? {}) as Record<string, unknown>;
+  return {
+    flags: parseFlags(d.flags),
+    startedAt: typeof d.startedAt === "string" && !Number.isNaN(Date.parse(d.startedAt)) ? d.startedAt : null,
+    rows: d.rows,
+    cardio: d.cardio,
+    notes: d.notes,
+    date: d.date,
+    readiness: parseReadiness({ energy: r.energy, readiness: r }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pristine vs touched: what the client actually changed
+// ---------------------------------------------------------------------------
+
+const rowSig = (r: PortalRow) => [r.key, String(r.weight), String(r.reps), String(r.rpe), r.skipped ? "missed" : "", r.exerciseSkip ? `skip:${r.exerciseSkip.reason ?? ""}` : ""];
+
+/** True when the form is exactly what the page opened with — nothing to keep as a draft. */
+export function sameForm(a: PortalLogForm, b: PortalLogForm): boolean {
+  const sig = (f: PortalLogForm) => {
+    const flags = Object.entries(f.flags ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, v.kind, v.note.trim()]);
+    return JSON.stringify([f.rows.map(rowSig), f.cardio, f.readiness, f.notes.trim(), f.date, flags]);
+  };
+  return sig(a) === sig(b);
+}
+
+/** Exercises (by programExerciseId) whose sets differ from the prefill, or got an extra set. */
+export function touchedExercises(pristine: readonly PortalRow[], rows: readonly PortalRow[]): Set<string> {
+  const before = new Map(pristine.map((r) => [r.key, rowSig(r).join("|")]));
+  const out = new Set<string>();
+  for (const r of rows) if (before.get(r.key) !== rowSig(r).join("|")) out.add(r.programExerciseId);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Offline: the week last opened on this phone, so a dropped connection mid-workout
+// can still open the session and finish the form (the save waits for a connection)
+// ---------------------------------------------------------------------------
+
+export const PORTAL_WEEK_CACHE_KEY = "pt:portal-week";
+
+export const portalWeekCacheJson = (w: PortalWeek): string => JSON.stringify(w);
+
+/** The cached week and one of its sessions, while that week is still on; anything else → null. */
+export function cachedSession(raw: string | null, sessionId: string, today: string): { week: PortalWeek; session: PortalSession } | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const w = PortalWeek.safeParse(parsed);
+  if (!w.success || !w.data.loggable || w.data.endDate < today) return null;
+  const session = w.data.sessions.find((s) => s.id === sessionId);
+  return session ? { week: w.data, session } : null;
+}

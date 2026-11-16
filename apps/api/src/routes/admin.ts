@@ -1,9 +1,10 @@
 import { Elysia, t } from "elysia";
 import { and, asc, count, desc, eq, inArray, isNull, max, min } from "drizzle-orm";
-import { clients, db, emailLog, exercises, feedbackItems, programs, sessionLogs, trainers, type ProgramRow } from "@pt/db";
+import { clients, db, emailLog, feedbackItems, programs, sessionLogs, trainers, type ProgramRow } from "@pt/db";
 import { ageOn, localDateOf, weekOf, type ProgramWeek } from "@pt/shared";
 import { toSignalProgram } from "../lib/signals-service";
 import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
+import { withExerciseNames } from "../lib/exercise-names";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
 import { appUrl } from "../lib/email-links";
@@ -83,28 +84,6 @@ async function activeProgrammes(clientIds?: string[]): Promise<Map<string, Activ
 
 const programmeRef = (a: ActiveProgramme | undefined) =>
   a ? { id: a.row.id, name: a.row.name, week: a.week, of: a.of, over: a.rawWeek > a.of } : null;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Fill any missing exercise names from the exercises table — one lookup,
- *  any trainer's catalog (the admin has no trainer-scoped one). */
-async function withExerciseNames(week: ProgramWeek): Promise<ProgramWeek> {
-  const missing = [
-    ...new Set(
-      week.sessions.flatMap((s) => (s.exercises ?? []).filter((e) => !e.exerciseName && UUID.test(e.exerciseId)).map((e) => e.exerciseId)),
-    ),
-  ];
-  if (missing.length === 0) return week;
-  const rows = await db.select({ id: exercises.id, name: exercises.name }).from(exercises).where(inArray(exercises.id, missing));
-  const nameOf = new Map(rows.map((r) => [r.id, r.name]));
-  return {
-    ...week,
-    sessions: week.sessions.map((s) => ({
-      ...s,
-      exercises: (s.exercises ?? []).map((e) => (e.exerciseName || !nameOf.has(e.exerciseId) ? e : { ...e, exerciseName: nameOf.get(e.exerciseId) })),
-    })),
-  };
-}
 
 /**
  * Platform admin console. Only the ADMIN_EMAIL account gets past the 403.

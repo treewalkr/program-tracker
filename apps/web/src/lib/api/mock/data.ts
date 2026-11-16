@@ -9,7 +9,7 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
 } from "../types";
-import { placeSession, placeWeeks, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType } from "@pt/shared";
+import { placeSession, placeWeeks, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType, type LoggedBy } from "@pt/shared";
 
 /** The sample trainer's own scheme; built-in presets come from SCHEME_PRESETS (@pt/shared). */
 export const schemes: PeriodizationSchemeDto[] = [
@@ -431,6 +431,8 @@ for (const p of programs) {
 
 export interface StoredLog {
   sessionLogId: string;
+  /** Who entered it; absent = the trainer. */
+  loggedBy?: LoggedBy;
   clientId: string;
   programId: string;
   /** The program session it was logged against; absent = freestyle. */
@@ -442,6 +444,8 @@ export interface StoredLog {
   readiness?: Readiness | null;
   flags?: SessionFlag[] | null;
   notes?: string;
+  /** Minutes from first entry to Save (portal, logged live). */
+  durationMin?: number | null;
   sets: {
     programExerciseId?: string | null;
     exerciseId: string;
@@ -541,7 +545,7 @@ export const examples: ProgramExampleDto[] = [
 export const trainerExercises: ExerciseDto[] = ([
   { id: "ex-latstretch", name: "Lateral Stretch", primaryMuscleGroup: "mobility", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: null, functionalMovement: null },
   { id: "ex-scapdep", name: "Scapular Depression", primaryMuscleGroup: "lats", secondaryMuscleGroups: [], equipment: "bodyweight", movementPattern: null, functionalMovement: null },
-  { id: "ex-pullup", name: "Pull up (Power)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "pull-up bar", movementPattern: "vertical_pull", functionalMovement: "pull" },
+  { id: "ex-pullup", name: "Pull up (Power)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "bodyweight", movementPattern: "vertical_pull", functionalMovement: "pull" },
   { id: "ex-sarow", name: "SA Row", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "dumbbell", movementPattern: "horizontal_pull", functionalMovement: "pull" },
   { id: "ex-bentrow-sup", name: "Bent over row (Supinate)", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "barbell", movementPattern: "horizontal_pull", functionalMovement: "pull" },
   { id: "ex-lowrow", name: "Low row", primaryMuscleGroup: "back", secondaryMuscleGroups: ["biceps"], equipment: "cable", movementPattern: "horizontal_pull", functionalMovement: "pull" },
@@ -642,13 +646,13 @@ export const trainerProgram: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-nat-1", name: "Back / Biceps", order: 0,
+            id: "ps-nat-1", name: "Back / Biceps", order: 0, notes: "Strict rows today. Leave a rep or two in the tank.",
             exercises: [
               { id: "pe-nat-1", exerciseId: "ex-latstretch", order: 0, prescribedSets: timed(2, 15), notes: "Static stretch" },
               { id: "pe-nat-2", exerciseId: "ex-scapdep", order: 1, prescribedSets: many(2, 10), notes: "1–2 sets" },
-              { id: "pe-nat-3", exerciseId: "ex-pullup", order: 2, prescribedSets: many(3, 6), notes: "Power intent — move fast" },
+              { id: "pe-nat-3", exerciseId: "ex-pullup", order: 2, prescribedSets: many(3, 6, { restSeconds: 120 }), notes: "Power intent — move fast" },
               { id: "pe-nat-4", exerciseId: "ex-sarow", order: 3, prescribedSets: range(3, 6, 10) },
-              { id: "pe-nat-5", exerciseId: "ex-bentrow-sup", order: 4, prescribedSets: many(5, 5), notes: "Supinate grip" },
+              { id: "pe-nat-5", exerciseId: "ex-bentrow-sup", order: 4, prescribedSets: many(5, 5, { restSeconds: 150 }), notes: "Supinate grip" },
               { id: "pe-nat-6", exerciseId: "ex-pulldown", order: 5, prescribedSets: [S(1, 10), S(2, 8), S(3, 6), S(4, 5)], notes: "Pyramid" },
               { id: "pe-nat-7", exerciseId: "ex-lowrow", order: 6, prescribedSets: [S(1, 10), S(2, 8), S(3, 6), S(4, 5)], notes: "Pyramid" },
               { id: "pe-nat-8", exerciseId: "ex-bbcurl", order: 7, prescribedSets: many(4, 12) },

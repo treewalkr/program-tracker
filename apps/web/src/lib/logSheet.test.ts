@@ -372,12 +372,12 @@ describe("loggedBySession", () => {
 
   test("groups one program's logs by session, newest first", () => {
     const m = loggedBySession(
-      [log("a", "s1", "2026-11-02", 14), log("b", "s1", "2026-11-07T10:00:00.000Z", 12), log("c", "s2", "2026-11-03")],
+      [log("a", "s1", "2026-11-02", 14), { ...log("b", "s1", "2026-11-07T10:00:00.000Z", 12), loggedBy: "client" }, log("c", "s2", "2026-11-03")],
       "pg1"
     );
     expect(m.get("s1")).toEqual([
-      { id: "b", date: "2026-11-07", setCount: 12 },
-      { id: "a", date: "2026-11-02", setCount: 14 },
+      { id: "b", date: "2026-11-07", setCount: 12, byClient: true },
+      { id: "a", date: "2026-11-02", setCount: 14, byClient: false },
     ]);
     expect(m.get("s2")?.map((l) => l.id)).toEqual(["c"]);
   });

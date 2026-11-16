@@ -407,18 +407,20 @@ export interface LoggedMark {
   id: string;
   date: string;
   setCount: number;
+  /** The client logged it themselves, in the portal. */
+  byClient: boolean;
 }
 
 /** programSessionId → its logs in one program, newest first. Ad-hoc logs (no session) are left out. */
 export function loggedBySession(
-  logs: { id: string; programId: string; programSessionId?: string | null; date: string; sets: unknown[] }[],
+  logs: { id: string; programId: string; programSessionId?: string | null; date: string; sets: unknown[]; loggedBy?: string }[],
   programId: string
 ): Map<string, LoggedMark[]> {
   const out = new Map<string, LoggedMark[]>();
   for (const l of logs) {
     if (l.programId !== programId || !l.programSessionId) continue;
     const list = out.get(l.programSessionId) ?? [];
-    list.push({ id: l.id, date: l.date.slice(0, 10), setCount: l.sets.length });
+    list.push({ id: l.id, date: l.date.slice(0, 10), setCount: l.sets.length, byClient: l.loggedBy === "client" });
     out.set(l.programSessionId, list);
   }
   for (const list of out.values()) list.sort((a, b) => b.date.localeCompare(a.date));

@@ -1,88 +1,11 @@
 import { Elysia, t } from "elysia";
 import { z } from "zod";
-import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { db, clients, sessionLogs, setLogs, exercises, programs } from "@pt/db";
-import { CardioLog, Readiness, SessionFlag, SessionKind, SetType } from "@pt/shared";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { db, clients, sessionLogs, setLogs, exercises } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
-import { loadLogPrograms, queueSignalsForOutbox, timedIdsOf, timedSlotIdsOf } from "../lib/signals-service";
-
-const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
-
-/** Write boundary for a full session log: session + sets in one payload.
- *  Same four cardio rules as the shared SessionLog (domain.ts). */
-const SessionLogInput = z
-  .object({
-    clientId: z.string().uuid(),
-    programId: z.string().uuid(),
-    programSessionId: z.string().uuid().nullable().optional(),
-    date: IsoDate,
-    kind: SessionKind.default("lifting"),
-    cardio: CardioLog.nullable().optional(),
-    notes: z.string().max(2000).optional(),
-    perceivedEnergy: z.number().int().min(1).max(10).optional(),
-    /** Pre-session sleep and soreness, 1–5 each. */
-    readiness: Readiness.nullable().optional(),
-    /** Per-exercise pain / technique / skipped flags. */
-    flags: z.array(SessionFlag).max(100).nullable().optional(),
-    /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
-    onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
-    sets: z
-      .array(
-        z.object({
-          programExerciseId: z.string().uuid().nullable().optional(),
-          exerciseId: z.string().uuid(),
-          setNumber: z.number().int().min(1).max(20),
-          type: SetType.default("working"),
-          weightKg: z.number().min(0).max(600).optional(),
-          reps: z.number().int().min(0).max(200),
-          rpe: z.number().min(1).max(10).optional(),
-        })
-      )
-      .max(100),
-  })
-  .superRefine((val, ctx) => {
-    if (val.kind === "lifting") {
-      if (val.sets.length < 1) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "lifting log requires at least 1 set",
-          path: ["sets"],
-        });
-      }
-      if (val.cardio != null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "lifting log must not have cardio payload",
-          path: ["cardio"],
-        });
-      }
-    } else if (val.kind === "cardio") {
-      if (val.cardio == null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "cardio log requires cardio payload",
-          path: ["cardio"],
-        });
-      }
-      if (val.sets.length > 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "cardio log must not have sets",
-          path: ["sets"],
-        });
-      }
-    }
-  });
-
-/** numeric columns come back as strings — convert to numbers at the API boundary. */
-function serializeSets(rows: typeof setLogs.$inferSelect[]) {
-  return rows.map((s) => ({
-    ...s,
-    weightKg: s.weightKg != null ? Number(s.weightKg) : null,
-    rpe: s.rpe != null ? Number(s.rpe) : null,
-  }));
-}
+import { createSessionLog, deleteSessionLog, SessionLogInput, serializeSets } from "../lib/log-service";
+import { loadLogPrograms, timedIdsOf, timedSlotIdsOf } from "../lib/signals-service";
 
 /** Logs carry no trainer_id — scope them through the trainer's clients. */
 const ofTrainer = (trainerId: string) =>
@@ -124,112 +47,18 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       if (!parsed.success) {
         return status(422, { error: "invalid log", issues: z.treeifyError(parsed.error) });
       }
-      const input = parsed.data;
-
-      const [program] = await db.select().from(programs).where(eq(programs.id, input.programId));
-      if (!program) return status(404, { error: "program not found" });
-      if (program.clientId !== input.clientId) {
-        return status(422, { error: "program does not belong to client" });
+      const result = await createSessionLog({ trainerId, input: parsed.data });
+      switch (result.outcome) {
+        case "program_not_found":
+          return status(404, { error: "program not found" });
+        case "program_mismatch":
+          return status(422, { error: "program does not belong to client" });
+        case "unknown_exercises":
+          return status(422, { error: "unknown exercises", ids: result.ids });
+        case "conflict":
+          return status(409, { error: "already logged", existing: result.existing });
       }
-
-      const exerciseIds = [...new Set(input.sets.map((s) => s.exerciseId))];
-      if (exerciseIds.length > 0) {
-        const known = await db.select().from(exercises).where(inArray(exercises.id, exerciseIds));
-        // A swap may pick any exercise — but only from this trainer's catalog (seed or own).
-        const knownIds = new Set(
-          known.filter((e) => e.trainerId === null || e.trainerId === trainerId).map((e) => e.id)
-        );
-        const missing = exerciseIds.filter((id) => !knownIds.has(id));
-        if (missing.length) return status(422, { error: "unknown exercises", ids: missing });
-      }
-
-      const saved = await db.transaction(async (tx) => {
-        // A duplicate is this exact program session logged again; ad-hoc logs never are.
-        // Two saves of one session queue on this lock, so the second sees the first's row.
-        const programSessionId = input.programSessionId;
-        if (programSessionId) {
-          await tx.execute(
-            sql`select pg_advisory_xact_lock(hashtext(${input.clientId} || ':' || ${programSessionId}))`
-          );
-        }
-        const duplicates = programSessionId
-          ? await tx
-              .select({ id: sessionLogs.id, date: sessionLogs.date })
-              .from(sessionLogs)
-              .where(
-                and(
-                  eq(sessionLogs.clientId, input.clientId),
-                  eq(sessionLogs.programId, input.programId),
-                  eq(sessionLogs.programSessionId, programSessionId)
-                )
-              )
-              .orderBy(desc(sessionLogs.date))
-          : [];
-        if (duplicates.length > 0 && input.onDuplicate === "reject") {
-          const [latest] = duplicates;
-          const [{ setCount }] = await tx
-            .select({ setCount: count() })
-            .from(setLogs)
-            .where(eq(setLogs.sessionLogId, latest.id));
-          return { conflict: { id: latest.id, date: latest.date, setCount } } as const;
-        }
-        // Replace hands back what it removed, in full, so Undo can write it back.
-        let replaced: (typeof sessionLogs.$inferSelect & { sets: ReturnType<typeof serializeSets> })[] = [];
-        if (duplicates.length > 0 && input.onDuplicate === "replace") {
-          const ids = duplicates.map((d) => d.id);
-          // Read the sets first: they go with their log (ON DELETE CASCADE).
-          const removedSets = serializeSets(await tx.select().from(setLogs).where(inArray(setLogs.sessionLogId, ids)));
-          const removed = await tx.delete(sessionLogs).where(inArray(sessionLogs.id, ids)).returning();
-          replaced = removed.map((l) => ({ ...l, sets: removedSets.filter((st) => st.sessionLogId === l.id) }));
-        }
-        const [log] = await tx
-          .insert(sessionLogs)
-          .values({
-            clientId: input.clientId,
-            programId: input.programId,
-            programSessionId: input.programSessionId ?? null,
-            date: input.date,
-            kind: input.kind,
-            cardio: input.cardio ?? null,
-            notes: input.notes ?? null,
-            perceivedEnergy: input.perceivedEnergy ?? null,
-            // An empty readiness or flag list stores as null, like an old row.
-            readiness: input.readiness && Object.keys(input.readiness).length > 0 ? input.readiness : null,
-            flags: input.flags?.length ? input.flags : null,
-          })
-          .returning();
-
-        // Cardio logs carry no sets — drizzle `.values([])` throws, so insert only with rows.
-        const insertedSets =
-          input.sets.length > 0
-            ? await tx
-                .insert(setLogs)
-                .values(
-                  input.sets.map((s) => ({
-                    sessionLogId: log.id,
-                    programExerciseId: s.programExerciseId ?? null,
-                    exerciseId: s.exerciseId,
-                    setNumber: s.setNumber,
-                    type: s.type,
-                    weightKg: s.weightKg !== undefined ? String(s.weightKg) : null,
-                    reps: s.reps,
-                    rpe: s.rpe !== undefined ? String(s.rpe) : null,
-                  }))
-                )
-                .returning()
-            : [];
-        return { log, insertedSets, replaced };
-      });
-      if ("conflict" in saved) return status(409, { error: "already logged", existing: saved.conflict });
-      const { log, insertedSets, replaced } = saved;
-
-      // Write path: the log is committed — queue any new signals for the outbox.
-      // A queueing failure must not fail the already-committed log write.
-      await queueSignalsForOutbox(program.trainerId, input.clientId).catch((err) =>
-        console.error("signal outbox queue failed:", err)
-      );
-
-      return status(201, { ...log, sets: serializeSets(insertedSets), replaced });
+      return status(201, { ...result.log, sets: result.sets, replaced: result.replaced });
     },
     { body: t.Any() }
   )
@@ -237,14 +66,8 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   .delete(
     "/sessions/:id",
     async ({ params, status, trainerId }) => {
-      const [deleted] = await db
-        .delete(sessionLogs)
-        .where(and(eq(sessionLogs.id, params.id), ofTrainer(trainerId)))
-        .returning({ clientId: sessionLogs.clientId });
+      const deleted = await deleteSessionLog(trainerId, and(eq(sessionLogs.id, params.id), ofTrainer(trainerId)));
       if (!deleted) return status(404, { error: "log not found" });
-      await queueSignalsForOutbox(trainerId, deleted.clientId).catch((err) =>
-        console.error("signal outbox queue failed:", err)
-      );
       return status(204);
     },
     { params: t.Object({ id: t.String({ format: "uuid" }) }) }

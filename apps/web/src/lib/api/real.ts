@@ -2,6 +2,7 @@ import type {
   AliasDto,
   ChainWeekDto,
   ChatMessageDto,
+  ClientPortalDto,
   ClientMessageDto,
   ClientDto,
   ExerciseDto,
@@ -162,6 +163,10 @@ export const realApi: TrainerApi = {
     }
   },
   deleteSessionLog: (id) => unwrap<void>(client.v1.logs.sessions({ id }).delete()),
+  clientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.get()),
+  enableClientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.post()),
+  resetClientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.reset.post()),
+  disableClientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.delete()),
 
   instructionTemplates: async () =>
     (await unwrap<{ templates: InstructionTemplateDto[] }>(client.v1.ai["prompt-templates"].get())).templates,

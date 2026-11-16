@@ -30,6 +30,8 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
+  import ReadinessStrip from "$lib/components/log/ReadinessStrip.svelte";
+  import CardioLogForm, { type CardioForm } from "$lib/components/log/CardioLogForm.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
@@ -95,12 +97,10 @@
     FLAG_KINDS,
     FLAG_LABEL,
     FLAG_NOTE_MAX,
-    READINESS_SCALES,
     painExercises,
     readinessInput,
     sessionFlags,
     setFlagNote,
-    tapScale,
     toggleFlag,
     type ExerciseFlags,
     type FlagKind,
@@ -141,11 +141,6 @@
   /** Narrow sheet only: pickers and readiness fold to one line each so the first set sits near the top. */
   let pickersOpen = $state(false);
   let readinessOpen = $state(false);
-  const readinessSummary = $derived(
-    READINESS_SCALES.filter((sc) => readiness[sc.field] != null)
-      .map((sc) => `${sc.label} ${readiness[sc.field]}`)
-      .join(" · ")
-  );
   /** programExerciseId → its Pain / Technique flag. */
   let flags = $state<ExerciseFlags>({});
   /** Slot whose flag menu is open. */
@@ -173,14 +168,6 @@
   /** Slot whose swap picker is open. */
   let swapOpen = $state<string | null>(null);
 
-  interface CardioForm {
-    modality: string;
-    durationMin: Cell;
-    hrZone: string;
-    intensity: string;
-    distanceKm: Cell;
-    rpe: Cell;
-  }
   let cardioForm = $state<CardioForm>({
     modality: "",
     durationMin: "",
@@ -1259,7 +1246,7 @@
           {/if}
           {#if loggedNote}
             <Note tone="warn" role="note">
-              Already logged {fmtDay(loggedNote.date)}{isCardioSession ? "" : ` · ${loggedNote.setCount} sets`}.
+              Already logged {fmtDay(loggedNote.date)}{isCardioSession ? "" : ` · ${loggedNote.setCount} sets`}{#if loggedNote.byClient}{" "}<span class="pill neutral by-client">by client</span>{/if}.
               Saving again asks whether to replace it.
             </Note>
           {/if}
@@ -1272,32 +1259,10 @@
         </div>
       {/if}
       {#if sessionId}
-        {@render readinessStrip()}
+        <ReadinessStrip bind:value={readiness} bind:open={readinessOpen} />
       {/if}
       {#if isCardioSession}
-        <div class="panel-body cardio-form">
-          <Field label="Modality" htmlFor="c-modality" hint="what did they do?">
-            <input class="input" id="c-modality" placeholder="Run, Bike, Rower…" bind:value={cardioForm.modality} maxlength="80" />
-          </Field>
-          <Field label="Min" htmlFor="c-min">
-            <input class="input tnum" id="c-min" type="number" inputmode="numeric" min="1" max="300" bind:value={cardioForm.durationMin} />
-          </Field>
-          <Field label="HR zone" htmlFor="c-zone">
-            <select class="select" id="c-zone" bind:value={cardioForm.hrZone}>
-              <option value="">—</option>
-              {#each [1, 2, 3, 4, 5] as z}<option value={String(z)}>Z{z}</option>{/each}
-            </select>
-          </Field>
-          <Field label="Intensity" htmlFor="c-intensity">
-            <input class="input" id="c-intensity" placeholder="easy, threshold…" bind:value={cardioForm.intensity} maxlength="60" />
-          </Field>
-          <Field label="km" htmlFor="c-km">
-            <input class="input tnum" id="c-km" type="number" inputmode="decimal" min="0" max="300" step="0.1" bind:value={cardioForm.distanceKm} />
-          </Field>
-          <Field label="RPE" htmlFor="c-rpe">
-            <input class="input tnum" id="c-rpe" type="number" inputmode="decimal" min="1" max="10" step="0.5" bind:value={cardioForm.rpe} />
-          </Field>
-        </div>
+        <CardioLogForm bind:value={cardioForm} />
         <div class="panel-body foot">
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">
@@ -1586,33 +1551,6 @@
       </Panel>
     </form>
 
-    {#snippet readinessStrip()}
-      <!-- Before the session: three optional taps. "Did it as prescribed" needs none of them. -->
-      <div class="panel-body readiness" class:collapsed={!readinessOpen} role="group" aria-label="Readiness, optional">
-        <button type="button" class="rd-toggle" aria-expanded={readinessOpen} onclick={() => (readinessOpen = !readinessOpen)}>
-          <span class="rd-toggle-label">Readiness</span>
-          <span class="faint rd-toggle-sum">{readinessSummary || "optional"}</span>
-          <Icon name="chevron" />
-        </button>
-        {#each READINESS_SCALES as sc (sc.field)}
-          <div class="rd">
-            <span class="rd-label" id={`rd-${sc.field}`}>{sc.label} <span class="faint">1 {sc.low} · {sc.max} {sc.high}</span></span>
-            <div class="seg rd-scale" role="group" aria-labelledby={`rd-${sc.field}`}>
-              {#each Array.from({ length: sc.max }, (_, i) => i + 1) as v (v)}
-                <button
-                  type="button"
-                  class="tnum"
-                  aria-pressed={readiness[sc.field] === v}
-                  aria-label={`${sc.label} ${v} of ${sc.max}`}
-                  onclick={() => (readiness[sc.field] = tapScale(readiness[sc.field], v))}
-                >{v}</button>
-              {/each}
-            </div>
-          </div>
-        {/each}
-        <span class="faint rd-hint">Optional · tap again to clear</span>
-      </div>
-    {/snippet}
 
     {#snippet saveBar(status: string)}
       <!-- Sticky: Save, the tally and the error stay on screen while the sheet scrolls. -->
@@ -1757,7 +1695,7 @@
     flex-wrap: wrap;
   }
   /* Folded summaries exist only in the narrow sheet. */
-  .hc-summary, .rd-toggle { display: none; }
+  .hc-summary { display: none; }
   /* A label never wraps away from its field. */
   .hc-pair { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .head-controls .label { margin: 0; }
@@ -1860,9 +1798,6 @@
   }
   /* ---- Undo window: the recap's hairline drains, then the save stands ---- */
   .undo-left { font-size: 12px; color: var(--muted); }
-  @media (prefers-reduced-motion: reduce) {
-    .rd-toggle :global(svg) { transition: none; }
-  }
 
   /* ---- The ask: one small modal for the summary and the duplicate choice ---- */
   .ask {
@@ -2022,42 +1957,7 @@
     align-items: end;
     border-top: 1px solid var(--line);
   }
-  .cardio-form {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-  }
   .notes { min-width: 220px; }
-
-  /* ---- Readiness: three segmented scales, top of the sheet ---- */
-  .readiness {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 10px 24px;
-    padding-top: 10px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--line);
-  }
-  .rd { display: grid; gap: 6px; }
-  .rd-label { font: 500 12px/1.2 var(--font-ui); color: var(--muted); }
-  .rd-label .faint { font-weight: 400; margin-left: 4px; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .seg button {
-    min-width: 30px;
-    height: 30px;
-    padding: 0 6px;
-    font: 500 13px/1 var(--font-mono);
-    color: var(--muted);
-    background: var(--well);
-    border: 0;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button:hover { color: var(--ink); background: var(--well-2); }
-  .seg button[aria-pressed="true"] { color: var(--ink); background: var(--surface); font-weight: 600; box-shadow: inset 0 -2px 0 var(--tab-on); }
-  .rd-hint { font-size: 12px; margin-left: auto; align-self: center; }
 
   /* ---- Flag an exercise ---- */
   .flag-pill {
@@ -2151,7 +2051,6 @@
 
   @media (max-width: 860px) {
     .foot { grid-template-columns: 1fr; }
-    .cardio-form { grid-template-columns: 1fr; }
   }
 
   /* ---- Narrow sheet: one exercise card at a time, one set per row, 44px steppers.
@@ -2305,29 +2204,6 @@
     .hc-summary .link-btn { min-height: 44px; padding: 0 4px; font-size: 14px; }
     .head-controls.collapsed .hc-pair { display: none; }
     .head-controls :global(.btn) { grid-column: 1 / -1; min-height: 44px; justify-content: center; }
-    .readiness { display: grid; gap: 12px; }
-    .readiness.collapsed { padding-top: 0; padding-bottom: 0; }
-    .readiness.collapsed .rd, .readiness.collapsed .rd-hint { display: none; }
-    .rd-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      min-height: 44px;
-      padding: 0;
-      font: 500 14px/1.3 var(--font-ui);
-      color: var(--ink);
-      background: none;
-      border: 0;
-      cursor: pointer;
-      text-align: left;
-    }
-    .rd-toggle-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
-    .rd-toggle :global(svg) { flex: 0 0 auto; width: 16px; height: 16px; transition: transform 150ms ease-out; }
-    .rd-toggle[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
-    .rd-scale { display: flex; }
-    .seg button { flex: 1; min-width: 0; height: 40px; font-size: 14px; }
-    .rd-hint { margin-left: 0; }
     .flag-pill { max-width: 100%; }
     .flag-input { flex-basis: 100%; height: 44px; font-size: 14px; }
     .notes { min-width: 0; }

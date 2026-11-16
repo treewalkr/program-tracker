@@ -10,6 +10,7 @@
    */
   let {
     value = $bindable(),
+    id,
     label,
     unit,
     step,
@@ -27,6 +28,8 @@
     oncommit,
   }: {
     value: Cell;
+    /** The input's id, so a page can scroll to and focus it. */
+    id?: string;
     /** Unique accessible name of the input, e.g. "Bench back-off set 2, kg". */
     label: string;
     /** Visible field label at phone width: "kg", "reps", "RPE". */
@@ -63,6 +66,7 @@
       <Icon name="minus" />
     </button>
     <input
+      {id}
       class="input lstep-input"
       type="number"
       {inputmode}
