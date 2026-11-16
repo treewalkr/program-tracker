@@ -377,6 +377,8 @@ export interface LogSetInput {
   weightKg?: number;
   reps: number;
   rpe?: number;
+  /** Saved untouched from the prescription (portal one-tap save). */
+  asPlanned?: boolean;
 }
 
 export interface SessionLogInput {

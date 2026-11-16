@@ -65,13 +65,45 @@ describe("portal log form", () => {
     expect(buildPortalLog(noTarget, bw, false)).toMatchObject({ sets: 3 });
   });
 
-  test("rows come prefilled as prescribed: range bottom, kg, RPE; timed sets log their seconds", () => {
+  test("rows come prefilled as prescribed: range bottom and kg, never RPE; timed sets log their seconds", () => {
     const rows = rowsOfSession(lifting);
     expect(rows.map((r) => [r.key, r.weight, r.reps, r.rpe])).toEqual([
-      ["pe1:1", 100, 6, 8],
-      ["pe1:2", 100, 6, 8],
+      ["pe1:1", 100, 6, ""],
+      ["pe1:2", 100, 6, ""],
       ["pe2:1", "", 45, ""],
     ]);
+  });
+
+  test("a one-tap save marks untouched sets as planned and sends no RPE", () => {
+    const r = buildPortalLog(lifting, form(lifting), false);
+    if (!("input" in r)) throw new Error("expected input");
+    expect(r.input.sets.map((s) => [s.setNumber, s.reps, s.rpe, s.asPlanned])).toEqual([
+      [1, 6, undefined, true],
+      [2, 6, undefined, true],
+      [1, 45, undefined, true],
+    ]);
+    expect(r.input.sets.every((s) => !("rpe" in s) || s.rpe === undefined)).toBe(true);
+  });
+
+  test("an edited kg, reps or an RPE the client gave confirms the set", () => {
+    const f = form(lifting);
+    f.rows[0].rpe = 8.5;
+    f.rows[1].weight = 102.5;
+    const r = buildPortalLog(lifting, f, false);
+    if (!("input" in r)) throw new Error("expected input");
+    expect(r.input.sets.map((s) => [s.setNumber, s.rpe, s.asPlanned ?? false])).toEqual([
+      [1, 8.5, false],
+      [2, undefined, false],
+      [1, undefined, true],
+    ]);
+  });
+
+  test("cardio RPE is saved only when the client gave it", () => {
+    const withTarget: PortalSession = { ...cardio, cardio: { modality: "Run", durationMin: 30, targetRpe: 6 } };
+    expect(cardioFormOf(withTarget.cardio).rpe).toBe("");
+    const r = buildPortalLog(withTarget, form(withTarget), false);
+    if (!("input" in r)) throw new Error("expected input");
+    expect(r.input.cardio?.rpe).toBeUndefined();
   });
 
   test("as prescribed is one save; edits go through", () => {
@@ -81,8 +113,8 @@ describe("portal log form", () => {
     if (!("input" in r)) throw new Error("expected input");
     expect(r.sets).toBe(3);
     expect(r.input.sets.map((s) => [s.programExerciseId, s.weightKg, s.reps, s.rpe])).toEqual([
-      ["pe1", 100, 6, 8],
-      ["pe1", 100, 5, 8],
+      ["pe1", 100, 6, undefined],
+      ["pe1", 100, 5, undefined],
       ["pe2", undefined, 45, undefined],
     ]);
     expect(r.input).not.toHaveProperty("onDuplicate");

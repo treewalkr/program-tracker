@@ -7,7 +7,9 @@ import type { PortalLogInput } from "$lib/api/portalTypes";
 /**
  * The portal's log form, pure: a session becomes set rows prefilled with what
  * was prescribed (so "did it as planned" is one tap on Save), cardio becomes
- * its form, and a draft survives a reload on this phone.
+ * its form, and a draft survives a reload on this phone. A set saved untouched
+ * goes out marked `asPlanned`, and RPE is never prefilled: the coach only sees
+ * effort the client reported.
  */
 
 export interface PortalRow extends SheetRow {
@@ -16,6 +18,8 @@ export interface PortalRow extends SheetRow {
   /** What was prescribed for this set; null = an extra set. */
   rx: Prescription | null;
   timed: boolean;
+  /** The kg and reps the row opened with; a row still on them (and no RPE) saves as planned. */
+  planned?: { weight: string; reps: string };
 }
 
 /** One prescribed set as the logger reads it — the API already resolved %1RM to kg. */
@@ -42,6 +46,8 @@ export function rowsOfSession(session: PortalSession): PortalRow[] {
       // no target kg: the client's own last load on this lift, like the trainer's sheet
       const last = ps.lastWeightKg != null ? { date: "", weightKg: ps.lastWeightKg, reps: 0, rpe: null } : null;
       const plan = asPrescribed(rx, { bodyweight, swapped: false, last });
+      const weight = cell(plan.weight);
+      const reps = cell(plan.reps);
       return {
         key: `${e.id}:${ps.setNumber}`,
         exerciseId: e.exerciseId,
@@ -50,12 +56,14 @@ export function rowsOfSession(session: PortalSession): PortalRow[] {
         setNumber: ps.setNumber,
         type: ps.type,
         prescribedReps: plan.reps,
-        weight: cell(plan.weight),
-        reps: cell(plan.reps),
-        rpe: cell(plan.rpe),
+        weight,
+        reps,
+        // effort is the client's to report: the target RPE shows beside the cell, never in it
+        rpe: "",
         name: e.exerciseName,
         rx,
         timed: ps.durationSeconds != null,
+        planned: { weight: String(weight), reps: String(reps) },
         ...(e.group ? { group: e.group } : {}),
       };
     }),
@@ -64,7 +72,7 @@ export function rowsOfSession(session: PortalSession): PortalRow[] {
 
 /** An extra set after the exercise's last one: empty, nothing prescribed. */
 export function extraRow(like: PortalRow, setNumber: number): PortalRow {
-  return { ...like, key: `${like.programExerciseId}:x${setNumber}`, setNumber, type: "working", prescribedReps: null, weight: "", reps: "", rpe: "", rx: null, extra: true, copied: undefined };
+  return { ...like, key: `${like.programExerciseId}:x${setNumber}`, setNumber, type: "working", prescribedReps: null, weight: "", reps: "", rpe: "", rx: null, extra: true, copied: undefined, planned: undefined };
 }
 
 export function cardioFormOf(c: PortalSession["cardio"]): CardioForm {
@@ -74,7 +82,8 @@ export function cardioFormOf(c: PortalSession["cardio"]): CardioForm {
     hrZone: c?.hrZone != null ? String(c.hrZone) : "",
     intensity: c?.intensity ?? "",
     distanceKm: c?.distanceKm != null ? String(c.distanceKm) : "",
-    rpe: c?.targetRpe != null ? String(c.targetRpe) : "",
+    // never the target: RPE is saved only when the client gives it
+    rpe: "",
   };
 }
 
@@ -140,7 +149,16 @@ export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace
   if (saved.length === 0) return { error: "nothing" };
   const missing = setsMissingKg(session, saved);
   if (missing.length > 0) return { error: "kg", sets: missing.length, programExerciseId: missing[0].programExerciseId };
-  return { input: { ...base, kind: "lifting", sets: saved.map(toLoggedSet) }, sets: saved.length };
+  return { input: { ...base, kind: "lifting", sets: saved.map(portalSet) }, sets: saved.length };
+}
+
+/** Untouched since the page opened it: still on the prefilled kg and reps, no RPE given. */
+export const savedAsPlanned = (r: PortalRow): boolean =>
+  r.planned != null && String(r.weight) === r.planned.weight && String(r.reps) === r.planned.reps && isBlank(r.rpe);
+
+function portalSet(r: PortalRow) {
+  const set = toLoggedSet(r);
+  return savedAsPlanned(r) ? { ...set, asPlanned: true } : set;
 }
 
 // ---------------------------------------------------------------------------
