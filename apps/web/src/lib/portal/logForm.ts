@@ -1,6 +1,6 @@
-import type { PortalSession, PortalSet } from "@pt/shared";
+import type { PortalLogEntry, PortalSession, PortalSet } from "@pt/shared";
 import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
-import { readinessInput, parseReadiness, type ReadinessForm } from "$lib/logFlags";
+import { EMPTY_READINESS, readinessInput, parseReadiness, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
 
@@ -87,6 +87,44 @@ export function cardioFormOf(c: PortalSession["cardio"]): CardioForm {
   };
 }
 
+/** Cardio actuals back into the form's strings. */
+function cardioFormOfLog(c: NonNullable<PortalLogEntry["cardio"]>): CardioForm {
+  const str = (v: number | null | undefined) => (v != null ? String(v) : "");
+  return { modality: c.modality, durationMin: str(c.durationMin), hrZone: str(c.hrZone), intensity: c.intensity ?? "", distanceKm: str(c.distanceKm), rpe: str(c.rpe) };
+}
+
+/**
+ * Rows for the client's own saved log: each prescribed set shows what was saved
+ * (a set left out reopens as missed), sets added on the day come back as extras.
+ * A set saved as planned stays planned until it's edited.
+ */
+export function rowsOfEntry(session: PortalSession, entry: PortalLogEntry): PortalRow[] {
+  const saved = new Map(entry.sets.map((s) => [`${s.programExerciseId}:${s.setNumber}`, s]));
+  const used = new Set<string>();
+  const out: PortalRow[] = [];
+  const fill = (r: PortalRow, s: PortalLogEntry["sets"][number]): PortalRow => {
+    const weight = s.weightKg ?? "";
+    return { ...r, weight, reps: s.reps, rpe: s.rpe ?? "", planned: s.asPlanned ? { weight: String(weight), reps: String(s.reps) } : undefined };
+  };
+  const base = rowsOfSession(session);
+  for (const [i, r] of base.entries()) {
+    const key = `${r.programExerciseId}:${r.setNumber}`;
+    const s = saved.get(key);
+    if (s) used.add(key);
+    out.push(s ? fill(r, s) : { ...r, skipped: true, planned: undefined });
+    // after an exercise's last prescribed set: what the client added on the day
+    if (base[i + 1]?.programExerciseId !== r.programExerciseId) {
+      for (const x of entry.sets) {
+        const k = `${x.programExerciseId}:${x.setNumber}`;
+        if (x.programExerciseId !== r.programExerciseId || used.has(k)) continue;
+        used.add(k);
+        out.push(fill(extraRow(r, x.setNumber), x));
+      }
+    }
+  }
+  return out;
+}
+
 export interface PortalLogForm {
   rows: PortalRow[];
   cardio: CardioForm;
@@ -159,6 +197,19 @@ export const savedAsPlanned = (r: PortalRow): boolean =>
 function portalSet(r: PortalRow) {
   const set = toLoggedSet(r);
   return savedAsPlanned(r) ? { ...set, asPlanned: true } : set;
+}
+
+/** The form the page opens with: the client's own saved log when there is one, else the plan. */
+export function formOfSession(session: PortalSession, today: string): PortalLogForm {
+  const entry = session.log?.loggedBy === "client" ? session.log.entry : undefined;
+  if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today };
+  return {
+    rows: session.kind === "cardio" ? rowsOfSession(session) : rowsOfEntry(session, entry),
+    cardio: entry.cardio ? cardioFormOfLog(entry.cardio) : cardioFormOf(session.cardio),
+    readiness: parseReadiness({ energy: entry.perceivedEnergy, readiness: entry.readiness }),
+    notes: entry.notes ?? "",
+    date: session.log?.date ?? today,
+  };
 }
 
 // ---------------------------------------------------------------------------

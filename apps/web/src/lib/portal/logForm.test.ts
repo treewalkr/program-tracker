@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS } from "$lib/logFlags";
-import { buildPortalLog, cardioFormOf, extraRow, parsePortalDraft, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
+import { buildPortalLog, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
 const lifting: PortalSession = {
   id: "ps1", name: "Lower", kind: "lifting", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -154,5 +154,60 @@ describe("portal log form", () => {
     expect([...touchedExercises(pristine, rows)]).toEqual(["pe1"]);
     const more = [...rowsOfSession(lifting), extraRow(rowsOfSession(lifting)[2], 2)];
     expect([...touchedExercises(pristine, more)]).toEqual(["pe2"]);
+  });
+});
+
+describe("edit log: the client's own entry reopens", () => {
+  const entry = (sets: { pe: string; ex: string; n: number; kg: number | null; reps: number; rpe?: number; planned?: boolean }[]) => ({
+    sets: sets.map((s) => ({ programExerciseId: s.pe, exerciseId: s.ex, setNumber: s.n, type: "working" as const, weightKg: s.kg, reps: s.reps, rpe: s.rpe ?? null, asPlanned: s.planned ?? false })),
+    cardio: null,
+    notes: "knee ok",
+    perceivedEnergy: 6,
+    readiness: { sleep: 2 },
+    flags: null,
+  });
+
+  test("no entry (a coach's log, or none): the prescription", () => {
+    expect(formOfSession(lifting, "2026-11-16").rows).toEqual(rowsOfSession(lifting));
+    const coach = { ...lifting, log: { id: "l1", loggedBy: "trainer" as const, date: "2026-11-15" } };
+    expect(formOfSession(coach, "2026-11-16")).toMatchObject({ notes: "", date: "2026-11-16" });
+  });
+
+  test("saved values fill the rows; a set not saved reopens missed; extra sets come back", () => {
+    const s: PortalSession = {
+      ...lifting,
+      log: {
+        id: "l1", loggedBy: "client", date: "2026-11-15",
+        entry: entry([
+          { pe: "pe1", ex: "ex-squat", n: 1, kg: 102.5, reps: 7, rpe: 8.5 },
+          { pe: "pe1", ex: "ex-squat", n: 3, kg: 100, reps: 5 },
+          { pe: "pe2", ex: "ex-plank", n: 1, kg: null, reps: 45, planned: true },
+        ]),
+      },
+    };
+    const f = formOfSession(s, "2026-11-16");
+    expect(f.rows.map((r) => [r.key, r.weight, r.reps, r.rpe, r.skipped ?? false, r.extra ?? false])).toEqual([
+      ["pe1:1", 102.5, 7, 8.5, false, false],
+      ["pe1:2", 100, 6, "", true, false],
+      ["pe1:x3", 100, 5, "", false, true],
+      ["pe2:1", "", 45, "", false, false],
+    ]);
+    expect(f).toMatchObject({ notes: "knee ok", date: "2026-11-15", readiness: { energy: 6, sleep: 2, soreness: null } });
+    // re-saving untouched keeps what was planned as planned, and what was confirmed as confirmed
+    const r = buildPortalLog(s, f, true);
+    if (!("input" in r)) throw new Error("expected input");
+    expect(r.input.sets.map((x) => [x.setNumber, x.weightKg, x.reps, x.rpe, x.asPlanned ?? false])).toEqual([
+      [1, 102.5, 7, 8.5, false],
+      [3, 100, 5, undefined, false],
+      [1, undefined, 45, undefined, true],
+    ]);
+  });
+
+  test("a saved cardio entry reopens its numbers", () => {
+    const s: PortalSession = {
+      ...cardio,
+      log: { id: "l2", loggedBy: "client", date: "2026-11-15", entry: { ...entry([]), cardio: { modality: "Bike", durationMin: 40, rpe: 6 } } },
+    };
+    expect(formOfSession(s, "2026-11-16").cardio).toEqual({ modality: "Bike", durationMin: "40", hrZone: "", intensity: "", distanceKm: "", rpe: "6" });
   });
 });

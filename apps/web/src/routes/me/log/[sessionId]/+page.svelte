@@ -15,10 +15,10 @@
     buildPortalLog,
     cardioFormOf,
     extraRow,
+    formOfSession,
     parsePortalDraft,
     portalDraftJson,
     portalDraftKey,
-    rowsOfSession,
     sameForm,
     setsMissingKg,
     touchedExercises,
@@ -66,8 +66,9 @@
   const blocks = $derived(blocksOf(rows));
   const block = $derived(blocks[Math.min(current, blocks.length - 1)] ?? null);
   /** The form as the page opened it — nothing touched yet, so nothing worth a draft. */
-  const freshForm = (s: PortalSession): PortalLogForm => ({ rows: rowsOfSession(s), cardio: cardioFormOf(s.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today });
-  const pristine = $derived(session ? rowsOfSession(session) : []);
+  /** The form as the page opened it — the client's own saved log, else the plan. */
+  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, today);
+  const pristine = $derived(session ? freshForm(session).rows : []);
   const touched = $derived(touchedExercises(pristine, rows));
   const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
   const missingKeys = $derived(new Set(missingKg.map((r) => r.key)));
@@ -77,11 +78,12 @@
   const maxDate = $derived(week && week.endDate < today ? week.endDate : today);
 
   function fresh(s: PortalSession) {
-    rows = rowsOfSession(s);
-    cardio = cardioFormOf(s.cardio);
-    readiness = { ...EMPTY_READINESS };
-    notes = "";
-    date = today;
+    const f = freshForm(s);
+    rows = f.rows;
+    cardio = f.cardio;
+    readiness = f.readiness;
+    notes = f.notes;
+    date = f.date;
     current = 0;
     kgChecked = false;
   }
