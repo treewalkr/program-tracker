@@ -752,6 +752,14 @@
                   >
                   <Button
                     small
+                    disabled={busy}
+                    aria-label="Start {handle}"
+                    icon={pending[item.id] === "in_progress" ? spinner : undefined}
+                    title="Mark it in progress — you're building it now"
+                    onclick={() => setStatus(item, { status: "in_progress" })}>Start</Button
+                  >
+                  <Button
+                    small
                     id="fb-wontfix-{item.id}"
                     disabled={busy}
                     aria-label="Won't fix {handle}"
@@ -760,6 +768,14 @@
                     onclick={() => (closing === item.id ? cancelWontfix(item) : openWontfix(item))}>Won't fix</Button
                   >
                 {:else if item.status === "accepted"}
+                  <Button
+                    small
+                    disabled={busy}
+                    aria-label="Start {handle}"
+                    icon={pending[item.id] === "in_progress" ? spinner : undefined}
+                    title="Mark it in progress — you're building it now"
+                    onclick={() => setStatus(item, { status: "in_progress" })}>Start</Button
+                  >
                   <Button
                     small
                     disabled={busy}
@@ -775,6 +791,23 @@
                     aria-label="Back to new {handle}"
                     icon={pending[item.id] === "new" ? spinner : undefined}
                     onclick={() => setStatus(item, { status: "new" })}>Back to new</Button
+                  >
+                {:else if item.status === "in_progress"}
+                  <Button
+                    small
+                    disabled={busy}
+                    aria-label="Mark done {handle}"
+                    icon={pending[item.id] === "done" ? spinner : undefined}
+                    title="Mark it done once the change is live — stamps the running version"
+                    onclick={() => setStatus(item, { status: "done" })}>Mark done</Button
+                  >
+                  <Button
+                    small
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label="Back to accepted {handle}"
+                    icon={pending[item.id] === "accepted" ? spinner : undefined}
+                    onclick={() => setStatus(item, { status: "accepted" })}>Back to accepted</Button
                   >
                 {:else}
                   <Button
