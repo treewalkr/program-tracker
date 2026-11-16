@@ -1,6 +1,6 @@
 import { addDays, isoWeekday, sessionsByWeekday, type PortalSession, type PortalWeek } from "@pt/shared";
 
-/** A day of the portal week: Mon → Sun, then "any day" (weekday 0, no date). */
+/** A day of the portal week, in calendar order from the block week's first day, then "any day" (weekday 0, no date). */
 export interface DayGroup {
   weekday: number;
   /** The calendar day this weekday falls on inside the block week; null for "any day". */
@@ -15,11 +15,17 @@ export function dateOfWeekday(startDate: string, weekday: number): string {
   return addDays(startDate, offset);
 }
 
-/** The week's sessions by day, Mon → Sun then any day; days with nothing planned are left out. */
+/**
+ * The week's sessions by day in calendar order — a block week can start on any
+ * weekday (it follows activation), so a Tue → Mon week lists Tue first — then
+ * any day. Days with nothing planned are left out.
+ */
 export function dayGroups(week: PortalWeek, today: string): DayGroup[] {
   const byDay = sessionsByWeekday(week.sessions);
+  const first = isoWeekday(week.startDate);
+  const order = [...Array.from({ length: 7 }, (_, i) => ((first - 1 + i) % 7) + 1), 0];
   const out: DayGroup[] = [];
-  for (const d of [1, 2, 3, 4, 5, 6, 7, 0]) {
+  for (const d of order) {
     const sessions = byDay.get(d) ?? [];
     if (sessions.length === 0) continue;
     const date = d === 0 ? null : dateOfWeekday(week.startDate, d);
