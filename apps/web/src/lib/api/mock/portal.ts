@@ -8,6 +8,7 @@ import {
   latestLogBySession,
   localDateOf,
   portalLogEntry,
+  portalCardio,
   portalSessions,
   portalWeekLabel,
   weekOf,
@@ -133,7 +134,9 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
         : [],
     });
   }
-  return { program: { id: program.id, name: program.name }, currentWeek, weeks };
+  const target = mockState.clients.find((c) => c.id === CLIENT_ID)?.cardioTarget ?? null;
+  const cardio = portalCardio(target, mockState.logs.filter((l) => l.clientId === CLIENT_ID).map((l) => ({ date: l.date, kind: l.kind, cardio: l.cardio ?? null })), now);
+  return { program: { id: program.id, name: program.name }, currentWeek, weeks, cardio };
 }
 
 const fail = (status: number, message: string) => Object.assign(new Error(message), { status });

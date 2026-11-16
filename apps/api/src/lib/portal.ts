@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { clients, db, exercises, programs, sessionLogs, setLogs, type ProgramRow } from "@pt/db";
 import {
   addDays,
@@ -7,12 +7,15 @@ import {
   lastSetsOf,
   lastWeightsOf,
   loadStep,
+  isoWeekStart,
   latestLogBySession,
   portalLogEntry,
+  portalCardio,
   portalSessions,
   portalWeekLabel,
   weekOf,
   weekSessions,
+  type CardioTarget,
   type Equipment,
   type PortalSessionLog,
   type PortalWeek,
@@ -70,7 +73,10 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
   const ctx = await portalWeekContext(clientId, now);
   if (!ctx) return { program: null, currentWeek: null, weeks: [] };
   const { program, currentWeek, startDate } = ctx;
-  const [client] = await db.select({ oneRepMaxes: clients.oneRepMaxes }).from(clients).where(eq(clients.id, clientId));
+  const [client] = await db
+    .select({ oneRepMaxes: clients.oneRepMaxes, cardioTarget: clients.cardioTarget })
+    .from(clients)
+    .where(eq(clients.id, clientId));
   const logs = await db
     .select({
       id: sessionLogs.id,
@@ -102,7 +108,17 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
         : [],
     });
   }
-  return { program: { id: program.id, name: program.name }, currentWeek, weeks };
+  return { program: { id: program.id, name: program.name }, currentWeek, weeks, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
+}
+
+/** This ISO week's cardio against the coach's target — any program, as the coach's pace check counts it. */
+async function cardioThisWeek(clientId: string, target: CardioTarget | null, now: number) {
+  if (!target) return null;
+  const logs = await db
+    .select({ date: sessionLogs.date, kind: sessionLogs.kind, cardio: sessionLogs.cardio })
+    .from(sessionLogs)
+    .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.kind, "cardio"), gte(sessionLogs.date, isoWeekStart(new Date(now)))));
+  return portalCardio(target, logs, now);
 }
 
 /** The client's own logs get what they entered (sets, cardio, readiness, flags, notes); a coach's log stays bare. */

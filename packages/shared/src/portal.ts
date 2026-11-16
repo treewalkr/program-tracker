@@ -8,12 +8,15 @@ import {
   SessionKind,
   SetType,
   sessionsInSeqOrder,
+  CardioTargetUnit,
+  type CardioTarget,
   type OneRepMaxes,
   type Phasing,
   type ProgramSession,
 } from "./domain";
 import { oneRepMaxKg, resolveLoadKg } from "./load";
 import { addDays } from "./importHistory";
+import { cardioDone, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
 
 // ---------------------------------------------------------------------------
 // Client portal — what a client may see of their program. An explicit
@@ -131,13 +134,29 @@ export const PortalWeek = z.object({
 });
 export type PortalWeek = z.infer<typeof PortalWeek>;
 
+/** This week's cardio against the coach's weekly target (Mon–Sun, like the coach's pace check). */
+export const PortalCardio = z.object({
+  unit: CardioTargetUnit,
+  target: z.number(),
+  done: z.number(),
+});
+export type PortalCardio = z.infer<typeof PortalCardio>;
+
 /** `GET /v1/portal/week`: the active program's current and (when planned) next week. */
 export const PortalWeekDto = z.object({
   program: z.object({ id: z.string(), name: z.string() }).nullable(),
   currentWeek: z.number().int().nullable(),
   weeks: z.array(PortalWeek),
+  /** Null when the coach set no cardio target. */
+  cardio: PortalCardio.nullable().optional(),
 });
 export type PortalWeekDto = z.infer<typeof PortalWeekDto>;
+
+/** This ISO week's cardio done against the target, counted exactly as the coach's cardio-behind signal counts it. */
+export function portalCardio(target: CardioTarget | null | undefined, logs: readonly CardioCountLog[], now: number): PortalCardio | null {
+  if (!target) return null;
+  return { unit: target.unit, target: target.value, done: cardioDone(target, cardioWeekTotals([...logs], isoWeekStart(new Date(now)))) };
+}
 
 /** The client-safe label for block week `week`: a deload or a test week, else none.
  *  Only the label crosses into the portal; the phasing scheme stays with the coach. */

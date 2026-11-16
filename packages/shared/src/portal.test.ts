@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lastComparable, lastSetsOf, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
+import { lastComparable, lastSetsOf, portalCardio, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -73,5 +73,17 @@ describe("portalWeekLabel", () => {
     expect(portalWeekLabel(phasing, 4)).toBe("test");
     expect(portalWeekLabel(phasing, 2)).toBeNull();
     expect(portalWeekLabel(null, 3)).toBeNull();
+  });
+});
+
+describe("portalCardio", () => {
+  const MON = new Date(2026, 10, 16, 12).getTime(); // Monday
+  const WED = new Date(2026, 10, 18, 12).getTime();
+  const run = (date: string, min: number) => ({ date, kind: "cardio", cardio: { modality: "Run", durationMin: min, hrZone: 2 } });
+  test("this ISO week's cardio against the coach's weekly target, the same count the coach's signal uses", () => {
+    const logs = [run("2026-11-15", 60), run("2026-11-16", 30), run("2026-11-18", 60)];
+    expect(portalCardio({ unit: "minutes", value: 120 }, logs, WED)).toEqual({ unit: "minutes", target: 120, done: 90 });
+    expect(portalCardio({ unit: "sessions", value: 3 }, logs.slice(0, 2), MON)).toEqual({ unit: "sessions", target: 3, done: 1 });
+    expect(portalCardio(null, logs, WED)).toBeNull();
   });
 });

@@ -488,6 +488,19 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
   });
 
+  test("the coach's weekly cardio target shows with this week's minutes", async () => {
+    expect((await call("GET", "/v1/portal/week", { token })).body.cardio).toBeNull();
+    await db.update(clients).set({ cardioTarget: { unit: "minutes", value: 120 } }).where(eq(clients.id, clientId));
+    const run = await call("POST", "/v1/portal/logs", {
+      token,
+      body: { programSessionId: cardio1, date: today, kind: "cardio", cardio: { modality: "Run", durationMin: 30 }, sets: [] },
+    });
+    expect(run.status).toBe(201);
+    expect((await call("GET", "/v1/portal/week", { token })).body.cardio).toEqual({ unit: "minutes", target: 120, done: 30 });
+    expect((await call("DELETE", `/v1/portal/logs/${run.body.id}`, { token })).status).toBe(204);
+    await db.update(clients).set({ cardioTarget: null }).where(eq(clients.id, clientId));
+  });
+
   test("a client can't log against another client's session or another trainer's client", async () => {
     // the sibling has no active program; s1 belongs to Mai's program
     expect((await call("POST", "/v1/portal/logs", { token: siblingToken, body: logBody(s1) })).status).toBe(422);
