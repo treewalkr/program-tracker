@@ -137,7 +137,7 @@
             {@const line = statusLine(c, { latestDone: c.id === lastDoneId && item.status === "done", shippedIn: item.shippedIn })}
             <span class="dot" class:release={c.authorKind === "system"} aria-hidden="true"></span>
             <span class="sys">
-              {line.who} marked it <strong>{line.status}</strong>{#if line.tail}&nbsp;· {line.tail}{/if}
+              {line.who} marked it <strong>{line.status}</strong>{#if line.tail}&nbsp;· {line.tail}{/if}{#if c.silent}<span title="Changed without telling the reporter: no email, no unread badge">&nbsp;· silent</span>{/if}
             </span>
             {@render when(c.createdAt)}
           {:else if c.visibility === "private"}

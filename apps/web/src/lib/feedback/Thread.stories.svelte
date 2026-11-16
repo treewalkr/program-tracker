@@ -105,6 +105,19 @@
 />
 
 <Story
+  name="Silent status change (admin view)"
+  args={{
+    item: {
+      ...item([
+        entry({ kind: 'status', author: ana, status: 'accepted' }),
+        entry({ kind: 'status', author: ana, status: 'in_progress', silent: true }),
+      ]),
+      status: 'in_progress',
+    },
+  }}
+/>
+
+<Story
   name="Closed by a release"
   args={{
     item: {

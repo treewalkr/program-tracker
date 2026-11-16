@@ -210,14 +210,25 @@
     }
   }
 
+  /**
+   * Each card's "Notify reporter" box, unchecked = silent: the status line still
+   * shows in the thread, but the reporter gets no email and no unread badge.
+   * Missing = checked; it goes back to checked after each status change.
+   */
+  let notify = $state<Record<string, boolean>>({});
+  /** Only a ticket someone else filed has a reporter to tell. */
+  const hasReporter = (item: FeedbackItem) => item.author !== null && item.author.id !== viewerId;
+
   /** Moves a card's status; a failure shows beside its actions. True once it landed. */
   async function setStatus(item: FeedbackItem, patch: TriagePatch & { status: FeedbackStatus }): Promise<boolean> {
     if (pending[item.id]) return false;
     pending[item.id] = patch.status;
     cardError[item.id] = null;
-    const failed = await triage(item, patch);
+    const silent = hasReporter(item) && notify[item.id] === false;
+    const failed = await triage(item, silent ? { ...patch, silent } : patch);
     pending[item.id] = null;
     cardError[item.id] = failed;
+    if (!failed) delete notify[item.id];
     return !failed;
   }
 
@@ -819,6 +830,17 @@
                     onclick={() => setStatus(item, { status: "new" })}>Reopen</Button
                   >
                 {/if}
+                {#if hasReporter(item)}
+                  <label class="notify" title="Off: the status still shows in the thread, but the reporter gets no email and no unread badge">
+                    <input
+                      type="checkbox"
+                      disabled={busy}
+                      checked={notify[item.id] ?? true}
+                      onchange={(e) => (notify[item.id] = e.currentTarget.checked)}
+                    />
+                    Notify reporter<span class="sr-only"> of {handle} status changes</span>
+                  </label>
+                {/if}
                 <span class="spacer"></span>
                 <ConfirmButton
                   small
@@ -1347,6 +1369,28 @@
   }
   .spacer {
     flex: 1;
+  }
+  /* Beside the status buttons: quiet, so the default (notify) needs no attention. */
+  .notify {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    margin-left: 4px;
+    font: 400 12px/1.2 var(--font-ui);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .notify input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+  .notify:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
   }
   @media (max-width: 520px) {
     dl {
