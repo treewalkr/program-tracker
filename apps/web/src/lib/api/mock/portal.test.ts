@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "@pt/shared";
 import { mockApi } from "./api";
-import { mockPortalApi, mockPortalWeek } from "./portal";
+import { EXPIRED_TOKEN, mockPortalApi, mockPortalWeek } from "./portal";
 import { PortalDuplicateError } from "../portalTypes";
 
 describe("mock portal (the demo client over the trainer mock)", () => {
@@ -48,5 +48,22 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     await expect(
       mockPortalApi.log({ programSessionId: next.id, date: localDateOf(Date.now()), sets: [] }),
     ).rejects.toMatchObject({ status: 422 });
+  });
+
+  test("demo ids are stable: ps-nat-<n> this week, ps-nat-next-<n> next week", () => {
+    const [now, next] = mockPortalWeek().weeks;
+    expect(now.sessions.map((s) => s.id)).toEqual(now.sessions.map((_, i) => `ps-nat-${i + 1}`));
+    expect(new Set(now.sessions.map((s) => s.id)).size).toBe(now.sessions.length);
+    expect(next.sessions.every((s) => s.id.startsWith("ps-nat-next-"))).toBe(true);
+    expect(mockPortalWeek().weeks[0].sessions.map((s) => s.id)).toEqual(now.sessions.map((s) => s.id));
+  });
+
+  test("demo states: no program yet, a week that started 3 days ago, a dead link", async () => {
+    expect(mockPortalWeek(Date.now(), "empty")).toEqual({ program: null, currentWeek: null, weeks: [] });
+    const today = localDateOf(Date.now());
+    const mid = mockPortalWeek(Date.now(), "midweek").weeks[0];
+    expect(mid.startDate < today).toBe(true);
+    expect(await mockPortalApi.linkInfo(EXPIRED_TOKEN)).toBeNull();
+    expect(await mockPortalApi.linkInfo("demo-nattapong")).toMatchObject({ trainerName: "Coach Ploy" });
   });
 });
