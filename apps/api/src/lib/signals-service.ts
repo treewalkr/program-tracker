@@ -12,7 +12,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { cardioBehindSignal, computeSignals, painFlagSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
+import { cardioBehindSignal, clientNoteSignals, computeSignals, lowReadinessSignals, painFlagSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
 import { trainerDeloadSettings } from "./deload";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
@@ -73,6 +73,10 @@ export function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
     kind: log.kind,
     cardio: log.cardio ?? null,
     flags: log.flags ?? null,
+    perceivedEnergy: log.perceivedEnergy ?? null,
+    readiness: log.readiness ?? null,
+    notes: log.notes ?? null,
+    loggedBy: log.loggedBy,
     sets: sets.map((s) => ({
       exerciseId: s.exerciseId,
       type: s.type as SignalLog["sets"][number]["type"],
@@ -159,7 +163,9 @@ export async function computeTrainerSignals(
       );
       if (behind) signals.push(behind);
     }
-    signals.push(...painFlagSignals({ programId: program?.id ?? null, clientId: client.id }, clientLogs, nameOf, now));
+    const owner = { programId: program?.id ?? null, clientId: client.id };
+    signals.push(...painFlagSignals(owner, clientLogs, nameOf, now));
+    signals.push(...lowReadinessSignals(owner, clientLogs, now), ...clientNoteSignals(owner, clientLogs, now));
   }
   return signals;
 }

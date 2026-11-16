@@ -43,6 +43,22 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     expect(mockPortalWeek().weeks[0].sessions.find((s) => s.id === session.id)!.log).toBeNull();
   });
 
+  test("a client's low readiness and note show on the coach's Overview feed", async () => {
+    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "lifting" && !s.log)!;
+    const ex = session.exercises[0];
+    const saved = await mockPortalApi.log({
+      programSessionId: session.id,
+      date: localDateOf(Date.now()),
+      readiness: { sleep: 1, soreness: 5 },
+      notes: "Shoulder felt pinchy",
+      sets: [{ programExerciseId: ex.id, exerciseId: ex.exerciseId, setNumber: 1, type: "working", reps: 8 }],
+    });
+    const feed = await mockApi.notifications();
+    expect(feed.find((s) => s.kind === "low-readiness" && s.clientId === "cl-nat")?.evidence).toContain("sleep 1/5, soreness 5/5");
+    expect(feed.find((s) => s.kind === "client-note" && s.clientId === "cl-nat")?.evidence).toContain("Shoulder felt pinchy");
+    await mockPortalApi.deleteLog(saved.id);
+  });
+
   test("next week's sessions can't be logged", async () => {
     const next = mockPortalWeek().weeks[1].sessions[0];
     await expect(

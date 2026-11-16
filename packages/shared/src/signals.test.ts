@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { blockPulse, cardioBehindSignal, computeSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
+import { blockPulse, cardioBehindSignal, clientNoteSignals, computeSignals, lowReadinessSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
 
 const owner = { programId: "pg-1", clientId: "cl-1" };
 
@@ -604,5 +604,55 @@ describe("as-planned sets are not evidence (portal one-tap saves)", () => {
     const w1 = blockPulse(p, logs, NOW_W5).find((w) => w.week === 1);
     expect(w1?.avgRpe).toBe(7);
     expect(w1?.sets).toBe(2);
+  });
+});
+
+describe("low readiness (client-reported sleep, soreness, energy)", () => {
+  const NOW = Date.parse("2026-11-16T12:00:00Z");
+  const owner = { programId: "pg-1", clientId: "cl-1" };
+  const log = (date: string, r: { energy?: number; sleep?: number; soreness?: number }): SignalLog => ({
+    programId: "pg-1",
+    date,
+    sets: [],
+    perceivedEnergy: r.energy ?? null,
+    readiness: { ...(r.sleep != null ? { sleep: r.sleep } : {}), ...(r.soreness != null ? { soreness: r.soreness } : {}) },
+  });
+
+  test("slept badly and very sore: fires, citing the values", () => {
+    const [s] = lowReadinessSignals(owner, [log("2026-11-15", { sleep: 2, soreness: 4 })], NOW);
+    expect(s).toMatchObject({ id: "low-readiness:cl-1:2026-11-15", kind: "low-readiness", severity: "attention", clientId: "cl-1" });
+    expect(s.evidence).toContain("sleep 2/5");
+    expect(s.evidence).toContain("soreness 4/5");
+  });
+
+  test("low energy in two sessions running fires; one low day does not", () => {
+    expect(lowReadinessSignals(owner, [log("2026-11-15", { energy: 3 })], NOW)).toEqual([]);
+    expect(lowReadinessSignals(owner, [log("2026-11-12", { energy: 3 }), log("2026-11-15", { energy: 7 })], NOW)).toEqual([]);
+    const [s] = lowReadinessSignals(owner, [log("2026-11-12", { energy: 3 }), log("2026-11-15", { energy: 2 })], NOW);
+    expect(s.id).toBe("low-readiness:cl-1:2026-11-15");
+    expect(s.evidence).toContain("energy 3/10");
+    expect(s.evidence).toContain("energy 2/10");
+  });
+
+  test("tired but not sore, an old log, or nothing rated: nothing", () => {
+    expect(lowReadinessSignals(owner, [log("2026-11-15", { sleep: 2, soreness: 3 })], NOW)).toEqual([]);
+    expect(lowReadinessSignals(owner, [log("2026-11-01", { sleep: 1, soreness: 5 })], NOW)).toEqual([]);
+    expect(lowReadinessSignals(owner, [{ programId: "pg-1", date: "2026-11-15", sets: [] }], NOW)).toEqual([]);
+  });
+});
+
+describe("client notes reach the coach", () => {
+  const NOW = Date.parse("2026-11-16T12:00:00Z");
+  const owner = { programId: "pg-1", clientId: "cl-1" };
+  const note = (date: string, notes: string | null, loggedBy: "client" | "trainer" = "client"): SignalLog => ({ programId: "pg-1", date, sets: [], notes, loggedBy });
+
+  test("a note on a client's own log raises one signal quoting it, newest first", () => {
+    const [s] = clientNoteSignals(owner, [note("2026-11-12", "felt strong"), note("2026-11-15", "  knee hurt on squats  ")], NOW);
+    expect(s).toMatchObject({ id: "client-note:cl-1:2026-11-15", kind: "client-note", severity: "info" });
+    expect(s.evidence.indexOf("knee hurt on squats")).toBeLessThan(s.evidence.indexOf("felt strong"));
+  });
+
+  test("the trainer's own notes, blank notes and old notes don't", () => {
+    expect(clientNoteSignals(owner, [note("2026-11-15", "coach note", "trainer"), note("2026-11-15", "  "), note("2026-10-20", "old")], NOW)).toEqual([]);
   });
 });

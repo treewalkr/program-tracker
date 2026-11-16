@@ -21,6 +21,8 @@ import {
   aiDraftToDiffSource,
   cardioBehindSignal,
   painFlagSignals,
+  lowReadinessSignals,
+  clientNoteSignals,
   chainSetCounts,
   DELOAD_RULES,
   DEFAULT_DELOAD,
@@ -2459,7 +2461,10 @@ function openSignals(): SignalDto[] {
       state.programs.find((p) => p.clientId === client.id && p.status === "active") ?? null;
     const clientLogs = state.logs
       .filter((l) => l.clientId === client.id)
-      .map((l) => ({ programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets }));
+      .map((l) => ({
+        programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets,
+        perceivedEnergy: l.perceivedEnergy ?? null, readiness: l.readiness ?? null, notes: l.notes ?? null, loggedBy: l.loggedBy ?? "trainer",
+      }));
     if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
     // Cardio targets are a client attribute — checked with or without a program (F18).
     if (client.cardioTarget) {
@@ -2472,7 +2477,8 @@ function openSignals(): SignalDto[] {
       );
       if (behind) signals.push(behind);
     }
-    signals.push(...painFlagSignals({ programId: current?.id ?? null, clientId: client.id }, clientLogs, nameOf));
+    const owner = { programId: current?.id ?? null, clientId: client.id };
+    signals.push(...painFlagSignals(owner, clientLogs, nameOf), ...lowReadinessSignals(owner, clientLogs), ...clientNoteSignals(owner, clientLogs));
   }
   return activeSignals(signals);
 }

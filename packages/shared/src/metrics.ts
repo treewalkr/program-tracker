@@ -1,5 +1,5 @@
 import { estimate1rm } from "./domain";
-import type { CardioLog, Phasing, SessionFlag, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
+import type { CardioLog, LoggedBy, Phasing, Readiness, SessionFlag, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
 /**
  * Block pulse: weekly volume & intensity computed from logged working + back-off sets.
@@ -40,6 +40,12 @@ export interface SignalLog {
   sets: SignalLogSet[];
   /** Per-exercise flags (pain, technique, skipped) the trainer set on the log. */
   flags?: SessionFlag[] | null;
+  /** Perceived energy 1–10 and pre-session sleep / soreness 1–5, when rated. */
+  perceivedEnergy?: number | null;
+  readiness?: Readiness | null;
+  /** The log's note, and who wrote the log (a client's note goes to the coach). */
+  notes?: string | null;
+  loggedBy?: LoggedBy;
 }
 
 export interface WeekMetrics {

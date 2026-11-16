@@ -448,6 +448,17 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
   });
 
+  test("a client's low readiness and note reach the coach as needs-review signals", async () => {
+    const body = logBody(s1, { readiness: { sleep: 2, soreness: 4 }, notes: "Lower back tight after deadlifts" });
+    const r = await call("POST", "/v1/portal/logs", { token, body });
+    expect(r.status).toBe(201);
+    const low = await db.select().from(signalOutbox).where(like(signalOutbox.signalId, `low-readiness:${clientId}:%`));
+    expect((low[0]?.payload as { evidence: string }).evidence).toContain("sleep 2/5, soreness 4/5");
+    const note = await db.select().from(signalOutbox).where(like(signalOutbox.signalId, `client-note:${clientId}:%`));
+    expect((note[0]?.payload as { evidence: string }).evidence).toContain("Lower back tight after deadlifts");
+    expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
+  });
+
   test("a client can't log against another client's session or another trainer's client", async () => {
     // the sibling has no active program; s1 belongs to Mai's program
     expect((await call("POST", "/v1/portal/logs", { token: siblingToken, body: logBody(s1) })).status).toBe(422);
