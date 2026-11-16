@@ -88,6 +88,13 @@
       <span class="tnum progress">{t("week.progress", { done: doneCount(current), total: current.sessions.length })}</span>
     </p>
     {#if current.weekLabel}<p class="week-label">{t(`week.label.${current.weekLabel}`)}</p>{/if}
+    {#if dto.cardio}
+      {@const c = dto.cardio}
+      <div class="cardio">
+        <p><span>{t("week.cardio")}</span> <strong class="tnum">{t(`week.cardio.${c.unit}`, { done: c.done, target: c.target })}</strong></p>
+        <div class="cbar" aria-hidden="true"><span style:width={`${Math.min(100, (c.done / Math.max(1, c.target)) * 100)}%`}></span></div>
+      </div>
+    {/if}
   {/if}
 </header>
 
@@ -270,6 +277,11 @@
   .preview { margin: 0; font-size: 14px; color: var(--muted); }
   .week-label { margin: 10px 0 0; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .days > .week-label { margin: 0; }
+  .cardio { display: grid; gap: 6px; margin-top: 12px; }
+  .cardio p { margin: 0; font-size: 14px; color: var(--muted); }
+  .cardio strong { margin-left: 4px; font-weight: 600; color: var(--ink); }
+  .cbar { height: 6px; border-radius: 99px; background: var(--well-2); overflow: hidden; }
+  .cbar span { display: block; height: 100%; border-radius: 99px; background: var(--good); }
   .day { display: grid; gap: 10px; }
   h2 {
     display: flex;
