@@ -10,6 +10,7 @@ import {
   latestLogBySession,
   portalLogEntry,
   portalSessions,
+  portalWeekLabel,
   weekOf,
   weekSessions,
   type Equipment,
@@ -95,6 +96,7 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
       startDate: start,
       endDate: addDays(start, 6),
       loggable: week === currentWeek,
+      weekLabel: portalWeekLabel(program.phasing, week),
       sessions: named
         ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads)
         : [],

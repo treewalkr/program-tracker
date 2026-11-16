@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lastComparable, lastSetsOf, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
+import { lastComparable, lastSetsOf, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -63,5 +63,15 @@ describe("lastComparableSets (the 'Last:' line)", () => {
   test("logs on or after the cutoff (this week) are not 'last time'", () => {
     expect(lastComparable(lastSetsOf(logs, "2026-11-20"), "sq", { min: 1, max: 2 })).toEqual({ date: "2026-11-16", weightKg: 120, reps: 2, rpe: 9 });
     expect(lastComparable(last, "sq", { min: 1, max: 2 })).toBeNull();
+  });
+});
+
+describe("portalWeekLabel", () => {
+  const phasing = { phase: "Hypertrophy", plannedWeeks: 4, weeks: [{ week: 3, directive: "deload" }, { week: 4, directive: "test" }, { week: 2, directive: "+volume" }] } as never;
+  test("deload and test weeks get a client-safe label; anything else, or no phasing, none", () => {
+    expect(portalWeekLabel(phasing, 3)).toBe("deload");
+    expect(portalWeekLabel(phasing, 4)).toBe("test");
+    expect(portalWeekLabel(phasing, 2)).toBeNull();
+    expect(portalWeekLabel(null, 3)).toBeNull();
   });
 });

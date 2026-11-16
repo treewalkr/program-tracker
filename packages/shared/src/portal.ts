@@ -9,6 +9,7 @@ import {
   SetType,
   sessionsInSeqOrder,
   type OneRepMaxes,
+  type Phasing,
   type ProgramSession,
 } from "./domain";
 import { oneRepMaxKg, resolveLoadKg } from "./load";
@@ -124,6 +125,8 @@ export const PortalWeek = z.object({
   endDate: z.string(),
   /** Only the current week can be logged from the portal. */
   loggable: z.boolean(),
+  /** Why this week looks different, in words the client can have — never the directive itself. */
+  weekLabel: z.enum(["deload", "test"]).nullable().optional(),
   sessions: z.array(PortalSession),
 });
 export type PortalWeek = z.infer<typeof PortalWeek>;
@@ -135,6 +138,13 @@ export const PortalWeekDto = z.object({
   weeks: z.array(PortalWeek),
 });
 export type PortalWeekDto = z.infer<typeof PortalWeekDto>;
+
+/** The client-safe label for block week `week`: a deload or a test week, else none.
+ *  Only the label crosses into the portal; the phasing scheme stays with the coach. */
+export function portalWeekLabel(phasing: Phasing | null | undefined, week: number): "deload" | "test" | null {
+  const d = phasing?.weeks?.find((w) => w.week === week)?.directive;
+  return d === "deload" || d === "test" ? d : null;
+}
 
 const opt = <T>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
 

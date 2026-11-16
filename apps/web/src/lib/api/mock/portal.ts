@@ -9,6 +9,7 @@ import {
   localDateOf,
   portalLogEntry,
   portalSessions,
+  portalWeekLabel,
   weekOf,
   weekSessions,
   type Equipment,
@@ -123,6 +124,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
       startDate: start,
       endDate: addDays(start, 6),
       loggable: week === currentWeek,
+      weekLabel: portalWeekLabel(program.phasing, week),
       sessions: doc
         ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads).map((s, i) => ({
             ...s,

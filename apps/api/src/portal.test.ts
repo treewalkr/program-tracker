@@ -374,6 +374,18 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     await db.delete(sessionLogs).where(eq(sessionLogs.id, old.id));
   });
 
+  test("a deload week says so in client words; the phasing scheme itself never crosses", async () => {
+    const [before] = await db.select({ phasing: programs.phasing }).from(programs).where(eq(programs.id, programId));
+    await db
+      .update(programs)
+      .set({ phasing: { phase: "SECRET-PHASE", nextPhase: "SECRET-NEXT", plannedWeeks: 4, weeks: [{ week: 1, directive: "deload" }, { week: 2, directive: "+volume" }] } as never })
+      .where(eq(programs.id, programId));
+    const r = await call("GET", "/v1/portal/week", { token });
+    expect(r.body.weeks.map((w: any) => w.weekLabel)).toEqual(["deload", null]);
+    for (const leak of ["SECRET", "directive", "plannedWeeks", "+volume", "phasing"]) expect(r.text).not.toContain(leak);
+    await db.update(programs).set({ phasing: before.phasing }).where(eq(programs.id, programId));
+  });
+
   test("a client with no active program sees none", async () => {
     const r = await call("GET", "/v1/portal/week", { token: siblingToken });
     expect(r.body).toEqual({ program: null, currentWeek: null, weeks: [] });
