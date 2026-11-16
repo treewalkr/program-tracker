@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { clients, db, sessionLogs, trainers } from "@pt/db";
-import { addDays, localDateOf, PortalWeekDto } from "@pt/shared";
+import { addDays, nowOfDate, portalToday, PortalWeekDto } from "@pt/shared";
 import {
   CLIENT_COOKIE,
   clientCookieSecure,
@@ -24,6 +24,8 @@ const PortalLogInput = SessionLogFields.omit({ clientId: true, programId: true, 
     programSessionId: z.string().uuid(),
     /** Already logged: 409 (reject) or swap the client's own log (replace). */
     onDuplicate: z.enum(["reject", "replace"]).default("reject"),
+    /** The phone's local date: "today" and the block week follow it (within a day of the server's). */
+    today: z.string().optional(),
   })
   .superRefine(refineLogKind);
 
@@ -116,8 +118,13 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
   /** The active program's current week (and next, when planned) — a client-safe projection. */
   .get(
     "/week",
-    async ({ clientId }) => PortalWeekDto.parse(await loadPortalWeek(clientId)),
+    async ({ clientId, query }) => {
+      // the phone's date drives the week rollover; one that's off by more than a day is ignored
+      const today = portalToday(query.today, Date.now()) ?? portalToday(undefined, Date.now())!;
+      return PortalWeekDto.parse(await loadPortalWeek(clientId, nowOfDate(today)));
+    },
     {
+      query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })) }),
       response: { 200: t.Unsafe<PortalWeekDto>(t.Any()), 401: ErrorBody },
       detail: { summary: "This week and next for the signed-in client" },
     },
@@ -128,15 +135,19 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
     async ({ body, status, clientId, trainerId }) => {
       const parsed = PortalLogInput.safeParse(body);
       if (!parsed.success) return status(422, { error: "invalid log", issues: z.treeifyError(parsed.error) });
-      const input = parsed.data;
-      const ctx = await portalWeekContext(clientId);
+      const { today: asked, ...input } = parsed.data;
+      // "today" is the phone's date (a day either way of the server's); an older app sends none,
+      // and keeps the old day of slack
+      const today = portalToday(asked, Date.now());
+      if (!today) return status(422, { error: "check the date on your phone" });
+      const latest = asked ? today : addDays(today, 1);
+      const ctx = await portalWeekContext(clientId, nowOfDate(today));
       if (!ctx) return status(422, { error: "no active program" });
       if (!ctx.currentSessionIds.has(input.programSessionId)) {
         return status(422, { error: "only this week's sessions can be logged" });
       }
-      // a day of slack for time zones; never before the week (it would move the block's anchor)
-      const today = localDateOf(Date.now());
-      if (input.date > addDays(today, 1)) return status(422, { error: "date is in the future" });
+      if (input.date > latest) return status(422, { error: "date is in the future" });
+      // never before the week: an earlier date would move the block's anchor
       if (input.date < ctx.startDate) return status(422, { error: "date is before this week" });
 
       const result = await createSessionLog({

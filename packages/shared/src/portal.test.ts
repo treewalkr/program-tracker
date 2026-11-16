@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { lastComparable, lastSetsOf, portalCardio, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
+import { localDateOf } from "./metrics";
+import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -85,5 +86,19 @@ describe("portalCardio", () => {
     expect(portalCardio({ unit: "minutes", value: 120 }, logs, WED)).toEqual({ unit: "minutes", target: 120, done: 90 });
     expect(portalCardio({ unit: "sessions", value: 3 }, logs.slice(0, 2), MON)).toEqual({ unit: "sessions", target: 3, done: 1 });
     expect(portalCardio(null, logs, WED)).toBeNull();
+  });
+});
+
+describe("the client's today (time zones)", () => {
+  const NOW = new Date(2026, 10, 17, 3).getTime(); // 03:00 local on 17 Nov
+  test("the client's own date counts within a day either way of the server's", () => {
+    expect(portalToday(undefined, NOW)).toBe("2026-11-17");
+    expect(portalToday("2026-11-18", NOW)).toBe("2026-11-18");
+    expect(portalToday("2026-11-16", NOW)).toBe("2026-11-16");
+    expect(portalToday("2026-11-19", NOW)).toBeNull();
+    expect(portalToday("nonsense", NOW)).toBeNull();
+  });
+  test("a date's clock time lands on that date locally, so the week math reads the client's day", () => {
+    expect(localDateOf(nowOfDate("2026-11-18"))).toBe("2026-11-18");
   });
 });

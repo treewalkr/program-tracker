@@ -17,6 +17,7 @@ import {
 import { oneRepMaxKg, resolveLoadKg } from "./load";
 import { addDays } from "./importHistory";
 import { cardioDone, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
+import { localDateOf } from "./metrics";
 
 // ---------------------------------------------------------------------------
 // Client portal — what a client may see of their program. An explicit
@@ -156,6 +157,26 @@ export type PortalWeekDto = z.infer<typeof PortalWeekDto>;
 export function portalCardio(target: CardioTarget | null | undefined, logs: readonly CardioCountLog[], now: number): PortalCardio | null {
   if (!target) return null;
   return { unit: target.unit, target: target.value, done: cardioDone(target, cardioWeekTotals([...logs], isoWeekStart(new Date(now)))) };
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * "Today" for a portal request: the client's own local date when it is within a
+ * day of the server's (time zones put a Thai phone up to a day apart), the
+ * server's when none was sent, and null when the phone's date is further off.
+ */
+export function portalToday(asked: string | undefined | null, now: number): string | null {
+  const server = localDateOf(now);
+  if (asked == null) return server;
+  if (!ISO_DAY.test(asked) || Number.isNaN(Date.parse(`${asked}T00:00:00Z`))) return null;
+  return asked >= addDays(server, -1) && asked <= addDays(server, 1) ? asked : null;
+}
+
+/** Midday on `date` in the runtime's zone — a clock time whose local date is `date`, for week math. */
+export function nowOfDate(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d, 12).getTime();
 }
 
 /** The client-safe label for block week `week`: a deload or a test week, else none.

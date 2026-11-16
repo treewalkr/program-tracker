@@ -503,6 +503,23 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     await db.update(clients).set({ cardioTarget: null }).where(eq(clients.id, clientId));
   });
 
+  test("the phone's own date counts within a day of the server's; further off is refused", async () => {
+    const ahead = addDays(today, 1);
+    // a phone already on tomorrow (UTC+7 after midnight) can log tomorrow's date
+    const r = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: ahead, today: ahead }) });
+    expect(r.status).toBe(201);
+    expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
+    // …but not a date past its own today
+    expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: ahead, today }) })).status).toBe(422);
+    const off = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { today: addDays(today, 3) }) });
+    expect(off.status).toBe(422);
+    expect(off.body.error).toBe("check the date on your phone");
+    // the week view follows the phone's date too
+    const w = await call("GET", `/v1/portal/week?today=${ahead}`, { token });
+    expect(w.status).toBe(200);
+    expect(w.body.currentWeek).toBe(1);
+  });
+
   test("a client can't log against another client's session or another trainer's client", async () => {
     // the sibling has no active program; s1 belongs to Mai's program
     expect((await call("POST", "/v1/portal/logs", { token: siblingToken, body: logBody(s1) })).status).toBe(422);

@@ -7,7 +7,9 @@ import {
   loadStep,
   latestLogBySession,
   localDateOf,
+  nowOfDate,
   portalLogEntry,
+  portalToday,
   portalCardio,
   portalSessions,
   portalWeekLabel,
@@ -153,14 +155,16 @@ export const mockPortalApi: PortalApi = {
     await delay(450);
     const alias = asked.programSessionId;
     const input = { ...asked, programSessionId: realId(alias) };
-    const ctx = context();
+    // same rules as the API: the phone's date within a day of ours, nothing before the week
+    const today = portalToday(input.today ?? localDateOf(Date.now()), Date.now());
+    if (!today) throw fail(422, "check the date on your phone");
+    const ctx = context(nowOfDate(today));
     if (!ctx) throw fail(422, "no active program");
     if (!weekSessions(ctx.program.weeks, ctx.currentWeek).some((s) => s.id === input.programSessionId)) {
       throw fail(422, "only this week's sessions can be logged");
     }
-    const today = localDateOf(Date.now());
-    if (input.date > addDays(today, 1)) throw fail(422, "date is in the future");
-    if (input.date < addDays(ctx.startDate, -1)) throw fail(422, "date is before this week");
+    if (input.date > today) throw fail(422, "date is in the future");
+    if (input.date < ctx.startDate) throw fail(422, "date is before this week");
     const dupes = mockState.logs.filter(
       (l) => l.clientId === CLIENT_ID && l.programId === ctx.program.id && l.programSessionId === input.programSessionId,
     );
