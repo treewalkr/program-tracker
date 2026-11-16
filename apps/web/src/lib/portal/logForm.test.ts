@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
+import { buildPortalLog, cachedSession, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
 const lifting: PortalSession = {
   id: "ps1", name: "Lower", kind: "lifting", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -275,5 +275,21 @@ describe("skip, something hurt, missed set", () => {
     const f = formOfSession(s, "2026-11-16");
     expect(f.flags).toEqual({ pe1: { kind: "pain", note: "knee" } });
     expect(f.rows.find((r) => r.programExerciseId === "pe2")?.exerciseSkip).toEqual({ reason: "equipment" });
+  });
+});
+
+describe("offline: the opened week is kept on this phone", () => {
+  const week = { week: 2, startDate: "2026-11-16", endDate: "2026-11-22", loggable: true, sessions: [lifting] };
+  test("a cached week opens its session again while the week lasts", () => {
+    const raw = portalWeekCacheJson(week);
+    expect(cachedSession(raw, "ps1", "2026-11-18")?.session.id).toBe("ps1");
+    expect(cachedSession(raw, "ps1", "2026-11-18")?.week.endDate).toBe("2026-11-22");
+  });
+  test("another session, a week that has ended, or junk: nothing", () => {
+    const raw = portalWeekCacheJson(week);
+    expect(cachedSession(raw, "nope", "2026-11-18")).toBeNull();
+    expect(cachedSession(raw, "ps1", "2026-11-23")).toBeNull();
+    expect(cachedSession("{junk", "ps1", "2026-11-18")).toBeNull();
+    expect(cachedSession(null, "ps1", "2026-11-18")).toBeNull();
   });
 });

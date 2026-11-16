@@ -1,4 +1,4 @@
-import type { PortalLogEntry, PortalSession, PortalSet } from "@pt/shared";
+import { PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
 import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
@@ -279,4 +279,28 @@ export function touchedExercises(pristine: readonly PortalRow[], rows: readonly 
   const out = new Set<string>();
   for (const r of rows) if (before.get(r.key) !== rowSig(r).join("|")) out.add(r.programExerciseId);
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Offline: the week last opened on this phone, so a dropped connection mid-workout
+// can still open the session and finish the form (the save waits for a connection)
+// ---------------------------------------------------------------------------
+
+export const PORTAL_WEEK_CACHE_KEY = "pt:portal-week";
+
+export const portalWeekCacheJson = (w: PortalWeek): string => JSON.stringify(w);
+
+/** The cached week and one of its sessions, while that week is still on; anything else → null. */
+export function cachedSession(raw: string | null, sessionId: string, today: string): { week: PortalWeek; session: PortalSession } | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const w = PortalWeek.safeParse(parsed);
+  if (!w.success || !w.data.loggable || w.data.endDate < today) return null;
+  const session = w.data.sessions.find((s) => s.id === sessionId);
+  return session ? { week: w.data, session } : null;
 }

@@ -14,11 +14,14 @@
   import {
     buildPortalLog,
     cardioFormOf,
+    cachedSession,
     extraRow,
     formOfSession,
     parsePortalDraft,
     portalDraftJson,
     portalDraftKey,
+    portalWeekCacheJson,
+    PORTAL_WEEK_CACHE_KEY,
     sameForm,
     setsMissingKg,
     touchedExercises,
@@ -53,6 +56,8 @@
   let date = $state(today);
   let current = $state(0);
   let restored = $state(false);
+  /** Opened from this phone's copy of the week: the connection dropped. */
+  let offline = $state(false);
   /** RPE is optional: hidden until asked for, so kg and reps share one row on a phone. */
   let showRpe = $state(false);
   let feelOpen = $state(false);
@@ -106,30 +111,52 @@
     restored = false;
     showRpe = false;
     feelOpen = false;
+    let w: PortalWeek | null;
     try {
       const dto = await portalApi.week();
-      const w = dto.weeks.find((x) => x.loggable) ?? null;
-      const s = w?.sessions.find((x) => x.id === id) ?? null;
-      week = w;
-      session = s;
-      if (!s) {
-        loadState = "missing";
+      w = dto.weeks.find((x) => x.loggable) ?? null;
+      offline = false;
+      // kept on this phone, so a dropped connection mid-workout can still open the session
+      try {
+        if (w) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(w));
+      } catch {
+        // storage full or private mode: no offline copy, nothing else changes
+      }
+    } catch {
+      const cached = cachedSession(readStored(PORTAL_WEEK_CACHE_KEY), id, today);
+      if (!cached) {
+        loadState = "failed";
         return;
       }
-      fresh(s);
-      const draft = parsePortalDraft(localStorage.getItem(portalDraftKey(id)), rows);
-      if (draft && !sameForm(draft, freshForm(s))) {
-        rows = draft.rows;
-        cardio = draft.cardio;
-        readiness = draft.readiness;
-        notes = draft.notes;
-        flags = draft.flags;
-        date = draft.date >= minDate && draft.date <= maxDate ? draft.date : today;
-        restored = true;
-      }
-      loadState = "ready";
+      w = cached.week;
+      offline = true;
+    }
+    const s = w?.sessions.find((x) => x.id === id) ?? null;
+    week = w;
+    session = s;
+    if (!s) {
+      loadState = "missing";
+      return;
+    }
+    fresh(s);
+    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows);
+    if (draft && !sameForm(draft, freshForm(s))) {
+      rows = draft.rows;
+      cardio = draft.cardio;
+      readiness = draft.readiness;
+      notes = draft.notes;
+      flags = draft.flags;
+      date = draft.date >= minDate && draft.date <= maxDate ? draft.date : today;
+      restored = true;
+    }
+    loadState = "ready";
+  }
+
+  function readStored(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
     } catch {
-      loadState = "failed";
+      return null;
     }
   }
 
@@ -296,6 +323,8 @@
 
 <svelte:head><title>{session?.name ?? t("app.title")} · Program Tracker</title></svelte:head>
 
+<svelte:window ononline={() => (offline = false)} />
+
 <PortalBar coach={me?.trainer.name ?? null} />
 
 <a class="back" href="/me"><Icon name="chevron" />{t("log.back")}</a>
@@ -368,6 +397,9 @@
       <Note tone="warn" role="note">{t("log.byCoach")}</Note>
     {:else if byYou && session.log}
       <Note tone="warn" role="note">{t("log.byYou", { date: fmtShortDate(session.log.date) })}</Note>
+    {/if}
+    {#if offline}
+      <Note tone="warn" role="status">{t("log.offline")}</Note>
     {/if}
     {#if restored}
       <Note tone="ok" role="note" class="draft">
