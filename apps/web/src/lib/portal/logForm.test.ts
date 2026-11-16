@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
-import { EMPTY_READINESS } from "$lib/logFlags";
+import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
+import { setSkipReason, skipExercise } from "$lib/logSheet";
 import { buildPortalLog, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
 const lifting: PortalSession = {
@@ -19,7 +20,7 @@ const lifting: PortalSession = {
 const cardio: PortalSession = { ...lifting, id: "ps2", kind: "cardio", exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 2 } };
 
 const form = (s: PortalSession, over: Partial<PortalLogForm> = {}): PortalLogForm => ({
-  rows: rowsOfSession(s), cardio: cardioFormOf(s.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: "2026-11-16", ...over,
+  rows: rowsOfSession(s), cardio: cardioFormOf(s.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: "2026-11-16", flags: {}, ...over,
 });
 
 const noTarget: PortalSession = {
@@ -209,5 +210,70 @@ describe("edit log: the client's own entry reopens", () => {
       log: { id: "l2", loggedBy: "client", date: "2026-11-15", entry: { ...entry([]), cardio: { modality: "Bike", durationMin: 40, rpe: 6 } } },
     };
     expect(formOfSession(s, "2026-11-16").cardio).toEqual({ modality: "Bike", durationMin: "40", hrZone: "", intensity: "", distanceKm: "", rpe: "6" });
+  });
+});
+
+describe("skip, something hurt, missed set", () => {
+  test("pain on an exercise and a skipped exercise go out as flags, in the trainer's vocabulary", () => {
+    const f = form(lifting);
+    f.flags = toggleFlag({}, "pe1", "pain");
+    f.flags = setFlagNote(f.flags, "pe1", " left knee ");
+    f.rows = setSkipReason(skipExercise(f.rows, "pe2"), "pe2", "time");
+    const r = buildPortalLog(lifting, f, false);
+    if (!("input" in r)) throw new Error("expected input");
+    expect(r.input.flags).toEqual([
+      { programExerciseId: "pe1", exerciseId: "ex-squat", kind: "pain", note: "left knee" },
+      { programExerciseId: "pe2", exerciseId: "ex-plank", kind: "skipped", reason: "time" },
+    ]);
+    // the skipped plank sends no sets
+    expect(r.input.sets.map((s) => s.programExerciseId)).toEqual(["pe1", "pe1"]);
+  });
+
+  test("no flags: none sent", () => {
+    const r = buildPortalLog(lifting, form(lifting), false);
+    expect(r).not.toHaveProperty("input.flags");
+  });
+
+  test("a missed set is not sent, unlike 0 reps", () => {
+    const f = form(lifting);
+    f.rows[1] = { ...f.rows[1], skipped: true };
+    f.rows[2] = { ...f.rows[2], reps: 0 };
+    const r = buildPortalLog(lifting, f, false);
+    if (!("input" in r)) throw new Error("expected input");
+    expect(r.input.sets.map((s) => [s.programExerciseId, s.setNumber, s.reps])).toEqual([
+      ["pe1", 1, 6],
+      ["pe2", 1, 0],
+    ]);
+  });
+
+  test("marking a set missed or flagging pain is an edit; both survive a draft", () => {
+    const f = form(lifting);
+    f.rows[0] = { ...f.rows[0], skipped: true };
+    expect(sameForm(form(lifting), f)).toBe(false);
+    const g = form(lifting, { flags: toggleFlag({}, "pe1", "pain") });
+    expect(sameForm(form(lifting), g)).toBe(false);
+    const back = parsePortalDraft(portalDraftJson({ ...g, rows: f.rows }), rowsOfSession(lifting));
+    expect(back?.flags).toEqual({ pe1: { kind: "pain", note: "" } });
+    expect(back?.rows[0].skipped).toBe(true);
+  });
+
+  test("a saved entry reopens its pain flag and its skipped exercise", () => {
+    const s: PortalSession = {
+      ...lifting,
+      log: {
+        id: "l1", loggedBy: "client", date: "2026-11-15",
+        entry: {
+          sets: [{ programExerciseId: "pe1", exerciseId: "ex-squat", setNumber: 1, type: "working", weightKg: 100, reps: 6, rpe: null, asPlanned: false }],
+          cardio: null, notes: null, perceivedEnergy: null, readiness: null,
+          flags: [
+            { programExerciseId: "pe1", exerciseId: "ex-squat", kind: "pain", note: "knee" },
+            { programExerciseId: "pe2", exerciseId: "ex-plank", kind: "skipped", reason: "equipment" },
+          ],
+        },
+      },
+    };
+    const f = formOfSession(s, "2026-11-16");
+    expect(f.flags).toEqual({ pe1: { kind: "pain", note: "knee" } });
+    expect(f.rows.find((r) => r.programExerciseId === "pe2")?.exerciseSkip).toEqual({ reason: "equipment" });
   });
 });

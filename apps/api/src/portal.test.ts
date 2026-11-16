@@ -397,6 +397,8 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect(row).toMatchObject({ clientId, programId, loggedBy: "client", perceivedEnergy: 7 });
     const queued = await db.select().from(signalOutbox).where(like(signalOutbox.signalId, `pain-flag:${clientId}:%`));
     expect(queued.length).toBeGreaterThan(0);
+    // the client's own words reach the coach in the pain signal
+    expect((queued[0].payload as { evidence: string }).evidence).toContain("knee twinge");
   });
 
   test("replacing your own log works; replacing the trainer's is a 409", async () => {

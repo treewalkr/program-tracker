@@ -3,8 +3,8 @@
   import { page } from "$app/state";
   import { addDays, localDateOf, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
-  import { blocksOf, withExtraSet, withoutExtra, MAX_SETS } from "$lib/logSheet";
-  import { EMPTY_READINESS, type ReadinessForm } from "$lib/logFlags";
+  import { blocksOf, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type SkipReason } from "$lib/logSheet";
+  import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
@@ -45,6 +45,9 @@
   let cardio = $state<CardioForm>(cardioFormOf(null));
   let readiness = $state<ReadinessForm>({ ...EMPTY_READINESS });
   let notes = $state("");
+  let flags = $state<ExerciseFlags>({});
+  /** A skipped exercise's rows as they were, so Undo skip brings back what was typed. */
+  let beforeSkip = $state<Record<string, PortalRow[]>>({});
   let date = $state(today);
   let current = $state(0);
   let restored = $state(false);
@@ -83,6 +86,8 @@
     cardio = f.cardio;
     readiness = f.readiness;
     notes = f.notes;
+    flags = f.flags;
+    beforeSkip = {};
     date = f.date;
     current = 0;
     kgChecked = false;
@@ -114,6 +119,7 @@
         cardio = draft.cardio;
         readiness = draft.readiness;
         notes = draft.notes;
+        flags = draft.flags;
         date = draft.date >= minDate && draft.date <= maxDate ? draft.date : today;
         restored = true;
       }
@@ -130,7 +136,7 @@
   // Autosave the half-filled form on this phone; a save or "start over" clears it.
   $effect(() => {
     if (loadState !== "ready" || !session || saved || byCoach) return;
-    const form = { rows, cardio, readiness, notes, date };
+    const form = { rows, cardio, readiness, notes, date, flags };
     // untouched prefill is not a draft: write nothing until the first real edit
     const json = sameForm(form, freshForm(session)) ? null : portalDraftJson(form);
     const key = portalDraftKey(session.id);
@@ -158,6 +164,19 @@
     rows = withExtraSet(rows, peId, (n) => extraRow(last, n));
   }
 
+  function toggleSkip(peId: string) {
+    if (rows.some((r) => r.programExerciseId === peId && r.exerciseSkip)) {
+      rows = unskipExercise(rows, peId, beforeSkip[peId]);
+      const { [peId]: _gone, ...rest } = beforeSkip;
+      beforeSkip = rest;
+    } else {
+      beforeSkip = { ...beforeSkip, [peId]: rows.filter((r) => r.programExerciseId === peId) };
+      rows = skipExercise(rows, peId);
+    }
+  }
+  const skipReasonOf = (peId: string) => rows.find((r) => r.programExerciseId === peId)?.exerciseSkip ?? null;
+  const toggleMissed = (key: string) => (rows = rows.map((r) => (r.key === key ? { ...r, skipped: !r.skipped } : r)));
+
   /** Page to the first set still missing its kg, scroll it into view, ring it, and put the cursor there. */
   async function jumpToMissing() {
     const first = missingKg[0];
@@ -175,7 +194,7 @@
   async function save() {
     if (!session || saving) return;
     error = null;
-    const built = buildPortalLog(session, { rows, cardio, readiness, notes, date }, byYou);
+    const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags }, byYou);
     if ("error" in built) {
       if (built.error === "kg") {
         kgChecked = true;
@@ -374,7 +393,7 @@
           </div>
           <div class="steps" aria-hidden="true">
             {#each blocks as b, i (b.key)}
-              {@const done = b.memberIds.some((id) => touched.has(id))}
+              {@const done = b.memberIds.some((id) => touched.has(id) || flags[id])}
               <span class:on={i === current} class:past={i < current} class:done>{#if done}<Icon name="check" />{/if}</span>
             {/each}
           </div>
@@ -389,13 +408,43 @@
             {#if ex?.notes}<p class="cue"><span>{t("session.coachNote")}</span> {ex.notes}</p>{/if}
           {/each}
 
+          <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain. -->
+          {#each block.memberIds as peId (peId)}
+            {@const ex = exerciseOf(peId)}
+            {@const skip = skipReasonOf(peId)}
+            {@const hurt = flags[peId]?.kind === "pain"}
+            {@const named = block.memberIds.length > 1 ? ` · ${ex?.exerciseName ?? ""}` : ""}
+            <div class="issues">
+              <div class="issue-btns">
+                <button type="button" class="chip" aria-pressed={!!skip} onclick={() => toggleSkip(peId)}>{skip ? t("log.unskip") : t("log.skip")}{named}</button>
+                <button type="button" class="chip" class:bad={hurt} aria-pressed={hurt} onclick={() => (flags = toggleFlag(flags, peId, "pain"))}>{t("log.hurt")}{named}</button>
+              </div>
+              {#if skip}
+                <p class="issue-note">{t("log.skippedNote")}</p>
+                <div class="reasons" role="group" aria-label={t("log.skipWhy")}>
+                  <span class="reasons-k">{t("log.skipWhy")}</span>
+                  {#each SKIP_REASONS as reason (reason)}
+                    <button type="button" class="chip sm" aria-pressed={skip.reason === reason} onclick={() => (rows = setSkipReason(rows, peId, skip.reason === reason ? null : (reason as SkipReason)))}>{t(`log.reason.${reason}`)}</button>
+                  {/each}
+                </div>
+              {/if}
+              {#if hurt}
+                <label class="hurt">
+                  <span>{t("log.hurtWhere")}</span>
+                  <input class="input" type="text" maxlength={FLAG_NOTE_MAX} value={flags[peId]?.note ?? ""} oninput={(e) => (flags = setFlagNote(flags, peId, e.currentTarget.value))} />
+                  <span class="hint">{t("log.hurtHint")}</span>
+                </label>
+              {/if}
+            </div>
+          {/each}
+
           <button type="button" class="rpe-toggle" aria-expanded={showRpe} aria-controls="rpe-def" onclick={() => (showRpe = !showRpe)}>
             {showRpe ? t("log.rpeHide") : t("log.rpeShow")}
           </button>
           {#if showRpe}<p class="rpe-def" id="rpe-def">{t("log.rpeDef")}</p>{/if}
 
           <ol class="sets">
-            {#each block.rows as r (r.key)}
+            {#each block.rows.filter((x) => !x.exerciseSkip) as r (r.key)}
               {@const i = rows.findIndex((x) => x.key === r.key)}
               {@const target = targetOf(r)}
               <li class="set">
@@ -404,8 +453,13 @@
                   {#if target}<span class="set-rx tnum">{target}</span>{/if}
                   {#if r.extra}
                     <button type="button" class="rm" aria-label={t("log.removeSet", { n: r.setNumber })} onclick={() => (rows = withoutExtra(rows, r.key))}><Icon name="x" /></button>
+                  {:else}
+                    <button type="button" class="missed-btn" aria-pressed={!!r.skipped} aria-label={t("log.missedLabel", { n: r.setNumber })} onclick={() => toggleMissed(r.key)}>{t("log.missed")}</button>
                   {/if}
                 </div>
+                {#if r.skipped}
+                  <p class="missed-note">{t("log.missedNote")}</p>
+                {:else}
                 <div class="cells">
                   {#if !r.timed}
                     <LogStepper
@@ -428,11 +482,12 @@
                     <LogStepper bind:value={rows[i].rpe} label={`${r.name} ${t("log.set", { n: r.setNumber })}, RPE`} unit={`${t("log.rpe")} · ${t("log.optional")}`} step={0.5} min={1} max={10} from={r.rx?.targetRpe ?? 7} />
                   {/if}
                 </div>
+                {/if}
               </li>
             {/each}
           </ol>
           {#each block.memberIds as peId (peId)}
-            {#if rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS}
+            {#if !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS}
               <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1} · {exerciseOf(peId)?.exerciseName}{/if}</button>
             {/if}
           {/each}
@@ -548,6 +603,41 @@
   .plus { color: var(--muted); font-weight: 400; }
   .cue { margin: 0; font-size: 14px; }
   .cue span { font-weight: 600; color: var(--muted); }
+
+  .issues { display: grid; gap: 10px; }
+  .issue-btns, .reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .chip {
+    min-height: 44px;
+    padding: 0 14px;
+    font: 500 14px/1 var(--font-ui);
+    color: var(--ink);
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { color: var(--surface); background: var(--ink); border-color: var(--ink); }
+  .chip.bad[aria-pressed="true"] { color: var(--bad); background: var(--bad-bg); border-color: var(--bad); }
+  .chip.sm { min-height: 40px; padding: 0 12px; }
+  .reasons-k { width: 100%; font-size: 13px; color: var(--muted); }
+  .issue-note { margin: 0; font-size: 14px; color: var(--muted); }
+  .hurt { display: grid; gap: 6px; font-size: 14px; }
+  .hurt .input { min-height: 44px; font-size: 16px; }
+  .hint { font-size: 13px; color: var(--muted); }
+  .missed-btn {
+    min-height: 36px;
+    margin: -6px 0;
+    padding: 0 8px;
+    font: 500 13px/1 var(--font-ui);
+    color: var(--muted);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .set-n + .missed-btn { margin-left: auto; }
+  .missed-btn[aria-pressed="true"] { color: var(--ink); background: var(--well-2); border-color: var(--line); }
+  .missed-note { margin: 0; font-size: 14px; color: var(--muted); }
 
   .sets { display: grid; margin: 0; padding: 0; list-style: none; }
   .set { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line-soft); }

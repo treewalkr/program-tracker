@@ -1,7 +1,7 @@
 import type { PortalLogEntry, PortalSession, PortalSet } from "@pt/shared";
 import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
-import { EMPTY_READINESS, readinessInput, parseReadiness, type ReadinessForm } from "$lib/logFlags";
-import { asPrescribed, cellNumber, isBlank, rowsToSave, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
+import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
+import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
 
 /**
@@ -131,6 +131,8 @@ export interface PortalLogForm {
   readiness: ReadinessForm;
   notes: string;
   date: string;
+  /** "Something hurt" per exercise (programExerciseId → flag), the trainer sheet's vocabulary. */
+  flags: ExerciseFlags;
 }
 
 export type BuildResult =
@@ -187,7 +189,9 @@ export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace
   if (saved.length === 0) return { error: "nothing" };
   const missing = setsMissingKg(session, saved);
   if (missing.length > 0) return { error: "kg", sets: missing.length, programExerciseId: missing[0].programExerciseId };
-  return { input: { ...base, kind: "lifting", sets: saved.map(portalSet) }, sets: saved.length };
+  // pain and whole-exercise skips: the same flags the trainer's sheet sends, so the pain signal fires
+  const flags = sessionFlags(f.rows, f.flags ?? {});
+  return { input: { ...base, kind: "lifting", sets: saved.map(portalSet), ...(flags.length ? { flags } : {}) }, sets: saved.length };
 }
 
 /** Untouched since the page opened it: still on the prefilled kg and reps, no RPE given. */
@@ -202,9 +206,18 @@ function portalSet(r: PortalRow) {
 /** The form the page opens with: the client's own saved log when there is one, else the plan. */
 export function formOfSession(session: PortalSession, today: string): PortalLogForm {
   const entry = session.log?.loggedBy === "client" ? session.log.entry : undefined;
-  if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today };
+  if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today, flags: {} };
+  let rows = session.kind === "cardio" ? rowsOfSession(session) : rowsOfEntry(session, entry);
+  const flags: ExerciseFlags = {};
+  for (const fl of entry.flags ?? []) {
+    const pe = fl.programExerciseId;
+    if (!pe) continue;
+    if (fl.kind === "skipped") rows = setSkipReason(skipExercise(rows, pe), pe, fl.reason ?? null);
+    else flags[pe] = { kind: fl.kind, note: fl.note ?? "" };
+  }
   return {
-    rows: session.kind === "cardio" ? rowsOfSession(session) : rowsOfEntry(session, entry),
+    rows,
+    flags,
     cardio: entry.cardio ? cardioFormOfLog(entry.cardio) : cardioFormOf(session.cardio),
     readiness: parseReadiness({ energy: entry.perceivedEnergy, readiness: entry.readiness }),
     notes: entry.notes ?? "",
@@ -236,6 +249,7 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): Portal
   if (d.rows.filter((r) => !r?.extra).length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
   const r = (d.readiness ?? {}) as Record<string, unknown>;
   return {
+    flags: parseFlags(d.flags),
     rows: d.rows,
     cardio: d.cardio,
     notes: d.notes,
@@ -248,11 +262,14 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): Portal
 // Pristine vs touched: what the client actually changed
 // ---------------------------------------------------------------------------
 
-const rowSig = (r: PortalRow) => [r.key, String(r.weight), String(r.reps), String(r.rpe)];
+const rowSig = (r: PortalRow) => [r.key, String(r.weight), String(r.reps), String(r.rpe), r.skipped ? "missed" : "", r.exerciseSkip ? `skip:${r.exerciseSkip.reason ?? ""}` : ""];
 
 /** True when the form is exactly what the page opened with — nothing to keep as a draft. */
 export function sameForm(a: PortalLogForm, b: PortalLogForm): boolean {
-  const sig = (f: PortalLogForm) => JSON.stringify([f.rows.map(rowSig), f.cardio, f.readiness, f.notes.trim(), f.date]);
+  const sig = (f: PortalLogForm) => {
+    const flags = Object.entries(f.flags ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, v.kind, v.note.trim()]);
+    return JSON.stringify([f.rows.map(rowSig), f.cardio, f.readiness, f.notes.trim(), f.date, flags]);
+  };
   return sig(a) === sig(b);
 }
 
