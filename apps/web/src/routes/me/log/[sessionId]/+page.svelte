@@ -359,6 +359,11 @@
       </label>
     </header>
 
+    {#if session.notes}
+      <!-- the coach's word on the whole session, before any set -->
+      <p class="session-note"><span>{t("session.coachNote")}</span> {session.notes}</p>
+    {/if}
+
     {#if byCoach}
       <Note tone="warn" role="note">{t("log.byCoach")}</Note>
     {:else if byYou && session.log}
@@ -615,6 +620,8 @@
   h2 { margin: 4px 0 0; font: 600 20px/1.3 var(--font-ui); text-wrap: balance; }
   .plus { color: var(--muted); font-weight: 400; }
   .cue { margin: 0; font-size: 14px; }
+  .session-note { margin: 0; padding: 12px 16px; font-size: 16px; background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
+  .session-note span { font-weight: 600; color: var(--muted); }
   .cue span { font-weight: 600; color: var(--muted); }
   .last { margin: 0; font-size: 14px; }
   .last > span:first-child { color: var(--muted); }

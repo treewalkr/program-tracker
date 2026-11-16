@@ -644,7 +644,7 @@ export const trainerProgram: ProgramDto = {
       {
         sessions: [
           {
-            id: "ps-nat-1", name: "Back / Biceps", order: 0,
+            id: "ps-nat-1", name: "Back / Biceps", order: 0, notes: "Strict rows today. Leave a rep or two in the tank.",
             exercises: [
               { id: "pe-nat-1", exerciseId: "ex-latstretch", order: 0, prescribedSets: timed(2, 15), notes: "Static stretch" },
               { id: "pe-nat-2", exerciseId: "ex-scapdep", order: 1, prescribedSets: many(2, 10), notes: "1–2 sets" },
