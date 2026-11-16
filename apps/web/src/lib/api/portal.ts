@@ -3,6 +3,7 @@ import type { PortalWeekDto } from "@pt/shared";
 import { apiMode } from "./index";
 import { client } from "./treaty";
 import { mockPortalApi } from "./mock/portal";
+import { portalWire } from "./portalWire";
 import {
   PORTAL_LOGIN,
   PortalDuplicateError,
@@ -28,12 +29,12 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
     const code = typeof error.status === "number" ? error.status : "unknown";
     if (code === 401 && browser && !isPortalPublic(window.location.pathname)) window.location.assign(PORTAL_LOGIN);
     if (code === 409 && typeof value === "object" && value?.existing) {
-      throw new PortalDuplicateError(value.existing as PortalDuplicateError["existing"]);
+      throw new PortalDuplicateError(portalWire(value.existing) as PortalDuplicateError["existing"]);
     }
     const message = typeof value === "string" ? value : value?.error;
     throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code });
   }
-  return data as T;
+  return portalWire(data) as T;
 }
 
 export const livePortalApi: PortalApi = {
