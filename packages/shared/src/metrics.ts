@@ -24,6 +24,9 @@ export interface SignalLogSet {
   weightKg?: number | null;
   reps: number;
   rpe?: number | null;
+  /** Saved untouched from the prescription (a portal one-tap save): counts as volume,
+   *  but its reps and RPE are not evidence for fatigue or stall rules. */
+  asPlanned?: boolean;
 }
 
 export interface SignalLog {
@@ -180,7 +183,7 @@ export function blockPulse(
     const entry = weeks.get(week) ?? { overallVolume: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0, byEx: {} };
     for (const s of log.sets) {
       entry.sets += 1;
-      if (s.rpe) {
+      if (s.rpe && !s.asPlanned) {
         entry.rpeSum += s.rpe;
         entry.rpeN += 1;
       }
@@ -295,7 +298,7 @@ export function pulseCellSets(
         type: s.type,
         weightKg: s.weightKg ?? null,
         reps: s.reps,
-        rpe: s.rpe ?? null,
+        rpe: s.asPlanned ? null : (s.rpe ?? null),
         timed,
         e1rm: !timed && s.weightKg && s.reps ? estimate1rm(s.weightKg, s.reps) : null,
       };
@@ -409,7 +412,7 @@ export function weekSummary(input: WeekSummaryInput): WeekSummaryStats | null {
   for (const log of inWindow) {
     for (const s of log.sets) {
       sets += 1;
-      if (s.rpe) {
+      if (s.rpe && !s.asPlanned) {
         rpeSum += s.rpe;
         rpeN += 1;
       }

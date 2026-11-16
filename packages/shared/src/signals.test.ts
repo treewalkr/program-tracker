@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cardioBehindSignal, computeSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
+import { blockPulse, cardioBehindSignal, computeSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
 
 const owner = { programId: "pg-1", clientId: "cl-1" };
 
@@ -579,5 +579,30 @@ describe("painFlagSignals", () => {
     expect(painFlagSignals(owner, [flagLog("2026-10-15", [pain(SQUAT)])], nameOf, THU)).toEqual([]);
     expect(painFlagSignals(owner, [flagLog("2026-10-16", [pain(SQUAT)])], nameOf, THU)).toHaveLength(1);
     expect(painFlagSignals(owner, [flagLog("2026-10-28", null), { date: "2026-10-28" }], nameOf, THU)).toEqual([]);
+  });
+});
+
+describe("as-planned sets are not evidence (portal one-tap saves)", () => {
+  const planned = (log: SignalLog): SignalLog => ({ ...log, sets: log.sets.map((s) => ({ ...s, asPlanned: true })) });
+
+  test("a stall needs sets the client confirmed, not the prefill", () => {
+    const p = squatProgram([140, 142.5, 145, 147.5, 150]);
+    const weekly = ["2026-10-02", "2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30"].map((d) => SL(d, [[140, 5]]));
+    expect(kinds(p, weekly, NOW_W5).some((s) => s.kind === "stall")).toBe(true);
+    expect(kinds(p, weekly.map(planned), NOW_W5).some((s) => s.kind === "stall")).toBe(false);
+  });
+
+  test("rpe creep ignores RPE on as-planned sets", () => {
+    const p = squatProgram([null, null, null, null, null]);
+    const logs = [SL("2026-10-02", [[140, 5, 7]]), planned(SL("2026-10-23", [[140, 5, 9], [140, 5, 9]]))];
+    expect(kinds(p, logs, NOW_W5).some((s) => s.kind === "rpe-creep")).toBe(false);
+  });
+
+  test("block pulse average RPE skips as-planned sets", () => {
+    const p = { ...squatProgram([null, null, null, null, null]), phasing: { phase: "Hypertrophy", plannedWeeks: 5, weeks: [] } } as unknown as SignalProgram;
+    const logs = [{ ...SL("2026-10-02", [[140, 5, 7]]), sets: [...SL("2026-10-02", [[140, 5, 7]]).sets, ...planned(SL("2026-10-02", [[140, 5, 10]])).sets] }];
+    const w1 = blockPulse(p, logs, NOW_W5).find((w) => w.week === 1);
+    expect(w1?.avgRpe).toBe(7);
+    expect(w1?.sets).toBe(2);
   });
 });

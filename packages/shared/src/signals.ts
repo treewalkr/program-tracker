@@ -54,7 +54,7 @@ function rpeCreep(program: SignalProgram, logs: SignalLog[], nameOf: (id: string
   for (const log of logs) {
     const week = blockWeekOfDate(program, logs, log.date);
     for (const s of log.sets) {
-      if (!s.weightKg || !s.rpe || !s.reps) continue;
+      if (!s.weightKg || !s.rpe || !s.reps || s.asPlanned) continue;
       const key = `${s.exerciseId}@${s.weightKg}x${s.reps}`;
       const weeks = byWork.get(key) ?? new Map<number, { rpeSum: number; n: number }>();
       const w = weeks.get(week) ?? { rpeSum: 0, n: 0 };
@@ -116,7 +116,7 @@ function stall(program: SignalProgram, logs: SignalLog[], nameOf: (id: string) =
   for (const log of logs) {
     const week = blockWeekOfDate(program, logs, log.date);
     for (const s of log.sets) {
-      if (!s.weightKg || !s.reps || s.reps > 12 || timed.has(s.exerciseId)) continue;
+      if (!s.weightKg || !s.reps || s.reps > 12 || s.asPlanned || timed.has(s.exerciseId)) continue;
       const e1rm = estimate1rm(s.weightKg, s.reps);
       const per = weeklyBest.get(s.exerciseId) ?? new Map<number, number>();
       per.set(week, Math.max(per.get(week) ?? 0, e1rm));
