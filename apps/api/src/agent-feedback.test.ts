@@ -516,6 +516,17 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
       );
     });
 
+    test("closes an in-progress ticket too", async () => {
+      const id = await ticket("Being built right now");
+      await call("PATCH", `/v1/feedback/${id}`, { status: "in_progress" });
+      await flush();
+      const n = await numberOf(id);
+      const res = await json(await shipped([commit(SHA, n)]));
+      expect(res.closed).toEqual([{ handle: feedbackHandle(n), number: n, sha: SHA }]);
+      expect(await asAdmin(id)).toMatchObject({ status: "done", shippedIn: API_VERSION });
+      await flush();
+    });
+
     test("skips done and won't-fix tickets and reports unknown numbers, without touching them", async () => {
       const done = await ticket("Already done");
       const wont = await ticket("Won't fix this");

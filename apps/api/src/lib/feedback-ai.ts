@@ -8,6 +8,7 @@ import {
   ticketBasis,
   DEFAULT_FEEDBACK_AI_MODE,
   FEEDBACK_AI_AUTO_VERDICTS,
+  isOpenFeedback,
   type FeedbackAiConfidence,
   type FeedbackAiMode,
   type FeedbackAiVerdict,
@@ -61,7 +62,6 @@ export function agentTokenMatches(header: string | undefined | null, expected = 
   return timingSafeEqual(digest(m[1].trim()), digest(expected));
 }
 
-const OPEN = new Set(["new", "accepted"]);
 const publicReplies = (thread: FeedbackComment[]) =>
   thread.filter((c) => c.kind === "reply" && c.visibility === "public");
 const byReporter = (item: FeedbackItem, c: FeedbackComment) =>
@@ -80,7 +80,7 @@ const reporterEditedAt = (item: FeedbackItem): string | null =>
  * the ticket after the last answer — and nothing was answered for this version.
  */
 export function needsAnswer(item: FeedbackItem): boolean {
-  if (!OPEN.has(item.status)) return false;
+  if (!isOpenFeedback(item.status)) return false;
   if (pendingDownvote(item)) return true;
   const last = publicReplies(item.thread).at(-1);
   const edited = reporterEditedAt(item);

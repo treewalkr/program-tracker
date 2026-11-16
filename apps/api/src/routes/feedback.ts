@@ -8,6 +8,7 @@ import {
   feedbackHandle,
   feedbackMarkdown,
   formatSourceLoc,
+  isOpenFeedback,
   type FeedbackAnswerTag,
   type FeedbackAttachmentKind,
   type FeedbackContext,
@@ -84,8 +85,6 @@ const ImageLayout = t.Array(
  * field per value and a lone value would arrive bare.
  */
 const ImageKinds = t.Optional(t.String({ pattern: `^(${FEEDBACK_ATTACHMENT_KINDS.join("|")})(,(${FEEDBACK_ATTACHMENT_KINDS.join("|")}))*$`, maxLength: 200 }));
-
-const OPEN_STATUSES: readonly FeedbackStatus[] = ["new", "accepted"];
 
 const IMAGE_CACHE = "private, max-age=31536000, immutable";
 
@@ -296,7 +295,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
           .for("update");
         // Same rule as reading it: a trainer may only touch their own tickets.
         if (!row || (!isAdmin && row.trainerId !== trainerId)) return { fail: 404 } as const;
-        if (!OPEN_STATUSES.includes(row.status)) return { fail: "closed" } as const;
+        if (!isOpenFeedback(row.status)) return { fail: "closed" } as const;
         if (body.version !== (row.editedAt ?? row.createdAt).toISOString()) return { fail: "stale" } as const;
         const current = await ticketImages(tx, params.id);
         const invalid = checkLayout(current, body.layout, read.images.length);

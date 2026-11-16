@@ -385,6 +385,17 @@ describe("feedbackMarkdown duplicate links", () => {
     );
     expect(md({})).not.toContain("Duplicate");
   });
+  test("in progress reads as words, not the raw value", () => {
+    const thread = [
+      { id: "c1", kind: "status" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "in_progress" as const, createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, attachments: [] },
+    ];
+    const out = md({ status: "in_progress", thread, duplicateOf: { number: 12, status: "in_progress" } });
+    expect(out).toContain("## FB-");
+    expect(out).toContain(" · in progress\n");
+    expect(out).toContain("- _Ana marked it in progress (2026-11-08)_");
+    expect(out).toContain("- **Duplicate of:** FB-012 (in progress)");
+    expect(out).not.toContain("in_progress");
+  });
 });
 
 describe("pendingDownvote", () => {

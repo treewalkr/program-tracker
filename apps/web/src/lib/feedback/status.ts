@@ -3,6 +3,7 @@ import { FEEDBACK_AI_AUTHOR_NAME, FEEDBACK_RELEASE_AUTHOR_NAME, type FeedbackCom
 export const STATUS_LABEL: Record<FeedbackStatus, string> = {
   new: "New",
   accepted: "Accepted",
+  in_progress: "In progress",
   done: "Done",
   wontfix: "Won't fix",
 };
@@ -10,6 +11,7 @@ export const STATUS_LABEL: Record<FeedbackStatus, string> = {
 export const STATUS_TONE: Record<FeedbackStatus, "good" | "warn" | "bad" | "neutral"> = {
   new: "warn",
   accepted: "good",
+  in_progress: "good",
   done: "neutral",
   wontfix: "neutral",
 };

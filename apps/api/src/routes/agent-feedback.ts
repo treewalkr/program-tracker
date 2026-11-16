@@ -12,12 +12,15 @@ import {
   feedbackItemMarkdown,
   pendingDownvote,
   imageExt,
+  isOpenFeedback,
+  OPEN_FEEDBACK_STATUSES,
   shippedNote,
   type FeedbackAiMeta,
   type FeedbackAttachment,
   type FeedbackItem,
   type FeedbackShip,
   type FeedbackStatus,
+  type OpenFeedbackStatus,
 } from "@pt/shared";
 import { API_VERSION } from "../lib/build";
 import { getFeedback, listFeedback } from "../lib/feedback";
@@ -53,7 +56,7 @@ const NOT_FOUND = { error: "feedback not found" } as const;
 type ShipRef = { handle: string; number: number; sha: string };
 type ShipOutcome =
   | { closed: true }
-  | { closed: false; reason: "unknown" | "already-shipped" | Exclude<FeedbackStatus, "new" | "accepted"> };
+  | { closed: false; reason: "unknown" | "already-shipped" | Exclude<FeedbackStatus, OpenFeedbackStatus> };
 
 /**
  * Close one ticket for one commit, at most once: a ticket the same commit
@@ -72,7 +75,7 @@ async function shipTicket(
       .where(eq(feedbackItems.number, number))
       .for("update");
     if (!item) return { closed: false, reason: "unknown" };
-    if (item.status !== "new" && item.status !== "accepted") return { closed: false, reason: item.status };
+    if (!isOpenFeedback(item.status)) return { closed: false, reason: item.status };
     const [before] = await tx
       .select({ id: feedbackComments.id })
       .from(feedbackComments)
@@ -164,7 +167,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
   .get(
     "/inbox",
     async () => {
-      const items = (await listFeedback(["new", "accepted"], "oldest")).filter(needsAnswer);
+      const items = (await listFeedback([...OPEN_FEEDBACK_STATUSES], "oldest")).filter(needsAnswer);
       return items.map((item) => {
         const attachments = agentAttachments(item);
         const listed = new Set(attachments.map((a) => a.id));
@@ -192,7 +195,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
   .get(
     "/open",
     async () => {
-      const items = await listFeedback(["new", "accepted"], "oldest");
+      const items = await listFeedback([...OPEN_FEEDBACK_STATUSES], "oldest");
       return items.map((i) => ({
         id: i.id,
         number: i.number,
@@ -292,7 +295,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
   .get(
     "/pending",
     async () => {
-      const open = await listFeedback(["new", "accepted"], "oldest");
+      const open = await listFeedback([...OPEN_FEEDBACK_STATUSES], "oldest");
       const inbox = open.filter(needsAnswer);
       return {
         inbox: inbox.length,
@@ -396,7 +399,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           .for("update");
         if (!locked) return { error: 404 as const };
         const item = (await getFeedback(params.id))!;
-        if (item.status !== "new" && item.status !== "accepted") return { error: "closed" as const };
+        if (!isOpenFeedback(item.status)) return { error: "closed" as const };
         const basis = ticketBasis(item);
         if (basis !== body.basis) return { error: "stale" as const, basis };
         // A 👎 on the last answer reopens this version once; the new answer is a draft (routeAnswer).

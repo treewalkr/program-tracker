@@ -4,7 +4,7 @@
  * on it from the export alone, without follow-up questions.
  */
 
-export const FEEDBACK_STATUSES = ["new", "accepted", "done", "wontfix"] as const;
+export const FEEDBACK_STATUSES = ["new", "accepted", "in_progress", "done", "wontfix"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
 /** A source position, repo-relative (e.g. `apps/web/src/lib/components/SessionCard.svelte`). */
@@ -337,8 +337,14 @@ export interface FeedbackTicketRef {
   status: FeedbackStatus;
 }
 
-export const OPEN_FEEDBACK_STATUSES: readonly FeedbackStatus[] = ["new", "accepted"];
-export const isOpenFeedback = (status: FeedbackStatus): boolean => OPEN_FEEDBACK_STATUSES.includes(status);
+/** Statuses still being worked on; `done` and `wontfix` are closed. */
+export type OpenFeedbackStatus = Extract<FeedbackStatus, "new" | "accepted" | "in_progress">;
+export const OPEN_FEEDBACK_STATUSES: readonly OpenFeedbackStatus[] = ["new", "accepted", "in_progress"];
+export const isOpenFeedback = (status: FeedbackStatus): status is OpenFeedbackStatus =>
+  (OPEN_FEEDBACK_STATUSES as readonly FeedbackStatus[]).includes(status);
+
+/** A status as plain words for Markdown and emails: `in_progress` → `in progress`. */
+export const feedbackStatusText = (status: FeedbackStatus): string => status.replace(/_/g, " ");
 
 /**
  * `FB-12`, `fb-012`, `#FB-12` or a bare `12` → 12; null when it isn't a
@@ -546,7 +552,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   const c = item.context;
   const lines: string[] = [];
   const ai = currentAiNote(item);
-  lines.push(`## ${feedbackHandle(item.number)} · ${item.status}`);
+  lines.push(`## ${feedbackHandle(item.number)} · ${feedbackStatusText(item.status)}`);
   lines.push("");
   lines.push(`> ${item.comment.trim().split("\n").join("\n> ")}`);
   lines.push("");
@@ -575,10 +581,10 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     );
   }
   if (item.duplicateOf) {
-    lines.push(`- **Duplicate of:** ${feedbackHandle(item.duplicateOf.number)} (${item.duplicateOf.status}) — it closes when that ticket does`);
+    lines.push(`- **Duplicate of:** ${feedbackHandle(item.duplicateOf.number)} (${feedbackStatusText(item.duplicateOf.status)}) — it closes when that ticket does`);
   }
   if (item.duplicates?.length) {
-    lines.push(`- **Duplicates:** ${item.duplicates.map((d) => `${feedbackHandle(d.number)} (${d.status})`).join(", ")} — they close with this ticket`);
+    lines.push(`- **Duplicates:** ${item.duplicates.map((d) => `${feedbackHandle(d.number)} (${feedbackStatusText(d.status)})`).join(", ")} — they close with this ticket`);
   }
   if (item.triageNote) lines.push(`- **Triage note (owner):** ${item.triageNote}`);
   const downvote = pendingDownvote(item);
@@ -622,7 +628,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       const tag = c.visibility === "draft" ? " _(unsent draft)_" : "";
       lines.push(
         c.kind === "status"
-          ? `- _${who} marked it ${c.status} (${c.createdAt.slice(0, 10)})_`
+          ? `- _${who} marked it ${c.status ? feedbackStatusText(c.status) : ""} (${c.createdAt.slice(0, 10)})_`
           : `- **${who}**${tag} (${c.createdAt.slice(0, 10)}): ${(c.body ?? "").trim().split("\n").join("\n  ")}`,
       );
       for (const img of imageLines(item, c.attachments ?? [], opts, "reply")) lines.push(`  - ${img.label}: ${img.md}`);

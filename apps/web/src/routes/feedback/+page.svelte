@@ -3,6 +3,7 @@
   import { fade } from "svelte/transition";
   import { page } from "$app/state";
   import {
+    FEEDBACK_STATUSES,
     feedbackHandle,
     isOpenFeedback,
     isPinned,
@@ -90,7 +91,7 @@
   const counts = $derived(
     items.reduce(
       (acc, i) => ((acc[i.status] += 1), acc),
-      { new: 0, accepted: 0, done: 0, wontfix: 0 } as Record<FeedbackStatus, number>,
+      Object.fromEntries(FEEDBACK_STATUSES.map((s) => [s, 0])) as Record<FeedbackStatus, number>,
     ),
   );
   /** Admin: how reporters rated the sent AI answers, across every ticket. */
@@ -177,7 +178,7 @@
 
   /** The reporter and the admin may edit an open ticket's comment and images. */
   const canEdit = (item: FeedbackItem) =>
-    (item.status === "new" || item.status === "accepted") &&
+    isOpenFeedback(item.status) &&
     (isAdmin || (viewerId !== null && item.author?.id === viewerId));
 
   /** The ticket open in the inline editor. */

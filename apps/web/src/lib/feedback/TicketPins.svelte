@@ -2,7 +2,7 @@
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
-  import { feedbackHandle, type FeedbackItem } from "@pt/shared";
+  import { feedbackHandle, OPEN_FEEDBACK_STATUSES, type FeedbackItem } from "@pt/shared";
   import Pill from "$lib/ui/Pill.svelte";
   import Author from "./Author.svelte";
   import MuteToggle from "./MuteToggle.svelte";
@@ -62,7 +62,7 @@
     void reload;
     let cancelled = false;
     feedbackApi
-      .list(["new", "accepted"])
+      .list([...OPEN_FEEDBACK_STATUSES])
       .then((all) => {
         if (!cancelled) items = all.filter((i) => i.context.route.id === id);
       })
