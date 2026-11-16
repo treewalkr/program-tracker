@@ -323,7 +323,9 @@
     {/if}
   </section>
 {:else}
-  <form class="log" onsubmit={(e) => { e.preventDefault(); void save(); }}>
+  <!-- novalidate: a prescribed 12 s or 7.5 kg is off the steppers' step, and the browser would
+       silently refuse it; buildPortalLog is the one gate. -->
+  <form class="log" novalidate onsubmit={(e) => { e.preventDefault(); void save(); }}>
     <header class="head">
       <h1>{session.name}</h1>
       <label class="date">
