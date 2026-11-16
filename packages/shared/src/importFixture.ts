@@ -1,4 +1,7 @@
 import type { ImportActual, ImportChunk, ImportExercise, ImportPrescription, ImportSession } from "./import";
+import { FB015_CHUNKS } from "./importFixtures/fb015";
+
+export { FB015_CHUNKS };
 
 /**
  * Hand-written expected extraction of fixtures/import/week11-12.txt — what a
@@ -232,7 +235,8 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
 /**
  * The mock provider's extraction for lines `from`…`to` of a paste: the
  * fixture's items whose line is in range and still reads as the fixture
- * does. Any other text comes back empty, so the review shows it as unused.
+ * does. The FB-015 paste gets its real chunk outputs back, verbatim. Any
+ * other text comes back empty, so the review shows it as unused.
  */
 /** Words the mock reports as new when its chunk has them (known ones are filtered by the glossary later). */
 const MOCK_NEW_TERMS: { term: string; meaning: string | null }[] = [
@@ -243,6 +247,7 @@ const MOCK_NEW_TERMS: { term: string; meaning: string | null }[] = [
 ];
 
 export function mockImportExtraction(lines: string[], from: number, to: number): ImportChunk {
+  if (isFb015(lines)) return structuredClone(FB015_CHUNKS.find((c) => c.from === from && c.to === to)?.data ?? { weeks: [], skipped: [], newTerms: [] });
   const has = (line: number | null | undefined, text: string) =>
     line != null && line >= from && line <= to && (lines[line - 1] ?? "").toLowerCase().includes(text.toLowerCase());
   const weeks = WEEK11_12_EXTRACTION.weeks.flatMap((w) => {
@@ -261,4 +266,25 @@ export function mockImportExtraction(lines: string[], from: number, to: number):
     return at >= 0 ? [{ ...t, line: from + at }] : [];
   });
   return structuredClone({ weeks, skipped: [], newTerms });
+}
+
+/** The FB-015 paste (fixtures/import/fb-015-ab.txt): every line its real chunks cite still reads as they read it. */
+function isFb015(lines: string[]): boolean {
+  const reads = (line: number | null | undefined, text: string) =>
+    line == null || (lines[line - 1] ?? "").toLowerCase().includes(text.toLowerCase());
+  return (
+    lines.length === 41 &&
+    FB015_CHUNKS.every(({ data }) =>
+      data.skipped.every((s) => /[\p{L}\p{N}]/u.test(lines[s.line - 1] ?? "")) &&
+      data.weeks.every(
+        (w) =>
+          reads(w.line, w.label ?? "") &&
+          w.days.every(
+            (d) =>
+              reads(d.line, d.label) &&
+              d.sessions.every((s) => reads(s.line, s.name) && s.exercises.every((e) => reads(e.line, e.sourceName))),
+          ),
+      ),
+    )
+  );
 }
