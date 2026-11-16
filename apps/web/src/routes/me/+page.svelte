@@ -87,6 +87,7 @@
       <span>{t("header.week", { n: current.week })}</span>
       <span class="tnum progress">{t("week.progress", { done: doneCount(current), total: current.sessions.length })}</span>
     </p>
+    {#if current.weekLabel}<p class="week-label">{t(`week.label.${current.weekLabel}`)}</p>{/if}
   {/if}
 </header>
 
@@ -171,6 +172,7 @@
 
   <div id="wk-panel" role="tabpanel" tabindex="-1" aria-labelledby={`wk-${tab}`} class="days">
     {#if !shown.loggable}<p class="preview">{t("week.nextPreview")}</p>{/if}
+    {#if !shown.loggable && shown.weekLabel}<p class="week-label">{t(`week.label.${shown.weekLabel}`)}</p>{/if}
     {#if groups.length === 0 && shown.sessions.length === 0}
       <div class="empty"><p class="empty-title">{t("week.emptyWeek")}</p></div>
     {/if}
@@ -266,6 +268,8 @@
 
   .days { display: grid; gap: 24px; padding-top: 16px; }
   .preview { margin: 0; font-size: 14px; color: var(--muted); }
+  .week-label { margin: 10px 0 0; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
+  .days > .week-label { margin: 0; }
   .day { display: grid; gap: 10px; }
   h2 {
     display: flex;
