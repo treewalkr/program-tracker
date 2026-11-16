@@ -249,8 +249,11 @@ export interface ReviewWeek {
 export interface ImportAb {
   a: number;
   b: number;
-  /** "notes": the notes say so (week letters); "pattern": W1 ≠ W2 and every week matches the one two before. */
-  source: "notes" | "pattern";
+  /**
+   * "notes": the notes say so (week letters); "pattern": W1 ≠ W2 and every week matches the one two before;
+   * "picked": the trainer chose the two weeks in the review (FB-015) — never stored.
+   */
+  source: "notes" | "pattern" | "picked";
 }
 
 export interface ImportBlock {
@@ -269,7 +272,7 @@ export interface ImportResult {
   blocks: ImportBlock[];
   /** Index into `blocks` — the latest one. */
   defaultBlock: number;
-  /** Blocks alternate A, B, A, B — both are kept as notes, one is drafted. */
+  /** Blocks alternate A, B, A, B — the review suggests picking A/B weeks (FB-015). */
   alternating: boolean;
   /** A/B weeks found (FB-013): the weeks to draft as Week A and Week B. Absent/null = one template week (and on older imports). */
   ab?: ImportAb | null;

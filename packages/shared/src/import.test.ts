@@ -18,7 +18,7 @@ import {
   type ImportResult,
   type ReviewExercise,
 } from "./import";
-import { WEEK11_12_EXTRACTION, mockImportExtraction } from "./importFixture";
+import { FB015_CHUNKS, WEEK11_12_EXTRACTION, mockImportExtraction } from "./importFixture";
 import { PrescribedSet } from "./domain";
 
 const FIXTURE = readFileSync(new URL("../fixtures/import/week11-12.txt", import.meta.url), "utf8");
@@ -430,6 +430,40 @@ describe("mock extraction", () => {
 
   test("other text comes back empty", () => {
     expect(mockImportExtraction(["Week 1", "Squat 5x5"], 1, 2).weeks).toEqual([]);
+  });
+});
+
+describe("FB-015 paste (real chunk outputs)", () => {
+  const TEXT = readFileSync(new URL("../fixtures/import/fb-015-ab.txt", import.meta.url), "utf8");
+  const L = importLines(TEXT);
+  const read = () => buildImportResult(TEXT, chunkLines(L).map((c) => ({ ...c, ok: true as const, data: mockImportExtraction(L, c.from, c.to) })));
+  const count = (r: ImportResult, w: number) => r.weeks[w].days.reduce((n, d) => n + d.sessions.reduce((m, s) => m + s.exercises.length, 0), 0);
+
+  test("chunks the paste the way prod did", () => {
+    expect(chunkLines(L)).toEqual(FB015_CHUNKS.map(({ from, to }) => ({ from, to })));
+  });
+
+  test("the mock answers each chunk with its real output, verbatim", () => {
+    for (const c of FB015_CHUNKS) expect(mockImportExtraction(L, c.from, c.to)).toEqual(c.data);
+    // edited text no longer reads as the paste
+    const edited = [...L];
+    edited[7] = "A1.Lunge 40 kg x 10 reps";
+    expect(mockImportExtraction(edited, 3, 18).weeks).toEqual([]);
+  });
+
+  test("reproduces the stored prod result: an empty week, Week 1, Week 2 — three blocks, no A/B found", () => {
+    const r = read();
+    expect(r.lineCount).toBe(41);
+    expect(r.weeks.map((w) => w.label)).toEqual([null, "Week 1 (คี่)", "Week 2 (คู่)"]);
+    expect([0, 1, 2].map((w) => count(r, w))).toEqual([0, 12, 14]);
+    expect(r.blocks).toEqual([{ weeks: [0] }, { weeks: [1] }, { weeks: [2] }]);
+    expect(r.defaultBlock).toBe(2);
+    expect(r.alternating).toBe(false);
+    expect(r.ab).toBeNull();
+    expect(r.unused).toEqual([]);
+    expect(r.unread).toEqual([]);
+    expect(r.skipped.map((s) => s.line)).toEqual([1, 2, 7, 21, 24, 28, 32, 35, 39]);
+    expect(r.weeks[2].days.map((d) => d.sessions.map((s) => s.exercises.map((e) => e.group ?? "-").join("")))).toEqual([["AABB-CC"], ["AABB-CC"]]);
   });
 });
 

@@ -10,10 +10,13 @@ import {
   type ImportResult,
 } from "@pt/shared";
 import {
+  abPickError,
+  abWeekOptions,
   aliasesToSave,
   blockLabel,
   choiceFor,
   draftWeekIndexes,
+  defaultAbPick,
   defaultChoice,
   flagSummary,
   formFromImport,
@@ -188,6 +191,157 @@ describe("A/B weeks found (FB-013)", () => {
     const one = flagSummary(r, r.defaultBlock, {});
     const two = flagSummary(r, r.defaultBlock, {}, AB);
     expect(two.amber).toBeGreaterThanOrEqual(one.amber);
+  });
+});
+
+describe("A/B week pick helpers (FB-015)", () => {
+  /** A result of weeks: "lift", "cardio" or "empty" (a header with no sessions). */
+  const weeks = (...kinds: ("lift" | "cardio" | "empty")[]): ImportResult => ({
+    lineCount: 0,
+    weeks: kinds.map((k, i) => ({
+      label: `Week ${i + 1}`,
+      line: null,
+      flags: [],
+      days:
+        k === "empty"
+          ? []
+          : [
+              {
+                label: "Day 1",
+                line: 1,
+                flags: [],
+                sessions: [{ name: k, kind: k === "lift" ? "lifting" : "cardio", line: 1, source: null, cardio: null, exercises: [], flags: [] }],
+              },
+            ],
+    })),
+    skipped: [],
+    unused: [],
+    unread: [],
+    blocks: kinds.map((_, i) => ({ weeks: [i] })),
+    defaultBlock: Math.max(0, kinds.length - 1),
+    alternating: false,
+  });
+
+  test("options: weeks with a session, in order; an empty week is skipped, a cardio-only week counts", () => {
+    expect(abWeekOptions(weeks("empty", "lift", "lift"))).toEqual([1, 2]);
+    expect(abWeekOptions(weeks("lift", "cardio", "empty", "lift"))).toEqual([0, 1, 3]);
+    expect(abWeekOptions(weeks("empty", "empty"))).toEqual([]);
+    expect(abWeekOptions(weeks("lift"))).toEqual([0]);
+    expect(abWeekOptions(weeks("lift", "empty"))).toEqual([0]);
+  });
+
+  test("default pick: the first two weeks with training, or none", () => {
+    expect(defaultAbPick(weeks("empty", "lift", "lift"))).toEqual({ a: 1, b: 2, source: "picked" });
+    expect(defaultAbPick(weeks("lift", "lift"))).toEqual({ a: 0, b: 1, source: "picked" });
+    expect(defaultAbPick(weeks("lift"))).toBeNull();
+    expect(defaultAbPick(weeks("empty", "lift"))).toBeNull();
+    expect(defaultAbPick(weeks())).toBeNull();
+  });
+
+  test("a pick needs two different weeks", () => {
+    expect(abPickError({ a: 1, b: 1 })).toBe("Pick two different weeks for A and B.");
+    expect(abPickError({ a: 1, b: 2 })).toBeNull();
+    expect(abPickError({ a: 2, b: 1 })).toBeNull();
+    expect(abPickError(null)).toBeNull();
+  });
+});
+
+describe("FB-015 picked A/B", () => {
+  const TEXT = readFileSync(new URL("../../../../packages/shared/fixtures/import/fb-015-ab.txt", import.meta.url), "utf8");
+  const L = importLines(TEXT);
+  /** The real chunk outputs, through the pipeline, matched against a small catalog. */
+  function fb015(): ImportResult {
+    const r = buildImportResult(TEXT, chunkLines(L).map((c) => ({ ...c, ok: true as const, data: mockImportExtraction(L, c.from, c.to) })));
+    for (const w of r.weeks) for (const d of w.days) for (const s of d.sessions) for (const e of s.exercises) e.match = matchExercise(e, CATALOG);
+    return r;
+  }
+  const names = (rows: { exercises: { exerciseName: string; group?: string }[] }[] | null | undefined) =>
+    (rows ?? []).map((s) => s.exercises.map((e) => `${e.group ? `${e.group}:` : ""}${e.exerciseName}`));
+
+  test("reads as stored in prod: an empty week, Week 1, Week 2 — three blocks, no A/B found", () => {
+    const r = fb015();
+    expect(r.weeks.map((w) => w.label)).toEqual([null, "Week 1 (คี่)", "Week 2 (คู่)"]);
+    expect(r.blocks).toEqual([{ weeks: [0] }, { weeks: [1] }, { weeks: [2] }]);
+    expect(r.ab).toBeNull();
+    expect(abWeekOptions(r)).toEqual([1, 2]);
+    expect(defaultAbPick(r)).toEqual({ a: 1, b: 2, source: "picked" });
+  });
+
+  test("the default pick drafts Week 1 as Week A and Week 2 as Week B, in order, supersets kept", () => {
+    const r = fb015();
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey, ab: defaultAbPick(r) });
+    expect(form.sessions.map((s) => s.name)).toEqual(["Push", "Pull"]);
+    expect(form.weekB?.map((s) => s.name)).toEqual(["squat+vertical", "Deadlift + Horizontal"]);
+    expect(names(form.sessions)).toEqual([
+      ["Burpee to Throwball", "Sled push", "A:Squat", "A:Farmer carry", "Reverse Lunge", "Bench Press"],
+      ["Power snatch", "Sled Pull", "Deadlift", "V bar row", "Lat pull down", "Face pull"],
+    ]);
+    expect(names(form.weekB)).toEqual([
+      ["A:Wallball", "A:Plank shoulder tap", "B:Sling Walk", "B:SkiERG", "Squat", "C:Shoulder press", "C:Lat pull down"],
+      ["A:Single leg throwball", "A:Slamball side to side", "B:RowERG", "B:Russian Twist", "Deadlift", "C:Bench Press", "C:Bent over row"],
+    ]);
+    for (const s of [...form.sessions, ...(form.weekB ?? [])]) expect(s.exercises.map((e) => e.order)).toEqual(s.exercises.map((_, i) => i));
+    expect(form.plannedWeeks).toBe(BASE.plannedWeeks);
+    expect(form.name).toBe("Push / Pull");
+  });
+
+  test("swapped (A = Week 2, B = Week 1): the routines swap", () => {
+    const r = fb015();
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey, ab: { a: 2, b: 1, source: "picked" } });
+    expect(form.sessions.map((s) => s.name)).toEqual(["squat+vertical", "Deadlift + Horizontal"]);
+    expect(form.weekB?.map((s) => s.name)).toEqual(["Push", "Pull"]);
+  });
+
+  test("both weeks' exercises are created, aliased and checked — never the empty week", () => {
+    const r = fb015();
+    const ab = defaultAbPick(r);
+    const all = templateExercises(r, r.defaultBlock, ab);
+    expect(all).toHaveLength(26);
+    expect(all.filter(({ key }) => key.startsWith("w1"))).toHaveLength(12);
+    expect(all.filter(({ key }) => key.startsWith("w2"))).toHaveLength(14);
+    expect(all.some(({ key }) => key.startsWith("w0"))).toBe(false);
+
+    const fresh = newExerciseNames(r, r.defaultBlock, {}, ab);
+    expect(fresh).toContain("Burpee to Throwball"); // Week A only
+    expect(fresh).toContain("Wallball"); // Week B only
+    expect(fresh).not.toContain("Bench Press"); // in the catalog
+    expect(new Set(fresh.map((x) => x.toLowerCase())).size).toBe(fresh.length);
+    expect(fresh.length).toBeGreaterThan(newExerciseNames(r, r.defaultBlock, {}).length);
+
+    const pushKey = all.find(({ ex }) => ex.sourceName === "Burpee to Throwball")!.key;
+    const wallKey = all.find(({ ex }) => ex.sourceName === "Wallball")!.key;
+    const choices: Record<string, ChoiceState> = {
+      [pushKey]: { choice: { kind: "catalog", exerciseId: "squat", exerciseName: "Back Squat" }, confirmed: true },
+      [wallKey]: { choice: { kind: "catalog", exerciseId: "bench", exerciseName: "Bench Press" }, confirmed: true },
+    };
+    expect(aliasesToSave(r, r.defaultBlock, choices, new Map(), ab).map((a) => a.alias)).toEqual(["Burpee to Throwball", "Wallball"]);
+    expect(aliasesToSave(r, r.defaultBlock, choices).map((a) => a.alias)).toEqual(["Wallball"]);
+
+    const both = flagSummary(r, r.defaultBlock, {}, ab);
+    const weekA = flagSummary(r, 1, {});
+    const weekB = flagSummary(r, 2, {});
+    expect(both.amber).toBe(weekA.amber + weekB.amber);
+    expect(both.info).toBe(weekA.info + weekB.info);
+    expect(both.blocking).toEqual([]);
+  });
+
+  test("no pick: the latest block as today, no Week B", () => {
+    const r = fb015();
+    const form = formFromImport(r, r.defaultBlock, { ...BASE, weekB: [] }, { choices: {}, resolve, newKey });
+    expect(form.sessions.map((s) => s.name)).toEqual(["squat+vertical", "Deadlift + Horizontal"]);
+    expect(form.weekB).toBeNull();
+    expect(draftWeekIndexes(r, r.defaultBlock)).toEqual([2]);
+  });
+
+  test("week11-12 grouped into one block still offers A/B weeks", () => {
+    const r = result();
+    r.blocks = [{ weeks: [0, 1] }];
+    r.defaultBlock = 0;
+    expect(abWeekOptions(r)).toEqual([0, 1]);
+    const form = formFromImport(r, 0, BASE, { choices: {}, resolve, newKey, ab: defaultAbPick(r) });
+    expect(form.sessions.filter((s) => s.kind === "lifting").map((s) => s.name)).toEqual(["Back/Biceps", "Chest/Triceps", "Lower"]);
+    expect(form.weekB?.map((s) => s.name)).toEqual(["Upper Push", "Upper Pull", "Lower"]);
+    expect(form.plannedWeeks).toBe(BASE.plannedWeeks);
   });
 });
 
