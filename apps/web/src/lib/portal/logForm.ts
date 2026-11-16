@@ -169,3 +169,23 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): Portal
     readiness: parseReadiness({ energy: r.energy, readiness: r }),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Pristine vs touched: what the client actually changed
+// ---------------------------------------------------------------------------
+
+const rowSig = (r: PortalRow) => [r.key, String(r.weight), String(r.reps), String(r.rpe)];
+
+/** True when the form is exactly what the page opened with — nothing to keep as a draft. */
+export function sameForm(a: PortalLogForm, b: PortalLogForm): boolean {
+  const sig = (f: PortalLogForm) => JSON.stringify([f.rows.map(rowSig), f.cardio, f.readiness, f.notes.trim(), f.date]);
+  return sig(a) === sig(b);
+}
+
+/** Exercises (by programExerciseId) whose sets differ from the prefill, or got an extra set. */
+export function touchedExercises(pristine: readonly PortalRow[], rows: readonly PortalRow[]): Set<string> {
+  const before = new Map(pristine.map((r) => [r.key, rowSig(r).join("|")]));
+  const out = new Set<string>();
+  for (const r of rows) if (before.get(r.key) !== rowSig(r).join("|")) out.add(r.programExerciseId);
+  return out;
+}

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS } from "$lib/logFlags";
-import { buildPortalLog, cardioFormOf, parsePortalDraft, portalDraftJson, rowsOfSession, type PortalLogForm } from "./logForm";
+import { buildPortalLog, cardioFormOf, extraRow, parsePortalDraft, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
 const lifting: PortalSession = {
   id: "ps1", name: "Lower", kind: "lifting", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -94,5 +94,24 @@ describe("portal log form", () => {
     expect(back).toMatchObject({ notes: "knee ok", readiness: { energy: 6, sleep: null, soreness: 2 }, date: "2026-11-16" });
     expect(parsePortalDraft(portalDraftJson(f), rowsOfSession({ ...lifting, exercises: lifting.exercises.slice(0, 1) }))).toBeNull();
     expect(parsePortalDraft("{junk", rowsOfSession(lifting))).toBeNull();
+  });
+
+  test("an untouched prefill is the same form; any edit is not", () => {
+    expect(sameForm(form(lifting), form(lifting))).toBe(true);
+    expect(sameForm(form(lifting), form(lifting, { notes: "  " }))).toBe(true);
+    const f = form(lifting);
+    f.rows[0].reps = 7;
+    expect(sameForm(form(lifting), f)).toBe(false);
+    expect(sameForm(form(lifting), form(lifting, { readiness: { energy: 5, sleep: null, soreness: null } }))).toBe(false);
+  });
+
+  test("touched exercises: a changed cell or an extra set marks its exercise", () => {
+    const pristine = rowsOfSession(lifting);
+    expect(touchedExercises(pristine, rowsOfSession(lifting)).size).toBe(0);
+    const rows = rowsOfSession(lifting);
+    rows[1].weight = 102.5;
+    expect([...touchedExercises(pristine, rows)]).toEqual(["pe1"]);
+    const more = [...rowsOfSession(lifting), extraRow(rowsOfSession(lifting)[2], 2)];
+    expect([...touchedExercises(pristine, more)]).toEqual(["pe2"]);
   });
 });
