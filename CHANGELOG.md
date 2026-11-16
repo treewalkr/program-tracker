@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Paste notes: when your notes hold two different weeks, you can now draft them as **A/B weeks**. Pick "A/B weeks" under "Draft which one?" and choose which week is A and which is B. "Use this" fills the builder's Week A and Week B tabs with A/B weeks switched on. It also works on notes you read before this update.
+
 ## v0.1.30 — 2026-11-17
 
 ### New
