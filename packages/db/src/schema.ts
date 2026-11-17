@@ -771,6 +771,9 @@ export const sessionTypes = pgTable(
     name: text("name").notNull(),
     /** "lifting" (exercises + sets) or "cardio" (cardio prescription). */
     format: text("format").$type<SessionKind>().notNull(),
+    /** A `SESSION_TYPE_PRESETS` key = a locked preset (archive/restore only); null = the trainer's own type.
+     *  One row per preset per trainer rides on the name index (preset names are locked). */
+    presetKey: text("preset_key"),
     /** Set = out of the picker and AI list; programs keep the captured name. */
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
