@@ -7,11 +7,12 @@ import { str, as } from "./shared";
 
 const SessionTypeInsert = createInsertSchema(sessionTypes, {
   name: str({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX }),
-  /** Plain string: the route answers a bad value with "format must be lifting or cardio". */
+  /** Plain string: the route answers a bad value with "format must be lifting or cardio" ("any" is preset-only). */
   format: as(t.String({ maxLength: 20 })),
 });
 
 export const SessionTypeModel = {
+  /** Custom types only: presets are seeded, never created. */
   create: t.Pick(SessionTypeInsert, ["name", "format"]),
   update: t.Object({
     ...spread(t.Partial(t.Pick(SessionTypeInsert, ["name", "format"]))),

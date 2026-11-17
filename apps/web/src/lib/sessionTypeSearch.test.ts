@@ -1,31 +1,32 @@
 import { describe, expect, test } from "bun:test";
-import { groupByFormat, searchSessionTypes } from "./sessionTypeSearch";
+import { sessionTypePath } from "@pt/shared";
+import { searchSessionTypes } from "./sessionTypeSearch";
 
 const types = [
-  { name: "Strength", format: "lifting" as const },
-  { name: "Mobility", format: "lifting" as const },
-  { name: "Intervals", format: "cardio" as const },
-  { name: "Zone 2", format: "cardio" as const },
-  { name: "Upper strength", format: "lifting" as const },
+  { name: "Cardiovascular", format: "cardio" as const, presetKey: "cardiovascular" },
+  { name: "Aerobic base", format: "cardio" as const, presetKey: "cardiovascular.aerobic-base" },
+  { name: "Strength training", format: "lifting" as const, presetKey: "strength-training" },
+  { name: "Stability & mobility", format: "lifting" as const, presetKey: "strength-training.stability-mobility" },
+  { name: "Loaded strength", format: "lifting" as const, presetKey: "strength-training.loaded-strength" },
+  { name: "Metabolic", format: "any" as const, presetKey: "metabolic" },
+  { name: "AMRAP", format: "any" as const, presetKey: "metabolic.amrap" },
+  { name: "Upper strength", format: "lifting" as const, presetKey: null },
 ];
+const names = (q: string) => searchSessionTypes(types, q).map((t) => t.name);
 
 describe("searchSessionTypes", () => {
   test("empty query keeps list order", () => {
-    expect(searchSessionTypes(types, "  ").map((t) => t.name)).toEqual(types.map((t) => t.name));
+    expect(names("  ")).toEqual(types.map((t) => t.name));
   });
-  test("name prefix ranks before a match inside the name", () => {
-    expect(searchSessionTypes(types, "str").map((t) => t.name)).toEqual(["Strength", "Upper strength"]);
+  test("name prefix ranks before a match inside the name, then a main-type match", () => {
+    expect(names("str")).toEqual(["Strength training", "Loaded strength", "Upper strength", "Stability & mobility"]);
   });
-  test("every word must match; the format label is searchable", () => {
-    expect(searchSessionTypes(types, "cardio").map((t) => t.name)).toEqual(["Intervals", "Zone 2"]);
-    expect(searchSessionTypes(types, "zone cardio").map((t) => t.name)).toEqual(["Zone 2"]);
-    expect(searchSessionTypes(types, "yoga")).toEqual([]);
+  test("a main type's name finds its sub-types, shown as Main › Sub", () => {
+    expect(searchSessionTypes(types, "metabolic").map(sessionTypePath)).toEqual(["Metabolic", "Metabolic › AMRAP"]);
+    expect(names("cardiovascular aerobic")).toEqual(["Aerobic base"]);
   });
-});
-
-describe("groupByFormat", () => {
-  test("lifting first, empty groups dropped", () => {
-    expect(groupByFormat(types).map((g) => [g.format, g.items.length])).toEqual([["lifting", 3], ["cardio", 2]]);
-    expect(groupByFormat(types.filter((t) => t.format === "cardio")).map((g) => g.format)).toEqual(["cardio"]);
+  test("every word must match; the format label is searchable and any-format types fit both", () => {
+    expect(names("cardio")).toEqual(["Cardiovascular", "Aerobic base", "AMRAP", "Metabolic"]);
+    expect(names("yoga")).toEqual([]);
   });
 });

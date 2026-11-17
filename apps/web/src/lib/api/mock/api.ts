@@ -39,7 +39,7 @@ import {
   KineticChainInput,
   KNOWN_PROVIDERS,
   normalizeTypeName,
-  SESSION_TYPE_DEFAULTS,
+  SESSION_TYPE_PRESETS,
   mockApplyProposal,
   scopeToProposal,
   lockPhasing,
@@ -272,10 +272,11 @@ const state = {
   portal: {
     "cl-nat": { token: "demo-nattapong", lastSeenAt: new Date(Date.now() - 86400_000).toISOString() },
   } as Record<string, { token: string; lastSeenAt: string | null }>,
-  sessionTypes: SESSION_TYPE_DEFAULTS.map((d, i) => ({ id: `st-${i + 1}`, name: d.name, format: d.format, archivedAt: null })) as Omit<
-    SessionTypeDto,
-    "usedIn"
-  >[],
+  /** The presets every trainer gets, plus one custom type (what the migration leaves Hypertrophy as). */
+  sessionTypes: [
+    ...SESSION_TYPE_PRESETS.map((p) => ({ id: `st-${p.key}`, name: p.name, format: p.format, presetKey: p.key, archivedAt: null })),
+    { id: "st-hypertrophy", name: "Hypertrophy", format: "lifting", presetKey: null, archivedAt: null },
+  ] as Omit<SessionTypeDto, "usedIn">[],
 };
 
 function portalDto(clientId: string): ClientPortalDto {
@@ -674,7 +675,7 @@ export const mockApi: TrainerApi = {
     await delay(200);
     const name = normalizeTypeName(input.name);
     assertTypeNameFree(name);
-    const created = { id: `st-${uuid().slice(0, 8)}`, name, format: input.format, archivedAt: null };
+    const created = { id: `st-${uuid().slice(0, 8)}`, name, format: input.format, presetKey: null, archivedAt: null };
     state.sessionTypes = [...state.sessionTypes, created];
     return typeDto(created);
   },
@@ -683,6 +684,7 @@ export const mockApi: TrainerApi = {
     await delay(150);
     const cur = state.sessionTypes.find((t) => t.id === id);
     if (!cur) throw new Error("session type not found");
+    if (cur.presetKey && (input.name !== undefined || input.format !== undefined)) throw new Error("preset types can't be edited");
     const next = { ...cur };
     if (input.name !== undefined) {
       next.name = normalizeTypeName(input.name);
@@ -696,8 +698,9 @@ export const mockApi: TrainerApi = {
 
   async deleteSessionType(id) {
     await delay(150);
-    if (!state.sessionTypes.some((t) => t.id === id)) throw new Error("session type not found");
-    if (state.sessionTypes.length === 1) throw new Error("keep at least one session type");
+    const cur = state.sessionTypes.find((t) => t.id === id);
+    if (!cur) throw new Error("session type not found");
+    if (cur.presetKey) throw new Error("preset types can only be archived");
     const n = typeUsage(id);
     if (n) throw new Error(`used in ${n} program${n === 1 ? "" : "s"} — archive it instead`);
     state.sessionTypes = state.sessionTypes.filter((t) => t.id !== id);

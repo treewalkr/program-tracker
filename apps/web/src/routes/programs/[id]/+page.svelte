@@ -45,7 +45,7 @@
     type SessionKind,
     type SignalProgram,
   } from "@pt/shared";
-  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS } from "@pt/shared";
+  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, typeFitsKind } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
@@ -110,7 +110,7 @@
     for (const w of program.weeks) {
       if (letter && w.rotation !== letter) continue;
       for (const x of w.sessions) {
-        if (sessionKey(x) === key && x.kind === t.format) {
+        if (sessionKey(x) === key && typeFitsKind(t.format, x.kind)) {
           x.typeId = t.id;
           x.typeName = t.name;
         }

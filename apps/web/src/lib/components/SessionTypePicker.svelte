@@ -1,14 +1,17 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import type { SessionKind } from "@pt/shared";
+  import { groupSessionTypes, presetParent, sessionTypePath, type SessionKind } from "@pt/shared";
   import type { SessionTypeDto, SessionTypeInput } from "$lib/api/types";
-  import { FORMAT_HINT, FORMAT_LABEL, groupByFormat, searchSessionTypes } from "$lib/sessionTypeSearch";
+  import { FORMAT_LABEL, searchSessionTypes } from "$lib/sessionTypeSearch";
   import Icon from "$lib/ui/Icon.svelte";
 
   /**
    * Searchable session-type picker (ARIA combobox), same interaction model as
-   * ExercisePicker: type to filter, ↑↓ / Enter / Esc. Empty query browses by
-   * format. With `oncreate`, a typed name that isn't a type yet offers two
+   * ExercisePicker: type to filter, ↑↓ / Enter / Esc. Empty query browses the
+   * taxonomy: each main type, its sub-types indented under it, then the
+   * trainer's custom types. Main and sub rows are both pickable; a search is
+   * flat and shows sub-types as "Main › Sub". Picking a lifting or cardio
+   * type sets the session's kind; a Metabolic ("any") type keeps it. With `oncreate`, a typed name that isn't a type yet offers two
    * create rows — as a lifting type or as a cardio type — saved and picked
    * in one step. The trigger shows the type name, or the bare format when
    * the session has no type yet.
@@ -53,10 +56,22 @@
   /** Archived types stay out of the picker unless already chosen. */
   const pool = $derived(types.filter((t) => !t.archivedAt || t.id === value));
   const typed = $derived(query.trim().replace(/\s+/g, " "));
-  const groups = $derived(
-    typed ? [{ format: null, items: searchSessionTypes(pool, typed) }] : groupByFormat(pool)
-  );
-  const flat = $derived(groups.flatMap((g) => g.items));
+  type Entry =
+    | { head: string; muted?: boolean }
+    | { t: SessionTypeDto; sub?: boolean; path?: string };
+  /** The rendered list: headers (not options) and options, in order. */
+  const entries = $derived.by<Entry[]>(() => {
+    if (typed) return searchSessionTypes(pool, typed).map((t) => ({ t, path: presetParent(t.presetKey)?.name }));
+    const { groups, custom } = groupSessionTypes(pool);
+    return [
+      ...groups.flatMap((g): Entry[] => [
+        g.row ? { t: g.row } : { head: g.main.name, muted: true },
+        ...g.subs.map((t) => ({ t, sub: true })),
+      ]),
+      ...(custom.length ? [{ head: "Custom" }, ...custom.map((t) => ({ t }))] : []),
+    ];
+  });
+  const flat = $derived(entries.flatMap((e) => ("t" in e ? [e.t] : [])));
   const optId = (i: number) => `${uid}-opt-${i}`;
   /** Create rows unless the query already names a type (archived ones included). */
   const createFormats = $derived<SessionKind[]>(
@@ -162,11 +177,12 @@
     class="tp-btn"
     aria-haspopup="listbox"
     aria-expanded={open}
-    aria-label="{label}: {current?.name ?? FORMAT_LABEL[format]}"
+    aria-label="{label}: {current ? sessionTypePath(current) : FORMAT_LABEL[format]}"
+    title={current ? sessionTypePath(current) : undefined}
     onclick={() => (open ? hide() : show())}
     onkeydown={onTriggerKey}
   >
-    <span class="tp-dot" class:cardio={(current?.format ?? format) === "cardio"} aria-hidden="true"></span>
+    <span class="tp-dot" class:cardio={format === "cardio"} aria-hidden="true"></span>
     <span class="tp-name" class:unset={!current}>{current?.name ?? FORMAT_LABEL[format]}</span>
     <span class="tp-chev"><Icon name="chevron" /></span>
   </button>
@@ -195,29 +211,35 @@
       </div>
 
       <ul class="tp-list" id="{uid}-list" role="listbox" aria-label="Session types" bind:this={listEl}>
-        {#each groups as g (g.format ?? "all")}
-          {#if g.format}<li class="tp-group" role="presentation">{FORMAT_LABEL[g.format]}<span>{FORMAT_HINT[g.format]}</span></li>{/if}
-          {#each g.items as t (t.id)}
+        {#each entries as e, ei (("t" in e ? e.t.id : `h-${e.head}`) + ei)}
+          {#if "head" in e}
+            <li class="tp-group" class:muted={e.muted} role="presentation">{e.head}</li>
+          {:else}
+            {@const t = e.t}
             {@const i = flat.indexOf(t)}
+            {@const main = !e.sub && !e.path && !!t.presetKey}
             <!-- keyboard lives on the combobox input (aria-activedescendant), per the ARIA combobox pattern -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <li
               id={optId(i)}
               role="option"
               class="tp-opt"
+              class:sub={e.sub}
+              class:main
               class:active={i === active}
               aria-selected={t.id === value}
+              aria-label={sessionTypePath(t)}
               onpointermove={() => (active = i)}
-              onpointerdown={(e) => e.preventDefault()}
+              onpointerdown={(ev) => ev.preventDefault()}
               onclick={() => pick(t)}
             >
               <span class="tp-check">{#if t.id === value}<Icon name="check" />{/if}</span>
               <span class="tp-opt-name">
-                {#each highlight(t.name) as part, pi (pi)}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
+                {#if e.path}<span class="tp-path">{`${e.path} › `}</span>{/if}{#each highlight(t.name) as part, pi (pi)}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
               </span>
-              {#if !g.format}<span class="tp-fmt" class:cardio={t.format === "cardio"}>{FORMAT_LABEL[t.format]}</span>{/if}
+              {#if !e.sub}<span class="tp-fmt {t.format}">{FORMAT_LABEL[t.format]}</span>{/if}
             </li>
-          {/each}
+          {/if}
         {/each}
         {#each createFormats as f, ci (f)}
           {@const i = flat.length + ci}
@@ -354,7 +376,7 @@
     letter-spacing: 0.04em;
     color: var(--muted);
   }
-  .tp-group span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .tp-group.muted { text-transform: none; letter-spacing: 0; font: 600 14px/1.2 var(--font-ui); color: var(--muted); padding: 8px 12px 4px 28px; }
   .tp-opt {
     display: flex;
     gap: 6px;
@@ -372,8 +394,23 @@
   .tp-opt-name { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tp-opt[aria-selected="true"] .tp-opt-name { font-weight: 600; }
   .tp-opt-name mark { background: none; color: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--blue); text-underline-offset: 3px; }
-  .tp-fmt { font-size: 12px; color: var(--blue); }
+  .tp-opt.main { margin-top: 2px; }
+  .tp-opt.main .tp-opt-name { font-weight: 600; }
+  /* sub-types hang off a hairline guide under their main type */
+  .tp-opt.sub { position: relative; padding-left: 24px; }
+  .tp-opt.sub::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    border-left: 1px solid var(--line-strong);
+  }
+  .tp-opt.sub .tp-check { margin-left: -4px; }
+  .tp-path { color: var(--muted); }
+  .tp-fmt { flex: none; font-size: 12px; color: var(--blue); }
   .tp-fmt.cardio { color: var(--good); }
+  .tp-fmt.any { color: var(--muted); }
 
   .tp-create { color: var(--blue); }
   .tp-create.first { border-top: 1px solid var(--line-soft); border-radius: 0 0 var(--radius) var(--radius); margin-top: 4px; padding-top: 7px; }
