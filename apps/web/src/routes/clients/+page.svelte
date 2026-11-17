@@ -15,7 +15,7 @@
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Pager from "$lib/ui/Pager.svelte";
-  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import { ROSTER_SORTS, ROSTER_STATUSES, cardioUnitLabel, type RosterStatus } from "@pt/shared";
 
   const DAY = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -98,7 +98,7 @@
 </script>
 
 <svelte:head><title>Clients · Program Tracker</title></svelte:head>
-<PageHead title="Clients" {sub}>
+<PageHead title="Clients" {sub} subLoading={!roster && !loadError}>
   {#snippet actions()}
     <Button href="/clients/new">
       {#snippet icon()}<Icon name="plus" />{/snippet}
@@ -113,7 +113,58 @@
     <Button small onclick={() => load(query)}>Try again</Button>
   </Note>
 {:else if data === null}
-  <SkeletonPanel rows={6} label="Loading clients…" />
+  <!-- Real toolbar, filters and column heads; only the counts and rows shimmer. -->
+  <ListToolbar bind:value={list.search} label="Search clients" placeholder="Search by name or email" />
+  <section class="panel roster-box" aria-label="Clients" aria-busy="true">
+    <span class="sr-only" role="status">Loading clients…</span>
+    <div class="panel-head box-head" inert>
+      <div class="states">
+        {#each ROSTER_STATUSES as s (s)}
+          <button type="button" class="state" class:on={list.params.status === s}>
+            {STATUS_LABEL[s]}<Skeleton shape="round" h="18px" w="24px" />
+          </button>
+        {/each}
+      </div>
+      <label class="sort">
+        <span>Sort</span>
+        <select class="select" value={list.params.sort}>
+          {#each ROSTER_SORTS as s (s)}<option value={s}>{SORT_LABEL[s]}</option>{/each}
+        </select>
+      </label>
+    </div>
+    <div class="rows" aria-hidden="true">
+      <table class="sheet roster">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th>Program</th>
+            <th>Last trained</th>
+            <th>Schedule</th>
+            <th class="att-h"><Icon name="bell" /></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each ["34%", "46%", "28%", "40%"] as w, i (i)}
+            <tr class="row">
+              <td class="who-cell">
+                <div class="who">
+                  <Skeleton shape="round" w="28px" h="28px" />
+                  <div class="who-text sk-who">
+                    <Skeleton shape="line" h="12px" w="110px" />
+                    <Skeleton shape="line" h="9px" w="min(240px, 100%)" />
+                  </div>
+                </div>
+              </td>
+              <td class="prog-cell"><Skeleton shape="line" h="12px" w="70%" /><div class="track"></div></td>
+              <td class="last"><Skeleton shape="line" h="12px" w="64px" /></td>
+              <td class="sched"><Skeleton shape="line" h="12px" w={w} /></td>
+              <td class="att"></td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </section>
 {:else if emptyRoster}
   <section class="panel">
     <EmptyState>
@@ -340,4 +391,5 @@
     .meta { max-width: none; }
     .track { max-width: none; }
   }
+  .sk-who { display: grid; gap: 10px; padding: 4px 0 5px; flex: 1; }
 </style>
