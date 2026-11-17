@@ -125,7 +125,7 @@
 
     <section id={stuck}>
       <h2>{s.stuck.h}</h2>
-      <table class="sheet">
+      <table class="lookup">
         <thead><tr><th scope="col">{s.stuck.head[0]}</th><th scope="col">{s.stuck.head[1]}</th></tr></thead>
         <tbody>
           {#each s.stuck.rows as [said, fix], i (i)}
@@ -188,7 +188,7 @@
   .col { padding: 12px 16px 6px; min-width: 0; }
   .col.never { background: var(--well); border-left: 1px solid var(--line); }
   .col ul, .rules { margin: 6px 0 8px; padding-left: 18px; display: grid; gap: 5px; font-size: 14px; line-height: 1.55; }
-  .col li, .rules li, .defs dd, .sheet td { text-wrap: pretty; }
+  .col li, .rules li, .defs dd, .lookup td { text-wrap: pretty; }
   .rules { margin-top: 0; }
 
   .defs { margin: 0; display: grid; gap: 14px; }
@@ -196,12 +196,12 @@
   .defs dd { margin: 2px 0 0; font-size: 14px; line-height: 1.6; }
 
   /* One border source (the cell's top edge) and one padding for both columns, so rows line up. */
-  .sheet { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 14px; line-height: 1.55; }
-  .sheet thead th { text-align: left; padding: 6px 12px; background: var(--well); font: 600 13px/1.5 var(--font-ui); color: var(--muted); }
-  .sheet tbody th, .sheet td { padding: 10px 12px; vertical-align: baseline; text-align: left; border-top: 1px solid var(--line-soft); }
-  .sheet tbody th { width: 38%; font-weight: 600; color: var(--ink); }
-  .sheet thead th + th, .sheet tbody th + td { border-left: 1px solid var(--line-soft); }
-  .sheet thead th { border-bottom: 0; }
+  .lookup { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 14px; line-height: 1.55; }
+  .lookup thead th { text-align: left; padding: 6px 12px; background: var(--well); font: 600 13px/1.5 var(--font-ui); color: var(--muted); }
+  .lookup tbody th, .lookup td { padding: 10px 12px; vertical-align: baseline; text-align: left; border-top: 1px solid var(--line-soft); }
+  .lookup tbody th { width: 38%; font-weight: 600; color: var(--ink); }
+  .lookup thead th + th, .lookup tbody th + td { border-left: 1px solid var(--line-soft); }
+  .lookup thead th { border-bottom: 0; white-space: normal; }
 
   /* Thai wants more air between lines than Latin. */
   .doc:lang(th) p, .doc:lang(th) li, .doc:lang(th) dd, .doc:lang(th) td, .doc:lang(th) th { line-height: 1.8; }
@@ -231,10 +231,10 @@
     .compare { grid-template-columns: 1fr; }
     .col.never { border-left: 0; border-top: 1px solid var(--line); }
     /* Stacked rows: the client's words lead, the answer follows. */
-    .sheet, .sheet tbody, .sheet tr, .sheet tbody th, .sheet tbody td { display: block; width: auto; min-width: 0; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
-    .sheet thead { display: none; }
-    .sheet tbody tr + tr { border-top: 1px solid var(--line); }
-    .sheet tbody th { padding: 10px 12px 2px; border: 0; }
-    .sheet tbody td { padding: 0 12px 10px; border: 0; }
+    .lookup, .lookup tbody, .lookup tr, .lookup tbody th, .lookup tbody td { display: block; width: auto; min-width: 0; box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
+    .lookup thead { display: none; }
+    .lookup tbody tr + tr { border-top: 1px solid var(--line); }
+    .lookup tbody th { padding: 10px 12px 2px; border: 0; }
+    .lookup tbody td { padding: 0 12px 10px; border: 0; }
   }
 </style>
