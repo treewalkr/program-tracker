@@ -33,7 +33,7 @@
   import ReadinessStrip from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm } from "$lib/components/log/CardioLogForm.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
-  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Note from "$lib/ui/Note.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
@@ -1154,8 +1154,36 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <SkeletonHead actions={1} label="Loading session…" />
-  <SkeletonPanel title="Session" count rows={5} />
+  <!-- The session form's shape: static labels and column heads render, the pickers shimmer. -->
+  <SkeletonHead title="Log a session" label="Loading session…" />
+  <div class="log-form" aria-hidden="true">
+    <Panel title="Session">
+      {#snippet act()}
+        <div class="head-controls collapsed" inert>
+          <div class="hc-summary"><span class="hc-sum-text"><Skeleton shape="line" h="12px" w="min(272px, calc(100vw - 96px))" /></span></div>
+          <span class="hc-pair"><span class="label">Week</span><Skeleton h="31px" w="95px" class="sk-pick" /></span>
+          <span class="hc-pair"><span class="label">Session</span><Skeleton h="31px" w="285px" class="sk-pick" /></span>
+          <span class="hc-pair"><span class="label">Date</span><Skeleton h="31px" w="150px" class="sk-pick" /></span>
+        </div>
+      {/snippet}
+      <div class="sheet">
+        <div class="cols">
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">kg</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+        </div>
+      </div>
+      <div class="panel-body foot">
+        <div class="notes">
+          <Field label="Session notes"><Skeleton h="29px" class="sk-notes" /></Field>
+        </div>
+      </div>
+      <div class="save-bar">
+        <div class="submit-row">
+          <span class="subtle tally"><Skeleton shape="line" h="11px" w="52px" /></span>
+          <Skeleton h="28px" w="118px" class="sk-save" />
+        </div>
+      </div>
+    </Panel>
+  </div>
 {:else}
   <PageHead
     title="Log a session"
@@ -1696,6 +1724,7 @@
   }
   /* Folded summaries exist only in the narrow sheet. */
   .hc-summary { display: none; }
+  .head-controls :global(.sk-pick) { max-width: 100%; }
   /* A label never wraps away from its field. */
   .hc-pair { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .head-controls .label { margin: 0; }
@@ -2207,7 +2236,8 @@
     .flag-pill { max-width: 100%; }
     .flag-input { flex-basis: 100%; height: 44px; font-size: 14px; }
     .notes { min-width: 0; }
-    .notes .input { min-height: 44px; }
+    .notes .input, .notes :global(.sk-notes) { min-height: 44px; }
+    .save-bar :global(.sk-save) { min-height: 44px; }
     .submit-row :global(.btn) { min-height: 44px; padding: 0 22px; }
     .save-bar { padding: 8px 14px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     /* Phone keyboards have a Next key; the shortcut hint is desk-only. */
