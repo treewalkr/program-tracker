@@ -210,7 +210,7 @@
                   <td class="r sess-col">{c.sessionsPerWeek ?? "—"} / wk</td>
                   <td class="portal-col">
                     {#if portals[c.id]}
-                      <CopyButton text={portals[c.id] ?? ""} label="Copy link" ariaLabel={`Copy portal link for ${c.name}`} />
+                      <CopyButton text={portals[c.id] ?? ""} label="Copy link" quiet ariaLabel={`Copy portal link for ${c.name}`} />
                     {:else if portals[c.id] === null}
                       <a class="portal-on" href={`/clients/${c.id}#settings`} aria-label={`Turn on the portal for ${c.name}`}>Turn on…</a>
                     {:else if rowsReady}
@@ -258,9 +258,8 @@
   .signal-list { display: flex; flex-direction: column; }
   .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .portal-col { text-align: right; white-space: nowrap; }
+  td.portal-col { padding-right: 4px; }
   .portal-col :global(.copybtn) { justify-content: flex-end; }
-  /* a 32px target: the Clients panel is opened on a phone at the gym too */
-  .portal-col :global(.btn) { min-height: 32px; min-width: 44px; }
   .portal-on {
     display: inline-flex;
     align-items: center;
