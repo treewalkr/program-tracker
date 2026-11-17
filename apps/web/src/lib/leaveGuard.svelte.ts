@@ -1,4 +1,5 @@
 import { beforeNavigate, goto } from "$app/navigation";
+import { relinked } from "$lib/portal/lang";
 
 /** Which button closed the dialog: `choice:<id>` for one of `choices`. Esc and a backdrop click count as "cancel". */
 export type Answer = "confirm" | "alt" | "cancel" | `choice:${string}`;
@@ -102,7 +103,8 @@ export function createLeaveGuard(opts: LeaveGuardOptions): Asker {
   let leaving = false;
 
   beforeNavigate((nav) => {
-    if (leaving || !opts.dirty()) return;
+    // an unprefixed link is re-sent under the language prefix: ask about that one
+    if (leaving || !opts.dirty() || relinked(nav)) return;
     nav.cancel(); // for a tab close or reload this raises the browser's own prompt
     if (nav.type === "leave" || !nav.to) return;
     const to = nav.to.url.pathname + nav.to.url.search + nav.to.url.hash;

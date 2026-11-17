@@ -1,5 +1,5 @@
 import { client } from "./treaty";
-import { appPath } from "../portal/lang";
+import { splitLang, withLang } from "../portal/lang";
 
 export interface SessionTrainer {
   id: string;
@@ -35,8 +35,13 @@ export const authApi = {
 /** Only same-app paths — never `//evil.com` or absolute URLs. */
 export const safeReturnTo = (v: string | null | undefined) => (v && v.startsWith("/") && !v.startsWith("//") ? v : "/");
 
-/** Send the browser to /login, remembering where it was. */
+/**
+ * Send the browser to /login in the page's language, remembering where it
+ * was: `returnTo` is the unprefixed path, prefixed again on the way back.
+ */
 export function toLogin(from: URL): string {
-  const back = appPath(from) + from.search;
-  return back === "/" || back.startsWith("/login") ? "/login" : `/login?returnTo=${encodeURIComponent(back)}`;
+  const { lang, path } = splitLang(from.pathname);
+  const back = path + from.search;
+  const login = back === "/" || back.startsWith("/login") ? "/login" : `/login?returnTo=${encodeURIComponent(back)}`;
+  return lang ? withLang(login, lang) : login;
 }

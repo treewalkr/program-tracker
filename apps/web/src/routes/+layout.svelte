@@ -4,7 +4,7 @@
   import { page } from "$app/state";
   import { onMount, untrack } from "svelte";
   import { fade } from "svelte/transition";
-  import { afterNavigate, goto } from "$app/navigation";
+  import { afterNavigate, beforeNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
   import { authApi } from "$lib/api/auth";
   import { clearAllNewClientDrafts } from "$lib/newClientDraft";
@@ -23,7 +23,8 @@
   import DraftNotice from "$lib/components/DraftNotice.svelte";
   import { generationWatch } from "$lib/draftWatch";
   import { isPortalPath } from "$lib/portal/gate";
-  import { appPath } from "$lib/portal/lang";
+  import { appPath, relinked } from "$lib/portal/lang";
+  import { headingTo, inLang } from "$lib/portal/i18n.svelte";
 
   let { children, data } = $props();
 
@@ -195,6 +196,16 @@
   $effect(() => {
     void here;
     untrack(closeDrawer);
+  });
+
+  // Links in markup stay unprefixed: follow them under the current language
+  // (cancel and re-send, so the hash survives); for other navigations note the
+  // target, whose hash the root load's unprefixed redirect can't see.
+  beforeNavigate((nav) => {
+    if (!relinked(nav)) return headingTo(nav.to?.url ?? null);
+    nav.cancel();
+    const to = nav.to!.url;
+    queueMicrotask(() => void goto(inLang(to.pathname + to.search + to.hash)));
   });
 
   // Unread feedback badge: cheap count, refreshed on every navigation (no polling).

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { appPath, pickLang, samePage, splitLang, swapLang, withLang } from "./lang";
+import { appPath, pickLang, relinked, samePage, splitLang, swapLang, withLang } from "./lang";
 
 const u = (s: string) => new URL(s, "https://pt.test");
 
@@ -77,5 +77,21 @@ describe("pickLang", () => {
     expect(pickLang(null, "th-TH")).toBe("th");
     expect(pickLang("xx", "fr-FR")).toBe("en");
     expect(pickLang(null, undefined)).toBe("en");
+  });
+});
+
+describe("relinked", () => {
+  const nav = (type: string, path: string, id: string | null = "/me") => ({ type, to: { url: u(path), route: { id } } });
+
+  test("an in-app link without a prefix is re-sent under one", () => {
+    expect(relinked(nav("link", "/me/log/5#set-2"))).toBe(true);
+  });
+
+  test("prefixed links, gotos, unknown pages and API links go through", () => {
+    expect(relinked(nav("link", "/th/me"))).toBe(false);
+    expect(relinked(nav("goto", "/me"))).toBe(false);
+    expect(relinked(nav("popstate", "/me"))).toBe(false);
+    expect(relinked(nav("link", "/v1/auth/google", null))).toBe(false);
+    expect(relinked({ type: "leave", to: null })).toBe(false);
   });
 });

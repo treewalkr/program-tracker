@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { render } from "svelte/server";
 
-type Nav = { type: string; to: { url: URL } | null; cancel: () => void };
+type Nav = { type: string; to: { url: URL; route?: { id: string | null } } | null; cancel: () => void };
 let navHook: ((nav: Nav) => void) | null = null;
 const gotos: string[] = [];
 mock.module("$app/navigation", () => ({
@@ -98,6 +98,18 @@ describe("leave guard", () => {
     await g.answer("alt");
     await Promise.resolve();
     expect(gotos).toEqual(["/programs"]);
+  });
+
+  test("an unprefixed link is left to the language redirect; its prefixed follow-up is held", () => {
+    const g = createLeaveGuard({ dirty: () => true, prompt: () => ({ title: "t", body: "b" }) });
+    let cancelled = false;
+    const cancel = () => (cancelled = true);
+    navHook!({ type: "link", to: { url: new URL("/clients", "http://x"), route: { id: "/clients" } }, cancel });
+    expect(cancelled).toBe(false);
+    expect(g.open).toBe(false);
+    navHook!({ type: "goto", to: { url: new URL("/th/clients", "http://x"), route: { id: "/clients" } }, cancel });
+    expect(cancelled).toBe(true);
+    expect(g.open).toBe(true);
   });
 
   test("a tab close only cancels, for the browser's own prompt", () => {

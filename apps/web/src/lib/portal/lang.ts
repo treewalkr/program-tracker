@@ -45,3 +45,18 @@ export const samePage = (a: URL, b: URL): boolean =>
 /** Language for a URL that has none: this device's saved choice, then the browser's, then English. */
 export const pickLang = (stored: string | null, browserLanguage: string | undefined): Locale =>
   initialLocale(stored, browserLanguage);
+
+/** The bits of a SvelteKit navigation `relinked` reads. */
+interface NavLike {
+  type: string;
+  to: { url: URL; route?: { id: string | null } } | null;
+}
+
+/**
+ * An in-app link to an app page with no language prefix. Markup links stay
+ * unprefixed; the root layout cancels these and follows the prefixed URL
+ * instead (a load redirect would drop the hash). Other guards skip them and
+ * act on the prefixed navigation that follows.
+ */
+export const relinked = (nav: NavLike): boolean =>
+  nav.type === "link" && !!nav.to?.route?.id && !splitLang(nav.to.url.pathname).lang;
