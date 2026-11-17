@@ -1,10 +1,12 @@
-import { en as portalEn } from "$lib/portal/messages";
+import { en as portalEn, th as portalTh } from "$lib/portal/messages";
+import type { Locale } from "$lib/portal/messages";
 
 /**
- * The client-portal guide. The guide itself is English (so is the trainer's
- * app); only what the *client* reads is bilingual — the phone figures and
- * the LINE message follow the EN / ไทย switch beside them. Anything the
- * client sees is quoted from the portal's own dictionary.
+ * The client-portal guide, in English and Thai. The trainer's own buttons
+ * (Turn on, Copy link…) stay in English in both because the trainer app is
+ * English; anything the *client* sees is quoted from the portal's own
+ * dictionary, so the guide uses the exact words on their phone. The phone
+ * figures and the LINE message follow the same EN / ไทย switch.
  *
  * Inline markup: **bold**, *italic*, `code`, and ⟦tone|label⟧ for a Pill.
  */
@@ -15,7 +17,6 @@ export interface Guide {
   onThisPage: string;
   intro: string;
   figures: { box: string; phones: string; history: string };
-  clientLanguage: string;
   sections: {
     setUp: { h: string; steps: { h: string; p: string }[]; aside: string };
     clientSees: { h: string; lead: string; can: string; canList: string[]; never: string; neverList: string[]; after: string };
@@ -29,7 +30,7 @@ export interface Guide {
 const q = (k: keyof typeof portalEn) => `"${portalEn[k]}"`;
 const first = (s: string, sep: string) => `"${s.split(sep)[0]}"`;
 
-export const guide: Guide = {
+const en: Guide = {
   title: "Client portal",
   sub: "Give a client a link to their week. They log sessions on their phone; the logs land in your data.",
   crumbs: ["Guide", "Client portal"],
@@ -42,7 +43,6 @@ export const guide: Guide = {
       "What the client opens: your name, then the next session with its one green button; then the log screen, prefilled from your prescription, where they change only what differed (outlined) and save. Sample session and numbers.",
     history: "Their History tab. The session the client logged carries a by client label; the one you logged does not. Sample rows.",
   },
-  clientLanguage: "Show the client's phone in",
   sections: {
     setUp: {
       h: "Set it up",
@@ -138,6 +138,117 @@ export const guide: Guide = {
     },
   },
 };
+
+const th: Guide = {
+  title: "พอร์ทัลลูกค้า",
+  sub: "ส่งลิงก์ให้ลูกค้าดูโปรแกรมของสัปดาห์ ลูกค้าบันทึกเซสชันบนมือถือ แล้วผลจะเข้าข้อมูลของคุณ",
+  crumbs: ["คู่มือ", "พอร์ทัลลูกค้า"],
+  onThisPage: "ในหน้านี้",
+  intro:
+    "เปิดพอร์ทัลให้ลูกค้า คัดลอกข้อความหนึ่งข้อความ แล้ววางใน LINE คุณเปิดให้**ทีละคน** ลูกค้าที่ยังไม่ได้เปิดให้จะเข้าไม่ได้ และพอร์ทัลไม่แสดงส่วนที่คุณใช้ทำงานในแอป — แสดงแค่โปรแกรมของลูกค้า",
+  figures: {
+    box: "กล่อง Client portal หลังกด Turn on ข้อความใต้ For LINE คือสิ่งที่คุณวางใน LINE ส่วน Last seen จะขึ้นเมื่อลูกค้าเปิดแล้ว (ข้อมูลตัวอย่าง)",
+    phones:
+      "สิ่งที่ลูกค้าเปิดเจอ: ชื่อโค้ช ตามด้วยเซสชันถัดไปพร้อมปุ่มเขียวปุ่มเดียว จากนั้นหน้าบันทึกที่กรอกไว้ล่วงหน้าตามโปรแกรมของคุณ ลูกค้าแก้เฉพาะที่ต่างไป (กรอบสีน้ำเงิน) แล้วกดบันทึก (เซสชันและตัวเลขตัวอย่าง)",
+    history: "แท็บ History ของลูกค้า เซสชันที่ลูกค้าบันทึกเองมีป้าย by client ส่วนที่คุณบันทึกไม่มี (แถวตัวอย่าง)",
+  },
+  sections: {
+    setUp: {
+      h: "ตั้งค่า",
+      steps: [
+        { h: "เปิดแท็บ Settings ของลูกค้า", p: "`Clients` › `ชื่อลูกค้า` › `Settings` กล่อง **Client portal** อยู่บนสุดของหน้า" },
+        {
+          h: "ตรวจอีเมล",
+          p: "ถ้ามีอีเมลในระบบ ลูกค้าเข้าด้วยบัญชี Google นั้นได้ด้วย (กล่องจะขึ้น `Uses name@example.com`) ถ้าไม่มีจะขึ้น *No email on file* และใช้ได้แค่ลิงก์ เพิ่มอีเมลได้ในโปรไฟล์ หรือข้าม Google ไปเลย",
+        },
+        {
+          h: "กด *Turn on*",
+          p: `จะมี **Access link** ส่วนตัวขึ้นมา ยังไม่มีอะไรถูกส่งไปหาลูกค้า และไม่เป็นไรถ้ายังไม่มีโปรแกรมที่ใช้งานอยู่: ลูกค้าจะเห็น "${portalTh["week.emptyProgram"]}" จนกว่าคุณจะเปิดใช้โปรแกรม`,
+        },
+        {
+          h: "ส่งให้ลูกค้า",
+          p: "**Copy message** ใต้ *For LINE* คัดลอกข้อความพร้อมลิงก์ ทั้งภาษาอังกฤษและไทย (เริ่มเป็นไทยเมื่อชื่อลูกค้าเขียนเป็นไทย) แล้ววางใน LINE ส่วน **Copy link** คัดลอกเฉพาะลิงก์",
+        },
+        {
+          h: "ลูกค้าเปิดบนมือถือครั้งเดียว",
+          p: `หน้าจอมีปุ่ม *${portalTh["link.open"]}* หลังจากนั้นลูกค้าจะอยู่ในระบบบนมือถือเครื่องนั้นโดยไม่ต้องใช้รหัสผ่าน *Last seen* จะอัปเดต`,
+        },
+      ],
+      aside: "**ลองเองได้** เปิดลิงก์ในเบราว์เซอร์เดียวกับที่คุณใช้ Program Tracker พอร์ทัลแยกการเข้าสู่ระบบของตัวเอง คุณจึงยังอยู่ในแอปนี้และเห็นเหมือนที่ลูกค้าเห็น",
+    },
+    clientSees: {
+      h: "สิ่งที่ลูกค้าเห็น",
+      lead: "เฉพาะโปรแกรมที่คุณเปิดใช้ และเฉพาะสิ่งที่จำเป็นต่อการซ้อม",
+      can: "เห็นได้",
+      canList: [
+        "สัปดาห์นี้และสัปดาห์หน้าของโปรแกรมที่**ใช้งานอยู่**",
+        "ชื่อเซสชันและวันในสัปดาห์ของแต่ละเซสชัน",
+        "ท่าซ้อม พร้อมเซต จำนวนครั้ง กก. RPE เวลาพัก และจังหวะ — %1RM คำนวณเป็น กก. ให้แล้ว",
+        "โน้ตของท่าและของเซสชัน รวมถึงคาร์ดิโอที่กำหนด",
+        "ชื่อของคุณในฐานะโค้ช",
+      ],
+      never: "ไม่เห็นเด็ดขาด",
+      neverList: ["ร่างโปรแกรม หรือโปรแกรมที่เก็บเข้าคลังแล้ว", "เหตุผลจาก AI ทิศทางโปรแกรม การแบ่งเฟส", "ข้อจำกัด เป้าหมาย 1RM", "สัญญาณเตือน กฎการโค้ช และลูกค้าคนอื่น"],
+      after: "สัปดาห์หน้าเป็นแบบดูล่วงหน้า เปิดดูได้แต่บันทึกได้เมื่อสัปดาห์นั้นเริ่มแล้ว สลับ EN / ไทย ได้ในแถบบนของลูกค้าด้วยการแตะครั้งเดียว และระบบจะจำค่าไว้บนมือถือของลูกค้า",
+    },
+    clientLogs: {
+      h: "ลูกค้าบันทึกอย่างไร",
+      steps: [
+        {
+          h: portalTh["week.nextUp"],
+          p: `หน้าจะเปิดที่เซสชันแรกที่ยังไม่ได้บันทึกของวันนี้ พร้อมปุ่มเขียว **${portalTh["session.log"]}** เซสชันก่อนหน้าในสัปดาห์นี้ที่ยังไม่ได้บันทึกอยู่ใต้ *${portalTh["week.earlier"]}* พร้อมป้าย ⟦warn|${portalTh["session.notLogged"]}⟧ ไม่เคยใช้คำว่า "พลาด"`,
+        },
+        {
+          h: "กรอกเซต",
+          p: `กก. และจำนวนครั้งถูกกรอกไว้ล่วงหน้าตามโปรแกรมของคุณ ลูกค้าแก้เฉพาะที่ต่างไป RPE ไม่บังคับ อยู่หลังปุ่ม *${portalTh["log.rpeShow"]}* เช่นเดียวกับแถบ "${portalTh["log.readiness"]}"`,
+        },
+        {
+          h: portalTh["log.save"],
+          p: `ปุ่มเดียวที่ด้านล่าง หน้าสรุปบอกว่าเซสชันของสัปดาห์เสร็จแล้วกี่อัน พร้อมปุ่ม **${portalTh["log.undo"]}** เผื่อกดผิด`,
+        },
+      ],
+      rulesLead: "กติกาที่พอร์ทัลบังคับใช้:",
+      rules: [
+        "บันทึกได้**เฉพาะสัปดาห์นี้** สำหรับวันนี้หรือก่อนหน้า",
+        `แก้หรือเลิกทำได้เฉพาะบันทึก**ของตัวเอง** เซสชันที่คุณบันทึกจะขึ้น ⟦neutral|${portalTh["session.loggedByCoach"]}⟧ และลูกค้าแทนที่จากมือถือไม่ได้ ส่วนที่ลูกค้าบันทึกเองจะขึ้น ⟦good|${portalTh["session.loggedByYou"]}⟧`,
+      ],
+    },
+    youSee: {
+      h: "สิ่งที่คุณเห็นหลังจากนั้น",
+      p: [
+        "บันทึกของลูกค้าเข้ามาทันทีที่กดบันทึก พร้อมป้าย ⟦neutral|by client⟧ ใน **History** ของลูกค้า ในบรรทัดที่บันทึกแล้วของหน้าโปรแกรม และในแจ้งเตือนบนหน้าบันทึกเมื่อเซสชันนั้นมีบันทึกอยู่แล้ว",
+        "นับเหมือนบันทึกที่คุณกรอกเอง: block pulse (ปริมาณรวม เซต RPE เฉลี่ย e1RM) และสัญญาณเตือน (stall = ติดเพดาน, RPE creep = RPE ไต่ขึ้น, adherence = การทำตามแผน, cardio behind = คาร์ดิโอตามหลัง) อ่านจากข้อมูลนี้ **คุณจะไม่ได้รับแจ้งเตือน** เมื่อลูกค้าบันทึก ให้ดูที่ Overview หรือหน้าของลูกค้า",
+      ],
+    },
+    resetOff: {
+      h: "รีเซ็ตหรือปิด",
+      items: [
+        {
+          dt: "Reset link",
+          dd: "ใช้เมื่อส่งลิงก์ผิดแชต ลิงก์เดิมจะใช้ไม่ได้ และ**ทุกเครื่องที่เข้าผ่านลิงก์นั้นจะถูกออกจากระบบ** คัดลอกลิงก์ใหม่แล้วส่งให้ลูกค้า กดครั้งแรกเพื่อขอ กดอีกครั้งเพื่อยืนยัน",
+        },
+        {
+          dt: "Turn off",
+          dd: "ใช้เมื่อลูกค้าเลิกซ้อมกับคุณ พอร์ทัลจะปิด เซสชันที่เข้าอยู่สิ้นสุด และตัดการเชื่อม Google บันทึกที่ผ่านมายังอยู่ ถ้าเปิดใหม่ภายหลังจะได้ลิงก์ใหม่",
+        },
+      ],
+    },
+    stuck: {
+      h: "เมื่อมีอะไรไม่ทำงาน",
+      head: ["ลูกค้าบอกว่า", "สาเหตุ และสิ่งที่ควรทำ"],
+      rows: [
+        [`"${portalTh["login.error.not_allowed"].split(" ลอง")[0]}"`, "อีเมลของบัญชี Google ไม่ตรงกับที่อยู่ในโปรไฟล์ลูกค้า แก้อีเมล หรือส่งลิงก์แทน"],
+        [`"${portalTh["login.error.not_configured"].split(" ขอ")[0]}"`, "การเข้าถึงด้วย Google ของแอปยังจำกัดอยู่ ลิงก์ส่วนตัวใช้ได้เสมอ"],
+        [`"${portalTh["week.emptyProgram"]}"`, "ลูกค้ายังไม่มีโปรแกรมที่**ใช้งานอยู่** อนุมัติและเปิดใช้ร่างโปรแกรม ลูกค้าจะเห็นทันที"],
+        [`"${portalTh["link.invalid"]}"`, "คุณรีเซ็ตลิงก์ หรือปิดพอร์ทัลไปแล้ว คัดลอกลิงก์ใหม่จากแท็บ Settings ของลูกค้า"],
+        ["เปิดครั้งแรกช้า", `เป็นเรื่องปกติของการเปิดครั้งแรกของวัน อาจใช้เวลาถึงหนึ่งนาที ลูกค้าจะเห็นข้อความ "${portalTh["week.slow"].split(" — ")[0]}" ไม่ใช่ข้อผิดพลาด`],
+        ["\"บันทึกแล้วแต่หาไม่เจอ\"", "ดู History ของลูกค้าหาป้าย ⟦neutral|by client⟧ ถ้า *Last seen* ขึ้นว่า \"Not opened yet\" แปลว่าลูกค้ายังไม่ได้ใช้ลิงก์"],
+      ],
+    },
+  },
+};
+
+export const GUIDE: Record<Locale, Guide> = { en, th };
 
 /** Section anchors in reading order. */
 export const GUIDE_IDS = ["set-up", "client-sees", "client-logs", "you-see", "reset-off", "stuck"] as const;

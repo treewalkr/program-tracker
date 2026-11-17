@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { guide as g, GUIDE_IDS } from "$lib/guide/clientPortal";
+  import { GUIDE, GUIDE_IDS } from "$lib/guide/clientPortal";
   import Figure from "$lib/guide/Figure.svelte";
   import HistoryFigure from "$lib/guide/HistoryFigure.svelte";
   import PortalBoxFigure from "$lib/guide/PortalBoxFigure.svelte";
@@ -11,16 +11,17 @@
   import { renderInlineMarkdown } from "$lib/markdown";
   import PageHead from "$lib/ui/PageHead.svelte";
 
-  const s = g.sections;
+  const g = $derived(GUIDE[i18n.locale]);
+  const s = $derived(g.sections);
   const [setUp, clientSees, clientLogs, youSee, resetOff, stuck] = GUIDE_IDS;
-  const toc = [
+  const toc = $derived([
     [setUp, s.setUp.h],
     [clientSees, s.clientSees.h],
     [clientLogs, s.clientLogs.h],
     [youSee, s.youSee.h],
     [resetOff, s.resetOff.h],
     [stuck, s.stuck.h],
-  ] as const;
+  ] as const);
 
   /** Inline markdown plus ⟦tone|label⟧ pills — the guide's own copy, never user input. */
   const rich = (text: string) => renderInlineMarkdown(text).replace(/⟦(\w+)\|([^⟧]+)⟧/g, '<span class="pill $1">$2</span>');
@@ -47,9 +48,11 @@
 
 <svelte:head><title>{g.title} guide · Program Tracker</title></svelte:head>
 
-<PageHead title={g.title} sub={g.sub} crumbs={[{ label: g.crumbs[0] }, { label: g.crumbs[1] }]} />
+<PageHead title={g.title} sub={g.sub} crumbs={[{ label: g.crumbs[0] }, { label: g.crumbs[1] }]}>
+  {#snippet actions()}<LangToggle compact />{/snippet}
+</PageHead>
 
-<div class="doc">
+<div class="doc" lang={i18n.locale}>
   <nav class="toc" aria-label={g.onThisPage}>
     <p class="toc-title">{g.onThisPage}</p>
     <ul>
@@ -92,7 +95,6 @@
     <section id={clientLogs}>
       <h2>{s.clientLogs.h}</h2>
       <Figure caption={g.figures.phones}>
-        {#snippet controls()}<span id="cl-lang">{g.clientLanguage}</span><LangToggle compact />{/snippet}
         <PortalWeekFigure />
         <PortalLogFigure />
       </Figure>
@@ -200,6 +202,11 @@
   .sheet tbody th { width: 38%; font-weight: 600; color: var(--ink); }
   .sheet thead th + th, .sheet tbody th + td { border-left: 1px solid var(--line-soft); }
   .sheet thead th { border-bottom: 0; }
+
+  /* Thai wants more air between lines than Latin. */
+  .doc:lang(th) p, .doc:lang(th) li, .doc:lang(th) dd, .doc:lang(th) td, .doc:lang(th) th { line-height: 1.8; }
+  .doc:lang(th) h2 { line-height: 1.5; letter-spacing: 0; }
+  .doc:lang(th) :global(figcaption) { font-size: 14px; }
 
   /* Contents: sticky rail beside the article on wide screens. */
   .toc { position: sticky; top: 16px; padding-top: 4px; }
