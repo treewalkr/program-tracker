@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { render } from "svelte/server";
 
-type Nav = { type: string; to: { url: URL; route?: { id: string | null } } | null; cancel: () => void };
+type Nav = { type: string; from?: { url: URL } | null; to: { url: URL; route?: { id: string | null } } | null; cancel: () => void };
 let navHook: ((nav: Nav) => void) | null = null;
 const gotos: string[] = [];
 mock.module("$app/navigation", () => ({
@@ -110,6 +110,15 @@ describe("leave guard", () => {
     navHook!({ type: "goto", to: { url: new URL("/th/clients", "http://x"), route: { id: "/clients" } }, cancel });
     expect(cancelled).toBe(true);
     expect(g.open).toBe(true);
+  });
+
+  test("switching language keeps the page and its work", () => {
+    const g = createLeaveGuard({ dirty: () => true, prompt: () => ({ title: "t", body: "b" }) });
+    let cancelled = false;
+    const url = (p: string) => new URL(p, "http://x");
+    navHook!({ type: "goto", from: { url: url("/th/me/log/5?d=1") }, to: { url: url("/en/me/log/5?d=1#set") }, cancel: () => (cancelled = true) });
+    expect(cancelled).toBe(false);
+    expect(g.open).toBe(false);
   });
 
   test("a tab close only cancels, for the browser's own prompt", () => {
