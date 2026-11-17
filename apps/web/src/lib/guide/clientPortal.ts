@@ -16,7 +16,7 @@ export interface Guide {
   crumbs: [string, string];
   onThisPage: string;
   intro: string;
-  figures: { box: string; phones: string; history: string };
+  figures: { box: string; overview: string; phones: string; history: string };
   sections: {
     setUp: { h: string; steps: { h: string; p: string }[]; aside: string };
     clientSees: { h: string; lead: string; can: string; canList: string[]; never: string; neverList: string[]; after: string };
@@ -39,6 +39,7 @@ const en: Guide = {
     "Turn the portal on for a client, copy one message, paste it into LINE. You turn it on **per client**; a client you haven't turned it on for has no way in, and it never shows the parts of the app you work in — only their program.",
   figures: {
     box: "The Client portal box after you press Turn on. Copy message is what you paste into LINE; Last seen fills in once they open it. Sample data.",
+    overview: "The Clients table on Overview. Its Portal column is a shortcut: one tap to start, one tap to copy. Sample rows.",
     phones:
       "What the client opens: your name, then the next session with its one green button; then the log screen, prefilled from your prescription, where they change only what differed (outlined) and save. Sample session and numbers.",
     history: "Their History tab. The session the client logged carries a by client label; the one you logged does not. Sample rows.",
@@ -148,6 +149,7 @@ const th: Guide = {
     "เปิดพอร์ทัลให้ลูกค้า คัดลอกข้อความหนึ่งข้อความ แล้ววางใน LINE คุณเปิดให้**ทีละคน** ลูกค้าที่ยังไม่ได้เปิดให้จะเข้าไม่ได้ และพอร์ทัลไม่แสดงส่วนที่คุณใช้ทำงานในแอป — แสดงแค่โปรแกรมของลูกค้า",
   figures: {
     box: "กล่อง Client portal หลังกด Turn on ข้อความใต้ For LINE คือสิ่งที่คุณวางใน LINE ส่วน Last seen จะขึ้นเมื่อลูกค้าเปิดแล้ว (ข้อมูลตัวอย่าง)",
+    overview: "ตาราง Clients ในหน้า Overview คอลัมน์ Portal คือทางลัด: แตะครั้งเดียวเพื่อเปิด และแตะครั้งเดียวเพื่อคัดลอก (แถวตัวอย่าง)",
     phones:
       "สิ่งที่ลูกค้าเปิดเจอ: ชื่อโค้ช ตามด้วยเซสชันถัดไปพร้อมปุ่มเขียวปุ่มเดียว จากนั้นหน้าบันทึกที่กรอกไว้ล่วงหน้าตามโปรแกรมของคุณ ลูกค้าแก้เฉพาะที่ต่างไป (กรอบสีน้ำเงิน) แล้วกดบันทึก (เซสชันและตัวเลขตัวอย่าง)",
     history: "แท็บ History ของลูกค้า เซสชันที่ลูกค้าบันทึกเองมีป้าย by client ส่วนที่คุณบันทึกไม่มี (แถวตัวอย่าง)",

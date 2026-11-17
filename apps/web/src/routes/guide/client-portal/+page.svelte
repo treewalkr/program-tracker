@@ -3,6 +3,7 @@
   import { GUIDE, GUIDE_IDS } from "$lib/guide/clientPortal";
   import Figure from "$lib/guide/Figure.svelte";
   import HistoryFigure from "$lib/guide/HistoryFigure.svelte";
+  import OverviewFigure from "$lib/guide/OverviewFigure.svelte";
   import PortalBoxFigure from "$lib/guide/PortalBoxFigure.svelte";
   import PortalLogFigure from "$lib/guide/PortalLogFigure.svelte";
   import PortalWeekFigure from "$lib/guide/PortalWeekFigure.svelte";
@@ -73,6 +74,7 @@
           <li><h3>{@html rich(step.h)}</h3><p>{@html rich(step.p)}</p></li>
         {/each}
       </ol>
+      <Figure caption={g.figures.overview}><OverviewFigure /></Figure>
       <p class="aside">{@html rich(s.setUp.aside)}</p>
     </section>
 
