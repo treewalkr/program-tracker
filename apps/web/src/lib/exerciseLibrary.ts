@@ -5,6 +5,7 @@ import {
   MOVEMENT_PATTERN_INFO,
   MOVEMENT_PATTERNS,
   MUSCLE_GROUPS,
+  NO_PATTERN,
   type MovementPattern,
 } from "@pt/shared";
 import type { ExerciseDto } from "./api/types";
@@ -33,17 +34,17 @@ export const functionalName = (k: string | null) =>
  */
 export function patternTitle(patterns: readonly string[]): string {
   const [first, ...rest] = patterns.filter((p) => p in MOVEMENT_PATTERN_INFO) as MovementPattern[];
-  if (!first) return "";
+  if (!first || first === NO_PATTERN) return "";
   const also = rest.map((p) => MOVEMENT_PATTERN_INFO[p].name);
   return also.length ? `${MOVEMENT_PATTERN_INFO[first].description} Also: ${also.join(", ")}.` : MOVEMENT_PATTERN_INFO[first].description;
 }
 
-/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation). */
+/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation, No pattern). */
 export const PATTERN_GROUPS: { label: string; patterns: MovementPattern[] }[] = [
   { label: "Upper", patterns: MOVEMENT_PATTERNS.filter((p) => /push|pull/.test(p)) },
   { label: "Lower", patterns: MOVEMENT_PATTERNS.filter((p) => p === "knee_dominant" || p === "hip_dominant") },
   { label: "Core", patterns: MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core) },
-  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation") },
+  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation" || p === NO_PATTERN) },
 ];
 
 /** The "untagged" filter value for the pattern axis. */
@@ -132,7 +133,8 @@ export function coverage(list: readonly ExerciseDto[]): Coverage {
     }
   }
   let gaps = 0;
-  for (const p of MOVEMENT_PATTERNS) for (const q of EQUIPMENT) if (!cells.get(`${p}|${q}`)) gaps++;
+  // "No pattern" is a deliberate tag, not a slot the library should fill.
+  for (const p of MOVEMENT_PATTERNS) if (p !== NO_PATTERN) for (const q of EQUIPMENT) if (!cells.get(`${p}|${q}`)) gaps++;
   return {
     cells,
     rowTotal: (p) => rows.get(p) ?? 0,

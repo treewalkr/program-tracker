@@ -51,7 +51,7 @@ describe("searchExercises", () => {
 describe("groupByPattern", () => {
   test("groups in taxonomy order with unpatterned last", () => {
     const groups = groupByPattern(list);
-    expect(groups.map((g) => g.label)).toEqual(["Horizontal push", "Knee-dominant", "Hip-dominant", "No pattern"]);
+    expect(groups.map((g) => g.label)).toEqual(["Horizontal push", "Knee-dominant", "Hip-dominant", "Untagged"]);
     expect(ids(groups[1].items)).toEqual(["squat", "split", "fsquat"]);
   });
 });

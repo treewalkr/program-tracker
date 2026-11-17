@@ -191,7 +191,9 @@
         value={form.movementPatterns[0] ?? ""}
         onchange={(ev) => {
           const v = ev.currentTarget.value;
-          form.movementPatterns = v ? [v, ...form.movementPatterns.slice(1).filter((p) => p !== v)] : [];
+          // "No pattern" is exclusive: it never keeps other tags, and a real tag drops it.
+          const rest = form.movementPatterns.slice(1).filter((p) => p !== v && p !== "no_pattern");
+          form.movementPatterns = !v ? [] : v === "no_pattern" ? [v] : [v, ...rest];
         }}
       >
         <option value="">Untagged</option>

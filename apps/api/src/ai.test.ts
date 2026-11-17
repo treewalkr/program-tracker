@@ -285,6 +285,21 @@ describe("buildGenerationMessages", () => {
     expect(user).toContain("- ex-2 | Mystery Exercise (core, bodyweight, pattern n/a, function n/a)");
   });
 
+  test("a No pattern entry reads as 'no pattern', not n/a", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-3", name: "Cat Camel", primaryMuscleGroup: "mobility", equipment: "bodyweight", movementPatterns: ["no_pattern"], functionalMovement: null },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-3 | Cat Camel (mobility, bodyweight, no pattern, function n/a)");
+  });
+
   test("system instructs pattern balance and rationale must explain it", () => {
     const { system } = buildGenerationMessages({
       client: { name: "Maya", sessionsPerWeek: 2 },

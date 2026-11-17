@@ -674,7 +674,7 @@
                         {:else}
                           <strong>{e.exerciseName}</strong>
                         {/if}
-                        {#if pattern && pattern in MOVEMENT_PATTERN_INFO}
+                        {#if pattern && pattern in MOVEMENT_PATTERN_INFO && pattern !== "no_pattern"}
                           {@const p = pattern as MovementPattern}
                           <span class="mp-tag" title={patternTitle(patterns)}>{MOVEMENT_PATTERN_INFO[p].label}</span>
                         {/if}

@@ -796,7 +796,7 @@ describe("AiProgramDraft (full LLM payload)", () => {
 });
 
 describe("Movement taxonomy", () => {
-  test("movement pattern enum has exactly the 15 pinned values", () => {
+  test("movement pattern enum has exactly the 16 pinned values", () => {
     expect(MOVEMENT_PATTERNS).toEqual([
       "vertical_push",
       "vertical_pull",
@@ -813,6 +813,7 @@ describe("Movement taxonomy", () => {
       "anti_extension",
       "carry",
       "isolation",
+      "no_pattern",
     ]);
     expect(Object.keys(MOVEMENT_PATTERN_INFO)).toEqual([...MOVEMENT_PATTERNS]);
     const coreCount = MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core).length;
@@ -900,7 +901,7 @@ describe("patternBalance", () => {
   ];
 
   test("tallies hard sets per pattern, not exercises", () => {
-    expect(patternBalance(tagged8Plus1Null)).toEqual({ push: 7, pull: 6, knee: 8, hip: 3, iso: 0, carry: 0, core: 2, unclassified: 2 });
+    expect(patternBalance(tagged8Plus1Null)).toEqual({ push: 7, pull: 6, knee: 8, hip: 3, iso: 0, carry: 0, core: 2, noPattern: 0, unclassified: 2 });
   });
 
   test("back-off sets count as hard sets", () => {
@@ -926,12 +927,18 @@ describe("patternBalance", () => {
     expect(patternBalance([ex("vertical_push", 0)]).push).toBe(0);
   });
 
+  test("No pattern counts toward the total in its own bucket, never as untagged or isolation", () => {
+    const b = patternBalance([ex("no_pattern", 2), ex("isolation", 3), ex(null, 1)]);
+    expect(b).toMatchObject({ noPattern: 2, iso: 3, unclassified: 1, core: 0 });
+    expect(formatPatternBalance(b)).toBe("6 sets — iso 3 · 2 no pattern · 1 untagged");
+  });
+
   test("formatPatternBalance names the unit", () => {
     expect(formatPatternBalance(patternBalance(tagged8Plus1Null))).toBe(
       "28 sets — push 7 · pull 6 · knee 8 · hip 3 · core 2 · 2 untagged"
     );
-    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, iso: 0, carry: 0, core: 0, unclassified: 0 })).toBe("2 sets — knee 2");
-    expect(formatPatternBalance({ push: 0, pull: 0, knee: 0, hip: 0, iso: 0, carry: 0, core: 0, unclassified: 1 })).toBe("1 set — 1 untagged");
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 2, hip: 0, iso: 0, carry: 0, core: 0, noPattern: 0, unclassified: 0 })).toBe("2 sets — knee 2");
+    expect(formatPatternBalance({ push: 0, pull: 0, knee: 0, hip: 0, iso: 0, carry: 0, core: 0, noPattern: 0, unclassified: 1 })).toBe("1 set — 1 untagged");
     expect(formatPatternBalance(patternBalance(tagged8Plus1Null.slice(0, 8)))).toBe(
       "26 sets — push 7 · pull 6 · knee 8 · hip 3 · core 2"
     );
@@ -945,7 +952,7 @@ describe("patternBalance", () => {
       { exercises: [{ exerciseId: "mystery", prescribedSets: [w] }, { exerciseId: null, prescribedSets: [w, w] }] },
     ];
     expect(sessionsPatternBalance(sessions, (id) => patterns[id] ?? null)).toEqual({
-      push: 3, pull: 2, knee: 0, hip: 0, iso: 0, carry: 0, core: 0, unclassified: 3,
+      push: 3, pull: 2, knee: 0, hip: 0, iso: 0, carry: 0, core: 0, noPattern: 0, unclassified: 3,
     });
   });
 });

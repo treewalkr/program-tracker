@@ -80,7 +80,7 @@
 
   const primaryInfo = (e: { movementPatterns?: readonly string[] | null }) => {
     const p = e.movementPatterns?.[0];
-    return p && p in MOVEMENT_PATTERN_INFO ? MOVEMENT_PATTERN_INFO[p as MovementPattern] : null;
+    return p && p in MOVEMENT_PATTERN_INFO && p !== "no_pattern" ? MOVEMENT_PATTERN_INFO[p as MovementPattern] : null;
   };
 
   const hasPattern = $derived(exercises.some((e) => primaryInfo(e) !== null));

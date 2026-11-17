@@ -16,8 +16,9 @@ const norm = (s: string) =>
     .replace(/[-_/]+/g, " ")
     .trim();
 
+/** Untagged reads "Untagged" — "No pattern" is a tag of its own (mobility, drills). */
 export const patternName = (p: string | null): string =>
-  (p && MOVEMENT_PATTERN_INFO[p as MovementPattern]?.name) || "No pattern";
+  (p && MOVEMENT_PATTERN_INFO[p as MovementPattern]?.name) || "Untagged";
 
 /** One-line context under a name: "Quads · barbell · Knee dominant" (the primary pattern). */
 export function exerciseMeta(e: Searchable): string {

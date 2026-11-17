@@ -106,6 +106,7 @@ export const MOVEMENT_PATTERNS = [
   "anti_extension",
   "carry",
   "isolation",
+  "no_pattern",
 ] as const;
 export const MovementPattern = z.enum(MOVEMENT_PATTERNS);
 export type MovementPattern = z.infer<typeof MovementPattern>;
@@ -216,7 +217,16 @@ export const MOVEMENT_PATTERN_INFO: Record<
     description: "Single-joint work — curls, lateral raises, triceps extensions, calf raises.",
     core: false,
   },
+  no_pattern: {
+    label: "no pattern",
+    name: "No pattern",
+    description: "Mobility, drills and warm-ups. Not counted in balance.",
+    core: false,
+  },
 };
+
+/** The exclusive "No pattern" tag: tagged on purpose, never combined with other tags. */
+export const NO_PATTERN = "no_pattern" satisfies MovementPattern;
 
 export const FUNCTIONAL_MOVEMENT_INFO: Record<
   FunctionalMovement,
@@ -469,7 +479,8 @@ export function sortExercisesByRole<T extends { role?: string | null; group?: st
 
 /**
  * Hard sets per movement-pattern bucket. Buckets don't overlap, so they sum to
- * the session's set total; unclassified = untagged exercises.
+ * the session's set total; unclassified = untagged exercises, noPattern =
+ * exercises tagged "No pattern" (mobility, drills) — tagged, but in no bucket.
  */
 export interface PatternBalance {
   push: number;
@@ -479,6 +490,7 @@ export interface PatternBalance {
   iso: number;
   carry: number;
   core: number;
+  noPattern: number;
   unclassified: number;
 }
 
@@ -502,6 +514,7 @@ export function patternBalance(
     iso: 0,
     carry: 0,
     core: 0,
+    noPattern: 0,
     unclassified: 0,
   };
   for (const item of list) {
@@ -509,6 +522,10 @@ export function patternBalance(
     const p = item.movementPattern;
     if (!p) {
       result.unclassified += n;
+      continue;
+    }
+    if (p === NO_PATTERN) {
+      result.noPattern += n;
       continue;
     }
     if (p === "vertical_push" || p === "horizontal_push") {
@@ -548,11 +565,12 @@ export function sessionsPatternBalance(
   );
 }
 
-/** "18 sets — push 6 · pull 5 · iso 4 · core 2 · 1 untagged" — total first, so every set is accounted for. */
+/** "18 sets — push 6 · pull 5 · iso 4 · core 2 · 2 no pattern · 1 untagged" — total first, so every set is accounted for. */
 export function formatPatternBalance(b: PatternBalance): string {
   const parts = (["push", "pull", "knee", "hip", "iso", "carry", "core"] as const).filter((k) => b[k] > 0).map((k) => `${k} ${b[k]}`);
+  if (b.noPattern > 0) parts.push(`${b.noPattern} no pattern`);
   if (b.unclassified > 0) parts.push(`${b.unclassified} untagged`);
-  const total = b.push + b.pull + b.knee + b.hip + b.iso + b.carry + b.core + b.unclassified;
+  const total = b.push + b.pull + b.knee + b.hip + b.iso + b.carry + b.core + b.noPattern + b.unclassified;
   return total > 0 ? `${total} ${total === 1 ? "set" : "sets"} — ${parts.join(" · ")}` : "no exercises";
 }
 

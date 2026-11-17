@@ -230,7 +230,7 @@
               <label class="xp-f wide">
                 <span>Movement pattern <em>optional</em></span>
                 <select bind:value={draft.movementPattern} class="select">
-                  <option value="">No pattern</option>
+                  <option value="">Untagged</option>
                   {#each PATTERN_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
                 </select>
               </label>

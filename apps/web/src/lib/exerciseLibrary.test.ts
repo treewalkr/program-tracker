@@ -14,6 +14,7 @@ import {
   visibleRows,
   formFrom,
   NONE,
+  needsTagging,
   patternTitle,
   PATTERN_GROUPS,
 } from "./exerciseLibrary";
@@ -79,6 +80,16 @@ describe("multiple movement patterns", () => {
     expect(c.live).toBe(1);
   });
 
+  test("No pattern counts as tagged, gets its own coverage row and never adds gaps", () => {
+    const drill = ex({ name: "Cat Camel", equipment: "bodyweight", movementPatterns: ["no_pattern"] });
+    expect(needsTagging(drill)).toBe(false);
+    expect(needsTagging(ex({ movementPatterns: [] }))).toBe(true);
+    expect(coverage([drill]).cells.get("no_pattern|bodyweight")).toBe(1);
+    expect(coverage([drill]).gaps).toBe(coverage([]).gaps);
+    expect(PATTERN_GROUPS.find((g) => g.patterns.includes("no_pattern"))?.label).toBe("Other");
+    expect(patternTitle(["no_pattern"])).toBe("");
+  });
+
   test("tooltip names the primary's description, then the rest", () => {
     expect(patternTitle(["knee_dominant", "hip_dominant"])).toEndWith("Also: Hip-dominant.");
     expect(patternTitle(["knee_dominant"])).not.toContain("Also");
@@ -94,7 +105,7 @@ describe("coverage map", () => {
     expect(c.cells.get("knee_dominant|barbell")).toBeUndefined(); // archived doesn't count
     expect(c.placed).toBe(2);
     expect(c.live).toBe(3);
-    expect(c.gaps).toBe(15 * 9 - 1);
+    expect(c.gaps).toBe(15 * 9 - 1); // No pattern is never a gap
   });
 
   test("a cell click sets filters; clicking it again clears them", () => {

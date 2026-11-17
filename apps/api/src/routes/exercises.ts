@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exercises, setLogs, type ExerciseRow } from "@pt/db";
-import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup, primaryPattern } from "@pt/shared";
+import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup, NO_PATTERN, primaryPattern } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { ExerciseModel } from "../models/exercises";
 
@@ -14,9 +14,13 @@ interface Fields {
   functionalMovement?: string | null;
 }
 
-/** First problem with a movement-pattern list: an unknown value or a duplicate. */
+/** A movement-pattern list with an unknown value, a duplicate, or "No pattern" combined with another tag. */
 function invalidPatterns(list: readonly string[]): boolean {
-  return list.some((p) => !MovementPattern.safeParse(p).success) || new Set(list).size !== list.length;
+  return (
+    list.some((p) => !MovementPattern.safeParse(p).success) ||
+    new Set(list).size !== list.length ||
+    (list.length > 1 && list.includes(NO_PATTERN))
+  );
 }
 
 /** The new list from a body: `movementPatterns`, or the previous web build's single `movementPattern`. */

@@ -159,7 +159,9 @@ const COMPOUND_NAME =
 
 type Kind = "power" | "core" | "compound" | "accessory";
 
-function kindOf(e: RoleHints): Kind {
+function kindOf(hints: RoleHints): Kind {
+  // "No pattern" (mobility, drills) gives no hint: the name heuristics decide.
+  const e = hints.movementPattern === "no_pattern" ? { ...hints, movementPattern: null } : hints;
   if (EXPLOSIVE.test(e.name)) return "power";
   if (e.movementPattern && TRUNK_PATTERNS.has(e.movementPattern)) return "core";
   if (e.primaryMuscleGroup === "core" || e.primaryMuscleGroup === "obliques") return "core";
