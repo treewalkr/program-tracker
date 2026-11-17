@@ -389,7 +389,7 @@
         Demo mode — every number on screen is mock data. Nothing is saved.
       </Note>
     {/if}
-    {#if page.url.pathname !== "/whats-new"}<ReleaseBanner />{/if}
+    <ReleaseBanner />
     {@render children()}
   </main>
 </div>

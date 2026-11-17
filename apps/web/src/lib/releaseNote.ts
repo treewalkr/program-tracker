@@ -28,3 +28,11 @@ export const PAGE_TEXT: Record<Locale, { title: string; sub: string; empty: stri
     kinds: { New: "ใหม่", Improved: "ปรับปรุง", Fixed: "แก้ไข" },
   },
 };
+
+/**
+ * Pages where a floating notice would cover the work: What's new itself, the session
+ * logger, chat and AI generation, the new-program builder, and the exercise list's
+ * selection bar. The toast waits and shows on the next page that isn't one of these.
+ */
+const QUIET = [/^\/whats-new\/?$/, /^\/clients\/[^/]+\/(log|chat|generate)\/?$/, /^\/clients\/[^/]+\/programs\/new\/?$/, /^\/exercises\/?$/];
+export const quietRoute = (pathname: string): boolean => QUIET.some((re) => re.test(pathname));

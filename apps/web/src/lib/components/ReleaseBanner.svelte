@@ -2,7 +2,8 @@
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import { latest } from "$lib/whatsNew.svelte";
-  import { BANNER_TEXT } from "$lib/releaseNote";
+  import { page } from "$app/state";
+  import { BANNER_TEXT, quietRoute } from "$lib/releaseNote";
   import Icon from "$lib/ui/Icon.svelte";
 
   const DISMISSED_KEY = "pt:dismissed-release";
@@ -16,7 +17,7 @@
   }
 
   let dismissed = $state(readDismissed());
-  const visible = $derived(latest !== null && dismissed !== latest);
+  const visible = $derived(latest !== null && dismissed !== latest && !quietRoute(page.url.pathname));
   const text = $derived(BANNER_TEXT[i18n.locale]);
 
   /** Toast behaviour: it leaves on its own, but waits while the pointer or focus is on it. */
