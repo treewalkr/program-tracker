@@ -30,8 +30,8 @@
   let providers = $state<ProviderDto[]>([]);
   let loadError = $state<string | null>(null);
   let currentNames = $state<Record<string, string>>({});
-  /** Each client's portal access link; absent while their portal is off (or didn't load). */
-  let portalLinks = $state<Record<string, string>>({});
+  /** Each client's portal access link: a string when it's on, null when it's off, absent when it didn't load. */
+  let portals = $state<Record<string, string | null>>({});
   let signals = $state<SignalDto[]>([]);
   let strips = $state<ClientStrip[]>([]);
   let rowsReady = $state(false);
@@ -73,7 +73,7 @@
             api.clientPortal(c.id).catch(() => null),
           ]);
           currentNames[c.id] = detail.currentProgram?.name ?? "—";
-          if (portal?.link) portalLinks[c.id] = portal.link;
+          if (portal) portals[c.id] = portal.link ?? null;
           return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
         })
       );
@@ -195,8 +195,8 @@
               <tr>
                 <th>Client</th>
                 <th>Status</th>
-                <th class="r">Sessions</th>
-                <th class="r">Portal</th>
+                <th class="r sess-col">Sessions</th>
+                <th class="portal-col">Portal</th>
               </tr>
             </thead>
             <tbody>
@@ -207,12 +207,14 @@
                     <div class="subtle">{currentNames[c.id] ?? "…"}</div>
                   </td>
                   <td><StatusPill status={c.status} /></td>
-                  <td class="r">{c.sessionsPerWeek ?? "—"} / wk</td>
-                  <td class="r portal-cell">
-                    {#if portalLinks[c.id]}
-                      <CopyButton text={portalLinks[c.id]} label="Copy link" />
+                  <td class="r sess-col">{c.sessionsPerWeek ?? "—"} / wk</td>
+                  <td class="portal-col">
+                    {#if portals[c.id]}
+                      <CopyButton text={portals[c.id] ?? ""} label="Copy link" ariaLabel={`Copy portal link for ${c.name}`} />
+                    {:else if portals[c.id] === null}
+                      <a class="portal-on" href={`/clients/${c.id}#settings`} aria-label={`Turn on the portal for ${c.name}`}>Turn on…</a>
                     {:else if rowsReady}
-                      <a class="subtle" href={`/clients/${c.id}`} title="Turn the portal on from the client page">Off</a>
+                      <span class="subtle" title="Couldn't load this client's portal">—</span>
                     {/if}
                   </td>
                 </tr>
@@ -255,8 +257,21 @@
   :global(.load-err) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .signal-list { display: flex; flex-direction: column; }
   .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  .portal-cell { white-space: nowrap; }
-  .portal-cell :global(.copybtn) { justify-content: flex-end; }
+  .portal-col { text-align: right; white-space: nowrap; }
+  .portal-col :global(.copybtn) { justify-content: flex-end; }
+  /* a 32px target: the Clients panel is opened on a phone at the gym too */
+  .portal-col :global(.btn) { min-height: 32px; min-width: 44px; }
+  .portal-on {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 8px;
+    font: 400 13px/1 var(--font-ui);
+    color: var(--blue);
+    text-decoration: none;
+  }
+  .portal-on:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .portal-on:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
 
@@ -275,6 +290,8 @@
     .grid-2 { grid-template-columns: 1fr; }
   }
   @media (max-width: 520px) {
+    /* Sessions repeats the week grid above; dropping it lets name + status + Portal fit a phone */
+    .sess-col { display: none; }
     .signal-list :global(.signal .act) { justify-content: flex-start; }
   }
 </style>

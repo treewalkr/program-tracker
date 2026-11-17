@@ -8,9 +8,11 @@
 		label?: string;
 		/** Called after a successful copy. */
 		oncopy?: () => void;
+		/** Spoken name when several copy buttons share one label, e.g. one per table row. */
+		ariaLabel?: string;
 	}
 
-	let { text, label = 'Copy', oncopy }: Props = $props();
+	let { text, label = 'Copy', oncopy, ariaLabel }: Props = $props();
 
 	let copied = $state(false);
 	let failed = $state<string | null>(null);
@@ -36,7 +38,7 @@
 </script>
 
 <span class="copybtn" aria-live="polite">
-	<Button small onclick={copy}>{copied ? 'Copied ✓' : label}</Button>
+	<Button small onclick={copy} aria-label={ariaLabel ? (copied ? 'Copied' : ariaLabel) : undefined}>{copied ? 'Copied ✓' : label}</Button>
 	{#if failed}<span class="copy-fail" role="alert">{failed}</span>{/if}
 </span>
 
