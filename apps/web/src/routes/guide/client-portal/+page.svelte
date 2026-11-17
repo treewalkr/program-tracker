@@ -5,6 +5,11 @@
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import { renderInlineMarkdown } from "$lib/markdown";
   import PageHead from "$lib/ui/PageHead.svelte";
+  import Figure from "$lib/guide/Figure.svelte";
+  import HistoryFigure from "$lib/guide/HistoryFigure.svelte";
+  import PortalBoxFigure from "$lib/guide/PortalBoxFigure.svelte";
+  import PortalLogFigure from "$lib/guide/PortalLogFigure.svelte";
+  import PortalWeekFigure from "$lib/guide/PortalWeekFigure.svelte";
 
   const g = $derived(GUIDE[i18n.locale]);
   const s = $derived(g.sections);
@@ -63,6 +68,7 @@
           <li><h3>{@html rich(step.h)}</h3><p>{@html rich(step.p)}</p></li>
         {/each}
       </ol>
+      <Figure caption={g.figures.box}><PortalBoxFigure /></Figure>
       <p class="aside">{@html rich(s.setUp.aside)}</p>
     </section>
 
@@ -79,6 +85,7 @@
           <ul>{#each s.clientSees.neverList as li, i (i)}<li>{@html rich(li)}</li>{/each}</ul>
         </div>
       </div>
+      <Figure caption={g.figures.week}><PortalWeekFigure /></Figure>
       <p>{s.clientSees.after}</p>
     </section>
 
@@ -89,6 +96,7 @@
           <li><h3>{step.h}</h3><p>{@html rich(step.p)}</p></li>
         {/each}
       </ol>
+      <Figure caption={g.figures.log}><PortalLogFigure /></Figure>
       <p>{s.clientLogs.rulesLead}</p>
       <ul class="rules">{#each s.clientLogs.rules as li, i (i)}<li>{@html rich(li)}</li>{/each}</ul>
     </section>
@@ -96,6 +104,7 @@
     <section id={youSee}>
       <h2>{s.youSee.h}</h2>
       {#each s.youSee.p as para, i (i)}<p>{@html rich(para)}</p>{/each}
+      <Figure caption={g.figures.history}><HistoryFigure /></Figure>
     </section>
 
     <section id={resetOff}>

@@ -14,6 +14,8 @@ export interface Guide {
   sub: string;
   crumbs: [string, string];
   onThisPage: string;
+  /** Captions for the drawn figures; the pictures themselves are components. */
+  figures: { box: string; week: string; log: string; history: string };
   sections: {
     whatItIs: { h: string; p: string[] };
     setUp: { h: string; steps: { h: string; p: string }[]; aside: string };
@@ -32,6 +34,12 @@ const en: Guide = {
   sub: "Give a client a link to their week. They log sessions on their phone; the logs land in your data.",
   crumbs: ["Guide", "Client portal"],
   onThisPage: "On this page",
+  figures: {
+    box: "The Client portal box after you press Turn on. The link and the LINE message are what you send; Last seen fills in once they open it. Sample data.",
+    week: "What your client opens: your name at the top, then the next session to do with its one green button. Sample session.",
+    log: "The log screen at one exercise. Every set is prefilled from your prescription; the client changes only what differed (outlined), then saves. Sample numbers.",
+    history: "Their History tab. The session the client logged carries a by client label; the one you logged does not. Sample rows.",
+  },
   sections: {
     whatItIs: {
       h: "What it is",
@@ -145,6 +153,12 @@ const th: Guide = {
   sub: "ส่งลิงก์ให้ลูกค้าดูโปรแกรมของสัปดาห์ ลูกค้าบันทึกเซสชันบนมือถือ แล้วผลจะเข้าข้อมูลของคุณ",
   crumbs: ["คู่มือ", "พอร์ทัลลูกค้า"],
   onThisPage: "ในหน้านี้",
+  figures: {
+    box: "กล่อง Client portal หลังกด Turn on ลิงก์และข้อความ LINE คือสิ่งที่คุณส่งให้ลูกค้า ส่วน Last seen จะขึ้นเมื่อลูกค้าเปิดแล้ว (ข้อมูลตัวอย่าง)",
+    week: "สิ่งที่ลูกค้าเห็นเมื่อเปิดลิงก์: ชื่อโค้ชอยู่ด้านบน ตามด้วยเซสชันถัดไปที่ต้องทำ พร้อมปุ่มเขียวปุ่มเดียว (เซสชันตัวอย่าง)",
+    log: "หน้าบันทึกของท่าหนึ่ง ทุกเซตถูกกรอกไว้ตามโปรแกรมของคุณ ลูกค้าแก้เฉพาะที่ต่างไป (กรอบสีน้ำเงิน) แล้วกดบันทึก (ตัวเลขตัวอย่าง)",
+    history: "แท็บ History ของลูกค้า เซสชันที่ลูกค้าบันทึกเองมีป้าย by client ส่วนที่คุณบันทึกไม่มี (แถวตัวอย่าง)",
+  },
   sections: {
     whatItIs: {
       h: "พอร์ทัลคืออะไร",
