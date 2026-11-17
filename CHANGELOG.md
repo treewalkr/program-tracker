@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### New
+- Session types are now a fixed two-level list: **Cardiovascular** (Aerobic base, Anaerobic endurance, Anaerobic power), **Strength training** (Stability & mobility, Functional movement, Loaded strength, Performance) and **Metabolic** (Circuit, AMRAP). The session type picker groups each sub-type under its main type. Your own types stay in their own section. Your old Strength, Mobility, Circuit, Zone 2 and Intervals types move onto the matching preset, and saved programs keep the names they had.
+  - th: ประเภทเซสชันเป็นรายการสองชั้นแบบตายตัวแล้ว: **Cardiovascular** (Aerobic base, Anaerobic endurance, Anaerobic power), **Strength training** (Stability & mobility, Functional movement, Loaded strength, Performance) และ **Metabolic** (Circuit, AMRAP) ช่องเลือกประเภทเซสชันจัดประเภทย่อยไว้ใต้ประเภทหลัก ส่วนประเภทที่คุณสร้างเองยังอยู่ในหมวดของตัวเอง ประเภทเดิมอย่าง Strength, Mobility, Circuit, Zone 2 และ Intervals จะย้ายไปอยู่ใน preset ที่ตรงกัน โปรแกรมที่บันทึกไว้แล้วยังใช้ชื่อเดิม
+- Circuit sessions can be lifting or cardio.
+  - th: เซสชัน Circuit เป็นได้ทั้งเวทและคาร์ดิโอ
+- The language is now part of the link (`/en/…`, `/th/…`), so a link you share opens in the same language. Old links still work. The language switch keeps you on the same page.
+  - th: ภาษาอยู่ในลิงก์แล้ว (`/en/…`, `/th/…`) ลิงก์ที่ส่งต่อให้คนอื่นจะเปิดเป็นภาษาเดียวกัน ลิงก์เก่ายังใช้ได้ และปุ่มสลับภาษาจะพาคุณอยู่หน้าเดิม
+- When a client signs in to the portal, they come back to the page and language they started from.
+  - th: เมื่อลูกค้าเข้าสู่ระบบพอร์ทัล จะกลับมาที่หน้าเดิมและภาษาเดิมที่เปิดไว้ก่อนหน้า
+- A new guide, in English and Thai, shows how the client portal works, with drawings of each screen. You can copy a client's portal link straight from the overview.
+  - th: มีคู่มือใหม่ทั้งภาษาไทยและอังกฤษ อธิบายการใช้พอร์ทัลลูกค้าพร้อมภาพวาดของแต่ละหน้าจอ และคัดลอกลิงก์พอร์ทัลของลูกค้าได้จากหน้าภาพรวมเลย
+- When you send feedback, pick what it is: a bug, wrong behaviour, an idea or a question. For bugs, say what you expected and what happened. The app attaches recent errors and your last few steps, with emails, phone numbers and sign-in keys removed.
+  - th: ตอนส่งฟีดแบ็ก เลือกได้ว่าเป็นบั๊ก การทำงานที่ผิด ไอเดีย หรือคำถาม ถ้าเป็นบั๊กให้บอกว่าคาดว่าจะเกิดอะไรและเกิดอะไรขึ้นจริง แอปจะแนบข้อผิดพลาดล่าสุดและขั้นตอนที่คุณเพิ่งทำไปด้วย โดยตัดอีเมล เบอร์โทร และคีย์เข้าระบบออก
+- When a fix ships, rate it 👍 or 👎. A 👎 reopens the ticket, with an optional note on what's still wrong.
+  - th: เมื่อแก้ไขเสร็จแล้ว กด 👍 หรือ 👎 ได้ ถ้ากด 👎 ตั๋วจะถูกเปิดใหม่ และเขียนสั้น ๆ ได้ว่ายังผิดตรงไหน
+
+### Fixed
+- While a page loads, its placeholder now has the same shape as the page, so nothing jumps when it appears.
+  - th: ระหว่างที่หน้ากำลังโหลด โครงที่ขึ้นมาก่อนมีรูปร่างเหมือนหน้าจริงแล้ว พอโหลดเสร็จจึงไม่กระโดด
+- "All clients" on the overview opens the clients list, and the portal column there is clearer.
+  - th: ปุ่ม "All clients" ในหน้าภาพรวมพาไปที่รายชื่อลูกค้า และคอลัมน์พอร์ทัลในหน้านั้นอ่านง่ายขึ้น
+- Links to a page that has moved keep your language and the section you were linked to.
+  - th: ลิงก์ไปหน้าที่ย้ายที่แล้วยังคงภาษาและส่วนที่ลิงก์ชี้ไว้
+
 ## v0.1.33 — 2026-11-17
 
 ### New
