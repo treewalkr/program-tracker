@@ -4,6 +4,7 @@
  * on it from the export alone, without follow-up questions.
  */
 
+import { z } from "zod";
 import { redactJson } from "./redact";
 
 export const FEEDBACK_STATUSES = ["new", "accepted", "in_progress", "done", "wontfix"] as const;
@@ -33,6 +34,65 @@ export interface FeedbackAnchor {
   value: string;
   depth: number;
 }
+
+/** Ring-buffer sizes and the per-string cap for what the browser records before a ticket is filed. */
+export const FEEDBACK_RUNTIME_CAPS = { errors: 20, requests: 10, breadcrumbs: 15, text: 500, stackLines: 8 } as const;
+
+const RuntimeText = z.string().max(FEEDBACK_RUNTIME_CAPS.text);
+const MsAgo = z.number().int().min(0);
+
+/**
+ * What the browser saw in the minutes before a ticket was filed: recent
+ * errors, failed or slow API calls (with the server's request id) and the
+ * steps that led there. Memory only until the ticket is sent; no request or
+ * response bodies, never the text of inputs. `msAgo` counts back from filing.
+ */
+export const FeedbackRuntimeSchema = z.object({
+  errors: z
+    .array(
+      z.object({
+        source: z.enum(["error", "rejection", "console"]),
+        message: RuntimeText,
+        /** First lines of the stack, when there was one. */
+        stack: RuntimeText.optional(),
+        msAgo: MsAgo,
+      }),
+    )
+    .max(FEEDBACK_RUNTIME_CAPS.errors),
+  requests: z
+    .array(
+      z.object({
+        method: z.string().max(10),
+        /** Path only, no query values. */
+        path: RuntimeText,
+        /** Null when the request never got a response (offline, aborted). */
+        status: z.number().int().nullable(),
+        ms: z.number().int().min(0),
+        /** The response's `x-request-id`: `feedback:agent logs <id>` finds what the server logged. */
+        requestId: z.string().max(64).nullable(),
+        msAgo: MsAgo,
+      }),
+    )
+    .max(FEEDBACK_RUNTIME_CAPS.requests),
+  breadcrumbs: z
+    .array(
+      z.object({
+        kind: z.enum(["route", "click", "submit"]),
+        /** A route path, or the selector path of what was clicked or submitted. */
+        detail: RuntimeText,
+        msAgo: MsAgo,
+      }),
+    )
+    .max(FEEDBACK_RUNTIME_CAPS.breadcrumbs),
+  session: z.object({
+    role: z.string().max(40).nullable(),
+    locale: z.string().max(40),
+    online: z.boolean(),
+    /** Opened as an installed app (display-mode standalone). */
+    standalone: z.boolean(),
+  }),
+});
+export type FeedbackRuntime = z.infer<typeof FeedbackRuntimeSchema>;
 
 export interface FeedbackContext {
   route: {
@@ -66,6 +126,8 @@ export interface FeedbackContext {
   userAgent: string;
   /** Git SHA the UI was built from. */
   appVersion: string;
+  /** Errors, failed requests and steps before filing; absent on tickets filed before it was recorded. */
+  runtime?: FeedbackRuntime;
 }
 
 /**
@@ -74,7 +136,7 @@ export interface FeedbackContext {
  * web runs it before sending, the API again on ingest.
  */
 export function redactContext(c: FeedbackContext): FeedbackContext {
-  return { ...c, pageData: redactJson(c.pageData) };
+  return { ...c, pageData: redactJson(c.pageData), ...(c.runtime ? { runtime: redactJson(c.runtime) } : {}) };
 }
 
 /**
@@ -86,9 +148,9 @@ export const isPinned = (c: FeedbackContext): boolean => c.target.selector !== "
 /** Context for a ticket written on the Feedback page, not pinned to an element. */
 export function unpinnedContext(
   path: string,
-  env: { viewport: FeedbackContext["viewport"]; userAgent: string; appVersion: string },
+  env: { viewport: FeedbackContext["viewport"]; userAgent: string; appVersion: string; runtime?: FeedbackRuntime },
 ): FeedbackContext {
-  return {
+  return redactContext({
     route: { path, id: null, params: {} },
     target: {
       source: null,
@@ -102,7 +164,7 @@ export function unpinnedContext(
     },
     pageData: null,
     ...env,
-  };
+  });
 }
 
 /** Pages under these route prefixes 404 for a trainer who doesn't own the record. */
@@ -563,6 +625,40 @@ export function answerRatingText(r: FeedbackAnswerRating): string {
   return [r.score === 1 ? "👍" : "👎", [tags, said].filter(Boolean).join(" — ")].filter(Boolean).join(" ");
 }
 
+/** `12 s before`, `3 min before` — how long before filing. */
+const before = (ms: number) =>
+  ms < 1000 ? "just before" : ms < 60_000 ? `${Math.round(ms / 1000)} s before` : `${Math.round(ms / 60_000)} min before`;
+/** Runtime text on one line, quoted; it is the browser's, as untrusted as the comment. */
+const oneLine = (s: string) => `"${s.replace(/\s+/g, " ").trim().replace(/"/g, "'")}"`;
+
+/** The **Runtime** lines: session, errors, failed or slow requests (with request ids), steps before the report. */
+function runtimeLines(r: FeedbackRuntime): string[] {
+  const s = r.session;
+  const out = [
+    `- **Runtime:** ${[s.online ? "online" : "offline", `locale ${s.locale}`, s.standalone ? "installed app" : "browser tab", ...(s.role ? [`role ${s.role}`] : [])].join(" · ")}`,
+  ];
+  if (r.errors.length) {
+    out.push("  - Errors (oldest first):");
+    for (const e of r.errors) {
+      out.push(`    - ${e.source}, ${before(e.msAgo)}: ${oneLine(e.message)}`);
+      if (e.stack) out.push(`      ${oneLine(e.stack)}`);
+    }
+  }
+  if (r.requests.length) {
+    out.push("  - Failed or slow requests (oldest first; `feedback:agent logs <request id>` shows the server's side):");
+    for (const q of r.requests) {
+      const id = q.requestId ? ` · request \`${q.requestId}\`` : " · no request id";
+      out.push(`    - \`${q.method} ${q.path}\` → ${q.status ?? "no response"} in ${q.ms} ms${id} (${before(q.msAgo)})`);
+    }
+  }
+  if (r.breadcrumbs.length) {
+    out.push("  - Steps before the report (oldest first):");
+    for (const b of r.breadcrumbs) out.push(`    - ${b.kind} \`${b.detail.replace(/`/g, "'")}\` (${before(b.msAgo)})`);
+  }
+  if (!r.errors.length && !r.requests.length) out.push("  - No errors or failed requests recorded before the report");
+  return out;
+}
+
 /** One item as a self-contained Markdown section. */
 export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
   const c = item.context;
@@ -589,6 +685,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(
     `- **Viewport:** ${c.viewport.width}×${c.viewport.height} @${c.viewport.dpr}x · ${c.userAgent}`,
   );
+  if (c.runtime) lines.push(...runtimeLines(c.runtime));
   lines.push(`- **Reported by:** ${item.author?.name ?? "unknown"}`);
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.editedAt) {

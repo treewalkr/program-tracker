@@ -13,8 +13,11 @@ import {
   type FeedbackAnswerTag,
   type FeedbackAttachmentKind,
   type FeedbackContext,
+  type FeedbackRuntime,
   type FeedbackStatus,
+  FeedbackRuntimeSchema,
 } from "@pt/shared";
+import { z } from "zod";
 import { getFeedback, listFeedback, markSeen, parseStatuses, unreadCount, type FeedbackViewer } from "../lib/feedback";
 import {
   attachmentBytes,
@@ -55,6 +58,8 @@ const Context = t.Object({
   viewport: t.Object({ width: t.Number(), height: t.Number(), dpr: t.Number() }),
   userAgent: t.String(),
   appVersion: t.String(),
+  /** Nested JSON: checked with FeedbackRuntimeSchema (zod) in the handler. */
+  runtime: t.Optional(t.Unsafe<FeedbackRuntime>(t.Any())),
 });
 
 // Written out (not t.UnionEnum) so Eden keeps the literals; the check keeps them in step with @pt/shared.
@@ -146,6 +151,10 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     "/",
     async ({ body, status, trainerId }) => {
       const { kinds, ...files } = body;
+      if (body.context.runtime !== undefined) {
+        const runtime = FeedbackRuntimeSchema.safeParse(body.context.runtime);
+        if (!runtime.success) return status(422, { error: "invalid runtime", issues: z.treeifyError(runtime.error) });
+      }
       const read = await readImages({ ...files, kinds: kinds?.split(",") as FeedbackAttachmentKind[] | undefined });
       if ("error" in read) return status(422, { error: read.error });
       // Redacted again here: the client's redaction is a courtesy, not a guarantee.

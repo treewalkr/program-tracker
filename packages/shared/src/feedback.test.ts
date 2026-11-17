@@ -13,6 +13,8 @@ import {
   snapshotJson,
   toRepoPath,
   unpinnedContext,
+  redactContext,
+  type FeedbackRuntime,
   type FeedbackAnswerRating,
   type FeedbackComment,
   type FeedbackItem,
@@ -242,6 +244,56 @@ describe("feedbackMarkdown", () => {
   test("multi-line comments stay quoted", () => {
     const out = feedbackMarkdown([item({ comment: "line one\nline two" })], { imageUrl: () => null });
     expect(out).toContain("> line one\n> line two");
+  });
+  test("Runtime: session, errors, failed requests with ids, steps before the report", () => {
+    const runtime: FeedbackRuntime = {
+      errors: [{ source: "console", message: 'save "failed"\nretry', stack: "at save (a.js:1)", msAgo: 4200 }],
+      requests: [
+        { method: "POST", path: "/v1/clients/c_31/logs", status: 422, ms: 85, requestId: "ab12cd34", msAgo: 4000 },
+        { method: "GET", path: "/v1/meta", status: null, ms: 3, requestId: null, msAgo: 120_000 },
+      ],
+      breadcrumbs: [
+        { kind: "route", detail: "/clients/c_31", msAgo: 30_000 },
+        { kind: "click", detail: "main > button.save", msAgo: 500 },
+      ],
+      session: { role: "trainer", locale: "th-TH", online: true, standalone: true },
+    };
+    const out = feedbackMarkdown([item({ context: { ...item().context, runtime } })], { imageUrl: () => null });
+    expect(out).toContain(
+      [
+        "- **Runtime:** online · locale th-TH · installed app · role trainer",
+        "  - Errors (oldest first):",
+        `    - console, 4 s before: "save 'failed' retry"`,
+        `      "at save (a.js:1)"`,
+        "  - Failed or slow requests (oldest first; `feedback:agent logs <request id>` shows the server's side):",
+        "    - `POST /v1/clients/c_31/logs` → 422 in 85 ms · request `ab12cd34` (4 s before)",
+        "    - `GET /v1/meta` → no response in 3 ms · no request id (2 min before)",
+        "  - Steps before the report (oldest first):",
+        "    - route `/clients/c_31` (30 s before)",
+        "    - click `main > button.save` (just before)",
+      ].join("\n"),
+    );
+    const quiet = feedbackMarkdown(
+      [item({ context: { ...item().context, runtime: { ...runtime, errors: [], requests: [] } } })],
+      { imageUrl: () => null },
+    );
+    expect(quiet).toContain("  - No errors or failed requests recorded before the report");
+    expect(feedbackMarkdown([item()], { imageUrl: () => null })).not.toContain("**Runtime:**");
+  });
+
+  test("redactContext masks page data and runtime", () => {
+    const c = redactContext({
+      ...item().context,
+      pageData: { email: "a@b.co" },
+      runtime: {
+        errors: [{ source: "error", message: "no user a@b.co", msAgo: 0 }],
+        requests: [],
+        breadcrumbs: [],
+        session: { role: null, locale: "en", online: true, standalone: false },
+      },
+    });
+    expect(c.pageData).toEqual({ email: "[redacted]" });
+    expect(c.runtime!.errors[0].message).toBe("no user [email]");
   });
 });
 

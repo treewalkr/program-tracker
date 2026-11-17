@@ -25,6 +25,7 @@
   import AttachmentStrip from "$lib/feedback/AttachmentStrip.svelte";
   import { ImageTray } from "$lib/feedback/tray.svelte";
   import { shortPath } from "$lib/feedback/capture";
+  import { runtimeSnapshot } from "$lib/feedback/runtime";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import Author from "$lib/feedback/Author.svelte";
   import Thread from "$lib/feedback/Thread.svelte";
@@ -344,6 +345,7 @@
         viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
         userAgent: navigator.userAgent,
         appVersion: __APP_VERSION__,
+        runtime: runtimeSnapshot(),
       });
       const { id } = await feedbackApi.submit({ comment, context, uploads: draftImages.files });
       const item = await feedbackApi.get(id);

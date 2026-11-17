@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { feedbackMode } from "./mode.svelte";
   import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
+  import { runtimeSnapshot } from "./runtime";
   import { feedbackApi, type CapturedShot } from "./client";
   import TicketPins from "./TicketPins.svelte";
   import AttachmentInput from "./AttachmentInput.svelte";
@@ -196,6 +197,7 @@
           data: page.data,
         },
         __APP_VERSION__,
+        runtimeSnapshot(),
       );
       const target = el as HTMLElement;
       const elementShot = await shoot(target, "element");
