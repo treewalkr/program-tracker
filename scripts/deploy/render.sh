@@ -6,6 +6,8 @@
 #   render.sh live              prints "<deploy-id> <commit-sha>" of the deploy serving now
 #   render.sh rollback <id>     roll back to an earlier deploy (reuses its image, no rebuild);
 #                               prints the new deploy id — then `wait` on it
+#   render.sh find <sha>        prints the newest deploy of that commit that built (live or
+#                               deactivated), or nothing if none of the last 100 did
 # Progress goes to stderr so stdout stays a clean value for $(...).
 set -euo pipefail
 : "${RENDER_API_KEY:?RENDER_API_KEY is required}" "${RENDER_SERVICE_ID:?RENDER_SERVICE_ID is required}"
@@ -48,8 +50,13 @@ case "$cmd" in
     echo "render rollback $id to $to" >&2
     echo "$id"
     ;;
+  find)
+    sha=${2:?usage: render.sh find <sha>}
+    get "/deploys?limit=100" | jq -r --arg c "$sha" \
+      '[.[].deploy | select(.commit.id == $c and (.status == "live" or .status == "deactivated"))][0].id // empty'
+    ;;
   *)
-    echo "usage: render.sh deploy|wait|live|rollback ..." >&2
+    echo "usage: render.sh deploy|wait|live|rollback|find ..." >&2
     exit 2
     ;;
 esac

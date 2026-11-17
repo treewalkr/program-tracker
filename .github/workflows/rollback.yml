@@ -1,0 +1,95 @@
+name: rollback
+
+# Put an earlier release back in production: gh workflow run rollback -f to=v0.1.31 && gh run watch
+# Code only — the schema stays as is (migrations are expand-only, so older code runs on it).
+
+on:
+  workflow_dispatch:
+    inputs:
+      to:
+        description: Tag or commit to put back in production (e.g. v0.1.31)
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    # Same group as the CI deploy job: a rollback and a deploy never overlap.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      RENDER_SERVICE_ID: srv-dbngf267bikc73cg2hg0
+      # Render origin, as in apps/web/wrangler.jsonc (API_ORIGIN)
+      API_ORIGIN: https://program-tracker-api.onrender.com
+      SITE_URL: https://pt.pinroj.com
+    steps:
+      # Scripts come from this workflow's ref (older releases don't have scripts/deploy);
+      # the release being restored is checked out separately into target/.
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.to }}
+          path: target
+
+      - name: Resolve commit
+        id: to
+        run: |
+          sha=$(git -C target rev-parse HEAD)
+          echo "rolling back to $TO = $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        env:
+          TO: ${{ inputs.to }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+        working-directory: target
+
+      # Build before touching production, so a broken build changes nothing.
+      - name: Build web
+        working-directory: target/apps/web
+        env:
+          PUBLIC_API_MODE: live
+          PUBLIC_API_URL: https://pt.pinroj.com
+        run: bun run build
+
+      # Reuse that commit's Render image (no rebuild) when Render still has it; else rebuild it.
+      - name: Roll back API (Render)
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SHA: ${{ steps.to.outputs.sha }}
+        run: |
+          live=$(scripts/deploy/render.sh live)
+          read -r _ commit <<< "$live"
+          if [ "$commit" = "$SHA" ]; then
+            echo "API already runs ${SHA:0:7}"
+            exit 0
+          fi
+          prev=$(scripts/deploy/render.sh find "$SHA")
+          if [ -n "$prev" ]; then
+            id=$(scripts/deploy/render.sh rollback "$prev")
+          else
+            echo "no earlier Render deploy of ${SHA:0:7}; building it"
+            id=$(scripts/deploy/render.sh deploy "$SHA")
+          fi
+          scripts/deploy/render.sh wait "$id"
+
+      - name: Smoke test API
+        run: scripts/deploy/smoke.sh api "$SHA"
+        env:
+          SHA: ${{ steps.to.outputs.sha }}
+
+      - name: Deploy Worker
+        working-directory: target/apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bunx wrangler@4 deploy
+
+      - name: Smoke test site
+        run: scripts/deploy/smoke.sh site "$SHA"
+        env:
+          SHA: ${{ steps.to.outputs.sha }}
