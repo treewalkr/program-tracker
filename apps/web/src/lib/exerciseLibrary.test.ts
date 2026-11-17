@@ -14,6 +14,9 @@ import {
   visibleRows,
   formFrom,
   NONE,
+  addPattern,
+  patternShare,
+  removePattern,
   makePrimary,
   togglePattern,
   needsTagging,
@@ -122,6 +125,26 @@ describe("togglePattern / makePrimary", () => {
   test("makePrimary moves a selected tag to the front", () => {
     expect(makePrimary(["knee_dominant", "hip_dominant", "carry"], "carry")).toEqual(["carry", "knee_dominant", "hip_dominant"]);
     expect(makePrimary(["knee_dominant"], "carry")).toEqual(["knee_dominant"]);
+  });
+});
+
+describe("bulk pattern edits", () => {
+  test("add appends: primary only on an untagged exercise", () => {
+    expect(addPattern([], "carry")).toEqual(["carry"]);
+    expect(addPattern(["knee_dominant"], "hip_dominant")).toEqual(["knee_dominant", "hip_dominant"]);
+    expect(addPattern(["knee_dominant", "hip_dominant"], "hip_dominant")).toEqual(["knee_dominant", "hip_dominant"]);
+    expect(addPattern(["no_pattern"], "carry")).toEqual(["carry"]);
+  });
+
+  test("remove promotes the next tag", () => {
+    expect(removePattern(["knee_dominant", "hip_dominant"], "knee_dominant")).toEqual(["hip_dominant"]);
+  });
+
+  test("share reads ✓ all, N of M, or nothing", () => {
+    const rows = [{ movementPatterns: ["knee_dominant", "anti_lateral_flexion"] }, { movementPatterns: ["knee_dominant"] }];
+    expect(patternShare(rows, "knee_dominant")).toEqual({ n: 2, all: true, text: "✓ all" });
+    expect(patternShare(rows, "anti_lateral_flexion")).toEqual({ n: 1, all: false, text: "1 of 2" });
+    expect(patternShare(rows, "carry")).toEqual({ n: 0, all: false, text: "" });
   });
 });
 

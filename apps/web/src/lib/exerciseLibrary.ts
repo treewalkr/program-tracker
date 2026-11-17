@@ -60,6 +60,23 @@ export function togglePattern(list: readonly string[], p: string): string[] {
   return rest.length >= MAX_MOVEMENT_PATTERNS ? rest : [...rest, p];
 }
 
+/**
+ * Add a tag (bulk): appended, so it becomes primary only on an exercise with
+ * no tags. Already there, or a full list: unchanged. "No pattern" stays exclusive.
+ */
+export const addPattern = (list: readonly string[], p: string): string[] =>
+  list.includes(p) ? [...list] : togglePattern(list, p);
+
+/** Remove a tag (bulk); removing the primary promotes the next. */
+export const removePattern = (list: readonly string[], p: string): string[] => list.filter((x) => x !== p);
+
+/** How many of `rows` carry tag `p`: "all", "N of M", or "" when none do. */
+export function patternShare(rows: readonly Pick<ExerciseDto, "movementPatterns">[], p: string): { n: number; all: boolean; text: string } {
+  const n = rows.filter((e) => e.movementPatterns.includes(p)).length;
+  const all = n > 0 && n === rows.length;
+  return { n, all, text: all ? "✓ all" : n ? `${n} of ${rows.length}` : "" };
+}
+
 /** Move a selected tag to the front, making it the primary. */
 export const makePrimary = (list: readonly string[], p: string): string[] =>
   list.includes(p) ? [p, ...list.filter((x) => x !== p)] : [...list];
