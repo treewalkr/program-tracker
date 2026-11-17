@@ -10,7 +10,7 @@
   },
   // Keeps the free Render API awake (it sleeps after ~15 idle minutes).
   "triggers": { "crons": ["*/10 * * * *"] },
-  "vars": { "API_ORIGIN": "https://program-tracker-api.onrender.com" },
+  "vars": { "API_ORIGIN": "https://api.pt.pinroj.com" },
   "routes": [{ "pattern": "pt.pinroj.com", "custom_domain": true }],
   // Served only at pt.pinroj.com. The account's workers.dev subdomain exists
   // because cron triggers require one; this Worker stays off it.

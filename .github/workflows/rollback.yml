@@ -21,8 +21,8 @@ jobs:
       cancel-in-progress: false
     env:
       RENDER_SERVICE_ID: srv-dbngf267bikc73cg2hg0
-      # Render origin, as in apps/web/wrangler.jsonc (API_ORIGIN)
-      API_ORIGIN: https://program-tracker-api.onrender.com
+      # Render API (custom domain), as in apps/web/wrangler.jsonc (API_ORIGIN)
+      API_ORIGIN: https://api.pt.pinroj.com
       SITE_URL: https://pt.pinroj.com
     steps:
       # Scripts come from this workflow's ref (older releases don't have scripts/deploy);
