@@ -64,6 +64,7 @@ import type {
   ProgramStatus,
   ProgramWeek,
   SessionKind,
+  SessionTypeFormat,
   LoggedBy,
   SetType,
   StoredChatProposal,
@@ -769,8 +770,8 @@ export const sessionTypes = pgTable(
       .notNull()
       .references(() => trainers.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    /** "lifting" (exercises + sets) or "cardio" (cardio prescription). */
-    format: text("format").$type<SessionKind>().notNull(),
+    /** "lifting" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
+    format: text("format").$type<SessionTypeFormat>().notNull(),
     /** A `SESSION_TYPE_PRESETS` key = a locked preset (archive/restore only); null = the trainer's own type.
      *  One row per preset per trainer rides on the name index (preset names are locked). */
     presetKey: text("preset_key"),
