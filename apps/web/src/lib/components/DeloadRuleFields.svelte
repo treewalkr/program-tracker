@@ -1,6 +1,7 @@
 <script lang="ts">
   import { deloadRulesText, type DeloadSettings } from "@pt/shared";
   import Field from "$lib/ui/Field.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   /**
    * The five knobs of a deload rule, plus a live plain-language preview.
@@ -12,9 +13,11 @@
     /** Prefix for control ids — two editors can share a page. */
     idPrefix?: string;
     disabled?: boolean;
+    /** The rule hasn't loaded: labels render, controls and the preview shimmer. */
+    loading?: boolean;
   }
 
-  let { value = $bindable(), idPrefix = "deload", disabled = false }: Props = $props();
+  let { value = $bindable(), idPrefix = "deload", disabled = false, loading = false }: Props = $props();
 
   const range = (from: number, to: number, step: number) =>
     Array.from({ length: Math.round((to - from) / step) + 1 }, (_, i) => +(from + i * step).toFixed(1));
@@ -33,46 +36,62 @@
   const preview = $derived(deloadRulesText(value));
 </script>
 
-<div class="rule" class:off={disabled}>
-  <div class="knobs">
-    <Field label="Sets kept" htmlFor="{idPrefix}-sets">
-      <select id="{idPrefix}-sets" class="select" {disabled} bind:value={value.setsKeptPercent}>
-        {#each SETS as n (n)}<option value={n}>{setsLabel(n)}</option>{/each}
-      </select>
-    </Field>
-
-    <Field label="Load" htmlFor="{idPrefix}-load">
-      <select id="{idPrefix}-load" class="select" {disabled} bind:value={value.loadPercent}>
-        {#each LOADS as n (n)}<option value={n}>{loadLabel(n)}</option>{/each}
-      </select>
-    </Field>
-
-    <Field label="From">
-      <div class="seg" role="radiogroup" aria-label="Load from">
-        {#each BASES as b (b.value)}
-          <label class="seg-opt" class:on={value.loadBasis === b.value}>
-            <input type="radio" name="{idPrefix}-basis" value={b.value} {disabled} bind:group={value.loadBasis} />
-            <span>{b.label}</span>
-          </label>
-        {/each}
-      </div>
-    </Field>
-
-    <Field label="RPE cap" htmlFor="{idPrefix}-rpe">
-      <select id="{idPrefix}-rpe" class="select" {disabled} bind:value={value.rpeCap}>
-        <option value={null}>No cap</option>
-        {#each RPES as n (n)}<option value={n}>{n}</option>{/each}
-      </select>
-    </Field>
-
-    <label class="amrap">
-      <input type="checkbox" {disabled} bind:checked={value.amrap} />
-      <span>Keep AMRAP sets</span>
-    </label>
+{#if loading}
+  <div class="rule" aria-hidden="true">
+    <div class="knobs">
+      <Field label="Sets kept"><Skeleton h="32px" /></Field>
+      <Field label="Load"><Skeleton h="32px" /></Field>
+      <Field label="From">
+        <div class="seg">{#each BASES as b (b.value)}<span class="seg-opt">{b.label}</span>{/each}</div>
+      </Field>
+      <Field label="RPE cap"><Skeleton h="32px" /></Field>
+      <div class="amrap"><Skeleton shape="line" h="14px" w="14px" /><span>Keep AMRAP sets</span></div>
+    </div>
+    <p class="preview"><span class="pv-k">A deload week:</span> <Skeleton shape="line" h="11px" w="min(520px, 70%)" class="pv-skel" />
+      <Skeleton shape="line" h="11px" w="min(300px, 50%)" class="pv-skel" /></p>
   </div>
+{:else}
+  <div class="rule" class:off={disabled}>
+    <div class="knobs">
+      <Field label="Sets kept" htmlFor="{idPrefix}-sets">
+        <select id="{idPrefix}-sets" class="select" {disabled} bind:value={value.setsKeptPercent}>
+          {#each SETS as n (n)}<option value={n}>{setsLabel(n)}</option>{/each}
+        </select>
+      </Field>
 
-  <p class="preview" aria-live="polite"><span class="pv-k">A deload week:</span> {preview}.</p>
-</div>
+      <Field label="Load" htmlFor="{idPrefix}-load">
+        <select id="{idPrefix}-load" class="select" {disabled} bind:value={value.loadPercent}>
+          {#each LOADS as n (n)}<option value={n}>{loadLabel(n)}</option>{/each}
+        </select>
+      </Field>
+
+      <Field label="From">
+        <div class="seg" role="radiogroup" aria-label="Load from">
+          {#each BASES as b (b.value)}
+            <label class="seg-opt" class:on={value.loadBasis === b.value}>
+              <input type="radio" name="{idPrefix}-basis" value={b.value} {disabled} bind:group={value.loadBasis} />
+              <span>{b.label}</span>
+            </label>
+          {/each}
+        </div>
+      </Field>
+
+      <Field label="RPE cap" htmlFor="{idPrefix}-rpe">
+        <select id="{idPrefix}-rpe" class="select" {disabled} bind:value={value.rpeCap}>
+          <option value={null}>No cap</option>
+          {#each RPES as n (n)}<option value={n}>{n}</option>{/each}
+        </select>
+      </Field>
+
+      <label class="amrap">
+        <input type="checkbox" {disabled} bind:checked={value.amrap} />
+        <span>Keep AMRAP sets</span>
+      </label>
+    </div>
+
+    <p class="preview" aria-live="polite"><span class="pv-k">A deload week:</span> {preview}.</p>
+  </div>
+{/if}
 
 <style>
   .rule { display: flex; flex-direction: column; gap: 12px; }
@@ -137,4 +156,6 @@
     color: var(--ink);
   }
   .pv-k { color: var(--muted); }
+  .preview :global(.pv-skel) { display: inline-block; vertical-align: middle; }
+  .preview :global(.pv-skel:last-child) { display: block; margin-top: 8px; }
 </style>
