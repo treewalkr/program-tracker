@@ -12,7 +12,8 @@ export const load = async ({ url }) => {
   const session = await portalApi.session();
   // the demo is always signed in; it still shows its sign-in page when asked for it
   const { lang, path } = splitLang(url.pathname);
-  const to = apiMode === "mock" && path === "/me/login" ? null : portalRedirect(path, session);
+  const to =
+    apiMode === "mock" && path === "/me/login" ? null : portalRedirect(path + url.search, session, url.searchParams.get("returnTo"));
   if (to) redirect(307, lang ? withLang(to, lang) : to);
   return { portal: session };
 };

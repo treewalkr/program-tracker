@@ -26,7 +26,9 @@ export * from "./portalTypes";
 /** A signed-out client on a private page goes to the portal's sign-in, in the page's language. */
 function toPortalLogin() {
   const { lang, path } = splitLang(window.location.pathname);
-  if (!isPortalPublic(path)) window.location.assign(lang ? withLang(PORTAL_LOGIN, lang) : PORTAL_LOGIN);
+  if (isPortalPublic(path)) return;
+  const login = `${PORTAL_LOGIN}?returnTo=${encodeURIComponent(path + window.location.search)}`;
+  window.location.assign(lang ? withLang(login, lang) : login);
 }
 
 async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>): Promise<T> {
@@ -73,7 +75,7 @@ export const livePortalApi: PortalApi = {
   async signOut() {
     await client.v1.portal.logout.post();
   },
-  googleHref: "/v1/auth/google?as=client",
+  googleHref: (returnTo) => `/v1/auth/google?as=client&returnTo=${encodeURIComponent(returnTo)}`,
 };
 
 export const portalApi: PortalApi = apiMode === "live" ? livePortalApi : mockPortalApi;

@@ -62,8 +62,8 @@ export interface PortalApi {
   /** Sign in with an access link (sets the client cookie). */
   openLink(token: string): Promise<void>;
   signOut(): Promise<void>;
-  /** Google sign-in for clients — a full-page navigation, not a call. */
-  googleHref: string;
+  /** Google sign-in for clients — a full-page navigation, not a call — coming back to `returnTo`. */
+  googleHref(returnTo: string): string;
 }
 
 /** Where a signed-out client goes. */
