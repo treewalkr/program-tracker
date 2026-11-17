@@ -5,7 +5,7 @@ import { unpinnedContext, type FeedbackAiMode, type FeedbackComment, type Feedba
 import { createSession, SESSION_COOKIE } from "./lib/auth";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { settleFeedbackNotifications } from "./lib/feedback-notify";
-import { answerRecords, lessonRecords } from "./lib/feedback-answers";
+import { answerRecords, calibration, fixRecords, lessonRecords, type AnswerRecord, type FixRecord } from "./lib/feedback-answers";
 import { capTranscript, transcriptStats, transcriptsToPrune } from "./lib/agent-transcript";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
@@ -94,11 +94,11 @@ describe("answerRecords and lessonRecords (pure)", () => {
   const at = (min: number) => `2026-11-10T10:${String(min).padStart(2, "0")}:00.000Z`;
   const meta = { verdict: "exists" as const, confidence: "medium" as const, citations: ["a.ts:1"], basis: "b1", model: "m", runAt: at(1) };
   const c = (over: Partial<FeedbackComment>): FeedbackComment => ({
-    id: crypto.randomUUID(), kind: "reply", author: null, authorKind: "human", visibility: "public", aiMeta: null, aiPublic: null,
+    id: crypto.randomUUID(), kind: "reply", author: null, authorKind: "human", visibility: "public", aiMeta: null, aiPublic: null, fixPublic: null,
     ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
   });
   const item = (thread: FeedbackComment[], number = 7): FeedbackItem => ({
-    id: `i${number}`, number, author: kai, status: "new", comment: "Where are emails?", triageNote: null, route: "/settings", source: null,
+    id: `i${number}`, number, author: kai, status: "new", kind: null, comment: "Where are emails?", triageNote: null, route: "/settings", source: null,
     context, attachments: [], shippedIn: null, thread, editedAt: null, editedBy: null, duplicateOf: null, duplicates: [], fixPr: null,
     unread: false, muted: false, reachable: true, createdAt: at(0), updatedAt: at(0),
   });
@@ -134,6 +134,40 @@ describe("answerRecords and lessonRecords (pure)", () => {
     expect(lessonRecords(records).map((r) => r.answer.commentId)).toEqual(["draft", "ans"]);
     expect(lessonRecords(records, 1)).toHaveLength(1);
     expect(lessonRecords(answerRecords([item(thread)]))).toHaveLength(1);
+  });
+  test("fixRecords: each shipped note with the triage before it and the reporter's verdict", () => {
+    const bugMeta = { ...meta, verdict: "bug" as const, confidence: "medium" as const, risk: "low" as const, ready: true, fixPlan: ["Raise it"], acceptance: ["16px"] };
+    const fixDown = { score: -1 as const, comment: "Still tiny", at: at(9) };
+    const fixed = item([
+      c({ authorKind: "ai", visibility: "private", aiMeta: bugMeta, body: "Bug", createdAt: at(1) }),
+      c({ authorKind: "system", body: "Shipped", createdAt: at(5), ship: { sha: "abcdef1234", version: "0.1.40" }, fixPublic: { rating: fixDown, canRate: false } }),
+      c({ authorKind: "ai", visibility: "private", aiMeta: { ...bugMeta, confidence: "high" }, body: "Later note", createdAt: at(8) }),
+    ]);
+    const out = fixRecords([fixed, item(thread, 8)]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      type: "fix",
+      handle: "FB-007",
+      ship: { sha: "abcdef1234", version: "0.1.40", at: at(5) },
+      triage: { verdict: "bug", confidence: "medium", risk: "low", ready: true, fixPlan: ["Raise it"], acceptance: ["16px"] },
+      rating: fixDown,
+    });
+  });
+
+  test("calibration: count and 👍 / 👎 share per confidence, sent answers and fixes apart", () => {
+    const rec = (confidence: "high" | "medium" | "low", score: 1 | -1 | null, visibility: "public" | "draft" = "public") =>
+      ({ answer: { confidence, visibility }, rating: score ? { score } : null }) as unknown as AnswerRecord;
+    const fix = (confidence: "high" | "medium" | null, score: 1 | -1 | null) =>
+      ({ triage: confidence ? { confidence } : null, rating: score ? { score } : null }) as unknown as FixRecord;
+    const out = calibration(
+      [rec("high", 1), rec("high", 1), rec("high", -1), rec("high", null), rec("high", -1, "draft"), rec("low", -1)],
+      [fix("medium", 1), fix("medium", -1), fix("medium", -1), fix(null, -1)],
+    );
+    expect(out.map((r) => r.confidence)).toEqual(["high", "medium", "low"]);
+    expect(out[0].answers).toEqual({ count: 4, up: 2, down: 1, unrated: 1, upShare: 0.5, downShare: 0.25 });
+    expect(out[0].fixes).toEqual({ count: 0, up: 0, down: 0, unrated: 0, upShare: 0, downShare: 0 });
+    expect(out[1].fixes).toEqual({ count: 3, up: 1, down: 2, unrated: 0, upShare: 0.33, downShare: 0.67 });
+    expect(out[2].answers).toMatchObject({ count: 1, down: 1, downShare: 1 });
   });
 });
 

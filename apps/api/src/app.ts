@@ -31,6 +31,7 @@ import { adminRoutes } from "./routes/admin";
 import { publicRoutes } from "./routes/public";
 import { portalRoutes } from "./routes/portal";
 import { trainerContext } from "./lib/trainer-context";
+import { requestLog } from "./lib/request-log";
 import { API_BUILD } from "./lib/build";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
@@ -68,6 +69,8 @@ const TAGS = [
 // retry can take 30-45s) must not be dropped by the default 30s idle timeout.
 export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(cors({ origin: corsOrigins }))
+  // x-request-id on every response; failed and slow requests logged for the feedback agent
+  .use(requestLog)
   .use(
     openapi({
       path: "/openapi",

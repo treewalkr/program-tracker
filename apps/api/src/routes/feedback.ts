@@ -4,16 +4,25 @@ import { db, feedbackComments, feedbackItems, feedbackMutes } from "@pt/db";
 import {
   FEEDBACK_ANSWER_COMMENT_MAX,
   FEEDBACK_ANSWER_TAGS,
+  FEEDBACK_FIX_COMMENT_MAX,
+  notFixedNote,
   FEEDBACK_ATTACHMENT_KINDS,
   feedbackHandle,
   feedbackMarkdown,
   formatSourceLoc,
   isOpenFeedback,
+  redactContext,
   type FeedbackAnswerTag,
   type FeedbackAttachmentKind,
   type FeedbackContext,
+  type FeedbackReport,
+  type FeedbackRuntime,
   type FeedbackStatus,
+  cleanReport,
+  FeedbackReportSchema,
+  FeedbackRuntimeSchema,
 } from "@pt/shared";
+import { z } from "zod";
 import { getFeedback, listFeedback, markSeen, parseStatuses, unreadCount, type FeedbackViewer } from "../lib/feedback";
 import {
   attachmentBytes,
@@ -27,7 +36,7 @@ import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
-import { rateAnswer, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
+import { rateAnswer, rateFix, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
 import { FeedbackModel } from "../models/feedback";
 import { spread } from "../utility";
 
@@ -54,6 +63,10 @@ const Context = t.Object({
   viewport: t.Object({ width: t.Number(), height: t.Number(), dpr: t.Number() }),
   userAgent: t.String(),
   appVersion: t.String(),
+  /** Nested JSON: checked with FeedbackRuntimeSchema (zod) in the handler. */
+  runtime: t.Optional(t.Unsafe<FeedbackRuntime>(t.Any())),
+  /** Nested JSON: checked with FeedbackReportSchema (zod) in the handler. */
+  report: t.Optional(t.Unsafe<FeedbackReport>(t.Any())),
 });
 
 // Written out (not t.UnionEnum) so Eden keeps the literals; the check keeps them in step with @pt/shared.
@@ -85,6 +98,14 @@ const ImageLayout = t.Array(
  * field per value and a lone value would arrive bare.
  */
 const ImageKinds = t.Optional(t.String({ pattern: `^(${FEEDBACK_ATTACHMENT_KINDS.join("|")})(,(${FEEDBACK_ATTACHMENT_KINDS.join("|")}))*$`, maxLength: 200 }));
+
+const jsonOrNull = (s: string): unknown => {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+};
 
 const IMAGE_CACHE = "private, max-age=31536000, immutable";
 
@@ -145,14 +166,27 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     "/",
     async ({ body, status, trainerId }) => {
       const { kinds, ...files } = body;
+      if (body.context.runtime !== undefined) {
+        const runtime = FeedbackRuntimeSchema.safeParse(body.context.runtime);
+        if (!runtime.success) return status(422, { error: "invalid runtime", issues: z.treeifyError(runtime.error) });
+      }
+      if (body.context.report !== undefined) {
+        const report = FeedbackReportSchema.safeParse(body.context.report);
+        if (!report.success) return status(422, { error: "invalid report", issues: z.treeifyError(report.error) });
+      }
+      const kind = body.kind ?? null;
       const read = await readImages({ ...files, kinds: kinds?.split(",") as FeedbackAttachmentKind[] | undefined });
       if ("error" in read) return status(422, { error: read.error });
-      const context = body.context as FeedbackContext;
+      // Redacted again here: the client's redaction is a courtesy, not a guarantee.
+      const { report, ...rest } = body.context as FeedbackContext;
+      const cleaned = cleanReport(kind, report);
+      const context = redactContext({ ...rest, ...(cleaned ? { report: cleaned } : {}) });
       const row = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(feedbackItems)
           .values({
             trainerId,
+            kind,
             comment: body.comment.trim(),
             route: context.route.path,
             source: context.target.source ? formatSourceLoc(context.target.source) : null,
@@ -168,6 +202,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     {
       body: t.Object({
         comment: FeedbackModel.comment,
+        kind: FeedbackModel.kind,
         context: Context,
         images: Images,
         kinds: ImageKinds,
@@ -287,6 +322,14 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     async ({ params, body, status, isAdmin, trainerId, who }) => {
       const comment = body.comment.trim();
       if (!comment) return status(422, { error: "comment is empty" });
+      let bodyReport: FeedbackReport | undefined;
+      if (body.report !== undefined) {
+        // Multipart (new images ride along) sends the object as one JSON field.
+        const raw = typeof body.report === "string" ? jsonOrNull(body.report) : body.report;
+        const parsed = FeedbackReportSchema.safeParse(raw);
+        if (!parsed.success) return status(422, { error: "invalid report", issues: z.treeifyError(parsed.error) });
+        bodyReport = parsed.data;
+      }
       const read = await readImages({ images: body.images });
       if ("error" in read) return status(422, { error: read.error });
       const out = await db.transaction(async (tx) => {
@@ -295,6 +338,8 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             trainerId: feedbackItems.trainerId,
             status: feedbackItems.status,
             comment: feedbackItems.comment,
+            kind: feedbackItems.kind,
+            context: feedbackItems.context,
             editedAt: feedbackItems.editedAt,
             createdAt: feedbackItems.createdAt,
           })
@@ -308,16 +353,34 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         const current = await ticketImages(tx, params.id);
         const invalid = checkLayout(current, body.layout, read.images.length);
         if (invalid) return { invalid: invalid.error };
+        // Absent kind / report = unchanged (an older editor); a report is redacted like on filing.
+        const kind = body.kind ?? row.kind;
+        const report =
+          bodyReport !== undefined || body.kind !== undefined
+            ? cleanReport(kind, bodyReport ?? row.context.report)
+            : row.context.report;
+        const nextReport = report ? redactContext({ ...row.context, report }).report : undefined;
+        const sameReport = JSON.stringify(nextReport ?? null) === JSON.stringify(row.context.report ?? null);
         const same =
           comment === row.comment &&
+          kind === row.kind &&
+          sameReport &&
           body.layout.length === current.length &&
           body.layout.every((slot, i) => "keep" in slot && slot.keep === current[i].id);
         if (same) return { saved: false };
         await relayoutTicketImages(tx, params.id, body.layout, read.images);
         const now = new Date();
+        const { report: _old, ...context } = row.context;
         await tx
           .update(feedbackItems)
-          .set({ comment, editedAt: now, editedBy: trainerId, updatedAt: now })
+          .set({
+            comment,
+            kind,
+            ...(sameReport ? {} : { context: nextReport ? { ...context, report: nextReport } : context }),
+            editedAt: now,
+            editedBy: trainerId,
+            updatedAt: now,
+          })
           .where(eq(feedbackItems.id, params.id));
         return { saved: true };
       });
@@ -335,6 +398,9 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       params: IdParams,
       body: t.Object({
         comment: FeedbackModel.comment,
+        kind: FeedbackModel.kind,
+        /** Expected / actual / how often (bug and wrong behaviour); checked with FeedbackReportSchema. */
+        report: t.Optional(t.Unsafe<FeedbackReport>(t.Any())),
         version: t.String({ minLength: 1, maxLength: 64 }),
         layout: ImageLayout,
         images: Images,
@@ -466,6 +532,58 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         comment: t.Optional(t.String({ maxLength: FEEDBACK_ANSWER_COMMENT_MAX })),
       }),
       detail: { summary: "Rate an AI answer 👍/👎 (the ticket's reporter only)" },
+    },
+  )
+  /**
+   * The reporter's "Fixed for you?" on a release's shipped note: 👍 is just
+   * logged; 👎 (optional comment) also reopens a done ticket as `new` and posts
+   * the comment — or a short "not fixed" line — as their reply, so the agent
+   * picks it up again with its earlier runtime evidence. A new rating replaces
+   * the old; a repeated 👎 with the same words posts nothing new.
+   */
+  .put(
+    "/:id/comments/:cid/fix-rating",
+    async ({ params, body, status, trainerId, who }) => {
+      const item = await getFeedback(params.id, who);
+      if (!item) return status(404, NOT_FOUND);
+      const note = item.thread.find((c) => c.id === params.cid);
+      if (!note?.fixPublic) return status(404, { error: "shipped note not found" });
+      if (!note.fixPublic.canRate) return status(403, { error: "only the reporter can rate the fix" });
+      const comment = body.score === -1 ? body.comment?.trim() || null : null;
+      const before = note.fixPublic.rating;
+      const repeat = body.score === -1 && before?.score === -1 && before.comment === comment;
+      const out = await db.transaction(async (tx) => {
+        const now = Date.now();
+        await rateFix(tx, { trainerId, commentId: note.id, score: body.score, comment, at: new Date(now) });
+        if (body.score === 1 || repeat) return { replyId: null };
+        const [reply] = await tx
+          .insert(feedbackComments)
+          .values({ itemId: params.id, trainerId, kind: "reply", body: comment ?? notFixedNote(item.comment), createdAt: new Date(now + 1) })
+          .returning({ id: feedbackComments.id });
+        // Reopen only a closed-as-done ticket; one the owner already reopened stays as it is.
+        const [moved] = await tx
+          .update(feedbackItems)
+          .set({ status: "new", shippedIn: null, updatedAt: new Date(now + 2) })
+          .where(and(eq(feedbackItems.id, params.id), eq(feedbackItems.status, "done")))
+          .returning({ id: feedbackItems.id });
+        if (moved) {
+          await tx
+            .insert(feedbackComments)
+            .values({ itemId: params.id, trainerId, kind: "status", status: "new", createdAt: new Date(now + 2) });
+        }
+        return { replyId: reply.id };
+      });
+      if (out.replyId) notifyFeedback({ kind: "reply", itemId: params.id, commentId: out.replyId });
+      await markSeen(trainerId, params.id);
+      return (await getFeedback(params.id, who))!;
+    },
+    {
+      params: CommentParams,
+      body: t.Object({
+        score: t.Union([t.Literal(1), t.Literal(-1)]),
+        comment: t.Optional(t.String({ maxLength: FEEDBACK_FIX_COMMENT_MAX })),
+      }),
+      detail: { summary: "Rate a shipped fix 👍/👎 — 👎 reopens it (the ticket's reporter only)" },
     },
   )
   /** The reporter removes their rating. A 👎 that already re-ran the agent stays run. */

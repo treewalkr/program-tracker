@@ -13,6 +13,7 @@
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
+  import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
   import { syncThemeAttribute } from "$lib/theme.svelte";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { whatsNew } from "$lib/whatsNew.svelte";
@@ -209,8 +210,15 @@
   });
 
   // Unread feedback badge: cheap count, refreshed on every navigation (no polling).
-  afterNavigate(() => {
+  afterNavigate(({ to }) => {
+    if (to) runtime.breadcrumb("route", to.url.pathname);
     if (!bare) feedbackUnread.refresh();
+  });
+
+  // Feedback tickets carry recent errors, failed requests and steps: recorded in memory from the start.
+  onMount(() => installRuntimeCapture());
+  $effect(() => {
+    runtime.role = trainer ? (isAdmin ? "admin" : "trainer") : null;
   });
 
   // The trainer's role labels, once — every picker and chip reads the shared store.

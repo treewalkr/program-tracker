@@ -34,3 +34,4 @@ export * from "./paging";
 export * from "./loginTheme";
 export * from "./fill";
 export * from "./portal";
+export * from "./redact";

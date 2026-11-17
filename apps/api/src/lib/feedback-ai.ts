@@ -8,6 +8,7 @@ import {
   ticketBasis,
   DEFAULT_FEEDBACK_AI_MODE,
   FEEDBACK_AI_AUTO_VERDICTS,
+  FEEDBACK_AI_MEDIUM_CAP,
   isOpenFeedback,
   type FeedbackAiConfidence,
   type FeedbackAiMode,
@@ -95,6 +96,22 @@ export function aiRepliedSinceReporter(item: FeedbackItem): boolean {
   const from = replies.findLastIndex((c) => byReporter(item, c));
   const edited = reporterEditedAt(item);
   return replies.slice(from + 1).some((c) => c.authorKind === "ai" && !(edited && c.createdAt < edited));
+}
+
+/**
+ * The confidence an answer is recorded with. `high` needs evidence — at
+ * least one citation — and is never given to a verdict a person decides or
+ * that waits on the reporter (bug, feature, needs_info): those are capped
+ * to `medium`. Pure.
+ */
+export function cappedConfidence(answer: {
+  verdict: FeedbackAiVerdict;
+  confidence: FeedbackAiConfidence;
+  citations: readonly string[];
+}): FeedbackAiConfidence {
+  if (answer.confidence !== "high") return answer.confidence;
+  if (!answer.citations.some((c) => c.trim())) return "medium";
+  return FEEDBACK_AI_MEDIUM_CAP.includes(answer.verdict) ? "medium" : "high";
 }
 
 export type AnswerOutcome = "sent" | "drafted";

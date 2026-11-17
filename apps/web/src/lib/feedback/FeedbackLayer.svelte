@@ -4,12 +4,21 @@
   import { appPath } from "$lib/portal/lang";
   import { feedbackMode } from "./mode.svelte";
   import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
+  import { runtimeSnapshot } from "./runtime";
   import { feedbackApi, type CapturedShot } from "./client";
   import TicketPins from "./TicketPins.svelte";
   import AttachmentInput from "./AttachmentInput.svelte";
+  import KindFields from "./KindFields.svelte";
   import { compressImage, dataUrlToBlob } from "./images";
   import { ImageTray } from "./tray.svelte";
-  import { feedbackHandle, type FeedbackItem } from "@pt/shared";
+  import {
+    cleanReport,
+    feedbackHandle,
+    isThinTicket,
+    type FeedbackItem,
+    type FeedbackKind,
+    type FeedbackReport,
+  } from "@pt/shared";
 
   /**
    * Feedback mode overlay, mounted once in the root layout. While picking,
@@ -24,6 +33,11 @@
   let hoverRect = $state<DOMRect | null>(null);
   let selRect = $state<DOMRect | null>(null);
   let comment = $state("");
+  let kind = $state<FeedbackKind | null>(null);
+  let report = $state<FeedbackReport>({});
+  /** The thin-bug nudge is showing; it shows once per ticket. */
+  let nudging = $state(false);
+  let nudged = false;
   let includePage = $state(true);
   /** Images the trainer adds on top of the two captures. */
   const tray = new ImageTray();
@@ -81,6 +95,10 @@
   function close() {
     selected = null;
     comment = "";
+    kind = null;
+    report = {};
+    nudging = false;
+    nudged = false;
     tray.clear();
     error = null;
     measure();
@@ -184,9 +202,15 @@
     }
   }
 
-  async function send() {
+  async function send(anyway = false) {
     const el = selected;
-    if (!el || !comment.trim() || sending || tray.busy) return;
+    if (!el || !comment.trim() || !kind || sending || tray.busy) return;
+    if (!anyway && !nudged && isThinTicket(kind, comment, report)) {
+      nudged = nudging = true;
+      return;
+    }
+    nudging = false;
+    const filed = cleanReport(kind, report);
     sending = true;
     error = null;
     try {
@@ -199,6 +223,8 @@
           data: page.data,
         },
         __APP_VERSION__,
+        runtimeSnapshot(),
+        filed,
       );
       const target = el as HTMLElement;
       const elementShot = await shoot(target, "element");
@@ -220,7 +246,7 @@
         ...(elementShot ? [{ kind: "element" as const, file: elementShot }] : []),
         ...(pageShot ? [{ kind: "page" as const, file: pageShot }] : []),
       ];
-      const res = await feedbackApi.submit({ comment, context, shots, uploads: tray.files });
+      const res = await feedbackApi.submit({ comment, kind, context, shots, uploads: tray.files });
       feedbackMode.sent += 1;
       showToast(`${res.handle} saved`);
       close();
@@ -300,6 +326,14 @@
         placeholder="What should change here?"
         aria-label="Your feedback"
       ></textarea>
+      <KindFields
+        bind:kind
+        bind:report
+        idPrefix="fb-pin"
+        disabled={sending}
+        nudge={nudging}
+        onsendanyway={() => send(true)}
+      />
       <label class="check">
         <input type="checkbox" bind:checked={includePage} />
         Attach a screenshot of the whole page
@@ -311,7 +345,12 @@
       <div class="pin-actions">
         <span class="hint">⌘↵ to send · Esc to cancel</span>
         <button type="button" class="btn small" onclick={close}>Cancel</button>
-        <button type="submit" class="btn small primary" disabled={!comment.trim() || sending || tray.busy}>
+        <button
+          type="submit"
+          class="btn small primary"
+          disabled={!comment.trim() || !kind || sending || tray.busy}
+          title={kind ? undefined : "Pick what it is first"}
+        >
           {sending ? "Saving…" : "Send"}
         </button>
       </div>

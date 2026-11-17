@@ -2,12 +2,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, feedbackComments, llmBlobs, llmCalls, llmFeedback } from "@pt/db";
 import {
+  FEEDBACK_AI_CONFIDENCE,
   FEEDBACK_ANSWER_TAGS,
   feedbackHandle,
   type FeedbackAiMeta,
   type FeedbackAnswerRating,
   type FeedbackAnswerTag,
   type FeedbackComment,
+  type FeedbackFixRating,
   type FeedbackItem,
   type LlmSignal,
 } from "@pt/shared";
@@ -82,6 +84,46 @@ export async function rateAnswer(input: {
   });
 }
 
+/** The reporter's latest "Fixed for you?" 👍/👎 on each of these shipped notes. */
+export async function fixRatings(commentIds: string[]): Promise<Map<string, FeedbackFixRating>> {
+  const out = new Map<string, FeedbackFixRating>();
+  if (!commentIds.length) return out;
+  const rows = await db
+    .select({ subjectId: llmFeedback.subjectId, signal: llmFeedback.signal, comment: llmFeedback.comment, createdAt: llmFeedback.createdAt })
+    .from(llmFeedback)
+    .where(
+      and(eq(llmFeedback.subjectKind, "feedback_fix"), inArray(llmFeedback.subjectId, commentIds), inArray(llmFeedback.signal, RATING_SIGNALS)),
+    )
+    .orderBy(asc(llmFeedback.createdAt));
+  for (const r of rows) {
+    out.set(r.subjectId, { score: r.signal === "thumbs_up" ? 1 : -1, comment: r.comment, at: r.createdAt.toISOString() });
+  }
+  return out;
+}
+
+/**
+ * The reporter rates a shipped fix: one row per note, a new rating replaces
+ * the old (subject kind `feedback_fix`, subject id = the release's note).
+ * Runs in the caller's transaction.
+ */
+export async function rateFix(
+  tx: Pick<typeof db, "delete" | "insert">,
+  input: { trainerId: string; commentId: string; score: 1 | -1; comment?: string | null; at: Date },
+): Promise<void> {
+  const subject = and(eq(llmFeedback.subjectKind, "feedback_fix"), eq(llmFeedback.subjectId, input.commentId));
+  await tx.delete(llmFeedback).where(and(subject, inArray(llmFeedback.signal, RATING_SIGNALS)));
+  const down = input.score === -1;
+  await tx.insert(llmFeedback).values({
+    trainerId: input.trainerId,
+    subjectKind: "feedback_fix",
+    subjectId: input.commentId,
+    signal: down ? "thumbs_down" : "thumbs_up",
+    score: input.score,
+    comment: down ? input.comment?.trim() || null : null,
+    createdAt: input.at,
+  });
+}
+
 /** The reporter takes their 👍/👎 back: every rating row on the answer goes. */
 export async function unrateAnswer(commentId: string): Promise<void> {
   await db
@@ -149,7 +191,7 @@ export async function logAgentAnswer(input: {
   item: FeedbackItem;
   markdown: string;
   basis: string;
-  answer: Pick<FeedbackAiMeta, "verdict" | "confidence" | "citations" | "fixPlan" | "risk" | "ready"> & {
+  answer: Pick<FeedbackAiMeta, "verdict" | "confidence" | "citations" | "fixPlan" | "risk" | "ready" | "acceptance"> & {
     reply: string | null;
     note: string;
     model?: string;
@@ -320,6 +362,90 @@ export function lessonRecords(records: AnswerRecord[], limit = 20): AnswerRecord
     .filter((r) => r.rating?.score === -1 || r.ownerEdit)
     .sort((a, b) => ((b.rating?.at ?? b.answer.at) > (a.rating?.at ?? a.answer.at) ? 1 : -1))
     .slice(0, limit);
+}
+
+/** One shipped fix and the reporter's verdict on it — a dataset line (`type: "fix"`). */
+export interface FixRecord {
+  type: "fix";
+  handle: string;
+  ticketId: string;
+  status: FeedbackItem["status"];
+  ticket: { comment: string; kind: FeedbackItem["kind"]; route: string; build: string; createdAt: string };
+  ship: { sha: string; version: string; at: string };
+  /** The AI triage the fix followed: the latest note before it shipped; null when there was none. */
+  triage: Pick<FeedbackAiMeta, "verdict" | "confidence" | "risk" | "ready" | "fixPlan" | "acceptance"> | null;
+  fixPr: string | null;
+  rating: FeedbackFixRating | null;
+}
+
+/** Every release note on these tickets as a fix record, oldest ticket first. Pure; needs the admin view. */
+export function fixRecords(items: FeedbackItem[]): FixRecord[] {
+  const out: FixRecord[] = [];
+  for (const item of items) {
+    for (const c of item.thread) {
+      if (!c.fixPublic || !c.ship) continue;
+      const note = item.thread.findLast(
+        (n) => n.authorKind === "ai" && n.visibility === "private" && n.aiMeta && n.createdAt < c.createdAt,
+      )?.aiMeta;
+      out.push({
+        type: "fix",
+        handle: feedbackHandle(item.number),
+        ticketId: item.id,
+        status: item.status,
+        ticket: {
+          comment: item.comment,
+          kind: item.kind,
+          route: item.context.route.path,
+          build: item.context.appVersion,
+          createdAt: item.createdAt,
+        },
+        ship: { sha: c.ship.sha, version: c.ship.version, at: c.createdAt },
+        triage: note
+          ? {
+              verdict: note.verdict,
+              confidence: note.confidence,
+              ...(note.risk ? { risk: note.risk } : {}),
+              ...(note.ready !== undefined ? { ready: note.ready } : {}),
+              ...(note.fixPlan ? { fixPlan: note.fixPlan } : {}),
+              ...(note.acceptance ? { acceptance: note.acceptance } : {}),
+            }
+          : null,
+        fixPr: item.fixPr?.url ?? null,
+        rating: c.fixPublic.rating,
+      });
+    }
+  }
+  return out;
+}
+
+export interface CalibrationCell {
+  count: number;
+  up: number;
+  down: number;
+  unrated: number;
+  /** Shares of `count`, 0–1, two decimals; 0 when there are none. */
+  upShare: number;
+  downShare: number;
+}
+
+/**
+ * How well confidence predicts the reporter's verdict: per confidence level,
+ * how many AI answers (and shipped fixes, by the confidence of the triage
+ * they followed) there were and what share were rated 👍 / 👎. Pure.
+ */
+export function calibration(answers: AnswerRecord[], fixes: FixRecord[]) {
+  const cell = (scores: (1 | -1 | null)[]): CalibrationCell => {
+    const up = scores.filter((s) => s === 1).length;
+    const down = scores.filter((s) => s === -1).length;
+    const share = (n: number) => (scores.length ? Math.round((n / scores.length) * 100) / 100 : 0);
+    return { count: scores.length, up, down, unrated: scores.length - up - down, upShare: share(up), downShare: share(down) };
+  };
+  return FEEDBACK_AI_CONFIDENCE.map((confidence) => ({
+    confidence,
+    // Drafts never reached the reporter: only sent answers can be rated.
+    answers: cell(answers.filter((a) => a.answer.visibility === "public" && a.answer.confidence === confidence).map((a) => a.rating?.score ?? null)),
+    fixes: cell(fixes.filter((f) => f.triage?.confidence === confidence).map((f) => f.rating?.score ?? null)),
+  }));
 }
 
 /** The run behind each answer and the owner's edits, for these tickets (two or three queries). */

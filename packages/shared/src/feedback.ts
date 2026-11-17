@@ -4,6 +4,9 @@
  * on it from the export alone, without follow-up questions.
  */
 
+import { z } from "zod";
+import { redactJson } from "./redact";
+
 export const FEEDBACK_STATUSES = ["new", "accepted", "in_progress", "done", "wontfix"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
@@ -31,6 +34,115 @@ export interface FeedbackAnchor {
   value: string;
   depth: number;
 }
+
+/**
+ * What a ticket is, picked by the reporter when filing: something broken, the
+ * app doing the wrong thing, an idea, or a question. Null on older tickets.
+ */
+export const FEEDBACK_KINDS = ["bug", "behaviour", "idea", "question"] as const;
+export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];
+export const FEEDBACK_KIND_LABELS: Record<FeedbackKind, string> = {
+  bug: "Bug",
+  behaviour: "Wrong behaviour",
+  idea: "Idea",
+  question: "Question",
+};
+/** Kinds that ask for expected / actual / how often. */
+export const FEEDBACK_REPORT_KINDS: readonly FeedbackKind[] = ["bug", "behaviour"];
+export const hasReportFields = (kind: FeedbackKind | null | undefined): boolean =>
+  !!kind && FEEDBACK_REPORT_KINDS.includes(kind);
+
+export const FEEDBACK_REPEATS = ["always", "sometimes", "once"] as const;
+export type FeedbackRepeat = (typeof FEEDBACK_REPEATS)[number];
+export const FEEDBACK_REPEAT_LABELS: Record<FeedbackRepeat, string> = {
+  always: "Every time",
+  sometimes: "Sometimes",
+  once: "Once so far",
+};
+export const FEEDBACK_REPORT_TEXT_MAX = 1000;
+
+/** Bug and wrong-behaviour tickets: what the reporter expected, what happened, how often. All optional. */
+export const FeedbackReportSchema = z.object({
+  expected: z.string().max(FEEDBACK_REPORT_TEXT_MAX).optional(),
+  actual: z.string().max(FEEDBACK_REPORT_TEXT_MAX).optional(),
+  repeat: z.enum(FEEDBACK_REPEATS).optional(),
+});
+export type FeedbackReport = z.infer<typeof FeedbackReportSchema>;
+
+/** Shorter than this, a bug with no "expected" gets one nudge before it is sent. */
+export const FEEDBACK_THIN_TICKET_CHARS = 30;
+/** A bug report too thin to act on: no expected text and a short comment. The composer asks once. */
+export const isThinTicket = (kind: FeedbackKind | null, comment: string, report?: FeedbackReport): boolean =>
+  kind === "bug" && !report?.expected?.trim() && comment.trim().length < FEEDBACK_THIN_TICKET_CHARS;
+
+/** The report with blank fields dropped; undefined when nothing is left (or the kind takes none). */
+export function cleanReport(kind: FeedbackKind | null, report: FeedbackReport | undefined): FeedbackReport | undefined {
+  if (!hasReportFields(kind) || !report) return undefined;
+  const out: FeedbackReport = {};
+  if (report.expected?.trim()) out.expected = report.expected.trim();
+  if (report.actual?.trim()) out.actual = report.actual.trim();
+  if (report.repeat) out.repeat = report.repeat;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Ring-buffer sizes and the per-string cap for what the browser records before a ticket is filed. */
+export const FEEDBACK_RUNTIME_CAPS = { errors: 20, requests: 10, breadcrumbs: 15, text: 500, stackLines: 8 } as const;
+
+const RuntimeText = z.string().max(FEEDBACK_RUNTIME_CAPS.text);
+const MsAgo = z.number().int().min(0);
+
+/**
+ * What the browser saw in the minutes before a ticket was filed: recent
+ * errors, failed or slow API calls (with the server's request id) and the
+ * steps that led there. Memory only until the ticket is sent; no request or
+ * response bodies, never the text of inputs. `msAgo` counts back from filing.
+ */
+export const FeedbackRuntimeSchema = z.object({
+  errors: z
+    .array(
+      z.object({
+        source: z.enum(["error", "rejection", "console"]),
+        message: RuntimeText,
+        /** First lines of the stack, when there was one. */
+        stack: RuntimeText.optional(),
+        msAgo: MsAgo,
+      }),
+    )
+    .max(FEEDBACK_RUNTIME_CAPS.errors),
+  requests: z
+    .array(
+      z.object({
+        method: z.string().max(10),
+        /** Path only, no query values. */
+        path: RuntimeText,
+        /** Null when the request never got a response (offline, aborted). */
+        status: z.number().int().nullable(),
+        ms: z.number().int().min(0),
+        /** The response's `x-request-id`: `feedback:agent logs <id>` finds what the server logged. */
+        requestId: z.string().max(64).nullable(),
+        msAgo: MsAgo,
+      }),
+    )
+    .max(FEEDBACK_RUNTIME_CAPS.requests),
+  breadcrumbs: z
+    .array(
+      z.object({
+        kind: z.enum(["route", "click", "submit"]),
+        /** A route path, or the selector path of what was clicked or submitted. */
+        detail: RuntimeText,
+        msAgo: MsAgo,
+      }),
+    )
+    .max(FEEDBACK_RUNTIME_CAPS.breadcrumbs),
+  session: z.object({
+    role: z.string().max(40).nullable(),
+    locale: z.string().max(40),
+    online: z.boolean(),
+    /** Opened as an installed app (display-mode standalone). */
+    standalone: z.boolean(),
+  }),
+});
+export type FeedbackRuntime = z.infer<typeof FeedbackRuntimeSchema>;
 
 export interface FeedbackContext {
   route: {
@@ -64,6 +176,24 @@ export interface FeedbackContext {
   userAgent: string;
   /** Git SHA the UI was built from. */
   appVersion: string;
+  /** Errors, failed requests and steps before filing; absent on tickets filed before it was recorded. */
+  runtime?: FeedbackRuntime;
+  /** Bug / wrong behaviour: expected, actual, how often. Absent when not given. */
+  report?: FeedbackReport;
+}
+
+/**
+ * The context with its free data redacted (`redactJson`): page data now,
+ * runtime entries and the reporter's expected/actual text as they come. The
+ * web runs it before sending, the API again on ingest.
+ */
+export function redactContext(c: FeedbackContext): FeedbackContext {
+  return {
+    ...c,
+    pageData: redactJson(c.pageData),
+    ...(c.runtime ? { runtime: redactJson(c.runtime) } : {}),
+    ...(c.report ? { report: redactJson(c.report) } : {}),
+  };
 }
 
 /**
@@ -75,9 +205,15 @@ export const isPinned = (c: FeedbackContext): boolean => c.target.selector !== "
 /** Context for a ticket written on the Feedback page, not pinned to an element. */
 export function unpinnedContext(
   path: string,
-  env: { viewport: FeedbackContext["viewport"]; userAgent: string; appVersion: string },
+  env: {
+    viewport: FeedbackContext["viewport"];
+    userAgent: string;
+    appVersion: string;
+    runtime?: FeedbackRuntime;
+    report?: FeedbackReport;
+  },
 ): FeedbackContext {
-  return {
+  return redactContext({
     route: { path, id: null, params: {} },
     target: {
       source: null,
@@ -91,7 +227,7 @@ export function unpinnedContext(
     },
     pageData: null,
     ...env,
-  };
+  });
 }
 
 /** Pages under these route prefixes 404 for a trainer who doesn't own the record. */
@@ -124,15 +260,23 @@ export interface FeedbackAuthor {
 /**
  * The feedback auto-reply agent's call on a ticket: it already exists, it
  * shipped after the reporter's build, here's how to do it — or it's a real
- * bug / feature request / unclear and a person should look.
+ * bug / feature request / unclear and a person should look. `needs_info`:
+ * one specific fact from the reporter would settle it — the reply asks for
+ * it, always as a draft the owner sends.
  */
-export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear"] as const;
+export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear", "needs_info"] as const;
 export type FeedbackAiVerdict = (typeof FEEDBACK_AI_VERDICTS)[number];
 /** Verdicts an AI answer may go out on by itself (auto mode, medium or high confidence). */
 export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists", "shipped", "how_to"];
 
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
 export type FeedbackAiConfidence = (typeof FEEDBACK_AI_CONFIDENCE)[number];
+/** Verdicts a person decides on, or that wait on the reporter: never `high`. */
+export const FEEDBACK_AI_MEDIUM_CAP: readonly FeedbackAiVerdict[] = ["bug", "feature", "needs_info"];
+
+/** `needs_info`: the questions for the reporter — 1 to 3, each short. */
+export const FEEDBACK_AI_QUESTIONS_MAX = 3;
+export const FEEDBACK_AI_QUESTION_MAX = 200;
 
 /** How likely the fix is to break something or miss the point. */
 export const FEEDBACK_AI_RISKS = ["low", "medium", "high"] as const;
@@ -140,6 +284,11 @@ export type FeedbackAiRisk = (typeof FEEDBACK_AI_RISKS)[number];
 /** Caps on an AI fix plan: steps, and characters per step. */
 export const FEEDBACK_FIX_PLAN_MAX_STEPS = 8;
 export const FEEDBACK_FIX_PLAN_STEP_MAX = 300;
+/** Acceptance criteria on a fix plan: 1–3 checkable statements, each short. */
+export const FEEDBACK_ACCEPTANCE_MAX = 3;
+export const FEEDBACK_ACCEPTANCE_ITEM_MAX = 200;
+/** The export's line above the criteria — the fix CLI reads them back by it. */
+export const FEEDBACK_ACCEPTANCE_HEADING = "- Acceptance criteria (each needs a test, story or browser check):";
 
 /** The admin's switch: no AI answers, drafts for review only, or send confident ones. */
 export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
@@ -157,10 +306,17 @@ export interface FeedbackAiMeta {
   confidence: FeedbackAiConfidence;
   /** `file:line` references backing the verdict. */
   citations: string[];
+  /** `needs_info` only: what the reply asks the reporter (1–3). */
+  questions?: string[];
   /** `bug` / `feature` only: concrete steps for the coding agent, naming the files to change. */
   fixPlan?: string[];
   /** `bug` / `feature` only: how risky the fix is. */
   risk?: FeedbackAiRisk;
+  /**
+   * `bug` / `feature` only: 1–3 checkable statements that are true once it's
+   * fixed — each becomes a test, story or browser check in the fix PR.
+   */
+  acceptance?: string[];
   /**
    * `bug` / `feature` only: the fix plan is complete, checked against the code
    * and leaves no product question open — a coding agent could start now.
@@ -196,6 +352,27 @@ export interface FeedbackAnswerRating {
   /** When it was given — a 👎 sends the ticket back to the agent once. */
   at: string;
 }
+
+/** The reporter's latest verdict on a shipped fix ("Fixed for you?"); a later one replaces it. */
+export interface FeedbackFixRating {
+  score: 1 | -1;
+  /** What's still wrong, on a 👎; null otherwise. */
+  comment: string | null;
+  at: string;
+}
+/** Longest comment on a "not fixed" 👎. */
+export const FEEDBACK_FIX_COMMENT_MAX = 1000;
+
+/** What every viewer sees on a release's shipped note: the reporter's verdict on the fix. */
+export interface FeedbackFixPublic {
+  rating: FeedbackFixRating | null;
+  /** The viewer is the ticket's reporter, the only one who may rate it. */
+  canRate: boolean;
+}
+
+/** The reply posted in the reporter's name when they rate a fix 👎 without saying why. */
+export const notFixedNote = (ticketText: string): string =>
+  isMostlyThai(ticketText) ? "👎 ยังไม่หาย" : "👎 Not fixed for me.";
 
 /** What every viewer sees about a sent AI answer: how sure it was, and the reporter's verdict. */
 export interface FeedbackAiPublic {
@@ -289,6 +466,8 @@ export interface FeedbackComment {
   aiMeta: FeedbackAiMeta | null;
   /** Sent AI answers, for every viewer: confidence and the reporter's rating; null otherwise. */
   aiPublic: FeedbackAiPublic | null;
+  /** A release's shipped note, for every viewer: the reporter's "Fixed for you?" rating; null otherwise. */
+  fixPublic: FeedbackFixPublic | null;
   /** Release entries: the commit and version that closed the ticket; null otherwise. */
   ship: FeedbackShip | null;
   /** Reply text; null for status entries. */
@@ -314,22 +493,30 @@ type BasisImages = { attachments?: Pick<FeedbackAttachment, "id" | "kind">[] };
  * Drafts and private notes don't count — the same basis whoever computes it.
  * Captured screenshots don't count either: they only show what the comment
  * is about. Upload ids are appended only when there are any, so a ticket
- * without uploads keeps the basis it had before images counted.
+ * without uploads keeps the basis it had before images counted; the same
+ * goes for the expected / actual text of a bug report.
  */
 export function ticketBasis(
   item: Pick<FeedbackItem, "comment" | "triageNote"> &
-    BasisImages & { thread: (Pick<FeedbackComment, "kind" | "body" | "visibility"> & BasisImages)[] },
+    BasisImages & {
+      thread: (Pick<FeedbackComment, "kind" | "body" | "visibility"> & BasisImages)[];
+      context?: Pick<FeedbackContext, "report">;
+    },
 ): string {
   const replies = item.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
   const uploads = [item, ...replies]
     .flatMap((e) => e.attachments ?? [])
     .filter((a) => a.kind === "upload")
     .map((a) => a.id);
+  // Expected / actual are the reporter's words too; appended only when given, like uploads.
+  const r = item.context?.report;
+  const report = r?.expected || r?.actual ? `${r.expected ?? ""}\u0001${r.actual ?? ""}` : "";
   const text = [
     item.comment,
     item.triageNote ?? "",
     ...replies.map((c) => c.body ?? ""),
     ...(uploads.length ? [`uploads:${uploads.join(",")}`] : []),
+    ...(report ? [`report:${report}`] : []),
   ].join("\u0000");
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
@@ -367,6 +554,8 @@ export interface FeedbackItem {
   /** Who filed it; null for items filed before authorship was recorded. */
   author: FeedbackAuthor | null;
   status: FeedbackStatus;
+  /** What the reporter said it is; null on tickets filed before kinds. */
+  kind: FeedbackKind | null;
   comment: string;
   /** The admin's private memo for the agent; always null for anyone else. */
   triageNote: string | null;
@@ -552,6 +741,60 @@ export function answerRatingText(r: FeedbackAnswerRating): string {
   return [r.score === 1 ? "👍" : "👎", [tags, said].filter(Boolean).join(" — ")].filter(Boolean).join(" ");
 }
 
+/** The reporter's words on one Markdown line, quoted (they are as untrusted as the comment). */
+const quoteInline = (s: string) => `"${s.trim().split("\n").join(" / ")}"`;
+
+/** `12 s before`, `3 min before` — how long before filing. */
+const before = (ms: number) =>
+  ms < 1000 ? "just before" : ms < 60_000 ? `${Math.round(ms / 1000)} s before` : `${Math.round(ms / 60_000)} min before`;
+/** Runtime text on one line, quoted; it is the browser's, as untrusted as the comment. */
+const oneLine = (s: string) => `"${s.replace(/\s+/g, " ").trim().replace(/"/g, "'")}"`;
+
+/** The **Runtime** lines: session, errors, failed or slow requests (with request ids), steps before the report. */
+function runtimeLines(r: FeedbackRuntime): string[] {
+  const s = r.session;
+  const out = [
+    `- **Runtime:** ${[s.online ? "online" : "offline", `locale ${s.locale}`, s.standalone ? "installed app" : "browser tab", ...(s.role ? [`role ${s.role}`] : [])].join(" · ")}`,
+  ];
+  if (r.errors.length) {
+    out.push("  - Errors (oldest first):");
+    for (const e of r.errors) {
+      out.push(`    - ${e.source}, ${before(e.msAgo)}: ${oneLine(e.message)}`);
+      if (e.stack) out.push(`      ${oneLine(e.stack)}`);
+    }
+  }
+  if (r.requests.length) {
+    out.push("  - Failed or slow requests (oldest first; `feedback:agent logs <request id>` shows the server's side):");
+    for (const q of r.requests) {
+      const id = q.requestId ? ` · request \`${q.requestId}\`` : " · no request id";
+      out.push(`    - \`${q.method} ${q.path}\` → ${q.status ?? "no response"} in ${q.ms} ms${id} (${before(q.msAgo)})`);
+    }
+  }
+  if (r.breadcrumbs.length) {
+    out.push("  - Steps before the report (oldest first):");
+    for (const b of r.breadcrumbs) out.push(`    - ${b.kind} \`${b.detail.replace(/`/g, "'")}\` (${before(b.msAgo)})`);
+  }
+  if (!r.errors.length && !r.requests.length) out.push("  - No errors or failed requests recorded before the report");
+  return out;
+}
+
+/**
+ * The reporter's 👎 on the latest shipped fix, when the ticket is open again
+ * because of it: the fix went out and didn't solve it for them. Null otherwise.
+ */
+export function failedFix(item: Pick<FeedbackItem, "status" | "thread">): { note: FeedbackComment; rating: FeedbackFixRating } | null {
+  if (!isOpenFeedback(item.status)) return null;
+  const note = item.thread.findLast((c) => c.fixPublic);
+  const rating = note?.fixPublic?.rating;
+  return note && rating?.score === -1 ? { note, rating } : null;
+}
+
+/** "👎 — “still tiny on my phone”", for Markdown and the CLI. */
+export const fixRatingText = (r: FeedbackFixRating): string =>
+  [r.score === 1 ? "👍 fixed" : "👎 not fixed", r.comment ? `“${r.comment.trim().split("\n").join(" ")}”` : ""]
+    .filter(Boolean)
+    .join(" — ");
+
 /** One item as a self-contained Markdown section. */
 export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
   const c = item.context;
@@ -561,6 +804,11 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push("");
   lines.push(`> ${item.comment.trim().split("\n").join("\n> ")}`);
   lines.push("");
+  if (item.kind) lines.push(`- **Kind:** ${FEEDBACK_KIND_LABELS[item.kind] ?? item.kind}`);
+  const r = c.report;
+  if (r?.expected) lines.push(`- **Expected:** ${quoteInline(r.expected)}`);
+  if (r?.actual) lines.push(`- **Actual:** ${quoteInline(r.actual)}`);
+  if (r?.repeat) lines.push(`- **Happens:** ${FEEDBACK_REPEAT_LABELS[r.repeat].toLowerCase()}`);
   const pinned = isPinned(c);
   if (!pinned) lines.push("- **Filed as:** a general ticket from the Feedback page — not pinned to an element");
   if (c.route.path) lines.push(`- **Route:** \`${c.route.path}\`${c.route.id ? ` (route \`${c.route.id}\`)` : ""}`);
@@ -578,6 +826,7 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push(
     `- **Viewport:** ${c.viewport.width}×${c.viewport.height} @${c.viewport.dpr}x · ${c.userAgent}`,
   );
+  if (c.runtime) lines.push(...runtimeLines(c.runtime));
   lines.push(`- **Reported by:** ${item.author?.name ?? "unknown"}`);
   lines.push(`- **Build:** \`${c.appVersion}\` · reported ${item.createdAt}`);
   if (item.editedAt) {
@@ -598,6 +847,13 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       `- **Reporter rated the last AI answer ${answerRatingText(downvote.rating)}** (${downvote.rating.at.slice(0, 10)}) — answer again; this answer waits as a draft for the owner`,
     );
   }
+  const failed = failedFix(item);
+  if (failed) {
+    const sha = failed.note.ship?.sha ? ` (commit \`${failed.note.ship.sha.slice(0, 7)}\`, v${failed.note.ship.version})` : "";
+    lines.push(
+      `- **The shipped fix didn't work for the reporter${sha}:** ${fixRatingText(failed.rating)} (${failed.rating.at.slice(0, 10)}) — reopened; find what the fix missed`,
+    );
+  }
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
   if (item.fixPr) lines.push(`- **Fix PR:** ${item.fixPr.url} (opened ${item.fixPr.at.slice(0, 10)})`);
   if (ai) {
@@ -613,6 +869,14 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     if (m.fixPlan?.length) {
       lines.push("  - Fix plan:");
       m.fixPlan.forEach((step, i) => lines.push(`    ${i + 1}. ${step}`));
+    }
+    if (m.acceptance?.length) {
+      lines.push(`  ${FEEDBACK_ACCEPTANCE_HEADING}`);
+      m.acceptance.forEach((c) => lines.push(`    - ${c}`));
+    }
+    if (m.questions?.length) {
+      lines.push("  - Asked the reporter:");
+      m.questions.forEach((q) => lines.push(`    - ${q}`));
     }
     if (m.citations.length) lines.push(`  - Citations: ${m.citations.map((x) => `\`${x}\``).join(", ")}`);
   }
@@ -639,6 +903,8 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       for (const img of imageLines(item, c.attachments ?? [], opts, "reply")) lines.push(`  - ${img.label}: ${img.md}`);
       const rating = c.aiPublic?.rating;
       if (rating) lines.push(`  - _Reporter's rating (${rating.at.slice(0, 10)}):_ ${answerRatingText(rating)}`);
+      const fix = c.fixPublic?.rating;
+      if (fix) lines.push(`  - _Reporter's rating of the fix (${fix.at.slice(0, 10)}):_ ${fixRatingText(fix)}`);
     }
   }
   if (pinned) {

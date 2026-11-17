@@ -13,6 +13,10 @@ import {
   snapshotJson,
   toRepoPath,
   unpinnedContext,
+  redactContext,
+  cleanReport,
+  isThinTicket,
+  type FeedbackRuntime,
   type FeedbackAnswerRating,
   type FeedbackComment,
   type FeedbackItem,
@@ -23,6 +27,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   number: 14,
   author: { id: "t1", name: "Kai", avatarUrl: null },
   status: "accepted",
+  kind: null,
   comment: "I can't tell which sets are warm-ups.",
   triageNote: "show warm-up sets with a muted chip",
   route: "/clients/c_31",
@@ -124,7 +129,7 @@ describe("feedbackMarkdown", () => {
       ({ id, kind, mime: "image/webp", width: 10, height: 10, position });
     const reply = (id: string, attachments: ReturnType<typeof img>[]) => ({
       id, kind: "reply" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: "See these", status: null,
-      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments,
+      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments,
     });
     const out = feedbackMarkdown(
       [
@@ -156,8 +161,8 @@ describe("feedbackMarkdown", () => {
         item({
           shippedIn: "0.1.3",
           thread: [
-            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments: [] },
-            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments: [] },
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments: [] },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments: [] },
           ],
         }),
       ],
@@ -171,7 +176,7 @@ describe("feedbackMarkdown", () => {
   test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, aiPublic: null, ship: null, silent: false, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, aiPublic: null, fixPublic: null, ship: null, silent: false, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
     });
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
@@ -181,7 +186,7 @@ describe("feedbackMarkdown", () => {
   describe("AI triage", () => {
     const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
     const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, aiPublic: null, ship: null, silent: false, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, aiPublic: null, fixPublic: null, ship: null, silent: false, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
       aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
     });
     const current = ticketBasis(item());
@@ -242,6 +247,95 @@ describe("feedbackMarkdown", () => {
   test("multi-line comments stay quoted", () => {
     const out = feedbackMarkdown([item({ comment: "line one\nline two" })], { imageUrl: () => null });
     expect(out).toContain("> line one\n> line two");
+  });
+  test("Runtime: session, errors, failed requests with ids, steps before the report", () => {
+    const runtime: FeedbackRuntime = {
+      errors: [{ source: "console", message: 'save "failed"\nretry', stack: "at save (a.js:1)", msAgo: 4200 }],
+      requests: [
+        { method: "POST", path: "/v1/clients/c_31/logs", status: 422, ms: 85, requestId: "ab12cd34", msAgo: 4000 },
+        { method: "GET", path: "/v1/meta", status: null, ms: 3, requestId: null, msAgo: 120_000 },
+      ],
+      breadcrumbs: [
+        { kind: "route", detail: "/clients/c_31", msAgo: 30_000 },
+        { kind: "click", detail: "main > button.save", msAgo: 500 },
+      ],
+      session: { role: "trainer", locale: "th-TH", online: true, standalone: true },
+    };
+    const out = feedbackMarkdown([item({ context: { ...item().context, runtime } })], { imageUrl: () => null });
+    expect(out).toContain(
+      [
+        "- **Runtime:** online · locale th-TH · installed app · role trainer",
+        "  - Errors (oldest first):",
+        `    - console, 4 s before: "save 'failed' retry"`,
+        `      "at save (a.js:1)"`,
+        "  - Failed or slow requests (oldest first; `feedback:agent logs <request id>` shows the server's side):",
+        "    - `POST /v1/clients/c_31/logs` → 422 in 85 ms · request `ab12cd34` (4 s before)",
+        "    - `GET /v1/meta` → no response in 3 ms · no request id (2 min before)",
+        "  - Steps before the report (oldest first):",
+        "    - route `/clients/c_31` (30 s before)",
+        "    - click `main > button.save` (just before)",
+      ].join("\n"),
+    );
+    const quiet = feedbackMarkdown(
+      [item({ context: { ...item().context, runtime: { ...runtime, errors: [], requests: [] } } })],
+      { imageUrl: () => null },
+    );
+    expect(quiet).toContain("  - No errors or failed requests recorded before the report");
+    expect(feedbackMarkdown([item()], { imageUrl: () => null })).not.toContain("**Runtime:**");
+  });
+
+  test("Kind, Expected, Actual and how often", () => {
+    const out = feedbackMarkdown(
+      [
+        item({
+          kind: "bug",
+          context: { ...item().context, report: { expected: "It saves", actual: "Spinner\nforever", repeat: "sometimes" } },
+        }),
+      ],
+      { imageUrl: () => null },
+    );
+    expect(out).toContain("- **Kind:** Bug\n- **Expected:** \"It saves\"\n- **Actual:** \"Spinner / forever\"\n- **Happens:** sometimes");
+    expect(feedbackMarkdown([item()], { imageUrl: () => null })).not.toContain("**Kind:**");
+  });
+
+  test("redactContext masks page data and runtime", () => {
+    const c = redactContext({
+      ...item().context,
+      pageData: { email: "a@b.co" },
+      runtime: {
+        errors: [{ source: "error", message: "no user a@b.co", msAgo: 0 }],
+        requests: [],
+        breadcrumbs: [],
+        session: { role: null, locale: "en", online: true, standalone: false },
+      },
+    });
+    expect(c.pageData).toEqual({ email: "[redacted]" });
+    expect(c.runtime!.errors[0].message).toBe("no user [email]");
+  });
+});
+
+describe("kinds and thin tickets", () => {
+  test("isThinTicket: a bug with no expected text and a short comment", () => {
+    expect(isThinTicket("bug", "broken", {})).toBe(true);
+    expect(isThinTicket("bug", "broken", { expected: "  " })).toBe(true);
+    expect(isThinTicket("bug", "broken", { expected: "it saves" })).toBe(false);
+    expect(isThinTicket("bug", "x".repeat(30), {})).toBe(false);
+    expect(isThinTicket("behaviour", "broken", {})).toBe(false);
+    expect(isThinTicket("idea", "x", undefined)).toBe(false);
+  });
+
+  test("cleanReport drops blanks, and everything for kinds without the fields", () => {
+    expect(cleanReport("bug", { expected: " a ", actual: "", repeat: "once" })).toEqual({ expected: "a", repeat: "once" });
+    expect(cleanReport("bug", { expected: " " })).toBeUndefined();
+    expect(cleanReport("idea", { expected: "a" })).toBeUndefined();
+    expect(cleanReport(null, { expected: "a" })).toBeUndefined();
+  });
+
+  test("expected / actual count toward the basis only when given", () => {
+    const base = { comment: "c", triageNote: null, thread: [] };
+    expect(ticketBasis({ ...base, context: {} })).toBe(ticketBasis(base));
+    expect(ticketBasis({ ...base, context: { report: { repeat: "once" } } })).toBe(ticketBasis(base));
+    expect(ticketBasis({ ...base, context: { report: { expected: "x" } } })).not.toBe(ticketBasis(base));
   });
 });
 
@@ -387,7 +481,7 @@ describe("feedbackMarkdown duplicate links", () => {
   });
   test("in progress reads as words, not the raw value", () => {
     const thread = [
-      { id: "c1", kind: "status" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "in_progress" as const, createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments: [] },
+      { id: "c1", kind: "status" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "in_progress" as const, createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments: [] },
     ];
     const out = md({ status: "in_progress", thread, duplicateOf: { number: 12, status: "in_progress" } });
     expect(out).toContain("## FB-");
@@ -407,7 +501,7 @@ describe("pendingDownvote", () => {
   });
   const entry = (over: Partial<FeedbackComment>): FeedbackComment => ({
     id: crypto.randomUUID(), kind: "reply", author: null, authorKind: "human", visibility: "public", aiMeta: null,
-    aiPublic: null, ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
+    aiPublic: null, fixPublic: null, ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
   });
   const answer = (min: number, rating: FeedbackAnswerRating | null, id = `a${min}`) =>
     entry({ id, authorKind: "ai", createdAt: at(min), aiPublic: { confidence: "medium", rating, canRate: false } });

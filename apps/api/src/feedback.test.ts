@@ -110,6 +110,39 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(item.author).toEqual({ id: me.id, name: me.name, avatarUrl: me.avatarUrl });
   });
 
+  test("redacts page data on ingest, whatever the client sent", async () => {
+    const leaky = { ...context, pageData: { client: { name: "Ann", email: "ann@x.com", note: "call 081-234-5678" } } };
+    const res = await call("POST", "/v1/feedback", { comment: "redact me", context: leaky });
+    expect(res.status).toBe(200);
+    const created = await json(res);
+    const item = await json(await call("GET", `/v1/feedback/${created.id}`));
+    expect(item.context.pageData).toEqual({ client: { name: "Ann", email: "[redacted]", note: "call [phone]" } });
+    await db.delete(feedbackItems).where(eq(feedbackItems.id, created.id));
+  });
+
+  test("stores the runtime snapshot redacted, and refuses a malformed one", async () => {
+    const runtime = {
+      errors: [{ source: "console", message: "no client kai@x.com", msAgo: 10 }],
+      requests: [{ method: "GET", path: "/v1/clients/c1", status: 500, ms: 40, requestId: "ab12cd34", msAgo: 5 }],
+      breadcrumbs: [{ kind: "route", detail: "/clients/c1", msAgo: 100 }],
+      session: { role: "trainer", locale: "en-US", online: true, standalone: false },
+    };
+    const res = await call("POST", "/v1/feedback", { comment: "runtime", context: { ...context, runtime } });
+    expect(res.status).toBe(200);
+    const created = await json(res);
+    const item = await json(await call("GET", `/v1/feedback/${created.id}`));
+    expect(item.context.runtime.errors[0].message).toBe("no client [email]");
+    expect(item.context.runtime.requests[0].requestId).toBe("ab12cd34");
+    await db.delete(feedbackItems).where(eq(feedbackItems.id, created.id));
+
+    const bad = await call("POST", "/v1/feedback", {
+      comment: "runtime",
+      context: { ...context, runtime: { ...runtime, errors: [{ source: "nope", message: "x", msAgo: 1 }] } },
+    });
+    expect(bad.status).toBe(422);
+    expect((await json(bad)).error).toBe("invalid runtime");
+  });
+
   test("rejects an empty comment", async () => {
     const res = await call("POST", "/v1/feedback", { comment: "", context });
     expect(res.status).toBe(422);

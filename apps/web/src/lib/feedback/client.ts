@@ -5,6 +5,8 @@ import {
   type FeedbackComment,
   type FeedbackContext,
   type FeedbackItem,
+  type FeedbackKind,
+  type FeedbackReport,
   type FeedbackStatus,
 } from "@pt/shared";
 import type { LightboxImage } from "$lib/ui/Lightbox.svelte";
@@ -37,6 +39,9 @@ const normalizeComment = (c: FeedbackComment): FeedbackComment => ({
   aiPublic: c.aiPublic
     ? { ...c.aiPublic, rating: c.aiPublic.rating ? { ...c.aiPublic.rating, at: iso(c.aiPublic.rating.at) } : null }
     : null,
+  fixPublic: c.fixPublic
+    ? { ...c.fixPublic, rating: c.fixPublic.rating ? { ...c.fixPublic.rating, at: iso(c.fixPublic.rating.at) } : null }
+    : null,
 });
 const normalize = (i: FeedbackItem): FeedbackItem => ({
   ...i,
@@ -52,6 +57,9 @@ export type TriagePatch = Parameters<ReturnType<typeof client.v1.feedback>["patc
 
 /** PUT /v1/feedback/:id/comments/:cid/rating body, straight from the API's type. */
 export type RateAnswerBody = Parameters<ReturnType<ReturnType<typeof client.v1.feedback>["comments"]>["rating"]["put"]>[0];
+
+/** PUT /v1/feedback/:id/comments/:cid/fix-rating body, straight from the API's type. */
+export type RateFixBody = Parameters<ReturnType<ReturnType<typeof client.v1.feedback>["comments"]>["fix-rating"]["put"]>[0];
 
 /** A screenshot the feedback form captured, and which one it is. */
 export type CapturedShot = { kind: "element" | "page"; file: File };
@@ -69,7 +77,17 @@ export const feedbackApi = {
    * fields). The captured screenshots go first in `images`; `kinds` names
    * each image so the API stores them as element / page / upload.
    */
-  submit: ({ shots = [], uploads = [], ...body }: { comment: string; context: FeedbackContext; shots?: CapturedShot[]; uploads?: File[] }) => {
+  submit: ({
+    shots = [],
+    uploads = [],
+    ...body
+  }: {
+    comment: string;
+    kind: FeedbackKind;
+    context: FeedbackContext;
+    shots?: CapturedShot[];
+    uploads?: File[];
+  }) => {
     const images = [...shots.map((s) => s.file), ...uploads];
     const kinds = [...shots.map((s) => s.kind), ...uploads.map(() => "upload" as const)].join(",");
     return unwrap<{ id: string; number: number; handle: string }>(
@@ -86,7 +104,17 @@ export const feedbackApi = {
    * is `editedAt ?? createdAt` as the editor opened it; a 409 throws
    * EditConflict. Multipart only when new images ride along.
    */
-  editContent: async (id: string, body: { comment: string; version: string; layout: ImageSlot[]; images: File[] }) => {
+  editContent: async (
+    id: string,
+    body: {
+      comment: string;
+      kind?: FeedbackKind;
+      report?: FeedbackReport;
+      version: string;
+      layout: ImageSlot[];
+      images: File[];
+    },
+  ) => {
     const res = await client.v1.feedback({ id }).content.patch(withImages(body));
     if (res.error?.status === 409) {
       const value = res.error.value as { error?: string } | null;
@@ -114,6 +142,9 @@ export const feedbackApi = {
   /** The reporter's 👍 (1) or 👎 (-1, optional tags and comment) on a sent AI answer; replaces any earlier rating. */
   rateAnswer: async (id: string, cid: string, rating: RateAnswerBody) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).rating.put(rating))),
+  /** The reporter's "Fixed for you?" on a shipped note: 👍, or 👎 (optional comment) which reopens the ticket. */
+  rateFix: async (id: string, cid: string, rating: RateFixBody) =>
+    normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid })["fix-rating"].put(rating))),
   unrateAnswer: async (id: string, cid: string) =>
     normalize(await unwrap<FeedbackItem>(client.v1.feedback({ id }).comments({ cid }).rating.delete())),
   /** Admin: discard an AI draft or private note. */

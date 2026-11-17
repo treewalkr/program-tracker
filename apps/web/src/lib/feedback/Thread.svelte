@@ -14,6 +14,7 @@
   import { ImageTray } from "./tray.svelte";
   import { entryAuthorName, statusLine } from "./status";
   import AnswerRating from "./AnswerRating.svelte";
+  import FixRating from "./FixRating.svelte";
   import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL, publicConfidence } from "./ai";
 
   /**
@@ -173,6 +174,11 @@
                 <AnswerRating itemId={item.id} answer={c} reporterName={item.author?.name ?? null} onchange={(next) => onchange?.(next)} />
               </div>
             {/if}
+            {#if c.fixPublic}
+              <div class="body rate">
+                <FixRating itemId={item.id} note={c} reporterName={item.author?.name ?? null} onchange={(next) => onchange?.(next)} />
+              </div>
+            {/if}
           {/if}
         </li>
       {/each}
@@ -264,7 +270,7 @@
       <button type="button" class="dismiss" disabled={busyId !== null} onclick={() => discard(c)}>Dismiss</button>
     </div>
     <div class="body md">{@render html(c.body)}</div>
-    {#if c.aiMeta?.risk || c.aiMeta?.fixPlan?.length}
+    {#if c.aiMeta?.risk || c.aiMeta?.fixPlan?.length || c.aiMeta?.acceptance?.length}
       <div class="plan">
         <div class="plan-head">
           <span class="plan-label">Fix plan</span>
@@ -280,6 +286,20 @@
             {#each c.aiMeta.fixPlan as step, i (i)}<li>{step}</li>{/each}
           </ol>
         {/if}
+        {#if c.aiMeta.acceptance?.length}
+          <span class="plan-label">Done when</span>
+          <ul aria-label="Acceptance criteria">
+            {#each c.aiMeta.acceptance as crit, i (i)}<li>{crit}</li>{/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
+    {#if c.aiMeta?.questions?.length}
+      <div class="plan">
+        <div class="plan-head"><span class="plan-label">Asks the reporter</span></div>
+        <ul aria-label="Questions for the reporter">
+          {#each c.aiMeta.questions as q, i (i)}<li>{q}</li>{/each}
+        </ul>
       </div>
     {/if}
     {#if c.aiMeta?.citations.length}

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
-import { db, feedbackAttachments, feedbackComments, feedbackItems, trainers } from "@pt/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, feedbackAttachments, feedbackComments, feedbackItems, llmFeedback, trainers } from "@pt/db";
 import { feedbackHandle, unpinnedContext, type FeedbackAiMode } from "@pt/shared";
 import { API_VERSION } from "./lib/build";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
@@ -293,6 +293,54 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect(await inInbox(id)).toBeDefined(); // nothing was stored
   });
 
+  test("high confidence needs a citation, and bug / feature / needs_info stay at medium", async () => {
+    await setMode("drafts");
+    const noCite = await ticket("No evidence");
+    const res = await answer(noCite, { basis: await basisOf(noCite), reply: "It's there.", citations: [] });
+    expect(await json(res)).toMatchObject({ outcome: "drafted", confidence: "medium" });
+    expect((await asAdmin(noCite)).thread[0].aiMeta.confidence).toBe("medium");
+
+    const cited = await ticket("With evidence");
+    expect((await json(await answer(cited, { basis: await basisOf(cited), reply: "It's there." }))).confidence).toBe("high");
+
+    for (const verdict of ["bug", "feature"]) {
+      const id = await ticket(`Cap ${verdict}`);
+      expect((await json(await answer(id, { basis: await basisOf(id), verdict }))).confidence).toBe("medium");
+    }
+    await flush();
+  });
+
+  test("needs_info: questions and a reply, always a draft — and the ticket comes back once the reporter answers", async () => {
+    await setMode("auto");
+    const id = await ticket("Logging is broken");
+    const basis = await basisOf(id);
+    const ask = { basis, verdict: "needs_info", confidence: "high", citations: ["apps/web/src/routes/clients/[id]/log/+page.svelte:40"] };
+    expect((await answer(id, { ...ask, reply: "Which client?" })).status).toBe(422); // no questions
+    expect((await answer(id, { ...ask, questions: ["Which client?"] })).status).toBe(422); // no reply
+    expect((await answer(id, { ...ask, reply: "x", questions: ["a", "b", "c", "d"] })).status).toBe(422);
+    expect((await answer(id, { ...ask, reply: "x", questions: ["x".repeat(201)] })).status).toBe(422);
+    expect((await answer(id, { basis, verdict: "exists", reply: "x", questions: ["Which?"] })).status).toBe(422);
+
+    const res = await answer(id, { ...ask, reply: "Which client, and what did you tap?", questions: [" Which client? ", "What did you tap?"] });
+    expect(await json(res)).toMatchObject({ outcome: "drafted", confidence: "medium" });
+    expect(await flush()).toEqual([]);
+    const note = (await asAdmin(id)).thread[0];
+    expect(note.aiMeta).toMatchObject({ verdict: "needs_info", confidence: "medium", questions: ["Which client?", "What did you tap?"] });
+    const md = await (await call("GET", "/v1/feedback/export?status=new")).text();
+    expect(md).toContain("  - Asked the reporter:\n    - Which client?\n    - What did you tap?");
+    expect(await inInbox(id)).toBeUndefined();
+
+    // the owner sends the draft; the reporter answers; the agent sees the ticket again
+    const draft = (await asAdmin(id)).thread.find((c: any) => c.visibility === "draft");
+    expect((await call("POST", `/v1/feedback/${id}/comments/${draft.id}/publish`, {})).status).toBe(200);
+    expect(await inInbox(id)).toBeUndefined();
+    await call("POST", `/v1/feedback/${id}/comments`, { body: "Somchai, I tapped Save" }, kai);
+    const back = await inInbox(id);
+    expect(back.basis).not.toBe(basis);
+    expect(back.markdown).toContain("Somchai, I tapped Save");
+    await flush();
+  });
+
   test("a bug answer stores its fix plan and risk on the private note", async () => {
     const id = await ticket("Plan me");
     const fixPlan = Array.from({ length: 8 }, (_, i) => `Step ${i + 1} in apps/web/src/lib/A.svelte`);
@@ -514,6 +562,85 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
       expect(mails.map((m) => m.subject).sort()).toEqual(
         [`[${feedbackHandle(na)}] Shipped in v${API_VERSION}`, `[${feedbackHandle(nb)}] Shipped in v${API_VERSION}`].sort(),
       );
+    });
+
+    describe("Fixed for you?", () => {
+      const SHA3 = "2222222222222222222222222222222222222222";
+      const rateFix = (id: string, cid: string, body: unknown, as: As = kai) =>
+        call("PUT", `/v1/feedback/${id}/comments/${cid}/fix-rating`, body, as);
+      /** Kai's ticket, shipped by a commit; returns its id and the release's note. */
+      const shippedTicket = async (comment: string, sha: string) => {
+        const id = await ticket(comment);
+        await shipped([commit(sha, await numberOf(id))]);
+        await flush();
+        const note = (await asKai(id)).thread.find((c: any) => c.fixPublic);
+        return { id, note };
+      };
+      const fixRows = (cid: string) =>
+        db.select().from(llmFeedback).where(and(eq(llmFeedback.subjectKind, "feedback_fix"), eq(llmFeedback.subjectId, cid)));
+
+      test("the reporter sees the ask on the shipped note; others see no button", async () => {
+        const { id, note } = await shippedTicket("Timer label tiny", SHA3);
+        expect(note.fixPublic).toEqual({ rating: null, canRate: true });
+        const admin = (await asAdmin(id)).thread.find((c: any) => c.id === note.id);
+        expect(admin.fixPublic).toEqual({ rating: null, canRate: false });
+        expect((await rateFix(id, note.id, { score: 1 }, "admin")).status).toBe(403);
+        const status = (await asKai(id)).thread.find((c: any) => c.kind === "status");
+        expect((await rateFix(id, status.id, { score: 1 })).status).toBe(404);
+      });
+
+      test("👍 is just logged; a later 👎 replaces it, reopens, posts the comment and the inbox takes it again", async () => {
+        const { id, note } = await shippedTicket("Timer label still tiny?", "3333333333333333333333333333333333333333");
+        const up = await json(await rateFix(id, note.id, { score: 1, comment: "ignored" }));
+        expect(up.status).toBe("done");
+        expect(up.thread.find((c: any) => c.id === note.id).fixPublic.rating).toMatchObject({ score: 1, comment: null });
+        expect(await fixRows(note.id)).toHaveLength(1);
+        expect(await inInbox(id)).toBeUndefined();
+
+        const down = await json(await rateFix(id, note.id, { score: -1, comment: "Still tiny on my phone" }));
+        expect(down.status).toBe("new");
+        expect(down.shippedIn).toBeNull();
+        const rows = await fixRows(note.id);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ signal: "thumbs_down", score: -1, comment: "Still tiny on my phone" });
+        expect(down.thread.slice(-2).map((c: any) => [c.kind, c.body ?? c.status, c.author?.name])).toEqual([
+          ["reply", "Still tiny on my phone", "Kai"],
+          ["status", "new", "Kai"],
+        ]);
+        expect((await flush()).map((m) => m.to)).toContain(adminEmail);
+
+        const back = await inInbox(id);
+        expect(back.markdown).toContain("The shipped fix didn't work for the reporter");
+        expect(back.markdown).toContain("👎 not fixed — “Still tiny on my phone”");
+        expect(back.markdown).toContain("Reporter's rating of the fix");
+
+        // the same 👎 again posts nothing new
+        const again = await json(await rateFix(id, note.id, { score: -1, comment: "Still tiny on my phone" }));
+        expect(again.thread).toHaveLength(down.thread.length);
+        await flush();
+      });
+
+      test("fixes and calibration list shipped fixes with the reporter's verdict (agent token only)", async () => {
+        const { id, note } = await shippedTicket("Calibrate me", "5555555555555555555555555555555555555555");
+        await rateFix(id, note.id, { score: 1 });
+        expect((await call("GET", "/v1/agent/feedback/fixes", undefined, kai)).status).toBe(401);
+        const fixes = await json(await call("GET", "/v1/agent/feedback/fixes", undefined, agent));
+        expect(fixes.find((f: any) => f.ticketId === id)).toMatchObject({ type: "fix", rating: { score: 1 }, ship: { sha: "5555555555555555555555555555555555555555" } });
+        const later = await json(await call("GET", "/v1/agent/feedback/fixes?since=2999-01-01T00:00:00Z", undefined, agent));
+        expect(later).toEqual([]);
+        const cal = await json(await call("GET", "/v1/agent/feedback/calibration", undefined, agent));
+        expect(cal.map((r: any) => r.confidence)).toEqual(["high", "medium", "low"]);
+        expect(cal[0].answers).toHaveProperty("upShare");
+        await flush();
+      });
+
+      test("a bare 👎 posts a short line in the ticket's language", async () => {
+        const { id, note } = await shippedTicket("ตัวเลขเล็กเกินไป", "4444444444444444444444444444444444444444");
+        const down = await json(await rateFix(id, note.id, { score: -1 }));
+        expect(down.thread.find((c: any) => c.kind === "reply" && c.authorKind === "human").body).toBe("👎 ยังไม่หาย");
+        expect(down.status).toBe("new");
+        await flush();
+      });
     });
 
     test("closes an in-progress ticket too", async () => {
