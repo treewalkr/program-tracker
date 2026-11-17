@@ -187,7 +187,7 @@
     <div class="col">
       <Panel title="Clients" count={clients.length}>
         {#snippet act()}
-          <a class="act" href="/clients/new">All clients</a>
+          <a class="act" href="/clients">All clients</a>
         {/snippet}
         <div class="panel-body tight">
           <table class="sheet">
