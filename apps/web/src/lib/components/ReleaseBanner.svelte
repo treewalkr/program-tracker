@@ -31,44 +31,46 @@
 </script>
 
 {#if visible && latest}
-  <aside class="release" lang={i18n.locale} aria-label={text.title(latest)}>
-    <div class="body">
+  <div class="toast" role="status" lang={i18n.locale}>
+    <div class="top">
       <h2>{text.title(latest)}</h2>
-      <p><span class="sentence">{text.body}</span> <a href="/whats-new#v{latest}">{text.more} →</a></p>
-    </div>
-    <div class="actions">
       <LangToggle compact />
       <button type="button" class="close" aria-label={text.dismiss} onclick={dismiss}><Icon name="x" /></button>
     </div>
-  </aside>
+    <a href="/whats-new#v{latest}">{text.more} →</a>
+  </div>
 {/if}
 
 <style>
-  /* One quiet row: what happened, where to read it, and two small controls. */
-  .release {
+  /* A small overlay, not page content: it floats top-right and never pushes the page down. */
+  .toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 60;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 16px;
-    margin: 0 0 20px;
+    flex-direction: column;
+    gap: 2px;
+    width: min(380px, calc(100vw - 32px));
     padding: 10px 10px 10px 14px;
-    background: var(--well);
-    border: 1px solid var(--line);
-    border-radius: 6px;
+    background: var(--surface);
+    border-radius: 8px;
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-overlay);
+    animation: toast-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .body { flex: 1 1 320px; min-width: 0; }
-  h2 { margin: 0; font: 600 14px/1.4 var(--font-ui); color: var(--ink); text-wrap: balance; }
-  p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-  a { font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-8px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+  .top { display: flex; align-items: center; gap: 6px; }
+  h2 { flex: 1; min-width: 0; margin: 0; font: 600 14px/1.4 var(--font-ui); color: var(--ink); text-wrap: balance; }
+  a { align-self: flex-start; font: 600 13px/1.5 var(--font-ui); color: var(--blue); text-decoration: none; border-radius: 2px; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
-  a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
-  /* Phone: the link says enough; the sentence is what makes the card tall. */
-  @media (max-width: 640px) { .sentence { display: none; } }
-  .actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .close {
     display: grid;
     place-items: center;
+    flex-shrink: 0;
     width: 28px;
     height: 28px;
     color: var(--muted);
