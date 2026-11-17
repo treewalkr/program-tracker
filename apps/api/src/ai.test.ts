@@ -285,6 +285,21 @@ describe("buildGenerationMessages", () => {
     expect(user).toContain("- ex-2 | Mystery Exercise (core, bodyweight, pattern n/a, function n/a)");
   });
 
+  test("a multi-pattern entry lists every tag, primary first and marked", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-4", name: "Bulgarian Split Squat", primaryMuscleGroup: "quads", equipment: "dumbbell", movementPatterns: ["knee_dominant", "hip_dominant"], functionalMovement: "single_leg" },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-4 | Bulgarian Split Squat (quads, dumbbell, knee_dominant (primary)/hip_dominant, single_leg)");
+  });
+
   test("a No pattern entry reads as 'no pattern', not n/a", () => {
     const { user } = buildGenerationMessages({
       client: { name: "Maya", sessionsPerWeek: 2 },
