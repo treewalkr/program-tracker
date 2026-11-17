@@ -58,18 +58,18 @@
   /* A toast: one row, bottom-centre, floats over the page and leaves by itself. */
   .toast {
     position: fixed;
-    bottom: 20px;
+    bottom: 16px;
     left: 50%;
     translate: -50% 0;
     z-index: 60;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: max-content;
     max-width: calc(100vw - 32px);
-    padding: 8px 8px 8px 14px;
+    padding: 4px 4px 4px 12px;
     background: var(--surface);
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: 0 0 0 1px var(--line), var(--shadow-overlay);
     animation: toast-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -77,7 +77,7 @@
     from { opacity: 0; transform: translateY(12px); }
   }
   @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
-  .msg { font: 400 13px/1.45 var(--font-ui); color: var(--muted); min-width: 0; }
+  .msg { font: 400 12px/1.4 var(--font-ui); color: var(--muted); min-width: 0; }
   strong { font-weight: 600; color: var(--ink); margin-right: 6px; }
   a { font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; border-radius: 2px; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -86,20 +86,20 @@
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     color: var(--muted);
     background: transparent;
     border: 0;
     border-radius: 6px;
     cursor: pointer;
   }
-  .close :global(svg) { width: 16px; height: 16px; }
+  .close :global(svg) { width: 14px; height: 14px; }
   .close:hover { color: var(--ink); background: var(--line-soft); }
   .close:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
   /* Phone: sit above the Feedback pill's row and let the message wrap. */
   @media (max-width: 640px) {
-    .toast { bottom: 72px; width: calc(100vw - 32px); }
+    .toast { bottom: 68px; width: max-content; max-width: calc(100vw - 32px); }
     .msg { flex: 1; }
   }
 </style>
