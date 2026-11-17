@@ -986,6 +986,7 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 .skel-head .page-head:has(.is-text) { align-items: flex-start; }
 .skel-head .skel-title.is-text { align-items: baseline; gap: 4px 16px; }
 .skel-head .skel-title.is-text .sub { margin: 0; }
+.skel-head .skel-title.is-text .skel-sub { align-self: center; }
 .skel-head .skel-title.is-stacked { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; }
 .skel-head .skel-h1 { display: flex; align-items: center; height: 25px; }
 .skel-head .skel-meta { display: flex; align-items: center; height: 1.5em; font-size: 13px; }

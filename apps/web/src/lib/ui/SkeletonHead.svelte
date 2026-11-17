@@ -18,7 +18,7 @@
 		tabs?: number;
 		/** Static headline: real text instead of a shimmer. */
 		title?: string;
-		/** Static context line (with `title`). */
+		/** Static context line (with `title`); omitted, the line shimmers. */
 		sub?: string;
 		/** Shimmering context lines under the title (avatar header's meta); 0 = one line beside the title. */
 		meta?: number;
@@ -53,7 +53,7 @@
 		{#if title}
 			<div class="skel-title is-text">
 				<h1>{title}</h1>
-				{#if sub}<p class="sub">{sub}</p>{/if}
+				{#if sub}<p class="sub">{sub}</p>{:else}<p class="sub skel-sub"><Skeleton shape="line" h="11px" w="200px" /></p>{/if}
 			</div>
 		{:else if meta > 0}
 			<div class="skel-title is-stacked">
