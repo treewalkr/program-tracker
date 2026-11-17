@@ -110,6 +110,16 @@ describe.skipIf(!dbUp)("feedback routes", () => {
     expect(item.author).toEqual({ id: me.id, name: me.name, avatarUrl: me.avatarUrl });
   });
 
+  test("redacts page data on ingest, whatever the client sent", async () => {
+    const leaky = { ...context, pageData: { client: { name: "Ann", email: "ann@x.com", note: "call 081-234-5678" } } };
+    const res = await call("POST", "/v1/feedback", { comment: "redact me", context: leaky });
+    expect(res.status).toBe(200);
+    const created = await json(res);
+    const item = await json(await call("GET", `/v1/feedback/${created.id}`));
+    expect(item.context.pageData).toEqual({ client: { name: "Ann", email: "[redacted]", note: "call [phone]" } });
+    await db.delete(feedbackItems).where(eq(feedbackItems.id, created.id));
+  });
+
   test("rejects an empty comment", async () => {
     const res = await call("POST", "/v1/feedback", { comment: "", context });
     expect(res.status).toBe(422);

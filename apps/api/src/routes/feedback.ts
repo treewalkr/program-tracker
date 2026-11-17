@@ -9,6 +9,7 @@ import {
   feedbackMarkdown,
   formatSourceLoc,
   isOpenFeedback,
+  redactContext,
   type FeedbackAnswerTag,
   type FeedbackAttachmentKind,
   type FeedbackContext,
@@ -147,7 +148,8 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       const { kinds, ...files } = body;
       const read = await readImages({ ...files, kinds: kinds?.split(",") as FeedbackAttachmentKind[] | undefined });
       if ("error" in read) return status(422, { error: read.error });
-      const context = body.context as FeedbackContext;
+      // Redacted again here: the client's redaction is a courtesy, not a guarantee.
+      const context = redactContext(body.context as FeedbackContext);
       const row = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(feedbackItems)

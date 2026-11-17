@@ -1,4 +1,5 @@
 import {
+  redactContext,
   snapshotJson,
   toRepoPath,
   type FeedbackAnchor,
@@ -191,7 +192,7 @@ export interface PageInfo {
 
 export function buildContext(el: Element, page: PageInfo, appVersion: string): FeedbackContext {
   const r = el.getBoundingClientRect();
-  return {
+  return redactContext({
     route: { path: page.path, id: page.routeId, params: page.params },
     target: {
       source: sourceOf(el),
@@ -208,7 +209,7 @@ export function buildContext(el: Element, page: PageInfo, appVersion: string): F
     viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     userAgent: navigator.userAgent,
     appVersion,
-  };
+  });
 }
 
 /** True when the node belongs to the feedback UI (never pickable, never screenshotted). */

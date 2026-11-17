@@ -4,6 +4,8 @@
  * on it from the export alone, without follow-up questions.
  */
 
+import { redactJson } from "./redact";
+
 export const FEEDBACK_STATUSES = ["new", "accepted", "in_progress", "done", "wontfix"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
@@ -64,6 +66,15 @@ export interface FeedbackContext {
   userAgent: string;
   /** Git SHA the UI was built from. */
   appVersion: string;
+}
+
+/**
+ * The context with its free data redacted (`redactJson`): page data now,
+ * runtime entries and the reporter's expected/actual text as they come. The
+ * web runs it before sending, the API again on ingest.
+ */
+export function redactContext(c: FeedbackContext): FeedbackContext {
+  return { ...c, pageData: redactJson(c.pageData) };
 }
 
 /**
