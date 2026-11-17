@@ -143,7 +143,11 @@
       gap: 0;
       margin: 0 -16px;
       padding: 8px 16px;
+      /* x alone makes y auto too; any vertical overflow lets a trackpad
+         wobble the strip up and down. */
       overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-x: contain;
       scrollbar-width: none;
       background: var(--bg);
       border-bottom: 1px solid var(--line-soft);
@@ -165,7 +169,7 @@
       left: 10px;
       right: 10px;
       top: auto;
-      bottom: -9px;
+      bottom: -8px;
       width: auto;
       height: 2px;
     }
