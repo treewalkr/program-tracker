@@ -28,10 +28,3 @@ export function searchSessionTypes<T extends Searchable>(types: readonly T[], qu
     .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name))
     .map((x) => x.t);
 }
-
-/** @deprecated Format-only grouping; replaced by the taxonomy tree (`groupSessionTypes`). */
-export function groupByFormat<T extends Pick<SessionTypeDto, "format">>(types: readonly T[]): { format: "lifting" | "cardio"; items: T[] }[] {
-  return (["lifting", "cardio"] as const)
-    .map((format) => ({ format, items: types.filter((t) => t.format === format) }))
-    .filter((g) => g.items.length > 0);
-}
