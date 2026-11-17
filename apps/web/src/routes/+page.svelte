@@ -210,7 +210,7 @@
                   <td class="r sess-col">{c.sessionsPerWeek ?? "—"} / wk</td>
                   <td class="portal-col">
                     {#if portals[c.id]}
-                      <CopyButton text={portals[c.id] ?? ""} label="Copy link" quiet ariaLabel={`Copy portal link for ${c.name}`} />
+                      <CopyButton text={portals[c.id] ?? ""} label="Copy link" quiet ariaLabel={`Copy link for ${c.name}`} />
                     {:else if portals[c.id] === null}
                       <a class="portal-on" href={`/clients/${c.id}#settings`} aria-label={`Turn on the portal for ${c.name}`}>Turn on…</a>
                     {:else if rowsReady}

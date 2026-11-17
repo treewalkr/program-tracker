@@ -1,20 +1,20 @@
 <script lang="ts">
 	import Button from '$lib/ui/Button.svelte';
-	import Icon from '$lib/ui/Icon.svelte';
 
 	/** One-tap copy for client-facing text (paste into LINE by hand).
-	 *  "Copy" → "Copied" for 2 s; failures surface the error in place.
-	 *  `quiet` is the in-row form: a bare link glyph (named by `ariaLabel`, else `label`, and
-	 *  shown as a tooltip) that turns into a green check on copy, for lists where a bordered
-	 *  well or a word on every row would shout. */
+	 *  "Copy" → "Copied ✓" for 2 s; failures surface the error in place.
+	 *  `quiet` is the in-row form: a plain blue text link, like the other row actions,
+	 *  whose word turns into a green "Copied" — for lists where a bordered button on
+	 *  every row would shout. */
 	interface Props {
 		text: string;
 		label?: string;
 		/** Called after a successful copy. */
 		oncopy?: () => void;
-		/** Spoken name when several copy buttons share one label, e.g. one per table row. */
+		/** Spoken name when several copy buttons share one label, e.g. one per table row.
+		 *  Keep the visible label in it ("Copy link for Ada") so voice control can say what it sees. */
 		ariaLabel?: string;
-		/** Icon-only ghost, for rows of a table or list. */
+		/** A text link instead of a button, for rows of a table or list. */
 		quiet?: boolean;
 	}
 
@@ -43,23 +43,17 @@
 	}
 
 	const name = $derived(ariaLabel ? (copied ? 'Copied' : ariaLabel) : undefined);
-	/** Quiet has no visible word, so it always carries a name. */
-	const quietName = $derived(copied ? 'Copied' : (ariaLabel ?? label));
 </script>
 
 <span class="copybtn" aria-live="polite">
 	{#if quiet}
-		<Button
-			small
-			variant="ghost"
-			class="quiet"
-			data-copied={copied || undefined}
-			onclick={copy}
-			aria-label={quietName}
-			title={copied ? 'Copied' : label}
-		>
-			{#snippet icon()}<Icon name={copied ? 'check' : 'link'} />{/snippet}
-		</Button>
+		<button type="button" class="quiet" data-copied={copied || undefined} onclick={copy} aria-label={name}>
+			<!-- both words sit in one grid cell, so the link never changes width when the word swaps -->
+			<span class="swap">
+				<span class="word" class:off={copied}>{label}</span>
+				<span class="word" class:off={!copied} aria-hidden="true">Copied</span>
+			</span>
+		</button>
 	{:else}
 		<Button small onclick={copy} aria-label={name}>{copied ? 'Copied ✓' : label}</Button>
 	{/if}
@@ -80,29 +74,49 @@
 		white-space: normal;
 	}
 
-	/* — quiet: at rest only a 14px glyph in a 32px target; the hairline and well arrive on hover — */
-	.copybtn :global(.btn.quiet) {
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		padding: 0;
-		color: var(--muted);
-		transition: background 120ms, color 120ms;
+	/* — quiet: a 13px blue text link in a 32px target, the same as "Turn on…" beside it — */
+	.quiet {
+		appearance: none;
+		display: inline-flex;
+		align-items: center;
+		min-height: 32px;
+		margin: 0;
+		padding: 0 8px;
+		border: 1px solid transparent;
+		border-radius: 6px;
+		background: transparent;
+		color: var(--blue);
+		font: 400 13px/1 var(--font-ui);
+		cursor: pointer;
+		transition: color 120ms;
 	}
-	.copybtn :global(.btn.quiet:hover) {
-		color: var(--ink);
-		border-color: var(--btn-border);
-		box-shadow: var(--btn-lip);
+	.quiet:hover .word {
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
-	.copybtn :global(.btn.quiet:active) {
-		box-shadow: none;
+	.quiet:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 1px;
 	}
-	/* copied: the check takes the success ink */
-	.copybtn :global(.btn.quiet[data-copied]) {
+	/* copied: the word takes the success ink and drops the underline */
+	.quiet[data-copied] {
 		color: var(--done-ink);
 	}
+	.quiet[data-copied]:hover .word {
+		text-decoration: none;
+	}
+	.swap {
+		display: inline-grid;
+	}
+	.word {
+		grid-area: 1 / 1;
+		text-align: right;
+	}
+	.word.off {
+		visibility: hidden;
+	}
 	@media (prefers-reduced-motion: reduce) {
-		.copybtn :global(.btn.quiet) {
+		.quiet {
 			transition: none;
 		}
 	}
