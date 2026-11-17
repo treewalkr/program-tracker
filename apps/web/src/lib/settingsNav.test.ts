@@ -15,7 +15,7 @@ describe("settings nav", () => {
 
   test("the workspace group is admin-only", () => {
     const hrefs = (admin: boolean) => settingsGroups(admin).flatMap((g) => g.items.map((s) => s.href));
-    const workspace = ["/settings/login-page", "/settings/ai", "/settings/email-templates"];
+    const workspace = ["/settings/ai", "/settings/email-templates"];
     expect(settingsGroups(false).map((g) => g.label)).toEqual(["You", null]);
     for (const href of workspace) expect(hrefs(false)).not.toContain(href);
     expect(settingsGroups(true).map((g) => g.label)).toEqual(["You", "Workspace", null]);

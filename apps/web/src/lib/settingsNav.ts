@@ -26,12 +26,6 @@ const WORKSPACE: SettingsGroup = {
   note: "Admin",
   items: [
     {
-      href: "/settings/login-page",
-      label: "Login page",
-      icon: "monitor",
-      sub: "What trainers see before they sign in — the layout and its accent",
-    },
-    {
       href: "/settings/ai",
       label: "AI answers",
       icon: "sparkle",

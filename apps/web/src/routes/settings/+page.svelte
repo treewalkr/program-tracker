@@ -2,6 +2,10 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import { theme, PALETTES, type ThemePref, type PaletteId, type Mode } from "$lib/theme.svelte";
+  import { isAdminSession } from "$lib/settingsNav";
+  import LoginPageSettings from "$lib/components/login/LoginPageSettings.svelte";
+
+  let { data } = $props();
 
   const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
     { value: "system", label: "System", icon: "monitor" },
@@ -71,6 +75,16 @@
     {/each}
   </div>
 </Panel>
+
+{#if isAdminSession(data.session)}
+  <section class="login-page" id="login-page" aria-labelledby="login-page-head">
+    <header>
+      <h2 id="login-page-head">Login page <span class="note">Workspace · Admin</span></h2>
+      <p class="muted">What every trainer sees before they sign in — the layout and its accent.</p>
+    </header>
+    <LoginPageSettings />
+  </section>
+{/if}
 
 <style>
   .appearance { display: flex; flex-direction: column; gap: 16px; padding: 14px 16px; font-size: 13px; }
@@ -155,4 +169,34 @@
   .sw-dots span { width: 10px; height: 10px; border-radius: 50%; }
   .palette-name { padding: 0 2px; font-size: 12px; }
   @media (prefers-reduced-motion: reduce) { .palette-opt { transition: none; } }
+
+  /* Workspace-wide, unlike the panel above: set apart by a rule and an Admin chip. */
+  .login-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line-soft);
+    scroll-margin-top: 16px;
+  }
+  .login-page header { display: flex; flex-direction: column; gap: 4px; }
+  .login-page h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .login-page .muted { margin: 0; font-size: 13px; color: var(--muted); }
+  .note {
+    padding: 0 6px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 18px;
+    color: var(--muted);
+    background: var(--chip-bg);
+  }
 </style>
