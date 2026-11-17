@@ -620,6 +620,20 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
         await flush();
       });
 
+      test("fixes and calibration list shipped fixes with the reporter's verdict (agent token only)", async () => {
+        const { id, note } = await shippedTicket("Calibrate me", "5555555555555555555555555555555555555555");
+        await rateFix(id, note.id, { score: 1 });
+        expect((await call("GET", "/v1/agent/feedback/fixes", undefined, kai)).status).toBe(401);
+        const fixes = await json(await call("GET", "/v1/agent/feedback/fixes", undefined, agent));
+        expect(fixes.find((f: any) => f.ticketId === id)).toMatchObject({ type: "fix", rating: { score: 1 }, ship: { sha: "5555555555555555555555555555555555555555" } });
+        const later = await json(await call("GET", "/v1/agent/feedback/fixes?since=2999-01-01T00:00:00Z", undefined, agent));
+        expect(later).toEqual([]);
+        const cal = await json(await call("GET", "/v1/agent/feedback/calibration", undefined, agent));
+        expect(cal.map((r: any) => r.confidence)).toEqual(["high", "medium", "low"]);
+        expect(cal[0].answers).toHaveProperty("upShare");
+        await flush();
+      });
+
       test("a bare 👎 posts a short line in the ticket's language", async () => {
         const { id, note } = await shippedTicket("ตัวเลขเล็กเกินไป", "4444444444444444444444444444444444444444");
         const down = await json(await rateFix(id, note.id, { score: -1 }));

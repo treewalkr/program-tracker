@@ -41,7 +41,7 @@ import {
   needsAnswer,
   routeAnswer,
 } from "../lib/feedback-ai";
-import { answerExtras, answerRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
+import { answerExtras, answerRecords, calibration, fixRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
 import { TRANSCRIPT_MAX_CHARS } from "../lib/agent-transcript";
 import { requestLogsFor } from "../lib/request-log";
 import { FeedbackModel } from "../models/feedback";
@@ -389,6 +389,31 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       query: t.Object({ limit: t.Optional(t.Integer({ minimum: 1, maximum: 100 })) }),
       detail: { summary: "Recent 👎 answers and owner rewrites, for the agent to learn from" },
     },
+  )
+  /**
+   * Every shipped fix with the triage it followed and the reporter's "Fixed
+   * for you?" verdict, oldest ticket first: `dataset` prints them after the
+   * answers, `lessons` shows the 👎 ones. `since` (ISO) keeps fixes shipped then on.
+   */
+  .get(
+    "/fixes",
+    async ({ query }) => {
+      const records = fixRecords(await listFeedback(null, "oldest"));
+      return query.since ? records.filter((r) => r.ship.at >= query.since!) : records;
+    },
+    {
+      query: t.Object({ since: t.Optional(t.String({ format: "date-time" })) }),
+      detail: { summary: "Shipped fixes with their triage and the reporter's rating" },
+    },
+  )
+  /** Per confidence level: how many answers and fixes, and the share the reporter rated 👍 / 👎. */
+  .get(
+    "/calibration",
+    async () => {
+      const items = await listFeedback(null, "oldest");
+      return calibration(answerRecords(items), fixRecords(items));
+    },
+    { detail: { summary: "Confidence calibration: rated 👍/👎 share per confidence level" } },
   )
   /**
    * Record an answer for the ticket version `basis`. The note is stored as a
