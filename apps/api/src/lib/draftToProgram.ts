@@ -1,5 +1,6 @@
 import {
   findSessionType,
+  typeFitsKind,
   MAX_SESSIONS_PER_WEEKDAY,
   placeSessions,
   placeWeeks,
@@ -63,7 +64,7 @@ export function resolveRef(
 export function draftTemplateSessions(
   draftSessions: DraftSession[],
   catalog: CatalogLike[],
-  /** Trainer's session types: a draft `type` naming one of the right format becomes typeId/typeName. */
+  /** Trainer's session types: a draft `type` naming one that fits the session's kind (same format or "any") becomes typeId/typeName. */
   types: SessionTypeLike[] = [],
   /** The trainer's role labels (loadRoleLabels) — exercises sort by their ranks; absent = built-ins. */
   labels?: readonly RoleRank[],
@@ -120,7 +121,7 @@ export function draftTemplateSessions(
       weekday: s.weekday ?? null,
       order: 0,
       kind,
-      ...(type && type.format === kind ? { typeId: type.id, typeName: type.name } : {}),
+      ...(type && typeFitsKind(type.format, kind) ? { typeId: type.id, typeName: type.name } : {}),
       notes: s.notes,
       exercises: grouped,
       cardio: isCardio ? s.cardio : null,

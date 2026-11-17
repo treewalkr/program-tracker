@@ -238,7 +238,7 @@ export async function loadContext(
     // Archived types stay on old sessions but are never offered to the AI.
     sessionTypes: (await ensureSessionTypes(trainerId))
       .filter((t) => t.archivedAt === null)
-      .map((t) => ({ name: t.name, format: t.format })),
+      .map((t) => ({ name: t.name, format: t.format, presetKey: t.presetKey })),
     // Built-ins + the trainer's own labels; archived ones are kept so old roles resolve, the prompt drops them.
     roleLabels: await loadRoleLabels(trainerId),
     // Archived/hidden exercises stay resolvable by id but are never offered to the AI.

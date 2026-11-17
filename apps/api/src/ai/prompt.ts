@@ -15,7 +15,8 @@ import {
   draftAlternates,
   sameLetterWeeks,
   type CardioTarget,
-  type SessionKind,
+  type SessionTypeFormat,
+  groupSessionTypes,
   type Phasing,
   type WeekDirective,
   type WeekSummaryStats,
@@ -142,7 +143,7 @@ export interface GenerationContext {
   trainingLog?: string | null;
   catalog: CatalogEntry[];
   /** The trainer's live session types — drafts label each session with one. */
-  sessionTypes?: { name: string; format: SessionKind }[];
+  sessionTypes?: { name: string; format: SessionTypeFormat; presetKey?: string | null }[];
   /** The trainer's role labels (built-ins + own); absent = the built-ins. */
   roleLabels?: RoleLabel[];
   trainerInstructions: string;
@@ -422,14 +423,19 @@ function cardioTargetLine(target: CardioTarget): string {
   return `CARDIO TARGET (per week): ${target.value} ${label} — prescribe the week's cardio sessions so their ${unitPhrase} add up to it.`;
 }
 
-/** SESSION TYPES section: the trainer's labels, grouped by the format they need. */
+/** SESSION TYPES section: presets grouped by main type, then the trainer's own, each with the format it needs. */
 export function sessionTypesText(types: GenerationContext["sessionTypes"]): string {
   if (!types?.length) return "SESSION TYPES: none — omit \"type\".";
-  const of = (f: SessionKind) => types.filter((t) => t.format === f).map((t) => t.name).join(", ") || "none";
+  const { groups, custom } = groupSessionTypes(types.map((t, i) => ({ ...t, id: String(i) })));
+  const subs = (names: string[]) => names.join(", ");
   return [
-    "SESSION TYPES (label every session with the one that fits; its format must match the session kind):",
-    `- lifting: ${of("lifting")}`,
-    `- cardio: ${of("cardio")}`,
+    'SESSION TYPES (label every session with the most specific one that fits: a sub-type, else its main type; its format must match the session kind, "any" fits both):',
+    ...groups.map((g) =>
+      g.row
+        ? `- ${g.row.name} [${g.main.format}]${g.subs.length ? ` › ${subs(g.subs.map((t) => t.name))}` : ""}`
+        : `- ${g.main.name} sub-types [${g.main.format}]: ${subs(g.subs.map((t) => t.name))}`
+    ),
+    ...(custom.length ? [`- Custom: ${custom.map((t) => `${t.name} [${t.format}]`).join(", ")}`] : []),
   ].join("\n");
 }
 
