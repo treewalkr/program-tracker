@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import Crumbs from './Crumbs.svelte';
+	import Skeleton from './Skeleton.svelte';
 
 	/**
 	 * Page opener: optional crumbs, headline (+ optional suffix snippet for
@@ -18,9 +19,11 @@
 		/** Inline suffix inside the h1 (e.g. a StatusPill). */
 		titleSuffix?: Snippet;
 		actions?: Snippet;
+		/** The context line comes from data that hasn't arrived: shimmer in its place. */
+		subLoading?: boolean;
 	}
 
-	let { title, sub, crumbs, titleSuffix, actions }: Props = $props();
+	let { title, sub, crumbs, titleSuffix, actions, subLoading = false }: Props = $props();
 </script>
 
 {#if crumbs}<Crumbs items={crumbs} />{/if}
@@ -30,7 +33,8 @@
 			{title}
 			{@render titleSuffix?.()}
 		</h1>
-		{#if sub}<p class="sub">{sub}</p>{/if}
+		{#if subLoading}<p class="sub sub-skel"><Skeleton shape="line" h="11px" w="160px" /></p>
+		{:else if sub}<p class="sub">{sub}</p>{/if}
 	</div>
 	{#if actions}<div class="head-actions">{@render actions()}</div>{/if}
 </div>
@@ -47,6 +51,7 @@
 		gap: 4px 16px;
 	}
 	.sub { margin: 0; }
+	.sub-skel { align-self: center; }
 	h1 {
 		display: flex;
 		align-items: center;
