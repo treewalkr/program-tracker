@@ -13,8 +13,11 @@ import {
   type FeedbackAnswerTag,
   type FeedbackAttachmentKind,
   type FeedbackContext,
+  type FeedbackReport,
   type FeedbackRuntime,
   type FeedbackStatus,
+  cleanReport,
+  FeedbackReportSchema,
   FeedbackRuntimeSchema,
 } from "@pt/shared";
 import { z } from "zod";
@@ -60,6 +63,8 @@ const Context = t.Object({
   appVersion: t.String(),
   /** Nested JSON: checked with FeedbackRuntimeSchema (zod) in the handler. */
   runtime: t.Optional(t.Unsafe<FeedbackRuntime>(t.Any())),
+  /** Nested JSON: checked with FeedbackReportSchema (zod) in the handler. */
+  report: t.Optional(t.Unsafe<FeedbackReport>(t.Any())),
 });
 
 // Written out (not t.UnionEnum) so Eden keeps the literals; the check keeps them in step with @pt/shared.
@@ -91,6 +96,14 @@ const ImageLayout = t.Array(
  * field per value and a lone value would arrive bare.
  */
 const ImageKinds = t.Optional(t.String({ pattern: `^(${FEEDBACK_ATTACHMENT_KINDS.join("|")})(,(${FEEDBACK_ATTACHMENT_KINDS.join("|")}))*$`, maxLength: 200 }));
+
+const jsonOrNull = (s: string): unknown => {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+};
 
 const IMAGE_CACHE = "private, max-age=31536000, immutable";
 
@@ -155,15 +168,23 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         const runtime = FeedbackRuntimeSchema.safeParse(body.context.runtime);
         if (!runtime.success) return status(422, { error: "invalid runtime", issues: z.treeifyError(runtime.error) });
       }
+      if (body.context.report !== undefined) {
+        const report = FeedbackReportSchema.safeParse(body.context.report);
+        if (!report.success) return status(422, { error: "invalid report", issues: z.treeifyError(report.error) });
+      }
+      const kind = body.kind ?? null;
       const read = await readImages({ ...files, kinds: kinds?.split(",") as FeedbackAttachmentKind[] | undefined });
       if ("error" in read) return status(422, { error: read.error });
       // Redacted again here: the client's redaction is a courtesy, not a guarantee.
-      const context = redactContext(body.context as FeedbackContext);
+      const { report, ...rest } = body.context as FeedbackContext;
+      const cleaned = cleanReport(kind, report);
+      const context = redactContext({ ...rest, ...(cleaned ? { report: cleaned } : {}) });
       const row = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(feedbackItems)
           .values({
             trainerId,
+            kind,
             comment: body.comment.trim(),
             route: context.route.path,
             source: context.target.source ? formatSourceLoc(context.target.source) : null,
@@ -179,6 +200,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     {
       body: t.Object({
         comment: FeedbackModel.comment,
+        kind: FeedbackModel.kind,
         context: Context,
         images: Images,
         kinds: ImageKinds,
@@ -298,6 +320,14 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
     async ({ params, body, status, isAdmin, trainerId, who }) => {
       const comment = body.comment.trim();
       if (!comment) return status(422, { error: "comment is empty" });
+      let bodyReport: FeedbackReport | undefined;
+      if (body.report !== undefined) {
+        // Multipart (new images ride along) sends the object as one JSON field.
+        const raw = typeof body.report === "string" ? jsonOrNull(body.report) : body.report;
+        const parsed = FeedbackReportSchema.safeParse(raw);
+        if (!parsed.success) return status(422, { error: "invalid report", issues: z.treeifyError(parsed.error) });
+        bodyReport = parsed.data;
+      }
       const read = await readImages({ images: body.images });
       if ("error" in read) return status(422, { error: read.error });
       const out = await db.transaction(async (tx) => {
@@ -306,6 +336,8 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
             trainerId: feedbackItems.trainerId,
             status: feedbackItems.status,
             comment: feedbackItems.comment,
+            kind: feedbackItems.kind,
+            context: feedbackItems.context,
             editedAt: feedbackItems.editedAt,
             createdAt: feedbackItems.createdAt,
           })
@@ -319,16 +351,34 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         const current = await ticketImages(tx, params.id);
         const invalid = checkLayout(current, body.layout, read.images.length);
         if (invalid) return { invalid: invalid.error };
+        // Absent kind / report = unchanged (an older editor); a report is redacted like on filing.
+        const kind = body.kind ?? row.kind;
+        const report =
+          bodyReport !== undefined || body.kind !== undefined
+            ? cleanReport(kind, bodyReport ?? row.context.report)
+            : row.context.report;
+        const nextReport = report ? redactContext({ ...row.context, report }).report : undefined;
+        const sameReport = JSON.stringify(nextReport ?? null) === JSON.stringify(row.context.report ?? null);
         const same =
           comment === row.comment &&
+          kind === row.kind &&
+          sameReport &&
           body.layout.length === current.length &&
           body.layout.every((slot, i) => "keep" in slot && slot.keep === current[i].id);
         if (same) return { saved: false };
         await relayoutTicketImages(tx, params.id, body.layout, read.images);
         const now = new Date();
+        const { report: _old, ...context } = row.context;
         await tx
           .update(feedbackItems)
-          .set({ comment, editedAt: now, editedBy: trainerId, updatedAt: now })
+          .set({
+            comment,
+            kind,
+            ...(sameReport ? {} : { context: nextReport ? { ...context, report: nextReport } : context }),
+            editedAt: now,
+            editedBy: trainerId,
+            updatedAt: now,
+          })
           .where(eq(feedbackItems.id, params.id));
         return { saved: true };
       });
@@ -346,6 +396,9 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       params: IdParams,
       body: t.Object({
         comment: FeedbackModel.comment,
+        kind: FeedbackModel.kind,
+        /** Expected / actual / how often (bug and wrong behaviour); checked with FeedbackReportSchema. */
+        report: t.Optional(t.Unsafe<FeedbackReport>(t.Any())),
         version: t.String({ minLength: 1, maxLength: 64 }),
         layout: ImageLayout,
         images: Images,

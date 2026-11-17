@@ -205,6 +205,68 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
     });
   });
 
+  describe("kind and report", () => {
+    test("filing stores the kind and the report; blanks and wrong kinds are dropped or refused", async () => {
+      const res = await call(
+        "POST",
+        "/v1/feedback",
+        { comment: "Save spins", kind: "bug", context: { ...context, report: { expected: " It saves ", actual: "", repeat: "always" } } },
+        kai,
+      );
+      expect(res.status).toBe(200);
+      const { id } = await json(res);
+      items.push(id);
+      await flush();
+      const item = await get(id, kai);
+      expect(item.kind).toBe("bug");
+      expect(item.context.report).toEqual({ expected: "It saves", repeat: "always" });
+
+      // An idea carries no report, whatever the client sends.
+      const idea = await json(
+        await call("POST", "/v1/feedback", { comment: "Dark mode", kind: "idea", context: { ...context, report: { expected: "x" } } }, kai),
+      );
+      items.push(idea.id);
+      expect((await get(idea.id, kai)).context.report).toBeUndefined();
+
+      expect((await call("POST", "/v1/feedback", { comment: "x", kind: "rant", context }, kai)).status).toBe(422);
+      const long = { ...context, report: { expected: "x".repeat(1001) } };
+      expect((await call("POST", "/v1/feedback", { comment: "x", kind: "bug", context: long }, kai)).status).toBe(422);
+      await flush();
+    });
+
+    test("a web build from before kinds still files (kind stays null for one release)", async () => {
+      const item = await ticket("Old tab");
+      expect(item.kind).toBeNull();
+    });
+
+    test("the editor changes kind and report; JSON and multipart", async () => {
+      const item = await ticket("Spinner");
+      const next = (await json(await edit(item, { kind: "behaviour", report: { actual: "Spins", repeat: "once" } }, kai))) as FeedbackItem;
+      expect(next.kind).toBe("behaviour");
+      expect(next.context.report).toEqual({ actual: "Spins", repeat: "once" });
+      expect(next.context.route.path).toBe("/clients");
+
+      const multi = (await json(
+        await edit(next, { kind: "bug", report: { expected: "Saved" }, layout: [{ upload: 0 }], images: [png()] }, kai),
+      )) as FeedbackItem;
+      expect(multi.kind).toBe("bug");
+      expect(multi.context.report).toEqual({ expected: "Saved" });
+
+      const idea = (await json(await edit(multi, { kind: "idea", report: {} }, kai))) as FeedbackItem;
+      expect(idea.kind).toBe("idea");
+      expect(idea.context.report).toBeUndefined();
+      expect((await edit(idea, { kind: "nope" }, kai)).status).toBe(422);
+    });
+
+    test("an edit that only touches the report still counts as an edit", async () => {
+      const item = await ticket("Same words");
+      const next = (await json(await edit(item, { kind: "bug", report: { expected: "Works" } }, kai))) as FeedbackItem;
+      expect(next.editedAt).not.toBeNull();
+      const again = (await json(await edit(next, { kind: "bug", report: { expected: "Works" } }, kai))) as FeedbackItem;
+      expect(again.editedAt).toBe(next.editedAt);
+    });
+  });
+
   describe("images", () => {
     test("removes captured screenshots, adds uploads and reorders, as multipart", async () => {
       const item = await ticket("With shots", { images: [png(), png(), png("one.png")], kinds: "element,page,upload" });
@@ -352,7 +414,7 @@ describe.skipIf(!dbUp)("editing a feedback ticket", () => {
       aiPublic: null, ship: null, silent: false, body: "Answer", status: null, attachments: [], createdAt: at(min),
     });
     const base = (over: Partial<FeedbackItem>): FeedbackItem => ({
-      id: "i", number: 1, author: kaiAuthor, status: "new", comment: "c", triageNote: null, route: "/", source: null, context,
+      id: "i", number: 1, author: kaiAuthor, status: "new", kind: null, comment: "c", triageNote: null, route: "/", source: null, context,
       attachments: [], shippedIn: null, thread: [aiReply(5)], editedAt: null, editedBy: null, unread: false, muted: false,
       reachable: true, duplicateOf: null, duplicates: [], fixPr: null, createdAt: at(0), updatedAt: at(0), ...over,
     });

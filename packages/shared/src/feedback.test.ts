@@ -14,6 +14,8 @@ import {
   toRepoPath,
   unpinnedContext,
   redactContext,
+  cleanReport,
+  isThinTicket,
   type FeedbackRuntime,
   type FeedbackAnswerRating,
   type FeedbackComment,
@@ -25,6 +27,7 @@ const item = (over: Partial<FeedbackItem> = {}): FeedbackItem => ({
   number: 14,
   author: { id: "t1", name: "Kai", avatarUrl: null },
   status: "accepted",
+  kind: null,
   comment: "I can't tell which sets are warm-ups.",
   triageNote: "show warm-up sets with a muted chip",
   route: "/clients/c_31",
@@ -281,6 +284,20 @@ describe("feedbackMarkdown", () => {
     expect(feedbackMarkdown([item()], { imageUrl: () => null })).not.toContain("**Runtime:**");
   });
 
+  test("Kind, Expected, Actual and how often", () => {
+    const out = feedbackMarkdown(
+      [
+        item({
+          kind: "bug",
+          context: { ...item().context, report: { expected: "It saves", actual: "Spinner\nforever", repeat: "sometimes" } },
+        }),
+      ],
+      { imageUrl: () => null },
+    );
+    expect(out).toContain("- **Kind:** Bug\n- **Expected:** \"It saves\"\n- **Actual:** \"Spinner / forever\"\n- **Happens:** sometimes");
+    expect(feedbackMarkdown([item()], { imageUrl: () => null })).not.toContain("**Kind:**");
+  });
+
   test("redactContext masks page data and runtime", () => {
     const c = redactContext({
       ...item().context,
@@ -294,6 +311,31 @@ describe("feedbackMarkdown", () => {
     });
     expect(c.pageData).toEqual({ email: "[redacted]" });
     expect(c.runtime!.errors[0].message).toBe("no user [email]");
+  });
+});
+
+describe("kinds and thin tickets", () => {
+  test("isThinTicket: a bug with no expected text and a short comment", () => {
+    expect(isThinTicket("bug", "broken", {})).toBe(true);
+    expect(isThinTicket("bug", "broken", { expected: "  " })).toBe(true);
+    expect(isThinTicket("bug", "broken", { expected: "it saves" })).toBe(false);
+    expect(isThinTicket("bug", "x".repeat(30), {})).toBe(false);
+    expect(isThinTicket("behaviour", "broken", {})).toBe(false);
+    expect(isThinTicket("idea", "x", undefined)).toBe(false);
+  });
+
+  test("cleanReport drops blanks, and everything for kinds without the fields", () => {
+    expect(cleanReport("bug", { expected: " a ", actual: "", repeat: "once" })).toEqual({ expected: "a", repeat: "once" });
+    expect(cleanReport("bug", { expected: " " })).toBeUndefined();
+    expect(cleanReport("idea", { expected: "a" })).toBeUndefined();
+    expect(cleanReport(null, { expected: "a" })).toBeUndefined();
+  });
+
+  test("expected / actual count toward the basis only when given", () => {
+    const base = { comment: "c", triageNote: null, thread: [] };
+    expect(ticketBasis({ ...base, context: {} })).toBe(ticketBasis(base));
+    expect(ticketBasis({ ...base, context: { report: { repeat: "once" } } })).toBe(ticketBasis(base));
+    expect(ticketBasis({ ...base, context: { report: { expected: "x" } } })).not.toBe(ticketBasis(base));
   });
 });
 

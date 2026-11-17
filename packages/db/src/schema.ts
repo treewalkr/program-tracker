@@ -42,6 +42,7 @@ import type {
   FeedbackAuthorKind,
   FeedbackContext,
   FeedbackEmailPrefs,
+  FeedbackKind,
   FeedbackStatus,
   FeedbackVisibility,
   FeedbackAttachmentKind,
@@ -638,6 +639,8 @@ export const feedbackItems = pgTable("feedback_items", {
   /** Who filed it; null for items filed before authorship was recorded. */
   trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
   status: text("status").$type<FeedbackStatus>().notNull().default("new"),
+  /** bug / behaviour / idea / question, picked when filing; null on tickets filed before kinds. */
+  kind: text("kind").$type<FeedbackKind>(),
   /** Trainer's words, verbatim. */
   comment: text("comment").notNull(),
   /** Owner's triage decision; outranks the comment for the coding agent. */

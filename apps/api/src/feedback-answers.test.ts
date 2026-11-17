@@ -98,7 +98,7 @@ describe("answerRecords and lessonRecords (pure)", () => {
     ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
   });
   const item = (thread: FeedbackComment[], number = 7): FeedbackItem => ({
-    id: `i${number}`, number, author: kai, status: "new", comment: "Where are emails?", triageNote: null, route: "/settings", source: null,
+    id: `i${number}`, number, author: kai, status: "new", kind: null, comment: "Where are emails?", triageNote: null, route: "/settings", source: null,
     context, attachments: [], shippedIn: null, thread, editedAt: null, editedBy: null, duplicateOf: null, duplicates: [], fixPr: null,
     unread: false, muted: false, reachable: true, createdAt: at(0), updatedAt: at(0),
   });

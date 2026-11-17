@@ -32,6 +32,7 @@ const listColumns = {
   number: feedbackItems.number,
   author: { id: trainers.id, name: trainers.name, avatarUrl: trainers.avatarUrl },
   status: feedbackItems.status,
+  kind: feedbackItems.kind,
   comment: feedbackItems.comment,
   triageNote: feedbackItems.triageNote,
   trainerId: feedbackItems.trainerId,

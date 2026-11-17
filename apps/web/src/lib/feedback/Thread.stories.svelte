@@ -41,6 +41,7 @@
     number: 42,
     author: kai,
     status: 'new',
+    kind: 'question',
     comment: 'How do I stop the feedback emails?',
     triageNote: null,
     route: '/settings',

@@ -35,6 +35,56 @@ export interface FeedbackAnchor {
   depth: number;
 }
 
+/**
+ * What a ticket is, picked by the reporter when filing: something broken, the
+ * app doing the wrong thing, an idea, or a question. Null on older tickets.
+ */
+export const FEEDBACK_KINDS = ["bug", "behaviour", "idea", "question"] as const;
+export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];
+export const FEEDBACK_KIND_LABELS: Record<FeedbackKind, string> = {
+  bug: "Bug",
+  behaviour: "Wrong behaviour",
+  idea: "Idea",
+  question: "Question",
+};
+/** Kinds that ask for expected / actual / how often. */
+export const FEEDBACK_REPORT_KINDS: readonly FeedbackKind[] = ["bug", "behaviour"];
+export const hasReportFields = (kind: FeedbackKind | null | undefined): boolean =>
+  !!kind && FEEDBACK_REPORT_KINDS.includes(kind);
+
+export const FEEDBACK_REPEATS = ["always", "sometimes", "once"] as const;
+export type FeedbackRepeat = (typeof FEEDBACK_REPEATS)[number];
+export const FEEDBACK_REPEAT_LABELS: Record<FeedbackRepeat, string> = {
+  always: "Every time",
+  sometimes: "Sometimes",
+  once: "Once so far",
+};
+export const FEEDBACK_REPORT_TEXT_MAX = 1000;
+
+/** Bug and wrong-behaviour tickets: what the reporter expected, what happened, how often. All optional. */
+export const FeedbackReportSchema = z.object({
+  expected: z.string().max(FEEDBACK_REPORT_TEXT_MAX).optional(),
+  actual: z.string().max(FEEDBACK_REPORT_TEXT_MAX).optional(),
+  repeat: z.enum(FEEDBACK_REPEATS).optional(),
+});
+export type FeedbackReport = z.infer<typeof FeedbackReportSchema>;
+
+/** Shorter than this, a bug with no "expected" gets one nudge before it is sent. */
+export const FEEDBACK_THIN_TICKET_CHARS = 30;
+/** A bug report too thin to act on: no expected text and a short comment. The composer asks once. */
+export const isThinTicket = (kind: FeedbackKind | null, comment: string, report?: FeedbackReport): boolean =>
+  kind === "bug" && !report?.expected?.trim() && comment.trim().length < FEEDBACK_THIN_TICKET_CHARS;
+
+/** The report with blank fields dropped; undefined when nothing is left (or the kind takes none). */
+export function cleanReport(kind: FeedbackKind | null, report: FeedbackReport | undefined): FeedbackReport | undefined {
+  if (!hasReportFields(kind) || !report) return undefined;
+  const out: FeedbackReport = {};
+  if (report.expected?.trim()) out.expected = report.expected.trim();
+  if (report.actual?.trim()) out.actual = report.actual.trim();
+  if (report.repeat) out.repeat = report.repeat;
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** Ring-buffer sizes and the per-string cap for what the browser records before a ticket is filed. */
 export const FEEDBACK_RUNTIME_CAPS = { errors: 20, requests: 10, breadcrumbs: 15, text: 500, stackLines: 8 } as const;
 
@@ -128,6 +178,8 @@ export interface FeedbackContext {
   appVersion: string;
   /** Errors, failed requests and steps before filing; absent on tickets filed before it was recorded. */
   runtime?: FeedbackRuntime;
+  /** Bug / wrong behaviour: expected, actual, how often. Absent when not given. */
+  report?: FeedbackReport;
 }
 
 /**
@@ -136,7 +188,12 @@ export interface FeedbackContext {
  * web runs it before sending, the API again on ingest.
  */
 export function redactContext(c: FeedbackContext): FeedbackContext {
-  return { ...c, pageData: redactJson(c.pageData), ...(c.runtime ? { runtime: redactJson(c.runtime) } : {}) };
+  return {
+    ...c,
+    pageData: redactJson(c.pageData),
+    ...(c.runtime ? { runtime: redactJson(c.runtime) } : {}),
+    ...(c.report ? { report: redactJson(c.report) } : {}),
+  };
 }
 
 /**
@@ -148,7 +205,13 @@ export const isPinned = (c: FeedbackContext): boolean => c.target.selector !== "
 /** Context for a ticket written on the Feedback page, not pinned to an element. */
 export function unpinnedContext(
   path: string,
-  env: { viewport: FeedbackContext["viewport"]; userAgent: string; appVersion: string; runtime?: FeedbackRuntime },
+  env: {
+    viewport: FeedbackContext["viewport"];
+    userAgent: string;
+    appVersion: string;
+    runtime?: FeedbackRuntime;
+    report?: FeedbackReport;
+  },
 ): FeedbackContext {
   return redactContext({
     route: { path, id: null, params: {} },
@@ -387,22 +450,30 @@ type BasisImages = { attachments?: Pick<FeedbackAttachment, "id" | "kind">[] };
  * Drafts and private notes don't count — the same basis whoever computes it.
  * Captured screenshots don't count either: they only show what the comment
  * is about. Upload ids are appended only when there are any, so a ticket
- * without uploads keeps the basis it had before images counted.
+ * without uploads keeps the basis it had before images counted; the same
+ * goes for the expected / actual text of a bug report.
  */
 export function ticketBasis(
   item: Pick<FeedbackItem, "comment" | "triageNote"> &
-    BasisImages & { thread: (Pick<FeedbackComment, "kind" | "body" | "visibility"> & BasisImages)[] },
+    BasisImages & {
+      thread: (Pick<FeedbackComment, "kind" | "body" | "visibility"> & BasisImages)[];
+      context?: Pick<FeedbackContext, "report">;
+    },
 ): string {
   const replies = item.thread.filter((c) => c.kind === "reply" && (c.visibility ?? "public") === "public");
   const uploads = [item, ...replies]
     .flatMap((e) => e.attachments ?? [])
     .filter((a) => a.kind === "upload")
     .map((a) => a.id);
+  // Expected / actual are the reporter's words too; appended only when given, like uploads.
+  const r = item.context?.report;
+  const report = r?.expected || r?.actual ? `${r.expected ?? ""}\u0001${r.actual ?? ""}` : "";
   const text = [
     item.comment,
     item.triageNote ?? "",
     ...replies.map((c) => c.body ?? ""),
     ...(uploads.length ? [`uploads:${uploads.join(",")}`] : []),
+    ...(report ? [`report:${report}`] : []),
   ].join("\u0000");
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
@@ -440,6 +511,8 @@ export interface FeedbackItem {
   /** Who filed it; null for items filed before authorship was recorded. */
   author: FeedbackAuthor | null;
   status: FeedbackStatus;
+  /** What the reporter said it is; null on tickets filed before kinds. */
+  kind: FeedbackKind | null;
   comment: string;
   /** The admin's private memo for the agent; always null for anyone else. */
   triageNote: string | null;
@@ -625,6 +698,9 @@ export function answerRatingText(r: FeedbackAnswerRating): string {
   return [r.score === 1 ? "👍" : "👎", [tags, said].filter(Boolean).join(" — ")].filter(Boolean).join(" ");
 }
 
+/** The reporter's words on one Markdown line, quoted (they are as untrusted as the comment). */
+const quoteInline = (s: string) => `"${s.trim().split("\n").join(" / ")}"`;
+
 /** `12 s before`, `3 min before` — how long before filing. */
 const before = (ms: number) =>
   ms < 1000 ? "just before" : ms < 60_000 ? `${Math.round(ms / 1000)} s before` : `${Math.round(ms / 60_000)} min before`;
@@ -668,6 +744,11 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
   lines.push("");
   lines.push(`> ${item.comment.trim().split("\n").join("\n> ")}`);
   lines.push("");
+  if (item.kind) lines.push(`- **Kind:** ${FEEDBACK_KIND_LABELS[item.kind] ?? item.kind}`);
+  const r = c.report;
+  if (r?.expected) lines.push(`- **Expected:** ${quoteInline(r.expected)}`);
+  if (r?.actual) lines.push(`- **Actual:** ${quoteInline(r.actual)}`);
+  if (r?.repeat) lines.push(`- **Happens:** ${FEEDBACK_REPEAT_LABELS[r.repeat].toLowerCase()}`);
   const pinned = isPinned(c);
   if (!pinned) lines.push("- **Filed as:** a general ticket from the Feedback page — not pinned to an element");
   if (c.route.path) lines.push(`- **Route:** \`${c.route.path}\`${c.route.id ? ` (route \`${c.route.id}\`)` : ""}`);
