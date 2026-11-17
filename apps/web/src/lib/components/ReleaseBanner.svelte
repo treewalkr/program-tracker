@@ -34,7 +34,7 @@
   <aside class="release" lang={i18n.locale} aria-label={text.title(latest)}>
     <div class="body">
       <h2>{text.title(latest)}</h2>
-      <p>{text.body} <a href="/whats-new#v{latest}">{text.more} →</a></p>
+      <p><span class="sentence">{text.body}</span> <a href="/whats-new#v{latest}">{text.more} →</a></p>
     </div>
     <div class="actions">
       <LangToggle compact />
@@ -63,6 +63,8 @@
   a { font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
   a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+  /* Phone: the link says enough; the sentence is what makes the card tall. */
+  @media (max-width: 640px) { .sentence { display: none; } }
   .actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
   .close {
     display: grid;
