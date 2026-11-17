@@ -4,12 +4,18 @@
   import { page } from "$app/state";
   import {
     FEEDBACK_STATUSES,
+    FEEDBACK_KIND_LABELS,
+    FEEDBACK_REPEAT_LABELS,
     feedbackHandle,
     isOpenFeedback,
     isPinned,
     parseFeedbackHandle,
     unpinnedContext,
+    cleanReport,
+    isThinTicket,
     type FeedbackItem,
+    type FeedbackKind,
+    type FeedbackReport,
     type FeedbackStatus,
   } from "@pt/shared";
   import {
@@ -22,6 +28,7 @@
     type TriagePatch,
   } from "$lib/feedback/client";
   import AttachmentInput from "$lib/feedback/AttachmentInput.svelte";
+  import KindFields from "$lib/feedback/KindFields.svelte";
   import AttachmentStrip from "$lib/feedback/AttachmentStrip.svelte";
   import { ImageTray } from "$lib/feedback/tray.svelte";
   import { shortPath } from "$lib/feedback/capture";
@@ -85,6 +92,11 @@
   let composing = $state(false);
   let draft = $state("");
   let draftPage = $state("");
+  let draftKind = $state<FeedbackKind | null>(null);
+  let draftReport = $state<FeedbackReport>({});
+  /** The thin-bug nudge is showing; it shows once per ticket. */
+  let draftNudging = $state(false);
+  let draftNudged = false;
   let filing = $state(false);
   const draftImages = new ImageTray();
   let draftField = $state<HTMLTextAreaElement | null>(null);
@@ -320,6 +332,10 @@
     composing = false;
     draft = "";
     draftPage = "";
+    draftKind = null;
+    draftReport = {};
+    draftNudging = false;
+    draftNudged = false;
     draftImages.clear();
   }
 
@@ -335,10 +351,16 @@
     }
   }
 
-  async function fileTicket(e?: SubmitEvent) {
+  async function fileTicket(e?: SubmitEvent, anyway = false) {
     e?.preventDefault();
     const comment = draft.trim();
-    if (!comment || filing || draftImages.busy) return;
+    const kind = draftKind;
+    if (!comment || !kind || filing || draftImages.busy) return;
+    if (!anyway && !draftNudged && isThinTicket(kind, comment, draftReport)) {
+      draftNudged = draftNudging = true;
+      return;
+    }
+    draftNudging = false;
     filing = true;
     try {
       const context = unpinnedContext(pagePath(draftPage), {
@@ -346,8 +368,9 @@
         userAgent: navigator.userAgent,
         appVersion: __APP_VERSION__,
         runtime: runtimeSnapshot(),
+        report: cleanReport(kind, draftReport),
       });
-      const { id } = await feedbackApi.submit({ comment, context, uploads: draftImages.files });
+      const { id } = await feedbackApi.submit({ comment, kind, context, uploads: draftImages.files });
       const item = await feedbackApi.get(id);
       items = [item, ...items];
       notes[item.id] = "";
@@ -488,6 +511,14 @@
           }}
         ></textarea>
       </label>
+      <KindFields
+        bind:kind={draftKind}
+        bind:report={draftReport}
+        idPrefix="fb-new"
+        disabled={filing}
+        nudge={draftNudging}
+        onsendanyway={() => fileTicket(undefined, true)}
+      />
       <AttachmentInput tray={draftImages} disabled={filing} label="the new ticket" />
       <label class="field page-field">
         <span>Page <span class="muted">— optional</span></span>
@@ -497,7 +528,7 @@
         Not about one thing on screen. To point at an element, turn on <strong>Feedback</strong> (bottom right) and click it.
       </p>
       <div class="actions">
-        <Button type="submit" variant="primary" small disabled={!draft.trim() || filing || draftImages.busy}>
+        <Button type="submit" variant="primary" small disabled={!draft.trim() || !draftKind || filing || draftImages.busy}>
           {filing ? "Filing…" : "File ticket"}
         </Button>
         <Button type="button" small variant="ghost" onclick={closeComposer}>Cancel</Button>
@@ -579,6 +610,7 @@
                   <Pill tone={STATUS_TONE[item.status]}>
                     {STATUS_LABEL[item.status]}{#if item.status === "done" && item.shippedIn}&nbsp;· v{item.shippedIn}{/if}
                   </Pill>
+                  {#if item.kind}<span class="kind-tag">{FEEDBACK_KIND_LABELS[item.kind]}</span>{/if}
                   {#if item.duplicateOf}
                     <span class="dup" title="Closes when {feedbackHandle(item.duplicateOf.number)} does">Duplicate of {@render ticketRef(item.duplicateOf.number)}</span>
                   {/if}
@@ -619,6 +651,14 @@
                 />
               {:else}
                 <h2 class="comment">{item.comment}</h2>
+                {@const report = item.context.report}
+                {#if report?.expected || report?.actual || report?.repeat}
+                  <dl class="report">
+                    {#if report.expected}<dt>Expected</dt><dd>{report.expected}</dd>{/if}
+                    {#if report.actual}<dt>Actual</dt><dd>{report.actual}</dd>{/if}
+                    {#if report.repeat}<dt>How often</dt><dd>{FEEDBACK_REPEAT_LABELS[report.repeat]}</dd>{/if}
+                  </dl>
+                {/if}
               {/if}
 
               <div class="ticket-bar">
@@ -1063,6 +1103,25 @@
     color: var(--muted);
   }
   /* The comment is the ticket's headline — and its heading, so the list is navigable by heading. */
+  .kind-tag {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  dl.report {
+    grid-template-columns: max-content 1fr;
+    margin: 0;
+    max-width: var(--measure-prose);
+    font-size: 13px;
+  }
+  dl.report dt {
+    color: var(--muted);
+  }
+  dl.report dd {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .comment {
     margin: 0;
     letter-spacing: normal;

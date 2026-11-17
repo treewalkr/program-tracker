@@ -5,6 +5,8 @@ import {
   type FeedbackComment,
   type FeedbackContext,
   type FeedbackItem,
+  type FeedbackKind,
+  type FeedbackReport,
   type FeedbackStatus,
 } from "@pt/shared";
 import type { LightboxImage } from "$lib/ui/Lightbox.svelte";
@@ -69,7 +71,17 @@ export const feedbackApi = {
    * fields). The captured screenshots go first in `images`; `kinds` names
    * each image so the API stores them as element / page / upload.
    */
-  submit: ({ shots = [], uploads = [], ...body }: { comment: string; context: FeedbackContext; shots?: CapturedShot[]; uploads?: File[] }) => {
+  submit: ({
+    shots = [],
+    uploads = [],
+    ...body
+  }: {
+    comment: string;
+    kind: FeedbackKind;
+    context: FeedbackContext;
+    shots?: CapturedShot[];
+    uploads?: File[];
+  }) => {
     const images = [...shots.map((s) => s.file), ...uploads];
     const kinds = [...shots.map((s) => s.kind), ...uploads.map(() => "upload" as const)].join(",");
     return unwrap<{ id: string; number: number; handle: string }>(
@@ -86,7 +98,17 @@ export const feedbackApi = {
    * is `editedAt ?? createdAt` as the editor opened it; a 409 throws
    * EditConflict. Multipart only when new images ride along.
    */
-  editContent: async (id: string, body: { comment: string; version: string; layout: ImageSlot[]; images: File[] }) => {
+  editContent: async (
+    id: string,
+    body: {
+      comment: string;
+      kind?: FeedbackKind;
+      report?: FeedbackReport;
+      version: string;
+      layout: ImageSlot[];
+      images: File[];
+    },
+  ) => {
     const res = await client.v1.feedback({ id }).content.patch(withImages(body));
     if (res.error?.status === 409) {
       const value = res.error.value as { error?: string } | null;
