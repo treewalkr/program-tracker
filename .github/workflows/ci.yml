@@ -43,6 +43,11 @@ jobs:
     concurrency:
       group: deploy-production
       cancel-in-progress: false
+    env:
+      RENDER_SERVICE_ID: srv-dbngf267bikc73cg2hg0
+      # Render origin, as in apps/web/wrangler.jsonc (API_ORIGIN)
+      API_ORIGIN: https://program-tracker-api.onrender.com
+      SITE_URL: https://pt.pinroj.com
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +57,14 @@ jobs:
         with:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
+
+      # Build first: a broken web build stops the deploy before anything in production changes.
+      - name: Build web
+        working-directory: apps/web
+        env:
+          PUBLIC_API_MODE: live
+          PUBLIC_API_URL: https://pt.pinroj.com
+        run: bun run build
 
       # Restore point before migrating. Encrypted to .github/backup-age.pub (the repo is
       # public); a failed dump stops the deploy here. Restore: docs/deploy.md.
@@ -71,19 +84,26 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      # Schema first: Render deploys the API only after these checks pass.
+      # Schema first. Migrations are expand-only (packages/db/src/migration-lint.ts), so the
+      # API and web still running from the previous release keep working against it.
       - name: Migrate Supabase
         working-directory: packages/db
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: bun run src/migrate.ts && bun run seed:exercises
 
-      - name: Build web
-        working-directory: apps/web
+      # API before web: the API stays compatible with the previous web build, but a new
+      # web build may call routes the previous API doesn't have.
+      # Render isn't wired to GitHub webhooks; deploy this exact commit.
+      - name: Deploy API (Render)
         env:
-          PUBLIC_API_MODE: live
-          PUBLIC_API_URL: https://pt.pinroj.com
-        run: bun run build
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          id=$(scripts/deploy/render.sh deploy "$GITHUB_SHA")
+          scripts/deploy/render.sh wait "$id"
+
+      - name: Smoke test API
+        run: scripts/deploy/smoke.sh api "$GITHUB_SHA"
 
       - name: Deploy Worker
         working-directory: apps/web
@@ -92,26 +112,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bunx wrangler@4 deploy
 
-      # Render isn't wired to GitHub webhooks; deploy this exact commit after migrations.
-      - name: Deploy API (Render)
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID: srv-dbngf267bikc73cg2hg0
-        run: |
-          id=$(curl -fsS -X POST -H "Authorization: Bearer $RENDER_API_KEY" -H "content-type: application/json" \
-            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" -d "{\"commitId\":\"$GITHUB_SHA\"}" | jq -r .id)
-          echo "render deploy $id"
-          for i in $(seq 1 60); do
-            status=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys/$id" | jq -r .status)
-            echo "$status"
-            case "$status" in live) exit 0;; build_failed|update_failed|canceled|deactivated) exit 1;; esac
-            sleep 15
-          done
-          exit 1
+      - name: Smoke test site
+        run: scripts/deploy/smoke.sh site "$GITHUB_SHA"
 
-      # The API is live: close the feedback tickets these commits name (FB-012).
-      # Never fails the deploy; without the secret it only prints a notice.
+      # Everything is live and answering: close the feedback tickets these commits name
+      # (FB-012). Never fails the deploy; without the secret it only prints a notice.
       - name: Close shipped feedback tickets
         continue-on-error: true
         env:
