@@ -126,18 +126,6 @@ export function groupSessionTypes<T extends SessionTypeLike>(types: readonly T[]
   return { groups, custom };
 }
 
-/**
- * @deprecated The pre-taxonomy defaults; kept until every caller seeds `SESSION_TYPE_PRESETS`.
- */
-export const SESSION_TYPE_DEFAULTS: readonly { name: string; format: SessionKind }[] = [
-  { name: "Strength", format: "lifting" },
-  { name: "Hypertrophy", format: "lifting" },
-  { name: "Mobility", format: "lifting" },
-  { name: "Circuit", format: "lifting" },
-  { name: "Intervals", format: "cardio" },
-  { name: "Zone 2", format: "cardio" },
-];
-
 /** Trim + collapse inner whitespace — the form names are stored and compared in. */
 export const normalizeTypeName = (name: string): string => name.trim().replace(/\s+/g, " ");
 
