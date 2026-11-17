@@ -3,6 +3,9 @@
 #   render.sh deploy <sha>      build and deploy that commit; prints the deploy id
 #   render.sh wait <deploy-id>  poll until live (15 min max). Exit 0 live; 3 the build failed
 #                               (the old instance keeps serving); 1 any other failure
+#   render.sh live              prints "<deploy-id> <commit-sha>" of the deploy serving now
+#   render.sh rollback <id>     roll back to an earlier deploy (reuses its image, no rebuild);
+#                               prints the new deploy id — then `wait` on it
 # Progress goes to stderr so stdout stays a clean value for $(...).
 set -euo pipefail
 : "${RENDER_API_KEY:?RENDER_API_KEY is required}" "${RENDER_SERVICE_ID:?RENDER_SERVICE_ID is required}"
@@ -36,8 +39,17 @@ case "$cmd" in
     post "/deploys/$id/cancel" '{}' >/dev/null || true
     exit 1
     ;;
+  live)
+    get "/deploys?limit=20" | jq -er '[.[].deploy | select(.status == "live")][0] | "\(.id) \(.commit.id)"'
+    ;;
+  rollback)
+    to=${2:?usage: render.sh rollback <deploy-id>}
+    id=$(post /rollback "$(jq -nc --arg d "$to" '{deployId: $d}')" | jq -r .id)
+    echo "render rollback $id to $to" >&2
+    echo "$id"
+    ;;
   *)
-    echo "usage: render.sh deploy|wait ..." >&2
+    echo "usage: render.sh deploy|wait|live|rollback ..." >&2
     exit 2
     ;;
 esac
