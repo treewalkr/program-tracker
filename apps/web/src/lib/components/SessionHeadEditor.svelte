@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
-  import { defaultCardio, switchSessionKind, type SessionKind } from "@pt/shared";
+  import { defaultCardio, kindForType, switchSessionKind, type SessionKind } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import SessionTypePicker from "./SessionTypePicker.svelte";
 
@@ -49,7 +49,8 @@
         format={session.kind}
         {types}
         onpick={(t) => {
-          const switched = t.format === session.kind ? session : switchSessionKind(session, t.format, nextSeqFor(t.format));
+          const kind = kindForType(t.format, session.kind);
+          const switched = kind === session.kind ? session : switchSessionKind(session, kind, nextSeqFor(kind));
           session = { ...switched, typeId: t.id, typeName: t.name };
           ontype?.(t);
         }}

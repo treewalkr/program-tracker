@@ -33,7 +33,7 @@
     type ProgramSession,
     type WeekPlan,
   } from "@pt/shared";
-  import { SCHEME_PRESETS, newBlockFillBlocker, schemePreset } from "@pt/shared";
+  import { SCHEME_PRESETS, kindForType, newBlockFillBlocker, schemePreset, typeFitsKind } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
@@ -405,7 +405,7 @@
       const weekday = placement.get(s.key) ?? null;
       const order = used.get(weekday ?? 0) ?? 0;
       used.set(weekday ?? 0, order + 1);
-      const type = types.find((t) => t.id === s.typeId && t.format === s.kind);
+      const type = types.find((t) => t.id === s.typeId && typeFitsKind(t.format, s.kind));
       const typed = type ? { typeId: type.id, typeName: type.name } : {};
       let session: ProgramSession;
       if (s.kind === "cardio") {
@@ -814,7 +814,7 @@
               label="{tag} type"
               onpick={(t) => {
                 s.typeId = t.id;
-                s.kind = t.format;
+                s.kind = kindForType(t.format, s.kind);
               }}
               oncreate={addType}
             />
