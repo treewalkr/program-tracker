@@ -50,6 +50,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
@@ -526,10 +527,58 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <SkeletonHead actions={2} label="Loading client…" />
-  <div class="skel-stack">
-    <SkeletonPanel title="Basics" height={96} />
-    <SkeletonPanel head rows={4} dense />
+  <!-- The hand-built form's shape: static labels render, the client's data shimmers. -->
+  <SkeletonHead
+    title="Write a program by hand"
+    sub="Saved as a draft. Nothing goes live until you activate it."
+    actions={["175px", "169px", "120px"]}
+    label="Loading client…"
+  />
+  <div class="mode" inert>
+    <Tabs label="How to write it" idPrefix="np-mode-skel" value="hand" onchange={() => {}} items={[{ id: "hand", label: "Build by hand" }, { id: "paste", label: "Paste notes" }]} />
+  </div>
+  <div class="cols" aria-hidden="true">
+    <SkeletonPanel title="Basics" label="Loading client…">
+      <div class="panel-body basics-body">
+        <div class="stack ident">
+          <Field label="Name"><Skeleton h="29px" /></Field>
+          <Field label="Description" hint="optional"><Skeleton h="29px" /></Field>
+        </div>
+        <div class="phasing">
+          <div class="check">
+            <Skeleton shape="line" h="13px" w="13px" class="skel-box" />
+            <span>
+              <span class="check-title">Periodization plan</span>
+              <span class="subtle">Week directives and phase-change reminders.</span>
+            </span>
+          </div>
+          <div class="stack plan">
+            <div class="plan-scheme"><Field label="Progression scheme"><Skeleton h="31px" /></Field></div>
+            <div class="stack plan-side">
+              <Field label="Block length"><Skeleton h="31px" /></Field>
+              <div class="pair">
+                <Field label="This phase"><Skeleton h="29px" /></Field>
+                <Field label="Next phase"><Skeleton h="29px" /></Field>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </SkeletonPanel>
+    <div class="builder-col">
+      <div class="weeks-bar"><Skeleton h="23px" w="250px" /></div>
+      <section class="panel">
+        <div class="panel-head sess-head">
+          <Skeleton shape="line" h="12px" w="170px" />
+          <span class="grow"></span>
+          <Skeleton h="26px" w="110px" />
+        </div>
+        <div class="panel-body"><Skeleton h="91px" /></div>
+      </section>
+      <div class="builder-foot"><Skeleton h="26px" w="126px" /></div>
+      <p class="subtle hint"><Skeleton shape="line" h="10px" w="min(470px, 90%)" /></p>
+      <p class="subtle hint">Prefer help? <a href={`/clients/${id}/generate`} tabindex="-1">Generate with AI</a> instead.</p>
+    </div>
   </div>
 {:else}
   <PageHead
@@ -968,6 +1017,9 @@
   .builder-foot { display: flex; align-items: center; gap: 10px; }
   :global(.self-start) { align-self: flex-start; }
   .hint { margin: 0; }
+  .sess-head .grow { flex: 1; }
+  .check :global(.skel-box) { margin-top: 3px; border-radius: 3px; }
+  p.hint:has(:global(.skeleton)) { display: flex; align-items: center; min-height: 1lh; }
 
   @media (max-width: 1180px) {
     .cols { grid-template-columns: minmax(0, 1fr); }
