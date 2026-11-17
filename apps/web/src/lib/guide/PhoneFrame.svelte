@@ -38,4 +38,7 @@
     background: linear-gradient(to bottom, transparent, var(--surface));
     pointer-events: none;
   }
+  /* Two phones side by side need 584px. Between that and one phone's width, shrink them
+     rather than stacking into a 1,200px column; below it, stack at full size. */
+  @container (min-width: 442px) and (max-width: 583px) { .phone { zoom: 0.75; } }
 </style>

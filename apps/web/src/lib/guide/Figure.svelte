@@ -19,7 +19,7 @@
 <style>
   .fig { margin: 4px 0 16px; }
   .controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
-  .stage { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); overflow: hidden; }
+  .stage { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); overflow: hidden; container-type: inline-size; }
   figcaption { margin-top: 6px; font-size: 13px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
   @media (max-width: 640px) { .stage { padding: 12px; } }
 </style>
