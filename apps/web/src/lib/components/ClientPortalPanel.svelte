@@ -130,6 +130,7 @@
     </div>
   {/if}
   {#if error}<Note tone="bad" role="alert">{error}</Note>{/if}
+  <a class="how" href="/guide/client-portal">How the client portal works</a>
 </ProfileSection>
 
 <style>
@@ -160,6 +161,8 @@
   .facts dt { font-size: 12px; font-weight: 600; color: var(--muted); }
   .facts dd { margin: 2px 0 0; font-size: 13px; }
   .warn { color: var(--warn); }
+  .how { font-size: 13px; color: var(--blue); text-decoration: none; justify-self: start; }
+  .how:hover { text-decoration: underline; text-underline-offset: 3px; }
   .acts { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
   /* small buttons, but a 32px target: this panel is used on a phone at the gym too */
   .link-row :global(.btn), .acts :global(.btn), .label-row :global([role="radio"]) { min-height: 32px; min-width: 44px; }

@@ -82,6 +82,7 @@
 
   /** Utility destinations sit at the foot of the sidebar, apart from the daily work. */
   const utility: NavGroup["items"] = [
+    { href: "/guide/client-portal", label: "Guide", icon: "book" },
     { href: "/feedback", label: "Feedback", icon: "comment" },
     { href: "/settings", label: "Settings", icon: "gear" },
   ];
