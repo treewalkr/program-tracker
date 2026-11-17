@@ -90,7 +90,8 @@ export interface CatalogEntry {
   name: string;
   primaryMuscleGroup: string;
   equipment: string;
-  movementPattern: string | null;
+  /** Ordered; the first is the primary. Empty = untagged. */
+  movementPatterns: string[];
   functionalMovement: string | null;
   /** Trainer's coaching note (setup, cues), if any. */
   note?: string | null;
@@ -485,7 +486,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
           ctx.catalog
             .map(
               (e) =>
-                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPatterns[0] ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
             )
             .join("\n"),
         ]
@@ -701,7 +702,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
           ctx.catalog
             .map(
               (e) =>
-                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPatterns[0] ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
             )
             .join("\n"),
         ]
@@ -812,7 +813,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
     ctx.catalog
       .map(
         (e) =>
-          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPatterns[0] ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
       )
       .join("\n"),
     "",
@@ -900,7 +901,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
     ctx.catalog
       .map(
         (e) =>
-          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
+          `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPatterns[0] ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
       )
       .join("\n"),
     ...(ctx.sessionTypes?.length ? ["", sessionTypesText(ctx.sessionTypes)] : []),
@@ -1238,7 +1239,7 @@ export function buildChatSystem(ctx: ChatContext): string {
           ctx.catalog
             .map(
               (e) =>
-                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPattern ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
+                `- ${e.id} | ${e.name} (${e.primaryMuscleGroup}, ${e.equipment}, ${e.movementPatterns[0] ?? "pattern n/a"}, ${e.functionalMovement ?? "function n/a"})${e.note ? ` — note: ${e.note}` : ""}`
             )
             .join("\n"),
         ]

@@ -119,13 +119,18 @@
   }
 
   async function tag(ids: string[], field: "movementPattern" | "functionalMovement", value: string | null) {
-    const before = new Map(ids.map((id) => [id, list.find((e) => e.id === id)?.[field] ?? null]));
+    const before = new Map(ids.map((id) => [id, list.find((e) => e.id === id)]));
+    const patch = (v: string | null): ExercisePatch =>
+      field === "movementPattern" ? { movementPatterns: v ? [v] : [] } : { functionalMovement: v };
     try {
-      await patchMany(ids, () => ({ [field]: value }));
+      await patchMany(ids, () => patch(value));
       selected = [];
       const what = value ? (field === "movementPattern" ? patternName(value) : functionalName(value)) : "untagged";
       flash(ids.length === 1 ? `${list.find((e) => e.id === ids[0])?.name} tagged ${what}.` : `Tagged ${ids.length} as ${what}.`, () =>
-        patchMany(ids, (e) => ({ [field]: before.get(e.id) ?? null })).catch(failed)
+        patchMany(ids, (e) => {
+          const b = before.get(e.id);
+          return field === "movementPattern" ? { movementPatterns: b?.movementPatterns ?? [] } : { functionalMovement: b?.functionalMovement ?? null };
+        }).catch(failed)
       );
     } catch (err) {
       failed(err);
@@ -170,12 +175,12 @@
     }
   }
 
-  const inputOf = (e: Pick<ExerciseDto, "name" | "primaryMuscleGroup" | "secondaryMuscleGroups" | "equipment" | "movementPattern" | "functionalMovement" | "note">) => ({
+  const inputOf = (e: Pick<ExerciseDto, "name" | "primaryMuscleGroup" | "secondaryMuscleGroups" | "equipment" | "movementPatterns" | "functionalMovement" | "note">) => ({
     name: e.name,
     primaryMuscleGroup: e.primaryMuscleGroup,
     secondaryMuscleGroups: e.secondaryMuscleGroups,
     equipment: e.equipment,
-    movementPattern: e.movementPattern,
+    movementPatterns: e.movementPatterns,
     functionalMovement: e.functionalMovement,
     note: e.note,
   });
@@ -194,7 +199,7 @@
   async function save(form: ExerciseForm) {
     const ex = editingExercise;
     const tags = {
-      movementPattern: form.movementPattern || null,
+      movementPatterns: form.movementPatterns,
       functionalMovement: form.functionalMovement || null,
       note: form.note.trim() || null,
     };
@@ -219,7 +224,7 @@
     });
     put(row);
     // Stay on a map cell the new exercise fills; otherwise show it under Mine.
-    const fillsCell = pre.movementPattern === row.movementPattern && (!pre.equipment || pre.equipment === row.equipment);
+    const fillsCell = (pre.movementPattern ? row.movementPatterns.includes(pre.movementPattern) : row.movementPatterns.length === 0) && (!pre.equipment || pre.equipment === row.equipment);
     if (!fillsCell) {
       filters = emptyFilters();
       view.update({ q: "", params: { tab: "mine" } });
@@ -238,7 +243,8 @@
       if (splitEl && splitEl.getBoundingClientRect().top < 0) splitEl.scrollIntoView({ block: "start", behavior: smooth() });
     });
   }
-  const openNew = (name?: string) => open("new", { ...pre, movementPattern: pre.movementPattern ?? "", ...(name ? { name } : {}) });
+  const openNew = (name?: string) =>
+    open("new", { equipment: pre.equipment, movementPatterns: pre.movementPattern ? [pre.movementPattern] : [], ...(name ? { name } : {}) });
   const smooth = (): ScrollBehavior => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 
   function setTab(t: string) {
@@ -499,8 +505,8 @@
                   </td>
                   <td><span class="pill neutral">{humanize(e.primaryMuscleGroup)}</span></td>
                   <td>
-                    {#if e.movementPattern}
-                      <span class="pill neutral" title={patternName(e.movementPattern)}>{patternShort(e.movementPattern)}</span>
+                    {#if e.movementPatterns.length}
+                      <span class="pill neutral" title={patternName(e.movementPatterns[0])}>{patternShort(e.movementPatterns[0])}</span>
                     {:else}
                       <button type="button" class="untag" aria-label="Tag pattern for {e.name}" onclick={(ev) => openMenu(ev, "Pattern tag", () => tagItems("movementPattern", (v) => tag([e.id], "movementPattern", v)))}>Tag</button>
                     {/if}

@@ -1,11 +1,11 @@
-import { MOVEMENT_PATTERN_INFO, MOVEMENT_PATTERNS, type MovementPattern } from "@pt/shared";
+import { MOVEMENT_PATTERN_INFO, MOVEMENT_PATTERNS, primaryPattern, type MovementPattern } from "@pt/shared";
 import type { ExerciseDto } from "./api/types";
 
 /** Pure search for the exercise picker: every query word must hit; name hits rank first. */
 
 type Searchable = Pick<
   ExerciseDto,
-  "id" | "name" | "primaryMuscleGroup" | "secondaryMuscleGroups" | "equipment" | "movementPattern"
+  "id" | "name" | "primaryMuscleGroup" | "secondaryMuscleGroups" | "equipment" | "movementPatterns"
 >;
 
 const norm = (s: string) =>
@@ -19,17 +19,18 @@ const norm = (s: string) =>
 export const patternName = (p: string | null): string =>
   (p && MOVEMENT_PATTERN_INFO[p as MovementPattern]?.name) || "No pattern";
 
-/** One-line context under a name: "Quads · barbell · Knee dominant". */
+/** One-line context under a name: "Quads · barbell · Knee dominant" (the primary pattern). */
 export function exerciseMeta(e: Searchable): string {
   const muscle = e.primaryMuscleGroup ? e.primaryMuscleGroup[0].toUpperCase() + e.primaryMuscleGroup.slice(1) : "";
-  return [muscle, e.equipment, e.movementPattern ? patternName(e.movementPattern) : ""].filter(Boolean).join(" · ");
+  const p = primaryPattern(e);
+  return [muscle, e.equipment, p ? patternName(p) : ""].filter(Boolean).join(" · ");
 }
 
 /** 0 best → 3 worst; null = no match. */
 function score(e: Searchable, words: string[], whole: string): number | null {
   const name = norm(e.name);
   const rest = norm(
-    [e.primaryMuscleGroup, ...e.secondaryMuscleGroups, e.equipment, e.movementPattern ?? "", patternName(e.movementPattern)].join(" ")
+    [e.primaryMuscleGroup, ...e.secondaryMuscleGroups, e.equipment, ...e.movementPatterns.flatMap((p) => [p, patternName(p)])].join(" ")
   );
   if (!words.every((w) => name.includes(w) || rest.includes(w))) return null;
   if (name.startsWith(whole)) return 0;
@@ -50,7 +51,7 @@ export function searchExercises<T extends Searchable>(list: readonly T[], query:
     .map((x) => x.e);
 }
 
-/** Browse view: grouped by movement pattern in taxonomy order, unpatterned last. */
+/** Browse view: grouped by primary movement pattern in taxonomy order, unpatterned last. */
 export function groupByPattern<T extends Searchable>(list: readonly T[]): { label: string; items: T[] }[] {
   const order = (p: string | null) => {
     const i = MOVEMENT_PATTERNS.indexOf(p as MovementPattern);
@@ -58,12 +59,12 @@ export function groupByPattern<T extends Searchable>(list: readonly T[]): { labe
   };
   const groups = new Map<number, T[]>();
   for (const e of [...list].sort((a, b) => a.name.localeCompare(b.name))) {
-    const k = order(e.movementPattern);
+    const k = order(primaryPattern(e));
     groups.set(k, [...(groups.get(k) ?? []), e]);
   }
   return [...groups]
     .sort(([a], [b]) => a - b)
-    .map(([, items]) => ({ label: patternName(items[0].movementPattern), items }));
+    .map(([, items]) => ({ label: patternName(primaryPattern(items[0])), items }));
 }
 
 const EQUIPMENT_WORDS: [RegExp, string][] = [
@@ -85,6 +86,7 @@ export function guessExercise(
   name: string,
   catalog: readonly Searchable[]
 ): { primaryMuscleGroup: string; equipment: string; movementPattern: string | null } {
+  // movementPattern: the best match's primary — quick-create takes one pattern.
   const n = norm(name);
   const equipment = EQUIPMENT_WORDS.find(([re]) => re.test(n))?.[1] ?? "";
   const words = new Set(n.split(/\s+/).filter((w) => w.length > 2));
@@ -97,6 +99,6 @@ export function guessExercise(
   return {
     primaryMuscleGroup: best?.primaryMuscleGroup ?? "",
     equipment: equipment || best?.equipment || "",
-    movementPattern: best?.movementPattern ?? null,
+    movementPattern: best ? primaryPattern(best) : null,
   };
 }

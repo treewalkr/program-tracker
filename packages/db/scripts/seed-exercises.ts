@@ -33,7 +33,12 @@ function remap(value: unknown, map: Map<string, string>, oldIds: Set<string>, mi
   return value;
 }
 
-const toRow = (e: LibraryEntry) => ({ ...e, trainerId: null });
+const toRow = ({ movementPattern, ...e }: LibraryEntry) => ({
+  ...e,
+  movementPatterns: movementPattern ? [movementPattern] : [],
+  legacyMovementPattern: movementPattern,
+  trainerId: null,
+});
 
 async function addMissing() {
   const count = async () => (await db.select({ n: sql<number>`count(*)::int` }).from(exercises))[0].n;

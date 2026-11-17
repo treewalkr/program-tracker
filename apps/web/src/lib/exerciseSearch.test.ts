@@ -7,7 +7,7 @@ const ex = (id: string, name: string, primaryMuscleGroup: string, equipment: str
   primaryMuscleGroup,
   secondaryMuscleGroups: [] as string[],
   equipment,
-  movementPattern,
+  movementPatterns: movementPattern ? [movementPattern] : [],
 });
 
 const list = [

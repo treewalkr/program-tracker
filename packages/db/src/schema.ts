@@ -193,7 +193,13 @@ export const exercises = pgTable("exercises", {
     .notNull()
     .default(sql`'[]'::jsonb`),
   equipment: text("equipment").notNull(),
-  movementPattern: text("movement_pattern").$type<MovementPattern>(),
+  /** Ordered movement patterns; the first is the primary. Empty = untagged. */
+  movementPatterns: jsonb("movement_patterns")
+    .$type<MovementPattern[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /** Deprecated: the primary pattern, still written so a rollback keeps working. Drop after the next release. */
+  legacyMovementPattern: text("movement_pattern").$type<MovementPattern>(),
   functionalMovement: text("functional_movement").$type<FunctionalMovement>(),
   /** Trainer's setup cues — shown in programs and passed to the AI. */
   note: text("note"),

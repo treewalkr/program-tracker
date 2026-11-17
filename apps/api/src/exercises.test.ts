@@ -78,7 +78,28 @@ describe.skipIf(!dbUp)("exercise library", () => {
   test("unknown muscle, equipment or pattern is a validation error", async () => {
     expect((await create({ primaryMuscleGroup: "elbows" })).status).toBe(422);
     expect((await create({ equipment: "spaceship" })).status).toBe(422);
-    expect((await create({ movementPattern: "sideways" })).status).toBe(422);
+    expect((await create({ movementPatterns: ["sideways"] })).status).toBe(422);
+    expect((await create({ movementPatterns: ["knee_dominant", "knee_dominant"] })).status).toBe(422);
+    expect((await create({ movementPatterns: ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant"] })).status).toBe(422);
+  });
+
+  test("movement patterns keep their order; the first is the primary", async () => {
+    const { status, body } = await create({ movementPatterns: ["knee_dominant", "hip_dominant"] });
+    expect(status).toBe(201);
+    expect(body.movementPatterns).toEqual(["knee_dominant", "hip_dominant"]);
+    const { body: patched } = await call("PATCH", `/v1/exercises/${body.id}`, { movementPatterns: ["hip_dominant", "knee_dominant"] });
+    expect(patched.movementPatterns).toEqual(["hip_dominant", "knee_dominant"]);
+    const { body: cleared } = await call("PATCH", `/v1/exercises/${body.id}`, { movementPatterns: [] });
+    expect(cleared.movementPatterns).toEqual([]);
+  });
+
+  test("the previous web build's single movementPattern still sets the list", async () => {
+    const { body } = await create({ movementPattern: "carry" });
+    expect(body.movementPatterns).toEqual(["carry"]);
+    expect(body.movementPattern).toBe("carry");
+    const { body: cleared } = await call("PATCH", `/v1/exercises/${body.id}`, { movementPattern: null });
+    expect(cleared.movementPatterns).toEqual([]);
+    expect(cleared.movementPattern).toBeNull();
   });
 
   test("over-length or missing fields are refused on create and edit", async () => {
@@ -99,12 +120,12 @@ describe.skipIf(!dbUp)("exercise library", () => {
       name,
       primaryMuscleGroup: "chest",
       equipment: "cable",
-      movementPattern: "horizontal_push",
+      movementPatterns: ["horizontal_push"],
       functionalMovement: "push",
       note: "slow eccentric",
     });
     expect(status).toBe(200);
-    expect(body).toMatchObject({ name, primaryMuscleGroup: "chest", equipment: "cable", movementPattern: "horizontal_push", note: "slow eccentric" });
+    expect(body).toMatchObject({ name, primaryMuscleGroup: "chest", equipment: "cable", movementPatterns: ["horizontal_push"], note: "slow eccentric" });
   });
 
   test("seed entries: tags, note and hide are allowed; name/muscles/equipment are locked", async () => {

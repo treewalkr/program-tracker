@@ -9,19 +9,20 @@ import {
   normalizeGroups,
   sortExercisesByRole,
   draftWeek,
+  primaryPattern,
 } from "@pt/shared";
 import type { AiProgramDraft, DraftExerciseRef, DraftSession, PlacementDaysInput, ProgramSession, ProgramWeek, RoleRank, SessionTypeLike } from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
   name: string;
-  /** Feeds the placer's lower/upper focus read; absent = unknown. */
-  movementPattern?: string | null;
+  /** Feeds the placer's lower/upper focus read (primary only); absent = unknown. */
+  movementPatterns?: readonly string[];
 }
 
-/** exerciseId → movement pattern, for `placeSessions`/`placeWeeks`. */
+/** exerciseId → primary movement pattern, for `placeSessions`/`placeWeeks`. */
 export function patternLookup(catalog: CatalogLike[]): (exerciseId: string) => string | null | undefined {
-  const byId = new Map(catalog.map((c) => [c.id, c.movementPattern]));
+  const byId = new Map(catalog.map((c) => [c.id, c.movementPatterns ? primaryPattern(c) : undefined]));
   return (id) => byId.get(id);
 }
 

@@ -52,6 +52,7 @@
   import { copyNotice, copyTargetLabel, matchNotice, programSubline, snapshot } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
+  import { patternTitle } from "$lib/exerciseLibrary";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
@@ -146,7 +147,9 @@
 
   const weekIndex = $derived(program?.weeks[currentWeekIndex] ? currentWeekIndex : 0);
   const currentWeek = $derived(program?.weeks[weekIndex] ?? null);
-  const patternOf = (exerciseId: string) => catalogById.get(exerciseId)?.movementPattern ?? null;
+  const patternsOf = (exerciseId: string) => catalogById.get(exerciseId)?.movementPatterns ?? [];
+  /** Primary pattern only — balance, focus and placement ignore secondary tags. */
+  const patternOf = (exerciseId: string) => patternsOf(exerciseId)[0] ?? null;
   const focusOf = (s: ProgramSessionDto) => sessionFocus(s, patternOf);
   /** Sessions in calendar order: Mon → Sun, then unscheduled. */
   const ordered = $derived.by(() => {
@@ -660,7 +663,8 @@
                       onclose={() => (openExercise = null)}
                     />
                   {:else}
-                    {@const pattern = patternOf(e.exerciseId)}
+                    {@const patterns = patternsOf(e.exerciseId)}
+                    {@const pattern = patterns[0]}
                     <div class="exblock" class:editable>
                       <div class="exhead">
                         {#if e.group}<GroupTag tag={groupTag(s.exercises, ei) ?? e.group} />{/if}
@@ -672,7 +676,7 @@
                         {/if}
                         {#if pattern && pattern in MOVEMENT_PATTERN_INFO}
                           {@const p = pattern as MovementPattern}
-                          <span class="mp-tag" title={MOVEMENT_PATTERN_INFO[p].description}>{MOVEMENT_PATTERN_INFO[p].label}</span>
+                          <span class="mp-tag" title={patternTitle(patterns)}>{MOVEMENT_PATTERN_INFO[p].label}</span>
                         {/if}
                       </div>
                       {#if e.notes}<p class="subtle exnotes">{e.notes}</p>{/if}

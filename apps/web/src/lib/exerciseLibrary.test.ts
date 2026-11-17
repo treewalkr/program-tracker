@@ -14,6 +14,7 @@ import {
   visibleRows,
   formFrom,
   NONE,
+  patternTitle,
   PATTERN_GROUPS,
 } from "./exerciseLibrary";
 import { MOVEMENT_PATTERNS } from "@pt/shared";
@@ -24,7 +25,7 @@ const ex = (over: Partial<ExerciseDto>): ExerciseDto => ({
   primaryMuscleGroup: "back",
   secondaryMuscleGroups: [],
   equipment: "barbell",
-  movementPattern: "horizontal_pull",
+  movementPatterns: ["horizontal_pull"],
   functionalMovement: "pull",
   note: null,
   custom: false,
@@ -36,8 +37,8 @@ const ex = (over: Partial<ExerciseDto>): ExerciseDto => ({
 const list = [
   ex({ name: "Bent Over Row", usedIn: 3 }),
   ex({ name: "Pendlay Row", custom: true }),
-  ex({ name: "Cable Fly", primaryMuscleGroup: "chest", equipment: "cable", movementPattern: null, functionalMovement: null }),
-  ex({ name: "Zercher Squat", custom: true, archivedAt: "2026-11-01T00:00:00Z", movementPattern: "knee_dominant" }),
+  ex({ name: "Cable Fly", primaryMuscleGroup: "chest", equipment: "cable", movementPatterns: [], functionalMovement: null }),
+  ex({ name: "Zercher Squat", custom: true, archivedAt: "2026-11-01T00:00:00Z", movementPatterns: ["knee_dominant"] }),
 ];
 
 describe("tabs and rows", () => {
@@ -55,6 +56,33 @@ describe("tabs and rows", () => {
     expect(visibleRows(list, { tab: "archived", q: "", filters: emptyFilters(), sort: "name" }).map((e) => e.name)).toEqual([
       "Zercher Squat",
     ]);
+  });
+});
+
+describe("multiple movement patterns", () => {
+  const bss = ex({ name: "Bulgarian Split Squat", equipment: "dumbbell", movementPatterns: ["knee_dominant", "hip_dominant"] });
+  const pick = (pattern: string[]) =>
+    visibleRows([bss], { tab: "all", q: "", filters: { muscle: [], pattern, equipment: [] }, sort: "name" }).map((e) => e.name);
+
+  test("the pattern filter matches any tag, not only the primary", () => {
+    expect(pick(["hip_dominant"])).toEqual(["Bulgarian Split Squat"]);
+    expect(pick(["knee_dominant"])).toEqual(["Bulgarian Split Squat"]);
+    expect(pick(["carry"])).toEqual([]);
+    expect(pick([NONE])).toEqual([]);
+  });
+
+  test("the coverage map counts the exercise in every tagged row", () => {
+    const c = coverage([bss]);
+    expect(c.cells.get("knee_dominant|dumbbell")).toBe(1);
+    expect(c.cells.get("hip_dominant|dumbbell")).toBe(1);
+    expect(c.placed).toBe(1);
+    expect(c.live).toBe(1);
+  });
+
+  test("tooltip names the primary's description, then the rest", () => {
+    expect(patternTitle(["knee_dominant", "hip_dominant"])).toEndWith("Also: Hip-dominant.");
+    expect(patternTitle(["knee_dominant"])).not.toContain("Also");
+    expect(patternTitle([])).toBe("");
   });
 });
 

@@ -33,6 +33,7 @@
   import SetChips from "$lib/components/SetChips.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
   import { groupSets } from "$lib/setChips";
+  import { patternTitle } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
   import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
 
@@ -53,7 +54,8 @@
     exercises?: {
       name: string;
       role?: ExerciseRole;
-      movementPattern?: string | null;
+      /** Ordered tags; the tag shows the primary, the tooltip names the rest. */
+      movementPatterns?: readonly string[] | null;
       sets: PrescribedSetDto[];
       /** The client's 1RM for this exercise — %1RM sets show their kg. */
       oneRepMaxKg?: number | null;
@@ -76,9 +78,12 @@
 
   const units = $derived(exerciseUnits(exercises));
 
-  const hasPattern = $derived(
-    exercises.some((e) => !!e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO)
-  );
+  const primaryInfo = (e: { movementPatterns?: readonly string[] | null }) => {
+    const p = e.movementPatterns?.[0];
+    return p && p in MOVEMENT_PATTERN_INFO ? MOVEMENT_PATTERN_INFO[p as MovementPattern] : null;
+  };
+
+  const hasPattern = $derived(exercises.some((e) => primaryInfo(e) !== null));
 
   /** Columns the session's set chips line up into (load/tempo/rest only when some set has one). */
   const cols = $derived({
@@ -158,9 +163,9 @@
             {#if e.group}<GroupTag tag={groupTag(exercises, i) ?? e.group} />{/if}
             {#if e.role}<RoleChip role={e.role} />{/if}
             <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"}{" · not in proposal"}{/if}</span>{/if}</span>
-            {#if e.movementPattern && e.movementPattern in MOVEMENT_PATTERN_INFO}
-              {@const info = MOVEMENT_PATTERN_INFO[e.movementPattern as MovementPattern]}
-              <span class="mp-tag" title={info.description}>{info.label}</span>
+            {#if primaryInfo(e)}
+              {@const info = primaryInfo(e)!}
+              <span class="mp-tag" title={patternTitle(e.movementPatterns ?? [])}>{info.label}</span>
             {/if}
             {#if onnote && e.slot != null}
               {@const slot = e.slot}
@@ -195,7 +200,7 @@
     {#if hasPattern || legend}
       <!-- the notation key lives here, not over the columns: it must survive the stacked (≤660px) card -->
       <div class="balance">
-        {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises))}</span>{/if}
+        {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises.map((e) => ({ movementPattern: e.movementPatterns?.[0] ?? null, sets: e.sets }))))}</span>{/if}
         {#if legend}<span class="legend">RPE {legend}</span>{/if}
       </div>
     {/if}

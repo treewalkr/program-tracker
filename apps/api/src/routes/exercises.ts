@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exercises, setLogs, type ExerciseRow } from "@pt/db";
-import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup } from "@pt/shared";
+import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup, primaryPattern } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { ExerciseModel } from "../models/exercises";
 
@@ -9,8 +9,21 @@ interface Fields {
   primaryMuscleGroup?: string;
   secondaryMuscleGroups?: string[];
   equipment?: string;
+  movementPatterns?: string[];
   movementPattern?: string | null;
   functionalMovement?: string | null;
+}
+
+/** First problem with a movement-pattern list: an unknown value or a duplicate. */
+function invalidPatterns(list: readonly string[]): boolean {
+  return list.some((p) => !MovementPattern.safeParse(p).success) || new Set(list).size !== list.length;
+}
+
+/** The new list from a body: `movementPatterns`, or the previous web build's single `movementPattern`. */
+function patternsFrom(b: Fields): MovementPattern[] | undefined {
+  if (b.movementPatterns !== undefined) return b.movementPatterns as MovementPattern[];
+  if (b.movementPattern !== undefined) return b.movementPattern === null ? [] : [b.movementPattern as MovementPattern];
+  return undefined;
 }
 
 /** First vocabulary violation in the body, or null. */
@@ -18,6 +31,7 @@ function invalidField(b: Fields): string | null {
   if (b.primaryMuscleGroup !== undefined && !MuscleGroup.safeParse(b.primaryMuscleGroup).success) return "primaryMuscleGroup";
   if (b.secondaryMuscleGroups?.some((m) => !MuscleGroup.safeParse(m).success)) return "secondaryMuscleGroups";
   if (b.equipment !== undefined && !Equipment.safeParse(b.equipment).success) return "equipment";
+  if (b.movementPatterns !== undefined && invalidPatterns(b.movementPatterns)) return "movementPatterns";
   if (b.movementPattern != null && !MovementPattern.safeParse(b.movementPattern).success) return "movementPattern";
   if (b.functionalMovement != null && !FunctionalMovement.safeParse(b.functionalMovement).success) return "functionalMovement";
   return null;
@@ -46,7 +60,9 @@ const toDto = (row: ExerciseRow, usedIn: number) => ({
   primaryMuscleGroup: row.primaryMuscleGroup,
   secondaryMuscleGroups: row.secondaryMuscleGroups,
   equipment: row.equipment,
-  movementPattern: row.movementPattern,
+  movementPatterns: row.movementPatterns,
+  /** Deprecated: the primary, for the previous web build. Remove with the movement_pattern column. */
+  movementPattern: primaryPattern(row),
   functionalMovement: row.functionalMovement,
   note: row.note,
   /** false = library seed entry (name, muscles and equipment are locked). */
@@ -101,7 +117,8 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
           primaryMuscleGroup: body.primaryMuscleGroup,
           secondaryMuscleGroups: (body.secondaryMuscleGroups ?? []).filter((m) => m !== body.primaryMuscleGroup),
           equipment: body.equipment,
-          movementPattern: (body.movementPattern ?? null) as MovementPattern | null,
+          movementPatterns: patternsFrom(body) ?? [],
+          legacyMovementPattern: primaryPattern({ movementPatterns: patternsFrom(body) }),
           functionalMovement: (body.functionalMovement ?? null) as FunctionalMovement | null,
           note: body.note?.trim() || null,
         })
@@ -151,7 +168,11 @@ export const exerciseRoutes = new Elysia({ prefix: "/v1/exercises", tags: ["exer
           (m) => m !== primary
         );
       }
-      if (body.movementPattern !== undefined) updates.movementPattern = body.movementPattern as MovementPattern | null;
+      const patterns = patternsFrom(body);
+      if (patterns !== undefined) {
+        updates.movementPatterns = patterns;
+        updates.legacyMovementPattern = primaryPattern({ movementPatterns: patterns });
+      }
       if (body.functionalMovement !== undefined) updates.functionalMovement = body.functionalMovement as FunctionalMovement | null;
       if (body.note !== undefined) updates.note = body.note?.trim() || null;
       if (body.archived !== undefined) updates.archivedAt = body.archived ? (existing.archivedAt ?? new Date()) : null;

@@ -328,10 +328,22 @@ export const Exercise = z.object({
   primaryMuscleGroup: MuscleGroup,
   secondaryMuscleGroups: z.array(MuscleGroup).max(4).default([]),
   equipment: Equipment,
-  movementPattern: MovementPattern.nullable().optional(),
+  /** Ordered movement patterns; the first is the primary. Empty = untagged. */
+  movementPatterns: z.array(MovementPattern).max(4).default([]),
   functionalMovement: FunctionalMovement.nullable().optional(),
 });
 export type Exercise = z.infer<typeof Exercise>;
+
+/** Most movement patterns an exercise can carry. */
+export const MAX_MOVEMENT_PATTERNS = 4;
+
+/**
+ * The primary movement pattern: the first tag, or null when untagged. Balance,
+ * roles and placement read only this; the rest are for search, filters and AI context.
+ */
+export function primaryPattern<P extends string>(e: { movementPatterns?: readonly P[] | null }): P | null {
+  return e.movementPatterns?.[0] ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Program prescription
@@ -480,7 +492,7 @@ export function hardSetCount(sets: readonly { type?: SetType }[] | null | undefi
 
 /** Hard sets per movement pattern — the one balance count for the program page and draft review. */
 export function patternBalance(
-  list: readonly { movementPattern?: string | null; sets: readonly { type?: SetType }[] | null | undefined }[]
+  list: readonly { /** The primary pattern only. */ movementPattern: string | null | undefined; sets: readonly { type?: SetType }[] | null | undefined }[]
 ): PatternBalance {
   const result: PatternBalance = {
     push: 0,

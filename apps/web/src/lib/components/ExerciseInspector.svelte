@@ -48,8 +48,8 @@
   const rm = $derived(exercise ? removeAction(exercise) : null);
   const dupes = $derived(locked ? { exact: null, similar: [] } : similarNames(list, form.name, exercise?.id));
   const prefilledFrom = untrack(() =>
-    !exercise && (prefill?.movementPattern || prefill?.equipment)
-      ? [prefill.movementPattern && patternName(prefill.movementPattern), EQUIPMENT_OPTIONS.find((o) => o.key === prefill.equipment)?.label]
+    !exercise && (prefill?.movementPatterns?.length || prefill?.equipment)
+      ? [prefill.movementPatterns?.[0] && patternName(prefill.movementPatterns[0]), EQUIPMENT_OPTIONS.find((o) => o.key === prefill.equipment)?.label]
           .filter(Boolean)
           .join(", ")
       : ""
@@ -184,7 +184,16 @@
 
     <div class="f">
       <label class="label" for="xf-pattern">Movement pattern</label>
-      <select bind:this={patternSelect} class="select" id="xf-pattern" bind:value={form.movementPattern}>
+      <select
+        bind:this={patternSelect}
+        class="select"
+        id="xf-pattern"
+        value={form.movementPatterns[0] ?? ""}
+        onchange={(ev) => {
+          const v = ev.currentTarget.value;
+          form.movementPatterns = v ? [v, ...form.movementPatterns.slice(1).filter((p) => p !== v)] : [];
+        }}
+      >
         <option value="">Untagged</option>
         {#each PATTERN_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
       </select>

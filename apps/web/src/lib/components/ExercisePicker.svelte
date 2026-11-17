@@ -92,7 +92,7 @@
         name,
         primaryMuscleGroup: draft.primaryMuscleGroup,
         equipment: draft.equipment,
-        movementPattern: draft.movementPattern || null,
+        movementPatterns: draft.movementPattern ? [draft.movementPattern] : [],
       });
       draft = null;
       onpick(created);

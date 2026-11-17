@@ -476,7 +476,7 @@
                     exercises={s.exercises.map((e) => ({
                       name: e.exerciseName ?? "",
                       role: e.role,
-                      movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
+                      movementPatterns: catalogById.get(e.exerciseId)?.movementPatterns ?? [],
                       sets: e.prescribedSets,
                       oneRepMaxKg: oneRepMaxKg(client?.oneRepMaxes, e.exerciseId),
                       group: e.group,

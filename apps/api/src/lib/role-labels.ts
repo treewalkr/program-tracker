@@ -1,6 +1,6 @@
 import { asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, exercises, roleLabels, type RoleLabelRow } from "@pt/db";
-import { mergeRoleLabels, type Equipment, type MuscleGroup, type RoleLabel } from "@pt/shared";
+import { mergeRoleLabels, primaryPattern, type Equipment, type MuscleGroup, type RoleLabel } from "@pt/shared";
 
 /** The trainer's rows plus the global ones (none yet) — globals first, so a personal row wins. */
 export async function roleLabelRows(trainerId: string): Promise<RoleLabelRow[]> {
@@ -24,7 +24,7 @@ export async function roleHintsFor(ids: string[]) {
     ? await db
         .select({
           id: exercises.id,
-          movementPattern: exercises.movementPattern,
+          movementPatterns: exercises.movementPatterns,
           primaryMuscleGroup: exercises.primaryMuscleGroup,
           equipment: exercises.equipment,
         })
@@ -34,6 +34,6 @@ export async function roleHintsFor(ids: string[]) {
   const byId = new Map(rows.map((r) => [r.id, r]));
   return (id: string | undefined) => {
     const r = id ? byId.get(id) : undefined;
-    return r ? { movementPattern: r.movementPattern, primaryMuscleGroup: r.primaryMuscleGroup as MuscleGroup, equipment: r.equipment as Equipment } : undefined;
+    return r ? { movementPattern: primaryPattern(r), primaryMuscleGroup: r.primaryMuscleGroup as MuscleGroup, equipment: r.equipment as Equipment } : undefined;
   };
 }

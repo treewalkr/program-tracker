@@ -31,6 +31,7 @@ import {
   MOVEMENT_PATTERNS,
   newSet,
   patternBalance,
+  primaryPattern,
   hardSetCount,
   sessionsPatternBalance,
   Phasing,
@@ -851,23 +852,34 @@ describe("Movement taxonomy", () => {
       equipment: "barbell",
     };
     const e1 = Exercise.parse(base);
-    expect(e1.movementPattern).toBeUndefined();
+    expect(e1.movementPatterns).toEqual([]);
     expect(e1.functionalMovement).toBeUndefined();
 
     const e2 = Exercise.parse({
       ...base,
-      movementPattern: null,
+      movementPatterns: ["knee_dominant", "hip_dominant"],
       functionalMovement: null,
     });
-    expect(e2.movementPattern).toBeNull();
+    expect(e2.movementPatterns).toEqual(["knee_dominant", "hip_dominant"]);
     expect(e2.functionalMovement).toBeNull();
 
     expect(() =>
-      Exercise.parse({ ...base, movementPattern: "push_press" })
+      Exercise.parse({ ...base, movementPatterns: ["push_press"] })
+    ).toThrow();
+    expect(() =>
+      Exercise.parse({ ...base, movementPatterns: ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant"] })
     ).toThrow();
     expect(() =>
       Exercise.parse({ ...base, functionalMovement: "invalid" })
     ).toThrow();
+  });
+});
+
+describe("primaryPattern", () => {
+  test("is the first tag, or null when untagged", () => {
+    expect(primaryPattern({ movementPatterns: ["knee_dominant", "hip_dominant"] })).toBe("knee_dominant");
+    expect(primaryPattern({ movementPatterns: [] })).toBeNull();
+    expect(primaryPattern({})).toBeNull();
   });
 });
 

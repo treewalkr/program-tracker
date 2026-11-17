@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
 import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
@@ -413,7 +413,7 @@ function checkRoles<D extends Parameters<typeof fixDraftRoles>[0]>(draft: D): D 
   const { draft: fixed, notes } = fixDraftRoles(draft, mergedLabels(), (id) => {
     const e = exercises.find((x) => x.id === id);
     return e
-      ? { movementPattern: (e.movementPattern ?? null) as MovementPattern | null, primaryMuscleGroup: e.primaryMuscleGroup as MuscleGroup, equipment: e.equipment as Equipment }
+      ? { movementPattern: primaryPattern(e) as MovementPattern | null, primaryMuscleGroup: e.primaryMuscleGroup as MuscleGroup, equipment: e.equipment as Equipment }
       : undefined;
   });
   const note = `\n\nRole check: ${notes.join(" ")}`;
@@ -936,7 +936,7 @@ export const mockApi: TrainerApi = {
       primaryMuscleGroup: input.primaryMuscleGroup,
       secondaryMuscleGroups: (input.secondaryMuscleGroups ?? []).filter((m) => m !== input.primaryMuscleGroup),
       equipment: input.equipment,
-      movementPattern: input.movementPattern ?? null,
+      movementPatterns: [...(input.movementPatterns ?? [])],
       functionalMovement: input.functionalMovement ?? null,
       note: input.note?.trim() || null,
       custom: true,

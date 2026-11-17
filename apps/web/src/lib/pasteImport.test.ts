@@ -130,7 +130,7 @@ describe("formFromImport", () => {
 
   test("catalog patterns steer the suggestion", () => {
     const r = result();
-    const catalog = [{ id: "bench", name: "Bench Press", primaryMuscleGroup: "core", equipment: "barbell", movementPattern: "anti_extension" }];
+    const catalog = [{ id: "bench", name: "Bench Press", primaryMuscleGroup: "core", equipment: "barbell", movementPatterns: ["anti_extension"] }];
     // "Incline bench press" is only a suggestion for Bench Press: the trainer takes it
     const incline = templateExercises(r, r.defaultBlock).find(({ ex }) => ex.sourceName === "Incline bench press")!.key;
     const choices: Record<string, ChoiceState> = { [incline]: { choice: { kind: "catalog", exerciseId: "bench", exerciseName: "Bench Press" }, confirmed: true } };
