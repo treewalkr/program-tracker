@@ -47,7 +47,7 @@ const en: Guide = {
     setUp: {
       h: "Set it up",
       steps: [
-        { h: "Open the client's Settings tab", p: "`Clients` › `their name` › `Settings`. The **Client portal** box is the first one on the page." },
+        { h: "Open the client's Settings tab", p: "`Clients` › `their name` › `Settings`. The **Client portal** box is the first one on the page. Shortcut: on *Overview*, the **Portal** column shows *Turn on…* next to any client without a portal; it opens this same tab." },
         {
           h: "Check their email",
           p: "With an email on file they can also sign in with that Google account (the box says `Uses name@example.com`). With none it says *No email on file* and they use the link only. Add one in their profile, or skip Google.",
@@ -58,7 +58,7 @@ const en: Guide = {
         },
         {
           h: "Send it",
-          p: "**Copy message** under *For LINE* copies a ready sentence with the link, in English or ไทย (it starts in Thai when the client's name is written in Thai). Paste it into LINE. **Copy link** copies the link alone.",
+          p: "**Copy message** under *For LINE* copies a ready sentence with the link, in English or ไทย (it starts in Thai when the client's name is written in Thai). Paste it into LINE. **Copy link** copies the link alone, and once a portal is on, *Overview* has the same **Copy link** in its **Portal** column.",
         },
         {
           h: "They open it once on their phone",
@@ -156,7 +156,7 @@ const th: Guide = {
     setUp: {
       h: "ตั้งค่า",
       steps: [
-        { h: "เปิดแท็บ Settings ของลูกค้า", p: "`Clients` › `ชื่อลูกค้า` › `Settings` กล่อง **Client portal** อยู่บนสุดของหน้า" },
+        { h: "เปิดแท็บ Settings ของลูกค้า", p: "`Clients` › `ชื่อลูกค้า` › `Settings` กล่อง **Client portal** อยู่บนสุดของหน้า ทางลัด: ที่หน้า *Overview* คอลัมน์ **Portal** จะมี *Turn on…* ข้างลูกค้าที่ยังไม่มีพอร์ทัล กดแล้วเปิดแท็บเดียวกันนี้" },
         {
           h: "ตรวจอีเมล",
           p: "ถ้ามีอีเมลในระบบ ลูกค้าเข้าด้วยบัญชี Google นั้นได้ด้วย (กล่องจะขึ้น `Uses name@example.com`) ถ้าไม่มีจะขึ้น *No email on file* และใช้ได้แค่ลิงก์ เพิ่มอีเมลได้ในโปรไฟล์ หรือข้าม Google ไปเลย",
@@ -167,7 +167,7 @@ const th: Guide = {
         },
         {
           h: "ส่งให้ลูกค้า",
-          p: "**Copy message** ใต้ *For LINE* คัดลอกข้อความพร้อมลิงก์ ทั้งภาษาอังกฤษและไทย (เริ่มเป็นไทยเมื่อชื่อลูกค้าเขียนเป็นไทย) แล้ววางใน LINE ส่วน **Copy link** คัดลอกเฉพาะลิงก์",
+          p: "**Copy message** ใต้ *For LINE* คัดลอกข้อความพร้อมลิงก์ ทั้งภาษาอังกฤษและไทย (เริ่มเป็นไทยเมื่อชื่อลูกค้าเขียนเป็นไทย) แล้ววางใน LINE ส่วน **Copy link** คัดลอกเฉพาะลิงก์ และเมื่อเปิดพอร์ทัลแล้ว หน้า *Overview* ก็มี **Copy link** เดียวกันในคอลัมน์ **Portal**",
         },
         {
           h: "ลูกค้าเปิดบนมือถือครั้งเดียว",
