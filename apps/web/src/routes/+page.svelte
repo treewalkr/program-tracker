@@ -14,6 +14,7 @@
     type ClientStrip,
   } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import CopyButton from "$lib/components/CopyButton.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekBoard from "$lib/components/WeekBoard.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -29,6 +30,8 @@
   let providers = $state<ProviderDto[]>([]);
   let loadError = $state<string | null>(null);
   let currentNames = $state<Record<string, string>>({});
+  /** Each client's portal access link; absent while their portal is off (or didn't load). */
+  let portalLinks = $state<Record<string, string>>({});
   let signals = $state<SignalDto[]>([]);
   let strips = $state<ClientStrip[]>([]);
   let rowsReady = $state(false);
@@ -63,8 +66,14 @@
       // Per-client detail + logs in parallel — sequential calls scaled linearly with the roster.
       const built = await Promise.all(
         cs.map(async (c) => {
-          const [detail, logs] = await Promise.all([api.client(c.id), api.sessionLogs(c.id)]);
+          const [detail, logs, portal] = await Promise.all([
+            api.client(c.id),
+            api.sessionLogs(c.id),
+            // A portal that won't load only costs its copy button — never the row.
+            api.clientPortal(c.id).catch(() => null),
+          ]);
           currentNames[c.id] = detail.currentProgram?.name ?? "—";
+          if (portal?.link) portalLinks[c.id] = portal.link;
           return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
         })
       );
@@ -187,6 +196,7 @@
                 <th>Client</th>
                 <th>Status</th>
                 <th class="r">Sessions</th>
+                <th class="r">Portal</th>
               </tr>
             </thead>
             <tbody>
@@ -198,6 +208,13 @@
                   </td>
                   <td><StatusPill status={c.status} /></td>
                   <td class="r">{c.sessionsPerWeek ?? "—"} / wk</td>
+                  <td class="r portal-cell">
+                    {#if portalLinks[c.id]}
+                      <CopyButton text={portalLinks[c.id]} label="Copy link" />
+                    {:else if rowsReady}
+                      <a class="subtle" href={`/clients/${c.id}`} title="Turn the portal on from the client page">Off</a>
+                    {/if}
+                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -238,6 +255,8 @@
   :global(.load-err) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .signal-list { display: flex; flex-direction: column; }
   .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .portal-cell { white-space: nowrap; }
+  .portal-cell :global(.copybtn) { justify-content: flex-end; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
 
