@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### New
+- An exercise can now have up to 4 **movement patterns**, e.g. a Bulgarian split squat is Knee-dominant and Hip-dominant. The ★ marks the primary pattern: set balance, role suggestions and day placement count only the primary, so hip work still has to come from real hinges. The other patterns help search, filters, the coverage grid and AI drafts. Functional movement stays one choice.
+  - th: ท่าหนึ่งมี **Movement pattern** ได้สูงสุด 4 อัน เช่น Bulgarian split squat เป็นทั้ง Knee-dominant และ Hip-dominant ★ คือ pattern หลัก การนับสมดุลเซ็ต การแนะนำบทบาท และการจัดวันฝึกนับเฉพาะ pattern หลัก งานสะโพกจึงยังต้องมาจากท่า hinge จริง ส่วน pattern อื่นช่วยในการค้นหา ตัวกรอง ตาราง Coverage และร่างโปรแกรมของ AI ส่วน Functional movement ยังเลือกได้อันเดียวเหมือนเดิม
+- New **No pattern** tag for mobility, drills and warm-ups. They no longer show as needing a tag, and they don't count toward any pattern in your balance.
+  - th: แท็กใหม่ **No pattern** สำหรับท่า mobility ดริล และวอร์มอัพ ท่าเหล่านี้จะไม่ขึ้นว่ายังไม่ได้ติดแท็กอีก และไม่ถูกนับเข้า pattern ไหนในสมดุลเซ็ต
+- Tag many exercises at once: select them in the library and use **Add pattern**. Each pattern shows how many of them already have it, and you can remove a pattern from all of them or **Clear patterns**. Every change can be undone from the notice at the bottom.
+  - th: ติดแท็กหลายท่าพร้อมกัน: เลือกท่าในคลังท่าแล้วกด **Add pattern** แต่ละ pattern บอกว่ามีกี่ท่าที่ติดแล้ว เอา pattern ออกจากทุกท่าที่เลือก หรือกด **Clear patterns** ได้ ทุกการเปลี่ยนแปลงกดย้อนกลับ (Undo) ได้จากแถบแจ้งเตือนด้านล่าง
+- When a new version is out, a small notice at the bottom of the screen tells you and links to What's new. It goes away on its own and waits while you're logging a session.
+  - th: เมื่อมีเวอร์ชันใหม่ จะมีแถบแจ้งเตือนเล็ก ๆ ด้านล่างจอพร้อมลิงก์ไปหน้า What's new แถบจะหายไปเอง และจะไม่ขึ้นระหว่างที่คุณบันทึกเซสชัน
+- The What's new page can switch between Thai and English.
+  - th: หน้า What's new สลับภาษาไทย/อังกฤษได้
+
+### Fixed
+- The settings tabs no longer wobble when you scroll with a trackpad.
+  - th: แถบแท็บในหน้าตั้งค่าไม่สั่นอีกเมื่อเลื่อนด้วยแทร็กแพด
+
 ## v0.1.32 — 2026-11-17
 
 ### New
