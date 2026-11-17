@@ -13,6 +13,7 @@ const SAMPLE = `# What's new
 
 ### New
 - Paste a client's **history** from notes.
+  - th: วางประวัติลูกเทรนจากโน้ต
 - Admins can open any client read-only,
   and see their active programme.
 
@@ -40,13 +41,14 @@ describe("parseChangelog", () => {
       {
         kind: "New",
         items: ["Paste a client's **history** from notes.", "Admins can open any client read-only, and see their active programme."],
+        th: ["วางประวัติลูกเทรนจากโน้ต", null],
       },
-      { kind: "Fixed", items: ["Deload weeks lower the load index."] },
+      { kind: "Fixed", items: ["Deload weeks lower the load index."], th: [null] },
     ]);
   });
 
   test("bullets without a section heading land in an untitled section", () => {
-    expect(releases[1].sections).toEqual([{ kind: null, items: ["Maintenance and reliability updates."] }]);
+    expect(releases[1].sections).toEqual([{ kind: null, items: ["Maintenance and reliability updates."], th: [null] }]);
   });
 
   test("nothing released → no latest version", () => {

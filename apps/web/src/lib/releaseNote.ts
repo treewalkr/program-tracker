@@ -18,3 +18,15 @@ export const BANNER_TEXT: Record<
     dismiss: "ปิด",
   },
 };
+
+/** What's new page strings. `latest` is the pill on the newest release. */
+export const PAGE_TEXT: Record<Locale, { title: string; sub: string; empty: string; latest: string; kinds: Record<string, string> }> = {
+  en: { title: "What's new", sub: "Changes to Program Tracker, newest first.", empty: "Nothing released yet.", latest: "Latest", kinds: {} },
+  th: {
+    title: "มีอะไรใหม่",
+    sub: "การเปลี่ยนแปลงของ Program Tracker เรียงจากใหม่ไปเก่า",
+    empty: "ยังไม่มีการปล่อยเวอร์ชัน",
+    latest: "ล่าสุด",
+    kinds: { New: "ใหม่", Improved: "ปรับปรุง", Fixed: "แก้ไข" },
+  },
+};
