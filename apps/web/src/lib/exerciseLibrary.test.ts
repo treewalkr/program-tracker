@@ -14,6 +14,8 @@ import {
   visibleRows,
   formFrom,
   NONE,
+  makePrimary,
+  togglePattern,
   needsTagging,
   patternTitle,
   PATTERN_GROUPS,
@@ -94,6 +96,32 @@ describe("multiple movement patterns", () => {
     expect(patternTitle(["knee_dominant", "hip_dominant"])).toEndWith("Also: Hip-dominant.");
     expect(patternTitle(["knee_dominant"])).not.toContain("Also");
     expect(patternTitle([])).toBe("");
+  });
+});
+
+describe("togglePattern / makePrimary", () => {
+  test("the first tag added is primary; more append in order", () => {
+    expect(togglePattern([], "knee_dominant")).toEqual(["knee_dominant"]);
+    expect(togglePattern(["knee_dominant"], "hip_dominant")).toEqual(["knee_dominant", "hip_dominant"]);
+  });
+
+  test("removing the primary promotes the next tag", () => {
+    expect(togglePattern(["knee_dominant", "hip_dominant", "carry"], "knee_dominant")).toEqual(["hip_dominant", "carry"]);
+  });
+
+  test("No pattern is exclusive both ways", () => {
+    expect(togglePattern(["knee_dominant", "hip_dominant"], "no_pattern")).toEqual(["no_pattern"]);
+    expect(togglePattern(["no_pattern"], "carry")).toEqual(["carry"]);
+  });
+
+  test("a full list takes no more", () => {
+    const full = ["knee_dominant", "hip_dominant", "carry", "rotation"];
+    expect(togglePattern(full, "isolation")).toEqual(full);
+  });
+
+  test("makePrimary moves a selected tag to the front", () => {
+    expect(makePrimary(["knee_dominant", "hip_dominant", "carry"], "carry")).toEqual(["carry", "knee_dominant", "hip_dominant"]);
+    expect(makePrimary(["knee_dominant"], "carry")).toEqual(["knee_dominant"]);
   });
 });
 

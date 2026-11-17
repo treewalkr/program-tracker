@@ -4,6 +4,7 @@ import {
   FUNCTIONAL_MOVEMENTS,
   MOVEMENT_PATTERN_INFO,
   MOVEMENT_PATTERNS,
+  MAX_MOVEMENT_PATTERNS,
   MUSCLE_GROUPS,
   NO_PATTERN,
   type MovementPattern,
@@ -46,6 +47,22 @@ export const PATTERN_GROUPS: { label: string; patterns: MovementPattern[] }[] = 
   { label: "Core", patterns: MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core) },
   { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation" || p === NO_PATTERN) },
 ];
+
+/**
+ * Toggle one movement pattern in an ordered list (first = primary). The first
+ * tag added becomes primary; removing the primary promotes the next. "No
+ * pattern" is exclusive both ways. A full list (4) takes no more.
+ */
+export function togglePattern(list: readonly string[], p: string): string[] {
+  if (list.includes(p)) return list.filter((x) => x !== p);
+  if (p === NO_PATTERN) return [NO_PATTERN];
+  const rest = list.filter((x) => x !== NO_PATTERN);
+  return rest.length >= MAX_MOVEMENT_PATTERNS ? rest : [...rest, p];
+}
+
+/** Move a selected tag to the front, making it the primary. */
+export const makePrimary = (list: readonly string[], p: string): string[] =>
+  list.includes(p) ? [p, ...list.filter((x) => x !== p)] : [...list];
 
 /** The "untagged" filter value for the pattern axis. */
 export const NONE = "none";
