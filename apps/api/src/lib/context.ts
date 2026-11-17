@@ -247,7 +247,7 @@ export async function loadContext(
       name: e.name,
       primaryMuscleGroup: e.primaryMuscleGroup,
       equipment: e.equipment,
-      movementPattern: e.movementPattern,
+      movementPatterns: e.movementPatterns,
       functionalMovement: e.functionalMovement,
       note: e.note,
     })),

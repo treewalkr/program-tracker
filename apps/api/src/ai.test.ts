@@ -254,7 +254,7 @@ describe("buildGenerationMessages", () => {
           name: "Bench Press",
           primaryMuscleGroup: "chest",
           equipment: "barbell",
-          movementPattern: "horizontal_push",
+          movementPatterns: ["horizontal_push"],
           functionalMovement: "push",
         },
       ],
@@ -276,13 +276,43 @@ describe("buildGenerationMessages", () => {
           name: "Mystery Exercise",
           primaryMuscleGroup: "core",
           equipment: "bodyweight",
-          movementPattern: null,
+          movementPatterns: [],
           functionalMovement: null,
         },
       ],
       trainerInstructions: "",
     });
     expect(user).toContain("- ex-2 | Mystery Exercise (core, bodyweight, pattern n/a, function n/a)");
+  });
+
+  test("a multi-pattern entry lists every tag, primary first and marked", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-4", name: "Bulgarian Split Squat", primaryMuscleGroup: "quads", equipment: "dumbbell", movementPatterns: ["knee_dominant", "hip_dominant"], functionalMovement: "single_leg" },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-4 | Bulgarian Split Squat (quads, dumbbell, knee_dominant (primary)/hip_dominant, single_leg)");
+  });
+
+  test("a No pattern entry reads as 'no pattern', not n/a", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-3", name: "Cat Camel", primaryMuscleGroup: "mobility", equipment: "bodyweight", movementPatterns: ["no_pattern"], functionalMovement: null },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-3 | Cat Camel (mobility, bodyweight, no pattern, function n/a)");
   });
 
   test("system instructs pattern balance and rationale must explain it", () => {
@@ -496,7 +526,7 @@ describe("weekly prompts: learned preferences", () => {
       periodization: null,
       chainBalance: null,
       history: [],
-      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPattern: null, functionalMovement: null }],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPatterns: [], functionalMovement: null }],
       trainerInstructions: "",
     };
 
@@ -563,7 +593,7 @@ describe("buildRevisionMessages", () => {
       periodization: null,
       chainBalance: null,
       history: [],
-      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPattern: null, functionalMovement: null }],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPatterns: [], functionalMovement: null }],
       trainerInstructions: "",
       previousDraft,
       feedback,
@@ -905,8 +935,8 @@ describe("draftToWeeks", () => {
       weeks: [{ week: 1, sessions: [lift("Lower A", catalog[0].id), z2("Z2 A"), lift("Upper", catalog[1].id), lift("Lower B", catalog[0].id), z2("Z2 B")] }],
     };
     const patterned = [
-      { ...catalog[0], movementPattern: "knee_dominant" },
-      { ...catalog[1], movementPattern: "horizontal_push" },
+      { ...catalog[0], movementPatterns: ["knee_dominant"] },
+      { ...catalog[1], movementPatterns: ["horizontal_push"] },
     ];
     // Mon, Tue, Wed, Fri, Sat
     const { weeks } = draftToWeeks(stretch(d, 3), patterned, [1, 2, 3, 5, 6]);
@@ -935,8 +965,8 @@ describe("draftToWeeks", () => {
   test("AI weekdays that pass the rules are kept; the rest are re-placed (F26)", () => {
     const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
     const patterned = [
-      { ...catalog[0], movementPattern: "knee_dominant" },
-      { ...catalog[1], movementPattern: "horizontal_push" },
+      { ...catalog[0], movementPatterns: ["knee_dominant"] },
+      { ...catalog[1], movementPatterns: ["horizontal_push"] },
     ];
     const d: AiProgramDraft = {
       ...draft,
@@ -1508,7 +1538,7 @@ describe("buildChatSystem", () => {
           name: "Back Squat",
           primaryMuscleGroup: "quads",
           equipment: "barbell",
-          movementPattern: "squat",
+          movementPatterns: ["squat"],
           functionalMovement: "bilateral_squat",
         },
       ],

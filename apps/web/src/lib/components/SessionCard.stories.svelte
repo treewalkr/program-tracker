@@ -45,8 +45,8 @@
   ];
 
   const patternSession = [
-    { name: 'Bench Press', role: 'primary' as ExerciseRole, movementPattern: 'horizontal_push', sets: working(5, 4, 80, 8) },
-    { name: 'Barbell Row', role: 'strength' as ExerciseRole, movementPattern: 'horizontal_pull', sets: working(8, 3, 70, 7) },
+    { name: 'Bench Press', role: 'primary' as ExerciseRole, movementPatterns: ['horizontal_push'], sets: working(5, 4, 80, 8) },
+    { name: 'Barbell Row', role: 'strength' as ExerciseRole, movementPatterns: ['horizontal_pull'], sets: working(8, 3, 70, 7) },
     { name: 'Untagged Drill', role: 'accessory' as ExerciseRole, sets: working(12, 3, 20) },
   ];
 
@@ -55,16 +55,16 @@
     ({ setNumber: n, type: 'working', reps: 5, amrap: false, restSeconds: 180, ...o }) as PrescribedSetDto;
   const loaded = [
     {
-      name: 'Back Squat', role: 'primary' as ExerciseRole, movementPattern: 'knee_dominant', oneRepMaxKg: 160,
+      name: 'Back Squat', role: 'primary' as ExerciseRole, movementPatterns: ['knee_dominant'], oneRepMaxKg: 160,
       sets: [set({ reps: 3, percent1rm: 85, targetRpe: 8, tempo: '3-1-1-0' }, 1), ...[2, 3, 4].map((n) => set({ reps: 5, percent1rm: 75, targetRpe: 7, type: 'backoff', tempo: '3-1-1-0' }, n))],
     },
-    { name: 'Romanian Deadlift', role: 'secondary' as ExerciseRole, movementPattern: 'hip_dominant', sets: [1, 2, 3].map((n) => set({ reps: 8, targetWeightKg: 100, targetRpe: 7, targetRpeMin: 6, restSeconds: 120 }, n)) },
-    { name: 'Push-up', role: 'accessory' as ExerciseRole, movementPattern: 'horizontal_push', sets: [set({ reps: 10, amrap: true, stopRpe: 9, restSeconds: 90 }, 1)] },
-    { name: 'Leg Curl', role: 'accessory' as ExerciseRole, movementPattern: 'isolation', sets: [1, 2].map((n) => set({ reps: 12, targetRpe: 7 + n, restSeconds: 60 }, n)) },
+    { name: 'Romanian Deadlift', role: 'secondary' as ExerciseRole, movementPatterns: ['hip_dominant'], sets: [1, 2, 3].map((n) => set({ reps: 8, targetWeightKg: 100, targetRpe: 7, targetRpeMin: 6, restSeconds: 120 }, n)) },
+    { name: 'Push-up', role: 'accessory' as ExerciseRole, movementPatterns: ['horizontal_push'], sets: [set({ reps: 10, amrap: true, stopRpe: 9, restSeconds: 90 }, 1)] },
+    { name: 'Leg Curl', role: 'accessory' as ExerciseRole, movementPatterns: ['isolation'], sets: [1, 2].map((n) => set({ reps: 12, targetRpe: 7 + n, restSeconds: 60 }, n)) },
   ];
 </script>
 
-{#snippet template(args: { name: string; when?: string; kind?: SessionKindDto; cardio?: CardioPrescriptionDto | null; exercises?: { name: string; role?: ExerciseRole; movementPattern?: string | null; sets: PrescribedSetDto[] }[] })}
+{#snippet template(args: { name: string; when?: string; kind?: SessionKindDto; cardio?: CardioPrescriptionDto | null; exercises?: { name: string; role?: ExerciseRole; movementPatterns?: readonly string[] | null; sets: PrescribedSetDto[] }[] })}
   <SessionCard {...args} />
 {/snippet}
 

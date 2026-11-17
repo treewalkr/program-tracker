@@ -112,6 +112,11 @@ describe("suggestRole", () => {
     expect(suggestRole(ex("Dead Bug"), [], 0)).toBe("core");
   });
 
+  test("No pattern gives no hint: the name decides", () => {
+    expect(suggestRole(ex("Dead Bug", { movementPattern: "no_pattern" }), [], 0)).toBe("core");
+    expect(suggestRole(ex("Cat Camel", { movementPattern: "no_pattern" }), [], 0)).toBe("accessory");
+  });
+
   test("first heavy compound → primary, next → secondary, then strength", () => {
     const session = [
       ex("Box Jump"),

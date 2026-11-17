@@ -130,7 +130,8 @@ export interface ExerciseDto {
   primaryMuscleGroup: string;
   secondaryMuscleGroups: string[];
   equipment: string;
-  movementPattern: string | null;
+  /** Ordered; the first is the primary. Empty = untagged. */
+  movementPatterns: string[];
   functionalMovement: string | null;
   /** Trainer's setup cues — shown in programs and passed to the AI. */
   note: string | null;
@@ -147,7 +148,8 @@ export interface ExerciseInput {
   primaryMuscleGroup: string;
   secondaryMuscleGroups?: string[];
   equipment: string;
-  movementPattern?: string | null;
+  /** Ordered; the first is the primary. At most 4. */
+  movementPatterns?: string[];
   functionalMovement?: string | null;
   note?: string | null;
 }
@@ -718,7 +720,7 @@ export interface TrainerApi {
 
   exercises(query?: string): Promise<ExerciseDto[]>;
   createExercise(input: ExerciseInput): Promise<ExerciseDto>;
-  /** Seed entries take only movementPattern, functionalMovement, note and archived. */
+  /** Seed entries take only movementPatterns, functionalMovement, note and archived. */
   patchExercise(id: string, input: ExercisePatch): Promise<ExerciseDto>;
   /** Unused custom exercises only; everything else archives via patchExercise. */
   deleteExercise(id: string): Promise<void>;

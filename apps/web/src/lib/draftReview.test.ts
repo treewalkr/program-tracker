@@ -165,9 +165,9 @@ describe("review checks, rationale, history", () => {
     ],
   };
   const catalog = new Map([
-    ["sq", { movementPattern: "knee_dominant" }],
-    ["row", { movementPattern: "horizontal_pull" }],
-    ["bench", { movementPattern: "horizontal_push" }],
+    ["sq", { movementPatterns: ["knee_dominant"] }],
+    ["row", { movementPatterns: ["horizontal_pull"] }],
+    ["bench", { movementPatterns: ["horizontal_push"] }],
   ]);
 
   test("reviewChecks", () => {
@@ -183,7 +183,7 @@ describe("review checks, rationale, history", () => {
   test("program header and draft review agree on the same week's balance (F21)", () => {
     const backoff = { ...set(7), type: "backoff" as const };
     const week = { ...draft, sessions: [...draft.sessions, { name: "Day 3", exercises: [{ exerciseId: "row", exerciseName: "Row", prescribedSets: [set(8), set(8), backoff] }] }] };
-    const patternOf = (id: string) => catalog.get(id)?.movementPattern ?? null;
+    const patternOf = (id: string) => catalog.get(id)?.movementPatterns[0] ?? null;
     const b = sessionsPatternBalance(week.sessions, patternOf);
     expect(formatPatternBalance(b)).toBe("8 sets — push 2 · pull 4 · knee 2");
     const texts = reviewChecks(week, null, catalog).map((c) => c.text);

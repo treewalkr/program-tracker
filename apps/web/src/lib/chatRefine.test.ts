@@ -19,7 +19,7 @@ const set = (reps: number, weightKg?: number): PrescribedSetDto =>
     ? { setNumber: 1, type: "working", reps, amrap: false }
     : { setNumber: 1, type: "working", reps, amrap: false, targetWeightKg: weightKg };
 
-const catalogById = new Map([["ex-squat", { movementPattern: "squat" }]]);
+const catalogById = new Map([["ex-squat", { movementPatterns: ["squat"] }]]);
 
 let seq = 0;
 type LegacyDraftOverride = Partial<AiDraftDto> & { sessions?: AiDraftDto["weeks"][number]["sessions"] };
@@ -261,8 +261,8 @@ describe("draftPreviewModel", () => {
     expect(card.exercises.map((e) => e.role)).toEqual(["primary", "accessory"]);
     // slot is the raw draft index, not the sorted display position
     expect(card.exercises.map((e) => e.slot)).toEqual([2, 1]);
-    expect(card.exercises[0].movementPattern).toBe("squat");
-    expect(card.exercises[1].movementPattern).toBeNull();
+    expect(card.exercises[0].movementPatterns).toEqual(["squat"]);
+    expect(card.exercises[1].movementPatterns).toEqual([]);
     expect(card.kind).toBe("lifting");
   });
 

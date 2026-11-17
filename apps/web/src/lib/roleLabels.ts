@@ -1,6 +1,7 @@
 import {
   ROLE_CATEGORIES,
   ROLE_CATEGORY_NAMES,
+  primaryPattern,
   resolveRole,
   suggestRole,
   type BuiltinRole,
@@ -58,7 +59,7 @@ export function canCreateLabel(labels: readonly RoleLabel[], typed: string): boo
 }
 
 /** Catalog fields suggestRole reads (ExerciseDto keeps them as plain strings). */
-type CatalogHint = { id: string; name: string; primaryMuscleGroup: string; equipment: string; movementPattern: string | null };
+type CatalogHint = { id: string; name: string; primaryMuscleGroup: string; equipment: string; movementPatterns: readonly string[] };
 type Slot = { exerciseId: string; exerciseName?: string; prescribedSets?: RoleHints["prescribedSets"] };
 
 /** An exercise as suggestRole sees it: catalog fields when the id is known, its name otherwise. */
@@ -66,7 +67,7 @@ export function roleHints(e: Slot, catalog: readonly CatalogHint[]): RoleHints {
   const c = catalog.find((x) => x.id === e.exerciseId);
   return {
     name: c?.name ?? e.exerciseName ?? "",
-    movementPattern: (c?.movementPattern ?? null) as MovementPattern | null,
+    movementPattern: (c ? primaryPattern(c) : null) as MovementPattern | null,
     primaryMuscleGroup: (c?.primaryMuscleGroup ?? null) as MuscleGroup | null,
     equipment: (c?.equipment ?? null) as Equipment | null,
     prescribedSets: e.prescribedSets,

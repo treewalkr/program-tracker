@@ -59,7 +59,7 @@
     };
   };
 
-  const catalogById = new Map([['ex-squat', { movementPattern: 'squat' }]]);
+  const catalogById = new Map([['ex-squat', { movementPatterns: ['squat'] }]]);
 
   const v1 = gen();
   // v2: heavier day A, lighter day B.

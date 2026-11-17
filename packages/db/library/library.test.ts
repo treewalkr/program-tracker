@@ -33,6 +33,7 @@ const PRIMARY_FOR: Record<MP, MG[]> = {
   anti_extension: ["core"],
   carry: ["forearms", "core", "traps", "quads", "full_body", "shoulders"],
   isolation: MuscleGroup.options,
+  no_pattern: MuscleGroup.options,
 };
 
 /** Functional movements that fit each pattern (null = untagged is fine). */
@@ -52,6 +53,7 @@ const FUNCTIONAL_FOR: Record<MP, (FM | null)[]> = {
   anti_extension: [null],
   carry: ["locomotion"],
   isolation: [null],
+  no_pattern: [null],
 };
 
 /** German words that leaked into the old WGER seed. */

@@ -136,7 +136,7 @@
    * A and B weeks are placed each on their own.
    */
   function placementOf(list: SessionRow[], listSeqs: number[]) {
-    const patternOf = (exId: string) => catalog.find((c) => c.id === exId)?.movementPattern ?? null;
+    const patternOf = (exId: string) => catalog.find((c) => c.id === exId)?.movementPatterns[0] ?? null;
     const draft = list.map((s, i) => ({
       id: s.key,
       name: s.name || "x",

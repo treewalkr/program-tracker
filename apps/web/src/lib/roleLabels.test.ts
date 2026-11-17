@@ -62,9 +62,9 @@ describe("roleDisplay", () => {
 
 describe("suggestRoleIn", () => {
   const catalog = [
-    { id: "sq", name: "Back Squat", primaryMuscleGroup: "quads", equipment: "barbell", movementPattern: "knee_dominant" },
-    { id: "pl", name: "Plank", primaryMuscleGroup: "core", equipment: "bodyweight", movementPattern: "anti_extension" },
-    { id: "rdl", name: "Romanian Deadlift", primaryMuscleGroup: "hamstrings", equipment: "barbell", movementPattern: "hip_dominant" },
+    { id: "sq", name: "Back Squat", primaryMuscleGroup: "quads", equipment: "barbell", movementPatterns: ["knee_dominant"] },
+    { id: "pl", name: "Plank", primaryMuscleGroup: "core", equipment: "bodyweight", movementPatterns: ["anti_extension"] },
+    { id: "rdl", name: "Romanian Deadlift", primaryMuscleGroup: "hamstrings", equipment: "barbell", movementPatterns: ["hip_dominant"] },
   ];
   const five = [{ reps: 5, type: "working" }];
   test("reads the catalog for the session's exercises", () => {
