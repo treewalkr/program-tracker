@@ -2,7 +2,7 @@
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import { latest } from "$lib/whatsNew.svelte";
-  import { BANNER_TEXT, noteFor } from "$lib/releaseNote";
+  import { BANNER_TEXT } from "$lib/releaseNote";
   import Icon from "$lib/ui/Icon.svelte";
 
   const DISMISSED_KEY = "pt:dismissed-release";
@@ -15,32 +15,26 @@
     }
   }
 
-  const note = noteFor(latest);
   let dismissed = $state(readDismissed());
-  const visible = $derived(note !== null && dismissed !== note.version);
-  const copy = $derived(note?.copy[i18n.locale]);
+  const visible = $derived(latest !== null && dismissed !== latest);
   const text = $derived(BANNER_TEXT[i18n.locale]);
 
   function dismiss() {
-    if (!note) return;
-    dismissed = note.version;
+    if (!latest) return;
+    dismissed = latest;
     try {
-      localStorage.setItem(DISMISSED_KEY, note.version);
+      localStorage.setItem(DISMISSED_KEY, latest);
     } catch {
       // private mode: it comes back next visit
     }
   }
 </script>
 
-{#if visible && note && copy}
-  <aside class="release" lang={i18n.locale} aria-label={text.badge(note.version)}>
+{#if visible && latest}
+  <aside class="release" lang={i18n.locale} aria-label={text.title(latest)}>
     <div class="body">
-      <p class="badge">{text.badge(note.version)}</p>
-      <h2>{copy.title}</h2>
-      <ul>
-        {#each copy.points as point (point)}<li>{point}</li>{/each}
-      </ul>
-      <a href="/whats-new#v{note.version}">{text.more} →</a>
+      <h2>{text.title(latest)}</h2>
+      <p>{text.body} <a href="/whats-new#v{latest}">{text.more} →</a></p>
     </div>
     <div class="actions">
       <LangToggle />
@@ -62,15 +56,8 @@
     border-left: 3px solid var(--blue);
     border-radius: 8px;
   }
-  .badge {
-    margin: 0 0 4px;
-    font: 600 12px/1.2 var(--font-ui);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--blue);
-  }
-  h2 { margin: 0 0 6px; font: 600 16px/1.35 var(--font-ui); color: var(--ink); }
-  ul { margin: 0 0 8px; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+  h2 { margin: 0 0 2px; font: 600 16px/1.35 var(--font-ui); color: var(--ink); }
+  p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
   a { font-size: 14px; font-weight: 600; color: var(--blue); }
   .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .close {
