@@ -264,7 +264,7 @@
       <button type="button" class="dismiss" disabled={busyId !== null} onclick={() => discard(c)}>Dismiss</button>
     </div>
     <div class="body md">{@render html(c.body)}</div>
-    {#if c.aiMeta?.risk || c.aiMeta?.fixPlan?.length}
+    {#if c.aiMeta?.risk || c.aiMeta?.fixPlan?.length || c.aiMeta?.acceptance?.length}
       <div class="plan">
         <div class="plan-head">
           <span class="plan-label">Fix plan</span>
@@ -279,6 +279,12 @@
           <ol aria-label="Fix plan">
             {#each c.aiMeta.fixPlan as step, i (i)}<li>{step}</li>{/each}
           </ol>
+        {/if}
+        {#if c.aiMeta.acceptance?.length}
+          <span class="plan-label">Done when</span>
+          <ul aria-label="Acceptance criteria">
+            {#each c.aiMeta.acceptance as crit, i (i)}<li>{crit}</li>{/each}
+          </ul>
         {/if}
       </div>
     {/if}

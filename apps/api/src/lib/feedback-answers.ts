@@ -149,7 +149,7 @@ export async function logAgentAnswer(input: {
   item: FeedbackItem;
   markdown: string;
   basis: string;
-  answer: Pick<FeedbackAiMeta, "verdict" | "confidence" | "citations" | "fixPlan" | "risk" | "ready"> & {
+  answer: Pick<FeedbackAiMeta, "verdict" | "confidence" | "citations" | "fixPlan" | "risk" | "ready" | "acceptance"> & {
     reply: string | null;
     note: string;
     model?: string;

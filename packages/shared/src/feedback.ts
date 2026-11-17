@@ -284,6 +284,11 @@ export type FeedbackAiRisk = (typeof FEEDBACK_AI_RISKS)[number];
 /** Caps on an AI fix plan: steps, and characters per step. */
 export const FEEDBACK_FIX_PLAN_MAX_STEPS = 8;
 export const FEEDBACK_FIX_PLAN_STEP_MAX = 300;
+/** Acceptance criteria on a fix plan: 1–3 checkable statements, each short. */
+export const FEEDBACK_ACCEPTANCE_MAX = 3;
+export const FEEDBACK_ACCEPTANCE_ITEM_MAX = 200;
+/** The export's line above the criteria — the fix CLI reads them back by it. */
+export const FEEDBACK_ACCEPTANCE_HEADING = "- Acceptance criteria (each needs a test, story or browser check):";
 
 /** The admin's switch: no AI answers, drafts for review only, or send confident ones. */
 export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
@@ -307,6 +312,11 @@ export interface FeedbackAiMeta {
   fixPlan?: string[];
   /** `bug` / `feature` only: how risky the fix is. */
   risk?: FeedbackAiRisk;
+  /**
+   * `bug` / `feature` only: 1–3 checkable statements that are true once it's
+   * fixed — each becomes a test, story or browser check in the fix PR.
+   */
+  acceptance?: string[];
   /**
    * `bug` / `feature` only: the fix plan is complete, checked against the code
    * and leaves no product question open — a coding agent could start now.
@@ -812,6 +822,10 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     if (m.fixPlan?.length) {
       lines.push("  - Fix plan:");
       m.fixPlan.forEach((step, i) => lines.push(`    ${i + 1}. ${step}`));
+    }
+    if (m.acceptance?.length) {
+      lines.push(`  ${FEEDBACK_ACCEPTANCE_HEADING}`);
+      m.acceptance.forEach((c) => lines.push(`    - ${c}`));
     }
     if (m.questions?.length) {
       lines.push("  - Asked the reporter:");

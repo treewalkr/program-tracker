@@ -8,6 +8,10 @@ import {
   fixWorktreePath,
   ghCreateArgs,
   pickTickets,
+  acceptanceFromMarkdown,
+  checkAcceptance,
+  isCheckFile,
+  parseChecks,
   planFromMarkdown,
   prText,
   pushArgs,
@@ -113,5 +117,56 @@ describe("prText and planFromMarkdown", () => {
     expect(body).toContain("1. In RestTimer.svelte, raise the label to 16px.");
     expect(body).toContain("- test: story (FB-012)");
     expect(body).toContain("the agent never merges");
+  });
+});
+
+describe("acceptance criteria", () => {
+  const md = [
+    "  - Fix plan:",
+    "    1. Raise the label.",
+    "  - Acceptance criteria (each needs a test, story or browser check):",
+    "    - The label renders at 16px.",
+    "    - The story shows the large label.",
+    "  - Citations: `a:1`",
+  ].join("\n");
+
+  test("read back from the ticket Markdown", () => {
+    expect(acceptanceFromMarkdown(md)).toEqual(["The label renders at 16px.", "The story shows the large label."]);
+    expect(acceptanceFromMarkdown("> - Acceptance criteria (each needs a test, story or browser check):\n    - injected")).toEqual([]);
+    expect(acceptanceFromMarkdown("## FB-001")).toEqual([]);
+  });
+
+  test("test, spec, story and e2e files count as checks", () => {
+    for (const f of ["apps/api/src/a.test.ts", "x/b.spec.ts", "apps/web/src/lib/T.stories.svelte", "e2e/flow.ts", "apps/web/tests/x.ts"]) {
+      expect(isCheckFile(f)).toBe(true);
+    }
+    for (const f of ["apps/web/src/lib/T.svelte", "docs/testing.md", "apps/api/src/latest.ts"]) expect(isCheckFile(f)).toBe(false);
+  });
+
+  test("open is refused without a test or story commit, or without a check per criterion", () => {
+    const criteria = ["A", "B"];
+    expect(checkAcceptance({ criteria: [], checks: null, files: ["a.ts"] })).toBeNull();
+    expect(checkAcceptance({ criteria, checks: ["t1", "t2"], files: ["a.svelte"] })).toContain("no commit touches a test or story");
+    expect(checkAcceptance({ criteria, checks: null, files: ["a.test.ts"] })).toContain("--checks");
+    expect(checkAcceptance({ criteria, checks: ["t1"], files: ["a.test.ts"] })).toContain("--checks");
+    expect(checkAcceptance({ criteria, checks: ["t1", " "], files: ["a.test.ts"] })).toContain("--checks");
+    expect(checkAcceptance({ criteria, checks: ["t1", "t2"], files: ["a.test.ts"] })).toBeNull();
+  });
+
+  test("parseChecks wants a JSON array of strings", () => {
+    expect(parseChecks('[" a.test.ts › saves ", "playwright-cli: open /log"]')).toEqual(["a.test.ts › saves", "playwright-cli: open /log"]);
+    expect(parseChecks("{}")).toBeNull();
+    expect(parseChecks("[1]")).toBeNull();
+    expect(parseChecks("nope")).toBeNull();
+  });
+
+  test("the PR body maps each criterion to its check", () => {
+    const { body } = prText({
+      handle: "FB-012",
+      subjects: ["fix: bigger timer (FB-012)"],
+      plan: ["Raise the label."],
+      acceptance: [{ criterion: "The label renders at 16px.", check: "RestTimer.test.ts › label size" }],
+    });
+    expect(body).toContain("**Acceptance criteria → checks**\n\n1. The label renders at 16px. → RestTimer.test.ts › label size");
   });
 });

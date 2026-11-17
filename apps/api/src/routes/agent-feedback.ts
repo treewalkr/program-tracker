@@ -9,6 +9,8 @@ import {
   FEEDBACK_FIX_PLAN_MAX_STEPS,
   FEEDBACK_FIX_PLAN_STEP_MAX,
   FEEDBACK_AI_QUESTIONS_MAX,
+  FEEDBACK_ACCEPTANCE_MAX,
+  FEEDBACK_ACCEPTANCE_ITEM_MAX,
   FEEDBACK_AI_QUESTION_MAX,
   feedbackHandle,
   feedbackItemMarkdown,
@@ -403,6 +405,11 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       if (!note) return status(422, { error: "note is empty" });
       const fixPlan = (body.fixPlan ?? []).map((s) => s.trim()).filter(Boolean);
       if (body.ready && !fixPlan.length) return status(422, { error: "ready needs a fix plan" });
+      const acceptance = (body.acceptance ?? []).map((s) => s.trim()).filter(Boolean);
+      if (acceptance.length && body.verdict !== "bug" && body.verdict !== "feature") {
+        return status(422, { error: "acceptance criteria go only with bug or feature" });
+      }
+      if (body.ready && !acceptance.length) return status(422, { error: "ready needs acceptance criteria" });
       const questions = (body.questions ?? []).map((s) => s.trim()).filter(Boolean);
       if (body.verdict === "needs_info" && (!questions.length || !reply)) {
         return status(422, { error: "needs_info needs questions and a reply that asks them" });
@@ -438,6 +445,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           citations: body.citations,
           ...(questions.length ? { questions } : {}),
           ...(fixPlan.length ? { fixPlan } : {}),
+          ...(acceptance.length ? { acceptance } : {}),
           ...(body.risk ? { risk: body.risk } : {}),
           ...(body.ready !== undefined ? { ready: body.ready } : {}),
           basis,
@@ -476,7 +484,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         item: out.item,
         markdown: feedbackItemMarkdown(out.item, { imageUrl: () => null }),
         basis: out.basis,
-        answer: { ...body, confidence, fixPlan, reply, note },
+        answer: { ...body, confidence, fixPlan, acceptance, reply, note },
         outcome,
         commentIds: [out.noteId, ...(out.replyId ? [out.replyId] : [])],
         downvote: out.downvote,
@@ -501,6 +509,10 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         /** For `bug` / `feature`: steps for the coding agent that will fix it. */
         fixPlan: t.Optional(
           t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_FIX_PLAN_STEP_MAX }), { maxItems: FEEDBACK_FIX_PLAN_MAX_STEPS }),
+        ),
+        /** For `bug` / `feature`: 1–3 checkable statements, true once fixed. `ready` needs them. */
+        acceptance: t.Optional(
+          t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_ACCEPTANCE_ITEM_MAX }), { minItems: 1, maxItems: FEEDBACK_ACCEPTANCE_MAX }),
         ),
         // Literal union, not t.UnionEnum: UnionEnum's default (its first value) would fill an absent risk with "low".
         risk: t.Optional(t.Union(FEEDBACK_AI_RISKS.map((r) => t.Literal(r)))),
