@@ -282,6 +282,14 @@
         {/if}
       </div>
     {/if}
+    {#if c.aiMeta?.questions?.length}
+      <div class="plan">
+        <div class="plan-head"><span class="plan-label">Asks the reporter</span></div>
+        <ul aria-label="Questions for the reporter">
+          {#each c.aiMeta.questions as q, i (i)}<li>{q}</li>{/each}
+        </ul>
+      </div>
+    {/if}
     {#if c.aiMeta?.citations.length}
       <ul class="cites" aria-label="Citations">
         {#each c.aiMeta.citations as cite (cite)}<li><code>{cite}</code></li>{/each}

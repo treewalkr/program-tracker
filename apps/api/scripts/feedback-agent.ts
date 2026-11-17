@@ -23,7 +23,10 @@
  *                                           every AI answer with its ticket, thread, meta,
  *                                           rating and run, as JSONL
  *
- * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "fixPlan"?: [], "risk"?, "ready"?, "model"? }
+ * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "questions"?: [],
+ *               "fixPlan"?: [], "risk"?, "ready"?, "model"? }
+ * (`needs_info` needs "questions" and a "reply"; the API caps `high` to `medium` without a citation,
+ * and for bug / feature / needs_info — the printed result says what was recorded)
  *
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN, from the environment or the
  * repo's gitignored .env.agent (the environment wins).

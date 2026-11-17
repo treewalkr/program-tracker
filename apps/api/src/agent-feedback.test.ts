@@ -293,6 +293,54 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect(await inInbox(id)).toBeDefined(); // nothing was stored
   });
 
+  test("high confidence needs a citation, and bug / feature / needs_info stay at medium", async () => {
+    await setMode("drafts");
+    const noCite = await ticket("No evidence");
+    const res = await answer(noCite, { basis: await basisOf(noCite), reply: "It's there.", citations: [] });
+    expect(await json(res)).toMatchObject({ outcome: "drafted", confidence: "medium" });
+    expect((await asAdmin(noCite)).thread[0].aiMeta.confidence).toBe("medium");
+
+    const cited = await ticket("With evidence");
+    expect((await json(await answer(cited, { basis: await basisOf(cited), reply: "It's there." }))).confidence).toBe("high");
+
+    for (const verdict of ["bug", "feature"]) {
+      const id = await ticket(`Cap ${verdict}`);
+      expect((await json(await answer(id, { basis: await basisOf(id), verdict }))).confidence).toBe("medium");
+    }
+    await flush();
+  });
+
+  test("needs_info: questions and a reply, always a draft — and the ticket comes back once the reporter answers", async () => {
+    await setMode("auto");
+    const id = await ticket("Logging is broken");
+    const basis = await basisOf(id);
+    const ask = { basis, verdict: "needs_info", confidence: "high", citations: ["apps/web/src/routes/clients/[id]/log/+page.svelte:40"] };
+    expect((await answer(id, { ...ask, reply: "Which client?" })).status).toBe(422); // no questions
+    expect((await answer(id, { ...ask, questions: ["Which client?"] })).status).toBe(422); // no reply
+    expect((await answer(id, { ...ask, reply: "x", questions: ["a", "b", "c", "d"] })).status).toBe(422);
+    expect((await answer(id, { ...ask, reply: "x", questions: ["x".repeat(201)] })).status).toBe(422);
+    expect((await answer(id, { basis, verdict: "exists", reply: "x", questions: ["Which?"] })).status).toBe(422);
+
+    const res = await answer(id, { ...ask, reply: "Which client, and what did you tap?", questions: [" Which client? ", "What did you tap?"] });
+    expect(await json(res)).toMatchObject({ outcome: "drafted", confidence: "medium" });
+    expect(await flush()).toEqual([]);
+    const note = (await asAdmin(id)).thread[0];
+    expect(note.aiMeta).toMatchObject({ verdict: "needs_info", confidence: "medium", questions: ["Which client?", "What did you tap?"] });
+    const md = await (await call("GET", "/v1/feedback/export?status=new")).text();
+    expect(md).toContain("  - Asked the reporter:\n    - Which client?\n    - What did you tap?");
+    expect(await inInbox(id)).toBeUndefined();
+
+    // the owner sends the draft; the reporter answers; the agent sees the ticket again
+    const draft = (await asAdmin(id)).thread.find((c: any) => c.visibility === "draft");
+    expect((await call("POST", `/v1/feedback/${id}/comments/${draft.id}/publish`, {})).status).toBe(200);
+    expect(await inInbox(id)).toBeUndefined();
+    await call("POST", `/v1/feedback/${id}/comments`, { body: "Somchai, I tapped Save" }, kai);
+    const back = await inInbox(id);
+    expect(back.basis).not.toBe(basis);
+    expect(back.markdown).toContain("Somchai, I tapped Save");
+    await flush();
+  });
+
   test("a bug answer stores its fix plan and risk on the private note", async () => {
     const id = await ticket("Plan me");
     const fixPlan = Array.from({ length: 8 }, (_, i) => `Step ${i + 1} in apps/web/src/lib/A.svelte`);

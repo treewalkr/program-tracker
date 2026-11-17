@@ -8,6 +8,8 @@ import {
   FEEDBACK_AI_VERDICTS,
   FEEDBACK_FIX_PLAN_MAX_STEPS,
   FEEDBACK_FIX_PLAN_STEP_MAX,
+  FEEDBACK_AI_QUESTIONS_MAX,
+  FEEDBACK_AI_QUESTION_MAX,
   feedbackHandle,
   feedbackItemMarkdown,
   pendingDownvote,
@@ -29,6 +31,7 @@ import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, type ClosedDuplicate } from "../lib/feedback-duplicates";
 import {
   agentTokenMatches,
+  cappedConfidence,
   feedbackAiMode,
   fixCandidate,
   inboxCursor,
@@ -400,6 +403,15 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       if (!note) return status(422, { error: "note is empty" });
       const fixPlan = (body.fixPlan ?? []).map((s) => s.trim()).filter(Boolean);
       if (body.ready && !fixPlan.length) return status(422, { error: "ready needs a fix plan" });
+      const questions = (body.questions ?? []).map((s) => s.trim()).filter(Boolean);
+      if (body.verdict === "needs_info" && (!questions.length || !reply)) {
+        return status(422, { error: "needs_info needs questions and a reply that asks them" });
+      }
+      if (questions.length && body.verdict !== "needs_info") {
+        return status(422, { error: "questions go only with needs_info" });
+      }
+      // Evidence first: `high` needs a citation, and person-decided verdicts stay at medium.
+      const confidence = cappedConfidence(body);
 
       const out = await db.transaction(async (tx) => {
         // Serialises answers per ticket: a second run waits here, then sees the first one's entries.
@@ -418,12 +430,13 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         if (!downvote && item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis)) {
           return { error: "answered" as const, basis };
         }
-        const outcome = reply ? routeAnswer(mode, body, item) : null;
+        const outcome = reply ? routeAnswer(mode, { verdict: body.verdict, confidence }, item) : null;
         const now = Date.now();
         const aiMeta: FeedbackAiMeta = {
           verdict: body.verdict,
-          confidence: body.confidence,
+          confidence,
           citations: body.citations,
+          ...(questions.length ? { questions } : {}),
           ...(fixPlan.length ? { fixPlan } : {}),
           ...(body.risk ? { risk: body.risk } : {}),
           ...(body.ready !== undefined ? { ready: body.ready } : {}),
@@ -463,13 +476,14 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         item: out.item,
         markdown: feedbackItemMarkdown(out.item, { imageUrl: () => null }),
         basis: out.basis,
-        answer: { ...body, fixPlan, reply, note },
+        answer: { ...body, confidence, fixPlan, reply, note },
         outcome,
         commentIds: [out.noteId, ...(out.replyId ? [out.replyId] : [])],
         downvote: out.downvote,
         run: body.run,
       });
-      return { outcome, noteId: out.noteId, replyId: out.replyId, callId };
+      /** `confidence` as recorded: lower than asked when it was capped. */
+      return { outcome, noteId: out.noteId, replyId: out.replyId, callId, confidence };
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
@@ -480,6 +494,10 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         verdict: t.UnionEnum(FEEDBACK_AI_VERDICTS),
         confidence: t.UnionEnum(FEEDBACK_AI_CONFIDENCE),
         citations: t.Array(t.String({ maxLength: 300 }), { maxItems: 30 }),
+        /** For `needs_info`: what the reply asks the reporter, 1–3 short questions. */
+        questions: t.Optional(
+          t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_AI_QUESTION_MAX }), { minItems: 1, maxItems: FEEDBACK_AI_QUESTIONS_MAX }),
+        ),
         /** For `bug` / `feature`: steps for the coding agent that will fix it. */
         fixPlan: t.Optional(
           t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_FIX_PLAN_STEP_MAX }), { maxItems: FEEDBACK_FIX_PLAN_MAX_STEPS }),

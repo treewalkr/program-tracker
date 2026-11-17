@@ -260,15 +260,23 @@ export interface FeedbackAuthor {
 /**
  * The feedback auto-reply agent's call on a ticket: it already exists, it
  * shipped after the reporter's build, here's how to do it — or it's a real
- * bug / feature request / unclear and a person should look.
+ * bug / feature request / unclear and a person should look. `needs_info`:
+ * one specific fact from the reporter would settle it — the reply asks for
+ * it, always as a draft the owner sends.
  */
-export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear"] as const;
+export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear", "needs_info"] as const;
 export type FeedbackAiVerdict = (typeof FEEDBACK_AI_VERDICTS)[number];
 /** Verdicts an AI answer may go out on by itself (auto mode, medium or high confidence). */
 export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists", "shipped", "how_to"];
 
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
 export type FeedbackAiConfidence = (typeof FEEDBACK_AI_CONFIDENCE)[number];
+/** Verdicts a person decides on, or that wait on the reporter: never `high`. */
+export const FEEDBACK_AI_MEDIUM_CAP: readonly FeedbackAiVerdict[] = ["bug", "feature", "needs_info"];
+
+/** `needs_info`: the questions for the reporter — 1 to 3, each short. */
+export const FEEDBACK_AI_QUESTIONS_MAX = 3;
+export const FEEDBACK_AI_QUESTION_MAX = 200;
 
 /** How likely the fix is to break something or miss the point. */
 export const FEEDBACK_AI_RISKS = ["low", "medium", "high"] as const;
@@ -293,6 +301,8 @@ export interface FeedbackAiMeta {
   confidence: FeedbackAiConfidence;
   /** `file:line` references backing the verdict. */
   citations: string[];
+  /** `needs_info` only: what the reply asks the reporter (1–3). */
+  questions?: string[];
   /** `bug` / `feature` only: concrete steps for the coding agent, naming the files to change. */
   fixPlan?: string[];
   /** `bug` / `feature` only: how risky the fix is. */
@@ -802,6 +812,10 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
     if (m.fixPlan?.length) {
       lines.push("  - Fix plan:");
       m.fixPlan.forEach((step, i) => lines.push(`    ${i + 1}. ${step}`));
+    }
+    if (m.questions?.length) {
+      lines.push("  - Asked the reporter:");
+      m.questions.forEach((q) => lines.push(`    - ${q}`));
     }
     if (m.citations.length) lines.push(`  - Citations: ${m.citations.map((x) => `\`${x}\``).join(", ")}`);
   }
