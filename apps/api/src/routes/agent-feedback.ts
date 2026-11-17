@@ -38,6 +38,7 @@ import {
 } from "../lib/feedback-ai";
 import { answerExtras, answerRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
 import { TRANSCRIPT_MAX_CHARS } from "../lib/agent-transcript";
+import { requestLogsFor } from "../lib/request-log";
 import { FeedbackModel } from "../models/feedback";
 
 /**
@@ -325,6 +326,16 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       detail: { summary: "Tickets by number, for release notes" },
     },
   )
+  /**
+   * What the server logged for one request id from a ticket's Runtime section:
+   * method, route pattern, status, duration and the redacted error, oldest
+   * first. Empty when the request wasn't logged (it succeeded quickly, was a
+   * 401, or is older than 14 days).
+   */
+  .get("/requests/:requestId", async ({ params }) => requestLogsFor(params.requestId), {
+    params: t.Object({ requestId: t.String({ pattern: "^[A-Za-z0-9_-]{1,64}$" }) }),
+    detail: { summary: "Server log rows for a request id (failed or slow requests)" },
+  })
   /** One image on a ticket or a public reply. */
   .get(
     "/:id/attachments/:attachmentId",

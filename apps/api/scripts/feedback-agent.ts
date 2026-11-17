@@ -16,6 +16,9 @@
  *   bun run feedback:agent lessons [--limit 20]
  *                                           recent 👎 answers with the reporter's comment, and
  *                                           drafts the owner rewrote — read before answering
+ *   bun run feedback:agent logs <request-id>
+ *                                           what the server logged for a request id from a
+ *                                           ticket's Runtime section (failed or slow requests)
  *   bun run feedback:agent dataset [--since 2026-11-01T00:00:00Z]
  *                                           every AI answer with its ticket, thread, meta,
  *                                           rating and run, as JSONL
@@ -72,7 +75,7 @@ const { positionals, values } = parseArgs({
 const [command, id] = positionals;
 if (values.help || !command) {
   console.log(
-    "usage: feedback-agent inbox | answer <id> --file answer.json [--transcript f | --no-transcript] | open | duplicate <id> --of FB-012 | lessons [--limit n] | dataset [--since iso]",
+    "usage: feedback-agent inbox | answer <id> --file answer.json [--transcript f | --no-transcript] | open | duplicate <id> --of FB-012 | lessons [--limit n] | logs <request-id> | dataset [--since iso]",
   );
   process.exit(command ? 0 : 1);
 }
@@ -208,6 +211,19 @@ if (command === "inbox") {
     if (r.followUp) out.push(`**Next reply (${r.followUp.who === "ai" ? "AI" : r.followUp.who}):**`, quote(r.followUp.body), "");
   }
   console.log(out.join("\n"));
+} else if (command === "logs") {
+  if (!id) fail("logs needs a request id (from a ticket's Runtime section)");
+  const { data, error } = await api.requests({ requestId: id }).get();
+  if (error) fail(`logs: ${errorText(error)}`);
+  if (!data.length) {
+    console.log(`No server log for ${id}: it succeeded quickly, was a 401, or is older than 14 days.`);
+    process.exit(0);
+  }
+  for (const r of data) {
+    const who = r.trainerId ? ` trainer ${r.trainerId}` : "";
+    const at = (r.createdAt as unknown) instanceof Date ? (r.createdAt as unknown as Date).toISOString() : String(r.createdAt);
+    console.log(`${at} ${r.method} ${r.route} → ${r.status} in ${r.durationMs} ms${who}${r.error ? `\n  ${r.error}` : ""}`);
+  }
 } else if (command === "dataset") {
   if (values.since && Number.isNaN(Date.parse(values.since))) fail("--since needs an ISO date-time");
   const since = values.since ? new Date(values.since).toISOString() : undefined;
@@ -215,5 +231,5 @@ if (command === "inbox") {
   if (error) fail(`dataset: ${errorText(error)}`);
   for (const r of data) console.log(JSON.stringify(r));
 } else {
-  fail(`unknown command "${command}" (inbox | answer | open | duplicate | lessons | dataset)`);
+  fail(`unknown command "${command}" (inbox | answer | open | duplicate | lessons | logs | dataset)`);
 }

@@ -945,3 +945,29 @@ export const llmPairs = pgView("llm_pairs", {
   isMock: boolean("is_mock").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 }).existing();
+
+// ---------------------------------------------------------------------------
+// Request log — failed and slow API requests, so a feedback ticket's request id
+// leads to what the server saw. Thin and short-lived: no bodies, 14 days.
+// ---------------------------------------------------------------------------
+
+export const requestLogs = pgTable(
+  "request_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The `x-request-id` the response carried (and the browser recorded). */
+    requestId: text("request_id").notNull(),
+    method: text("method").notNull(),
+    /** The matched route pattern (`/v1/feedback/:id`), never the URL with ids or query. */
+    route: text("route").notNull(),
+    status: integer("status").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** Who called, when a session was resolved. */
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+    /** What went wrong, redacted and capped at 500 characters; null for a slow success. */
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("request_logs_request_id_idx").on(t.requestId), index("request_logs_created_at_idx").on(t.createdAt)]
+);
+export type RequestLogRow = typeof requestLogs.$inferSelect;
