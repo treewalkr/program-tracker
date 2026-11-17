@@ -1,6 +1,5 @@
 <script lang="ts">
   import { i18n } from "$lib/portal/i18n.svelte";
-  import LangToggle from "$lib/portal/LangToggle.svelte";
   import { latest } from "$lib/whatsNew.svelte";
   import { page } from "$app/state";
   import { BANNER_TEXT, quietRoute } from "$lib/releaseNote";
@@ -18,6 +17,7 @@
 
   let dismissed = $state(readDismissed());
   const visible = $derived(latest !== null && dismissed !== latest && !quietRoute(page.url.pathname));
+  const other = $derived(i18n.locale === "th" ? "en" : "th");
   const text = $derived(BANNER_TEXT[i18n.locale]);
 
   /** Toast behaviour: it leaves on its own, but waits while the pointer or focus is on it. */
@@ -51,7 +51,7 @@
     onfocusout={() => (paused = false)}
   >
     <span class="msg"><strong>{text.title(latest)}</strong> <a href="/whats-new#v{latest}">{text.more} →</a></span>
-    <LangToggle compact />
+    <button type="button" class="lang" lang={other} onclick={() => i18n.set(other)}>{other === "th" ? "ไทย" : "EN"}</button>
     <button type="button" class="close" aria-label={text.dismiss} onclick={dismiss}><Icon name="x" /></button>
   </div>
 {/if}
@@ -84,6 +84,17 @@
   a { font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; border-radius: 2px; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
   a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .lang {
+    padding: 2px 4px;
+    font: 500 12px/1.4 var(--font-ui);
+    color: var(--muted);
+    background: none;
+    border: 0;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .lang:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+  .lang:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
   .close {
     display: grid;
     place-items: center;
