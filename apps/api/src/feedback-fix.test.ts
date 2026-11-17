@@ -84,6 +84,7 @@ describe.skipIf(!dbUp)("fix agent API", () => {
         fixPlan: ["In RestTimer.svelte, raise the label to 16px.", "Add a story for the large label."],
         risk: "low",
         ready: true,
+        acceptance: ["The rest timer label renders at 16px."],
         ...over,
       },
       agent,
@@ -106,6 +107,24 @@ describe.skipIf(!dbUp)("fix agent API", () => {
     expect(note.aiMeta).toMatchObject({ verdict: "bug", risk: "low", ready: true });
   });
 
+  test("ready needs acceptance criteria; they go only with bug or feature, and print under the plan", async () => {
+    const t = await ticket("Timer label tiny");
+    expect((await answer(t.id, { acceptance: undefined })).status).toBe(422);
+    expect((await answer(t.id, { acceptance: ["a", "b", "c", "d"] })).status).toBe(422);
+    expect((await answer(t.id, { acceptance: ["x".repeat(201)] })).status).toBe(422);
+    expect((await answer(t.id, { verdict: "how_to", fixPlan: undefined, risk: undefined, ready: undefined })).status).toBe(422);
+    expect((await answer(t.id, { acceptance: undefined, ready: false })).status).toBe(200);
+    const u = await ticket("Timer label tiny again");
+    expect((await answer(u.id, { acceptance: [" The label is 16px. ", "The story shows it."] })).status).toBe(200);
+    const note = (await json(await call("GET", `/v1/feedback/${u.id}`))).thread.find((c: any) => c.visibility === "private");
+    expect(note.aiMeta.acceptance).toEqual(["The label is 16px.", "The story shows it."]);
+    await accept(u.id);
+    const row = (await fixable()).tickets.find((x: any) => x.id === u.id);
+    expect(row.markdown).toContain(
+      "  - Acceptance criteria (each needs a test, story or browser check):\n    - The label is 16px.\n    - The story shows it.",
+    );
+  });
+
   test("fixable lists accepted, low-risk, ready tickets and says why the rest are skipped", async () => {
     const good = await readyTicket("Bigger rest timer");
     const fresh = await ticket("Not accepted yet");
@@ -117,7 +136,7 @@ describe.skipIf(!dbUp)("fix agent API", () => {
     await answer(notReady.id, { verdict: "feature", ready: false });
     await accept(notReady.id);
     const howTo = await ticket("How do I copy a week?");
-    await answer(howTo.id, { verdict: "how_to", confidence: "high", fixPlan: undefined, risk: undefined, ready: undefined });
+    await answer(howTo.id, { verdict: "how_to", confidence: "high", fixPlan: undefined, risk: undefined, ready: undefined, acceptance: undefined });
     await accept(howTo.id);
     const stale = await readyTicket("Timer contrast");
     // the owner's triage note changes the basis: the AI's verdict no longer applies

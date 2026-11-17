@@ -4,7 +4,9 @@ import {
   FUNCTIONAL_MOVEMENTS,
   MOVEMENT_PATTERN_INFO,
   MOVEMENT_PATTERNS,
+  MAX_MOVEMENT_PATTERNS,
   MUSCLE_GROUPS,
+  NO_PATTERN,
   type MovementPattern,
 } from "@pt/shared";
 import type { ExerciseDto } from "./api/types";
@@ -27,13 +29,57 @@ export const patternShort = (k: string) =>
 export const functionalName = (k: string | null) =>
   k && k in FUNCTIONAL_MOVEMENT_INFO ? FUNCTIONAL_MOVEMENT_INFO[k as keyof typeof FUNCTIONAL_MOVEMENT_INFO].label : "Untagged";
 
-/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation). */
+/**
+ * Tooltip for a primary-pattern tag: the primary's description, then the
+ * secondary tags by name ("… Also: Hip-dominant.").
+ */
+export function patternTitle(patterns: readonly string[]): string {
+  const [first, ...rest] = patterns.filter((p) => p in MOVEMENT_PATTERN_INFO) as MovementPattern[];
+  if (!first || first === NO_PATTERN) return "";
+  const also = rest.map((p) => MOVEMENT_PATTERN_INFO[p].name);
+  return also.length ? `${MOVEMENT_PATTERN_INFO[first].description} Also: ${also.join(", ")}.` : MOVEMENT_PATTERN_INFO[first].description;
+}
+
+/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation, No pattern). */
 export const PATTERN_GROUPS: { label: string; patterns: MovementPattern[] }[] = [
   { label: "Upper", patterns: MOVEMENT_PATTERNS.filter((p) => /push|pull/.test(p)) },
   { label: "Lower", patterns: MOVEMENT_PATTERNS.filter((p) => p === "knee_dominant" || p === "hip_dominant") },
   { label: "Core", patterns: MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core) },
-  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation") },
+  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation" || p === NO_PATTERN) },
 ];
+
+/**
+ * Toggle one movement pattern in an ordered list (first = primary). The first
+ * tag added becomes primary; removing the primary promotes the next. "No
+ * pattern" is exclusive both ways. A full list (4) takes no more.
+ */
+export function togglePattern(list: readonly string[], p: string): string[] {
+  if (list.includes(p)) return list.filter((x) => x !== p);
+  if (p === NO_PATTERN) return [NO_PATTERN];
+  const rest = list.filter((x) => x !== NO_PATTERN);
+  return rest.length >= MAX_MOVEMENT_PATTERNS ? rest : [...rest, p];
+}
+
+/**
+ * Add a tag (bulk): appended, so it becomes primary only on an exercise with
+ * no tags. Already there, or a full list: unchanged. "No pattern" stays exclusive.
+ */
+export const addPattern = (list: readonly string[], p: string): string[] =>
+  list.includes(p) ? [...list] : togglePattern(list, p);
+
+/** Remove a tag (bulk); removing the primary promotes the next. */
+export const removePattern = (list: readonly string[], p: string): string[] => list.filter((x) => x !== p);
+
+/** How many of `rows` carry tag `p`: "all", "N of M", or "" when none do. */
+export function patternShare(rows: readonly Pick<ExerciseDto, "movementPatterns">[], p: string): { n: number; all: boolean; text: string } {
+  const n = rows.filter((e) => e.movementPatterns.includes(p)).length;
+  const all = n > 0 && n === rows.length;
+  return { n, all, text: all ? "✓ all" : n ? `${n} of ${rows.length}` : "" };
+}
+
+/** Move a selected tag to the front, making it the primary. */
+export const makePrimary = (list: readonly string[], p: string): string[] =>
+  list.includes(p) ? [p, ...list.filter((x) => x !== p)] : [...list];
 
 /** The "untagged" filter value for the pattern axis. */
 export const NONE = "none";
@@ -47,7 +93,10 @@ export interface Filters {
 }
 export const emptyFilters = (): Filters => ({ muscle: [], pattern: [], equipment: [] });
 
-export const needsTagging = (e: ExerciseDto) => !e.movementPattern || !e.functionalMovement;
+export const needsTagging = (e: ExerciseDto) => e.movementPatterns.length === 0 || !e.functionalMovement;
+
+/** Every pattern tag, or [NONE] when untagged — an exercise counts in each one. */
+const patternKeys = (e: ExerciseDto): string[] => (e.movementPatterns.length ? e.movementPatterns : [NONE]);
 
 export function inTab(e: ExerciseDto, tab: Tab): boolean {
   if (tab === "archived") return e.archivedAt !== null;
@@ -80,7 +129,7 @@ export function visibleRows(
       inTab(e, o.tab) &&
       (!q || norm(e.name).includes(q)) &&
       (!muscle.length || muscle.includes(e.primaryMuscleGroup)) &&
-      (!pattern.length || pattern.includes(e.movementPattern ?? NONE)) &&
+      (!pattern.length || patternKeys(e).some((p) => pattern.includes(p))) &&
       (!equipment.length || equipment.includes(e.equipment))
   );
   const byName = (a: ExerciseDto, b: ExerciseDto) => a.name.localeCompare(b.name);
@@ -97,7 +146,7 @@ export function visibleRows(
 // ---------------------------------------------------------------------------
 
 export interface Coverage {
-  /** `${pattern|NONE}|${equipment}` → count of live exercises. */
+  /** `${pattern|NONE}|${equipment}` → count of live exercises (each tag counts). */
   cells: Map<string, number>;
   rowTotal: (p: string) => number;
   placed: number;
@@ -111,17 +160,19 @@ export function coverage(list: readonly ExerciseDto[]): Coverage {
   const cells = new Map<string, number>();
   const rows = new Map<string, number>();
   for (const e of live) {
-    const p = e.movementPattern ?? NONE;
-    const k = `${p}|${e.equipment}`;
-    cells.set(k, (cells.get(k) ?? 0) + 1);
-    rows.set(p, (rows.get(p) ?? 0) + 1);
+    for (const p of patternKeys(e)) {
+      const k = `${p}|${e.equipment}`;
+      cells.set(k, (cells.get(k) ?? 0) + 1);
+      rows.set(p, (rows.get(p) ?? 0) + 1);
+    }
   }
   let gaps = 0;
-  for (const p of MOVEMENT_PATTERNS) for (const q of EQUIPMENT) if (!cells.get(`${p}|${q}`)) gaps++;
+  // "No pattern" is a deliberate tag, not a slot the library should fill.
+  for (const p of MOVEMENT_PATTERNS) if (p !== NO_PATTERN) for (const q of EQUIPMENT) if (!cells.get(`${p}|${q}`)) gaps++;
   return {
     cells,
     rowTotal: (p) => rows.get(p) ?? 0,
-    placed: live.filter((e) => e.movementPattern).length,
+    placed: live.filter((e) => e.movementPatterns.length).length,
     live: live.length,
     gaps,
   };
@@ -196,7 +247,8 @@ export interface ExerciseForm {
   primaryMuscleGroup: string;
   secondaryMuscleGroups: string[];
   equipment: string;
-  movementPattern: string;
+  /** Ordered; the first is the primary. */
+  movementPatterns: string[];
   functionalMovement: string;
   note: string;
 }
@@ -206,7 +258,7 @@ export const formFrom = (e: ExerciseDto | null, pre?: Partial<ExerciseForm>): Ex
   primaryMuscleGroup: e?.primaryMuscleGroup ?? "",
   secondaryMuscleGroups: [...(e?.secondaryMuscleGroups ?? [])],
   equipment: e?.equipment ?? pre?.equipment ?? "",
-  movementPattern: e?.movementPattern ?? pre?.movementPattern ?? "",
+  movementPatterns: [...(e?.movementPatterns ?? pre?.movementPatterns ?? [])],
   functionalMovement: e?.functionalMovement ?? "",
   note: e?.note ?? "",
 });

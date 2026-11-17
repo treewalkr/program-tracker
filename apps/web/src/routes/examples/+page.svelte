@@ -139,9 +139,47 @@
 >
 </PageHead>
 
+{#snippet filters()}
+<Panel title="Filters">
+  {#snippet act()}
+    {#if filtering}
+      <button type="button" class="clear" onclick={clearFilters}>Clear</button>
+    {/if}
+  {/snippet}
+  <form
+    class="panel-body stack"
+    role="search"
+    onsubmit={(e) => {
+      e.preventDefault();
+    }}
+  >
+    <Field label="Search" htmlFor="ex-q">
+      <input class="input" id="ex-q" type="search" placeholder="Name, goal or note" bind:value={query} />
+    </Field>
+    <Field label="Level" htmlFor="ex-level">
+      <select class="select" id="ex-level" bind:value={level}>
+        <option value="">Any level</option>
+        {#each EXAMPLE_LEVELS as l (l)}
+          <option value={l}>{cap(l)}</option>
+        {/each}
+      </select>
+    </Field>
+    <Field label="Days per week" htmlFor="ex-days">
+      <select class="select" id="ex-days" bind:value={days}>
+        <option value="">Any frequency</option>
+        {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
+          <option value={d}>{d} {d === 1 ? "day" : "days"}</option>
+        {/each}
+      </select>
+    </Field>
+  </form>
+</Panel>
+{/snippet}
+
 {#if !loaded}
+  <!-- The filters are static: they render for real; only the library shimmers. -->
   <div class="cols">
-    <SkeletonPanel title="Filters" rows={4} dense trail={false} />
+    {@render filters()}
     <SkeletonPanel title="Library" count rows={4} label="Loading examples…" />
   </div>
 {:else if examples.length === 0}
@@ -158,40 +196,7 @@
   </Panel>
 {:else}
   <div class="cols">
-    <Panel title="Filters">
-      {#snippet act()}
-        {#if filtering}
-          <button type="button" class="clear" onclick={clearFilters}>Clear</button>
-        {/if}
-      {/snippet}
-      <form
-        class="panel-body stack"
-        role="search"
-        onsubmit={(e) => {
-          e.preventDefault();
-        }}
-      >
-        <Field label="Search" htmlFor="ex-q">
-          <input class="input" id="ex-q" type="search" placeholder="Name, goal or note" bind:value={query} />
-        </Field>
-        <Field label="Level" htmlFor="ex-level">
-          <select class="select" id="ex-level" bind:value={level}>
-            <option value="">Any level</option>
-            {#each EXAMPLE_LEVELS as l (l)}
-              <option value={l}>{cap(l)}</option>
-            {/each}
-          </select>
-        </Field>
-        <Field label="Days per week" htmlFor="ex-days">
-          <select class="select" id="ex-days" bind:value={days}>
-            <option value="">Any frequency</option>
-            {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
-              <option value={d}>{d} {d === 1 ? "day" : "days"}</option>
-            {/each}
-          </select>
-        </Field>
-      </form>
-    </Panel>
+    {@render filters()}
 
     <Panel title="Library" count={filtering ? `${filtered.length} of ${examples.length}` : examples.length}>
       {#if listError}<div class="list-err"><Note tone="bad">{listError}</Note></div>{/if}

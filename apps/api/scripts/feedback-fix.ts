@@ -7,9 +7,12 @@
  *                                                accepted, low risk, ready, no open/merged PR
  *   bun run feedback:fix prepare <id>            worktree ../pt-fix-fb-012 on fix/fb-012 from
  *                                                origin/main; brief at /tmp/pt-fb-fix/FB-012.md
- *   bun run feedback:fix open <id> --worktree <path>
+ *   bun run feedback:fix open <id> --worktree <path> [--checks checks.json]
  *                                                check the branch, push it, open a draft PR,
- *                                                record the PR on the ticket
+ *                                                record the PR on the ticket. A ticket with
+ *                                                acceptance criteria needs a commit touching a
+ *                                                test or story, and checks.json: a JSON array
+ *                                                naming the check for each criterion, in order
  *
  * --dry-run (or FEEDBACK_FIX_DRY_RUN=1): `open` runs every check and prints
  * the push, the PR and the record it would make — nothing leaves the machine.
@@ -19,7 +22,7 @@
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN (.env.agent or the environment).
  */
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { treaty } from "@elysiajs/eden";
@@ -27,12 +30,15 @@ import type { App } from "../src/app";
 import { agentEnv } from "./agent-env";
 import {
   FIX_MAX_CAP,
+  acceptanceFromMarkdown,
+  checkAcceptance,
   checkBranch,
   clampMax,
   fixBranch,
   fixWorktreePath,
   ghCreateArgs,
   pickTickets,
+  parseChecks,
   planFromMarkdown,
   prText,
   pushArgs,
@@ -61,13 +67,14 @@ const { positionals, values } = parseArgs({
   options: {
     max: { type: "string" },
     worktree: { type: "string" },
+    checks: { type: "string" },
     "dry-run": { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
 });
 const [command, id] = positionals;
 if (values.help || !command) {
-  console.log("usage: feedback-fix list [--max N] | prepare <id> | open <id> --worktree <path>   [--dry-run]");
+  console.log("usage: feedback-fix list [--max N] | prepare <id> | open <id> --worktree <path> [--checks checks.json]   [--dry-run]");
   process.exit(command ? 0 : 1);
 }
 const dryRun = values["dry-run"] === true || process.env.FEEDBACK_FIX_DRY_RUN === "1";
@@ -144,8 +151,22 @@ if (command === "list") {
   const dirty = must(["git", "status", "--porcelain"], path) !== "";
   const problem = checkBranch({ number: t.number, branch, subjects, dirty });
   if (problem) fail(`${t.handle}: ${problem}`);
+  const criteria = acceptanceFromMarkdown(t.markdown);
+  const files = must(["git", "diff", "--name-only", "origin/main...HEAD"], path).split("\n").filter(Boolean);
+  let checks: string[] | null = null;
+  if (values.checks) {
+    checks = parseChecks(await readFile(resolve(values.checks), "utf8").catch(() => ""));
+    if (!checks) fail(`--checks ${values.checks}: expected a JSON array of strings`);
+  }
+  const missing = checkAcceptance({ criteria, checks, files });
+  if (missing) fail(`${t.handle}: ${missing}`);
 
-  const { title, body } = prText({ handle: t.handle, subjects, plan: planFromMarkdown(t.markdown) });
+  const { title, body } = prText({
+    handle: t.handle,
+    subjects,
+    plan: planFromMarkdown(t.markdown),
+    acceptance: criteria.map((criterion, i) => ({ criterion, check: checks?.[i] ?? "" })),
+  });
   await mkdir(BRIEF_DIR, { recursive: true });
   const bodyFile = join(BRIEF_DIR, `${t.handle}-pr.md`);
   await writeFile(bodyFile, body);

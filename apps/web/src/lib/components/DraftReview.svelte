@@ -47,7 +47,7 @@
     gens: GenerationDto[];
     client: ClientDto;
     current: ProgramDto | null;
-    catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>;
+    catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPatterns">>;
     newProgram: ProgramDto | null;
     approving?: boolean;
     /** Why the last approve was refused; shown above the review. */
@@ -274,7 +274,7 @@
       exercises: shownExerciseOrder(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), roleLabels.all, order).map((e) => ({
         name: e.exerciseName ?? "",
         role: e.role,
-        movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
+        movementPatterns: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPatterns ?? [] : [],
         sets: e.prescribedSets,
         slot: e.slot,
         group: e.group,

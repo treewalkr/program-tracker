@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
-  import { feedbackHandle, type FeedbackItem } from "@pt/shared";
+  import { cleanReport, feedbackHandle, type FeedbackItem, type FeedbackKind, type FeedbackReport } from "@pt/shared";
   import Button from "$lib/ui/Button.svelte";
   import Note from "$lib/ui/Note.svelte";
   import AttachmentInput from "./AttachmentInput.svelte";
+  import KindFields from "./KindFields.svelte";
   import { attachmentUrl, EditConflict, feedbackApi, ticketImageCaption } from "./client";
   import { ImageTray } from "./tray.svelte";
 
@@ -26,6 +27,8 @@
 
   const tray = new ImageTray();
   let text = $state("");
+  let kind = $state<FeedbackKind | null>(null);
+  let report = $state<FeedbackReport>({});
   /** `editedAt ?? createdAt` of the version this edit started from. */
   let version = $state("");
   let saving = $state(false);
@@ -35,6 +38,8 @@
 
   function start(from: FeedbackItem) {
     text = from.comment;
+    kind = from.kind;
+    report = { ...(from.context.report ?? {}) };
     version = from.editedAt ?? from.createdAt;
     const caption = ticketImageCaption(from);
     tray.seed(from.attachments, (a) => attachmentUrl(from.id, a.id), (a, n) => caption(a, n).split(" · ")[1] ?? "");
@@ -55,7 +60,9 @@
     error = null;
     try {
       const { layout, images } = tray.layout;
-      onsaved(await feedbackApi.editContent(item.id, { comment: text.trim(), version, layout, images }));
+      // An older ticket with no kind stays without one until someone picks it.
+      const typed = kind ? { kind, report: cleanReport(kind, report) ?? {} } : {};
+      onsaved(await feedbackApi.editContent(item.id, { comment: text.trim(), ...typed, version, layout, images }));
     } catch (err) {
       if (err instanceof EditConflict) conflict = err.message;
       else error = err instanceof Error ? err.message : "Couldn't save the edit";
@@ -118,6 +125,7 @@
     disabled={saving}
     {@attach autofocus}
   ></textarea>
+  <KindFields bind:kind bind:report idPrefix="fb-editor-{item.id}" disabled={saving} />
   <AttachmentInput {tray} disabled={saving} label={handle} />
 
   {#if conflict}

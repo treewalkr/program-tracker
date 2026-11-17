@@ -3,6 +3,7 @@ import { goto } from "$app/navigation";
 import { page } from "$app/state";
 import { api } from "$lib/api";
 import { createGenerationWatch, type DraftNotice } from "$lib/generationWatch.svelte";
+import { appPath } from "$lib/portal/lang";
 
 const ASKED_KEY = "pt:notify-asked";
 
@@ -43,7 +44,7 @@ function browserNotify(notice: DraftNotice): void {
 /** The app's one watcher (started by the root layout). */
 export const generationWatch = createGenerationWatch({
   api,
-  path: () => page.url.pathname,
+  path: () => appPath(page.url),
   hidden: () => browser && document.visibilityState === "hidden",
   notify: browserNotify,
 });

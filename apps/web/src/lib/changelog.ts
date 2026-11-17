@@ -1,12 +1,15 @@
 /**
  * The product changelog (repo-root CHANGELOG.md) parsed for the What's new page.
  * Released sections only: `## Unreleased` is work in progress and never shown.
+ * A bullet may carry its Thai text as an indented sub-bullet: `  - th: …`.
  */
 
 export interface ChangelogSection {
   /** "New", "Improved", "Fixed" — or null for lines with no `###` heading above them. */
   kind: string | null;
   items: string[];
+  /** Thai text per item (same index), null where the changelog has no Thai line. */
+  th: (string | null)[];
 }
 
 export interface Release {
@@ -37,18 +40,24 @@ export function parseChangelog(markdown: string): Release[] {
     if (!release) continue;
     const h = /^### (.+?)\s*$/.exec(line);
     if (h) {
-      section = { kind: h[1], items: [] };
+      section = { kind: h[1], items: [], th: [] };
       release.sections.push(section);
       item = null;
+      continue;
+    }
+    const thLine = /^\s+[-*] th:\s*(.+)$/.exec(line);
+    if (thLine) {
+      if (section && item !== null) section.th[item] = thLine[1].trim();
       continue;
     }
     const bullet = /^[-*] (.+)$/.exec(line);
     if (bullet) {
       if (!section) {
-        section = { kind: null, items: [] };
+        section = { kind: null, items: [], th: [] };
         release.sections.push(section);
       }
       item = section.items.push(bullet[1].trim()) - 1;
+      section.th[item] = null;
     } else if (line.trim() && section && item !== null && /^\s/.test(line)) {
       section.items[item] += ` ${line.trim()}`;
     } else if (!line.trim()) {

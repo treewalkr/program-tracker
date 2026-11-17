@@ -83,7 +83,7 @@ export interface PreviewSessionCard {
     slot: number;
     name: string;
     role?: ExerciseRole;
-    movementPattern: string | null;
+    movementPatterns: string[];
     sets: PrescribedSetDto[];
     group?: string;
   }[];
@@ -165,7 +165,7 @@ export function changedSessionIndexes(prev: AiDraftDto | null, next: AiDraftDto,
 export function draftPreviewModel(
   gens: GenerationDto[],
   pending: boolean,
-  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPatterns">>,
   /** The trainer's role labels — display order follows their ranks; absent = built-ins. */
   labels?: readonly RoleRank[],
   /** Draft week shown (by number); absent = the first week. */
@@ -195,7 +195,7 @@ export function draftPreviewModel(
         slot: e.slot,
         name: e.exerciseName ?? "",
         role: e.role,
-        movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
+        movementPatterns: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPatterns ?? [] : [],
         sets: e.prescribedSets,
         group: e.group,
       })),
@@ -292,7 +292,7 @@ export function versionView(
   gens: GenerationDto[],
   targetId: string,
   version: number,
-  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPatterns">>,
   labels?: readonly RoleRank[],
   /** Draft week shown (by number); absent = the first week. */
   week?: number | null,
@@ -309,7 +309,7 @@ export function versionView(
     exercises: shownExerciseOrder(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), labels, { keepOrder: gen.trainerOrder }).map((e) => ({
       name: e.exerciseName ?? "",
       role: e.role,
-      movementPattern: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPattern ?? null : null,
+      movementPatterns: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPatterns ?? [] : [],
       sets: e.prescribedSets,
       slot: e.slot,
       group: e.group,

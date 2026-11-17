@@ -2,29 +2,29 @@ import { db, exercises } from "../src";
 import { eq, isNull, or, sql } from "drizzle-orm";
 import { classifyExercise } from "./map-patterns";
 
+const untagged = sql`${exercises.movementPatterns} = '[]'::jsonb`;
+
 async function main() {
   const rows = await db
     .select({
       id: exercises.id,
       name: exercises.name,
-      movementPattern: exercises.movementPattern,
+      movementPatterns: exercises.movementPatterns,
       functionalMovement: exercises.functionalMovement,
     })
     .from(exercises)
-    .where(or(isNull(exercises.movementPattern), isNull(exercises.functionalMovement)));
+    .where(or(untagged, isNull(exercises.functionalMovement)));
 
   let classifiedPatterns = 0;
   let classifiedFunctionals = 0;
 
   for (const ex of rows) {
     const match = classifyExercise(ex.name);
-    const updates: {
-      movementPattern?: typeof match.movementPattern;
-      functionalMovement?: typeof match.functionalMovement;
-    } = {};
+    const updates: Partial<typeof exercises.$inferInsert> = {};
 
-    if (ex.movementPattern === null && match.movementPattern !== null) {
-      updates.movementPattern = match.movementPattern;
+    if (ex.movementPatterns.length === 0 && match.movementPattern !== null) {
+      updates.movementPatterns = [match.movementPattern];
+      updates.legacyMovementPattern = match.movementPattern;
       classifiedPatterns++;
     }
     if (ex.functionalMovement === null && match.functionalMovement !== null) {
@@ -40,7 +40,7 @@ async function main() {
   const unclassifiedRows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(exercises)
-    .where(isNull(exercises.movementPattern));
+    .where(untagged);
   const remaining = unclassifiedRows[0]?.count ?? 0;
 
   console.log(

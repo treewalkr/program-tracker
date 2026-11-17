@@ -2,6 +2,7 @@
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
+  import { appPath } from "$lib/portal/lang";
   import { feedbackHandle, OPEN_FEEDBACK_STATUSES, type FeedbackItem } from "@pt/shared";
   import Pill from "$lib/ui/Pill.svelte";
   import Author from "./Author.svelte";
@@ -81,7 +82,7 @@
       const el = locateTarget(item.context.target);
       if (el && !el.closest("[data-feedback-ui]")) found.push({ item, el });
       // Items filed on another client's copy of this page only pin when they match.
-      else if (item.context.route.path === page.url.pathname + page.url.search) missing.push(item);
+      else if (item.context.route.path === appPath(page.url) + page.url.search) missing.push(item);
     }
     placed = found;
     unplaced = missing;
@@ -203,7 +204,7 @@
     let el: Element | null = null;
     for (let i = 0; i < 20 && !cancelled(); i++) {
       await tick();
-      el = locateTarget(item.context.target, { loose: item.context.route.path === url.pathname + url.search });
+      el = locateTarget(item.context.target, { loose: item.context.route.path === appPath(url) + url.search });
       if (el) break;
       await new Promise((r) => setTimeout(r, 150));
     }

@@ -254,7 +254,7 @@ describe("buildGenerationMessages", () => {
           name: "Bench Press",
           primaryMuscleGroup: "chest",
           equipment: "barbell",
-          movementPattern: "horizontal_push",
+          movementPatterns: ["horizontal_push"],
           functionalMovement: "push",
         },
       ],
@@ -276,13 +276,43 @@ describe("buildGenerationMessages", () => {
           name: "Mystery Exercise",
           primaryMuscleGroup: "core",
           equipment: "bodyweight",
-          movementPattern: null,
+          movementPatterns: [],
           functionalMovement: null,
         },
       ],
       trainerInstructions: "",
     });
     expect(user).toContain("- ex-2 | Mystery Exercise (core, bodyweight, pattern n/a, function n/a)");
+  });
+
+  test("a multi-pattern entry lists every tag, primary first and marked", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-4", name: "Bulgarian Split Squat", primaryMuscleGroup: "quads", equipment: "dumbbell", movementPatterns: ["knee_dominant", "hip_dominant"], functionalMovement: "single_leg" },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-4 | Bulgarian Split Squat (quads, dumbbell, knee_dominant (primary)/hip_dominant, single_leg)");
+  });
+
+  test("a No pattern entry reads as 'no pattern', not n/a", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-3", name: "Cat Camel", primaryMuscleGroup: "mobility", equipment: "bodyweight", movementPatterns: ["no_pattern"], functionalMovement: null },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-3 | Cat Camel (mobility, bodyweight, no pattern, function n/a)");
   });
 
   test("system instructs pattern balance and rationale must explain it", () => {
@@ -496,7 +526,7 @@ describe("weekly prompts: learned preferences", () => {
       periodization: null,
       chainBalance: null,
       history: [],
-      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPattern: null, functionalMovement: null }],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPatterns: [], functionalMovement: null }],
       trainerInstructions: "",
     };
 
@@ -563,7 +593,7 @@ describe("buildRevisionMessages", () => {
       periodization: null,
       chainBalance: null,
       history: [],
-      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPattern: null, functionalMovement: null }],
+      catalog: [{ id: "ex-1", name: "Incline DB Press", primaryMuscleGroup: "chest", equipment: "dumbbell", movementPatterns: [], functionalMovement: null }],
       trainerInstructions: "",
       previousDraft,
       feedback,
@@ -905,8 +935,8 @@ describe("draftToWeeks", () => {
       weeks: [{ week: 1, sessions: [lift("Lower A", catalog[0].id), z2("Z2 A"), lift("Upper", catalog[1].id), lift("Lower B", catalog[0].id), z2("Z2 B")] }],
     };
     const patterned = [
-      { ...catalog[0], movementPattern: "knee_dominant" },
-      { ...catalog[1], movementPattern: "horizontal_push" },
+      { ...catalog[0], movementPatterns: ["knee_dominant"] },
+      { ...catalog[1], movementPatterns: ["horizontal_push"] },
     ];
     // Mon, Tue, Wed, Fri, Sat
     const { weeks } = draftToWeeks(stretch(d, 3), patterned, [1, 2, 3, 5, 6]);
@@ -935,8 +965,8 @@ describe("draftToWeeks", () => {
   test("AI weekdays that pass the rules are kept; the rest are re-placed (F26)", () => {
     const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
     const patterned = [
-      { ...catalog[0], movementPattern: "knee_dominant" },
-      { ...catalog[1], movementPattern: "horizontal_push" },
+      { ...catalog[0], movementPatterns: ["knee_dominant"] },
+      { ...catalog[1], movementPatterns: ["horizontal_push"] },
     ];
     const d: AiProgramDraft = {
       ...draft,
@@ -1508,7 +1538,7 @@ describe("buildChatSystem", () => {
           name: "Back Squat",
           primaryMuscleGroup: "quads",
           equipment: "barbell",
-          movementPattern: "squat",
+          movementPatterns: ["squat"],
           functionalMovement: "bilateral_squat",
         },
       ],
@@ -1810,9 +1840,10 @@ describe("session types in AI drafts", () => {
   const types = [
     { id: "t-str", name: "Strength", format: "lifting" as const },
     { id: "t-z2", name: "Zone 2", format: "cardio" as const },
+    { id: "t-amrap", name: "AMRAP", format: "any" as const, presetKey: "metabolic.amrap" },
   ];
 
-  test("prompt lists the trainer's types by format and the schema offers \"type\"", () => {
+  test("prompt lists the types grouped by main type, custom last, and the schema offers \"type\"", () => {
     const { system, user } = buildGenerationMessages({
       client: { name: "Ada", goals: null, limitations: null, sessionsPerWeek: 2 },
       previousProgram: null,
@@ -1820,17 +1851,29 @@ describe("session types in AI drafts", () => {
       chainBalance: null,
       history: [],
       catalog: [],
-      sessionTypes: [{ name: "Strength", format: "lifting" }, { name: "Zone 2", format: "cardio" }],
+      sessionTypes: [
+        { name: "Hypertrophy", format: "lifting" },
+        { name: "Circuit", format: "any", presetKey: "metabolic.circuit" },
+        { name: "Aerobic base", format: "cardio", presetKey: "cardiovascular.aerobic-base" },
+        { name: "Metabolic", format: "any", presetKey: "metabolic" },
+        { name: "AMRAP", format: "any", presetKey: "metabolic.amrap" },
+        { name: "Zone 2", format: "cardio" },
+      ],
       trainerInstructions: "",
     });
     const all = system + user;
     expect(all).toContain("SESSION TYPES (label every session");
-    expect(all).toContain("- lifting: Strength");
-    expect(all).toContain("- cardio: Zone 2");
+    expect(all).toContain(
+      [
+        "- Cardiovascular sub-types [cardio]: Aerobic base",
+        "- Metabolic [any] › Circuit, AMRAP",
+        "- Custom: Hypertrophy [lifting], Zone 2 [cardio]",
+      ].join("\n")
+    );
     expect(all).toContain('"type"?: string');
   });
 
-  test("a draft type resolves case-insensitively when its format matches; others are dropped", () => {
+  test("a draft type resolves case-insensitively when it fits the kind; others are dropped", () => {
     const d: AiProgramDraft = {
       ...draft,
       weeks: [{ week: 1, sessions: [
@@ -1838,6 +1881,8 @@ describe("session types in AI drafts", () => {
         { name: "Easy ride", kind: "cardio", type: "Zone 2", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] },
         { ...draft.weeks[0].sessions[0], name: "Wrong format", type: "Zone 2" },
         { ...draft.weeks[0].sessions[0], name: "Unknown", type: "Yoga" },
+        { ...draft.weeks[0].sessions[0], name: "Lifting AMRAP", type: "amrap" },
+        { name: "Cardio AMRAP", kind: "cardio", type: "AMRAP", cardio: { modality: "Rower", durationMin: 12 }, exercises: [] },
       ] }],
     };
     const { weeks } = draftToWeeks(stretch(d, 1), catalog, null, types);
@@ -1846,6 +1891,9 @@ describe("session types in AI drafts", () => {
     expect(byName.get("Easy ride")).toMatchObject({ typeId: "t-z2", typeName: "Zone 2" });
     expect(byName.get("Wrong format")?.typeId).toBeUndefined();
     expect(byName.get("Unknown")?.typeId).toBeUndefined();
+    // "any" (Metabolic) fits either kind and leaves the session's kind alone
+    expect(byName.get("Lifting AMRAP")).toMatchObject({ kind: "lifting", typeId: "t-amrap", typeName: "AMRAP" });
+    expect(byName.get("Cardio AMRAP")).toMatchObject({ kind: "cardio", typeId: "t-amrap", typeName: "AMRAP" });
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
   });
 });

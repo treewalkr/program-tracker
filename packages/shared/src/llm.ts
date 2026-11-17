@@ -27,7 +27,7 @@ export const LLM_CALL_STATUSES = ["ok", "provider_error", "parse_error", "valida
 export type LlmCallStatus = (typeof LLM_CALL_STATUSES)[number];
 
 /** What a verdict judges. */
-export const LLM_SUBJECT_KINDS = ["call", "chat_message", "generation", "client_message", "feedback_answer"] as const;
+export const LLM_SUBJECT_KINDS = ["call", "chat_message", "generation", "client_message", "feedback_answer", "feedback_fix"] as const;
 export type LlmSubjectKind = (typeof LLM_SUBJECT_KINDS)[number];
 
 /** Fixed reason vocabulary for thumbs-down (and optional on thumbs-up). */

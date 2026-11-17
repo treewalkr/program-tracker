@@ -5,7 +5,7 @@
  * only wires these to git, gh and the API.
  */
 import { join } from "node:path";
-import { feedbackHandle, feedbackHandlesIn } from "@pt/shared";
+import { FEEDBACK_ACCEPTANCE_HEADING, feedbackHandle, feedbackHandlesIn } from "@pt/shared";
 
 /** Tickets per run unless --max says otherwise, and the most it may say. */
 export const FIX_MAX_DEFAULT = 2;
@@ -84,13 +84,54 @@ export function checkBranch(b: { number: number; branch: string; subjects: strin
   return null;
 }
 
+/** A file that proves behaviour: a unit/API test, a spec, a story, or anything under e2e/ or tests/. */
+export const isCheckFile = (path: string): boolean =>
+  /\.(test|spec)\.[cm]?[jt]sx?$/.test(path) || /\.stories\.(svelte|[cm]?[jt]sx?)$/.test(path) || /(^|\/)(e2e|tests?)\//.test(path);
+
+/**
+ * Why a fix with acceptance criteria may not be opened yet, or null. Each
+ * criterion needs a check — a test, story or playwright-cli run — named in
+ * `checks` (same order), and at least one commit must touch a test or story
+ * file. No criteria (an older plan): nothing to check.
+ */
+export function checkAcceptance(a: { criteria: string[]; checks: string[] | null; files: string[] }): string | null {
+  if (!a.criteria.length) return null;
+  if (!a.files.some(isCheckFile)) {
+    return "the ticket has acceptance criteria, but no commit touches a test or story file — add one per criterion";
+  }
+  if (!a.checks || a.checks.length !== a.criteria.length || a.checks.some((c) => !c.trim())) {
+    return `pass --checks <file>: a JSON array naming the test, story or playwright-cli check for each of the ${a.criteria.length} acceptance criteria, in order`;
+  }
+  return null;
+}
+
+/** `--checks` file contents → one string per criterion, or null when it isn't a JSON array of strings. */
+export function parseChecks(raw: string): string[] | null {
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) && v.every((x) => typeof x === "string") ? v.map((x: string) => x.trim()) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The PR: titled by the first commit, the body says where it came from and what merging does. */
-export function prText(t: { handle: string; subjects: string[]; plan: string[] }): { title: string; body: string } {
+export function prText(t: {
+  handle: string;
+  subjects: string[];
+  plan: string[];
+  /** Each acceptance criterion with the check that proves it. */
+  acceptance?: { criterion: string; check: string }[];
+}): { title: string; body: string } {
   const title = t.subjects[0];
+  const acceptance = t.acceptance ?? [];
   const body = [
     `Fixes ${t.handle}, opened by the feedback fix agent (\`/fix-feedback\`) from the auto-reply agent's low-risk plan.`,
     "",
     ...(t.plan.length ? ["**Plan**", "", ...t.plan.map((s, i) => `${i + 1}. ${s}`), ""] : []),
+    ...(acceptance.length
+      ? ["**Acceptance criteria → checks**", "", ...acceptance.map((a, i) => `${i + 1}. ${a.criterion} → ${a.check}`), ""]
+      : []),
     "**Commits**",
     "",
     ...t.subjects.map((s) => `- ${s}`),
@@ -119,6 +160,20 @@ export const ghCreateArgs = (branch: string, title: string, bodyFile: string): s
 
 /** The push: this branch to its own name on origin — never main, never --force. */
 export const pushArgs = (branch: string): string[] => ["push", "--set-upstream", "origin", `HEAD:refs/heads/${branch}`];
+
+/** The acceptance criteria from the ticket Markdown (the heading, then `    - …` lines); [] when it has none. */
+export function acceptanceFromMarkdown(md: string): string[] {
+  const lines = md.split("\n");
+  const at = lines.findIndex((l) => l.trim() === FEEDBACK_ACCEPTANCE_HEADING);
+  if (at < 0) return [];
+  const out: string[] = [];
+  for (const l of lines.slice(at + 1)) {
+    const m = /^\s{4,}-\s+(.*)$/.exec(l);
+    if (!m) break;
+    out.push(m[1]);
+  }
+  return out;
+}
 
 /** The fix plan's steps from the ticket Markdown (`  - Fix plan:` then `    1. …`). */
 export function planFromMarkdown(md: string): string[] {

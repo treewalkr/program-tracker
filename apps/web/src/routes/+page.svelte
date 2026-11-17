@@ -14,6 +14,7 @@
     type ClientStrip,
   } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import CopyButton from "$lib/components/CopyButton.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import WeekBoard from "$lib/components/WeekBoard.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -29,6 +30,8 @@
   let providers = $state<ProviderDto[]>([]);
   let loadError = $state<string | null>(null);
   let currentNames = $state<Record<string, string>>({});
+  /** Each client's portal access link: a string when it's on, null when it's off, absent when it didn't load. */
+  let portals = $state<Record<string, string | null>>({});
   let signals = $state<SignalDto[]>([]);
   let strips = $state<ClientStrip[]>([]);
   let rowsReady = $state(false);
@@ -63,8 +66,14 @@
       // Per-client detail + logs in parallel — sequential calls scaled linearly with the roster.
       const built = await Promise.all(
         cs.map(async (c) => {
-          const [detail, logs] = await Promise.all([api.client(c.id), api.sessionLogs(c.id)]);
+          const [detail, logs, portal] = await Promise.all([
+            api.client(c.id),
+            api.sessionLogs(c.id),
+            // A portal that won't load only costs its copy button — never the row.
+            api.clientPortal(c.id).catch(() => null),
+          ]);
           currentNames[c.id] = detail.currentProgram?.name ?? "—";
+          if (portal) portals[c.id] = portal.link ?? null;
           return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
         })
       );
@@ -178,7 +187,7 @@
     <div class="col">
       <Panel title="Clients" count={clients.length}>
         {#snippet act()}
-          <a class="act" href="/clients/new">All clients</a>
+          <a class="act" href="/clients">All clients</a>
         {/snippet}
         <div class="panel-body tight">
           <table class="sheet">
@@ -186,7 +195,8 @@
               <tr>
                 <th>Client</th>
                 <th>Status</th>
-                <th class="r">Sessions</th>
+                <th class="r sess-col">Sessions</th>
+                <th class="portal-col">Portal</th>
               </tr>
             </thead>
             <tbody>
@@ -197,7 +207,16 @@
                     <div class="subtle">{currentNames[c.id] ?? "…"}</div>
                   </td>
                   <td><StatusPill status={c.status} /></td>
-                  <td class="r">{c.sessionsPerWeek ?? "—"} / wk</td>
+                  <td class="r sess-col">{c.sessionsPerWeek ?? "—"} / wk</td>
+                  <td class="portal-col">
+                    {#if portals[c.id]}
+                      <CopyButton text={portals[c.id] ?? ""} label="Copy link" quiet ariaLabel={`Copy link for ${c.name}`} />
+                    {:else if portals[c.id] === null}
+                      <a class="portal-on" href={`/clients/${c.id}#settings`} aria-label={`Turn on the portal for ${c.name}`}>Turn on…</a>
+                    {:else if rowsReady}
+                      <span class="subtle" title="Couldn't load this client's portal">—</span>
+                    {/if}
+                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -238,6 +257,20 @@
   :global(.load-err) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .signal-list { display: flex; flex-direction: column; }
   .signal-list :global(.signal .act) { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .portal-col { text-align: right; white-space: nowrap; }
+  td.portal-col { padding-right: 4px; }
+  .portal-col :global(.copybtn) { justify-content: flex-end; }
+  .portal-on {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 8px;
+    font: 400 13px/1 var(--font-ui);
+    color: var(--blue);
+    text-decoration: none;
+  }
+  .portal-on:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .portal-on:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
 
@@ -256,6 +289,8 @@
     .grid-2 { grid-template-columns: 1fr; }
   }
   @media (max-width: 520px) {
+    /* Sessions repeats the week grid above; dropping it lets name + status + Portal fit a phone */
+    .sess-col { display: none; }
     .signal-list :global(.signal .act) { justify-content: flex-start; }
   }
 </style>

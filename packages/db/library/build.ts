@@ -244,8 +244,10 @@ export function toSeedSql(lib: LibraryEntry[]): string {
 -- edit library/curation.ts and run \`bun run --filter @pt/db library:build\`.
 -- Source: free-exercise-db (public domain) + hand curation. Safe to re-run: skips names already present.
 -- Apply: psql "$DATABASE_URL" -f packages/db/seed/exercises.sql   (or: bun run db:seed)
-INSERT INTO exercises (name, primary_muscle_group, secondary_muscle_groups, equipment, movement_pattern, functional_movement)
-SELECT v.name, v.primary_muscle_group, v.secondary_muscle_groups, v.equipment, v.movement_pattern, v.functional_movement
+INSERT INTO exercises (name, primary_muscle_group, secondary_muscle_groups, equipment, movement_patterns, movement_pattern, functional_movement)
+SELECT v.name, v.primary_muscle_group, v.secondary_muscle_groups, v.equipment,
+  CASE WHEN v.movement_pattern IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(v.movement_pattern) END,
+  v.movement_pattern, v.functional_movement
 FROM (VALUES
 ${rows.join(",\n")}
 ) AS v(name, primary_muscle_group, secondary_muscle_groups, equipment, movement_pattern, functional_movement)

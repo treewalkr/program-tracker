@@ -42,6 +42,7 @@ import type {
   FeedbackAuthorKind,
   FeedbackContext,
   FeedbackEmailPrefs,
+  FeedbackKind,
   FeedbackStatus,
   FeedbackVisibility,
   FeedbackAttachmentKind,
@@ -64,6 +65,7 @@ import type {
   ProgramStatus,
   ProgramWeek,
   SessionKind,
+  SessionTypeFormat,
   LoggedBy,
   SetType,
   StoredChatProposal,
@@ -193,7 +195,13 @@ export const exercises = pgTable("exercises", {
     .notNull()
     .default(sql`'[]'::jsonb`),
   equipment: text("equipment").notNull(),
-  movementPattern: text("movement_pattern").$type<MovementPattern>(),
+  /** Ordered movement patterns; the first is the primary. Empty = untagged. */
+  movementPatterns: jsonb("movement_patterns")
+    .$type<MovementPattern[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  /** Deprecated: the primary pattern, still written so a rollback keeps working. Drop after the next release. */
+  legacyMovementPattern: text("movement_pattern").$type<MovementPattern>(),
   functionalMovement: text("functional_movement").$type<FunctionalMovement>(),
   /** Trainer's setup cues — shown in programs and passed to the AI. */
   note: text("note"),
@@ -632,6 +640,8 @@ export const feedbackItems = pgTable("feedback_items", {
   /** Who filed it; null for items filed before authorship was recorded. */
   trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
   status: text("status").$type<FeedbackStatus>().notNull().default("new"),
+  /** bug / behaviour / idea / question, picked when filing; null on tickets filed before kinds. */
+  kind: text("kind").$type<FeedbackKind>(),
   /** Trainer's words, verbatim. */
   comment: text("comment").notNull(),
   /** Owner's triage decision; outranks the comment for the coding agent. */
@@ -763,8 +773,11 @@ export const sessionTypes = pgTable(
       .notNull()
       .references(() => trainers.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    /** "lifting" (exercises + sets) or "cardio" (cardio prescription). */
-    format: text("format").$type<SessionKind>().notNull(),
+    /** "lifting" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
+    format: text("format").$type<SessionTypeFormat>().notNull(),
+    /** A `SESSION_TYPE_PRESETS` key = a locked preset (archive/restore only); null = the trainer's own type.
+     *  One row per preset per trainer rides on the name index (preset names are locked). */
+    presetKey: text("preset_key"),
     /** Set = out of the picker and AI list; programs keep the captured name. */
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -939,3 +952,29 @@ export const llmPairs = pgView("llm_pairs", {
   isMock: boolean("is_mock").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 }).existing();
+
+// ---------------------------------------------------------------------------
+// Request log — failed and slow API requests, so a feedback ticket's request id
+// leads to what the server saw. Thin and short-lived: no bodies, 14 days.
+// ---------------------------------------------------------------------------
+
+export const requestLogs = pgTable(
+  "request_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The `x-request-id` the response carried (and the browser recorded). */
+    requestId: text("request_id").notNull(),
+    method: text("method").notNull(),
+    /** The matched route pattern (`/v1/feedback/:id`), never the URL with ids or query. */
+    route: text("route").notNull(),
+    status: integer("status").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** Who called, when a session was resolved. */
+    trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+    /** What went wrong, redacted and capped at 500 characters; null for a slow success. */
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("request_logs_request_id_idx").on(t.requestId), index("request_logs_created_at_idx").on(t.createdAt)]
+);
+export type RequestLogRow = typeof requestLogs.$inferSelect;

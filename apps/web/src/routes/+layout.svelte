@@ -4,7 +4,7 @@
   import { page } from "$app/state";
   import { onMount, untrack } from "svelte";
   import { fade } from "svelte/transition";
-  import { afterNavigate, goto } from "$app/navigation";
+  import { afterNavigate, beforeNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
   import { authApi } from "$lib/api/auth";
   import { clearAllNewClientDrafts } from "$lib/newClientDraft";
@@ -13,20 +13,26 @@
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
+  import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
   import { syncThemeAttribute } from "$lib/theme.svelte";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { whatsNew } from "$lib/whatsNew.svelte";
   import VersionLink from "$lib/components/VersionLink.svelte";
   import AccountMenu from "$lib/components/AccountMenu.svelte";
+  import ReleaseBanner from "$lib/components/ReleaseBanner.svelte";
   import { isAdminSession } from "$lib/settingsNav";
   import DraftNotice from "$lib/components/DraftNotice.svelte";
   import { generationWatch } from "$lib/draftWatch";
   import { isPortalPath } from "$lib/portal/gate";
+  import { appPath, relinked } from "$lib/portal/lang";
+  import { headingTo, inLang } from "$lib/portal/i18n.svelte";
 
   let { children, data } = $props();
 
   /** No trainer chrome: the sign-in page and the client portal (/me). */
-  const bare = $derived(page.url.pathname === "/login" || isPortalPath(page.url.pathname));
+  /** The page without its language prefix — what nav state and route checks compare against. */
+  const here = $derived(appPath(page.url));
+  const bare = $derived(here === "/login" || isPortalPath(here));
   const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
   const isAdmin = $derived(isAdminSession(data.session));
 
@@ -81,6 +87,7 @@
 
   /** Utility destinations sit at the foot of the sidebar, apart from the daily work. */
   const utility: NavGroup["items"] = [
+    { href: "/guide/client-portal", label: "Guide", icon: "book" },
     { href: "/feedback", label: "Feedback", icon: "comment" },
     { href: "/settings", label: "Settings", icon: "gear" },
   ];
@@ -89,7 +96,7 @@
 
   /** Exact for "/" and "/admin", whose sub-pages have their own nav items. */
   const isActive = (href: string) =>
-    ["/", "/admin"].includes(href) ? page.url.pathname === href : page.url.pathname.startsWith(href);
+    ["/", "/admin"].includes(href) ? here === href : here.startsWith(href);
 
   /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
      narrow screens start as the rail (hidden on phones) and open the full menu
@@ -122,7 +129,7 @@
   }
   /* Gym-floor routes swap the top-bar toggle for a larger corner menu button
      on phones (≤640px), where the rail is hidden on every page. */
-  const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
+  const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(here));
   const sideOpen = $derived(!rail);
 
   function toggleKeepRail() {
@@ -188,13 +195,30 @@
 
   // Close the narrow-screen drawer after navigating.
   $effect(() => {
-    void page.url.pathname;
+    void here;
     untrack(closeDrawer);
   });
 
+  // Links in markup stay unprefixed: follow them under the current language
+  // (cancel and re-send, so the hash survives); for other navigations note the
+  // target, whose hash the root load's unprefixed redirect can't see.
+  beforeNavigate((nav) => {
+    if (!relinked(nav)) return headingTo(nav.to?.url ?? null);
+    nav.cancel();
+    const to = nav.to!.url;
+    queueMicrotask(() => void goto(inLang(to.pathname + to.search + to.hash)));
+  });
+
   // Unread feedback badge: cheap count, refreshed on every navigation (no polling).
-  afterNavigate(() => {
+  afterNavigate(({ to }) => {
+    if (to) runtime.breadcrumb("route", to.url.pathname);
     if (!bare) feedbackUnread.refresh();
+  });
+
+  // Feedback tickets carry recent errors, failed requests and steps: recorded in memory from the start.
+  onMount(() => installRuntimeCapture());
+  $effect(() => {
+    runtime.role = trainer ? (isAdmin ? "admin" : "trainer") : null;
   });
 
   // The trainer's role labels, once — every picker and chip reads the shared store.
@@ -388,6 +412,7 @@
         Demo mode — every number on screen is mock data. Nothing is saved.
       </Note>
     {/if}
+    <ReleaseBanner />
     {@render children()}
   </main>
 </div>

@@ -26,7 +26,7 @@ function gen(id: string, parent: string | null, sessions: AiDraftDto["sessions"]
   };
 }
 
-const catalog = new Map<string, { movementPattern: string | null }>();
+const catalog = new Map<string, { movementPatterns: string[] }>();
 
 describe("versionView", () => {
   // v1: [Plank (core), Squat (primary)] — role sort shows Squat first, but slots keep draft order.

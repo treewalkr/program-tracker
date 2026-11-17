@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fmtDate } from "$lib/format";
+  import { i18n } from "$lib/portal/i18n.svelte";
+  import LangToggle from "$lib/portal/LangToggle.svelte";
+  import { intlTag } from "$lib/portal/messages";
+  import { PAGE_TEXT } from "$lib/releaseNote";
   import { renderInlineMarkdown } from "$lib/markdown";
   import { releases, whatsNew } from "$lib/whatsNew.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
@@ -11,15 +14,19 @@
   onMount(() => whatsNew.markSeen());
 
   /** Calendar day as written in CHANGELOG.md — parsed as local midnight so it never shifts a day. */
-  const day = (iso: string) => fmtDate(`${iso}T00:00:00`);
+  const day = (iso: string) =>
+    new Intl.DateTimeFormat(intlTag(i18n.locale), { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${iso}T00:00:00`));
+  const text = $derived(PAGE_TEXT[i18n.locale]);
 </script>
 
-<svelte:head><title>What's new · Program Tracker</title></svelte:head>
+<svelte:head><title>{text.title} · Program Tracker</title></svelte:head>
 
-<PageHead title="What's new" sub="Changes to Program Tracker, newest first." />
+<PageHead title={text.title} sub={text.sub}>
+  {#snippet actions()}<LangToggle compact />{/snippet}
+</PageHead>
 
 {#if releases.length === 0}
-  <EmptyState>Nothing released yet.</EmptyState>
+  <EmptyState>{text.empty}</EmptyState>
 {:else}
   <ol class="releases">
     {#each releases as release, i (release.version)}
@@ -27,17 +34,17 @@
         <header class="meta">
           <h2 class="version">
             <a href="#v{release.version}">v{release.version}</a>
-            {#if i === 0}<Pill tone="good">Latest</Pill>{/if}
+            {#if i === 0}<Pill tone="good">{text.latest}</Pill>{/if}
           </h2>
           <time datetime={release.date}>{day(release.date)}</time>
         </header>
         <div class="notes">
           {#each release.sections as section, s (s)}
             <section class="section">
-              {#if section.kind}<h3>{section.kind}</h3>{/if}
+              {#if section.kind}<h3>{text.kinds[section.kind] ?? section.kind}</h3>{/if}
               <ul>
                 {#each section.items as item, j (j)}
-                  <li>{@html renderInlineMarkdown(item)}</li>
+                  <li lang={i18n.locale === "th" && section.th[j] ? "th" : "en"}>{@html renderInlineMarkdown((i18n.locale === "th" && section.th[j]) || item)}</li>
                 {/each}
               </ul>
             </section>

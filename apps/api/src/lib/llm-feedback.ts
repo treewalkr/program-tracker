@@ -92,6 +92,8 @@ const DRAFT_PURPOSES: LlmPurpose[] = ["block_generate", "week_generate", "fill_g
 /** The last successful call that produced the subject, or null. */
 export async function resolveCallId(kind: LlmSubjectKind, id: string): Promise<string | null> {
   if (kind === "call") return id;
+  // A shipped fix is a commit, not an LLM call.
+  if (kind === "feedback_fix") return null;
   if (kind === "feedback_answer") {
     const [c] = await db.select({ id: feedbackComments.llmCallId }).from(feedbackComments).where(eq(feedbackComments.id, id));
     return c?.id ?? null;

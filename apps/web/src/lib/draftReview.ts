@@ -8,12 +8,16 @@ import {
   weekTargetLabel,
   planChanges,
   placementConflicts,
+  primaryPattern,
   type PlanChange,
   type PlacementDaysInput,
   type ProgramSession,
   type ProgressionKind,
 } from "@pt/shared";
 import type { AiDraftWeekDto, ClientDto, ExerciseDto, GenerationDto, ProgramPhasingDto } from "./api/types";
+
+/** Primary pattern of a catalog entry; undefined when the exercise isn't in the catalog. */
+const primaryOf = (c: Pick<ExerciseDto, "movementPatterns"> | undefined) => (c ? primaryPattern(c) : undefined);
 
 // ---- block plan ----
 
@@ -133,12 +137,12 @@ export function reviewChecks(
   /** One draft week (the one shown). */
   draft: Pick<AiDraftWeekDto, "sessions">,
   sessionsPerWeek: number | null,
-  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>,
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPatterns">>,
   /** Client availability; when given, AI weekdays are checked against the placement rules. */
   days?: PlacementDaysInput
 ): ReviewCheck[] {
   // Same count as the program page's week balance header (F21).
-  const sets = sessionsPatternBalance(draft.sessions, (id) => catalogById.get(id)?.movementPattern);
+  const sets = sessionsPatternBalance(draft.sessions, (id) => primaryOf(catalogById.get(id)));
   let total = 0;
   let maxRpe = 0;
   for (const s of draft.sessions) {
@@ -176,7 +180,7 @@ export function reviewChecks(
 function weekdayChecks(
   draft: Pick<AiDraftWeekDto, "sessions">,
   days: PlacementDaysInput,
-  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPattern">>
+  catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPatterns">>
 ): ReviewCheck[] {
   if (!draft.sessions.some((s) => s.weekday != null)) return [];
   const seq = { lifting: 0, cardio: 0 };
@@ -193,7 +197,7 @@ function weekdayChecks(
       cardio: s.cardio ?? null,
     } as ProgramSession;
   });
-  const conflicts = placementConflicts(sessions, days, (id) => catalogById.get(id)?.movementPattern);
+  const conflicts = placementConflicts(sessions, days, (id) => primaryOf(catalogById.get(id)));
   if (conflicts.length === 0) return [{ tone: "ok", text: "AI weekdays follow the client's schedule rules" }];
   return conflicts.map((c) => ({ tone: "warn" as const, text: `Weekday conflict: ${c.text} — approval re-places it` }));
 }

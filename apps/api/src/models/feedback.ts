@@ -1,7 +1,7 @@
 /** Feedback — request/response schemas derived from the Drizzle table(s). See ./shared.ts. */
 import { t } from "elysia";
 import { feedbackComments, feedbackItems } from "@pt/db/schema";
-import { FEEDBACK_STATUSES } from "@pt/shared";
+import { FEEDBACK_KINDS, FEEDBACK_STATUSES } from "@pt/shared";
 import { createInsertSchema, createUpdateSchema, nonNull } from "../utility";
 import { str, oneOf, as } from "./shared";
 
@@ -13,16 +13,22 @@ const feedbackItemFields = {
   fixPr: str({ pattern: GITHUB_PR_URL, maxLength: 300 }),
   triageNote: str(FeedbackText),
   status: as(oneOf(FEEDBACK_STATUSES)),
+  kind: as(oneOf(FEEDBACK_KINDS)),
 };
 const FeedbackItemInsert = createInsertSchema(feedbackItems, feedbackItemFields);
 const FeedbackItemUpdate = createUpdateSchema(feedbackItems, feedbackItemFields);
 const FeedbackCommentUpdate = createUpdateSchema(feedbackComments, { body: str(FeedbackText) });
 const FeedbackReplyText = t.Required(t.Pick(FeedbackCommentUpdate, ["body"]));
-const FeedbackItemValues = t.Required(t.Pick(FeedbackItemUpdate, ["fixPr"]));
+const FeedbackItemValues = t.Required(t.Pick(FeedbackItemUpdate, ["fixPr", "kind"]));
 
 /** Multipart images, the captured context and edit bookkeeping stay in the route: not columns. */
 export const FeedbackModel = {
   comment: FeedbackItemInsert.properties.comment,
+  /**
+   * What the ticket is. Optional for one release so web builds from before
+   * kinds can still file (expand, then contract); the composer always sends it.
+   */
+  kind: t.Optional(nonNull(FeedbackItemValues.properties.kind)),
   triage: t.Pick(FeedbackItemUpdate, ["status", "triageNote"]),
   /** Reply text; the column is null only for status entries. */
   replyBody: nonNull(FeedbackReplyText.properties.body),

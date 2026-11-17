@@ -39,7 +39,7 @@ export const TEST_EXERCISE_FIXTURES: ReadonlyArray<{
   primaryMuscleGroup: string;
   secondaryMuscleGroups: string[];
   equipment: string;
-  movementPattern: MovementPattern;
+  movementPatterns: MovementPattern[];
   functionalMovement: FunctionalMovement;
 }> = [
   {
@@ -47,7 +47,7 @@ export const TEST_EXERCISE_FIXTURES: ReadonlyArray<{
     primaryMuscleGroup: "quads",
     secondaryMuscleGroups: ["glutes", "hamstrings"],
     equipment: "barbell",
-    movementPattern: "knee_dominant",
+    movementPatterns: ["knee_dominant"],
     functionalMovement: "squat",
   },
   {
@@ -55,7 +55,7 @@ export const TEST_EXERCISE_FIXTURES: ReadonlyArray<{
     primaryMuscleGroup: "chest",
     secondaryMuscleGroups: ["triceps", "shoulders"],
     equipment: "barbell",
-    movementPattern: "horizontal_push",
+    movementPatterns: ["horizontal_push"],
     functionalMovement: "push",
   },
 ];
@@ -101,7 +101,7 @@ export async function prepareTestDatabase(url: string): Promise<boolean> {
       const list = tables.map((t) => `"${t.tablename}"`).join(", ");
       await target.unsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
     }
-    await drizzle(target).insert(exercises).values(TEST_EXERCISE_FIXTURES.map((f) => ({ ...f, trainerId: null })));
+    await drizzle(target).insert(exercises).values(TEST_EXERCISE_FIXTURES.map((f) => ({ ...f, legacyMovementPattern: f.movementPatterns[0], trainerId: null })));
     for (const statement of vocabularySeedStatements()) await target.unsafe(statement);
     return true;
   } catch (err) {

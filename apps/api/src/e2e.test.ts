@@ -1387,11 +1387,11 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       name: "Custom Landmine Press",
       primaryMuscleGroup: "shoulders",
       equipment: "barbell",
-      movementPattern: "vertical_push",
+      movementPatterns: ["vertical_push"],
       functionalMovement: "push",
     });
     expect(status).toBe(201);
-    expect(body.movementPattern).toBe("vertical_push");
+    expect(body.movementPatterns).toEqual(["vertical_push"]);
     expect(body.functionalMovement).toBe("push");
   });
 
@@ -1400,32 +1400,32 @@ describe.skipIf(!dbUp)("phase L endpoints", () => {
       name: "Custom Cable Press",
       primaryMuscleGroup: "chest",
       equipment: "cable",
-      movementPattern: "horizontal_push",
+      movementPatterns: ["horizontal_push"],
       functionalMovement: "push",
     });
     const id = create.body.id;
 
     // reclassify
     const patch1 = await call("PATCH", `/v1/exercises/${id}`, {
-      movementPattern: "vertical_push",
+      movementPatterns: ["vertical_push"],
     });
     expect(patch1.status).toBe(200);
-    expect(patch1.body.movementPattern).toBe("vertical_push");
+    expect(patch1.body.movementPatterns).toEqual(["vertical_push"]);
     expect(patch1.body.functionalMovement).toBe("push");
 
     // clear back to null
     const patch2 = await call("PATCH", `/v1/exercises/${id}`, {
-      movementPattern: null,
+      movementPatterns: [],
       functionalMovement: null,
     });
     expect(patch2.status).toBe(200);
-    expect(patch2.body.movementPattern).toBeNull();
+    expect(patch2.body.movementPatterns).toEqual([]);
     expect(patch2.body.functionalMovement).toBeNull();
   });
 
   test("PATCH /v1/exercises/:id rejects an unknown pattern with 422", async () => {
     const { status, body } = await call("PATCH", `/v1/exercises/${crypto.randomUUID()}`, {
-      movementPattern: "bogus_pattern",
+      movementPatterns: ["bogus_pattern"],
     });
     expect(status).toBe(422); // schema validation rejects it before the handler runs
     expect(body).toBeDefined();

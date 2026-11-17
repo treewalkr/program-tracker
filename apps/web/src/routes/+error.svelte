@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { appPath } from '$lib/portal/lang';
 	import PageHead from '$lib/ui/PageHead.svelte';
 	import Panel from '$lib/ui/Panel.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -32,7 +33,7 @@
 
 	const status = $derived(page.status);
 	const notFound = $derived(status === 404);
-	const path = $derived(page.url.pathname);
+	const path = $derived(appPath(page.url));
 
 	const parent = $derived(
 		sections.find((s) => path === s.href || path.startsWith(s.href + '/')) ?? null,

@@ -10,7 +10,6 @@ describe("settings rail", () => {
   test("trainers don't see the workspace section", () => {
     const body = html(false);
     expect(body).not.toContain("Workspace");
-    expect(body).not.toContain('href="/settings/login-page"');
     expect(body).not.toContain('href="/settings/ai"');
     expect(body).not.toContain('href="/settings/email-templates"');
     for (const href of ["/settings", "/settings/notifications", "/settings/coaching", "/settings/about"])
@@ -21,7 +20,7 @@ describe("settings rail", () => {
     const body = html(true);
     expect(body).toContain("Workspace");
     expect(body).toMatch(/<span class="note[^"]*">Admin<\/span>/);
-    for (const href of ["/settings/login-page", "/settings/ai", "/settings/email-templates"]) expect(body).toContain(`href="${href}"`);
+    for (const href of ["/settings/ai", "/settings/email-templates"]) expect(body).toContain(`href="${href}"`);
   });
 
   test("only the current page is marked", () => {

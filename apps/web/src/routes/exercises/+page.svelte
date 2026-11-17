@@ -7,16 +7,20 @@
     FUNCTIONAL_OPTIONS,
     MUSCLE_OPTIONS,
     NONE,
+    PATTERN_GROUPS,
     PATTERN_OPTIONS,
+    addPattern,
     copyName,
     emptyFilters,
     functionalName,
     humanize,
     patternName,
+    patternShare,
     patternShort,
     pickCell,
     prefillFrom,
     removeAction,
+    removePattern,
     tabCounts,
     visibleRows,
     type ExerciseForm,
@@ -24,6 +28,7 @@
     type Sort,
     type Tab,
   } from "$lib/exerciseLibrary";
+  import { NO_PATTERN } from "@pt/shared";
   import ExerciseCoverage from "$lib/components/ExerciseCoverage.svelte";
   import ExerciseInspector from "$lib/components/ExerciseInspector.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -118,15 +123,35 @@
     return updated;
   }
 
-  async function tag(ids: string[], field: "movementPattern" | "functionalMovement", value: string | null) {
-    const before = new Map(ids.map((id) => [id, list.find((e) => e.id === id)?.[field] ?? null]));
+  /** Set the functional movement (single tag) on every row. */
+  async function tag(ids: string[], value: string | null) {
+    const before = new Map(ids.map((id) => [id, list.find((e) => e.id === id)?.functionalMovement ?? null]));
     try {
-      await patchMany(ids, () => ({ [field]: value }));
+      await patchMany(ids, () => ({ functionalMovement: value }));
       selected = [];
-      const what = value ? (field === "movementPattern" ? patternName(value) : functionalName(value)) : "untagged";
+      const what = value ? functionalName(value) : "untagged";
       flash(ids.length === 1 ? `${list.find((e) => e.id === ids[0])?.name} tagged ${what}.` : `Tagged ${ids.length} as ${what}.`, () =>
-        patchMany(ids, (e) => ({ [field]: before.get(e.id) ?? null })).catch(failed)
+        patchMany(ids, (e) => ({ functionalMovement: before.get(e.id) ?? null })).catch(failed)
       );
+    } catch (err) {
+      failed(err);
+    }
+  }
+
+  /**
+   * Apply a movement-pattern edit to every row it changes; the toast's Undo
+   * puts back each row's previous list (order, and so the primary, included).
+   */
+  async function editPatterns(ids: string[], change: (list: readonly string[]) => string[], message: (what: string) => string) {
+    const rows = ids.map((id) => list.find((e) => e.id === id)).filter((e): e is ExerciseDto => !!e);
+    const before = new Map(rows.map((e) => [e.id, [...e.movementPatterns]]));
+    const changed = rows.filter((e) => change(e.movementPatterns).join() !== e.movementPatterns.join()).map((e) => e.id);
+    if (!changed.length) return flash("Nothing to change — every exercise is already full (4 patterns) or tagged.");
+    try {
+      await patchMany(changed, (e) => ({ movementPatterns: change(e.movementPatterns) }));
+      selected = [];
+      const what = changed.length === 1 ? (list.find((e) => e.id === changed[0])?.name ?? "1 exercise") : `${changed.length} exercises`;
+      flash(message(what), () => patchMany(changed, (e) => ({ movementPatterns: before.get(e.id) ?? [] })).catch(failed));
     } catch (err) {
       failed(err);
     }
@@ -170,12 +195,12 @@
     }
   }
 
-  const inputOf = (e: Pick<ExerciseDto, "name" | "primaryMuscleGroup" | "secondaryMuscleGroups" | "equipment" | "movementPattern" | "functionalMovement" | "note">) => ({
+  const inputOf = (e: Pick<ExerciseDto, "name" | "primaryMuscleGroup" | "secondaryMuscleGroups" | "equipment" | "movementPatterns" | "functionalMovement" | "note">) => ({
     name: e.name,
     primaryMuscleGroup: e.primaryMuscleGroup,
     secondaryMuscleGroups: e.secondaryMuscleGroups,
     equipment: e.equipment,
-    movementPattern: e.movementPattern,
+    movementPatterns: e.movementPatterns,
     functionalMovement: e.functionalMovement,
     note: e.note,
   });
@@ -194,7 +219,7 @@
   async function save(form: ExerciseForm) {
     const ex = editingExercise;
     const tags = {
-      movementPattern: form.movementPattern || null,
+      movementPatterns: form.movementPatterns,
       functionalMovement: form.functionalMovement || null,
       note: form.note.trim() || null,
     };
@@ -219,7 +244,7 @@
     });
     put(row);
     // Stay on a map cell the new exercise fills; otherwise show it under Mine.
-    const fillsCell = pre.movementPattern === row.movementPattern && (!pre.equipment || pre.equipment === row.equipment);
+    const fillsCell = (pre.movementPattern ? row.movementPatterns.includes(pre.movementPattern) : row.movementPatterns.length === 0) && (!pre.equipment || pre.equipment === row.equipment);
     if (!fillsCell) {
       filters = emptyFilters();
       view.update({ q: "", params: { tab: "mine" } });
@@ -238,7 +263,8 @@
       if (splitEl && splitEl.getBoundingClientRect().top < 0) splitEl.scrollIntoView({ block: "start", behavior: smooth() });
     });
   }
-  const openNew = (name?: string) => open("new", { ...pre, movementPattern: pre.movementPattern ?? "", ...(name ? { name } : {}) });
+  const openNew = (name?: string) =>
+    open("new", { equipment: pre.equipment, movementPatterns: pre.movementPattern ? [pre.movementPattern] : [], ...(name ? { name } : {}) });
   const smooth = (): ScrollBehavior => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 
   function setTab(t: string) {
@@ -277,6 +303,14 @@
   // —— popover menu ——————————————————————————————————
   interface MenuItem {
     label: string;
+    /** Right-aligned count ("✓ all", "1 of 2"). */
+    note?: string;
+    /** Shown instead of the note on hover/focus, in a danger tone ("Remove from 2"); the label stays. */
+    alt?: string;
+    /** Accessible name when it differs from the label. */
+    aria?: string;
+    /** Small uppercase group heading (Upper, Lower…). */
+    group?: boolean;
     run?: () => void;
     checked?: boolean;
     danger?: boolean;
@@ -316,12 +350,44 @@
     else closeMenu();
   }
 
-  const tagItems = (field: "movementPattern" | "functionalMovement", apply: (v: string | null) => void): MenuItem[] => [
-    { label: field === "movementPattern" ? "Movement pattern" : "Functional movement", heading: true },
-    ...(field === "movementPattern" ? PATTERN_OPTIONS : FUNCTIONAL_OPTIONS).map((o) => ({ label: o.label, run: () => apply(o.key) })),
+  const functionalItems = (apply: (v: string | null) => void): MenuItem[] => [
+    { label: "Functional movement", heading: true },
+    ...FUNCTIONAL_OPTIONS.map((o) => ({ label: o.label, run: () => apply(o.key) })),
     { label: "", sep: true },
     { label: "Untagged", run: () => apply(null) },
   ];
+
+  /**
+   * Add pattern menu for `ids`: grouped tags with how many rows carry each.
+   * A tag every row has reads "✓ all" and turns into "Remove from N".
+   */
+  const patternItems = (ids: string[]): MenuItem[] => {
+    const rows = ids.map((id) => list.find((e) => e.id === id)).filter((e): e is ExerciseDto => !!e);
+    const target = rows.length === 1 ? rows[0].name : `${rows.length} exercises`;
+    const item = (p: string): MenuItem => {
+      const share = patternShare(rows, p);
+      const name = patternName(p);
+      return share.all
+        ? {
+            label: name,
+            note: share.text,
+            alt: `Remove from ${rows.length}`,
+            aria: `Remove ${name} from ${target}`,
+            run: () => editPatterns(ids, (l) => removePattern(l, p), (what) => `Removed ${name} from ${what}.`),
+          }
+        : { label: name, note: share.text, run: () => editPatterns(ids, (l) => addPattern(l, p), (what) => `Added ${name} to ${what}.`) };
+    };
+    return [
+      { label: `Add to ${target}`, heading: true },
+      ...PATTERN_GROUPS.flatMap((g) => [
+        { label: g.label, heading: true, group: true },
+        ...g.patterns.filter((p) => p !== NO_PATTERN).map(item),
+      ]),
+      { label: "", sep: true },
+      item(NO_PATTERN),
+      { label: "Clear patterns", run: () => editPatterns(ids, () => [], (what) => `Cleared patterns on ${what}.`) },
+    ];
+  };
 
   const filterItems = (k: keyof Filters): MenuItem[] => {
     const opts = k === "muscle" ? MUSCLE_OPTIONS : k === "equipment" ? EQUIPMENT_OPTIONS : [...PATTERN_OPTIONS, { key: NONE, label: "Untagged" }];
@@ -451,8 +517,8 @@
           <div class="bulk">
             <input type="checkbox" checked aria-label="Clear selection" onchange={() => (selected = [])} />
             <b>{selected.length} selected</b>
-            <button type="button" class="btn small" onclick={(ev) => openMenu(ev, "Set pattern", () => tagItems("movementPattern", (v) => tag([...selected], "movementPattern", v)))}>Set pattern</button>
-            <button type="button" class="btn small" onclick={(ev) => openMenu(ev, "Set functional", () => tagItems("functionalMovement", (v) => tag([...selected], "functionalMovement", v)))}>Set functional</button>
+            <button type="button" class="btn small" onclick={(ev) => openMenu(ev, "Add pattern", () => patternItems([...selected]))}>Add pattern</button>
+            <button type="button" class="btn small" onclick={(ev) => openMenu(ev, "Set functional", () => functionalItems((v) => tag([...selected], v)))}>Set functional</button>
             <button type="button" class="btn small" onclick={() => setArchived([...selected], tab !== "archived")}>
               {tab === "archived" ? "Restore" : "Archive or hide"}
             </button>
@@ -499,17 +565,21 @@
                   </td>
                   <td><span class="pill neutral">{humanize(e.primaryMuscleGroup)}</span></td>
                   <td>
-                    {#if e.movementPattern}
-                      <span class="pill neutral" title={patternName(e.movementPattern)}>{patternShort(e.movementPattern)}</span>
+                    {#if e.movementPatterns.length}
+                      {@const rest = e.movementPatterns.slice(1)}
+                      <span class="pats">
+                        <span class="pill neutral" title={patternName(e.movementPatterns[0])}>{patternShort(e.movementPatterns[0])}</span>
+                        {#if rest.length}<span class="pill more" title={`Also: ${rest.map(patternName).join(", ")}`}>+{rest.length}</span>{/if}
+                      </span>
                     {:else}
-                      <button type="button" class="untag" aria-label="Tag pattern for {e.name}" onclick={(ev) => openMenu(ev, "Pattern tag", () => tagItems("movementPattern", (v) => tag([e.id], "movementPattern", v)))}>Tag</button>
+                      <button type="button" class="untag" aria-label="Tag pattern for {e.name}" onclick={(ev) => openMenu(ev, "Pattern tag", () => patternItems([e.id]))}>Tag</button>
                     {/if}
                   </td>
                   <td class="col-func">
                     {#if e.functionalMovement}
                       {functionalName(e.functionalMovement)}
                     {:else}
-                      <button type="button" class="untag" aria-label="Tag functional movement for {e.name}" onclick={(ev) => openMenu(ev, "Functional tag", () => tagItems("functionalMovement", (v) => tag([e.id], "functionalMovement", v)))}>Tag</button>
+                      <button type="button" class="untag" aria-label="Tag functional movement for {e.name}" onclick={(ev) => openMenu(ev, "Functional tag", () => functionalItems((v) => tag([e.id], v)))}>Tag</button>
                     {/if}
                   </td>
                   <td class="col-eq">{humanize(e.equipment)}</td>
@@ -583,16 +653,19 @@
   <div class="menu" role="menu" aria-label={menu.label} bind:this={menuEl} style="left:{menu.x}px; top:{menu.y}px">
     {#each menu.items as it, i (i)}
       {#if it.sep}<hr />
-      {:else if it.heading}<div class="mh">{it.label}</div>
+      {:else if it.heading}<div class="mh" class:mg={it.group}>{it.label}</div>
       {:else}
         <button
           type="button"
           role={it.checked === undefined ? "menuitem" : "menuitemcheckbox"}
           aria-checked={it.checked}
+          aria-label={it.aria}
           class:danger={it.danger}
+          class:swap={it.alt}
           onclick={(ev) => (ev.stopPropagation(), pickMenu(it))}
         >
-          {#if it.checked !== undefined}<span class="chk" aria-hidden="true">{it.checked ? "✓" : ""}</span>{/if}{it.label}
+          {#if it.checked !== undefined}<span class="chk" aria-hidden="true">{it.checked ? "✓" : ""}</span>{/if}<span class="ml">{it.label}</span
+          >{#if it.note}<span class="cnt">{it.note}</span>{/if}{#if it.alt}<span class="alt">{it.alt}</span>{/if}
         </button>
       {/if}
     {/each}
@@ -673,6 +746,16 @@
   .menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: 4px 0; }
   .menu .mh { font: 600 12px var(--font-ui); color: var(--muted); padding: 6px 10px 4px; }
   .menu .chk { width: 14px; }
+  .menu .mh.mg { font: 500 11px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 8px 10px 2px; }
+  .menu .ml { flex: 1; }
+  .menu .cnt { font: 500 12px var(--font-ui); font-variant-numeric: tabular-nums; color: var(--muted); }
+  /* "✓ all" rows: hover/focus swaps the count for "Remove from N" in a danger tone; the tag name stays. */
+  .menu .alt { display: none; font: 500 12px var(--font-ui); }
+  .menu button.swap:hover, .menu button.swap:focus-visible { background: var(--bad-bg); color: var(--bad); }
+  .menu button.swap:hover .cnt, .menu button.swap:focus-visible .cnt { display: none; }
+  .menu button.swap:hover .alt, .menu button.swap:focus-visible .alt { display: inline; }
+  .pats { display: inline-flex; gap: 4px; align-items: center; }
+  .pill.more { background: none; border: 1px dashed var(--line-strong); color: var(--muted); }
 
   .flash {
     position: fixed; left: 50%; bottom: 24px; z-index: 40; display: flex; gap: 12px; align-items: center;

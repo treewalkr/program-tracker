@@ -2,10 +2,11 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { inLang } from "$lib/portal/i18n.svelte";
 
-  /** The login page editor moved to Settings. A load redirect can't see the
-      hash, so forward the search and hash from the client. */
+  /** The login page editor moved to Settings › Appearance; forward the search
+      from the client and land on its section. */
   onMount(() => {
-    goto(`/settings/login-page${page.url.search}${page.url.hash}`, { replaceState: true });
+    goto(inLang(`/settings${page.url.search}#login-page`), { replaceState: true });
   });
 </script>

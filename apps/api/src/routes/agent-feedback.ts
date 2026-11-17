@@ -8,6 +8,10 @@ import {
   FEEDBACK_AI_VERDICTS,
   FEEDBACK_FIX_PLAN_MAX_STEPS,
   FEEDBACK_FIX_PLAN_STEP_MAX,
+  FEEDBACK_AI_QUESTIONS_MAX,
+  FEEDBACK_ACCEPTANCE_MAX,
+  FEEDBACK_ACCEPTANCE_ITEM_MAX,
+  FEEDBACK_AI_QUESTION_MAX,
   feedbackHandle,
   feedbackItemMarkdown,
   pendingDownvote,
@@ -29,6 +33,7 @@ import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, type ClosedDuplicate } from "../lib/feedback-duplicates";
 import {
   agentTokenMatches,
+  cappedConfidence,
   feedbackAiMode,
   fixCandidate,
   inboxCursor,
@@ -36,8 +41,9 @@ import {
   needsAnswer,
   routeAnswer,
 } from "../lib/feedback-ai";
-import { answerExtras, answerRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
+import { answerExtras, answerRecords, calibration, fixRecords, lessonRecords, logAgentAnswer } from "../lib/feedback-answers";
 import { TRANSCRIPT_MAX_CHARS } from "../lib/agent-transcript";
+import { requestLogsFor } from "../lib/request-log";
 import { FeedbackModel } from "../models/feedback";
 
 /**
@@ -325,6 +331,16 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       detail: { summary: "Tickets by number, for release notes" },
     },
   )
+  /**
+   * What the server logged for one request id from a ticket's Runtime section:
+   * method, route pattern, status, duration and the redacted error, oldest
+   * first. Empty when the request wasn't logged (it succeeded quickly, was a
+   * 401, or is older than 14 days).
+   */
+  .get("/requests/:requestId", async ({ params }) => requestLogsFor(params.requestId), {
+    params: t.Object({ requestId: t.String({ pattern: "^[A-Za-z0-9_-]{1,64}$" }) }),
+    detail: { summary: "Server log rows for a request id (failed or slow requests)" },
+  })
   /** One image on a ticket or a public reply. */
   .get(
     "/:id/attachments/:attachmentId",
@@ -375,6 +391,31 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
     },
   )
   /**
+   * Every shipped fix with the triage it followed and the reporter's "Fixed
+   * for you?" verdict, oldest ticket first: `dataset` prints them after the
+   * answers, `lessons` shows the 👎 ones. `since` (ISO) keeps fixes shipped then on.
+   */
+  .get(
+    "/fixes",
+    async ({ query }) => {
+      const records = fixRecords(await listFeedback(null, "oldest"));
+      return query.since ? records.filter((r) => r.ship.at >= query.since!) : records;
+    },
+    {
+      query: t.Object({ since: t.Optional(t.String({ format: "date-time" })) }),
+      detail: { summary: "Shipped fixes with their triage and the reporter's rating" },
+    },
+  )
+  /** Per confidence level: how many answers and fixes, and the share the reporter rated 👍 / 👎. */
+  .get(
+    "/calibration",
+    async () => {
+      const items = await listFeedback(null, "oldest");
+      return calibration(answerRecords(items), fixRecords(items));
+    },
+    { detail: { summary: "Confidence calibration: rated 👍/👎 share per confidence level" } },
+  )
+  /**
    * Record an answer for the ticket version `basis`. The note is stored as a
    * private AI entry; the reply goes out only when `routeAnswer` says so,
    * otherwise it waits as a draft for the admin.
@@ -389,6 +430,20 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       if (!note) return status(422, { error: "note is empty" });
       const fixPlan = (body.fixPlan ?? []).map((s) => s.trim()).filter(Boolean);
       if (body.ready && !fixPlan.length) return status(422, { error: "ready needs a fix plan" });
+      const acceptance = (body.acceptance ?? []).map((s) => s.trim()).filter(Boolean);
+      if (acceptance.length && body.verdict !== "bug" && body.verdict !== "feature") {
+        return status(422, { error: "acceptance criteria go only with bug or feature" });
+      }
+      if (body.ready && !acceptance.length) return status(422, { error: "ready needs acceptance criteria" });
+      const questions = (body.questions ?? []).map((s) => s.trim()).filter(Boolean);
+      if (body.verdict === "needs_info" && (!questions.length || !reply)) {
+        return status(422, { error: "needs_info needs questions and a reply that asks them" });
+      }
+      if (questions.length && body.verdict !== "needs_info") {
+        return status(422, { error: "questions go only with needs_info" });
+      }
+      // Evidence first: `high` needs a citation, and person-decided verdicts stay at medium.
+      const confidence = cappedConfidence(body);
 
       const out = await db.transaction(async (tx) => {
         // Serialises answers per ticket: a second run waits here, then sees the first one's entries.
@@ -407,13 +462,15 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         if (!downvote && item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis)) {
           return { error: "answered" as const, basis };
         }
-        const outcome = reply ? routeAnswer(mode, body, item) : null;
+        const outcome = reply ? routeAnswer(mode, { verdict: body.verdict, confidence }, item) : null;
         const now = Date.now();
         const aiMeta: FeedbackAiMeta = {
           verdict: body.verdict,
-          confidence: body.confidence,
+          confidence,
           citations: body.citations,
+          ...(questions.length ? { questions } : {}),
           ...(fixPlan.length ? { fixPlan } : {}),
+          ...(acceptance.length ? { acceptance } : {}),
           ...(body.risk ? { risk: body.risk } : {}),
           ...(body.ready !== undefined ? { ready: body.ready } : {}),
           basis,
@@ -452,13 +509,14 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         item: out.item,
         markdown: feedbackItemMarkdown(out.item, { imageUrl: () => null }),
         basis: out.basis,
-        answer: { ...body, fixPlan, reply, note },
+        answer: { ...body, confidence, fixPlan, acceptance, reply, note },
         outcome,
         commentIds: [out.noteId, ...(out.replyId ? [out.replyId] : [])],
         downvote: out.downvote,
         run: body.run,
       });
-      return { outcome, noteId: out.noteId, replyId: out.replyId, callId };
+      /** `confidence` as recorded: lower than asked when it was capped. */
+      return { outcome, noteId: out.noteId, replyId: out.replyId, callId, confidence };
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
@@ -469,9 +527,17 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         verdict: t.UnionEnum(FEEDBACK_AI_VERDICTS),
         confidence: t.UnionEnum(FEEDBACK_AI_CONFIDENCE),
         citations: t.Array(t.String({ maxLength: 300 }), { maxItems: 30 }),
+        /** For `needs_info`: what the reply asks the reporter, 1–3 short questions. */
+        questions: t.Optional(
+          t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_AI_QUESTION_MAX }), { minItems: 1, maxItems: FEEDBACK_AI_QUESTIONS_MAX }),
+        ),
         /** For `bug` / `feature`: steps for the coding agent that will fix it. */
         fixPlan: t.Optional(
           t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_FIX_PLAN_STEP_MAX }), { maxItems: FEEDBACK_FIX_PLAN_MAX_STEPS }),
+        ),
+        /** For `bug` / `feature`: 1–3 checkable statements, true once fixed. `ready` needs them. */
+        acceptance: t.Optional(
+          t.Array(t.String({ minLength: 1, maxLength: FEEDBACK_ACCEPTANCE_ITEM_MAX }), { minItems: 1, maxItems: FEEDBACK_ACCEPTANCE_MAX }),
         ),
         // Literal union, not t.UnionEnum: UnionEnum's default (its first value) would fill an absent risk with "low".
         risk: t.Optional(t.Union(FEEDBACK_AI_RISKS.map((r) => t.Literal(r)))),

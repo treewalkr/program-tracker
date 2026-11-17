@@ -30,7 +30,7 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
-  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -337,12 +337,55 @@
 {#if loadError}
   <ClientLoadError error={loadError} />
 {:else if client === null}
-  <SkeletonHead avatar actions={4} tabs={4} label="Loading client…" />
+  <!-- The loaded header's shape: crumbs, avatar + name + meta, the action buttons, tabs. -->
+  <div aria-busy="true">
+    <span class="sr-only" role="status">Loading client…</span>
+    <p class="sk-crumbs"><a href="/clients">Clients</a><span aria-hidden="true">/</span><Skeleton shape="line" h="11px" w="80px" /></p>
+    <div class="client-top">
+      <Skeleton shape="round" w="44px" h="44px" />
+      <div class="id-block" aria-hidden="true">
+        <div class="name-row sk-line"><Skeleton shape="line" h="20px" w="min(200px, 70%)" /></div>
+        <div class="sub">
+          {#each ["95%", "88%", "60%"] as w, i (i)}<span class="sk-line"><Skeleton shape="line" h="11px" {w} /></span>{/each}
+        </div>
+      </div>
+      <div class="head-actions">
+        <Button href={`/clients/${id}/log`}>Log session</Button>
+        <Button href={`/clients/${id}/chat`}>Ask AI</Button>
+        <Button href={`/clients/${id}/programs/new`}>Write program</Button>
+        <Skeleton h="26px" w="188px" />
+      </div>
+    </div>
+  </div>
+  <div inert>
+    <Tabs
+      label="Client sections"
+      idPrefix="tab-skel"
+      value={tab}
+      loadingCounts
+      items={[
+        { id: "program", label: "Program", count: "6 sessions" },
+        { id: "pulse", label: "Pulse", count: "0 wks" },
+        { id: "history", label: "History", count: "8 wks" },
+        { id: "settings", label: "Settings" },
+      ]}
+    />
+  </div>
   <div class="two-col">
     <SkeletonPanel count rows={5} />
-    <div class="side-stack">
-      <SkeletonPanel height={72} />
-      <SkeletonPanel rows={2} dense />
+    <div class="side-stack" aria-hidden="true">
+      <div class="panel dir-panel">
+        <h3 class="side-h">Direction</h3>
+        <p class="side-hint">standing steer — every weekly generation follows it</p>
+        <div class="sk-dir"><Skeleton h="69px" /></div>
+        <div class="dir-actions"><Skeleton h="20px" w="54px" /></div>
+      </div>
+      <div>
+        <h3 class="side-h">Programs</h3>
+        <div class="panel prog-box">
+          {#each ["58%", "64%"] as w, i (i)}<div class="prog-row sk-prog"><Skeleton shape="line" h="12px" {w} /><Skeleton shape="round" h="20px" w="64px" /></div>{/each}
+        </div>
+      </div>
     </div>
   </div>
 {:else}
@@ -476,7 +519,7 @@
                     exercises={s.exercises.map((e) => ({
                       name: e.exerciseName ?? "",
                       role: e.role,
-                      movementPattern: catalogById.get(e.exerciseId)?.movementPattern ?? null,
+                      movementPatterns: catalogById.get(e.exerciseId)?.movementPatterns ?? [],
                       sets: e.prescribedSets,
                       oneRepMaxKg: oneRepMaxKg(client?.oneRepMaxes, e.exerciseId),
                       group: e.group,
@@ -843,6 +886,12 @@
   .id-block { flex: 1; min-width: 220px; }
   .name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .sub { margin: 4px 0 0; }
+  /* Loading stand-ins at the loaded text metrics. */
+  .sk-crumbs { display: flex; align-items: center; gap: 4px; height: 24px; margin: -2px 0 4px; font-size: 13px; color: var(--faint); }
+  .sk-line { display: flex; align-items: center; min-height: 1lh; }
+  .name-row.sk-line { min-height: 25px; }
+  .sk-dir { height: 73px; }
+  .sk-prog { align-items: center; min-height: 39px; }
 
   :global(.gen-banner) {
     display: flex;

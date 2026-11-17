@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { api } from "$lib/api";
   import Panel from "$lib/ui/Panel.svelte";
-  import Skeleton from "$lib/ui/Skeleton.svelte";
   import Button from "$lib/ui/Button.svelte";
   import { DEFAULT_DELOAD, type DeloadSettings } from "@pt/shared";
   import DeloadRuleFields from "$lib/components/DeloadRuleFields.svelte";
@@ -50,18 +49,29 @@
   });
 </script>
 
+{#snippet help()}
+  <p class="muted help">
+    What a deload week does — the Deload button on a program, the block plan's deload target and every AI draft use it.
+    It replaces any deload numbers written in your instruction templates.
+  </p>
+{/snippet}
+
 <Panel title="Deload">
   {#snippet act()}<span class="head-note">every client, unless you give one their own</span>{/snippet}
-  <div class="deload">
+  <div class="deload" aria-busy={deloadSaved === undefined}>
     {#if deloadSaved === undefined}
-      <Skeleton shape="line" w="min(320px, 100%)" h="12px" />
+      <!-- The form's own shape: static copy and labels render, the rule's values shimmer. -->
+      <span class="sr-only" role="status">Loading the deload rule…</span>
+      {@render help()}
+      <DeloadRuleFields value={DEFAULT_DELOAD} loading />
+      <div class="deload-actions" aria-hidden="true">
+        <Button small variant="ghost" disabled>Reset to default</Button>
+        <Button small disabled>Save</Button>
+      </div>
     {:else if deloadSaved === null}
       <p class="muted">The deload rule isn't available right now.</p>
     {:else}
-      <p class="muted help">
-        What a deload week does — the Deload button on a program, the block plan's deload target and every AI draft use it.
-        It replaces any deload numbers written in your instruction templates.
-      </p>
+      {@render help()}
       <DeloadRuleFields bind:value={deloadDraft} idPrefix="my-deload" disabled={deloadBusy} />
       <div class="deload-actions">
         {#if deloadError}<p class="err" role="alert">{deloadError}</p>{/if}

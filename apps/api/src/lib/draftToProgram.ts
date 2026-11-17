@@ -1,5 +1,6 @@
 import {
   findSessionType,
+  typeFitsKind,
   MAX_SESSIONS_PER_WEEKDAY,
   placeSessions,
   placeWeeks,
@@ -9,19 +10,20 @@ import {
   normalizeGroups,
   sortExercisesByRole,
   draftWeek,
+  primaryPattern,
 } from "@pt/shared";
 import type { AiProgramDraft, DraftExerciseRef, DraftSession, PlacementDaysInput, ProgramSession, ProgramWeek, RoleRank, SessionTypeLike } from "@pt/shared";
 
 export interface CatalogLike {
   id: string;
   name: string;
-  /** Feeds the placer's lower/upper focus read; absent = unknown. */
-  movementPattern?: string | null;
+  /** Feeds the placer's lower/upper focus read (primary only); absent = unknown. */
+  movementPatterns?: readonly string[];
 }
 
-/** exerciseId → movement pattern, for `placeSessions`/`placeWeeks`. */
+/** exerciseId → primary movement pattern, for `placeSessions`/`placeWeeks`. */
 export function patternLookup(catalog: CatalogLike[]): (exerciseId: string) => string | null | undefined {
-  const byId = new Map(catalog.map((c) => [c.id, c.movementPattern]));
+  const byId = new Map(catalog.map((c) => [c.id, c.movementPatterns ? primaryPattern(c) : undefined]));
   return (id) => byId.get(id);
 }
 
@@ -62,7 +64,7 @@ export function resolveRef(
 export function draftTemplateSessions(
   draftSessions: DraftSession[],
   catalog: CatalogLike[],
-  /** Trainer's session types: a draft `type` naming one of the right format becomes typeId/typeName. */
+  /** Trainer's session types: a draft `type` naming one that fits the session's kind (same format or "any") becomes typeId/typeName. */
   types: SessionTypeLike[] = [],
   /** The trainer's role labels (loadRoleLabels) — exercises sort by their ranks; absent = built-ins. */
   labels?: readonly RoleRank[],
@@ -119,7 +121,7 @@ export function draftTemplateSessions(
       weekday: s.weekday ?? null,
       order: 0,
       kind,
-      ...(type && type.format === kind ? { typeId: type.id, typeName: type.name } : {}),
+      ...(type && typeFitsKind(type.format, kind) ? { typeId: type.id, typeName: type.name } : {}),
       notes: s.notes,
       exercises: grouped,
       cardio: isCardio ? s.cardio : null,

@@ -21,9 +21,18 @@ const OAUTH_TTL_S = 10 * 60;
 /** Only same-app paths — never `//evil.com` or absolute URLs. */
 const safeReturnTo = (v: string | undefined) => (v && v.startsWith("/") && !v.startsWith("//") ? v : "/");
 
-const loginError = (code: string) => `/login?error=${code}`;
+/** A client only comes back to a portal page: `/me…`, optionally under a `/en` or `/th` language prefix. */
+const clientReturnTo = (v: string | undefined) => {
+  const path = safeReturnTo(v);
+  return /^\/(?:(?:en|th)\/)?me(?:[/?#]|$)/.test(path) ? path : "/me";
+};
+
+/** The `/en` or `/th` a return path starts with, so a failed sign-in stays in the visitor's language. */
+const langOf = (path: string | undefined) => (path && /^\/(en|th)(?=[/?#]|$)/.exec(path)?.[0]) || "";
+
+const loginError = (code: string, back?: string) => `${langOf(back)}/login?error=${code}`;
 /** The client portal's sign-in page — a client never sees the trainer login. */
-const clientLoginError = (code: string) => `/me/login?error=${code}`;
+const clientLoginError = (code: string, back?: string) => `${langOf(back)}/me/login?error=${code}`;
 
 /** Who is signing in: a trainer (default) or a portal client. Rides in the OAuth cookie. */
 type SignInAs = "trainer" | "client";
@@ -48,11 +57,11 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
     "/google",
     async ({ cookie, query, redirect }) => {
       const as: SignInAs = query.as === "client" ? "client" : "trainer";
+      const returnTo = as === "client" ? clientReturnTo(query.returnTo) : safeReturnTo(query.returnTo);
       const cfg = authConfig();
-      if (!cfg) return redirect((as === "client" ? clientLoginError : loginError)("not_configured"));
+      if (!cfg) return redirect((as === "client" ? clientLoginError : loginError)("not_configured", returnTo));
       const state = randomToken();
       const verifier = randomToken();
-      const returnTo = as === "client" ? "/me" : safeReturnTo(query.returnTo);
       cookie[OAUTH_COOKIE].set({
         value: JSON.stringify({ state, verifier, returnTo, as }),
         httpOnly: true,
@@ -66,7 +75,7 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
     {
       query: t.Object({
         returnTo: t.Optional(t.String()),
-        /** `client` signs a portal client in (same Google app and callback). */
+        /** `client` signs a portal client in (same Google app and callback); its `returnTo` must be a portal page. */
         as: t.Optional(t.String()),
       }),
       detail: { summary: "Start Google sign-in (browser redirect); `?as=client` for the client portal" },
@@ -87,7 +96,7 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
         pending = null;
       }
       // a client's failures land on the portal's sign-in page, a trainer's on /login
-      const fail = pending?.as === "client" ? clientLoginError : loginError;
+      const fail = (code: string) => (pending?.as === "client" ? clientLoginError : loginError)(code, pending?.returnTo);
       if (query.error) return redirect(fail("cancelled"));
       if (!pending || !query.code || query.state !== pending.state) return redirect(fail("expired"));
 
@@ -96,11 +105,11 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
         try {
           const profile = await fetchGoogleProfile(cfg, query.code, pending.verifier);
           const claim = await claimClient(profile);
-          if ("rejection" in claim) return redirect(clientLoginError(claim.rejection));
+          if ("rejection" in claim) return redirect(fail(claim.rejection));
           clientId = claim.clientId;
         } catch (err) {
           console.error("[auth] client google callback failed:", err);
-          return redirect(clientLoginError("google_failed"));
+          return redirect(fail("google_failed"));
         }
         const session = await createClientSession(clientId);
         cookie[CLIENT_COOKIE].set({
@@ -111,18 +120,18 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
           path: "/",
           expires: session.expiresAt,
         });
-        return redirect("/me");
+        return redirect(clientReturnTo(pending.returnTo));
       }
 
       let trainerId: string;
       try {
         const profile = await fetchGoogleProfile(cfg, query.code, pending.verifier);
         const claim = await claimTrainer(cfg, profile);
-        if ("rejection" in claim) return redirect(loginError(claim.rejection));
+        if ("rejection" in claim) return redirect(fail(claim.rejection));
         trainerId = claim.trainerId;
       } catch (err) {
         console.error("[auth] google callback failed:", err);
-        return redirect(loginError("google_failed"));
+        return redirect(fail("google_failed"));
       }
 
       const session = await createSession(trainerId);

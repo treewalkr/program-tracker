@@ -106,6 +106,7 @@ export const MOVEMENT_PATTERNS = [
   "anti_extension",
   "carry",
   "isolation",
+  "no_pattern",
 ] as const;
 export const MovementPattern = z.enum(MOVEMENT_PATTERNS);
 export type MovementPattern = z.infer<typeof MovementPattern>;
@@ -216,7 +217,16 @@ export const MOVEMENT_PATTERN_INFO: Record<
     description: "Single-joint work — curls, lateral raises, triceps extensions, calf raises.",
     core: false,
   },
+  no_pattern: {
+    label: "no pattern",
+    name: "No pattern",
+    description: "Mobility, drills and warm-ups. Not counted in balance.",
+    core: false,
+  },
 };
+
+/** The exclusive "No pattern" tag: tagged on purpose, never combined with other tags. */
+export const NO_PATTERN = "no_pattern" satisfies MovementPattern;
 
 export const FUNCTIONAL_MOVEMENT_INFO: Record<
   FunctionalMovement,
@@ -328,10 +338,22 @@ export const Exercise = z.object({
   primaryMuscleGroup: MuscleGroup,
   secondaryMuscleGroups: z.array(MuscleGroup).max(4).default([]),
   equipment: Equipment,
-  movementPattern: MovementPattern.nullable().optional(),
+  /** Ordered movement patterns; the first is the primary. Empty = untagged. */
+  movementPatterns: z.array(MovementPattern).max(4).default([]),
   functionalMovement: FunctionalMovement.nullable().optional(),
 });
 export type Exercise = z.infer<typeof Exercise>;
+
+/** Most movement patterns an exercise can carry. */
+export const MAX_MOVEMENT_PATTERNS = 4;
+
+/**
+ * The primary movement pattern: the first tag, or null when untagged. Balance,
+ * roles and placement read only this; the rest are for search, filters and AI context.
+ */
+export function primaryPattern<P extends string>(e: { movementPatterns?: readonly P[] | null }): P | null {
+  return e.movementPatterns?.[0] ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Program prescription
@@ -457,7 +479,8 @@ export function sortExercisesByRole<T extends { role?: string | null; group?: st
 
 /**
  * Hard sets per movement-pattern bucket. Buckets don't overlap, so they sum to
- * the session's set total; unclassified = untagged exercises.
+ * the session's set total; unclassified = untagged exercises, noPattern =
+ * exercises tagged "No pattern" (mobility, drills) — tagged, but in no bucket.
  */
 export interface PatternBalance {
   push: number;
@@ -467,6 +490,7 @@ export interface PatternBalance {
   iso: number;
   carry: number;
   core: number;
+  noPattern: number;
   unclassified: number;
 }
 
@@ -480,7 +504,7 @@ export function hardSetCount(sets: readonly { type?: SetType }[] | null | undefi
 
 /** Hard sets per movement pattern — the one balance count for the program page and draft review. */
 export function patternBalance(
-  list: readonly { movementPattern?: string | null; sets: readonly { type?: SetType }[] | null | undefined }[]
+  list: readonly { /** The primary pattern only. */ movementPattern: string | null | undefined; sets: readonly { type?: SetType }[] | null | undefined }[]
 ): PatternBalance {
   const result: PatternBalance = {
     push: 0,
@@ -490,6 +514,7 @@ export function patternBalance(
     iso: 0,
     carry: 0,
     core: 0,
+    noPattern: 0,
     unclassified: 0,
   };
   for (const item of list) {
@@ -497,6 +522,10 @@ export function patternBalance(
     const p = item.movementPattern;
     if (!p) {
       result.unclassified += n;
+      continue;
+    }
+    if (p === NO_PATTERN) {
+      result.noPattern += n;
       continue;
     }
     if (p === "vertical_push" || p === "horizontal_push") {
@@ -536,11 +565,12 @@ export function sessionsPatternBalance(
   );
 }
 
-/** "18 sets — push 6 · pull 5 · iso 4 · core 2 · 1 untagged" — total first, so every set is accounted for. */
+/** "18 sets — push 6 · pull 5 · iso 4 · core 2 · 2 no pattern · 1 untagged" — total first, so every set is accounted for. */
 export function formatPatternBalance(b: PatternBalance): string {
   const parts = (["push", "pull", "knee", "hip", "iso", "carry", "core"] as const).filter((k) => b[k] > 0).map((k) => `${k} ${b[k]}`);
+  if (b.noPattern > 0) parts.push(`${b.noPattern} no pattern`);
   if (b.unclassified > 0) parts.push(`${b.unclassified} untagged`);
-  const total = b.push + b.pull + b.knee + b.hip + b.iso + b.carry + b.core + b.unclassified;
+  const total = b.push + b.pull + b.knee + b.hip + b.iso + b.carry + b.core + b.noPattern + b.unclassified;
   return total > 0 ? `${total} ${total === 1 ? "set" : "sets"} — ${parts.join(" · ")}` : "no exercises";
 }
 
