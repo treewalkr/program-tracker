@@ -37,44 +37,45 @@
       <p>{text.body} <a href="/whats-new#v{latest}">{text.more} →</a></p>
     </div>
     <div class="actions">
-      <LangToggle />
+      <LangToggle compact />
       <button type="button" class="close" aria-label={text.dismiss} onclick={dismiss}><Icon name="x" /></button>
     </div>
   </aside>
 {/if}
 
 <style>
+  /* One quiet row: what happened, where to read it, and two small controls. */
   .release {
     display: flex;
-    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    align-items: flex-start;
+    gap: 8px 16px;
     margin: 0 0 20px;
-    padding: 16px 18px;
+    padding: 10px 10px 10px 14px;
     background: var(--well);
     border: 1px solid var(--line);
-    border-left: 3px solid var(--blue);
-    border-radius: 8px;
+    border-radius: 6px;
   }
-  h2 { margin: 0 0 2px; font: 600 16px/1.35 var(--font-ui); color: var(--ink); }
-  p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
-  a { font-size: 14px; font-weight: 600; color: var(--blue); }
-  .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .body { flex: 1 1 320px; min-width: 0; }
+  h2 { margin: 0; font: 600 14px/1.4 var(--font-ui); color: var(--ink); text-wrap: balance; }
+  p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  a { font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+  .actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
   .close {
     display: grid;
     place-items: center;
-    min-width: 44px;
-    min-height: 44px;
+    width: 28px;
+    height: 28px;
     color: var(--muted);
     background: transparent;
     border: 0;
-    border-radius: 999px;
+    border-radius: 6px;
     cursor: pointer;
   }
-  .close:hover { color: var(--ink); background: var(--line); }
-  .close:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-  @media (max-width: 640px) {
-    .release { flex-direction: column-reverse; }
-    .actions { align-self: flex-end; }
-  }
+  .close :global(svg) { width: 16px; height: 16px; }
+  .close:hover { color: var(--ink); background: var(--line-soft); }
+  .close:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 </style>

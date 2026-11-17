@@ -22,7 +22,7 @@
 <svelte:head><title>{text.title} · Program Tracker</title></svelte:head>
 
 <PageHead title={text.title} sub={text.sub}>
-  {#snippet actions()}<LangToggle />{/snippet}
+  {#snippet actions()}<LangToggle compact />{/snippet}
 </PageHead>
 
 {#if releases.length === 0}

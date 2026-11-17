@@ -8,6 +8,9 @@
     en: { short: "EN", long: "English" },
   };
 
+  /** Small segmented control for the trainer app's dense chrome; the portal keeps 44px touch targets. */
+  let { compact = false }: { compact?: boolean } = $props();
+
   function onkeydown(e: KeyboardEvent) {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
@@ -17,7 +20,7 @@
   }
 </script>
 
-<div class="lang" role="radiogroup" aria-label={t("lang.label")}>
+<div class={["lang", compact && "compact"]} role="radiogroup" aria-label={t("lang.label")}>
   {#each LOCALES as l (l)}
     <button
       type="button"
@@ -53,6 +56,8 @@
     cursor: pointer;
     touch-action: manipulation;
   }
+  .compact { padding: 1px; }
+  .compact button { min-width: 0; min-height: 26px; padding: 0 10px; font-size: 12px; }
   button:hover { color: var(--ink); }
   button[aria-checked="true"] { color: var(--surface); background: var(--ink); }
   button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
