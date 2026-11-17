@@ -1,4 +1,5 @@
 import { client } from "./treaty";
+import { appPath } from "../portal/lang";
 
 export interface SessionTrainer {
   id: string;
@@ -36,6 +37,6 @@ export const safeReturnTo = (v: string | null | undefined) => (v && v.startsWith
 
 /** Send the browser to /login, remembering where it was. */
 export function toLogin(from: URL): string {
-  const back = from.pathname + from.search;
+  const back = appPath(from) + from.search;
   return back === "/" || back.startsWith("/login") ? "/login" : `/login?returnTo=${encodeURIComponent(back)}`;
 }

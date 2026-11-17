@@ -23,11 +23,14 @@
   import DraftNotice from "$lib/components/DraftNotice.svelte";
   import { generationWatch } from "$lib/draftWatch";
   import { isPortalPath } from "$lib/portal/gate";
+  import { appPath } from "$lib/portal/lang";
 
   let { children, data } = $props();
 
   /** No trainer chrome: the sign-in page and the client portal (/me). */
-  const bare = $derived(page.url.pathname === "/login" || isPortalPath(page.url.pathname));
+  /** The page without its language prefix — what nav state and route checks compare against. */
+  const here = $derived(appPath(page.url));
+  const bare = $derived(here === "/login" || isPortalPath(here));
   const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
   const isAdmin = $derived(isAdminSession(data.session));
 
@@ -91,7 +94,7 @@
 
   /** Exact for "/" and "/admin", whose sub-pages have their own nav items. */
   const isActive = (href: string) =>
-    ["/", "/admin"].includes(href) ? page.url.pathname === href : page.url.pathname.startsWith(href);
+    ["/", "/admin"].includes(href) ? here === href : here.startsWith(href);
 
   /* Sidebar: wide screens collapse it to an icon rail by choice (remembered);
      narrow screens start as the rail (hidden on phones) and open the full menu
@@ -124,7 +127,7 @@
   }
   /* Gym-floor routes swap the top-bar toggle for a larger corner menu button
      on phones (≤640px), where the rail is hidden on every page. */
-  const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(page.url.pathname));
+  const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(here));
   const sideOpen = $derived(!rail);
 
   function toggleKeepRail() {
@@ -190,7 +193,7 @@
 
   // Close the narrow-screen drawer after navigating.
   $effect(() => {
-    void page.url.pathname;
+    void here;
     untrack(closeDrawer);
   });
 

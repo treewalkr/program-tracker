@@ -4,6 +4,7 @@ import { apiMode } from "./index";
 import { client } from "./treaty";
 import { mockPortalApi } from "./mock/portal";
 import { portalWire } from "./portalWire";
+import { appPath } from "../portal/lang";
 import {
   PORTAL_LOGIN,
   PortalDuplicateError,
@@ -27,7 +28,7 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
   if (error) {
     const value = error.value as { error?: string; existing?: unknown } | string | null;
     const code = typeof error.status === "number" ? error.status : "unknown";
-    if (code === 401 && browser && !isPortalPublic(window.location.pathname)) window.location.assign(PORTAL_LOGIN);
+    if (code === 401 && browser && !isPortalPublic(appPath(window.location))) window.location.assign(PORTAL_LOGIN);
     if (code === 409 && typeof value === "object" && value?.existing) {
       throw new PortalDuplicateError(portalWire(value.existing) as PortalDuplicateError["existing"]);
     }
