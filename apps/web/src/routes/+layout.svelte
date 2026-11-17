@@ -18,6 +18,7 @@
   import { whatsNew } from "$lib/whatsNew.svelte";
   import VersionLink from "$lib/components/VersionLink.svelte";
   import AccountMenu from "$lib/components/AccountMenu.svelte";
+  import ReleaseBanner from "$lib/components/ReleaseBanner.svelte";
   import { isAdminSession } from "$lib/settingsNav";
   import DraftNotice from "$lib/components/DraftNotice.svelte";
   import { generationWatch } from "$lib/draftWatch";
@@ -388,6 +389,7 @@
         Demo mode — every number on screen is mock data. Nothing is saved.
       </Note>
     {/if}
+    <ReleaseBanner />
     {@render children()}
   </main>
 </div>
