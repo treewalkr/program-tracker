@@ -1,239 +1,143 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { GUIDE, GUIDE_IDS } from "$lib/guide/clientPortal";
+  import { i18n } from "$lib/portal/i18n.svelte";
+  import LangToggle from "$lib/portal/LangToggle.svelte";
+  import { renderInlineMarkdown } from "$lib/markdown";
   import PageHead from "$lib/ui/PageHead.svelte";
-  import Pill from "$lib/ui/Pill.svelte";
 
-  /* Read-mode page: the contents list on the right follows the section in view. */
-  const toc = [
-    { id: "what-it-is", label: "What it is" },
-    { id: "set-up", label: "Set it up" },
-    { id: "client-sees", label: "What your client sees" },
-    { id: "client-logs", label: "How your client logs" },
-    { id: "you-see", label: "What you see afterwards" },
-    { id: "reset-off", label: "Reset or turn off" },
-    { id: "stuck", label: "When something doesn't work" },
-  ];
-  let current = $state(toc[0].id);
+  const g = $derived(GUIDE[i18n.locale]);
+  const s = $derived(g.sections);
+  const [whatItIs, setUp, clientSees, clientLogs, youSee, resetOff, stuck] = GUIDE_IDS;
+  const toc = $derived([
+    [whatItIs, s.whatItIs.h],
+    [setUp, s.setUp.h],
+    [clientSees, s.clientSees.h],
+    [clientLogs, s.clientLogs.h],
+    [youSee, s.youSee.h],
+    [resetOff, s.resetOff.h],
+    [stuck, s.stuck.h],
+  ] as const);
+
+  /** Inline markdown plus ⟦tone|label⟧ pills — the guide's own copy, never user input. */
+  const rich = (text: string) =>
+    renderInlineMarkdown(text).replace(/⟦(\w+)\|([^⟧]+)⟧/g, '<span class="pill $1">$2</span>');
+
+  let current = $state<string>(GUIDE_IDS[0]);
 
   onMount(() => {
     const seen = new Set<string>();
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) (e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id));
-        const first = toc.find((t) => seen.has(t.id));
-        if (first) current = first.id;
+        const first = GUIDE_IDS.find((id) => seen.has(id));
+        if (first) current = first;
       },
       { rootMargin: "0px 0px -65% 0px" },
     );
-    for (const t of toc) {
-      const el = document.getElementById(t.id);
+    for (const id of GUIDE_IDS) {
+      const el = document.getElementById(id);
       if (el) io.observe(el);
     }
     return () => io.disconnect();
   });
 </script>
 
-<svelte:head><title>Client portal guide · Program Tracker</title></svelte:head>
+<svelte:head><title>{g.title} · Program Tracker</title></svelte:head>
 
-<PageHead
-  title="Client portal"
-  sub="Give a client a link to their week. They log sessions on their phone; the logs land in your data."
-  crumbs={[{ label: "Guide" }, { label: "Client portal" }]}
-/>
+<PageHead title={g.title} sub={g.sub} crumbs={[{ label: g.crumbs[0] }, { label: g.crumbs[1] }]}>
+  {#snippet actions()}<LangToggle compact />{/snippet}
+</PageHead>
 
-<div class="doc">
+<div class="doc" lang={i18n.locale}>
   <article>
-    <section id="what-it-is">
-      <h2>What it is</h2>
-      <p>
-        The portal is a page your client opens on their phone. It shows this week's and next week's sessions from their
-        <strong>active program</strong>, and lets them log what they did, set by set. It replaces the "send me your numbers in
-        LINE" step: you no longer type their sessions in by hand.
-      </p>
-      <p>
-        You turn it on <strong>per client</strong>. A client you haven't turned it on for has no way in. It never shows the
-        parts of the app you work in — only the program.
-      </p>
+    <section id={whatItIs}>
+      <h2>{s.whatItIs.h}</h2>
+      {#each s.whatItIs.p as para, i (i)}<p>{@html rich(para)}</p>{/each}
     </section>
 
-    <section id="set-up">
-      <h2>Set it up</h2>
+    <section id={setUp}>
+      <h2>{s.setUp.h}</h2>
       <ol class="steps">
-        <li>
-          <h3>Open the client's Settings tab</h3>
-          <p>
-            <span class="path"><code>Clients</code> › <code>their name</code> › <code>Settings</code></span> The
-            <strong>Client portal</strong> box is the first one on the page.
-          </p>
-        </li>
-        <li>
-          <h3>Check their email first</h3>
-          <p>
-            If the client has an email on file, they can sign in with the Google account that uses it. The box says
-            <em>Uses name@example.com</em>. With no email it says <em>No email on file</em> and they can only use the link. You can
-            add one in the client's profile; you can also skip Google entirely.
-          </p>
-        </li>
-        <li>
-          <h3>Press <em>Turn on</em></h3>
-          <p>
-            The box now shows a personal <strong>Access link</strong>. Nothing is sent to the client yet, and an empty program is
-            fine: they'll see "Your coach hasn't published a program yet" until you activate one.
-          </p>
-        </li>
-        <li>
-          <h3>Send it</h3>
-          <p>
-            <strong>Copy message</strong> under <em>For LINE</em> gives you a ready sentence plus the link, in English or ไทย
-            (switch with EN / ไทย; it starts in the client's language when their name is written in Thai). Paste it into LINE.
-            <strong>Copy link</strong> copies only the link.
-          </p>
-        </li>
-        <li>
-          <h3>They open it once on their phone</h3>
-          <p>
-            The page says <em>Open {"{your name}"}'s program for {"{their name}"}</em> with one button. After that they stay signed
-            in on that phone, with no password. The box shows <em>Last seen</em> once they've been in.
-          </p>
-        </li>
+        {#each s.setUp.steps as step, i (i)}
+          <li><h3>{@html rich(step.h)}</h3><p>{@html rich(step.p)}</p></li>
+        {/each}
       </ol>
-      <p class="aside">
-        <strong>Try it yourself.</strong> Open the link in the same browser you use for Program Tracker. The portal keeps its own sign-in, so
-        you stay signed in here and see exactly what your client sees.
-      </p>
+      <p class="aside">{@html rich(s.setUp.aside)}</p>
     </section>
 
-    <section id="client-sees">
-      <h2>What your client sees</h2>
-      <p>Only the program you've activated, and only what they need to train.</p>
+    <section id={clientSees}>
+      <h2>{s.clientSees.h}</h2>
+      <p>{s.clientSees.lead}</p>
       <div class="compare">
         <div class="col">
-          <h3>They can see</h3>
-          <ul>
-            <li>This week and next week of the <strong>active</strong> program</li>
-            <li>Session names and the weekday each one falls on</li>
-            <li>Exercises, with sets, reps, kg, RPE, rest and tempo — %1RM already worked out into kg</li>
-            <li>Your exercise and session notes, and cardio prescriptions</li>
-            <li>Your name, as their coach</li>
-          </ul>
+          <h3>{s.clientSees.can}</h3>
+          <ul>{#each s.clientSees.canList as li, i (i)}<li>{@html rich(li)}</li>{/each}</ul>
         </div>
         <div class="col never">
-          <h3>They never see</h3>
-          <ul>
-            <li>Drafts, or archived programs</li>
-            <li>AI rationale, program direction, phasing</li>
-            <li>Limitations, goals, 1RMs</li>
-            <li>Signals, your coaching rules, other clients</li>
-          </ul>
+          <h3>{s.clientSees.never}</h3>
+          <ul>{#each s.clientSees.neverList as li, i (i)}<li>{@html rich(li)}</li>{/each}</ul>
         </div>
       </div>
-      <p>
-        Next week is a preview; they can open it but can log it only once that week starts. English and ไทย are one tap in the
-        header, and the choice sticks on their phone. Your app stays in English.
-      </p>
+      <p>{s.clientSees.after}</p>
     </section>
 
-    <section id="client-logs">
-      <h2>How your client logs</h2>
+    <section id={clientLogs}>
+      <h2>{s.clientLogs.h}</h2>
       <ol class="steps plain">
-        <li>
-          <h3>Next up</h3>
-          <p>The page opens on today's first open session with a green <strong>Log it</strong> button. Earlier sessions this week they haven't logged sit under <em>Earlier this week</em> as <Pill tone="warn">Not logged</Pill>, never as "missed".</p>
-        </li>
-        <li>
-          <h3>Fill in the sets</h3>
-          <p>kg and reps are prefilled from your prescription; they change what differed. RPE is optional behind <em>Log RPE too</em>. An optional "How did you feel today?" strip and a notes field sit at the top and bottom.</p>
-        </li>
-        <li>
-          <h3>Save session</h3>
-          <p>One button at the bottom. The recap shows what they logged and how many of the week's sessions are done, with <strong>Undo</strong> if they hit it by mistake.</p>
-        </li>
+        {#each s.clientLogs.steps as step, i (i)}
+          <li><h3>{step.h}</h3><p>{@html rich(step.p)}</p></li>
+        {/each}
       </ol>
-      <p>Rules the portal enforces:</p>
-      <ul class="rules">
-        <li>They can log <strong>this week only</strong>, for today or earlier.</li>
-        <li>They can edit or undo <strong>their own</strong> logs. A session you logged shows <Pill>Logged by your coach</Pill> and can't be replaced from their phone; one they logged shows <Pill tone="good">Logged by you</Pill>.</li>
-      </ul>
+      <p>{s.clientLogs.rulesLead}</p>
+      <ul class="rules">{#each s.clientLogs.rules as li, i (i)}<li>{@html rich(li)}</li>{/each}</ul>
     </section>
 
-    <section id="you-see">
-      <h2>What you see afterwards</h2>
-      <p>
-        A client's log appears the moment they save, marked <Pill>by client</Pill> in the client's <strong>History</strong>, on the
-        program page's logged line, and in the notice on the log page when a session is already logged.
-      </p>
-      <p>
-        It counts like any log you enter: tonnage, sets, average RPE and e1RM in the block pulse, and the
-        signals (stall, RPE creep, adherence, cardio behind) all read it. <strong>You're not notified</strong> when a client logs. The
-        Overview and the client's page are where it shows up.
-      </p>
+    <section id={youSee}>
+      <h2>{s.youSee.h}</h2>
+      {#each s.youSee.p as para, i (i)}<p>{@html rich(para)}</p>{/each}
     </section>
 
-    <section id="reset-off">
-      <h2>Reset or turn off</h2>
+    <section id={resetOff}>
+      <h2>{s.resetOff.h}</h2>
       <dl class="defs">
-        <div>
-          <dt>Reset link</dt>
-          <dd>
-            Use when the link went to the wrong chat or someone else has it. The old link stops working and <strong>every device signed in
-            through it is signed out</strong>. Copy the new link and send it. Press once to ask, again to confirm.
-          </dd>
-        </div>
-        <div>
-          <dt>Turn off</dt>
-          <dd>
-            Use when the client stops training with you. The portal closes, sessions end, and the Google link is removed. Their past
-            logs stay. Turning it on again later gives a fresh link.
-          </dd>
-        </div>
+        {#each s.resetOff.items as item (item.dt)}
+          <div><dt>{item.dt}</dt><dd>{@html rich(item.dd)}</dd></div>
+        {/each}
       </dl>
     </section>
 
-    <section id="stuck">
-      <h2>When something doesn't work</h2>
+    <section id={stuck}>
+      <h2>{s.stuck.h}</h2>
       <table class="sheet">
-        <thead><tr><th scope="col">The client says</th><th scope="col">Why, and what to do</th></tr></thead>
+        <thead><tr><th scope="col">{s.stuck.head[0]}</th><th scope="col">{s.stuck.head[1]}</th></tr></thead>
         <tbody>
-          <tr>
-            <th scope="row">"We couldn't find your program for that account"</th>
-            <td>The Google account's email isn't the one on the client's profile. Fix the email, or send the link instead.</td>
-          </tr>
-          <tr>
-            <th scope="row">"Google sign-in isn't available yet"</th>
-            <td>Google access is still limited for the app. The personal link always works.</td>
-          </tr>
-          <tr>
-            <th scope="row">"Your coach hasn't published a program yet"</th>
-            <td>They have no <strong>active</strong> program. Approve and activate the draft; they'll see it right away.</td>
-          </tr>
-          <tr>
-            <th scope="row">The link says it has stopped working</th>
-            <td>You reset it, or turned the portal off. Copy the new link from their Settings tab.</td>
-          </tr>
-          <tr>
-            <th scope="row">It's slow on the first open</th>
-            <td>Normal for the first visit of the day; it can take up to a minute. They see a "waking the server up" line, not an error.</td>
-          </tr>
-          <tr>
-            <th scope="row">"I logged it but I can't find it"</th>
-            <td>Check the client's History for <Pill>by client</Pill>. If <em>Last seen</em> says "Not opened yet", they haven't used the link.</td>
-          </tr>
+          {#each s.stuck.rows as [said, fix], i (i)}
+            <tr><th scope="row">{said}</th><td>{@html rich(fix)}</td></tr>
+          {/each}
         </tbody>
       </table>
     </section>
   </article>
 
-  <nav class="toc" aria-label="On this page">
-    <p class="toc-title">On this page</p>
+  <nav class="toc" aria-label={g.onThisPage}>
+    <p class="toc-title">{g.onThisPage}</p>
     <ul>
-      {#each toc as t (t.id)}
-        <li><a href="#{t.id}" aria-current={current === t.id ? "true" : undefined}>{t.label}</a></li>
+      {#each toc as [id, label] (id)}
+        <li><a href="#{id}" aria-current={current === id ? "true" : undefined}>{label}</a></li>
       {/each}
     </ul>
   </nav>
 </div>
 
 <style>
+  /* Thai wants more air between lines than Latin. */
+  .doc:lang(th) p,
+  .doc:lang(th) li,
+  .doc:lang(th) dd,
+  .doc:lang(th) td { line-height: 1.8; }
+  .doc:lang(th) h2 { line-height: 1.5; letter-spacing: 0; }
+
   .doc {
     display: grid;
     grid-template-columns: minmax(0, 72ch) 200px;
@@ -268,21 +172,16 @@
     line-height: 1.6;
     color: var(--ink);
   }
-  em {
+  .doc :global(em) {
     font-style: normal;
     font-weight: 500;
   }
-  code {
+  .doc :global(code) {
     font: 500 12px/1 var(--font-mono);
     padding: 2px 6px;
     background: var(--well);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-  }
-  .path {
-    display: inline-block;
-    margin-right: 6px;
-    color: var(--muted);
   }
 
   /* Steps: the order matters here, so the sequence earns its numbers. */
