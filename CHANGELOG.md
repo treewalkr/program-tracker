@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.33 — 2026-11-17
+
 ### New
 - An exercise can now have up to 4 **movement patterns**, e.g. a Bulgarian split squat is Knee-dominant and Hip-dominant. The ★ marks the primary pattern: set balance, role suggestions and day placement count only the primary, so hip work still has to come from real hinges. The other patterns help search, filters, the coverage grid and AI drafts. Functional movement stays one choice.
   - th: ท่าหนึ่งมี **Movement pattern** ได้สูงสุด 4 อัน เช่น Bulgarian split squat เป็นทั้ง Knee-dominant และ Hip-dominant ★ คือ pattern หลัก การนับสมดุลเซ็ต การแนะนำบทบาท และการจัดวันฝึกนับเฉพาะ pattern หลัก งานสะโพกจึงยังต้องมาจากท่า hinge จริง ส่วน pattern อื่นช่วยในการค้นหา ตัวกรอง ตาราง Coverage และร่างโปรแกรมของ AI ส่วน Functional movement ยังเลือกได้อันเดียวเหมือนเดิม
