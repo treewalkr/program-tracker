@@ -42,7 +42,7 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Note from "$lib/ui/Note.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
-  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Verdict from "$lib/components/Verdict.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
@@ -607,8 +607,33 @@
 {/snippet}
 
 {#if loading}
-  <SkeletonHead actions={1} label="Loading conversation…" />
-  <SkeletonPanel title="Conversation" rows={3} trail={false} />
+  <!-- The empty conversation's shape (narrow panel, starters, composer); a thread loads into the same box. -->
+  <SkeletonHead label="Loading conversation…">
+    {#snippet act()}<ConfirmButton label="Clear chat" confirmLabel="Really clear?" variant="ghost" small disabled onconfirm={() => {}} />{/snippet}
+  </SkeletonHead>
+  <section class="panel solo" aria-hidden="true" inert>
+    <div class="chat-empty">
+      <h2 class="sk-line"><Skeleton shape="line" h="14px" w="min(440px, 90%)" /></h2>
+      <p class="sk-para">
+        <Skeleton shape="line" h="11px" w="min(470px, 95%)" />
+        <Skeleton shape="line" h="11px" w="min(150px, 40%)" />
+      </p>
+      <div class="starters">
+        {#each [413, 278, 326] as w, i (i)}<Skeleton h="34px" w={`min(${w}px, 100%)`} />{/each}
+      </div>
+    </div>
+    <div class="dock">
+      <div class="dock-box">
+        <textarea rows="2" disabled aria-hidden="true"></textarea>
+        <div class="dock-row">
+          <Skeleton h="24px" w="112px" />
+          <span class="kbd">{modKey} ⏎ send</span>
+          <button type="button" class="btn small send" disabled>Send</button>
+        </div>
+      </div>
+      <p class="dock-hint">Return adds a new line. Tap Send, or press {modKey} Return on a keyboard.</p>
+    </div>
+  </section>
 {:else if !client}
   <EmptyState>Client not found.</EmptyState>
 {:else}
@@ -927,6 +952,8 @@
     padding: 36px 28px 20px;
     max-width: 560px;
   }
+  .sk-line { display: flex; align-items: center; min-height: 1lh; }
+  .sk-para { display: grid; gap: 10px; padding-block: 5px; }
   .chat-empty h2 {
     font-size: 16px;
     margin-bottom: 6px;

@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { ProgramSessionDto } from "$lib/api/types";
   import { MAX_SESSIONS_PER_WEEKDAY, sessionTag, sessionsByWeekday, type SessionFocus } from "@pt/shared";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   /**
    * Week placement board: Mon–Sun columns plus an "Any day" tray. Sessions drag
    * between days, stack inside a day, and reorder within it; Alt+arrows do the
    * same from the keyboard. Placement only — content is edited below.
+   * `loading`: the program hasn't arrived — the day columns render, the cards shimmer.
    */
   let {
     sessions,
@@ -14,6 +16,7 @@
     selected = null,
     onplace,
     onselect,
+    loading = false,
   }: {
     sessions: ProgramSessionDto[];
     editable: boolean;
@@ -21,7 +24,11 @@
     selected?: string | null;
     onplace: (id: string, weekday: number | null, index: number) => void;
     onselect: (id: string) => void;
+    loading?: boolean;
   } = $props();
+
+  /** Loading stand-in: cards per day on a typical four-day split with a doubled-up day. */
+  const LOADING_CARDS = [1, 2, 1, 0, 1, 1, 0, 0];
 
   const DAYS = [1, 2, 3, 4, 5, 6, 7];
   const NAMES = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -148,14 +155,30 @@
   </div>
 {/snippet}
 
-<div class="cal" class:dragging={dragging != null}>
-  <div class="week">
-    {#each DAYS as d (d)}{@render column(d)}{/each}
+{#snippet loadingColumn(day: number)}
+  <div class="col" class:tray={day === 0} aria-hidden="true">
+    <div class="dayname">{NAMES[day]}</div>
+    {#each { length: LOADING_CARDS[day] }, i (i)}<Skeleton class="card-skel" h="62px" />{/each}
   </div>
-  {#if editable || (byDay.get(0)?.length ?? 0) > 0}
-    {@render column(0)}
-  {/if}
-</div>
+{/snippet}
+
+{#if loading}
+  <div class="cal">
+    <div class="week">
+      {#each DAYS as d (d)}{@render loadingColumn(d)}{/each}
+    </div>
+    {@render loadingColumn(0)}
+  </div>
+{:else}
+  <div class="cal" class:dragging={dragging != null}>
+    <div class="week">
+      {#each DAYS as d (d)}{@render column(d)}{/each}
+    </div>
+    {#if editable || (byDay.get(0)?.length ?? 0) > 0}
+      {@render column(0)}
+    {/if}
+  </div>
+{/if}
 
 <style>
   .cal { display: flex; flex-direction: column; gap: 8px; margin: 0 0 18px; }
@@ -205,6 +228,7 @@
   .tag { font: 500 10.5px var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; }
   .name { font: 600 12.5px/1.25 var(--font-ui); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
   .meta { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col.tray :global(.card-skel) { width: 180px; }
   .slot { height: 3px; border-radius: 99px; background: var(--focus); }
 
   @media (max-width: 760px) {
@@ -212,7 +236,7 @@
     .col:not(.tray) { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 4px 8px; min-height: 0; padding: 6px 8px; }
     .col:not(.tray) .dayname { grid-column: 1; grid-row: 1 / span 4; align-self: start; padding-top: 4px; }
     .col:not(.tray) > :not(.dayname) { grid-column: 2; }
-    .col.tray .card { width: 100%; }
+    .col.tray .card, .col.tray :global(.card-skel) { width: 100%; }
     .rest { margin-top: 0; }
   }
 </style>
