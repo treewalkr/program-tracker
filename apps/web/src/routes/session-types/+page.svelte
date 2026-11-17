@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import type { SessionKind } from "@pt/shared";
+  import { groupSessionTypes, isPresetKey, presetParent, type SessionKind } from "@pt/shared";
   import { api } from "$lib/api";
   import type { SessionTypeDto } from "$lib/api/types";
-  import { FORMAT_HINT, FORMAT_LABEL, groupByFormat, searchSessionTypes } from "$lib/sessionTypeSearch";
+  import { FORMAT_HINT, FORMAT_LABEL, searchSessionTypes } from "$lib/sessionTypeSearch";
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
@@ -27,10 +27,16 @@
   let editInput = $state<HTMLInputElement>();
   let showArchived = $state(false);
 
+  const isPreset = (t: SessionTypeDto) => isPresetKey(t.presetKey);
+  const searching = $derived(query.trim() !== "");
+
   const live = $derived(types.filter((t) => !t.archivedAt));
   const archived = $derived(types.filter((t) => t.archivedAt));
-  const shown = $derived(searchSessionTypes(live, query));
-  const groups = $derived(query.trim() ? [{ format: null, items: shown }] : groupByFormat(shown));
+  /** Presets as the taxonomy tree; custom types in list order. */
+  const tree = $derived(groupSessionTypes(live));
+  const livePresets = $derived(live.filter(isPreset));
+  const presetHits = $derived(searchSessionTypes(livePresets, query));
+  const customShown = $derived(searchSessionTypes(tree.custom, query));
   const archivedShown = $derived(searchSessionTypes(archived, query));
 
   /** Replace one row with the server's copy. */
@@ -99,14 +105,91 @@
 
 <PageHead
   title="Session types"
-  sub="The labels you pick for each session: Strength, Mobility, Intervals and so on. Each one is either lifting (exercises and sets) or cardio (time, zone and distance). Programs keep the name they were saved with."
+  sub="Label each session with a main type, or a sub-type when you want to be specific. The type decides the format: lifting (exercises and sets) or cardio (time, zone and distance); Metabolic types fit either. Programs keep the name they were saved with."
 />
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
 
-<Panel title="Types" count={live.length}>
-  <form class="panel-body add" onsubmit={add} aria-label="Add a session type">
-    <input class="input" placeholder="New type, e.g. Plyometrics" bind:value={newName} maxlength="40" aria-label="New type name" />
+<div class="search">
+  <Icon name="search" />
+  <input bind:value={query} type="search" placeholder="Search types" aria-label="Search types" autocomplete="off" />
+</div>
+
+{#snippet dot(format: SessionTypeDto["format"])}
+  <span class="dot {format}" aria-hidden="true"></span>
+{/snippet}
+
+{#snippet pathName(t: SessionTypeDto)}
+  {@const parent = presetParent(t.presetKey)}
+  <span>{#if parent}<span class="path">{`${parent.name} › `}</span>{/if}{t.name}</span>
+{/snippet}
+
+{#snippet presetActs(t: SessionTypeDto)}
+  <span class="use">{usage(t.usedIn)}</span>
+  <div class="acts">
+    <Button small variant="ghost" onclick={() => setArchived(t, true)} aria-label="Archive {t.name}">Archive</Button>
+  </div>
+{/snippet}
+
+<Panel title="Presets" count={livePresets.length} class="types-panel">
+  <p class="lock-note"><Icon name="lock" /> Fixed names, so every trainer's programs read the same. Archive the ones you don't use.</p>
+  {#if !loaded}
+    <SkeletonRows rows={6} dense />
+  {:else if searching}
+    {#if presetHits.length === 0}
+      <EmptyState>No preset matches “{query.trim()}”.</EmptyState>
+    {:else}
+      <ul class="rows">
+        {#each presetHits as t (t.id)}
+          <li class="row preset">
+            {@render dot(t.format)}
+            <span class="name static">
+              {@render pathName(t)}
+            </span>
+            {@render presetActs(t)}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {:else if tree.groups.length === 0}
+    <EmptyState>Every preset is archived. Restore one below.</EmptyState>
+  {:else}
+    <ul class="tree" aria-label="Preset session types">
+      {#each tree.groups as g (g.main.key)}
+        <li class="branch">
+          <div class="row main" class:muted={!g.row}>
+            {@render dot(g.main.format)}
+            <span class="name static">
+              {g.main.name}
+              <span class="fmt-label {g.main.format}" title={FORMAT_HINT[g.main.format]}>{FORMAT_LABEL[g.main.format]}</span>
+            </span>
+            {#if g.row}
+              {@render presetActs(g.row)}
+            {:else}
+              <span class="use">Archived</span>
+              <div class="acts"></div>
+            {/if}
+          </div>
+          {#if g.subs.length}
+            <ul class="subs" aria-label="{g.main.name} sub-types">
+              {#each g.subs as t (t.id)}
+                <li class="row sub">
+                  <span class="elbow" aria-hidden="true"></span>
+                  <span class="name static">{t.name}</span>
+                  {@render presetActs(t)}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</Panel>
+
+<Panel title="Custom" count={tree.custom.length} class="types-panel">
+  <form class="panel-body add" onsubmit={add} aria-label="Add a custom session type">
+    <input class="input" placeholder="New type, e.g. Hypertrophy" bind:value={newName} maxlength="40" aria-label="New type name" />
     <div class="seg" role="radiogroup" aria-label="Format">
       {#each ["lifting", "cardio"] as const as f (f)}
         <label class="seg-opt" class:on={newFormat === f}>
@@ -120,89 +203,115 @@
     </Button>
   </form>
 
-  <div class="search">
-    <Icon name="search" />
-    <input bind:value={query} type="search" placeholder="Search types" aria-label="Search types" autocomplete="off" />
-  </div>
-
   {#if !loaded}
-    <SkeletonRows rows={5} dense />
-  {:else if shown.length === 0}
-    <EmptyState>{query.trim() ? `No type matches “${query.trim()}”.` : "No types yet. Add your first one above."}</EmptyState>
+    <SkeletonRows rows={2} dense />
+  {:else if customShown.length === 0}
+    <EmptyState>
+      {searching ? `No custom type matches “${query.trim()}”.` : "None yet. Add one for anything the presets don't cover."}
+    </EmptyState>
   {:else}
-    {#each groups as g (g.format ?? "all")}
-      {#if g.format}<h3 class="group">{FORMAT_LABEL[g.format]} <span>{FORMAT_HINT[g.format]}</span></h3>{/if}
-      <ul class="rows">
-        {#each g.items as t (t.id)}
-          <li class="row">
-            <span class="dot" class:cardio={t.format === "cardio"} aria-hidden="true"></span>
-            {#if editingId === t.id}
-              <form class="rename" onsubmit={(e) => { e.preventDefault(); saveRename(t); }}>
-                <input
-                  bind:this={editInput}
-                  bind:value={editName}
-                  class="input"
-                  maxlength="40"
-                  aria-label="Rename {t.name}"
-                  onkeydown={(e) => { if (e.key === "Escape") editingId = null; }}
-                />
-                <Button small variant="primary" type="submit">Save</Button>
-                <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
-              </form>
-            {:else}
-              <button class="name" type="button" onclick={() => startRename(t)} title="Rename">{t.name}</button>
-              <span class="use">{usage(t.usedIn)}</span>
-              <select
-                class="select fmt"
-                value={t.format}
-                aria-label="{t.name} format"
-                onchange={(e) => setFormat(t, e.currentTarget.value as SessionKind)}
-              >
-                <option value="lifting">Lifting</option>
-                <option value="cardio">Cardio</option>
-              </select>
-              <div class="acts">
-                <Button small variant="ghost" onclick={() => startRename(t)}>Rename</Button>
-                {#if t.usedIn === 0 && types.length > 1}
-                  <ConfirmButton label="Delete" confirmLabel="Delete {t.name}?" onconfirm={() => remove(t)} small variant="ghost" class="danger" />
-                {:else}
-                  <Button small variant="ghost" onclick={() => setArchived(t, true)}>Archive</Button>
-                {/if}
-              </div>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {/each}
-  {/if}
-
-  {#if archived.length > 0}
-    <div class="archived">
-      <button class="toggle" type="button" aria-expanded={showArchived} onclick={() => (showArchived = !showArchived)}>
-        <Icon name="chevron" />
-        Archived <span class="mono">{archived.length}</span>
-      </button>
-      {#if showArchived}
-        <ul class="rows">
-          {#each archivedShown as t (t.id)}
-            <li class="row muted">
-              <span class="dot" class:cardio={t.format === "cardio"} aria-hidden="true"></span>
-              <span class="name static">{t.name}</span>
-              <span class="use">{usage(t.usedIn)}</span>
-              <span class="fmt-text">{FORMAT_LABEL[t.format]}</span>
-              <div class="acts">
-                <Button small variant="ghost" onclick={() => setArchived(t, false)}>Restore</Button>
-              </div>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
+    <ul class="rows">
+      {#each customShown as t (t.id)}
+        <li class="row custom">
+          {@render dot(t.format)}
+          {#if editingId === t.id}
+            <form class="rename" onsubmit={(e) => { e.preventDefault(); saveRename(t); }}>
+              <input
+                bind:this={editInput}
+                bind:value={editName}
+                class="input"
+                maxlength="40"
+                aria-label="Rename {t.name}"
+                onkeydown={(e) => { if (e.key === "Escape") editingId = null; }}
+              />
+              <Button small variant="primary" type="submit">Save</Button>
+              <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
+            </form>
+          {:else}
+            <button class="name" type="button" onclick={() => startRename(t)} title="Rename">{t.name}</button>
+            <span class="use">{usage(t.usedIn)}</span>
+            <select
+              class="select fmt"
+              value={t.format}
+              aria-label="{t.name} format"
+              onchange={(e) => setFormat(t, e.currentTarget.value as SessionKind)}
+            >
+              <option value="lifting">Lifting</option>
+              <option value="cardio">Cardio</option>
+            </select>
+            <div class="acts">
+              <Button small variant="ghost" onclick={() => startRename(t)}>Rename</Button>
+              {#if t.usedIn === 0}
+                <ConfirmButton label="Delete" confirmLabel="Delete {t.name}?" onconfirm={() => remove(t)} small variant="ghost" class="danger" />
+              {:else}
+                <Button small variant="ghost" onclick={() => setArchived(t, true)}>Archive</Button>
+              {/if}
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </ul>
   {/if}
 </Panel>
 
+{#if archived.length > 0}
+  <section class="archived" aria-label="Archived session types">
+    <button class="toggle" type="button" aria-expanded={showArchived} onclick={() => (showArchived = !showArchived)}>
+      <Icon name="chevron" />
+      Archived <span class="mono">{archived.length}</span>
+    </button>
+    {#if showArchived}
+      <ul class="rows">
+        {#each archivedShown as t (t.id)}
+          <li class="row muted">
+            {@render dot(t.format)}
+            <span class="name static">
+              {@render pathName(t)}
+              {#if isPreset(t)}<span class="fmt-label neutral">Preset</span>{/if}
+            </span>
+            <span class="use">{usage(t.usedIn)}</span>
+            <div class="acts">
+              <Button small variant="ghost" onclick={() => setArchived(t, false)}>Restore</Button>
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+{/if}
+
 <style>
   .err { margin-bottom: 12px; }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 360px;
+    margin-bottom: 16px;
+    padding: 0 12px;
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--muted);
+  }
+  .search :global(svg) { width: 14px; height: 14px; flex: none; }
+  .search input { flex: 1; min-width: 0; border: none; outline: none; background: none; padding: 6px 0; font: 14px var(--font-ui); color: var(--ink); }
+  .search:focus-within { color: var(--blue); border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); background: var(--surface); }
+
+  :global(.types-panel) + :global(.types-panel) { margin-top: 16px; }
+
+  .lock-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
 
   .add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
   .add .input { flex: 1; min-width: 200px; }
@@ -214,34 +323,45 @@
   .seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
   .seg-opt:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: -2px; }
 
-  .search { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); color: var(--muted); }
-  .search :global(svg) { width: 14px; height: 14px; flex: none; }
-  .search input { flex: 1; border: none; outline: none; background: none; padding: 10px 0; font: 14px var(--font-ui); color: var(--ink); }
-  .search:focus-within { color: var(--blue); }
+  .rows, .tree, .subs { list-style: none; margin: 0; padding: 0; }
+  .branch + .branch { border-top: 1px solid var(--line); }
 
-  .group {
-    margin: 0;
-    padding: 14px 16px 4px;
-    font: 500 11px/1.2 var(--font-ui);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-  }
-  .group span { margin-left: 6px; text-transform: none; letter-spacing: 0; font-weight: 400; }
-
-  .rows { list-style: none; margin: 0; padding: 0 0 6px; }
   .row {
     display: grid;
-    grid-template-columns: 10px minmax(120px, 1fr) auto 104px auto;
+    grid-template-columns: 12px minmax(120px, 1fr) auto auto;
     align-items: center;
     gap: 12px;
     min-height: 40px;
     padding: 4px 16px;
     border-bottom: 1px solid var(--line-soft);
   }
-  .row:last-child { border-bottom: none; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
+  .rows > .row:last-child, .subs > .row:last-child { border-bottom: none; }
+  .row.custom { grid-template-columns: 12px minmax(120px, 1fr) auto 104px auto; }
+  .row.main { min-height: 44px; }
+  .row.main .name { font-weight: 600; }
+  .row.main.muted .name { color: var(--muted); }
+
+  /* Sub-types hang off a hairline guide under their main type's dot. */
+  .subs { position: relative; }
+  .subs::before {
+    content: "";
+    position: absolute;
+    left: 21px;
+    top: 0;
+    bottom: 18px;
+    border-left: 1px solid var(--line-strong);
+  }
+  .row.sub { grid-template-columns: 12px 18px minmax(120px, 1fr) auto auto; gap: 0 12px; min-height: 36px; border-bottom-color: transparent; }
+  .row.sub .elbow { grid-column: 2; justify-self: start; width: 16px; margin-left: -19px; border-top: 1px solid var(--line-strong); }
+  .row.sub .name { grid-column: 3; font-weight: 400; }
+  .row.sub:hover, .row.main:hover, .row.custom:hover, .row.preset:hover { background: var(--well); }
+
+  /* Format swatch: blue lifting, green cardio, split for "any" (fits either). */
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); justify-self: center; }
   .dot.cardio { background: var(--good); }
+  .dot.any { background: linear-gradient(90deg, var(--blue) 50%, var(--good) 50%); }
+  .row.main .dot { width: 10px; height: 10px; }
+
   .name {
     justify-self: start;
     padding: 2px 0;
@@ -253,16 +373,29 @@
     text-align: left;
   }
   .name:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
-  .name.static { cursor: default; text-decoration: none; }
+  .name.static { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: default; font-weight: 500; }
+  .name.static:hover { text-decoration: none; }
+  .path { color: var(--muted); font-weight: 400; }
+
+  .fmt-label {
+    padding: 0 7px;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    font: 500 12px/18px var(--font-ui);
+    color: var(--muted);
+    background: var(--surface);
+  }
+  .fmt-label.lifting { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 35%, transparent); }
+  .fmt-label.cardio { color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, transparent); }
+
   .use { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .fmt { width: 104px; font-size: 13px; padding-top: 3px; padding-bottom: 3px; }
-  .fmt-text { font-size: 13px; color: var(--muted); }
   .acts { display: flex; gap: 4px; justify-content: flex-end; min-width: 150px; }
   .rename { grid-column: 2 / -1; display: flex; gap: 8px; align-items: center; }
   .rename .input { flex: 1; max-width: 320px; }
   .row.muted .name, .row.muted .dot { opacity: 0.6; }
 
-  .archived { border-top: 1px solid var(--line); }
+  .archived { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .toggle {
     display: flex;
     align-items: center;
@@ -278,12 +411,16 @@
   .toggle :global(svg) { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform 120ms; }
   .toggle[aria-expanded="true"] :global(svg) { transform: none; }
   .toggle .mono { font-family: var(--font-mono); }
+  .archived .rows { border-top: 1px solid var(--line-soft); }
 
   @media (max-width: 640px) {
-    .row { grid-template-columns: 10px 1fr auto; row-gap: 4px; }
+    .acts { min-width: 0; }
+    .row, .row.custom { grid-template-columns: 12px 1fr auto; row-gap: 4px; }
+    .row.sub { grid-template-columns: 12px 18px 1fr auto; }
     .use { grid-column: 2; grid-row: 2; }
-    .fmt, .fmt-text { grid-column: 3; grid-row: 1; }
-    .acts { grid-column: 2 / -1; justify-content: flex-start; min-width: 0; }
+    .row.sub .use { grid-column: 3; }
+    .fmt { grid-column: 3; grid-row: 1; }
+    .row.custom .acts { grid-column: 2 / -1; justify-content: flex-start; }
   }
   @media (prefers-reduced-motion: reduce) {
     .toggle :global(svg) { transition: none; }
