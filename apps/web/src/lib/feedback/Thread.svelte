@@ -14,6 +14,7 @@
   import { ImageTray } from "./tray.svelte";
   import { entryAuthorName, statusLine } from "./status";
   import AnswerRating from "./AnswerRating.svelte";
+  import FixRating from "./FixRating.svelte";
   import { AI_CONFIDENCE_LABEL, AI_CONFIDENCE_TONE, AI_RISK_LABEL, AI_RISK_TONE, AI_VERDICT_LABEL, publicConfidence } from "./ai";
 
   /**
@@ -171,6 +172,11 @@
             {#if c.aiPublic}
               <div class="body rate">
                 <AnswerRating itemId={item.id} answer={c} reporterName={item.author?.name ?? null} onchange={(next) => onchange?.(next)} />
+              </div>
+            {/if}
+            {#if c.fixPublic}
+              <div class="body rate">
+                <FixRating itemId={item.id} note={c} reporterName={item.author?.name ?? null} onchange={(next) => onchange?.(next)} />
               </div>
             {/if}
           {/if}

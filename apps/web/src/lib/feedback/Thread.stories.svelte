@@ -27,7 +27,7 @@
     authorKind: 'human',
     visibility: 'public',
     aiMeta: null,
-    aiPublic: null,
+    aiPublic: null, fixPublic: null,
     ship: null,
     silent: false,
     body: null,

@@ -21,7 +21,7 @@ import {
   type FeedbackTicketRef,
 } from "@pt/shared";
 import { attachmentsByItem } from "./feedback-attachments";
-import { answerRatings } from "./feedback-answers";
+import { answerRatings, fixRatings } from "./feedback-answers";
 
 /** The trainer who last edited a ticket (a second join on trainers). */
 const editors = alias(trainers, "editors");
@@ -120,7 +120,8 @@ async function duplicateLinks(rows: ListRow[]) {
  * queries) and, for a viewer, the unread and muted flags (two more). Unread = someone other than the viewer filed it,
  * edited it, replied or changed its status after the viewer last looked. Only the admin
  * gets AI drafts, private notes and the triage note (which then count as news for them too).
- * Sent AI answers carry `aiPublic` for everyone: confidence and the reporter's 👍/👎 (one more query).
+ * Sent AI answers carry `aiPublic` for everyone: confidence and the reporter's 👍/👎 (one more query);
+ * a release's shipped note carries `fixPublic`: the reporter's "Fixed for you?" rating (one more).
  */
 async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean): Promise<FeedbackItem[]> {
   if (rows.length === 0) return [];
@@ -150,6 +151,9 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
   const isAnswer = (c: (typeof comments)[number]) =>
     c.authorKind === "ai" && c.kind === "reply" && c.visibility === "public" && c.aiMeta !== null;
   const ratings = await answerRatings(comments.filter(isAnswer).map((c) => c.id));
+  // A release's public note on the ticket: what the reporter rates as "Fixed for you?".
+  const isShipNote = (c: (typeof comments)[number]) => c.authorKind === "system" && c.kind === "reply" && c.ship !== null;
+  const fixes = await fixRatings(comments.filter(isShipNote).map((c) => c.id));
   const seen = new Map<string, Date>();
   if (viewerId) {
     const reads = await db
@@ -191,6 +195,12 @@ async function hydrate(rows: ListRow[], viewerId: string | null, admin: boolean)
           ? {
               confidence: c.aiMeta!.confidence,
               rating: ratings.get(c.id) ?? null,
+              canRate: viewerId !== null && r.author !== null && r.author.id === viewerId,
+            }
+          : null,
+        fixPublic: isShipNote(c)
+          ? {
+              rating: fixes.get(c.id) ?? null,
               canRate: viewerId !== null && r.author !== null && r.author.id === viewerId,
             }
           : null,

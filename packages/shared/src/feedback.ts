@@ -353,6 +353,27 @@ export interface FeedbackAnswerRating {
   at: string;
 }
 
+/** The reporter's latest verdict on a shipped fix ("Fixed for you?"); a later one replaces it. */
+export interface FeedbackFixRating {
+  score: 1 | -1;
+  /** What's still wrong, on a 👎; null otherwise. */
+  comment: string | null;
+  at: string;
+}
+/** Longest comment on a "not fixed" 👎. */
+export const FEEDBACK_FIX_COMMENT_MAX = 1000;
+
+/** What every viewer sees on a release's shipped note: the reporter's verdict on the fix. */
+export interface FeedbackFixPublic {
+  rating: FeedbackFixRating | null;
+  /** The viewer is the ticket's reporter, the only one who may rate it. */
+  canRate: boolean;
+}
+
+/** The reply posted in the reporter's name when they rate a fix 👎 without saying why. */
+export const notFixedNote = (ticketText: string): string =>
+  isMostlyThai(ticketText) ? "👎 ยังไม่หาย" : "👎 Not fixed for me.";
+
 /** What every viewer sees about a sent AI answer: how sure it was, and the reporter's verdict. */
 export interface FeedbackAiPublic {
   confidence: FeedbackAiConfidence;
@@ -445,6 +466,8 @@ export interface FeedbackComment {
   aiMeta: FeedbackAiMeta | null;
   /** Sent AI answers, for every viewer: confidence and the reporter's rating; null otherwise. */
   aiPublic: FeedbackAiPublic | null;
+  /** A release's shipped note, for every viewer: the reporter's "Fixed for you?" rating; null otherwise. */
+  fixPublic: FeedbackFixPublic | null;
   /** Release entries: the commit and version that closed the ticket; null otherwise. */
   ship: FeedbackShip | null;
   /** Reply text; null for status entries. */
@@ -755,6 +778,23 @@ function runtimeLines(r: FeedbackRuntime): string[] {
   return out;
 }
 
+/**
+ * The reporter's 👎 on the latest shipped fix, when the ticket is open again
+ * because of it: the fix went out and didn't solve it for them. Null otherwise.
+ */
+export function failedFix(item: Pick<FeedbackItem, "status" | "thread">): { note: FeedbackComment; rating: FeedbackFixRating } | null {
+  if (!isOpenFeedback(item.status)) return null;
+  const note = item.thread.findLast((c) => c.fixPublic);
+  const rating = note?.fixPublic?.rating;
+  return note && rating?.score === -1 ? { note, rating } : null;
+}
+
+/** "👎 — “still tiny on my phone”", for Markdown and the CLI. */
+export const fixRatingText = (r: FeedbackFixRating): string =>
+  [r.score === 1 ? "👍 fixed" : "👎 not fixed", r.comment ? `“${r.comment.trim().split("\n").join(" ")}”` : ""]
+    .filter(Boolean)
+    .join(" — ");
+
 /** One item as a self-contained Markdown section. */
 export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownOptions): string {
   const c = item.context;
@@ -807,6 +847,13 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       `- **Reporter rated the last AI answer ${answerRatingText(downvote.rating)}** (${downvote.rating.at.slice(0, 10)}) — answer again; this answer waits as a draft for the owner`,
     );
   }
+  const failed = failedFix(item);
+  if (failed) {
+    const sha = failed.note.ship?.sha ? ` (commit \`${failed.note.ship.sha.slice(0, 7)}\`, v${failed.note.ship.version})` : "";
+    lines.push(
+      `- **The shipped fix didn't work for the reporter${sha}:** ${fixRatingText(failed.rating)} (${failed.rating.at.slice(0, 10)}) — reopened; find what the fix missed`,
+    );
+  }
   if (item.shippedIn) lines.push(`- **Shipped in:** v${item.shippedIn}`);
   if (item.fixPr) lines.push(`- **Fix PR:** ${item.fixPr.url} (opened ${item.fixPr.at.slice(0, 10)})`);
   if (ai) {
@@ -856,6 +903,8 @@ export function feedbackItemMarkdown(item: FeedbackItem, opts: FeedbackMarkdownO
       for (const img of imageLines(item, c.attachments ?? [], opts, "reply")) lines.push(`  - ${img.label}: ${img.md}`);
       const rating = c.aiPublic?.rating;
       if (rating) lines.push(`  - _Reporter's rating (${rating.at.slice(0, 10)}):_ ${answerRatingText(rating)}`);
+      const fix = c.fixPublic?.rating;
+      if (fix) lines.push(`  - _Reporter's rating of the fix (${fix.at.slice(0, 10)}):_ ${fixRatingText(fix)}`);
     }
   }
   if (pinned) {

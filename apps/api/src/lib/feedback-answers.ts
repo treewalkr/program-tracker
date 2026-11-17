@@ -8,6 +8,7 @@ import {
   type FeedbackAnswerRating,
   type FeedbackAnswerTag,
   type FeedbackComment,
+  type FeedbackFixRating,
   type FeedbackItem,
   type LlmSignal,
 } from "@pt/shared";
@@ -79,6 +80,46 @@ export async function rateAnswer(input: {
     score: input.score,
     reasonTags: down ? [...new Set(input.tags ?? [])] : [],
     comment: down ? input.comment?.trim() || null : null,
+  });
+}
+
+/** The reporter's latest "Fixed for you?" 👍/👎 on each of these shipped notes. */
+export async function fixRatings(commentIds: string[]): Promise<Map<string, FeedbackFixRating>> {
+  const out = new Map<string, FeedbackFixRating>();
+  if (!commentIds.length) return out;
+  const rows = await db
+    .select({ subjectId: llmFeedback.subjectId, signal: llmFeedback.signal, comment: llmFeedback.comment, createdAt: llmFeedback.createdAt })
+    .from(llmFeedback)
+    .where(
+      and(eq(llmFeedback.subjectKind, "feedback_fix"), inArray(llmFeedback.subjectId, commentIds), inArray(llmFeedback.signal, RATING_SIGNALS)),
+    )
+    .orderBy(asc(llmFeedback.createdAt));
+  for (const r of rows) {
+    out.set(r.subjectId, { score: r.signal === "thumbs_up" ? 1 : -1, comment: r.comment, at: r.createdAt.toISOString() });
+  }
+  return out;
+}
+
+/**
+ * The reporter rates a shipped fix: one row per note, a new rating replaces
+ * the old (subject kind `feedback_fix`, subject id = the release's note).
+ * Runs in the caller's transaction.
+ */
+export async function rateFix(
+  tx: Pick<typeof db, "delete" | "insert">,
+  input: { trainerId: string; commentId: string; score: 1 | -1; comment?: string | null; at: Date },
+): Promise<void> {
+  const subject = and(eq(llmFeedback.subjectKind, "feedback_fix"), eq(llmFeedback.subjectId, input.commentId));
+  await tx.delete(llmFeedback).where(and(subject, inArray(llmFeedback.signal, RATING_SIGNALS)));
+  const down = input.score === -1;
+  await tx.insert(llmFeedback).values({
+    trainerId: input.trainerId,
+    subjectKind: "feedback_fix",
+    subjectId: input.commentId,
+    signal: down ? "thumbs_down" : "thumbs_up",
+    score: input.score,
+    comment: down ? input.comment?.trim() || null : null,
+    createdAt: input.at,
   });
 }
 

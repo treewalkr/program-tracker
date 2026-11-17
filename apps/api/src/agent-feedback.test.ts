@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { eq, inArray } from "drizzle-orm";
-import { db, feedbackAttachments, feedbackComments, feedbackItems, trainers } from "@pt/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, feedbackAttachments, feedbackComments, feedbackItems, llmFeedback, trainers } from "@pt/db";
 import { feedbackHandle, unpinnedContext, type FeedbackAiMode } from "@pt/shared";
 import { API_VERSION } from "./lib/build";
 import { createSession, SESSION_COOKIE } from "./lib/auth";
@@ -562,6 +562,71 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
       expect(mails.map((m) => m.subject).sort()).toEqual(
         [`[${feedbackHandle(na)}] Shipped in v${API_VERSION}`, `[${feedbackHandle(nb)}] Shipped in v${API_VERSION}`].sort(),
       );
+    });
+
+    describe("Fixed for you?", () => {
+      const SHA3 = "2222222222222222222222222222222222222222";
+      const rateFix = (id: string, cid: string, body: unknown, as: As = kai) =>
+        call("PUT", `/v1/feedback/${id}/comments/${cid}/fix-rating`, body, as);
+      /** Kai's ticket, shipped by a commit; returns its id and the release's note. */
+      const shippedTicket = async (comment: string, sha: string) => {
+        const id = await ticket(comment);
+        await shipped([commit(sha, await numberOf(id))]);
+        await flush();
+        const note = (await asKai(id)).thread.find((c: any) => c.fixPublic);
+        return { id, note };
+      };
+      const fixRows = (cid: string) =>
+        db.select().from(llmFeedback).where(and(eq(llmFeedback.subjectKind, "feedback_fix"), eq(llmFeedback.subjectId, cid)));
+
+      test("the reporter sees the ask on the shipped note; others see no button", async () => {
+        const { id, note } = await shippedTicket("Timer label tiny", SHA3);
+        expect(note.fixPublic).toEqual({ rating: null, canRate: true });
+        const admin = (await asAdmin(id)).thread.find((c: any) => c.id === note.id);
+        expect(admin.fixPublic).toEqual({ rating: null, canRate: false });
+        expect((await rateFix(id, note.id, { score: 1 }, "admin")).status).toBe(403);
+        const status = (await asKai(id)).thread.find((c: any) => c.kind === "status");
+        expect((await rateFix(id, status.id, { score: 1 })).status).toBe(404);
+      });
+
+      test("👍 is just logged; a later 👎 replaces it, reopens, posts the comment and the inbox takes it again", async () => {
+        const { id, note } = await shippedTicket("Timer label still tiny?", "3333333333333333333333333333333333333333");
+        const up = await json(await rateFix(id, note.id, { score: 1, comment: "ignored" }));
+        expect(up.status).toBe("done");
+        expect(up.thread.find((c: any) => c.id === note.id).fixPublic.rating).toMatchObject({ score: 1, comment: null });
+        expect(await fixRows(note.id)).toHaveLength(1);
+        expect(await inInbox(id)).toBeUndefined();
+
+        const down = await json(await rateFix(id, note.id, { score: -1, comment: "Still tiny on my phone" }));
+        expect(down.status).toBe("new");
+        expect(down.shippedIn).toBeNull();
+        const rows = await fixRows(note.id);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ signal: "thumbs_down", score: -1, comment: "Still tiny on my phone" });
+        expect(down.thread.slice(-2).map((c: any) => [c.kind, c.body ?? c.status, c.author?.name])).toEqual([
+          ["reply", "Still tiny on my phone", "Kai"],
+          ["status", "new", "Kai"],
+        ]);
+        expect((await flush()).map((m) => m.to)).toContain(adminEmail);
+
+        const back = await inInbox(id);
+        expect(back.markdown).toContain("The shipped fix didn't work for the reporter");
+        expect(back.markdown).toContain("👎 not fixed — “Still tiny on my phone”");
+        expect(back.markdown).toContain("Reporter's rating of the fix");
+
+        // the same 👎 again posts nothing new
+        const again = await json(await rateFix(id, note.id, { score: -1, comment: "Still tiny on my phone" }));
+        expect(again.thread).toHaveLength(down.thread.length);
+        await flush();
+      });
+
+      test("a bare 👎 posts a short line in the ticket's language", async () => {
+        const { id, note } = await shippedTicket("ตัวเลขเล็กเกินไป", "4444444444444444444444444444444444444444");
+        const down = await json(await rateFix(id, note.id, { score: -1 }));
+        expect(down.thread.find((c: any) => c.kind === "reply" && c.authorKind === "human").body).toBe("👎 ยังไม่หาย");
+        expect(down.status).toBe("new");
+        await flush();
+      });
     });
 
     test("closes an in-progress ticket too", async () => {

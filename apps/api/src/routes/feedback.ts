@@ -4,6 +4,8 @@ import { db, feedbackComments, feedbackItems, feedbackMutes } from "@pt/db";
 import {
   FEEDBACK_ANSWER_COMMENT_MAX,
   FEEDBACK_ANSWER_TAGS,
+  FEEDBACK_FIX_COMMENT_MAX,
+  notFixedNote,
   FEEDBACK_ATTACHMENT_KINDS,
   feedbackHandle,
   feedbackMarkdown,
@@ -34,7 +36,7 @@ import { API_VERSION } from "../lib/build";
 import { notifyFeedback } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
-import { rateAnswer, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
+import { rateAnswer, rateFix, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
 import { FeedbackModel } from "../models/feedback";
 import { spread } from "../utility";
 
@@ -530,6 +532,58 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         comment: t.Optional(t.String({ maxLength: FEEDBACK_ANSWER_COMMENT_MAX })),
       }),
       detail: { summary: "Rate an AI answer 👍/👎 (the ticket's reporter only)" },
+    },
+  )
+  /**
+   * The reporter's "Fixed for you?" on a release's shipped note: 👍 is just
+   * logged; 👎 (optional comment) also reopens a done ticket as `new` and posts
+   * the comment — or a short "not fixed" line — as their reply, so the agent
+   * picks it up again with its earlier runtime evidence. A new rating replaces
+   * the old; a repeated 👎 with the same words posts nothing new.
+   */
+  .put(
+    "/:id/comments/:cid/fix-rating",
+    async ({ params, body, status, trainerId, who }) => {
+      const item = await getFeedback(params.id, who);
+      if (!item) return status(404, NOT_FOUND);
+      const note = item.thread.find((c) => c.id === params.cid);
+      if (!note?.fixPublic) return status(404, { error: "shipped note not found" });
+      if (!note.fixPublic.canRate) return status(403, { error: "only the reporter can rate the fix" });
+      const comment = body.score === -1 ? body.comment?.trim() || null : null;
+      const before = note.fixPublic.rating;
+      const repeat = body.score === -1 && before?.score === -1 && before.comment === comment;
+      const out = await db.transaction(async (tx) => {
+        const now = Date.now();
+        await rateFix(tx, { trainerId, commentId: note.id, score: body.score, comment, at: new Date(now) });
+        if (body.score === 1 || repeat) return { replyId: null };
+        const [reply] = await tx
+          .insert(feedbackComments)
+          .values({ itemId: params.id, trainerId, kind: "reply", body: comment ?? notFixedNote(item.comment), createdAt: new Date(now + 1) })
+          .returning({ id: feedbackComments.id });
+        // Reopen only a closed-as-done ticket; one the owner already reopened stays as it is.
+        const [moved] = await tx
+          .update(feedbackItems)
+          .set({ status: "new", shippedIn: null, updatedAt: new Date(now + 2) })
+          .where(and(eq(feedbackItems.id, params.id), eq(feedbackItems.status, "done")))
+          .returning({ id: feedbackItems.id });
+        if (moved) {
+          await tx
+            .insert(feedbackComments)
+            .values({ itemId: params.id, trainerId, kind: "status", status: "new", createdAt: new Date(now + 2) });
+        }
+        return { replyId: reply.id };
+      });
+      if (out.replyId) notifyFeedback({ kind: "reply", itemId: params.id, commentId: out.replyId });
+      await markSeen(trainerId, params.id);
+      return (await getFeedback(params.id, who))!;
+    },
+    {
+      params: CommentParams,
+      body: t.Object({
+        score: t.Union([t.Literal(1), t.Literal(-1)]),
+        comment: t.Optional(t.String({ maxLength: FEEDBACK_FIX_COMMENT_MAX })),
+      }),
+      detail: { summary: "Rate a shipped fix 👍/👎 — 👎 reopens it (the ticket's reporter only)" },
     },
   )
   /** The reporter removes their rating. A 👎 that already re-ran the agent stays run. */

@@ -129,7 +129,7 @@ describe("feedbackMarkdown", () => {
       ({ id, kind, mime: "image/webp", width: 10, height: 10, position });
     const reply = (id: string, attachments: ReturnType<typeof img>[]) => ({
       id, kind: "reply" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: "See these", status: null,
-      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments,
+      createdAt: "2026-11-08T00:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments,
     });
     const out = feedbackMarkdown(
       [
@@ -161,8 +161,8 @@ describe("feedbackMarkdown", () => {
         item({
           shippedIn: "0.1.3",
           thread: [
-            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments: [] },
-            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments: [] },
+            { id: "c1", kind: "reply", author: { id: "t2", name: "Ana", avatarUrl: null }, body: "Which screen?\nThe log one?", status: null, createdAt: "2026-11-07T11:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments: [] },
+            { id: "c2", kind: "status", author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "done", createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments: [] },
           ],
         }),
       ],
@@ -176,7 +176,7 @@ describe("feedbackMarkdown", () => {
   test("labels AI entries and drafts; private notes stay out of the thread", () => {
     const meta = { verdict: "exists" as const, confidence: "high" as const, citations: [], basis: "b", model: null, runAt: "2026-11-09T00:00:00.000Z" };
     const ai = (id: string, visibility: "public" | "draft" | "private", body: string) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, aiPublic: null, ship: null, silent: false, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility, aiMeta: meta, aiPublic: null, fixPublic: null, ship: null, silent: false, body, status: null, attachments: [], createdAt: "2026-11-09T00:00:00.000Z",
     });
     const out = feedbackMarkdown([item({ thread: [ai("a", "public", "Sent"), ai("b", "draft", "Unsent"), ai("c", "private", "Note")] })], { imageUrl: () => null });
     expect(out).toContain("- **AI assistant** (2026-11-09): Sent");
@@ -186,7 +186,7 @@ describe("feedbackMarkdown", () => {
   describe("AI triage", () => {
     const at = (day: number) => `2026-11-0${day}T00:00:00.000Z`;
     const note = (id: string, basis: string, day: number, over: Record<string, unknown> = {}) => ({
-      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, aiPublic: null, ship: null, silent: false, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
+      id, kind: "reply" as const, author: null, authorKind: "ai" as const, visibility: "private" as const, aiPublic: null, fixPublic: null, ship: null, silent: false, body: `Note ${id}`, status: null, attachments: [], createdAt: at(day),
       aiMeta: { verdict: "bug" as const, confidence: "medium" as const, citations: ["apps/web/src/lib/A.svelte:3"], basis, model: null, runAt: at(day), ...over },
     });
     const current = ticketBasis(item());
@@ -481,7 +481,7 @@ describe("feedbackMarkdown duplicate links", () => {
   });
   test("in progress reads as words, not the raw value", () => {
     const thread = [
-      { id: "c1", kind: "status" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "in_progress" as const, createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, ship: null, silent: false, attachments: [] },
+      { id: "c1", kind: "status" as const, author: { id: "t2", name: "Ana", avatarUrl: null }, body: null, status: "in_progress" as const, createdAt: "2026-11-08T09:00:00.000Z", authorKind: "human" as const, visibility: "public" as const, aiMeta: null, aiPublic: null, fixPublic: null, ship: null, silent: false, attachments: [] },
     ];
     const out = md({ status: "in_progress", thread, duplicateOf: { number: 12, status: "in_progress" } });
     expect(out).toContain("## FB-");
@@ -501,7 +501,7 @@ describe("pendingDownvote", () => {
   });
   const entry = (over: Partial<FeedbackComment>): FeedbackComment => ({
     id: crypto.randomUUID(), kind: "reply", author: null, authorKind: "human", visibility: "public", aiMeta: null,
-    aiPublic: null, ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
+    aiPublic: null, fixPublic: null, ship: null, silent: false, body: "x", status: null, attachments: [], createdAt: at(0), ...over,
   });
   const answer = (min: number, rating: FeedbackAnswerRating | null, id = `a${min}`) =>
     entry({ id, authorKind: "ai", createdAt: at(min), aiPublic: { confidence: "medium", rating, canRate: false } });
