@@ -19,6 +19,15 @@
   const visible = $derived(latest !== null && dismissed !== latest);
   const text = $derived(BANNER_TEXT[i18n.locale]);
 
+  /** Toast behaviour: it leaves on its own, but waits while the pointer or focus is on it. */
+  const AUTO_DISMISS_MS = 12_000;
+  let paused = $state(false);
+  $effect(() => {
+    if (!visible || paused) return;
+    const timer = setTimeout(dismiss, AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  });
+
   function dismiss() {
     if (!latest) return;
     dismissed = latest;
@@ -31,40 +40,47 @@
 </script>
 
 {#if visible && latest}
-  <div class="toast" role="status" lang={i18n.locale}>
-    <div class="top">
-      <h2>{text.title(latest)}</h2>
-      <LangToggle compact />
-      <button type="button" class="close" aria-label={text.dismiss} onclick={dismiss}><Icon name="x" /></button>
-    </div>
-    <a href="/whats-new#v{latest}">{text.more} →</a>
+  <div
+    class="toast"
+    role="status"
+    lang={i18n.locale}
+    onmouseenter={() => (paused = true)}
+    onmouseleave={() => (paused = false)}
+    onfocusin={() => (paused = true)}
+    onfocusout={() => (paused = false)}
+  >
+    <span class="msg"><strong>{text.title(latest)}</strong> <a href="/whats-new#v{latest}">{text.more} →</a></span>
+    <LangToggle compact />
+    <button type="button" class="close" aria-label={text.dismiss} onclick={dismiss}><Icon name="x" /></button>
   </div>
 {/if}
 
 <style>
-  /* A small overlay, not page content: it floats top-right and never pushes the page down. */
+  /* A toast: one row, bottom-centre, floats over the page and leaves by itself. */
   .toast {
     position: fixed;
-    top: 16px;
-    right: 16px;
+    bottom: 20px;
+    left: 50%;
+    translate: -50% 0;
     z-index: 60;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: min(380px, calc(100vw - 32px));
-    padding: 10px 10px 10px 14px;
+    align-items: center;
+    gap: 10px;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 8px 8px 8px 14px;
     background: var(--surface);
-    border-radius: 8px;
+    border-radius: 10px;
     box-shadow: 0 0 0 1px var(--line), var(--shadow-overlay);
-    animation: toast-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: toast-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   @keyframes toast-in {
-    from { opacity: 0; transform: translateY(-8px); }
+    from { opacity: 0; transform: translateY(12px); }
   }
   @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
-  .top { display: flex; align-items: center; gap: 6px; }
-  h2 { flex: 1; min-width: 0; margin: 0; font: 600 14px/1.4 var(--font-ui); color: var(--ink); text-wrap: balance; }
-  a { align-self: flex-start; font: 600 13px/1.5 var(--font-ui); color: var(--blue); text-decoration: none; border-radius: 2px; }
+  .msg { font: 400 13px/1.45 var(--font-ui); color: var(--muted); min-width: 0; }
+  strong { font-weight: 600; color: var(--ink); margin-right: 6px; }
+  a { font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; border-radius: 2px; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
   a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .close {
@@ -82,4 +98,9 @@
   .close :global(svg) { width: 16px; height: 16px; }
   .close:hover { color: var(--ink); background: var(--line-soft); }
   .close:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  /* Phone: sit above the Feedback pill's row and let the message wrap. */
+  @media (max-width: 640px) {
+    .toast { bottom: 72px; width: calc(100vw - 32px); }
+    .msg { flex: 1; }
+  }
 </style>
