@@ -12,7 +12,7 @@
   ];
 </script>
 
-<PhoneFrame height={560}>
+<PhoneFrame height={540}>
   <div class="col">
     <p class="crumb"><Icon name="chevron" size={14} />Upper A</p>
     <p class="count">{t("log.exercise", { n: 1, total: 5 })}</p>

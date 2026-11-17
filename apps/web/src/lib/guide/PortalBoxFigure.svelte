@@ -2,6 +2,8 @@
   import Button from "$lib/ui/Button.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
+  import { i18n } from "$lib/portal/i18n.svelte";
+  import { lineMessage } from "$lib/portal/lineMessage";
 
   /** The trainer's Client portal box once it's on, drawn with sample data (illustrative link and client). */
   const link = "https://app.example.com/me/link/k3Qx…9fA2";
@@ -19,10 +21,10 @@
     <div class="field">
       <div class="label-row">
         <span class="label">For LINE</span>
-        <Segmented label="Message language" items={[{ value: "en", label: "EN" }, { value: "th", label: "ไทย" }]} value="th" onchange={() => {}} />
+        <Segmented label="Message language" items={[{ value: "en", label: "EN" }, { value: "th", label: "ไทย" }]} value={i18n.locale} onchange={() => {}} />
       </div>
       <div class="link-row">
-        <span class="msg" lang="th">สวัสดี นก โปรแกรมฝึกของคุณอยู่ที่ลิงก์นี้ เปิดบนมือถือได้เลย ไม่ต้องใช้รหัสผ่าน: {link}</span>
+        <span class="msg" lang={i18n.locale}>{lineMessage(i18n.locale, "Nok", link)}</span>
         <Button small type="button">Copy message</Button>
       </div>
     </div>

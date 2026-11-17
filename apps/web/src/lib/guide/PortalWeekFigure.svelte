@@ -43,7 +43,7 @@
   };
 </script>
 
-<PhoneFrame height={560}>
+<PhoneFrame height={540}>
   <div class="col">
     <PortalBar coach="Ploy" />
     <h4>{t("header.hi", { name: "Nok" })}</h4>
@@ -56,6 +56,8 @@
 
 <style>
   .col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  /* the guide has its own language control; the drawn bar keeps just the coach */
+  .col :global(.lang) { display: none; }
   h4 { margin: 8px 0 0; font: 600 24px/1.2 var(--font-ui); }
   .week { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
   h5 { margin: 4px 0 0; font: 600 14px/1.3 var(--font-ui); }

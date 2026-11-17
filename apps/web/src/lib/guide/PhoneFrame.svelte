@@ -12,7 +12,7 @@
 <style>
   .phone {
     flex: none;
-    width: 320px;
+    width: 284px;
     max-width: 100%;
     padding: 8px;
     border: 1px solid var(--line-strong);

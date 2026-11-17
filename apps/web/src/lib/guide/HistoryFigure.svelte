@@ -32,10 +32,10 @@
   .wk-name { font-weight: 600; }
   .subtle { color: var(--muted); }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line-soft); font-size: 14px; }
+  li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 12px; border-top: 1px solid var(--line-soft); font-size: 14px; }
   li:first-child { border-top: 0; }
   .chev { color: var(--muted); display: inline-flex; }
-  .date { font: 500 13px/1 var(--font-mono); color: var(--muted); }
-  .name { font-weight: 500; }
+  .date { font: 500 13px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
+  .name { font-weight: 500; white-space: nowrap; }
   .meta { margin-left: auto; font-size: 13px; }
 </style>
