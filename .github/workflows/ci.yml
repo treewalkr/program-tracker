@@ -53,6 +53,24 @@ jobs:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
 
+      # Restore point before migrating. Encrypted to .github/backup-age.pub (the repo is
+      # public); a failed dump stops the deploy here. Restore: docs/deploy.md.
+      - name: Back up database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age >/dev/null
+          mkdir -p "$RUNNER_TEMP/db-backup"
+          scripts/deploy/db-backup.sh "$RUNNER_TEMP/db-backup/db-backup-$GITHUB_SHA.dump.age"
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.sha }}
+          path: ${{ runner.temp }}/db-backup/
+          retention-days: 30
+          if-no-files-found: error
+
       # Schema first: Render deploys the API only after these checks pass.
       - name: Migrate Supabase
         working-directory: packages/db
