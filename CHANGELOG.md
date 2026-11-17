@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.34 — 2026-11-18
+
 ### New
 - Session types are now a fixed two-level list: **Cardiovascular** (Aerobic base, Anaerobic endurance, Anaerobic power), **Strength training** (Stability & mobility, Functional movement, Loaded strength, Performance) and **Metabolic** (Circuit, AMRAP). The session type picker groups each sub-type under its main type. Your own types stay in their own section. Your old Strength, Mobility, Circuit, Zone 2 and Intervals types move onto the matching preset, and saved programs keep the names they had.
   - th: ประเภทเซสชันเป็นรายการสองชั้นแบบตายตัวแล้ว: **Cardiovascular** (Aerobic base, Anaerobic endurance, Anaerobic power), **Strength training** (Stability & mobility, Functional movement, Loaded strength, Performance) และ **Metabolic** (Circuit, AMRAP) ช่องเลือกประเภทเซสชันจัดประเภทย่อยไว้ใต้ประเภทหลัก ส่วนประเภทที่คุณสร้างเองยังอยู่ในหมวดของตัวเอง ประเภทเดิมอย่าง Strength, Mobility, Circuit, Zone 2 และ Intervals จะย้ายไปอยู่ใน preset ที่ตรงกัน โปรแกรมที่บันทึกไว้แล้วยังใช้ชื่อเดิม
