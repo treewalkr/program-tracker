@@ -6,11 +6,13 @@
 
 ### New
 - Feedback has a new **In progress** status, between Accepted and Done, so you can tell when your ticket is being worked on. You get an email when your ticket moves to In progress, as with the other status changes.
+  - th: ฟีดแบ็กมีสถานะใหม่ **กำลังดำเนินการ** อยู่ระหว่างรับเรื่องแล้วกับเสร็จแล้ว ดูได้ว่าตั๋วของคุณกำลังถูกแก้อยู่หรือยัง และคุณจะได้รับอีเมลเมื่อตั๋วเปลี่ยนเป็นกำลังดำเนินการ เหมือนกับสถานะอื่น ๆ
 
 ## v0.1.31 — 2026-11-17
 
 ### Fixed
 - Paste notes: when your notes hold two different weeks, you can now draft them as **A/B weeks**. Pick "A/B weeks" under "Draft which one?" and choose which week is A and which is B. "Use this" fills the builder's Week A and Week B tabs with A/B weeks switched on. It also works on notes you read before this update.
+  - th: วางโน้ต: เมื่อโน้ตมีสองสัปดาห์ที่ต่างกัน ตอนนี้ร่างเป็น **สัปดาห์ A/B** ได้ เลือก “A/B weeks” ที่ “Draft which one?” แล้วเลือกว่าสัปดาห์ไหนเป็น A หรือ B กด “Use this” เพื่อเติมแท็บ Week A และ Week B ของตัวสร้างโปรแกรมพร้อมเปิดโหมดสัปดาห์ A/B ใช้ได้กับโน้ตที่อ่านไว้ก่อนอัปเดตนี้ด้วย
 
 ## v0.1.30 — 2026-11-17
 
