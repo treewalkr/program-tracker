@@ -45,7 +45,7 @@
     type SessionKind,
     type SignalProgram,
   } from "@pt/shared";
-  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS } from "@pt/shared";
+  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, typeFitsKind } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
@@ -68,7 +68,7 @@
   import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
-  import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   const id = $derived(page.params.id ?? "");
@@ -110,7 +110,7 @@
     for (const w of program.weeks) {
       if (letter && w.rotation !== letter) continue;
       for (const x of w.sessions) {
-        if (sessionKey(x) === key && x.kind === t.format) {
+        if (sessionKey(x) === key && typeFitsKind(t.format, x.kind)) {
           x.typeId = t.id;
           x.typeName = t.name;
         }
@@ -399,9 +399,35 @@
 <svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
 
 {#if program === null}
-  <SkeletonHead actions={2} label="Loading program…" />
+  <!-- Loading: the loaded layout's shape — head, week tabs, toolbars, calendar, session cards. -->
+  <div class="page-head" aria-busy="true">
+    <span class="sr-only" role="status">Loading program…</span>
+    <div>
+      <div class="sk-crumbs"><Skeleton shape="line" h="11px" w="128px" /></div>
+      <h1 class="sk-line"><Skeleton shape="line" h="20px" w="min(220px, 60vw)" /></h1>
+      <p class="sub sk-line"><Skeleton shape="line" h="11px" w="32px" /></p>
+    </div>
+    <div class="actions"><Skeleton h="26px" w="132px" /></div>
+  </div>
+  <div class="weeks-row" aria-hidden="true">
+    <div class="week-tabs">
+      {#each { length: 6 }, i (i)}<span class="tab-btn sk-tab"><Skeleton shape="line" h="12px" w="20px" /></span>{/each}
+    </div>
+    <Skeleton h="23px" w="250px" />
+  </div>
+  <div class="week-bar" aria-hidden="true">
+    <p class="balance sk-line"><Skeleton shape="line" h="11px" w="min(270px, 60vw)" /></p>
+    {#each [150, 170, 110, 110] as w, i (i)}<Skeleton h="24px" w={`${w}px`} />{/each}
+  </div>
+  <div class="cal-bar" aria-hidden="true">
+    <Skeleton h="23px" w="250px" />
+    <span class="grow"></span>
+    <Skeleton h="20px" w="120px" />
+    <Skeleton h="20px" w="120px" />
+  </div>
+  <WeekCalendar sessions={[]} editable={false} focusOf={() => "none"} onplace={() => {}} onselect={() => {}} loading />
   <div class="sessions-grid">
-    {#each { length: 4 }, i (i)}<SkeletonPanel head rows={i % 2 ? 3 : 4} dense />{/each}
+    {#each { length: 2 }, i (i)}<SkeletonPanel head rows={i % 2 ? 3 : 4} dense />{/each}
   </div>
 {:else}
   <div class="page-head">
@@ -845,6 +871,10 @@
   .copy-toast > :global(svg) { width: 14px; height: 14px; color: var(--muted); flex: none; }
   .copy-toast .msg { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
   .btn.disabled { opacity: 0.55; cursor: default; }
+  /* Loading stand-ins keep the text lines' heights. */
+  .sk-crumbs { display: flex; align-items: center; height: 13px; margin-bottom: 4px; }
+  .sk-line { display: flex; align-items: center; min-height: 1lh; }
+  .sk-tab { display: flex; align-items: center; height: 28px; cursor: default; }
   .weeks-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
   .week-tabs { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
   .tab-btn {

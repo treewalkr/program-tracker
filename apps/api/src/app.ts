@@ -55,7 +55,7 @@ const TAGS = [
   { name: "logs", description: "Session logging and history aggregation" },
   { name: "exercises", description: "Exercise catalog" },
   { name: "schemes", description: "Periodization scheme library" },
-  { name: "session-types", description: "Trainer-owned session type labels over the lifting/cardio formats" },
+  { name: "session-types", description: "Session type labels over the lifting/cardio formats: locked presets plus the trainer's own" },
   { name: "chains", description: "Kinetic chains — trainer-maintained muscle-group sets" },
   { name: "notifications", description: "Phase-change signals and snooze" },
   { name: "preferences", description: "Distilled trainer/client style preferences" },

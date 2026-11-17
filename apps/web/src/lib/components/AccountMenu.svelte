@@ -7,6 +7,7 @@
    */
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
+  import { appPath } from "$lib/portal/lang";
   import type { SessionTrainer } from "$lib/api/auth";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
@@ -123,9 +124,10 @@
     };
   });
 
-  // Navigating (What's new, or anywhere) closes it.
+  // Navigating (What's new, or anywhere) closes it; switching language does not.
+  const here = $derived(appPath(page.url));
   $effect(() => {
-    void page.url.pathname;
+    void here;
     untrack(() => close(false));
   });
 </script>

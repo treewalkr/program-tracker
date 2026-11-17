@@ -503,16 +503,13 @@ export interface SchemeInput {
   weeks: WeekPlan[];
 }
 
-/** Trainer-owned label over a fixed format ("lifting" | "cardio"). */
-export interface SessionTypeDto {
-  id: string;
-  name: string;
-  format: SessionKind;
-  /** Set = out of the picker and AI list; programs keep the captured name. */
-  archivedAt: string | null;
-  /** Programs with a session of this type. */
-  usedIn: number;
-}
+/**
+ * GET /v1/session-types row, inferred from the Elysia route via Eden Treaty: a locked preset
+ * (`presetKey` set, archive/restore only) or the trainer's own type. `format` "any" (Metabolic)
+ * fits either session kind. `archivedAt` set = out of the picker and AI list; `usedIn` = programs
+ * with a session of this type.
+ */
+export type SessionTypeDto = Wire<Treaty.Data<typeof client.v1["session-types"]["get"]>>[number];
 
 export interface SessionTypeInput {
   name: string;
@@ -664,7 +661,7 @@ export interface TrainerApi {
   sessionTypes(): Promise<SessionTypeDto[]>;
   createSessionType(input: SessionTypeInput): Promise<SessionTypeDto>;
   patchSessionType(id: string, input: SessionTypePatch): Promise<SessionTypeDto>;
-  /** Unused types only, never the last one; everything else archives via patchSessionType. */
+  /** Unused custom types only; presets and used types archive via patchSessionType. */
   deleteSessionType(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
   /** One page of the client roster (server-paged): search, status, sort, page, limit. */

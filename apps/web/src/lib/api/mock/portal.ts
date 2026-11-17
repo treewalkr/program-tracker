@@ -214,5 +214,5 @@ export const mockPortalApi: PortalApi = {
     await delay(200);
   },
   async signOut() {},
-  googleHref: "/me",
+  googleHref: (returnTo) => returnTo,
 };

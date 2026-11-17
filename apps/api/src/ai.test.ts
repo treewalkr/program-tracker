@@ -1840,9 +1840,10 @@ describe("session types in AI drafts", () => {
   const types = [
     { id: "t-str", name: "Strength", format: "lifting" as const },
     { id: "t-z2", name: "Zone 2", format: "cardio" as const },
+    { id: "t-amrap", name: "AMRAP", format: "any" as const, presetKey: "metabolic.amrap" },
   ];
 
-  test("prompt lists the trainer's types by format and the schema offers \"type\"", () => {
+  test("prompt lists the types grouped by main type, custom last, and the schema offers \"type\"", () => {
     const { system, user } = buildGenerationMessages({
       client: { name: "Ada", goals: null, limitations: null, sessionsPerWeek: 2 },
       previousProgram: null,
@@ -1850,17 +1851,29 @@ describe("session types in AI drafts", () => {
       chainBalance: null,
       history: [],
       catalog: [],
-      sessionTypes: [{ name: "Strength", format: "lifting" }, { name: "Zone 2", format: "cardio" }],
+      sessionTypes: [
+        { name: "Hypertrophy", format: "lifting" },
+        { name: "Circuit", format: "any", presetKey: "metabolic.circuit" },
+        { name: "Aerobic base", format: "cardio", presetKey: "cardiovascular.aerobic-base" },
+        { name: "Metabolic", format: "any", presetKey: "metabolic" },
+        { name: "AMRAP", format: "any", presetKey: "metabolic.amrap" },
+        { name: "Zone 2", format: "cardio" },
+      ],
       trainerInstructions: "",
     });
     const all = system + user;
     expect(all).toContain("SESSION TYPES (label every session");
-    expect(all).toContain("- lifting: Strength");
-    expect(all).toContain("- cardio: Zone 2");
+    expect(all).toContain(
+      [
+        "- Cardiovascular sub-types [cardio]: Aerobic base",
+        "- Metabolic [any] › Circuit, AMRAP",
+        "- Custom: Hypertrophy [lifting], Zone 2 [cardio]",
+      ].join("\n")
+    );
     expect(all).toContain('"type"?: string');
   });
 
-  test("a draft type resolves case-insensitively when its format matches; others are dropped", () => {
+  test("a draft type resolves case-insensitively when it fits the kind; others are dropped", () => {
     const d: AiProgramDraft = {
       ...draft,
       weeks: [{ week: 1, sessions: [
@@ -1868,6 +1881,8 @@ describe("session types in AI drafts", () => {
         { name: "Easy ride", kind: "cardio", type: "Zone 2", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] },
         { ...draft.weeks[0].sessions[0], name: "Wrong format", type: "Zone 2" },
         { ...draft.weeks[0].sessions[0], name: "Unknown", type: "Yoga" },
+        { ...draft.weeks[0].sessions[0], name: "Lifting AMRAP", type: "amrap" },
+        { name: "Cardio AMRAP", kind: "cardio", type: "AMRAP", cardio: { modality: "Rower", durationMin: 12 }, exercises: [] },
       ] }],
     };
     const { weeks } = draftToWeeks(stretch(d, 1), catalog, null, types);
@@ -1876,6 +1891,9 @@ describe("session types in AI drafts", () => {
     expect(byName.get("Easy ride")).toMatchObject({ typeId: "t-z2", typeName: "Zone 2" });
     expect(byName.get("Wrong format")?.typeId).toBeUndefined();
     expect(byName.get("Unknown")?.typeId).toBeUndefined();
+    // "any" (Metabolic) fits either kind and leaves the session's kind alone
+    expect(byName.get("Lifting AMRAP")).toMatchObject({ kind: "lifting", typeId: "t-amrap", typeName: "AMRAP" });
+    expect(byName.get("Cardio AMRAP")).toMatchObject({ kind: "cardio", typeId: "t-amrap", typeName: "AMRAP" });
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
   });
 });

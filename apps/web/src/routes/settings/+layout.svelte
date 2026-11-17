@@ -3,11 +3,13 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import SettingsRail from "$lib/components/SettingsRail.svelte";
   import { activeSection, isAdminSession, settingsGroups } from "$lib/settingsNav";
+  import { appPath } from "$lib/portal/lang";
 
   let { children, data } = $props();
 
   const groups = $derived(settingsGroups(isAdminSession(data.session)));
-  const section = $derived(activeSection(groups, page.url.pathname));
+  const here = $derived(appPath(page.url));
+  const section = $derived(activeSection(groups, here));
 </script>
 
 <svelte:head><title>{section.label} · Settings · Program Tracker</title></svelte:head>
@@ -16,7 +18,7 @@
 
 <div class="settings">
   <div class="layout">
-    <SettingsRail {groups} current={page.url.pathname} />
+    <SettingsRail {groups} current={here} />
     <div class="body">
       {@render children()}
     </div>

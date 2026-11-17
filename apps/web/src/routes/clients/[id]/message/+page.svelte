@@ -18,7 +18,7 @@
   import Panel from "$lib/ui/Panel.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
-  import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
 
   const id = $derived(page.params.id ?? "");
   const paramWeek = $derived(new URLSearchParams(page.url.search).get("week"));
@@ -146,7 +146,11 @@
 
 {#if loading}
   <SkeletonHead label="Loading messages…" />
-  <SkeletonPanel title="Draft message" height={180} />
+  <div class="weekbar" aria-hidden="true">
+    <span class="weekbar-label">logged weeks</span>
+    {#each { length: 3 }, i (i)}<Skeleton shape="round" h="25px" w="44px" />{/each}
+    <div class="weekbar-actions"><Skeleton h="26px" w="151px" /></div>
+  </div>
 {:else if !client}
   <EmptyState>Client not found.</EmptyState>
 {:else if !current}

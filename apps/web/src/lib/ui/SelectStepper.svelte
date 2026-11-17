@@ -1,0 +1,160 @@
+<script lang="ts">
+	import { untrack } from 'svelte';
+	import Dropdown from './select/Dropdown.svelte';
+	import Icon from './Icon.svelte';
+
+	/**
+	 * Select 05 · Figure stepper — mono tabular value with a unit, stacked step
+	 * buttons, and a number grid on open. For numbers picked repeatedly: reps,
+	 * kg, RPE, rest. Closed, ↑/↓ step the value; open, arrows move through the grid.
+	 */
+	interface Props {
+		/** Allowed values, ascending. */
+		values: number[];
+		value: number;
+		onchange?: (value: number) => void;
+		/** Accessible name: "RPE", "Rest". */
+		label: string;
+		/** Small unit after the figure: "RPE", "s rest", "kg". */
+		unit?: string;
+		/** Colour scale for the grid figures (RPE effort). */
+		scale?: (value: number) => 'low' | 'mid' | 'high';
+		/** Line under the grid for the highlighted figure: "about 1–2 reps in reserve". */
+		describe?: (value: number) => string;
+		columns?: number;
+		disabled?: boolean;
+		open?: boolean;
+	}
+
+	let { values, value = $bindable(), onchange, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false) }: Props = $props();
+
+	const uid = $props.id();
+	let active = $state(0);
+	$effect(() => {
+		if (open) active = Math.max(0, untrack(() => index));
+	});
+
+	const index = $derived(values.indexOf(value));
+	const shown = $derived(open ? (values[active] ?? value) : value);
+
+	function set(v: number) {
+		value = v;
+		onchange?.(v);
+	}
+
+	function step(by: number) {
+		const from = index === -1 ? values.findIndex((v) => v >= value) : index;
+		const next = values[Math.min(values.length - 1, Math.max(0, (from === -1 ? values.length - 1 : from) + by))];
+		if (next !== undefined) set(next);
+	}
+
+	function show() {
+		active = Math.max(0, index);
+		open = true;
+	}
+
+	function onkeydown(e: KeyboardEvent) {
+		if (!open) {
+			if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+				e.preventDefault();
+				step(e.key === 'ArrowUp' ? 1 : -1);
+			} else if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				show();
+			}
+			return;
+		}
+		const last = values.length - 1;
+		const move: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: columns, ArrowUp: -columns };
+		if (e.key in move) {
+			e.preventDefault();
+			active = Math.min(last, Math.max(0, active + move[e.key]));
+		} else if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			set(values[active]);
+			open = false;
+		} else if (e.key === 'Tab') open = false;
+	}
+</script>
+
+<Dropdown bind:open inline panelWidth="280px">
+	{#snippet trigger()}
+		<div class="sel" class:off={disabled}>
+			<button
+				type="button"
+				class="v"
+				role="combobox"
+				aria-haspopup="listbox"
+				aria-expanded={open}
+				aria-controls="{uid}-grid"
+				aria-label={label}
+				aria-activedescendant={open ? `${uid}-${active}` : undefined}
+				{disabled}
+				onclick={() => (open ? (open = false) : show())}
+				{onkeydown}
+			>
+				{value}{#if unit}<small>{unit}</small>{/if}
+			</button>
+			<div class="st">
+				<button type="button" tabindex="-1" aria-label="Increase {label}" disabled={disabled || index === values.length - 1} onclick={() => step(1)}><Icon name="arrow-up" /></button>
+				<button type="button" tabindex="-1" aria-label="Decrease {label}" disabled={disabled || index === 0} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
+			</div>
+		</div>
+	{/snippet}
+	<div class="grid" id="{uid}-grid" role="listbox" aria-label={label} style:grid-template-columns="repeat({columns}, 1fr)">
+		{#each values as v, i (v)}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<div
+				id="{uid}-{i}"
+				role="option"
+				tabindex="-1"
+				aria-selected={v === value}
+				class="n {scale?.(v) ?? ''}"
+				class:on={v === value}
+				class:hov={i === active}
+				onpointerdown={(e) => e.preventDefault()}
+				onpointermove={() => (active = i)}
+				onclick={() => (set(v), (open = false))}
+			>{v}</div>
+		{/each}
+	</div>
+	{#if describe}<div class="ft">{shown} · {describe(shown)}</div>{/if}
+</Dropdown>
+
+<style>
+	.sel { display: inline-flex; align-items: stretch; min-height: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); overflow: hidden; }
+	.sel:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
+	.sel.off { opacity: 0.55; }
+	.v {
+		display: flex;
+		align-items: baseline;
+		gap: 4px;
+		min-width: 84px;
+		padding: 5px 12px;
+		border: 0;
+		background: transparent;
+		color: var(--ink);
+		font: 600 14px var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		cursor: pointer;
+		text-align: left;
+	}
+	.v:focus-visible { outline: none; }
+	.v:hover:not(:disabled) { background: var(--well-2); }
+	small { font: 400 12px var(--font-ui); color: var(--muted); }
+	.st { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+	.st button { flex: 1; width: 26px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 0; cursor: pointer; }
+	.st button + button { border-top: 1px solid var(--line-soft); }
+	.st button:hover:not(:disabled) { background: var(--well-2); color: var(--ink); }
+	.st button:disabled { opacity: 0.4; cursor: default; }
+	.st :global(svg) { width: 11px; height: 11px; }
+	.grid { display: grid; gap: 2px; padding: 6px; }
+	.n { font: 500 12px var(--font-mono); font-variant-numeric: tabular-nums; text-align: center; padding: 5px 0; border-radius: 4px; border: 1px solid transparent; cursor: default; }
+	.n.low { color: var(--rpe-low); }
+	.n.mid { color: var(--rpe-mid); }
+	.n.high { color: var(--rpe-high); }
+	.n.hov { background: var(--well-2); }
+	.n.on { background: var(--hover-ink); color: var(--on-ink); }
+	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
+	@media (max-width: 720px) { .sel { min-height: 40px; } .v { font-size: 16px; } }
+</style>

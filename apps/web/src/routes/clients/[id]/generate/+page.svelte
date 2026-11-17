@@ -36,6 +36,7 @@
   import InputLedger from "$lib/components/InputLedger.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import Skeleton from "$lib/ui/Skeleton.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
@@ -43,6 +44,8 @@
   const id = $derived(page.params.id ?? "");
   /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
   const watching = page.url.searchParams.has("watch");
+  /** The ledger's inputs, shown while the form loads. */
+  const LEDGER_KEYS = ["Profile", "Limitations", "Program", "Training logs", "Block plan", "Templates", "Learned preferences", "Example programs"];
 
   let client = $state<ClientDto | null>(null);
   /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
@@ -523,10 +526,41 @@
     </div>
   </section>
 {:else if client === null}
+  <!-- The form's own two-column shape: composer left, "What the AI reads" right. -->
   <SkeletonHead label="Loading client…" />
-  <div class="skel-stack form">
-    <SkeletonPanel height={140} />
-    <SkeletonPanel title="What the AI reads" rows={3} trail={false} />
+  <div class="gf-grid" aria-hidden="true">
+    <div class="col">
+      <div class="gf-ctx">
+        <div class="skel-summary"><span class="t">AI reads</span><Skeleton shape="line" h="11px" w="min(260px, 50%)" /><span class="more">Details</span></div>
+      </div>
+      <div class="starters">
+        {#each [372, 230, 189] as w, i (i)}<Skeleton shape="round" h="31px" w={`min(${w}px, 100%)`} />{/each}
+      </div>
+      <div class="box">
+        <div class="skel-text"></div>
+        <div class="keep"><span class="skel-line"><Skeleton shape="line" h="11px" w="min(360px, 80%)" /></span></div>
+        <div class="block-shape"><Skeleton h="26px" w="190px" /><Skeleton h="23px" w="206px" /></div>
+        <div class="rules">
+          <span class="lbl">Rules</span>
+          {#each [118, 184, 140, 128, 126, 132, 168, 140, 190, 172, 210, 96] as w, i (i)}<Skeleton shape="round" h="25px" w={`${w}px`} />{/each}
+          <span class="manage skel-manage">Manage templates →</span>
+        </div>
+        <div class="row">
+          <Skeleton shape="line" h="11px" w="112px" />
+          <span class="spacer"></span>
+          <Skeleton h="26px" w="152px" />
+        </div>
+      </div>
+      <p class="safe">Nothing goes live — the draft waits for your review.</p>
+    </div>
+    <aside class="gf-aside">
+      <SkeletonPanel title="What the AI reads" label="Loading client…">
+        <div class="aside-body"><InputLedger rows={LEDGER_KEYS.map((key) => ({ key, value: "", lamp: "gray" }))} compact loading /></div>
+      </SkeletonPanel>
+      <section class="panel">
+        <details class="recv"><summary>Your instructions as the AI gets them</summary></details>
+      </section>
+    </aside>
   </div>
 {:else if phase !== "review" || !gen?.draft}
   <PageHead
@@ -813,6 +847,7 @@
 <style>
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
+  .skel-manage { flex-basis: 100%; text-align: right; }
   .save-tpl { display: flex; gap: 8px; margin-top: 14px; }
   .save-tpl .input { flex: 1; }
 
@@ -861,6 +896,7 @@
   .gf-ctx .t { font-weight: 600; margin-right: 4px; }
   .gf-ctx .pt { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
   .gf-ctx .more { margin-left: auto; color: var(--blue); }
+  .gf-ctx > .skel-summary { display: flex; gap: 8px; align-items: center; padding: 10px 14px; font-size: 13px; }
   .gf-ctx .more::after { content: " ▾"; }
   .gf-ctx[open] .more::after { content: " ▴"; }
   .gf-ctx .body { padding: 2px 14px 12px; border-top: 1px solid var(--line-soft); display: grid; gap: 8px; }
@@ -885,6 +921,8 @@
     display: block; width: 100%; border: 0; resize: vertical; min-height: 96px; padding: 12px 14px 4px;
     font: 15px/1.5 var(--font-ui); color: var(--ink); background: transparent; outline: none;
   }
+  .box .skel-text { height: 106px; }
+  .keep .skel-line { display: flex; align-items: center; width: 100%; height: 20px; }
   .box textarea::placeholder { color: var(--muted); }
   .block-shape { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 6px 14px 10px; }
   .len { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }

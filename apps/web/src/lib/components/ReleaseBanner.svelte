@@ -3,6 +3,7 @@
   import { latest } from "$lib/whatsNew.svelte";
   import { page } from "$app/state";
   import { BANNER_TEXT, quietRoute } from "$lib/releaseNote";
+  import { appPath } from "$lib/portal/lang";
   import Icon from "$lib/ui/Icon.svelte";
 
   const DISMISSED_KEY = "pt:dismissed-release";
@@ -16,7 +17,7 @@
   }
 
   let dismissed = $state(readDismissed());
-  const visible = $derived(latest !== null && dismissed !== latest && !quietRoute(page.url.pathname));
+  const visible = $derived(latest !== null && dismissed !== latest && !quietRoute(appPath(page.url)));
   const text = $derived(BANNER_TEXT[i18n.locale]);
 
   /** Toast behaviour: it leaves on its own, but waits while the pointer or focus is on it. */

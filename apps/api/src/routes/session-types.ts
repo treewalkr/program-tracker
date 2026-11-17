@@ -8,6 +8,7 @@ import { SessionTypeModel } from "../models/session-types";
 
 const isFormat = (f: string): f is SessionKind => (SESSION_KINDS as readonly string[]).includes(f);
 const badFormat = { error: "format must be lifting or cardio" };
+const lockedPreset = { error: "preset types can't be edited" };
 
 /** typeId → number of this trainer's programs (any status) with a session of that type. */
 async function usageCounts(trainerId: string, typeId?: string): Promise<Map<string, number>> {
@@ -26,6 +27,8 @@ const toDto = (row: SessionTypeRow, usedIn: number) => ({
   id: row.id,
   name: row.name,
   format: row.format,
+  /** Set = a locked preset (archive/restore only); null = the trainer's own type. */
+  presetKey: row.presetKey,
   archivedAt: row.archivedAt?.toISOString() ?? null,
   usedIn,
 });
@@ -49,7 +52,7 @@ const taken = (name: string) => ({ error: `"${name}" is already a session type` 
 
 export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags: ["session-types"] })
   .use(trainerContext)
-  /** Every type the trainer has (archived included, flagged), defaults seeded on first read. */
+  /** Every type the trainer has (archived included, flagged), missing presets seeded on read. */
   .get("/", async ({ trainerId }) => {
     const [rows, uses] = await Promise.all([ensureSessionTypes(trainerId), usageCounts(trainerId)]);
     return rows.map((r) => toDto(r, uses.get(r.id) ?? 0));
@@ -60,14 +63,14 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
       const name = normalizeTypeName(body.name);
       if (!name) return status(422, { error: "name is required" });
       if (!isFormat(body.format)) return status(422, badFormat);
-      await ensureSessionTypes(trainerId); // a first create must not skip the defaults
+      await ensureSessionTypes(trainerId); // presets first, so a custom type can't take a preset's name
       if (await nameTaken(trainerId, name)) return status(409, taken(name));
       const [created] = await db.insert(sessionTypes).values({ trainerId, name, format: body.format }).returning();
       return status(201, toDto(created, 0));
     },
     { body: SessionTypeModel.create }
   )
-  /** Rename, change format or archive/restore. Programs keep the name they captured. */
+  /** Rename, change format or archive/restore; presets only archive/restore. Programs keep the name they captured. */
   .patch(
     "/:id",
     async ({ params, body, status, trainerId }) => {
@@ -76,6 +79,7 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
         .from(sessionTypes)
         .where(and(eq(sessionTypes.id, params.id), eq(sessionTypes.trainerId, trainerId)));
       if (!existing) return status(404, { error: "session type not found" });
+      if (existing.presetKey && (body.name !== undefined || body.format !== undefined)) return status(409, lockedPreset);
 
       const updates: Partial<typeof sessionTypes.$inferInsert> = {};
       if (body.name !== undefined) {
@@ -101,14 +105,16 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
       body: SessionTypeModel.update,
     }
   )
-  /** Delete for good — only unused types, and never the last one (it would re-seed the defaults). */
+  /** Delete for good — only unused custom types; presets archive instead. */
   .delete(
     "/:id",
     async ({ params, status, trainerId }) => {
-      const rows = await db.select().from(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
-      const existing = rows.find((r) => r.id === params.id);
+      const [existing] = await db
+        .select()
+        .from(sessionTypes)
+        .where(and(eq(sessionTypes.id, params.id), eq(sessionTypes.trainerId, trainerId)));
       if (!existing) return status(404, { error: "session type not found" });
-      if (rows.length === 1) return status(409, { error: "keep at least one session type" });
+      if (existing.presetKey) return status(409, { error: "preset types can only be archived" });
       const uses = (await usageCounts(trainerId, existing.id)).get(existing.id) ?? 0;
       if (uses) return status(409, { error: `used in ${uses} program${uses === 1 ? "" : "s"} — archive it instead` });
       await db.delete(sessionTypes).where(eq(sessionTypes.id, existing.id));

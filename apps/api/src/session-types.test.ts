@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db, programs, sessionTypes, trainers } from "@pt/db";
-import { SESSION_TYPE_DEFAULTS } from "@pt/shared";
+import { SESSION_TYPE_PRESETS } from "@pt/shared";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { app } from "./app";
@@ -39,15 +39,67 @@ async function programTyped(typeId: string) {
 }
 
 describe.skipIf(!dbUp)("session types", () => {
-  test("first list seeds the defaults in order", async () => {
+  test("first list seeds the presets in order", async () => {
     const trainerId = await getDefaultTrainerId();
     await db.delete(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
     const res = await call("GET", "/v1/session-types");
     expect(res.status).toBe(200);
-    expect(res.body.map((t: any) => t.name)).toEqual(SESSION_TYPE_DEFAULTS.map((d) => d.name));
-    expect(res.body[0]).toMatchObject({ format: "lifting", archivedAt: null, usedIn: 0 });
+    expect(res.body.map((t: any) => [t.name, t.format, t.presetKey])).toEqual(SESSION_TYPE_PRESETS.map((p) => [p.name, p.format, p.key]));
+    expect(res.body[0]).toMatchObject({ archivedAt: null, usedIn: 0 });
     // a second read does not seed again
-    expect((await call("GET", "/v1/session-types")).body.length).toBe(SESSION_TYPE_DEFAULTS.length);
+    expect((await call("GET", "/v1/session-types")).body.length).toBe(SESSION_TYPE_PRESETS.length);
+  });
+
+  test("missing presets are seeded next to existing types; a preset name a custom type holds is skipped", async () => {
+    const trainerId = await getDefaultTrainerId();
+    await db.delete(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
+    await db.insert(sessionTypes).values([
+      { trainerId, name: "Hypertrophy", format: "lifting" },
+      { trainerId, name: "Strength training", format: "lifting", presetKey: "strength-training" },
+      { trainerId, name: "amrap", format: "lifting" },
+    ]);
+    const { body } = await call("GET", "/v1/session-types");
+    const keyed = body.filter((t: any) => t.presetKey).map((t: any) => t.presetKey);
+    expect(keyed.sort()).toEqual(SESSION_TYPE_PRESETS.map((p) => p.key).filter((k) => k !== "metabolic.amrap").sort());
+    expect(body.find((t: any) => t.name === "Hypertrophy")).toMatchObject({ presetKey: null, format: "lifting" });
+    expect(body.find((t: any) => t.name === "amrap")).toMatchObject({ presetKey: null });
+    expect(body.filter((t: any) => t.presetKey === "strength-training")).toHaveLength(1);
+  });
+
+  test("presets are locked: archive and restore only", async () => {
+    const trainerId = await getDefaultTrainerId();
+    await db.delete(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
+    const { body } = await call("GET", "/v1/session-types");
+    const circuit = body.find((t: any) => t.presetKey === "metabolic.circuit");
+    expect(circuit).toMatchObject({ name: "Circuit", format: "any" });
+
+    for (const patch of [{ name: "Circuits" }, { format: "cardio" }, { name: "Circuit", archived: true }]) {
+      const res = await call("PATCH", `/v1/session-types/${circuit.id}`, patch);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("preset types can't be edited");
+    }
+    const deleted = await call("DELETE", `/v1/session-types/${circuit.id}`);
+    expect(deleted.status).toBe(409);
+    expect(deleted.body.error).toBe("preset types can only be archived");
+
+    const archived = await call("PATCH", `/v1/session-types/${circuit.id}`, { archived: true });
+    expect(archived.status).toBe(200);
+    expect(archived.body).toMatchObject({ name: "Circuit", format: "any", presetKey: "metabolic.circuit" });
+    expect(archived.body.archivedAt).not.toBeNull();
+    // an archived preset is not re-seeded
+    expect((await call("GET", "/v1/session-types")).body.filter((t: any) => t.presetKey === "metabolic.circuit")).toHaveLength(1);
+    expect((await call("PATCH", `/v1/session-types/${circuit.id}`, { archived: false })).body.archivedAt).toBeNull();
+  });
+
+  test("custom types can't take a preset's name, nor the any format", async () => {
+    const dup = await call("POST", "/v1/session-types", { name: "circuit", format: "cardio" });
+    expect(dup.status).toBe(409);
+    expect(dup.body.error).toBe('"circuit" is already a session type');
+    expect((await call("POST", "/v1/session-types", { name: uniq(), format: "any" })).status).toBe(422);
+    const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
+    expect(made.presetKey).toBeNull();
+    expect((await call("PATCH", `/v1/session-types/${made.id}`, { name: "Aerobic Base" })).status).toBe(409);
+    expect((await call("PATCH", `/v1/session-types/${made.id}`, { format: "any" })).status).toBe(422);
   });
 
   test("create normalizes the name; duplicates (any case) are refused", async () => {
@@ -103,13 +155,12 @@ describe.skipIf(!dbUp)("session types", () => {
     expect((await call("GET", "/v1/session-types")).body.some((t: any) => t.id === spare.id)).toBe(false);
   });
 
-  test("the last type can't be deleted", async () => {
+  test("the only custom type can be deleted (the presets remain)", async () => {
     const trainerId = await getDefaultTrainerId();
     await db.delete(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
     const [only] = await db.insert(sessionTypes).values({ trainerId, name: "Only", format: "lifting" }).returning();
-    const res = await call("DELETE", `/v1/session-types/${only.id}`);
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe("keep at least one session type");
+    expect((await call("DELETE", `/v1/session-types/${only.id}`)).status).toBe(204);
+    expect((await call("GET", "/v1/session-types")).body).toHaveLength(SESSION_TYPE_PRESETS.length);
   });
 
   test("another trainer's type reads as not found", async () => {
@@ -117,5 +168,6 @@ describe.skipIf(!dbUp)("session types", () => {
     const [theirs] = await db.insert(sessionTypes).values({ trainerId: other.id, name: "Theirs", format: "lifting" }).returning();
     const res = await call("PATCH", `/v1/session-types/${theirs.id}`, { name: "Mine now" });
     expect(res.status).toBe(404);
+    expect((await call("DELETE", `/v1/session-types/${theirs.id}`)).status).toBe(404);
   });
 });
