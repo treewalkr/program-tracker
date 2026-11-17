@@ -305,7 +305,7 @@
     label: string;
     /** Right-aligned count ("✓ all", "1 of 2"). */
     note?: string;
-    /** Shown instead of label + note on hover/focus, in a danger tone ("Remove from 2"). */
+    /** Shown instead of the note on hover/focus, in a danger tone ("Remove from 2"); the label stays. */
     alt?: string;
     /** Accessible name when it differs from the label. */
     aria?: string;
@@ -749,10 +749,10 @@
   .menu .mh.mg { font: 500 11px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 8px 10px 2px; }
   .menu .ml { flex: 1; }
   .menu .cnt { font: 500 12px var(--font-ui); font-variant-numeric: tabular-nums; color: var(--muted); }
-  /* "✓ all" rows: hover/focus turns them into "Remove from N" in a danger tone. */
-  .menu .alt { display: none; flex: 1; }
+  /* "✓ all" rows: hover/focus swaps the count for "Remove from N" in a danger tone; the tag name stays. */
+  .menu .alt { display: none; font: 500 12px var(--font-ui); }
   .menu button.swap:hover, .menu button.swap:focus-visible { background: var(--bad-bg); color: var(--bad); }
-  .menu button.swap:hover :is(.ml, .cnt), .menu button.swap:focus-visible :is(.ml, .cnt) { display: none; }
+  .menu button.swap:hover .cnt, .menu button.swap:focus-visible .cnt { display: none; }
   .menu button.swap:hover .alt, .menu button.swap:focus-visible .alt { display: inline; }
   .pats { display: inline-flex; gap: 4px; align-items: center; }
   .pill.more { background: none; border: 1px dashed var(--line-strong); color: var(--muted); }
