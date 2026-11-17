@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
+  import { appPath } from "$lib/portal/lang";
   import { feedbackMode } from "./mode.svelte";
   import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
   import { feedbackApi, type CapturedShot } from "./client";
@@ -36,7 +37,9 @@
   let showUnplaced = $state(false);
 
   /** The review page is where feedback gets triaged — never pick there. */
-  const onReviewPage = $derived(page.url.pathname.startsWith("/feedback"));
+  // tickets store the unprefixed path, so pins still match after a language switch
+  const here = $derived(appPath(page.url));
+  const onReviewPage = $derived(here.startsWith("/feedback"));
   const picking = $derived(feedbackMode.picking && !onReviewPage);
 
   const hoverLabel = $derived(hovered ? sourceLabel(hovered) : "");
@@ -156,7 +159,7 @@
 
   // Navigating away drops a half-written pin on a stale element.
   $effect(() => {
-    void page.url.pathname;
+    void here;
     untrack(() => {
       close();
       hovered = null;
@@ -190,7 +193,7 @@
       const context = buildContext(
         el,
         {
-          path: page.url.pathname + page.url.search,
+          path: here + page.url.search,
           routeId: page.route.id,
           params: page.params as Record<string, string>,
           data: page.data,

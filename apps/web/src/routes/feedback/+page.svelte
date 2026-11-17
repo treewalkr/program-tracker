@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import { fade } from "svelte/transition";
   import { page } from "$app/state";
+  import { appPath } from "$lib/portal/lang";
   import {
     FEEDBACK_STATUSES,
     feedbackHandle,
@@ -322,13 +323,13 @@
     draftImages.clear();
   }
 
-  /** Accepts `/clients/x`, `clients/x` or a full app URL; keeps path + query. */
+  /** Accepts `/clients/x`, `clients/x` or a full app URL; keeps path + query, minus any language prefix. */
   function pagePath(raw: string): string {
     const v = raw.trim();
     if (!v) return "";
     try {
       const u = new URL(v, location.origin);
-      return u.origin === location.origin ? u.pathname + u.search : v;
+      return u.origin === location.origin ? appPath(u) + u.search : v;
     } catch {
       return v.startsWith("/") ? v : `/${v}`;
     }

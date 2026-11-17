@@ -216,6 +216,23 @@ describe.skipIf(!dbUp)("portal Google sign-in", () => {
         }),
       );
       expect(cb.headers.get("location")).toBe("/me/login?error=cancelled");
+
+      // a client comes back to the portal page it started on, in its language; never to a trainer page
+      const oauthFor = async (returnTo: string) => {
+        const r = await app.handle(new Request(`http://localhost/v1/auth/google?as=client&returnTo=${encodeURIComponent(returnTo)}`));
+        return decodeURIComponent(/pt_oauth=([^;]+)/.exec(r.headers.get("set-cookie") ?? "")![1]);
+      };
+      const th = await oauthFor("/th/me/log/5");
+      expect(JSON.parse(th)).toMatchObject({ returnTo: "/th/me/log/5" });
+      expect(JSON.parse(await oauthFor("/clients"))).toMatchObject({ returnTo: "/me" });
+      expect(JSON.parse(await oauthFor("//evil.test/me"))).toMatchObject({ returnTo: "/me" });
+      expect(JSON.parse(await oauthFor("/thai/me"))).toMatchObject({ returnTo: "/me" });
+      const thCb = await app.handle(
+        new Request("http://localhost/v1/auth/google/callback?error=access_denied", {
+          headers: { cookie: `pt_oauth=${encodeURIComponent(th)}` },
+        }),
+      );
+      expect(thCb.headers.get("location")).toBe("/th/me/login?error=cancelled");
     } finally {
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k];

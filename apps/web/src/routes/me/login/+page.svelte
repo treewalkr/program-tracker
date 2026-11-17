@@ -1,7 +1,8 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { portalApi } from "$lib/api/portal";
-  import { t } from "$lib/portal/i18n.svelte";
+  import { inLang, t } from "$lib/portal/i18n.svelte";
+  import { portalReturnTo } from "$lib/portal/gate";
   import type { MessageKey } from "$lib/portal/messages";
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import GoogleMark from "$lib/components/login/GoogleMark.svelte";
@@ -12,6 +13,8 @@
 
   const ERRORS = ["unverified", "not_allowed", "cancelled", "expired", "google_failed", "not_configured", "disabled"] as const;
 
+  // Google brings the client back to the page they asked for, in this language
+  const googleHref = $derived(portalApi.googleHref(inLang(portalReturnTo(page.url.searchParams.get("returnTo")))));
   const code = $derived(page.url.searchParams.get("error"));
   const error = $derived(
     code ? t((ERRORS as readonly string[]).includes(code) ? (`login.error.${code}` as MessageKey) : "login.error.google_failed") : null,
@@ -32,7 +35,7 @@
     <Note tone="bad" role="alert" class="err">{error}</Note>
   {/if}
 
-  <a class="google" href={portalApi.googleHref}>
+  <a class="google" href={googleHref}>
     <GoogleMark />
     {t("login.google")}
   </a>
