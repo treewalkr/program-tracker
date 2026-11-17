@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import Skeleton from './Skeleton.svelte';
 
 	/**
@@ -23,6 +24,8 @@
 		/** Shimmering context lines under the title (avatar header's meta); 0 = one line beside the title. */
 		meta?: number;
 		label?: string;
+		/** Real head actions whose labels are static (rendered after any shimmer slots). */
+		act?: Snippet;
 	}
 
 	let {
@@ -33,7 +36,8 @@
 		title,
 		sub,
 		meta = 0,
-		label = 'Loading…'
+		label = 'Loading…',
+		act
 	}: Props = $props();
 	const TAB_W = ['64px', '48px', '56px', '60px', '52px'];
 	const ACTION_W = ['104px', '72px', '118px', '160px'];
@@ -68,11 +72,12 @@
 				<Skeleton shape="line" h="11px" w="min(420px, 90%)" />
 			</div>
 		{/if}
-		{#if actionWidths.length > 0}
+		{#if actionWidths.length > 0 || act}
 			<div class="head-actions">
 				{#each actionWidths as w, i (i)}
 					<Skeleton h="26px" {w} />
 				{/each}
+				{@render act?.()}
 			</div>
 		{/if}
 	</div>
