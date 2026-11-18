@@ -8,7 +8,7 @@ const exercise = () => ({
   order: 0,
   prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
 });
-const lifting = (name: string, order = 0) => ({ id: uuid(), name, order, kind: "exercises", exercises: [exercise()] });
+const exerciseSession = (name: string, order = 0) => ({ id: uuid(), name, order, kind: "exercises", exercises: [exercise()] });
 const cardio = (name: string, order = 0) => ({
   id: uuid(),
   name,
@@ -21,9 +21,9 @@ const cardio = (name: string, order = 0) => ({
 const legacyWeek = (week: number) => ({
   week,
   days: [
-    { id: uuid(), day: 2, weekday: 3, sessions: [lifting("Lower")] },
-    { id: uuid(), day: 1, weekday: 1, sessions: [lifting("Upper"), cardio("Z2", 1)] },
-    { id: uuid(), day: 3, weekday: null, sessions: [lifting("Full")] },
+    { id: uuid(), day: 2, weekday: 3, sessions: [exerciseSession("Lower")] },
+    { id: uuid(), day: 1, weekday: 1, sessions: [exerciseSession("Upper"), cardio("Z2", 1)] },
+    { id: uuid(), day: 3, weekday: null, sessions: [exerciseSession("Full")] },
   ],
 });
 
@@ -54,14 +54,14 @@ describe("migrateProgramSessions", () => {
 
   test("invalid documents are reported, never written", () => {
     expect(migrateProgramSessions(null).status).toBe("invalid");
-    expect(migrateProgramSessions([{ week: 2, days: [{ id: "d", day: 1, sessions: [lifting("A")] }] }]).status).toBe(
+    expect(migrateProgramSessions([{ week: 2, days: [{ id: "d", day: 1, sessions: [exerciseSession("A")] }] }]).status).toBe(
       "invalid"
     ); // weeks must start at 1
     const crowded = {
       week: 1,
       days: [
-        { id: "a", day: 1, weekday: 1, sessions: [lifting("A"), lifting("B", 1), lifting("C", 2)] },
-        { id: "b", day: 2, weekday: 1, sessions: [lifting("D"), lifting("E", 1)] },
+        { id: "a", day: 1, weekday: 1, sessions: [exerciseSession("A"), exerciseSession("B", 1), exerciseSession("C", 2)] },
+        { id: "b", day: 2, weekday: 1, sessions: [exerciseSession("D"), exerciseSession("E", 1)] },
       ],
     };
     const r = migrateProgramSessions([crowded]);
