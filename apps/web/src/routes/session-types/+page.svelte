@@ -5,6 +5,9 @@
   import type { SessionTypeDto } from "$lib/api/types";
   import { FORMAT_HINT, FORMAT_LABEL, searchSessionTypes } from "$lib/sessionTypeSearch";
   import Button from "$lib/ui/Button.svelte";
+  import SelectCell from "$lib/ui/SelectCell.svelte";
+  import SelectDescribed from "$lib/ui/SelectDescribed.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -91,6 +94,11 @@
       types = types.filter((x) => x.id !== t.id);
     });
 
+  /** The two formats a custom type can take. */
+  const FORMATS: SessionKind[] = ["lifting", "cardio"];
+  const formatOptions: SelectOption<SessionKind>[] = FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f], description: FORMAT_HINT[f] }));
+  const cellOptions: SelectOption<SessionKind>[] = FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f] }));
+
   const usage = (n: number) => (n === 0 ? "Not used yet" : `In ${n} program${n === 1 ? "" : "s"}`);
 
   onMount(async () => {
@@ -105,7 +113,7 @@
 
 <PageHead
   title="Session types"
-  sub="Label each session with a main type, or a sub-type when you want to be specific. The type decides the format: lifting (exercises and sets) or cardio (time, zone and distance); Metabolic types fit either. Programs keep the name they were saved with."
+  sub="Label each session with a main type, or a sub-type when you want to be specific. Programs keep the name they were saved with."
 />
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
@@ -159,10 +167,7 @@
         <li class="branch">
           <div class="row main" class:muted={!g.row}>
             {@render dot(g.main.format)}
-            <span class="name static">
-              {g.main.name}
-              <span class="fmt-label {g.main.format}" title={FORMAT_HINT[g.main.format]}>{FORMAT_LABEL[g.main.format]}</span>
-            </span>
+            <span class="name static">{g.main.name}</span>
             {#if g.row}
               {@render presetActs(g.row)}
             {:else}
@@ -189,14 +194,12 @@
 
 <Panel title="Custom" count={tree.custom.length} class="types-panel">
   <form class="panel-body add" onsubmit={add} aria-label="Add a custom session type">
-    <input class="input" placeholder="New type, e.g. Hypertrophy" bind:value={newName} maxlength="40" aria-label="New type name" />
-    <div class="seg" role="radiogroup" aria-label="Format">
-      {#each ["lifting", "cardio"] as const as f (f)}
-        <label class="seg-opt" class:on={newFormat === f}>
-          <input type="radio" name="new-format" value={f} bind:group={newFormat} />
-          {FORMAT_LABEL[f]}
-        </label>
-      {/each}
+    <label class="new-name">
+      <span class="lbl">Name</span>
+      <input class="input" placeholder="New type, e.g. Hypertrophy" bind:value={newName} maxlength="40" />
+    </label>
+    <div class="new-format">
+      <SelectDescribed label="What does this session record?" options={formatOptions} bind:value={newFormat} />
     </div>
     <Button variant="primary" type="submit" disabled={adding || !newName.trim()}>
       {adding ? "Adding…" : "Add type"}
@@ -230,15 +233,9 @@
           {:else}
             <button class="name" type="button" onclick={() => startRename(t)} title="Rename">{t.name}</button>
             <span class="use">{usage(t.usedIn)}</span>
-            <select
-              class="select fmt"
-              value={t.format}
-              aria-label="{t.name} format"
-              onchange={(e) => setFormat(t, e.currentTarget.value as SessionKind)}
-            >
-              <option value="lifting">Lifting</option>
-              <option value="cardio">Cardio</option>
-            </select>
+            <div class="fmt">
+              <SelectCell label="What {t.name} records" options={cellOptions} value={t.format === "cardio" ? "cardio" : "lifting"} onchange={(f) => setFormat(t, f)} />
+            </div>
             <div class="acts">
               <Button small variant="ghost" onclick={() => startRename(t)}>Rename</Button>
               {#if t.usedIn === 0}
@@ -313,15 +310,11 @@
   }
   .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
 
-  .add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
-  .add .input { flex: 1; min-width: 200px; }
+  .add { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
+  .new-name { display: grid; gap: 4px; flex: 1; min-width: 200px; }
+  .new-name .lbl { font: 500 12px var(--font-ui); color: var(--ink); }
+  .new-format { flex: 0 1 260px; min-width: 220px; }
 
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-  .seg-opt { position: relative; padding: 5px 12px; font-size: 13px; color: var(--muted); cursor: pointer; background: var(--well); }
-  .seg-opt + .seg-opt { border-left: 1px solid var(--line); }
-  .seg-opt.on { background: var(--surface); color: var(--ink); font-weight: 600; }
-  .seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
-  .seg-opt:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: -2px; }
 
   .rows, .tree, .subs { list-style: none; margin: 0; padding: 0; }
   .branch + .branch { border-top: 1px solid var(--line); }
@@ -385,11 +378,9 @@
     color: var(--muted);
     background: var(--surface);
   }
-  .fmt-label.lifting { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 35%, transparent); }
-  .fmt-label.cardio { color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, transparent); }
 
   .use { font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .fmt { width: 104px; font-size: 13px; padding-top: 3px; padding-bottom: 3px; }
+  .fmt { width: 120px; }
   .acts { display: flex; gap: 4px; justify-content: flex-end; min-width: 150px; }
   .rename { grid-column: 2 / -1; display: flex; gap: 8px; align-items: center; }
   .rename .input { flex: 1; max-width: 320px; }

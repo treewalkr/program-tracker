@@ -10,11 +10,13 @@
    * ExercisePicker: type to filter, ↑↓ / Enter / Esc. Empty query browses the
    * taxonomy: each main type, its sub-types indented under it, then the
    * trainer's custom types. Main and sub rows are both pickable; a search is
-   * flat and shows sub-types as "Main › Sub". Picking a lifting or cardio
-   * type sets the session's kind; a Metabolic ("any") type keeps it. With `oncreate`, a typed name that isn't a type yet offers two
-   * create rows — as a lifting type or as a cardio type — saved and picked
-   * in one step. The trigger shows the type name, or the bare format when
-   * the session has no type yet.
+   * flat and shows sub-types as "Main › Sub". Picking a type sets the
+   * session's kind (what it records: exercises or cardio); a Metabolic
+   * ("any") type keeps it. Presets carry no format badge — the name says
+   * it; custom types show Exercises or Cardio. With `oncreate`, a typed name
+   * that isn't a type yet offers two create rows — recording exercises or
+   * cardio — saved and picked in one step. The trigger shows the type name,
+   * or what the session records when it has no type yet.
    */
   let {
     value,
@@ -237,7 +239,7 @@
               <span class="tp-opt-name">
                 {#if e.path}<span class="tp-path">{`${e.path} › `}</span>{/if}{#each highlight(t.name) as part, pi (pi)}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
               </span>
-              {#if !e.sub}<span class="tp-fmt {t.format}">{FORMAT_LABEL[t.format]}</span>{/if}
+              {#if !t.presetKey}<span class="tp-fmt {t.format}">{FORMAT_LABEL[t.format]}</span>{/if}
             </li>
           {/if}
         {/each}
@@ -253,12 +255,14 @@
             class:active={i === active}
             aria-selected="false"
             aria-disabled={saving}
+            aria-label="New type {typed}, records {FORMAT_LABEL[f].toLowerCase()}"
             onpointermove={() => (active = i)}
             onpointerdown={(e) => e.preventDefault()}
             onclick={() => create(f)}
           >
             <span class="tp-check"><Icon name="plus" /></span>
-            <span class="tp-opt-name">New {FORMAT_LABEL[f].toLowerCase()} type “<strong>{typed}</strong>”</span>
+            <span class="tp-opt-name">New type “<strong>{typed}</strong>”</span>
+            <span class="tp-fmt {f}">{FORMAT_LABEL[f]}</span>
           </li>
         {/each}
       </ul>
