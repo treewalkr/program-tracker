@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.35 — 2026-11-18
+
 ### Changed
 - Sessions built from a list of exercises are now called **exercise sessions** instead of lifting sessions, so mobility work and circuits aren't labelled as lifting. The program editor's button reads **+ Exercise session**, and a client's week shows exercise sessions and exercise days.
   - th: เซสชันที่เป็นรายการท่าออกกำลังกาย ตอนนี้เรียกว่า **exercise session** แทน lifting session เพื่อไม่ให้งานโมบิลิตี้หรือเซอร์กิตถูกเรียกว่ายกเวท ปุ่มในหน้าแก้ไขโปรแกรมเปลี่ยนเป็น **+ Exercise session** และสัปดาห์ของลูกค้าแสดงเป็น exercise session กับ exercise day
