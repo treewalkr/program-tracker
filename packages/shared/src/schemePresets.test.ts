@@ -3,7 +3,7 @@ import { applyProgression, PeriodizationSchemeInput, SCHEME_PRESETS, schemePrese
 
 const set = (n: number, over: object) => ({ setNumber: n, type: "working" as const, reps: 5, amrap: false, ...over });
 
-/** One lifting session: Back Squat 3×5 @ 75 % 1RM and Bench Press 3×5 @ 80 kg. */
+/** One exercise session: Back Squat 3×5 @ 75 % 1RM and Bench Press 3×5 @ 80 kg. */
 function week1(): ProgramWeek {
   return {
     week: 1,

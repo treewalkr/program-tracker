@@ -2,7 +2,7 @@ import {
   blockLabel,
   defaultCardio,
   historyExerciseKey,
-  liftingNames,
+  exerciseSessionNames,
   templateWeekIndex,
   type ImportAb,
   type ImportFlag,
@@ -47,7 +47,7 @@ export function defaultAbPick(r: ImportResult): ImportAb | null {
 /** "Week 11 (Upper Push · Lower)": a week's label (or its place) and its lifting days. */
 export function weekName(r: ImportResult, i: number): string {
   const w = r.weeks[i];
-  const names = liftingNames(w);
+  const names = exerciseSessionNames(w);
   const head = w?.label ?? `Week ${i + 1}`;
   return names.length ? `${head} (${names.join(" · ")})` : head;
 }
@@ -273,7 +273,7 @@ export function formFromImport(
   const weeksInBlock = opts.ab ? 1 : (r.blocks[block]?.weeks.length ?? 1);
   return {
     ...structuredClone(base),
-    name: (liftingNames(week).join(" / ") || base.name).slice(0, 120),
+    name: (exerciseSessionNames(week).join(" / ") || base.name).slice(0, 120),
     plannedWeeks: weeksInBlock > 1 ? weeksInBlock : base.plannedWeeks,
     sessions: sessionsOf(wi),
     weekB: wb !== undefined ? sessionsOf(wb) : null,

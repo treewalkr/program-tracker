@@ -102,7 +102,7 @@ describe("cardioBehindSignal is pro-rated from the client's start (F18)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// computeSignals — adherence counts lifting logs only
+// computeSignals — adherence counts exercise logs only
 // ---------------------------------------------------------------------------
 
 const liftProgram = (activatedAt: string): SignalProgram => ({
@@ -129,11 +129,11 @@ const liftProgram = (activatedAt: string): SignalProgram => ({
   createdAt: activatedAt,
 });
 
-describe("adherence counts lifting logs only", () => {
+describe("adherence counts exercise logs only", () => {
   test("cardio logs never inflate the session count", () => {
     const now = new Date(2026, 9, 29, 12).getTime();
     const program = liftProgram("2026-10-16"); // 13 days → week 2
-    const lifting: SignalLog[] = [
+    const exerciseLogs: SignalLog[] = [
       { programId: "pg-1", date: "2026-10-20", sets: [{ exerciseId: "ex-squat", type: "working", reps: 5 }] },
       { programId: "pg-1", date: "2026-10-22", sets: [{ exerciseId: "ex-squat", type: "working", reps: 5 }] },
     ];
@@ -144,18 +144,18 @@ describe("adherence counts lifting logs only", () => {
       cardioLog("2026-10-26", 45),
     ];
 
-    const withCardio = computeSignals(program, [...lifting, ...cardio], () => "Squat", 3, now);
-    // 2 lifting logs of 6 expected (3/wk × 2 wks) → 0.33 < 0.6 → fires
+    const withCardio = computeSignals(program, [...exerciseLogs, ...cardio], () => "Squat", 3, now);
+    // 2 exercise logs of 6 expected (3/wk × 2 wks) → 0.33 < 0.6 → fires
     const adherence = withCardio.find((s) => s.kind === "adherence");
     expect(adherence).toBeDefined();
     expect(adherence!.evidence).toContain("2 of ~6");
 
     // if cardio counted (6/6) it would NOT fire — proving the filter
-    const onlyLifting = computeSignals(program, lifting, () => "Squat", 3, now);
-    expect(onlyLifting.find((s) => s.kind === "adherence")).toBeDefined();
+    const onlyExercises = computeSignals(program, exerciseLogs, () => "Squat", 3, now);
+    expect(onlyExercises.find((s) => s.kind === "adherence")).toBeDefined();
   });
 
-  test("planned count is the program week's lifting sessions, not cardio or the client's setting", () => {
+  test("planned count is the program week's exercise sessions, not cardio or the client's setting", () => {
     // F07: the rule waits a full week, so judge on day 7 (week 2, same 4 + cardio doc).
     const now = new Date(2026, 9, 23, 12).getTime();
     const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "exercises" as const, exercises: [] });
@@ -176,7 +176,7 @@ describe("adherence counts lifting logs only", () => {
     const logs: SignalLog[] = [
       { programId: "pg-1", date: "2026-10-20", sets: [{ exerciseId: "ex-squat", type: "working", reps: 5 }] },
     ];
-    // 4 lifting planned (cardio excluded), client setting 6 ignored → 1 of ~4
+    // 4 exercise sessions planned (cardio excluded), client setting 6 ignored → 1 of ~4
     const adherence = computeSignals(program, logs, () => "Squat", 6, now).find((s) => s.kind === "adherence");
     expect(adherence).toBeDefined();
     expect(adherence!.evidence).toContain("1 of ~4");

@@ -297,7 +297,7 @@ export const Client = z.object({
   goals: z.string().max(2000).optional(),
   /** Injuries / limitations. MUST reach the AI prompt — safety signal. */
   limitations: z.string().max(2000).optional(),
-  /** Lifting sessions per week the client can commit to (cardio does not count). */
+  /** Exercise sessions per week the client can commit to (cardio does not count). */
   sessionsPerWeek: z.number().int().min(1).max(7).optional(),
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. Drives the week strip. */
   trainingDays: z
@@ -783,7 +783,7 @@ export function sessionTag(s: Pick<ProgramSession, "kind" | "seq">): string {
   return `${s.kind === "cardio" ? "Cardio" : "Session"} ${s.seq}`;
 }
 
-/** Programming order: lifting track then cardio track, each by seq. */
+/** Programming order: exercise track then cardio track, each by seq. */
 export function sessionsInSeqOrder<T extends Pick<ProgramSession, "kind" | "seq">>(sessions: readonly T[]): T[] {
   const rank = (s: T) => (s.kind === "cardio" ? 100 : 0) + s.seq;
   return [...sessions].sort((a, b) => rank(a) - rank(b));
@@ -1497,14 +1497,14 @@ export const SessionLog = z
       if (val.sets.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting log requires at least 1 set",
+          message: "exercise log requires at least 1 set",
           path: ["sets"],
         });
       }
       if (val.cardio != null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting log must not have cardio payload",
+          message: "exercise log must not have cardio payload",
           path: ["cardio"],
         });
       }

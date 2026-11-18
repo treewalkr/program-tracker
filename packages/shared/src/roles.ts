@@ -227,7 +227,7 @@ interface DraftLike {
 }
 
 /**
- * A missing or unknown (or archived) label → suggestRole; a lifting session
+ * A missing or unknown (or archived) label → suggestRole; a exercise session
  * with more than one Primary keeps them, with an info note for the trainer
  * (once per session name, however many weeks repeat it).
  * `hintsFor` supplies catalog fields (pattern, muscle, equipment) by id.

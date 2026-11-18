@@ -316,7 +316,7 @@ describe("Program", () => {
 describe("ProgramWeeksDocument", () => {
   const baseExercise: ProgramExercise = { id: uuid(), exerciseId: uuid(), order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] };
 
-  test("ProgramWeeksDocument: accepts weeks→sessions, defaults kind \"lifting\", weekday optional", () => {
+  test("ProgramWeeksDocument: accepts weeks→sessions, defaults kind \"exercises\", weekday optional", () => {
     const doc = ProgramWeeksDocument.parse([
       {
         week: 1,
@@ -382,12 +382,12 @@ describe("ProgramWeeksDocument", () => {
     ).toThrow();
   });
 
-  test("cardio session requires cardio fields and no exercises; lifting requires ≥1", () => {
-    // Lifting with no exercises throws
+  test("cardio session requires cardio fields and no exercises; an exercise session requires ≥1", () => {
+    // An exercise session with no exercises throws
     expect(() =>
       ProgramSession.parse({
         id: uuid(),
-        name: "Empty Lifting",
+        name: "Empty Exercises",
         seq: 1,
         order: 0,
         kind: "exercises",
@@ -395,11 +395,11 @@ describe("ProgramWeeksDocument", () => {
       })
     ).toThrow();
 
-    // Lifting with cardio throws
+    // An exercise session with cardio throws
     expect(() =>
       ProgramSession.parse({
         id: uuid(),
-        name: "Lifting with Cardio",
+        name: "Exercises with Cardio",
         seq: 1,
         order: 0,
         kind: "exercises",
@@ -467,7 +467,7 @@ describe("ProgramWeeksDocument", () => {
     expect(valid.modality).toBe("Bike");
   });
 
-  test("old session documents lose conditioning and default to lifting", () => {
+  test("old session documents lose conditioning and default to exercises", () => {
     const legacy = {
       id: uuid(),
       name: "Day A",
@@ -1049,7 +1049,7 @@ const baseLog = () => ({
 
 const cardioPayload = { modality: "Run", durationMin: 35, hrZone: 2 };
 
-const liftingSet = () => ({
+const exerciseSet = () => ({
   id: uuid(),
   programExerciseId: null,
   exerciseId: uuid(),
@@ -1064,26 +1064,26 @@ describe("SessionLog cardio rules", () => {
     expect(parsed.sets).toEqual([]);
   });
 
-  test("kind defaults to lifting", () => {
-    const parsed = SessionLog.parse({ ...baseLog(), sets: [liftingSet()] });
+  test("kind defaults to exercises", () => {
+    const parsed = SessionLog.parse({ ...baseLog(), sets: [exerciseSet()] });
     expect(parsed.kind).toBe("exercises");
     expect(parsed.cardio).toBeUndefined();
   });
 
-  test("lifting log with zero sets is rejected with the named message", () => {
+  test("exercise log with zero sets is rejected with the named message", () => {
     const res = SessionLog.safeParse({ ...baseLog(), sets: [] });
     expect(res.success).toBe(false);
     if (!res.success) {
-      expect(res.error.issues[0].message).toBe("lifting log requires at least 1 set");
+      expect(res.error.issues[0].message).toBe("exercise log requires at least 1 set");
       expect(res.error.issues[0].path).toEqual(["sets"]);
     }
   });
 
-  test("lifting log must not carry a cardio payload", () => {
-    const res = SessionLog.safeParse({ ...baseLog(), sets: [liftingSet()], cardio: cardioPayload });
+  test("exercise log must not carry a cardio payload", () => {
+    const res = SessionLog.safeParse({ ...baseLog(), sets: [exerciseSet()], cardio: cardioPayload });
     expect(res.success).toBe(false);
     if (!res.success) {
-      expect(res.error.issues.some((i) => i.message === "lifting log must not have cardio payload" && i.path[0] === "cardio")).toBe(true);
+      expect(res.error.issues.some((i) => i.message === "exercise log must not have cardio payload" && i.path[0] === "cardio")).toBe(true);
     }
   });
 
@@ -1101,7 +1101,7 @@ describe("SessionLog cardio rules", () => {
       ...baseLog(),
       kind: "cardio",
       cardio: cardioPayload,
-      sets: [liftingSet()],
+      sets: [exerciseSet()],
     });
     expect(res.success).toBe(false);
     if (!res.success) {
@@ -1305,18 +1305,18 @@ describe("Program editing (pure)", () => {
       targetRpe: undefined,
     });
 
-    const liftingSession = d1.sessions[0];
-    liftingSession.exercises = [
+    const exerciseSession = d1.sessions[0];
+    exerciseSession.exercises = [
       { id: uuid(), exerciseId: uuid(), exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
     ];
-    const cardioSession = switchSessionKind(liftingSession, "cardio");
+    const cardioSession = switchSessionKind(exerciseSession, "cardio");
     expect(cardioSession.kind).toBe("cardio");
     expect(cardioSession.exercises).toEqual([]);
     expect(cardioSession.cardio).toEqual(defaultCardio());
 
-    const backToLifting = switchSessionKind(cardioSession, "exercises");
-    expect(backToLifting.kind).toBe("exercises");
-    expect(backToLifting.cardio).toBeNull();
+    const backToExercises = switchSessionKind(cardioSession, "exercises");
+    expect(backToExercises.kind).toBe("exercises");
+    expect(backToExercises.cardio).toBeNull();
   });
 });
 

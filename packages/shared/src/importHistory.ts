@@ -172,7 +172,7 @@ const fmtNum = (n: number) => String(Number(n.toFixed(2)));
 /**
  * One archived program per block with at least one logged session: its weeks
  * become weeks 1…k (fresh ids per week, sessions placed on their day's
- * weekday), and every lifting session with usable numbers becomes a log dated
+ * weekday), and every exercise session with usable numbers becomes a log dated
  * on its day. Anything left out is listed in `skipped`, with why.
  */
 export function buildHistory(

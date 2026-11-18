@@ -51,7 +51,7 @@ describe("placeSessions", () => {
     expect(out.every((s) => s.weekday === null)).toBe(true);
   });
 
-  test("spreads lifting across the available days, Session 1 first", () => {
+  test("spreads exercise sessions across the available days, Session 1 first", () => {
     const out = placeSessions([lift(1, ["squat"]), lift(2, ["bench"]), lift(3, ["dl"])], [1, 3, 5]);
     expect([1, 2, 3].map((n) => dayOf(out, `L${n}`))).toEqual([1, 3, 5]);
   });
@@ -66,12 +66,12 @@ describe("placeSessions", () => {
     expect(Math.abs(lower[0] - lower[1])).toBeGreaterThan(1);
   });
 
-  test("cardio goes to a training day without lifting first", () => {
+  test("cardio goes to a training day without exercise sessions first", () => {
     const out = placeSessions([lift(1, ["squat"]), lift(2, ["bench"]), cardio(1)], [1, 3, 5], patternOf);
     expect(dayOf(out, "C1")).toBe(3);
   });
 
-  test("more sessions than days stack, lifting before cardio within the day", () => {
+  test("more sessions than days stack, exercise sessions before cardio within the day", () => {
     const out = placeSessions([lift(1, ["squat"]), lift(2, ["bench"]), cardio(1)], [2, 4], patternOf);
     const byDay = sessionsByWeekday(out);
     expect(out.every((s) => s.weekday != null)).toBe(true);
@@ -199,7 +199,7 @@ const run = (seq: number, name: string, durationMin: number, hrZone: number, int
   cardio: { modality: "Run", durationMin, hrZone, ...(intensity ? { intensity } : {}) },
 });
 
-/** Priya: 2 lifting days (heavy lower + full body), 4 runs, Sunday long run. */
+/** Priya: 2 exercise days (heavy lower + full body), 4 runs, Sunday long run. */
 const priya = () => [
   { ...lift(1, ["squat", "dl"]), name: "Lower — heavy squat" },
   { ...lift(2, ["squat", "dl", "bench", "row"]), name: "Full body" },
@@ -253,7 +253,7 @@ describe("placeSessions — Priya's concurrent week", () => {
     expect(placementConflicts(out, priyaDays, patternOf)).toEqual([]);
   });
 
-  test("everything is scheduled and lifting stays on lifting days", () => {
+  test("everything is scheduled and exercise sessions stay on exercise days", () => {
     expect(out.every((s) => s.weekday != null)).toBe(true);
     expect(priyaDays.trainingDays).toContain(dayOf(out, "L1")!);
     expect(priyaDays.trainingDays).toContain(dayOf(out, "L2")!);
@@ -276,12 +276,12 @@ describe("placeSessions — key runs", () => {
     expect(gap).not.toBe(1);
   });
 
-  test("cardio may use cardioDays beyond the lifting days", () => {
+  test("cardio may use cardioDays beyond the exercise days", () => {
     const out = placeSessions([lift(1, ["squat"]), run(1, "Easy", 30, 2)], { trainingDays: [1], cardioDays: [6] }, patternOf);
     expect(dayOf(out, "C1")).toBe(6);
   });
 
-  test("lifting never goes on a cardio-only day", () => {
+  test("an exercise session never goes on a cardio-only day", () => {
     const out = placeSessions([lift(1, ["squat"]), lift(2, ["bench"])], { trainingDays: [1], cardioDays: [3, 5] }, patternOf);
     expect(out.map((s) => s.weekday)).toEqual([1, 1]);
   });

@@ -89,7 +89,7 @@ export const deloadSetCount = (n: number, s: DeloadSettings = DEFAULT_DELOAD): n
   Math.max(1, Math.min(n, Math.ceil((n * s.setsKeptPercent) / 100 - 1e-9)));
 
 /**
- * Each lifting exercise's place in the week, stable across weeks: the n-th
+ * Each exercise's place in the week, stable across weeks: the n-th
  * occurrence of an exercise in session `seq` (a top set and back-offs of the
  * same lift stay apart). Same key as the web log sheet's slot ids.
  */
@@ -147,7 +147,7 @@ export function deloadBasisWeek(weeks: readonly ProgramWeek[], week: number): Pr
 }
 
 /**
- * A deloaded copy of `week` by the rule `settings`: lifting sessions only;
+ * A deloaded copy of `week` by the rule `settings`: exercise sessions only;
  * cardio is left as planned. With the week-1 basis, pass the block's `week1`
  * (`deloadBasisWeek`: the first same-letter week in an A/B block).
  */

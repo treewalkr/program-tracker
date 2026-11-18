@@ -13,7 +13,7 @@ const set = (reps: number, rest = 120, extra: Record<string, unknown> = {}) => (
 });
 const ex = (name: string, sets = [set(5)]) => ({ exerciseName: name, prescribedSets: sets });
 
-/** v1: D1 lifting, D2 lifting, D3 cardio (Z3), W4 deload −40 %. */
+/** v1: D1 exercises, D2 exercises, D3 cardio (Z3), W4 deload −40 %. */
 const parent = (): AiProgramDraft => ({
   name: "Block 1",
   rationale: "Why v1.",

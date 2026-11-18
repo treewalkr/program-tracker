@@ -56,7 +56,7 @@ describe("buildFillMessages", () => {
       history: [],
       catalog: [],
       trainerInstructions: "",
-      block: { weeks: 6, alternate: true, lockedWeeks: [1, 2], liftingSessions: { A: 2, B: 3 } },
+      block: { weeks: 6, alternate: true, lockedWeeks: [1, 2], exerciseSessions: { A: 2, B: 3 } },
       programName: "Block",
       plan: null,
       lockedWeeks,

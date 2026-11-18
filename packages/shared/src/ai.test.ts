@@ -29,7 +29,7 @@ import {
   resizeDraftWeeks,
   mentionsAlternating,
   withLockedWeeks,
-  lockedLiftingSessions,
+  lockedExerciseSessions,
 } from "./index";
 
 describe("KNOWN_PROVIDERS", () => {
@@ -328,7 +328,7 @@ describe("draft weeks", () => {
     expect(AiProgramDraft.safeParse(block([{ week: 1, sessions: s }, { week: 1, sessions: s }])).success).toBe(false);
   });
 
-  test("block rules: every planned week, same lifting count, odd A / even B, B differs from A", () => {
+  test("block rules: every planned week, same exercise session count, odd A / even B, B differs from A", () => {
     const a = [session("Lower", "Squat"), session("Upper", "Bench")];
     const b = [session("Lower", "Deadlift"), session("Upper", "Overhead Press")];
     const ab = block([
@@ -347,7 +347,7 @@ describe("draft weeks", () => {
     expect(draftWeekIssues(swapped, { plannedWeeks: 4, alternate: true })[0]).toContain('week 1 must be rotation "A"');
     const short = { ...ab, weeks: [ab.weeks[0], { ...ab.weeks[1], sessions: [b[0]] }] };
     expect(draftWeekIssues(short, { plannedWeeks: 2, alternate: true })).toEqual(["week 2 has 1 exercise sessions, not 2"]);
-    expect(draftWeekIssues(ab, { plannedWeeks: 4, alternate: true, liftingSessions: 3 })).toHaveLength(4);
+    expect(draftWeekIssues(ab, { plannedWeeks: 4, alternate: true, exerciseSessions: 3 })).toHaveLength(4);
   });
 
   test("a same-every-week block drops letters the AI added; fill drafts leave locked weeks out", () => {
@@ -362,23 +362,23 @@ describe("draft weeks", () => {
     ]);
   });
 
-  test("fill: each AI week's lifting count comes from the trainer's locked week of its letter", () => {
+  test("fill: each AI week's exercise session count comes from the trainer's locked week of its letter", () => {
     const a = [session("Lower", "Squat"), session("Upper", "Bench")];
     const b = [session("Lower", "Deadlift"), session("Upper", "Press"), session("Full", "Row")];
     const locked = [
       { week: 1, rotation: "A" as const, locked: true, sessions: a },
       { week: 2, rotation: "B" as const, locked: true, sessions: b },
     ];
-    const lifting = lockedLiftingSessions(locked, true);
-    expect(lifting).toEqual({ A: 2, B: 3 });
-    expect(lockedLiftingSessions(locked, false)).toBe(2);
+    const perLetter = lockedExerciseSessions(locked, true);
+    expect(perLetter).toEqual({ A: 2, B: 3 });
+    expect(lockedExerciseSessions(locked, false)).toBe(2);
     const fill = block([
       { week: 3, rotation: "A", sessions: a },
       { week: 4, rotation: "B", sessions: b },
     ]);
-    expect(draftWeekIssues(fill, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], liftingSessions: lifting })).toEqual([]);
+    expect(draftWeekIssues(fill, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], exerciseSessions: perLetter })).toEqual([]);
     const wrongB = { ...fill, weeks: [fill.weeks[0], { ...fill.weeks[1], sessions: b.slice(0, 2) }] };
-    expect(draftWeekIssues(wrongB, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], liftingSessions: lifting })).toEqual([
+    expect(draftWeekIssues(wrongB, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], exerciseSessions: perLetter })).toEqual([
       "week 4 has 2 exercise sessions, not 3",
     ]);
   });

@@ -204,7 +204,7 @@ export function replaceWeek(
   const hasRoom = (d: number) => (load.get(d) ?? 0) < MAX_SESSIONS_PER_WEEKDAY;
   for (const s of unmatched) {
     const want = ideal.get(s.id) ?? null;
-    const open = (s.kind === "cardio" ? pools.cardio : pools.lifting).filter(hasRoom);
+    const open = (s.kind === "cardio" ? pools.cardio : pools.exercises).filter(hasRoom);
     const d =
       want != null && hasRoom(want)
         ? want

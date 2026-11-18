@@ -96,7 +96,7 @@ export async function startBlock(trainerId: string, body: BlockBody): Promise<{ 
       schema: blockDraftSchema({
         plannedWeeks: block.weeks,
         alternate: block.alternate,
-        liftingSessions: isMockRuntime(rt) ? null : ctx.client.sessionsPerWeek ?? null,
+        exerciseSessions: isMockRuntime(rt) ? null : ctx.client.sessionsPerWeek ?? null,
       }),
       mock: () => JSON.stringify(mockBlockDraft({ plannedWeeks: block.weeks, alternate: block.alternate })),
     });

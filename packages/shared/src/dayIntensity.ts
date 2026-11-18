@@ -7,7 +7,7 @@ import type { CardioLog, SetType } from "./domain";
  *
  * Measure (per day, first that applies):
  *  - tonnage  — Σ kg × reps of loaded sets (timed holds excluded)
- *  - sets     — lifting with no load (bodyweight, timed): set count
+ *  - sets     — exercises with no load (bodyweight, timed): set count
  *  - minutes  — cardio-only day: Σ duration
  *  - sessions — cardio with no duration: log count
  * Each day compares only against days measured the same way.

@@ -314,7 +314,7 @@ export function draftWeek<T extends { weeks: { week: number }[] }>(d: T, week?: 
 
 /**
  * A program week as a draft week (fill drafts show the trainer's weeks this
- * way): sessions in draft order (lifting, then cardio), catalog refs, roles,
+ * way): sessions in draft order (exercise sessions, then cardio), catalog refs, roles,
  * sets, groups, weekdays and session types kept.
  */
 export function programWeekToDraftWeek(w: ProgramWeek, opts: { locked?: boolean } = {}): DraftWeek {
@@ -386,36 +386,36 @@ export interface DraftWeekRules {
   plannedWeeks: number;
   /** Odd weeks A, even weeks B, and the two routines must differ. */
   alternate: boolean;
-  /** Lifting sessions every week must have (per A/B letter for a fill); null = only "the same every week". */
-  liftingSessions?: LiftingSessions | null;
+  /** Exercise sessions every week must have (per A/B letter for a fill); null = only "the same every week". */
+  exerciseSessions?: ExerciseSessions | null;
   /** Weeks the trainer wrote (fill): the AI must leave them out. */
   lockedWeeks?: readonly number[];
 }
 
-/** Lifting sessions a week must have: one count for every week, or one per A/B letter. */
-export type LiftingSessions = number | Partial<Record<Rotation, number>>;
+/** Exercise sessions a week must have: one count for every week, or one per A/B letter. */
+export type ExerciseSessions = number | Partial<Record<Rotation, number>>;
 
-const liftingCount = (w: Pick<DraftWeek, "sessions">) => w.sessions.filter((s) => (s.kind ?? "exercises") === "exercises").length;
+const exerciseCount = (w: Pick<DraftWeek, "sessions">) => w.sessions.filter((s) => (s.kind ?? "exercises") === "exercises").length;
 
 /**
- * A fill's lifting count, from the trainer's locked weeks: per letter (the
+ * A fill's exercise session count, from the trainer's locked weeks: per letter (the
  * first locked week of each) when the block alternates, else the first locked
  * week's. Null when nothing is locked.
  */
-export function lockedLiftingSessions(locked: readonly Pick<DraftWeek, "week" | "rotation" | "sessions">[], alternate: boolean): LiftingSessions | null {
+export function lockedExerciseSessions(locked: readonly Pick<DraftWeek, "week" | "rotation" | "sessions">[], alternate: boolean): ExerciseSessions | null {
   const sorted = [...locked].sort((a, b) => a.week - b.week);
   if (!sorted.length) return null;
-  if (!alternate) return liftingCount(sorted[0]);
+  if (!alternate) return exerciseCount(sorted[0]);
   const out: Partial<Record<Rotation, number>> = {};
   for (const w of sorted) {
     const letter = w.rotation ?? rotationOfWeek(w.week);
-    if (out[letter] == null) out[letter] = liftingCount(w);
+    if (out[letter] == null) out[letter] = exerciseCount(w);
   }
   return out;
 }
 
-/** The lifting count `rule` sets for `week` (by its odd A / even B letter); undefined = not set. */
-export function liftingSessionsFor(rule: LiftingSessions | null | undefined, week: number): number | undefined {
+/** The exercise session count `rule` sets for `week` (by its odd A / even B letter); undefined = not set. */
+export function exerciseSessionsFor(rule: ExerciseSessions | null | undefined, week: number): number | undefined {
   return typeof rule === "number" ? rule : rule?.[rotationOfWeek(week)];
 }
 const exerciseSet = (w: Pick<DraftWeek, "sessions">) =>
@@ -423,7 +423,7 @@ const exerciseSet = (w: Pick<DraftWeek, "sessions">) =>
 
 /**
  * Problems with a block draft's weeks, as plain sentences (empty = fine):
- * one entry per planned week (locked weeks left out), each with the lifting
+ * one entry per planned week (locked weeks left out), each with the exercise session
  * session count, letters odd = A / even = B when alternating (none
  * otherwise), and — block drafts only, not fills — an A routine that
  * differs from the B routine.
@@ -438,10 +438,10 @@ export function draftWeekIssues(d: Pick<AiProgramDraft, "weeks">, rules: DraftWe
   const extra = got.filter((w) => !locked.has(w) && !want.includes(w));
   if (missing.length) out.push(`missing week${missing.length > 1 ? "s" : ""} ${missing.join(", ")}: write every week of the block in full`);
   if (extra.length) out.push(`week${extra.length > 1 ? "s" : ""} ${extra.join(", ")} beyond the ${rules.plannedWeeks}-week block`);
-  const first = d.weeks[0] ? liftingCount(d.weeks[0]) : 0;
+  const first = d.weeks[0] ? exerciseCount(d.weeks[0]) : 0;
   for (const w of d.weeks) {
-    const lifting = liftingSessionsFor(rules.liftingSessions, w.week) ?? first;
-    if (liftingCount(w) !== lifting) out.push(`week ${w.week} has ${liftingCount(w)} exercise sessions, not ${lifting}`);
+    const want = exerciseSessionsFor(rules.exerciseSessions, w.week) ?? first;
+    if (exerciseCount(w) !== want) out.push(`week ${w.week} has ${exerciseCount(w)} exercise sessions, not ${want}`);
     if (rules.alternate && w.rotation !== rotationOfWeek(w.week)) {
       out.push(`week ${w.week} must be rotation "${rotationOfWeek(w.week)}" (odd weeks A, even weeks B)`);
     }
