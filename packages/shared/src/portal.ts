@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeKind } from "./sessionKind";
 import {
   CardioLog,
   CardioPrescription,
@@ -323,7 +324,7 @@ export function portalSession(
   return {
     id: s.id,
     name: s.name,
-    kind: s.kind ?? "lifting",
+    kind: normalizeKind(s.kind ?? "lifting"),
     seq: s.seq,
     weekday: s.weekday ?? null,
     order: s.order,
