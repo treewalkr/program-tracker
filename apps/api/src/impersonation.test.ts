@@ -336,6 +336,40 @@ describe.skipIf(!dbUp)("view as trainer", () => {
     expect((await me(token)).impersonator).toBeNull();
   });
 
+  test("the access log lists each view with its ticket, end and writes", async () => {
+    const [ticket] = await db
+      .insert(feedbackItems)
+      .values({ trainerId: kaiId, comment: "ZZ imp log", route: "/", context: ticketCtx })
+      .returning();
+    try {
+      const token = await adminToken();
+      await start(token, { trainerId: kaiId, ticketId: ticket.id, reason: "check the timer" });
+      await call("POST", "/v1/auth/impersonate/allow-edits", token, { confirm: "Kai" });
+      await call("PATCH", `/v1/clients/${kaiClientId}`, token, { name: "ZZ Kai's client" });
+      await call("POST", "/v1/auth/impersonate/stop", token);
+      await settleImpersonationWrites();
+      // a view nobody stopped, long past its 30 minutes
+      await db.insert(impersonations).values({ adminId, trainerId: kaiId, startedAt: new Date(Date.now() - 2 * 60 * MIN) });
+
+      const res = await get(`/v1/admin/trainers/${kaiId}/access-log`, token);
+      expect(res.status).toBe(200);
+      const { trainer, views } = (await res.json()) as {
+        trainer: { id: string };
+        views: { ticket: { handle: string } | null; reason: string | null; endedBy: string | null; endedAt: string | null; writes: unknown[] }[];
+      };
+      expect(trainer.id).toBe(kaiId);
+      const fromTicket = views.find((v) => v.ticket?.handle === feedbackHandle(ticket.number));
+      expect(fromTicket).toMatchObject({ reason: "check the timer", endedBy: "stop", writes: [{ method: "PATCH", route: "/v1/clients/:id", status: 200 }] });
+      const lapsed = views.find((v) => v.ticket === null && v.endedBy === "expired");
+      expect(lapsed?.endedAt).not.toBeNull();
+
+      const kaiToken = (await createSession(kaiId)).token;
+      expect((await get(`/v1/admin/trainers/${kaiId}/access-log`, kaiToken)).status).toBe(403);
+    } finally {
+      await db.delete(feedbackItems).where(eq(feedbackItems.id, ticket.id));
+    }
+  });
+
   test("the admin's feature flags list and toggle", async () => {
     const token = await adminToken();
     const list = (await (await get("/v1/admin/flags", token)).json()) as { flags: { name: string; enabled: boolean }[] };

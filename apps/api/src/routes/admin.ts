@@ -5,7 +5,7 @@ import { ageOn, localDateOf, weekOf, type ProgramWeek } from "@pt/shared";
 import { toSignalProgram } from "../lib/signals-service";
 import { SESSION_COOKIE, authDisabled, deleteTrainerSessions, isAdminEmail, resolveSession } from "../lib/auth";
 import { FLAGS, flagEnabled, listFlags, setFlag } from "../lib/flags";
-import { startView } from "../lib/impersonation";
+import { accessLog, startView } from "../lib/impersonation";
 import { withExerciseNames } from "../lib/exercise-names";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
@@ -318,6 +318,22 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
       body: ImpersonationModel.start,
       response: { 200: ImpersonationModel.started, 401: ErrorBody, 404: ErrorBody, 409: ErrorBody, 422: ErrorBody },
       detail: { summary: "View the app as a trainer (read-only, 30 minutes, audited)" },
+    },
+  )
+  /** Who viewed this trainer's account, when, from which ticket, and every write made with edits allowed. */
+  .get(
+    "/trainers/:id/access-log",
+    async ({ params, status }) => {
+      const [row] = await db
+        .select({ id: trainers.id, name: trainers.name })
+        .from(trainers)
+        .where(eq(trainers.id, params.id));
+      if (!row) return status(404, { error: "trainer not found" });
+      return { trainer: row, views: await accessLog(row.id) };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      detail: { summary: "A trainer's access log: every admin view of their account" },
     },
   )
   /** Feature flags: each one's state, the env kill switch included. */

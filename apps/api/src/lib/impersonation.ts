@@ -1,5 +1,15 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { authSessions, db, feedbackComments, feedbackItems, impersonations, trainers, type ImpersonationEndReason } from "@pt/db";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import {
+  authSessions,
+  db,
+  feedbackComments,
+  feedbackItems,
+  impersonationWrites,
+  impersonations,
+  trainers,
+  type ImpersonationEndReason,
+} from "@pt/db";
 import { FEEDBACK_VIEWED_NOTE, feedbackHandle } from "@pt/shared";
 import { isAdminEmail, type ResolvedSession } from "./auth";
 import { firstName } from "./trainer-context";
@@ -126,4 +136,60 @@ export function impersonatorOf(session: ResolvedSession, now = new Date()) {
     /** null while live; else why the view stopped applying — the banner says so and offers to close it. */
     ended: session.ended,
   };
+}
+
+const admins = alias(trainers, "view_admin");
+
+/**
+ * Every view of a trainer's account, newest first: who looked, from which
+ * ticket, for how long, how it ended and what was written (never bodies).
+ * A view nobody stopped reads as ended at its 30 minutes ("expired").
+ */
+export async function accessLog(trainerId: string, now = new Date(), limit = 100) {
+  const rows = await db
+    .select({
+      id: impersonations.id,
+      admin: { id: admins.id, name: admins.name },
+      ticketId: feedbackItems.id,
+      ticketNumber: feedbackItems.number,
+      reason: impersonations.reason,
+      startedAt: impersonations.startedAt,
+      endedAt: impersonations.endedAt,
+      endedBy: impersonations.endedBy,
+    })
+    .from(impersonations)
+    .innerJoin(admins, eq(admins.id, impersonations.adminId))
+    .leftJoin(feedbackItems, eq(feedbackItems.id, impersonations.ticketId))
+    .where(eq(impersonations.trainerId, trainerId))
+    .orderBy(desc(impersonations.startedAt))
+    .limit(limit);
+  const ids = rows.map((r) => r.id);
+  const writes = ids.length
+    ? await db
+        .select({
+          impersonationId: impersonationWrites.impersonationId,
+          method: impersonationWrites.method,
+          route: impersonationWrites.route,
+          status: impersonationWrites.status,
+          at: impersonationWrites.at,
+        })
+        .from(impersonationWrites)
+        .where(inArray(impersonationWrites.impersonationId, ids))
+        .orderBy(impersonationWrites.at)
+    : [];
+  return rows.map((r) => {
+    const cutoff = new Date(r.startedAt.getTime() + VIEW_MS);
+    const lapsed = !r.endedAt && cutoff <= now;
+    const mine = writes.filter((w) => w.impersonationId === r.id);
+    return {
+      id: r.id,
+      admin: r.admin,
+      ticket: r.ticketId && r.ticketNumber !== null ? { id: r.ticketId, number: r.ticketNumber, handle: feedbackHandle(r.ticketNumber) } : null,
+      reason: r.reason,
+      startedAt: r.startedAt.toISOString(),
+      endedAt: (r.endedAt ?? (lapsed ? cutoff : null))?.toISOString() ?? null,
+      endedBy: r.endedBy ?? (lapsed ? ("expired" as const) : null),
+      writes: mine.map(({ impersonationId: _, at, ...w }) => ({ ...w, at: at.toISOString() })),
+    };
+  });
 }
