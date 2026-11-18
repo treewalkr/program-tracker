@@ -74,7 +74,7 @@
     editable?: SessionEditable;
   }
 
-  let { name, tag, when, kind = "lifting", cardio = null, exercises = [], marks, onnote, noted, editable }: Props = $props();
+  let { name, tag, when, kind = "exercises", cardio = null, exercises = [], marks, onnote, noted, editable }: Props = $props();
 
   const units = $derived(exerciseUnits(exercises));
 

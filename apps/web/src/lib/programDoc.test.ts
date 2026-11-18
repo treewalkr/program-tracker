@@ -13,7 +13,7 @@ describe("validateProgramDoc", () => {
               seq: 1,
               weekday: 1,
               order: 0,
-              kind: "lifting",
+              kind: "exercises",
               cardio: null,
               exercises: [
                 {
@@ -33,7 +33,7 @@ describe("validateProgramDoc", () => {
               seq: 2,
               weekday: 1,
               order: 1,
-              kind: "lifting",
+              kind: "exercises",
               cardio: null,
               exercises: [
                 {

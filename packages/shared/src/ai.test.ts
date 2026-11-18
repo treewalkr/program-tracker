@@ -83,7 +83,7 @@ describe("mockReviseDraft", () => {
       sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             {
               exerciseName: "Squat",
@@ -218,8 +218,8 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
       rationale: "Rationale",
       clientSummary: "Summary",
       sessions: [
-        { name: "Day 1", kind: "lifting", exercises: [] },
-        { name: "Day 2", kind: "lifting", exercises: [] },
+        { name: "Day 1", kind: "exercises", exercises: [] },
+        { name: "Day 2", kind: "exercises", exercises: [] },
       ],
     });
     expect(draftNoticeText(draftSample)).toBe(
@@ -233,7 +233,7 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
 describe("chat proposals", () => {
   const draft: AiProgramDraft = draftFromSessions({
     name: "B", rationale: "", clientSummary: "",
-    sessions: [{ name: "Day 1", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, restSeconds: 120 }] }] }],
+    sessions: [{ name: "Day 1", kind: "exercises", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, restSeconds: 120 }] }] }],
   });
   test("mockProposal is a valid ChatProposal", () => {
     expect(ChatProposal.safeParse(mockProposal(draft, "more rest")).success).toBe(true);
@@ -286,7 +286,7 @@ describe("chat proposals", () => {
 describe("draft weeks", () => {
   const session = (name: string, ...exercises: string[]) => ({
     name,
-    kind: "lifting" as const,
+    kind: "exercises" as const,
     exercises: exercises.map((n) => ({ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] })),
   });
   const block = (weeks: { week: number; rotation?: "A" | "B"; sessions: ReturnType<typeof session>[] }[]) => ({
@@ -408,7 +408,7 @@ describe("draft weeks", () => {
 });
 
 describe("resizeDraftWeeks", () => {
-  const s = (n: string) => [{ name: n, kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+  const s = (n: string) => [{ name: n, kind: "exercises" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
   const ab: AiProgramDraft = {
     name: "B",
     rationale: "",
@@ -436,7 +436,7 @@ describe("mentionsAlternating", () => {
 
 describe("withLockedWeeks", () => {
   test("the trainer's weeks come back locked, in order; an AI copy of a locked week is dropped", () => {
-    const s = (n: string) => [{ name: n, kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+    const s = (n: string) => [{ name: n, kind: "exercises" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
     const ai: AiProgramDraft = { name: "F", rationale: "", clientSummary: "", weeks: [{ week: 1, sessions: s("AI W1") }, { week: 2, sessions: s("W2") }, { week: 3, sessions: s("W3") }] };
     const merged = withLockedWeeks(ai, [{ week: 1, sessions: s("Mine") }]);
     expect(merged.weeks.map((w) => `${w.week}:${w.sessions[0].name}:${w.locked ?? false}`)).toEqual(["1:Mine:true", "2:W2:false", "3:W3:false"]);

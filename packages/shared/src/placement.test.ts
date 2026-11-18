@@ -19,7 +19,7 @@ const lift = (seq: number, ids: string[]): ProgramSession => ({
   name: `Session ${seq}`,
   seq,
   order: 0,
-  kind: "lifting",
+  kind: "exercises",
   exercises: ids.map(ex),
   cardio: null,
 });
@@ -76,7 +76,7 @@ describe("placeSessions", () => {
     const byDay = sessionsByWeekday(out);
     expect(out.every((s) => s.weekday != null)).toBe(true);
     const stacked = [...byDay.values()].find((l) => l.length === 2)!;
-    expect(stacked.map((s) => s.kind)).toEqual(["lifting", "cardio"]);
+    expect(stacked.map((s) => s.kind)).toEqual(["exercises", "cardio"]);
     expect(stacked.map((s) => s.order)).toEqual([0, 1]);
   });
 
@@ -145,9 +145,9 @@ describe("placement editing", () => {
 
   test("addSession numbers per track and never reuses a gap", () => {
     let w = { week: 1, sessions: [lift(1, ["squat"]), lift(3, ["bench"])] };
-    w = addSession(w, "lifting", 2);
+    w = addSession(w, "exercises", 2);
     w = addSession(w, "cardio");
-    expect(w.sessions.slice(2).map((s) => [s.kind, s.seq, s.weekday])).toEqual([["lifting", 4, 2], ["cardio", 1, null]]);
+    expect(w.sessions.slice(2).map((s) => [s.kind, s.seq, s.weekday])).toEqual([["exercises", 4, 2], ["cardio", 1, null]]);
   });
 
   test("switching kind takes the next seq on the new track", () => {
@@ -173,9 +173,9 @@ describe("migrateLegacyWeek", () => {
     };
     const w = migrateLegacyWeek(legacy);
     expect(w.sessions.map((s) => [s.id, s.kind, s.seq, s.weekday, s.order])).toEqual([
-      ["a", "lifting", 1, 2, 0],
+      ["a", "exercises", 1, 2, 0],
       ["c", "cardio", 1, 2, 1],
-      ["b", "lifting", 2, null, 0],
+      ["b", "exercises", 2, null, 0],
     ]);
     expect("days" in w).toBe(false);
     expect(ProgramWeek.safeParse(w).success).toBe(true);

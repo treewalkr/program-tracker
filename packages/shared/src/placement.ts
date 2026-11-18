@@ -52,7 +52,7 @@ const UPPER = new Set(["vertical_push", "horizontal_push", "vertical_pull", "hor
 
 /** What a lifting session mostly loads, from its exercises' movement patterns. */
 export function sessionFocus(s: Pick<ProgramSession, "kind" | "exercises">, patternOf?: PatternOf): SessionFocus {
-  if (s.kind !== "lifting" || !patternOf) return "none";
+  if (s.kind !== "exercises" || !patternOf) return "none";
   let lower = 0;
   let upper = 0;
   for (const e of s.exercises) {
@@ -125,7 +125,7 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
   let cost = 0;
   const liftDays = new Set<number>();
   for (const [s, d] of entries) {
-    if (s.kind === "lifting") liftDays.add(d);
+    if (s.kind === "exercises") liftDays.add(d);
     else if (ctx.preferred && !ctx.preferred.has(d)) cost += 1.5;
   }
   // Even spread of lifting days around the (repeating) week: small cost per tight gap.
@@ -137,7 +137,7 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
     for (let j = i + 1; j < entries.length; j++) {
       const [b, db] = entries[j];
       const same = da === db;
-      if (a.kind === "lifting" && b.kind === "lifting") {
+      if (a.kind === "exercises" && b.kind === "exercises") {
         if (same || adjacent(da, db)) cost += clash(ctx.focus.get(a.id)!, ctx.focus.get(b.id)!, same);
         if ((a.seq < b.seq) !== (da <= db) && !same) cost += 0.01; // keep Session 1 earliest…
         continue;
@@ -149,7 +149,7 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
         else if (same) cost += 5;
         continue;
       }
-      const [l, dl, c, dc] = a.kind === "lifting" ? [a, da, b, db] : [b, db, a, da];
+      const [l, dl, c, dc] = a.kind === "exercises" ? [a, da, b, db] : [b, db, a, da];
       if (same) cost += 1;
       if (!isKey(ctx.load.get(c.id))) continue;
       const w = lowerWeight(ctx.focus.get(l.id));
@@ -220,12 +220,12 @@ export function placementConflicts(
   for (const s of placed) {
     const d = s.weekday!;
     perDay.set(d, [...(perDay.get(d) ?? []), s]);
-    const allowed = s.kind === "lifting" ? lifting : cardio;
+    const allowed = s.kind === "exercises" ? lifting : cardio;
     if (allowed.length > 0 && !allowed.includes(d)) {
       out.push({
         rule: "off-day",
         sessionIds: [s.id],
-        text: `"${s.name}" is on ${dayName(d)}, not one of the client's ${s.kind === "lifting" ? "lifting" : "cardio"} days`,
+        text: `"${s.name}" is on ${dayName(d)}, not one of the client's ${s.kind === "exercises" ? "exercises" : "cardio"} days`,
       });
     }
   }
@@ -279,7 +279,7 @@ export function placeSessions(
     return ordered.map((s, i) => ({ ...s, weekday: null, order: i }));
   }
 
-  const lifting = ordered.filter((s) => s.kind === "lifting");
+  const lifting = ordered.filter((s) => s.kind === "exercises");
   const cardio = ordered.filter((s) => s.kind === "cardio");
   const ctx: Ctx = {
     focus: new Map(lifting.map((s) => [s.id, sessionFocus(s, patternOf)])),
@@ -301,7 +301,7 @@ export function placeSessions(
   // 0b. Suggested weekdays (AI drafts) stay where they break no rule. Key runs
   //     first, then lifting, then easy cardio: the expensive sessions win a day.
   if (opts.keepWeekdays) {
-    const rank = (s: ProgramSession) => (isKey(ctx.load.get(s.id)) ? 0 : s.kind === "lifting" ? 1 : 2);
+    const rank = (s: ProgramSession) => (isKey(ctx.load.get(s.id)) ? 0 : s.kind === "exercises" ? 1 : 2);
     const candidates = ordered.filter((s) => s.weekday != null && !isFixed.has(s.id)).sort((a, b) => rank(a) - rank(b));
     for (const s of candidates) {
       const d = s.weekday!;
@@ -338,7 +338,7 @@ export function placeSessions(
   // 1. One lifting session per free lifting day for as many days as we have:
   //    brute force the day subset and the order (≤ 7 sessions, ≤ 7 days), with
   //    the key runs placed greedily against each candidate.
-  const liftTaken = new Set(fixed.filter(([s]) => s.kind === "lifting").map(([, d]) => d));
+  const liftTaken = new Set(fixed.filter(([s]) => s.kind === "exercises").map(([, d]) => d));
   const freeDays = avail.lifting.filter((d) => !liftTaken.has(d) && hasRoom(fixed, d));
   const head = freeLifting.slice(0, freeDays.length);
   let placed: [ProgramSession, number][] = [...fixed];

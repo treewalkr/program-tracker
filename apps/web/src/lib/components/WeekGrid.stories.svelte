@@ -78,7 +78,7 @@
                     ? 'unlogged'
                     : 'missed'
                   : 'logged';
-          return { id, name, status, planned: true, kind: CARDIO.test(name) ? 'cardio' : 'lifting' };
+          return { id, name, status, planned: true, kind: CARDIO.test(name) ? 'cardio' : 'exercises' };
         });
         const logged = sessions.some((s) => s.status === 'logged');
         const worst = (['missed', 'unlogged', 'today', 'upcoming', 'logged'] as const).find((st) => sessions.some((s) => s.status === st));

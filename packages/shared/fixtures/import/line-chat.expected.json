@@ -5,7 +5,7 @@
     {"line": 5, "sets": 3, "reps": 12, "noteHas": ["each side"]}
   ],
   "sessions": [
-    {"line": 2, "kind": "lifting"}
+    {"line": 2, "kind": "exercises"}
   ],
   "skipped": [1, 6, 7]
 }

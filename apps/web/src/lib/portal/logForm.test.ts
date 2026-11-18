@@ -5,7 +5,7 @@ import { setSkipReason, skipExercise } from "$lib/logSheet";
 import { buildPortalLog, cachedSession, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
 const lifting: PortalSession = {
-  id: "ps1", name: "Lower", kind: "lifting", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
+  id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
   exercises: [
     {
       id: "pe1", exerciseId: "ex-squat", exerciseName: "Back Squat", order: 0,

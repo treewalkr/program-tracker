@@ -26,7 +26,7 @@
   const session: PortalSession = {
     id: "fig-upper-a",
     name: "Upper A",
-    kind: "lifting",
+    kind: "exercises",
     seq: 1,
     weekday: 3,
     order: 1,

@@ -14,7 +14,7 @@ function week1(): ProgramWeek {
         seq: 1,
         weekday: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           { id: "e-sq", exerciseId: "squat", order: 0, prescribedSets: [1, 2, 3].map((n) => set(n, { percent1rm: 75 })) },
           { id: "e-bp", exerciseId: "bench", order: 1, prescribedSets: [1, 2, 3].map((n) => set(n, { targetWeightKg: 80 })) },

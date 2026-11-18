@@ -17,7 +17,7 @@ const ROUTINE_A: DraftSession[] = [
   {
     name: "Day A — Lower",
     weekday: 1,
-    kind: "lifting",
+    kind: "exercises",
     exercises: [
       {
         exerciseName: "Back Squat",
@@ -33,7 +33,7 @@ const ROUTINE_A: DraftSession[] = [
   {
     name: "Day B — Upper",
     weekday: 5,
-    kind: "lifting",
+    kind: "exercises",
     exercises: [
       { exerciseName: "Bench Press", role: "primary", prescribedSets: sets(1, 5, 150) },
       {
@@ -51,7 +51,7 @@ const ROUTINE_B: DraftSession[] = [
   {
     name: "Day A — Lower",
     weekday: 1,
-    kind: "lifting",
+    kind: "exercises",
     exercises: [
       { exerciseName: "Front Squat", role: "primary", prescribedSets: sets(3, 5, 180, { targetWeightKg: 80 }) },
       { exerciseName: "Hip Thrust", role: "strength", prescribedSets: sets(3, 10, 120) },
@@ -60,7 +60,7 @@ const ROUTINE_B: DraftSession[] = [
   {
     name: "Day B — Upper",
     weekday: 5,
-    kind: "lifting",
+    kind: "exercises",
     exercises: [
       { exerciseName: "Overhead Press", role: "primary", prescribedSets: sets(3, 5, 150, { targetWeightKg: 45 }) },
       { exerciseName: "Lat Pulldown", role: "accessory", prescribedSets: sets(3, 10, 90) },

@@ -67,7 +67,7 @@ describe("mock adapter: draft hand edits", () => {
 
       const program = await mockApi.approveGeneration(again.generation.id);
       const seq = g.draft!.weeks[0].sessions.slice(0, day).filter((s) => s.kind !== "cardio").length;
-      const s = program.weeks[0].sessions.find((x) => x.kind === "lifting" && x.seq === seq)!;
+      const s = program.weeks[0].sessions.find((x) => x.kind === "exercises" && x.seq === seq)!;
       expect(s.exercises.map((e) => e.exerciseName)).toEqual(next);
     },
     15000

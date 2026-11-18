@@ -54,14 +54,14 @@ describe.skipIf(!dbUp)("session types", () => {
     const trainerId = await getDefaultTrainerId();
     await db.delete(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
     await db.insert(sessionTypes).values([
-      { trainerId, name: "Hypertrophy", format: "lifting" },
-      { trainerId, name: "Strength training", format: "lifting", presetKey: "strength-training" },
-      { trainerId, name: "amrap", format: "lifting" },
+      { trainerId, name: "Hypertrophy", format: "exercises" },
+      { trainerId, name: "Strength training", format: "exercises", presetKey: "strength-training" },
+      { trainerId, name: "amrap", format: "exercises" },
     ]);
     const { body } = await call("GET", "/v1/session-types");
     const keyed = body.filter((t: any) => t.presetKey).map((t: any) => t.presetKey);
     expect(keyed.sort()).toEqual(SESSION_TYPE_PRESETS.map((p) => p.key).filter((k) => k !== "metabolic.amrap").sort());
-    expect(body.find((t: any) => t.name === "Hypertrophy")).toMatchObject({ presetKey: null, format: "lifting" });
+    expect(body.find((t: any) => t.name === "Hypertrophy")).toMatchObject({ presetKey: null, format: "exercises" });
     expect(body.find((t: any) => t.name === "amrap")).toMatchObject({ presetKey: null });
     expect(body.filter((t: any) => t.presetKey === "strength-training")).toHaveLength(1);
   });
@@ -96,7 +96,7 @@ describe.skipIf(!dbUp)("session types", () => {
     expect(dup.status).toBe(409);
     expect(dup.body.error).toBe('"circuit" is already a session type');
     expect((await call("POST", "/v1/session-types", { name: uniq(), format: "any" })).status).toBe(422);
-    const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
+    const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "exercises" });
     expect(made.presetKey).toBeNull();
     expect((await call("PATCH", `/v1/session-types/${made.id}`, { name: "Aerobic Base" })).status).toBe(409);
     expect((await call("PATCH", `/v1/session-types/${made.id}`, { format: "any" })).status).toBe(422);
@@ -107,22 +107,22 @@ describe.skipIf(!dbUp)("session types", () => {
     const res = await call("POST", "/v1/session-types", { name: `  ${name}  `, format: "cardio" });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ name, format: "cardio", archivedAt: null, usedIn: 0 });
-    const dup = await call("POST", "/v1/session-types", { name: name.toUpperCase(), format: "lifting" });
+    const dup = await call("POST", "/v1/session-types", { name: name.toUpperCase(), format: "exercises" });
     expect(dup.status).toBe(409);
     expect(dup.body.error).toBe(`"${name.toUpperCase()}" is already a session type`);
     expect((await call("POST", "/v1/session-types", { name: "x", format: "yoga" })).status).toBe(422);
   });
 
   test("over-length or missing fields are refused on create and edit", async () => {
-    expect((await call("POST", "/v1/session-types", { name: "x".repeat(41), format: "lifting" })).status).toBe(422);
+    expect((await call("POST", "/v1/session-types", { name: "x".repeat(41), format: "exercises" })).status).toBe(422);
     expect((await call("POST", "/v1/session-types", { name: uniq() })).status).toBe(422);
-    const made = (await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" })).body;
+    const made = (await call("POST", "/v1/session-types", { name: uniq(), format: "exercises" })).body;
     expect((await call("PATCH", `/v1/session-types/${made.id}`, { name: "x".repeat(41) })).status).toBe(422);
     expect((await call("PATCH", `/v1/session-types/${made.id}`, { archived: "yes" })).status).toBe(422);
   });
 
   test("rename, change format, archive and restore", async () => {
-    const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
+    const { body: made } = await call("POST", "/v1/session-types", { name: uniq(), format: "exercises" });
     const renamed = uniq();
     const res = await call("PATCH", `/v1/session-types/${made.id}`, { name: renamed, format: "cardio" });
     expect(res.status).toBe(200);
@@ -142,7 +142,7 @@ describe.skipIf(!dbUp)("session types", () => {
   });
 
   test("used types report usage and archive instead of delete; unused delete for good", async () => {
-    const { body: used } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
+    const { body: used } = await call("POST", "/v1/session-types", { name: uniq(), format: "exercises" });
     await programTyped(used.id);
     const listed = (await call("GET", "/v1/session-types")).body.find((t: any) => t.id === used.id);
     expect(listed.usedIn).toBe(1);
@@ -150,7 +150,7 @@ describe.skipIf(!dbUp)("session types", () => {
     expect(refused.status).toBe(409);
     expect(refused.body.error).toBe("used in 1 program — archive it instead");
 
-    const { body: spare } = await call("POST", "/v1/session-types", { name: uniq(), format: "lifting" });
+    const { body: spare } = await call("POST", "/v1/session-types", { name: uniq(), format: "exercises" });
     expect((await call("DELETE", `/v1/session-types/${spare.id}`)).status).toBe(204);
     expect((await call("GET", "/v1/session-types")).body.some((t: any) => t.id === spare.id)).toBe(false);
   });
@@ -158,14 +158,14 @@ describe.skipIf(!dbUp)("session types", () => {
   test("the only custom type can be deleted (the presets remain)", async () => {
     const trainerId = await getDefaultTrainerId();
     await db.delete(sessionTypes).where(eq(sessionTypes.trainerId, trainerId));
-    const [only] = await db.insert(sessionTypes).values({ trainerId, name: "Only", format: "lifting" }).returning();
+    const [only] = await db.insert(sessionTypes).values({ trainerId, name: "Only", format: "exercises" }).returning();
     expect((await call("DELETE", `/v1/session-types/${only.id}`)).status).toBe(204);
     expect((await call("GET", "/v1/session-types")).body).toHaveLength(SESSION_TYPE_PRESETS.length);
   });
 
   test("another trainer's type reads as not found", async () => {
     const [other] = await db.insert(trainers).values({ name: "Other", email: `other-${Date.now()}@test.dev` }).returning();
-    const [theirs] = await db.insert(sessionTypes).values({ trainerId: other.id, name: "Theirs", format: "lifting" }).returning();
+    const [theirs] = await db.insert(sessionTypes).values({ trainerId: other.id, name: "Theirs", format: "exercises" }).returning();
     const res = await call("PATCH", `/v1/session-types/${theirs.id}`, { name: "Mine now" });
     expect(res.status).toBe(404);
     expect((await call("DELETE", `/v1/session-types/${theirs.id}`)).status).toBe(404);

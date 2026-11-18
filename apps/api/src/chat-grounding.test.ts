@@ -50,7 +50,7 @@ async function setup(name: string) {
             name: "Lower",
             seq: 1,
             order: 0,
-            kind: "lifting",
+            kind: "exercises",
             exercises: [
               {
                 id: crypto.randomUUID(),

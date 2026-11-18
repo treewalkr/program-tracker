@@ -272,8 +272,8 @@ export const sessionLogs = pgTable("session_logs", {
   /** Which prescribed session this was; null = freestyle workout. */
   programSessionId: uuid("program_session_id"),
   date: date("date").notNull(),
-  /** "lifting" (sets below) or "cardio" (payload in `cardio`). */
-  kind: kindText<SessionKind>()("kind").notNull().default("lifting"),
+  /** "exercises" (sets below) or "cardio" (payload in `cardio`). */
+  kind: kindText<SessionKind>()("kind").notNull().default("exercises"),
   /** Cardio actuals when kind = "cardio". */
   cardio: jsonb("cardio").$type<CardioLog>(),
   notes: text("notes"),
@@ -793,7 +793,7 @@ export const sessionTypes = pgTable(
       .notNull()
       .references(() => trainers.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    /** "lifting" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
+    /** "exercises" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
     format: kindText<SessionTypeFormat>()("format").notNull(),
     /** A `SESSION_TYPE_PRESETS` key = a locked preset (archive/restore only); null = the trainer's own type.
      *  One row per preset per trainer rides on the name index (preset names are locked). */

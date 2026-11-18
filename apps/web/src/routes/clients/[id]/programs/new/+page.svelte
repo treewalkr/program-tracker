@@ -108,7 +108,7 @@
   const newRow = (): SessionRow => ({
     key: uuid(),
     name: "",
-    kind: "lifting",
+    kind: "exercises",
     cardio: defaultCardio(),
     exercises: [],
   });
@@ -126,7 +126,7 @@
 
   /** seq per kind in list order — "Session 1", "Session 2", "Cardio 1"… */
   function seqsOf(list: SessionRow[]): number[] {
-    const n = { lifting: 0, cardio: 0 };
+    const n = { exercises: 0, cardio: 0 };
     return list.map((s) => ++n[s.kind]);
   }
   const seqs = $derived(seqsOf(rows));
@@ -348,7 +348,7 @@
     for (const [prefix, list] of lists) {
       const listSeqs = seqsOf(list);
       for (const [i, s] of list.entries()) {
-        if (s.kind === "lifting" && s.exercises.length === 0) return `${prefix}${labelOf(s, i, listSeqs)} needs an exercise.`;
+        if (s.kind === "exercises" && s.exercises.length === 0) return `${prefix}${labelOf(s, i, listSeqs)} needs an exercise.`;
         if (s.kind === "cardio" && !s.cardio.modality.trim()) return `${prefix}${labelOf(s, i, listSeqs)} needs a modality.`;
       }
     }
@@ -434,7 +434,7 @@
           seq,
           weekday,
           order,
-          kind: "lifting",
+          kind: "exercises",
           ...typed,
           cardio: null,
           exercises: exercisesForSave($state.snapshot(s.exercises)).map((e, ei) => ({

@@ -53,7 +53,7 @@ export function plannedVolume(sessions: VolumeSession[], maxes: OneRepMaxes | nu
   let total = 0;
   let loaded = false;
   for (const s of sessions) {
-    if ((s.kind ?? "lifting") !== "lifting") continue;
+    if ((s.kind ?? "exercises") !== "exercises") continue;
     for (const e of s.exercises) {
       const max = oneRepMaxKg(maxes, e.exerciseId);
       for (const ps of e.prescribedSets) {

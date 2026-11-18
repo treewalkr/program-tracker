@@ -8,7 +8,7 @@ const week = (): ProgramWeek =>
     sessions: [
       {
         id: "s1",
-        kind: "lifting",
+        kind: "exercises",
         weekday: 1,
         exercises: [
           {

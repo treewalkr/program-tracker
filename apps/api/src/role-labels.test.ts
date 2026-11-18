@@ -136,7 +136,7 @@ describe.skipIf(!dbUp)("role labels", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Lower",
-          kind: "lifting" as const,
+          kind: "exercises" as const,
           exercises: [
             { exerciseName: "Back Squat", role: "primary" as const, prescribedSets: sets },
             { exerciseName: "Deadlift", role: "primary" as const, prescribedSets: sets },

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { dayIntensityLevels, dayVolume, intensityLevel, volumeBaseline } from "./dayIntensity";
 
 const lift = (sets: { weightKg?: number | null; reps: number; exerciseId?: string }[]) => ({
-  kind: "lifting",
+  kind: "exercises",
   sets: sets.map((s) => ({ exerciseId: s.exerciseId ?? "squat", type: "working" as const, reps: s.reps, weightKg: s.weightKg ?? null })),
 });
 const cardio = (durationMin: number | null) => ({ kind: "cardio", cardio: { modality: "Run", durationMin }, sets: [] });

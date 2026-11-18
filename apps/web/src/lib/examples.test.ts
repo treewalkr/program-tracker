@@ -13,7 +13,7 @@ const weeks: ProgramWeek[] = [
         seq: 1,
         weekday: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           {
             id: "pex-1",

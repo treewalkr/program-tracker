@@ -43,7 +43,7 @@ describe("extractJsonObject", () => {
 describe("buildFillMessages", () => {
   test("the lifting-session line follows the trainer's locked weeks, per letter", () => {
     const sess = (n: number) =>
-      Array.from({ length: n }, (_, i) => ({ name: `S${i + 1}`, kind: "lifting" as const, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }));
+      Array.from({ length: n }, (_, i) => ({ name: `S${i + 1}`, kind: "exercises" as const, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }));
     const lockedWeeks = [
       { week: 1, rotation: "A" as const, locked: true, sessions: sess(2) },
       { week: 2, rotation: "B" as const, locked: true, sessions: sess(3) },
@@ -121,8 +121,8 @@ describe("buildGenerationMessages", () => {
       previousProgram: {
         name: "Block 1",
         sessions: [
-          { name: "Lower", kind: "lifting", exercises: [] },
-          { name: "Upper", kind: "lifting", exercises: [] },
+          { name: "Lower", kind: "exercises", exercises: [] },
+          { name: "Upper", kind: "exercises", exercises: [] },
           { name: "Z2", kind: "cardio", exercises: [] },
         ],
       },
@@ -484,7 +484,7 @@ describe("weekly prompts: learned preferences", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ] }],
@@ -541,7 +541,7 @@ describe("weekly prompts: learned preferences", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ] }],
@@ -566,7 +566,7 @@ describe("buildRevisionMessages", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             {
               exerciseName: "Bench Press",
@@ -615,7 +615,7 @@ describe("buildRevisionMessages", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             {
               exerciseName: "Bench Press",
@@ -680,7 +680,7 @@ describe("buildRevisionMessages", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ] }],
@@ -725,7 +725,7 @@ describe("buildRevisionMessages", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ] }],
@@ -792,7 +792,7 @@ const draft: AiProgramDraft = {
   weeks: [{ week: 1, sessions: [
     {
       name: "Day A",
-      kind: "lifting",
+      kind: "exercises",
       exercises: [
         { exerciseId: "11111111-1111-1111-1111-111111111111", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] },
         { exerciseName: "Cable Crunch", prescribedSets: [{ setNumber: 1, reps: 12, type: "working", amrap: false }] },
@@ -854,7 +854,7 @@ describe("draftToWeeks", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             { exerciseName: "Cable Crunch", role: "core", prescribedSets: sets },
             { exerciseName: "Lateral Raise", prescribedSets: sets },
@@ -883,7 +883,7 @@ describe("draftToWeeks", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             { exerciseName: "Cable Crunch", role: "core", prescribedSets: sets(3) },
             { exerciseName: "Lateral Raise", role: "accessory", group: "B", prescribedSets: sets(2) },
@@ -928,7 +928,7 @@ describe("draftToWeeks", () => {
 
   test("seq numbers each track in draft order; placement spreads lifting and keeps cardio off lifting days", () => {
     const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
-    const lift = (name: string, id: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: id, prescribedSets: sets }] });
+    const lift = (name: string, id: string) => ({ name, kind: "exercises" as const, exercises: [{ exerciseId: id, prescribedSets: sets }] });
     const z2 = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Bike", durationMin: 40 }, exercises: [] });
     const d: AiProgramDraft = {
       ...draft,
@@ -944,9 +944,9 @@ describe("draftToWeeks", () => {
     const tags = (w: (typeof weeks)[number]) =>
       Object.fromEntries(w.sessions.map((s) => [s.name, `${s.kind}:${s.seq}@${s.weekday}`]));
     const w1 = tags(weeks[0]);
-    expect(w1["Lower A"]).toStartWith("lifting:1@");
-    expect(w1["Upper"]).toStartWith("lifting:2@");
-    expect(w1["Lower B"]).toStartWith("lifting:3@");
+    expect(w1["Lower A"]).toStartWith("exercises:1@");
+    expect(w1["Upper"]).toStartWith("exercises:2@");
+    expect(w1["Lower B"]).toStartWith("exercises:3@");
     expect(w1["Z2 A"]).toStartWith("cardio:1@");
     expect(w1["Z2 B"]).toStartWith("cardio:2@");
     const dayOf = (name: string) => weeks[0].sessions.find((s) => s.name === name)!.weekday!;
@@ -972,8 +972,8 @@ describe("draftToWeeks", () => {
       ...draft,
       weeks: [{ week: 1, sessions: [
         // Monday is the day after the Sunday long run: must move.
-        { name: "Heavy lower", kind: "lifting", weekday: 1, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] },
-        { name: "Upper", kind: "lifting", weekday: 4, exercises: [{ exerciseId: catalog[1].id, prescribedSets: sets }] },
+        { name: "Heavy lower", kind: "exercises", weekday: 1, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] },
+        { name: "Upper", kind: "exercises", weekday: 4, exercises: [{ exerciseId: catalog[1].id, prescribedSets: sets }] },
         { name: "Easy run", kind: "cardio", weekday: 3, cardio: { modality: "Run", durationMin: 40, hrZone: 2 }, exercises: [] },
         { name: "Long run", kind: "cardio", weekday: 7, cardio: { modality: "Run", durationMin: 80, hrZone: 2 }, exercises: [] },
       ] }],
@@ -1013,7 +1013,7 @@ describe("draftToWeeks", () => {
       ...draft,
       weeks: [{ week: 1, sessions: Array.from({ length: 15 }, (_, i) => ({
         name: `Day ${i + 1}`,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           {
             exerciseName: `Breach Lift ${i + 1}`,
@@ -1142,7 +1142,7 @@ describe("replaceWeek", () => {
     seq,
     weekday,
     order,
-    kind: "lifting" as const,
+    kind: "exercises" as const,
     exercises: [{ id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: sets }],
   });
   const oldCardio = (name: string, seq: number, weekday: number | null, order = 0) => ({
@@ -1155,7 +1155,7 @@ describe("replaceWeek", () => {
     exercises: [],
     cardio: { modality: "Bike", durationMin: 30 },
   });
-  const draftLift = (name: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
+  const draftLift = (name: string) => ({ name, kind: "exercises" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
   const draftCardio = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Row", durationMin: 25 }, exercises: [] });
 
   test("replaceWeek keeps the week's A/B letter", () => {
@@ -1186,7 +1186,7 @@ describe("replaceWeek", () => {
         draftLift("W2 S1-New"),
         {
           name: "W2 S2-New",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             { exerciseName: "Brand New Exercise", prescribedSets: [{ setNumber: 1, reps: 8, type: "working", amrap: false }] },
             { exerciseId: "99999999-9999-9999-9999-999999999999", prescribedSets: [{ setNumber: 1, reps: 5, type: "working", amrap: false }] },
@@ -1216,11 +1216,11 @@ describe("replaceWeek", () => {
     }
 
     // matched by kind:seq → old weekday + within-day order
-    expect(by("W2 S1-New")).toMatchObject({ kind: "lifting", seq: 1, weekday: 2, order: 0 });
+    expect(by("W2 S1-New")).toMatchObject({ kind: "exercises", seq: 1, weekday: 2, order: 0 });
     expect(by("W2 C1-New")).toMatchObject({ kind: "cardio", seq: 1, weekday: 2, order: 1 });
-    expect(by("W2 S2-New")).toMatchObject({ kind: "lifting", seq: 2, weekday: 4, order: 0 });
+    expect(by("W2 S2-New")).toMatchObject({ kind: "exercises", seq: 2, weekday: 4, order: 0 });
 
-    // unmatched lifting:3 lands on a training day with room
+    // unmatched exercises:3 lands on a training day with room
     const s3 = by("W2 S3-New");
     expect(s3.seq).toBe(3);
     expect([1, 4]).toContain(s3.weekday!);
@@ -1265,7 +1265,7 @@ describe("replaceWeek", () => {
 
 describe("draftSlotsText", () => {
   const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
-  const draftLift = (name: string) => ({ name, kind: "lifting" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
+  const draftLift = (name: string) => ({ name, kind: "exercises" as const, exercises: [{ exerciseId: catalog[0].id, prescribedSets: sets }] });
   const draftCardio = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Row", durationMin: 25 }, exercises: [] });
   test("labels sessions by position (#N) and track tag, never by day", () => {
     const text = draftSlotsText({
@@ -1341,7 +1341,7 @@ describe("example library few-shot", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             {
               exerciseName: "Bench Press",
@@ -1501,7 +1501,7 @@ describe("buildChatSystem", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             {
               exerciseName: "Squat",
@@ -1674,7 +1674,7 @@ describe("revision conversation threading", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           ],
@@ -1726,7 +1726,7 @@ describe("revision conversation threading", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             { exerciseName: "Bench Press", role: "primary", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           ],
@@ -1806,7 +1806,7 @@ describe("draftToText shows rest and duration", () => {
       weeks: [{ week: 1, sessions: [
         {
           name: "Day A",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [
             { exerciseName: "Curl", group: "A", prescribedSets: [set] },
             { exerciseName: "Pushdown", group: "A", prescribedSets: [set] },
@@ -1822,7 +1822,7 @@ describe("draftToText shows rest and duration", () => {
     name: "Block",
     rationale: "",
     clientSummary: "",
-    weeks: [{ week: 1, sessions: [{ name: "Day", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: sets }] }] }],
+    weeks: [{ week: 1, sessions: [{ name: "Day", kind: "exercises", exercises: [{ exerciseName: "Squat", prescribedSets: sets }] }] }],
   });
 
   test("prints rest after RPE", () => {
@@ -1838,7 +1838,7 @@ describe("draftToText shows rest and duration", () => {
 
 describe("session types in AI drafts", () => {
   const types = [
-    { id: "t-str", name: "Strength", format: "lifting" as const },
+    { id: "t-str", name: "Strength", format: "exercises" as const },
     { id: "t-z2", name: "Zone 2", format: "cardio" as const },
     { id: "t-amrap", name: "AMRAP", format: "any" as const, presetKey: "metabolic.amrap" },
   ];
@@ -1852,7 +1852,7 @@ describe("session types in AI drafts", () => {
       history: [],
       catalog: [],
       sessionTypes: [
-        { name: "Hypertrophy", format: "lifting" },
+        { name: "Hypertrophy", format: "exercises" },
         { name: "Circuit", format: "any", presetKey: "metabolic.circuit" },
         { name: "Aerobic base", format: "cardio", presetKey: "cardiovascular.aerobic-base" },
         { name: "Metabolic", format: "any", presetKey: "metabolic" },
@@ -1867,7 +1867,7 @@ describe("session types in AI drafts", () => {
       [
         "- Cardiovascular sub-types [cardio]: Aerobic base",
         "- Metabolic [any] › Circuit, AMRAP",
-        "- Custom: Hypertrophy [lifting], Zone 2 [cardio]",
+        "- Custom: Hypertrophy [exercises], Zone 2 [cardio]",
       ].join("\n")
     );
     expect(all).toContain('"type"?: string');
@@ -1892,7 +1892,7 @@ describe("session types in AI drafts", () => {
     expect(byName.get("Wrong format")?.typeId).toBeUndefined();
     expect(byName.get("Unknown")?.typeId).toBeUndefined();
     // "any" (Metabolic) fits either kind and leaves the session's kind alone
-    expect(byName.get("Lifting AMRAP")).toMatchObject({ kind: "lifting", typeId: "t-amrap", typeName: "AMRAP" });
+    expect(byName.get("Lifting AMRAP")).toMatchObject({ kind: "exercises", typeId: "t-amrap", typeName: "AMRAP" });
     expect(byName.get("Cardio AMRAP")).toMatchObject({ kind: "cardio", typeId: "t-amrap", typeName: "AMRAP" });
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
   });
@@ -1976,7 +1976,7 @@ describe("hand edits reach the prompt", () => {
     weeks: [{ week: 1, sessions: [
       {
         name: "Day A",
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           { exerciseName: "Box Jump", role: "accessory", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
           { exerciseName: "Plank", role: "accessory", prescribedSets: [{ setNumber: 1, type: "working", reps: 1, amrap: false }] },
@@ -2074,7 +2074,7 @@ describe("whole-block prompts (FB-013)", () => {
   });
 
   test("draft text and slots are per week; slots show the first week of each letter", () => {
-    const s = (n: string) => [{ name: "Lower", kind: "lifting" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
+    const s = (n: string) => [{ name: "Lower", kind: "exercises" as const, exercises: [{ exerciseName: n, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }];
     const d: AiProgramDraft = {
       name: "AB",
       rationale: "",

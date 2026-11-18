@@ -18,7 +18,7 @@ export const SessionLogFields = z.object({
   programId: z.string().uuid(),
   programSessionId: z.string().uuid().nullable().optional(),
   date: IsoDate,
-  kind: SessionKind.default("lifting"),
+  kind: SessionKind.default("exercises"),
   cardio: CardioLog.nullable().optional(),
   notes: z.string().max(2000).optional(),
   perceivedEnergy: z.number().int().min(1).max(10).optional(),
@@ -52,7 +52,7 @@ export function refineLogKind(
   val: { kind: SessionKind; cardio?: unknown; sets: unknown[] },
   ctx: z.RefinementCtx
 ): void {
-  if (val.kind === "lifting") {
+  if (val.kind === "exercises") {
     if (val.sets.length < 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

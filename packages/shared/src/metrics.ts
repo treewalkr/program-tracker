@@ -33,7 +33,7 @@ export interface SignalLog {
   programId: string;
   /** ISO date (YYYY-MM-DD). */
   date: string;
-  /** "lifting" (default) or "cardio" — cardio logs carry no sets. */
+  /** "exercises" (default) or "cardio" — cardio logs carry no sets. */
   kind?: string;
   /** Cardio actuals when kind is "cardio". */
   cardio?: CardioLog | null;

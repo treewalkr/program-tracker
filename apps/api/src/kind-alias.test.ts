@@ -9,11 +9,10 @@ import { getDefaultTrainerId } from "./lib/trainer";
 import { app } from "./app";
 
 /**
- * Rollback simulation for the session kind rename (docs/kind-rename-plan.md,
- * release 1): data written the release-2 way — kind "exercises" in program
- * JSON, logs, session types, AI drafts and imports — must read through this
- * release with no 4xx/5xx and come back as "lifting"; a release-2 client
- * writing "exercises" must be accepted and stored as "lifting".
+ * Old data through the session kind alias (docs/kind-rename-plan.md, release 2):
+ * data written the release-1 way — kind "lifting" in program JSON, logs, session
+ * types, AI drafts and imports — must read with no 4xx/5xx and come back as
+ * "exercises"; a client writing "lifting" must be stored as "exercises".
  */
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
@@ -45,7 +44,7 @@ const call = async (method: string, path: string, body?: unknown, token?: string
 };
 
 /** A kind or format still carrying the alias in a response. */
-const ALIAS = /"(kind|format)":\s*"exercises"/;
+const ALIAS = /"(kind|format)":\s*"lifting"/;
 
 /** 2xx, no alias anywhere in the body. Returns the body. */
 function ok(r: { status: number; body: any; text: string }, label: string) {
@@ -55,12 +54,12 @@ function ok(r: { status: number; body: any; text: string }, label: string) {
 }
 
 /** Rewrite a jsonb column's session kinds to the release-2 value, as the release-2 backfill would. */
-const toExercises = (column: string) => sql.raw(`replace(${column}::text, '"kind": "lifting"', '"kind": "exercises"')::jsonb`);
+const toExercises = (column: string) => sql.raw(`replace(${column}::text, '"kind": "exercises"', '"kind": "lifting"')::jsonb`);
 
 const today = new Date().toISOString().slice(0, 10);
 const FIXTURE = readFileSync(new URL("../../../packages/shared/fixtures/import/week11-12.txt", import.meta.url), "utf8");
 
-describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
+describe.skipIf(!dbUp)("release 2 reads release-1 data (kind alias)", () => {
   let trainerId = "";
   let clientId = "";
   let squatId = "";
@@ -88,8 +87,8 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     return {
       week: w,
       sessions: [
-        { id: s1, name: "Lower", seq: 1, order: 0, weekday: 1, kind: "lifting", typeId, typeName: "ZZ Alias Type", exercises: [{ id: ex1, exerciseId: squatId, order: 0, prescribedSets: [set(1), set(2)] }] },
-        { id: s2, name: "Upper", seq: 2, order: 0, weekday: 3, kind: "lifting", exercises: [{ id: ex2, exerciseId: benchId, order: 0, prescribedSets: [set(1), set(2)] }] },
+        { id: s1, name: "Lower", seq: 1, order: 0, weekday: 1, kind: "exercises", typeId, typeName: "ZZ Alias Type", exercises: [{ id: ex1, exerciseId: squatId, order: 0, prescribedSets: [set(1), set(2)] }] },
+        { id: s2, name: "Upper", seq: 2, order: 0, weekday: 3, kind: "exercises", exercises: [{ id: ex2, exerciseId: benchId, order: 0, prescribedSets: [set(1), set(2)] }] },
         { id: c1, name: "Easy run", seq: 1, order: 0, weekday: 5, kind: "cardio", exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 2 } },
       ],
     };
@@ -109,7 +108,7 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     expect(c.status).toBe(201);
     clientId = c.body.id;
 
-    const type = await call("POST", "/v1/session-types", { name: "ZZ Alias Type", format: "lifting" });
+    const type = await call("POST", "/v1/session-types", { name: "ZZ Alias Type", format: "exercises" });
     expect(type.status).toBe(201);
     typeId = type.body.id;
 
@@ -147,10 +146,10 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     await db.update(clients).set({ portalEnabledAt: new Date() }).where(eq(clients.id, clientId));
     portalToken = (await createClientSession(clientId)).token;
 
-    // Release 2 backfills: every stored kind and format becomes "exercises".
+    // Store everything release-1 style: every kind and format back to "lifting".
     await db.execute(sql`update programs set sessions = ${toExercises("sessions")} where client_id = ${clientId}`);
-    await db.execute(sql`update session_logs set kind = 'exercises' where client_id = ${clientId} and kind = 'lifting'`);
-    await db.execute(sql`update session_types set format = 'exercises' where trainer_id = ${trainerId} and format = 'lifting'`);
+    await db.execute(sql`update session_logs set kind = 'lifting' where client_id = ${clientId} and kind = 'exercises'`);
+    await db.execute(sql`update session_types set format = 'lifting' where trainer_id = ${trainerId} and format = 'exercises'`);
     await db.execute(sql`update ai_generations set draft = ${toExercises("draft")} where client_id = ${clientId}`);
     await db.execute(sql`update ai_imports set result = ${toExercises("result")} where client_id = ${clientId}`);
     await db.execute(sql`update chat_messages set proposal = ${toExercises("proposal")} where client_id = ${clientId} and proposal is not null`);
@@ -163,37 +162,37 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     await db.delete(sessionTypes).where(eq(sessionTypes.id, typeId));
   });
 
-  test("the fixture really holds release-2 values", async () => {
+  test("the fixture really holds release-1 values", async () => {
     const count = async (q: ReturnType<typeof sql>) => Number(((await db.execute(q)) as unknown as { n: number }[])[0].n);
-    expect(await count(sql`select count(*) as n from programs where client_id = ${clientId} and sessions::text like '%"kind": "exercises"%'`)).toBe(1);
-    expect(await count(sql`select count(*) as n from programs where client_id = ${clientId} and sessions::text like '%"kind": "lifting"%'`)).toBe(0);
-    expect(await count(sql`select count(*) as n from session_logs where client_id = ${clientId} and kind = 'exercises'`)).toBe(1);
-    expect(await count(sql`select count(*) as n from session_types where id = ${typeId} and format = 'exercises'`)).toBe(1);
-    expect(await count(sql`select count(*) as n from ai_generations where client_id = ${clientId} and draft::text like '%"kind": "exercises"%'`)).toBeGreaterThan(0);
-    expect(await count(sql`select count(*) as n from ai_imports where id = ${importId} and result::text like '%"kind": "exercises"%'`)).toBe(1);
+    expect(await count(sql`select count(*) as n from programs where client_id = ${clientId} and sessions::text like '%"kind": "lifting"%'`)).toBe(1);
+    expect(await count(sql`select count(*) as n from programs where client_id = ${clientId} and sessions::text like '%"kind": "exercises"%'`)).toBe(0);
+    expect(await count(sql`select count(*) as n from session_logs where client_id = ${clientId} and kind = 'lifting'`)).toBe(1);
+    expect(await count(sql`select count(*) as n from session_types where id = ${typeId} and format = 'lifting'`)).toBe(1);
+    expect(await count(sql`select count(*) as n from ai_generations where client_id = ${clientId} and draft::text like '%"kind": "lifting"%'`)).toBeGreaterThan(0);
+    expect(await count(sql`select count(*) as n from ai_imports where id = ${importId} and result::text like '%"kind": "lifting"%'`)).toBe(1);
   });
 
   test("drizzle reads of the columns come back canonical", async () => {
     const [p] = await db.select().from(programs).where(eq(programs.id, programId));
-    expect(p.sessions[0].sessions.map((s) => s.kind)).toEqual(["lifting", "lifting", "cardio"]);
+    expect(p.sessions[0].sessions.map((s) => s.kind)).toEqual(["exercises", "exercises", "cardio"]);
     const [t] = await db.select({ format: sessionTypes.format }).from(sessionTypes).where(eq(sessionTypes.id, typeId));
-    expect(t.format).toBe("lifting");
+    expect(t.format).toBe("exercises");
   });
 
   test("programs: list, get, edit and save", async () => {
     const list = ok(await call("GET", `/v1/programs?clientId=${clientId}`), "programs list");
     expect(list.length).toBeGreaterThan(0);
     const got = ok(await call("GET", `/v1/programs/${programId}`), "program get");
-    expect(got.weeks[0].sessions.map((s: any) => s.kind)).toEqual(["lifting", "lifting", "cardio"]);
+    expect(got.weeks[0].sessions.map((s: any) => s.kind)).toEqual(["exercises", "exercises", "cardio"]);
     // The editor saves what it read back.
     const saved = ok(await call("PUT", `/v1/programs/${programId}`, { weeks: got.weeks }), "program save");
-    expect(saved.weeks[0].sessions[0].kind).toBe("lifting");
+    expect(saved.weeks[0].sessions[0].kind).toBe("exercises");
     ok(await call("PATCH", `/v1/programs/${programId}/direction`, { direction: "steady" }), "program direction");
   });
 
   test("logs, history, overview and stats", async () => {
     const logs = ok(await call("GET", `/v1/logs/sessions?clientId=${clientId}`), "logs");
-    expect(logs.map((l: any) => l.kind).sort()).toEqual(["cardio", "lifting"]);
+    expect(logs.map((l: any) => l.kind).sort()).toEqual(["cardio", "exercises"]);
     ok(await call("GET", `/v1/logs/sessions?clientId=${clientId}&programId=${programId}`), "logs by program");
     const history = ok(await call("GET", `/v1/logs/history?clientId=${clientId}`), "history");
     expect(JSON.stringify(history)).toContain("100kg");
@@ -210,7 +209,7 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
   test("client portal: week and a client log", async () => {
     const wk = ok(await call("GET", "/v1/portal/week", undefined, portalToken), "portal week");
     const sessions = wk.weeks[0].sessions;
-    expect(sessions.map((s: any) => s.kind).sort()).toEqual(["cardio", "lifting", "lifting"]);
+    expect(sessions.map((s: any) => s.kind).sort()).toEqual(["cardio", "exercises", "exercises"]);
     // The trainer's release-2 lifting log shows as done.
     expect(sessions.find((s: any) => s.id === ids.s1[0]).log).not.toBeNull();
     const log = await call(
@@ -221,12 +220,12 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     );
     const saved = ok(log, "portal log");
     const [row] = (await db.execute(sql`select kind from session_logs where id = ${saved.id}`)) as unknown as { kind: string }[];
-    expect(row.kind).toBe("lifting");
+    expect(row.kind).toBe("exercises");
   });
 
   test("AI: context, generation read, edit, chat, proposal build and approve", async () => {
     const gen = ok(await call("GET", `/v1/ai/generations/${generationId}`), "generation get");
-    expect(gen.draft.weeks[0].sessions.some((s: any) => s.kind === "lifting")).toBe(true);
+    expect(gen.draft.weeks[0].sessions.some((s: any) => s.kind === "exercises")).toBe(true);
     ok(await call("GET", "/v1/ai/generations/pending"), "pending");
     ok(await call("GET", `/v1/ai/chat?clientId=${clientId}`), "chat list");
     ok(await call("POST", "/v1/ai/chat", { clientId, message: "Why this split?", providerId: "mock" }), "chat q&a");
@@ -240,9 +239,9 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     expect(next.status).toBe("validated");
     // Approve the release-2 stored draft.
     const approved = ok(await call("POST", `/v1/ai/generations/${generationId}/approve`, {}), "approve");
-    expect(approved.weeks[0].sessions.some((s: any) => s.kind === "lifting")).toBe(true);
+    expect(approved.weeks[0].sessions.some((s: any) => s.kind === "exercises")).toBe(true);
     const [row] = (await db.execute(sql`select sessions::text as t from programs where id = ${approved.id}`)) as unknown as { t: string }[];
-    expect(row.t).not.toContain('"kind": "exercises"');
+    expect(row.t).not.toContain('"kind": "lifting"');
   });
 
   test("AI: fill on a release-2 program and apply it", async () => {
@@ -253,14 +252,14 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     await db.execute(sql`update ai_generations set draft = ${toExercises("draft")} where id = ${fill.id}`);
     const applied = ok(await call("POST", `/v1/ai/generations/${fill.id}/approve`, {}), "fill apply");
     expect(applied.id).toBe(programId);
-    expect(applied.weeks[3].sessions.filter((s: any) => s.kind === "lifting")).toHaveLength(2);
+    expect(applied.weeks[3].sessions.filter((s: any) => s.kind === "exercises")).toHaveLength(2);
   });
 
   test("imports: read, list and save history", async () => {
     const got = ok(await call("GET", `/v1/ai/imports/${importId}`), "import get");
     const kinds = got.result.weeks.flatMap((w: any) => w.days.flatMap((d: any) => d.sessions.map((s: any) => s.kind)));
     expect(kinds.length).toBeGreaterThan(0);
-    expect(kinds.every((k: string) => k === "lifting" || k === "cardio")).toBe(true);
+    expect(kinds.every((k: string) => k === "exercises" || k === "cardio")).toBe(true);
     ok(await call("GET", `/v1/ai/imports?clientId=${clientId}`), "import list");
 
     const [squat] = await db.select().from(exercises).where(eq(exercises.name, "Back Squat"));
@@ -271,65 +270,65 @@ describe.skipIf(!dbUp)("release 1 reads release-2 data (kind alias)", () => {
     expect(saved.sessions).toBeGreaterThan(0);
     const rows = (await db.execute(sql`select sessions::text as t from programs where client_id = ${clientId} and status = 'archived'`)) as unknown as { t: string }[];
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every((r) => r.t.includes('"kind": "lifting"') && !r.t.includes('"kind": "exercises"'))).toBe(true);
+    expect(rows.every((r) => r.t.includes('"kind": "exercises"') && !r.t.includes('"kind": "lifting"'))).toBe(true);
   });
 
   test("session types: list, rename and usage", async () => {
     const list = ok(await call("GET", "/v1/session-types"), "types");
     const mine = list.find((t: any) => t.id === typeId);
-    expect(mine).toMatchObject({ format: "lifting" });
+    expect(mine).toMatchObject({ format: "exercises" });
     expect(mine.usedIn).toBeGreaterThan(0);
-    expect(list.find((t: any) => t.presetKey === "strength-training").format).toBe("lifting");
-    expect(ok(await call("PATCH", `/v1/session-types/${typeId}`, { name: "ZZ Alias Type 2" }), "type rename").format).toBe("lifting");
+    expect(list.find((t: any) => t.presetKey === "strength-training").format).toBe("exercises");
+    expect(ok(await call("PATCH", `/v1/session-types/${typeId}`, { name: "ZZ Alias Type 2" }), "type rename").format).toBe("exercises");
   });
 
-  describe("a release-2 client writes exercises", () => {
-    test("program create and save store lifting", async () => {
+  describe("a release-2 client writes lifting", () => {
+    test("program create and save store exercises", async () => {
       const w = week(1);
-      const body = { name: "R2 Block", clientId, weeks: [{ ...w, sessions: w.sessions.map((s) => (s.kind === "lifting" ? { ...s, kind: "exercises" } : s)) }] };
+      const body = { name: "R2 Block", clientId, weeks: [{ ...w, sessions: w.sessions.map((s) => (s.kind === "exercises" ? { ...s, kind: "lifting" } : s)) }] };
       const created = ok(await call("POST", "/v1/programs", body), "R2 program create");
-      expect(created.weeks[0].sessions.map((s: any) => s.kind)).toEqual(["lifting", "lifting", "cardio"]);
+      expect(created.weeks[0].sessions.map((s: any) => s.kind)).toEqual(["exercises", "exercises", "cardio"]);
       const put = ok(await call("PUT", `/v1/programs/${created.id}`, { weeks: body.weeks }), "R2 program save");
-      expect(put.weeks[0].sessions[0].kind).toBe("lifting");
+      expect(put.weeks[0].sessions[0].kind).toBe("exercises");
       const [row] = (await db.execute(sql`select sessions::text as t from programs where id = ${created.id}`)) as unknown as { t: string }[];
-      expect(row.t).not.toContain('"kind": "exercises"');
-      expect(row.t).toContain('"kind": "lifting"');
+      expect(row.t).not.toContain('"kind": "lifting"');
+      expect(row.t).toContain('"kind": "exercises"');
     });
 
-    test("trainer and portal logs store lifting", async () => {
+    test("trainer and portal logs store exercises", async () => {
       const log = ok(
         await call("POST", "/v1/logs/sessions", {
-          clientId, programId, programSessionId: null, date: today, kind: "exercises",
+          clientId, programId, programSessionId: null, date: today, kind: "lifting",
           sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 60, reps: 8 }],
         }),
         "R2 trainer log"
       );
-      expect(log.kind).toBe("lifting");
+      expect(log.kind).toBe("exercises");
       const portal = ok(
         await call(
           "POST",
           "/v1/portal/logs",
-          { programSessionId: ids.s2[0], date: today, kind: "exercises", onDuplicate: "replace", sets: [{ programExerciseId: ids.ex2[0], exerciseId: benchId, setNumber: 1, weightKg: 82.5, reps: 5 }] },
+          { programSessionId: ids.s2[0], date: today, kind: "lifting", onDuplicate: "replace", sets: [{ programExerciseId: ids.ex2[0], exerciseId: benchId, setNumber: 1, weightKg: 82.5, reps: 5 }] },
           portalToken
         ),
         "R2 portal log"
       );
       const rows = (await db.execute(sql`select kind from session_logs where id in (${log.id}, ${portal.id})`)) as unknown as { kind: string }[];
-      expect(rows.map((r) => r.kind)).toEqual(["lifting", "lifting"]);
+      expect(rows.map((r) => r.kind)).toEqual(["exercises", "exercises"]);
       // a bad kind is still a 422
       const bad = await call("POST", "/v1/logs/sessions", { clientId, programId, programSessionId: null, date: today, kind: "strength", sets: [] });
       expect(bad.status).toBe(422);
     });
 
-    test("session type create and format change store lifting", async () => {
-      const created = ok(await call("POST", "/v1/session-types", { name: `ZZ R2 ${crypto.randomUUID().slice(0, 6)}`, format: "exercises" }), "R2 type create");
-      expect(created.format).toBe("lifting");
+    test("session type create and format change store exercises", async () => {
+      const created = ok(await call("POST", "/v1/session-types", { name: `ZZ R2 ${crypto.randomUUID().slice(0, 6)}`, format: "lifting" }), "R2 type create");
+      expect(created.format).toBe("exercises");
       const toCardio = ok(await call("PATCH", `/v1/session-types/${created.id}`, { format: "cardio" }), "R2 type cardio");
       expect(toCardio.format).toBe("cardio");
-      const back = ok(await call("PATCH", `/v1/session-types/${created.id}`, { format: "exercises" }), "R2 type back");
-      expect(back.format).toBe("lifting");
+      const back = ok(await call("PATCH", `/v1/session-types/${created.id}`, { format: "lifting" }), "R2 type back");
+      expect(back.format).toBe("exercises");
       const [row] = (await db.execute(sql`select format from session_types where id = ${created.id}`)) as unknown as { format: string }[];
-      expect(row.format).toBe("lifting");
+      expect(row.format).toBe("exercises");
       expect((await call("POST", "/v1/session-types", { name: "ZZ R2 bad", format: "strength" })).status).toBe(422);
       expect((await call("POST", "/v1/session-types", { name: "ZZ R2 any", format: "any" })).status).toBe(422);
       await call("DELETE", `/v1/session-types/${created.id}`);

@@ -80,7 +80,7 @@ describe("progression rules (F23)", () => {
     const w1: ProgramWeekDto = {
       week: 1,
       sessions: [
-        { id: "s1", name: "Lower", seq: 1, order: 0, kind: "lifting", exercises: [
+        { id: "s1", name: "Lower", seq: 1, order: 0, kind: "exercises", exercises: [
           { id: "e1", exerciseId: "sq", exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] },
         ] },
       ],
@@ -110,7 +110,7 @@ describe("progression rules (F23)", () => {
       week: 1,
       rotation: "A",
       sessions: [
-        { id: "s1", name: "Lower", seq: 1, order: 0, kind: "lifting", exercises: [
+        { id: "s1", name: "Lower", seq: 1, order: 0, kind: "exercises", exercises: [
           { id: "e1", exerciseId: "sq", exerciseName: "Squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false, targetWeightKg: 100 }] },
         ] },
       ],

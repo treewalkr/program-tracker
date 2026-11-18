@@ -27,7 +27,7 @@ const ex = (name: string, opts: { role?: string; group?: string; sets?: number }
   ...(opts.role ? { role: opts.role } : {}),
   ...(opts.group ? { group: opts.group } : {}),
 });
-const lifting = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "lifting" as const, exercises });
+const lifting = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "exercises" as const, exercises });
 
 /** All accessory unless said otherwise, so role order never interferes. */
 function draft(...sessions: ReturnType<typeof ex>[][]): AiProgramDraft {

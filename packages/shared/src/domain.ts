@@ -646,8 +646,8 @@ export const ProgramExercise = z.object({
 });
 export type ProgramExercise = z.infer<typeof ProgramExercise>;
 
-export const SESSION_KINDS = ["lifting", "cardio"] as const;
-/** Reads through the kind alias (sessionKind.ts): "exercises" parses as "lifting" until release 2 flips it. */
+export const SESSION_KINDS = ["exercises", "cardio"] as const;
+/** Reads through the kind alias (sessionKind.ts): "lifting" (release 1 data) parses as "exercises". */
 export const SessionKind = z.preprocess(normalizeKind, z.enum(SESSION_KINDS));
 export type SessionKind = z.infer<typeof SessionKind>;
 
@@ -677,7 +677,7 @@ export const ProgramSession = z
     weekday: z.number().int().min(1).max(7).nullable().optional(),
     /** 0-indexed order among the sessions placed on the same weekday. */
     order: z.number().int().min(0),
-    kind: SessionKind.default("lifting"),
+    kind: SessionKind.default("exercises"),
     /** Trainer's session type (see sessionTypes.ts); the name is captured at write time like exerciseName. */
     typeId: z.string().min(1).max(64).optional(),
     typeName: z.string().min(1).max(40).optional(),
@@ -692,7 +692,7 @@ export const ProgramSession = z
     cardio: CardioPrescription.nullable().optional(),
   })
   .superRefine((val, ctx) => {
-    if (val.kind === "lifting") {
+    if (val.kind === "exercises") {
       if (val.exercises.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -773,7 +773,7 @@ export const ProgramWeeksDocument = z
   });
 export type ProgramWeeksDocument = z.infer<typeof ProgramWeeksDocument>;
 
-/** Identity of a session within a week, stable across weeks: "lifting:2", "cardio:1". */
+/** Identity of a session within a week, stable across weeks: "exercises:2", "cardio:1". */
 export function sessionKey(s: Pick<ProgramSession, "kind" | "seq">): string {
   return `${s.kind}:${s.seq}`;
 }
@@ -1026,14 +1026,14 @@ export function weekSessions(weeks: ProgramWeek[], week: number): ProgramSession
  */
 export function migrateLegacyWeek(w: any): ProgramWeek {
   if (!Array.isArray(w?.days)) return w as ProgramWeek;
-  const seq = { lifting: 0, cardio: 0 };
+  const seq = { exercises: 0, cardio: 0 };
   const used = new Map<number, number>();
   const days = [...w.days].sort((a: any, b: any) => (a.day ?? 0) - (b.day ?? 0));
   const sessions: ProgramSession[] = [];
   for (const d of days) {
     const list = [...(d.sessions ?? [])].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
     for (const s of list) {
-      const kind: SessionKind = s.kind === "cardio" ? "cardio" : "lifting";
+      const kind: SessionKind = s.kind === "cardio" ? "cardio" : "exercises";
       const weekday: number | null = d.weekday ?? null;
       const slot = weekday ?? 0;
       const order = used.get(slot) ?? 0;
@@ -1150,7 +1150,7 @@ export function nextSeq(sessions: readonly Pick<ProgramSession, "kind" | "seq">[
 }
 
 /** Append a new session at the end of `weekday` (null = unscheduled). */
-export function addSession(w: ProgramWeek, kind: SessionKind = "lifting", weekday: number | null = null): ProgramWeek {
+export function addSession(w: ProgramWeek, kind: SessionKind = "exercises", weekday: number | null = null): ProgramWeek {
   const seq = nextSeq(w.sessions, kind);
   const order = w.sessions.filter((s) => (s.weekday ?? null) === weekday).length;
   const s: ProgramSession = {
@@ -1224,7 +1224,7 @@ export function switchSessionKind(
   if (kind === "cardio") {
     return { ...s, kind: "cardio", seq, exercises: [], cardio: defaultCardio() };
   }
-  return { ...s, kind: "lifting", seq, cardio: null };
+  return { ...s, kind: "exercises", seq, cardio: null };
 }
 
 export function setRepsRange(
@@ -1483,7 +1483,7 @@ export const SessionLog = z
     /** Which program session this log was meant to be; null for freestyle. */
     programSessionId: z.string().uuid().nullable(),
     date: z.string(), // ISO date (YYYY-MM-DD)
-    kind: SessionKind.default("lifting"),
+    kind: SessionKind.default("exercises"),
     cardio: CardioLog.nullable().optional(),
     sets: z.array(LoggedSet).default([]),
     notes: z.string().max(2000).optional(),
@@ -1493,7 +1493,7 @@ export const SessionLog = z
     flags: z.array(SessionFlag).max(100).nullable().optional(),
   })
   .superRefine((val, ctx) => {
-    if (val.kind === "lifting") {
+    if (val.kind === "exercises") {
       if (val.sets.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

@@ -244,7 +244,7 @@ export async function saveImportHistory(
             programId: program.id,
             programSessionId: l.programSessionId,
             date: l.date,
-            kind: "lifting",
+            kind: "exercises",
             notes: l.notes,
           })
           .returning({ id: sessionLogs.id });

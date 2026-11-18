@@ -264,7 +264,7 @@ export function formFromImport(
       return {
         key: opts.newKey(),
         name: s.name.slice(0, 60),
-        kind: "lifting",
+        kind: "exercises",
         cardio: defaultCardio(),
         exercises: rows.map((row, i) => ({ ...row, role: suggestRoleIn(rows, i, opts.catalog ?? []) })),
       };

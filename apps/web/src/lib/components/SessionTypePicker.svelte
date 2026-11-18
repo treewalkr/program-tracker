@@ -77,7 +77,7 @@
   const optId = (i: number) => `${uid}-opt-${i}`;
   /** Create rows unless the query already names a type (archived ones included). */
   const createFormats = $derived<SessionKind[]>(
-    oncreate && typed && !types.some((t) => t.name.toLowerCase() === typed.toLowerCase()) ? ["lifting", "cardio"] : []
+    oncreate && typed && !types.some((t) => t.name.toLowerCase() === typed.toLowerCase()) ? ["exercises", "cardio"] : []
   );
   const count = $derived(flat.length + createFormats.length);
   const archivedHit = $derived(

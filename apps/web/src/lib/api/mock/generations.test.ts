@@ -56,7 +56,7 @@ describe("mockApi approval places sessions like the API", () => {
     const gen = await mockApi.generate({ clientId: "cl-maya", providerId: "mock" });
     const program = await mockApi.approveGeneration(gen.id);
     const week1 = program.weeks[0].sessions;
-    expect(week1.map((s) => `${s.kind}:${s.seq}`)).toEqual(["lifting:1", "lifting:2", "lifting:3", "lifting:4"]);
+    expect(week1.map((s) => `${s.kind}:${s.seq}`)).toEqual(["exercises:1", "exercises:2", "exercises:3", "exercises:4"]);
     const client = (await mockApi.client("cl-maya")).client;
     for (const s of week1) expect(client.trainingDays).toContain(s.weekday!);
     // every week shares week 1's placement
@@ -94,7 +94,7 @@ describe("mockApi fill (FB-013)", () => {
     const wk = (week: number) => ({
       week,
       rotation: week % 2 ? ("A" as const) : ("B" as const),
-      sessions: [{ id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "lifting" as const, weekday: 1,
+      sessions: [{ id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "exercises" as const, weekday: 1,
         exercises: [{ id: crypto.randomUUID(), exerciseId: week % 2 ? "ex-squat" : "ex-dead", order: 0, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false, targetWeightKg: 100 }] }] }],
     });
     const before = await mockApi.createProgram({ clientId: "cl-maya", name: "Fill me", weeks: [1, 2, 3, 4, 5, 6].map(wk) });
@@ -112,7 +112,7 @@ describe("mockApi fill (FB-013)", () => {
   test("a program saved after the fill was drafted refuses the fill", async () => {
     const wk = (week: number) => ({
       week,
-      sessions: [{ id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "lifting" as const, weekday: 1,
+      sessions: [{ id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "exercises" as const, weekday: 1,
         exercises: [{ id: crypto.randomUUID(), exerciseId: "ex-squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }],
     });
     const before = await mockApi.createProgram({ clientId: "cl-maya", name: "Stale", weeks: [1, 2, 3].map(wk) });

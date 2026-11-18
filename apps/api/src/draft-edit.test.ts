@@ -232,7 +232,7 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
     expect(res.status).toBe(201);
     const lifting = draft.weeks[0].sessions.filter((s: any) => s.kind !== "cardio");
     lifting.forEach((d: any, i: number) => {
-      const s = res.body.weeks[0].sessions.find((x: any) => x.kind === "lifting" && x.seq === i + 1);
+      const s = res.body.weeks[0].sessions.find((x: any) => x.kind === "exercises" && x.seq === i + 1);
       expect(s.exercises.map((e: any) => e.exerciseName)).toEqual(d.exercises.map((e: any) => e.exerciseName));
     });
   });

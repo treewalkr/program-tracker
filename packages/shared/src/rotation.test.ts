@@ -23,7 +23,7 @@ const session = (name: string, exerciseId: string, weekday: number | null = 1): 
   seq: 1,
   weekday,
   order: 0,
-  kind: "lifting",
+  kind: "exercises",
   exercises: [
     {
       id: crypto.randomUUID(),

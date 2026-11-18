@@ -8,7 +8,7 @@ const exercise = () => ({
   order: 0,
   prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }],
 });
-const lifting = (name: string, order = 0) => ({ id: uuid(), name, order, kind: "lifting", exercises: [exercise()] });
+const lifting = (name: string, order = 0) => ({ id: uuid(), name, order, kind: "exercises", exercises: [exercise()] });
 const cardio = (name: string, order = 0) => ({
   id: uuid(),
   name,
@@ -38,10 +38,10 @@ describe("migrateProgramSessions", () => {
     const w1 = r.weeks[0];
     expect("days" in w1).toBe(false);
     const byName = Object.fromEntries(w1.sessions.map((s) => [s.name, s]));
-    expect(byName.Upper).toMatchObject({ kind: "lifting", seq: 1, weekday: 1, order: 0 });
+    expect(byName.Upper).toMatchObject({ kind: "exercises", seq: 1, weekday: 1, order: 0 });
     expect(byName.Z2).toMatchObject({ kind: "cardio", seq: 1, weekday: 1, order: 1 });
-    expect(byName.Lower).toMatchObject({ kind: "lifting", seq: 2, weekday: 3, order: 0 });
-    expect(byName.Full).toMatchObject({ kind: "lifting", seq: 3, weekday: null });
+    expect(byName.Lower).toMatchObject({ kind: "exercises", seq: 2, weekday: 3, order: 0 });
+    expect(byName.Full).toMatchObject({ kind: "exercises", seq: 3, weekday: null });
     expect(w1.sessions.map((s) => s.id).sort()).toEqual([...ids].sort());
   });
 

@@ -28,7 +28,7 @@ export interface StripSession {
   /** False for a log on a day that had nothing of its own planned. */
   planned: boolean;
   /** From the program session, or the log for an unplanned extra. */
-  kind: "lifting" | "cardio";
+  kind: "exercises" | "cardio";
   /** Set when a planned session was logged on another day of its week. */
   loggedOn?: string;
 }
@@ -156,7 +156,7 @@ export function buildClientStrip(
   const clientDay = client.createdAt ? localIso(new Date(client.createdAt)) : null;
   const startDay = anchorDay && clientDay && clientDay > anchorDay ? clientDay : anchorDay;
 
-  const slot = (s: { kind?: string | null; seq: number }) => `${s.kind ?? "lifting"}:${s.seq}`;
+  const slot = (s: { kind?: string | null; seq: number }) => `${s.kind ?? "exercises"}:${s.seq}`;
   const allSessions = program?.weeks?.flatMap((w) => w.sessions) ?? [];
   const slotById = new Map(allSessions.map((s) => [s.id, slot(s)] as const));
   const nameById = new Map(allSessions.map((s) => [s.id, s.name] as const));
@@ -217,7 +217,7 @@ export function buildClientStrip(
             name: s.name,
             status,
             planned: true,
-            kind: s.kind === "cardio" ? "cardio" : "lifting",
+            kind: s.kind === "cardio" ? "cardio" : "exercises",
             ...(on && on !== date ? { loggedOn: on } : {}),
           });
         }
@@ -230,7 +230,7 @@ export function buildClientStrip(
               name: extraName(l),
               status: "logged",
               planned: false,
-              kind: l.kind === "cardio" ? "cardio" : "lifting",
+              kind: l.kind === "cardio" ? "cardio" : "exercises",
             });
         }
         const worst = STATUS_RANK.find((st) => sessions.some((s) => s.status === st));

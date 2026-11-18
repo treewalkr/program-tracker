@@ -267,7 +267,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     seq,
     order: 0,
     weekday,
-    kind: "lifting" as const,
+    kind: "exercises" as const,
     notes: "Brace hard",
     exercises: [
       {
@@ -376,7 +376,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
 
   test("last time: the client's own comparable set from before this week, and still nothing private", async () => {
     const [draft] = await db.select({ id: programs.id }).from(programs).where(and(eq(programs.clientId, clientId), eq(programs.status, "draft")));
-    const [old] = await db.insert(sessionLogs).values({ clientId, programId: draft.id, date: addDays(today, -7), kind: "lifting" }).returning();
+    const [old] = await db.insert(sessionLogs).values({ clientId, programId: draft.id, date: addDays(today, -7), kind: "exercises" }).returning();
     await db.insert(setLogs).values([
       { sessionLogId: old.id, exerciseId: squatId, setNumber: 1, weightKg: "90", reps: 5, rpe: "7.5" },
       { sessionLogId: old.id, exerciseId: squatId, setNumber: 2, weightKg: "95", reps: 12 },
@@ -459,7 +459,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
 
     const [trainerLog] = await db
       .insert(sessionLogs)
-      .values({ clientId, programId, programSessionId: s2, date: today, kind: "lifting" })
+      .values({ clientId, programId, programSessionId: s2, date: today, kind: "exercises" })
       .returning();
     const blocked = await call("POST", "/v1/portal/logs", { token, body: logBody(s2, { onDuplicate: "replace" }) });
     expect(blocked.status).toBe(409);
@@ -542,7 +542,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
   test("removing your own log works only while its session is in this week", async () => {
     const [later] = await db
       .insert(sessionLogs)
-      .values({ clientId, programId, programSessionId: next1, date: today, kind: "lifting", loggedBy: "client" })
+      .values({ clientId, programId, programSessionId: next1, date: today, kind: "exercises", loggedBy: "client" })
       .returning();
     const r = await call("DELETE", `/v1/portal/logs/${later.id}`, { token });
     expect(r.status).toBe(409);
@@ -633,7 +633,7 @@ describe.skipIf(!dbUp)("trainer portal controls", () => {
         {
           week: 1,
           sessions: [
-            { id: sessionId, name: "Day 1", seq: 1, order: 0, kind: "lifting", exercises: [{ id: slot, exerciseId: exId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
+            { id: sessionId, name: "Day 1", seq: 1, order: 0, kind: "exercises", exercises: [{ id: slot, exerciseId: exId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
           ],
         },
       ],

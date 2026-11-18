@@ -51,7 +51,7 @@ describe("eval:import scoring", () => {
     expect(s.misses[0]).toMatch(/^L6: logged sets \d+ ≠ 99$/);
     expect(s.misses[1]).toMatch(/lacks "kinesis"$/);
     expect(s.misses).toContain("L6: should be skipped");
-    expect(s.misses).toContain("session L3: lifting ≠ cardio");
+    expect(s.misses).toContain("session L3: exercises ≠ cardio");
     expect(s.misses.at(-1)).toMatch(/^sessions: \d+ read ≠ 1$/);
   });
 });

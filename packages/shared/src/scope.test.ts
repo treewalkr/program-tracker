@@ -30,8 +30,8 @@ const parent = (): AiProgramDraft => ({
     ],
   },
   weeks: [{ week: 1, sessions: [
-    { name: "Lower A", kind: "lifting", exercises: [ex("Squat", [set(5, 180, { repsMin: 4 })]), ex("RDL"), ex("Plank")] },
-    { name: "Upper A", kind: "lifting", exercises: [ex("Bench"), ex("Row"), ex("Curl")] },
+    { name: "Lower A", kind: "exercises", exercises: [ex("Squat", [set(5, 180, { repsMin: 4 })]), ex("RDL"), ex("Plank")] },
+    { name: "Upper A", kind: "exercises", exercises: [ex("Bench"), ex("Row"), ex("Curl")] },
     { name: "Tempo Ride", kind: "cardio", cardio: { modality: "Stationary Bike", durationMin: 30, hrZone: 3, targetRpe: 4 }, exercises: [] },
   ] }],
 });
@@ -111,7 +111,7 @@ test("a swap keeps the slot position; an unproposed swap reverts", () => {
 test("off-proposal session renames and extra sessions are discarded", () => {
   const built = parent();
   built.weeks[0].sessions[0].name = "Legs";
-  built.weeks[0].sessions.push({ name: "Extra", kind: "lifting", exercises: [ex("Lunge")] });
+  built.weeks[0].sessions.push({ name: "Extra", kind: "exercises", exercises: [ex("Lunge")] });
   const { draft, discarded } = scopeToProposal(parent(), built, proposal([{ day: 1, slot: 1, kind: "edit", from: "Squat", to: "Squat", detail: "" }]));
   expect(draft.weeks[0].sessions).toEqual(parent().weeks[0].sessions);
   expect(discarded.map((c) => `${c.kind}:${c.day}`)).toEqual(["session:1", "session:4", "added:4"]);

@@ -46,7 +46,7 @@ const phasing = (w4Target: boolean, nextPhase: string | null = "build") => ({
       : { week: 4, directive: "deload" as const },
   ],
 });
-const lift = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "lifting" as const, exercises });
+const lift = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "exercises" as const, exercises });
 const cardio = (name: string, rx: Record<string, unknown>) => ({ name, kind: "cardio" as const, cardio: { modality: "Stationary Bike", durationMin: 30, hrZone: 3, targetRpe: 4, ...rx }, exercises: [] });
 const ranged = (repsMin: number, reps: number, extra: Record<string, unknown> = {}) => ({ reps, repsMin, targetRpe: 8, restSeconds: 180, ...extra });
 

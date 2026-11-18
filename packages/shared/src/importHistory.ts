@@ -205,7 +205,7 @@ export function buildHistory(
       const weekLabel = week.label ?? `Week ${k + 1}`;
       const dates = dayDates(start, week.days, opts.trainingDays);
       const sessions: ProgramSession[] = [];
-      const seq = { lifting: 0, cardio: 0 };
+      const seq = { exercises: 0, cardio: 0 };
       const perWeekday = new Map<number, number>();
 
       week.days.forEach((day, di) => {
@@ -241,7 +241,7 @@ export function buildHistory(
               ...(ex.group ? { group: ex.group } : {}),
             }))
           );
-          const session: ProgramSession = { ...place(), seq: ++seq.lifting, kind: "lifting", exercises };
+          const session: ProgramSession = { ...place(), seq: ++seq.exercises, kind: "exercises", exercises };
           sessions.push(session);
 
           // —— the log ——

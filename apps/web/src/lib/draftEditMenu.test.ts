@@ -17,11 +17,11 @@ const draft: AiProgramDraft = {
   weeks: [{ week: 1, sessions: [
     {
       name: "Lower",
-      kind: "lifting",
+      kind: "exercises",
       exercises: [ex("Squat", "primary"), ex("Curl", "accessory", "A"), ex("Extension", "accessory", "A"), ex("Plank", "core")],
     },
     { name: "Run", kind: "cardio", exercises: [], cardio: { modality: "run", durationMin: 30 } },
-    { name: "Upper", kind: "lifting", exercises: [ex("Bench", "primary"), ex("Row", "strength")] },
+    { name: "Upper", kind: "exercises", exercises: [ex("Bench", "primary"), ex("Row", "strength")] },
   ] }],
 } as AiProgramDraft;
 

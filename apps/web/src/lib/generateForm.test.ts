@@ -63,7 +63,7 @@ const mkLog = (id: string, date: string): SessionLogDto => ({
   programId: "p1",
   programSessionId: null,
   date,
-  kind: "lifting",
+  kind: "exercises",
   notes: null,
   perceivedEnergy: null,
   sets: [],

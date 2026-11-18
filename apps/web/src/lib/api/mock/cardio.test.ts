@@ -41,7 +41,7 @@ describe("mockApi cardio", () => {
   test("logSession stores a cardio log; sessionLogs returns kind and cardio", async () => {
     const before = await mockApi.sessionLogs("cl-nat");
     expect(before.some((l) => l.kind === "cardio" && l.cardio?.durationMin === 35)).toBe(true);
-    expect(before.every((l) => l.kind === "lifting" || l.kind === "cardio")).toBe(true);
+    expect(before.every((l) => l.kind === "exercises" || l.kind === "cardio")).toBe(true);
 
     await mockApi.logSession({
       clientId: "cl-nat",

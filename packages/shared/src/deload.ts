@@ -96,7 +96,7 @@ export const deloadSetCount = (n: number, s: DeloadSettings = DEFAULT_DELOAD): n
 function weekSlots(week: ProgramWeek): Map<string, ProgramExercise> {
   const out = new Map<string, ProgramExercise>();
   for (const s of week.sessions) {
-    if (s.kind !== "lifting") continue;
+    if (s.kind !== "exercises") continue;
     const seen = new Map<string, number>();
     for (const e of [...s.exercises].sort((a, b) => a.order - b.order)) {
       const n = (seen.get(e.exerciseId) ?? 0) + 1;
@@ -159,7 +159,7 @@ export function deloadWeek(week: ProgramWeek, settings: DeloadSettings = DEFAULT
   return {
     ...copy,
     sessions: copy.sessions.map((s) =>
-      s.kind === "lifting"
+      s.kind === "exercises"
         ? {
             ...s,
             exercises: s.exercises.map((e) => {

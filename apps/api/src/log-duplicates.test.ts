@@ -40,7 +40,7 @@ describe.skipIf(!dbUp)("session log duplicates", () => {
     name,
     seq,
     order: seq - 1,
-    kind: "lifting",
+    kind: "exercises",
     exercises: [
       { id: slot, exerciseId: squatId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
     ],

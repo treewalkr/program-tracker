@@ -98,7 +98,7 @@ if (richest.length < 2) throw new Error("need two clients in the local database"
 const activeProgram = async (clientId: string) =>
   (await db.select().from(programs).where(and(eq(programs.clientId, clientId), eq(programs.status, "active"), ne(programs.name, FIXTURE_NAME))).orderBy(desc(programs.createdAt)))[0];
 
-const lifting = (w: ProgramWeek) => w.sessions.filter((s) => (s.kind ?? "lifting") === "lifting");
+const lifting = (w: ProgramWeek) => w.sessions.filter((s) => (s.kind ?? "exercises") === "exercises");
 
 /** An A/B copy of `src`: odd weeks A as written, even weeks B with lifting from another program (a different routine). */
 async function fillFixture(src: typeof programs.$inferSelect) {
@@ -116,7 +116,7 @@ async function fillFixture(src: typeof programs.$inferSelect) {
     return {
       ...w,
       sessions: w.sessions.map((s) => {
-        if ((s.kind ?? "lifting") !== "lifting") return s;
+        if ((s.kind ?? "exercises") !== "exercises") return s;
         const d = lifting(donor)[i++];
         return { ...s, name: d.name, exercises: structuredClone(d.exercises) };
       }),

@@ -49,7 +49,7 @@ export const SESSION_TYPE_TAXONOMY: readonly SessionTypeMain[] = [
   {
     key: "strength-training",
     name: "Strength training",
-    format: "lifting",
+    format: "exercises",
     subs: [
       { key: "strength-training.stability-mobility", name: "Stability & mobility" },
       { key: "strength-training.functional-movement", name: "Functional movement" },

@@ -191,8 +191,8 @@ const list = (names: string[]) => names.join(", ");
 
 /** "Session 2" / "Cardio 1" per draft session, numbered per kind. */
 export function draftSessionLabels(sessions: readonly { kind?: string | null }[]): string[] {
-  const n = { lifting: 0, cardio: 0 };
-  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.lifting}`));
+  const n = { exercises: 0, cardio: 0 };
+  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.exercises}`));
 }
 
 /**

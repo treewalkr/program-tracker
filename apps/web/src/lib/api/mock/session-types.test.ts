@@ -15,10 +15,10 @@ describe("mockApi session types (mirrors /v1/session-types)", () => {
   test("create, duplicate refusal, rename, archive, delete", async () => {
     const made = await mockApi.createSessionType({ name: "  Mock   Test ", format: "cardio" });
     expect(made).toMatchObject({ name: "Mock Test", format: "cardio", presetKey: null, archivedAt: null, usedIn: 0 });
-    await expect(mockApi.createSessionType({ name: "mock test", format: "lifting" })).rejects.toThrow(
+    await expect(mockApi.createSessionType({ name: "mock test", format: "exercises" })).rejects.toThrow(
       '"mock test" is already a session type'
     );
-    await expect(mockApi.createSessionType({ name: "amrap", format: "lifting" })).rejects.toThrow('"amrap" is already a session type');
+    await expect(mockApi.createSessionType({ name: "amrap", format: "exercises" })).rejects.toThrow('"amrap" is already a session type');
     const renamed = await mockApi.patchSessionType(made.id, { name: "Mock Renamed", archived: true });
     expect(renamed.name).toBe("Mock Renamed");
     expect(renamed.archivedAt).not.toBeNull();

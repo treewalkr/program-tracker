@@ -31,7 +31,7 @@ export const schemes: PeriodizationSchemeDto[] = [
 ];
 
 import { uuid } from "$lib/uuid";
-import { asRelease2 } from "./kindAlias";
+import { asRelease1 } from "./kindAlias";
 
 export const exercises: ExerciseDto[] = ([
   { id: "ex-squat", name: "Back Squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes", "core"], equipment: "barbell", movementPatterns: ["knee_dominant"], functionalMovement: "squat" },
@@ -128,7 +128,7 @@ type SessionTemplate = {
   id?: string;
   name: string;
   order?: number;
-  kind?: "lifting" | "cardio";
+  kind?: "exercises" | "cardio";
   cardio?: { modality: string; durationMin?: number | null; hrZone?: number | null; intensity?: string; distanceKm?: number; targetRpe?: number } | null;
   exercises?: ProgramExerciseDto[];
   notes?: string;
@@ -147,10 +147,10 @@ function makeWeeks(
   trainingDays?: number[] | null,
   week2Changes?: (sessions: ProgramSessionDto[]) => ProgramSessionDto[]
 ): ProgramWeekDto[] {
-  const seq = { lifting: 0, cardio: 0 };
+  const seq = { exercises: 0, cardio: 0 };
   const flat = dayTemplates.flatMap((d) => d.sessions);
   const week1: ProgramSessionDto[] = flat.map((s) => {
-    const kind = s.kind ?? (s.cardio ? "cardio" : "lifting");
+    const kind = s.kind ?? (s.cardio ? "cardio" : "exercises");
     return {
       id: s.id ?? uuid(),
       name: s.name,
@@ -831,8 +831,9 @@ logs.push(
   { sessionLogId: uuid(), clientId: "cl-nat", programId: "pg-nat-a", date: day(0), kind: "cardio", cardio: { modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5, rpe: 6 }, sets: [] },
 );
 
-// Release-2 rows (docs/kind-rename-plan.md): the demo client's active program and
-// lifting logs are stored with kind "exercises", the way release 2 writes them.
+// Release-1 rows (docs/kind-rename-plan.md): the demo client's active program and
+// exercise logs are stored with kind "lifting", as release 1 wrote them, so mock mode
+// proves the alias reads old data.
 // The mock API reads through the alias (kindAlias.ts) like the live client does.
-trainerProgram.weeks = asRelease2(trainerProgram.weeks);
-for (const [i, l] of logs.entries()) if (l.clientId === "cl-nat" && (l.kind ?? "lifting") === "lifting") logs[i] = asRelease2({ ...l, kind: "lifting" });
+trainerProgram.weeks = asRelease1(trainerProgram.weeks);
+for (const [i, l] of logs.entries()) if (l.clientId === "cl-nat" && (l.kind ?? "exercises") === "exercises") logs[i] = asRelease1({ ...l, kind: "exercises" as const });

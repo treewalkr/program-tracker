@@ -30,7 +30,7 @@ const week = (sets: PrescribedSet[][]): ProgramWeek => ({
       name: "Lower",
       seq: 1,
       order: 0,
-      kind: "lifting",
+      kind: "exercises",
       exercises: sets.map((prescribedSets, i) => ({
         id: `e${i}`,
         exerciseId: `x${i}`,

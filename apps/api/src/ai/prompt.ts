@@ -68,7 +68,7 @@ export interface ProgramSummary {
   rotation?: "A" | "B";
   sessions: {
     name: string;
-    kind?: "lifting" | "cardio";
+    kind?: "exercises" | "cardio";
     /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
     exercises: { name: string; role?: string; group?: string; sets: string[] }[];
   }[];
@@ -352,7 +352,7 @@ function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | 
     return `${per.join(", ")} (as in the trainer's locked weeks of the same letter)`;
   }
   if (client.sessionsPerWeek) return `exactly ${client.sessionsPerWeek}`;
-  const prev = previous?.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length ?? 0;
+  const prev = previous?.sessions.filter((s) => (s.kind ?? "exercises") === "exercises").length ?? 0;
   return prev > 0
     ? `exactly ${prev} (not set on the client — match the current program's lifting sessions)`
     : "not specified — infer a sensible number from the goals and history";
@@ -629,10 +629,10 @@ export function draftSlotsText(d: AiProgramDraft): string {
   const multi = d.weeks.length > 1;
   return firsts
     .map((w) => {
-      const seq = { lifting: 0, cardio: 0 };
+      const seq = { exercises: 0, cardio: 0 };
       const head = multi ? [`WEEK ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${sameLetterNote(d, w)}`] : [];
       const body = w.sessions.map((s, di) => {
-        const kind = s.kind === "cardio" ? "cardio" : "lifting";
+        const kind = s.kind === "cardio" ? "cardio" : "exercises";
         const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
         const rows = s.exercises.map((e, ei) => {
           const tag = groupTag(s.exercises, ei);

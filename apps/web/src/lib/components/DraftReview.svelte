@@ -269,7 +269,7 @@
   const cards = $derived(
     shown.sessions.map((s) => ({
       name: s.name,
-      kind: s.kind ?? "lifting",
+      kind: s.kind ?? "exercises",
       cardio: s.cardio ?? null,
       exercises: shownExerciseOrder(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), roleLabels.all, order).map((e) => ({
         name: e.exerciseName ?? "",

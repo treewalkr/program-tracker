@@ -12,7 +12,7 @@ const week = (n: number, sid: string, exId: string, timed = false): ProgramWeek 
       seq: 1,
       order: 0,
       weekday: 1,
-      kind: "lifting",
+      kind: "exercises",
       exercises: [
         {
           id: exId,
@@ -41,7 +41,7 @@ const log = (over: Partial<SessionLogDto>): SessionLogDto => ({
   programId: "p1",
   programSessionId: null,
   date: "2026-10-19",
-  kind: "lifting",
+  kind: "exercises",
   notes: null,
   perceivedEnergy: null,
   sets: [],

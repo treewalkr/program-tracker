@@ -53,7 +53,7 @@ type SetFixture = Parameters<typeof renderTrainingLog>[0]["sets"][number];
 const lifting = (id: string, date: string, programSessionId: string | null = null): LogFixture => ({
   id,
   date,
-  kind: "lifting",
+  kind: "exercises",
   cardio: null,
   programSessionId,
 });
@@ -219,8 +219,8 @@ test("session labels name each prescribed session by track and seq", () => {
       sessions: [
         {
           sessions: [
-            { id: "s1", kind: "lifting", seq: 1, name: "Lower A" },
-            { id: "s2", kind: "lifting", seq: 2, name: "Session 2" },
+            { id: "s1", kind: "exercises", seq: 1, name: "Lower A" },
+            { id: "s2", kind: "exercises", seq: 2, name: "Session 2" },
             { id: "c1", kind: "cardio", seq: 1, name: "Easy run" },
           ],
         },

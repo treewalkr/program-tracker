@@ -141,7 +141,7 @@ export type DraftExerciseRef = z.infer<typeof DraftExerciseRef>;
 export const DraftSession = z
   .object({
     name: z.string().min(1).max(160),
-    kind: SessionKind.default("lifting"),
+    kind: SessionKind.default("exercises"),
     /** Name of one of the trainer's session types; resolved on approval, unknown names are dropped. */
     type: z.string().max(40).optional(),
     /** Suggested ISO weekday (1=Mon…7=Sun). Kept when it passes the placement
@@ -152,7 +152,7 @@ export const DraftSession = z
     notes: z.string().max(2000).optional(),
   })
   .superRefine((val, ctx) => {
-    if (val.kind === "lifting") {
+    if (val.kind === "exercises") {
       if (val.exercises.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -395,7 +395,7 @@ export interface DraftWeekRules {
 /** Lifting sessions a week must have: one count for every week, or one per A/B letter. */
 export type LiftingSessions = number | Partial<Record<Rotation, number>>;
 
-const liftingCount = (w: Pick<DraftWeek, "sessions">) => w.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length;
+const liftingCount = (w: Pick<DraftWeek, "sessions">) => w.sessions.filter((s) => (s.kind ?? "exercises") === "exercises").length;
 
 /**
  * A fill's lifting count, from the trainer's locked weeks: per letter (the

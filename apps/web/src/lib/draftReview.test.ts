@@ -218,11 +218,11 @@ describe("review checks, rationale, history", () => {
   });
 
   test("draftSessionTags numbers each track in draft order", () => {
-    expect(draftSessionTags([{ kind: "lifting" }, { kind: "cardio" }, {}])).toEqual(["Session 1", "Cardio 1", "Session 2"]);
+    expect(draftSessionTags([{ kind: "exercises" }, { kind: "cardio" }, {}])).toEqual(["Session 1", "Cardio 1", "Session 2"]);
   });
 
   test("rationaleByDay resolves **Session N** / **Cardio N** leads by track", () => {
-    const r = rationaleByDay("**Session 2:** bench.\n\n**Cardio 1:** easy bike.\n\n**Session 1:** squat.", 3, [{ kind: "lifting" }, { kind: "cardio" }, { kind: "lifting" }]);
+    const r = rationaleByDay("**Session 2:** bench.\n\n**Cardio 1:** easy bike.\n\n**Session 1:** squat.", 3, [{ kind: "exercises" }, { kind: "cardio" }, { kind: "exercises" }]);
     expect(r.days).toEqual([["Squat."], ["Easy bike."], ["Bench."]]);
     expect(r.general).toEqual([]);
   });
@@ -234,9 +234,9 @@ describe("review checks, rationale, history", () => {
   });
 
   const named = [
-    { kind: "lifting", name: "Lower — squat focus" },
-    { kind: "lifting", name: "Upper — push & pull" },
-    { kind: "lifting", name: "Full body — hinge focus" },
+    { kind: "exercises", name: "Lower — squat focus" },
+    { kind: "exercises", name: "Upper — push & pull" },
+    { kind: "exercises", name: "Full body — hinge focus" },
     { kind: "cardio", name: "Zone 2 bike" },
   ];
 
@@ -262,7 +262,7 @@ describe("review checks, rationale, history", () => {
   });
 
   test("the prompt's sample session lead routes to that session", () => {
-    const r = rationaleByDay(`**${RATIONALE_SESSION_LEAD_EXAMPLE}** — why.`, 1, [{ kind: "lifting", name: RATIONALE_SESSION_LEAD_EXAMPLE }]);
+    const r = rationaleByDay(`**${RATIONALE_SESSION_LEAD_EXAMPLE}** — why.`, 1, [{ kind: "exercises", name: RATIONALE_SESSION_LEAD_EXAMPLE }]);
     expect(r.days).toEqual([["Why."]]);
   });
 

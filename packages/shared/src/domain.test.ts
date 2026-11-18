@@ -331,7 +331,7 @@ describe("ProgramWeeksDocument", () => {
         ],
       },
     ]);
-    expect(doc[0].sessions[0].kind).toBe("lifting");
+    expect(doc[0].sessions[0].kind).toBe("exercises");
     expect(doc[0].sessions[0].weekday).toBeUndefined();
   });
 
@@ -342,7 +342,7 @@ describe("ProgramWeeksDocument", () => {
       seq,
       weekday,
       order: 0,
-      kind: "lifting" as const,
+      kind: "exercises" as const,
       exercises: [baseExercise],
     });
     const cardio = (seq: number, weekday: number | null = null) => ({
@@ -354,7 +354,7 @@ describe("ProgramWeeksDocument", () => {
       kind: "cardio" as const,
       cardio: { modality: "Bike" },
     });
-    // lifting:1 and cardio:1 are distinct keys
+    // exercises:1 and cardio:1 are distinct keys
     expect(ProgramWeek.parse({ week: 1, sessions: [lift(1), cardio(1)] }).sessions).toHaveLength(2);
     expect(() => ProgramWeek.parse({ week: 1, sessions: [lift(1), lift(1)] })).toThrow();
     expect(() => ProgramWeek.parse({ week: 1, sessions: [] })).toThrow();
@@ -372,11 +372,11 @@ describe("ProgramWeeksDocument", () => {
       ProgramWeeksDocument.parse([
         {
           week: 1,
-          sessions: [{ id: uuid(), name: "S1", seq: 1, order: 0, kind: "lifting", exercises: [baseExercise] }],
+          sessions: [{ id: uuid(), name: "S1", seq: 1, order: 0, kind: "exercises", exercises: [baseExercise] }],
         },
         {
           week: 3,
-          sessions: [{ id: uuid(), name: "S2", seq: 1, order: 0, kind: "lifting", exercises: [baseExercise] }],
+          sessions: [{ id: uuid(), name: "S2", seq: 1, order: 0, kind: "exercises", exercises: [baseExercise] }],
         },
       ])
     ).toThrow();
@@ -390,7 +390,7 @@ describe("ProgramWeeksDocument", () => {
         name: "Empty Lifting",
         seq: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [],
       })
     ).toThrow();
@@ -402,7 +402,7 @@ describe("ProgramWeeksDocument", () => {
         name: "Lifting with Cardio",
         seq: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [baseExercise],
         cardio: { modality: "Bike" },
       })
@@ -477,7 +477,7 @@ describe("ProgramWeeksDocument", () => {
       conditioning: { label: "Zone 2", detail: "20 min easy bike" },
     };
     const parsed = ProgramSession.parse(legacy);
-    expect(parsed.kind).toBe("lifting");
+    expect(parsed.kind).toBe("exercises");
     expect("conditioning" in parsed).toBe(false);
   });
 
@@ -490,7 +490,7 @@ describe("ProgramWeeksDocument", () => {
         seq: 1,
         weekday: 3,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           {
             id: uuid(),
@@ -530,7 +530,7 @@ describe("ProgramWeeksDocument", () => {
             seq: 1,
             weekday: 1,
             order: 0,
-            kind: "lifting",
+            kind: "exercises",
             exercises: [
               {
                 id: uuid(),
@@ -767,7 +767,7 @@ describe("AiProgramDraft (full LLM payload)", () => {
       sessions: [
         {
           name: "Day 1",
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] }],
         },
         {
@@ -1066,7 +1066,7 @@ describe("SessionLog cardio rules", () => {
 
   test("kind defaults to lifting", () => {
     const parsed = SessionLog.parse({ ...baseLog(), sets: [liftingSet()] });
-    expect(parsed.kind).toBe("lifting");
+    expect(parsed.kind).toBe("exercises");
     expect(parsed.cardio).toBeUndefined();
   });
 
@@ -1127,7 +1127,7 @@ describe("Program editing (pure)", () => {
       name: "Session 1",
       seq: 1,
       order: 0,
-      kind: "lifting",
+      kind: "exercises",
       exercises: [
         {
           id: uuid(),
@@ -1250,7 +1250,7 @@ describe("Program editing (pure)", () => {
       name: "Session 1",
       seq: 1,
       order: 0,
-      kind: "lifting",
+      kind: "exercises",
       exercises: [
         { id: uuid(), exerciseId: uuid(), exerciseName: "A", order: 0, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] },
         { id: uuid(), exerciseId: uuid(), exerciseName: "B", order: 1, prescribedSets: [{ setNumber: 1, type: "working", amrap: false, reps: 5 }] },
@@ -1280,7 +1280,7 @@ describe("Program editing (pure)", () => {
     expect(w1.sessions[0].name).toBe("Session 1");
     expect(w1.sessions[0].seq).toBe(1);
     expect(w1.sessions[0].weekday).toBeNull();
-    expect(w1.sessions[0].kind).toBe("lifting");
+    expect(w1.sessions[0].kind).toBe("exercises");
     expect(w1.sessions[0].order).toBe(0);
     expect(w1.sessions[0].exercises).toEqual([]);
     expect(w1.sessions[0].cardio).toBeNull();
@@ -1314,8 +1314,8 @@ describe("Program editing (pure)", () => {
     expect(cardioSession.exercises).toEqual([]);
     expect(cardioSession.cardio).toEqual(defaultCardio());
 
-    const backToLifting = switchSessionKind(cardioSession, "lifting");
-    expect(backToLifting.kind).toBe("lifting");
+    const backToLifting = switchSessionKind(cardioSession, "exercises");
+    expect(backToLifting.kind).toBe("exercises");
     expect(backToLifting.cardio).toBeNull();
   });
 });

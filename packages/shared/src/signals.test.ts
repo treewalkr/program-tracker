@@ -119,7 +119,7 @@ const liftProgram = (activatedAt: string): SignalProgram => ({
           name: "Session A",
           seq: 1,
           order: 0,
-          kind: "lifting",
+          kind: "exercises",
           exercises: [],
         },
       ],
@@ -158,7 +158,7 @@ describe("adherence counts lifting logs only", () => {
   test("planned count is the program week's lifting sessions, not cardio or the client's setting", () => {
     // F07: the rule waits a full week, so judge on day 7 (week 2, same 4 + cardio doc).
     const now = new Date(2026, 9, 23, 12).getTime();
-    const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "lifting" as const, exercises: [] });
+    const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "exercises" as const, exercises: [] });
     const sessions = [
       lift(1),
       lift(2),
@@ -295,7 +295,7 @@ describe("rpe creep and stall see every set (F02, F15)", () => {
         week: 1,
         sessions: [
           {
-            id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+            id: "s1", name: "S1", seq: 1, order: 0, kind: "exercises",
             exercises: [
               { id: "pe-pl", exerciseId: "ex-plank", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45 }] },
             ],
@@ -343,7 +343,7 @@ describe("+intensity off-plan reads main lifts, not the overall max (F27)", () =
         week: 1,
         sessions: [
           {
-            id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+            id: "s1", name: "S1", seq: 1, order: 0, kind: "exercises",
             exercises: [ex("ex-sq", roles ? "primary" : undefined), ex("ex-dl", roles ? "power" : undefined), ex("ex-curl", roles ? "accessory" : undefined)],
           },
         ],
@@ -389,7 +389,7 @@ describe("+intensity off-plan reads main lifts, not the overall max (F27)", () =
 });
 
 describe("adherence counts only sessions due so far (F07)", () => {
-  const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "lifting" as const, exercises: [] });
+  const lift = (n: number) => ({ id: `s${n}`, name: `S${n}`, seq: n, order: 0, kind: "exercises" as const, exercises: [] });
   const program = (activatedAt: string): SignalProgram => ({
     ...liftProgram(activatedAt),
     weeks: [1, 2, 3].map((week) => ({ week, sessions: [lift(1), lift(2), lift(3), lift(4)] })),
@@ -433,7 +433,7 @@ const squatProgram = (loads: (number | null)[]): SignalProgram => ({
     week: i + 1,
     sessions: [
       {
-        id: `s${i}`, name: "S1", seq: 1, order: 0, kind: "lifting",
+        id: `s${i}`, name: "S1", seq: 1, order: 0, kind: "exercises",
         exercises: [
           {
             id: `pe${i}`, exerciseId: "ex-squat", order: 0, role: "primary",

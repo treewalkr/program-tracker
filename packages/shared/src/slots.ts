@@ -343,7 +343,7 @@ function sessionChanges(day: number, a: SlotDiffSession | undefined, b: SlotDiff
     to.push(y || none);
   };
   field(a.name, b.name, "no name");
-  field(a.kind ?? "lifting", b.kind ?? "lifting", "lifting");
+  field(a.kind ?? "exercises", b.kind ?? "exercises", "exercises");
   field(a.type, b.type, "no type");
   if (from.length) out.push({ ...base, kind: "session", exercise: b.name, from: from.join(", "), to: to.join(", ") });
   const ca = a.cardio ?? null;

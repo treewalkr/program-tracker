@@ -125,7 +125,7 @@ interface SessionKey {
 function sessionKey(s: AiDraftDto["weeks"][number]["sessions"][number]): SessionKey {
   return {
     name: s.name,
-    kind: s.kind ?? "lifting",
+    kind: s.kind ?? "exercises",
     cardio: s.cardio ?? null,
     exercises: s.exercises.map((e) => ({
       id: e.exerciseId ?? null,
@@ -189,7 +189,7 @@ export function draftPreviewModel(
     const state: PreviewSessionState = changed.has(index) ? "updated" : "unchanged";
     const card: PreviewSessionCard = {
       name: s.name,
-      kind: s.kind ?? "lifting",
+      kind: s.kind ?? "exercises",
       cardio: s.cardio ?? null,
       exercises: shownExerciseOrder(slotted, labels, { keepOrder: target.trainerOrder }).map((e) => ({
         slot: e.slot,
@@ -304,7 +304,7 @@ export function versionView(
   const shown = draftWeek(gen.draft, week);
   const sessions: PreviewSessionCard[] = shown.sessions.map((s) => ({
     name: s.name,
-    kind: s.kind ?? "lifting",
+    kind: s.kind ?? "exercises",
     cardio: s.cardio ?? null,
     exercises: shownExerciseOrder(s.exercises.map((e, i) => ({ ...e, slot: i + 1 })), labels, { keepOrder: gen.trainerOrder }).map((e) => ({
       name: e.exerciseName ?? "",

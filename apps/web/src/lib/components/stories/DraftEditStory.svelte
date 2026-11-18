@@ -44,7 +44,7 @@
     weeks: [{ week: 1, sessions: [
       {
         name: "Lower A — Back Squat",
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           ex("Box Jump", "power", 3, 3),
           ex("Barbell Back Squat", "primary", 5, 5),
@@ -57,7 +57,7 @@
       },
       {
         name: "Upper — Bench focus",
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           ex("Barbell Bench Press", "primary", 5, 5),
           ex("Chest-Supported Row", "strength", 4, 8),

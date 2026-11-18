@@ -35,7 +35,7 @@ const weeksWith = (exerciseId: string) => [
         name: "Day A",
         seq: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           { id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }] },
         ],

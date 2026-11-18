@@ -17,7 +17,7 @@ describe("cardioWeekTotals", () => {
       { date: "2026-10-28", kind: "cardio", cardio: { modality: "Bike", durationMin: 35 } }, // no hrZone → ×1
       { date: "2026-10-29", kind: "cardio", cardio: { modality: "Row" } }, // no duration → session only
       { date: "2026-10-25", kind: "cardio", cardio: { modality: "Run", durationMin: 60, hrZone: 2 } }, // before since
-      { date: "2026-10-27", kind: "lifting", sets: [] }, // lifting ignored
+      { date: "2026-10-27", kind: "exercises", sets: [] }, // exercise log ignored
       { date: "2026-10-27", cardio: { modality: "Run", durationMin: 30 } }, // missing kind ignored
     ];
     const totals = cardioWeekTotals(logs as any, "2026-10-26");

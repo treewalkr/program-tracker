@@ -272,14 +272,14 @@ describe("blockPulse & pulseSummary", () => {
       {
         week: 1,
         sessions: [
-          { id: "s2", name: "S2", seq: 2, weekday: 2, order: 0, kind: "lifting", exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
-          { id: "s1", name: "S1", seq: 1, weekday: 1, order: 0, kind: "lifting", exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
+          { id: "s2", name: "S2", seq: 2, weekday: 2, order: 0, kind: "exercises", exercises: [{ id: "e2", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
+          { id: "s1", name: "S1", seq: 1, weekday: 1, order: 0, kind: "exercises", exercises: [{ id: "e1", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
         ],
       },
       {
         week: 2,
         sessions: [
-          { id: "s3", name: "S3", seq: 1, weekday: 1, order: 0, kind: "lifting", exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
+          { id: "s3", name: "S3", seq: 1, weekday: 1, order: 0, kind: "exercises", exercises: [{ id: "e3", exerciseId: "ex1", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] },
         ],
       },
     ];
@@ -337,7 +337,7 @@ describe("weekSummary", () => {
     name: `Session ${n}`,
     seq: n,
     order: 0,
-    kind: "lifting" as const,
+    kind: "exercises" as const,
     exercises: [],
   });
   const summaryProgram: SignalProgram = {
@@ -490,7 +490,7 @@ describe("back-off sets and timed holds (F02, F15)", () => {
       week: 1,
       sessions: [
         {
-          id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+          id: "s1", name: "S1", seq: 1, order: 0, kind: "exercises",
           exercises: [
             { id: "pe-sq", exerciseId: "ex-squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 3, amrap: false }] },
             { id: "pe-pl", exerciseId: "ex-plank", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45 }] },
@@ -653,7 +653,7 @@ describe("pulseCellSets drill-down", () => {
       week: 1,
       sessions: [
         {
-          id: "s1", name: "S1", seq: 1, order: 0, kind: "lifting",
+          id: "s1", name: "S1", seq: 1, order: 0, kind: "exercises",
           exercises: [
             { id: "pe-pl", exerciseId: "ex-plank", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45 }] },
           ],

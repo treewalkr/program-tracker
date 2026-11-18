@@ -76,7 +76,7 @@ export function draftTemplateSessions(
   const byName = new Map(catalog.map((c) => [c.name.toLowerCase(), c.id]));
   const createdNames: string[] = [];
   const unresolvable: string[] = [];
-  const seq = { lifting: 0, cardio: 0 };
+  const seq = { exercises: 0, cardio: 0 };
 
   const sessions: ProgramSession[] = draftSessions.map((s) => {
     const isCardio = s.kind === "cardio";
@@ -112,7 +112,7 @@ export function draftTemplateSessions(
         });
     const grouped = normalizeGroups(exercises).map((e, i) => ({ ...e, order: i }));
 
-    const kind = isCardio ? ("cardio" as const) : ("lifting" as const);
+    const kind = isCardio ? ("cardio" as const) : ("exercises" as const);
     const type = findSessionType(types, s.type);
     return {
       id: crypto.randomUUID(),

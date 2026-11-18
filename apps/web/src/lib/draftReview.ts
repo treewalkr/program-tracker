@@ -183,9 +183,9 @@ function weekdayChecks(
   catalogById: ReadonlyMap<string, Pick<ExerciseDto, "movementPatterns">>
 ): ReviewCheck[] {
   if (!draft.sessions.some((s) => s.weekday != null)) return [];
-  const seq = { lifting: 0, cardio: 0 };
+  const seq = { exercises: 0, cardio: 0 };
   const sessions = draft.sessions.map((s, i) => {
-    const kind = s.kind === "cardio" ? ("cardio" as const) : ("lifting" as const);
+    const kind = s.kind === "cardio" ? ("cardio" as const) : ("exercises" as const);
     return {
       id: `d${i}`,
       name: s.name,
@@ -206,8 +206,8 @@ function weekdayChecks(
 
 /** Track label per draft session in draft order: "Session 1", "Session 2", "Cardio 1"… */
 export function draftSessionTags(sessions: readonly { kind?: string | null }[]): string[] {
-  const n = { lifting: 0, cardio: 0 };
-  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.lifting}`));
+  const n = { exercises: 0, cardio: 0 };
+  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.exercises}`));
 }
 
 // ---- rationale ----
@@ -243,10 +243,10 @@ export function rationaleByDay(
   const names = sessions?.map((s) => (s.name ? leadKey(s.name) : "")) ?? [];
   const indexOf = (lead: string, n: number): number => {
     if (lead === "Day" || !kinds) return n - 1;
-    const want = lead === "Cardio" ? "cardio" : "lifting";
+    const want = lead === "Cardio" ? "cardio" : "exercises";
     let seen = 0;
     for (let i = 0; i < kinds.length; i++) {
-      if ((kinds[i] === "cardio" ? "cardio" : "lifting") === want && ++seen === n) return i;
+      if ((kinds[i] === "cardio" ? "cardio" : "exercises") === want && ++seen === n) return i;
     }
     return -1;
   };

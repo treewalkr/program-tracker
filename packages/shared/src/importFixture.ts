@@ -27,7 +27,7 @@ function ex(
 
 const lifting = (name: string, line: number, exercises: ImportExercise[]): ImportSession => ({
   name,
-  kind: "lifting",
+  kind: "exercises",
   line,
   exercises,
 });
@@ -254,7 +254,7 @@ export function mockImportExtraction(lines: string[], from: number, to: number):
     const days = w.days.flatMap((d) => {
       const sessions = d.sessions.flatMap((s) => {
         const exercises = s.exercises.filter((e) => has(e.line, e.sourceName));
-        if (!has(s.line, s.name) || (s.kind === "lifting" && exercises.length === 0)) return [];
+        if (!has(s.line, s.name) || (s.kind === "exercises" && exercises.length === 0)) return [];
         return [{ ...s, exercises }];
       });
       return has(d.line, d.label) && sessions.length > 0 ? [{ ...d, sessions }] : [];

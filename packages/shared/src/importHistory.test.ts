@@ -168,7 +168,7 @@ describe("buildHistory", () => {
       [1, 1],
       [2, 3],
     ]);
-    expect(sessions.filter((s) => s.kind === "lifting").map((s) => [s.seq, s.weekday, s.order])).toEqual([
+    expect(sessions.filter((s) => s.kind === "exercises").map((s) => [s.seq, s.weekday, s.order])).toEqual([
       [1, 1, 0],
       [2, 3, 0],
       [3, 5, 0],
@@ -197,7 +197,7 @@ describe("buildHistory", () => {
       for (const log of prog.logs) {
         const week = prog.weeks.find((w) => w.week === log.week)!;
         const session = week.sessions.find((s) => s.id === log.programSessionId)!;
-        expect(session.kind).toBe("lifting");
+        expect(session.kind).toBe("exercises");
         const ids = new Set(session.exercises.map((e) => e.id));
         for (const set of log.sets) {
           expect(ids.has(set.programExerciseId)).toBe(true);
@@ -210,7 +210,7 @@ describe("buildHistory", () => {
           programId: crypto.randomUUID(),
           programSessionId: log.programSessionId,
           date: log.date,
-          kind: "lifting",
+          kind: "exercises",
           notes: log.notes,
           sets: log.sets.map((s) => ({ ...s, id: crypto.randomUUID() })),
         });
@@ -220,7 +220,7 @@ describe("buildHistory", () => {
   });
 
   test("program exercises keep the mapped sets and notes", () => {
-    const day1 = plan().programs[0].weeks[0].sessions.find((s) => s.kind === "lifting")!;
+    const day1 = plan().programs[0].weeks[0].sessions.find((s) => s.kind === "exercises")!;
     const lat = day1.exercises.find((e) => e.exerciseName === "Lat Pulldown")!;
     expect(lat.prescribedSets.map((s) => s.reps)).toEqual([10, 8, 6, 5]);
     expect(lat.notes).toBe("Pyramid · machine");
