@@ -6,7 +6,9 @@ import {
   chatMessages,
   clients,
   db,
+  emailLog,
   exercises,
+  feedbackComments,
   feedbackItems,
   impersonations,
   programs,
@@ -14,10 +16,11 @@ import {
   setLogs,
   trainers,
 } from "@pt/db";
-import { unpinnedContext, type ProgramWeek } from "@pt/shared";
+import { FEEDBACK_VIEWED_NOTE, feedbackHandle, unpinnedContext, type ProgramWeek } from "@pt/shared";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { claimTrainer, createSession, sha256, SESSION_COOKIE, type AuthConfig, type GoogleProfile } from "./lib/auth";
 import { setFlag } from "./lib/flags";
+import { settleFeedbackNotifications } from "./lib/feedback-notify";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { app } from "./app";
 
@@ -48,7 +51,7 @@ const profile = (over: Partial<GoogleProfile> = {}): GoogleProfile => ({
   ...over,
 });
 
-export const call = (method: string, path: string, token?: string, body?: unknown) =>
+const call = (method: string, path: string, token?: string, body?: unknown) =>
   app.handle(
     new Request(`http://localhost${path}`, {
       method,
@@ -210,6 +213,136 @@ describe.skipIf(!dbUp)("view as trainer", () => {
     } finally {
       await db.delete(trainers).where(eq(trainers.id, mo.id));
     }
+  });
+
+  const me = async (token: string) =>
+    (await (await get("/v1/auth/me", token)).json()) as {
+      trainer: { id: string; isAdmin: boolean };
+      impersonator: {
+        actor: { id: string };
+        trainer: { id: string; name: string };
+        ticket: { id: string; handle: string } | null;
+        until: string;
+        writesUntil: string | null;
+        ended: string | null;
+      } | null;
+      flags: { impersonation: boolean };
+    };
+  const start = (token: string, body: Record<string, unknown>) => call("POST", "/v1/admin/impersonate", token, body);
+  const ticketCtx = unpinnedContext("/clients", { viewport: { width: 1, height: 1, dpr: 1 }, userAgent: "t", appVersion: "t" });
+
+  test("the start route 404s with the flag off, and /auth/me says so", async () => {
+    const token = await adminToken();
+    await setFlag("impersonation", false, null);
+    expect((await start(token, { trainerId: kaiId })).status).toBe(404);
+    expect((await me(token)).flags.impersonation).toBe(false);
+    await setFlag("impersonation", true, null);
+    expect((await me(token)).flags.impersonation).toBe(true);
+  });
+
+  test("start from a ticket → /auth/me reports the view → stop returns to the ticket", async () => {
+    const [ticket] = await db
+      .insert(feedbackItems)
+      .values({ trainerId: kaiId, comment: "ZZ imp start", route: `/clients/${kaiClientId}`, context: ticketCtx })
+      .returning();
+    const kaiToken = (await createSession(kaiId)).token;
+    try {
+      const emailsBefore = (await db.select().from(emailLog)).length;
+      const token = await adminToken();
+      const res = await start(token, { trainerId: kaiId, ticketId: ticket.id, reason: "FB check" });
+      expect(res.status).toBe(200);
+      const started = (await res.json()) as { returnTo: string; until: string };
+      expect(started.returnTo).toBe(`/clients/${kaiClientId}`);
+      expect(new Date(started.until).getTime() - Date.now()).toBeGreaterThan(29 * MIN);
+
+      const view = await me(token);
+      expect(view.trainer).toMatchObject({ id: kaiId, isAdmin: false });
+      expect(view.impersonator).toMatchObject({
+        actor: { id: adminId },
+        trainer: { id: kaiId, name: "Kai Tan" },
+        ticket: { id: ticket.id, handle: feedbackHandle(ticket.number) },
+        writesUntil: null,
+        ended: null,
+      });
+      // no admin rights while viewing, not even to start another view
+      expect((await start(token, { trainerId: kaiId })).status).toBe(403);
+
+      // the one trace: a silent public line, no email, no unread badge for Kai
+      const lines = await db.select().from(feedbackComments).where(eq(feedbackComments.itemId, ticket.id));
+      expect(lines).toEqual([
+        expect.objectContaining({ kind: "reply", authorKind: "system", visibility: "public", silent: true, body: FEEDBACK_VIEWED_NOTE, trainerId: null }),
+      ]);
+      await settleFeedbackNotifications();
+      expect((await db.select().from(emailLog)).length).toBe(emailsBefore);
+      expect(((await (await get("/v1/feedback/unread", kaiToken)).json()) as { count: number }).count).toBe(0);
+      const thread = ((await (await get(`/v1/feedback/${ticket.id}`, kaiToken)).json()) as { thread: { body: string }[] }).thread;
+      expect(thread.map((c) => c.body)).toEqual([FEEDBACK_VIEWED_NOTE]);
+
+      const [audit] = await db.select().from(impersonations).where(eq(impersonations.ticketId, ticket.id));
+      expect(audit).toMatchObject({ adminId, trainerId: kaiId, reason: "FB check", endedAt: null });
+
+      const stop = await call("POST", "/v1/auth/impersonate/stop", token);
+      expect(stop.status).toBe(200);
+      expect(await stop.json()).toEqual({ returnTo: `/feedback#${feedbackHandle(ticket.number)}` });
+      const after = await me(token);
+      expect(after.trainer).toMatchObject({ id: adminId, isAdmin: true });
+      expect(after.impersonator).toBeNull();
+      const [closed] = await db.select().from(impersonations).where(eq(impersonations.id, audit.id));
+      expect(closed.endedBy).toBe("stop");
+      expect(closed.endedAt).not.toBeNull();
+    } finally {
+      await db.delete(feedbackItems).where(eq(feedbackItems.id, ticket.id));
+    }
+  });
+
+  test("start refuses yourself, a disabled or unknown trainer, and someone else's ticket", async () => {
+    const token = await adminToken();
+    expect((await start(token, { trainerId: adminId })).status).toBe(409);
+    expect((await start(token, { trainerId: crypto.randomUUID() })).status).toBe(404);
+    expect((await start(token, { trainerId: "not-a-uuid" })).status).toBe(422);
+    expect((await start(token, { trainerId: kaiId, reason: "x".repeat(501) })).status).toBe(422);
+    const [adminTicket] = await db
+      .insert(feedbackItems)
+      .values({ trainerId: adminId, comment: "ZZ admin's own", route: "/", context: ticketCtx })
+      .returning();
+    try {
+      expect((await start(token, { trainerId: kaiId, ticketId: adminTicket.id })).status).toBe(422);
+    } finally {
+      await db.delete(feedbackItems).where(eq(feedbackItems.id, adminTicket.id));
+    }
+    await db.update(trainers).set({ disabledAt: new Date() }).where(eq(trainers.id, kaiId));
+    try {
+      expect((await start(token, { trainerId: kaiId })).status).toBe(409);
+    } finally {
+      await db.update(trainers).set({ disabledAt: null }).where(eq(trainers.id, kaiId));
+    }
+    // a view from the trainers table posts nothing and opens on the home page
+    const res = await start(token, { trainerId: kaiId });
+    expect(await res.json()).toMatchObject({ returnTo: "/" });
+    expect(await (await call("POST", "/v1/auth/impersonate/stop", token)).json()).toEqual({ returnTo: "/admin" });
+  });
+
+  test("an expired view reports ended; stop records why", async () => {
+    const token = await adminToken();
+    const id = await actAsKai(token, { actingUntil: new Date(Date.now() - 1000) });
+    const view = await me(token);
+    expect(view.trainer.id).toBe(adminId);
+    expect(view.impersonator).toMatchObject({ trainer: { id: kaiId }, ended: "expired" });
+    await call("POST", "/v1/auth/impersonate/stop", token);
+    const [row] = await db.select().from(impersonations).where(eq(impersonations.id, id));
+    expect(row.endedBy).toBe("expired");
+    expect((await me(token)).impersonator).toBeNull();
+  });
+
+  test("the admin's feature flags list and toggle", async () => {
+    const token = await adminToken();
+    const list = (await (await get("/v1/admin/flags", token)).json()) as { flags: { name: string; enabled: boolean }[] };
+    expect(list.flags).toEqual([expect.objectContaining({ name: "impersonation", enabled: true })]);
+    const off = await call("PUT", "/v1/admin/flags/impersonation", token, { on: false });
+    expect(await off.json()).toMatchObject({ name: "impersonation", enabled: false, stored: false });
+    expect((await call("PUT", "/v1/admin/flags/nope", token, { on: true })).status).toBe(422);
+    const kaiToken = (await createSession(kaiId)).token;
+    expect((await call("PUT", "/v1/admin/flags/impersonation", kaiToken, { on: true })).status).toBe(403);
   });
 
   /**
