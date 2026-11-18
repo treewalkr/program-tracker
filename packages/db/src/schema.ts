@@ -79,21 +79,22 @@ import type {
 
 /**
  * Session kind alias (docs/kind-rename-plan.md): columns that hold a session
- * kind or a session type format read through the shared normalizer, so rows
- * written by a later release (kind "exercises") read the same here. Same
- * column types in SQL — no migration.
+ * kind or a session type format pass through the shared normalizer both ways,
+ * so a "lifting" value (release-1 rows, AI history, an old client) reads as
+ * "exercises" and is never written back. Same column types in SQL.
  */
 const kindText = <T extends string>() =>
   customType<{ data: T; driverData: string }>({
     dataType: () => "text",
+    toDriver: (v) => normalizeKind(v),
     fromDriver: (v) => normalizeKind(v) as T,
   });
 
-/** jsonb whose nested `kind` / `format` values read through the alias (normalizeKinds). */
+/** jsonb whose nested `kind` / `format` values pass through the alias (normalizeKinds) on read and write. */
 const kindJsonb = <T>() =>
   customType<{ data: T; driverData: unknown }>({
     dataType: () => "jsonb",
-    toDriver: (v) => JSON.stringify(v),
+    toDriver: (v) => JSON.stringify(normalizeKinds(v)),
     fromDriver: (v) => normalizeKinds(typeof v === "string" ? JSON.parse(v) : v) as T,
   });
 
