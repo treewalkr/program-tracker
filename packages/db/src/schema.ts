@@ -21,7 +21,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { upgradeDraft } from "@pt/shared";
+import { normalizeKind, normalizeKinds, upgradeDraft } from "@pt/shared";
 import type {
   WeeksChoice,
   AiClientMessageDraft,
@@ -76,6 +76,26 @@ import type {
   Readiness,
   SessionFlag,
 } from "@pt/shared";
+
+/**
+ * Session kind alias (docs/kind-rename-plan.md): columns that hold a session
+ * kind or a session type format read through the shared normalizer, so rows
+ * written by a later release (kind "exercises") read the same here. Same
+ * column types in SQL — no migration.
+ */
+const kindText = <T extends string>() =>
+  customType<{ data: T; driverData: string }>({
+    dataType: () => "text",
+    fromDriver: (v) => normalizeKind(v) as T,
+  });
+
+/** jsonb whose nested `kind` / `format` values read through the alias (normalizeKinds). */
+const kindJsonb = <T>() =>
+  customType<{ data: T; driverData: unknown }>({
+    dataType: () => "jsonb",
+    toDriver: (v) => JSON.stringify(v),
+    fromDriver: (v) => normalizeKinds(typeof v === "string" ? JSON.parse(v) : v) as T,
+  });
 
 // ---------------------------------------------------------------------------
 // People
@@ -227,7 +247,7 @@ export const programs = pgTable("programs", {
   createdFromProgramId: uuid("created_from_program_id"),
   aiAssisted: boolean("ai_assisted").notNull().default(false),
   /** Whole-program document, validated by shared ProgramWeeksDocument on write. */
-  sessions: jsonb("sessions").$type<ProgramWeek[]>().notNull(),
+  sessions: kindJsonb<ProgramWeek[]>()("sessions").notNull(),
   /** Stamped on first activation; block-week math derives from it. */
   activatedAt: timestamp("activated_at", { withTimezone: true }),
   /** Periodization plan (scheme copy) — structured input to signals + AI context. */
@@ -253,7 +273,7 @@ export const sessionLogs = pgTable("session_logs", {
   programSessionId: uuid("program_session_id"),
   date: date("date").notNull(),
   /** "lifting" (sets below) or "cardio" (payload in `cardio`). */
-  kind: text("kind").$type<SessionKind>().notNull().default("lifting"),
+  kind: kindText<SessionKind>()("kind").notNull().default("lifting"),
   /** Cardio actuals when kind = "cardio". */
   cardio: jsonb("cardio").$type<CardioLog>(),
   notes: text("notes"),
@@ -381,7 +401,7 @@ export const aiImports = pgTable(
     chunksTotal: integer("chunks_total").notNull().default(0),
     chunksDone: integer("chunks_done").notNull().default(0),
     /** Null until done. */
-    result: jsonb("result").$type<ImportResult>(),
+    result: kindJsonb<ImportResult>()("result"),
     error: text("error"),
     /** History import (v2): the archived programs saved from this import's logged numbers; null = not saved. */
     historyProgramIds: uuid("history_program_ids").array(),
@@ -483,7 +503,7 @@ export const chatMessages = pgTable("chat_messages", {
     onDelete: "set null",
   }),
   /** Proposal turn payload (kind "proposal"); null for every other kind. */
-  proposal: jsonb("proposal").$type<StoredChatProposal>(),
+  proposal: kindJsonb<StoredChatProposal>()("proposal"),
   /** Set by "Clear chat": hidden from the thread, kept for the LLM dataset. */
   hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -774,7 +794,7 @@ export const sessionTypes = pgTable(
       .references(() => trainers.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     /** "lifting" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
-    format: text("format").$type<SessionTypeFormat>().notNull(),
+    format: kindText<SessionTypeFormat>()("format").notNull(),
     /** A `SESSION_TYPE_PRESETS` key = a locked preset (archive/restore only); null = the trainer's own type.
      *  One row per preset per trainer rides on the name index (preset names are locked). */
     presetKey: text("preset_key"),
@@ -833,7 +853,7 @@ export const llmCalls = pgTable(
     context: jsonb("context").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     responseRaw: text("response_raw"),
     reasoning: text("reasoning"),
-    parsed: jsonb("parsed"),
+    parsed: kindJsonb<unknown>()("parsed"),
     status: text("status").$type<LlmCallStatus>().notNull(),
     error: text("error"),
     httpStatus: integer("http_status"),
