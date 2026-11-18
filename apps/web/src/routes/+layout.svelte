@@ -25,7 +25,9 @@
   import { generationWatch } from "$lib/draftWatch";
   import { isPortalPath } from "$lib/portal/gate";
   import { appPath, relinked } from "$lib/portal/lang";
-  import { headingTo, inLang } from "$lib/portal/i18n.svelte";
+  import { headingTo, i18n, inLang } from "$lib/portal/i18n.svelte";
+  import ViewAsBanner from "$lib/components/ViewAsBanner.svelte";
+  import { viewAs } from "$lib/viewAs.svelte";
 
   let { children, data } = $props();
 
@@ -35,6 +37,14 @@
   const bare = $derived(here === "/login" || isPortalPath(here));
   const trainer = $derived(data.session.kind === "signedIn" ? data.session.trainer : null);
   const isAdmin = $derived(isAdminSession(data.session));
+
+  // The admin viewing the app as a trainer: the session says so, the banner shows it.
+  $effect(() => {
+    const view = data.session.kind === "signedIn" ? data.session.impersonator : null;
+    untrack(() => viewAs.sync(view));
+  });
+  /** The banner's height, so the sticky sidebar starts below it. */
+  let viewBarH = $state(0);
 
   async function signOut() {
     clearAllNewClientDrafts();
@@ -219,6 +229,7 @@
   onMount(() => installRuntimeCapture());
   $effect(() => {
     runtime.role = trainer ? (isAdmin ? "admin" : "trainer") : null;
+    runtime.viewingAs = viewAs.live && viewAs.view ? { actorId: viewAs.view.actor.id, trainerId: viewAs.view.trainer.id } : null;
   });
 
   // The trainer's role labels, once — every picker and chip reads the shared store.
@@ -282,7 +293,22 @@
 {#if bare}
   {@render children()}
 {:else}
+{#if viewAs.view}
+  <div class="view-bar" bind:clientHeight={viewBarH}>
+    <ViewAsBanner
+      view={viewAs.view}
+      now={viewAs.now}
+      locale={i18n.locale}
+      busy={viewAs.busy}
+      error={viewAs.error}
+      onstop={() => viewAs.stop()}
+      onallow={(name) => viewAs.allowEdits(name)}
+      onlock={() => viewAs.lock()}
+    />
+  </div>
+{/if}
 <div
+  style:--view-bar-h={viewAs.view ? `${viewBarH}px` : null}
   class="shell"
   class:rail
   class:slim
@@ -417,7 +443,8 @@
   </main>
 </div>
 
-<FeedbackLayer />
+<!-- Hidden while viewing as a trainer: a ticket filed there would be filed as them. -->
+{#if !viewAs.live}<FeedbackLayer />{/if}
 <DraftNotice
   notices={generationWatch.notices}
   onopen={(n) => generationWatch.dismiss(n.id)}
@@ -427,6 +454,12 @@
 {/if}
 
 <style>
+  /* Pinned over everything but modals: it can't scroll away or be covered by the menu. */
+  .view-bar {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+  }
   .shell {
     display: grid;
     grid-template-columns: 236px 1fr;
@@ -449,8 +482,9 @@
     gap: 16px;
     padding: 8px;
     position: sticky;
-    top: 0;
-    height: 100vh;
+    /* below the view-as bar when there is one */
+    top: var(--view-bar-h, 0px);
+    height: calc(100vh - var(--view-bar-h, 0px));
     overflow: hidden; /* labels clip at the edge while the column animates; only the nav scrolls */
   }
 
@@ -462,10 +496,10 @@
     justify-self: end;
     align-self: start;
     position: sticky;
-    top: 0;
+    top: var(--view-bar-h, 0px);
     z-index: 5;
     width: 12px;
-    height: 100vh;
+    height: calc(100vh - var(--view-bar-h, 0px));
     margin-right: -6px;
     padding: 0;
     border: 0;

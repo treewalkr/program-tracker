@@ -39,6 +39,8 @@ export class RuntimeRecorder {
   private crumbs: Breadcrumb[] = [];
   /** `admin` / `trainer`, set by the root layout. */
   role: string | null = null;
+  /** Set by the root layout while the admin views the app as a trainer, so a ticket is never misattributed. */
+  viewingAs: { actorId: string; trainerId: string } | null = null;
 
   constructor(private now: () => number = () => Date.now()) {}
 
@@ -94,7 +96,13 @@ export class RuntimeRecorder {
       errors: this.errors.map(ago),
       requests: this.requests.map(ago),
       breadcrumbs: this.crumbs.map(ago),
-      session: { role: this.role, locale: cap(env.locale, 40), online: env.online, standalone: env.standalone },
+      session: {
+        role: this.role,
+        locale: cap(env.locale, 40),
+        online: env.online,
+        standalone: env.standalone,
+        ...(this.viewingAs ? { viewingAs: this.viewingAs } : {}),
+      },
     }) as FeedbackRuntime;
   }
 

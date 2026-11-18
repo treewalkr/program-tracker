@@ -140,6 +140,8 @@ export const FeedbackRuntimeSchema = z.object({
     online: z.boolean(),
     /** Opened as an installed app (display-mode standalone). */
     standalone: z.boolean(),
+    /** Filed while the admin viewed the app as a trainer: who was really looking, at whom. */
+    viewingAs: z.object({ actorId: z.string().max(64), trainerId: z.string().max(64) }).optional(),
   }),
 });
 export type FeedbackRuntime = z.infer<typeof FeedbackRuntimeSchema>;

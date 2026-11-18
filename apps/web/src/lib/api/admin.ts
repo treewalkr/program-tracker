@@ -173,4 +173,10 @@ export const adminApi = {
     const { error } = await client.v1.admin.trainers({ id }).delete();
     if (error) throw new Error(message(error));
   },
+  /** View the app as a trainer (read-only, 30 min); returns the in-app path to open. */
+  async startViewing(body: { trainerId: string; ticketId?: string }): Promise<string> {
+    const { data, error } = await client.v1.admin.impersonate.post(body);
+    if (error) throw new Error(message(error));
+    return data.returnTo;
+  },
 };
