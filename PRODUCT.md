@@ -12,7 +12,7 @@ Primary user: a personal trainer or S&C coach running their own book of clients 
 
 ## Product Purpose
 
-A trainer's operating system for periodized strength programming: manage clients, write (or AI-draft) multi-week training programs, log what clients actually did, and watch each client's "block pulse" (tonnage, sets, average RPE, best e1RM per week) to decide what the next block should be. Programs cover strength and cardio together: each week holds lifting and cardio sessions with quantified weekly targets. Success = the trainer makes better programming decisions faster than in a spreadsheet, and trusts every number on screen because it is derived from logged sessions.
+A trainer's operating system for periodized strength programming: manage clients, write (or AI-draft) multi-week training programs, log what clients actually did, and watch each client's "block pulse" (tonnage, sets, average RPE, best e1RM per week) to decide what the next block should be. Programs cover strength and cardio together: each week holds exercise and cardio sessions with quantified weekly targets. Success = the trainer makes better programming decisions faster than in a spreadsheet, and trusts every number on screen because it is derived from logged sessions.
 
 ## Positioning
 
@@ -21,8 +21,8 @@ The AI never touches anything the client sees: AI drafts a full next block with 
 ## Operating Context
 
 - Weekly rhythm: Overview ("This week") → needs-review signals → client detail → draft, revise and approve the next block → log sessions as clients report back.
-- Programs are week documents: each week holds sessions (lifting or cardio) placed on weekdays by a rule-based placer from the client's schedule, plus quantified week targets. Periodization runs week by week (base / +volume / +intensity / deload / transition) with a program direction.
-- Lifting sessions prescribe sets per exercise (reps, kg, RPE, rest; exercises carry a role); logging captures actual kg/reps/RPE per set plus perceived energy. Cardio sessions log against a per-client weekly cardio target.
+- Programs are week documents: each week holds sessions (exercises or cardio) placed on weekdays by a rule-based placer from the client's schedule, plus quantified week targets. Periodization runs week by week (base / +volume / +intensity / deload / transition) with a program direction.
+- Exercise sessions prescribe sets per exercise (reps, kg, RPE, rest; exercises carry a role); logging captures actual kg/reps/RPE per set plus perceived energy. Cardio sessions log against a per-client weekly cardio target.
 - Programs are versioned per client (version counter; latest active, previous archived). Before approval, a draft has its own version history: each revision, chat-applied change or manual block-plan edit becomes a new draft version with a diff against the previous one.
 - AI providers are configurable in-app (Z.ai GLM and DeepSeek models today, with per-model effort settings). Generation runs server-side, takes minutes, and can be resumed after leaving the page or cancelled.
 - Demo/mock mode (the default web mode) runs on in-memory demo data for sales and evaluation (every number mock); live mode talks to the API.
@@ -35,7 +35,7 @@ The AI never touches anything the client sees: AI drafts a full next block with 
   - AI drafting: generate → validate → review → approve/reject; revise a draft with trainer feedback; a client chat page that answers questions about the client and proposes draft changes beside a live preview.
   - Learning loop: trainer feedback is distilled into learned preferences, and programs marked as examples are retrieved into generation prompts. Both are browsable and editable.
   - Client messages: AI drafts a message, the trainer approves it, then copies it in one tap.
-  - Logging and evidence: lifting and cardio session logging, block-pulse metrics (tonnage, sets, avg RPE, best e1RM, week targets), and needs-review signals with snooze. Signal kinds: block ending, deload week, transition due, week ending, RPE creep, stall, off-plan, adherence and cardio behind.
+  - Logging and evidence: exercise and cardio session logging, block-pulse metrics (tonnage, sets, avg RPE, best e1RM, week targets), and needs-review signals with snooze. Signal kinds: block ending, deload week, transition due, week ending, RPE creep, stall, off-plan, adherence and cardio behind.
   - Exercise catalog: seeded from a curated public-domain library (free-exercise-db) plus trainer-custom exercises, with movement-pattern taxonomy, pattern balance and kinetic-chain balance (chain map editable in settings).
   - Also: instruction templates and the provider/model picker.
 - Constraints: SvelteKit 2 + Svelte 5 runes SPA frontend, ElysiaJS/Bun API (Eden Treaty end-to-end), Drizzle + Postgres, zod-gated payloads. Monorepo: apps/web, apps/api, packages/db, packages/shared.
