@@ -164,7 +164,7 @@
   const weekLogCount = (w: ProgramWeek, wi: number) =>
     w.sessions.reduce((n, s) => n + logsOf(s.id).length, 0) + (logView?.otherByWeek.get(wi)?.length ?? 0);
   const nameOf = (exerciseId: string) => catalogById.get(exerciseId)?.name ?? "Exercise";
-  const liftingCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "exercises").length;
+  const exerciseCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "exercises").length;
   const indexOf = (sid: string) => currentWeek?.sessions.findIndex((x) => x.id === sid) ?? -1;
 
   // —— Alternate A/B and "Copy this week to…" (FB-013) ——————————————————
@@ -493,7 +493,7 @@
         ></textarea>
       </Field>
       <div class="mark-actions">
-        <p class="hint">Days/week defaults to the program's exercise sessions per week ({liftingCount(program.weeks[0])}).</p>
+        <p class="hint">Days/week defaults to the program's exercise sessions per week ({exerciseCount(program.weeks[0])}).</p>
         <button class="btn primary" type="submit" disabled={savingMark || !markGoal.trim()}>
           {savingMark ? "Adding…" : "Add to example library"}
         </button>
@@ -594,7 +594,7 @@
         {/if}
         <span class="grow"></span>
         {#if trainingDays.length > 0}
-          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's lifting and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
+          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's exercise and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
         {/if}
         {#if currentWeek.sessions.length < 14}
           <button class="btn ghost small" onclick={() => addNewSession("exercises")}>+ Exercise session</button>

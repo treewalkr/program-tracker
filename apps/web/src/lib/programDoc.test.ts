@@ -74,10 +74,10 @@ describe("validateProgramDoc", () => {
       expect(sessNotesRes.message).toContain("2000");
     }
 
-    // Empty lifting session -> ok: false + contains "exercise session requires at least one exercise"
-    const emptyLifting: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
-    emptyLifting[0].sessions[0].exercises = [];
-    const emptyRes = validateProgramDoc(emptyLifting);
+    // Empty exercise session -> ok: false + contains "exercise session requires at least one exercise"
+    const emptyExercises: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
+    emptyExercises[0].sessions[0].exercises = [];
+    const emptyRes = validateProgramDoc(emptyExercises);
     expect(emptyRes.ok).toBe(false);
     if (!emptyRes.ok) {
       expect(emptyRes.message).toContain("exercise session requires at least one exercise");

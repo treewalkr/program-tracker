@@ -60,7 +60,7 @@
   </Field>
 </ProfileSection>
 
-<ProfileSection title="Training week" purpose="where lifting and cardio land on the calendar">
+<ProfileSection title="Training week" purpose="where exercise sessions and cardio land on the calendar">
   <TrainingWeekGrid bind:form {idPrefix} />
 </ProfileSection>
 

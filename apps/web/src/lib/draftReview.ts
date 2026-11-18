@@ -151,15 +151,15 @@ export function reviewChecks(
       for (const ps of e.prescribedSets) if (ps.targetRpe != null) maxRpe = Math.max(maxRpe, ps.targetRpe);
     }
   }
-  // Cardio sessions don't count toward the client's lifting sessions per week.
-  const lifting = draft.sessions.filter((s) => s.kind !== "cardio").length;
+  // Cardio sessions don't count toward the client's exercise sessions per week.
+  const exerciseSessions = draft.sessions.filter((s) => s.kind !== "cardio").length;
   const out: ReviewCheck[] = [];
   if (sessionsPerWeek != null) {
-    const label = `${lifting} lifting ${lifting === 1 ? "session" : "sessions"}`;
+    const label = `${exerciseSessions} exercise ${exerciseSessions === 1 ? "session" : "sessions"}`;
     out.push(
-      lifting === sessionsPerWeek
+      exerciseSessions === sessionsPerWeek
         ? { tone: "ok", text: `${label} — matches the client's ${sessionsPerWeek}/week` }
-        : { tone: "warn", text: `${label} — the client lifts ${sessionsPerWeek}/week` }
+        : { tone: "warn", text: `${label} — the client trains ${sessionsPerWeek}/week` }
     );
   }
   if (maxRpe > 0) out.push({ tone: "info", text: `Highest prescribed effort: RPE ${maxRpe}` });

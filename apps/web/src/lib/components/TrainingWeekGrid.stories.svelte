@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'A client\'s training week: lifting sessions a week (stepper), lifting days as day chips, and a Cardio switch that reveals cardio days, the long session day and the weekly target. Bound to the profile form; a one-line summary reads the week back.',
+            'A client\'s training week: exercise sessions a week (stepper), exercise days as day chips, and a Cardio switch that reveals cardio days, the long session day and the weekly target. Bound to the profile form; a one-line summary reads the week back.',
         },
       },
     },

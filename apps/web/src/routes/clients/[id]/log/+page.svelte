@@ -580,7 +580,7 @@
     };
   }
 
-  function liftingPending(sheetRows: Row[]): Pending {
+  function exercisePending(sheetRows: Row[]): Pending {
     const sent = rowsToSave(sheetRows);
     return {
       input: {
@@ -732,7 +732,7 @@
       await focusFirstInvalid();
       return;
     }
-    await send(liftingPending(rows));
+    await send(exercisePending(rows));
   }
 
   /** "Did it as prescribed": show what would be logged, and save only on "Log it". */
@@ -754,7 +754,7 @@
     const filled = rowsToSave(preview);
     const invalid = Object.keys(validateRows(filled)).length > 0;
     // Open AMRAPs or bad cells can't be logged yet; the dialog says what's missing.
-    const pending = summary.openAmrap === 0 && summary.sets > 0 && !invalid ? liftingPending(preview) : null;
+    const pending = summary.openAmrap === 0 && summary.sets > 0 && !invalid ? exercisePending(preview) : null;
     await openAsk({ mode: "confirm", summary, preview, shown: previewBlocks(rows, preview), pending });
   }
 

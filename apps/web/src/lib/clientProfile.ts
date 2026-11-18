@@ -15,7 +15,7 @@ import { localIso } from "./overview";
 export interface ProfileForm {
   sessionsPerWeek: number;
   trainingDays: number[];
-  /** Run / cardio days; empty = the lifting days. */
+  /** Run / cardio days; empty = the exercise days. */
   cardioDays: number[];
   /** ISO weekday the long run is pinned to; null = the placer decides. */
   longRunDay: number | null;
@@ -144,7 +144,7 @@ export const CARDIO_DEFAULT: Record<Exclude<ProfileForm["cardioUnit"], "none">, 
 };
 
 /**
- * What stacking the lifting sessions onto the picked days means, stated exactly:
+ * What stacking the exercise sessions onto the picked days means, stated exactly:
  * null when every session gets its own day (or no days are picked).
  */
 export function stackNote(sessions: number, days: number): string | null {

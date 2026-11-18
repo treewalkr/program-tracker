@@ -64,7 +64,7 @@ test("identity errors name what to fix", () => {
   expect(emailError(" ada@gym.com ")).toBeNull();
 });
 
-test("run days sort and an empty set means the lifting days (null); the long run day passes through", () => {
+test("run days sort and an empty set means the exercise days (null); the long run day passes through", () => {
   const f = { ...emptyProfile(), cardioDays: [7, 3], longRunDay: 7 };
   expect(profilePayload(f)).toMatchObject({ cardioDays: [3, 7], longRunDay: 7 });
   expect(profilePayload(emptyProfile())).toMatchObject({ cardioDays: null, longRunDay: null });

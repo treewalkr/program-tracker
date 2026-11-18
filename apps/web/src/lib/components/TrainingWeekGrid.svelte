@@ -11,7 +11,7 @@
   import DayChips from "$lib/components/DayChips.svelte";
 
   /**
-   * A client's training week: lifting sessions a week (stepper), lifting days
+   * A client's training week: exercise sessions a week (stepper), exercise days
    * (day chips), and a Cardio switch that reveals cardio days, the long session
    * day and the weekly cardio target. Days are ISO 1=Mon … 7=Sun, kept sorted.
    * A one-line summary reads the week back. Bound to the profile form; the

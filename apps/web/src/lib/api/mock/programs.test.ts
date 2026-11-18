@@ -116,7 +116,7 @@ describe("mockApi.saveProgram", () => {
   });
 
   test("saveProgram rejects an invalid weeks document", async () => {
-    // Empty lifting session (no exercises)
+    // Empty exercise session (no exercises)
     const invalidWeeks: ProgramWeekDto[] = [
       {
         week: 1,

@@ -34,7 +34,7 @@ export const hasTraining = (r: ImportResult): boolean => r.weeks.some((w) => w.d
 
 // —— A/B weeks the trainer picks (FB-015) ——————————————————————————————————
 
-/** Weeks the trainer can pick as Week A or Week B: any with a session (lifting or cardio), in order. */
+/** Weeks the trainer can pick as Week A or Week B: any with a session (exercises or cardio), in order. */
 export const abWeekOptions = (r: ImportResult): number[] =>
   r.weeks.flatMap((w, i) => (w.days.some((d) => d.sessions.length > 0) ? [i] : []));
 
@@ -44,7 +44,7 @@ export function defaultAbPick(r: ImportResult): ImportAb | null {
   return a !== undefined && b !== undefined ? { a, b, source: "picked" } : null;
 }
 
-/** "Week 11 (Upper Push · Lower)": a week's label (or its place) and its lifting days. */
+/** "Week 11 (Upper Push · Lower)": a week's label (or its place) and its exercise days. */
 export function weekName(r: ImportResult, i: number): string {
   const w = r.weeks[i];
   const names = exerciseSessionNames(w);

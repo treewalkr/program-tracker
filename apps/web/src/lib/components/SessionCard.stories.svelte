@@ -68,7 +68,7 @@
   <SessionCard {...args} />
 {/snippet}
 
-<Story name="Lifting day" {template} args={{ name: 'Upper', tag: 'Session 1', when: 'Thursday · due today', kind: 'exercises', exercises: upper }} />
+<Story name="Exercise day" {template} args={{ name: 'Upper', tag: 'Session 1', when: 'Thursday · due today', kind: 'exercises', exercises: upper }} />
 <Story name="With a superset" {template} args={{ name: 'Lower', tag: 'Session 2', kind: 'exercises', exercises: superset }} />
 <Story name="Cardio session" {template} args={{ name: 'Cardio 1', kind: 'cardio', cardio: { modality: 'Bike', durationMin: 40, hrZone: 2, distanceKm: 15, targetRpe: 5 } }} />
 <Story name="Two-a-day (evening cardio)" {template} args={{ name: 'Evening Cardio', when: 'Thursday · evening', kind: 'cardio', cardio: { modality: 'Run', durationMin: 30, hrZone: 3, targetRpe: 7 } }} />

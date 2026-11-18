@@ -20,7 +20,7 @@ import type { AiDraftDto } from "$lib/api/types";
  * order for an AI-made draft and as stored once the trainer has hand-edited
  * it (`keepOrder`); either way the trainer may then reorder across roles.
  *
- * Takes the DTO (session `kind` may be absent = lifting, as the schema defaults it).
+ * Takes the DTO (session `kind` may be absent = exercises, as the schema defaults it).
  * `opts.week` = the draft week the controls edit (absent = the first week);
  * every op carries it.
  */
@@ -42,7 +42,7 @@ function shown(draft: AiDraftDto, day: number, labels: readonly RoleRank[] | und
   );
 }
 
-/** "Session 2 · Upper" per lifting session; cardio sessions take no exercises. */
+/** "Session 2 · Upper" per exercise session; cardio sessions take no exercises. */
 export function moveTargets(draft: AiDraftDto, week?: number | null): { day: number; label: string }[] {
   const sessions = draftWeek(draft, week).sessions;
   const tags = draftSessionLabels(sessions);

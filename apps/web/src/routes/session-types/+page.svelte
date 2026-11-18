@@ -349,7 +349,7 @@
   .row.sub .name { grid-column: 3; font-weight: 400; }
   .row.sub:hover, .row.main:hover, .row.custom:hover, .row.preset:hover { background: var(--well); }
 
-  /* Format swatch: blue lifting, green cardio, split for "any" (fits either). */
+  /* Format swatch: blue exercises, green cardio, split for "any" (fits either). */
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); justify-self: center; }
   .dot.cardio { background: var(--good); }
   .dot.any { background: linear-gradient(90deg, var(--blue) 50%, var(--good) 50%); }

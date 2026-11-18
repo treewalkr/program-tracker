@@ -37,7 +37,7 @@ export function prescriptionOfPortal(ps: PortalSet): Prescription {
 
 const cell = (v: number | null) => (v == null ? "" : v);
 
-/** Rows for a lifting session, in prescribed order, prefilled as prescribed. */
+/** Rows for a exercise session, in prescribed order, prefilled as prescribed. */
 export function rowsOfSession(session: PortalSession): PortalRow[] {
   return session.exercises.flatMap((e) =>
     e.prescribedSets.map((ps) => {

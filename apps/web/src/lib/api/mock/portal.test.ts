@@ -18,8 +18,8 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     for (const leak of ["direction", "phasing", "limitations", "goals", "oneRepMaxes", "percent1rm", "role"]) {
       expect(json).not.toContain(`"${leak}"`);
     }
-    const lifting = dto.weeks[0].sessions.find((s) => s.kind === "exercises")!;
-    expect(lifting.exercises[0].exerciseName).not.toMatch(/^ex-/);
+    const exerciseSession = dto.weeks[0].sessions.find((s) => s.kind === "exercises")!;
+    expect(exerciseSession.exercises[0].exerciseName).not.toMatch(/^ex-/);
   });
 
   test("log → done as the client → shows in the trainer's logs → undo", async () => {

@@ -92,7 +92,7 @@ describe("hasTraining", () => {
 });
 
 describe("blocks", () => {
-  test("labels each block with its weeks and the template week's lifting days", () => {
+  test("labels each block with its weeks and the template week's exercise days", () => {
     const r = result();
     expect(blockLabel(r, 0)).toBe("Week 11 (Back/Biceps · Chest/Triceps · Lower)");
     expect(blockLabel(r, 1)).toBe("Week 12 (Upper Push · Upper Pull · Lower)");
