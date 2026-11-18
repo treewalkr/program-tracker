@@ -89,14 +89,14 @@ export const deloadSetCount = (n: number, s: DeloadSettings = DEFAULT_DELOAD): n
   Math.max(1, Math.min(n, Math.ceil((n * s.setsKeptPercent) / 100 - 1e-9)));
 
 /**
- * Each lifting exercise's place in the week, stable across weeks: the n-th
+ * Each exercise's place in the week, stable across weeks: the n-th
  * occurrence of an exercise in session `seq` (a top set and back-offs of the
  * same lift stay apart). Same key as the web log sheet's slot ids.
  */
 function weekSlots(week: ProgramWeek): Map<string, ProgramExercise> {
   const out = new Map<string, ProgramExercise>();
   for (const s of week.sessions) {
-    if (s.kind !== "lifting") continue;
+    if (s.kind !== "exercises") continue;
     const seen = new Map<string, number>();
     for (const e of [...s.exercises].sort((a, b) => a.order - b.order)) {
       const n = (seen.get(e.exerciseId) ?? 0) + 1;
@@ -147,7 +147,7 @@ export function deloadBasisWeek(weeks: readonly ProgramWeek[], week: number): Pr
 }
 
 /**
- * A deloaded copy of `week` by the rule `settings`: lifting sessions only;
+ * A deloaded copy of `week` by the rule `settings`: exercise sessions only;
  * cardio is left as planned. With the week-1 basis, pass the block's `week1`
  * (`deloadBasisWeek`: the first same-letter week in an A/B block).
  */
@@ -159,7 +159,7 @@ export function deloadWeek(week: ProgramWeek, settings: DeloadSettings = DEFAULT
   return {
     ...copy,
     sessions: copy.sessions.map((s) =>
-      s.kind === "lifting"
+      s.kind === "exercises"
         ? {
             ...s,
             exercises: s.exercises.map((e) => {

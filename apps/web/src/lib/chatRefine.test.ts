@@ -263,7 +263,7 @@ describe("draftPreviewModel", () => {
     expect(card.exercises.map((e) => e.slot)).toEqual([2, 1]);
     expect(card.exercises[0].movementPatterns).toEqual(["squat"]);
     expect(card.exercises[1].movementPatterns).toEqual([]);
-    expect(card.kind).toBe("lifting");
+    expect(card.kind).toBe("exercises");
   });
 
   test("a trainer-ordered draft shows its stored order, in the pane and in older versions", () => {

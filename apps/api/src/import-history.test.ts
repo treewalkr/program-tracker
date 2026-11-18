@@ -138,7 +138,7 @@ describe.skipIf(!dbUp)("/v1/ai/imports/:id/history", () => {
 
     const logs = await db.select().from(sessionLogs).where(eq(sessionLogs.clientId, clientId));
     expect(logs).toHaveLength(6);
-    expect(logs.every((l) => l.kind === "lifting")).toBe(true);
+    expect(logs.every((l) => l.kind === "exercises")).toBe(true);
     const w11Logs = logs.filter((l) => l.programId === ids[0]).sort((a, b) => a.date.localeCompare(b.date));
     expect(w11Logs.map((l) => l.date)).toEqual([WEEK_STARTS[0], addDays(WEEK_STARTS[0], 2), addDays(WEEK_STARTS[0], 4)]);
     expect(w11Logs[2].notes).toBe("From notes: Week 11 · Day 3 Lower\nKB American Swing: 25, 25, 25 reps");
@@ -149,7 +149,7 @@ describe.skipIf(!dbUp)("/v1/ai/imports/:id/history", () => {
     for (const log of logs) {
       const weeks = rows.find((p) => p.id === log.programId)!.sessions as ProgramWeek[];
       const session = weeks.flatMap((w) => w.sessions).find((s) => s.id === log.programSessionId)!;
-      expect(session.kind).toBe("lifting");
+      expect(session.kind).toBe("exercises");
       const slotIds = new Set(session.exercises.map((e) => e.id));
       for (const s of sets.filter((x) => x.sessionLogId === log.id)) expect(slotIds.has(s.programExerciseId!)).toBe(true);
     }

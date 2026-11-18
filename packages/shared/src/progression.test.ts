@@ -13,7 +13,7 @@ function week1(): ProgramWeek {
         seq: 1,
         weekday: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           { id: "e-sq", exerciseId: "sq", order: 0, prescribedSets: [set(1, { targetWeightKg: 100 }), set(2, { targetWeightKg: 100 }), set(3, { reps: 8, type: "backoff", targetWeightKg: 80 })] },
           { id: "e-dl", exerciseId: "dl", order: 1, prescribedSets: [set(1, { percent1rm: 75 }), set(2, { percent1rm: 75 })] },
@@ -136,7 +136,7 @@ describe("applyProgression with A/B weeks", () => {
           seq: 1,
           weekday: 1,
           order: 0,
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ id: "e-bp", exerciseId: "bp", order: 0, prescribedSets: [set(1, { targetWeightKg: 60 })] }],
         },
       ],

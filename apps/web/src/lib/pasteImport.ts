@@ -2,7 +2,7 @@ import {
   blockLabel,
   defaultCardio,
   historyExerciseKey,
-  liftingNames,
+  exerciseSessionNames,
   templateWeekIndex,
   type ImportAb,
   type ImportFlag,
@@ -34,7 +34,7 @@ export const hasTraining = (r: ImportResult): boolean => r.weeks.some((w) => w.d
 
 // —— A/B weeks the trainer picks (FB-015) ——————————————————————————————————
 
-/** Weeks the trainer can pick as Week A or Week B: any with a session (lifting or cardio), in order. */
+/** Weeks the trainer can pick as Week A or Week B: any with a session (exercises or cardio), in order. */
 export const abWeekOptions = (r: ImportResult): number[] =>
   r.weeks.flatMap((w, i) => (w.days.some((d) => d.sessions.length > 0) ? [i] : []));
 
@@ -44,10 +44,10 @@ export function defaultAbPick(r: ImportResult): ImportAb | null {
   return a !== undefined && b !== undefined ? { a, b, source: "picked" } : null;
 }
 
-/** "Week 11 (Upper Push · Lower)": a week's label (or its place) and its lifting days. */
+/** "Week 11 (Upper Push · Lower)": a week's label (or its place) and its exercise days. */
 export function weekName(r: ImportResult, i: number): string {
   const w = r.weeks[i];
-  const names = liftingNames(w);
+  const names = exerciseSessionNames(w);
   const head = w?.label ?? `Week ${i + 1}`;
   return names.length ? `${head} (${names.join(" · ")})` : head;
 }
@@ -264,7 +264,7 @@ export function formFromImport(
       return {
         key: opts.newKey(),
         name: s.name.slice(0, 60),
-        kind: "lifting",
+        kind: "exercises",
         cardio: defaultCardio(),
         exercises: rows.map((row, i) => ({ ...row, role: suggestRoleIn(rows, i, opts.catalog ?? []) })),
       };
@@ -273,7 +273,7 @@ export function formFromImport(
   const weeksInBlock = opts.ab ? 1 : (r.blocks[block]?.weeks.length ?? 1);
   return {
     ...structuredClone(base),
-    name: (liftingNames(week).join(" / ") || base.name).slice(0, 120),
+    name: (exerciseSessionNames(week).join(" / ") || base.name).slice(0, 120),
     plannedWeeks: weeksInBlock > 1 ? weeksInBlock : base.plannedWeeks,
     sessions: sessionsOf(wi),
     weekB: wb !== undefined ? sessionsOf(wb) : null,

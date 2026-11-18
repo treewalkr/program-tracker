@@ -30,7 +30,7 @@ export interface CardioTotals {
 }
 
 /** Totals over cardio logs with `date >= since` (string compare on YYYY-MM-DD).
- *  Lifting logs and other clients' rows are ignored by the caller's filter. */
+ *  Exercise logs and other clients' rows are ignored by the caller's filter. */
 export function cardioWeekTotals(logs: CardioCountLog[], since: string): CardioTotals {
   const totals: CardioTotals = { minutes: 0, sessions: 0, zoneMinutes: 0 };
   for (const log of logs) {

@@ -720,7 +720,7 @@
                 <code class="setchip">{cardioLabel(s.cardio)}</code>
               </div>
             {:else}
-              {#if d.sessions.filter((x) => x.kind === "lifting").length > 1}
+              {#if d.sessions.filter((x) => x.kind === "exercises").length > 1}
                 <p class="sess-name" id="pi-{sk}">{s.name}</p>
               {/if}
               {@render flagLines(s.flags)}

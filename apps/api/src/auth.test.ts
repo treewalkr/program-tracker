@@ -176,7 +176,7 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
           seq: 1,
           weekday: 1,
           order: 0,
-          kind: "lifting",
+          kind: "exercises",
           exercises: [{ id: crypto.randomUUID(), exerciseId: ex.id, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
         },
       ],

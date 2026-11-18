@@ -501,7 +501,7 @@
             </div>
             {#if currentWeek}
               <p class="week-line">
-                <span class="num">{currentWeek.sessions.length}</span> {currentWeek.sessions.length === 1 ? "session" : "sessions"} / week{#if weekCardio > 0}{" · "}<span class="num">{currentWeek.sessions.length - weekCardio}</span> lifting, <span class="num">{weekCardio}</span> cardio{/if}{#if weekDays.length > 0}{" · "}{weekDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+                <span class="num">{currentWeek.sessions.length}</span> {currentWeek.sessions.length === 1 ? "session" : "sessions"} / week{#if weekCardio > 0}{" · "}<span class="num">{currentWeek.sessions.length - weekCardio}</span> exercise, <span class="num">{weekCardio}</span> cardio{/if}{#if weekDays.length > 0}{" · "}{weekDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
               </p>
               {#each weekGroups as g (g.day)}
                 <div class="day-h" class:any={g.day === 0}>

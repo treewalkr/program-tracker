@@ -220,7 +220,7 @@ export interface ReviewExercise extends ImportExercise {
 
 export interface ReviewSession {
   name: string;
-  kind: "lifting" | "cardio";
+  kind: "exercises" | "cardio";
   line: number;
   /** The extraction as read (ranges intact) — `cardio` below is the mapped form. */
   source: ImportCardio | null;
@@ -632,7 +632,7 @@ function reviewSession(s: LocatedSession, lines: string[]): ReviewSession {
   }
   return {
     name: s.name,
-    kind: "lifting",
+    kind: "exercises",
     line: s.line,
     source: null,
     cardio: null,
@@ -874,9 +874,9 @@ export function buildImportResult(
 /** The week a block drafts from: its latest. */
 export const templateWeekIndex = (r: ImportResult, block: number): number => r.blocks[block]?.weeks.at(-1) ?? 0;
 
-/** The lifting session names of a week, in order, unique. */
-export const liftingNames = (w: ReviewWeek | undefined): string[] =>
-  [...new Set((w?.days ?? []).flatMap((d) => d.sessions.filter((s) => s.kind === "lifting").map((s) => s.name.trim())))].filter(Boolean);
+/** The exercise session names of a week, in order, unique. */
+export const exerciseSessionNames = (w: ReviewWeek | undefined): string[] =>
+  [...new Set((w?.days ?? []).flatMap((d) => d.sessions.filter((s) => s.kind === "exercises").map((s) => s.name.trim())))].filter(Boolean);
 
 /** "Week 11 (Back/Biceps · Chest/Triceps · Lower)"; "Week 3 – Week 5 (…)" for several. */
 export function blockLabel(r: ImportResult, block: number): string {
@@ -884,6 +884,6 @@ export function blockLabel(r: ImportResult, block: number): string {
   const labels = weeks.map((i) => r.weeks[i]?.label).filter((l): l is string => !!l);
   const head =
     labels.length === 0 ? "Your notes" : labels.length === 1 ? labels[0] : `${labels[0]} – ${labels.at(-1)}`;
-  const names = liftingNames(r.weeks[templateWeekIndex(r, block)]);
+  const names = exerciseSessionNames(r.weeks[templateWeekIndex(r, block)]);
   return names.length ? `${head} (${names.join(" · ")})` : head;
 }

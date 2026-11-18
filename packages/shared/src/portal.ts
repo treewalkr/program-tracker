@@ -324,7 +324,7 @@ export function portalSession(
   return {
     id: s.id,
     name: s.name,
-    kind: normalizeKind(s.kind ?? "lifting"),
+    kind: normalizeKind(s.kind ?? "exercises"),
     seq: s.seq,
     weekday: s.weekday ?? null,
     order: s.order,

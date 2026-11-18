@@ -289,12 +289,12 @@ function summaryLine(
   nameById: Map<string, string>
 ): string | null {
   const chronological = [...logs].reverse();
-  const liftingCount = chronological.filter((l) => l.kind !== "cardio" && (setsByLog.get(l.id)?.length ?? 0) > 0).length;
+  const exerciseCount = chronological.filter((l) => l.kind !== "cardio" && (setsByLog.get(l.id)?.length ?? 0) > 0).length;
   const cardio = chronological.filter((l) => l.kind === "cardio" && l.cardio).map((l) => l.cardio!);
-  if (liftingCount === 0 && cardio.length === 0) return null;
+  if (exerciseCount === 0 && cardio.length === 0) return null;
 
   const counts = [
-    liftingCount ? plural(liftingCount, "lifting session") : null,
+    exerciseCount ? plural(exerciseCount, "exercise session") : null,
     cardio.length ? `${cardio.length} cardio` : null,
   ].filter(Boolean);
 

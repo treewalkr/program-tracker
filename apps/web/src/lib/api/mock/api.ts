@@ -1,5 +1,5 @@
 import { DeloadSettings as DeloadSettingsSchema, normalizeKind, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
-import { asRelease2, withKindAlias } from "./kindAlias";
+import { asRelease1, withKindAlias } from "./kindAlias";
 import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
@@ -152,7 +152,7 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   programId: l.programId,
   programSessionId: l.programSessionId ?? null,
   date: l.date,
-  kind: l.kind ?? "lifting",
+  kind: l.kind ?? "exercises",
   cardio: l.cardio ? { ...l.cardio } : null,
   notes: l.notes ?? null,
   perceivedEnergy: l.perceivedEnergy ?? null,
@@ -276,8 +276,8 @@ const state = {
   /** The presets every trainer gets, plus one custom type (what the migration leaves Hypertrophy as). */
   sessionTypes: [
     ...SESSION_TYPE_PRESETS.map((p) => ({ id: `st-${p.key}`, name: p.name, format: p.format, presetKey: p.key, archivedAt: null })),
-    { id: "st-hypertrophy", name: "Hypertrophy", format: "lifting", presetKey: null, archivedAt: null },
-  ].map((t) => (t.format === "lifting" ? asRelease2(t) : t)) as Omit<SessionTypeDto, "usedIn">[], // stored release-2 style (kindAlias.ts)
+    { id: "st-hypertrophy", name: "Hypertrophy", format: "exercises", presetKey: null, archivedAt: null },
+  ].map((t) => (t.format === "exercises" ? asRelease1(t) : t)) as Omit<SessionTypeDto, "usedIn">[], // stored release-1 style (kindAlias.ts)
 };
 
 function portalDto(clientId: string): ClientPortalDto {
@@ -726,7 +726,7 @@ const rawMockApi: TrainerApi = {
       programId: input.programId,
       goal: input.goal,
       level: input.level,
-      daysPerWeek: input.daysPerWeek ?? Math.max(1, program.weeks[0].sessions.filter((x) => normalizeKind(x.kind) === "lifting").length),
+      daysPerWeek: input.daysPerWeek ?? Math.max(1, program.weeks[0].sessions.filter((x) => normalizeKind(x.kind) === "exercises").length),
       note: input.note ?? null,
       createdAt: new Date().toISOString(),
       program: withNames(program),
@@ -1044,7 +1044,7 @@ const rawMockApi: TrainerApi = {
       programId: input.programId,
       programSessionId: input.programSessionId ?? null,
       date: input.date,
-      kind: normalizeKind(input.kind ?? "lifting"),
+      kind: normalizeKind(input.kind ?? "exercises"),
       cardio: input.cardio ?? null,
       perceivedEnergy: input.perceivedEnergy,
       // Same as the API: an empty readiness or flag list stores as null.
@@ -1527,7 +1527,7 @@ const rawMockApi: TrainerApi = {
           programId: program.id,
           programSessionId: l.programSessionId,
           date: l.date,
-          kind: "lifting",
+          kind: "exercises",
           cardio: null,
           perceivedEnergy: undefined,
           notes: l.notes,
@@ -1720,9 +1720,9 @@ const rawMockApi: TrainerApi = {
     const client = state.clients.find((c) => c.id === gen.clientId);
     // Mirrors the API: draft sessions get seq per kind in draft order; code places them.
     const toSessions = (draftSessions: AiDraftSessionDto[]): ProgramSessionDto[] => {
-      const seq = { lifting: 0, cardio: 0 };
+      const seq = { exercises: 0, cardio: 0 };
       return draftSessions.map((s) => {
-        const kind = s.kind === "cardio" ? ("cardio" as const) : ("lifting" as const);
+        const kind = s.kind === "cardio" ? ("cardio" as const) : ("exercises" as const);
         const exercises =
           kind === "cardio"
             ? []

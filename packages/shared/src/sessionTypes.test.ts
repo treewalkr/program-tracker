@@ -16,7 +16,7 @@ describe("session type taxonomy", () => {
   test("main types in order, each with its sub-types", () => {
     expect(SESSION_TYPE_TAXONOMY.map((m) => [m.name, m.format, m.subs.map((s) => s.name)])).toEqual([
       ["Cardiovascular", "cardio", ["Aerobic base", "Anaerobic endurance", "Anaerobic power"]],
-      ["Strength training", "lifting", ["Stability & mobility", "Functional movement", "Loaded strength", "Performance"]],
+      ["Strength training", "exercises", ["Stability & mobility", "Functional movement", "Loaded strength", "Performance"]],
       ["Metabolic", "any", ["Circuit", "AMRAP"]],
     ]);
   });
@@ -53,17 +53,17 @@ describe("session type taxonomy", () => {
   });
 
   test("format fits kind; any fits both and keeps the session's kind", () => {
-    expect(typeFitsKind("lifting", "lifting")).toBe(true);
-    expect(typeFitsKind("lifting", "cardio")).toBe(false);
+    expect(typeFitsKind("exercises", "exercises")).toBe(true);
+    expect(typeFitsKind("exercises", "cardio")).toBe(false);
     expect(typeFitsKind("any", "cardio")).toBe(true);
-    expect(typeFitsKind("any", "lifting")).toBe(true);
-    expect(kindForType("cardio", "lifting")).toBe("cardio");
+    expect(typeFitsKind("any", "exercises")).toBe(true);
+    expect(kindForType("cardio", "exercises")).toBe("cardio");
     expect(kindForType("any", "cardio")).toBe("cardio");
   });
 });
 
 describe("groupSessionTypes", () => {
-  const row = (name: string, presetKey: string | null = null) => ({ id: name, name, format: "lifting" as const, presetKey });
+  const row = (name: string, presetKey: string | null = null) => ({ id: name, name, format: "exercises" as const, presetKey });
 
   test("taxonomy order regardless of list order, custom last in list order", () => {
     const types = [

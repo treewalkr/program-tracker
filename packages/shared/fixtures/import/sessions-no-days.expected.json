@@ -4,7 +4,7 @@
     { "line": 11, "sets": 4, "reps": 8 }, { "line": 12, "sets": 4, "reps": 6 }, { "line": 14, "sets": 4, "reps": 8 }, { "line": 15, "sets": 4, "reps": 10 }
   ],
   "sessions": [
-    { "line": 2, "kind": "lifting" }, { "line": 5, "kind": "lifting" },
-    { "line": 10, "kind": "lifting" }, { "line": 13, "kind": "lifting" }
+    { "line": 2, "kind": "exercises" }, { "line": 5, "kind": "exercises" },
+    { "line": 10, "kind": "exercises" }, { "line": 13, "kind": "exercises" }
   ]
 }

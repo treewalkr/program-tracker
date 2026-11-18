@@ -25,7 +25,7 @@ const call = async (method: string, path: string, body?: unknown) => {
   return { status: res.status, body: (await res.json().catch(() => null)) as any };
 };
 
-/** Smallest valid weeks document: one lifting session with one set. */
+/** Smallest valid weeks document: one exercise session with one set. */
 const weeksWith = (exerciseId: string) => [
   {
     week: 1,
@@ -35,7 +35,7 @@ const weeksWith = (exerciseId: string) => [
         name: "Day A",
         seq: 1,
         order: 0,
-        kind: "lifting",
+        kind: "exercises",
         exercises: [
           { id: crypto.randomUUID(), exerciseId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5 }] },
         ],

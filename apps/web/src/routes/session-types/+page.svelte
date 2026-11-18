@@ -22,7 +22,7 @@
   let error = $state<string | null>(null);
 
   let newName = $state("");
-  let newFormat = $state<SessionKind>("lifting");
+  let newFormat = $state<SessionKind>("exercises");
   let adding = $state(false);
 
   let editingId = $state<string | null>(null);
@@ -95,7 +95,7 @@
     });
 
   /** The two formats a custom type can take. */
-  const FORMATS: SessionKind[] = ["lifting", "cardio"];
+  const FORMATS: SessionKind[] = ["exercises", "cardio"];
   const formatOptions: SelectOption<SessionKind>[] = FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f], description: FORMAT_HINT[f] }));
   const cellOptions: SelectOption<SessionKind>[] = FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f] }));
 
@@ -234,7 +234,7 @@
             <button class="name" type="button" onclick={() => startRename(t)} title="Rename">{t.name}</button>
             <span class="use">{usage(t.usedIn)}</span>
             <div class="fmt">
-              <SelectCell label="What {t.name} records" options={cellOptions} value={t.format === "cardio" ? "cardio" : "lifting"} onchange={(f) => setFormat(t, f)} />
+              <SelectCell label="What {t.name} records" options={cellOptions} value={t.format === "cardio" ? "cardio" : "exercises"} onchange={(f) => setFormat(t, f)} />
             </div>
             <div class="acts">
               <Button small variant="ghost" onclick={() => startRename(t)}>Rename</Button>
@@ -349,7 +349,7 @@
   .row.sub .name { grid-column: 3; font-weight: 400; }
   .row.sub:hover, .row.main:hover, .row.custom:hover, .row.preset:hover { background: var(--well); }
 
-  /* Format swatch: blue lifting, green cardio, split for "any" (fits either). */
+  /* Format swatch: blue exercises, green cardio, split for "any" (fits either). */
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); justify-self: center; }
   .dot.cardio { background: var(--good); }
   .dot.any { background: linear-gradient(90deg, var(--blue) 50%, var(--good) 50%); }

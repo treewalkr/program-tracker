@@ -23,13 +23,13 @@ import {
 } from "./overview";
 
 const client = { id: "c1", name: "Ada", status: "active", sessionsPerWeek: 3, cardioTarget: null } as unknown as ClientDto;
-const session = (id: string, weekday: number | null, seq: number, kind: "lifting" | "cardio" = "lifting") => ({
+const session = (id: string, weekday: number | null, seq: number, kind: "exercises" | "cardio" = "exercises") => ({
   id, name: `Session ${seq}`, seq, weekday, order: 0, kind, exercises: [], cardio: null,
 });
 const program = (sessions: ReturnType<typeof session>[]) =>
   ({ id: "p1", name: "Base", weeks: [{ week: 1, sessions }], activatedAt: "2026-10-26T08:00:00.000Z", createdAt: "2026-10-01T00:00:00.000Z", phasing: null }) as unknown as ProgramDto;
 const set = (weightKg: number | null, reps: number) => ({ exerciseId: "squat", setNumber: 1, type: "working", weightKg, reps });
-const log = (date: string, programSessionId: string | null, sets = [set(100, 5)], programId = "p1", kind = "lifting") =>
+const log = (date: string, programSessionId: string | null, sets = [set(100, 5)], programId = "p1", kind = "exercises") =>
   ({ id: `${date}-${programSessionId}`, clientId: "c1", programId, programSessionId, date, kind, sets }) as unknown as SessionLogDto;
 
 // Mon 2 – Sun 8 Nov 2026; "today" is Wed 4.
@@ -131,7 +131,7 @@ test("history weeks mark missed sessions after the block started", () => {
 test("weeks before the current program are logged-only: old-program logs show, nothing is missed", () => {
   const s = buildClientStrip(client, multiWeek("2026-10-26T08:00:00.000Z"), [log("2026-10-12", "old-1", [set(80, 5)], "p0")], weeks, "2026-11-04");
   expect(day(s, "2026-10-12").status).toBe("logged");
-  expect(day(s, "2026-10-12").sessions).toEqual([{ id: null, name: "Logged session", status: "logged", planned: false, kind: "lifting" }]);
+  expect(day(s, "2026-10-12").sessions).toEqual([{ id: null, name: "Logged session", status: "logged", planned: false, kind: "exercises" }]);
   expect(day(s, "2026-10-14").status).toBe("before-start");
   expect(s.weeks.flat().some((d) => d.date < "2026-10-26" && d.status === "missed")).toBe(false);
 });
@@ -161,13 +161,13 @@ test("a planned day done on another day still reads as logged (level ≥ 1)", ()
 test("an unplanned log on a rest day is listed as an extra session", () => {
   const p = program([session("a", 1, 1)]);
   const s = buildClientStrip(client, p, [log("2026-11-03", "a")], weeks, "2026-11-04");
-  expect(current(s)[1].sessions).toEqual([{ id: "a", name: "Session 1", status: "logged", planned: false, kind: "lifting" }]);
+  expect(current(s)[1].sessions).toEqual([{ id: "a", name: "Session 1", status: "logged", planned: false, kind: "exercises" }]);
 });
 
 test("sessions carry their kind — from the program session, or the log for an extra", () => {
   const p = program([session("a", 1, 1), session("z", 1, 2, "cardio")]);
   const s = buildClientStrip(client, p, [log("2026-11-03", null, [], "p1", "cardio")], weeks, "2026-11-04");
-  expect(current(s)[0].sessions.map((x) => x.kind)).toEqual(["lifting", "cardio"]);
+  expect(current(s)[0].sessions.map((x) => x.kind)).toEqual(["exercises", "cardio"]);
   expect(current(s)[1].sessions[0]).toMatchObject({ name: "Logged cardio", kind: "cardio", planned: false });
 });
 

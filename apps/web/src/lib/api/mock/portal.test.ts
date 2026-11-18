@@ -18,12 +18,12 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     for (const leak of ["direction", "phasing", "limitations", "goals", "oneRepMaxes", "percent1rm", "role"]) {
       expect(json).not.toContain(`"${leak}"`);
     }
-    const lifting = dto.weeks[0].sessions.find((s) => s.kind === "lifting")!;
-    expect(lifting.exercises[0].exerciseName).not.toMatch(/^ex-/);
+    const exerciseSession = dto.weeks[0].sessions.find((s) => s.kind === "exercises")!;
+    expect(exerciseSession.exercises[0].exerciseName).not.toMatch(/^ex-/);
   });
 
   test("log → done as the client → shows in the trainer's logs → undo", async () => {
-    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "lifting" && !s.log)!;
+    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
     const ex = session.exercises[0];
     const saved = await mockPortalApi.log({
       programSessionId: session.id,
@@ -44,7 +44,7 @@ describe("mock portal (the demo client over the trainer mock)", () => {
   });
 
   test("a client's low readiness and note show on the coach's Overview feed", async () => {
-    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "lifting" && !s.log)!;
+    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
     const ex = session.exercises[0];
     const saved = await mockPortalApi.log({
       programSessionId: session.id,

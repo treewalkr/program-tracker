@@ -62,10 +62,10 @@ export const exampleRoutes = new Elysia({ prefix: "/v1/examples", tags: ["exampl
         .where(eq(programExamples.programId, parsed.data.programId));
       if (existing) return status(409, { error: "program is already marked as an example" });
 
-      // examples keep "daysPerWeek" = lifting sessions per week; default from week 1
+      // examples keep "daysPerWeek" = exercise sessions per week; default from week 1
       // (cardio excluded), floored at 1 for a cardio-only week, capped by the field's max 7
-      const liftingInWeek1 = programRow.sessions[0].sessions.filter((s) => s.kind !== "cardio").length;
-      const daysPerWeek = parsed.data.daysPerWeek ?? Math.min(7, Math.max(1, liftingInWeek1));
+      const exerciseSessionsInWeek1 = programRow.sessions[0].sessions.filter((s) => s.kind !== "cardio").length;
+      const daysPerWeek = parsed.data.daysPerWeek ?? Math.min(7, Math.max(1, exerciseSessionsInWeek1));
 
       const [created] = await db
         .insert(programExamples)

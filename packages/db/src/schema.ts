@@ -79,21 +79,22 @@ import type {
 
 /**
  * Session kind alias (docs/kind-rename-plan.md): columns that hold a session
- * kind or a session type format read through the shared normalizer, so rows
- * written by a later release (kind "exercises") read the same here. Same
- * column types in SQL — no migration.
+ * kind or a session type format pass through the shared normalizer both ways,
+ * so a "lifting" value (release-1 rows, AI history, an old client) reads as
+ * "exercises" and is never written back. Same column types in SQL.
  */
 const kindText = <T extends string>() =>
   customType<{ data: T; driverData: string }>({
     dataType: () => "text",
+    toDriver: (v) => normalizeKind(v),
     fromDriver: (v) => normalizeKind(v) as T,
   });
 
-/** jsonb whose nested `kind` / `format` values read through the alias (normalizeKinds). */
+/** jsonb whose nested `kind` / `format` values pass through the alias (normalizeKinds) on read and write. */
 const kindJsonb = <T>() =>
   customType<{ data: T; driverData: unknown }>({
     dataType: () => "jsonb",
-    toDriver: (v) => JSON.stringify(v),
+    toDriver: (v) => JSON.stringify(normalizeKinds(v)),
     fromDriver: (v) => normalizeKinds(typeof v === "string" ? JSON.parse(v) : v) as T,
   });
 
@@ -151,7 +152,7 @@ export const clients = pgTable("clients", {
   status: text("status").$type<ClientStatus>().notNull().default("active"),
   goals: text("goals"),
   limitations: text("limitations"),
-  /** Lifting sessions per week (cardio does not count). */
+  /** Exercise sessions per week (cardio does not count). */
   sessionsPerWeek: integer("sessions_per_week"),
   /** Planned training weekdays as ISO ints (1=Mon … 7=Sun). */
   trainingDays: jsonb("training_days").$type<number[]>(),
@@ -272,8 +273,8 @@ export const sessionLogs = pgTable("session_logs", {
   /** Which prescribed session this was; null = freestyle workout. */
   programSessionId: uuid("program_session_id"),
   date: date("date").notNull(),
-  /** "lifting" (sets below) or "cardio" (payload in `cardio`). */
-  kind: kindText<SessionKind>()("kind").notNull().default("lifting"),
+  /** "exercises" (sets below) or "cardio" (payload in `cardio`). */
+  kind: kindText<SessionKind>()("kind").notNull().default("exercises"),
   /** Cardio actuals when kind = "cardio". */
   cardio: jsonb("cardio").$type<CardioLog>(),
   notes: text("notes"),
@@ -793,7 +794,7 @@ export const sessionTypes = pgTable(
       .notNull()
       .references(() => trainers.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    /** "lifting" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
+    /** "exercises" (exercises + sets), "cardio" (cardio prescription) or, for Metabolic presets, "any" (the session decides). */
     format: kindText<SessionTypeFormat>()("format").notNull(),
     /** A `SESSION_TYPE_PRESETS` key = a locked preset (archive/restore only); null = the trainer's own type.
      *  One row per preset per trainer rides on the name index (preset names are locked). */

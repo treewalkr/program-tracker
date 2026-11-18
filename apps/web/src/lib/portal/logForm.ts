@@ -37,7 +37,7 @@ export function prescriptionOfPortal(ps: PortalSet): Prescription {
 
 const cell = (v: number | null) => (v == null ? "" : v);
 
-/** Rows for a lifting session, in prescribed order, prefilled as prescribed. */
+/** Rows for a exercise session, in prescribed order, prefilled as prescribed. */
 export function rowsOfSession(session: PortalSession): PortalRow[] {
   return session.exercises.flatMap((e) =>
     e.prescribedSets.map((ps) => {
@@ -206,7 +206,7 @@ export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace
   if (missing.length > 0) return { error: "kg", sets: missing.length, programExerciseId: missing[0].programExerciseId };
   // pain and whole-exercise skips: the same flags the trainer's sheet sends, so the pain signal fires
   const flags = sessionFlags(f.rows, f.flags ?? {});
-  return { input: { ...base, kind: "lifting", sets: saved.map(portalSet), ...(flags.length ? { flags } : {}) }, sets: saved.length };
+  return { input: { ...base, kind: "exercises", sets: saved.map(portalSet), ...(flags.length ? { flags } : {}) }, sets: saved.length };
 }
 
 /** Untouched since the page opened it: still on the prefilled kg and reps, no RPE given. */

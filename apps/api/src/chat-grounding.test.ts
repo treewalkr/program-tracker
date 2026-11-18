@@ -50,7 +50,7 @@ async function setup(name: string) {
             name: "Lower",
             seq: 1,
             order: 0,
-            kind: "lifting",
+            kind: "exercises",
             exercises: [
               {
                 id: crypto.randomUUID(),
@@ -114,7 +114,7 @@ describe.skipIf(!dbUp)("chat grounding (F11)", () => {
     expect(reply).not.toMatch(/no completed sessions|cold start/i);
   });
 
-  test("lifting client: back-offs appear per session under the program's session label", async () => {
+  test("exercises client: back-offs appear per session under the program's session label", async () => {
     const { clientId, programId, squatId, squatName, sessionId } = await setup("ZZ-TEST Daniel");
     const res = await call("POST", "/v1/logs/sessions", {
       clientId,

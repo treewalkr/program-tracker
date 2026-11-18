@@ -11,7 +11,7 @@ import {
   type AiProgramDraft,
   type DraftSession,
   type DraftWeek,
-  type LiftingSessions,
+  type ExerciseSessions,
   draftAlternates,
   sameLetterWeeks,
   type CardioTarget,
@@ -41,9 +41,9 @@ export interface ClientContext {
   name: string;
   goals?: string | null;
   limitations?: string | null;
-  /** Lifting sessions per week (cardio does not count). */
+  /** Exercise sessions per week (cardio does not count). */
   sessionsPerWeek?: number | null;
-  /** Available ISO weekdays (1=Mon…7=Sun) for lifting; the AI suggests weekdays, code checks them. */
+  /** Available ISO weekdays (1=Mon…7=Sun) for exercise sessions; the AI suggests weekdays, code checks them. */
   trainingDays?: number[] | null;
   /** Extra ISO weekdays available for cardio (null = trainingDays). */
   cardioDays?: number[] | null;
@@ -68,7 +68,7 @@ export interface ProgramSummary {
   rotation?: "A" | "B";
   sessions: {
     name: string;
-    kind?: "lifting" | "cardio";
+    kind?: "exercises" | "cardio";
     /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
     exercises: { name: string; role?: string; group?: string; sets: string[] }[];
   }[];
@@ -163,8 +163,8 @@ export interface BlockShape {
   alternate: boolean;
   /** Fill: weeks the trainer wrote — shown, never written. */
   lockedWeeks?: number[];
-  /** Fill: lifting sessions per week (per A/B letter), from the trainer's locked weeks — overrides the client's count. */
-  liftingSessions?: LiftingSessions | null;
+  /** Fill: exercise sessions per week (per A/B letter), from the trainer's locked weeks — overrides the client's count. */
+  exerciseSessions?: ExerciseSessions | null;
 }
 
 export interface CoachingRulePrompt {
@@ -209,7 +209,7 @@ function draftSchemaSpec(labels: readonly RoleLabel[], shape: "weeks" | "session
     .split("\n")
     .map((l) => `    ${l}`)
     .join("\n")
-    .replace('"sessions": [                     // one week: the lifting sessions, then any cardio sessions', '"sessions": [                 // this week: the lifting sessions, then any cardio sessions');
+    .replace('"sessions": [                     // one week: the exercise sessions, then any cardio sessions', '"sessions": [                 // this week: the exercise sessions, then any cardio sessions');
   return `${spec.slice(0, at)}  "weeks": [                        // every week of the block in full, week 1 first
     {
       "week": number,                // 1, 2, 3 … in order
@@ -245,13 +245,13 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
       }
     ]?
   },
-  "sessions": [                     // one week: the lifting sessions, then any cardio sessions
+  "sessions": [                     // one week: the exercise sessions, then any cardio sessions
     {
       "name": string,
-      "kind"?: "lifting" | "cardio", // defaults to "lifting"
+      "kind"?: "exercises" | "cardio", // defaults to "exercises"
       "weekday"?: number,           // 1=Mon … 7=Sun, from the client's days (see the weekday rule); sessions may share a day
       "type"?: string,              // one of SESSION TYPES whose format matches kind (e.g. "Mobility"); omit if none fits
-      "cardio"?: {                   // required if kind is "cardio"; omit/null for lifting
+      "cardio"?: {                   // required if kind is "cardio"; omit/null for exercises
         "modality": string,          // "Bike", "Run", "Rower", etc.
         "durationMin"?: number,      // 1-300
         "hrZone"?: number,           // 1-5
@@ -302,7 +302,7 @@ function activeLabels(labels: readonly RoleLabel[] | undefined): RoleLabel[] {
 export function roleRule(labels?: readonly RoleLabel[]): string {
   const list = activeLabels(labels);
   return [
-    "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per lifting session. List each session's exercises in label order (the order below). Labels:",
+    "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per exercise session. List each session's exercises in label order (the order below). Labels:",
     ...list.map((l) => `  ${l.key} (${l.name}): ${l.description}`),
     SUPERSET_RULE,
   ].join("\n");
@@ -343,18 +343,18 @@ function oneRepMaxLines(client: ClientContext): string[] {
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** How many lifting sessions to ask for: a fill's locked weeks, else the client's setting, else the current program's. */
-function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string {
-  const fill = block?.liftingSessions;
+/** How many exercise sessions to ask for: a fill's locked weeks, else the client's setting, else the current program's. */
+function exerciseSessionTarget(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string {
+  const fill = block?.exerciseSessions;
   if (typeof fill === "number") return `exactly ${fill} (as in the trainer's locked weeks)`;
   if (fill && (fill.A != null || fill.B != null)) {
     const per = (["A", "B"] as const).flatMap((r) => (fill[r] != null ? [`${r} weeks exactly ${fill[r]}`] : []));
     return `${per.join(", ")} (as in the trainer's locked weeks of the same letter)`;
   }
   if (client.sessionsPerWeek) return `exactly ${client.sessionsPerWeek}`;
-  const prev = previous?.sessions.filter((s) => (s.kind ?? "lifting") === "lifting").length ?? 0;
+  const prev = previous?.sessions.filter((s) => (s.kind ?? "exercises") === "exercises").length ?? 0;
   return prev > 0
-    ? `exactly ${prev} (not set on the client — match the current program's lifting sessions)`
+    ? `exactly ${prev} (not set on the client — match the current program's exercise sessions)`
     : "not specified — infer a sensible number from the goals and history";
 }
 
@@ -362,8 +362,8 @@ function liftingSessionTarget(client: ClientContext, previous: ProgramSummary | 
 function sessionStructureRules(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string[] {
   const days = [...new Set(client.trainingDays ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   return [
-    `- Lifting sessions (kind "lifting") per week: ${liftingSessionTarget(client, previous, block)}. List them in the order they should be trained.`,
-    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the lifting session number and do not use up a training day. List cardio sessions after the lifting ones.',
+    `- Exercise sessions (kind "exercises") per week: ${exerciseSessionTarget(client, previous, block)}. List them in the order they should be trained.`,
+    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the exercise session number and do not use up a training day. List cardio sessions after the exercise sessions.',
     '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
     weekdayRule(client, days),
   ];
@@ -377,7 +377,7 @@ function weekdayRule(client: ClientContext, days: number[]): string {
   if (days.length === 0 && cardio.length === 0) return "- Do not assign weekdays: the app places sessions on the calendar.";
   const long = client.longRunDay && client.longRunDay >= 1 && client.longRunDay <= 7 ? WEEKDAY_NAMES[client.longRunDay - 1] : null;
   return [
-    `- Give every session a "weekday" (1=Mon … 7=Sun). Lifting only on ${days.length ? dayList(days) : "no day (leave lifting weekday out)"}; cardio on ${dayList(cardio)}${long ? `; the long run on ${long}` : ""}. Sessions may share a day.`,
+    `- Give every session a "weekday" (1=Mon … 7=Sun). Exercise sessions only on ${days.length ? dayList(days) : "no day (leave their weekday out)"}; cardio on ${dayList(cardio)}${long ? `; the long run on ${long}` : ""}. Sessions may share a day.`,
     "  Concurrent-training rules (the app keeps weekdays that follow them and re-places the rest): key runs are the long run (≥ 60 min) and hard runs (tempo, threshold, intervals, zone ≥ 4) — never two key runs on one day; heavy lower-body lifting is never the day after a key run and at least 48 h before one; easy runs go on different days where possible.",
   ].join("\n");
 }
@@ -396,8 +396,8 @@ export function blockWeekRules(b: BlockShape): string[] {
       ? `- "weeks" lists weeks ${write.join(", ")} in full, in order — leave out week${locked.length > 1 ? "s" : ""} ${locked.join(", ")} (the trainer wrote ${locked.length > 1 ? "them" : "it"}; shown as locked). Build each week from the trainer's weeks: keep their exercises and sessions, and progress the loads from the last week with the same letter, following each week's directive.`
       : `- "weeks" lists every week 1–${b.weeks} in full, in order: each week's own sets, reps and loads, following that week's directive (+volume adds sets or reps, +intensity adds load, deload follows the deload rule).`,
     locked.length && b.alternate
-      ? "- Keep each week's sessions in the same order as the trainer's locked week with its letter (lifting first, then cardio) so each one keeps its calendar slot."
-      : "- Keep the same sessions in the same order every week (lifting first, then cardio) so each one keeps its calendar slot.",
+      ? "- Keep each week's sessions in the same order as the trainer's locked week with its letter (exercise sessions first, then cardio) so each one keeps its calendar slot."
+      : "- Keep the same sessions in the same order every week (exercise sessions first, then cardio) so each one keeps its calendar slot.",
     locked.length && b.alternate
       ? '- This block ALTERNATES the trainer\'s two routines: odd weeks are routine A (rotation "A"), even weeks routine B (rotation "B"). Each week keeps the exercises of the trainer\'s locked week with its letter and progresses its loads from the last week with that letter.'
       : b.alternate
@@ -408,7 +408,7 @@ export function blockWeekRules(b: BlockShape): string[] {
 }
 
 const WEEK_STABILITY_RULE =
-  "- sessions is exactly one week. Keep the current week's sessions in the same order (lifting first, then cardio) so each one keeps its calendar slot; add or drop a session only with a reason stated in rationale.";
+  "- sessions is exactly one week. Keep the current week's sessions in the same order (exercise sessions first, then cardio) so each one keeps its calendar slot; add or drop a session only with a reason stated in rationale.";
 
 const MARKDOWN_RULE = `- Format rationale and clientSummary as markdown: short paragraphs, bold lead-ins naming the session exactly as its \`name\` (e.g. **${RATIONALE_SESSION_LEAD_EXAMPLE}**), and bullet lists for per-session/per-week breakdowns. No headings, no tables.`;
 
@@ -629,10 +629,10 @@ export function draftSlotsText(d: AiProgramDraft): string {
   const multi = d.weeks.length > 1;
   return firsts
     .map((w) => {
-      const seq = { lifting: 0, cardio: 0 };
+      const seq = { exercises: 0, cardio: 0 };
       const head = multi ? [`WEEK ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${sameLetterNote(d, w)}`] : [];
       const body = w.sessions.map((s, di) => {
-        const kind = s.kind === "cardio" ? "cardio" : "lifting";
+        const kind = s.kind === "cardio" ? "cardio" : "exercises";
         const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
         const rows = s.exercises.map((e, ei) => {
           const tag = groupTag(s.exercises, ei);
@@ -1334,12 +1334,12 @@ export function buildImportMessages(ctx: ImportPromptContext): { system: string;
   const system = [
     "You read a personal trainer's training notes, pasted as numbered lines, and turn them into structured JSON. You never invent anything: every value you output must be written in its line.",
     "Respond with a single JSON object only, this shape (? = optional; omit a field the text does not give):",
-    `{"weeks": [{"label": string|null, "line": number|null, "rotation"?: "A"|"B", "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "lifting"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
+    `{"weeks": [{"label": string|null, "line": number|null, "rotation"?: "A"|"B", "days": [{"label": string, "line": number, "sessions": [{"name": string, "kind": "exercises"|"cardio", "line": number, "cardio"?: {"modality": string, "durationMin"?: number, "durationMinLow"?: number, "hrZone"?: number, "hrZoneLow"?: number, "distanceKm"?: number, "intensity"?: string, "pace"?: string}, "exercises": [{"line": number, "sourceName": string, "name": string, "variation"?: string, "equipment"?: string, "notes"?: string, "prescription": null | {"sets": number|null, "setsLow"?: number, "reps"?: number, "repsLow"?: number, "repsList"?: number[], "seconds"?: number, "secondsLow"?: number, "failure"?: boolean, "unit"?: "reps"|"rounds"|"steps"}, "actuals"?: [{"reps"?: number, "kg"?: number, "seconds"?: number}], "group"?: string}]}]}]}], "skipped": [{"line": number, "reason": string}], "newTerms": [{"term": string, "line": number, "meaning": string|null}]}`,
     "Trainers write notes in many styles (day numbers or weekday names, \"4x8\" or \"3 sets of 10\", bullets, tables, copied chat messages, Thai or English). Read what each line means, not its exact wording.",
     "Structure:",
     '- A week header ("Week 3", "WEEK 1", "สัปดาห์ 2") starts a week: label as written, its line. No week headers → one week with label null and line null.',
     '- rotation = "A" or "B" only when the notes say the weeks alternate two routines: "Week A" / "Week B", "Week 1 (A)", "odd/even weeks", "A week / B week", "สัปดาห์ A", "สัปดาห์คี่ / สัปดาห์คู่" (odd = A, even = B). Same letter → same routine. Never guess it from the exercises; leave it out otherwise.',
-    '- A day or session header starts a day: "Day 1 Back/Biceps", "Mon - Upper A", "Fri: Upper B", "Upper A", "วันที่ 1 ขา". label = the header as written. Its lifting exercises form one session (kind "lifting") whose line is the header line and whose name is the focus without the day marker ("Day 1 Back/Biceps" → "Back/Biceps", "Mon - Upper A" → "Upper A", "Upper A" → "Upper A"), or the whole label when there is no focus.',
+    '- A day or session header starts a day: "Day 1 Back/Biceps", "Mon - Upper A", "Fri: Upper B", "Upper A", "วันที่ 1 ขา". label = the header as written. Its exercises form one session (kind "exercises") whose line is the header line and whose name is the focus without the day marker ("Day 1 Back/Biceps" → "Back/Biceps", "Mon - Upper A" → "Upper A", "Upper A" → "Upper A"), or the whole label when there is no focus.',
     "- No day or session headers at all → one day with label \"\" and line = the first exercise's line.",
     '- A cardio line ("Cardio Zone 2-3 : 40-60 mins", "Long run 10 km", "Bike 20 min easy") is its own session in that day: kind "cardio", exercises [], line = that line, a short name, cardio filled from the line. Ranges: the upper value in hrZone/durationMin, the lower in hrZoneLow/durationMinLow.',
     '- A table\'s column-header row ("Exercise  Sets  Reps  Load") is not a day or an exercise — skip it, then read each row by its columns.',

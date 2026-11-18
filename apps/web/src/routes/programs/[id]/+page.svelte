@@ -164,7 +164,7 @@
   const weekLogCount = (w: ProgramWeek, wi: number) =>
     w.sessions.reduce((n, s) => n + logsOf(s.id).length, 0) + (logView?.otherByWeek.get(wi)?.length ?? 0);
   const nameOf = (exerciseId: string) => catalogById.get(exerciseId)?.name ?? "Exercise";
-  const liftingCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "lifting").length;
+  const exerciseCount = (w: ProgramWeek) => w.sessions.filter((s) => s.kind === "exercises").length;
   const indexOf = (sid: string) => currentWeek?.sessions.findIndex((x) => x.id === sid) ?? -1;
 
   // —— Alternate A/B and "Copy this week to…" (FB-013) ——————————————————
@@ -493,7 +493,7 @@
         ></textarea>
       </Field>
       <div class="mark-actions">
-        <p class="hint">Days/week defaults to the program's exercise sessions per week ({liftingCount(program.weeks[0])}).</p>
+        <p class="hint">Days/week defaults to the program's exercise sessions per week ({exerciseCount(program.weeks[0])}).</p>
         <button class="btn primary" type="submit" disabled={savingMark || !markGoal.trim()}>
           {savingMark ? "Adding…" : "Add to example library"}
         </button>
@@ -594,10 +594,10 @@
         {/if}
         <span class="grow"></span>
         {#if trainingDays.length > 0}
-          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's lifting and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
+          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's exercise and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
         {/if}
         {#if currentWeek.sessions.length < 14}
-          <button class="btn ghost small" onclick={() => addNewSession("lifting")}>+ Exercise session</button>
+          <button class="btn ghost small" onclick={() => addNewSession("exercises")}>+ Exercise session</button>
           <button class="btn ghost small" onclick={() => addNewSession("cardio")}>+ Cardio session</button>
         {/if}
       </div>
@@ -611,7 +611,7 @@
         <section class="panel" class:sel={selected === s.id} id="sess-{s.id}">
           <div class="panel-head">
             <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}{#if s.typeName}{" · "}<span class="stype">{s.typeName}</span>{/if}</span>
-            {#if s.kind === "lifting"}<span class="subtle">{formatPatternBalance(sessionsPatternBalance([s], patternOf))}</span>{/if}
+            {#if s.kind === "exercises"}<span class="subtle">{formatPatternBalance(sessionsPatternBalance([s], patternOf))}</span>{/if}
           </div>
 
           <div class="panel-body exlist">
@@ -643,7 +643,7 @@
                   {#each logsOf(s.id) as l (l.id)}
                     {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLogLabel(l.cardio)}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
-                    {@const extras = s.kind === "lifting" ? extraSets(l, s.exercises) : []}
+                    {@const extras = s.kind === "exercises" ? extraSets(l, s.exercises) : []}
                     {#if extras.length > 0}
                       <p class="subtle log-notes">
                         Also logged ({logDateLabel(l.date)}): {extras.map((x) => `${nameOf(x.exerciseId)} ${loggedSetLabel(x, false)}`).join(" · ")}

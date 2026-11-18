@@ -41,7 +41,7 @@ describe("resolveLoadKg", () => {
 
 describe("plannedVolume", () => {
   const session = (sets: object[], exerciseId = "sq") => ({
-    kind: "lifting" as const,
+    kind: "exercises" as const,
     exercises: [{ exerciseId, prescribedSets: sets as never }],
   });
 

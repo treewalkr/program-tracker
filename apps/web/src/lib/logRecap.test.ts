@@ -69,12 +69,12 @@ describe("nextToLog", () => {
     ({
       id: "p1",
       name: "Base",
-      weeks: [{ week: 1, sessions: [{ id: "s-wed", name: "Lower B", seq: 1, weekday, order: 0, kind: "lifting", exercises: [], cardio: null }] }],
+      weeks: [{ week: 1, sessions: [{ id: "s-wed", name: "Lower B", seq: 1, weekday, order: 0, kind: "exercises", exercises: [], cardio: null }] }],
       activatedAt: "2026-10-26T08:00:00.000Z",
       createdAt: "2026-10-01T00:00:00.000Z",
       phasing: null,
     }) as unknown as ProgramDto;
-  const done = { id: "l1", clientId: "x", programId: "p1", programSessionId: "s-wed", date: today, kind: "lifting", sets: [] } as unknown as SessionLogDto;
+  const done = { id: "l1", clientId: "x", programId: "p1", programSessionId: "s-wed", date: today, kind: "exercises", sets: [] } as unknown as SessionLogDto;
   const strip = (c: ClientDto, weekday: number | null, logs: SessionLogDto[] = []) =>
     buildClientStrip(c, weekday == null ? null : program(weekday), logs, weeks, today);
 

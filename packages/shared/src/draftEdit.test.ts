@@ -27,7 +27,7 @@ const ex = (name: string, opts: { role?: string; group?: string; sets?: number }
   ...(opts.role ? { role: opts.role } : {}),
   ...(opts.group ? { group: opts.group } : {}),
 });
-const lifting = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "lifting" as const, exercises });
+const exerciseSession = (name: string, exercises: ReturnType<typeof ex>[]) => ({ name, kind: "exercises" as const, exercises });
 
 /** All accessory unless said otherwise, so role order never interferes. */
 function draft(...sessions: ReturnType<typeof ex>[][]): AiProgramDraft {
@@ -35,7 +35,7 @@ function draft(...sessions: ReturnType<typeof ex>[][]): AiProgramDraft {
     name: "Block",
     rationale: "",
     clientSummary: "",
-    weeks: [{ week: 1, sessions: sessions.map((exs, i) => lifting(`Day ${i + 1}`, exs)) }],
+    weeks: [{ week: 1, sessions: sessions.map((exs, i) => exerciseSession(`Day ${i + 1}`, exs)) }],
   } as AiProgramDraft;
 }
 const aux = (name: string, group?: string, sets?: number) => ex(name, { role: "accessory", group, sets });

@@ -4,8 +4,8 @@ import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
 import { buildPortalLog, cachedSession, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
-const lifting: PortalSession = {
-  id: "ps1", name: "Lower", kind: "lifting", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
+const exerciseSession: PortalSession = {
+  id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
   exercises: [
     {
       id: "pe1", exerciseId: "ex-squat", exerciseName: "Back Squat", order: 0,
@@ -17,14 +17,14 @@ const lifting: PortalSession = {
     { id: "pe2", exerciseId: "ex-plank", exerciseName: "Plank", order: 1, prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 45, targetWeightKg: null }] },
   ],
 };
-const cardio: PortalSession = { ...lifting, id: "ps2", kind: "cardio", exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 2 } };
+const cardio: PortalSession = { ...exerciseSession, id: "ps2", kind: "cardio", exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 2 } };
 
 const form = (s: PortalSession, over: Partial<PortalLogForm> = {}): PortalLogForm => ({
   rows: rowsOfSession(s), cardio: cardioFormOf(s.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: "2026-11-16", flags: {}, ...over,
 });
 
 const noTarget: PortalSession = {
-  ...lifting,
+  ...exerciseSession,
   id: "ps3",
   exercises: [
     {
@@ -53,12 +53,12 @@ describe("portal log form", () => {
     const f = form(noTarget);
     f.rows[1].weight = 0;
     expect(buildPortalLog(noTarget, f, false)).toMatchObject({ sets: 3 });
-    // the plank in `lifting` is timed: no kg needed
-    expect(buildPortalLog(lifting, form(lifting), false)).toMatchObject({ sets: 3 });
+    // the plank in `exerciseSession` is timed: no kg needed
+    expect(buildPortalLog(exerciseSession, form(exerciseSession), false)).toMatchObject({ sets: 3 });
     // …even from an old draft whose rows don't say `timed`
-    const old = form(lifting);
+    const old = form(exerciseSession);
     old.rows = old.rows.map(({ timed: _t, ...r }) => r as typeof r & { timed: boolean });
-    expect(buildPortalLog(lifting, old, false)).toMatchObject({ sets: 3 });
+    expect(buildPortalLog(exerciseSession, old, false)).toMatchObject({ sets: 3 });
     // and bodyweight stays exempt at 0 or blank
     const bw = form(noTarget);
     bw.rows[1].weight = 0;
@@ -67,7 +67,7 @@ describe("portal log form", () => {
   });
 
   test("rows come prefilled as prescribed: range bottom and kg, never RPE; timed sets log their seconds", () => {
-    const rows = rowsOfSession(lifting);
+    const rows = rowsOfSession(exerciseSession);
     expect(rows.map((r) => [r.key, r.weight, r.reps, r.rpe])).toEqual([
       ["pe1:1", 100, 6, ""],
       ["pe1:2", 100, 6, ""],
@@ -76,7 +76,7 @@ describe("portal log form", () => {
   });
 
   test("a one-tap save marks untouched sets as planned and sends no RPE", () => {
-    const r = buildPortalLog(lifting, form(lifting), false);
+    const r = buildPortalLog(exerciseSession, form(exerciseSession), false);
     if (!("input" in r)) throw new Error("expected input");
     expect(r.input.sets.map((s) => [s.setNumber, s.reps, s.rpe, s.asPlanned])).toEqual([
       [1, 6, undefined, true],
@@ -87,10 +87,10 @@ describe("portal log form", () => {
   });
 
   test("an edited kg, reps or an RPE the client gave confirms the set", () => {
-    const f = form(lifting);
+    const f = form(exerciseSession);
     f.rows[0].rpe = 8.5;
     f.rows[1].weight = 102.5;
-    const r = buildPortalLog(lifting, f, false);
+    const r = buildPortalLog(exerciseSession, f, false);
     if (!("input" in r)) throw new Error("expected input");
     expect(r.input.sets.map((s) => [s.setNumber, s.rpe, s.asPlanned ?? false])).toEqual([
       [1, 8.5, false],
@@ -108,9 +108,9 @@ describe("portal log form", () => {
   });
 
   test("as prescribed is one save; edits go through", () => {
-    const f = form(lifting);
+    const f = form(exerciseSession);
     f.rows[1].reps = 5;
-    const r = buildPortalLog(lifting, f, false);
+    const r = buildPortalLog(exerciseSession, f, false);
     if (!("input" in r)) throw new Error("expected input");
     expect(r.sets).toBe(3);
     expect(r.input.sets.map((s) => [s.programExerciseId, s.weightKg, s.reps, s.rpe])).toEqual([
@@ -119,41 +119,41 @@ describe("portal log form", () => {
       ["pe2", undefined, 45, undefined],
     ]);
     expect(r.input).not.toHaveProperty("onDuplicate");
-    expect(buildPortalLog(lifting, f, true)).toMatchObject({ input: { onDuplicate: "replace" } });
+    expect(buildPortalLog(exerciseSession, f, true)).toMatchObject({ input: { onDuplicate: "replace" } });
   });
 
   test("nothing entered, or cardio with no activity, can't be saved", () => {
-    const empty = form(lifting, { rows: rowsOfSession(lifting).map((r) => ({ ...r, weight: "", reps: "" })) });
-    expect(buildPortalLog(lifting, empty, false)).toEqual({ error: "nothing" });
+    const empty = form(exerciseSession, { rows: rowsOfSession(exerciseSession).map((r) => ({ ...r, weight: "", reps: "" })) });
+    expect(buildPortalLog(exerciseSession, empty, false)).toEqual({ error: "nothing" });
     expect(buildPortalLog(cardio, form(cardio, { cardio: { ...cardioFormOf(null) } }), false)).toEqual({ error: "activity" });
     const ok = buildPortalLog(cardio, form(cardio, { readiness: { energy: 7, sleep: 4, soreness: null }, notes: " good " }), false);
     expect(ok).toMatchObject({ input: { kind: "cardio", cardio: { modality: "Run", durationMin: 30, hrZone: 2 }, perceivedEnergy: 7, readiness: { sleep: 4 }, notes: "good", sets: [] } });
   });
 
   test("a draft round-trips, and one that no longer fits the session is dropped", () => {
-    const f = form(lifting, { notes: "knee ok", readiness: { energy: 6, sleep: null, soreness: 2 } });
-    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(lifting));
+    const f = form(exerciseSession, { notes: "knee ok", readiness: { energy: 6, sleep: null, soreness: 2 } });
+    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(exerciseSession));
     expect(back).toMatchObject({ notes: "knee ok", readiness: { energy: 6, sleep: null, soreness: 2 }, date: "2026-11-16" });
-    expect(parsePortalDraft(portalDraftJson(f), rowsOfSession({ ...lifting, exercises: lifting.exercises.slice(0, 1) }))).toBeNull();
-    expect(parsePortalDraft("{junk", rowsOfSession(lifting))).toBeNull();
+    expect(parsePortalDraft(portalDraftJson(f), rowsOfSession({ ...exerciseSession, exercises: exerciseSession.exercises.slice(0, 1) }))).toBeNull();
+    expect(parsePortalDraft("{junk", rowsOfSession(exerciseSession))).toBeNull();
   });
 
   test("an untouched prefill is the same form; any edit is not", () => {
-    expect(sameForm(form(lifting), form(lifting))).toBe(true);
-    expect(sameForm(form(lifting), form(lifting, { notes: "  " }))).toBe(true);
-    const f = form(lifting);
+    expect(sameForm(form(exerciseSession), form(exerciseSession))).toBe(true);
+    expect(sameForm(form(exerciseSession), form(exerciseSession, { notes: "  " }))).toBe(true);
+    const f = form(exerciseSession);
     f.rows[0].reps = 7;
-    expect(sameForm(form(lifting), f)).toBe(false);
-    expect(sameForm(form(lifting), form(lifting, { readiness: { energy: 5, sleep: null, soreness: null } }))).toBe(false);
+    expect(sameForm(form(exerciseSession), f)).toBe(false);
+    expect(sameForm(form(exerciseSession), form(exerciseSession, { readiness: { energy: 5, sleep: null, soreness: null } }))).toBe(false);
   });
 
   test("touched exercises: a changed cell or an extra set marks its exercise", () => {
-    const pristine = rowsOfSession(lifting);
-    expect(touchedExercises(pristine, rowsOfSession(lifting)).size).toBe(0);
-    const rows = rowsOfSession(lifting);
+    const pristine = rowsOfSession(exerciseSession);
+    expect(touchedExercises(pristine, rowsOfSession(exerciseSession)).size).toBe(0);
+    const rows = rowsOfSession(exerciseSession);
     rows[1].weight = 102.5;
     expect([...touchedExercises(pristine, rows)]).toEqual(["pe1"]);
-    const more = [...rowsOfSession(lifting), extraRow(rowsOfSession(lifting)[2], 2)];
+    const more = [...rowsOfSession(exerciseSession), extraRow(rowsOfSession(exerciseSession)[2], 2)];
     expect([...touchedExercises(pristine, more)]).toEqual(["pe2"]);
   });
 });
@@ -169,14 +169,14 @@ describe("edit log: the client's own entry reopens", () => {
   });
 
   test("no entry (a coach's log, or none): the prescription", () => {
-    expect(formOfSession(lifting, "2026-11-16").rows).toEqual(rowsOfSession(lifting));
-    const coach = { ...lifting, log: { id: "l1", loggedBy: "trainer" as const, date: "2026-11-15" } };
+    expect(formOfSession(exerciseSession, "2026-11-16").rows).toEqual(rowsOfSession(exerciseSession));
+    const coach = { ...exerciseSession, log: { id: "l1", loggedBy: "trainer" as const, date: "2026-11-15" } };
     expect(formOfSession(coach, "2026-11-16")).toMatchObject({ notes: "", date: "2026-11-16" });
   });
 
   test("saved values fill the rows; a set not saved reopens missed; extra sets come back", () => {
     const s: PortalSession = {
-      ...lifting,
+      ...exerciseSession,
       log: {
         id: "l1", loggedBy: "client", date: "2026-11-15",
         entry: entry([
@@ -215,11 +215,11 @@ describe("edit log: the client's own entry reopens", () => {
 
 describe("skip, something hurt, missed set", () => {
   test("pain on an exercise and a skipped exercise go out as flags, in the trainer's vocabulary", () => {
-    const f = form(lifting);
+    const f = form(exerciseSession);
     f.flags = toggleFlag({}, "pe1", "pain");
     f.flags = setFlagNote(f.flags, "pe1", " left knee ");
     f.rows = setSkipReason(skipExercise(f.rows, "pe2"), "pe2", "time");
-    const r = buildPortalLog(lifting, f, false);
+    const r = buildPortalLog(exerciseSession, f, false);
     if (!("input" in r)) throw new Error("expected input");
     expect(r.input.flags).toEqual([
       { programExerciseId: "pe1", exerciseId: "ex-squat", kind: "pain", note: "left knee" },
@@ -230,15 +230,15 @@ describe("skip, something hurt, missed set", () => {
   });
 
   test("no flags: none sent", () => {
-    const r = buildPortalLog(lifting, form(lifting), false);
+    const r = buildPortalLog(exerciseSession, form(exerciseSession), false);
     expect(r).not.toHaveProperty("input.flags");
   });
 
   test("a missed set is not sent, unlike 0 reps", () => {
-    const f = form(lifting);
+    const f = form(exerciseSession);
     f.rows[1] = { ...f.rows[1], skipped: true };
     f.rows[2] = { ...f.rows[2], reps: 0 };
-    const r = buildPortalLog(lifting, f, false);
+    const r = buildPortalLog(exerciseSession, f, false);
     if (!("input" in r)) throw new Error("expected input");
     expect(r.input.sets.map((s) => [s.programExerciseId, s.setNumber, s.reps])).toEqual([
       ["pe1", 1, 6],
@@ -247,19 +247,19 @@ describe("skip, something hurt, missed set", () => {
   });
 
   test("marking a set missed or flagging pain is an edit; both survive a draft", () => {
-    const f = form(lifting);
+    const f = form(exerciseSession);
     f.rows[0] = { ...f.rows[0], skipped: true };
-    expect(sameForm(form(lifting), f)).toBe(false);
-    const g = form(lifting, { flags: toggleFlag({}, "pe1", "pain") });
-    expect(sameForm(form(lifting), g)).toBe(false);
-    const back = parsePortalDraft(portalDraftJson({ ...g, rows: f.rows }), rowsOfSession(lifting));
+    expect(sameForm(form(exerciseSession), f)).toBe(false);
+    const g = form(exerciseSession, { flags: toggleFlag({}, "pe1", "pain") });
+    expect(sameForm(form(exerciseSession), g)).toBe(false);
+    const back = parsePortalDraft(portalDraftJson({ ...g, rows: f.rows }), rowsOfSession(exerciseSession));
     expect(back?.flags).toEqual({ pe1: { kind: "pain", note: "" } });
     expect(back?.rows[0].skipped).toBe(true);
   });
 
   test("a saved entry reopens its pain flag and its skipped exercise", () => {
     const s: PortalSession = {
-      ...lifting,
+      ...exerciseSession,
       log: {
         id: "l1", loggedBy: "client", date: "2026-11-15",
         entry: {
@@ -279,7 +279,7 @@ describe("skip, something hurt, missed set", () => {
 });
 
 describe("offline: the opened week is kept on this phone", () => {
-  const week = { week: 2, startDate: "2026-11-16", endDate: "2026-11-22", loggable: true, sessions: [lifting] };
+  const week = { week: 2, startDate: "2026-11-16", endDate: "2026-11-22", loggable: true, sessions: [exerciseSession] };
   test("a cached week opens its session again while the week lasts", () => {
     const raw = portalWeekCacheJson(week);
     expect(cachedSession(raw, "ps1", "2026-11-18")?.session.id).toBe("ps1");
@@ -296,15 +296,15 @@ describe("offline: the opened week is kept on this phone", () => {
 
 describe("session duration: first entry to Save", () => {
   const at = (iso: string) => Date.parse(iso);
-  const timed = (startedAt: string | null, date = "2026-11-16") => form(lifting, { startedAt, date });
+  const timed = (startedAt: string | null, date = "2026-11-16") => form(exerciseSession, { startedAt, date });
   test("a session logged live sends its minutes", () => {
-    const r = buildPortalLog(lifting, timed("2026-11-16T10:00:00Z"), false, at("2026-11-16T10:52:20Z"));
+    const r = buildPortalLog(exerciseSession, timed("2026-11-16T10:00:00Z"), false, at("2026-11-16T10:52:20Z"));
     expect(r).toMatchObject({ input: { durationMin: 52 } });
   });
   test("a quick entry after the fact, a back-dated log, or no first entry: no duration", () => {
-    expect(buildPortalLog(lifting, timed("2026-11-16T10:00:00Z"), false, at("2026-11-16T10:03:00Z"))).not.toHaveProperty("input.durationMin");
-    expect(buildPortalLog(lifting, timed("2026-11-16T10:00:00Z", "2026-11-15"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
-    expect(buildPortalLog(lifting, timed(null), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
-    expect(buildPortalLog(lifting, timed("2026-11-16T04:00:00Z"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(exerciseSession, timed("2026-11-16T10:00:00Z"), false, at("2026-11-16T10:03:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(exerciseSession, timed("2026-11-16T10:00:00Z", "2026-11-15"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(exerciseSession, timed(null), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+    expect(buildPortalLog(exerciseSession, timed("2026-11-16T04:00:00Z"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
   });
 });

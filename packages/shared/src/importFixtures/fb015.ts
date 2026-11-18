@@ -45,7 +45,7 @@ export const FB015_CHUNKS: (ImportChunkRange & { data: ImportChunk })[] = [
               label: "Day 1 Push",
               sessions: [
                 {
-                  kind: "lifting",
+                  kind: "exercises",
                   line: 4,
                   name: "Push",
                   exercises: [
@@ -118,7 +118,7 @@ export const FB015_CHUNKS: (ImportChunkRange & { data: ImportChunk })[] = [
               label: "Day 2 Pull",
               sessions: [
                 {
-                  kind: "lifting",
+                  kind: "exercises",
                   line: 12,
                   name: "Pull",
                   exercises: [
@@ -189,7 +189,7 @@ export const FB015_CHUNKS: (ImportChunkRange & { data: ImportChunk })[] = [
               label: "Day 1 squat+vertical",
               sessions: [
                 {
-                  kind: "lifting",
+                  kind: "exercises",
                   line: 20,
                   name: "squat+vertical",
                   exercises: [
@@ -256,7 +256,7 @@ export const FB015_CHUNKS: (ImportChunkRange & { data: ImportChunk })[] = [
               label: "Day 2 Deadlift + Horizontal",
               sessions: [
                 {
-                  kind: "lifting",
+                  kind: "exercises",
                   line: 31,
                   name: "Deadlift + Horizontal",
                   exercises: [

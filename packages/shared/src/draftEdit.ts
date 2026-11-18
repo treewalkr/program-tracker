@@ -191,8 +191,8 @@ const list = (names: string[]) => names.join(", ");
 
 /** "Session 2" / "Cardio 1" per draft session, numbered per kind. */
 export function draftSessionLabels(sessions: readonly { kind?: string | null }[]): string[] {
-  const n = { lifting: 0, cardio: 0 };
-  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.lifting}`));
+  const n = { exercises: 0, cardio: 0 };
+  return sessions.map((s) => (s.kind === "cardio" ? `Cardio ${++n.cardio}` : `Session ${++n.exercises}`));
 }
 
 /**
@@ -328,7 +328,7 @@ function describeGroup(w: Work, key: string, verb = ""): string {
 }
 
 /** Sessions an exercise may live in. */
-function assertLifting(w: Work, d: number) {
+function assertExerciseSession(w: Work, d: number) {
   if (w.sessions[d]?.kind === "cardio") throw new DraftEditError(`${w.tags[d]} is a cardio session`);
 }
 
@@ -484,7 +484,7 @@ export function supersetSelected(draft: AiProgramDraft, refs: DraftRef[], labels
 function applyMoveTo(w: Work, refs: readonly DraftRef[], day: number): string[] {
   const t = day - 1;
   if (!w.lists[t]) throw new DraftEditError(`no session ${day}`);
-  assertLifting(w, t);
+  assertExerciseSession(w, t);
   const picked = uniqueRefs(w, refs);
   for (const e of picked) {
     const { d, i } = w.where(e);
@@ -511,7 +511,7 @@ function applyRestore(w: Work, sessions: Extract<DraftEditOp, { op: "restore" }>
   const used = new Set<W>();
   const total = w.lists.reduce((n, l) => n + l.length, 0);
   w.lists = sessions.map((items, d) => {
-    if (items.length > 0) assertLifting(w, d);
+    if (items.length > 0) assertExerciseSession(w, d);
     const l = items.map((it) => {
       const src = w.get(it.from);
       if (used.has(src)) throw new DraftEditError("an exercise is listed twice");

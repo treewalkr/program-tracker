@@ -463,6 +463,13 @@
       "when": 1798600000000,
       "tag": "0066_feedback_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1798700000000,
+      "tag": "0067_session_kind_exercises",
+      "breakpoints": true
     }
   ]
 }

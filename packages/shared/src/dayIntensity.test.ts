@@ -2,12 +2,12 @@ import { expect, test } from "bun:test";
 import { dayIntensityLevels, dayVolume, intensityLevel, volumeBaseline } from "./dayIntensity";
 
 const lift = (sets: { weightKg?: number | null; reps: number; exerciseId?: string }[]) => ({
-  kind: "lifting",
+  kind: "exercises",
   sets: sets.map((s) => ({ exerciseId: s.exerciseId ?? "squat", type: "working" as const, reps: s.reps, weightKg: s.weightKg ?? null })),
 });
 const cardio = (durationMin: number | null) => ({ kind: "cardio", cardio: { modality: "Run", durationMin }, sets: [] });
 
-test("a lifting day measures kg × reps tonnage", () => {
+test("a exercise day measures kg × reps tonnage", () => {
   expect(dayVolume([lift([{ weightKg: 100, reps: 5 }, { weightKg: 60, reps: 10 }])])).toEqual({ basis: "tonnage", amount: 1100 });
 });
 
@@ -20,7 +20,7 @@ test("a day with no loaded sets falls back to set count", () => {
   expect(dayVolume([lift([{ reps: 10 }, { reps: 10 }, { reps: 8 }])])).toEqual({ basis: "sets", amount: 3 });
 });
 
-test("a cardio-only day measures minutes; lifting on the same day wins", () => {
+test("a cardio-only day measures minutes; exercises on the same day win", () => {
   expect(dayVolume([cardio(30), cardio(15)])).toEqual({ basis: "minutes", amount: 45 });
   expect(dayVolume([cardio(30), lift([{ weightKg: 50, reps: 10 }])])).toEqual({ basis: "tonnage", amount: 500 });
 });
@@ -56,7 +56,7 @@ test("one heavy day doesn't wash out the rest", () => {
   expect(levels[2]).toBe(3);
 });
 
-test("cardio days compare against the usual cardio day, not lifting tonnage", () => {
+test("cardio days compare against the usual cardio day, not exercise tonnage", () => {
   const levels = dayIntensityLevels([
     { basis: "tonnage", amount: 5000 },
     { basis: "tonnage", amount: 5000 },

@@ -184,7 +184,7 @@ const rawMockPortalApi: PortalApi = {
       programId: ctx.program.id,
       programSessionId: input.programSessionId,
       date: input.date,
-      kind: normalizeKind(input.kind ?? "lifting"),
+      kind: normalizeKind(input.kind ?? "exercises"),
       cardio: input.cardio ?? null,
       perceivedEnergy: input.perceivedEnergy,
       readiness: input.readiness && Object.keys(input.readiness).length > 0 ? { ...input.readiness } : null,

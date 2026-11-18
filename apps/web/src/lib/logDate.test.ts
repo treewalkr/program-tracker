@@ -14,7 +14,7 @@ import {
 
 // Anchor: activated Mon 2026-11-02. Week 1 = Nov 2–8, week 2 = Nov 9–15.
 // Each week: A Mon, B Wed, C Fri, D "Any day".
-const s = (id: string, weekday: number | null, seq: number): DateSession => ({ id, weekday, order: 0, kind: "lifting", seq });
+const s = (id: string, weekday: number | null, seq: number): DateSession => ({ id, weekday, order: 0, kind: "exercises", seq });
 const program: DateProgram = {
   id: "pg",
   activatedAt: "2026-11-02T03:00:00.000Z",

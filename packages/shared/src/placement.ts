@@ -14,17 +14,17 @@ import {
  * the calendar.
  *
  * Rules, cheapest first (the week repeats, so Sun → Mon is back-to-back):
- *  - lifting goes on trainingDays only; cardio on cardioDays ∪ trainingDays;
+ *  - exercise sessions go on trainingDays only; cardio on cardioDays ∪ trainingDays;
  *  - the long run is pinned to longRunDay when one is set;
  *  - never two key runs (long or hard) on one day;
  *  - heavy lower lifting is never the day after a key run, nor on/the day
  *    before one, and ideally ≥ 48 h before one (full-body counts a little);
- *  - lifting sessions spread out (fewest back-to-back days), keeping seq order
+ *  - exercise sessions spread out (fewest back-to-back days), keeping seq order
  *    where it costs nothing; never two lower-heavy (or upper-heavy) sessions on
  *    back-to-back days or the same day when it can be avoided;
- *  - more lifting sessions than days → stack, pairing different focuses;
+ *  - more exercise sessions than days → stack, pairing different focuses;
  *  - easy cardio prefers its own cardio days, then days without other cardio,
- *    then days without lifting — at most one run a day when there is room;
+ *    then days without exercise sessions — at most one run a day when there is room;
  *  - no days at all → everything stays unscheduled.
  */
 
@@ -50,9 +50,9 @@ type PatternOf = (exerciseId: string) => string | null | undefined;
 const LOWER = new Set(["knee_dominant", "hip_dominant"]);
 const UPPER = new Set(["vertical_push", "horizontal_push", "vertical_pull", "horizontal_pull"]);
 
-/** What a lifting session mostly loads, from its exercises' movement patterns. */
+/** What a exercise session mostly loads, from its exercises' movement patterns. */
 export function sessionFocus(s: Pick<ProgramSession, "kind" | "exercises">, patternOf?: PatternOf): SessionFocus {
-  if (s.kind !== "lifting" || !patternOf) return "none";
+  if (s.kind !== "exercises" || !patternOf) return "none";
   let lower = 0;
   let upper = 0;
   for (const e of s.exercises) {
@@ -70,7 +70,7 @@ const adjacent = (a: number, b: number) => Math.abs(a - b) === 1 || Math.abs(a -
 /** Days from a to b going forward round the repeating week (0–6). */
 const ahead = (a: number, b: number) => (b - a + 7) % 7;
 
-/** Cost of two lifting focuses sitting on back-to-back days (same=true: same day). */
+/** Cost of two exercise-session focuses sitting on back-to-back days (same=true: same day). */
 function clash(a: SessionFocus, b: SessionFocus, same: boolean): number {
   if (a === "none" || b === "none") return same ? 2 : 0.5;
   if (a === b && a !== "full") return same ? 8 : 6;
@@ -82,7 +82,7 @@ function clash(a: SessionFocus, b: SessionFocus, same: boolean): number {
 
 export type CardioLoad = "long" | "hard" | "easy";
 
-/** Key cardio (long or hard) vs easy; null for lifting. */
+/** Key cardio (long or hard) vs easy; null for exercise sessions. */
 export function cardioLoad(s: Pick<ProgramSession, "kind" | "name" | "cardio">): CardioLoad | null {
   if (s.kind !== "cardio") return null;
   const text = `${s.name} ${s.cardio?.intensity ?? ""}`;
@@ -94,21 +94,21 @@ export function cardioLoad(s: Pick<ProgramSession, "kind" | "name" | "cardio">):
 const normDays = (days?: readonly number[] | null) =>
   [...new Set(days ?? [])].filter((d) => Number.isInteger(d) && d >= 1 && d <= 7).sort((a, b) => a - b);
 
-/** The days each kind may use: lifting on trainingDays, cardio on cardioDays ∪ trainingDays (+ long-run day). */
-export function placementDayPools(input: PlacementDaysInput): { lifting: number[]; cardio: number[] } {
-  const { lifting, cardio } = resolveDays(input);
-  return { lifting, cardio };
+/** The days each kind may use: exercise sessions on trainingDays, cardio on cardioDays ∪ trainingDays (+ long-run day). */
+export function placementDayPools(input: PlacementDaysInput): { exercises: number[]; cardio: number[] } {
+  const { exercises, cardio } = resolveDays(input);
+  return { exercises, cardio };
 }
 
 function resolveDays(input: PlacementDaysInput) {
   const d: PlacementDays = Array.isArray(input) ? { trainingDays: input as readonly number[] } : ((input ?? {}) as PlacementDays);
-  const lifting = normDays(d.trainingDays);
+  const exercises = normDays(d.trainingDays);
   const explicit = d.cardioDays != null && d.cardioDays.length > 0;
   const long = d.longRunDay != null && d.longRunDay >= 1 && d.longRunDay <= 7 ? d.longRunDay : null;
-  const cardio = normDays([...lifting, ...(explicit ? d.cardioDays! : []), ...(long ? [long] : [])]);
+  const cardio = normDays([...exercises, ...(explicit ? d.cardioDays! : []), ...(long ? [long] : [])]);
   // Explicit cardio days are the preferred ones (the long-run day counts too).
   const preferred = explicit ? new Set(normDays([...d.cardioDays!, ...(long ? [long] : [])])) : null;
-  return { lifting, cardio, preferred, longRunDay: long };
+  return { exercises, cardio, preferred, longRunDay: long };
 }
 
 type Ctx = {
@@ -125,10 +125,10 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
   let cost = 0;
   const liftDays = new Set<number>();
   for (const [s, d] of entries) {
-    if (s.kind === "lifting") liftDays.add(d);
+    if (s.kind === "exercises") liftDays.add(d);
     else if (ctx.preferred && !ctx.preferred.has(d)) cost += 1.5;
   }
-  // Even spread of lifting days around the (repeating) week: small cost per tight gap.
+  // Even spread of exercise days around the (repeating) week: small cost per tight gap.
   const ld = [...liftDays].sort((a, b) => a - b);
   for (let i = 0; i < ld.length && ld.length > 1; i++) cost += 0.1 / (ahead(ld[i], ld[(i + 1) % ld.length]) || 7);
 
@@ -137,7 +137,7 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
     for (let j = i + 1; j < entries.length; j++) {
       const [b, db] = entries[j];
       const same = da === db;
-      if (a.kind === "lifting" && b.kind === "lifting") {
+      if (a.kind === "exercises" && b.kind === "exercises") {
         if (same || adjacent(da, db)) cost += clash(ctx.focus.get(a.id)!, ctx.focus.get(b.id)!, same);
         if ((a.seq < b.seq) !== (da <= db) && !same) cost += 0.01; // keep Session 1 earliest…
         continue;
@@ -149,7 +149,7 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
         else if (same) cost += 5;
         continue;
       }
-      const [l, dl, c, dc] = a.kind === "lifting" ? [a, da, b, db] : [b, db, a, da];
+      const [l, dl, c, dc] = a.kind === "exercises" ? [a, da, b, db] : [b, db, a, da];
       if (same) cost += 1;
       if (!isKey(ctx.load.get(c.id))) continue;
       const w = lowerWeight(ctx.focus.get(l.id));
@@ -212,7 +212,7 @@ export function placementConflicts(
   days: PlacementDaysInput,
   patternOf?: PatternOf
 ): PlacementConflict[] {
-  const { lifting, cardio, longRunDay } = resolveDays(days);
+  const { exercises, cardio, longRunDay } = resolveDays(days);
   const placed = sessionsInSeqOrder(sessions).filter((s) => s.weekday != null);
   const load = new Map(sessions.map((s) => [s.id, cardioLoad(s)]));
   const out: PlacementConflict[] = [];
@@ -220,12 +220,12 @@ export function placementConflicts(
   for (const s of placed) {
     const d = s.weekday!;
     perDay.set(d, [...(perDay.get(d) ?? []), s]);
-    const allowed = s.kind === "lifting" ? lifting : cardio;
+    const allowed = s.kind === "exercises" ? exercises : cardio;
     if (allowed.length > 0 && !allowed.includes(d)) {
       out.push({
         rule: "off-day",
         sessionIds: [s.id],
-        text: `"${s.name}" is on ${dayName(d)}, not one of the client's ${s.kind === "lifting" ? "lifting" : "cardio"} days`,
+        text: `"${s.name}" is on ${dayName(d)}, not one of the client's ${s.kind === "exercises" ? "exercises" : "cardio"} days`,
       });
     }
   }
@@ -275,14 +275,14 @@ export function placeSessions(
 ): ProgramSession[] {
   const avail = resolveDays(days);
   const ordered = sessionsInSeqOrder(sessions);
-  if (avail.lifting.length === 0 && avail.cardio.length === 0) {
+  if (avail.exercises.length === 0 && avail.cardio.length === 0) {
     return ordered.map((s, i) => ({ ...s, weekday: null, order: i }));
   }
 
-  const lifting = ordered.filter((s) => s.kind === "lifting");
+  const exerciseSessions = ordered.filter((s) => s.kind === "exercises");
   const cardio = ordered.filter((s) => s.kind === "cardio");
   const ctx: Ctx = {
-    focus: new Map(lifting.map((s) => [s.id, sessionFocus(s, patternOf)])),
+    focus: new Map(exerciseSessions.map((s) => [s.id, sessionFocus(s, patternOf)])),
     load: new Map(cardio.map((s) => [s.id, cardioLoad(s)])),
     preferred: avail.preferred,
   };
@@ -299,9 +299,9 @@ export function placeSessions(
   if (long) fix(long, avail.longRunDay!);
 
   // 0b. Suggested weekdays (AI drafts) stay where they break no rule. Key runs
-  //     first, then lifting, then easy cardio: the expensive sessions win a day.
+  //     first, then exercise sessions, then easy cardio: the expensive sessions win a day.
   if (opts.keepWeekdays) {
-    const rank = (s: ProgramSession) => (isKey(ctx.load.get(s.id)) ? 0 : s.kind === "lifting" ? 1 : 2);
+    const rank = (s: ProgramSession) => (isKey(ctx.load.get(s.id)) ? 0 : s.kind === "exercises" ? 1 : 2);
     const candidates = ordered.filter((s) => s.weekday != null && !isFixed.has(s.id)).sort((a, b) => rank(a) - rank(b));
     for (const s of candidates) {
       const d = s.weekday!;
@@ -323,7 +323,7 @@ export function placeSessions(
     }
     return best?.d ?? null;
   };
-  const freeLifting = lifting.filter((s) => !isFixed.has(s.id));
+  const freeExerciseSessions = exerciseSessions.filter((s) => !isFixed.has(s.id));
   const freeKeys = cardio
     .filter((s) => !isFixed.has(s.id) && isKey(ctx.load.get(s.id)))
     .sort((a, b) => (ctx.load.get(a.id) === "long" ? 0 : 1) - (ctx.load.get(b.id) === "long" ? 0 : 1));
@@ -335,12 +335,12 @@ export function placeSessions(
     return entries;
   };
 
-  // 1. One lifting session per free lifting day for as many days as we have:
+  // 1. One exercise session per free exercise day for as many days as we have:
   //    brute force the day subset and the order (≤ 7 sessions, ≤ 7 days), with
   //    the key runs placed greedily against each candidate.
-  const liftTaken = new Set(fixed.filter(([s]) => s.kind === "lifting").map(([, d]) => d));
-  const freeDays = avail.lifting.filter((d) => !liftTaken.has(d) && hasRoom(fixed, d));
-  const head = freeLifting.slice(0, freeDays.length);
+  const liftTaken = new Set(fixed.filter(([s]) => s.kind === "exercises").map(([, d]) => d));
+  const freeDays = avail.exercises.filter((d) => !liftTaken.has(d) && hasRoom(fixed, d));
+  const head = freeExerciseSessions.slice(0, freeDays.length);
   let placed: [ProgramSession, number][] = [...fixed];
   if (head.length > 0) {
     let best: { cost: number; entries: [ProgramSession, number][] } | null = null;
@@ -358,9 +358,9 @@ export function placeSessions(
     placed = placeKeys(placed);
   }
 
-  // 2. Extra lifting sessions stack on the day where they cost least.
-  for (const s of freeLifting.slice(head.length)) {
-    const d = bestDay(placed, s, avail.lifting);
+  // 2. Extra exercise sessions stack on the day where they cost least.
+  for (const s of freeExerciseSessions.slice(head.length)) {
+    const d = bestDay(placed, s, avail.exercises);
     if (d != null) placed.push([s, d]);
   }
 
@@ -377,7 +377,7 @@ export function placeSessions(
 
   const out: ProgramSession[] = [];
   for (const [d, list] of [...byDay].sort((a, b) => a[0] - b[0])) {
-    // Within a day: lifting first (seq order), cardio after.
+    // Within a day: exercise sessions first (seq order), cardio after.
     sessionsInSeqOrder(list).forEach((s, i) => out.push({ ...s, weekday: d, order: i }));
   }
   ordered.filter((s) => !onCalendar.has(s.id)).forEach((s, i) => out.push({ ...s, weekday: null, order: i }));

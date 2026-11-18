@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { logToInput, type LogDtoLike } from "./logRestore";
 
-const lifting: LogDtoLike & { id: string; createdAt: string } = {
+const exerciseLog: LogDtoLike & { id: string; createdAt: string } = {
   id: "log-1",
   createdAt: "2026-11-07T10:00:00Z",
   clientId: "c1",
   programId: "p1",
   programSessionId: "ps1",
   date: "2026-11-07",
-  kind: "lifting",
+  kind: "exercises",
   cardio: null,
   notes: "felt heavy",
   perceivedEnergy: 6,
@@ -22,13 +22,13 @@ const lifting: LogDtoLike & { id: string; createdAt: string } = {
 };
 
 describe("logToInput", () => {
-  test("a lifting log comes back field for field, as an add", () => {
-    expect(logToInput(lifting)).toEqual({
+  test("a exercise log comes back field for field, as an add", () => {
+    expect(logToInput(exerciseLog)).toEqual({
       clientId: "c1",
       programId: "p1",
       programSessionId: "ps1",
       date: "2026-11-07",
-      kind: "lifting",
+      kind: "exercises",
       cardio: null,
       notes: "felt heavy",
       perceivedEnergy: 6,
@@ -44,7 +44,7 @@ describe("logToInput", () => {
   });
 
   test("nulls on optional scalars drop out; ids and timestamps never travel", () => {
-    const out = logToInput({ ...lifting, notes: null, perceivedEnergy: null, readiness: null, flags: null });
+    const out = logToInput({ ...exerciseLog, notes: null, perceivedEnergy: null, readiness: null, flags: null });
     expect("notes" in out).toBe(false);
     expect("perceivedEnergy" in out).toBe(false);
     expect(out.readiness).toBeNull();
@@ -55,7 +55,7 @@ describe("logToInput", () => {
 
   test("a cardio log keeps its payload and no sets", () => {
     const cardio = { modality: "Bike", durationMin: 30, hrZone: null, distanceKm: 12.5, rpe: 6 };
-    const out = logToInput({ ...lifting, programSessionId: null, kind: "cardio", cardio, sets: [] });
+    const out = logToInput({ ...exerciseLog, programSessionId: null, kind: "cardio", cardio, sets: [] });
     expect(out.kind).toBe("cardio");
     expect(out.cardio).toEqual(cardio);
     expect(out.cardio).not.toBe(cardio);

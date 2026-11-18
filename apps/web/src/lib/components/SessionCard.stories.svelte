@@ -68,9 +68,9 @@
   <SessionCard {...args} />
 {/snippet}
 
-<Story name="Lifting day" {template} args={{ name: 'Upper', tag: 'Session 1', when: 'Thursday · due today', kind: 'lifting', exercises: upper }} />
-<Story name="With a superset" {template} args={{ name: 'Lower', tag: 'Session 2', kind: 'lifting', exercises: superset }} />
+<Story name="Exercise day" {template} args={{ name: 'Upper', tag: 'Session 1', when: 'Thursday · due today', kind: 'exercises', exercises: upper }} />
+<Story name="With a superset" {template} args={{ name: 'Lower', tag: 'Session 2', kind: 'exercises', exercises: superset }} />
 <Story name="Cardio session" {template} args={{ name: 'Cardio 1', kind: 'cardio', cardio: { modality: 'Bike', durationMin: 40, hrZone: 2, distanceKm: 15, targetRpe: 5 } }} />
 <Story name="Two-a-day (evening cardio)" {template} args={{ name: 'Evening Cardio', when: 'Thursday · evening', kind: 'cardio', cardio: { modality: 'Run', durationMin: 30, hrZone: 3, targetRpe: 7 } }} />
-<Story name="With movement patterns & balance" {template} args={{ name: 'Pattern balance', tag: 'Session 3', kind: 'lifting', exercises: patternSession }} />
-<Story name="Loaded strength day" {template} args={{ name: 'Lower — squat focus', tag: 'Session 1', kind: 'lifting', exercises: loaded }} />
+<Story name="With movement patterns & balance" {template} args={{ name: 'Pattern balance', tag: 'Session 3', kind: 'exercises', exercises: patternSession }} />
+<Story name="Loaded strength day" {template} args={{ name: 'Lower — squat focus', tag: 'Session 1', kind: 'exercises', exercises: loaded }} />

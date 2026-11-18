@@ -6,7 +6,7 @@ const weeks = (n: number, ab = false) =>
   Array.from({ length: n }, (_, i) => ({
     week: i + 1,
     ...(ab ? { rotation: i % 2 ? ("B" as const) : ("A" as const) } : {}),
-    sessions: [{ id: `s${i + 1}`, name: "S", seq: 1, order: 0, kind: "lifting" as const, exercises: [] }],
+    sessions: [{ id: `s${i + 1}`, name: "S", seq: 1, order: 0, kind: "exercises" as const, exercises: [] }],
   }));
 
 describe("fill lock rule", () => {

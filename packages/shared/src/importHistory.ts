@@ -172,7 +172,7 @@ const fmtNum = (n: number) => String(Number(n.toFixed(2)));
 /**
  * One archived program per block with at least one logged session: its weeks
  * become weeks 1…k (fresh ids per week, sessions placed on their day's
- * weekday), and every lifting session with usable numbers becomes a log dated
+ * weekday), and every exercise session with usable numbers becomes a log dated
  * on its day. Anything left out is listed in `skipped`, with why.
  */
 export function buildHistory(
@@ -205,7 +205,7 @@ export function buildHistory(
       const weekLabel = week.label ?? `Week ${k + 1}`;
       const dates = dayDates(start, week.days, opts.trainingDays);
       const sessions: ProgramSession[] = [];
-      const seq = { lifting: 0, cardio: 0 };
+      const seq = { exercises: 0, cardio: 0 };
       const perWeekday = new Map<number, number>();
 
       week.days.forEach((day, di) => {
@@ -241,7 +241,7 @@ export function buildHistory(
               ...(ex.group ? { group: ex.group } : {}),
             }))
           );
-          const session: ProgramSession = { ...place(), seq: ++seq.lifting, kind: "lifting", exercises };
+          const session: ProgramSession = { ...place(), seq: ++seq.exercises, kind: "exercises", exercises };
           sessions.push(session);
 
           // —— the log ——

@@ -36,7 +36,7 @@ describe("cloneSessionRows", () => {
       {
         key: "k1",
         name: "Lower",
-        kind: "lifting",
+        kind: "exercises",
         cardio: { modality: "", durationMin: 30, hrZone: 2 },
         exercises: [{ id: "e1", exerciseId: "squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
       },
@@ -98,7 +98,7 @@ describe("superset paste, end to end", () => {
                 {
                   name: "Day 2 Deadlift + Horizontal",
                   line: 1,
-                  kind: "lifting",
+                  kind: "exercises",
                   exercises: [
                     ex(3, "Single Leg Throwball", "Superset x 3 sets", "Single leg throwball"),
                     ex(4, "Slamball Side to Side", "Superset x 3 sets", "Slamball side to side"),

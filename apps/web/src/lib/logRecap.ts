@@ -6,7 +6,7 @@ import type { ClientStrip } from "./overview";
 // After a save: what went in, and who's next
 // ---------------------------------------------------------------------------
 
-/** What a lifting save held — read off the sheet as it was sent. */
+/** What an exercise-session save held — read off the sheet as it was sent. */
 export interface SaveRecap {
   sets: number;
   /** Exercises with at least one logged set. */

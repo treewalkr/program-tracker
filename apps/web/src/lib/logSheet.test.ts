@@ -145,7 +145,7 @@ const prog = {
     sessions: [
       {
         id: `s1-w${week}`,
-        kind: "lifting" as const,
+        kind: "exercises" as const,
         seq: 1,
         exercises: [
           { id: `w${week}-dl`, exerciseId: "dl", order: 0 },
@@ -155,7 +155,7 @@ const prog = {
       },
       {
         id: `s2-w${week}`,
-        kind: "lifting" as const,
+        kind: "exercises" as const,
         seq: 2,
         exercises: [{ id: `w${week}-dl-s2`, exerciseId: "dl", order: 0 }],
       },

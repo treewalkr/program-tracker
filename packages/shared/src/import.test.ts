@@ -50,7 +50,7 @@ function single(line: string, ex: Partial<ImportExercise>): ReviewExercise {
             sessions: [
               {
                 name: "S",
-                kind: "lifting",
+                kind: "exercises",
                 line: 1,
                 exercises: [{ line: 2, sourceName: "x", name: "x", prescription: null, ...ex }],
               },
@@ -279,11 +279,11 @@ describe("header-less text", () => {
           label: null,
           line: null,
           days: [
-            { label: "", line: 1, sessions: [{ name: "", kind: "lifting", line: 1, exercises: [] }] },
+            { label: "", line: 1, sessions: [{ name: "", kind: "exercises", line: 1, exercises: [] }] },
             {
               label: null,
               line: null,
-              sessions: [{ name: null, kind: "lifting", line: null, exercises: [{ line: 2, sourceName: "Bench", name: "Bench", prescription: { sets: 5, reps: 5 } }] }],
+              sessions: [{ name: null, kind: "exercises", line: null, exercises: [{ line: 2, sourceName: "Bench", name: "Bench", prescription: { sets: 5, reps: 5 } }] }],
             },
           ],
         },
@@ -309,7 +309,7 @@ describe("coverage and limits", () => {
         {
           label: "Week 1",
           line: 1,
-          days: [{ label: "Day 1 Legs", line: 2, sessions: [{ name: "Legs", kind: "lifting", line: 2, exercises: [] }] }],
+          days: [{ label: "Day 1 Legs", line: 2, sessions: [{ name: "Legs", kind: "exercises", line: 2, exercises: [] }] }],
         },
       ],
       skipped: [{ line: 6, reason: "sign-off" }],
@@ -334,7 +334,7 @@ describe("coverage and limits", () => {
             line: 1,
             sessions: Array.from({ length: d === 0 ? 5 : 1 }, () => ({
               name: "S",
-              kind: "lifting" as const,
+              kind: "exercises" as const,
               line: 1,
               exercises: Array.from({ length: d === 1 ? 21 : 1 }, () => ex(1)),
             })),
@@ -402,7 +402,7 @@ describe("block grouping", () => {
       label,
       line,
       rotation,
-      days: [{ label: "Day 1", line: line + 1, sessions: [{ name: "Day 1", kind: "lifting" as const, line: line + 1, exercises: [ex(line + 2, name)] }] }],
+      days: [{ label: "Day 1", line: line + 1, sessions: [{ name: "Day 1", kind: "exercises" as const, line: line + 1, exercises: [ex(line + 2, name)] }] }],
     });
     const text = ["Week A", "Day 1", "Squat 3x5", "Week B", "Day 1", "Deadlift 3x5"].join("\n");
     const data = ImportChunk.parse({ weeks: [wk("Week A", 1, "A", "Squat"), wk("Week B", 4, "B", "Deadlift")], skipped: [] });
@@ -482,7 +482,7 @@ describe("day numbers starting again", () => {
   const day = (n: number, line: number, name: string) => ({
     label: `Day ${n} ${name}`,
     line,
-    sessions: [{ name, kind: "lifting" as const, line, exercises: [{ line: line + 1, sourceName: name, name, prescription: { sets: 3, reps: 5 } }] }],
+    sessions: [{ name, kind: "exercises" as const, line, exercises: [{ line: line + 1, sourceName: name, name, prescription: { sets: 3, reps: 5 } }] }],
   });
   const text = Array.from({ length: 14 }, (_, i) => (i % 2 === 0 ? `Day ${i}` : "Squat 3x5")).join("\n");
 
@@ -597,7 +597,7 @@ describe("buildImportResult applies group headers", () => {
               sessions: [
                 {
                   name: "",
-                  kind: "lifting",
+                  kind: "exercises",
                   exercises: [
                     exercise(2, "Squat", { sets: null, reps: 10 }),
                     exercise(3, "Slamball side to side", null),
@@ -630,7 +630,7 @@ describe("buildImportResult makes supersets", () => {
               sessions: [
                 {
                   name: "",
-                  kind: "lifting",
+                  kind: "exercises",
                   exercises: exercises.map((e) => ({ name: e.sourceName, notes: null, prescription: null, ...e })),
                 },
               ],

@@ -22,7 +22,7 @@ describe("portalLogEntry", () => {
     const EX = "6f1c2c1e-6b1a-4c55-9a51-0d6f1f5c9a10";
     const entry = portalLogEntry(
       {
-        id: "log-1", clientId: "c1", programId: "p1", createdAt: new Date(), kind: "lifting", cardio: null, notes: "knee ok",
+        id: "log-1", clientId: "c1", programId: "p1", createdAt: new Date(), kind: "exercises", cardio: null, notes: "knee ok",
         perceivedEnergy: 6, readiness: { sleep: 2 }, flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
       } as never,
       [{ id: "s1", sessionLogId: "log-1", programExerciseId: "pe1", exerciseId: EX, setNumber: 1, type: "working", weightKg: "62.50", reps: 8, rpe: null, asPlanned: true, createdAt: new Date() }] as never,

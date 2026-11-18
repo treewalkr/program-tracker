@@ -56,7 +56,7 @@ export function logToInput(log: LogDtoLike): LogRestoreInput {
     programId: log.programId,
     programSessionId: log.programSessionId ?? null,
     date: log.date,
-    kind: normalizeKind(log.kind ?? "lifting"),
+    kind: normalizeKind(log.kind ?? "exercises"),
     cardio: log.cardio ? { ...log.cardio } : null,
     ...(log.notes != null ? { notes: log.notes } : {}),
     ...(log.perceivedEnergy != null ? { perceivedEnergy: log.perceivedEnergy } : {}),

@@ -3,7 +3,7 @@ import type { PortalSession, PortalWeek } from "@pt/shared";
 import { dateOfWeekday, dayGroups, earlierOpen, focusSession, focusSessionId } from "./week";
 
 const S = (id: string, weekday: number | null, seq: number, log: PortalSession["log"] = null): PortalSession => ({
-  id, name: id, kind: "lifting", seq, weekday, order: 0, exercises: [], cardio: null, log,
+  id, name: id, kind: "exercises", seq, weekday, order: 0, exercises: [], cardio: null, log,
 });
 // a block week that starts on a Wednesday (2026-11-18)
 const week = (sessions: PortalSession[]): PortalWeek => ({ week: 2, startDate: "2026-11-18", endDate: "2026-11-24", loggable: true, sessions });

@@ -75,7 +75,7 @@ export interface ClientDto {
   status: "active" | "paused" | "archived";
   goals: string | null;
   limitations: string | null;
-  /** Lifting sessions per week (cardio doesn't count). */
+  /** Exercise sessions per week (cardio doesn't count). */
   sessionsPerWeek: number | null;
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. */
   trainingDays?: number[];

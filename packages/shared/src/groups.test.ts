@@ -146,7 +146,7 @@ describe("ProgramSession group rules", () => {
     name: "S",
     seq: 1,
     order: 0,
-    kind: "lifting",
+    kind: "exercises",
     exercises: exercises.map((e, i) => ({ ...e, order: i })),
   });
   test("accepts a valid group", () => {

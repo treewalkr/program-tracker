@@ -50,10 +50,10 @@ test("a hold swapped into a timed slot still reads as seconds", () => {
 type LogFixture = Parameters<typeof renderTrainingLog>[0]["logs"][number];
 type SetFixture = Parameters<typeof renderTrainingLog>[0]["sets"][number];
 
-const lifting = (id: string, date: string, programSessionId: string | null = null): LogFixture => ({
+const exerciseLog = (id: string, date: string, programSessionId: string | null = null): LogFixture => ({
   id,
   date,
-  kind: "lifting",
+  kind: "exercises",
   cardio: null,
   programSessionId,
 });
@@ -90,9 +90,9 @@ describe("renderTrainingLog", () => {
   test("renders every set, dated and grouped per session, newest first, with back-offs, holds and cardio", () => {
     const text = renderTrainingLog({
       logs: [
-        lifting("a", "2026-10-22", "ps-1"),
+        exerciseLog("a", "2026-10-22", "ps-1"),
         cardioLog("c", "2026-11-04", { modality: "Run", durationMin: 30, hrZone: 2, rpe: 6, distanceKm: 5.2 }, "pc-1"),
-        lifting("b", "2026-11-05", "ps-2"),
+        exerciseLog("b", "2026-11-05", "ps-2"),
       ],
       sets: [
         s("a", "ex-squat", 1, "140", 5, "7"),
@@ -119,7 +119,7 @@ describe("renderTrainingLog", () => {
 
   test("freestyle logs and sparse cardio still render; empty logs render nothing", () => {
     const text = renderTrainingLog({
-      logs: [lifting("f", "2026-11-01"), cardioLog("r", "2026-11-02", { modality: "Bike", intensity: "easy" })],
+      logs: [exerciseLog("f", "2026-11-01"), cardioLog("r", "2026-11-02", { modality: "Bike", intensity: "easy" })],
       sets: [s("f", "ex-bench", 1, "100", 5)],
       catalog: logCatalog,
     });
@@ -128,7 +128,7 @@ describe("renderTrainingLog", () => {
   });
 
   test("readiness and flags ride on each session line, with a flag summary on top", () => {
-    const flagged = (id: string, date: string, extra: Partial<LogFixture>): LogFixture => ({ ...lifting(id, date, "ps-1"), ...extra });
+    const flagged = (id: string, date: string, extra: Partial<LogFixture>): LogFixture => ({ ...exerciseLog(id, date, "ps-1"), ...extra });
     const text = renderTrainingLog({
       logs: [
         flagged("a", "2026-11-01", {
@@ -167,11 +167,11 @@ describe("renderTrainingLog", () => {
 
   test("over budget: newest weeks stay verbatim, older weeks become per-lift best/total summaries", () => {
     const logs = [
-      lifting("w3", "2026-11-05", "ps-1"), // week of 2026-11-02
-      lifting("w2", "2026-10-28", "ps-1"), // week of 2026-10-26
+      exerciseLog("w3", "2026-11-05", "ps-1"), // week of 2026-11-02
+      exerciseLog("w2", "2026-10-28", "ps-1"), // week of 2026-10-26
       cardioLog("w2c", "2026-10-29", { modality: "Run", durationMin: 25, distanceKm: 4 }),
-      lifting("w1a", "2026-10-19", "ps-1"), // week of 2026-10-19
-      lifting("w1b", "2026-10-22", "ps-2"),
+      exerciseLog("w1a", "2026-10-19", "ps-1"), // week of 2026-10-19
+      exerciseLog("w1b", "2026-10-22", "ps-2"),
     ];
     const sets = [
       s("w3", "ex-squat", 1, "140", 5, "9"),
@@ -188,8 +188,8 @@ describe("renderTrainingLog", () => {
     const newest = "2026-11-05 Session 1 (Lower): Squat 140×5@9, 140×5@9";
     const expected = [
       newest,
-      "Week of 2026-10-26 (summary): 1 lifting session, 1 cardio; Squat best 140×5@8.5, 7 sets, 4750 kg; cardio 25 min, 4 km",
-      "Week of 2026-10-19 (summary): 2 lifting sessions; Squat best 150×3@8, 2 sets, 1150 kg; Plank best 10kg×45s@8, 1 set; Bench best 100×5@7, 2 sets, 1000 kg",
+      "Week of 2026-10-26 (summary): 1 exercise session, 1 cardio; Squat best 140×5@8.5, 7 sets, 4750 kg; cardio 25 min, 4 km",
+      "Week of 2026-10-19 (summary): 2 exercise sessions; Squat best 150×3@8, 2 sets, 1150 kg; Plank best 10kg×45s@8, 1 set; Bench best 100×5@7, 2 sets, 1000 kg",
     ].join("\n");
     // Budget fits the newest week verbatim plus summaries of the older two — not more.
     const text = renderTrainingLog({
@@ -205,7 +205,7 @@ describe("renderTrainingLog", () => {
   });
 
   test("when even summaries overflow, the oldest weeks are dropped with a note", () => {
-    const logs = [lifting("n", "2026-11-05"), lifting("o", "2026-10-01")];
+    const logs = [exerciseLog("n", "2026-11-05"), exerciseLog("o", "2026-10-01")];
     const sets = [s("n", "ex-squat", 1, "140", 5, "9"), s("o", "ex-squat", 1, "120", 5, "7")];
     const newest = "2026-11-05 Freestyle: Squat 140×5@9";
     const text = renderTrainingLog({ logs, sets, catalog: logCatalog, budgetTokens: estimateTokens(newest) });
@@ -219,8 +219,8 @@ test("session labels name each prescribed session by track and seq", () => {
       sessions: [
         {
           sessions: [
-            { id: "s1", kind: "lifting", seq: 1, name: "Lower A" },
-            { id: "s2", kind: "lifting", seq: 2, name: "Session 2" },
+            { id: "s1", kind: "exercises", seq: 1, name: "Lower A" },
+            { id: "s2", kind: "exercises", seq: 2, name: "Session 2" },
             { id: "c1", kind: "cardio", seq: 1, name: "Easy run" },
           ],
         },

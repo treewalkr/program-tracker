@@ -8,7 +8,7 @@ import { SessionTypeModel } from "../models/session-types";
 
 /** A format a custom type may take; callers pass it through normalizeKind first (a release-2 client sends "exercises"). */
 const isFormat = (f: string): f is SessionKind => (SESSION_KINDS as readonly string[]).includes(f);
-const badFormat = { error: "format must be lifting or cardio" };
+const badFormat = { error: "format must be exercises or cardio" };
 const lockedPreset = { error: "preset types can't be edited" };
 
 /** typeId → number of this trainer's programs (any status) with a session of that type. */

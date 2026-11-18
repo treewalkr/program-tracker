@@ -1,13 +1,13 @@
 /**
- * The session kind alias (docs/kind-rename-plan.md): `lifting` is becoming
+ * The session kind alias (docs/kind-rename-plan.md): `lifting` became
  * `exercises`. Every read of a session kind — or a session type's format —
  * passes through here, so data written by either release reads the same.
  *
- * Release 1 (now): the canonical value is still "lifting"; "exercises" reads
- * as "lifting". Release 2 flips `KIND_ALIAS` (from "lifting" to "exercises")
- * and nothing else here changes. The alias is permanent.
+ * Release 2 (now): the canonical value is "exercises"; "lifting" — still in
+ * AI history, device drafts, old import files and model output — reads as
+ * "exercises". Release 1 had the reverse alias. The alias is permanent.
  */
-export const KIND_ALIAS = { from: "exercises", to: "lifting" } as const;
+export const KIND_ALIAS = { from: "lifting", to: "exercises" } as const;
 
 /** The keys whose values are a session kind (`kind`) or a session type format (`format`). */
 const KIND_KEYS = new Set(["kind", "format"]);

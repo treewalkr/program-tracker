@@ -54,7 +54,7 @@ describe.skipIf(!dbUp)("session log flags and readiness", () => {
               name: "Day A",
               seq: 1,
               order: 0,
-              kind: "lifting",
+              kind: "exercises",
               exercises: [
                 { id: slotId, exerciseId: squatId, order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] },
               ],

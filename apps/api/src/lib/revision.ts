@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, aiGenerations, chatMessages, programs, type AiGenerationRow } from "@pt/db";
-import { AiProgramDraft, blockDraftSchema, draftAlternates, lockedDraftWeeks, lockedLiftingSessions, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
+import { AiProgramDraft, blockDraftSchema, draftAlternates, lockedDraftWeeks, lockedExerciseSessions, lockPhasing, mockApplyProposal, mockReviseDraft, scopeToProposal, type ChatProposal, type SlotChange } from "@pt/shared";
 import { currentBlockWeek } from "./signals-service";
 import { callLlm, contextSnapshot } from "../ai/llm";
 import { settleGeneration } from "./settle-generation";
@@ -124,13 +124,13 @@ export async function runRevision(
 
   // The block as the parent drafted it: its length and A/B letters.
   // A fill's locked weeks (the trainer's) stay out of the AI's answer and come back from the parent.
-  // A fill's weeks keep the lifting count of the trainer's locked week of their letter.
+  // A fill's weeks keep the exercise session count of the trainer's locked week of their letter.
   const alternate = draftAlternates(parent.draft!);
   const block = {
     weeks: parent.draft!.weeks.length,
     alternate,
     lockedWeeks: lockedDraftWeeks(parent.draft!),
-    liftingSessions: lockedLiftingSessions(parent.draft!.weeks.filter((w) => w.locked), alternate),
+    exerciseSessions: lockedExerciseSessions(parent.draft!.weeks.filter((w) => w.locked), alternate),
   };
   const ac = registerGeneration(generation.id);
   try {
@@ -218,7 +218,7 @@ export async function runRevision(
       mode: "json",
       long: !isWeek,
       // A block revision keeps the block's length and letters.
-      schema: isWeek ? AiProgramDraft : blockDraftSchema({ plannedWeeks: block.weeks, alternate: block.alternate, lockedWeeks: block.lockedWeeks, liftingSessions: block.liftingSessions }),
+      schema: isWeek ? AiProgramDraft : blockDraftSchema({ plannedWeeks: block.weeks, alternate: block.alternate, lockedWeeks: block.lockedWeeks, exerciseSessions: block.exerciseSessions }),
       mock: () => {
         const d = mockApplyProposal(
           mockReviseDraft(parent.draft!, trimmedMessage),

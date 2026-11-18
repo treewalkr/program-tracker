@@ -7,7 +7,7 @@ import { str, as } from "./shared";
 
 const SessionTypeInsert = createInsertSchema(sessionTypes, {
   name: str({ minLength: 1, maxLength: SESSION_TYPE_NAME_MAX }),
-  /** Plain string: the route answers a bad value with "format must be lifting or cardio" ("any" is preset-only). */
+  /** Plain string: the route answers a bad value with "format must be exercises or cardio" ("any" is preset-only). */
   format: as(t.String({ maxLength: 20 })),
 });
 

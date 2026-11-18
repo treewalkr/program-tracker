@@ -20,7 +20,7 @@ export interface PortalLinkInfo {
 export interface PortalLogInput {
   programSessionId: string;
   date: string;
-  kind?: "lifting" | "cardio";
+  kind?: "exercises" | "cardio";
   cardio?: CardioLogDto | null;
   notes?: string;
   perceivedEnergy?: number;

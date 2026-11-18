@@ -164,7 +164,7 @@ describe("fixDraftRoles", () => {
     name: "d",
     rationale: "why",
     clientSummary: "",
-    weeks: [{ sessions: [{ name: "Lower", kind: "lifting", exercises: exercises.map((e) => ({ exerciseName: e.exerciseName, role: e.role, prescribedSets: sets(e.reps ?? 5) })) }] }],
+    weeks: [{ sessions: [{ name: "Lower", kind: "exercises", exercises: exercises.map((e) => ({ exerciseName: e.exerciseName, role: e.role, prescribedSets: sets(e.reps ?? 5) })) }] }],
   });
 
   test("missing and unknown labels are filled by suggestRole; known ones stay", () => {

@@ -98,17 +98,17 @@ if (richest.length < 2) throw new Error("need two clients in the local database"
 const activeProgram = async (clientId: string) =>
   (await db.select().from(programs).where(and(eq(programs.clientId, clientId), eq(programs.status, "active"), ne(programs.name, FIXTURE_NAME))).orderBy(desc(programs.createdAt)))[0];
 
-const lifting = (w: ProgramWeek) => w.sessions.filter((s) => (s.kind ?? "lifting") === "lifting");
+const exerciseSessions = (w: ProgramWeek) => w.sessions.filter((s) => (s.kind ?? "exercises") === "exercises");
 
-/** An A/B copy of `src`: odd weeks A as written, even weeks B with lifting from another program (a different routine). */
+/** An A/B copy of `src`: odd weeks A as written, even weeks B with exercise sessions from another program (a different routine). */
 async function fillFixture(src: typeof programs.$inferSelect) {
   await db.delete(programs).where(and(eq(programs.clientId, src.clientId!), eq(programs.name, FIXTURE_NAME)));
   const others = await db.select().from(programs).where(and(eq(programs.trainerId, src.trainerId), ne(programs.id, src.id)));
-  const need = lifting(src.sessions[0]).length;
-  const aNames = new Set(lifting(src.sessions[0]).flatMap((s) => s.exercises.map((e) => e.exerciseId)));
+  const need = exerciseSessions(src.sessions[0]).length;
+  const aNames = new Set(exerciseSessions(src.sessions[0]).flatMap((s) => s.exercises.map((e) => e.exerciseId)));
   const donor = others
     .map((p) => p.sessions[0])
-    .find((w) => w && lifting(w).length === need && lifting(w).some((s) => s.exercises.some((e) => !aNames.has(e.exerciseId))));
+    .find((w) => w && exerciseSessions(w).length === need && exerciseSessions(w).some((s) => s.exercises.some((e) => !aNames.has(e.exerciseId))));
   if (!donor) throw new Error("no program with a different routine to borrow the B week from");
   const weeks = setAlternating(structuredClone(src.sessions), true).map((w) => {
     if (w.rotation !== "B") return w;
@@ -116,8 +116,8 @@ async function fillFixture(src: typeof programs.$inferSelect) {
     return {
       ...w,
       sessions: w.sessions.map((s) => {
-        if ((s.kind ?? "lifting") !== "lifting") return s;
-        const d = lifting(donor)[i++];
+        if ((s.kind ?? "exercises") !== "exercises") return s;
+        const d = exerciseSessions(donor)[i++];
         return { ...s, name: d.name, exercises: structuredClone(d.exercises) };
       }),
     };

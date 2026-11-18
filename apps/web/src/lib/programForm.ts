@@ -6,7 +6,7 @@ import type { PhasingRow } from "./phasing";
 export interface SessionRow {
   key: string;
   name: string;
-  kind: "lifting" | "cardio";
+  kind: "exercises" | "cardio";
   /** Trainer's session type; picking one sets `kind` to its format. */
   typeId?: string;
   cardio: CardioPrescriptionDto;

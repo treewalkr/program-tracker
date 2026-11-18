@@ -3,17 +3,17 @@ import { normalizeKind } from "./sessionKind";
 
 /**
  * Session types label a session over the two fixed formats in `SESSION_KINDS`.
- * The format decides what a session holds — exercises + sets (lifting) or a
+ * The format decides what a session holds — exercises + sets ("exercises") or a
  * cardio prescription — so it stays in code.
  *
  * Two kinds of type share one table:
  * - **presets**: the fixed two-level taxonomy below (main type → sub-types).
  *   Every trainer has them; names and formats are locked, they can only be
  *   archived and restored. A row carries its `presetKey`.
- * - **custom**: trainer-named, no sub-types, lifting or cardio; fully editable.
+ * - **custom**: trainer-named, no sub-types, exercises or cardio; fully editable.
  */
 
-/** A type's format. "any" (Metabolic) fits a lifting or a cardio session; the session decides. */
+/** A type's format. "any" (Metabolic) fits an exercises or a cardio session; the session decides. */
 export type SessionTypeFormat = SessionKind | "any";
 
 export interface SessionTypeLike {
@@ -49,7 +49,7 @@ export const SESSION_TYPE_TAXONOMY: readonly SessionTypeMain[] = [
   {
     key: "strength-training",
     name: "Strength training",
-    format: "lifting",
+    format: "exercises",
     subs: [
       { key: "strength-training.stability-mobility", name: "Stability & mobility" },
       { key: "strength-training.functional-movement", name: "Functional movement" },

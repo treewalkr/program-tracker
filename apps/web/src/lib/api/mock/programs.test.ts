@@ -28,7 +28,7 @@ describe("mockApi.saveProgram", () => {
             seq: 1,
             weekday: 1,
             order: 0,
-            kind: "lifting",
+            kind: "exercises",
             cardio: null,
             exercises: [
               {
@@ -48,7 +48,7 @@ describe("mockApi.saveProgram", () => {
             seq: 2,
             weekday: 1,
             order: 1,
-            kind: "lifting",
+            kind: "exercises",
             cardio: null,
             exercises: [
               {
@@ -116,7 +116,7 @@ describe("mockApi.saveProgram", () => {
   });
 
   test("saveProgram rejects an invalid weeks document", async () => {
-    // Empty lifting session (no exercises)
+    // Empty exercise session (no exercises)
     const invalidWeeks: ProgramWeekDto[] = [
       {
         week: 1,
@@ -126,7 +126,7 @@ describe("mockApi.saveProgram", () => {
             name: "Empty Session",
             seq: 1,
             order: 0,
-            kind: "lifting",
+            kind: "exercises",
             cardio: null,
             exercises: [],
           },

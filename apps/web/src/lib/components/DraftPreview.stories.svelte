@@ -30,7 +30,7 @@
   const baseDraft: AiDraftDto = {
     name: 'Block 2 — base build',
     rationale: 'Base volume before intensity.',
-    clientSummary: 'Three lifting days.',
+    clientSummary: 'Three exercise days.',
     weeks: [{ week: 1, sessions: [session('Day A'), session('Day B'), session('Day C')] }],
   };
 

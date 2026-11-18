@@ -25,9 +25,9 @@ function ex(
   return { line, sourceName, name, prescription, ...extra };
 }
 
-const lifting = (name: string, line: number, exercises: ImportExercise[]): ImportSession => ({
+const exerciseSession = (name: string, line: number, exercises: ImportExercise[]): ImportSession => ({
   name,
-  kind: "lifting",
+  kind: "exercises",
   line,
   exercises,
 });
@@ -42,7 +42,7 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
           label: "Day 1 Back/Biceps",
           line: 3,
           sessions: [
-            lifting("Back/Biceps", 3, [
+            exerciseSession("Back/Biceps", 3, [
               ex(4, "Lateral Stretch", "Lateral Stretch", null, { variation: "Static Stretch" }),
               ex(5, "Scapular Depression", "Scapular Depression", rx({ reps: 10, sets: 2, setsLow: 1 }), {
                 actuals: logged([10], [10]),
@@ -81,7 +81,7 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
           label: "Day 2 Chest/Triceps",
           line: 15,
           sessions: [
-            lifting("Chest/Triceps", 15, [
+            exerciseSession("Chest/Triceps", 15, [
               ex(16, "Chest stretch", "Chest Stretch", rx({ seconds: 15, secondsLow: 10, sets: 2, setsLow: 1 }), {
                 variation: "PAILs/RAILs",
               }),
@@ -119,7 +119,7 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
           label: "Day 3 Lower",
           line: 27,
           sessions: [
-            lifting("Lower", 27, [
+            exerciseSession("Lower", 27, [
               ex(28, "Hip flexor stretch", "Hip Flexor Stretch", rx({ seconds: 15, secondsLow: 10, sets: 2, setsLow: 1 }), {
                 variation: "Static Stretch",
               }),
@@ -157,7 +157,7 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
           label: "Day 1 Upper Push",
           line: 39,
           sessions: [
-            lifting("Upper Push", 39, [
+            exerciseSession("Upper Push", 39, [
               ex(40, "Push press", "Push Press", rx({ reps: 6, sets: 5 }), {
                 actuals: logged([6, 40], [6, 45], [6, 45], [6, 47.5], [6, 47.5]),
               }),
@@ -182,7 +182,7 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
           label: "Day 2 Upper Pull",
           line: 47,
           sessions: [
-            lifting("Upper Pull", 47, [
+            exerciseSession("Upper Pull", 47, [
               ex(48, "Power high pull", "Power High Pull", rx({ reps: 6, sets: 5 }), {
                 actuals: logged([6, 40], [6, 45], [6, 47.5], [6, 50], [6, 52.5]),
               }),
@@ -207,7 +207,7 @@ export const WEEK11_12_EXTRACTION: ImportChunk = {
           label: "Day 3 Lower",
           line: 55,
           sessions: [
-            lifting("Lower", 55, [
+            exerciseSession("Lower", 55, [
               ex(56, "Squat", "Squat", rx({ reps: 8, repsLow: 6, sets: 4 }), {
                 actuals: logged([8, 60], [8, 70], [8, 80], [7, 85]),
               }),
@@ -254,7 +254,7 @@ export function mockImportExtraction(lines: string[], from: number, to: number):
     const days = w.days.flatMap((d) => {
       const sessions = d.sessions.flatMap((s) => {
         const exercises = s.exercises.filter((e) => has(e.line, e.sourceName));
-        if (!has(s.line, s.name) || (s.kind === "lifting" && exercises.length === 0)) return [];
+        if (!has(s.line, s.name) || (s.kind === "exercises" && exercises.length === 0)) return [];
         return [{ ...s, exercises }];
       });
       return has(d.line, d.label) && sessions.length > 0 ? [{ ...d, sessions }] : [];

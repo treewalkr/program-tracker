@@ -55,7 +55,7 @@ function deriveWeek(base: ProgramWeek, week: number, rule: WeekProgression | und
       cardio: s.cardio ? { ...s.cardio } : s.cardio,
       exercises: s.exercises.map((e, i) => {
         const oldEx = old?.exercises[i]?.exerciseId === e.exerciseId ? old.exercises[i] : undefined;
-        return { ...progressExercise(e, s.kind === "lifting" ? rule : undefined), id: oldEx?.id ?? crypto.randomUUID() };
+        return { ...progressExercise(e, s.kind === "exercises" ? rule : undefined), id: oldEx?.id ?? crypto.randomUUID() };
       }),
     };
   });

@@ -5,7 +5,7 @@ import { normalizeKinds } from "@pt/shared";
  * into Date objects; the DTOs model dates as ISO strings, so we deep-convert
  * back — pages then see identical shapes in mock and live modes. Session kinds
  * and type formats read through the kind alias (docs/kind-rename-plan.md), so
- * an open tab keeps working against a newer API that writes "exercises".
+ * old "lifting" values (AI history, import results) read as "exercises".
  */
 export function trainerWire(value: unknown): unknown {
   return normalizeKinds(datesToIso(value));

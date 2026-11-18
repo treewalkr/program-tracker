@@ -5,12 +5,12 @@ import { FORMAT_LABEL, searchSessionTypes } from "./sessionTypeSearch";
 const types = [
   { name: "Cardiovascular", format: "cardio" as const, presetKey: "cardiovascular" },
   { name: "Aerobic base", format: "cardio" as const, presetKey: "cardiovascular.aerobic-base" },
-  { name: "Strength training", format: "lifting" as const, presetKey: "strength-training" },
-  { name: "Stability & mobility", format: "lifting" as const, presetKey: "strength-training.stability-mobility" },
-  { name: "Loaded strength", format: "lifting" as const, presetKey: "strength-training.loaded-strength" },
+  { name: "Strength training", format: "exercises" as const, presetKey: "strength-training" },
+  { name: "Stability & mobility", format: "exercises" as const, presetKey: "strength-training.stability-mobility" },
+  { name: "Loaded strength", format: "exercises" as const, presetKey: "strength-training.loaded-strength" },
   { name: "Metabolic", format: "any" as const, presetKey: "metabolic" },
   { name: "AMRAP", format: "any" as const, presetKey: "metabolic.amrap" },
-  { name: "Upper strength", format: "lifting" as const, presetKey: null },
+  { name: "Upper strength", format: "exercises" as const, presetKey: null },
 ];
 const names = (q: string) => searchSessionTypes(types, q).map((t) => t.name);
 
@@ -33,7 +33,7 @@ describe("searchSessionTypes", () => {
 
 describe("format labels (docs/kind-rename-plan.md)", () => {
   test("trainers read Exercises / Cardio, never Lifting", () => {
-    expect(FORMAT_LABEL).toEqual({ lifting: "Exercises", cardio: "Cardio", any: "Exercises or cardio" });
+    expect(FORMAT_LABEL).toEqual({ exercises: "Exercises", cardio: "Cardio", any: "Exercises or cardio" });
   });
   test("searching the new label finds exercise types", () => {
     expect(names("exercises")).toContain("Upper strength");

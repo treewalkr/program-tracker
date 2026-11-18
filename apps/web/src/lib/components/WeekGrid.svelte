@@ -385,7 +385,7 @@
           <span class="lg"><span class="sw {st}"></span>{LEGEND_WORDS[st]}</span>
         {/each}
         {#if legend.extras}
-          <span class="lg marks"><span class="mk lifting"></span><span class="mk cardio"></span>Extra lift / cardio</span>
+          <span class="lg marks"><span class="mk exercises"></span><span class="mk cardio"></span>Extra exercises / cardio</span>
         {/if}
       </div>
     {/if}
@@ -578,7 +578,7 @@
   .cell .mk + .state, .cell .more + .state { margin-left: 2px; }
   /* Past three extras: the count, in the cell's ink — never a "more" word; the state word gives way (fill and edge carry it). */
   .cell .more { font: 400 11px/1 var(--font-mono); white-space: nowrap; }
-  /* Extra sessions: lifting a square, cardio a disc — shape, not only colour. */
+  /* Extra sessions: exercises a square, cardio a disc — shape, not only colour. */
   .mk { flex: none; width: 6px; height: 6px; background: currentColor; }
   .mk.cardio { border-radius: 99px; }
   /* Loudest first: missed > to log > due today > planned ≈ done. Done is history

@@ -60,7 +60,7 @@ export function resolveRef(
 
 /** One draft week's sessions → program sessions carrying the AI's suggested
  *  weekdays (unchecked; placement decides). `seq` numbers each kind's track in
- *  draft order (lifting "Session N", cardio "Cardio N"). */
+ *  draft order (exercises "Session N", cardio "Cardio N"). */
 export function draftTemplateSessions(
   draftSessions: DraftSession[],
   catalog: CatalogLike[],
@@ -76,7 +76,7 @@ export function draftTemplateSessions(
   const byName = new Map(catalog.map((c) => [c.name.toLowerCase(), c.id]));
   const createdNames: string[] = [];
   const unresolvable: string[] = [];
-  const seq = { lifting: 0, cardio: 0 };
+  const seq = { exercises: 0, cardio: 0 };
 
   const sessions: ProgramSession[] = draftSessions.map((s) => {
     const isCardio = s.kind === "cardio";
@@ -112,7 +112,7 @@ export function draftTemplateSessions(
         });
     const grouped = normalizeGroups(exercises).map((e, i) => ({ ...e, order: i }));
 
-    const kind = isCardio ? ("cardio" as const) : ("lifting" as const);
+    const kind = isCardio ? ("cardio" as const) : ("exercises" as const);
     const type = findSessionType(types, s.type);
     return {
       id: crypto.randomUUID(),
@@ -204,7 +204,7 @@ export function replaceWeek(
   const hasRoom = (d: number) => (load.get(d) ?? 0) < MAX_SESSIONS_PER_WEEKDAY;
   for (const s of unmatched) {
     const want = ideal.get(s.id) ?? null;
-    const open = (s.kind === "cardio" ? pools.cardio : pools.lifting).filter(hasRoom);
+    const open = (s.kind === "cardio" ? pools.cardio : pools.exercises).filter(hasRoom);
     const d =
       want != null && hasRoom(want)
         ? want

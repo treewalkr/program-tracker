@@ -92,7 +92,7 @@ describe("hasTraining", () => {
 });
 
 describe("blocks", () => {
-  test("labels each block with its weeks and the template week's lifting days", () => {
+  test("labels each block with its weeks and the template week's exercise days", () => {
     const r = result();
     expect(blockLabel(r, 0)).toBe("Week 11 (Back/Biceps · Chest/Triceps · Lower)");
     expect(blockLabel(r, 1)).toBe("Week 12 (Upper Push · Upper Pull · Lower)");
@@ -107,9 +107,9 @@ describe("formFromImport", () => {
     expect(form.plannedWeeks).toBe(4); // one week in the block → default kept
     expect(form.phase).toBe("accumulation");
     expect(form.sessions.map((s) => [s.name, s.kind, s.exercises.length])).toEqual([
-      ["Upper Push", "lifting", 6],
-      ["Upper Pull", "lifting", 6],
-      ["Lower", "lifting", 5],
+      ["Upper Push", "exercises", 6],
+      ["Upper Pull", "exercises", 6],
+      ["Lower", "exercises", 5],
     ]);
     const dbBench = form.sessions[0].exercises[1];
     expect(dbBench).toMatchObject({ exerciseId: "db-bench", exerciseName: "Dumbbell Bench Press", order: 1 });
@@ -121,7 +121,7 @@ describe("formFromImport", () => {
   test("every imported exercise gets a suggested role, in the notes' order", () => {
     const r = result();
     const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey });
-    for (const s of form.sessions.filter((s) => s.kind === "lifting")) {
+    for (const s of form.sessions.filter((s) => s.kind === "exercises")) {
       expect(s.exercises.every((e) => !!e.role)).toBe(true);
       expect(s.exercises.map((e) => e.order)).toEqual(s.exercises.map((_, i) => i));
     }
@@ -142,7 +142,7 @@ describe("formFromImport", () => {
   test("Week 11 keeps its cardio sessions, with the wording in intensity", () => {
     const r = result();
     const form = formFromImport(r, 0, BASE, { choices: {}, resolve, newKey });
-    expect(form.sessions.map((s) => s.kind)).toEqual(["lifting", "cardio", "lifting", "cardio", "lifting"]);
+    expect(form.sessions.map((s) => s.kind)).toEqual(["exercises", "cardio", "exercises", "cardio", "exercises"]);
     expect(form.sessions[1].cardio).toMatchObject({ modality: "Cardio", durationMin: 60, hrZone: 3, intensity: "Zone 2–3 · 40–60 min" });
   });
 
@@ -169,7 +169,7 @@ describe("A/B weeks found (FB-013)", () => {
   test("kept: Week 11 fills Week A, Week 12 fills Week B", () => {
     const r = result();
     const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey, ab: AB });
-    expect(form.sessions.map((s) => s.kind)).toEqual(["lifting", "cardio", "lifting", "cardio", "lifting"]);
+    expect(form.sessions.map((s) => s.kind)).toEqual(["exercises", "cardio", "exercises", "cardio", "exercises"]);
     expect(form.weekB?.map((s) => s.name)).toEqual(["Upper Push", "Upper Pull", "Lower"]);
     expect(form.plannedWeeks).toBe(4);
   });
@@ -210,7 +210,7 @@ describe("A/B week pick helpers (FB-015)", () => {
                 label: "Day 1",
                 line: 1,
                 flags: [],
-                sessions: [{ name: k, kind: k === "lift" ? "lifting" : "cardio", line: 1, source: null, cardio: null, exercises: [], flags: [] }],
+                sessions: [{ name: k, kind: k === "lift" ? "exercises" : "cardio", line: 1, source: null, cardio: null, exercises: [], flags: [] }],
               },
             ],
     })),
@@ -339,7 +339,7 @@ describe("FB-015 picked A/B", () => {
     r.defaultBlock = 0;
     expect(abWeekOptions(r)).toEqual([0, 1]);
     const form = formFromImport(r, 0, BASE, { choices: {}, resolve, newKey, ab: defaultAbPick(r) });
-    expect(form.sessions.filter((s) => s.kind === "lifting").map((s) => s.name)).toEqual(["Back/Biceps", "Chest/Triceps", "Lower"]);
+    expect(form.sessions.filter((s) => s.kind === "exercises").map((s) => s.name)).toEqual(["Back/Biceps", "Chest/Triceps", "Lower"]);
     expect(form.weekB?.map((s) => s.name)).toEqual(["Upper Push", "Upper Pull", "Lower"]);
     expect(form.plannedWeeks).toBe(BASE.plannedWeeks);
   });
