@@ -19,4 +19,7 @@ export const ImpersonationModel = {
   }),
   started: t.Object({ returnTo: t.String(), until: t.String() }),
   stopped: t.Object({ returnTo: t.String() }),
+  /** Allow edits: the viewed trainer's first name, typed back. */
+  allowEdits: t.Object({ confirm: t.String({ minLength: 1, maxLength: 120 }) }),
+  editsAllowed: t.Object({ writesUntil: t.String() }),
 };

@@ -11,6 +11,7 @@ import {
   feedbackComments,
   feedbackItems,
   impersonations,
+  impersonationWrites,
   programs,
   sessionLogs,
   setLogs,
@@ -22,6 +23,7 @@ import { claimTrainer, createSession, sha256, SESSION_COOKIE, type AuthConfig, t
 import { setFlag } from "./lib/flags";
 import { settleFeedbackNotifications } from "./lib/feedback-notify";
 import { getDefaultTrainerId } from "./lib/trainer";
+import { settleImpersonationWrites } from "./lib/trainer-context";
 import { app } from "./app";
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
@@ -343,6 +345,82 @@ describe.skipIf(!dbUp)("view as trainer", () => {
     expect((await call("PUT", "/v1/admin/flags/nope", token, { on: true })).status).toBe(422);
     const kaiToken = (await createSession(kaiId)).token;
     expect((await call("PUT", "/v1/admin/flags/impersonation", kaiToken, { on: true })).status).toBe(403);
+  });
+
+  test("Allow edits needs the first name; writes are then recorded, and Lock ends them", async () => {
+    const token = await adminToken();
+    await start(token, { trainerId: kaiId });
+    const allow = (confirm: string) => call("POST", "/v1/auth/impersonate/allow-edits", token, { confirm });
+    expect((await allow("Kai Tan")).status).toBe(422);
+    expect((await allow("someone")).status).toBe(422);
+    const ok = await allow(" kai ");
+    expect(ok.status).toBe(200);
+    const { writesUntil } = (await ok.json()) as { writesUntil: string };
+    const view = (await me(token)).impersonator!;
+    expect(view.writesUntil).toBe(writesUntil);
+    expect(new Date(writesUntil).getTime()).toBeLessThanOrEqual(new Date(view.until).getTime());
+    expect(new Date(writesUntil).getTime() - Date.now()).toBeGreaterThan(9 * MIN);
+
+    expect((await call("PATCH", `/v1/clients/${kaiClientId}`, token, { name: "ZZ Kai's client" })).status).toBe(200);
+    expect((await call("PATCH", `/v1/clients/${crypto.randomUUID()}`, token, { name: "x" })).status).toBe(404);
+    await settleImpersonationWrites();
+    const writes = await db
+      .select({ method: impersonationWrites.method, route: impersonationWrites.route, status: impersonationWrites.status })
+      .from(impersonationWrites)
+      .innerJoin(impersonations, eq(impersonations.id, impersonationWrites.impersonationId))
+      .where(eq(impersonations.adminId, adminId));
+    expect(writes).toEqual(
+      expect.arrayContaining([
+        { method: "PATCH", route: "/v1/clients/:id", status: 200 },
+        { method: "PATCH", route: "/v1/clients/:id", status: 404 },
+      ]),
+    );
+
+    expect((await call("POST", "/v1/auth/impersonate/lock", token)).status).toBe(200);
+    expect((await me(token)).impersonator!.writesUntil).toBeNull();
+    expect((await call("PATCH", `/v1/clients/${kaiClientId}`, token, { name: "x" })).status).toBe(403);
+    await call("POST", "/v1/auth/impersonate/stop", token);
+    expect((await allow("Kai")).status).toBe(409);
+  });
+
+  test("no email leaves while viewing, even with edits allowed", async () => {
+    const ENV = { RESEND_API_KEY: "re_test", EMAIL_FROM: "PT <fb@pinroj.com>", APP_URL: "https://pt.test" };
+    const savedEnv = Object.fromEntries(Object.keys(ENV).map((k) => [k, process.env[k]]));
+    const origFetch = globalThis.fetch;
+    const sent: string[] = [];
+    Object.assign(process.env, ENV);
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).includes("resend.com")) {
+        sent.push(String(init?.body ?? ""));
+        return new Response(JSON.stringify({ id: "x" }), { status: 200 });
+      }
+      return origFetch(input, init);
+    }) as typeof fetch;
+    const [ticket] = await db
+      .insert(feedbackItems)
+      .values({ trainerId: kaiId, comment: "ZZ imp email", route: "/", context: ticketCtx })
+      .returning();
+    try {
+      const token = await adminToken();
+      await start(token, { trainerId: kaiId, ticketId: ticket.id });
+      await call("POST", "/v1/auth/impersonate/allow-edits", token, { confirm: "Kai" });
+      expect((await call("POST", `/v1/feedback/${ticket.id}/comments`, token, { body: "as Kai" })).status).toBeLessThan(300);
+      await settleFeedbackNotifications();
+      expect(sent).toEqual([]);
+
+      // control: the same admin, no longer viewing, replying to Kai's ticket does email Kai
+      await call("POST", "/v1/auth/impersonate/stop", token);
+      expect((await call("POST", `/v1/feedback/${ticket.id}/comments`, token, { body: "as admin" })).status).toBeLessThan(300);
+      await settleFeedbackNotifications();
+      expect(sent.length).toBeGreaterThan(0);
+    } finally {
+      globalThis.fetch = origFetch;
+      for (const [k, v] of Object.entries(savedEnv)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      await db.delete(feedbackItems).where(eq(feedbackItems.id, ticket.id));
+    }
   });
 
   /**

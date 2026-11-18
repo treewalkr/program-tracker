@@ -1,4 +1,5 @@
-import { Elysia } from "elysia";
+import { Elysia, StatusMap } from "elysia";
+import { db, impersonationWrites } from "@pt/db";
 import { SESSION_COOKIE, authDisabled, resolveSession, viewWritable } from "./auth";
 import { foreignReference } from "./ownership";
 import { getDefaultTrainerId } from "./trainer";
@@ -18,6 +19,9 @@ export interface Impersonating {
 const READS = new Set(["GET", "HEAD", "OPTIONS"]);
 export const isWrite = (method: string) => !READS.has(method.toUpperCase());
 
+/** Requests made during a view with Allow edits on, for the write record. */
+const unlockedViews = new WeakMap<Request, Impersonating>();
+
 /** "Kai Tan" → "Kai" — what the read-only message and the Allow-edits confirm use. */
 export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -29,7 +33,7 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
  * - any id in the request owned by another trainer → 404
  * - the admin viewing as a trainer: `trainerId` is that trainer, `actorId` the
  *   admin, `isAdmin` false (they see the trainer's app), and writes answer 403
- *   unless Allow edits is on.
+ *   unless Allow edits is on — then each one is recorded in `impersonation_writes`.
  *   The view's stop / allow-edits / lock routes live under /v1/auth, outside this guard.
  *
  * AUTH_DISABLED=true (tests, local hacking) acts as the oldest trainer, as admin.
@@ -59,6 +63,7 @@ export const trainerContext = new Elysia({ name: "trainer-context" })
           until: view.until,
           writable: viewWritable(view),
         };
+        if (impersonating.writable) unlockedViews.set(request, impersonating);
         if (isWrite(request.method) && !impersonating.writable) {
           return status(403, { error: `read-only while viewing as ${firstName(view.trainer.name)}` });
         }
@@ -70,4 +75,26 @@ export const trainerContext = new Elysia({ name: "trainer-context" })
     const missing = await foreignReference(trainerId, { route, params, query, body });
     if (missing) return status(404, { error: missing });
     return { trainerId, actorId, isAdmin, impersonating };
+  })
+  // Allow edits: every write made during the view is recorded — what and when, never the body.
+  .onAfterResponse({ as: "scoped" }, (ctx) => {
+    // from the map, not ctx: a write the guard itself refused (a foreign id → 404) is recorded too
+    const acting = unlockedViews.get(ctx.request);
+    if (!acting?.writable || !acting.impersonationId || !ctx.route || !isWrite(ctx.request.method)) return;
+    const raw = ctx.set.status;
+    const code = typeof raw === "number" ? raw : ((raw && StatusMap[raw as keyof typeof StatusMap]) ?? 200);
+    const p = db
+      .insert(impersonationWrites)
+      .values({ impersonationId: acting.impersonationId, method: ctx.request.method, route: ctx.route, status: code })
+      .then(() => undefined)
+      .catch((err) => console.error(`impersonation write log: ${(err as Error).message}`))
+      .finally(() => inFlight.delete(p));
+    inFlight.add(p);
   });
+
+const inFlight = new Set<Promise<void>>();
+/** Tests: wait for the write records started so far (after-response hooks run after the response). */
+export async function settleImpersonationWrites(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 0));
+  while (inFlight.size) await Promise.all([...inFlight]);
+}

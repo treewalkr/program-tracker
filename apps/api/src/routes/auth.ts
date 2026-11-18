@@ -15,7 +15,7 @@ import {
   sha256,
 } from "../lib/auth";
 import { flagEnabled } from "../lib/flags";
-import { impersonatorOf, stopView } from "../lib/impersonation";
+import { allowEdits, impersonatorOf, lockEdits, stopView } from "../lib/impersonation";
 import { ImpersonationModel } from "../models/impersonation";
 import { CLIENT_COOKIE, claimClient, clientCookieSecure, createClientSession } from "../lib/client-auth";
 
@@ -80,6 +80,37 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
       response: { 200: ImpersonationModel.stopped, 401: t.Object({ error: t.String() }) },
       detail: { summary: "Stop viewing as a trainer" },
     },
+  )
+  /** Allow edits for 10 minutes (never past the view): writes go through, each one recorded. Emails still never send. */
+  .post(
+    "/impersonate/allow-edits",
+    async ({ body, cookie, status }) => {
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      const out = await allowEdits(session, body.confirm);
+      if ("error" in out) return status(out.status, { error: out.error });
+      return { writesUntil: out.writesUntil.toISOString() };
+    },
+    {
+      body: ImpersonationModel.allowEdits,
+      response: {
+        200: ImpersonationModel.editsAllowed,
+        401: t.Object({ error: t.String() }),
+        409: t.Object({ error: t.String() }),
+        422: t.Object({ error: t.String() }),
+      },
+      detail: { summary: "Allow edits during a view as a trainer (type their first name)" },
+    },
+  )
+  .post(
+    "/impersonate/lock",
+    async ({ cookie, status }) => {
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      await lockEdits(session);
+      return { ok: true };
+    },
+    { detail: { summary: "Back to read-only during a view as a trainer" } },
   )
   .get(
     "/google",

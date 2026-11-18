@@ -14,6 +14,7 @@ import { firstName } from "./trainer-context";
  */
 
 export const VIEW_MS = 30 * 60_000;
+export const EDITS_MS = 10 * 60_000;
 
 export type StartFailure = { status: 404 | 409 | 422; error: string };
 
@@ -87,6 +88,28 @@ export async function stopView(session: ResolvedSession): Promise<{ returnTo: st
   const ticket = session.view?.ticket;
   if (session.view) await closeView(session, session.ended ?? "stop");
   return { returnTo: ticket ? `/feedback#${feedbackHandle(ticket.number)}` : "/admin" };
+}
+
+/** Allow edits for EDITS_MS, capped at the view's end. Needs the trainer's first name typed back. */
+export async function allowEdits(
+  session: ResolvedSession,
+  confirm: string,
+  now = new Date(),
+): Promise<{ writesUntil: Date } | { status: 409 | 422; error: string }> {
+  const view = session.view;
+  if (!view || session.ended) return { status: 409, error: "not viewing as anyone" };
+  const name = firstName(view.trainer.name);
+  if (confirm.trim().toLocaleLowerCase() !== name.toLocaleLowerCase()) {
+    return { status: 422, error: `type ${name} to allow edits` };
+  }
+  const writesUntil = new Date(Math.min(now.getTime() + EDITS_MS, view.until.getTime()));
+  await db.update(authSessions).set({ actingWritesUntil: writesUntil }).where(eq(authSessions.id, session.sessionId));
+  return { writesUntil };
+}
+
+/** Back to read-only. */
+export async function lockEdits(session: ResolvedSession): Promise<void> {
+  await db.update(authSessions).set({ actingWritesUntil: null }).where(eq(authSessions.id, session.sessionId));
 }
 
 /** What `GET /v1/auth/me` says about a view; null when the session isn't viewing as anyone. */
