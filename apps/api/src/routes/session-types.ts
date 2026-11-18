@@ -2,10 +2,11 @@ import { Elysia, t } from "elysia";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db, sessionTypes, type SessionTypeRow } from "@pt/db";
 import { ensureSessionTypes } from "../lib/session-types";
-import { SESSION_KINDS, normalizeTypeName, type SessionKind } from "@pt/shared";
+import { SESSION_KINDS, normalizeKind, normalizeTypeName, type SessionKind } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { SessionTypeModel } from "../models/session-types";
 
+/** A format a custom type may take; callers pass it through normalizeKind first (a release-2 client sends "exercises"). */
 const isFormat = (f: string): f is SessionKind => (SESSION_KINDS as readonly string[]).includes(f);
 const badFormat = { error: "format must be lifting or cardio" };
 const lockedPreset = { error: "preset types can't be edited" };
@@ -62,10 +63,11 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
     async ({ body, status, trainerId }) => {
       const name = normalizeTypeName(body.name);
       if (!name) return status(422, { error: "name is required" });
-      if (!isFormat(body.format)) return status(422, badFormat);
+      const format = normalizeKind(body.format);
+      if (!isFormat(format)) return status(422, badFormat);
       await ensureSessionTypes(trainerId); // presets first, so a custom type can't take a preset's name
       if (await nameTaken(trainerId, name)) return status(409, taken(name));
-      const [created] = await db.insert(sessionTypes).values({ trainerId, name, format: body.format }).returning();
+      const [created] = await db.insert(sessionTypes).values({ trainerId, name, format }).returning();
       return status(201, toDto(created, 0));
     },
     { body: SessionTypeModel.create }
@@ -89,8 +91,9 @@ export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags:
         updates.name = name;
       }
       if (body.format !== undefined) {
-        if (!isFormat(body.format)) return status(422, badFormat);
-        updates.format = body.format;
+        const format = normalizeKind(body.format);
+        if (!isFormat(format)) return status(422, badFormat);
+        updates.format = format;
       }
       if (body.archived !== undefined) updates.archivedAt = body.archived ? (existing.archivedAt ?? new Date()) : null;
 
