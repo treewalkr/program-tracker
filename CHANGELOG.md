@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+- The last places that still said "lifting" now say "exercise": the client's week summary, the week grid legend and a few error messages. Your programs and logs are unchanged.
+  - th: จุดที่ยังเขียนว่า "lifting" เปลี่ยนเป็น "exercise" หมดแล้ว ทั้งสรุปสัปดาห์ของลูกค้า คำอธิบายในตารางสัปดาห์ และข้อความแจ้งข้อผิดพลาดบางข้อ โปรแกรมและบันทึกการฝึกของคุณยังเหมือนเดิม
+
 ## v0.1.35 — 2026-11-18
 
 ### Changed
