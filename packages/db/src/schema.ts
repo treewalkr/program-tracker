@@ -1013,7 +1013,7 @@ export type RequestLogRow = typeof requestLogs.$inferSelect;
 // View as trainer — the admin's audited views of a trainer's account
 // ---------------------------------------------------------------------------
 
-export const IMPERSONATION_END_REASONS = ["stop", "expired", "flag_off"] as const;
+export const IMPERSONATION_END_REASONS = ["stop", "expired", "flag_off", "disabled"] as const;
 export type ImpersonationEndReason = (typeof IMPERSONATION_END_REASONS)[number];
 
 /** One view: who looked at whose account, from which ticket, and how it ended. */
