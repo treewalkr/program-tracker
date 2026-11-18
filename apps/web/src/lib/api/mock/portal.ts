@@ -19,11 +19,13 @@ import {
   type PortalWeek,
   type PortalWeekDto,
   type ProgramSession,
+  normalizeKind,
 } from "@pt/shared";
 import { uuid } from "$lib/uuid";
 import { mockExerciseName, mockState } from "./api";
 import { exercises } from "./data";
 import { trainerClient } from "./data";
+import { withKindAlias } from "./kindAlias";
 import { PortalDuplicateError, type PortalApi, type PortalLogInput, type PortalSavedLog } from "../portalTypes";
 
 /**
@@ -143,7 +145,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
 
 const fail = (status: number, message: string) => Object.assign(new Error(message), { status });
 
-export const mockPortalApi: PortalApi = {
+const rawMockPortalApi: PortalApi = {
   async session() {
     return { kind: "signedIn", me: { client: { id: CLIENT_ID, name: trainerClient.name }, trainer: { name: MOCK_TRAINER_NAME } } };
   },
@@ -182,7 +184,7 @@ export const mockPortalApi: PortalApi = {
       programId: ctx.program.id,
       programSessionId: input.programSessionId,
       date: input.date,
-      kind: input.kind ?? "lifting",
+      kind: normalizeKind(input.kind ?? "lifting"),
       cardio: input.cardio ?? null,
       perceivedEnergy: input.perceivedEnergy,
       readiness: input.readiness && Object.keys(input.readiness).length > 0 ? { ...input.readiness } : null,
@@ -216,3 +218,5 @@ export const mockPortalApi: PortalApi = {
   async signOut() {},
   googleHref: (returnTo) => returnTo,
 };
+
+export const mockPortalApi: PortalApi = withKindAlias(rawMockPortalApi);
