@@ -23,3 +23,28 @@ describe("portalWire", () => {
     });
   });
 });
+
+describe("portalWire reads the session kind alias", () => {
+  test("a release-2 week (kind exercises) reads as lifting; flags keep their kinds", () => {
+    const week = {
+      weeks: [
+        {
+          sessions: [
+            { id: "s1", kind: "exercises", log: { id: "l", date: new Date("2026-11-16"), entry: { kind: "exercises", flags: [{ kind: "pain" }] } } },
+            { id: "c1", kind: "cardio", log: null },
+          ],
+        },
+      ],
+    };
+    expect(portalWire(week)).toEqual({
+      weeks: [
+        {
+          sessions: [
+            { id: "s1", kind: "lifting", log: { id: "l", date: "2026-11-16", entry: { kind: "lifting", flags: [{ kind: "pain" }] } } },
+            { id: "c1", kind: "cardio", log: null },
+          ],
+        },
+      ],
+    });
+  });
+});

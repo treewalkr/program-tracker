@@ -166,19 +166,19 @@ test("header basics list only what's set", () => {
 
 test("week summary reads the whole training week in one line", () => {
   const f = emptyProfile("2026-11-08");
-  expect(weekSummary(f)).toBe("3 lifts, no fixed days");
-  expect(weekSummary({ ...f, trainingDays: [5, 1, 3] })).toBe("3 lifts on Mon Wed Fri");
+  expect(weekSummary(f)).toBe("3 exercise sessions, no fixed days");
+  expect(weekSummary({ ...f, trainingDays: [5, 1, 3] })).toBe("3 exercise sessions on Mon Wed Fri");
   expect(
     weekSummary({ ...f, trainingDays: [1, 3, 5], cardioDays: [6], longRunDay: 7, cardioUnit: "minutes", cardioValue: 120 })
-  ).toBe("3 lifts on Mon Wed Fri · cardio on Sat · long session Sun · 120 minutes a week");
-  expect(weekSummary({ ...f, sessionsPerWeek: 1, trainingDays: [2], cardioDays: [6, 4] })).toBe("1 lift on Tue · cardio on Thu Sat");
-  expect(weekSummary({ ...f, cardioUnit: "sessions", cardioValue: 2 })).toBe("3 lifts, no fixed days · cardio on lifting days · 2 sessions a week");
+  ).toBe("3 exercise sessions on Mon Wed Fri · cardio on Sat · long session Sun · 120 minutes a week");
+  expect(weekSummary({ ...f, sessionsPerWeek: 1, trainingDays: [2], cardioDays: [6, 4] })).toBe("1 exercise session on Tue · cardio on Thu Sat");
+  expect(weekSummary({ ...f, cardioUnit: "sessions", cardioValue: 2 })).toBe("3 exercise sessions, no fixed days · cardio on exercise days · 2 sessions a week");
 });
 
 test("week summary follows the cardio switch", () => {
   const f = emptyProfile("2026-11-08");
-  expect(weekSummary(f, true)).toBe("3 lifts, no fixed days · cardio on lifting days");
-  expect(weekSummary({ ...f, cardioDays: [6], longRunDay: 7 }, false)).toBe("3 lifts, no fixed days");
+  expect(weekSummary(f, true)).toBe("3 exercise sessions, no fixed days · cardio on exercise days");
+  expect(weekSummary({ ...f, cardioDays: [6], longRunDay: 7 }, false)).toBe("3 exercise sessions, no fixed days");
 });
 
 test("cardio counts as set by days, a long session or a target", () => {

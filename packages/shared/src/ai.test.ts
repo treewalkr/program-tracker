@@ -346,7 +346,7 @@ describe("draft weeks", () => {
     const swapped = { ...ab, weeks: ab.weeks.map((w) => ({ ...w, rotation: w.rotation === "A" ? ("B" as const) : ("A" as const) })) };
     expect(draftWeekIssues(swapped, { plannedWeeks: 4, alternate: true })[0]).toContain('week 1 must be rotation "A"');
     const short = { ...ab, weeks: [ab.weeks[0], { ...ab.weeks[1], sessions: [b[0]] }] };
-    expect(draftWeekIssues(short, { plannedWeeks: 2, alternate: true })).toEqual(["week 2 has 1 lifting sessions, not 2"]);
+    expect(draftWeekIssues(short, { plannedWeeks: 2, alternate: true })).toEqual(["week 2 has 1 exercise sessions, not 2"]);
     expect(draftWeekIssues(ab, { plannedWeeks: 4, alternate: true, liftingSessions: 3 })).toHaveLength(4);
   });
 
@@ -379,7 +379,7 @@ describe("draft weeks", () => {
     expect(draftWeekIssues(fill, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], liftingSessions: lifting })).toEqual([]);
     const wrongB = { ...fill, weeks: [fill.weeks[0], { ...fill.weeks[1], sessions: b.slice(0, 2) }] };
     expect(draftWeekIssues(wrongB, { plannedWeeks: 4, alternate: true, lockedWeeks: [1, 2], liftingSessions: lifting })).toEqual([
-      "week 4 has 2 lifting sessions, not 3",
+      "week 4 has 2 exercise sessions, not 3",
     ]);
   });
 

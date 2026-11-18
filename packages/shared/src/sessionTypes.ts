@@ -1,4 +1,5 @@
 import type { SessionKind } from "./domain";
+import { normalizeKind } from "./sessionKind";
 
 /**
  * Session types label a session over the two fixed formats in `SESSION_KINDS`.
@@ -96,11 +97,17 @@ export function sessionTypePath(t: Pick<SessionTypeLike, "name" | "presetKey">):
   return parent ? `${parent.name} › ${t.name}` : t.name;
 }
 
-/** A type can label a session of this kind: same format, or "any". */
-export const typeFitsKind = (format: SessionTypeFormat, kind: SessionKind): boolean => format === kind || format === "any";
+/** A type can label a session of this kind: same format, or "any". Both sides read through the kind alias. */
+export const typeFitsKind = (format: SessionTypeFormat, kind: SessionKind): boolean => {
+  const f = normalizeKind(format);
+  return f === "any" || f === normalizeKind(kind);
+};
 
-/** The kind a session takes when given this type: the type's format, or the session's own for "any". */
-export const kindForType = (format: SessionTypeFormat, current: SessionKind): SessionKind => (format === "any" ? current : format);
+/** The kind a session takes when given this type: the type's format, or the session's own for "any". Read through the kind alias. */
+export const kindForType = (format: SessionTypeFormat, current: SessionKind): SessionKind => {
+  const f = normalizeKind(format);
+  return f === "any" ? normalizeKind(current) : f;
+};
 
 export interface SessionTypeGroup<T> {
   main: SessionTypeMain;

@@ -131,7 +131,7 @@
         <dd class="tnum">{#if client.bodyweightKg != null}{fmtNum(client.bodyweightKg)} kg{:else}{@render unset()}{/if}</dd>
         <dt>Height</dt>
         <dd class="tnum">{#if client.heightCm != null}{fmtNum(client.heightCm)} cm{:else}{@render unset()}{/if}</dd>
-        <dt>Lifting sessions / week</dt>
+        <dt>Exercise sessions / week</dt>
         <dd class="tnum">{#if client.sessionsPerWeek != null}{client.sessionsPerWeek}{:else}{@render unset()}{/if}</dd>
         <dt>Training days</dt>
         <dd>

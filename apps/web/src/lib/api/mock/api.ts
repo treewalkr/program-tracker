@@ -1,4 +1,5 @@
-import { DeloadSettings as DeloadSettingsSchema, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, normalizeKind, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
+import { asRelease2, withKindAlias } from "./kindAlias";
 import {
   AiProgramDraft as AiProgramDraftSchema,
   draftWeek,
@@ -276,7 +277,7 @@ const state = {
   sessionTypes: [
     ...SESSION_TYPE_PRESETS.map((p) => ({ id: `st-${p.key}`, name: p.name, format: p.format, presetKey: p.key, archivedAt: null })),
     { id: "st-hypertrophy", name: "Hypertrophy", format: "lifting", presetKey: null, archivedAt: null },
-  ] as Omit<SessionTypeDto, "usedIn">[],
+  ].map((t) => (t.format === "lifting" ? asRelease2(t) : t)) as Omit<SessionTypeDto, "usedIn">[], // stored release-2 style (kindAlias.ts)
 };
 
 function portalDto(clientId: string): ClientPortalDto {
@@ -562,7 +563,7 @@ function cannedClientMessage(stats: NonNullable<ClientMessageDto["stats"]>): str
   return lines.join("\n");
 }
 
-export const mockApi: TrainerApi = {
+const rawMockApi: TrainerApi = {
   async apiBuild() {
     return __APP_VERSION__; // no separate API in demo mode
   },
@@ -675,7 +676,7 @@ export const mockApi: TrainerApi = {
     await delay(200);
     const name = normalizeTypeName(input.name);
     assertTypeNameFree(name);
-    const created = { id: `st-${uuid().slice(0, 8)}`, name, format: input.format, presetKey: null, archivedAt: null };
+    const created = { id: `st-${uuid().slice(0, 8)}`, name, format: normalizeKind(input.format), presetKey: null, archivedAt: null };
     state.sessionTypes = [...state.sessionTypes, created];
     return typeDto(created);
   },
@@ -690,7 +691,7 @@ export const mockApi: TrainerApi = {
       next.name = normalizeTypeName(input.name);
       assertTypeNameFree(next.name, id);
     }
-    if (input.format !== undefined) next.format = input.format;
+    if (input.format !== undefined) next.format = normalizeKind(input.format);
     if (input.archived !== undefined) next.archivedAt = input.archived ? (cur.archivedAt ?? new Date().toISOString()) : null;
     state.sessionTypes = state.sessionTypes.map((t) => (t.id === id ? next : t));
     return typeDto(next);
@@ -725,7 +726,7 @@ export const mockApi: TrainerApi = {
       programId: input.programId,
       goal: input.goal,
       level: input.level,
-      daysPerWeek: input.daysPerWeek ?? Math.max(1, program.weeks[0].sessions.filter((x) => x.kind === "lifting").length),
+      daysPerWeek: input.daysPerWeek ?? Math.max(1, program.weeks[0].sessions.filter((x) => normalizeKind(x.kind) === "lifting").length),
       note: input.note ?? null,
       createdAt: new Date().toISOString(),
       program: withNames(program),
@@ -1043,7 +1044,7 @@ export const mockApi: TrainerApi = {
       programId: input.programId,
       programSessionId: input.programSessionId ?? null,
       date: input.date,
-      kind: input.kind ?? "lifting",
+      kind: normalizeKind(input.kind ?? "lifting"),
       cardio: input.cardio ?? null,
       perceivedEnergy: input.perceivedEnergy,
       // Same as the API: an empty readiness or flag list stores as null.
@@ -2544,6 +2545,8 @@ function mockRoster(query: RosterQuery): RosterPageDto {
   });
   return { ...page, items, counts };
 }
+
+export const mockApi: TrainerApi = withKindAlias(rawMockApi);
 
 /** The client portal's mock runs over this same state, as the demo client. */
 export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName };

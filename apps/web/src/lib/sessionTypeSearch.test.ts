@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { sessionTypePath } from "@pt/shared";
-import { searchSessionTypes } from "./sessionTypeSearch";
+import { FORMAT_LABEL, searchSessionTypes } from "./sessionTypeSearch";
 
 const types = [
   { name: "Cardiovascular", format: "cardio" as const, presetKey: "cardiovascular" },
@@ -28,5 +28,15 @@ describe("searchSessionTypes", () => {
   test("every word must match; the format label is searchable and any-format types fit both", () => {
     expect(names("cardio")).toEqual(["Cardiovascular", "Aerobic base", "AMRAP", "Metabolic"]);
     expect(names("yoga")).toEqual([]);
+  });
+});
+
+describe("format labels (docs/kind-rename-plan.md)", () => {
+  test("trainers read Exercises / Cardio, never Lifting", () => {
+    expect(FORMAT_LABEL).toEqual({ lifting: "Exercises", cardio: "Cardio", any: "Exercises or cardio" });
+  });
+  test("searching the new label finds exercise types", () => {
+    expect(names("exercises")).toContain("Upper strength");
+    expect(names("lifting")).toEqual([]);
   });
 });

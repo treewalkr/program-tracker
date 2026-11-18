@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { exerciseUnits, groupIssues, normalizeGroups } from "./groups";
+import { normalizeKind } from "./sessionKind";
 
 // ---------------------------------------------------------------------------
 // Core enums / vocabularies
@@ -646,7 +647,8 @@ export const ProgramExercise = z.object({
 export type ProgramExercise = z.infer<typeof ProgramExercise>;
 
 export const SESSION_KINDS = ["lifting", "cardio"] as const;
-export const SessionKind = z.enum(SESSION_KINDS);
+/** Reads through the kind alias (sessionKind.ts): "exercises" parses as "lifting" until release 2 flips it. */
+export const SessionKind = z.preprocess(normalizeKind, z.enum(SESSION_KINDS));
 export type SessionKind = z.infer<typeof SessionKind>;
 
 /** Who entered a session log: the trainer, or the client in the portal. */
@@ -694,14 +696,14 @@ export const ProgramSession = z
       if (val.exercises.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting session requires at least one exercise",
+          message: "exercise session requires at least one exercise",
           path: ["exercises"],
         });
       }
       if (val.cardio != null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting session must not have cardio prescription",
+          message: "exercise session must not have a cardio prescription",
           path: ["cardio"],
         });
       }

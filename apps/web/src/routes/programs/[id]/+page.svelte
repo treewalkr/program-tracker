@@ -493,7 +493,7 @@
         ></textarea>
       </Field>
       <div class="mark-actions">
-        <p class="hint">Days/week defaults to the program's lifting sessions per week ({liftingCount(program.weeks[0])}).</p>
+        <p class="hint">Days/week defaults to the program's exercise sessions per week ({liftingCount(program.weeks[0])}).</p>
         <button class="btn primary" type="submit" disabled={savingMark || !markGoal.trim()}>
           {savingMark ? "Adding…" : "Add to example library"}
         </button>
@@ -597,7 +597,7 @@
           <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's lifting and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
         {/if}
         {#if currentWeek.sessions.length < 14}
-          <button class="btn ghost small" onclick={() => addNewSession("lifting")}>+ Lifting session</button>
+          <button class="btn ghost small" onclick={() => addNewSession("lifting")}>+ Exercise session</button>
           <button class="btn ghost small" onclick={() => addNewSession("cardio")}>+ Cardio session</button>
         {/if}
       </div>

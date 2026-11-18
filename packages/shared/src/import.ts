@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CardioPrescription, PrescribedSet } from "./domain";
+import { SessionKind, type CardioPrescription, type PrescribedSet } from "./domain";
 import { ImportNewTerm, filterNewTerms, type GlossaryTerm } from "./vocabulary";
 import { withSetCount } from "./groups";
 
@@ -80,7 +80,7 @@ const heading = (max: number) =>
 
 export const ImportSession = z.object({
   name: heading(160),
-  kind: z.enum(["lifting", "cardio"]),
+  kind: SessionKind,
   /** Null when the notes have no session heading; buildImportResult anchors it. */
   line: line.nullish(),
   cardio: ImportCardio.nullish(),

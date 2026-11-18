@@ -1,4 +1,5 @@
 import type { CardioLog, Readiness, SessionFlag, SessionKind, SetType } from "./domain";
+import { normalizeKind } from "./sessionKind";
 
 /** A session log as the API serializes it (GET / POST /v1/logs/sessions). */
 export interface LogDtoLike {
@@ -55,7 +56,7 @@ export function logToInput(log: LogDtoLike): LogRestoreInput {
     programId: log.programId,
     programSessionId: log.programSessionId ?? null,
     date: log.date,
-    kind: log.kind ?? "lifting",
+    kind: normalizeKind(log.kind ?? "lifting"),
     cardio: log.cardio ? { ...log.cardio } : null,
     ...(log.notes != null ? { notes: log.notes } : {}),
     ...(log.perceivedEnergy != null ? { perceivedEnergy: log.perceivedEnergy } : {}),

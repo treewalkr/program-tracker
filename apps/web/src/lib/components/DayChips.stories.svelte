@@ -22,9 +22,9 @@
 </script>
 
 <Story name="Picked days" asChild>
-  <DayChips bind:days={picked} label="Lifting days" idPrefix="s1" empty="No fixed days — sessions are spread across the week" />
+  <DayChips bind:days={picked} label="Exercise days" idPrefix="s1" empty="No fixed days — sessions are spread across the week" />
 </Story>
 
 <Story name="Nothing picked" asChild>
-  <DayChips bind:days={none} label="Cardio days" idPrefix="s2" empty="No fixed days — on lifting days" />
+  <DayChips bind:days={none} label="Cardio days" idPrefix="s2" empty="No fixed days — on exercise days" />
 </Story>

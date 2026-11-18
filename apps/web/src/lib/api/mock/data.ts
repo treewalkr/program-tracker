@@ -31,6 +31,7 @@ export const schemes: PeriodizationSchemeDto[] = [
 ];
 
 import { uuid } from "$lib/uuid";
+import { asRelease2 } from "./kindAlias";
 
 export const exercises: ExerciseDto[] = ([
   { id: "ex-squat", name: "Back Squat", primaryMuscleGroup: "quads", secondaryMuscleGroups: ["glutes", "core"], equipment: "barbell", movementPatterns: ["knee_dominant"], functionalMovement: "squat" },
@@ -829,3 +830,9 @@ logs.push(
   ]},
   { sessionLogId: uuid(), clientId: "cl-nat", programId: "pg-nat-a", date: day(0), kind: "cardio", cardio: { modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5, rpe: 6 }, sets: [] },
 );
+
+// Release-2 rows (docs/kind-rename-plan.md): the demo client's active program and
+// lifting logs are stored with kind "exercises", the way release 2 writes them.
+// The mock API reads through the alias (kindAlias.ts) like the live client does.
+trainerProgram.weeks = asRelease2(trainerProgram.weeks);
+for (const [i, l] of logs.entries()) if (l.clientId === "cl-nat" && (l.kind ?? "lifting") === "lifting") logs[i] = asRelease2({ ...l, kind: "lifting" });

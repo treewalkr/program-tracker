@@ -1,11 +1,13 @@
 import { sessionTypePath, type SessionTypeFormat } from "@pt/shared";
 import type { SessionTypeDto } from "$lib/api/types";
 
-export const FORMAT_LABEL: Record<SessionTypeFormat, string> = { lifting: "Lifting", cardio: "Cardio", any: "Lifting or cardio" };
+/** What a session of this format records, as trainers read it. Presets show no format; their name says it. */
+export const FORMAT_LABEL: Record<SessionTypeFormat, string> = { lifting: "Exercises", cardio: "Cardio", any: "Exercises or cardio" };
+/** One line under each choice when a custom type picks its format. */
 export const FORMAT_HINT: Record<SessionTypeFormat, string> = {
-  lifting: "exercises and sets",
-  cardio: "time, zone and distance",
-  any: "the session decides",
+  lifting: "Exercises with sets and reps",
+  cardio: "Time, heart-rate zone and distance",
+  any: "The session decides",
 };
 
 type Searchable = Pick<SessionTypeDto, "name" | "format" | "presetKey">;
