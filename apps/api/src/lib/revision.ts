@@ -124,7 +124,7 @@ export async function runRevision(
 
   // The block as the parent drafted it: its length and A/B letters.
   // A fill's locked weeks (the trainer's) stay out of the AI's answer and come back from the parent.
-  // A fill's weeks keep the lifting count of the trainer's locked week of their letter.
+  // A fill's weeks keep the exercise session count of the trainer's locked week of their letter.
   const alternate = draftAlternates(parent.draft!);
   const block = {
     weeks: parent.draft!.weeks.length,

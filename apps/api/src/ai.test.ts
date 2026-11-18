@@ -41,7 +41,7 @@ describe("extractJsonObject", () => {
 });
 
 describe("buildFillMessages", () => {
-  test("the lifting-session line follows the trainer's locked weeks, per letter", () => {
+  test("the exercise-session line follows the trainer's locked weeks, per letter", () => {
     const sess = (n: number) =>
       Array.from({ length: n }, (_, i) => ({ name: `S${i + 1}`, kind: "exercises" as const, exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }] }] }));
     const lockedWeeks = [
@@ -128,7 +128,7 @@ describe("buildGenerationMessages", () => {
     expect(noDays.system).toContain("Do not assign weekdays: the app places sessions on the calendar.");
     expect(noDays.system).not.toContain('Give every session a "weekday"');
 
-    // No client setting → fall back to the previous program's LIFTING session count (cardio excluded)
+    // No client setting → fall back to the previous program's EXERCISE session count (cardio excluded)
     const fallback = buildGenerationMessages({
       ...base,
       client: { name: "Ada" },
@@ -940,7 +940,7 @@ describe("draftToWeeks", () => {
     expect(sessions[0].exercises).toEqual([]);
   });
 
-  test("seq numbers each track in draft order; placement spreads lifting and keeps cardio off lifting days", () => {
+  test("seq numbers each track in draft order; placement spreads exercise sessions and keeps cardio off exercise days", () => {
     const sets = [{ setNumber: 1, reps: 5, type: "working" as const, amrap: false }];
     const lift = (name: string, id: string) => ({ name, kind: "exercises" as const, exercises: [{ exerciseId: id, prescribedSets: sets }] });
     const z2 = (name: string) => ({ name, kind: "cardio" as const, cardio: { modality: "Bike", durationMin: 40 }, exercises: [] });
@@ -966,7 +966,7 @@ describe("draftToWeeks", () => {
     const dayOf = (name: string) => weeks[0].sessions.find((s) => s.name === name)!.weekday!;
     // the two lower sessions are not on back-to-back days
     expect(Math.abs(dayOf("Lower A") - dayOf("Lower B"))).toBeGreaterThan(1);
-    // cardio lands on training days without lifting (5 days, 3 lifting sessions)
+    // cardio lands on training days without exercise sessions (5 days, 3 exercise sessions)
     const liftDays = new Set(["Lower A", "Upper", "Lower B"].map(dayOf));
     expect(liftDays.has(dayOf("Z2 A"))).toBe(false);
     expect(liftDays.has(dayOf("Z2 B"))).toBe(false);
@@ -1895,7 +1895,7 @@ describe("session types in AI drafts", () => {
         { name: "Easy ride", kind: "cardio", type: "Zone 2", cardio: { modality: "Bike", durationMin: 30 }, exercises: [] },
         { ...draft.weeks[0].sessions[0], name: "Wrong format", type: "Zone 2" },
         { ...draft.weeks[0].sessions[0], name: "Unknown", type: "Yoga" },
-        { ...draft.weeks[0].sessions[0], name: "Lifting AMRAP", type: "amrap" },
+        { ...draft.weeks[0].sessions[0], name: "Exercises AMRAP", type: "amrap" },
         { name: "Cardio AMRAP", kind: "cardio", type: "AMRAP", cardio: { modality: "Rower", durationMin: 12 }, exercises: [] },
       ] }],
     };
@@ -1906,7 +1906,7 @@ describe("session types in AI drafts", () => {
     expect(byName.get("Wrong format")?.typeId).toBeUndefined();
     expect(byName.get("Unknown")?.typeId).toBeUndefined();
     // "any" (Metabolic) fits either kind and leaves the session's kind alone
-    expect(byName.get("Lifting AMRAP")).toMatchObject({ kind: "exercises", typeId: "t-amrap", typeName: "AMRAP" });
+    expect(byName.get("Exercises AMRAP")).toMatchObject({ kind: "exercises", typeId: "t-amrap", typeName: "AMRAP" });
     expect(byName.get("Cardio AMRAP")).toMatchObject({ kind: "cardio", typeId: "t-amrap", typeName: "AMRAP" });
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
   });

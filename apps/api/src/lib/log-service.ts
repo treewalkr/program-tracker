@@ -56,14 +56,14 @@ export function refineLogKind(
     if (val.sets.length < 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "lifting log requires at least 1 set",
+        message: "exercise log requires at least 1 set",
         path: ["sets"],
       });
     }
     if (val.cardio != null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "lifting log must not have cardio payload",
+        message: "exercise log must not have cardio payload",
         path: ["cardio"],
       });
     }

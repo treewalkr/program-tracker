@@ -496,7 +496,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     // block length defaults to the current program's (2 weeks here)
     expect(body.phasing?.plannedWeeks).toBe(2);
     expect(body.weeks.map((w: any) => w.week)).toEqual([1, 2]);
-    // every week holds the two lifting sessions and the cardio session on its own track
+    // every week holds the two exercise sessions and the cardio session on its own track
     for (const w of body.weeks) {
       expect(w.sessions).toHaveLength(3);
       expect(w.sessions.map((s: any) => `${s.kind}:${s.seq}`).sort()).toEqual(["cardio:1", "exercises:1", "exercises:2"]);
@@ -560,7 +560,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
     const appRes = await call("POST", `/v1/ai/generations/${genRes.body.id}/approve`, {});
     expect(appRes.status).toBe(201);
     const approved = appRes.body;
-    // 2 lifting sessions take Mon + Tue; cardio stacks on the lighter day (never left off)
+    // 2 exercise sessions take Mon + Tue; cardio stacks on the lighter day (never left off)
     const at = (w: any) => Object.fromEntries(w.sessions.map((s: any) => [`${s.kind}:${s.seq}`, s.weekday]));
     const w1 = at(approved.weeks[0]);
     expect([w1["exercises:1"], w1["exercises:2"]]).toEqual([1, 2]);
@@ -1659,7 +1659,7 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     expect(act.body.status).toBe("active");
   });
 
-  test("log a cardio session; same day also holds a lifting log", async () => {
+  test("log a cardio session; same day also holds an exercise log", async () => {
     const cardio = await call("POST", "/v1/logs/sessions", {
       clientId,
       programId,
@@ -1674,25 +1674,25 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     expect(cardio.body.cardio).toEqual({ modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5 });
     expect(cardio.body.sets).toEqual([]);
 
-    const lifting = await call("POST", "/v1/logs/sessions", {
+    const exerciseLog = await call("POST", "/v1/logs/sessions", {
       clientId,
       programId,
       programSessionId: null,
       date: today,
       sets: [{ exerciseId: squatId, setNumber: 1, type: "working", weightKg: 100, reps: 5 }],
     });
-    expect(lifting.status).toBe(201);
-    expect(lifting.body.kind).toBe("exercises");
+    expect(exerciseLog.status).toBe(201);
+    expect(exerciseLog.body.kind).toBe("exercises");
 
     const list = await call("GET", `/v1/logs/sessions?clientId=${clientId}`);
     expect(list.status).toBe(200);
     const cardioRow = list.body.find((l: any) => l.kind === "cardio");
-    const liftingRow = list.body.find((l: any) => l.kind === "exercises");
+    const exerciseRow = list.body.find((l: any) => l.kind === "exercises");
     expect(cardioRow).toBeDefined();
     expect(cardioRow.cardio.modality).toBe("Run");
     expect(cardioRow.sets).toEqual([]);
-    expect(liftingRow).toBeDefined();
-    expect(liftingRow.cardio).toBeNull();
+    expect(exerciseRow).toBeDefined();
+    expect(exerciseRow.cardio).toBeNull();
 
     const mine = await call("GET", `/v1/logs/sessions?programId=${programId}`);
     expect(mine.body.length).toBe(list.body.filter((l: any) => l.programId === programId).length);
@@ -1723,7 +1723,7 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     expect(body.error).toBe("invalid log");
   });
 
-  test("lifting log with cardio payload is a 422", async () => {
+  test("exercise log with cardio payload is a 422", async () => {
     const { status, body } = await call("POST", "/v1/logs/sessions", {
       clientId,
       programId,
@@ -1735,7 +1735,7 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     expect(body.error).toBe("invalid log");
   });
 
-  test("lifting log with zero sets is a 422 (regression for the dropped .min(1))", async () => {
+  test("exercise log with zero sets is a 422 (regression for the dropped .min(1))", async () => {
     const { status, body } = await call("POST", "/v1/logs/sessions", {
       clientId,
       programId,
@@ -1744,7 +1744,7 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
     });
     expect(status).toBe(422);
     expect(body.error).toBe("invalid log");
-    expect(JSON.stringify(body.issues)).toContain("lifting log requires at least 1 set");
+    expect(JSON.stringify(body.issues)).toContain("exercise log requires at least 1 set");
   });
 
   test("notifications include cardio-behind when behind", async () => {
@@ -2102,7 +2102,7 @@ describe.skipIf(!dbUp)("example library (gold-standard programs)", () => {
     expect(marked.body.goal).toBe("lean bulk hypertrophy");
     expect(marked.body.level).toBe("intermediate");
     expect(marked.body.programId).toBe(programId);
-    // derived from the program's first week (2 lifting sessions)
+    // derived from the program's first week (2 exercise sessions)
     expect(marked.body.daysPerWeek).toBe(2);
     expect(marked.body.program.id).toBe(programId);
 

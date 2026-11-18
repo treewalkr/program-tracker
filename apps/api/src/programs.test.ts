@@ -25,7 +25,7 @@ const call = async (method: string, path: string, body?: unknown) => {
   return { status: res.status, body: (await res.json().catch(() => null)) as any };
 };
 
-/** Smallest valid weeks document: one lifting session with one set. */
+/** Smallest valid weeks document: one exercise session with one set. */
 const weeksWith = (exerciseId: string) => [
   {
     week: 1,

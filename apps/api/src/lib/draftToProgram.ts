@@ -60,7 +60,7 @@ export function resolveRef(
 
 /** One draft week's sessions → program sessions carrying the AI's suggested
  *  weekdays (unchecked; placement decides). `seq` numbers each kind's track in
- *  draft order (lifting "Session N", cardio "Cardio N"). */
+ *  draft order (exercises "Session N", cardio "Cardio N"). */
 export function draftTemplateSessions(
   draftSessions: DraftSession[],
   catalog: CatalogLike[],

@@ -64,7 +64,7 @@ export async function startFill(
 
   const alternate = isAlternating(weeks);
   const lockedWeeks = weeks.filter((w) => locked.includes(w.week)).map((w) => programWeekToDraftWeek(w, { locked: true }));
-  // Each AI week's lifting count: the trainer's locked week of its letter (prompt and schema agree).
+  // Each AI week's exercise session count: the trainer's locked week of its letter (prompt and schema agree).
   const block = { weeks: weeks.length, alternate, lockedWeeks: locked, exerciseSessions: lockedExerciseSessions(lockedWeeks, alternate) };
   const ctx = await loadContext(trainerId, body.clientId, null);
   const rt = providerRuntime(body.providerId ?? DEFAULT_PROVIDER_ID, body.model);
@@ -113,7 +113,7 @@ export async function startFill(
       signal: ac.signal,
       mode: "json",
       long: true,
-      // The weeks after the trainer's, each with its letter's lifting count; letters odd A / even B.
+      // The weeks after the trainer's, each with its letter's exercise session count; letters odd A / even B.
       schema: blockDraftSchema({ plannedWeeks: weeks.length, alternate, lockedWeeks: locked, exerciseSessions: isMockRuntime(rt) ? null : block.exerciseSessions }),
       mock: () => JSON.stringify(mockFillDraft(lockedWeeks, { plannedWeeks: weeks.length, alternate, lockedWeeks: locked, phasing: program.phasing })),
     });

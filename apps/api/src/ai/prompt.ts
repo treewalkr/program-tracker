@@ -41,9 +41,9 @@ export interface ClientContext {
   name: string;
   goals?: string | null;
   limitations?: string | null;
-  /** Lifting sessions per week (cardio does not count). */
+  /** Exercise sessions per week (cardio does not count). */
   sessionsPerWeek?: number | null;
-  /** Available ISO weekdays (1=Mon…7=Sun) for lifting; the AI suggests weekdays, code checks them. */
+  /** Available ISO weekdays (1=Mon…7=Sun) for exercise sessions; the AI suggests weekdays, code checks them. */
   trainingDays?: number[] | null;
   /** Extra ISO weekdays available for cardio (null = trainingDays). */
   cardioDays?: number[] | null;
@@ -163,7 +163,7 @@ export interface BlockShape {
   alternate: boolean;
   /** Fill: weeks the trainer wrote — shown, never written. */
   lockedWeeks?: number[];
-  /** Fill: lifting sessions per week (per A/B letter), from the trainer's locked weeks — overrides the client's count. */
+  /** Fill: exercise sessions per week (per A/B letter), from the trainer's locked weeks — overrides the client's count. */
   exerciseSessions?: ExerciseSessions | null;
 }
 
@@ -343,7 +343,7 @@ function oneRepMaxLines(client: ClientContext): string[] {
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** How many lifting sessions to ask for: a fill's locked weeks, else the client's setting, else the current program's. */
+/** How many exercise sessions to ask for: a fill's locked weeks, else the client's setting, else the current program's. */
 function exerciseSessionTarget(client: ClientContext, previous: ProgramSummary | null, block?: BlockShape): string {
   const fill = block?.exerciseSessions;
   if (typeof fill === "number") return `exactly ${fill} (as in the trainer's locked weeks)`;

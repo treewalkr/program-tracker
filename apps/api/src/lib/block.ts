@@ -92,7 +92,7 @@ export async function startBlock(trainerId: string, body: BlockBody): Promise<{ 
       signal: ac.signal,
       mode: "json",
       long: true,
-      // Every week, the client's lifting count, letters odd A / even B, B ≠ A.
+      // Every week, the client's exercise session count, letters odd A / even B, B ≠ A.
       schema: blockDraftSchema({
         plannedWeeks: block.weeks,
         alternate: block.alternate,

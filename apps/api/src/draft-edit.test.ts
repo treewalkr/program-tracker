@@ -230,8 +230,8 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
   test("approve keeps the trainer order", async () => {
     const res = await call("POST", `/v1/ai/generations/${editedId}/approve`, {});
     expect(res.status).toBe(201);
-    const lifting = draft.weeks[0].sessions.filter((s: any) => s.kind !== "cardio");
-    lifting.forEach((d: any, i: number) => {
+    const exerciseSessions = draft.weeks[0].sessions.filter((s: any) => s.kind !== "cardio");
+    exerciseSessions.forEach((d: any, i: number) => {
       const s = res.body.weeks[0].sessions.find((x: any) => x.kind === "exercises" && x.seq === i + 1);
       expect(s.exercises.map((e: any) => e.exerciseName)).toEqual(d.exercises.map((e: any) => e.exerciseName));
     });
@@ -239,7 +239,7 @@ describe.skipIf(!dbUp)("trainer order wins after a hand edit", () => {
 });
 
 describe.skipIf(!dbUp)("consecutive hand edits fold into one version", () => {
-  // The mock draft: two lifting sessions of two exercises each.
+  // The mock draft: two exercise sessions of two exercises each.
   const up = (day: number) => ({ ops: [{ op: "move", refs: [{ day, slot: 2 }], dir: "up" }] });
   const edit = (id: string, body: unknown) => call("POST", `/v1/ai/generations/${id}/edit`, body);
   const edits = (clientId: string) =>

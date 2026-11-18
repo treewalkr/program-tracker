@@ -261,7 +261,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
   const slot2 = crypto.randomUUID();
   const today = localDateOf(Date.now());
 
-  const lifting = (id: string, slot: string, name: string, seq: number, weekday: number | null) => ({
+  const exerciseSession = (id: string, slot: string, name: string, seq: number, weekday: number | null) => ({
     id,
     name,
     seq,
@@ -327,12 +327,12 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
           {
             week: 1,
             sessions: [
-              lifting(s1, slot1, "Lower A", 1, 1),
-              lifting(s2, slot2, "Upper A", 2, null),
+              exerciseSession(s1, slot1, "Lower A", 1, 1),
+              exerciseSession(s2, slot2, "Upper A", 2, null),
               { id: cardio1, name: "Easy run", seq: 1, order: 0, weekday: 3, kind: "cardio", exercises: [], cardio: { modality: "Run", durationMin: 30, hrZone: 2 } },
             ],
           },
-          { week: 2, sessions: [lifting(next1, crypto.randomUUID(), "Lower B", 1, 1)] },
+          { week: 2, sessions: [exerciseSession(next1, crypto.randomUUID(), "Lower B", 1, 1)] },
         ],
       })
       .returning();
