@@ -1,4 +1,5 @@
 export * from "./domain";
+export * from "./sessionKind";
 export * from "./groups";
 export * from "./draftEdit";
 export * from "./placement";
