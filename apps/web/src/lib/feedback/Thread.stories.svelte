@@ -8,6 +8,7 @@
     type FeedbackItem,
   } from '@pt/shared';
   import Thread from './Thread.svelte';
+  import { FEEDBACK_VIEWED_NOTE } from '@pt/shared';
 
   const kai = { id: 't-kai', name: 'Kai Trainer', avatarUrl: null };
   const ana = { id: 't-ana', name: 'Ana Owner', avatarUrl: null };
@@ -115,6 +116,16 @@
       ]),
       status: 'in_progress',
     },
+  }}
+/>
+
+<Story
+  name="Support viewed the account"
+  args={{
+    item: item([
+      entry({ author: ana, body: 'The rest timer skips a set on my phone.' }),
+      entry({ authorKind: 'system', author: null, silent: true, body: FEEDBACK_VIEWED_NOTE }),
+    ]),
   }}
 />
 
