@@ -161,7 +161,10 @@ describe.skipIf(!up)("migration 0067: session kind lifting → exercises", () =>
     cpSync(DRIZZLE, tmp, { recursive: true });
     rmSync(join(tmp, FILE));
     const journal = JSON.parse(readFileSync(join(tmp, "meta/_journal.json"), "utf8"));
-    journal.entries = journal.entries.filter((e: { tag: string }) => e.tag !== FILE.replace(/\.sql$/, ""));
+    // migrate to 0066: drop 0067 and every later migration (drizzle skips anything older than the last applied)
+    const at = journal.entries.findIndex((e: { tag: string }) => e.tag === FILE.replace(/\.sql$/, ""));
+    for (const e of journal.entries.slice(at + 1)) rmSync(join(tmp, `${e.tag}.sql`));
+    journal.entries = journal.entries.slice(0, at);
     writeFileSync(join(tmp, "meta/_journal.json"), JSON.stringify(journal));
     await migrate(drizzle(sql), { migrationsFolder: tmp });
     const [{ d }] = await sql<{ d: string }[]>`select column_default as d from information_schema.columns where table_name = 'session_logs' and column_name = 'kind'`;

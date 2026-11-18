@@ -140,6 +140,13 @@ export const authSessions = pgTable("auth_sessions", {
     .references(() => trainers.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** "View as trainer": while `acting_until` is in the future this session sees this trainer's account. */
+  actingAsTrainerId: uuid("acting_as_trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+  actingUntil: timestamp("acting_until", { withTimezone: true }),
+  /** Allow-edits unlock: writes go through (and are recorded) until this time; never past `acting_until`. */
+  actingWritesUntil: timestamp("acting_writes_until", { withTimezone: true }),
+  /** The open `impersonations` audit row for the current view. */
+  impersonationId: uuid("impersonation_id").references((): AnyPgColumn => impersonations.id, { onDelete: "set null" }),
 });
 
 export const clients = pgTable("clients", {
@@ -992,6 +999,8 @@ export const requestLogs = pgTable(
     durationMs: integer("duration_ms").notNull(),
     /** Who called, when a session was resolved. */
     trainerId: uuid("trainer_id").references(() => trainers.id, { onDelete: "set null" }),
+    /** Who was really signed in, when they were viewing as `trainer_id` (admin impersonation). */
+    actorId: uuid("actor_id").references(() => trainers.id, { onDelete: "set null" }),
     /** What went wrong, redacted and capped at 500 characters; null for a slow success. */
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -999,3 +1008,49 @@ export const requestLogs = pgTable(
   (t) => [index("request_logs_request_id_idx").on(t.requestId), index("request_logs_created_at_idx").on(t.createdAt)]
 );
 export type RequestLogRow = typeof requestLogs.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// View as trainer — the admin's audited views of a trainer's account
+// ---------------------------------------------------------------------------
+
+export const IMPERSONATION_END_REASONS = ["stop", "expired", "flag_off"] as const;
+export type ImpersonationEndReason = (typeof IMPERSONATION_END_REASONS)[number];
+
+/** One view: who looked at whose account, from which ticket, and how it ended. */
+export const impersonations = pgTable(
+  "impersonations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    ticketId: uuid("ticket_id").references(() => feedbackItems.id, { onDelete: "set null" }),
+    reason: text("reason"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    endedBy: text("ended_by").$type<ImpersonationEndReason>(),
+  },
+  (t) => [index("impersonations_trainer_id_idx").on(t.trainerId, t.startedAt)]
+);
+export type ImpersonationRow = typeof impersonations.$inferSelect;
+
+/** A write made during a view with edits allowed. Never the body — just what and when. */
+export const impersonationWrites = pgTable(
+  "impersonation_writes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    impersonationId: uuid("impersonation_id")
+      .notNull()
+      .references(() => impersonations.id, { onDelete: "cascade" }),
+    method: text("method").notNull(),
+    /** The matched route pattern (`/v1/clients/:id`), never the URL. */
+    route: text("route").notNull(),
+    status: integer("status").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("impersonation_writes_impersonation_id_idx").on(t.impersonationId)]
+);
+export type ImpersonationWriteRow = typeof impersonationWrites.$inferSelect;
