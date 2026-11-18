@@ -51,7 +51,7 @@
 
 <div class="twk">
   <div>
-    <span class="label" id="{idPrefix}-spw-label">Lifting sessions a week</span>
+    <span class="label" id="{idPrefix}-spw-label">Exercise sessions a week</span>
     <div class="twk-step-row">
       <div class="stepper" role="group" aria-labelledby="{idPrefix}-spw-label">
         <button type="button" class="step" aria-label="One fewer session" disabled={sessions <= MIN} onclick={() => step(-1)}>−</button>
@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <DayChips bind:days={form.trainingDays} label="Lifting days" idPrefix="{idPrefix}-lift" empty="No fixed days — sessions are spread across the week" />
+  <DayChips bind:days={form.trainingDays} label="Exercise days" idPrefix="{idPrefix}-lift" empty="No fixed days — sessions are spread across the week" />
 
   <div class="twk-cardio">
     <label class="twk-switch">
@@ -72,7 +72,7 @@
 
     {#if cardio}
       <div class="twk-cardio-body">
-        <DayChips bind:days={form.cardioDays} label="Cardio days" idPrefix="{idPrefix}-cardio" empty="No fixed days — on lifting days" />
+        <DayChips bind:days={form.cardioDays} label="Cardio days" idPrefix="{idPrefix}-cardio" empty="No fixed days — on exercise days" />
         <div class="twk-cardio-row">
           <div>
             <label class="label" for="{idPrefix}-long">Long session day <span class="subtle">— long run, ride or swim</span></label>

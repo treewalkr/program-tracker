@@ -399,7 +399,7 @@
         <StatusPill status={client.status} />
       </div>
       <p class="sub">
-        {#each basics as part (part)}{part}{" · "}{/each}{client.sessionsPerWeek ?? "?"} lifting sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
+        {#each basics as part (part)}{part}{" · "}{/each}{client.sessionsPerWeek ?? "?"} exercise sessions / week{#if sortedDays.length > 0}{" · "}{sortedDays.map((d) => DAY_NAMES[d - 1]).join(" ")}{/if}
         {#if client.goals} · “{client.goals}”{/if}
       </p>
     </div>

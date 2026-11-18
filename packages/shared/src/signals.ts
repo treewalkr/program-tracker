@@ -326,7 +326,7 @@ export function computeSignals(
       kind: "adherence",
       severity: "attention",
       title: "Low adherence — check in",
-      evidence: `${logged} of ~${Math.round(expected)} lifting sessions due so far (${perWeek}/week over ${elapsedDays} days since the block started).`,
+      evidence: `${logged} of ~${Math.round(expected)} exercise sessions due so far (${perWeek}/week over ${elapsedDays} days since the block started).`,
       altHref: `/clients/${program.clientId}`,
       altLabel: "Review client",
     });

@@ -156,14 +156,14 @@ export const DraftSession = z
       if (val.exercises.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting session requires at least one exercise",
+          message: "exercise session requires at least one exercise",
           path: ["exercises"],
         });
       }
       if (val.cardio != null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting session must not have cardio prescription",
+          message: "exercise session must not have a cardio prescription",
           path: ["cardio"],
         });
       }
@@ -441,7 +441,7 @@ export function draftWeekIssues(d: Pick<AiProgramDraft, "weeks">, rules: DraftWe
   const first = d.weeks[0] ? liftingCount(d.weeks[0]) : 0;
   for (const w of d.weeks) {
     const lifting = liftingSessionsFor(rules.liftingSessions, w.week) ?? first;
-    if (liftingCount(w) !== lifting) out.push(`week ${w.week} has ${liftingCount(w)} lifting sessions, not ${lifting}`);
+    if (liftingCount(w) !== lifting) out.push(`week ${w.week} has ${liftingCount(w)} exercise sessions, not ${lifting}`);
     if (rules.alternate && w.rotation !== rotationOfWeek(w.week)) {
       out.push(`week ${w.week} must be rotation "${rotationOfWeek(w.week)}" (odd weeks A, even weeks B)`);
     }

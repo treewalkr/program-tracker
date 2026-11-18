@@ -696,14 +696,14 @@ export const ProgramSession = z
       if (val.exercises.length < 1) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting session requires at least one exercise",
+          message: "exercise session requires at least one exercise",
           path: ["exercises"],
         });
       }
       if (val.cardio != null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "lifting session must not have cardio prescription",
+          message: "exercise session must not have a cardio prescription",
           path: ["cardio"],
         });
       }

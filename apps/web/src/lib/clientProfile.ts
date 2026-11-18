@@ -174,15 +174,15 @@ export function hasCardio(f: Pick<ProfileForm, "cardioDays" | "longRunDay" | "ca
 
 /**
  * One-line reading of the training week:
- * "3 lifts on Mon Wed Fri · cardio on Sat · long session Sun · 120 minutes a week".
+ * "3 exercise sessions on Mon Wed Fri · cardio on Sat · long session Sun · 120 minutes a week".
  * `cardio` is the form's Cardio switch; it defaults to whether any cardio is set.
  */
 export function weekSummary(f: WeekFields, cardio: boolean = hasCardio(f)): string {
   const n = Number(f.sessionsPerWeek);
-  const count = `${n} ${n === 1 ? "lift" : "lifts"}`;
+  const count = `${n} ${n === 1 ? "exercise session" : "exercise sessions"}`;
   const parts = [f.trainingDays.length ? `${count} on ${dayList(f.trainingDays)}` : `${count}, no fixed days`];
   if (!cardio) return parts[0];
-  parts.push(`cardio on ${f.cardioDays.length ? dayList(f.cardioDays) : "lifting days"}`);
+  parts.push(`cardio on ${f.cardioDays.length ? dayList(f.cardioDays) : "exercise days"}`);
   if (f.longRunDay != null) parts.push(`long session ${DAY_SHORT[f.longRunDay - 1]}`);
   if (f.cardioUnit !== "none") parts.push(`${Number(f.cardioValue)} ${CARDIO_UNIT_WORD[f.cardioUnit]}`);
   return parts.join(" · ");
