@@ -32,6 +32,12 @@ const WORKSPACE: SettingsGroup = {
       sub: "How the feedback agent replies, and what the AI log has collected",
     },
     {
+      href: "/settings/features",
+      label: "Features",
+      icon: "flag",
+      sub: "Switch whole features on or off for everyone",
+    },
+    {
       href: "/settings/email-templates",
       label: "Email templates",
       icon: "mail",

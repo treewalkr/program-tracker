@@ -199,7 +199,7 @@
               </span>
               <div class="who">
                 <div class="line">
-                  <strong>{t.name}</strong>
+                  <strong><a class="name-link" href="/admin/trainers/{t.id}" title="Access log">{t.name}</a></strong>
                   <Pill tone={ACCESS[t.access].tone}>{ACCESS[t.access].label}</Pill>
                   {#if t.isAdmin}<Pill>Admin</Pill>{/if}
                 </div>
@@ -260,6 +260,12 @@
 {/if}
 
 <style>
+  .name-link {
+    color: inherit;
+  }
+  .name-link:hover {
+    color: var(--blue);
+  }
   .cols {
     display: grid;
     gap: 18px;
