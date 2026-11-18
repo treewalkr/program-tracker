@@ -40,24 +40,14 @@ import type { DeloadSettings, WeeksChoice } from "@pt/shared";
 import { browser } from "$app/environment";
 import { toLogin } from "./auth";
 import { client } from "./treaty";
+import { trainerWire } from "./wire";
 
 /**
  * Eden result → thrown Error, preserving the API's `error` message envelope.
- * `data` is `unknown` and each call site names its wire type. Eden revives ISO
- * date strings into Date objects; the DTOs model dates as ISO strings, so we
- * deep-convert back — pages then see identical shapes in mock and live modes.
+ * `data` is `unknown` and each call site names its wire type; trainerWire
+ * turns revived Dates back into ISO strings and reads session kinds through
+ * the alias.
  */
-function datesToIso(value: unknown): unknown {
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(datesToIso);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, datesToIso(v)])
-    );
-  }
-  return value;
-}
-
 async function unwrap<T>(
   p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>
 ): Promise<T> {
@@ -71,10 +61,10 @@ async function unwrap<T>(
     // validation detail rides along so forms can point at the offending field
     const issues = typeof value === "object" && value ? value.issues : undefined;
     // a 409 duplicate log names the log it collides with
-    const existing = typeof value === "object" && value && "existing" in value ? value.existing : undefined;
+    const existing = typeof value === "object" && value && "existing" in value ? trainerWire(value.existing) : undefined;
     throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code, issues, existing });
   }
-  return datesToIso(data) as T;
+  return trainerWire(data) as T;
 }
 
 /** Wire-up against the running Elysia API via Eden Treaty. Enabled via PUBLIC_API_MODE=live. */
