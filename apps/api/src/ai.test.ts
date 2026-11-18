@@ -61,7 +61,7 @@ describe("buildFillMessages", () => {
       plan: null,
       lockedWeeks,
     });
-    expect(system).toContain('Lifting sessions (kind "lifting") per week: A weeks exactly 2, B weeks exactly 3');
+    expect(system).toContain('Exercise sessions (kind "exercises") per week: A weeks exactly 2, B weeks exactly 3');
     expect(system).not.toContain("per week: exactly 4");
     // The trainer's A/B routines stand: no "B must use different exercises" for a fill.
     expect(system).toContain("ALTERNATES the trainer's two routines");
@@ -83,10 +83,24 @@ describe("buildGenerationMessages", () => {
     expect(system).toContain("hard constraint");
     expect(user).toContain("Left knee pain");
     expect(user).toContain("Ada");
-    expect(system).toContain('Lifting sessions (kind "lifting") per week: exactly 3.');
+    expect(system).toContain('Exercise sessions (kind "exercises") per week: exactly 3.');
   });
 
-  test("session-structure rules: lifting count, separate cardio, focus names, weekdays", () => {
+  test("the prompts ask for kind exercises; a model answering lifting still parses (kind alias)", () => {
+    const ctx = { previousProgram: null, periodization: null, chainBalance: null, history: [], catalog: [], trainerInstructions: "", client: { name: "Ada", sessionsPerWeek: 2 } };
+    const { system } = buildGenerationMessages(ctx);
+    expect(system).toContain('"kind"?: "exercises" | "cardio", // defaults to "exercises"');
+    expect(system).not.toMatch(/kind "lifting"|"lifting"/);
+    const imp = buildImportMessages({ numbered: "L1: x", from: 1, to: 1, glossary: [] }).system;
+    expect(imp).toContain('"kind": "exercises"|"cardio"');
+    expect(imp).not.toContain('"lifting"');
+    const answer = { name: "B", rationale: "r", clientSummary: "c", weeks: [{ week: 1, sessions: [{ name: "Lower", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] }] }] };
+    expect(AiProgramDraft.parse(answer).weeks[0].sessions[0].kind).toBe("exercises");
+    const chunk = ImportChunk.parse({ weeks: [{ label: null, line: null, days: [{ label: "Day 1", line: 1, sessions: [{ name: "Day 1", kind: "lifting", line: 1, exercises: [] }] }] }], skipped: [] });
+    expect(chunk.weeks[0].days[0].sessions[0].kind).toBe("exercises");
+  });
+
+  test("session-structure rules: exercise session count, separate cardio, focus names, weekdays", () => {
     const base = {
       previousProgram: null,
       periodization: null,
@@ -98,17 +112,17 @@ describe("buildGenerationMessages", () => {
     const { system } = buildGenerationMessages({ ...base, client: { name: "Ada", sessionsPerWeek: 3, trainingDays: [5, 1, 3] } });
     expect(system).not.toContain("days per week");
     expect(system).not.toContain("count toward days-per-week");
-    expect(system).toContain("Cardio sessions never count toward the lifting session number and do not use up a training day");
+    expect(system).toContain("Cardio sessions never count toward the exercise session number and do not use up a training day");
     expect(system).toContain('unit "sessions" → exactly that many cardio sessions');
     expect(system).toContain('never by weekday or "Day N"');
-    expect(system).toContain('Give every session a "weekday" (1=Mon … 7=Sun). Lifting only on Mon, Wed, Fri; cardio on Mon, Wed, Fri. Sessions may share a day.');
+    expect(system).toContain('Give every session a "weekday" (1=Mon … 7=Sun). Exercise sessions only on Mon, Wed, Fri; cardio on Mon, Wed, Fri. Sessions may share a day.');
     expect(system).toContain("never two key runs on one day");
 
     const runner = buildGenerationMessages({
       ...base,
       client: { name: "Priya", sessionsPerWeek: 2, trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 },
     });
-    expect(runner.system).toContain("Lifting only on Mon, Tue, Thu, Fri; cardio on Mon, Tue, Wed, Thu, Fri, Sun; the long run on Sun.");
+    expect(runner.system).toContain("Exercise sessions only on Mon, Tue, Thu, Fri; cardio on Mon, Tue, Wed, Thu, Fri, Sun; the long run on Sun.");
 
     const noDays = buildGenerationMessages({ ...base, client: { name: "Ada", sessionsPerWeek: 3 } });
     expect(noDays.system).toContain("Do not assign weekdays: the app places sessions on the calendar.");
@@ -127,7 +141,7 @@ describe("buildGenerationMessages", () => {
         ],
       },
     });
-    expect(fallback.system).toContain("per week: exactly 2 (not set on the client — match the current program's lifting sessions)");
+    expect(fallback.system).toContain("per week: exactly 2 (not set on the client — match the current program's exercise sessions)");
     expect(fallback.user).toContain("- Z2 (cardio): ");
 
     const cold = buildGenerationMessages({ ...base, client: { name: "Ada" } });
@@ -154,7 +168,7 @@ describe("buildGenerationMessages", () => {
       buildWeekRevisionMessages({ ...week, previousDraft, feedback: "f" }).system,
     ];
     for (const sys of systems) {
-      expect(sys).toContain('Lifting sessions (kind "lifting") per week: exactly 4.');
+      expect(sys).toContain('Exercise sessions (kind "exercises") per week: exactly 4.');
       expect(sys).toContain("Cardio is separate");
       expect(sys).not.toContain("Number of sessions must equal");
       expect(sys).not.toContain("**Day 1**");
@@ -207,7 +221,7 @@ describe("buildGenerationMessages", () => {
       trainerInstructions: "",
     });
     expect(system).toContain('"role": "power" | "primary" | "secondary" | "strength" | "accessory" | "core"');
-    expect(system).toContain("One Primary per lifting session");
+    expect(system).toContain("One Primary per exercise session");
     for (const line of [
       "power (Power): Explosive",
       "primary (Primary): The main lift",

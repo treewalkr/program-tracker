@@ -12,7 +12,7 @@ import {
 const sets = (n: number, reps: number, rest: number, extra: Partial<DraftSession["exercises"][number]["prescribedSets"][number]> = {}) =>
   Array.from({ length: n }, (_, i) => ({ setNumber: i + 1, type: "working" as const, reps, amrap: false, targetRpe: 8, restSeconds: rest, ...extra }));
 
-/** Week A (and the only routine of a same-every-week block). Suggests Mon / Fri lifting and a Wednesday ride. */
+/** Week A (and the only routine of a same-every-week block). Suggests Mon / Fri exercise sessions and a Wednesday ride. */
 const ROUTINE_A: DraftSession[] = [
   {
     name: "Day A — Lower",
