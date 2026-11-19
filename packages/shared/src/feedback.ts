@@ -140,6 +140,8 @@ export const FeedbackRuntimeSchema = z.object({
     online: z.boolean(),
     /** Opened as an installed app (display-mode standalone). */
     standalone: z.boolean(),
+    /** Filed while the admin viewed the app as a trainer: who was really looking, at whom. */
+    viewingAs: z.object({ actorId: z.string().max(64), trainerId: z.string().max(64) }).optional(),
   }),
 });
 export type FeedbackRuntime = z.infer<typeof FeedbackRuntimeSchema>;
@@ -386,6 +388,21 @@ export interface FeedbackAiPublic {
 export const FEEDBACK_AI_AUTHOR_NAME = "AI assistant";
 /** Display name for entries a release wrote when it closed a ticket. */
 export const FEEDBACK_RELEASE_AUTHOR_NAME = "Release";
+
+/**
+ * The one trace a "view as trainer" leaves for the trainer: a silent public line
+ * on the ticket the admin started it from (no email, no unread badge). Stored in
+ * English; the thread shows it in the reader's language.
+ */
+export const FEEDBACK_VIEWED_NOTE = "Support viewed your account to check this";
+export const FEEDBACK_VIEWED_NOTE_TEXT = {
+  en: FEEDBACK_VIEWED_NOTE,
+  th: "ทีมซัพพอร์ตเข้าไปดูบัญชีของคุณเพื่อตรวจเรื่องนี้",
+} as const;
+
+/** Whether a thread entry is the "Support viewed your account" line. */
+export const isViewedNote = (c: { authorKind: FeedbackAuthorKind; kind: string; body: string | null; ship?: unknown }) =>
+  c.authorKind === "system" && c.kind === "reply" && !c.ship && c.body === FEEDBACK_VIEWED_NOTE;
 
 /** On entries a release wrote: the commit that named the ticket, and the version it went live in. */
 export interface FeedbackShip {

@@ -10,10 +10,13 @@ import {
   fetchGoogleProfile,
   googleAuthUrl,
   randomToken,
+  resolveSession,
   secureCookies,
   sha256,
-  trainerForToken,
 } from "../lib/auth";
+import { flagEnabled } from "../lib/flags";
+import { allowEdits, impersonatorOf, lockEdits, stopView } from "../lib/impersonation";
+import { ImpersonationModel } from "../models/impersonation";
 import { CLIENT_COOKIE, claimClient, clientCookieSecure, createClientSession } from "../lib/client-auth";
 
 const OAUTH_TTL_S = 10 * 60;
@@ -46,12 +49,68 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
   .get(
     "/me",
     async ({ cookie, status }) => {
-      if (authDisabled()) return { trainer: null, authDisabled: true };
-      const trainer = await trainerForToken(cookie[SESSION_COOKIE].value as string | undefined);
-      if (!trainer) return status(401, { error: "signed out" });
-      return { trainer, authDisabled: false };
+      if (authDisabled()) return { trainer: null, authDisabled: true, impersonator: null, flags: { impersonation: false } };
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      const live = session.view && !session.ended ? session.view : null;
+      return {
+        // the trainer whose app this is: the viewed one during a live view
+        trainer: live ? { ...live.trainer, isAdmin: false } : session.actor,
+        authDisabled: false,
+        /** Who is really looking, during (or just after) a view as this trainer. */
+        impersonator: impersonatorOf(session),
+        /** Admin-only switches the web needs to show or hide whole features. */
+        flags: { impersonation: session.actor.isAdmin && (await flagEnabled("impersonation")) },
+      };
     },
-    { detail: { summary: "Current signed-in trainer" } },
+    { detail: { summary: "Current signed-in trainer (and who is viewing as them)" } },
+  )
+  /**
+   * End a view as a trainer. Here, not under /v1/admin: it reads the raw session,
+   * so it works while the admin is the trainer (no admin rights, read-only).
+   */
+  .post(
+    "/impersonate/stop",
+    async ({ cookie, status }) => {
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      return stopView(session);
+    },
+    {
+      response: { 200: ImpersonationModel.stopped, 401: t.Object({ error: t.String() }) },
+      detail: { summary: "Stop viewing as a trainer" },
+    },
+  )
+  /** Allow edits for 10 minutes (never past the view): writes go through, each one recorded. Emails still never send. */
+  .post(
+    "/impersonate/allow-edits",
+    async ({ body, cookie, status }) => {
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      const out = await allowEdits(session, body.confirm);
+      if ("error" in out) return status(out.status, { error: out.error });
+      return { writesUntil: out.writesUntil.toISOString() };
+    },
+    {
+      body: ImpersonationModel.allowEdits,
+      response: {
+        200: ImpersonationModel.editsAllowed,
+        401: t.Object({ error: t.String() }),
+        409: t.Object({ error: t.String() }),
+        422: t.Object({ error: t.String() }),
+      },
+      detail: { summary: "Allow edits during a view as a trainer (type their first name)" },
+    },
+  )
+  .post(
+    "/impersonate/lock",
+    async ({ cookie, status }) => {
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      await lockEdits(session);
+      return { ok: true };
+    },
+    { detail: { summary: "Back to read-only during a view as a trainer" } },
   )
   .get(
     "/google",
@@ -157,7 +216,11 @@ export const authRoutes = new Elysia({ prefix: "/v1/auth", tags: ["auth"] })
   .post(
     "/logout",
     async ({ cookie }) => {
-      await deleteSession(cookie[SESSION_COOKIE].value as string | undefined);
+      const token = cookie[SESSION_COOKIE].value as string | undefined;
+      // signing out mid-view closes its audit row too
+      const session = await resolveSession(token);
+      if (session?.view) await stopView(session);
+      await deleteSession(token);
       cookie[SESSION_COOKIE].remove();
       return { ok: true };
     },

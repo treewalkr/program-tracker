@@ -3,7 +3,9 @@ import { and, asc, count, desc, eq, inArray, isNull, max, min } from "drizzle-or
 import { clients, db, emailLog, feedbackItems, programs, sessionLogs, trainers, type ProgramRow } from "@pt/db";
 import { ageOn, localDateOf, weekOf, type ProgramWeek } from "@pt/shared";
 import { toSignalProgram } from "../lib/signals-service";
-import { deleteTrainerSessions, isAdminEmail } from "../lib/auth";
+import { SESSION_COOKIE, authDisabled, deleteTrainerSessions, isAdminEmail, resolveSession } from "../lib/auth";
+import { FLAGS, flagEnabled, listFlags, setFlag } from "../lib/flags";
+import { accessLog, startView } from "../lib/impersonation";
 import { withExerciseNames } from "../lib/exercise-names";
 import { trainerContext } from "../lib/trainer-context";
 import { datasetStats } from "../lib/llm-dataset";
@@ -12,6 +14,8 @@ import { emailPreviews } from "../lib/email-previews";
 import { setLoginTheme } from "../lib/login-theme";
 import { LoginThemeBody } from "./public";
 import { AdminModel } from "../models/admin";
+import { ImpersonationModel } from "../models/impersonation";
+import { ErrorBody } from "../models/shared";
 
 type TrainerRow = typeof trainers.$inferSelect;
 
@@ -292,6 +296,57 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
     {
       query: t.Object({ limit: t.Optional(t.Integer({ minimum: 1, maximum: 500 })) }),
       detail: { summary: "Recent notification emails sent (recipient masked, no content)" },
+    },
+  )
+  /**
+   * View as trainer: this session sees the trainer's account, read-only, for 30
+   * minutes. From a ticket, it opens on the page the ticket was filed from and
+   * leaves one silent line in its thread. Stop is POST /v1/auth/impersonate/stop.
+   */
+  .post(
+    "/impersonate",
+    async ({ body, cookie, status }) => {
+      if (!(await flagEnabled("impersonation"))) return status(404, { error: "not found" });
+      if (authDisabled()) return status(409, { error: "no sessions while AUTH_DISABLED is on" });
+      const session = await resolveSession(cookie[SESSION_COOKIE].value as string | undefined);
+      if (!session) return status(401, { error: "signed out" });
+      const out = await startView(session, body);
+      if ("error" in out) return status(out.status, { error: out.error });
+      return { returnTo: out.returnTo, until: out.until.toISOString() };
+    },
+    {
+      body: ImpersonationModel.start,
+      response: { 200: ImpersonationModel.started, 401: ErrorBody, 404: ErrorBody, 409: ErrorBody, 422: ErrorBody },
+      detail: { summary: "View the app as a trainer (read-only, 30 minutes, audited)" },
+    },
+  )
+  /** Who viewed this trainer's account, when, from which ticket, and every write made with edits allowed. */
+  .get(
+    "/trainers/:id/access-log",
+    async ({ params, status }) => {
+      const [row] = await db
+        .select({ id: trainers.id, name: trainers.name })
+        .from(trainers)
+        .where(eq(trainers.id, params.id));
+      if (!row) return status(404, { error: "trainer not found" });
+      return { trainer: row, views: await accessLog(row.id) };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      detail: { summary: "A trainer's access log: every admin view of their account" },
+    },
+  )
+  /** Feature flags: each one's state, the env kill switch included. */
+  .get("/flags", async () => ({ flags: await listFlags() }), {
+    detail: { summary: "List feature flags" },
+  })
+  .put(
+    "/flags/:name",
+    ({ params, body, trainerId }) => setFlag(params.name, body.on, trainerId),
+    {
+      params: t.Object({ name: t.UnionEnum(FLAGS) }),
+      body: t.Object({ on: t.Boolean() }),
+      detail: { summary: "Turn a feature flag on or off (an env kill switch still wins)" },
     },
   )
   /** Every email the app sends, rendered by the live templates from sample data. */

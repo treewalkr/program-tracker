@@ -54,8 +54,9 @@ const taken = (name: string) => ({ error: `"${name}" is already a session type` 
 export const sessionTypeRoutes = new Elysia({ prefix: "/v1/session-types", tags: ["session-types"] })
   .use(trainerContext)
   /** Every type the trainer has (archived included, flagged), missing presets seeded on read. */
-  .get("/", async ({ trainerId }) => {
-    const [rows, uses] = await Promise.all([ensureSessionTypes(trainerId), usageCounts(trainerId)]);
+  // A view as this trainer never seeds the presets: GETs don't write while the admin looks.
+  .get("/", async ({ trainerId, impersonating }) => {
+    const [rows, uses] = await Promise.all([ensureSessionTypes(trainerId, { write: !impersonating }), usageCounts(trainerId)]);
     return rows.map((r) => toDto(r, uses.get(r.id) ?? 0));
   })
   .post(

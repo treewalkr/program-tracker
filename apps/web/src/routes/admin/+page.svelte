@@ -12,6 +12,7 @@
   import Avatar from "$lib/ui/Avatar.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import { viewAs } from "$lib/viewAs.svelte";
 
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const ACCESS = {
@@ -50,6 +51,8 @@
       .join(" · ");
   });
   const loginUrl = $derived(`${page.url.origin}/login`);
+  /** The view-as switch is on (Settings → Admin → Features). */
+  const canViewAs = $derived(page.data.session?.kind === "signedIn" && page.data.session.flags?.impersonation === true);
 
   async function load() {
     loadError = null;
@@ -124,6 +127,9 @@
 <svelte:head><title>Trainers · Program Tracker</title></svelte:head>
 
 <PageHead title="Trainers" sub={summary} />
+{#if viewAs.error && !viewAs.view}
+  <Note tone="bad" role="alert">Couldn't view as that trainer: {viewAs.error}</Note>
+{/if}
 
 {#if apiMode !== "live"}
   <Note tone="warn">Trainer accounts live on the server — switch to the live API to manage them.</Note>
@@ -193,7 +199,7 @@
               </span>
               <div class="who">
                 <div class="line">
-                  <strong>{t.name}</strong>
+                  <strong><a class="name-link" href="/admin/trainers/{t.id}" title="Access log">{t.name}</a></strong>
                   <Pill tone={ACCESS[t.access].tone}>{ACCESS[t.access].label}</Pill>
                   {#if t.isAdmin}<Pill>Admin</Pill>{/if}
                 </div>
@@ -207,6 +213,18 @@
                 {#if rowError?.id === t.id}<p class="err" role="alert">{rowError.text}</p>{/if}
               </div>
               <div class="acts">
+                {#if canViewAs && !t.isAdmin && t.access !== "disabled"}
+                  <Button
+                    small
+                    variant="ghost"
+                    title="Open the app as {t.name}, read-only, for 30 minutes"
+                    disabled={viewAs.busy}
+                    onclick={() => viewAs.start(t.id)}
+                  >
+                    {#snippet icon()}<Icon name="eye" />{/snippet}
+                    View as
+                  </Button>
+                {/if}
                 {#if t.isAdmin}
                   <span class="subtle lockd" title="The admin can't be disabled">
                     <Icon name="lock" size={12} /> Always on
@@ -242,6 +260,12 @@
 {/if}
 
 <style>
+  .name-link {
+    color: inherit;
+  }
+  .name-link:hover {
+    color: var(--blue);
+  }
   .cols {
     display: grid;
     gap: 18px;

@@ -41,6 +41,8 @@
   import { ago } from "$lib/draftReview";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { ticketDetails } from "$lib/feedback/details.svelte";
+  import { viewAs } from "$lib/viewAs.svelte";
+  import { firstName } from "$lib/viewAs";
   import MuteToggle from "$lib/feedback/MuteToggle.svelte";
   import { STATUS_LABEL, STATUS_TONE } from "$lib/feedback/status";
   import { aiAnswerTally } from "$lib/feedback/ai";
@@ -66,6 +68,10 @@
 
   /** The signed-in trainer; null with auth off (then everyone is the admin). */
   const viewerId = $derived(page.data.session?.kind === "signedIn" ? page.data.session.trainer.id : null);
+  /** Admin, flag on: open the app as the ticket's reporter, on the page they filed from. */
+  const canViewAs = $derived(
+    isAdmin && page.data.session?.kind === "signedIn" && page.data.session.flags?.impersonation === true,
+  );
 
   let items = $state<FeedbackItem[]>([]);
   let loaded = $state(false);
@@ -488,6 +494,9 @@
   {#if error}
     <Note tone="bad" role="alert">{error}</Note>
   {/if}
+  {#if viewAs.error && !viewAs.view}
+    <Note tone="bad" role="alert">Couldn't view as that trainer: {viewAs.error}</Note>
+  {/if}
 
   {#if composing}
     <form
@@ -670,6 +679,16 @@
                     class="details-toggle"
                     aria-label="Edit {feedbackHandle(item.number)}"
                     onclick={() => (editingId = item.id)}>Edit</button
+                  >
+                {/if}
+                {#if canViewAs && item.author && item.author.id !== viewerId}
+                  <button
+                    type="button"
+                    class="show-me linkish view-as"
+                    title="Open the app as {item.author.name}, read-only, on the page this was filed from"
+                    disabled={viewAs.busy}
+                    onclick={() => viewAs.start(item.author!.id, item.id)}
+                    ><Icon name="eye" size={13} />View as {firstName(item.author.name)}</button
                   >
                 {/if}
                 {#if isPinned(c) && !c.route.path.startsWith("/feedback")}
@@ -1192,6 +1211,11 @@
   }
   dl[hidden] {
     display: none;
+  }
+  .view-as {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
   .show-me {
     display: inline-flex;

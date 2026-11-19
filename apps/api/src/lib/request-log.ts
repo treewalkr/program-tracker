@@ -44,6 +44,8 @@ export interface RequestLogEntry {
   status: number;
   durationMs: number;
   trainerId: string | null;
+  /** The admin behind the request when they were viewing as `trainerId`. */
+  actorId?: string | null;
   error: string | null;
 }
 
@@ -127,6 +129,9 @@ export const requestLog = new Elysia({ name: "request-log" })
     const durationMs = Math.round(performance.now() - m.start);
     if (!shouldLogRequest(status, durationMs)) return;
     const trainerId = (ctx as { trainerId?: unknown }).trainerId;
+    const actorId = (ctx as { impersonating?: unknown; actorId?: unknown }).impersonating
+      ? (ctx as { actorId?: unknown }).actorId
+      : null;
     const p = writeRequestLog({
       requestId: m.id,
       method: ctx.request.method,
@@ -134,6 +139,7 @@ export const requestLog = new Elysia({ name: "request-log" })
       status,
       durationMs,
       trainerId: typeof trainerId === "string" ? trainerId : null,
+      actorId: typeof actorId === "string" ? actorId : null,
       error: status >= 400 ? requestErrorText(errorOf((ctx as { responseValue?: unknown }).responseValue, m.error)) : null,
     }).finally(() => inFlight.delete(p));
     inFlight.add(p);

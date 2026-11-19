@@ -1,5 +1,7 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { authSessions, db, trainers } from "@pt/db";
+import { alias } from "drizzle-orm/pg-core";
+import { authSessions, db, feedbackItems, impersonations, trainers } from "@pt/db";
+import { flagEnabled } from "./flags";
 
 /**
  * Google sign-in for invited trainers.
@@ -190,18 +192,93 @@ export interface SessionTrainer {
   isAdmin: boolean;
 }
 
-/** The signed-in trainer for a cookie token, or null when missing, expired or disabled. */
-export async function trainerForToken(token: string | undefined): Promise<SessionTrainer | null> {
+/** Why a view that is still on the session no longer applies. */
+export type ViewEnded = "expired" | "flag_off" | "disabled";
+
+/** "View as trainer" state stored on a session (live or not). */
+export interface ActingView {
+  impersonationId: string | null;
+  trainer: { id: string; name: string; email: string; avatarUrl: string | null };
+  ticket: { id: string; number: number; route: string } | null;
+  until: Date;
+  /** Allow-edits unlock; writes go through while this is in the future. */
+  writesUntil: Date | null;
+}
+
+export interface ResolvedSession {
+  /** sha256 of the cookie token = `auth_sessions.id`. */
+  sessionId: string;
+  /** Who is really signed in. */
+  actor: SessionTrainer;
+  /** The view stored on the session, live or ended; null when not viewing as anyone. */
+  view: ActingView | null;
+  /** null while the view is live (or there is none); else why it stopped applying. */
+  ended: ViewEnded | null;
+}
+
+const actingTrainers = alias(trainers, "acting_trainer");
+
+/**
+ * The session behind a cookie token, with any "view as trainer" on it, or null
+ * when missing, expired or the signed-in trainer is disabled. Never writes:
+ * a view past its time, with the flag off, on a disabled trainer or by someone
+ * who is no longer the admin just reports `ended` and stops applying.
+ */
+export async function resolveSession(token: string | undefined, now = new Date()): Promise<ResolvedSession | null> {
   if (!token) return null;
+  const sessionId = await sha256(token);
   const [row] = await db
-    .select({ id: trainers.id, name: trainers.name, email: trainers.email, avatarUrl: trainers.avatarUrl })
+    .select({
+      actor: { id: trainers.id, name: trainers.name, email: trainers.email, avatarUrl: trainers.avatarUrl },
+      actingUntil: authSessions.actingUntil,
+      actingWritesUntil: authSessions.actingWritesUntil,
+      impersonationId: authSessions.impersonationId,
+      acting: {
+        id: actingTrainers.id,
+        name: actingTrainers.name,
+        email: actingTrainers.email,
+        avatarUrl: actingTrainers.avatarUrl,
+        disabledAt: actingTrainers.disabledAt,
+      },
+      ticket: { id: feedbackItems.id, number: feedbackItems.number, route: feedbackItems.route },
+    })
     .from(authSessions)
     .innerJoin(trainers, eq(trainers.id, authSessions.trainerId))
-    .where(
-      and(eq(authSessions.id, await sha256(token)), gt(authSessions.expiresAt, new Date()), isNull(trainers.disabledAt)),
-    )
+    .leftJoin(actingTrainers, eq(actingTrainers.id, authSessions.actingAsTrainerId))
+    .leftJoin(impersonations, eq(impersonations.id, authSessions.impersonationId))
+    .leftJoin(feedbackItems, eq(feedbackItems.id, impersonations.ticketId))
+    .where(and(eq(authSessions.id, sessionId), gt(authSessions.expiresAt, now), isNull(trainers.disabledAt)))
     .limit(1);
-  return row ? { ...row, isAdmin: isAdminEmail(row.email) } : null;
+  if (!row) return null;
+  const actor = { ...row.actor, isAdmin: isAdminEmail(row.actor.email) };
+  if (!row.acting?.id || !row.actingUntil) return { sessionId, actor, view: null, ended: null };
+  const { disabledAt, ...acting } = row.acting;
+  const view: ActingView = {
+    impersonationId: row.impersonationId,
+    trainer: acting,
+    ticket: row.ticket?.id ? row.ticket : null,
+    until: row.actingUntil,
+    writesUntil: row.actingWritesUntil,
+  };
+  const ended: ViewEnded | null = !(await flagEnabled("impersonation"))
+    ? "flag_off"
+    : disabledAt
+      ? "disabled"
+      : !actor.isAdmin || row.actingUntil <= now
+        ? "expired"
+        : null;
+  return { sessionId, actor, view, ended };
+}
+
+/** Writes go through during a live view only while Allow edits is on. */
+export const viewWritable = (view: ActingView, now = new Date()) =>
+  view.writesUntil !== null && view.writesUntil > now && view.until > now;
+
+/** The trainer whose account the session sees: the viewed trainer during a live view, else the signed-in one. */
+export async function trainerForToken(token: string | undefined): Promise<SessionTrainer | null> {
+  const session = await resolveSession(token);
+  if (!session) return null;
+  return session.view && !session.ended ? { ...session.view.trainer, isAdmin: false } : session.actor;
 }
 
 export async function deleteSession(token: string | undefined): Promise<void> {

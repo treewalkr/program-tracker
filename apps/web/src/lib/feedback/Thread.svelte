@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { FEEDBACK_AI_AUTHOR_NAME, feedbackHandle, type FeedbackComment, type FeedbackItem } from "@pt/shared";
+  import { FEEDBACK_AI_AUTHOR_NAME, FEEDBACK_VIEWED_NOTE_TEXT, feedbackHandle, isViewedNote, type FeedbackComment, type FeedbackItem } from "@pt/shared";
+  import { i18n } from "$lib/portal/i18n.svelte";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import { renderSafeMarkdown } from "$lib/markdown";
   import Button from "$lib/ui/Button.svelte";
@@ -133,8 +134,13 @@
   {#if thread.length}
     <ol class="entries">
       {#each thread as c (c.id)}
-        <li class={c.kind}>
-          {#if c.kind === "status"}
+        <!-- The one trace a support view leaves: a quiet system line, like a status change. -->
+        <li class={isViewedNote(c) ? "status" : c.kind}>
+          {#if isViewedNote(c)}
+            <span class="dot" aria-hidden="true"></span>
+            <span class="sys">{FEEDBACK_VIEWED_NOTE_TEXT[i18n.locale]}</span>
+            {@render when(c.createdAt)}
+          {:else if c.kind === "status"}
             {@const line = statusLine(c, { latestDone: c.id === lastDoneId && item.status === "done", shippedIn: item.shippedIn })}
             <span class="dot" class:release={c.authorKind === "system"} aria-hidden="true"></span>
             <span class="sys">

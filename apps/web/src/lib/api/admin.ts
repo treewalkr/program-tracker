@@ -103,6 +103,29 @@ export interface SentEmail {
   feedbackNumber: number | null;
 }
 
+/** A feature flag's state; `killed` = an env kill switch (e.g. IMPERSONATION=off) overrides the stored value. */
+export interface FeatureFlag {
+  name: "impersonation";
+  enabled: boolean;
+  stored: boolean;
+  killed: boolean;
+  updatedAt: string | null;
+}
+
+/** One admin view of a trainer's account. */
+export interface AccessLogEntry {
+  id: string;
+  admin: { id: string; name: string };
+  ticket: { id: string; number: number; handle: string } | null;
+  reason: string | null;
+  startedAt: string;
+  /** null while the view is still on. */
+  endedAt: string | null;
+  endedBy: "stop" | "expired" | "flag_off" | "disabled" | null;
+  /** Writes made with Allow edits on: what and when, never the body. */
+  writes: { method: string; route: string; status: number; at: string }[];
+}
+
 /** A UTC calendar day as `YYYY-MM-DD`, whether Eden revived it into a Date or left it a string. */
 const calendarDay = (d: string | Date): string => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
 
@@ -172,5 +195,30 @@ export const adminApi = {
   async removeTrainer(id: string): Promise<void> {
     const { error } = await client.v1.admin.trainers({ id }).delete();
     if (error) throw new Error(message(error));
+  },
+  async flags(): Promise<FeatureFlag[]> {
+    const { data, error } = await client.v1.admin.flags.get();
+    if (error) throw new Error(message(error));
+    return data.flags;
+  },
+  async setFlag(name: FeatureFlag["name"], on: boolean): Promise<FeatureFlag> {
+    const { data, error } = await client.v1.admin.flags({ name }).put({ on });
+    if (error) throw new Error(message(error));
+    return data;
+  },
+  /** null = no such trainer. */
+  async accessLog(id: string): Promise<{ trainer: { id: string; name: string }; views: AccessLogEntry[] } | null> {
+    const { data, error } = await client.v1.admin.trainers({ id })["access-log"].get();
+    if (error) {
+      if (error.status === 404) return null;
+      throw new Error(message(error));
+    }
+    return data;
+  },
+  /** View the app as a trainer (read-only, 30 min); returns the in-app path to open. */
+  async startViewing(body: { trainerId: string; ticketId?: string }): Promise<string> {
+    const { data, error } = await client.v1.admin.impersonate.post(body);
+    if (error) throw new Error(message(error));
+    return data.returnTo;
   },
 };

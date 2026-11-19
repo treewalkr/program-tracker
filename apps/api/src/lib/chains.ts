@@ -2,7 +2,12 @@ import { asc, eq } from "drizzle-orm";
 import { db, kineticChains, type KineticChainRow } from "@pt/db";
 import { KINETIC_CHAIN_DEFAULTS } from "@pt/shared";
 
-export async function ensureSeededChains(trainerId: string): Promise<KineticChainRow[]> {
+/**
+ * The trainer's chains, seeding the defaults on first read. `write: false`
+ * (a GET while the admin views as this trainer) never inserts: unseeded
+ * defaults come back as unsaved rows instead.
+ */
+export async function ensureSeededChains(trainerId: string, { write = true } = {}): Promise<KineticChainRow[]> {
   const existing = await db
     .select()
     .from(kineticChains)
@@ -19,6 +24,10 @@ export async function ensureSeededChains(trainerId: string): Promise<KineticChai
     muscleGroups: [...c.muscleGroups],
     sortOrder: c.sortOrder,
   }));
+  if (!write) {
+    const now = new Date();
+    return toInsert.map((c) => ({ ...c, id: crypto.randomUUID(), createdAt: now, updatedAt: now }));
+  }
 
   await db
     .insert(kineticChains)

@@ -33,7 +33,7 @@ import {
   ticketImages,
 } from "../lib/feedback-attachments";
 import { API_VERSION } from "../lib/build";
-import { notifyFeedback } from "../lib/feedback-notify";
+import { notifyFeedback, type FeedbackEvent } from "../lib/feedback-notify";
 import { closeDuplicates, linkDuplicate, unlinkDuplicate } from "../lib/feedback-duplicates";
 import { trainerContext } from "../lib/trainer-context";
 import { rateAnswer, rateFix, recordDraftVerdict, unrateAnswer } from "../lib/feedback-answers";
@@ -118,9 +118,13 @@ const NOT_FOUND = { error: "feedback not found" } as const;
  */
 export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedback"] })
   .use(trainerContext)
-  .resolve(({ trainerId, isAdmin }) => ({
+  .resolve(({ trainerId, isAdmin, impersonating }) => ({
     /** Query scope: the admin sees everything, a trainer their own items. */
     who: { ownerId: isAdmin ? null : trainerId, viewerId: trainerId } satisfies FeedbackViewer,
+    /** Emails for a ticket event — never while the admin views as a trainer, even with edits allowed. */
+    notify: (event: FeedbackEvent) => {
+      if (!impersonating) notifyFeedback(event);
+    },
   }))
   /** List items (no image bytes). `?status=new,accepted` filters. */
   .get("/", async ({ query, who }) => listFeedback(parseStatuses(query.status), "newest", who), {
@@ -164,7 +168,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
    */
   .post(
     "/",
-    async ({ body, status, trainerId }) => {
+    async ({ notify, body, status, trainerId }) => {
       const { kinds, ...files } = body;
       if (body.context.runtime !== undefined) {
         const runtime = FeedbackRuntimeSchema.safeParse(body.context.runtime);
@@ -196,7 +200,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         await saveAttachments(tx, row.id, null, read.images);
         return row;
       });
-      notifyFeedback({ kind: "created", itemId: row.id });
+      notify({ kind: "created", itemId: row.id });
       return { id: row.id, number: row.number, handle: feedbackHandle(row.number) };
     },
     {
@@ -225,7 +229,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
    */
   .patch(
     "/:id",
-    async ({ params, body, status, isAdmin, trainerId, who }) => {
+    async ({ notify, params, body, status, isAdmin, trainerId, who }) => {
       if (!isAdmin) return status(403, ADMIN_ONLY);
       const { reason: rawReason, silent: quiet, ...patch } = body;
       // Silent: the status line still lands in the thread, but nobody is emailed and it is no news.
@@ -290,10 +294,10 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
       if ("fail" in found) return status(409, { error: "Already Won't fix — reply on the thread instead." });
       // One email: the status one, quoting the reason. The reason reply sends none of its own.
       if (found.statusCommentId && !silent) {
-        notifyFeedback({ kind: "status", itemId: params.id, commentId: found.statusCommentId, reasonId: found.reasonId });
+        notify({ kind: "status", itemId: params.id, commentId: found.statusCommentId, reasonId: found.reasonId });
       }
       for (const d of silent ? [] : found.duplicates) {
-        notifyFeedback({ kind: "status", itemId: d.itemId, commentId: d.statusId, reasonId: d.reasonId });
+        notify({ kind: "status", itemId: d.itemId, commentId: d.statusId, reasonId: d.reasonId });
       }
       await markSeen(trainerId, params.id);
       return (await getFeedback(params.id, who))!;
@@ -411,7 +415,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
   /** Reply on an item's thread — its reporter or the admin — with up to FEEDBACK_MAX_IMAGES images. */
   .post(
     "/:id/comments",
-    async ({ params, body, status, trainerId, who }) => {
+    async ({ notify, params, body, status, trainerId, who }) => {
       if (!(await getFeedback(params.id, who))) return status(404, NOT_FOUND);
       const text = body.body.trim();
       const read = await readImages({ images: body.images });
@@ -425,7 +429,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         await saveAttachments(tx, params.id, row.id, read.images);
         return row;
       });
-      notifyFeedback({ kind: "reply", itemId: params.id, commentId: row.id });
+      notify({ kind: "reply", itemId: params.id, commentId: row.id });
       await markSeen(trainerId, params.id);
       const item = (await getFeedback(params.id, who))!;
       return status(201, item.thread.find((c) => c.id === row.id)!);
@@ -443,7 +447,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
    */
   .post(
     "/:id/comments/:cid/publish",
-    async ({ params, body, status, isAdmin, trainerId, who }) => {
+    async ({ notify, params, body, status, isAdmin, trainerId, who }) => {
       if (!isAdmin) return status(403, ADMIN_ONLY);
       const text = body.body?.trim();
       if (body.body !== undefined && !text) return status(422, { error: "reply is empty" });
@@ -473,7 +477,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
           sent: edited ? text : null,
         });
       }
-      notifyFeedback({ kind: "reply", itemId: params.id, commentId: row.id, by: trainerId });
+      notify({ kind: "reply", itemId: params.id, commentId: row.id, by: trainerId });
       await markSeen(trainerId, params.id);
       return (await getFeedback(params.id, who))!;
     },
@@ -543,7 +547,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
    */
   .put(
     "/:id/comments/:cid/fix-rating",
-    async ({ params, body, status, trainerId, who }) => {
+    async ({ notify, params, body, status, trainerId, who }) => {
       const item = await getFeedback(params.id, who);
       if (!item) return status(404, NOT_FOUND);
       const note = item.thread.find((c) => c.id === params.cid);
@@ -573,7 +577,7 @@ export const feedbackRoutes = new Elysia({ prefix: "/v1/feedback", tags: ["feedb
         }
         return { replyId: reply.id };
       });
-      if (out.replyId) notifyFeedback({ kind: "reply", itemId: params.id, commentId: out.replyId });
+      if (out.replyId) notify({ kind: "reply", itemId: params.id, commentId: out.replyId });
       await markSeen(trainerId, params.id);
       return (await getFeedback(params.id, who))!;
     },

@@ -18,14 +18,15 @@ function getWeekStart(now = new Date()): string {
 
 export const chainRoutes = new Elysia({ prefix: "/v1/chains", tags: ["chains"] })
   .use(trainerContext)
-  .get("/", async ({ trainerId }) => {
-    const chains = await ensureSeededChains(trainerId);
+  // A view as this trainer never seeds: GETs don't write while the admin looks.
+  .get("/", async ({ trainerId, impersonating }) => {
+    const chains = await ensureSeededChains(trainerId, { write: !impersonating });
     return { chains };
   })
   .get(
     "/week",
-    async ({ query, trainerId }) => {
-      const chains = await ensureSeededChains(trainerId);
+    async ({ query, trainerId, impersonating }) => {
+      const chains = await ensureSeededChains(trainerId, { write: !impersonating });
       const weekStart = getWeekStart();
 
       const logs = await db
