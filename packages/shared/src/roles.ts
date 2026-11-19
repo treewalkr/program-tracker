@@ -131,6 +131,18 @@ export interface RoleHints {
   prescribedSets?: readonly { reps?: number | null; repsMin?: number | null; amrap?: boolean | null; type?: string | null }[];
 }
 
+// Name-only matches that run before the lift logic (warm-ups, conditioning,
+// mobility). The catalog can't tell these apart: a rowing machine may carry
+// the horizontal_pull pattern, a bike none at all.
+const PREP_NAME =
+  /\b(warm[\s-]?ups?|warming[\s-]?up|activations?|activate|ramp[\s-]?ups?|movement[\s-]?prep|dynamic[\s-]?(stretch\w*|mobility))\b/i;
+const MOBILITY_NAME =
+  /\b(stretch(es|ing)?|foam[\s-]?roll(s|er|ing)?|mobility|mobili[sz]ations?|cars|breathing|breath[\s-]?work|cool[\s-]?downs?|smr|lacrosse[\s-]?ball|yoga|pnf|90\/90|cat[\s-]?camels?|open[\s-]?books?|t[\s-]?spine|thoracic|pigeon|soft[\s-]?tissue)\b/i;
+/** Erg or machine rowing only: a plain "row" is a pull lift. "Sprint" stays power. */
+const CONDITIONING_NAME =
+  /\b(bikes?|cycl(e|ing)|assault|rower|row[\s-]?ergs?|ergs?|ski[\s-]?ergs?|rowing[\s-]?machine|concept[\s-]?2|c2|sleds?|prowler|intervals?|runs?|running|jog|jogging|conditioning|metcon|hiit|cardio|zone[\s-]?2|treadmill|elliptical|swim(ming)?|battle[\s-]?ropes?|jump[\s-]?rope|skipping|burpees?|shuttles?)\b/i;
+const SPRINT = /\bsprint/i;
+
 const EXPLOSIVE = /\b(jumps?|jumping|throws?|cleans?|snatch(es)?|jerks?|plyo\w*|med(icine)?[\s-]?ball|bounds?|bounding|sprints?|sprinting)\b/i;
 const TRUNK_PATTERNS = new Set<MovementPattern>([
   "anti_rotation",
@@ -157,9 +169,12 @@ const ISOLATION_NAME =
 const COMPOUND_NAME =
   /\b(squats?|deadlifts?|dl|rdl|bench|press(es)?|rows?|pull[\s-]?ups?|chin[\s-]?ups?|pull[\s-]?downs?|lunges?|split squats?|step[\s-]?ups?|hip thrusts?|thrusts?|good[\s-]?mornings?|dips?|push[\s-]?ups?|hinges?)\b/i;
 
-type Kind = "power" | "core" | "compound" | "accessory";
+type Kind = "movement_prep" | "mobility" | "conditioning" | "power" | "core" | "compound" | "accessory";
 
 function kindOf(hints: RoleHints): Kind {
+  if (PREP_NAME.test(hints.name)) return "movement_prep";
+  if (MOBILITY_NAME.test(hints.name)) return "mobility";
+  if (CONDITIONING_NAME.test(hints.name) && !SPRINT.test(hints.name)) return "conditioning";
   // "No pattern" (mobility, drills) gives no hint: the name heuristics decide.
   const e = hints.movementPattern === "no_pattern" ? { ...hints, movementPattern: null } : hints;
   if (EXPLOSIVE.test(e.name)) return "power";
@@ -185,20 +200,24 @@ function isHeavy(e: RoleHints): boolean {
 }
 
 /**
- * Built-in label for `sessionExercises[index]` (`exercise`): explosive →
- * power; trunk → core; the session's first heavy compound (≤ 6 reps when
+ * Built-in label for `sessionExercises[index]` (`exercise`): by name first —
+ * warm-up/activation → movement_prep, stretching/foam rolling/breathing →
+ * mobility, bike/erg/sled/run/intervals → conditioning (a sprint stays
+ * power); then explosive → power; trunk → core; the session's first heavy compound (≤ 6 reps when
  * known, not to failure) → primary, the next → secondary; other compound work → strength;
- * everything else → accessory (Auxiliary). Pure; never a custom label.
+ * everything else → accessory (Auxiliary). Pure; never a custom label, and
+ * never `supplemental` (the trainer picks that one).
  */
 export function suggestRole(exercise: RoleHints, sessionExercises: readonly RoleHints[], index: number): BuiltinRole {
   const kind = kindOf(exercise);
-  if (kind === "power" || kind === "core") return kind;
-  if (kind === "accessory") return "accessory";
-  if (!isHeavy(exercise)) return "strength";
-  const heavyBefore = sessionExercises
-    .slice(0, Math.max(0, index))
-    .filter((e) => kindOf(e) === "compound" && isHeavy(e)).length;
-  return heavyBefore === 0 ? "primary" : heavyBefore === 1 ? "secondary" : "strength";
+  if (kind === "compound") {
+    if (!isHeavy(exercise)) return "strength";
+    const heavyBefore = sessionExercises
+      .slice(0, Math.max(0, index))
+      .filter((e) => kindOf(e) === "compound" && isHeavy(e)).length;
+    return heavyBefore === 0 ? "primary" : heavyBefore === 1 ? "secondary" : "strength";
+  }
+  return kind;
 }
 
 /** suggestRole for every exercise of a session, in order. */

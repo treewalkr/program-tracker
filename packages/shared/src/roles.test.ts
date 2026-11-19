@@ -154,7 +154,75 @@ describe("suggestRole", () => {
 
   test("No pattern gives no hint: the name decides", () => {
     expect(suggestRole(ex("Dead Bug", { movementPattern: "no_pattern" }), [], 0)).toBe("core");
-    expect(suggestRole(ex("Cat Camel", { movementPattern: "no_pattern" }), [], 0)).toBe("accessory");
+    expect(suggestRole(ex("Cat Camel", { movementPattern: "no_pattern" }), [], 0)).toBe("mobility");
+    expect(suggestRole(ex("Mystery Drill", { movementPattern: "no_pattern" }), [], 0)).toBe("accessory");
+  });
+
+  test("warm-up and activation names → movement prep", () => {
+    for (const n of ["Dynamic Warm-up", "Warmup Circuit", "Glute Activation", "Scap Activation", "Ramp-up Drills", "Movement Prep Flow", "Dynamic Stretching"]) {
+      expect(suggestRole(ex(n), [], 0)).toBe("movement_prep");
+    }
+    // a warm-up on the bike is still a warm-up
+    expect(suggestRole(ex("Bike Warm-up"), [], 0)).toBe("movement_prep");
+  });
+
+  test("conditioning names → conditioning", () => {
+    for (const n of [
+      "Assault Bike",
+      "Air Bike Intervals",
+      "Rower",
+      "Row Erg 500m",
+      "SkiErg",
+      "Ski Erg",
+      "Rowing Machine",
+      "Sled Push",
+      "Prowler",
+      "Intervals",
+      "Tempo Run",
+      "Easy Jog",
+      "Conditioning Circuit",
+      "Metcon",
+      "Treadmill",
+      "Jump Rope",
+      "Battle Ropes",
+      "Burpees",
+    ]) {
+      expect(suggestRole(ex(n), [], 0)).toBe("conditioning");
+    }
+  });
+
+  test("mobility and recovery names → mobility", () => {
+    for (const n of ["Hip Flexor Stretch", "Foam Roll Quads", "Foam Rolling", "Hip CARs", "Shoulder Mobility", "90/90 Breathing", "Box Breathing", "Cool-down", "Open Books", "T-Spine Rotation"]) {
+      expect(suggestRole(ex(n), [], 0)).toBe("mobility");
+    }
+  });
+
+  test("name matches beat a catalog pattern", () => {
+    expect(suggestRole(ex("Rowing Machine", { movementPattern: "horizontal_pull", prescribedSets: reps(5) }), [], 0)).toBe("conditioning");
+    expect(suggestRole(ex("Thoracic Rotation", { movementPattern: "rotation" }), [], 0)).toBe("mobility");
+  });
+
+  test("clashes: sprints stay power, a plain row stays a lift", () => {
+    expect(suggestRole(ex("Sprint 20m"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Hill Sprints"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Bike Sprints"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Sled Push"), [], 0)).toBe("conditioning");
+    expect(suggestRole(ex("Box Jump"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Barbell Row", { prescribedSets: reps(5) }), [], 0)).toBe("primary");
+    expect(suggestRole(ex("Seated Cable Row", { prescribedSets: reps(10) }), [], 0)).toBe("strength");
+    expect(suggestRole(ex("Bicycle Crunch"), [], 0)).toBe("core");
+    expect(suggestRole(ex("Farmer Carry"), [], 0)).toBe("core");
+  });
+
+  test("never suggests supplemental; prep, conditioning and mobility don't take the primary slot", () => {
+    const session = [
+      ex("Dynamic Warm-up"),
+      ex("Assault Bike"),
+      ex("Back Squat", { movementPattern: "knee_dominant", prescribedSets: reps(5) }),
+      ex("Deadlift", { movementPattern: "hip_dominant", prescribedSets: reps(5) }),
+      ex("Hip Flexor Stretch"),
+    ];
+    expect(suggestRoles(session)).toEqual(["movement_prep", "conditioning", "primary", "secondary", "mobility"]);
   });
 
   test("first heavy compound → primary, next → secondary, then strength", () => {
