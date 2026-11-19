@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
-import { copyNotice, copyTargetLabel, matchNotice, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, withMode, withSetCount } from "./programEdit";
+import { copyNotice, copyTargetLabel, currentWeekIndex, endedNote, matchNotice, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, weekLine, weekRangeLabel, weekTabDates, withMode, withSetCount } from "./programEdit";
 
 const set = (o: Partial<PrescribedSetDto> = {}): PrescribedSetDto => ({
   setNumber: 1,
@@ -130,5 +130,69 @@ describe("matchNotice", () => {
   test("names the letter and the weeks kept", () => {
     expect(matchNotice("A", { logged: [], deload: [] })).toBe("Every week now follows Week A.");
     expect(matchNotice("B", { logged: [1, 3], deload: [6] })).toBe("Every week now follows Week B. W1, W3 kept: have logs. W6 kept: deload week.");
+  });
+});
+
+describe("weekTabDates", () => {
+  const prog = (o: Partial<{ status: string; activatedAt: string | null }> = {}) => ({
+    id: "p1",
+    status: "active",
+    activatedAt: "2026-11-10T09:00:00Z",
+    createdAt: "2026-11-01T00:00:00Z",
+    weeks: [1, 2, 3, 4].map((week) => ({ week })),
+    ...o,
+  });
+
+  test("dates each week from the anchor and marks the current one", () => {
+    const d = weekTabDates(prog(), [], "2026-11-19")!;
+    expect(d.map((w) => [w.week, w.start, w.end, w.state])).toEqual([
+      [1, "2026-11-10", "2026-11-16", "past"],
+      [2, "2026-11-17", "2026-11-23", "now"],
+      [3, "2026-11-24", "2026-11-30", "upcoming"],
+      [4, "2026-12-01", "2026-12-07", "upcoming"],
+    ]);
+    expect(currentWeekIndex(d)).toBe(1);
+  });
+
+  test("a log before activation moves the anchor (same buckets as the logs)", () => {
+    const d = weekTabDates(prog(), [{ programId: "p1", date: "2026-11-08" }, { programId: "other", date: "2026-11-01" }], "2026-11-19")!;
+    expect(d[0].start).toBe("2026-11-08");
+    expect(d[1].state).toBe("now");
+  });
+
+  test("drafts have no dates and open on week 1", () => {
+    expect(weekTabDates(prog({ status: "draft", activatedAt: null }), [], "2026-11-19")).toBeNull();
+    expect(currentWeekIndex(null)).toBe(0);
+  });
+
+  test("after the block every week is past and the page opens on the last", () => {
+    const d = weekTabDates(prog({ status: "archived" }), [], "2027-02-01")!;
+    expect(d.every((w) => w.state === "past")).toBe(true);
+    expect(currentWeekIndex(d)).toBe(3);
+    expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · ended");
+  });
+
+  test("labels", () => {
+    const d = weekTabDates(prog(), [], "2026-11-19")!;
+    expect(weekRangeLabel(d[1].start, d[1].end)).toBe("17–23 Nov");
+    expect(weekRangeLabel(d[2].start, d[2].end)).toBe("24–30 Nov");
+    expect(weekRangeLabel(d[3].start, d[3].end)).toBe("1–7 Dec");
+    expect(weekRangeLabel("2026-11-28", "2026-12-04")).toBe("28 Nov–4 Dec");
+    expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · now W2");
+    expect(endedNote(d, 1, "Ann Lee")).toBe("W1 ended 16 Nov — Ann is in W2.");
+    expect(endedNote(d, 2, "Ann Lee")).toBeNull();
+    expect(endedNote(d, 1, null)).toBe("W1 ended 16 Nov — The client is in W2.");
+  });
+
+  test("a block that hasn't started yet", () => {
+    const d = weekTabDates(prog({ activatedAt: "2026-11-23T00:00:00Z" }), [], "2026-11-19")!;
+    expect(d.every((w) => w.state === "upcoming")).toBe(true);
+    expect(currentWeekIndex(d)).toBe(0);
+    expect(weekLine(d)).toBe("Week 1 starts Mon 23 Nov");
+  });
+
+  test("programSubline carries the week line", () => {
+    const p = { version: 2, aiAssisted: false, createdFromProgramId: null } as unknown as ProgramDto;
+    expect(programSubline(p, null, "Week 1 started Tue 10 Nov · now W2")).toBe("v2 · Week 1 started Tue 10 Nov · now W2");
   });
 });

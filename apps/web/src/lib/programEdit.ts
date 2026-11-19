@@ -1,4 +1,4 @@
-import { TEMPO_PATTERN, type CopyTarget, type Rotation } from "@pt/shared";
+import { TEMPO_PATTERN, blockAnchorDate, blockWeekStart, type CopyTarget, type Rotation, type SignalProgram } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
 
 /** Pure helpers for the inline program editor: set modes, grouped sets, dirty state, header copy. */
@@ -111,9 +111,10 @@ export function snapshot(p: Pick<ProgramDto, "weeks" | "phasing">): string {
   );
 }
 
-/** Sub-line under the title: version, origin, and save time — never contradicting the status pill. */
-export function programSubline(p: ProgramDto, savedAt: string | null): string {
+/** Sub-line under the title: version, origin, when Week 1 started, and save time — never contradicting the status pill. */
+export function programSubline(p: ProgramDto, savedAt: string | null, when: string | null = null): string {
   const bits = [`v${p.version}`];
+  if (when) bits.push(when);
   if (p.aiAssisted) bits.push(p.createdFromProgramId ? "AI-assisted · built on the previous block" : "AI-assisted");
   if (savedAt) bits.push(`saved ${savedAt}`);
   return bits.join(" · ");
@@ -142,4 +143,101 @@ export function matchNotice(use: Rotation, skipped: { logged: readonly number[];
   const kept = (weeks: readonly number[], one: string, many: string) =>
     weeks.length > 0 ? ` ${weekList(weeks)} kept: ${weeks.length === 1 ? one : many}.` : "";
   return `Every week now follows Week ${use}.${kept(skipped.logged, "has logs", "have logs")}${kept(skipped.deload, "deload week", "deload weeks")}`;
+}
+
+// —— Dated weeks ("which week is now", FB-017) ————————————————————————————
+
+export type WeekState = "past" | "now" | "upcoming";
+
+export interface WeekTabDate {
+  week: number;
+  /** First and last day of the week window (YYYY-MM-DD). */
+  start: string;
+  end: string;
+  state: WeekState;
+}
+
+type AnchorLog = { programId: string; date: string };
+type DatedProgram = Pick<SignalProgram, "id" | "status" | "activatedAt" | "createdAt"> & {
+  weeks: readonly { week: number }[];
+};
+
+const anchorOf = (program: DatedProgram, logs: readonly AnchorLog[]) =>
+  blockAnchorDate(
+    { id: program.id, activatedAt: program.activatedAt, createdAt: program.createdAt, clientId: null, name: "", status: "", weeks: [] },
+    logs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
+  ).slice(0, 10);
+
+/**
+ * Each week's calendar window and whether it is over, under way or still to
+ * come — the same 7-day buckets the logs, pulse and portal use. Drafts have no
+ * calendar yet: null. `today` is the local date (YYYY-MM-DD).
+ */
+export function weekTabDates(program: DatedProgram, logs: readonly AnchorLog[], today: string): WeekTabDate[] | null {
+  if (program.status === "draft") return null;
+  const anchor = anchorOf(program, logs);
+  return program.weeks.map(({ week }) => {
+    const start = blockWeekStart(anchor, week);
+    const end = addDay(start, 6);
+    const state: WeekState = today > end ? "past" : today < start ? "upcoming" : "now";
+    return { week, start, end, state };
+  });
+}
+
+const addDay = (iso: string, n: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** The week to open the program page on: the client's current week, clamped to
+ *  the block (the last week once it is over, the first before it starts). 0-based index. */
+export function currentWeekIndex(dates: readonly WeekTabDate[] | null): number {
+  if (!dates || dates.length === 0) return 0;
+  const now = dates.findIndex((d) => d.state === "now");
+  if (now >= 0) return now;
+  return dates.every((d) => d.state === "past") ? dates.length - 1 : 0;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const parts = (iso: string) => {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  return { day: d.getUTCDate(), month: MONTHS[d.getUTCMonth()], weekday: WEEKDAYS[d.getUTCDay()] };
+};
+
+/** "16 Nov". */
+export function dayMonth(iso: string): string {
+  const p = parts(iso);
+  return `${p.day} ${p.month}`;
+}
+
+/** "Tue 10 Nov". */
+export function weekdayDayMonth(iso: string): string {
+  return `${parts(iso).weekday} ${dayMonth(iso)}`;
+}
+
+/** "17–23 Nov", or "28 Nov–4 Dec" across a month end. */
+export function weekRangeLabel(start: string, end: string): string {
+  const a = parts(start);
+  const b = parts(end);
+  return a.month === b.month ? `${a.day}–${b.day} ${b.month}` : `${a.day} ${a.month}–${b.day} ${b.month}`;
+}
+
+/** Subline bit: "Week 1 started Tue 10 Nov · now W2", "Week 1 starts Mon 23 Nov", or "… · ended". */
+export function weekLine(dates: readonly WeekTabDate[] | null): string | null {
+  if (!dates || dates.length === 0) return null;
+  const first = dates[0];
+  if (first.state === "upcoming") return `Week 1 starts ${weekdayDayMonth(first.start)}`;
+  const now = dates.find((d) => d.state === "now");
+  return `Week 1 started ${weekdayDayMonth(first.start)} · ${now ? `now W${now.week}` : "ended"}`;
+}
+
+/** Note on a finished week: "W1 ended 16 Nov — Ann is in W2." (or "… the block has ended."). */
+export function endedNote(dates: readonly WeekTabDate[] | null, week: number, clientName: string | null): string | null {
+  const d = dates?.find((x) => x.week === week);
+  if (!d || d.state !== "past") return null;
+  const now = dates!.find((x) => x.state === "now");
+  const who = clientName?.trim().split(/\s+/)[0] || "The client";
+  return `W${week} ended ${dayMonth(d.end)} — ${now ? `${who} is in W${now.week}.` : "the block has ended."}`;
 }

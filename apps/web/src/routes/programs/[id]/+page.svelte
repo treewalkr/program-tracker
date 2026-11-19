@@ -39,6 +39,7 @@
     sessionTag,
     sessionsByWeekday,
     deloadBasisWeek,
+    localDateOf,
     oneRepMaxKg,
     type OneRepMaxes,
     type ProgramWeek,
@@ -49,7 +50,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, matchNotice, programSubline, snapshot } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, endedNote, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import { patternTitle } from "$lib/exerciseLibrary";
@@ -69,6 +70,7 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Note from "$lib/ui/Note.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   const id = $derived(page.params.id ?? "");
@@ -158,6 +160,11 @@
     return [1, 2, 3, 4, 5, 6, 7, 0].flatMap((d) => by.get(d)!.map((s) => ({ s, day: d })));
   });
   const logView = $derived(program ? programLogView(program as SignalProgram, logs) : null);
+  /** Today (local), so the tabs can say which week is now. */
+  const today = localDateOf(Date.now());
+  /** Each week's dates and past / now / upcoming; null for drafts (no calendar yet). */
+  const weekDates = $derived(program ? weekTabDates(program, logs, today) : null);
+  const ended = $derived(currentWeek ? endedNote(weekDates, currentWeek.week, clientName) : null);
   const timedIds = $derived(timedIdsOfWeek(currentWeek));
   const isTimed = (e: { id: string; exerciseId: string }) => timedIds.has(e.id) || timedIds.has(e.exerciseId);
   const logsOf = (sid: string) => logView?.bySession.get(sid) ?? [];
@@ -434,7 +441,7 @@
     <div>
       <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
       <h1>{program.name} <StatusPill status={program.status} /></h1>
-      <p class="sub">{programSubline(program, savedAt)}</p>
+      <p class="sub">{programSubline(program, savedAt, weekLine(weekDates))}</p>
     </div>
     <div class="actions">
       {#if program.status === "archived"}
@@ -517,14 +524,20 @@
         {#each program.weeks as w, wi (w.week)}
           {@const logged = weekLogCount(w, wi)}
           {@const loggedText = `${logged} ${logged === 1 ? "session" : "sessions"} logged`}
+          {@const dated = weekDates?.[wi]}
+          {@const range = dated ? weekRangeLabel(dated.start, dated.end) : null}
           <button
             type="button"
             class="tab-btn"
             class:active={wi === currentWeekIndex}
-            aria-label={[`W${w.week}`, w.rotation && `week ${w.rotation}`, logged > 0 && loggedText].filter(Boolean).join(", ")}
+            class:past={dated?.state === "past"}
+            aria-current={dated?.state === "now" ? "date" : undefined}
+            aria-label={[`W${w.week}`, w.rotation && `week ${w.rotation}`, range, dated?.state === "now" && "this week", dated?.state === "past" && "ended", logged > 0 && loggedText].filter(Boolean).join(", ")}
             onclick={() => (currentWeekIndex = wi)}
           >
             W{w.week}{#if w.rotation}<span class="tab-letter">{w.rotation}</span>{/if}
+            {#if range}<span class="tab-dates">· {range}</span>{/if}
+            {#if dated?.state === "now"}<span class="tab-now">now</span>{/if}
             {#if logged > 0}<span class="tab-logs" title={loggedText}><Icon name="check" />{logged}</span>{/if}
           </button>
         {/each}
@@ -545,6 +558,7 @@
   {/if}
 
   {#if currentWeek}
+    {#if ended}<Note tone="warn" role="note" class="ended-note">{ended}</Note>{/if}
     <div class="week-bar">
       <p class="balance">Week {currentWeek.week} balance — {formatPatternBalance(sessionsPatternBalance(currentWeek.sessions, patternOf))}</p>
       {#if editable && program.weeks.length > 1}
@@ -842,6 +856,18 @@
   .readonly-note { margin: 0; }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
+  .tab-dates { margin-left: 4px; font-weight: 500; }
+  .tab-btn.past:not(.active) { color: var(--faint); }
+  .tab-now {
+    margin-left: 6px;
+    vertical-align: 1px;
+    font: 600 10.5px/1 var(--font-ui);
+    padding: 2px 6px;
+    border-radius: 99px;
+    background: var(--pulse-now-bg);
+    color: var(--blue);
+  }
+  :global(.ended-note) { margin: -6px 0 14px; max-width: 640px; }
   .tab-letter { margin-left: 4px; font: 500 11px var(--font-mono); color: var(--muted); }
   .tab-btn.active .tab-letter { color: inherit; }
   /* The copy toast and the save bar float together, toast on top, so the toast clears the bar at any height. */
