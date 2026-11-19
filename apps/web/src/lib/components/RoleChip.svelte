@@ -4,7 +4,7 @@
   import { roleLabels } from "$lib/roleLabelStore.svelte";
 
   /**
-   * Role chip for an exercise (Power / Primary / Secondary / Str / Aux / Core,
+   * Role chip for an exercise (Prep / Power / Primary / Secondary / Str / Supp / Aux / Core / Cond / Mob,
    * or one of the trainer's own labels) in the trainer's shorthand. Neutral
    * well pill; the primary lift reads in default ink so the work a session is
    * built around stands out without colour. The meaning rides on `title`.
