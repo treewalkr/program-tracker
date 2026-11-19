@@ -228,12 +228,16 @@ describe.skipIf(!dbUp)("trainer accounts", () => {
     expect((await get("/v1/clients", moToken)).status).toBe(200);
 
     const off = await call("PATCH", `/v1/admin/trainers/${mo.id}`, admin, { disabled: true });
-    expect(((await off.json()) as { access: string }).access).toBe("disabled");
+    const offBody = (await off.json()) as { access: string; disabledAt: string | null };
+    expect(offBody.access).toBe("disabled");
+    expect(Date.parse(offBody.disabledAt!)).toBeGreaterThan(Date.now() - 60_000);
     expect(await trainerForToken(moToken)).toBeNull();
     expect((await get("/v1/clients", moToken)).status).toBe(401);
     expect(await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }))).toEqual({ rejection: "disabled" });
 
-    expect((await call("PATCH", `/v1/admin/trainers/${mo.id}`, admin, { disabled: false })).status).toBe(200);
+    const on = await call("PATCH", `/v1/admin/trainers/${mo.id}`, admin, { disabled: false });
+    expect(on.status).toBe(200);
+    expect(((await on.json()) as { disabledAt: string | null }).disabledAt).toBeNull();
     expect(await claimTrainer(cfg, profile({ sub: "sub-mo", email: "mo@example.com" }))).toEqual({ trainerId: mo.id });
 
     // used accounts can't be deleted; the admin can't be disabled

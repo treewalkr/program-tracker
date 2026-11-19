@@ -357,6 +357,11 @@
                 </div>
                 <div class="subtle">{t.email}</div>
                 <div class="meta">
+                  {#if t.access === "disabled" && t.disabledAt}
+                    <span class="offat" title="Access turned off {fmt.format(new Date(t.disabledAt))}"
+                      >Access off {ago(t.disabledAt)}</span
+                    > ·
+                  {/if}
                   <span title={seen.title}>{seen.text}</span> ·
                   {#if t.clientCount > 0}
                     <a href={`/admin/clients?trainer=${t.id}`}
@@ -621,6 +626,9 @@
     align-items: center;
     gap: 4px;
     font: 500 12px/1.2 var(--font-ui);
+    color: var(--muted);
+  }
+  .meta .offat {
     color: var(--muted);
   }
   .meta > :global(*) {

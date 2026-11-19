@@ -32,6 +32,8 @@ const toDto = (row: TrainerRow, clientCount: number) => ({
   clientCount,
   createdAt: row.createdAt.toISOString(),
   lastSignInAt: row.lastSignInAt?.toISOString() ?? null,
+  /** When the admin turned access off; null while access is on. */
+  disabledAt: row.disabledAt?.toISOString() ?? null,
 });
 
 /** `kai.tan@gmail.com` → `k•••@gmail.com`: enough to tell accounts apart, not to copy. */

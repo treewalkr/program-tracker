@@ -12,6 +12,8 @@ export interface TrainerAccount {
   clientCount: number;
   createdAt: string;
   lastSignInAt: string | null;
+  /** When access was turned off; null while it's on. */
+  disabledAt: string | null;
 }
 
 /** One client in the admin's read-only directory — no contact details or client notes. */
