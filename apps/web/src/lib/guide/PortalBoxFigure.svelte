@@ -40,13 +40,13 @@
 </div>
 
 <style>
-  .box { width: 100%; max-width: 560px; background: var(--surface); }
+  .box { width: 100%; max-width: 560px; }
   .field { display: grid; gap: 6px; }
   .label { font-size: 12px; font-weight: 600; color: var(--muted); }
   .label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .link-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-  .link, .msg { flex: 1; min-width: 0; padding: 6px 10px; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); }
-  .link { font-family: var(--font-mono); }
+  .link, .msg { flex: 1; min-width: 0; padding: 3px 10px; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); }
+  .link { font: 12px/18px var(--font-mono); }
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 0; }
   .facts dt { font-size: 12px; font-weight: 600; color: var(--muted); }
   .facts dd { margin: 2px 0 0; font-size: 13px; }

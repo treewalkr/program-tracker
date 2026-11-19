@@ -27,7 +27,7 @@
 </div>
 
 <style>
-  .wrap { width: 100%; max-width: 560px; background: var(--surface); }
+  .wrap { width: 100%; max-width: 560px; }
   .wk-h { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--well); border-bottom: 1px solid var(--line-soft); font-size: 13px; }
   .wk-name { font-weight: 600; }
   .subtle { color: var(--muted); }

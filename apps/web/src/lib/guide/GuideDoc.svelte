@@ -63,8 +63,8 @@
   }
   article { grid-area: article; min-width: 0; }
   .toc { grid-area: toc; }
-  .doc :global(section) { padding-top: 28px; scroll-margin-top: 12px; }
-  .doc :global(h2) {
+  .doc :global(section:not(.stage *)) { padding-top: 28px; scroll-margin-top: 12px; }
+  .doc :global(h2:not(.stage *)) {
     margin: 0 0 10px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--line-soft);
@@ -72,11 +72,11 @@
     letter-spacing: -0.01em;
     text-wrap: balance;
   }
-  .doc :global(h3) { margin: 0 0 2px; font: 600 14px/1.45 var(--font-ui); }
-  .doc :global(p) { margin: 0 0 12px; font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+  .doc :global(h3:not(.stage *)) { margin: 0 0 2px; font: 600 14px/1.45 var(--font-ui); }
+  .doc :global(p:not(.stage *)) { margin: 0 0 12px; font-size: 14px; line-height: 1.6; text-wrap: pretty; }
   .doc :global(.intro) { margin-top: 4px; font-size: 15px; }
-  .doc :global(em) { font-style: normal; font-weight: 500; }
-  .doc :global(code) { font: 500 12px/1 var(--font-mono); padding: 2px 6px; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); }
+  .doc :global(em:not(.stage *)) { font-style: normal; font-weight: 500; }
+  .doc :global(code:not(.stage *)) { font: 500 12px/1 var(--font-mono); padding: 2px 6px; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); }
 
   /* Steps: the order matters here, so the sequence earns its numbers. */
   .doc :global(.steps) { list-style: none; counter-reset: step; margin: 0 0 12px; padding: 0; }
@@ -101,10 +101,10 @@
   .doc :global(.aside) { padding: 10px 12px; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; }
 
   .doc :global(.compare) { display: grid; grid-template-columns: 1.3fr 1fr; margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-  .doc :global(.col) { padding: 12px 16px 6px; min-width: 0; }
+  .doc :global(.col:not(.stage *)) { padding: 12px 16px 6px; min-width: 0; }
   .doc :global(.col.never) { background: var(--well); border-left: 1px solid var(--line); }
-  .doc :global(.col ul), .doc :global(.rules) { margin: 6px 0 8px; padding-left: 18px; display: grid; gap: 5px; font-size: 14px; line-height: 1.55; }
-  .doc :global(.col li), .doc :global(.rules li), .doc :global(.defs dd), .doc :global(.lookup td) { text-wrap: pretty; }
+  .doc :global(.col ul:not(.stage *)), .doc :global(.rules) { margin: 6px 0 8px; padding-left: 18px; display: grid; gap: 5px; font-size: 14px; line-height: 1.55; }
+  .doc :global(.col li:not(.stage *)), .doc :global(.rules li), .doc :global(.defs dd), .doc :global(.lookup td) { text-wrap: pretty; }
   .doc :global(.rules) { margin-top: 0; margin-bottom: 12px; }
 
   .doc :global(.defs) { margin: 0 0 12px; display: grid; gap: 14px; }
@@ -119,8 +119,8 @@
   .doc :global(.lookup thead th + th), .doc :global(.lookup tbody th + td) { border-left: 1px solid var(--line-soft); }
 
   /* Thai wants more air between lines than Latin. */
-  .doc:lang(th) :global(p), .doc:lang(th) :global(li), .doc:lang(th) :global(dd), .doc:lang(th) :global(td), .doc:lang(th) :global(th) { line-height: 1.8; }
-  .doc:lang(th) :global(h2) { line-height: 1.5; letter-spacing: 0; }
+  .doc:lang(th) :global(p:not(.stage *)), .doc:lang(th) :global(li:not(.stage *)), .doc:lang(th) :global(dd:not(.stage *)), .doc:lang(th) :global(td:not(.stage *)), .doc:lang(th) :global(th:not(.stage *)) { line-height: 1.8; }
+  .doc:lang(th) :global(h2:not(.stage *)) { line-height: 1.5; letter-spacing: 0; }
   .doc:lang(th) :global(figcaption) { font-size: 14px; }
 
   /* Contents: sticky rail beside the article on wide screens. */
