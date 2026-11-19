@@ -14,6 +14,8 @@
   import Avatar from "$lib/ui/Avatar.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import ListToolbar from "$lib/ui/ListToolbar.svelte";
+  import SelectPrefixed from "$lib/ui/SelectPrefixed.svelte";
   import { viewAs } from "$lib/viewAs.svelte";
 
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +43,14 @@
     const what = act === "remove" ? "remove the invite" : `turn access ${act}`;
     return `Couldn't ${what} — check your connection and try again.`;
   }
+  type Sort = "access" | "name" | "signin";
+  const SORTS: { value: Sort; label: string }[] = [
+    { value: "access", label: "Access" },
+    { value: "name", label: "Name" },
+    { value: "signin", label: "Last sign-in" },
+  ];
+  /** No sign-in for this long marks an active trainer Inactive. */
+  const INACTIVE_DAYS = 30;
   /** Past this many, disabled accounts fold away under "Show N disabled" in the All view. */
   const FOLD_DISABLED = 3;
 
@@ -69,6 +79,8 @@
   let copied = $state(false);
   let show = $state<Show>("all");
   let showDisabled = $state(false);
+  let search = $state("");
+  let sort = $state<Sort>("access");
   let copyFailed = $state(false);
 
   const nameErr = $derived(!name.trim() ? "Add their name" : undefined);
@@ -82,11 +94,15 @@
   const announce = $derived(
     copyFailed ? "Couldn't copy the sign-in link" : copied ? "Sign-in link copied" : added ? `Added ${added.name}, ${added.email}` : "",
   );
+  const byAccess = (a: TrainerAccount, b: TrainerAccount) =>
+    Number(b.isAdmin) - Number(a.isAdmin) || RANK[a.access] - RANK[b.access] || a.name.localeCompare(b.name);
+  /** Most recent first; never signed in goes last. */
+  const bySignIn = (a: TrainerAccount, b: TrainerAccount) =>
+    (b.lastSignInAt ?? "").localeCompare(a.lastSignInAt ?? "") || a.name.localeCompare(b.name);
   const sorted = $derived(
-    [...(trainers ?? [])].sort(
-      (a, b) => Number(b.isAdmin) - Number(a.isAdmin) || RANK[a.access] - RANK[b.access] || a.name.localeCompare(b.name),
-    ),
+    [...(trainers ?? [])].sort(sort === "name" ? (a, b) => a.name.localeCompare(b.name) : sort === "signin" ? bySignIn : byAccess),
   );
+  const needle = $derived(search.trim().toLowerCase());
   const counts = $derived.by(() => {
     const c = { all: 0, active: 0, invited: 0, disabled: 0 };
     for (const t of trainers ?? []) {
@@ -96,9 +112,13 @@
     return c;
   });
   /** The All view folds disabled accounts away once there are more than a few. */
-  const folded = $derived(show === "all" && counts.disabled > FOLD_DISABLED && !showDisabled);
+  const folded = $derived(show === "all" && !needle && counts.disabled > FOLD_DISABLED && !showDisabled);
   const shown = $derived(
-    sorted.filter((t) => (show === "all" ? !(folded && t.access === "disabled") : t.access === show)),
+    sorted.filter(
+      (t) =>
+        (show === "all" ? !(folded && t.access === "disabled") : t.access === show) &&
+        (!needle || t.name.toLowerCase().includes(needle) || t.email.toLowerCase().includes(needle)),
+    ),
   );
   const summary = $derived.by(() => {
     if (!trainers) return "Who can sign in to Program Tracker";
@@ -241,6 +261,9 @@
     const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
     return days <= 0 ? "today" : days === 1 ? "yesterday" : days < 30 ? `${days} days ago` : fmt.format(new Date(iso));
   }
+  /** Active, but no sign-in for over a month. */
+  const inactive = (t: TrainerAccount) =>
+    t.access === "active" && !!t.lastSignInAt && Date.now() - new Date(t.lastSignInAt).getTime() > INACTIVE_DAYS * 86_400_000;
   /** The row's last-seen line and its full date for the tooltip. */
   function lastSeen(t: TrainerAccount): { text: string; title: string } {
     if (t.lastSignInAt) return { text: `Signed in ${ago(t.lastSignInAt)}`, title: fmt.format(new Date(t.lastSignInAt)) };
@@ -350,9 +373,22 @@
     {#if trainers === null}
       <SkeletonPanel title="Accounts" count rows={4} avatar={32} label="Loading trainers…" />
     {:else}
+      <div class="acc">
+      <ListToolbar
+        bind:value={search}
+        label="Search trainers"
+        placeholder="Search by name or email"
+        count={needle ? `${shown.length} of ${show === "all" ? counts.all : counts[show]}` : undefined}
+      >
+        {#snippet filters()}
+          <div class="sort"><SelectPrefixed prefix="Sort" options={SORTS} bind:value={sort} /></div>
+        {/snippet}
+      </ListToolbar>
       <Panel aria-label="Accounts" act={filters}>
         {#if shown.length === 0}
-          <p class="panel-body subtle none">No {show} trainers.</p>
+          <p class="panel-body subtle none">
+            {needle ? `No ${show === "all" ? "" : `${show} `}trainers match “${search.trim()}”.` : `No ${show} trainers.`}
+          </p>
         {/if}
         <ul class="accounts" id="t-list" tabindex="-1" aria-label="Trainer accounts">
           {#each shown as t (t.id)}
@@ -380,7 +416,8 @@
                       >Access off {ago(t.disabledAt)}</span
                     > ·
                   {/if}
-                  <span title={seen.title}>{seen.text}</span> ·
+                  <span title={seen.title}>{seen.text}</span>
+                  {#if inactive(t)}<span class="idle" title="No sign-in for over {INACTIVE_DAYS} days">Inactive</span>{/if} ·
                   {#if t.clientCount > 0}
                     <a href={`/admin/clients?trainer=${t.id}`}
                       ><span class="mono">{t.clientCount}</span> {t.clientCount === 1 ? "client" : "clients"}</a
@@ -447,7 +484,7 @@
             </li>
           {/each}
         </ul>
-        {#if show === "all" && counts.disabled > FOLD_DISABLED}
+        {#if show === "all" && !needle && counts.disabled > FOLD_DISABLED}
           <div class="fold" class:open={!folded}>
             <Button small variant="ghost" aria-expanded={!folded} onclick={() => (showDisabled = !showDisabled)}>
               {#snippet icon()}<Icon name="chevron" />{/snippet}
@@ -456,6 +493,7 @@
           </div>
         {/if}
       </Panel>
+      </div>
       {#snippet filters()}
         <div class="states" role="group" aria-label="Show trainers">
           {#each SHOW as f (f.value)}
@@ -650,6 +688,23 @@
   }
   .meta .offat {
     color: var(--muted);
+  }
+  /* Activity, not access: a small amber Label beside the sign-in date */
+  .meta .idle {
+    display: inline-block;
+    margin-left: 4px;
+    font: 500 11px/1.2 var(--font-ui);
+    padding: 1px 6px;
+    border-radius: 99px;
+    border: 1px solid var(--warn-line);
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+  .acc {
+    min-width: 0;
+  }
+  .sort {
+    flex: 0 1 200px;
   }
   .meta > :global(*) {
     white-space: nowrap;
