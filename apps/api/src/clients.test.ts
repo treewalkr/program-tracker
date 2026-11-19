@@ -1,6 +1,6 @@
 import { describe, expect, test, afterAll } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
-import { db, trainers, clients, programs, sessionLogs } from "@pt/db";
+import { db, trainers, clients, programs, sessionLogs, setLogs, exercises } from "@pt/db";
 import { localDateOf } from "@pt/shared";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { assertTestDatabaseUrl } from "./testing/test-db";
@@ -306,5 +306,114 @@ describe.skipIf(!dbUp)("client roster", () => {
     const byEmail = await call("GET", `/v1/clients/roster?q=${encodeURIComponent(`eve.${tok}`)}`);
     expect(byEmail.body.total).toBe(0);
     expect(byEmail.body.items).toEqual([]);
+  });
+});
+
+describe.skipIf(!dbUp)("clients overview", () => {
+  const tok = `ovw${crypto.randomUUID().slice(0, 8)}`;
+  const DAY = 86_400_000;
+  const day = (ago: number) => localDateOf(Date.now() - ago * DAY);
+  const ids: Record<string, string> = {};
+  let otherTrainerId = "";
+  let activeId = "";
+  let theirsId = "";
+  const overview = async () => {
+    const res = await call("GET", "/v1/clients/overview");
+    expect(res.status).toBe(200);
+    return res.body as any[];
+  };
+  const rowOf = (rows: any[], id: string) => rows.find((r) => r.client.id === id);
+
+  afterAll(async () => {
+    await db.delete(programs).where(inArray(programs.clientId, [...Object.values(ids), theirsId].filter(Boolean)));
+    await db.delete(clients).where(inArray(clients.id, [...Object.values(ids), theirsId].filter(Boolean)));
+    if (otherTrainerId) await db.delete(trainers).where(eq(trainers.id, otherTrainerId));
+  });
+
+  test("setup: Ada with 201 logs and the portal on, Bea with 3, Cy with none; Eve is another trainer's", async () => {
+    const me = await getDefaultTrainerId();
+    for (const name of ["Ada", "Bea", "Cy"]) {
+      const [c] = await db.insert(clients).values({ trainerId: me, name: `${name} ${tok}` }).returning();
+      ids[name] = c.id;
+    }
+    await db
+      .update(clients)
+      .set({ portalEnabledAt: new Date(), portalToken: `tok-${tok}` })
+      .where(eq(clients.id, ids.Ada));
+
+    const weeks = [{ week: 1, sessions: [] }] as never;
+    const [, active] = await db
+      .insert(programs)
+      .values([
+        { trainerId: me, clientId: ids.Ada, name: "Old block", status: "archived", sessions: weeks },
+        { trainerId: me, clientId: ids.Ada, name: "Current block", status: "active", sessions: weeks },
+      ])
+      .returning();
+    activeId = active.id;
+    const [beaPlan] = await db
+      .insert(programs)
+      .values({ trainerId: me, clientId: ids.Bea, name: "Bea draft", status: "draft", sessions: weeks })
+      .returning();
+
+    const adaLogs = await db
+      .insert(sessionLogs)
+      .values(Array.from({ length: 201 }, (_, i) => ({ clientId: ids.Ada, programId: activeId, date: day(i + 1) })))
+      .returning();
+    const beaLogs = await db
+      .insert(sessionLogs)
+      .values([1, 2, 3].map((ago) => ({ clientId: ids.Bea, programId: beaPlan.id, date: day(ago) })))
+      .returning();
+    const [ex] = await db.select().from(exercises).limit(1);
+    await db.insert(setLogs).values(
+      [adaLogs[0], beaLogs[0]].flatMap((l) =>
+        [1, 2].map((setNumber) => ({ sessionLogId: l.id, exerciseId: ex.id, setNumber, reps: 5, weightKg: "100.5" }))
+      )
+    );
+
+    const [other] = await db.insert(trainers).values({ name: "Other", email: `${tok}@other.dev` }).returning();
+    otherTrainerId = other.id;
+    const [eve] = await db.insert(clients).values({ trainerId: other.id, name: `Eve ${tok}` }).returning();
+    theirsId = eve.id;
+  });
+
+  test("only my clients, each with its active program", async () => {
+    const rows = await overview();
+    expect(rowOf(rows, theirsId)).toBeUndefined();
+    const ada = rowOf(rows, ids.Ada);
+    expect(ada.client.name).toBe(`Ada ${tok}`);
+    expect(ada.currentProgram).toMatchObject({ id: activeId, name: "Current block", status: "active" });
+    expect(rowOf(rows, ids.Bea).currentProgram).toBeNull();
+    expect(rowOf(rows, ids.Cy)).toMatchObject({ currentProgram: null, logs: [], portalLink: null });
+    // the client row never carries portal secrets
+    expect(ada.client.portalToken).toBeUndefined();
+  });
+
+  test("logs: newest first, capped at 200 per client, each with its sets", async () => {
+    const rows = await overview();
+    const ada = rowOf(rows, ids.Ada).logs as any[];
+    expect(ada).toHaveLength(200);
+    expect(ada.every((l) => l.clientId === ids.Ada)).toBe(true);
+    expect(ada.map((l) => l.date)).toEqual(Array.from({ length: 200 }, (_, i) => day(i + 1)));
+    expect(ada[0].sets).toHaveLength(2);
+    expect(ada[0].sets[0]).toMatchObject({ setNumber: 1, reps: 5, weightKg: 100.5 });
+    expect(ada[1].sets).toEqual([]);
+    const bea = rowOf(rows, ids.Bea).logs as any[];
+    expect(bea.map((l) => l.date)).toEqual([day(1), day(2), day(3)]);
+    expect(bea[0].sets.map((s: any) => s.setNumber).sort()).toEqual([1, 2]);
+  });
+
+  test("the same logs GET /v1/logs/sessions gives per client", async () => {
+    const rows = await overview();
+    for (const name of ["Ada", "Bea"]) {
+      const one = await call("GET", `/v1/logs/sessions?clientId=${ids[name]}`);
+      const byId = (ls: any[]) => [...ls].sort((a, b) => a.id.localeCompare(b.id));
+      expect(byId(rowOf(rows, ids[name]).logs)).toEqual(byId(one.body));
+    }
+  });
+
+  test("portalLink is the access link when the portal is on, null when off", async () => {
+    const rows = await overview();
+    expect(rowOf(rows, ids.Ada).portalLink).toEndWith(`tok-${tok}`);
+    expect(rowOf(rows, ids.Bea).portalLink).toBeNull();
   });
 });
