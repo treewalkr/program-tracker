@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Component } from "svelte";
+  import AbWeeksFigure from "$lib/guide/AbWeeksFigure.svelte";
   import EditSpreadFigure from "$lib/guide/EditSpreadFigure.svelte";
   import Figure from "$lib/guide/Figure.svelte";
   import GuideDoc from "$lib/guide/GuideDoc.svelte";
@@ -16,6 +17,7 @@
     weeks: WeekCalendarFigure,
     edit: EditSpreadFigure,
     missed: MissedFigure,
+    ab: AbWeeksFigure,
   };
 
   const g = $derived(PROGRAMS_GUIDE[i18n.locale]);

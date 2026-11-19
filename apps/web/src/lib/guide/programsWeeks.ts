@@ -12,7 +12,7 @@ import type { Locale } from "$lib/portal/messages";
  * Inline markup: **bold**, *italic*, `code`, and ⟦tone|label⟧ for a Pill.
  * A `fig` block is a drawn diagram (see the page's figure map) with a caption.
  */
-export type GuideFig = "weeks" | "edit" | "missed";
+export type GuideFig = "weeks" | "edit" | "missed" | "ab";
 
 export type Block =
   | { fig: GuideFig; caption: string }
@@ -178,6 +178,10 @@ const en: ProgramsGuide = {
       blocks: [
         {
           p: "Use A/B when odd and even weeks train differently. Odd weeks are **A**, even weeks are **B**, for any block length. There's no C, and no AABB.",
+        },
+        {
+          fig: "ab",
+          caption: "Odd weeks are A and even weeks are B, however long the block. An edit in W3 with W3 and later reaches W5, the next A week, and leaves the B weeks alone (sample block).",
         },
         {
           list: [
@@ -408,6 +412,10 @@ const th: ProgramsGuide = {
       blocks: [
         {
           p: "ใช้ A/B ตอนที่สัปดาห์คี่กับสัปดาห์คู่ซ้อมไม่เหมือนกัน สัปดาห์คี่เป็น **A** สัปดาห์คู่เป็น **B** ใช้ได้กับบล็อกทุกความยาว แต่ไม่มี C และไม่มีแบบ AABB",
+        },
+        {
+          fig: "ab",
+          caption: "สัปดาห์คี่เป็น A สัปดาห์คู่เป็น B ไม่ว่าบล็อกจะยาวแค่ไหน ถ้าแก้ W3 โดยเลือก W3 and later การแก้จะไปถึง W5 ซึ่งเป็นสัปดาห์ A ถัดไป ส่วนสัปดาห์ B ไม่เปลี่ยน (บล็อกตัวอย่าง)",
         },
         {
           list: [
