@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### New
+- A new guide, Programs & weeks, explains with pictures how weeks, A/B weeks, missed sessions, mid-block edits and moving Week 1 later work. Find it under Guide.
+  - th: มีคู่มือใหม่ "โปรแกรมและสัปดาห์" อธิบายพร้อมภาพว่าสัปดาห์ สัปดาห์ A/B เซสชันที่ขาด การแก้กลางบล็อก และการเลื่อนสัปดาห์ที่ 1 ออกไปทำงานยังไง ดูได้ที่เมนูคู่มือ
+- Add the app to your iPhone home screen and it opens like an app, with the new PT icon.
+  - th: เพิ่มแอปไว้ที่หน้าจอโฮมของ iPhone ได้แล้ว เปิดขึ้นมาเหมือนแอปทั่วไป พร้อมไอคอน PT ใหม่
+
+### Changed
+- Clients are now called Members in the menu and guides.
+  - th: เมนูและคู่มือเรียกลูกค้าว่า "เมมเบอร์" แล้ว
+- The language switch is now one click: tap it to swap between English and Thai.
+  - th: ปุ่มเปลี่ยนภาษากดครั้งเดียวก็สลับไทย-อังกฤษได้เลย
+
 ## v0.1.38 — 2026-11-19
 
 ### New
