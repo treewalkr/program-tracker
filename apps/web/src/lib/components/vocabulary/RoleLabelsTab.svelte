@@ -143,7 +143,7 @@
           </form>
         {:else}
           <span class="chip-text" title="Chip">{l.chip}</span>
-          <span class="name-text">{l.name}{#if l.builtinKey} <Pill>built-in</Pill>{/if}</span>
+          <span class="name-text"><span class="nm">{l.name}</span>{#if l.builtinKey} <Pill>built-in</Pill>{/if}</span>
           <span class="meaning-text">{l.description}</span>
           <div class="acts">
             <Button small variant="ghost" onclick={() => startEdit(l)}>Edit</Button>
@@ -192,7 +192,7 @@
   .rows { list-style: none; margin: 0; padding: 0 0 6px; }
   .row {
     display: grid;
-    grid-template-columns: 88px minmax(110px, 180px) minmax(160px, 1fr) auto;
+    grid-template-columns: 88px minmax(170px, 250px) minmax(120px, 1fr) auto;
     align-items: center;
     gap: 12px;
     min-height: 40px;
@@ -209,7 +209,9 @@
     font: 500 12px var(--font-ui);
     color: var(--muted);
   }
-  .name-text { display: flex; align-items: center; gap: 6px; font: 600 14px var(--font-ui); color: var(--ink); }
+  .name-text { display: flex; align-items: center; gap: 6px; font: 600 14px var(--font-ui); color: var(--ink); flex-wrap: wrap; }
+  /* long built-in names ("Strength / Supplemental") stay on one line; the pill wraps under them */
+  .name-text .nm { white-space: nowrap; }
   .meaning-text { font-size: 13px; color: var(--muted); }
   .acts { display: flex; gap: 4px; justify-content: flex-end; min-width: 150px; }
   .edit { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
