@@ -40,6 +40,12 @@
   let email = $state("");
   let adding = $state(false);
   let addError = $state<string | null>(null);
+  /**
+   * Errors as shown: set on submit and on blur, so the alert isn't re-read on
+   * every keystroke. Typing only clears one once the field is valid.
+   */
+  let errs = $state<{ name?: string; email?: string }>({});
+  /** A submit failed: from then on, blur re-checks a field. */
   let attempted = $state(false);
   /** The just-added row, to point at it. */
   let addedId = $state<string | null>(null);
@@ -57,6 +63,9 @@
   const emailErr = $derived(
     !email.trim() ? "Add the Google email they'll sign in with" : !EMAIL.test(email.trim()) ? "That isn't an email address" : undefined,
   );
+  /** The snapshot, dropped (silently) as soon as the field is valid. */
+  const shownErr = $derived({ name: nameErr && errs.name, email: emailErr && errs.email });
+
   /** Polite announcement: the hand-over after an add, then the copy. */
   const announce = $derived(
     copyFailed ? "Couldn't copy the sign-in link" : copied ? "Sign-in link copied" : added ? `Added ${added.name}, ${added.email}` : "",
@@ -106,6 +115,7 @@
     e.preventDefault();
     if (nameErr || emailErr) {
       attempted = true;
+      errs = { name: nameErr, email: emailErr };
       await tick();
       document.getElementById(nameErr ? "t-name" : "t-email")?.focus();
       return;
@@ -123,6 +133,7 @@
       added = { name: created.name, email: created.email };
       name = "";
       email = "";
+      errs = {};
       attempted = false;
       copied = false;
       copyFailed = false;
@@ -271,7 +282,7 @@
             first sign-in.
           </p>
           <div class="fields">
-            <Field label="Name" htmlFor="t-name" error={attempted ? nameErr : undefined}>
+            <Field label="Name" htmlFor="t-name" error={shownErr.name}>
               <input
                 class="input"
                 id="t-name"
@@ -279,11 +290,12 @@
                 maxlength="120"
                 autocomplete="off"
                 placeholder="Full name"
-                aria-invalid={attempted && nameErr ? "true" : undefined}
-                aria-describedby={attempted && nameErr ? "t-name-err" : undefined}
+                onblur={() => attempted && (errs.name = nameErr)}
+                aria-invalid={shownErr.name ? "true" : undefined}
+                aria-describedby={shownErr.name ? "t-name-err" : undefined}
               />
             </Field>
-            <Field label="Google email" htmlFor="t-email" error={attempted ? emailErr : undefined}>
+            <Field label="Google email" htmlFor="t-email" error={shownErr.email}>
               <input
                 class="input"
                 id="t-email"
@@ -292,8 +304,9 @@
                 maxlength="254"
                 autocomplete="off"
                 placeholder="name@gmail.com"
-                aria-invalid={attempted && emailErr ? "true" : undefined}
-                aria-describedby={attempted && emailErr ? "t-email-err" : undefined}
+                onblur={() => attempted && (errs.email = emailErr)}
+                aria-invalid={shownErr.email ? "true" : undefined}
+                aria-describedby={shownErr.email ? "t-email-err" : undefined}
               />
             </Field>
           </div>
