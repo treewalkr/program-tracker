@@ -12,7 +12,7 @@ import type { Locale } from "$lib/portal/messages";
  * Inline markup: **bold**, *italic*, `code`, and ⟦tone|label⟧ for a Pill.
  * A `fig` block is a drawn diagram (see the page's figure map) with a caption.
  */
-export type GuideFig = "weeks" | "edit" | "missed" | "ab";
+export type GuideFig = "weeks" | "edit" | "missed" | "ab" | "shift";
 
 export type Block =
   | { fig: GuideFig; caption: string }
@@ -169,6 +169,10 @@ const en: ProgramsGuide = {
             },
             { dt: "Weeks before you activated", dd: "Never count as missed and aren't part of adherence — even when Week 1 starts in the past." },
           ],
+        },
+        {
+          fig: "shift",
+          caption: "The client is away 17–23 Nov, during Week 2. Moving Week 1 a week later puts Week 2 on 24–30 Nov, so the week they missed comes round again (sample dates).",
         },
       ],
     },
@@ -403,6 +407,10 @@ const th: ProgramsGuide = {
             },
             { dt: "สัปดาห์ก่อนวันเปิดใช้", dd: "ไม่นับว่าขาด และไม่นำไปคิด adherence แม้สัปดาห์ที่ 1 จะเริ่มย้อนหลังก็ตาม" },
           ],
+        },
+        {
+          fig: "shift",
+          caption: "เมมเบอร์ไม่อยู่ช่วง 17–23 พ.ย. ตรงกับสัปดาห์ที่ 2 พอเลื่อนสัปดาห์ที่ 1 ออกไปหนึ่งสัปดาห์ สัปดาห์ที่ 2 ก็ย้ายไปอยู่ 24–30 พ.ย. สัปดาห์ที่พลาดไปจึงวนกลับมาให้ซ้อมอีกรอบ (วัน\u2060ที่ตัวอย่าง)",
         },
       ],
     },

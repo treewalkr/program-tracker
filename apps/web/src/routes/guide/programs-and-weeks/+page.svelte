@@ -7,6 +7,7 @@
   import MissedFigure from "$lib/guide/MissedFigure.svelte";
   import { PROGRAMS_GUIDE, type GuideFig } from "$lib/guide/programsWeeks";
   import { rich } from "$lib/guide/rich";
+  import ShiftStartFigure from "$lib/guide/ShiftStartFigure.svelte";
   import WeekCalendarFigure from "$lib/guide/WeekCalendarFigure.svelte";
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
@@ -18,6 +19,7 @@
     edit: EditSpreadFigure,
     missed: MissedFigure,
     ab: AbWeeksFigure,
+    shift: ShiftStartFigure,
   };
 
   const g = $derived(PROGRAMS_GUIDE[i18n.locale]);
