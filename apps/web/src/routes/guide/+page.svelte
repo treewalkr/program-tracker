@@ -1,6 +1,9 @@
 <script lang="ts">
   import { GUIDE, GUIDE_IDS } from "$lib/guide/clientPortal";
   import { PROGRAMS_GUIDE } from "$lib/guide/programsWeeks";
+  import { TRAINER_ACCESS_GUIDE } from "$lib/guide/trainerAccess";
+  import { page } from "$app/state";
+  import { isAdminSession } from "$lib/settingsNav";
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -20,6 +23,8 @@
   } as const;
 
   const t = $derived(TEXT[i18n.locale]);
+  /** Trainer access is the admin's job; other trainers don't see its guide. */
+  const isAdmin = $derived(isAdminSession(page.data.session));
 
   /** Each guide with its sections, so a trainer can jump straight to the situation they're in. */
   const guides = $derived.by(() => {
@@ -40,6 +45,12 @@
         sub: portal.sub,
         sections: GUIDE_IDS.map((id, i) => ({ id, h: portalHeads[i] })),
       },
+      ...(isAdmin ? [TRAINER_ACCESS_GUIDE[i18n.locale]].map((access) => ({
+        href: "/guide/trainer-access",
+        title: access.title,
+        sub: access.sub,
+        sections: access.sections.map((s) => ({ id: s.id, h: s.h })),
+      })) : []),
     ];
   });
 </script>

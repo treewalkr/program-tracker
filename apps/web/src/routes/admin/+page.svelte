@@ -356,7 +356,7 @@
         <form class="panel-body add" onsubmit={add} novalidate>
           <p class="lede">
             Adding someone lets them in with Google, using this email — no password. They show as Invited until their
-            first sign-in.
+            first sign-in. <a class="how" href="/guide/trainer-access">How trainer access works</a>
           </p>
           <div class="fields">
             <Field label="Name" htmlFor="t-name" error={shownErr.name}>
@@ -594,6 +594,17 @@
     color: var(--muted);
     font-size: 14px;
     line-height: 1.5;
+  }
+  .lede .how {
+    color: var(--muted);
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+  }
+  .lede .how:hover,
+  .lede .how:focus-visible {
+    color: var(--blue);
+    text-decoration-color: currentColor;
   }
   .fields {
     display: grid;
