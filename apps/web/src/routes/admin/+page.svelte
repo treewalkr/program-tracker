@@ -289,7 +289,7 @@
                   </Button>
                 {/if}
                 {#if t.isAdmin}
-                  <span class="subtle lockd" title="The admin can't be disabled">
+                  <span class="subtle lockd" title="The admin's access can't be turned off">
                     <Icon name="lock" size={12} /> Always on
                   </span>
                 {:else if t.access === "disabled"}
@@ -302,8 +302,10 @@
                 {:else}
                   <ConfirmButton
                     small
-                    label="Disable"
-                    confirmLabel="Sign out & block?"
+                    variant="default"
+                    armedVariant="danger"
+                    label="Turn access off"
+                    confirmLabel={t.access === "invited" ? "Block sign-in?" : "Sign out & block?"}
                     subject={t.name}
                     disabled={busy === t.id}
                     onconfirm={() => setDisabled(t, true)}
@@ -312,7 +314,6 @@
                 {#if t.access === "invited" && t.clientCount === 0 && !t.isAdmin}
                   <ConfirmButton
                     small
-                    variant="ghost"
                     label="Remove"
                     confirmLabel="Remove invite?"
                     subject={t.name}

@@ -30,3 +30,7 @@
 <Story name="Remove day (small)" asChild>
   <ConfirmButton label="Remove day" small onconfirm={() => (deleted += 1)} />
 </Story>
+
+<Story name="Neutral until armed (small)" asChild>
+  <ConfirmButton label="Turn access off" confirmLabel="Block sign-in?" variant="default" armedVariant="danger" small subject="Dana Lee" onconfirm={() => (deleted += 1)} />
+</Story>

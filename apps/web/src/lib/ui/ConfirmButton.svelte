@@ -13,6 +13,8 @@
 		/** Armed window in ms before auto-reset. */
 		ms?: number;
 		variant?: 'default' | 'primary' | 'danger' | 'ghost';
+		/** Variant while armed — e.g. a neutral button that only turns red once armed. Defaults to `variant`. */
+		armedVariant?: 'default' | 'primary' | 'danger' | 'ghost';
 		small?: boolean;
 		disabled?: boolean;
 		/** Extra classes (e.g. "ghost" for the ghost-danger combo). */
@@ -27,6 +29,7 @@
 		onconfirm,
 		ms = 4000,
 		variant = 'danger',
+		armedVariant,
 		small = false,
 		disabled = false,
 		class: extra,
@@ -56,7 +59,7 @@
 </script>
 
 <Button
-	{variant}
+	variant={armed ? (armedVariant ?? variant) : variant}
 	{small}
 	class={cls}
 	disabled={disabled || undefined}
