@@ -19,7 +19,7 @@
 </script>
 
 <div class="shift">
-  <span class="hatch" style="grid-column: {away}" aria-hidden="true"></span>
+  <span class="band" style="grid-column: {away}" aria-hidden="true"></span>
   <span class="away" style="grid-column: {away}">{l.away}</span>
   {#each cols as c, i (c)}<span class="when" style="grid-column: {i + 1}">{c}</span>{/each}
 
@@ -50,11 +50,11 @@
   }
   .shift > * { position: relative; }
   /* The week the client was away, shaded down through both strips. */
-  .hatch {
+  .band {
     grid-row: 1 / -1;
     margin: -4px -2px;
     border-radius: var(--radius);
-    background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 55%, transparent) 6px 7px);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
   }
   .away { grid-row: 1; justify-self: center; padding: 1px 6px; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); font: 500 11px/1.4 var(--font-ui); color: var(--muted); white-space: nowrap; }
   .when { grid-row: 2; text-align: center; font: 500 11px/1.3 var(--font-mono); color: var(--muted); }
