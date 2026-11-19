@@ -30,6 +30,17 @@
     { value: "invited", label: "Invited" },
     { value: "disabled", label: "Disabled" },
   ];
+  type Act = "off" | "on" | "remove";
+  const WORKING: Record<Act, string> = { off: "Turning off…", on: "Turning on…", remove: "Removing…" };
+  /** The server's error, said for a trainer: what happened and what to do next. */
+  function plain(act: Act, detail: string): string {
+    if (/not found/i.test(detail)) return "This account is gone — reload the page to see the latest list.";
+    if (/signed in/i.test(detail)) return "They've signed in since this list loaded — turn their access off instead.";
+    if (/has clients/i.test(detail)) return "They have clients now — turn their access off instead.";
+    if (/can't be disabled/i.test(detail)) return "The admin's access always stays on.";
+    const what = act === "remove" ? "remove the invite" : `turn access ${act}`;
+    return `Couldn't ${what} — check your connection and try again.`;
+  }
   /** Past this many, disabled accounts fold away under "Show N disabled" in the All view. */
   const FOLD_DISABLED = 3;
 
@@ -52,8 +63,9 @@
   /** Who was just added: the form gives way to the hand-over until "Add another". */
   let added = $state<{ name: string; email: string } | null>(null);
   /** Per-row action in flight / its error. */
-  let busy = $state<string | null>(null);
-  let rowError = $state<{ id: string; text: string } | null>(null);
+  let busy = $state<{ id: string; act: Act } | null>(null);
+  /** `detail` is the server's own words, kept for the tooltip and console. */
+  let rowError = $state<{ id: string; text: string; detail: string } | null>(null);
   let copied = $state(false);
   let show = $state<Show>("all");
   let showDisabled = $state(false);
@@ -160,8 +172,9 @@
    * button if the row is still shown, else on the next row's (the previous
    * one at the end), else on the list itself.
    */
-  async function refocus(id: string, before: string[]) {
+  async function refocus(id: string, before: string[], from: Element | null) {
     await tick();
+    if (from instanceof HTMLElement && from.isConnected && from !== document.body) return from.focus();
     const list = document.getElementById("t-list");
     const row = (rid: string) => list?.querySelector<HTMLElement>(`li[data-id="${rid}"]`);
     const target = (li: HTMLElement | null | undefined) =>
@@ -175,10 +188,11 @@
     (el ?? list)?.focus();
   }
 
-  async function run(t: TrainerAccount, action: () => Promise<TrainerAccount | null>, done: string) {
-    busy = t.id;
+  async function run(t: TrainerAccount, act: Act, action: () => Promise<TrainerAccount | null>, done: string) {
+    busy = { id: t.id, act };
     rowError = null;
     const before = shown.map((x) => x.id);
+    const from = document.activeElement;
     try {
       const next = await action();
       trainers = next ? trainers!.map((x) => (x.id === t.id ? next : x)) : trainers!.filter((x) => x.id !== t.id);
@@ -186,17 +200,21 @@
       const where = show === "all" ? "folded away with the disabled accounts" : `no longer shown under ${SHOW.find((f) => f.value === show)?.label}`;
       say(gone && next ? `${done}, ${where}` : done);
       busy = null;
-      await refocus(t.id, before);
+      await refocus(t.id, before, from);
     } catch (err) {
-      rowError = { id: t.id, text: (err as Error).message };
+      const detail = (err as Error).message;
+      console.warn(`Trainer ${act} failed for ${t.id}:`, detail);
+      rowError = { id: t.id, text: plain(act, detail), detail };
+      busy = null;
+      await refocus(t.id, before, from);
     } finally {
       busy = null;
     }
   }
   const setDisabled = (t: TrainerAccount, disabled: boolean) =>
-    run(t, () => adminApi.updateTrainer(t.id, { disabled }), `Turned access ${disabled ? "off" : "on"} for ${t.name}`);
+    run(t, disabled ? "off" : "on", () => adminApi.updateTrainer(t.id, { disabled }), `Turned access ${disabled ? "off" : "on"} for ${t.name}`);
   const remove = (t: TrainerAccount) =>
-    run(t, async () => (await adminApi.removeTrainer(t.id), null), `Removed ${t.name}'s invite`);
+    run(t, "remove", async () => (await adminApi.removeTrainer(t.id), null), `Removed ${t.name}'s invite`);
 
   async function copyLink() {
     try {
@@ -370,7 +388,7 @@
                   {:else}<span><span class="mono">0</span> clients</span>{/if}
                   · <a class="log" href="/admin/trainers/{t.id}" aria-label="Access log for {t.name}">Access log</a>
                 </div>
-                {#if rowError?.id === t.id}<p class="err" role="alert">{rowError.text}</p>{/if}
+                {#if rowError?.id === t.id}<p class="err" role="alert" title={rowError.detail}>{rowError.text}</p>{/if}
               </div>
               <div class="acts">
                 {#if canViewAs && !t.isAdmin && t.access !== "disabled"}
@@ -394,9 +412,11 @@
                   <span class="access">
                     <Button
                       small
-                      disabled={busy === t.id}
-                      aria-label="Turn access on for {t.name}"
-                      onclick={() => setDisabled(t, false)}>Turn access on</Button
+                      disabled={busy?.id === t.id}
+                      aria-busy={busy?.id === t.id && busy.act === "on" ? "true" : undefined}
+                      aria-label="{busy?.id === t.id && busy.act === 'on' ? WORKING.on : 'Turn access on'} for {t.name}"
+                      onclick={() => setDisabled(t, false)}
+                      >{busy?.id === t.id && busy.act === "on" ? WORKING.on : "Turn access on"}</Button
                     >
                   </span>
                 {:else}
@@ -405,10 +425,10 @@
                       small
                       variant="default"
                       armedVariant="danger"
-                      label="Turn access off"
+                      label={busy?.id === t.id && busy.act === "off" ? WORKING.off : "Turn access off"}
                       confirmLabel={t.access === "invited" ? "Block sign-in?" : "Sign out & block?"}
                       subject={t.name}
-                      disabled={busy === t.id}
+                      disabled={busy?.id === t.id}
                       onconfirm={() => setDisabled(t, true)}
                     />
                   </span>
@@ -416,10 +436,10 @@
                 {#if t.access === "invited" && t.clientCount === 0 && !t.isAdmin}
                   <ConfirmButton
                     small
-                    label="Remove"
+                    label={busy?.id === t.id && busy.act === "remove" ? WORKING.remove : "Remove"}
                     confirmLabel="Remove invite?"
                     subject={t.name}
-                    disabled={busy === t.id}
+                    disabled={busy?.id === t.id}
                     onconfirm={() => remove(t)}
                   />
                 {/if}
