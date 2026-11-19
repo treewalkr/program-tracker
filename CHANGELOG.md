@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.38 — 2026-11-19
+
 ### New
 - The program page now shows each week's dates (like "W2 · 17–23 Nov"), marks the week your client is in now, and opens on that week. A week that has ended says so.
   - th: หน้าโปรแกรมแสดงวันที่ของแต่ละสัปดาห์แล้ว (เช่น "W2 · 17–23 พ.ย.") มีป้ายบอกว่าลูกค้าอยู่สัปดาห์ไหนตอนนี้ และเปิดมาที่สัปดาห์นั้นเลย สัปดาห์ที่จบไปแล้วจะบอกไว้ให้เห็น
