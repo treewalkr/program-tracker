@@ -7,11 +7,13 @@
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
+  import EditSpreadFigure from "$lib/guide/EditSpreadFigure.svelte";
   import WeekCalendarFigure from "$lib/guide/WeekCalendarFigure.svelte";
 
   /** The drawn diagram for each `fig` block. */
   const FIGS: Record<GuideFig, Component> = {
     weeks: WeekCalendarFigure,
+    edit: EditSpreadFigure,
   };
 
   const g = $derived(PROGRAMS_GUIDE[i18n.locale]);

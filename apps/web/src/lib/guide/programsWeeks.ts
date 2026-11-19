@@ -12,7 +12,7 @@ import type { Locale } from "$lib/portal/messages";
  * Inline markup: **bold**, *italic*, `code`, and ⟦tone|label⟧ for a Pill.
  * A `fig` block is a drawn diagram (see the page's figure map) with a caption.
  */
-export type GuideFig = "weeks";
+export type GuideFig = "weeks" | "edit";
 
 export type Block =
   | { fig: GuideFig; caption: string }
@@ -120,6 +120,10 @@ const en: ProgramsGuide = {
             "adding, removing or swapping an exercise",
             "moving a session to another day",
           ],
+        },
+        {
+          fig: "edit",
+          caption: "Swap an exercise in W2 with W2 and later, and W4 gets the swap too. W3 already has logs for it, so it keeps the old exercise, and W1 has ended, so it never changes (sample dates).",
         },
         { p: "These stay per week, so your progression survives: sets, reps, loads, rest, notes, exercise order, groups and cardio values." },
         {
@@ -342,6 +346,10 @@ const th: ProgramsGuide = {
             "เพิ่ม ลบ หรือเปลี่ยนท่า",
             "ย้ายเซสชันไปวันอื่น",
           ],
+        },
+        {
+          fig: "edit",
+          caption: "เปลี่ยนท่าใน W2 โดยเลือก W2 and later แล้ว W4 ก็จะเปลี่ยนตามด้วย แต่ W3 มีบันทึกของท่านั้นอยู่แล้วจึงคงท่าเดิมไว้ ส่วน W1 จบไปแล้วก็ไม่เปลี่ยน (วัน\u2060ที่ตัวอย่าง)",
         },
         { p: "ส่วนเซ็ต จำนวนครั้ง น้ำหนัก เวลาพัก โน้ต ลำดับท่า การจับกลุ่มท่า และค่าคาร์ดิโอ ยังแยกกันรายสัปดาห์เหมือนเดิม progression ที่วางไว้จึงไม่หาย" },
         {
