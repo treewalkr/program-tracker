@@ -465,6 +465,16 @@ export interface ClientPortalDto {
   lastSeenAt: string | null;
 }
 
+/** One home-dashboard row (GET /v1/clients/overview): what the page used to fetch per client. */
+export interface ClientOverviewDto {
+  client: ClientDto;
+  currentProgram: ProgramDto | null;
+  /** Newest 200, newest first, each with its sets — same as `sessionLogs(clientId)`. */
+  logs: SessionLogDto[];
+  /** The portal access link; null while the portal is off. */
+  portalLink: string | null;
+}
+
 /** A fresh save. `replaced` holds the logs a Replace removed, in full — Undo writes them back. */
 export type SavedLogDto = SessionLogDto & { replaced: SessionLogDto[] };
 
@@ -664,6 +674,8 @@ export interface TrainerApi {
   /** Unused custom types only; presets and used types archive via patchSessionType. */
   deleteSessionType(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
+  /** Every client with their current program, newest logs and portal link — the home dashboard in one call. */
+  clientsOverview(): Promise<ClientOverviewDto[]>;
   /** One page of the client roster (server-paged): search, status, sort, page, limit. */
   roster(query: RosterQuery): Promise<RosterPageDto>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;

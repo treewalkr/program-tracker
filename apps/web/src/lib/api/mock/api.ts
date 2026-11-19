@@ -764,6 +764,26 @@ const rawMockApi: TrainerApi = {
     return state.clients.filter((c) => c.status !== "archived").map(clientDto);
   },
 
+  async clientsOverview() {
+    await delay(250);
+    // Same clients as clients(); program, logs and link built like client(), sessionLogs() and clientPortal().
+    return state.clients
+      .filter((c) => c.status !== "archived")
+      .map((c) => {
+        const current = state.programs.find((p) => p.clientId === c.id && p.status === "active");
+        return {
+          client: clientDto(c),
+          currentProgram: current ? withNames(current) : null,
+          logs: state.logs
+            .filter((l) => l.clientId === c.id)
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, 200)
+            .map(logDto),
+          portalLink: portalDto(c.id).link,
+        };
+      });
+  },
+
   async roster(query) {
     await delay(250);
     return mockRoster(query);

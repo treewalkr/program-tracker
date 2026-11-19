@@ -59,24 +59,16 @@
   async function load() {
     loadError = null;
     try {
-      const [cs, ps, sigs] = await Promise.all([api.clients(), api.providers(), api.notifications()]);
-      clients = cs;
+      // One call for every client's program, logs and portal link — the strips are still built here, on local "today".
+      const [rows, ps, sigs] = await Promise.all([api.clientsOverview(), api.providers(), api.notifications()]);
+      clients = rows.map((r) => r.client);
       providers = ps;
       signals = sigs.filter((s) => s.clientId);
-      // Per-client detail + logs in parallel — sequential calls scaled linearly with the roster.
-      const built = await Promise.all(
-        cs.map(async (c) => {
-          const [detail, logs, portal] = await Promise.all([
-            api.client(c.id),
-            api.sessionLogs(c.id),
-            // A portal that won't load only costs its copy button — never the row.
-            api.clientPortal(c.id).catch(() => null),
-          ]);
-          currentNames[c.id] = detail.currentProgram?.name ?? "—";
-          if (portal) portals[c.id] = portal.link ?? null;
-          return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
-        })
-      );
+      const built = rows.map((row) => {
+        currentNames[row.client.id] = row.currentProgram?.name ?? "—";
+        portals[row.client.id] = row.portalLink;
+        return buildClientStrip(row.client, row.currentProgram, row.logs, weeks, today);
+      });
       strips = exceptionOrder(built);
       rowsReady = true;
     } catch (err) {
