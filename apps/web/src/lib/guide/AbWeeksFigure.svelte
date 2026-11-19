@@ -15,7 +15,7 @@
     { n: 6, note: "skipped" },
   ];
   const t = {
-    en: { edited: "edited", updated: "updated", skipped: "unchanged" },
+    en: { edited: "edited", updated: "updated", skipped: "not changed" },
     th: { edited: "แก้ตรงนี้", updated: "เปลี่ยนตาม", skipped: "ไม่เปลี่ยน" },
   } as const;
   const l = $derived(t[i18n.locale]);
