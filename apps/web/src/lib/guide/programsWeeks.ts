@@ -137,7 +137,7 @@ const en: ProgramsGuide = {
           defs: [
             {
               dt: "Done later the same week",
-              dd: `Fine. A missed session moves to "${portalEn["week.earlier"]}" on the client's page, and they can log it any later day of that week, dated the day they did it. Your week grid shows it as done with \`logged Fri 21 Nov\`.`,
+              dd: `Fine. A missed session moves to "${portalEn["week.earlier"]}" on the client's page, and they can log it any later day of that week, dated the day they did it. Your week grid shows it as done with \`logged Fri 20 Nov\`.`,
             },
             {
               dt: "Not done by the end of the week",
@@ -355,7 +355,7 @@ const th: ProgramsGuide = {
           defs: [
             {
               dt: "ทำทีหลัง แต่ยังอยู่ในสัปดาห์เดียวกัน",
-              dd: `ไม่มีปัญหา เมมเบอร์จะเห็นเซสชันที่พลาดย้ายไปอยู่ใต้หัวข้อ "${portalTh["week.earlier"]}" และบันทึกได้ในวันไหนก็ได้ที่เหลือของสัปดาห์นั้น โดยลงวันที่ที่ทำจริง ในตารางสัปดาห์ของคุณจะขึ้นว่าทำแล้ว พร้อม \`logged Fri 21 Nov\``,
+              dd: `ไม่มีปัญหา เมมเบอร์จะเห็นเซสชันที่พลาดย้ายไปอยู่ใต้หัวข้อ "${portalTh["week.earlier"]}" และบันทึกได้ในวันไหนก็ได้ที่เหลือของสัปดาห์นั้น โดยลงวันที่ที่ทำจริง ในตารางสัปดาห์ของคุณจะขึ้นว่าทำแล้ว พร้อม \`logged Fri 20 Nov\``,
             },
             {
               dt: "จบสัปดาห์แล้วยังไม่ได้ทำ",
