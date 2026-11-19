@@ -12,7 +12,7 @@ import type { Locale } from "$lib/portal/messages";
  * Inline markup: **bold**, *italic*, `code`, and ⟦tone|label⟧ for a Pill.
  * A `fig` block is a drawn diagram (see the page's figure map) with a caption.
  */
-export type GuideFig = "weeks" | "edit";
+export type GuideFig = "weeks" | "edit" | "missed";
 
 export type Block =
   | { fig: GuideFig; caption: string }
@@ -145,6 +145,10 @@ const en: ProgramsGuide = {
       id: missed,
       h: "Missed and late sessions",
       blocks: [
+        {
+          fig: "missed",
+          caption: "A session planned for Thursday can be logged any day up to Monday, dated the day it was done. It isn't called missed for 2 days, counts as missed once the week ends, and the Tuesday after already belongs to the next week (sample dates).",
+        },
         {
           defs: [
             {
@@ -371,6 +375,10 @@ const th: ProgramsGuide = {
       id: missed,
       h: "ขาดซ้อมหรือซ้อมช้ากว่าแผน",
       blocks: [
+        {
+          fig: "missed",
+          caption: "เซสชันที่วางไว้วันพฤหัส เมมเบอร์บันทึกได้ทุกวันจนถึงวันจันทร์ โดยลงวันที่ที่ทำจริง 2 วันแรกหลังกำหนดยังไม่นับว่าขาด พอจบสัปดาห์ถึงนับเป็นขาด ส่วนวันอังคารถัดไปเป็นของสัปดาห์ใหม่แล้ว (วัน\u2060ที่ตัวอย่าง)",
+        },
         {
           defs: [
             {

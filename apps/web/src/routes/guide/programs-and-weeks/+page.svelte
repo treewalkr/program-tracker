@@ -1,19 +1,21 @@
 <script lang="ts">
   import type { Component } from "svelte";
+  import EditSpreadFigure from "$lib/guide/EditSpreadFigure.svelte";
   import Figure from "$lib/guide/Figure.svelte";
   import GuideDoc from "$lib/guide/GuideDoc.svelte";
+  import MissedFigure from "$lib/guide/MissedFigure.svelte";
   import { PROGRAMS_GUIDE, type GuideFig } from "$lib/guide/programsWeeks";
   import { rich } from "$lib/guide/rich";
+  import WeekCalendarFigure from "$lib/guide/WeekCalendarFigure.svelte";
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
-  import EditSpreadFigure from "$lib/guide/EditSpreadFigure.svelte";
-  import WeekCalendarFigure from "$lib/guide/WeekCalendarFigure.svelte";
 
   /** The drawn diagram for each `fig` block. */
   const FIGS: Record<GuideFig, Component> = {
     weeks: WeekCalendarFigure,
     edit: EditSpreadFigure,
+    missed: MissedFigure,
   };
 
   const g = $derived(PROGRAMS_GUIDE[i18n.locale]);
