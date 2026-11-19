@@ -50,7 +50,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, endedNote, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import { patternTitle } from "$lib/exerciseLibrary";
@@ -302,6 +302,8 @@
       deload = clientDeload(detail.client);
       logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
     }
+    // Open on the client's current week (FB-017: edits on a finished week never reached them).
+    currentWeekIndex = openingWeekIndex(weekTabDates(program, logs, today));
   }
 
   async function markAsExample() {
