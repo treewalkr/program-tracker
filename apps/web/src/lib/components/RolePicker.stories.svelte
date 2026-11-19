@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'The role pill at the head of an exercise. Opens a searchable list grouped by category (priority, training quality, body region, then the trainer’s own labels); “+ New label” makes one from the query, the pencil (or Shift+Enter) edits a label’s meaning.',
+            'The role pill at the head of an exercise. Opens a searchable list grouped by category (priority, training quality, body region, prep & recovery, then the trainer’s own labels); “+ New label” makes one from the query, the pencil (or Shift+Enter) edits a label’s meaning.',
         },
       },
     },
