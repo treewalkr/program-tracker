@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.37 — 2026-11-19
+
 ### New
 - To check a bug you've reported, support can now open the app as you and see exactly what you saw, without asking for screenshots. A visit is time-limited and logged, and support can't change anything unless they deliberately turn that on. When support looks from one of your tickets, the ticket shows "Support viewed your account to check this".
   - th: เวลาคุณแจ้งบั๊ก ทีมซัพพอร์ตเปิดแอปในมุมมองของคุณได้แล้ว เห็นแบบเดียวกับที่คุณเห็น ไม่ต้องขอภาพหน้าจอ การเข้าดูแต่ละครั้งมีเวลาจำกัดและมีบันทึกไว้ ทีมซัพพอร์ตแก้ไขอะไรไม่ได้ ยกเว้นจะตั้งใจเปิดสิทธิ์นั้นเอง ถ้าเข้าดูจากตั๋วของคุณ ตั๋วนั้นจะขึ้นว่า "ทีมซัพพอร์ตเข้าไปดูบัญชีของคุณเพื่อตรวจเรื่องนี้"
