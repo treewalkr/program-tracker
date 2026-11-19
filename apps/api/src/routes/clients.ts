@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
-import { and, eq, inArray } from "drizzle-orm";
-import { db, clients, programs, sessionLogs, type ClientRow } from "@pt/db";
+import { eq } from "drizzle-orm";
+import { db, clients, programs, type ClientRow } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 import { clientDto, trainerDeloadSettings } from "../lib/deload";
@@ -8,8 +8,8 @@ import { clientRoster } from "../lib/roster";
 import { ClientModel } from "../models/clients";
 import { ProgramModel } from "../models/programs";
 import { ErrorBody } from "../models/shared";
-import { deleteClientSessions, newPortalToken, portalLink } from "../lib/client-auth";
-import { loadLogsWithSets } from "../lib/log-service";
+import { deleteClientSessions, newPortalToken } from "../lib/client-auth";
+import { loadClientsOverview, clientPortalLink } from "../lib/clients-overview";
 import {
   birthDateError,
   startedOnError,
@@ -54,7 +54,7 @@ const PortalStatus = t.Object({
 
 const portalStatus = (c: ClientRow) => ({
   enabled: c.portalEnabledAt != null,
-  link: c.portalEnabledAt != null && c.portalToken ? portalLink(c.portalToken) : null,
+  link: clientPortalLink(c),
   googleLinked: c.portalGoogleSub != null,
   email: c.email,
   lastSeenAt: c.portalLastSeenAt,
@@ -96,34 +96,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
   // Before "/:id", so "overview" is never read as a client id.
   .get(
     "/overview",
-    async ({ trainerId }) => {
-      const [rows, mine] = await Promise.all([
-        db.select().from(clients).where(eq(clients.trainerId, trainerId)),
-        trainerDeloadSettings(trainerId),
-      ]);
-      if (rows.length === 0) return [];
-      const ids = rows.map((c) => c.id);
-      const [active, logs] = await Promise.all([
-        db
-          .select()
-          .from(programs)
-          .where(and(inArray(programs.clientId, ids), eq(programs.status, "active"))),
-        // Newest 200 per client, like GET /v1/logs/sessions?clientId= — block anchors read a program's first log.
-        loadLogsWithSets({ scope: inArray(sessionLogs.clientId, ids), limit: 200, perClient: true }),
-      ]);
-      const current = new Map<string, (typeof active)[number]>();
-      for (const p of active) if (p.clientId && !current.has(p.clientId)) current.set(p.clientId, p);
-      const logsOf = Map.groupBy(logs, (l) => l.clientId);
-      return rows.map((c) => {
-        const program = current.get(c.id);
-        return {
-          client: clientDto(c, mine),
-          currentProgram: program ? toProgramDto(program) : null,
-          logs: logsOf.get(c.id) ?? [],
-          portalLink: portalStatus(c).link,
-        };
-      });
-    },
+    ({ trainerId }) => loadClientsOverview(trainerId),
     { detail: { summary: "Every client with their current program, newest logs and portal link — the home dashboard" } }
   )
   .get(
