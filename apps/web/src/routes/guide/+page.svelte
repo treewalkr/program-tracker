@@ -4,6 +4,7 @@
   import { TRAINER_ACCESS_GUIDE } from "$lib/guide/trainerAccess";
   import { page } from "$app/state";
   import { isAdminSession } from "$lib/settingsNav";
+  import GuideSearchTrigger from "$lib/guide/GuideSearchTrigger.svelte";
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -60,6 +61,8 @@
 <PageHead title={t.title} sub={t.sub}>
   {#snippet actions()}<LangToggle compact />{/snippet}
 </PageHead>
+
+<GuideSearchTrigger variant="bar" />
 
 <div class="guides" lang={i18n.locale}>
   {#each guides as guide (guide.href)}

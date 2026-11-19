@@ -8,6 +8,7 @@
   import PortalLogFigure from "$lib/guide/PortalLogFigure.svelte";
   import PortalWeekFigure from "$lib/guide/PortalWeekFigure.svelte";
   import { rich } from "$lib/guide/rich";
+  import GuideSearchTrigger from "$lib/guide/GuideSearchTrigger.svelte";
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -28,7 +29,7 @@
 <svelte:head><title>{g.title} guide · Program Tracker</title></svelte:head>
 
 <PageHead title={g.title} sub={g.sub} crumbs={[{ href: "/guide", label: g.crumbs[0] }, { label: g.crumbs[1] }]}>
-  {#snippet actions()}<LangToggle compact />{/snippet}
+  {#snippet actions()}<GuideSearchTrigger variant="button" /><LangToggle compact />{/snippet}
 </PageHead>
 
 <GuideDoc {toc} onThisPage={g.onThisPage} lang={i18n.locale}>

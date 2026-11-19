@@ -123,6 +123,17 @@
   .doc:lang(th) :global(h2:not(.stage *)) { line-height: 1.5; letter-spacing: 0; }
   .doc:lang(th) :global(figcaption) { font-size: 14px; }
 
+  /* Landing from guide search: the matched step or row glows once, then settles. */
+  .doc :global([data-guide-flash]) { animation: guide-flash 1.6s ease-out; border-radius: var(--radius); }
+  .doc :global([tabindex="-1"]:focus) { outline: none; }
+  @keyframes guide-flash {
+    from, 30% { background-color: var(--pulse-now-bg); box-shadow: 0 0 0 4px var(--pulse-now-bg); }
+    to { background-color: transparent; box-shadow: 0 0 0 4px transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .doc :global([data-guide-flash]) { animation-duration: 1.2s; animation-timing-function: steps(1, end); }
+  }
+
   /* Contents: sticky rail beside the article on wide screens. */
   .toc { position: sticky; top: 16px; padding-top: 4px; }
   .toc-title { margin: 0 0 6px; font: 600 12px/1.4 var(--font-ui); color: var(--muted); }
