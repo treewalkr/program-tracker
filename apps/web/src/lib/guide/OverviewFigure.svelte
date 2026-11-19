@@ -15,8 +15,8 @@
       ["Turned on", "Copy link copies their personal link."],
     ],
     th: [
-      ["ยังไม่เปิด", "กด Turn on… เพื่อไปแท็บ Settings ของลูกค้าคนนั้น"],
-      ["เปิดแล้ว", "กด Copy link เพื่อคัดลอกลิงก์ส่วนตัวของลูกค้า"],
+      ["ยังไม่เปิด", "กด Turn on… เพื่อไปแท็บ Settings ของเมมเบอร์คนนั้น"],
+      ["เปิดแล้ว", "กด Copy link เพื่อคัดลอกลิงก์ส่วนตัวของเมมเบอร์"],
     ],
   } as const;
   const legend = $derived(note[i18n.locale]);
