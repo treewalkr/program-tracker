@@ -44,3 +44,6 @@ CLAUDE.md
 FEEDBACK.md
 FEEDBACK-ANALYSIS.md
 REVIEW-*.md
+
+# prod database dumps taken before releases
+backups/
