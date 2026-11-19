@@ -22,13 +22,13 @@
 
 ### Changed
 - The last places that still said "lifting" now say "exercise": the client's week summary, the week grid legend and a few error messages. Your programs and logs are unchanged.
-  - th: จุดที่ยังเขียนว่า "lifting" เปลี่ยนเป็น "exercise" หมดแล้ว ทั้งสรุปสัปดาห์ของลูกค้า คำอธิบายในตารางสัปดาห์ และข้อความแจ้งข้อผิดพลาดบางข้อ โปรแกรมและบันทึกการฝึกของคุณยังเหมือนเดิม
+  - th: จุดที่ยังเขียนว่า "lifting" เปลี่ยนเป็น "exercise" หมดแล้ว ทั้งสรุปสัปดาห์ของเมมเบอร์ คำอธิบายในตารางสัปดาห์ และข้อความแจ้งข้อผิดพลาดบางข้อ โปรแกรมและบันทึกการฝึกของคุณยังเหมือนเดิม
 
 ## v0.1.35 — 2026-11-18
 
 ### Changed
 - Sessions built from a list of exercises are now called **exercise sessions** instead of lifting sessions, so mobility work and circuits aren't labelled as lifting. The program editor's button reads **+ Exercise session**, and a client's week shows exercise sessions and exercise days.
-  - th: เซสชันที่เป็นรายการท่าออกกำลังกาย ตอนนี้เรียกว่า **exercise session** แทน lifting session เพื่อไม่ให้งานโมบิลิตี้หรือเซอร์กิตถูกเรียกว่ายกเวท ปุ่มในหน้าแก้ไขโปรแกรมเปลี่ยนเป็น **+ Exercise session** และสัปดาห์ของลูกค้าแสดงเป็น exercise session กับ exercise day
+  - th: เซสชันที่เป็นรายการท่าออกกำลังกาย ตอนนี้เรียกว่า **exercise session** แทน lifting session เพื่อไม่ให้งานโมบิลิตี้หรือเซอร์กิตถูกเรียกว่ายกเวท ปุ่มในหน้าแก้ไขโปรแกรมเปลี่ยนเป็น **+ Exercise session** และสัปดาห์ของเมมเบอร์แสดงเป็น exercise session กับ exercise day
 - When you create your own session type, pick what it records: **Exercises** or **Cardio**. Preset types no longer show a format badge, since their name already says it.
   - th: ตอนสร้างประเภทเซสชันเอง ให้เลือกว่าบันทึกอะไร: **Exercises** หรือ **Cardio** ส่วนประเภท preset ไม่มีป้ายรูปแบบแล้ว เพราะชื่อก็บอกอยู่แล้ว
 
@@ -42,9 +42,9 @@
 - The language is now part of the link (`/en/…`, `/th/…`), so a link you share opens in the same language. Old links still work. The language switch keeps you on the same page.
   - th: ภาษาอยู่ในลิงก์แล้ว (`/en/…`, `/th/…`) ลิงก์ที่ส่งต่อให้คนอื่นจะเปิดเป็นภาษาเดียวกัน ลิงก์เก่ายังใช้ได้ และปุ่มสลับภาษาจะพาคุณอยู่หน้าเดิม
 - When a client signs in to the portal, they come back to the page and language they started from.
-  - th: เมื่อลูกค้าเข้าสู่ระบบพอร์ทัล จะกลับมาที่หน้าเดิมและภาษาเดิมที่เปิดไว้ก่อนหน้า
+  - th: เมื่อเมมเบอร์เข้าสู่ระบบพอร์ทัล จะกลับมาที่หน้าเดิมและภาษาเดิมที่เปิดไว้ก่อนหน้า
 - A new guide, in English and Thai, shows how the client portal works, with drawings of each screen. You can copy a client's portal link straight from the overview.
-  - th: มีคู่มือใหม่ทั้งภาษาไทยและอังกฤษ อธิบายการใช้พอร์ทัลลูกค้าพร้อมภาพวาดของแต่ละหน้าจอ และคัดลอกลิงก์พอร์ทัลของลูกค้าได้จากหน้าภาพรวมเลย
+  - th: มีคู่มือใหม่ทั้งภาษาไทยและอังกฤษ อธิบายการใช้พอร์ทัลเมมเบอร์พร้อมภาพวาดของแต่ละหน้าจอ และคัดลอกลิงก์พอร์ทัลของเมมเบอร์ได้จากหน้าภาพรวมเลย
 - When you send feedback, pick what it is: a bug, wrong behaviour, an idea or a question. For bugs, say what you expected and what happened. The app attaches recent errors and your last few steps, with emails, phone numbers and sign-in keys removed.
   - th: ตอนส่งฟีดแบ็ก เลือกได้ว่าเป็นบั๊ก การทำงานที่ผิด ไอเดีย หรือคำถาม ถ้าเป็นบั๊กให้บอกว่าคาดว่าจะเกิดอะไรและเกิดอะไรขึ้นจริง แอปจะแนบข้อผิดพลาดล่าสุดและขั้นตอนที่คุณเพิ่งทำไปด้วย โดยตัดอีเมล เบอร์โทร และคีย์เข้าระบบออก
 - When a fix ships, rate it 👍 or 👎. A 👎 reopens the ticket, with an optional note on what's still wrong.
@@ -54,7 +54,7 @@
 - While a page loads, its placeholder now has the same shape as the page, so nothing jumps when it appears.
   - th: ระหว่างที่หน้ากำลังโหลด โครงที่ขึ้นมาก่อนมีรูปร่างเหมือนหน้าจริงแล้ว พอโหลดเสร็จจึงไม่กระโดด
 - "All clients" on the overview opens the clients list, and the portal column there is clearer.
-  - th: ปุ่ม "All clients" ในหน้าภาพรวมพาไปที่รายชื่อลูกค้า และคอลัมน์พอร์ทัลในหน้านั้นอ่านง่ายขึ้น
+  - th: ปุ่ม "All clients" ในหน้าภาพรวมพาไปที่รายชื่อเมมเบอร์ และคอลัมน์พอร์ทัลในหน้านั้นอ่านง่ายขึ้น
 - Links to a page that has moved keep your language and the section you were linked to.
   - th: ลิงก์ไปหน้าที่ย้ายที่แล้วยังคงภาษาและส่วนที่ลิงก์ชี้ไว้
 
@@ -92,15 +92,15 @@
 
 ### New
 - Client portal: your clients can see their week and log their own sessions on their phone, in English or Thai. It's off until you turn it on in a client's Settings tab, which gives you a personal access link to send them (with a ready-made LINE message). Google sign-in is coming once it's approved.
-  - th: พอร์ทัลลูกค้า: ลูกค้าดูตารางสัปดาห์และบันทึกเซสชันเองได้บนมือถือ เป็นภาษาไทยหรืออังกฤษ ฟีเจอร์นี้ปิดอยู่จนกว่าคุณจะเปิดในแท็บ Settings ของลูกค้า แล้วคุณจะได้ลิงก์เข้าใช้งานส่วนตัวไว้ส่งให้ลูกค้า (พร้อมข้อความ LINE สำเร็จรูป) การเข้าสู่ระบบด้วย Google จะตามมาเมื่อได้รับอนุมัติ
+  - th: พอร์ทัลเมมเบอร์: เมมเบอร์ดูตารางสัปดาห์และบันทึกเซสชันเองได้บนมือถือ เป็นภาษาไทยหรืออังกฤษ ฟีเจอร์นี้ปิดอยู่จนกว่าคุณจะเปิดในแท็บ Settings ของเมมเบอร์ แล้วคุณจะได้ลิงก์เข้าใช้งานส่วนตัวไว้ส่งให้เมมเบอร์ (พร้อมข้อความ LINE สำเร็จรูป) การเข้าสู่ระบบด้วย Google จะตามมาเมื่อได้รับอนุมัติ
 - On the portal, clients see what's next, your session note, last time's set for each exercise, a rest timer, this week's cardio against your target, and whether it's a deload or test week. Your block plan itself stays private.
-  - th: ในพอร์ทัล ลูกค้าจะเห็นเซสชันถัดไป โน้ตของคุณสำหรับเซสชันนั้น เซตครั้งก่อนของแต่ละท่า ตัวจับเวลาพัก คาร์ดิโอสัปดาห์นี้เทียบกับเป้าที่คุณตั้ง และบอกว่าเป็นสัปดาห์ดีโหลดหรือสัปดาห์ทดสอบ ส่วนแผนบล็อกของคุณ ลูกค้าไม่เห็น
+  - th: ในพอร์ทัล เมมเบอร์จะเห็นเซสชันถัดไป โน้ตของคุณสำหรับเซสชันนั้น เซตครั้งก่อนของแต่ละท่า ตัวจับเวลาพัก คาร์ดิโอสัปดาห์นี้เทียบกับเป้าที่คุณตั้ง และบอกว่าเป็นสัปดาห์ดีโหลดหรือสัปดาห์ทดสอบ ส่วนแผนบล็อกของคุณ เมมเบอร์ไม่เห็น
 - Clients can save a set as planned in one tap, add RPE only when they want to, skip an exercise, flag pain, mark a missed set, and rate readiness. The log screen still opens when the phone is offline.
-  - th: ลูกค้าบันทึกเซตตามแผนได้ด้วยการแตะครั้งเดียว ใส่ RPE เฉพาะเมื่ออยากใส่ ข้ามท่า แจ้งว่าเจ็บ ทำเครื่องหมายเซตที่พลาด และให้คะแนนความพร้อมได้ หน้าบันทึกยังเปิดได้แม้มือถือออฟไลน์
+  - th: เมมเบอร์บันทึกเซตตามแผนได้ด้วยการแตะครั้งเดียว ใส่ RPE เฉพาะเมื่ออยากใส่ ข้ามท่า แจ้งว่าเจ็บ ทำเครื่องหมายเซตที่พลาด และให้คะแนนความพร้อมได้ หน้าบันทึกยังเปิดได้แม้มือถือออฟไลน์
 - Their logs land in History marked "by client", with how long the session took. Low readiness and client notes show up as signals for you, and sets saved untouched count as volume but don't skew RPE, creep or stall signals.
-  - th: บันทึกของลูกค้าจะเข้าไปอยู่ใน History พร้อมป้าย "by client" และระยะเวลาของเซสชัน ความพร้อมต่ำและโน้ตจากลูกค้าจะขึ้นเป็นสัญญาณเตือนให้คุณ เซตที่บันทึกโดยไม่แก้ตัวเลขนับเป็นวอลุ่ม แต่ไม่ทำให้สัญญาณ RPE, creep หรือ stall คลาดเคลื่อน
+  - th: บันทึกของเมมเบอร์จะเข้าไปอยู่ใน History พร้อมป้าย "by client" และระยะเวลาของเซสชัน ความพร้อมต่ำและโน้ตจากเมมเบอร์จะขึ้นเป็นสัญญาณเตือนให้คุณ เซตที่บันทึกโดยไม่แก้ตัวเลขนับเป็นวอลุ่ม แต่ไม่ทำให้สัญญาณ RPE, creep หรือ stall คลาดเคลื่อน
 - Reset a client's link at any time: the old link and every signed-in phone stop working.
-  - th: รีเซ็ตลิงก์ของลูกค้าได้ทุกเมื่อ ลิงก์เก่าและมือถือทุกเครื่องที่เข้าสู่ระบบไว้จะใช้ไม่ได้ทันที
+  - th: รีเซ็ตลิงก์ของเมมเบอร์ได้ทุกเมื่อ ลิงก์เก่าและมือถือทุกเครื่องที่เข้าสู่ระบบไว้จะใช้ไม่ได้ทันที
 
 ## v0.1.29 — 2026-11-16
 
@@ -110,7 +110,7 @@
 - In the builder, A/B weeks gives you a Week A and a Week B tab. On the program page each week tab shows its letter.
   - th: ในตัวสร้างโปรแกรม โหมดสัปดาห์ A/B จะมีแท็บ Week A และ Week B ส่วนในหน้าโปรแกรม แท็บแต่ละสัปดาห์จะแสดงตัวอักษรของสัปดาห์นั้น
 - "Copy this week to…" on the program page copies a week to every week with the same letter, or to one week. Weeks your client has already logged are never overwritten, and you can undo.
-  - th: "Copy this week to…" ในหน้าโปรแกรมคัดลอกสัปดาห์ไปยังทุกสัปดาห์ที่มีตัวอักษรเดียวกัน หรือไปยังสัปดาห์เดียวก็ได้ สัปดาห์ที่ลูกค้าบันทึกแล้วจะไม่ถูกเขียนทับ และกดย้อนกลับได้
+  - th: "Copy this week to…" ในหน้าโปรแกรมคัดลอกสัปดาห์ไปยังทุกสัปดาห์ที่มีตัวอักษรเดียวกัน หรือไปยังสัปดาห์เดียวก็ได้ สัปดาห์ที่เมมเบอร์บันทึกแล้วจะไม่ถูกเขียนทับ และกดย้อนกลับได้
 - Progression, block pulse, deloads and "Generate next week" follow each letter: week 3 builds on week 1, week 4 on week 2.
   - th: Progression, Block pulse, ดีโหลด และ "Generate next week" แยกตามตัวอักษร: สัปดาห์ 3 ต่อยอดจากสัปดาห์ 1 สัปดาห์ 4 ต่อยอดจากสัปดาห์ 2
 - Paste notes recognises a Week A / Week B program and fills both tabs.
@@ -118,7 +118,7 @@
 - **The AI now writes every week of a block**, not one week copied onto every week. Pick the block length (up to 12 weeks) and Same every week or A/B weeks on the generate page; it remembers your last choice. Review and chat show a tab for each week.
   - th: **AI เขียนทุกสัปดาห์ของบล็อกแล้ว** ไม่ใช่เขียนสัปดาห์เดียวแล้วคัดลอกไปทุกสัปดาห์ เลือกความยาวบล็อก (สูงสุด 12 สัปดาห์) และ Same every week หรือ A/B weeks ในหน้าสร้างโปรแกรม ระบบจำตัวเลือกล่าสุดไว้ให้ หน้ารีวิวและแชตมีแท็บแยกแต่ละสัปดาห์
 - **Fill remaining weeks with AI**: write the first week (or Week A and Week B) yourself, then let the AI write the rest. Weeks your client has logged stay as they are.
-  - th: **Fill remaining weeks with AI**: เขียนสัปดาห์แรก (หรือ Week A และ Week B) เอง แล้วให้ AI เขียนสัปดาห์ที่เหลือ สัปดาห์ที่ลูกค้าบันทึกแล้วจะคงไว้เหมือนเดิม
+  - th: **Fill remaining weeks with AI**: เขียนสัปดาห์แรก (หรือ Week A และ Week B) เอง แล้วให้ AI เขียนสัปดาห์ที่เหลือ สัปดาห์ที่เมมเบอร์บันทึกแล้วจะคงไว้เหมือนเดิม
 - "Approve" on an AI draft is now called "Create program".
   - th: ปุ่ม "Approve" บนร่างจาก AI เปลี่ยนชื่อเป็น "Create program"
 - **You're told when an AI draft is done**, wherever you are in the app: "Ada's draft is ready" with a Review button, or a note if it failed. It stays until you dismiss it. If the tab is in the background, your browser shows a notification too. The app asks for permission the first time you generate.
@@ -172,7 +172,7 @@
 
 ### New
 - 8 built-in rule templates based on training research (weekly volume, effort, rep ranges and rest, frequency, double progression, exercise selection, warm-up order, short on time). Switch them on under Rules on a client's Generate page, or copy one to your library to edit it.
-  - th: เทมเพลตกฎในตัว 8 แบบ อิงงานวิจัยด้านการฝึก (วอลุ่มต่อสัปดาห์, ความหนัก, ช่วงจำนวนครั้งและเวลาพัก, ความถี่, double progression, การเลือกท่า, ลำดับวอร์มอัพ, เวลาน้อย) เปิดใช้ได้ที่ Rules ในหน้า Generate ของลูกค้า หรือคัดลอกไปไว้ในคลังของคุณเพื่อแก้ไข
+  - th: เทมเพลตกฎในตัว 8 แบบ อิงงานวิจัยด้านการฝึก (วอลุ่มต่อสัปดาห์, ความหนัก, ช่วงจำนวนครั้งและเวลาพัก, ความถี่, double progression, การเลือกท่า, ลำดับวอร์มอัพ, เวลาน้อย) เปิดใช้ได้ที่ Rules ในหน้า Generate ของเมมเบอร์ หรือคัดลอกไปไว้ในคลังของคุณเพื่อแก้ไข
 - The Templates page is easier to browse: a searchable list on the left, and the chosen template opens on the right with its summary, evidence and exact text.
   - th: หน้า Templates ดูง่ายขึ้น: รายการค้นหาได้อยู่ด้านซ้าย เทมเพลตที่เลือกเปิดทางขวาพร้อมสรุป หลักฐานอ้างอิง และข้อความฉบับเต็ม
 
@@ -210,11 +210,11 @@
 
 ### New
 - Program sessions are easier to scan. Each session is its own card with a header band, exercise rows alternate shading, and a superset or circuit is one framed block with its rounds in the header. This applies on the client's program tab, the draft chat preview and the draft review.
-  - th: เซสชันในโปรแกรมกวาดตาอ่านง่ายขึ้น แต่ละเซสชันเป็นการ์ดของตัวเองพร้อมแถบหัว แถวท่าสลับสีพื้น ซูเปอร์เซตหรือเซอร์กิตเป็นกรอบเดียวโดยมีจำนวนรอบอยู่ที่หัว ใช้กับแท็บโปรแกรมของลูกค้า พรีวิวในแชตร่าง และหน้ารีวิวร่าง
+  - th: เซสชันในโปรแกรมกวาดตาอ่านง่ายขึ้น แต่ละเซสชันเป็นการ์ดของตัวเองพร้อมแถบหัว แถวท่าสลับสีพื้น ซูเปอร์เซตหรือเซอร์กิตเป็นกรอบเดียวโดยมีจำนวนรอบอยู่ที่หัว ใช้กับแท็บโปรแกรมของเมมเบอร์ พรีวิวในแชตร่าง และหน้ารีวิวร่าง
 - In the narrower chat preview, set chips stay on the same line as the exercise name when they fit.
   - th: ในพรีวิวแชตที่แคบกว่า ชิปเซตจะอยู่บรรทัดเดียวกับชื่อท่าถ้าพื้นที่พอ
 - The clients list is redesigned: search by name or email, filter by status (Needs review, No program), sort by name, last trained or recently added, and page through long rosters.
-  - th: ออกแบบรายชื่อลูกค้าใหม่: ค้นหาด้วยชื่อหรืออีเมล กรองตามสถานะ (Needs review, No program) เรียงตามชื่อ วันที่ฝึกล่าสุด หรือที่เพิ่มล่าสุด และแบ่งหน้าเมื่อรายชื่อยาว
+  - th: ออกแบบรายชื่อเมมเบอร์ใหม่: ค้นหาด้วยชื่อหรืออีเมล กรองตามสถานะ (Needs review, No program) เรียงตามชื่อ วันที่ฝึกล่าสุด หรือที่เพิ่มล่าสุด และแบ่งหน้าเมื่อรายชื่อยาว
 - Overview shows this training week as a day board.
   - th: หน้า Overview แสดงสัปดาห์การฝึกนี้เป็นกระดานรายวัน
 - For admins: with "Auto-send confident" on, AI answers to feedback now go out on their own at medium confidence too, not only high.
@@ -226,7 +226,7 @@
 - When you build a chat change that adds an exercise, it no longer lands in the middle of a superset and splits it in two.
   - th: เมื่อสร้างการเปลี่ยนแปลงจากแชตที่เพิ่มท่า ท่าใหม่จะไม่ไปแทรกกลางซูเปอร์เซตจนแยกเป็นสองชุดอีก
 - A client's last session shows the right calendar day in the clients list.
-  - th: เซสชันล่าสุดแสดงวันที่ถูกต้องในรายชื่อลูกค้า
+  - th: เซสชันล่าสุดแสดงวันที่ถูกต้องในรายชื่อเมมเบอร์
 
 ## v0.1.22 — 2026-11-11
 
@@ -246,7 +246,7 @@
 
 ### New
 - After you save a log, a recap shows what was logged, plus a "Next" button to the next client still due today.
-  - th: หลังบันทึกเซสชัน จะมีสรุปสิ่งที่บันทึก พร้อมปุ่ม "Next" ไปยังลูกค้าคนถัดไปที่ยังต้องฝึกวันนี้
+  - th: หลังบันทึกเซสชัน จะมีสรุปสิ่งที่บันทึก พร้อมปุ่ม "Next" ไปยังเมมเบอร์คนถัดไปที่ยังต้องฝึกวันนี้
 - Exercise cards on the log sheet are tidier. Swap, Flag and Skip are now in a "More" menu, and "+ Set" stays visible.
   - th: การ์ดท่าในหน้าบันทึกเซสชันเป็นระเบียบขึ้น Swap, Flag และ Skip ย้ายไปอยู่ในเมนู "More" ส่วน "+ Set" ยังมองเห็นตลอด
 
@@ -264,7 +264,7 @@
 - Feedback cards show "Saved" on the triage note, show errors on the card itself, and show a spinner while busy. The pinned screenshot has a caption.
   - th: การ์ดฟีดแบ็กแสดง "Saved" ที่โน้ตคัดแยก แสดงข้อผิดพลาดบนการ์ดเลย และแสดงไอคอนหมุนระหว่างทำงาน ภาพหน้าจอที่ปักหมุดมีคำบรรยาย
 - Training week: with more than eight clients, the on-track ones fold into one line. "Show all" brings them back.
-  - th: Training week: ถ้ามีลูกค้าเกินแปดคน คนที่ตามแผนอยู่จะถูกพับเหลือบรรทัดเดียว กด "Show all" เพื่อแสดงทั้งหมด
+  - th: Training week: ถ้ามีเมมเบอร์เกินแปดคน คนที่ตามแผนอยู่จะถูกพับเหลือบรรทัดเดียว กด "Show all" เพื่อแสดงทั้งหมด
 - Training week: the counter colours each part on its own. Missed is red, to log is amber, and due today is neutral.
   - th: Training week: ตัวนับลงสีแยกแต่ละส่วน ที่พลาดเป็นสีแดง ที่ยังต้องบันทึกเป็นสีเหลืองอำพัน และที่ถึงกำหนดวันนี้เป็นสีกลาง ๆ
 - Training week: "+n" appears when a day has more than three extra sessions, and the legend explains the marks. Partly done days get their own look, and narrow history shows week dates.
@@ -300,7 +300,7 @@
 - Training week: a session now gets two days' grace before it counts as missed. Until then it shows in amber as "not logged yet".
   - th: Training week: เซสชันมีเวลาผ่อนผันสองวันก่อนนับว่าพลาด ระหว่างนั้นจะแสดงเป็นสีเหลืองอำพันว่า "not logged yet"
 - Training week: the counter counts days and changes colour as the week runs out. Idle clients are listed as links, each with the reason it's idle.
-  - th: Training week: ตัวนับนับเป็นวันและเปลี่ยนสีเมื่อสัปดาห์ใกล้หมด ลูกค้าที่ไม่มีความเคลื่อนไหวแสดงเป็นลิงก์ พร้อมเหตุผลของแต่ละคน
+  - th: Training week: ตัวนับนับเป็นวันและเปลี่ยนสีเมื่อสัปดาห์ใกล้หมด เมมเบอร์ที่ไม่มีความเคลื่อนไหวแสดงเป็นลิงก์ พร้อมเหตุผลของแต่ละคน
 - Training week: today's column is highlighted, and the legend only lists the states you can see.
   - th: Training week: ไฮไลต์คอลัมน์วันนี้ และคำอธิบายสัญลักษณ์แสดงเฉพาะสถานะที่มองเห็นอยู่
 - Logging "as prescribed" now shows every set it will save before you confirm. Sets you typed yourself are in bold.
@@ -362,7 +362,7 @@
 - Supersets and circuits. In the program editor, click "Superset with next" to pair exercises. They show as A1/A2 with one rounds count for the group. Change it once and every exercise in the group follows.
   - th: ซูเปอร์เซตและเซอร์กิต ในตัวแก้ไขโปรแกรม คลิก "Superset with next" เพื่อจับคู่ท่า จะแสดงเป็น A1/A2 โดยมีจำนวนรอบเดียวสำหรับทั้งกลุ่ม เปลี่ยนครั้งเดียว ทุกท่าในกลุ่มเปลี่ยนตาม
 - Supersets show as a group on the program page, client page and AI draft review.
-  - th: ซูเปอร์เซตแสดงเป็นกลุ่มในหน้าโปรแกรม หน้าลูกค้า และหน้ารีวิวร่างจาก AI
+  - th: ซูเปอร์เซตแสดงเป็นกลุ่มในหน้าโปรแกรม หน้าเมมเบอร์ และหน้ารีวิวร่างจาก AI
 - Logging a superset goes round by round on one card: A1, A2, then the next round. Enter moves in the same order.
   - th: บันทึกซูเปอร์เซตทีละรอบในการ์ดเดียว: A1, A2 แล้วรอบถัดไป ปุ่ม Enter เลื่อนตามลำดับเดียวกัน
 - Pasted notes with "Superset x 3 sets" or A1/A2 labels now come in as real supersets.
@@ -392,7 +392,7 @@
 - A pasted exercise is no longer swapped for a look-alike (e.g. "Single leg throwball" became "Single-Leg Hop"). Unsure matches are only suggested, and only matches you pick are remembered.
   - th: ท่าที่วางไม่ถูกสลับเป็นท่าที่ชื่อคล้ายกันอีก (เช่น "Single leg throwball" กลายเป็น "Single-Leg Hop") ท่าที่ไม่แน่ใจจะเป็นแค่คำแนะนำ และจะจำเฉพาะท่าที่คุณเลือก
 - A client page that can't load now says so instead of loading forever.
-  - th: หน้าลูกค้าที่โหลดไม่ได้จะแจ้งให้ทราบ ไม่โหลดค้างไปเรื่อย ๆ
+  - th: หน้าเมมเบอร์ที่โหลดไม่ได้จะแจ้งให้ทราบ ไม่โหลดค้างไปเรื่อย ๆ
 
 ## v0.1.13 — 2026-11-10
 
@@ -416,7 +416,7 @@
 
 ### New
 - Readiness and flags on the log sheet: record how the client slept and how sore they are, and flag any exercise for pain or technique, or mark it skipped with a reason. Both show on the client's History.
-  - th: ความพร้อมและการแจ้งปัญหาในหน้าบันทึกเซสชัน: บันทึกว่าลูกค้านอนเป็นอย่างไรและปวดเมื่อยแค่ไหน แจ้งปัญหาของท่าใดก็ได้ว่าเจ็บหรือเรื่องเทคนิค หรือทำเครื่องหมายว่าข้ามพร้อมเหตุผล ทั้งหมดแสดงใน History ของลูกค้า
+  - th: ความพร้อมและการแจ้งปัญหาในหน้าบันทึกเซสชัน: บันทึกว่าเมมเบอร์นอนเป็นอย่างไรและปวดเมื่อยแค่ไหน แจ้งปัญหาของท่าใดก็ได้ว่าเจ็บหรือเรื่องเทคนิค หรือทำเครื่องหมายว่าข้ามพร้อมเหตุผล ทั้งหมดแสดงใน History ของเมมเบอร์
 - A pain flag (or a skip because of pain) raises a "pain flag" alert for 14 days, so you check in before loading that exercise again. AI drafts see readiness and flags from recent sessions.
   - th: การแจ้งว่าเจ็บ (หรือข้ามเพราะเจ็บ) จะขึ้นการเตือน "pain flag" นาน 14 วัน ให้คุณถามอาการก่อนเพิ่มน้ำหนักท่านั้นอีก ร่างจาก AI เห็นความพร้อมและการแจ้งเตือนจากเซสชันล่าสุดด้วย
 
@@ -436,11 +436,11 @@
 - Logging is safer: sessions already logged that day show up, and you're asked before logging a duplicate. You get a summary to confirm, Undo after saving, a warning before leaving with unsaved sets, and drafts that survive a reload.
   - th: บันทึกได้ปลอดภัยขึ้น: แสดงเซสชันที่บันทึกแล้วในวันนั้น และถามก่อนบันทึกซ้ำ มีสรุปให้ยืนยัน กด Undo ได้หลังบันทึก มีคำเตือนก่อนออกจากหน้าโดยยังไม่บันทึกเซต และร่างยังอยู่แม้รีโหลดหน้า
 - Suggested loads on the log sheet. RPE-only sets suggest a kg from the client's recent lifts, every set shows its e1RM with a PR badge, and off-target RPE is flagged. Remaining sets adjust after a set that ran hot or easy, and back-offs follow today's top set.
-  - th: น้ำหนักแนะนำในหน้าบันทึกเซสชัน เซตที่กำหนดแค่ RPE จะแนะนำน้ำหนัก (kg) จากการยกล่าสุดของลูกค้า ทุกเซตแสดง e1RM พร้อมป้าย PR และเตือนเมื่อ RPE ไม่ตรงเป้า เซตที่เหลือปรับตามเมื่อเซตก่อนหนักหรือเบากว่าที่คาด และเซต back-off อิงจาก top set ของวันนี้
+  - th: น้ำหนักแนะนำในหน้าบันทึกเซสชัน เซตที่กำหนดแค่ RPE จะแนะนำน้ำหนัก (kg) จากการยกล่าสุดของเมมเบอร์ ทุกเซตแสดง e1RM พร้อมป้าย PR และเตือนเมื่อ RPE ไม่ตรงเป้า เซตที่เหลือปรับตามเมื่อเซตก่อนหนักหรือเบากว่าที่คาด และเซต back-off อิงจาก top set ของวันนี้
 - Deload rules: set your default deload in Settings, override it per client, and the Deload button and AI drafts follow it.
-  - th: กฎดีโหลด: ตั้งค่าดีโหลดเริ่มต้นใน Settings ปรับแยกรายลูกค้าได้ และปุ่ม Deload กับร่างจาก AI จะทำตามกฎนี้
+  - th: กฎดีโหลด: ตั้งค่าดีโหลดเริ่มต้นใน Settings ปรับแยกรายเมมเบอร์ได้ และปุ่ม Deload กับร่างจาก AI จะทำตามกฎนี้
 - The training week on the dashboard is a grid with six weeks of history per client. Clients who need attention are listed first, and tapping a day opens the logger on that session.
-  - th: สัปดาห์การฝึกในแดชบอร์ดเป็นตารางที่มีประวัติหกสัปดาห์ต่อลูกค้า ลูกค้าที่ต้องดูแลขึ้นก่อน และแตะที่วันจะเปิดหน้าบันทึกของเซสชันนั้น
+  - th: สัปดาห์การฝึกในแดชบอร์ดเป็นตารางที่มีประวัติหกสัปดาห์ต่อเมมเบอร์ เมมเบอร์ที่ต้องดูแลขึ้นก่อน และแตะที่วันจะเปิดหน้าบันทึกของเซสชันนั้น
 - Session cards line up sets, reps, load and effort in columns, group top sets and back-offs, and include a notation key.
   - th: การ์ดเซสชันจัดเซต จำนวนครั้ง น้ำหนัก และความหนักเป็นคอลัมน์ จัดกลุ่ม top set กับ back-off และมีคำอธิบายสัญลักษณ์
 - Colour themes: pick a palette for light and dark mode, including high contrast, colourblind-friendly, paper and dimmed.
@@ -460,11 +460,11 @@
 
 ### New
 - New client form follows the intake conversation: goals and limitations come first, 1RMs can wait for the first week, and the Add bar stays on screen. "Add & generate program" takes you straight to drafting their first programme.
-  - th: ฟอร์มเพิ่มลูกค้าใหม่เรียงตามลำดับการพูดคุยครั้งแรก: เป้าหมายและข้อจำกัดมาก่อน 1RM รอไว้กรอกสัปดาห์แรกได้ และแถบ Add อยู่บนจอตลอด "Add & generate program" พาไปร่างโปรแกรมแรกได้ทันที
+  - th: ฟอร์มเพิ่มเมมเบอร์ใหม่เรียงตามลำดับการพูดคุยครั้งแรก: เป้าหมายและข้อจำกัดมาก่อน 1RM รอไว้กรอกสัปดาห์แรกได้ และแถบ Add อยู่บนจอตลอด "Add & generate program" พาไปร่างโปรแกรมแรกได้ทันที
 - Training days are now one row of day chips that fits a phone. Cardio days, the long-session day and the weekly cardio target sit under one Cardio switch, with a one-line summary of the week.
   - th: วันฝึกเป็นชิปวันแถวเดียวที่พอดีจอมือถือ วันคาร์ดิโอ วันเซสชันยาว และเป้าคาร์ดิโอรายสัปดาห์อยู่ใต้สวิตช์ Cardio อันเดียว พร้อมสรุปสัปดาห์ในบรรทัดเดียว
 - Client settings are grouped into clear boxes, with a save bar that follows you down the page, a Discard button and ⌘S.
-  - th: การตั้งค่าลูกค้าจัดเป็นกล่องชัดเจน มีแถบบันทึกที่เลื่อนตามลงไป ปุ่ม Discard และ ⌘S
+  - th: การตั้งค่าเมมเบอร์จัดเป็นกล่องชัดเจน มีแถบบันทึกที่เลื่อนตามลงไป ปุ่ม Discard และ ⌘S
 - The History tab shows lift trends with e1RM charts, an 8-week / 6-month / all-time range switch and sessions grouped by week.
   - th: แท็บ History แสดงแนวโน้มการยกด้วยกราฟ e1RM สลับช่วง 8 สัปดาห์ / 6 เดือน / ทั้งหมดได้ และจัดกลุ่มเซสชันตามสัปดาห์
 - The programme page shows the sets logged under each session.
@@ -478,31 +478,31 @@
 - AI drafts that hit the length limit say so instead of retrying in vain.
   - th: ร่างจาก AI ที่ยาวเกินขีดจำกัดจะแจ้งให้ทราบ ไม่ลองซ้ำไปเปล่า ๆ
 - The all-clients list and admin client page fit narrow screens, and long cardio lines wrap on session cards.
-  - th: รายชื่อลูกค้าทั้งหมดและหน้าลูกค้าของแอดมินพอดีจอแคบ และบรรทัดคาร์ดิโอยาว ๆ ตัดขึ้นบรรทัดใหม่ในการ์ดเซสชัน
+  - th: รายชื่อเมมเบอร์ทั้งหมดและหน้าเมมเบอร์ของแอดมินพอดีจอแคบ และบรรทัดคาร์ดิโอยาว ๆ ตัดขึ้นบรรทัดใหม่ในการ์ดเซสชัน
 - The name error on a new client only shows after you've typed and left the field, or pressed Add.
-  - th: ข้อผิดพลาดเรื่องชื่อของลูกค้าใหม่แสดงหลังจากคุณพิมพ์แล้วออกจากช่อง หรือกด Add เท่านั้น
+  - th: ข้อผิดพลาดเรื่องชื่อของเมมเบอร์ใหม่แสดงหลังจากคุณพิมพ์แล้วออกจากช่อง หรือกด Add เท่านั้น
 
 ## v0.1.9 — 2026-11-09
 
 ### New
 - Paste a client's training history from your notes and save it as past programmes and session logs — with undo.
-  - th: วางประวัติการฝึกของลูกค้าจากโน้ต แล้วบันทึกเป็นโปรแกรมเก่าและบันทึกเซสชันได้ และกดย้อนกลับได้
+  - th: วางประวัติการฝึกของเมมเบอร์จากโน้ต แล้วบันทึกเป็นโปรแกรมเก่าและบันทึกเซสชันได้ และกดย้อนกลับได้
 - Admins can open any client read-only and see their active programme and this week.
-  - th: แอดมินเปิดดูลูกค้าคนใดก็ได้แบบอ่านอย่างเดียว เห็นโปรแกรมที่ใช้อยู่และสัปดาห์นี้
+  - th: แอดมินเปิดดูเมมเบอร์คนใดก็ได้แบบอ่านอย่างเดียว เห็นโปรแกรมที่ใช้อยู่และสัปดาห์นี้
 - The all-clients list shows each client's programme and links straight to them.
-  - th: รายชื่อลูกค้าทั้งหมดแสดงโปรแกรมของแต่ละคน และลิงก์ไปหาลูกค้าได้ทันที
+  - th: รายชื่อเมมเบอร์ทั้งหมดแสดงโปรแกรมของแต่ละคน และลิงก์ไปหาเมมเบอร์ได้ทันที
 
 ### Fixed
 - Deload weeks now lower the load index the way the deload rule says.
   - th: สัปดาห์ดีโหลดลดดัชนีน้ำหนักตามที่กฎดีโหลดกำหนดแล้ว
 - Client dates in the admin directory show as calendar days, so the list loads.
-  - th: วันที่ของลูกค้าในไดเรกทอรีของแอดมินแสดงเป็นวันตามปฏิทิน รายการจึงโหลดได้
+  - th: วันที่ของเมมเบอร์ในไดเรกทอรีของแอดมินแสดงเป็นวันตามปฏิทิน รายการจึงโหลดได้
 
 ## v0.1.8 — 2026-11-09
 
 ### New
 - Admins get an all-clients page in the sidebar, and each trainer's client count links to their clients.
-  - th: แอดมินมีหน้ารวมลูกค้าทั้งหมดในแถบด้านข้าง และจำนวนลูกค้าของเทรนเนอร์แต่ละคนลิงก์ไปยังลูกค้าของคนนั้น
+  - th: แอดมินมีหน้ารวมเมมเบอร์ทั้งหมดในแถบด้านข้าง และจำนวนเมมเบอร์ของเทรนเนอร์แต่ละคนลิงก์ไปยังเมมเบอร์ของคนนั้น
 
 ## v0.1.7 — 2026-11-09
 
@@ -516,7 +516,7 @@
 
 ### Fixed
 - Example programmes are picked on the client's goal, level and training days.
-  - th: โปรแกรมตัวอย่างเลือกตามเป้าหมาย ระดับ และวันฝึกของลูกค้า
+  - th: โปรแกรมตัวอย่างเลือกตามเป้าหมาย ระดับ และวันฝึกของเมมเบอร์
 - Pattern balance counts hard sets.
   - th: Pattern balance นับเฉพาะ hard set
 - Leaving a programme with unsaved edits asks before closing, and discarding edits resets the phasing editor.
@@ -530,7 +530,7 @@
 - Name your own exercise roles and rank them — drafts and new programmes order exercises by your ranks.
   - th: ตั้งชื่อบทบาทของท่าเองและจัดอันดับได้ ร่างและโปรแกรมใหม่จะเรียงท่าตามอันดับของคุณ
 - Client basics: phone, experience, age, sex and size, plus 1RMs when you add a client. The AI takes them into account.
-  - th: ข้อมูลพื้นฐานของลูกค้า: เบอร์โทร ประสบการณ์ อายุ เพศ และขนาดร่างกาย รวมถึง 1RM ตอนเพิ่มลูกค้า AI นำข้อมูลเหล่านี้มาพิจารณาด้วย
+  - th: ข้อมูลพื้นฐานของเมมเบอร์: เบอร์โทร ประสบการณ์ อายุ เพศ และขนาดร่างกาย รวมถึง 1RM ตอนเพิ่มเมมเบอร์ AI นำข้อมูลเหล่านี้มาพิจารณาด้วย
 - Edit progression rules in the draft block plan editor.
   - th: แก้ไขกฎ progression ได้ในตัวแก้ไขแผนบล็อกของร่าง
 
@@ -553,13 +553,13 @@
 
 ### New
 - Prescribe sets as %1RM, RPE ranges, RIR, tempo or AMRAP with a stop RPE; loads resolve from each client's 1RMs.
-  - th: กำหนดเซตเป็น %1RM, ช่วง RPE, RIR, tempo หรือ AMRAP พร้อม RPE ที่ให้หยุดได้ น้ำหนักคำนวณจาก 1RM ของลูกค้าแต่ละคน
+  - th: กำหนดเซตเป็น %1RM, ช่วง RPE, RIR, tempo หรือ AMRAP พร้อม RPE ที่ให้หยุดได้ น้ำหนักคำนวณจาก 1RM ของเมมเบอร์แต่ละคน
 - Set per-week progression rules and preview them before applying.
   - th: ตั้งกฎ progression รายสัปดาห์ และดูตัวอย่างก่อนใช้จริงได้
 - Client run days and long-run day: cardio is placed around key runs and heavy lower days, and the AI suggests weekdays that follow the same rules.
-  - th: วันวิ่งและวันวิ่งยาวของลูกค้า: คาร์ดิโอจัดรอบ ๆ การวิ่งสำคัญและวันขาหนัก และ AI แนะนำวันในสัปดาห์ตามกฎเดียวกัน
+  - th: วันวิ่งและวันวิ่งยาวของเมมเบอร์: คาร์ดิโอจัดรอบ ๆ การวิ่งสำคัญและวันขาหนัก และ AI แนะนำวันในสัปดาห์ตามกฎเดียวกัน
 - Client email is now optional, and a half-filled new-client form is kept if you leave the page.
-  - th: อีเมลลูกค้าไม่บังคับแล้ว และฟอร์มเพิ่มลูกค้าที่กรอกค้างไว้จะยังอยู่ถ้าคุณออกจากหน้า
+  - th: อีเมลเมมเบอร์ไม่บังคับแล้ว และฟอร์มเพิ่มเมมเบอร์ที่กรอกค้างไว้จะยังอยู่ถ้าคุณออกจากหน้า
 - Updated movement patterns and muscle groups, with kinetic-chain defaults rebuilt on the sling model.
   - th: อัปเดต movement pattern และกลุ่มกล้ามเนื้อ พร้อมค่าเริ่มต้นของ kinetic chain ที่สร้างใหม่ตาม sling model
 - The theme picker moved into Settings, and the sidebar opens and closes smoothly.
@@ -581,7 +581,7 @@
 - Tap a block pulse cell to see the sets behind it and the top lift.
   - th: แตะช่องใน Block pulse เพื่อดูเซตที่อยู่เบื้องหลังและการยกที่ดีที่สุด
 - The AI cites each client's dated training log when it drafts and answers questions.
-  - th: AI อ้างอิงบันทึกการฝึกพร้อมวันที่ของลูกค้าแต่ละคนเมื่อร่างโปรแกรมและตอบคำถาม
+  - th: AI อ้างอิงบันทึกการฝึกพร้อมวันที่ของเมมเบอร์แต่ละคนเมื่อร่างโปรแกรมและตอบคำถาม
 - Coaching rules: leave a note on a draft or chat reply, and confirmed rules are applied in every future draft.
   - th: กฎการโค้ช: เขียนโน้ตไว้ที่ร่างหรือคำตอบในแชต กฎที่ยืนยันแล้วจะถูกใช้ในทุกร่างต่อจากนี้
 - Chat proposals can change cardio sessions, and a built draft keeps only the proposed changes, listing what stayed as before.
@@ -595,7 +595,7 @@
 - Signals are fairer: cardio behind, adherence, RPE creep and stall are judged by block week and pro-rated from the start date.
   - th: สัญญาณเตือนยุติธรรมขึ้น: คาร์ดิโอตามหลัง การทำตามแผน RPE creep และ stall ตัดสินตามสัปดาห์ของบล็อก และคิดตามสัดส่วนนับจากวันเริ่ม
 - Signals show on a client's page even without a programme.
-  - th: สัญญาณเตือนแสดงในหน้าลูกค้าแม้ยังไม่มีโปรแกรม
+  - th: สัญญาณเตือนแสดงในหน้าเมมเบอร์แม้ยังไม่มีโปรแกรม
 - Block pulse counts back-off sets and keeps timed holds out of tonnage and e1RM.
   - th: Block pulse นับเซต back-off และไม่นำท่าค้างแบบจับเวลาไปคิดในน้ำหนักรวมและ e1RM
 - Today's date and the log window use your local calendar day.
@@ -621,7 +621,7 @@
 
 ### New
 - The client chat keeps unsent text and your last model choice; Return adds a line and Cmd/Ctrl+Return sends.
-  - th: แชตลูกค้าเก็บข้อความที่ยังไม่ส่งและโมเดลที่เลือกล่าสุดไว้ Return ขึ้นบรรทัดใหม่ และ Cmd/Ctrl+Return ส่งข้อความ
+  - th: แชตเมมเบอร์เก็บข้อความที่ยังไม่ส่งและโมเดลที่เลือกล่าสุดไว้ Return ขึ้นบรรทัดใหม่ และ Cmd/Ctrl+Return ส่งข้อความ
 - Collapse the sidebar to an icon rail.
   - th: ย่อแถบด้านข้างเหลือแถบไอคอนได้
 - Settings › About shows the app and server versions.
@@ -639,15 +639,15 @@
 - First release.
   - th: รุ่นแรก
 - Clients with a training schedule, cardio target and coaching context.
-  - th: ลูกค้าพร้อมตารางฝึก เป้าคาร์ดิโอ และบริบทการโค้ช
+  - th: เมมเบอร์พร้อมตารางฝึก เป้าคาร์ดิโอ และบริบทการโค้ช
 - Programme builder: week-by-week lifting and cardio sessions, phasing (base, volume, intensity, deload, transition) and weekly targets.
   - th: ตัวสร้างโปรแกรม: เซสชันเวทและคาร์ดิโอรายสัปดาห์ การแบ่งเฟส (base, volume, intensity, deload, transition) และเป้าหมายรายสัปดาห์
 - AI drafts the next block with its reasoning and a diff against the current one — nothing goes live until you approve and activate it.
   - th: AI ร่างบล็อกถัดไปพร้อมเหตุผลและการเปรียบเทียบกับบล็อกปัจจุบัน ไม่มีอะไรใช้งานจริงจนกว่าคุณจะอนุมัติและเปิดใช้
 - Revise a draft with your feedback, or ask the client chat to propose changes beside a live preview.
-  - th: แก้ร่างตามความเห็นของคุณ หรือให้แชตลูกค้าเสนอการเปลี่ยนแปลงข้างพรีวิวสด
+  - th: แก้ร่างตามความเห็นของคุณ หรือให้แชตเมมเบอร์เสนอการเปลี่ยนแปลงข้างพรีวิวสด
 - Log lifting and cardio sessions as clients report back.
-  - th: บันทึกเซสชันเวทและคาร์ดิโอตามที่ลูกค้ารายงานกลับมา
+  - th: บันทึกเซสชันเวทและคาร์ดิโอตามที่เมมเบอร์รายงานกลับมา
 - Block pulse: tonnage, sets, average RPE and best e1RM per week, each traceable to logged sets.
   - th: Block pulse: น้ำหนักรวม จำนวนเซต RPE เฉลี่ย และ e1RM สูงสุดต่อสัปดาห์ ทุกตัวเลขย้อนดูเซตที่บันทึกไว้ได้
 - Needs-review signals — block ending, deload due, RPE creep, stall, adherence, cardio behind — with snooze.
@@ -655,4 +655,4 @@
 - Exercise catalog with movement patterns, pattern balance and kinetic-chain balance.
   - th: คลังท่าพร้อม movement pattern, pattern balance และ kinetic-chain balance
 - AI-drafted client messages you approve and copy in one tap.
-  - th: ข้อความถึงลูกค้าที่ AI ร่างให้ อนุมัติและคัดลอกได้ด้วยการแตะครั้งเดียว
+  - th: ข้อความถึงเมมเบอร์ที่ AI ร่างให้ อนุมัติและคัดลอกได้ด้วยการแตะครั้งเดียว
