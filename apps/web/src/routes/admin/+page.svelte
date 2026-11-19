@@ -32,10 +32,13 @@
   let attempted = $state(false);
   /** The just-added row, to point at it. */
   let addedId = $state<string | null>(null);
+  /** Who was just added: the form gives way to the hand-over until "Add another". */
+  let added = $state<{ name: string; email: string } | null>(null);
   /** Per-row action in flight / its error. */
   let busy = $state<string | null>(null);
   let rowError = $state<{ id: string; text: string } | null>(null);
   let copied = $state(false);
+  let copyFailed = $state(false);
 
   const missing = $derived(!name.trim() ? "a name" : !EMAIL.test(email.trim()) ? "a valid email" : null);
   const sorted = $derived(
@@ -80,10 +83,14 @@
       setTimeout(() => {
         if (addedId === created.id) addedId = null;
       }, 2500);
+      added = { name: created.name, email: created.email };
       name = "";
       email = "";
       attempted = false;
-      document.getElementById("t-name")?.focus();
+      copied = false;
+      copyFailed = false;
+      await tick();
+      document.getElementById("t-copy")?.focus();
     } catch (err) {
       addError = (err as Error).message;
     } finally {
@@ -107,9 +114,22 @@
   const remove = (t: TrainerAccount) => run(t, async () => (await adminApi.removeTrainer(t.id), null));
 
   async function copyLink() {
-    await navigator.clipboard.writeText(loginUrl);
-    copied = true;
-    setTimeout(() => (copied = false), 1600);
+    try {
+      await navigator.clipboard.writeText(loginUrl);
+      copyFailed = false;
+      copied = true;
+      setTimeout(() => (copied = false), 1600);
+    } catch {
+      copyFailed = true;
+    }
+  }
+
+  async function addAnother() {
+    added = null;
+    copied = false;
+    copyFailed = false;
+    await tick();
+    document.getElementById("t-name")?.focus();
   }
 
   const fmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -141,46 +161,72 @@
 {:else}
   <div class="cols">
     <Panel title="Add a trainer" class="addp">
-      <form class="panel-body add" onsubmit={add} novalidate>
-        <p class="lede">
-          Adding someone lets them in. They sign in with Google using this email — no password, no invite email to
-          send.
-        </p>
-        <div class="fields">
-          <div>
-            <label class="label" for="t-name">Name</label>
-            <input class="input" id="t-name" bind:value={name} maxlength="120" autocomplete="off" placeholder="Full name" />
+      {#if added}
+        <div class="panel-body add done">
+          <p class="added"><strong>Added {added.name}</strong> — <span class="addr">{added.email}</span></p>
+          <p class="lede">
+            We don't email them. Send them the sign-in link — they'll show as Invited until they first sign in with
+            this Google account.
+          </p>
+          <div class="foot">
+            <Button id="t-copy" variant="primary" onclick={copyLink}>
+              {#snippet icon()}<Icon name={copied ? "check" : "link"} />{/snippet}
+              {copied ? "Copied" : "Copy sign-in link"}
+            </Button>
+            <Button onclick={addAnother}>
+              {#snippet icon()}<Icon name="plus" />{/snippet}
+              Add another
+            </Button>
           </div>
-          <div>
-            <label class="label" for="t-email">Google email</label>
-            <input
-              class="input"
-              id="t-email"
-              type="email"
-              bind:value={email}
-              maxlength="254"
-              autocomplete="off"
-              placeholder="name@gmail.com"
-            />
+          {#if copyFailed}<p class="subtle">Couldn't copy — the link is <code>{loginUrl}</code></p>{/if}
+          <div class="share">
+            <a href="/settings#login-page">Restyle the sign-in page</a>
           </div>
         </div>
-        <div class="foot">
-          <Button variant="primary" type="submit" disabled={adding}>
-            {#snippet icon()}<Icon name="plus" />{/snippet}
-            {adding ? "Adding…" : "Add trainer"}
-          </Button>
-          <span class="subtle" role="status" aria-live="polite">
-            {#if addError}<span class="err">{addError}</span>
-            {:else if attempted && missing}<span class="err">Add {missing} to continue</span>{/if}
-          </span>
-        </div>
-        <div class="share">
-          <span class="subtle">Then send them</span>
-          <code>{loginUrl}</code>
-          <Button small variant="ghost" type="button" onclick={copyLink}>{copied ? "Copied" : "Copy link"}</Button>
-          <a class="restyle" href="/settings#login-page">Change how it looks</a>
-        </div>
-      </form>
+      {:else}
+        <form class="panel-body add" onsubmit={add} novalidate>
+          <p class="lede">
+            Adding someone lets them in with Google, using this email — no password. They show as Invited until their
+            first sign-in.
+          </p>
+          <div class="fields">
+            <div>
+              <label class="label" for="t-name">Name</label>
+              <input class="input" id="t-name" bind:value={name} maxlength="120" autocomplete="off" placeholder="Full name" />
+            </div>
+            <div>
+              <label class="label" for="t-email">Google email</label>
+              <input
+                class="input"
+                id="t-email"
+                type="email"
+                bind:value={email}
+                maxlength="254"
+                autocomplete="off"
+                placeholder="name@gmail.com"
+              />
+            </div>
+          </div>
+          <div class="foot">
+            <Button variant="primary" type="submit" disabled={adding}>
+              {#snippet icon()}<Icon name="plus" />{/snippet}
+              {adding ? "Adding…" : "Add trainer"}
+            </Button>
+            <span class="subtle" role="status" aria-live="polite">
+              {#if addError}<span class="err">{addError}</span>
+              {:else if attempted && missing}<span class="err">Add {missing} to continue</span>{/if}
+            </span>
+          </div>
+          <div class="share">
+            <Button small variant="ghost" type="button" onclick={copyLink}>
+              {#snippet icon()}<Icon name={copied ? "check" : "link"} />{/snippet}
+              {copied ? "Copied" : "Copy sign-in link"}
+            </Button>
+            <a href="/settings#login-page">Restyle the sign-in page</a>
+          </div>
+          {#if copyFailed}<p class="subtle">Couldn't copy — the link is <code>{loginUrl}</code></p>{/if}
+        </form>
+      {/if}
     </Panel>
 
     {#if trainers === null}
@@ -307,10 +353,18 @@
     border-top: 1px solid var(--line-soft);
     font-size: 13px;
   }
-  .share .restyle {
-    margin-left: auto;
+  .added {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.4;
   }
-  .share code {
+  .added .addr {
+    color: var(--muted);
+  }
+  .share {
+    justify-content: space-between;
+  }
+  .add code {
     font: 12px/1.4 var(--font-mono);
     background: var(--well);
     border: 1px solid var(--line-soft);
@@ -392,9 +446,6 @@
     }
     .fields {
       grid-template-columns: 1fr;
-    }
-    .share .restyle {
-      margin-left: 0;
     }
   }
 
