@@ -8,6 +8,7 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import Field from "$lib/ui/Field.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -40,7 +41,14 @@
   let copied = $state(false);
   let copyFailed = $state(false);
 
-  const missing = $derived(!name.trim() ? "a name" : !EMAIL.test(email.trim()) ? "a valid email" : null);
+  const nameErr = $derived(!name.trim() ? "Add their name" : undefined);
+  const emailErr = $derived(
+    !email.trim() ? "Add the Google email they'll sign in with" : !EMAIL.test(email.trim()) ? "That isn't an email address" : undefined,
+  );
+  /** Polite announcement: the hand-over after an add, then the copy. */
+  const announce = $derived(
+    copyFailed ? "Couldn't copy the sign-in link" : copied ? "Sign-in link copied" : added ? `Added ${added.name}, ${added.email}` : "",
+  );
   const sorted = $derived(
     [...(trainers ?? [])].sort(
       (a, b) => Number(b.isAdmin) - Number(a.isAdmin) || RANK[a.access] - RANK[b.access] || a.name.localeCompare(b.name),
@@ -68,10 +76,10 @@
 
   async function add(e: SubmitEvent) {
     e.preventDefault();
-    if (missing) {
+    if (nameErr || emailErr) {
       attempted = true;
       await tick();
-      document.getElementById(!name.trim() ? "t-name" : "t-email")?.focus();
+      document.getElementById(nameErr ? "t-name" : "t-email")?.focus();
       return;
     }
     adding = true;
@@ -161,6 +169,7 @@
 {:else}
   <div class="cols">
     <Panel title="Add a trainer" class="addp">
+      <p class="sr-only" role="status" aria-live="polite">{announce}</p>
       {#if added}
         <div class="panel-body add done">
           <p class="added"><strong>Added {added.name}</strong> — <span class="addr">{added.email}</span></p>
@@ -190,12 +199,19 @@
             first sign-in.
           </p>
           <div class="fields">
-            <div>
-              <label class="label" for="t-name">Name</label>
-              <input class="input" id="t-name" bind:value={name} maxlength="120" autocomplete="off" placeholder="Full name" />
-            </div>
-            <div>
-              <label class="label" for="t-email">Google email</label>
+            <Field label="Name" htmlFor="t-name" error={attempted ? nameErr : undefined}>
+              <input
+                class="input"
+                id="t-name"
+                bind:value={name}
+                maxlength="120"
+                autocomplete="off"
+                placeholder="Full name"
+                aria-invalid={attempted && nameErr ? "true" : undefined}
+                aria-describedby={attempted && nameErr ? "t-name-err" : undefined}
+              />
+            </Field>
+            <Field label="Google email" htmlFor="t-email" error={attempted ? emailErr : undefined}>
               <input
                 class="input"
                 id="t-email"
@@ -204,19 +220,18 @@
                 maxlength="254"
                 autocomplete="off"
                 placeholder="name@gmail.com"
+                aria-invalid={attempted && emailErr ? "true" : undefined}
+                aria-describedby={attempted && emailErr ? "t-email-err" : undefined}
               />
-            </div>
+            </Field>
           </div>
           <div class="foot">
             <Button variant="primary" type="submit" disabled={adding}>
               {#snippet icon()}<Icon name="plus" />{/snippet}
               {adding ? "Adding…" : "Add trainer"}
             </Button>
-            <span class="subtle" role="status" aria-live="polite">
-              {#if addError}<span class="err">{addError}</span>
-              {:else if attempted && missing}<span class="err">Add {missing} to continue</span>{/if}
-            </span>
           </div>
+          {#if addError}<p class="err" role="alert">Couldn't add them — {addError}</p>{/if}
           <div class="share">
             <Button small variant="ghost" type="button" onclick={copyLink}>
               {#snippet icon()}<Icon name={copied ? "check" : "link"} />{/snippet}
@@ -245,7 +260,7 @@
               </span>
               <div class="who">
                 <div class="line">
-                  <strong><a class="name-link" href="/admin/trainers/{t.id}" title="Access log">{t.name}</a></strong>
+                  <strong><a class="name-link" href="/admin/trainers/{t.id}">{t.name}</a></strong>
                   <Pill tone={ACCESS[t.access].tone}>{ACCESS[t.access].label}</Pill>
                   {#if t.isAdmin}<Pill>Admin</Pill>{/if}
                 </div>
@@ -255,6 +270,7 @@
                   {#if t.clientCount > 0}
                     <a href={`/admin/clients?trainer=${t.id}`}>{t.clientCount} {t.clientCount === 1 ? "client" : "clients"}</a>
                   {:else}0 clients{/if}
+                  · <a class="log" href="/admin/trainers/{t.id}" aria-label="Access log for {t.name}">Access log</a>
                 </div>
                 {#if rowError?.id === t.id}<p class="err" role="alert">{rowError.text}</p>{/if}
               </div>
@@ -264,6 +280,7 @@
                     small
                     variant="ghost"
                     title="Open the app as {t.name}, read-only, for 30 minutes"
+                    aria-label="View as {t.name}"
                     disabled={viewAs.busy}
                     onclick={() => viewAs.start(t.id)}
                   >
@@ -276,12 +293,18 @@
                     <Icon name="lock" size={12} /> Always on
                   </span>
                 {:else if t.access === "disabled"}
-                  <Button small disabled={busy === t.id} onclick={() => setDisabled(t, false)}>Turn access on</Button>
+                  <Button
+                    small
+                    disabled={busy === t.id}
+                    aria-label="Turn access on for {t.name}"
+                    onclick={() => setDisabled(t, false)}>Turn access on</Button
+                  >
                 {:else}
                   <ConfirmButton
                     small
                     label="Disable"
                     confirmLabel="Sign out & block?"
+                    subject={t.name}
                     disabled={busy === t.id}
                     onconfirm={() => setDisabled(t, true)}
                   />
@@ -292,6 +315,7 @@
                     variant="ghost"
                     label="Remove"
                     confirmLabel="Remove invite?"
+                    subject={t.name}
                     disabled={busy === t.id}
                     onconfirm={() => remove(t)}
                   />
@@ -308,8 +332,18 @@
 <style>
   .name-link {
     color: inherit;
+    text-underline-offset: 3px;
   }
-  .name-link:hover {
+  .name-link:hover,
+  .name-link:focus-visible {
+    color: var(--blue);
+    text-decoration: underline;
+  }
+  .meta .log {
+    color: var(--muted);
+  }
+  .meta .log:hover,
+  .meta .log:focus-visible {
     color: var(--blue);
   }
   .cols {
@@ -379,7 +413,7 @@
   }
   .accounts li {
     display: grid;
-    grid-template-columns: 32px 1fr auto;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
     gap: 12px;
     align-items: start;
     padding: 12px 16px;
@@ -405,6 +439,10 @@
     display: block;
     object-fit: cover;
   }
+  .who {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .line {
     display: flex;
     align-items: center;
@@ -428,21 +466,17 @@
     font-size: 12px;
   }
 
-  /* Wide enough for both: accounts take the room, the add form sits beside them */
+  /* Wide enough for both: the add form leads on the left, accounts take the room beside it.
+     Same order as the DOM and the stacked layout, so tab order follows the eye. */
   @container main (min-width: 880px) {
     .cols {
       max-width: 1120px;
-      grid-template-columns: minmax(0, 1fr) 320px;
-      grid-template-areas: "list add";
+      grid-template-columns: 320px minmax(0, 1fr);
       align-items: start;
     }
     .cols > :global(.addp) {
-      grid-area: add;
       position: sticky;
       top: 16px;
-    }
-    .cols > :global(:not(.addp)) {
-      grid-area: list;
     }
     .fields {
       grid-template-columns: 1fr;

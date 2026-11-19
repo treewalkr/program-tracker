@@ -4,7 +4,8 @@
 	/**
 	 * Form field wrapper: label (+ optional subtle hint suffix), the control
 	 * via children, and an error line. The control itself stays a plain
-	 * `.input` / `.select` / `.textarea` element.
+	 * `.input` / `.select` / `.textarea` element. The error line gets the id
+	 * `{htmlFor}-err`, for the control's `aria-describedby`.
 	 */
 	interface Props {
 		label: string;
@@ -30,5 +31,5 @@
 		</span>
 	{/if}
 	{@render children()}
-	{#if error}<p class="err" role="alert">{error}</p>{/if}
+	{#if error}<p class="err" id={htmlFor ? `${htmlFor}-err` : undefined} role="alert">{error}</p>{/if}
 </div>
