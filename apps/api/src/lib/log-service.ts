@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
 import { CardioLog, Readiness, SessionFlag, SessionKind, SetType, type LoggedBy } from "@pt/shared";
 import { queueSignalsForOutbox } from "./signals-service";
@@ -99,6 +99,54 @@ export function serializeSets(rows: (typeof setLogs.$inferSelect)[]) {
 }
 
 type SerializedSet = ReturnType<typeof serializeSets>[number];
+
+/** Which session logs to read; the scope (e.g. a trainer's clients) is always applied. */
+export interface LogQuery {
+  scope: SQL;
+  clientIds?: string[];
+  programId?: string;
+  from?: string;
+  to?: string;
+  /** Newest N logs in all, or newest N per client when `perClient`. */
+  limit: number;
+  perClient?: boolean;
+}
+
+/**
+ * Session logs, newest first, each with its sets — two queries whatever the
+ * number of clients. Shared by GET /v1/logs/sessions and the home overview.
+ */
+export async function loadLogsWithSets(q: LogQuery) {
+  if (q.clientIds && q.clientIds.length === 0) return [];
+  const conds = [q.scope];
+  if (q.clientIds) conds.push(inArray(sessionLogs.clientId, q.clientIds));
+  if (q.programId) conds.push(eq(sessionLogs.programId, q.programId));
+  if (q.from) conds.push(gte(sessionLogs.date, q.from));
+  if (q.to) conds.push(lte(sessionLogs.date, q.to));
+  const where = and(...conds);
+  let logs;
+  if (q.perClient) {
+    const ranked = db
+      .select({
+        id: sessionLogs.id,
+        rank: sql<number>`row_number() over (partition by ${sessionLogs.clientId} order by ${sessionLogs.date} desc)`.as(
+          "rank"
+        ),
+      })
+      .from(sessionLogs)
+      .where(where)
+      .as("ranked");
+    const newest = db.select({ id: ranked.id }).from(ranked).where(lte(ranked.rank, q.limit));
+    logs = await db.select().from(sessionLogs).where(inArray(sessionLogs.id, newest)).orderBy(desc(sessionLogs.date));
+  } else {
+    logs = await db.select().from(sessionLogs).where(where).orderBy(desc(sessionLogs.date)).limit(q.limit);
+  }
+  const sets = logs.length
+    ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
+    : [];
+  const byLog = Map.groupBy(serializeSets(sets), (s) => s.sessionLogId);
+  return logs.map((l) => ({ ...l, sets: byLog.get(l.id) ?? [] }));
+}
 type ReplacedLog = typeof sessionLogs.$inferSelect & { sets: SerializedSet[] };
 
 export type CreateSessionLogResult =
