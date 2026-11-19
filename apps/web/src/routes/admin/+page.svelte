@@ -8,6 +8,7 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import Counter from "$lib/ui/Counter.svelte";
   import Field from "$lib/ui/Field.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
@@ -22,6 +23,15 @@
     disabled: { tone: "bad", label: "Disabled" },
   } as const;
   const RANK = { active: 0, invited: 1, disabled: 2 } as const;
+  type Show = "all" | TrainerAccount["access"];
+  const SHOW: { value: Show; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "invited", label: "Invited" },
+    { value: "disabled", label: "Disabled" },
+  ];
+  /** Past this many, disabled accounts fold away under "Show N disabled" in the All view. */
+  const FOLD_DISABLED = 3;
 
   let trainers = $state<TrainerAccount[] | null>(null);
   let loadError = $state<string | null>(null);
@@ -39,6 +49,8 @@
   let busy = $state<string | null>(null);
   let rowError = $state<{ id: string; text: string } | null>(null);
   let copied = $state(false);
+  let show = $state<Show>("all");
+  let showDisabled = $state(false);
   let copyFailed = $state(false);
 
   const nameErr = $derived(!name.trim() ? "Add their name" : undefined);
@@ -54,10 +66,26 @@
       (a, b) => Number(b.isAdmin) - Number(a.isAdmin) || RANK[a.access] - RANK[b.access] || a.name.localeCompare(b.name),
     ),
   );
+  const counts = $derived.by(() => {
+    const c = { all: 0, active: 0, invited: 0, disabled: 0 };
+    for (const t of trainers ?? []) {
+      c.all++;
+      c[t.access]++;
+    }
+    return c;
+  });
+  /** The All view folds disabled accounts away once there are more than a few. */
+  const folded = $derived(show === "all" && counts.disabled > FOLD_DISABLED && !showDisabled);
+  const shown = $derived(
+    sorted.filter((t) => (show === "all" ? !(folded && t.access === "disabled") : t.access === show)),
+  );
   const summary = $derived.by(() => {
     if (!trainers) return "Who can sign in to Program Tracker";
-    const n = (k: TrainerAccount["access"]) => trainers!.filter((t) => t.access === k).length;
-    return [`${n("active")} active`, n("invited") && `${n("invited")} invited`, n("disabled") && `${n("disabled")} disabled`]
+    return [
+      `${counts.active} active`,
+      counts.invited && `${counts.invited} invited`,
+      counts.disabled && `${counts.disabled} disabled`,
+    ]
       .filter(Boolean)
       .join(" · ");
   });
@@ -87,6 +115,7 @@
     try {
       const created = await adminApi.addTrainer({ name: name.trim(), email: email.trim() });
       trainers = [...(trainers ?? []), created];
+      if (show !== "all" && show !== created.access) show = "all";
       addedId = created.id;
       setTimeout(() => {
         if (addedId === created.id) addedId = null;
@@ -247,9 +276,12 @@
     {#if trainers === null}
       <SkeletonPanel title="Accounts" count rows={4} avatar={32} label="Loading trainers…" />
     {:else}
-      <Panel title="Accounts" count={trainers.length}>
+      <Panel aria-label="Accounts" act={filters}>
+        {#if shown.length === 0}
+          <p class="panel-body subtle none">No {show} trainers.</p>
+        {/if}
         <ul class="accounts">
-          {#each sorted as t (t.id)}
+          {#each shown as t (t.id)}
             <li class:dim={t.access === "disabled"} class:fresh={t.id === addedId}>
               <span class="face">
                 {#if t.avatarUrl}
@@ -325,7 +357,24 @@
             </li>
           {/each}
         </ul>
+        {#if show === "all" && counts.disabled > FOLD_DISABLED}
+          <div class="fold" class:open={!folded}>
+            <Button small variant="ghost" aria-expanded={!folded} onclick={() => (showDisabled = !showDisabled)}>
+              {#snippet icon()}<Icon name="chevron" />{/snippet}
+              {folded ? `Show ${counts.disabled} disabled` : "Hide disabled"}
+            </Button>
+          </div>
+        {/if}
       </Panel>
+      {#snippet filters()}
+        <div class="states" role="group" aria-label="Show trainers">
+          {#each SHOW as f (f.value)}
+            <button type="button" class="state" class:on={show === f.value} aria-pressed={show === f.value} onclick={() => (show = f.value)}>
+              {f.label}<Counter value={counts[f.value]} />
+            </button>
+          {/each}
+        </div>
+      {/snippet}
     {/if}
   </div>
 {/if}
@@ -407,6 +456,42 @@
     padding: 2px 6px;
   }
 
+  .states {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin: -4px -8px;
+  }
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    font: 400 14px var(--font-ui);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .state:hover {
+    color: var(--ink);
+    background: var(--well-2);
+  }
+  .state.on {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .none {
+    margin: 0;
+  }
+  .fold {
+    padding: 8px 16px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .fold.open :global(svg) {
+    transform: rotate(180deg);
+  }
   .accounts {
     list-style: none;
     margin: 0;
