@@ -62,7 +62,7 @@
       label: "Workspace",
       items: [
         { href: "/", label: "Overview", icon: "grid" },
-        { href: "/clients", label: "Clients", icon: "users" },
+        { href: "/clients", label: "Members", icon: "users" },
       ],
     },
     {
