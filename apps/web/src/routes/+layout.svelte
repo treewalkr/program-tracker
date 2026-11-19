@@ -12,6 +12,8 @@
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
+  import GuideSearch from "$lib/guide/GuideSearch.svelte";
+  import { searchShortcut } from "$lib/guide/searchState.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
   import { syncThemeAttribute } from "$lib/theme.svelte";
@@ -265,7 +267,9 @@
     disabled={!rail}
     text={item.href === "/feedback" && feedbackUnread.count
       ? `${item.label} · ${feedbackUnread.count} unread`
-      : item.label}
+      : item.href === "/guide"
+        ? `${item.label} · ${searchShortcut}`
+        : item.label}
   >
     {#snippet children()}
   <a
@@ -278,6 +282,9 @@
     <span class="nav-text">{item.label}</span>
     {#if item.href === "/clients" && clientCount !== null}
       <span class="count">{clientCount}</span>
+    {/if}
+    {#if item.href === "/guide"}
+      <kbd class="hint" aria-hidden="true">{searchShortcut}</kbd>
     {/if}
     {#if item.href === "/feedback" && feedbackUnread.count > 0}
       <span class="unread" aria-label="{feedbackUnread.count} unread">{feedbackUnread.count}</span>
@@ -451,6 +458,7 @@
   </main>
 </div>
 
+<GuideSearch />
 <!-- Hidden while viewing as a trainer: a ticket filed there would be filed as them. -->
 {#if !viewAs.live}<FeedbackLayer />{/if}
 <DraftNotice
@@ -722,6 +730,12 @@
     min-width: 18px;
     text-align: center;
   }
+  /* The guide search shortcut, quiet beside the Guide row. */
+  .hint {
+    margin-left: auto;
+    font: 500 11px/1 var(--font-mono);
+    color: var(--muted);
+  }
   .count {
     margin-left: auto;
     font: 500 12px/18px var(--font-mono);
@@ -830,7 +844,7 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
-  .rail .count, .rail .account-meta { display: none; }
+  .rail .count, .rail .hint, .rail .account-meta { display: none; }
   .rail .account { flex-direction: column; gap: 8px; padding: 8px 0; }
   .rail .mode-dot { margin: 0; }
   /* On the icon rail the unread count shrinks to a dot on the icon. */
