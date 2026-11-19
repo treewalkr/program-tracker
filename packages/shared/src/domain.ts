@@ -1200,14 +1200,16 @@ export function placeSession(w: ProgramWeek, id: string, weekday: number | null,
 }
 
 /** Copy week `from`'s placement (by session key) onto every other week — in an A/B
- *  block, only onto weeks with the same letter. Content untouched; sessions with
- *  no match in `from` keep their own placement. */
-export function applyPlacementToAllWeeks(weeks: ProgramWeek[], from: number): ProgramWeek[] {
+ *  block, only onto weeks with the same letter — or onto `targets` only (e.g. the
+ *  later weeks from `forwardWeeks`, so finished weeks keep their history). Content
+ *  untouched; sessions with no match in `from` keep their own placement. */
+export function applyPlacementToAllWeeks(weeks: ProgramWeek[], from: number, targets?: readonly number[]): ProgramWeek[] {
   const src = weeks.find((w) => w.week === from);
   if (!src) return weeks;
   const at = new Map(src.sessions.map((s) => [sessionKey(s), { weekday: s.weekday ?? null, order: s.order }]));
+  const only = targets ? new Set(targets) : null;
   return weeks.map((w) =>
-    w.week === from || (src.rotation != null && w.rotation !== src.rotation)
+    w.week === from || (only ? !only.has(w.week) : src.rotation != null && w.rotation !== src.rotation)
       ? w
       : { ...w, sessions: compactOrder(w.sessions.map((s) => ({ ...s, ...(at.get(sessionKey(s)) ?? {}) }))) }
   );

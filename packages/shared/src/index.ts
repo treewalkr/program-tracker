@@ -20,6 +20,7 @@ export * from "./scope";
 export * from "./deload";
 export * from "./load";
 export * from "./progression";
+export * from "./weekEdits";
 export * from "./client";
 export * from "./import";
 export * from "./importFixture";

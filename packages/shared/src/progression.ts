@@ -39,7 +39,8 @@ function progressSets(sets: PrescribedSet[], amount: number): PrescribedSet[] {
   return [...next, ...backoff.map((s) => ({ ...s }))].map((s, i) => ({ ...s, setNumber: i + 1 }));
 }
 
-function progressExercise(e: ProgramExercise, rule: WeekProgression | undefined): ProgramExercise {
+/** One exercise one week on: `rule` applied to its sets (no rule = a copy). Pure. */
+export function progressExercise(e: ProgramExercise, rule: WeekProgression | undefined): ProgramExercise {
   if (!rule) return { ...e, prescribedSets: e.prescribedSets.map((s) => ({ ...s })) };
   const sets = rule.kind === "sets" ? progressSets(e.prescribedSets, rule.amount) : e.prescribedSets.map((s) => progressSet(s, rule));
   return { ...e, prescribedSets: sets };
