@@ -1,10 +1,18 @@
 <script lang="ts">
+  import type { Component } from "svelte";
+  import Figure from "$lib/guide/Figure.svelte";
   import GuideDoc from "$lib/guide/GuideDoc.svelte";
-  import { PROGRAMS_GUIDE } from "$lib/guide/programsWeeks";
+  import { PROGRAMS_GUIDE, type GuideFig } from "$lib/guide/programsWeeks";
   import { rich } from "$lib/guide/rich";
   import { i18n } from "$lib/portal/i18n.svelte";
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
+  import WeekCalendarFigure from "$lib/guide/WeekCalendarFigure.svelte";
+
+  /** The drawn diagram for each `fig` block. */
+  const FIGS: Record<GuideFig, Component> = {
+    weeks: WeekCalendarFigure,
+  };
 
   const g = $derived(PROGRAMS_GUIDE[i18n.locale]);
   const toc = $derived(g.sections.map((s) => [s.id, s.h] as const));
@@ -23,7 +31,10 @@
     <section id={section.id}>
       <h2>{section.h}</h2>
       {#each section.blocks as block, bi (bi)}
-        {#if "p" in block}
+        {#if "fig" in block}
+          {@const Fig = FIGS[block.fig]}
+          <Figure caption={block.caption}><Fig /></Figure>
+        {:else if "p" in block}
           <p>{@html rich(block.p)}</p>
         {:else if "aside" in block}
           <p class="aside">{@html rich(block.aside)}</p>

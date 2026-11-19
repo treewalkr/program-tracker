@@ -10,8 +10,12 @@ import type { Locale } from "$lib/portal/messages";
  * Each section is a list of blocks so the page renders them in order without
  * a bespoke template per section.
  * Inline markup: **bold**, *italic*, `code`, and ⟦tone|label⟧ for a Pill.
+ * A `fig` block is a drawn diagram (see the page's figure map) with a caption.
  */
+export type GuideFig = "weeks";
+
 export type Block =
+  | { fig: GuideFig; caption: string }
   | { p: string }
   | { aside: string }
   | { steps: { h: string; p: string }[] }
@@ -80,6 +84,10 @@ const en: ProgramsGuide = {
       blocks: [
         {
           p: "A week is **7 days counted from the day Week 1 starts** — not Monday to Sunday. Start a program on a Tuesday and every week runs Tuesday to Monday.",
+        },
+        {
+          fig: "weeks",
+          caption: "A program activated on Tue 10 Nov. Each week is 7 days from the day Week 1 starts, so every week runs Tuesday to Monday (sample dates).",
         },
         {
           defs: [
@@ -298,6 +306,10 @@ const th: ProgramsGuide = {
       blocks: [
         {
           p: "หนึ่งสัปดาห์คือ **7 วัน นับจากวันเริ่มสัปดาห์ที่ 1** ไม่ใช่จันทร์ถึงอาทิตย์ ถ้าเริ่มโปรแกรมวันอังคาร ทุกสัปดาห์ก็จะเป็นอังคารถึงจันทร์",
+        },
+        {
+          fig: "weeks",
+          caption: "โปรแกรมนี้เปิดใช้วันอังคารที่ 10 พ.ย. แต่ละสัปดาห์คือ 7 วันนับจากวันเริ่มสัปดาห์ที่ 1 ทุกสัปดาห์จึงเป็นอังคารถึงจันทร์ (วัน\u2060ที่ตัวอย่าง)",
         },
         {
           defs: [
