@@ -22,7 +22,7 @@ const sameName = (labels: RoleLabel[], name: string, except?: string) =>
 const taken = (name: string) => ({ error: `"${name}" is already a label` });
 
 /**
- * Role labels (docs/role-labels-plan.md): the six built-ins plus the trainer's
+ * Role labels (docs/role-labels-plan.md): the built-ins plus the trainer's
  * own. Built-ins keep their key and name; the trainer may change their chip,
  * meaning and position. Own labels are archived, never deleted — programs
  * still render them.

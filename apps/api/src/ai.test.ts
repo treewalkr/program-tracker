@@ -220,15 +220,21 @@ describe("buildGenerationMessages", () => {
       catalog: [],
       trainerInstructions: "",
     });
-    expect(system).toContain('"role": "power" | "primary" | "secondary" | "strength" | "accessory" | "core"');
+    expect(system).toContain(
+      '"role": "movement_prep" | "power" | "primary" | "secondary" | "strength" | "supplemental" | "accessory" | "core" | "conditioning" | "mobility"'
+    );
     expect(system).toContain("One Primary per exercise session");
     for (const line of [
-      "power (Power): Explosive",
-      "primary (Primary): The main lift",
-      "secondary (Secondary): The second-priority lift",
+      "movement_prep (Movement Prep): Prepare the body for training",
+      "power (Power): Develop explosive force",
+      "primary (Primary): The main exercise around which the session is structured.",
+      "secondary (Secondary): Secondary compound movement supporting the primary objective.",
       "strength (Strength): Work for maximal force",
-      "accessory (Auxiliary): Assistance work",
-      "core (Core): Trunk and anti-movement",
+      "supplemental (Strength / Supplemental): Additional force-development work",
+      "accessory (Auxiliary): Targeted assistance, unilateral and isolation work",
+      "core (Core): Trunk stability and anti-movement capacity",
+      "conditioning (Conditioning): Energy system development and work capacity",
+      "mobility (Mobility / Recovery): Restore movement quality and support recovery",
     ]) {
       expect(system).toContain(line);
     }
@@ -248,7 +254,7 @@ describe("buildGenerationMessages", () => {
       buildGenerationMessages(base),
       buildWeekMessages({ ...base, targetWeek: 2, plannedWeeks: 4, targetDirective: null, target: null }),
     ]) {
-      expect(system).toContain(`"role": "power" | "label:${id}" | "primary"`);
+      expect(system).toContain(`"role": "movement_prep" | "power" | "label:${id}" | "primary"`);
       expect(system).toContain(`label:${id} (Speed): Fast, light reps.`);
       expect(system).toContain("core (Core): Abs, my way.");
       expect(system).not.toContain(gone);

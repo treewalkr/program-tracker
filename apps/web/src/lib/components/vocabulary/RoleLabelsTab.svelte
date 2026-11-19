@@ -11,7 +11,7 @@
   import Pill from "$lib/ui/Pill.svelte";
 
   /**
-   * Role labels: the six built-ins and the trainer's own, in rank order (the
+   * Role labels: the built-ins and the trainer's own, in rank order (the
    * order sessions are sorted in). Built-ins keep their name; their chip,
    * meaning and position can change. Own labels are archived, never deleted —
    * programs still show them — and come back with Restore.

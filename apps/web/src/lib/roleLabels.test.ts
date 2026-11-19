@@ -11,7 +11,19 @@ const labels = mergeRoleLabels([
 
 describe("searchRoleLabels", () => {
   test("empty query → every active label by rank", () => {
-    expect(searchRoleLabels(labels, "").map((l) => l.name)).toEqual(["Power", "Speed", "Primary", "Secondary", "Strength", "Auxiliary", "Core"]);
+    expect(searchRoleLabels(labels, "").map((l) => l.name)).toEqual([
+      "Movement Prep",
+      "Power",
+      "Speed",
+      "Primary",
+      "Secondary",
+      "Strength",
+      "Strength / Supplemental",
+      "Auxiliary",
+      "Core",
+      "Conditioning",
+      "Mobility / Recovery",
+    ]);
   });
   test("matches name, chip and meaning; name hits first", () => {
     expect(searchRoleLabels(labels, "aux").map((l) => l.name)).toEqual(["Auxiliary"]);
@@ -19,6 +31,10 @@ describe("searchRoleLabels", () => {
     expect(searchRoleLabels(labels, "trunk").map((l) => l.name)).toEqual(["Core"]);
     expect(searchRoleLabels(labels, "spd").map((l) => l.name)).toEqual(["Speed"]);
     expect(searchRoleLabels(labels, "heavy loads").map((l) => l.name)).toEqual(["Strength"]);
+    expect(searchRoleLabels(labels, "supp").map((l) => l.name)[0]).toBe("Strength / Supplemental");
+    expect(searchRoleLabels(labels, "mob").map((l) => l.name)[0]).toBe("Mobility / Recovery");
+    expect(searchRoleLabels(labels, "warm").map((l) => l.name)).toEqual(["Movement Prep"]);
+    expect(searchRoleLabels(labels, "rower").map((l) => l.name)).toEqual(["Conditioning"]);
   });
   test("archived labels never show", () => {
     expect(searchRoleLabels(labels, "old")).toEqual([]);
@@ -26,12 +42,13 @@ describe("searchRoleLabels", () => {
 });
 
 describe("groupRoleLabels", () => {
-  test("priority, training quality, body region, then the trainer's own", () => {
+  test("priority, training quality, body region, prep & recovery, then the trainer's own", () => {
     const groups = groupRoleLabels(searchRoleLabels(labels, ""));
     expect(groups.map((g) => [g.label, g.items.map((l) => l.name)])).toEqual([
       ["Priority", ["Primary", "Secondary", "Auxiliary"]],
-      ["Training quality", ["Power", "Strength"]],
+      ["Training quality", ["Power", "Strength", "Strength / Supplemental", "Conditioning"]],
       ["Body region", ["Core"]],
+      ["Prep & recovery", ["Movement Prep", "Mobility / Recovery"]],
       ["Your labels", ["Speed"]],
     ]);
   });

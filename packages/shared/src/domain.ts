@@ -370,13 +370,26 @@ export type SetType = z.infer<typeof SetType>;
 
 /**
  * The label on a program exercise: what the trainer emphasizes with it in the
- * session. Built-in keys, in their default order. Labels come from three
+ * session. Built-in keys, in their default order. Labels come from four
  * categories — priority (Primary, Secondary, Auxiliary), training quality
- * (Power, Strength) and body region (Core). Secondary and Strength are two
- * different labels. "core" here is the body-region label, not the `core`
- * muscle group. Trainers add their own labels (`label:<uuid>`, roles.ts).
+ * (Power, Strength, Strength / Supplemental, Conditioning), body region (Core)
+ * and prep & recovery (Movement Prep, Mobility / Recovery). Secondary,
+ * Strength and Strength / Supplemental are different labels. "core" here is
+ * the body-region label, not the `core` muscle group. Trainers add their own
+ * labels (`label:<uuid>`, roles.ts).
  */
-export const EXERCISE_ROLES = ["power", "primary", "secondary", "strength", "accessory", "core"] as const;
+export const EXERCISE_ROLES = [
+  "movement_prep",
+  "power",
+  "primary",
+  "secondary",
+  "strength",
+  "supplemental",
+  "accessory",
+  "core",
+  "conditioning",
+  "mobility",
+] as const;
 export const BuiltinRole = z.enum(EXERCISE_ROLES);
 export type BuiltinRole = z.infer<typeof BuiltinRole>;
 
@@ -391,40 +404,54 @@ export const isBuiltinRole = (r: unknown): r is BuiltinRole =>
   typeof r === "string" && (EXERCISE_ROLES as readonly string[]).includes(r);
 export const customRoleKey = (id: string): CustomRole => `${CUSTOM_ROLE_PREFIX}${id}` as CustomRole;
 
-export const ROLE_CATEGORIES = ["priority", "quality", "region"] as const;
+export const ROLE_CATEGORIES = ["priority", "quality", "region", "prep"] as const;
 export type RoleCategory = (typeof ROLE_CATEGORIES)[number];
 export const ROLE_CATEGORY_NAMES: Record<RoleCategory, string> = {
   priority: "Priority",
   quality: "Training quality",
   region: "Body region",
+  prep: "Prep & recovery",
 };
 
-/** Name (pickers), chip (the trainer's shorthand), category, default rank and
- *  meaning per built-in label; the meaning is also fed to the AI prompt. */
+/**
+ * Name (pickers), chip (the trainer's shorthand), category, default rank and
+ * meaning per built-in label; the meaning is also fed to the AI prompt.
+ * Ranks of the labels added later (Supplemental 440, Conditioning 640,
+ * Mobility 740) sit at a non-dyadic fraction of the 100 gap, so they never tie
+ * with a trainer label placed by `rankAfter` (midpoints: 450, 425, 650, 700 …).
+ */
 export const EXERCISE_ROLE_INFO: Record<
   BuiltinRole,
   { name: string; chip: string; category: RoleCategory; rank: number; description: string }
 > = {
+  movement_prep: {
+    name: "Movement Prep",
+    chip: "Prep",
+    category: "prep",
+    rank: 50,
+    description: "Prepare the body for training — activation, dynamic warm-up, ramp-up drills.",
+  },
   power: {
     name: "Power",
     chip: "Power",
     category: "quality",
     rank: 100,
-    description: "Explosive, low-rep work done fresh — jumps, throws, Olympic lift variations.",
+    description:
+      "Develop explosive force and rate of force development — jumps, throws, Olympic lift variations, done fresh.",
   },
   primary: {
     name: "Primary",
     chip: "Primary",
     category: "priority",
     rank: 200,
-    description: "The main lift the session is built around.",
+    description: "The main exercise around which the session is structured.",
   },
   secondary: {
     name: "Secondary",
     chip: "Secondary",
     category: "priority",
     rank: 300,
-    description: "The second-priority lift of the session.",
+    description: "Secondary compound movement supporting the primary objective.",
   },
   strength: {
     name: "Strength",
@@ -433,19 +460,41 @@ export const EXERCISE_ROLE_INFO: Record<
     rank: 400,
     description: "Work for maximal force — heavy loads, low to moderate reps.",
   },
+  supplemental: {
+    name: "Strength / Supplemental",
+    chip: "Supp",
+    category: "quality",
+    rank: 440,
+    description: "Additional force-development work — close variations of the main lifts, extra compound sets, moderate loads.",
+  },
   accessory: {
     name: "Auxiliary",
     chip: "Aux",
     category: "priority",
     rank: 500,
-    description: "Assistance work — isolation, weak points, balance, usually higher reps.",
+    description:
+      "Targeted assistance, unilateral and isolation work — weak points, balance, usually higher reps.",
   },
   core: {
     name: "Core",
     chip: "Core",
     category: "region",
     rank: 600,
-    description: "Trunk and anti-movement work, typically closing the session.",
+    description: "Trunk stability and anti-movement capacity — planks, Pallof presses, carries, rollouts.",
+  },
+  conditioning: {
+    name: "Conditioning",
+    chip: "Cond",
+    category: "quality",
+    rank: 640,
+    description: "Energy system development and work capacity — intervals, bike, rower, sleds.",
+  },
+  mobility: {
+    name: "Mobility / Recovery",
+    chip: "Mob",
+    category: "prep",
+    rank: 740,
+    description: "Restore movement quality and support recovery — stretching, foam rolling, breathing.",
   },
 };
 

@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mockApi } from "./api";
 
 describe("mockApi role labels (mirrors /v1/vocabulary/role-labels)", () => {
-  test("starts with the six built-ins", async () => {
-    expect((await mockApi.roleLabels()).map((l) => l.name)).toEqual(["Power", "Primary", "Secondary", "Strength", "Auxiliary", "Core"]);
+  test("starts with the built-ins", async () => {
+    expect((await mockApi.roleLabels()).map((l) => l.name)).toEqual(["Movement Prep", "Power", "Primary", "Secondary", "Strength", "Strength / Supplemental", "Auxiliary", "Core", "Conditioning", "Mobility / Recovery"]);
   });
 
   test("create after a label, refuse duplicates, edit, archive and restore", async () => {

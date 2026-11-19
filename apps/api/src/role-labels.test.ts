@@ -35,12 +35,12 @@ afterAll(async () => {
 });
 
 describe.skipIf(!dbUp)("role labels", () => {
-  test("a fresh trainer gets the six built-ins in order", async () => {
+  test("a fresh trainer gets the built-ins in order", async () => {
     await db.delete(roleLabels).where(eq(roleLabels.trainerId, await getDefaultTrainerId()));
     const res = await call("GET", "/v1/vocabulary/role-labels");
     expect(res.status).toBe(200);
-    expect(res.body.map((l: any) => l.name)).toEqual(["Power", "Primary", "Secondary", "Strength", "Auxiliary", "Core"]);
-    expect(res.body[3]).toMatchObject({ key: "strength", chip: "Str", category: "quality", archived: false });
+    expect(res.body.map((l: any) => l.name)).toEqual(["Movement Prep", "Power", "Primary", "Secondary", "Strength", "Strength / Supplemental", "Auxiliary", "Core", "Conditioning", "Mobility / Recovery"]);
+    expect(res.body[4]).toMatchObject({ key: "strength", chip: "Str", category: "quality", archived: false });
   });
 
   test("create a label after another; it sorts between its neighbours", async () => {

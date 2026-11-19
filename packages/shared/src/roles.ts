@@ -46,7 +46,7 @@ export interface RoleLabelRowLike {
   archivedAt: Date | string | null;
 }
 
-/** The six built-ins with their defaults, in order. */
+/** The built-ins with their defaults, in order. */
 export const BUILTIN_ROLE_LABELS: readonly RoleLabel[] = EXERCISE_ROLES.map((r) => ({
   key: r,
   builtinKey: r,

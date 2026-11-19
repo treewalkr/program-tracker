@@ -28,20 +28,43 @@ const row = (o: Partial<Parameters<typeof mergeRoleLabels>[0][number]>) => ({
 });
 
 describe("mergeRoleLabels", () => {
-  test("no rows → the six built-ins in default order", () => {
-    expect(mergeRoleLabels([]).map((l) => l.name)).toEqual(["Power", "Primary", "Secondary", "Strength", "Auxiliary", "Core"]);
-    expect(mergeRoleLabels([]).map((l) => l.chip)).toEqual(["Power", "Primary", "Secondary", "Str", "Aux", "Core"]);
+  test("no rows → the built-ins in default order", () => {
+    expect(mergeRoleLabels([]).map((l) => l.name)).toEqual([
+      "Movement Prep",
+      "Power",
+      "Primary",
+      "Secondary",
+      "Strength",
+      "Strength / Supplemental",
+      "Auxiliary",
+      "Core",
+      "Conditioning",
+      "Mobility / Recovery",
+    ]);
+    expect(mergeRoleLabels([]).map((l) => l.chip)).toEqual(["Prep", "Power", "Primary", "Secondary", "Str", "Supp", "Aux", "Core", "Cond", "Mob"]);
+    expect(mergeRoleLabels([]).map((l) => l.category)).toEqual([
+      "prep",
+      "quality",
+      "priority",
+      "priority",
+      "quality",
+      "quality",
+      "priority",
+      "region",
+      "quality",
+      "prep",
+    ]);
   });
 
   test("a custom label slots in by rank, chip defaults to its name", () => {
     const merged = mergeRoleLabels([row({})]);
-    expect(merged.map((l) => l.name)).toEqual(["Power", "Speed", "Primary", "Secondary", "Strength", "Auxiliary", "Core"]);
-    expect(merged[1]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
+    expect(merged.map((l) => l.name).slice(0, 4)).toEqual(["Movement Prep", "Power", "Speed", "Primary"]);
+    expect(merged[2]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
   });
 
   test("an override row changes a built-in's chip, meaning and rank — never its key or name", () => {
-    const merged = mergeRoleLabels([row({ id: id2, builtinKey: "core", name: "ignored", chip: "Trunk", description: "Abs.", rank: 50 })]);
-    expect(merged[0]).toMatchObject({ key: "core", name: "Core", chip: "Trunk", description: "Abs.", rank: 50, category: "region" });
+    const merged = mergeRoleLabels([row({ id: id2, builtinKey: "core", name: "ignored", chip: "Trunk", description: "Abs.", rank: 25 })]);
+    expect(merged[0]).toMatchObject({ key: "core", name: "Core", chip: "Trunk", description: "Abs.", rank: 25, category: "region" });
     expect(merged.filter((l) => l.key === "core")).toHaveLength(1);
   });
 
@@ -83,10 +106,27 @@ describe("mergeRoleLabels", () => {
 
 describe("rankAfter", () => {
   test("halfway to the next label, or past the last", () => {
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "movement_prep")).toBe(75);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "power")).toBe(150);
-    expect(rankAfter(BUILTIN_ROLE_LABELS, "core")).toBe(700);
-    expect(rankAfter(BUILTIN_ROLE_LABELS)).toBe(700);
-    expect(rankAfter(BUILTIN_ROLE_LABELS, "nope")).toBe(700);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "strength")).toBe(420);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "core")).toBe(620);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "mobility")).toBe(840);
+    expect(rankAfter(BUILTIN_ROLE_LABELS)).toBe(840);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "nope")).toBe(840);
+  });
+  test("later built-ins never tie with a label placed among the first six", () => {
+    // Labels made before Supplemental, Conditioning and Mobility existed sit at
+    // 100-step ranks halved again and again (450, 425, 650, 700, 675, 800 …).
+    const older = BUILTIN_ROLE_LABELS.filter((l) => l.rank % 100 === 0);
+    const ranks = new Set(older.map((l) => l.rank));
+    let labels = [...older];
+    for (let round = 0; round < 6; round++) {
+      for (const after of labels.map((l) => l.key)) ranks.add(rankAfter(labels, after));
+      labels = [...ranks].map((rank, i) => ({ ...older[0], key: `label:${i}`, rank }));
+    }
+    for (const key of ["supplemental", "conditioning", "mobility"]) {
+      expect(ranks.has(BUILTIN_ROLE_LABELS.find((l) => l.key === key)!.rank)).toBe(false);
+    }
   });
   test("skips archived labels", () => {
     const merged = mergeRoleLabels([row({ rank: 150, archivedAt: "2026-01-01" })]);
