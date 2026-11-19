@@ -465,12 +465,25 @@ export interface ClientPortalDto {
   lastSeenAt: string | null;
 }
 
-/** One home-dashboard row (GET /v1/clients/overview): what the page used to fetch per client. */
+/** The client fields the home dashboard reads (the GraphQL trial asks for just these). */
+export type DashboardClientDto = Pick<ClientDto, "id" | "name" | "status" | "sessionsPerWeek" | "cardioTarget" | "createdAt">;
+/** The program fields a contributions strip reads. */
+export type DashboardProgramDto = Pick<
+  ProgramDto,
+  "id" | "clientId" | "name" | "status" | "weeks" | "activatedAt" | "startsOn" | "createdAt"
+>;
+/** The log fields a contributions strip reads. */
+export type DashboardLogDto = Pick<SessionLogDto, "id" | "programId" | "programSessionId" | "date" | "kind" | "cardio"> & {
+  sets: Pick<SessionLogDto["sets"][number], "exerciseId" | "type" | "weightKg" | "reps">[];
+};
+
+/** One home-dashboard row (GET /v1/clients/overview, or the `dashboard` GraphQL query):
+ *  what the page used to fetch per client. REST sends whole rows; the page reads these fields. */
 export interface ClientOverviewDto {
-  client: ClientDto;
-  currentProgram: ProgramDto | null;
+  client: DashboardClientDto;
+  currentProgram: DashboardProgramDto | null;
   /** Newest 200, newest first, each with its sets — same as `sessionLogs(clientId)`. */
-  logs: SessionLogDto[];
+  logs: DashboardLogDto[];
   /** The portal access link; null while the portal is off. */
   portalLink: string | null;
 }

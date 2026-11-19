@@ -10,7 +10,7 @@ import {
   timedExerciseIds,
   type DayVolume,
 } from "@pt/shared";
-import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
+import type { DashboardClientDto, DashboardLogDto, DashboardProgramDto } from "$lib/api/types";
 
 /**
  * A planned session's state on its date. `unlogged` is the grace period: a past
@@ -57,7 +57,7 @@ export interface StripDay {
 export type ClientException = "missed" | "unlogged" | "today" | "on-track" | "none";
 
 export interface ClientStrip {
-  client: ClientDto;
+  client: DashboardClientDto;
   program: string | null;
   /** Calendar weeks oldest → current, seven days each. */
   weeks: StripDay[][];
@@ -133,9 +133,9 @@ const STATUS_RANK: SessionStatus[] = ["missed", "unlogged", "today", "upcoming",
  * A past session not logged is `unlogged` for `GRACE_DAYS`, then `missed`.
  */
 export function buildClientStrip(
-  client: ClientDto,
-  program: ProgramDto | null,
-  logs: SessionLogDto[],
+  client: DashboardClientDto,
+  program: DashboardProgramDto | null,
+  logs: DashboardLogDto[],
   weeks: string[][],
   today: string
 ): ClientStrip {
@@ -162,12 +162,12 @@ export function buildClientStrip(
   const slotById = new Map(allSessions.map((s) => [s.id, slot(s)] as const));
   const nameById = new Map(allSessions.map((s) => [s.id, s.name] as const));
   const timed = program ? timedExerciseIds(program) : new Set<string>();
-  const logsByDate = new Map<string, SessionLogDto[]>();
+  const logsByDate = new Map<string, DashboardLogDto[]>();
   for (const l of logs) {
     const d = l.date.slice(0, 10);
     logsByDate.set(d, [...(logsByDate.get(d) ?? []), l]);
   }
-  const extraName = (l: SessionLogDto) =>
+  const extraName = (l: DashboardLogDto) =>
     (l.programSessionId && nameById.get(l.programSessionId)) || (l.kind === "cardio" ? "Logged cardio" : "Logged session");
 
   for (const dates of weeks) {
@@ -182,7 +182,7 @@ export function buildClientStrip(
       inWeek.filter((l) => !l.programSessionId || !slotById.has(l.programSessionId)).map((l) => l.date.slice(0, 10))
     );
 
-    let byDay = new Map<number, NonNullable<ProgramDto["weeks"]>[number]["sessions"]>();
+    let byDay = new Map<number, NonNullable<DashboardProgramDto["weeks"]>[number]["sessions"]>();
     if (hasPlan && program) {
       // The block week this calendar week is "in", read on today's weekday — like the logger.
       const probe = addDays(today, -7 * (weeks.length - 1 - weeks.indexOf(dates)));

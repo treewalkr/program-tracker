@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
-  import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
+  import type { DashboardClientDto, ProviderDto, SignalDto } from "$lib/api/types";
   import {
     buildClientStrip,
     exceptionOrder,
@@ -26,7 +26,7 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Note from "$lib/ui/Note.svelte";
 
-  let clients = $state<ClientDto[] | null>(null);
+  let clients = $state<DashboardClientDto[] | null>(null);
   let providers = $state<ProviderDto[]>([]);
   let loadError = $state<string | null>(null);
   let currentNames = $state<Record<string, string>>({});

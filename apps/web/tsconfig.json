@@ -11,6 +11,15 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler",
+		// GraphQL trial (/v1/graphql): gql.tada types queries from the API's SDL;
+		// `bun run gql:generate` rewrites the output file below after the SDL changes.
+		"plugins": [
+			{
+				"name": "@0no-co/graphqlsp",
+				"schema": "../api/src/graphql/schema.graphql",
+				"tadaOutputLocation": "./src/lib/graphql/graphql-env.d.ts"
+			}
+		],
 		// Eden treaty<App> requires ONE elysia type identity. Bun's isolated linker
 		// gives web and api separate store entries for the same version; alias the
 		// web check to the api's copy (type-check only — no runtime effect).

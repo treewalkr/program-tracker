@@ -42,6 +42,11 @@ import { browser } from "$app/environment";
 import { toLogin } from "./auth";
 import { client } from "./treaty";
 import { trainerWire } from "./wire";
+import { env } from "$env/dynamic/public";
+import { fetchDashboard } from "$lib/graphql/dashboard";
+
+/** Which transport loads the home dashboard: REST over Eden (default) or the GraphQL trial. */
+const dashboardSource = env.PUBLIC_DASHBOARD_SOURCE === "graphql" ? "graphql" : "rest";
 
 /**
  * Eden result → thrown Error, preserving the API's `error` message envelope.
@@ -74,7 +79,8 @@ export const realApi: TrainerApi = {
   providers: async () =>
     (await unwrap<{ providers: ProviderDto[] }>(client.v1.ai.providers.get())).providers,
   clients: () => unwrap<ClientDto[]>(client.v1.clients.get()),
-  clientsOverview: () => unwrap<ClientOverviewDto[]>(client.v1.clients.overview.get()),
+  clientsOverview: () =>
+    dashboardSource === "graphql" ? fetchDashboard() : unwrap<ClientOverviewDto[]>(client.v1.clients.overview.get()),
   roster: async (query) => {
     const page = await unwrap<RosterPageDto>(client.v1.clients.roster.get({ query }));
     // Eden revives the calendar day into a Date; hand pages the YYYY-MM-DD the API sent.
