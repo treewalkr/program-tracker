@@ -3,7 +3,7 @@ import type { CardioTarget } from "./domain";
 import { DELOAD_RULES } from "./deload";
 import { shortDate } from "./autoreg";
 import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
-import { blockPulse, blockWeekOfDate, daysIntoBlock, localDateOf, mainLiftIds, pulseSummary, timedExerciseIds, weekOf } from "./metrics";
+import { blockPulse, blockWeekOfDate, daysIntoBlock, daysTracked, localDateOf, mainLiftIds, pulseSummary, timedExerciseIds, trackingStartDate, weekOf } from "./metrics";
 import type { SignalLog, SignalProgram } from "./metrics";
 
 /**
@@ -175,6 +175,8 @@ export function computeSignals(
   deloadRules = DELOAD_RULES
 ): Signal[] {
   if (!program || program.status !== "active") return [];
+  // Week 1 hasn't started yet (a future start date): nothing is due, nothing to flag.
+  if (daysIntoBlock(program, logs, now) < 0) return [];
   const signals: Signal[] = [];
   const week = weekOf(program, logs, now);
   const ph = program.phasing;
@@ -310,15 +312,17 @@ export function computeSignals(
   // Adherence: exercise sessions logged vs sessions DUE SO FAR. Logs count exercise logs only
   // (cardio never inflates), so the weekly rate is the program week's EXERCISE session
   // count, falling back to the client's sessionsPerWeek when the week has no exercise session doc.
-  // Due = rate × elapsed days ÷ 7 from the block anchor — nothing is due before it,
+  // Due = rate × elapsed days ÷ 7 from tracking start (trackingStartDate: the anchor, or the
+  // activation day when Week 1 was set to start earlier) — weeks before it are never missed —
   // and the rule waits a full week before judging.
   // Suppressed near block end — the block-ending review already brings the trainer in.
   const phaseSignalExists = signals.some((s) => s.kind === "block-ending" || s.kind === "deload-week");
-  const elapsedDays = daysIntoBlock(program, programLogs, now);
+  const elapsedDays = daysTracked(program, programLogs, now);
   const plannedExerciseSessions = weekSessions(program.weeks, week).filter((s) => s.kind !== "cardio").length;
   const perWeek = plannedExerciseSessions > 0 ? plannedExerciseSessions : (clientSessionsPerWeek ?? 0);
   const expected = (perWeek * elapsedDays) / 7;
-  const logged = programLogs.filter((l) => l.kind !== "cardio").length;
+  const tracked = trackingStartDate(program, programLogs);
+  const logged = programLogs.filter((l) => l.kind !== "cardio" && l.date.slice(0, 10) >= tracked).length;
   if (!phaseSignalExists && elapsedDays >= 7 && expected > 0 && logged / expected < 0.6) {
     signals.push({
       ...owner,

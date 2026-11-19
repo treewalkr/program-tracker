@@ -129,6 +129,33 @@ const liftProgram = (activatedAt: string): SignalProgram => ({
   createdAt: activatedAt,
 });
 
+describe("start date (startsOn)", () => {
+  const due = (now: number, program: SignalProgram, logs: SignalLog[] = []) =>
+    computeSignals(program, logs, () => "Squat", 3, now).find((s) => s.kind === "adherence");
+
+  test("adherence counts from activation when Week 1 was set to start earlier", () => {
+    const now = new Date(2026, 9, 29, 12).getTime();
+    // Week 1 moved back to Oct 1, activated Oct 23: only 6 days tracked → not judged yet.
+    expect(due(now, { ...liftProgram("2026-10-23"), startsOn: "2026-10-01" })).toBeUndefined();
+    // Activated Oct 16 (13 days tracked), no logs: 0 of ~6 — the weeks before Oct 16 are never missed.
+    const a = due(now, { ...liftProgram("2026-10-16"), startsOn: "2026-10-01" });
+    expect(a?.evidence).toContain("0 of ~6");
+    expect(a?.evidence).toContain("over 13 days");
+  });
+
+  test("no program signals before Week 1 starts", () => {
+    const now = new Date(2026, 9, 29, 12).getTime();
+    const program: SignalProgram = {
+      ...liftProgram("2026-09-01"),
+      startsOn: "2026-11-02",
+      phasing: { plannedWeeks: 1, phase: "base" },
+    };
+    expect(computeSignals(program, [], () => "Squat", 3, now)).toEqual([]);
+    // Once it starts, the block's signals come back (1-week block → block-ending).
+    expect(computeSignals(program, [], () => "Squat", 3, new Date(2026, 10, 3, 12).getTime()).length).toBeGreaterThan(0);
+  });
+});
+
 describe("adherence counts exercise logs only", () => {
   test("cardio logs never inflate the session count", () => {
     const now = new Date(2026, 9, 29, 12).getTime();

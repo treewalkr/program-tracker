@@ -14,6 +14,8 @@ export interface SignalProgram {
   status: string;
   weeks: ProgramWeek[];
   activatedAt?: string | null;
+  /** The day Week 1 starts (YYYY-MM-DD), set on activation or later; null/absent = legacy anchor. */
+  startsOn?: string | null;
   createdAt: string;
   phasing?: Phasing | null;
 }
@@ -80,11 +82,13 @@ export interface WeekMetrics {
   plannedOnly: boolean;
 }
 
-/** Block anchor: the earlier of `activatedAt` and the program's first log
- *  (logs backfilled before activation belong to the block), else `createdAt`.
- *  Every block-week window — pulse, week summary, signals, adherence, the
- *  overview grid — derives from this one date. */
+/** Block anchor: the program's `startsOn` (the day Week 1 starts) when set.
+ *  Legacy rule for programs without one: the earlier of `activatedAt` and the
+ *  program's first log (logs backfilled before activation belong to the block),
+ *  else `createdAt`. Every block-week window — pulse, week summary, signals,
+ *  adherence, the overview grid — derives from this one date. */
 export function blockAnchorDate(program: SignalProgram, logs: SignalLog[]): string {
+  if (program.startsOn) return program.startsOn.slice(0, 10);
   const firstLog = logs
     .filter((l) => l.programId === program.id)
     .map((l) => l.date)
@@ -96,6 +100,24 @@ export function blockAnchorDate(program: SignalProgram, logs: SignalLog[]): stri
 
 const DAY_MS = 86_400_000;
 const dayNumber = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) / DAY_MS;
+
+/**
+ * First day the block is tracked: the later of the anchor and the earlier of
+ * the activation day and the first log. Weeks before it (a start date moved
+ * into the past) are "before tracking": never missed, not counted in adherence.
+ * Equals the anchor for every program without a `startsOn`, and for one that
+ * starts on or after its activation.
+ */
+export function trackingStartDate(program: SignalProgram, logs: SignalLog[]): string {
+  const anchor = blockAnchorDate(program, logs).slice(0, 10);
+  const firstLog = logs
+    .filter((l) => l.programId === program.id)
+    .map((l) => l.date.slice(0, 10))
+    .sort()[0];
+  const activated = program.activatedAt?.slice(0, 10) ?? null;
+  const began = [activated, firstLog].filter((d): d is string => d != null).sort()[0];
+  return began && began > anchor ? began : anchor;
+}
 
 /** Runtime-local calendar date (YYYY-MM-DD) of an epoch-ms instant. */
 export function localDateOf(now: number): string {
@@ -121,6 +143,11 @@ export function daysIntoBlock(
   now = Date.now()
 ): number {
   return blockDayOfDate(program, logs, localDateOf(now));
+}
+
+/** Whole calendar days since tracking started (`trackingStartDate`), up to today (runtime-local). */
+export function daysTracked(program: SignalProgram, logs: SignalLog[], now = Date.now()): number {
+  return dayNumber(localDateOf(now)) - dayNumber(trackingStartDate(program, logs));
 }
 
 /** 1-indexed block week containing today — same buckets as the logs. */

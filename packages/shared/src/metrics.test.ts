@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   blockAnchorDate,
+  trackingStartDate,
   blockPulse,
   blockWeekOfDate,
   chainBalanceText,
@@ -566,6 +567,28 @@ describe("one block-week model (F05)", () => {
     expect(blockAnchorDate({ ...program, activatedAt: null }, [])).toBe("2026-10-01T09:00:00.000Z");
     // Another program's log never moves the anchor.
     expect(blockAnchorDate(program, [{ ...L("2026-09-01"), programId: "other" }])).toBe("2026-11-02T03:00:00.000Z");
+  });
+
+  test("startsOn is the anchor when set; the legacy rule stays for null", () => {
+    const started = { ...program, startsOn: "2026-11-09" };
+    expect(blockAnchorDate(started, [L("2026-10-19")])).toBe("2026-11-09");
+    expect(blockWeekOfDate(started, [], "2026-11-16")).toBe(2);
+    expect(blockAnchorDate({ ...program, startsOn: null }, [L("2026-10-19")])).toBe("2026-10-19");
+  });
+
+  test("trackingStartDate equals the anchor for legacy programs", () => {
+    expect(trackingStartDate(program, [L("2026-10-19")])).toBe("2026-10-19");
+    expect(trackingStartDate(program, [L("2026-11-05")])).toBe("2026-11-02");
+    expect(trackingStartDate(program, [])).toBe("2026-11-02");
+    expect(trackingStartDate({ ...program, activatedAt: null }, [])).toBe("2026-10-01");
+    // The backfill writes the legacy anchor as startsOn: still the same day.
+    expect(trackingStartDate({ ...program, startsOn: "2026-10-19" }, [L("2026-10-19")])).toBe("2026-10-19");
+  });
+
+  test("trackingStartDate: a start moved before activation tracks from activation; a future start from the start", () => {
+    expect(trackingStartDate({ ...program, startsOn: "2026-10-19" }, [])).toBe("2026-11-02");
+    expect(trackingStartDate({ ...program, startsOn: "2026-10-19" }, [L("2026-10-28")])).toBe("2026-10-28");
+    expect(trackingStartDate({ ...program, startsOn: "2026-11-09" }, [])).toBe("2026-11-09");
   });
 
   test("blockWeekOfDate buckets calendar days from the anchor day", () => {
