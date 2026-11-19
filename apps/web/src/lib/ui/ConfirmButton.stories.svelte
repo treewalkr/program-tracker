@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Two-step destructive action: first click arms, second click within `ms` (default 4s) confirms; the armed state auto-resets. Replaces the divergent armDelete/armedDelete patterns.',
+            'Two-step destructive action: first click arms, second click within `ms` (default 4s) confirms; the armed state auto-resets. Both labels share one grid cell, so the button is as wide as the longer one and arming never shifts the row. Replaces the divergent armDelete/armedDelete patterns.',
         },
       },
     },
@@ -29,6 +29,13 @@
 
 <Story name="Remove day (small)" asChild>
   <ConfirmButton label="Remove day" small onconfirm={() => (deleted += 1)} />
+</Story>
+
+<Story name="Arming keeps its width" asChild>
+  <div style="display: flex; align-items: center; gap: 6px;">
+    <ConfirmButton label="Remove" confirmLabel="Remove invite?" small subject="Dana Lee" onconfirm={() => (deleted += 1)} />
+    <span class="subtle">the neighbour doesn't move</span>
+  </div>
 </Story>
 
 <Story name="Neutral until armed (small)" asChild>
