@@ -170,10 +170,15 @@
   }
 
   const fmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" });
-  function lastSeen(t: TrainerAccount): string {
-    if (!t.lastSignInAt) return t.access === "invited" ? `Added ${fmt.format(new Date(t.createdAt))}` : "No sign-in yet";
-    const days = Math.floor((Date.now() - new Date(t.lastSignInAt).getTime()) / 86_400_000);
-    return `Signed in ${days === 0 ? "today" : days === 1 ? "yesterday" : days < 30 ? `${days} days ago` : fmt.format(new Date(t.lastSignInAt))}`;
+  /** "today" · "yesterday" · "7 days ago" · "Nov 9, 2026" past a month — the same scale for every row. */
+  function ago(iso: string): string {
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+    return days <= 0 ? "today" : days === 1 ? "yesterday" : days < 30 ? `${days} days ago` : fmt.format(new Date(iso));
+  }
+  /** The row's last-seen line and its full date for the tooltip. */
+  function lastSeen(t: TrainerAccount): { text: string; title: string } {
+    if (t.lastSignInAt) return { text: `Signed in ${ago(t.lastSignInAt)}`, title: fmt.format(new Date(t.lastSignInAt)) };
+    return { text: `Added ${ago(t.createdAt)}, no sign-in yet`, title: fmt.format(new Date(t.createdAt)) };
   }
 
   onMount(() => {
@@ -282,6 +287,7 @@
         {/if}
         <ul class="accounts">
           {#each shown as t (t.id)}
+            {@const seen = lastSeen(t)}
             <li class:dim={t.access === "disabled"} class:fresh={t.id === addedId}>
               <span class="face">
                 {#if t.avatarUrl}
@@ -298,10 +304,12 @@
                 </div>
                 <div class="subtle">{t.email}</div>
                 <div class="meta">
-                  {lastSeen(t)} ·
+                  <span title={seen.title}>{seen.text}</span> ·
                   {#if t.clientCount > 0}
-                    <a href={`/admin/clients?trainer=${t.id}`}>{t.clientCount} {t.clientCount === 1 ? "client" : "clients"}</a>
-                  {:else}0 clients{/if}
+                    <a href={`/admin/clients?trainer=${t.id}`}
+                      ><span class="mono">{t.clientCount}</span> {t.clientCount === 1 ? "client" : "clients"}</a
+                    >
+                  {:else}<span><span class="mono">0</span> clients</span>{/if}
                   · <a class="log" href="/admin/trainers/{t.id}" aria-label="Access log for {t.name}">Access log</a>
                 </div>
                 {#if rowError?.id === t.id}<p class="err" role="alert">{rowError.text}</p>{/if}
@@ -439,7 +447,7 @@
   }
   .added {
     margin: 0;
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.4;
   }
   .added .addr {
@@ -484,6 +492,11 @@
   }
   .none {
     margin: 0;
+  }
+  /* Ghost buttons start flush with the text column above them */
+  .share > :global(.btn.ghost),
+  .fold > :global(.btn.ghost) {
+    margin-left: -13px;
   }
   .fold {
     padding: 8px 16px;
@@ -535,6 +548,9 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+  .meta > :global(*) {
+    white-space: nowrap;
+  }
   .meta {
     margin-top: 2px;
     font-size: 12px;
@@ -570,6 +586,9 @@
   }
 
   @media (max-width: 640px) {
+    .state {
+      padding-inline: 6px;
+    }
     .fields {
       grid-template-columns: 1fr;
     }
