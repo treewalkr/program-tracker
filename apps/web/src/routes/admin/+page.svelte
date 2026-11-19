@@ -244,6 +244,10 @@
       setTimeout(() => (copied = false), 1600);
     } catch {
       copyFailed = true;
+      // The fallback is the only place the full link shows: select it, ready to copy by hand.
+      await tick();
+      const code = document.querySelector(".linkfallback code");
+      if (code) getSelection()?.selectAllChildren(code);
     }
   }
 
@@ -347,7 +351,7 @@
               Add another
             </Button>
           </div>
-          {#if copyFailed}<p class="subtle">Couldn't copy — the link is <code>{loginUrl}</code></p>{/if}
+          {#if copyFailed}<p class="subtle linkfallback">Couldn't copy — the link is <code>{loginUrl}</code></p>{/if}
           <div class="share">
             <a href="/settings#login-page">Restyle the sign-in page</a>
           </div>
@@ -401,7 +405,7 @@
             </Button>
             <a href="/settings#login-page">Restyle the sign-in page</a>
           </div>
-          {#if copyFailed}<p class="subtle">Couldn't copy — the link is <code>{loginUrl}</code></p>{/if}
+          {#if copyFailed}<p class="subtle linkfallback">Couldn't copy — the link is <code>{loginUrl}</code></p>{/if}
         </form>
       {/if}
     </Panel>
@@ -642,7 +646,12 @@
   .share {
     justify-content: space-between;
   }
+  .linkfallback {
+    margin: 0;
+    font-size: 13px;
+  }
   .add code {
+    user-select: all;
     font: 12px/1.4 var(--font-mono);
     background: var(--well);
     border: 1px solid var(--line-soft);
