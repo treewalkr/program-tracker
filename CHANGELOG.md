@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.39 — 2026-11-20
+
 ### New
 - A new guide, Programs & weeks, explains with pictures how weeks, A/B weeks, missed sessions, mid-block edits and moving Week 1 later work. Find it under Guide.
   - th: มีคู่มือใหม่ "โปรแกรมและสัปดาห์" อธิบายพร้อมภาพว่าสัปดาห์ สัปดาห์ A/B เซสชันที่ขาด การแก้กลางบล็อก และการเลื่อนสัปดาห์ที่ 1 ออกไปทำงานยังไง ดูได้ที่เมนูคู่มือ
