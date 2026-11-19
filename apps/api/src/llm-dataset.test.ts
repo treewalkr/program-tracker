@@ -86,6 +86,9 @@ describe.skipIf(!dbUp)("llm datasets", () => {
     const weeks = structuredClone(approved.body.weeks);
     const dropped = weeks[0].sessions[0].exercises.length;
     weeks[0].sessions[0].exercises = weeks[0].sessions[0].exercises.slice(1);
+    // Every mock draft shares a name, so mark this case's week to find its own target
+    const marker = `mark-${crypto.randomUUID().slice(0, 8)}`;
+    weeks[0].sessions[0].name = marker;
     await call("PUT", `/v1/programs/${approved.body.id}`, { weeks });
 
     const [ex] = await db.select().from(llmExamples).where(eq(llmExamples.callId, genCall.id));
@@ -93,8 +96,10 @@ describe.skipIf(!dbUp)("llm datasets", () => {
     const records = (await exportRecords("sft", { includeMock: true, purposes: ["block_generate"] })) as any[];
     const target = records
       .map((r) => JSON.parse(r.messages.at(-1).content))
-      .find((d) => d.weeks?.[0]?.sessions?.[0]?.exercises?.length === dropped - 1 && d.name === gen.draft.name);
+      .find((d) => d.weeks?.[0]?.sessions?.[0]?.name === marker);
     expect(target).toBeDefined();
+    expect(target.weeks[0].sessions[0].exercises).toHaveLength(dropped - 1);
+    expect(target.name).toBe(gen.draft.name);
     // A block target carries every approved week, as the prompt asked.
     expect(target.weeks.map((w: any) => w.week)).toEqual(approved.body.weeks.map((w: any) => w.week));
     expect(target.sessions).toBeUndefined();
