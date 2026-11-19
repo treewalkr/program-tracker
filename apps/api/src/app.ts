@@ -10,6 +10,7 @@ import { roleLabelRoutes } from "./routes/role-labels";
 import { llmFeedbackRoutes } from "./routes/llm-feedback";
 import { coachingRuleRoutes } from "./routes/coaching-rules";
 import { clientRoutes } from "./routes/clients";
+import { graphqlRoutes } from "./routes/graphql";
 import { programRoutes } from "./routes/programs";
 import { exampleRoutes } from "./routes/examples";
 import { logRoutes } from "./routes/logs";
@@ -146,6 +147,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(preferenceRoutes)
   .use(chatRoutes)
   .use(clientRoutes)
+  // read-only GraphQL trial of the home dashboard, next to GET /v1/clients/overview
+  .use(graphqlRoutes)
   .use(programRoutes)
   .use(exampleRoutes)
   .use(logRoutes)

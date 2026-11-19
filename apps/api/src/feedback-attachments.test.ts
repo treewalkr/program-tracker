@@ -39,7 +39,7 @@ const WEBP = (() => {
 })();
 const GIF = Buffer.from("GIF89a\x01\x00\x01\x00", "latin1");
 
-const file = (bytes: Buffer, name = "a.png", type = "image/png") => new File([bytes], name, { type });
+const file = (bytes: Buffer, name = "a.png", type = "image/png") => new File([new Uint8Array(bytes)], name, { type });
 
 const context = unpinnedContext("/clients", { viewport: { width: 1280, height: 800, dpr: 1 }, userAgent: "test", appVersion: "t" });
 

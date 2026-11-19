@@ -1,0 +1,94 @@
+# Read-only trial: the home dashboard over GraphQL, next to GET /v1/clients/overview.
+# The single source of truth for the web's types (gql.tada reads this file).
+# No id arguments and no Mutation: ownership checks only see path/query/body ids,
+# and a read-only "view as trainer" only lets GETs through.
+
+"""ISO 8601 timestamp."""
+scalar DateTime
+
+"""Weekly cardio target JSON: { unit, value } (@pt/shared CardioTarget)."""
+scalar CardioTarget
+
+"""The program's weeks JSON document (@pt/shared ProgramWeek[])."""
+scalar ProgramWeeks
+
+"""A cardio log's actuals JSON (@pt/shared CardioLog)."""
+scalar CardioLog
+
+enum ClientStatus {
+  active
+  paused
+  archived
+}
+
+enum ProgramStatus {
+  draft
+  active
+  archived
+}
+
+enum SessionKind {
+  exercises
+  cardio
+}
+
+enum SetType {
+  working
+  backoff
+}
+
+type Query {
+  """Every client of the signed-in trainer with their current program, newest 200 logs and portal link."""
+  dashboard: [ClientOverview!]!
+}
+
+type ClientOverview {
+  client: Client!
+  """The active program; null when there is none."""
+  currentProgram: Program
+  """Newest 200, newest first."""
+  logs: [SessionLog!]!
+  """The portal access link; null while the portal is off."""
+  portalLink: String
+}
+
+type Client {
+  id: ID!
+  name: String!
+  status: ClientStatus!
+  """Exercise sessions per week (cardio doesn't count)."""
+  sessionsPerWeek: Int
+  cardioTarget: CardioTarget
+  createdAt: DateTime!
+}
+
+type Program {
+  id: ID!
+  clientId: ID
+  name: String!
+  status: ProgramStatus!
+  weeks: ProgramWeeks!
+  activatedAt: DateTime
+  """The day Week 1 starts (YYYY-MM-DD); null = legacy anchor."""
+  startsOn: String
+  createdAt: DateTime!
+}
+
+type SessionLog {
+  id: ID!
+  programId: ID!
+  """The program session it was logged against; null = freestyle."""
+  programSessionId: ID
+  """YYYY-MM-DD"""
+  date: String!
+  kind: SessionKind!
+  cardio: CardioLog
+  sets: [SetLog!]!
+}
+
+type SetLog {
+  exerciseId: ID!
+  type: SetType!
+  weightKg: Float
+  reps: Int!
+}
