@@ -271,7 +271,6 @@
     gap: 18px;
     max-width: var(--measure-form);
   }
-
   .add {
     display: flex;
     flex-direction: column;
@@ -373,6 +372,30 @@
     align-items: center;
     gap: 4px;
     font-size: 12px;
+  }
+
+  /* Wide enough for both: accounts take the room, the add form sits beside them */
+  @container main (min-width: 880px) {
+    .cols {
+      max-width: 1120px;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-areas: "list add";
+      align-items: start;
+    }
+    .cols > :global(.addp) {
+      grid-area: add;
+      position: sticky;
+      top: 16px;
+    }
+    .cols > :global(:not(.addp)) {
+      grid-area: list;
+    }
+    .fields {
+      grid-template-columns: 1fr;
+    }
+    .share .restyle {
+      margin-left: 0;
+    }
   }
 
   @media (max-width: 640px) {
