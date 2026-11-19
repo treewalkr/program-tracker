@@ -90,7 +90,8 @@ function context(now = Date.now(), scenario = mockScenario()) {
   const currentWeek = weekOf(program, logs, now);
   const anchored = blockWeekStart(blockAnchorDate(program, logs).slice(0, 10), currentWeek);
   const startDate = scenario === "midweek" ? addDays(localDateOf(now), -3) : anchored;
-  return { program, currentWeek, startDate };
+  // before Week 1's start date nothing is loggable, like the API
+  return { program, currentWeek, startDate, started: localDateOf(now) >= startDate };
 }
 
 const named = (sessions: ProgramSession[]): ProgramSession[] =>
@@ -103,7 +104,7 @@ const named = (sessions: ProgramSession[]): ProgramSession[] =>
 export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): PortalWeekDto {
   const ctx = context(now, scenario);
   if (!ctx) return { program: null, currentWeek: null, weeks: [] };
-  const { program, currentWeek, startDate } = ctx;
+  const { program, currentWeek, startDate, started } = ctx;
   const maxes = mockState.clients.find((c) => c.id === CLIENT_ID)?.oneRepMaxes ?? null;
   const mine = mockState.logs.filter((l) => l.clientId === CLIENT_ID && l.programId === program.id);
   const done = latestLogBySession(
@@ -128,7 +129,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
       week,
       startDate: start,
       endDate: addDays(start, 6),
-      loggable: week === currentWeek,
+      loggable: week === currentWeek && started,
       weekLabel: portalWeekLabel(program.phasing, week),
       sessions: doc
         ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads).map((s, i) => ({
@@ -140,7 +141,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   }
   const target = mockState.clients.find((c) => c.id === CLIENT_ID)?.cardioTarget ?? null;
   const cardio = portalCardio(target, mockState.logs.filter((l) => l.clientId === CLIENT_ID).map((l) => ({ date: l.date, kind: l.kind, cardio: l.cardio ?? null })), now);
-  return { program: { id: program.id, name: program.name }, currentWeek, weeks, cardio };
+  return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio };
 }
 
 const fail = (status: number, message: string) => Object.assign(new Error(message), { status });
@@ -162,6 +163,7 @@ const rawMockPortalApi: PortalApi = {
     if (!today) throw fail(422, "check the date on your phone");
     const ctx = context(nowOfDate(today));
     if (!ctx) throw fail(422, "no active program");
+    if (!ctx.started) throw fail(422, `your program starts on ${ctx.startDate}`);
     if (!weekSessions(ctx.program.weeks, ctx.currentWeek).some((s) => s.id === input.programSessionId)) {
       throw fail(422, "only this week's sessions can be logged");
     }

@@ -4,7 +4,7 @@
   import { portalApi } from "$lib/api/portal";
   import type { PortalWeekDto } from "@pt/shared";
   import { localDateOf } from "@pt/shared";
-  import { fmtShortDate, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
+  import { fmtDay, fmtShortDate, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
   import { dayGroups, doneCount, earlierOpen, focusSession } from "$lib/portal/week";
@@ -42,8 +42,10 @@
     void load();
   });
 
-  const current = $derived(dto?.weeks.find((w) => w.loggable) ?? null);
-  const next = $derived(dto?.weeks.find((w) => !w.loggable) ?? null);
+  /** Week 1's start date while it is still ahead: the page previews Week 1 under a banner. */
+  const startsOn = $derived(dto?.program?.startsOn && today < dto.program.startsOn ? dto.program.startsOn : null);
+  const current = $derived(dto?.weeks.find((w) => w.loggable) ?? (startsOn ? (dto?.weeks[0] ?? null) : null));
+  const next = $derived(dto?.weeks.find((w) => !w.loggable && w !== current) ?? null);
   const shown = $derived(tab === "next" && next ? next : current);
   /** The calendar leaves out the session "Next up" already shows, and any day that leaves empty. */
   const groups = $derived(
@@ -54,9 +56,9 @@
       : [],
   );
   /** "Next up" leads the page: today's first open session, else the next one. */
-  const nextUp = $derived(current ? focusSession(current, today) : null);
+  const nextUp = $derived(current?.loggable ? focusSession(current, today) : null);
   const nextUpDay = $derived(current && nextUp ? (dayGroups(current, today).find((g) => g.sessions.some((s) => s.id === nextUp.id)) ?? null) : null);
-  const earlier = $derived(current ? earlierOpen(current, today, nextUp?.id ?? null) : []);
+  const earlier = $derived(current?.loggable ? earlierOpen(current, today, nextUp?.id ?? null) : []);
   const earlierN = $derived(earlier.reduce((n, g) => n + g.sessions.length, 0));
   /** A past day of this week whose session is still open. */
   const pastOpen = (date: string | null, loggable = true) => loggable && !!date && date < today;
@@ -130,6 +132,12 @@
     <p class="empty-hint">{t("week.emptyProgramHint")}</p>
   </div>
 {:else if shown}
+  {#if startsOn}
+    <section class="starts" role="status">
+      <p class="starts-title">{t("week.startsOn", { date: fmtDay(startsOn) })}</p>
+      <p class="starts-hint">{t("week.startsOnHint")}</p>
+    </section>
+  {/if}
   {#if current && nextUp}
     <section class="next-up" aria-labelledby="next-up-h">
       <h2 id="next-up-h">
@@ -142,7 +150,7 @@
       </h2>
       <PortalSessionCard session={nextUp} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} onremove={removeLog} />
     </section>
-  {:else if current && current.sessions.length > 0}
+  {:else if current?.loggable && current.sessions.length > 0}
     <p class="all-done"><Icon name="check" />{t("week.allDone", { total: current.sessions.length })}</p>
   {/if}
 
@@ -184,7 +192,7 @@
   </div>
 
   <div id="wk-panel" role="tabpanel" tabindex="-1" aria-labelledby={`wk-${tab}`} class="days">
-    {#if !shown.loggable}<p class="preview">{t("week.nextPreview")}</p>{/if}
+    {#if !shown.loggable && !(startsOn && shown === current)}<p class="preview">{t("week.nextPreview")}</p>{/if}
     {#if !shown.loggable && shown.weekLabel}<p class="week-label">{t(`week.label.${shown.weekLabel}`)}</p>{/if}
     {#if groups.length === 0 && shown.sessions.length === 0}
       <div class="empty"><p class="empty-title">{t("week.emptyWeek")}</p></div>
@@ -260,6 +268,15 @@
     font-weight: 500;
   }
   .all-done :global(svg) { flex: none; width: 16px; height: 16px; color: var(--good); }
+  .starts {
+    margin: 0 0 20px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--pulse-now-bg);
+  }
+  .starts-title { margin: 0; font: 600 17px/1.3 var(--font-ui); text-wrap: balance; }
+  .starts-hint { margin: 4px 0 0; font-size: 14px; color: var(--muted); text-wrap: pretty; }
 
   .earlier { margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .earlier summary {
