@@ -310,6 +310,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 
 ### Navigation
 - **Sidebar:** see Layout; inline stroke icons (16px, 1.75 stroke, Ink like their labels); sentence-case group labels; the active item is Well Gray Active at 500 weight; rail tooltips sit to the right; ⌘B / Ctrl+B toggles the rail
+- **⌘K / Ctrl+K:** opens the guide search palette from any trainer page (not the portal or sign-in; skipped in rich-text fields and while another modal is open). The sidebar's Guide row shows a muted `⌘K`, and its rail tooltip reads `Guide · ⌘K`. `/` opens it too, but only on guide pages: Exercises keeps `/` for its own search field
 - **Tabs (orange underline):** 14px Muted Ink buttons on the page's hairline with a transparent 2px underline (−1px overlap); hover gains a hairline underline; active turns Ink + 600 + Tab Coral underline. Tabs carry counters; disabled tabs dim to 50%
 - **Links:** Link Blue, underline on hover; row links are Ink/600 with 3px offset underline; in-table row names are real anchors for keyboard and middle-click
 
@@ -387,6 +388,13 @@ Every list page (Clients, Exercise library, Admin › All clients) follows one s
 - **Empty vs no match:** an empty roster is an on-ramp (centered message + the create action); a list that filters to nothing says what was searched and offers **Clear filters** (sort and rows-per-page stay).
 - **Rows:** the whole row opens the item, except clicks on links and buttons inside it; the name stays a real anchor. Under a 700px main container rows stack into cards (name + attention on line one, then program, last trained, schedule with 88px muted labels).
 - **Clients row:** avatar + name (status pill when not active, amber flag when limitations exist; email · goal on a muted second line, goal in the row tooltip) · program name with `wk 3/6` and a 4px Link Blue progress track (amber "over" past the plan; "No program · Write one" otherwise) · last trained, relative, amber after 7 days, faint "Never" · schedule `3×` + days, cardio target below · open-signal count as an amber Label linking to the client.
+
+### Command palette
+**CommandPalette** (`$lib/ui`, Storybook `UI/Command palette`) is a native modal `<dialog>`, top-anchored at 12vh, `min(640px, 100vw − 32px)` wide, with a 6px radius, a hairline border, the overlay shadow and a scrim backdrop. A 48px search row sits above grouped results, with an `esc` chip at its end. Group heads are sticky and match the selects' (`OptionList`: 600 12px Muted Ink plus a mono count pill). Each row is a 14px/500 title over one 13px muted line. The active row is Well Gray Deep with a 2px Link Blue edge and a `↵` chip. Matches are `<mark>` on the warn tint at 600 weight. The footer is a Well Gray strip of key hints in the ListToolbar kbd chip style.
+- **Not a select:** it navigates and holds no value, so it stays out of the Select table.
+- **Keys:** ↑↓ wrap, PageUp/PageDown jump 8, Enter opens, ⌘/Ctrl+Enter opens in a new tab and keeps the palette open, Esc or a backdrop click closes, and focus goes back to the opener. The field is a `combobox` with `aria-activedescendant` over a `listbox` with one `group` per group. A polite live region reads the result count.
+- **Guide search** (`GuideSearch`, mounted once in the root layout) searches every guide in English and Thai together and shows rows in the page's language. With an empty query it lists Common questions, then each guide's sections. The muted line shows `Guide › Section` before you type and the matching passage after, cut at word boundaries (Thai too). Picking a result lands on the step or row and flashes it once with the `--pulse-now-bg` tint, fading over 1.6s. The Guide index has a 40px field-shaped bar that opens it, and each guide has a compact Search button that turns icon-only under 720px.
+- **≤720px:** the palette is full width, 8px from the top, with a 16px input, rows at least 44px tall and the key hints hidden. With reduced motion there is no enter animation (otherwise 140ms opacity and a 4px rise).
 
 ## Component Library & Storybook
 
