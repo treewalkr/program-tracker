@@ -143,6 +143,7 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       const latest = asked ? today : addDays(today, 1);
       const ctx = await portalWeekContext(clientId, nowOfDate(today));
       if (!ctx) return status(422, { error: "no active program" });
+      if (!ctx.started) return status(422, { error: `your program starts on ${ctx.startDate}` });
       if (!ctx.currentSessionIds.has(input.programSessionId)) {
         return status(422, { error: "only this week's sessions can be logged" });
       }

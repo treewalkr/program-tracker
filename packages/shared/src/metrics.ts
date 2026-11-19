@@ -599,3 +599,27 @@ export function chainBalanceText(chains: ChainDef[], counts: Record<string, numb
   const none = chains.filter((c) => (counts[c.id] ?? 0) === 0).map((c) => c.name);
   return none.length > 0 ? `${base} · none touching: ${none.join(", ")}` : base;
 }
+
+// ---------------------------------------------------------------------------
+// "Week 1 starts on": the one check the API and the start-date dialog share
+// ---------------------------------------------------------------------------
+
+/** How far ahead Week 1 may be set to start. */
+export const START_AHEAD_WEEKS = 8;
+
+/** Earliest and latest day Week 1 may start for a `weeks`-week block, as seen
+ *  `today`: no earlier than the day that makes today the block's last day, at
+ *  most 8 weeks ahead. */
+export function startsOnWindow(weeks: number, today: string): { earliest: string; latest: string } {
+  return { earliest: addDaysIso(today, -7 * Math.max(1, weeks) + 1), latest: addDaysIso(today, 7 * START_AHEAD_WEEKS) };
+}
+
+/** Why `date` can't be Week 1's start, or null when it can. */
+export function startsOnIssue(date: string, weeks: number, today: string): string | null {
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) && addDaysIso(date, 0) === date;
+  if (!valid) return "startsOn must be a date (YYYY-MM-DD)";
+  const { earliest, latest } = startsOnWindow(weeks, today);
+  if (date < earliest) return `Week 1 can start no earlier than ${earliest}: the block would already be over`;
+  if (date > latest) return `Week 1 can start at most ${START_AHEAD_WEEKS} weeks ahead (${latest})`;
+  return null;
+}

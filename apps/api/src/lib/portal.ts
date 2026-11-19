@@ -9,6 +9,7 @@ import {
   loadStep,
   isoWeekStart,
   latestLogBySession,
+  localDateOf,
   portalLogEntry,
   portalCardio,
   portalSessions,
@@ -46,6 +47,8 @@ export interface PortalWeekContext {
   /** First and last day of the current block week. */
   startDate: string;
   endDate: string;
+  /** False while today is before Week 1's start (a future start date): nothing is loggable yet. */
+  started: boolean;
   /** Program session ids planned in the current week. */
   currentSessionIds: Set<string>;
 }
@@ -64,6 +67,7 @@ export async function portalWeekContext(clientId: string, now = Date.now()): Pro
     currentWeek,
     startDate,
     endDate: addDays(startDate, 6),
+    started: localDateOf(now) >= startDate,
     currentSessionIds: new Set(weekSessions(program.sessions, currentWeek).map((s) => s.id)),
   };
 }
@@ -72,7 +76,7 @@ export async function portalWeekContext(clientId: string, now = Date.now()): Pro
 export async function loadPortalWeek(clientId: string, now = Date.now()): Promise<PortalWeekDto> {
   const ctx = await portalWeekContext(clientId, now);
   if (!ctx) return { program: null, currentWeek: null, weeks: [] };
-  const { program, currentWeek, startDate } = ctx;
+  const { program, currentWeek, startDate, started } = ctx;
   const [client] = await db
     .select({ oneRepMaxes: clients.oneRepMaxes, cardioTarget: clients.cardioTarget })
     .from(clients)
@@ -101,14 +105,14 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
       week,
       startDate: start,
       endDate: addDays(start, 6),
-      loggable: week === currentWeek,
+      loggable: week === currentWeek && started,
       weekLabel: portalWeekLabel(program.phasing, week),
       sessions: named
         ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads)
         : [],
     });
   }
-  return { program: { id: program.id, name: program.name }, currentWeek, weeks, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
+  return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
 }
 
 /** This ISO week's cardio against the coach's target — any program, as the coach's pace check counts it. */

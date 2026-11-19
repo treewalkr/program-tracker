@@ -1,6 +1,7 @@
 import { describe, expect, test, afterAll } from "bun:test";
 import { inArray } from "drizzle-orm";
 import { db, trainers, programs } from "@pt/db";
+import { addDays, localDateOf } from "@pt/shared";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
 
@@ -90,5 +91,75 @@ describe.skipIf(!dbUp)("program body validation", () => {
     const st = await call("PATCH", `/v1/programs/${id}/status`, { status: "archived" });
     expect(st.status).toBe(200);
     expect(st.body.status).toBe("archived");
+  });
+});
+
+describe.skipIf(!dbUp)("when Week 1 starts (startsOn)", () => {
+  const ids: string[] = [];
+  const today = localDateOf(Date.now());
+  let weeks: unknown[] = [];
+  /** A draft with `n` weeks. */
+  const draft = async (n = 1) => {
+    const doc = Array.from({ length: n }, (_, i) => ({ ...(weeks[0] as object), week: i + 1, sessions: (weeks[0] as any).sessions.map((s: any) => ({ ...s, id: crypto.randomUUID() })) }));
+    const r = await call("POST", "/v1/programs", { name: "Start date", weeks: doc });
+    ids.push(r.body.id);
+    return r.body.id as string;
+  };
+  afterAll(async () => {
+    if (ids.length) await db.delete(programs).where(inArray(programs.id, ids));
+  });
+
+  test("activation saves startsOn and stamps activatedAt", async () => {
+    const squat = await call("GET", "/v1/exercises?q=squat");
+    weeks = weeksWith(squat.body[0].id);
+    const id = await draft(6);
+    const monday = addDays(today, 5);
+    const r = await call("PATCH", `/v1/programs/${id}/status`, { status: "active", startsOn: monday });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ status: "active", startsOn: monday });
+    expect(r.body.activatedAt).toBeTruthy();
+  });
+
+  test("activation without startsOn (the previous web) leaves it null", async () => {
+    const id = await draft();
+    const r = await call("PATCH", `/v1/programs/${id}/status`, { status: "active" });
+    expect(r.status).toBe(200);
+    expect(r.body.startsOn).toBeNull();
+    expect(r.body.activatedAt).toBeTruthy();
+  });
+
+  test("activation refuses a bad, too early or too late date, and startsOn on another status", async () => {
+    const id = await draft(2);
+    const bad = await call("PATCH", `/v1/programs/${id}/status`, { status: "active", startsOn: "2026-02-30" });
+    expect(bad.status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/status`, { status: "active", startsOn: "soon" })).status).toBe(422);
+    // A 2-week block can start no earlier than 13 days ago.
+    expect((await call("PATCH", `/v1/programs/${id}/status`, { status: "active", startsOn: addDays(today, -14) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/status`, { status: "active", startsOn: addDays(today, 57) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/status`, { status: "archived", startsOn: today })).status).toBe(422);
+    const [row] = await db.select().from(programs).where(inArray(programs.id, [id]));
+    expect(row.status).toBe("draft");
+    expect((await call("PATCH", `/v1/programs/${id}/status`, { status: "active", startsOn: addDays(today, -13) })).status).toBe(200);
+  });
+
+  test("starts-on moves an active program's start", async () => {
+    const id = await draft(6);
+    await call("PATCH", `/v1/programs/${id}/status`, { status: "active" });
+    const earlier = addDays(today, -14);
+    const r = await call("PATCH", `/v1/programs/${id}/starts-on`, { startsOn: earlier });
+    expect(r.status).toBe(200);
+    expect(r.body.startsOn).toBe(earlier);
+  });
+
+  test("starts-on 422s: bad date, too early, too late, missing, a draft", async () => {
+    const id = await draft(2);
+    expect((await call("PATCH", `/v1/programs/${id}/starts-on`, { startsOn: today })).status).toBe(422); // draft
+    await call("PATCH", `/v1/programs/${id}/status`, { status: "active" });
+    expect((await call("PATCH", `/v1/programs/${id}/starts-on`, { startsOn: "2026-13-01" })).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/starts-on`, { startsOn: addDays(today, -14) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/starts-on`, { startsOn: addDays(today, 57) })).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/starts-on`, {})).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${id}/starts-on`, { startsOn: null })).status).toBe(422);
+    expect((await call("PATCH", `/v1/programs/${crypto.randomUUID()}/starts-on`, { startsOn: today })).status).toBe(404);
   });
 });

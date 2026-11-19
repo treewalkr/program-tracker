@@ -349,7 +349,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
   test("/week: the active program's current and next week, kg resolved from %1RM", async () => {
     const r = await call("GET", "/v1/portal/week", { token });
     expect(r.status).toBe(200);
-    expect(r.body.program).toEqual({ id: programId, name: "Spring Block" });
+    expect(r.body.program).toEqual({ id: programId, name: "Spring Block", startsOn: null });
     expect(r.body.currentWeek).toBe(1);
     expect(r.body.weeks.map((w: any) => [w.week, w.loggable])).toEqual([
       [1, true],
@@ -548,6 +548,25 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect(r.status).toBe(409);
     expect(await db.select().from(sessionLogs).where(eq(sessionLogs.id, later.id))).toHaveLength(1);
     await db.delete(sessionLogs).where(eq(sessionLogs.id, later.id));
+  });
+
+  test("before Week 1 starts nothing is loggable and a log is refused", async () => {
+    const starts = addDays(today, 4);
+    await db.update(programs).set({ startsOn: starts }).where(eq(programs.id, programId));
+    try {
+      const r = await call("GET", "/v1/portal/week", { token });
+      expect(r.body.program).toMatchObject({ id: programId, startsOn: starts });
+      expect(r.body.currentWeek).toBe(1);
+      expect(r.body.weeks.map((w: any) => [w.week, w.startDate, w.loggable])).toEqual([
+        [1, starts, false],
+        [2, addDays(starts, 7), false],
+      ]);
+      const log = await call("POST", "/v1/portal/logs", { token, body: logBody(s1) });
+      expect(log.status).toBe(422);
+      expect(log.body.error).toContain(starts);
+    } finally {
+      await db.update(programs).set({ startsOn: null }).where(eq(programs.id, programId));
+    }
   });
 
   test("a client can't log against another client's session or another trainer's client", async () => {

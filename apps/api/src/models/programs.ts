@@ -2,7 +2,7 @@
 import { t } from "elysia";
 import { programs } from "@pt/db/schema";
 import { PROGRAM_STATUSES, type Phasing, type ProgramWeek } from "@pt/shared";
-import { createInsertSchema, createSelectSchema, createUpdateSchema, spread } from "../utility";
+import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "../utility";
 import { str, oneOf, as } from "./shared";
 
 /** Narrow types only — shared by request and response schemas. */
@@ -36,7 +36,12 @@ export const ProgramModel = {
     ...spread(t.Pick(ProgramUpdate, ["phasing", "direction"])),
   }),
   direction: t.Required(t.Pick(ProgramUpdate, ["direction"])),
-  status: t.Required(t.Pick(ProgramUpdate, ["status"])),
+  /** Activating may say when Week 1 starts (YYYY-MM-DD); the previous web sends none (legacy anchor). */
+  status: t.Object({
+    ...spread(t.Required(t.Pick(ProgramUpdate, ["status"]))),
+    startsOn: t.Optional(nonNull(ProgramUpdate.properties.startsOn)),
+  }),
+  startsOn: t.Object({ startsOn: nonNull(ProgramUpdate.properties.startsOn) }),
   /** `toProgramDto`: the row with `sessions` renamed to `weeks`. */
   dto: t.Object({ ...spread(t.Omit(ProgramSelect, ["sessions"])), weeks: ProgramSelect.properties.sessions }),
 };

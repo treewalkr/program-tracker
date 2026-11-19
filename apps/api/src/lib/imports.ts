@@ -233,6 +233,8 @@ export async function saveImportHistory(
           status: "archived",
           sessions: p.weeks,
           activatedAt: new Date(`${p.activatedAt}T00:00:00Z`),
+          // The first imported week's start: the history's weeks stay where the notes put them.
+          startsOn: p.activatedAt,
         })
         .returning({ id: programs.id, name: programs.name });
       out.push(program);

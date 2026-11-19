@@ -146,7 +146,8 @@ export type PortalCardio = z.infer<typeof PortalCardio>;
 
 /** `GET /v1/portal/week`: the active program's current and (when planned) next week. */
 export const PortalWeekDto = z.object({
-  program: z.object({ id: z.string(), name: z.string() }).nullable(),
+  /** `startsOn`: the day Week 1 starts (set on newer programs); before it, nothing is loggable. */
+  program: z.object({ id: z.string(), name: z.string(), startsOn: z.string().nullable().optional() }).nullable(),
   currentWeek: z.number().int().nullable(),
   weeks: z.array(PortalWeek),
   /** Null when the coach set no cardio target. */

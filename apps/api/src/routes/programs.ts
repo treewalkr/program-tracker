@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, programs } from "@pt/db";
-import { Phasing, ProgramWeeksDocument } from "@pt/shared";
+import { localDateOf, Phasing, ProgramWeeksDocument, startsOnIssue } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordProgramEdit } from "../lib/llm-feedback";
 import { ProgramModel } from "../models/programs";
@@ -145,6 +145,11 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     async ({ params, body, status }) => {
       const [current] = await db.select().from(programs).where(eq(programs.id, params.id));
       if (!current) return status(404, { error: "program not found" });
+      if (body.startsOn !== undefined) {
+        if (body.status !== "active") return status(422, { error: "startsOn is set on activation only" });
+        const issue = startsOnIssue(body.startsOn, current.sessions.length, localDateOf(Date.now()));
+        if (issue) return status(422, { error: issue });
+      }
 
       if (body.status === "active" && current.clientId) {
         const clientPrograms = await db
@@ -158,9 +163,10 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         }
       }
       const stamp = body.status === "active" && !current.activatedAt ? { activatedAt: new Date() } : {};
+      const start = body.startsOn !== undefined ? { startsOn: body.startsOn } : {};
       const [updated] = await db
         .update(programs)
-        .set({ status: body.status, ...stamp })
+        .set({ status: body.status, ...stamp, ...start })
         .where(eq(programs.id, params.id))
         .returning();
       return toProgramDto(updated);
@@ -168,6 +174,28 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     {
       params: t.Object({ id: t.String() }),
       body: ProgramModel.status,
-      response: { 200: ProgramModel.dto, 404: ErrorBody },
+      response: { 200: ProgramModel.dto, 404: ErrorBody, 422: ErrorBody },
+    }
+  )
+  /** Move Week 1's start on an active program; every block week follows (logs keep their dates). */
+  .patch(
+    "/:id/starts-on",
+    async ({ params, body, status }) => {
+      const [current] = await db.select().from(programs).where(eq(programs.id, params.id));
+      if (!current) return status(404, { error: "program not found" });
+      if (current.status !== "active") return status(422, { error: "only an active program's start date can change" });
+      const issue = startsOnIssue(body.startsOn, current.sessions.length, localDateOf(Date.now()));
+      if (issue) return status(422, { error: issue });
+      const [updated] = await db
+        .update(programs)
+        .set({ startsOn: body.startsOn })
+        .where(eq(programs.id, params.id))
+        .returning();
+      return toProgramDto(updated);
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: ProgramModel.startsOn,
+      response: { 200: ProgramModel.dto, 404: ErrorBody, 422: ErrorBody },
     }
   );

@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   blockAnchorDate,
   trackingStartDate,
+  startsOnIssue,
+  startsOnWindow,
   blockPulse,
   blockWeekOfDate,
   chainBalanceText,
@@ -738,5 +740,21 @@ describe("pulseCellSets drill-down", () => {
   test("other weeks and other programs stay out", () => {
     expect(pulseCellSets(program, logs, 2, "sets").map((r) => r.weightKg)).toEqual([155]);
     expect(pulseCellSets(program, logs, 3, "sets")).toEqual([]);
+  });
+});
+
+describe("startsOnIssue", () => {
+  test("valid dates inside the window pass", () => {
+    expect(startsOnWindow(6, "2026-11-19")).toEqual({ earliest: "2026-10-09", latest: "2027-01-14" });
+    expect(startsOnIssue("2026-11-19", 6, "2026-11-19")).toBeNull();
+    expect(startsOnIssue("2026-10-09", 6, "2026-11-19")).toBeNull();
+    expect(startsOnIssue("2027-01-14", 6, "2026-11-19")).toBeNull();
+  });
+  test("bad dates, too early, too late", () => {
+    expect(startsOnIssue("2026-02-30", 6, "2026-11-19")).toContain("must be a date");
+    expect(startsOnIssue("19/11/2026", 6, "2026-11-19")).toContain("must be a date");
+    expect(startsOnIssue("2026-13-01", 6, "2026-11-19")).toContain("must be a date");
+    expect(startsOnIssue("2026-10-08", 6, "2026-11-19")).toContain("no earlier than 2026-10-09");
+    expect(startsOnIssue("2027-01-15", 6, "2026-11-19")).toContain("at most 8 weeks ahead");
   });
 });
