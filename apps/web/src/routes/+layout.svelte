@@ -328,7 +328,15 @@
       <Tooltip side="right" disabled={!rail} text="Program Tracker">
         {#snippet children()}
           <a class="brand" href="/">
-            <span class="mark" aria-hidden="true">PT</span>
+            <span class="mark" aria-hidden="true">
+              <!-- The app icon's PT monogram (static/favicon.svg), inked by the theme. -->
+              <svg viewBox="0 0 512 512" width="26" height="26">
+                <g transform="translate(-6 0)" fill="none" stroke="currentColor" stroke-width="52">
+                  <path d="M120 392V148h104a66 66 0 0 1 0 132H120" />
+                  <path d="M262 148h168M370 148v244" />
+                </g>
+              </svg>
+            </span>
             <span class="name">
               Program Tracker
               <small>Trainer workspace</small>
@@ -617,8 +625,6 @@
     color: var(--on-ink);
     display: grid;
     place-items: center;
-    font: 600 12px/1 var(--font-ui);
-    letter-spacing: 0.02em;
     flex: none;
   }
   .name {
