@@ -256,8 +256,11 @@ export const programs = pgTable("programs", {
   aiAssisted: boolean("ai_assisted").notNull().default(false),
   /** Whole-program document, validated by shared ProgramWeeksDocument on write. */
   sessions: kindJsonb<ProgramWeek[]>()("sessions").notNull(),
-  /** Stamped on first activation; block-week math derives from it. */
+  /** Stamped on first activation. */
   activatedAt: timestamp("activated_at", { withTimezone: true }),
+  /** The day Week 1 starts (YYYY-MM-DD); block-week math derives from it. Null = legacy anchor
+   *  (the earlier of activation and the first log). */
+  startsOn: date("starts_on", { mode: "string" }),
   /** Periodization plan (scheme copy) — structured input to signals + AI context. */
   phasing: jsonb("phasing").$type<Phasing>(),
   /** Standing direction (block-level steer) — every weekly generation follows it. */

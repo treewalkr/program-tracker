@@ -914,6 +914,7 @@ const rawMockApi: TrainerApi = {
       weeks: input.weeks,
       createdAt: new Date().toISOString(),
       activatedAt: null,
+      startsOn: null,
       phasing: input.phasing ?? null,
     };
     state.programs = [...state.programs, program];
@@ -1517,6 +1518,7 @@ const rawMockApi: TrainerApi = {
         weeks: p.weeks,
         createdAt: new Date().toISOString(),
         activatedAt: `${p.activatedAt}T00:00:00.000Z`,
+        startsOn: null,
         phasing: null,
       };
       state.programs = [...state.programs, program];
@@ -1825,6 +1827,7 @@ const rawMockApi: TrainerApi = {
       direction: null,
       createdAt: new Date().toISOString(),
       activatedAt: null,
+      startsOn: null,
       phasing: gen.draft.phasing ?? null,
       weeks,
     };

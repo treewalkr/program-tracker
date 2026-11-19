@@ -201,6 +201,7 @@ export const programs: ProgramDto[] = [
     direction: null,
     createdAt: "2026-07-14T09:00:00Z",
     activatedAt: new Date(Date.now() - 35 * 86400_000).toISOString(),
+    startsOn: null,
     phasing: {
       plannedWeeks: 6,
       phase: "accumulation",
@@ -313,6 +314,7 @@ export const programs: ProgramDto[] = [
     direction: null,
     createdAt: "2026-06-30T09:00:00Z",
     activatedAt: null,
+    startsOn: null,
     phasing: null,
     weeks: makeWeeks(
       [
@@ -336,6 +338,7 @@ export const programs: ProgramDto[] = [
     createdFromProgramId: "pg-jonas-0",
     createdAt: "2026-08-02T09:00:00Z",
     activatedAt: new Date(Date.now() - 12 * 86400_000).toISOString(),
+    startsOn: null,
     phasing: {
       plannedWeeks: 6,
       phase: "hypertrophy",
@@ -372,6 +375,7 @@ export const programs: ProgramDto[] = [
     direction: null,
     createdAt: "2026-06-15T09:00:00Z",
     activatedAt: null,
+    startsOn: null,
     phasing: null,
     weeks: makeWeeks(
       [{ sessions: [{ id: uuid(), name: "Full body", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-bench", order: 0, prescribedSets: [S(1, 10), S(2, 10), S(3, 10)] }] }] }],
@@ -392,6 +396,7 @@ export const programs: ProgramDto[] = [
     direction: null,
     createdAt: "2026-09-10T09:00:00Z",
     activatedAt: null,
+    startsOn: null,
     phasing: null,
     weeks: makeWeeks(
       [{ sessions: [{ id: uuid(), name: "Full body", order: 0, exercises: [{ id: uuid(), exerciseId: "ex-press", order: 0, prescribedSets: [S(1, 12), S(2, 12)] }, { id: uuid(), exerciseId: "ex-crow", order: 1, prescribedSets: [S(1, 12), S(2, 12)] }] }] }],
@@ -631,6 +636,7 @@ export const trainerProgram: ProgramDto = {
   createdFromProgramId: null,
   direction: null,
   activatedAt: new Date(Date.now() - 6 * 86400_000).toISOString(),
+  startsOn: null,
   phasing: {
     plannedWeeks: 6,
     phase: "Sarcoplasmic hypertrophy",
