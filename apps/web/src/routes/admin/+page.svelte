@@ -135,20 +135,57 @@
     }
   }
 
-  async function run(t: TrainerAccount, action: () => Promise<TrainerAccount | null>) {
+  /** Polite announcement for row changes; set to "" first so a repeat is read again. */
+  let rowSaid = $state("");
+  async function say(text: string) {
+    rowSaid = "";
+    await tick();
+    rowSaid = text;
+  }
+
+  /**
+   * A row action can replace its button or take the row out of the filtered
+   * list; either way focus would fall to <body>. Land it on the row's access
+   * button if the row is still shown, else on the next row's (the previous
+   * one at the end), else on the list itself.
+   */
+  async function refocus(id: string, before: string[]) {
+    await tick();
+    const list = document.getElementById("t-list");
+    const row = (rid: string) => list?.querySelector<HTMLElement>(`li[data-id="${rid}"]`);
+    const target = (li: HTMLElement | null | undefined) =>
+      li?.querySelector<HTMLElement>(".access button, .acts button") ?? li?.querySelector<HTMLElement>("a");
+    const still = row(id);
+    if (still) return target(still)?.focus();
+    const at = before.indexOf(id);
+    const after = shown.map((x) => x.id);
+    const next = before.slice(at + 1).find((x) => after.includes(x)) ?? before.slice(0, at).reverse().find((x) => after.includes(x));
+    const el = next ? target(row(next)) : null;
+    (el ?? list)?.focus();
+  }
+
+  async function run(t: TrainerAccount, action: () => Promise<TrainerAccount | null>, done: string) {
     busy = t.id;
     rowError = null;
+    const before = shown.map((x) => x.id);
     try {
       const next = await action();
       trainers = next ? trainers!.map((x) => (x.id === t.id ? next : x)) : trainers!.filter((x) => x.id !== t.id);
+      const gone = !shown.some((x) => x.id === t.id);
+      const where = show === "all" ? "folded away with the disabled accounts" : `no longer shown under ${SHOW.find((f) => f.value === show)?.label}`;
+      say(gone && next ? `${done}, ${where}` : done);
+      busy = null;
+      await refocus(t.id, before);
     } catch (err) {
       rowError = { id: t.id, text: (err as Error).message };
     } finally {
       busy = null;
     }
   }
-  const setDisabled = (t: TrainerAccount, disabled: boolean) => run(t, () => adminApi.updateTrainer(t.id, { disabled }));
-  const remove = (t: TrainerAccount) => run(t, async () => (await adminApi.removeTrainer(t.id), null));
+  const setDisabled = (t: TrainerAccount, disabled: boolean) =>
+    run(t, () => adminApi.updateTrainer(t.id, { disabled }), `Turned access ${disabled ? "off" : "on"} for ${t.name}`);
+  const remove = (t: TrainerAccount) =>
+    run(t, async () => (await adminApi.removeTrainer(t.id), null), `Removed ${t.name}'s invite`);
 
   async function copyLink() {
     try {
@@ -202,8 +239,9 @@
   </Note>
 {:else}
   <div class="cols">
+    <p class="sr-only" role="status" aria-live="polite">{announce}</p>
+    <p class="sr-only" role="status" aria-live="polite">{rowSaid}</p>
     <Panel title="Add a trainer" class="addp">
-      <p class="sr-only" role="status" aria-live="polite">{announce}</p>
       {#if added}
         <div class="panel-body add done">
           <p class="added"><strong>Added {added.name}</strong> — <span class="addr">{added.email}</span></p>
@@ -285,10 +323,10 @@
         {#if shown.length === 0}
           <p class="panel-body subtle none">No {show} trainers.</p>
         {/if}
-        <ul class="accounts">
+        <ul class="accounts" id="t-list" tabindex="-1" aria-label="Trainer accounts">
           {#each shown as t (t.id)}
             {@const seen = lastSeen(t)}
-            <li class:dim={t.access === "disabled"} class:fresh={t.id === addedId}>
+            <li data-id={t.id} class:dim={t.access === "disabled"} class:fresh={t.id === addedId}>
               <span class="face">
                 {#if t.avatarUrl}
                   <img src={t.avatarUrl} alt="" referrerpolicy="no-referrer" />
@@ -333,23 +371,27 @@
                     <Icon name="lock" size={12} /> Always on
                   </span>
                 {:else if t.access === "disabled"}
-                  <Button
-                    small
-                    disabled={busy === t.id}
-                    aria-label="Turn access on for {t.name}"
-                    onclick={() => setDisabled(t, false)}>Turn access on</Button
-                  >
+                  <span class="access">
+                    <Button
+                      small
+                      disabled={busy === t.id}
+                      aria-label="Turn access on for {t.name}"
+                      onclick={() => setDisabled(t, false)}>Turn access on</Button
+                    >
+                  </span>
                 {:else}
-                  <ConfirmButton
-                    small
-                    variant="default"
-                    armedVariant="danger"
-                    label="Turn access off"
-                    confirmLabel={t.access === "invited" ? "Block sign-in?" : "Sign out & block?"}
-                    subject={t.name}
-                    disabled={busy === t.id}
-                    onconfirm={() => setDisabled(t, true)}
-                  />
+                  <span class="access">
+                    <ConfirmButton
+                      small
+                      variant="default"
+                      armedVariant="danger"
+                      label="Turn access off"
+                      confirmLabel={t.access === "invited" ? "Block sign-in?" : "Sign out & block?"}
+                      subject={t.name}
+                      disabled={busy === t.id}
+                      onconfirm={() => setDisabled(t, true)}
+                    />
+                  </span>
                 {/if}
                 {#if t.access === "invited" && t.clientCount === 0 && !t.isAdmin}
                   <ConfirmButton
@@ -504,6 +546,16 @@
   }
   .fold.open :global(svg) {
     transform: rotate(180deg);
+  }
+  .accounts:focus {
+    outline: none;
+  }
+  .accounts:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+  }
+  .access {
+    display: contents;
   }
   .accounts {
     list-style: none;
