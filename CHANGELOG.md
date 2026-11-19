@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### New
+- The program page now shows each week's dates (like "W2 · 17–23 Nov"), marks the week your client is in now, and opens on that week. A week that has ended says so.
+  - th: หน้าโปรแกรมแสดงวันที่ของแต่ละสัปดาห์แล้ว (เช่น "W2 · 17–23 พ.ย.") มีป้ายบอกว่าลูกค้าอยู่สัปดาห์ไหนตอนนี้ และเปิดมาที่สัปดาห์นั้นเลย สัปดาห์ที่จบไปแล้วจะบอกไว้ให้เห็น
+- Adding or removing a session, or adding, removing or swapping an exercise, now also updates the later weeks, so your client sees the change. Weeks that have ended stay as they were, and sets, reps and loads stay per week. An exercise added this way follows your block's progression. You can undo, or choose to change this week only.
+  - th: เพิ่มหรือลบเซสชัน หรือเพิ่ม ลบ เปลี่ยนท่า ตอนนี้จะอัปเดตสัปดาห์ถัดไปด้วย ลูกค้าจะเห็นการเปลี่ยนแปลงแน่นอน สัปดาห์ที่จบไปแล้วไม่ถูกแตะ และเซ็ต จำนวนครั้ง น้ำหนัก ยังแยกกันรายสัปดาห์ ท่าที่เพิ่มแบบนี้จะขึ้นน้ำหนักตามแผนของบล็อก กดย้อนกลับได้ หรือเลือกเปลี่ยนแค่สัปดาห์นี้ก็ได้
+- Choose the day Week 1 starts when you activate a program, and change it later. Pick next Monday to start next week, or an earlier date if your client is already a few weeks in. Weeks before you activated never count as missed. Before the start, your client sees "Your program starts Mon 23 Nov".
+  - th: เลือกวันเริ่มสัปดาห์ที่ 1 ได้ตอนเปิดใช้โปรแกรม และเปลี่ยนทีหลังได้ เลือกวันจันทร์หน้าถ้าจะเริ่มสัปดาห์หน้า หรือเลือกวันที่ย้อนหลังถ้าลูกค้าเล่นมาแล้วหลายสัปดาห์ สัปดาห์ก่อนวันเปิดใช้จะไม่นับว่าขาด ก่อนถึงวันเริ่ม ลูกค้าจะเห็นว่า "โปรแกรมของคุณเริ่มวันจันทร์ที่ 23 พ.ย."
+
 ## v0.1.37 — 2026-11-19
 
 ### New
