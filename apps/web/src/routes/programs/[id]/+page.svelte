@@ -8,7 +8,10 @@
     addExercise,
     addSet,
     addSession,
+    applyForward,
     applyPlacementToAllWeeks,
+    forwardWeeks,
+    weekStructureDiff,
     copyWeekTargets,
     copyWeekTo,
     alternatingWeeksDiffer,
@@ -50,7 +53,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import { patternTitle } from "$lib/exerciseLibrary";
@@ -87,8 +90,9 @@
   let oneRepMaxes = $state<OneRepMaxes | null>(null);
   /** The client's deload rule in force — the Deload button applies it. */
   let deload = $state<DeloadSettings>(DEFAULT_DELOAD);
-  /** Placement edits apply to every week (every same-letter week in an A/B block) unless narrowed to this week. */
-  let placeAllWeeks = $state(true);
+  /** Structural edits and moves go to this week and the later ones the client hasn't finished
+   *  (same-letter weeks in an A/B block), unless narrowed to this week (FB-017). */
+  let changesLater = $state(true);
   let selected = $state<string | null>(null);
   let catalog = $state<ExerciseDto[]>([]);
   /** New exercise from the picker: save to the library, keep the catalog in sync. */
@@ -165,6 +169,62 @@
   /** Each week's dates and past / now / upcoming; null for drafts (no calendar yet). */
   const weekDates = $derived(program ? weekTabDates(program, logs, today) : null);
   const ended = $derived(currentWeek ? endedNote(weekDates, currentWeek.week, clientName) : null);
+  /** The client's week for forward edits: past the end nothing is "later"; before the start it is W1; drafts have none. */
+  const nowWeek = $derived.by(() => {
+    if (!weekDates) return null;
+    const now = weekDates.find((d) => d.state === "now");
+    if (now) return now.week;
+    return weekDates.every((d) => d.state === "past") ? weekDates.length + 1 : 1;
+  });
+
+  // —— One commit point for structural edits (FB-017) ————————————————————————
+  /** The open week as it was when an editor opened; closing the editors diffs against it. */
+  let pending: { week: number; before: ProgramWeek } | null = null;
+  function beginEdit() {
+    if (!pending && currentWeek) pending = { week: currentWeek.week, before: $state.snapshot(currentWeek) as ProgramWeek };
+  }
+  const sessionHasLogs = (_week: number, sid: string) => logsOf(sid).length > 0;
+  const exerciseHasLogs = (_week: number, sid: string, e: { id: string; exerciseId: string }) =>
+    logsOf(sid).some((l) => setsForExercise(l, e).length > 0);
+  /** Send the structure edits made since `beginEdit` to the later weeks, with an Undo toast. */
+  function commitEdits() {
+    const p = pending;
+    pending = null;
+    if (!p || !program || !changesLater) return;
+    const after = program.weeks.find((w) => w.week === p.week);
+    if (!after) return;
+    const edits = weekStructureDiff(p.before, $state.snapshot(after) as ProgramWeek);
+    if (edits.length === 0) return;
+    const before = $state.snapshot(program.weeks) as ProgramWeek[];
+    const r = applyForward(before, p.week, edits, {
+      targets: forwardWeeks(before, p.week, nowWeek),
+      sessionHasLogs,
+      exerciseHasLogs,
+      phasing: $state.snapshot(program.phasing) ?? null,
+    });
+    if (r.changed.length > 0) program.weeks = r.weeks;
+    const text = forwardNotice(edits, r);
+    if (text) showToast(text, r.changed.length > 0 ? before : null);
+  }
+  function openExerciseEditor(eid: string) {
+    beginEdit();
+    openExercise = eid;
+    openSession = null;
+  }
+  function openSessionEditor(sid: string) {
+    beginEdit();
+    openSession = sid;
+    openExercise = null;
+  }
+  function closeEditors() {
+    openExercise = null;
+    openSession = null;
+    commitEdits();
+  }
+  function selectWeek(wi: number) {
+    closeEditors();
+    currentWeekIndex = wi;
+  }
   const timedIds = $derived(timedIdsOfWeek(currentWeek));
   const isTimed = (e: { id: string; exerciseId: string }) => timedIds.has(e.id) || timedIds.has(e.exerciseId);
   const logsOf = (sid: string) => logView?.bySession.get(sid) ?? [];
@@ -253,7 +313,10 @@
   function place(sid: string, weekday: number | null, index: number) {
     if (!program || !currentWeek) return;
     setWeek(placeSession($state.snapshot(currentWeek) as ProgramWeek, sid, weekday, index));
-    if (placeAllWeeks) program.weeks = applyPlacementToAllWeeks($state.snapshot(program.weeks) as ProgramWeek[], currentWeek.week);
+    if (changesLater) {
+      const weeks = $state.snapshot(program.weeks) as ProgramWeek[];
+      program.weeks = applyPlacementToAllWeeks(weeks, currentWeek.week, forwardWeeks(weeks, currentWeek.week, nowWeek));
+    }
   }
 
   function autoPlace() {
@@ -266,12 +329,13 @@
   }
 
   function addNewSession(kind: SessionKind) {
+    closeEditors();
     if (!currentWeek) return;
+    beginEdit();
     const next = addSession($state.snapshot(currentWeek) as ProgramWeek, kind, null);
     setWeek(next);
     const added = next.sessions.at(-1)!;
-    openSession = added.id;
-    openExercise = null;
+    openSessionEditor(added.id);
     selected = added.id;
   }
 
@@ -334,6 +398,7 @@
   }
 
   async function save() {
+    closeEditors();
     if (!program || !validation.ok) return;
     saving = true;
     saveError = null;
@@ -341,8 +406,6 @@
       program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null);
       baseline = snapshot(program);
       savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      openExercise = null;
-      openSession = null;
     } catch (e) {
       saveError = (e as Error).message;
     } finally {
@@ -356,6 +419,7 @@
     program.weeks = saved.weeks;
     program.phasing = saved.phasing;
     phasingResets++;
+    pending = null;
     openExercise = null;
     openSession = null;
     saveError = null;
@@ -535,7 +599,7 @@
             class:past={dated?.state === "past"}
             aria-current={dated?.state === "now" ? "date" : undefined}
             aria-label={[`W${w.week}`, w.rotation && `week ${w.rotation}`, range, dated?.state === "now" && "this week", dated?.state === "past" && "ended", logged > 0 && loggedText].filter(Boolean).join(", ")}
-            onclick={() => (currentWeekIndex = wi)}
+            onclick={() => selectWeek(wi)}
           >
             W{w.week}{#if w.rotation}<span class="tab-letter">{w.rotation}</span>{/if}
             {#if range}<span class="tab-dates">· {range}</span>{/if}
@@ -598,13 +662,17 @@
       <div class="cal-bar">
         {#if program.weeks.length > 1}
           <Segmented
-            label="Placement changes apply to"
-            lead="Moves apply to"
-            value={placeAllWeeks ? "all" : "one"}
-            onchange={(v) => (placeAllWeeks = v === "all")}
+            label="Changes apply to"
+            lead="Changes apply to"
+            value={changesLater ? "later" : "one"}
+            onchange={(v) => { closeEditors(); changesLater = v === "later"; }}
             items={[
-              { value: "all", label: `every ${currentWeek.rotation ? `${currentWeek.rotation} ` : ""}week` },
-              { value: "one", label: `week ${currentWeek.week} only` },
+              {
+                value: "later",
+                label: `W${currentWeek.week} and later`,
+                title: `Sessions and exercises you add, remove, rename or swap, and moves on the calendar, also go to the later ${currentWeek.rotation ? `${currentWeek.rotation} ` : ""}weeks the client hasn't finished. Sets and loads stay per week.`,
+              },
+              { value: "one", label: `W${currentWeek.week} only` },
             ]}
           />
         {/if}
@@ -640,14 +708,14 @@
                   ontype={(t) => labelAllWeeks(sessionKey(currentWeek.sessions[si]), t)}
                   nextSeqFor={(kind) => nextSeq(currentWeek.sessions.filter((x) => x.id !== s.id), kind)}
                   onday={(wd) => place(s.id, wd, 99)}
-                  onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); openSession = null; }}
-                  onclose={() => (openSession = null)}
+                  onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); closeEditors(); }}
+                  onclose={closeEditors}
                 />
               {:else}
                 <div class="session-header">
                   <h3>{s.name}</h3>
                   {#if editable}
-                    <button class="edit-link" onclick={() => { openSession = s.id; openExercise = null; }}>Edit session</button>
+                    <button class="edit-link" onclick={() => openSessionEditor(s.id)}>Edit session</button>
                   {/if}
                 </div>
                 {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
@@ -699,10 +767,10 @@
                       canMoveDown={!last}
                       onmoveup={() => setExercises(si, moveUnit(s.exercises, ei, -1))}
                       onmovedown={() => setExercises(si, moveUnit(s.exercises, ei, 1))}
-                      onremove={() => { setExercises(si, s.exercises.filter((_, j) => j !== ei)); openExercise = null; }}
+                      onremove={() => { setExercises(si, s.exercises.filter((_, j) => j !== ei)); closeEditors(); }}
                       onlink={ei < s.exercises.length - 1 ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
                       onunlink={() => setExercises(si, unlink(s.exercises, ei))}
-                      onclose={() => (openExercise = null)}
+                      onclose={closeEditors}
                     />
                   {:else}
                     {@const patterns = patternsOf(e.exerciseId)}
@@ -712,7 +780,7 @@
                         {#if e.group}<GroupTag tag={groupTag(s.exercises, ei) ?? e.group} />{/if}
                         {#if e.role}<RoleChip role={e.role} />{/if}
                         {#if editable}
-                          <button class="exname" onclick={() => { openExercise = e.id; openSession = null; }} title="Edit {e.exerciseName}">{e.exerciseName}</button>
+                          <button class="exname" onclick={() => openExerciseEditor(e.id)} title="Edit {e.exerciseName}">{e.exerciseName}</button>
                         {:else}
                           <strong>{e.exerciseName}</strong>
                         {/if}
@@ -765,12 +833,13 @@
                     onclick={() => {
                       const first = catalog[0];
                       if (!currentWeek || !first) return;
+                      // A placeholder the editor swaps right away: the edit goes forward when the editor closes.
+                      beginEdit();
                       const sess = addExercise(currentWeek.sessions[si], first.id, first.name);
                       const last = sess.exercises.length - 1;
                       sess.exercises[last] = addSet(sess.exercises[last]);
                       currentWeek.sessions[si] = sess;
-                      openExercise = sess.exercises[last].id;
-                      openSession = null;
+                      openExerciseEditor(sess.exercises[last].id);
                     }}>+ Exercise</button
                   >
                 {/if}

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import type { WeekEdit } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
-import { copyNotice, copyTargetLabel, currentWeekIndex, endedNote, matchNotice, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, weekLine, weekRangeLabel, weekTabDates, withMode, withSetCount } from "./programEdit";
+import { copyNotice, copyTargetLabel, currentWeekIndex, endedNote, forwardNotice, weekSpan, matchNotice, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, weekLine, weekRangeLabel, weekTabDates, withMode, withSetCount } from "./programEdit";
 
 const set = (o: Partial<PrescribedSetDto> = {}): PrescribedSetDto => ({
   setNumber: 1,
@@ -194,5 +195,23 @@ describe("weekTabDates", () => {
   test("programSubline carries the week line", () => {
     const p = { version: 2, aiAssisted: false, createdFromProgramId: null } as unknown as ProgramDto;
     expect(programSubline(p, null, "Week 1 started Tue 10 Nov · now W2")).toBe("v2 · Week 1 started Tue 10 Nov · now W2");
+  });
+});
+
+describe("forwardNotice", () => {
+  const add = { kind: "addSession", key: "exercises:3", session: { name: "Home" } } as unknown as WeekEdit;
+  const rm = { kind: "removeExercise", ref: { key: "exercises:1", exerciseId: "b", occurrence: 0 }, name: "Bench" } as WeekEdit;
+  test("what went where, and which weeks were kept", () => {
+    expect(forwardNotice([add], { changed: [3, 4, 5, 6], skipped: [] })).toBe("Added Home to W3–W6");
+    expect(forwardNotice([rm], { changed: [4, 5, 6], skipped: [{ week: 3, reason: "logged", edit: rm }] })).toBe("Removed Bench from W4–W6 · W3 kept: has logs");
+    expect(forwardNotice([add, rm], { changed: [3, 5], skipped: [] })).toBe("Added Home to W3, W5 (+1 more change)");
+    expect(forwardNotice([rm], { changed: [], skipped: [{ week: 3, reason: "logged", edit: rm }] })).toBe("No later week changed · W3 kept: has logs");
+    expect(forwardNotice([add], { changed: [], skipped: [] })).toBeNull();
+    expect(forwardNotice([], { changed: [3], skipped: [] })).toBeNull();
+  });
+  test("weekSpan", () => {
+    expect(weekSpan([3])).toBe("W3");
+    expect(weekSpan([3, 4])).toBe("W3, W4");
+    expect(weekSpan([4, 3, 5])).toBe("W3–W5");
   });
 });

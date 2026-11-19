@@ -1,4 +1,4 @@
-import { TEMPO_PATTERN, blockAnchorDate, blockWeekStart, type CopyTarget, type Rotation, type SignalProgram } from "@pt/shared";
+import { TEMPO_PATTERN, blockAnchorDate, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
 
 /** Pure helpers for the inline program editor: set modes, grouped sets, dirty state, header copy. */
@@ -240,4 +240,56 @@ export function endedNote(dates: readonly WeekTabDate[] | null, week: number, cl
   const now = dates!.find((x) => x.state === "now");
   const who = clientName?.trim().split(/\s+/)[0] || "The client";
   return `W${week} ended ${dayMonth(d.end)} — ${now ? `${who} is in W${now.week}.` : "the block has ended."}`;
+}
+
+// —— Forward edits toast ————————————————————————————————————————————————
+
+/** "W3–W6" for a run, "W3, W5" otherwise. */
+export function weekSpan(weeks: readonly number[]): string {
+  const sorted = [...weeks].sort((a, b) => a - b);
+  const run = sorted.length > 2 && sorted.every((w, i) => i === 0 || w === sorted[i - 1] + 1);
+  return run ? `W${sorted[0]}–W${sorted.at(-1)}` : weekList(sorted);
+}
+
+const editSentence = (e: WeekEdit, where: string): string => {
+  switch (e.kind) {
+    case "addSession":
+      return `Added ${e.session.name} to ${where}`;
+    case "removeSession":
+      return `Removed ${e.name} from ${where}`;
+    case "renameSession":
+      return `Renamed ${e.from} to ${e.name} in ${where}`;
+    case "addExercise":
+      return `Added ${e.exercise.exerciseName ?? "an exercise"} to ${where}`;
+    case "removeExercise":
+      return `Removed ${e.name} from ${where}`;
+    case "swapExercise":
+      return `Swapped ${e.from} for ${e.exerciseName} in ${where}`;
+  }
+};
+
+const KEPT_BECAUSE: Record<ForwardSkipReason, [one: string, many: string]> = {
+  logged: ["has logs", "have logs"],
+  exists: ["already has that session", "already have that session"],
+  missing: ["no matching session", "no matching session"],
+  full: ["full", "full"],
+  empty: ["would be left empty", "would be left empty"],
+};
+
+/** Toast after an edit went to later weeks: "Added Home to W3–W6" /
+ *  "Removed Bench from W4–W6 · W3 kept: has logs". null when nothing happened. */
+export function forwardNotice(edits: readonly WeekEdit[], r: Pick<ForwardResult, "changed" | "skipped">): string | null {
+  if (edits.length === 0 || (r.changed.length === 0 && r.skipped.length === 0)) return null;
+  const head =
+    r.changed.length > 0
+      ? `${editSentence(edits[0], weekSpan(r.changed))}${edits.length > 1 ? ` (+${edits.length - 1} more ${edits.length === 2 ? "change" : "changes"})` : ""}`
+      : "No later week changed";
+  const byReason = new Map<ForwardSkipReason, Set<number>>();
+  for (const s of r.skipped) byReason.set(s.reason, (byReason.get(s.reason) ?? new Set()).add(s.week));
+  const kept = [...byReason].map(([reason, set]) => {
+    const weeks = [...set].sort((a, b) => a - b);
+    const [one, many] = KEPT_BECAUSE[reason];
+    return `${weekList(weeks)} kept: ${weeks.length === 1 ? one : many}`;
+  });
+  return [head, ...kept].join(" · ");
 }
