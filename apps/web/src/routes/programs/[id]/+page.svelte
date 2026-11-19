@@ -74,6 +74,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
 
   const id = $derived(page.params.id ?? "");
@@ -437,14 +438,23 @@
     },
   });
 
-  async function activate() {
+  /** "Week 1 starts on": picked when activating, changeable on an active program. */
+  let startDialog = $state<"activate" | "change" | null>(null);
+  async function setStart(startsOn: string) {
     if (!program) return;
-    activating = true;
-    try {
-      program = await api.setProgramStatus(program.id, "active");
-    } finally {
-      activating = false;
+    if (startDialog === "activate") {
+      activating = true;
+      try {
+        program = await api.setProgramStatus(program.id, "active", startsOn);
+      } finally {
+        activating = false;
+      }
+    } else {
+      program = await api.setProgramStartsOn(program.id, startsOn);
     }
+    startDialog = null;
+    closeEditors();
+    currentWeekIndex = openingWeekIndex(weekTabDates(program, logs, today));
   }
 
   /** Deload the viewed week by the client's rule (deloadWeek); the week-1 basis reads week 1's loads
@@ -507,7 +517,10 @@
     <div>
       <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
       <h1>{program.name} <StatusPill status={program.status} /></h1>
-      <p class="sub">{programSubline(program, savedAt, weekLine(weekDates))}</p>
+      <p class="sub">
+        {programSubline(program, savedAt, weekLine(weekDates))}
+        {#if program.status === "active"}<button type="button" class="edit-link sub-link" onclick={() => (startDialog = "change")}>Change</button>{/if}
+      </p>
     </div>
     <div class="actions">
       {#if program.status === "archived"}
@@ -523,7 +536,7 @@
           <button class="btn ghost" onclick={() => { marking = true; markError = null; }}>Mark as example</button>
         {/if}
         {#if program.status === "draft"}
-          <button class="btn primary" onclick={activate} disabled={activating}>
+          <button class="btn primary" onclick={() => (startDialog = "activate")} disabled={activating}>
             {activating ? "Activating…" : "Activate program"}
           </button>
         {/if}
@@ -902,6 +915,9 @@
 {/if}
 
 <LeaveGuard guard={leaveGuard} />
+{#if program}
+  <StartDateDialog mode={startDialog} program={program as SignalProgram} {logs} onconfirm={setStart} onclose={() => (startDialog = null)} />
+{/if}
 
 <style>
   h1 { display: flex; align-items: center; gap: 10px; }
@@ -1052,6 +1068,7 @@
     cursor: pointer;
   }
   .edit-link:hover, .add-link:hover { text-decoration: underline; }
+  .sub-link { margin-left: 6px; font-size: inherit; }
   .add-link { align-self: flex-start; }
   .sess-notes, .exnotes { margin: 0; font-size: 12.5px; }
 

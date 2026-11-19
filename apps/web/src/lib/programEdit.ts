@@ -159,12 +159,13 @@ export interface WeekTabDate {
 
 type AnchorLog = { programId: string; date: string };
 type DatedProgram = Pick<SignalProgram, "id" | "status" | "activatedAt" | "createdAt"> & {
+  startsOn?: string | null;
   weeks: readonly { week: number }[];
 };
 
 const anchorOf = (program: DatedProgram, logs: readonly AnchorLog[]) =>
   blockAnchorDate(
-    { id: program.id, activatedAt: program.activatedAt, createdAt: program.createdAt, clientId: null, name: "", status: "", weeks: [] },
+    { id: program.id, activatedAt: program.activatedAt, startsOn: program.startsOn ?? null, createdAt: program.createdAt, clientId: null, name: "", status: "", weeks: [] },
     logs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
   ).slice(0, 10);
 

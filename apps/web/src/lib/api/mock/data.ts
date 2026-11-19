@@ -201,7 +201,7 @@ export const programs: ProgramDto[] = [
     direction: null,
     createdAt: "2026-07-14T09:00:00Z",
     activatedAt: new Date(Date.now() - 35 * 86400_000).toISOString(),
-    startsOn: null,
+    startsOn: new Date(Date.now() - 35 * 86400_000).toISOString().slice(0, 10),
     phasing: {
       plannedWeeks: 6,
       phase: "accumulation",
@@ -338,7 +338,7 @@ export const programs: ProgramDto[] = [
     createdFromProgramId: "pg-jonas-0",
     createdAt: "2026-08-02T09:00:00Z",
     activatedAt: new Date(Date.now() - 12 * 86400_000).toISOString(),
-    startsOn: null,
+    startsOn: new Date(Date.now() - 12 * 86400_000).toISOString().slice(0, 10),
     phasing: {
       plannedWeeks: 6,
       phase: "hypertrophy",
@@ -636,7 +636,7 @@ export const trainerProgram: ProgramDto = {
   createdFromProgramId: null,
   direction: null,
   activatedAt: new Date(Date.now() - 6 * 86400_000).toISOString(),
-  startsOn: null,
+  startsOn: new Date(Date.now() - 6 * 86400_000).toISOString().slice(0, 10),
   phasing: {
     plannedWeeks: 6,
     phase: "Sarcoplasmic hypertrophy",

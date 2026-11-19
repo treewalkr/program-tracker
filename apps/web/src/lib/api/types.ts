@@ -693,7 +693,10 @@ export interface TrainerApi {
     phasing?: ProgramPhasingDto | null;
     createdFromProgramId?: string | null;
   }): Promise<ProgramDto>;
-  setProgramStatus(id: string, status: ProgramDto["status"]): Promise<ProgramDto>;
+  /** `startsOn` (YYYY-MM-DD): the day Week 1 starts, on activation only. */
+  setProgramStatus(id: string, status: ProgramDto["status"], startsOn?: string): Promise<ProgramDto>;
+  /** Move Week 1's start on an active program. */
+  setProgramStartsOn(id: string, startsOn: string): Promise<ProgramDto>;
   saveProgramDirection(id: string, direction: string | null): Promise<ProgramDto>;
 
   examples(programId?: string): Promise<ProgramExampleDto[]>;

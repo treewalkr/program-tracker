@@ -18,6 +18,8 @@ export interface DateSession {
 export interface DateProgram {
   id: string;
   activatedAt?: string | null;
+  /** The day Week 1 starts, when set; else the legacy anchor. */
+  startsOn?: string | null;
   createdAt: string;
   weeks: { week: number; sessions: DateSession[] }[];
 }
@@ -58,7 +60,7 @@ export const isoWeekday = (iso: string): number => ((new Date(`${iso.slice(0, 10
 
 function anchorDay(program: DateProgram, logs: DateLog[]): number {
   const anchor = blockAnchorDate(
-    { id: program.id, activatedAt: program.activatedAt, createdAt: program.createdAt, clientId: null, name: "", status: "", weeks: [] },
+    { id: program.id, activatedAt: program.activatedAt, startsOn: program.startsOn ?? null, createdAt: program.createdAt, clientId: null, name: "", status: "", weeks: [] },
     logs.map((l) => ({ programId: l.programId, date: l.date, sets: [] }))
   );
   return dayNumber(anchor);

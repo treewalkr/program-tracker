@@ -1,5 +1,5 @@
 import {
-  blockAnchorDate,
+  trackingStartDate,
   blockWeekOfDate,
   cardioDone,
   cardioUnitLabel,
@@ -152,7 +152,8 @@ export function buildClientStrip(
 
   const hasPlan = !!program?.weeks?.length;
   const programLogs = program ? logs.filter((l) => l.programId === program.id) : [];
-  const anchorDay = program ? blockAnchorDate(program, programLogs).slice(0, 10) : null;
+  // Days before tracking started (a Week 1 moved before activation) are never missed.
+  const anchorDay = program ? trackingStartDate(program, programLogs).slice(0, 10) : null;
   const clientDay = client.createdAt ? localIso(new Date(client.createdAt)) : null;
   const startDay = anchorDay && clientDay && clientDay > anchorDay ? clientDay : anchorDay;
 

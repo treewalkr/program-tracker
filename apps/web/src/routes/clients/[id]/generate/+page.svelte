@@ -39,6 +39,7 @@
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
+  import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
 
   const id = $derived(page.params.id ?? "");
@@ -392,13 +393,15 @@
     periodContext = bits.join(" · ");
   }
 
-  /** Make the approved-but-inactive program live; the form then builds on it. */
-  async function activate() {
+  /** Activate asks when Week 1 starts first (StartDateDialog). */
+  let startDialogOpen = $state(false);
+  /** Make the approved-but-inactive program live from `startsOn`; the form then builds on it. */
+  async function activate(startsOn: string) {
     if (!pending || activating) return;
     activating = true;
     activateError = null;
     try {
-      const p = await api.setProgramStatus(pending.id, "active");
+      const p = await api.setProgramStatus(pending.id, "active", startsOn);
       current = p;
       activated = p;
       pending = null;
@@ -410,6 +413,7 @@
       activateError = (err as Error).message;
     } finally {
       activating = false;
+      startDialogOpen = false;
     }
   }
 
@@ -599,7 +603,7 @@
         </div>
         <div class="gf-banner-act">
           <Button small href="/programs/{p.id}">Open program</Button>
-          <Button small type="button" onclick={activate} disabled={activating}>
+          <Button small type="button" onclick={() => (startDialogOpen = true)} disabled={activating}>
             {activating ? "Activating…" : `Activate v${p.version}`}
           </Button>
         </div>
@@ -843,6 +847,10 @@
   />
 {/if}
 
+
+{#if pending}
+  <StartDateDialog mode={startDialogOpen ? "activate" : null} program={pending as SignalProgram} onconfirm={activate} onclose={() => (startDialogOpen = false)} />
+{/if}
 
 <style>
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }

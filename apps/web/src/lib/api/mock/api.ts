@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema, normalizeKind, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, normalizeKind, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS, startsOnIssue, localDateOf } from "@pt/shared";
 import { asRelease1, withKindAlias } from "./kindAlias";
 import {
   AiProgramDraft as AiProgramDraftSchema,
@@ -874,10 +874,15 @@ const rawMockApi: TrainerApi = {
     return withNames(updated);
   },
 
-  async setProgramStatus(id, status) {
+  async setProgramStatus(id, status, startsOn) {
     await delay(300);
     const i = state.programs.findIndex((p) => p.id === id);
     const p = state.programs[i];
+    if (startsOn !== undefined) {
+      const issue = status === "active" ? startsOnIssue(startsOn, p.weeks.length, localDateOf(Date.now())) : "startsOn is set on activation only";
+      if (issue) throw new Error(issue);
+      p.startsOn = startsOn;
+    }
     if (status === "active" && p.clientId) {
       for (const other of state.programs) {
         if (other.clientId === p.clientId && other.status === "active" && other.id !== id) {
@@ -887,6 +892,17 @@ const rawMockApi: TrainerApi = {
       if (!p.activatedAt) p.activatedAt = new Date().toISOString();
     }
     p.status = status;
+    return withNames(p);
+  },
+
+  async setProgramStartsOn(id, startsOn) {
+    await delay(250);
+    const p = state.programs.find((x) => x.id === id);
+    if (!p) throw new Error("program not found");
+    if (p.status !== "active") throw new Error("only an active program's start date can change");
+    const issue = startsOnIssue(startsOn, p.weeks.length, localDateOf(Date.now()));
+    if (issue) throw new Error(issue);
+    p.startsOn = startsOn;
     return withNames(p);
   },
 
@@ -1518,7 +1534,7 @@ const rawMockApi: TrainerApi = {
         weeks: p.weeks,
         createdAt: new Date().toISOString(),
         activatedAt: `${p.activatedAt}T00:00:00.000Z`,
-        startsOn: null,
+        startsOn: p.activatedAt,
         phasing: null,
       };
       state.programs = [...state.programs, program];
