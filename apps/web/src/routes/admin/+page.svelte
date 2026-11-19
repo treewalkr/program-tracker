@@ -351,7 +351,9 @@
                 <div class="line">
                   <strong><a class="name-link" href="/admin/trainers/{t.id}">{t.name}</a></strong>
                   <Pill tone={ACCESS[t.access].tone}>{ACCESS[t.access].label}</Pill>
-                  {#if t.isAdmin}<Pill>Admin</Pill>{/if}
+                  {#if t.isAdmin}<span class="roletag" title="Platform admin: manages trainer accounts"
+                      ><Icon name="gear" size={12} />Admin</span
+                    >{/if}
                 </div>
                 <div class="subtle">{t.email}</div>
                 <div class="meta">
@@ -612,6 +614,14 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+  /* A role, not an access state: no pill, just a quiet icon and word */
+  .roletag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: 500 12px/1.2 var(--font-ui);
+    color: var(--muted);
   }
   .meta > :global(*) {
     white-space: nowrap;
