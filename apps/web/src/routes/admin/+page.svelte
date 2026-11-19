@@ -261,6 +261,42 @@
     const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
     return days <= 0 ? "today" : days === 1 ? "yesterday" : days < 30 ? `${days} days ago` : fmt.format(new Date(iso));
   }
+  /** Invites nobody has used and nothing hangs off: safe to remove in one go. */
+  const unused = $derived((trainers ?? []).filter((t) => t.access === "invited" && t.clientCount === 0 && !t.isAdmin));
+  /** Bulk removal in flight: how far along. */
+  let sweeping = $state<{ done: number; of: number } | null>(null);
+  let sweepError = $state<{ text: string; detail: string } | null>(null);
+
+  /** One DELETE per invite — the server re-checks each (never signed in, no clients, not the admin). */
+  async function removeUnused() {
+    const batch = [...unused];
+    sweeping = { done: 0, of: batch.length };
+    sweepError = null;
+    const failed: { t: TrainerAccount; detail: string }[] = [];
+    for (const t of batch) {
+      try {
+        await adminApi.removeTrainer(t.id);
+        trainers = trainers!.filter((x) => x.id !== t.id);
+      } catch (err) {
+        failed.push({ t, detail: (err as Error).message });
+      }
+      sweeping = { done: sweeping.done + 1, of: batch.length };
+    }
+    sweeping = null;
+    const removed = batch.length - failed.length;
+    if (failed.length) {
+      const detail = failed.map((f) => `${f.t.name}: ${f.detail}`).join("; ");
+      console.warn("Removing unused invites:", detail);
+      sweepError = {
+        text: `Removed ${removed} of ${batch.length}. ${failed.map((f) => f.t.name).join(", ")} couldn't be removed — they may have signed in or gained clients since. Reload to see the latest.`,
+        detail,
+      };
+    }
+    say(`Removed ${removed} unused ${removed === 1 ? "invite" : "invites"}${failed.length ? `, ${failed.length} failed` : ""}`);
+    await tick();
+    (document.querySelector<HTMLElement>("#t-sweep button") ?? document.getElementById("t-list"))?.focus();
+  }
+
   /** Active, but no sign-in for over a month. */
   const inactive = (t: TrainerAccount) =>
     t.access === "active" && !!t.lastSignInAt && Date.now() - new Date(t.lastSignInAt).getTime() > INACTIVE_DAYS * 86_400_000;
@@ -476,7 +512,7 @@
                     label={busy?.id === t.id && busy.act === "remove" ? WORKING.remove : "Remove"}
                     confirmLabel="Remove invite?"
                     subject={t.name}
-                    disabled={busy?.id === t.id}
+                    disabled={busy?.id === t.id || !!sweeping}
                     onconfirm={() => remove(t)}
                   />
                 {/if}
@@ -484,6 +520,25 @@
             </li>
           {/each}
         </ul>
+        {#if (unused.length > 1 || sweeping || sweepError) && !needle && (show === "all" || show === "invited")}
+          <div class="sweep" id="t-sweep">
+            {#if unused.length > 1 || sweeping}
+              <ConfirmButton
+                small
+                variant="default"
+                armedVariant="danger"
+                label={sweeping ? `Removing ${sweeping.done + 1} of ${sweeping.of}…` : `Remove ${unused.length} unused invites`}
+                confirmLabel="Remove all {unused.length}?"
+                disabled={!!sweeping}
+                onconfirm={removeUnused}
+              />
+              <span class="subtle">
+                Never signed in, no clients: {unused.map((t) => t.name).join(", ")}
+              </span>
+            {/if}
+            {#if sweepError}<p class="err" role="alert" title={sweepError.detail}>{sweepError.text}</p>{/if}
+          </div>
+        {/if}
         {#if show === "all" && !needle && counts.disabled > FOLD_DISABLED}
           <div class="fold" class:open={!folded}>
             <Button small variant="ghost" aria-expanded={!folded} onclick={() => (showDisabled = !showDisabled)}>
@@ -617,6 +672,18 @@
   .share > :global(.btn.ghost),
   .fold > :global(.btn.ghost) {
     margin-left: -13px;
+  }
+  .sweep {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px;
+  }
+  .sweep .err {
+    flex-basis: 100%;
   }
   .fold {
     padding: 8px 16px;
