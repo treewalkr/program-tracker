@@ -3,6 +3,8 @@ import { sortExercisesByRole } from "./domain";
 import { DraftExerciseRef } from "./ai";
 import type { ExerciseRole } from "./domain";
 import {
+  builtinNameTwin,
+  overrideRowName,
   BUILTIN_ROLE_LABELS,
   fixDraftRoles,
   isKnownRole,
@@ -332,5 +334,25 @@ describe("suggestRole heaviness", () => {
     const squat = { name: "Squat", movementPattern: "knee_dominant" as const, prescribedSets: [{ reps: 8, repsMin: 6, type: "working" }] };
     const pushUp = { name: "Push-Up", movementPattern: "horizontal_push" as const, prescribedSets: [{ reps: 0, amrap: true, type: "working" }] };
     expect(suggestRoles([pushUp, squat])).toEqual(["strength", "primary"]);
+  });
+});
+
+describe("builtinNameTwin", () => {
+  test("an own label named like a built-in, any case, points at it", () => {
+    expect(builtinNameTwin({ builtinKey: null, name: "Conditioning" })).toBe("conditioning");
+    expect(builtinNameTwin({ builtinKey: null, name: "strength / supplemental" })).toBe("supplemental");
+  });
+  test("other own labels and the built-ins themselves don't", () => {
+    expect(builtinNameTwin({ builtinKey: null, name: "Engine" })).toBeNull();
+    expect(builtinNameTwin({ builtinKey: "conditioning", name: "Conditioning" })).toBeNull();
+  });
+});
+
+describe("overrideRowName", () => {
+  test("no trimmed label name can take it, and the merge ignores it", () => {
+    const name = overrideRowName("conditioning");
+    expect(name).not.toBe(name.trim());
+    const [merged] = mergeRoleLabels([{ id: "o", builtinKey: "power", name: overrideRowName("power"), chip: "P", description: null, rank: 100, archivedAt: null }]).filter((l) => l.key === "power");
+    expect(merged).toMatchObject({ name: "Power", chip: "P" });
   });
 });

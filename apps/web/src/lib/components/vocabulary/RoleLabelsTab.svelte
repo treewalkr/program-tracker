@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { ROLE_LABEL_CHIP_MAX, ROLE_LABEL_DESCRIPTION_MAX, ROLE_LABEL_NAME_MAX, type RoleLabel } from "@pt/shared";
+  import { ROLE_LABEL_CHIP_MAX, ROLE_LABEL_DESCRIPTION_MAX, ROLE_LABEL_NAME_MAX, builtinNameTwin, type RoleLabel } from "@pt/shared";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { labelBefore, labelsInOrder, rankToMove } from "$lib/vocabulary";
   import Button from "$lib/ui/Button.svelte";
@@ -143,7 +143,11 @@
           </form>
         {:else}
           <span class="chip-text" title="Chip">{l.chip}</span>
-          <span class="name-text"><span class="nm">{l.name}</span>{#if l.builtinKey} <Pill>built-in</Pill>{/if}</span>
+          {@const twin = builtinNameTwin(l)}
+          <span class="name-text">
+            <span class="nm">{l.name}</span>{#if l.builtinKey} <Pill>built-in</Pill>{/if}
+            {#if twin}<span class="twin">Same name as a built-in — rename it</span>{/if}
+          </span>
           <span class="meaning-text">{l.description}</span>
           <div class="acts">
             <Button small variant="ghost" onclick={() => startEdit(l)}>Edit</Button>
@@ -212,6 +216,8 @@
   .name-text { display: flex; align-items: center; gap: 6px; font: 600 14px var(--font-ui); color: var(--ink); flex-wrap: wrap; }
   /* long built-in names ("Strength / Supplemental") stay on one line; the pill wraps under them */
   .name-text .nm { white-space: nowrap; }
+  /* an older own label sharing a built-in's name: a quiet nudge, not an error */
+  .twin { flex-basis: 100%; font: 500 12px var(--font-ui); color: var(--warn-ink); }
   .meaning-text { font-size: 13px; color: var(--muted); }
   .acts { display: flex; gap: 4px; justify-content: flex-end; min-width: 150px; }
   .edit { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

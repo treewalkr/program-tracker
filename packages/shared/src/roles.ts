@@ -55,6 +55,13 @@ export interface RoleLabelRowLike {
  */
 export const overrideRowName = (key: BuiltinRole): string => ` builtin:${key}`;
 
+/** The built-in an own label shares its name with (any case), if any. */
+export function builtinNameTwin(label: Pick<RoleLabel, "builtinKey" | "name">): BuiltinRole | null {
+  if (label.builtinKey) return null;
+  const name = label.name.toLowerCase();
+  return EXERCISE_ROLES.find((r) => EXERCISE_ROLE_INFO[r].name.toLowerCase() === name) ?? null;
+}
+
 /** The built-ins with their defaults, in order. */
 export const BUILTIN_ROLE_LABELS: readonly RoleLabel[] = EXERCISE_ROLES.map((r) => ({
   key: r,
