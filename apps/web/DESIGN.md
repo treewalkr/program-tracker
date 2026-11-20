@@ -375,7 +375,7 @@ The program page's placement board: Mon–Sun columns plus an "Any day" tray. Ca
 Weekly volume bars on the contributions ramp, with an average-RPE line on a fixed 6–10 right axis. Weeks that are planned but not yet logged render as dashed stubs. The RPE line breaks over weeks with no RPE. It is purely presentational: metrics come from `blockPulse` in the page.
 
 ### Generate Inputs & Client Message
-The generate page opens with an **InputLedger**: "What the AI reads", one lamp row per generation input. Empty inputs link to where they're filled in. While a draft runs, **GeneratingState** shows phase and elapsed time. The client message page puts the approved text next to a **CopyButton** ("Copy" → "Copied ✓" for 2s, errors shown in place). The trainer pastes the message into LINE by hand; the app never sends it.
+The generate page opens with an **InputLedger**: "What the AI reads", one lamp row per generation input. Empty inputs link to where they're filled in. Under the note, a mono count (`4,640 / 6,000`, with the note/rules split beside it) shows the rules + note brief against the AI's limit from 75% of it; once over, it turns Danger Red, locks Generate, puts each rule's size on its chip and offers to turn off the smallest rule that fixes it. While a draft runs, **GeneratingState** shows phase and elapsed time. The client message page puts the approved text next to a **CopyButton** ("Copy" → "Copied ✓" for 2s, errors shown in place). The trainer pastes the message into LINE by hand; the app never sends it.
 
 ### Lists
 Every list page (Clients, Exercise library, Admin › All clients) follows one standard, built from **ListToolbar**, **Pager** and the URL state helper `listUrlState` (`$lib/list/urlState.svelte.ts`).
