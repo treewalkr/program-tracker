@@ -665,13 +665,15 @@
             bind:value={instructions}
             maxlength={NOTE_MAX}
             rows="4"
-            aria-describedby="g-count"
+            aria-describedby={meter.show ? "g-count" : undefined}
             placeholder="What should this {weekMode ? 'week' : 'block'} do? Optional — leave blank to draft from the inputs alone."
           ></textarea>
-          <div class="count" id="g-count">
-            {#if meter.used > 0}<span class="split">note {fmt(meter.split.note)} · rules {fmt(meter.split.rules)}</span>{/if}
-            <span class="pill" class:over={meter.over}>{fmt(meter.used)} / {fmt(meter.max)}</span>
-          </div>
+          {#if meter.show}
+            <div class="count" id="g-count">
+              <span class="split">note {fmt(meter.split.note)} · rules {fmt(meter.split.rules)}</span>
+              <span class="pill" class:over={meter.over}>{fmt(meter.used)} / {fmt(meter.max)}</span>
+            </div>
+          {/if}
           {#if weekMode && current?.direction}
             <div class="standing"><strong>Block direction</strong> · {current.direction}</div>
           {:else if !weekMode && !fillTarget}

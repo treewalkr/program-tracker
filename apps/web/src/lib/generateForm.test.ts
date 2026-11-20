@@ -304,9 +304,14 @@ describe("briefMeter", () => {
   const meter = (note: string, keep: boolean, templates: InstructionTemplateDto[]) =>
     briefMeter({ instructions: composeRequest({ note, keep, weekMode: null, templates }).instructions, note, keep, templates });
 
-  test("counts the exact wire text", () => {
+  test("counts the exact wire text and hides below 75%", () => {
     const m = meter(" hi ", false, [mkTpl("a", "rule a")]);
-    expect(m).toEqual({ used: 10, max: 6000, over: false, overBy: 0, split: { note: 2, rules: 8 }, fixRule: null });
+    expect(m).toEqual({ used: 10, max: 6000, show: false, over: false, overBy: 0, split: { note: 2, rules: 8 }, fixRule: null });
+  });
+
+  test("shows from 75% of the limit", () => {
+    expect(meter("x".repeat(4499), false, []).show).toBe(false);
+    expect(meter("x".repeat(4500), false, []).show).toBe(true);
   });
 
   test("keep: the note goes as direction and is not counted", () => {
