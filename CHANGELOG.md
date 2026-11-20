@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.40 — 2026-11-20
+
 ### New
 - Four new role labels: **Movement Prep**, **Strength / Supplemental**, **Conditioning** and **Mobility / Recovery**. Exercises now sort in this order: Movement Prep, Power, Primary, Secondary, Strength, Strength / Supplemental, Auxiliary, Core, Conditioning, Mobility / Recovery. Each label has a clearer meaning, and the AI reads it.
   - th: มีป้ายบทบาทใหม่ 4 แบบ: **Movement Prep**, **Strength / Supplemental**, **Conditioning** และ **Mobility / Recovery** ท่าในเซสชันจะเรียงตามลำดับนี้: Movement Prep, Power, Primary, Secondary, Strength, Strength / Supplemental, Auxiliary, Core, Conditioning, Mobility / Recovery แต่ละป้ายมีความหมายชัดขึ้น และ AI ใช้ความหมายนี้ด้วย
