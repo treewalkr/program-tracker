@@ -2,13 +2,14 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, fillLockedWeeks, loggedWeeks, mentionsAlternating, selectExamples, weekRangeLabel, type SignalProgram, type WeeksChoice } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, NOTE_MAX, fillLockedWeeks, loggedWeeks, mentionsAlternating, selectExamples, weekRangeLabel, type SignalProgram, type WeeksChoice } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import { effectivePreferences } from "$lib/preferences";
   import {
+    briefMeter,
     composeRequest,
     defaultBlockWeeks,
     defaultWeeksChoice,
@@ -200,6 +201,10 @@
   );
   /** The generate body: templates first, then the note — or the note as the block direction when "Keep" is ticked. */
   const request = $derived(composeRequest({ note: instructions, keep: keep && !fillTarget, weekMode, templates: selectedTemplates }));
+  /** The brief against the AI's limit — the note counts unless it goes as the block direction. */
+  const noteAsDirection = $derived(keep && !fillTarget && !weekMode);
+  const meter = $derived(briefMeter({ instructions: request.instructions, note: instructions, keep: noteAsDirection, templates: selectedTemplates }));
+  const fmt = (n: number) => n.toLocaleString("en-US");
   const recentLogs = $derived(recentLogCount(logs));
 
   const draftName = (ex: { exerciseId?: string; exerciseName?: string }) =>
@@ -658,10 +663,17 @@
             id="g-instructions"
             bind:this={textareaEl}
             bind:value={instructions}
-            maxlength="2000"
+            maxlength={NOTE_MAX}
             rows="4"
+            aria-describedby={meter.show ? "g-count" : undefined}
             placeholder="What should this {weekMode ? 'week' : 'block'} do? Optional — leave blank to draft from the inputs alone."
           ></textarea>
+          {#if meter.show}
+            <div class="count" id="g-count">
+              <span class="split">note {fmt(meter.split.note)} · rules {fmt(meter.split.rules)}</span>
+              <span class="pill" class:over={meter.over}>{fmt(meter.used)} / {fmt(meter.max)}</span>
+            </div>
+          {/if}
           {#if weekMode && current?.direction}
             <div class="standing"><strong>Block direction</strong> · {current.direction}</div>
           {:else if !weekMode && !fillTarget}
@@ -716,12 +728,31 @@
               <Note tone="bad">A block direction is limited to 500 characters — shorten it or untick “Keep”.</Note>
             </div>
           {/if}
+          {#if meter.over}
+            {@const noteCounts = !noteAsDirection}
+            {@const canCut = noteCounts && meter.overBy <= meter.split.note}
+            <div class="box-note">
+              <Note tone="bad" role="status">
+                {noteCounts ? "The note and rules come to" : "The rules come to"} <span class="fig">{fmt(meter.used)}</span> characters; the AI reads up to <span class="fig">{fmt(meter.max)}</span>.
+                {#if meter.fixRule}
+                  {@const fix = meter.fixRule}
+                  <span class="nobr"
+                    ><button type="button" class="linkish" onclick={() => (selected = selected.filter((s) => s !== fix.id))}>Turn off “{fix.name}”</button
+                    >{#if !canCut}.{/if}</span
+                  >{#if canCut}&#32;or cut <span class="fig">{fmt(meter.overBy)}</span> from the note.{/if}
+                {:else}
+                  Turn off a rule{#if canCut}&#32;or cut <span class="fig">{fmt(meter.overBy)}</span> from the note{/if}.
+                {/if}
+              </Note>
+            </div>
+          {/if}
           <div class="rules">
             <span class="lbl">Rules</span>
             {#each templates as t (t.id)}
               <ToggleChip on={selected.includes(t.id)} title={t.content} onclick={() => toggleTemplate(t.id)}>
                 {#if selected.includes(t.id)}<Icon name="check" />{/if}
                 {t.name}
+                {#if meter.over}<span class="sz">{fmt(t.content.length)}</span>{/if}
               </ToggleChip>
             {/each}
             <Button variant="ghost" small type="button" onclick={() => (peek = !peek)}>
@@ -741,7 +772,7 @@
             <Button
               variant="primary"
               type="submit"
-              disabled={request.directionTooLong || !providerId || (fillTarget ? fillTooLong || fillWrites.length === 0 : !weekMode && !blockWeeksValid)}
+              disabled={request.directionTooLong || meter.over || !providerId || (fillTarget ? fillTooLong || fillWrites.length === 0 : !weekMode && !blockWeeksValid)}
             >
               {#snippet icon()}<Icon name="sparkle" />{/snippet}
               {fillTarget ? `Fill ${weekRangeLabel(fillWrites)}` : weekMode ? `Draft week ${weekMode}` : "Generate draft"}
@@ -945,6 +976,16 @@
   .keep.on { color: var(--ink); }
   .standing { margin: 0 14px 10px; padding: 8px 10px; border-left: 3px solid var(--blue); background: var(--well); font-size: 13px; }
   .box-note { padding: 0 14px 10px; }
+  .count { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 2px 14px 8px; }
+  .count .split { font: 400 12px/1 var(--font-ui); color: var(--muted); }
+  .count .pill {
+    font: 500 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 99px; padding: 3px 8px;
+  }
+  .count .pill.over { color: var(--bad); background: var(--bad-bg); border-color: var(--bad-line); }
+  .nobr { white-space: nowrap; }
+  .fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .sz { font: 400 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; opacity: 0.75; }
   .rules { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
   .rules .lbl { font-size: 12px; color: var(--muted); margin-right: 2px; }
   .row { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 8px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }

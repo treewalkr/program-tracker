@@ -5,6 +5,7 @@ import {
   defaultWeeksChoice,
   estimatedWaitSeconds,
   waitLabel,
+  briefMeter,
   composeRequest,
   generateSubtitle,
   instructionsPreview,
@@ -296,5 +297,50 @@ describe("block length and Weeks (FB-013)", () => {
     expect(estimatedWaitSeconds("zai", 8)).toBe(210 * 8);
     expect(waitLabel(estimatedWaitSeconds("zai", 8))).toBe("about 28 min");
     expect(waitLabel(estimatedWaitSeconds("deepseek", 4))).toBe("about 2 min");
+  });
+});
+
+describe("briefMeter", () => {
+  const meter = (note: string, keep: boolean, templates: InstructionTemplateDto[]) =>
+    briefMeter({ instructions: composeRequest({ note, keep, weekMode: null, templates }).instructions, note, keep, templates });
+
+  test("counts the exact wire text and hides below 75%", () => {
+    const m = meter(" hi ", false, [mkTpl("a", "rule a")]);
+    expect(m).toEqual({ used: 10, max: 6000, show: false, over: false, overBy: 0, split: { note: 2, rules: 8 }, fixRule: null });
+  });
+
+  test("shows from 75% of the limit", () => {
+    expect(meter("x".repeat(4499), false, []).show).toBe(false);
+    expect(meter("x".repeat(4500), false, []).show).toBe(true);
+  });
+
+  test("keep: the note goes as direction and is not counted", () => {
+    const m = meter("x".repeat(400), true, [mkTpl("a", "y".repeat(5000))]);
+    expect(m.used).toBe(5000);
+    expect(m.split).toEqual({ note: 0, rules: 5000 });
+  });
+
+  test("over: the smallest rule that fixes it on its own", () => {
+    const tpls = [mkTpl("big", "a".repeat(4000), "Big"), mkTpl("mid", "b".repeat(1500), "Mid"), mkTpl("small", "c".repeat(100), "Small")];
+    const m = meter("n".repeat(600), false, tpls);
+    // 4000 + 1500 + 100 + 600 + 3 × 2 separators
+    expect(m.used).toBe(6206);
+    expect(m.over).toBe(true);
+    expect(m.overBy).toBe(206);
+    expect(m.split).toEqual({ note: 600, rules: 5606 });
+    expect(m.fixRule).toEqual({ id: "mid", name: "Mid" });
+  });
+
+  test("over by more than any one rule: no fix rule", () => {
+    const tpls = Array.from({ length: 40 }, (_, k) => mkTpl(`r${k}`, "r".repeat(150)));
+    const m = meter("n".repeat(1998), false, tpls);
+    expect(m.overBy).toBe(40 * 150 + 1998 + 40 * 2 - 6000);
+    expect(m.fixRule).toBeNull();
+  });
+
+  test("exactly at the limit is not over", () => {
+    const m = meter("n".repeat(1998), false, [mkTpl("a", "a".repeat(4000))]);
+    expect(m.used).toBe(6000);
+    expect(m.over).toBe(false);
   });
 });

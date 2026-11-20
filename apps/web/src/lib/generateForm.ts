@@ -1,4 +1,4 @@
-import { MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, isAlternating, typicalGenerationSeconds, type WeeksChoice } from "@pt/shared";
+import { INSTRUCTIONS_MAX, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, isAlternating, typicalGenerationSeconds, type WeeksChoice } from "@pt/shared";
 import { localIso } from "./overview";
 import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, SessionLogDto } from "./api/types";
 
@@ -100,6 +100,50 @@ export function composeRequest(i: {
   const instructions = (asDirection ? c : [...c, t]).filter(Boolean).join("\n\n");
   const direction = asDirection ? t : "";
   return { instructions, direction, directionTooLong: direction.length > DIRECTION_MAX };
+}
+
+export interface BriefMeter {
+  /** Characters the API gets: `instructions` exactly, "\n\n" separators included. */
+  used: number;
+  max: number;
+  /** Show the count from 75% of the limit. */
+  show: boolean;
+  over: boolean;
+  overBy: number;
+  /** Who takes the room: the note (0 when it goes as the direction) and the rules with their separators. */
+  split: { note: number; rules: number };
+  /** The smallest ticked rule that brings the brief back under the limit on its own. */
+  fixRule: { id: string; name: string } | null;
+}
+
+/** How full the rules + note brief is against the AI's limit (INSTRUCTIONS_MAX). */
+export function briefMeter(i: {
+  /** composeRequest's `instructions`. */
+  instructions: string;
+  note: string;
+  /** The note goes as the block direction, not in the instructions. */
+  keep: boolean;
+  templates: InstructionTemplateDto[];
+}): BriefMeter {
+  const max = INSTRUCTIONS_MAX;
+  const used = i.instructions.length;
+  const overBy = Math.max(0, used - max);
+  const noteText = i.keep ? "" : i.note.trim();
+  /** Brief length with the k-th rule turned off (composeRequest's join). */
+  const without = (k: number) =>
+    [...i.templates.filter((_, j) => j !== k).map((t) => t.content), noteText].filter(Boolean).join("\n\n").length;
+  let fixRule: BriefMeter["fixRule"] = null;
+  if (overBy > 0) {
+    let best = Infinity;
+    i.templates.forEach((t, k) => {
+      if (t.content.length < best && used - without(k) >= overBy) {
+        best = t.content.length;
+        fixRule = { id: t.id, name: t.name };
+      }
+    });
+  }
+  const note = noteText.length;
+  return { used, max, show: used >= 0.75 * max, over: overBy > 0, overBy, split: { note, rules: used - note }, fixRule };
 }
 
 /** Mirrors the prompt lines in the API's buildGenerationMessages. */
