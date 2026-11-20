@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mockApi } from "./api";
+import { mockApi, mockState } from "./api";
 
 describe("mockApi role labels (mirrors /v1/vocabulary/role-labels)", () => {
   test("starts with the built-ins", async () => {
@@ -30,5 +30,22 @@ describe("mockApi role labels (mirrors /v1/vocabulary/role-labels)", () => {
     const reset = await mockApi.patchRoleLabel("strength", { description: "" });
     expect(reset.description).toContain("maximal force");
     await expect(mockApi.archiveRoleLabel("core")).rejects.toThrow();
+  });
+
+  test("an older own label that shares a built-in's name: both edit, it restores, a rename is still checked", async () => {
+    mockState.roleLabels = [
+      ...mockState.roleLabels,
+      { id: "twin-1", builtinKey: null, name: "Conditioning", chip: null, description: "my engine work", rank: 900, archivedAt: null },
+    ];
+    const builtin = await mockApi.patchRoleLabel("conditioning", { chip: "Cond" });
+    expect(builtin).toMatchObject({ key: "conditioning", name: "Conditioning", chip: "Cond" });
+    const own = await mockApi.patchRoleLabel("twin-1", { name: "Conditioning", chip: "Eng" });
+    expect(own).toMatchObject({ id: "twin-1", name: "Conditioning", chip: "Eng" });
+    await expect(mockApi.patchRoleLabel("twin-1", { name: "Mobility / Recovery" })).rejects.toThrow("already a label");
+    await mockApi.archiveRoleLabel("twin-1");
+    const back = await mockApi.createRoleLabel({ name: "Conditioning", description: "back again" });
+    expect(back).toMatchObject({ id: "twin-1", archived: false });
+    await expect(mockApi.createRoleLabel({ name: "conditioning", description: "x" })).rejects.toThrow("already a label");
+    mockState.roleLabels = mockState.roleLabels.filter((r) => r.id !== "twin-1" && r.builtinKey !== "conditioning");
   });
 });

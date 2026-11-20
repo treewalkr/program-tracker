@@ -122,6 +122,33 @@ describe.skipIf(!dbUp)("role labels", () => {
         const list = (await call("GET", "/v1/vocabulary/role-labels")).body;
         expect(list.filter((l: any) => l.name === "Conditioning").map((l: any) => l.id)).toEqual([null, twinId]);
       }));
+
+    test("it saves when the name doesn't change, in any case", () =>
+      withTwin(async (twinId) => {
+        const res = await call("PATCH", `/v1/vocabulary/role-labels/${twinId}`, { name: "Conditioning", chip: "Eng", description: "my engine work" });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ id: twinId, name: "Conditioning", chip: "Eng" });
+        const recased = await call("PATCH", `/v1/vocabulary/role-labels/${twinId}`, { name: " conditioning " });
+        expect(recased.status).toBe(200);
+        expect(recased.body.name).toBe("conditioning");
+      }));
+
+    test("it can be renamed away, but not to another built-in's name", () =>
+      withTwin(async (twinId) => {
+        expect((await call("PATCH", `/v1/vocabulary/role-labels/${twinId}`, { name: "Mobility / Recovery" })).status).toBe(409);
+        const res = await call("PATCH", `/v1/vocabulary/role-labels/${twinId}`, { name: "Engine" });
+        expect(res.status).toBe(200);
+        expect(res.body.name).toBe("Engine");
+      }));
+
+    test("an archived one restores by its name; a new label with a built-in's name is still refused", () =>
+      withTwin(async (twinId) => {
+        const back = await call("POST", "/v1/vocabulary/role-labels", { name: "Conditioning", description: "back again" });
+        expect(back.status).toBe(201);
+        expect(back.body).toMatchObject({ id: twinId, archived: false, description: "back again" });
+        expect((await call("POST", "/v1/vocabulary/role-labels", { name: "conditioning", description: "again" })).status).toBe(409);
+        expect((await call("POST", "/v1/vocabulary/role-labels", { name: "Movement Prep", description: "x" })).status).toBe(409);
+      }, true));
   });
 
   test("delete archives an own label; re-creating the name restores it", async () => {

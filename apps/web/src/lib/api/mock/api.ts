@@ -1628,7 +1628,7 @@ const rawMockApi: TrainerApi = {
     if (patch.name !== undefined) {
       const name = cleanText(patch.name);
       if (!name) throw new Error("name is required");
-      assertLabelNameFree(name, `label:${row.id}`);
+      if (name.toLowerCase() !== row.name.toLowerCase()) assertLabelNameFree(name, `label:${row.id}`);
       next.name = name;
     }
     if (patch.chip !== undefined) next.chip = cleanText(patch.chip) || null;

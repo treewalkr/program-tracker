@@ -40,7 +40,8 @@ export const roleLabelRoutes = new Elysia({ prefix: "/v1/vocabulary/role-labels"
       if (!name) return status(422, { error: "name is required" });
       if (!description) return status(422, { error: "say what the label means" });
       const labels = await loadRoleLabels(trainerId);
-      const clash = sameName(labels, name);
+      // an archived own label of this name comes back, even one that shares a built-in's name
+      const clash = labels.find((l) => l.id && l.archived && l.name.toLowerCase() === name.toLowerCase()) ?? sameName(labels, name);
       const rank = rankAfter(labels, body.after);
       const chip = body.chip ? clean(body.chip) || null : null;
       // re-creating an archived label brings it back with the new meaning
@@ -100,8 +101,11 @@ export const roleLabelRoutes = new Elysia({ prefix: "/v1/vocabulary/role-labels"
       if (body.name !== undefined) {
         const name = clean(body.name);
         if (!name) return status(422, { error: "name is required" });
-        const clash = sameName(labels, name, existing.key);
-        if (clash) return status(409, taken(clash.name));
+        // only a real rename is checked: a label that already shares a built-in's name keeps saving
+        if (name.toLowerCase() !== existing.name.toLowerCase()) {
+          const clash = sameName(labels, name, existing.key);
+          if (clash) return status(409, taken(clash.name));
+        }
         set.name = name;
       }
       if (body.chip !== undefined) set.chip = clean(body.chip) || null;
