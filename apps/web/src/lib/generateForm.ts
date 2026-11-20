@@ -106,8 +106,6 @@ export interface BriefMeter {
   /** Characters the API gets: `instructions` exactly, "\n\n" separators included. */
   used: number;
   max: number;
-  /** Show the count from 75% of the limit. */
-  show: boolean;
   over: boolean;
   overBy: number;
   /** Who takes the room: the note (0 when it goes as the direction) and the rules with their separators. */
@@ -143,7 +141,7 @@ export function briefMeter(i: {
     });
   }
   const note = noteText.length;
-  return { used, max, show: used >= 0.75 * max, over: overBy > 0, overBy, split: { note, rules: used - note }, fixRule };
+  return { used, max, over: overBy > 0, overBy, split: { note, rules: used - note }, fixRule };
 }
 
 /** Mirrors the prompt lines in the API's buildGenerationMessages. */
