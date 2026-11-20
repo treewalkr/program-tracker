@@ -5,7 +5,8 @@ import type { PortalSession } from "$lib/api/portalTypes";
 let portal: PortalSession = { kind: "signedOut" };
 mock.module("$app/environment", () => ({ browser: false }));
 mock.module("$app/state", () => ({ page: { url: new URL("https://pt.test/en") } }));
-mock.module("$app/navigation", () => ({ goto: async () => {} }));
+// the full surface: Bun module mocks leak across files, and later ones need beforeNavigate
+mock.module("$app/navigation", () => ({ goto: async () => {}, beforeNavigate: () => {}, afterNavigate: () => {} }));
 mock.module("$lib/api", () => ({ apiMode: "live" }));
 // the trainer session check: signed out (401) or auth off server-side ("open")
 let trainerSignedIn = true;
