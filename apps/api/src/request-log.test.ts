@@ -105,7 +105,8 @@ describe.skipIf(!dbUp)("request ids and the request log", () => {
     await call("POST", "/v1/feedback", { id: "rl-422-0001", body: { comment: "" } });
     const [invalid] = await rowsFor("rl-422-0001");
     expect(invalid).toMatchObject({ method: "POST", route: "/v1/feedback/", status: 422 });
-    expect(invalid.error).toBeString();
+    // the field and reason, never the submitted body
+    expect(invalid.error).toBe("context: Expected required property");
 
     // A handler's own refusal, after the session resolved: the caller is recorded.
     const me = await getDefaultTrainerId();

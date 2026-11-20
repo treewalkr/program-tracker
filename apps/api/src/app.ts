@@ -32,6 +32,7 @@ import { publicRoutes } from "./routes/public";
 import { portalRoutes } from "./routes/portal";
 import { trainerContext } from "./lib/trainer-context";
 import { requestLog } from "./lib/request-log";
+import { validationErrors } from "./lib/validation-errors";
 import { API_BUILD } from "./lib/build";
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
@@ -71,6 +72,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(cors({ origin: corsOrigins }))
   // x-request-id on every response; failed and slow requests logged for the feedback agent
   .use(requestLog)
+  // 422s name the field (production Elysia otherwise sends only { type, on, found })
+  .use(validationErrors)
   .use(
     openapi({
       path: "/openapi",

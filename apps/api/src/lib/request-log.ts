@@ -2,6 +2,7 @@ import { Elysia, StatusMap } from "elysia";
 import { desc, eq, lt } from "drizzle-orm";
 import { db, requestLogs } from "@pt/db";
 import { redactText } from "@pt/shared";
+import { validationBody } from "./validation-errors";
 
 /**
  * Request ids and the server's request log. Every response carries an
@@ -117,9 +118,12 @@ export const requestLog = new Elysia({ name: "request-log" })
     seen.set(request, { id, start: performance.now() });
     set.headers[REQUEST_ID_HEADER] = id;
   })
-  .onError({ as: "global" }, ({ request, error }) => {
+  .onError({ as: "global" }, ({ request, code, error }) => {
     const m = seen.get(request);
-    if (m) m.error = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error);
+    if (!m) return;
+    // a validation error's message carries the submitted body: log the field and reason instead
+    if (code === "VALIDATION") m.error = validationBody(error).error;
+    else m.error = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error);
   })
   .onAfterResponse({ as: "global" }, (ctx) => {
     const m = seen.get(ctx.request);
