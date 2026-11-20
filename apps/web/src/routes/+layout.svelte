@@ -733,8 +733,15 @@
   /* The guide search shortcut, quiet beside the Guide row. */
   .hint {
     margin-left: auto;
-    font: 500 11px/1 var(--font-mono);
+    /* UI font, not mono: mono draws ⌘ at half the cap height. */
+    font: 500 12px/16px var(--font-ui);
+    letter-spacing: 0.02em;
     color: var(--muted);
+    padding: 0 5px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    white-space: nowrap;
   }
   .count {
     margin-left: auto;
