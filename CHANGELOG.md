@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### New
+- Four new role labels: **Movement Prep**, **Strength / Supplemental**, **Conditioning** and **Mobility / Recovery**. Exercises now sort in this order: Movement Prep, Power, Primary, Secondary, Strength, Strength / Supplemental, Auxiliary, Core, Conditioning, Mobility / Recovery. Each label has a clearer meaning, and the AI reads it.
+  - th: มีป้ายบทบาทใหม่ 4 แบบ: **Movement Prep**, **Strength / Supplemental**, **Conditioning** และ **Mobility / Recovery** ท่าในเซสชันจะเรียงตามลำดับนี้: Movement Prep, Power, Primary, Secondary, Strength, Strength / Supplemental, Auxiliary, Core, Conditioning, Mobility / Recovery แต่ละป้ายมีความหมายชัดขึ้น และ AI ใช้ความหมายนี้ด้วย
+- When you paste notes or add an exercise that has no role yet, it gets one from its name: warm-ups get Movement Prep, bike, erg, sled and intervals get Conditioning, and stretches and foam rolling get Mobility / Recovery.
+  - th: เมื่อวางโน้ตหรือเพิ่มท่าที่ยังไม่มีบทบาท ระบบจะเลือกบทบาทจากชื่อท่า: ท่าวอร์มอัพเป็น Movement Prep จักรยาน เครื่อง erg สเลด และอินเทอร์วัลเป็น Conditioning ส่วนการยืดเหยียดและโฟมโรลเป็น Mobility / Recovery
+- Search the guides: press **⌘K** (Ctrl+K on Windows) on any page and type a question, like "sick" or "ป่วย". Pick a result to jump straight to the step that answers it. The Guide page also has a search bar, and `/` opens it there.
+  - th: ค้นหาในคู่มือได้แล้ว: กด **⌘K** (Ctrl+K บน Windows) จากหน้าไหนก็ได้ แล้วพิมพ์คำถาม เช่น "ป่วย" หรือ "sick" เลือกผลลัพธ์แล้วจะพาไปที่ขั้นตอนที่ตอบเรื่องนั้นทันที หน้าคู่มือมีช่องค้นหาด้วย และกด `/` เพื่อเปิดได้
+
+### Fixed
+- If you already made your own label with the same name as a new built-in one (like "Conditioning"), both labels can be edited again. Yours shows a note asking you to rename it.
+  - th: ถ้าคุณเคยสร้างป้ายชื่อเดียวกับป้ายใหม่ของระบบ (เช่น "Conditioning") ตอนนี้แก้ไขได้ทั้งสองป้ายแล้ว ป้ายของคุณจะมีข้อความเตือนให้เปลี่ยนชื่อ
+- Long role label names stay on one line in Vocabulary.
+  - th: ชื่อป้ายบทบาทที่ยาวแสดงเป็นบรรทัดเดียวในหน้า Vocabulary
+
 ## v0.1.39 — 2026-11-20
 
 ### New
