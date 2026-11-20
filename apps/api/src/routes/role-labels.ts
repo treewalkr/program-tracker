@@ -5,6 +5,7 @@ import {
   EXERCISE_ROLE_INFO,
   customRoleKey,
   isBuiltinRole,
+  overrideRowName,
   rankAfter,
   type RoleLabel,
 } from "@pt/shared";
@@ -83,11 +84,12 @@ export const roleLabelRoutes = new Elysia({ prefix: "/v1/vocabulary/role-labels"
         };
         await db
           .insert(roleLabels)
-          .values({ trainerId, builtinKey: key, name: EXERCISE_ROLE_INFO[key].name, rank: current.rank, ...set })
+          .values({ trainerId, builtinKey: key, name: overrideRowName(key), rank: current.rank, ...set })
           .onConflictDoUpdate({
             target: [roleLabels.trainerId, roleLabels.builtinKey],
             targetWhere: sql`${roleLabels.builtinKey} is not null`,
-            set,
+            // older override rows stored the built-in's name; free it
+            set: { ...set, name: overrideRowName(key) },
           });
         return (await loadRoleLabels(trainerId)).find((l) => l.key === key)!;
       }

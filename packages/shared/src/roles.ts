@@ -46,6 +46,15 @@ export interface RoleLabelRowLike {
   archivedAt: Date | string | null;
 }
 
+/**
+ * The `name` stored on a built-in's override row. The merge never reads it
+ * (a built-in's name comes from code), so it only has to stay clear of the
+ * unique (trainer, lower(name)) index: every name a trainer sets is trimmed,
+ * so no own label can start with a space — and a trainer's older label that
+ * shares a built-in's name never blocks the override.
+ */
+export const overrideRowName = (key: BuiltinRole): string => ` builtin:${key}`;
+
 /** The built-ins with their defaults, in order. */
 export const BUILTIN_ROLE_LABELS: readonly RoleLabel[] = EXERCISE_ROLES.map((r) => ({
   key: r,

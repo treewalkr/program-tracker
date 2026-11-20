@@ -69,6 +69,7 @@ import {
   EXERCISE_ROLE_INFO,
   isBuiltinRole,
   mergeRoleLabels,
+  overrideRowName,
   rankAfter,
   fixDraftRoles,
   type RoleLabelRowLike,
@@ -1606,7 +1607,7 @@ const rawMockApi: TrainerApi = {
       const row = state.roleLabels.find((r) => r.builtinKey === idOrKey) ?? {
         id: uuid(),
         builtinKey: idOrKey,
-        name: current.name,
+        name: overrideRowName(idOrKey),
         chip: null,
         description: null,
         rank: current.rank,

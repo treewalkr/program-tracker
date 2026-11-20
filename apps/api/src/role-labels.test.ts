@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, roleLabels, trainers } from "@pt/db";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { getDefaultTrainerId } from "./lib/trainer";
@@ -94,6 +94,34 @@ describe.skipIf(!dbUp)("role labels", () => {
     expect((await call("PATCH", "/v1/vocabulary/role-labels/strength", { name: "Max" })).status).toBe(422);
     const reset = await call("PATCH", "/v1/vocabulary/role-labels/strength", { description: "", chip: "", rank: 400 });
     expect(reset.body).toMatchObject({ chip: "Str", description: "Work for maximal force — heavy loads, low to moderate reps.", rank: 400 });
+  });
+
+  describe("an own label made before a built-in of the same name existed", () => {
+    /** A custom "Conditioning" as an older trainer may have — the API refuses to make one now. */
+    const withTwin = async (fn: (twinId: string) => Promise<void>, archived = false) => {
+      const trainerId = await getDefaultTrainerId();
+      const [twin] = await db
+        .insert(roleLabels)
+        .values({ trainerId, name: "Conditioning", description: "my engine work", rank: 900, archivedAt: archived ? new Date() : null })
+        .returning();
+      try {
+        await fn(twin.id);
+      } finally {
+        await db.delete(roleLabels).where(eq(roleLabels.id, twin.id));
+        await db.delete(roleLabels).where(and(eq(roleLabels.trainerId, trainerId), eq(roleLabels.builtinKey, "conditioning")));
+      }
+    };
+
+    test("the built-in can still change its chip, meaning and position", () =>
+      withTwin(async (twinId) => {
+        const res = await call("PATCH", "/v1/vocabulary/role-labels/conditioning", { chip: "Cond", description: "Engine.", rank: 645 });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ key: "conditioning", name: "Conditioning", chip: "Cond", description: "Engine.", rank: 645 });
+        const again = await call("PATCH", "/v1/vocabulary/role-labels/conditioning", { chip: "" });
+        expect(again.status).toBe(200);
+        const list = (await call("GET", "/v1/vocabulary/role-labels")).body;
+        expect(list.filter((l: any) => l.name === "Conditioning").map((l: any) => l.id)).toEqual([null, twinId]);
+      }));
   });
 
   test("delete archives an own label; re-creating the name restores it", async () => {
