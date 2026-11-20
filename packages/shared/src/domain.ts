@@ -1418,9 +1418,12 @@ export type Phasing = z.infer<typeof Phasing>;
 // Trainer library inputs — schemes + instruction templates
 // ---------------------------------------------------------------------------
 
+/** Most characters one instruction template (rule) holds. */
+export const TEMPLATE_CONTENT_MAX = 4000;
+
 export const InstructionTemplateInput = z.object({
   name: z.string().min(1).max(120),
-  content: z.string().min(1).max(4000),
+  content: z.string().min(1).max(TEMPLATE_CONTENT_MAX),
 });
 export type InstructionTemplateInput = z.infer<typeof InstructionTemplateInput>;
 

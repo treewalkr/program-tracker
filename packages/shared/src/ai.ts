@@ -9,6 +9,7 @@ import {
   SessionKind,
   rotationOfWeek,
   sessionsInSeqOrder,
+  TEMPLATE_CONTENT_MAX,
   type ProgramWeek,
 } from "./domain";
 
@@ -216,6 +217,16 @@ export const MAX_DRAFT_WEEKS = 26;
 export const MAX_AI_BLOCK_WEEKS = 12;
 /** Fewest weeks in a block. */
 export const MIN_BLOCK_WEEKS = 2;
+/**
+ * Most characters of rules + note one draft takes (the `instructions` the
+ * generate page sends: ticked rules and the note, joined by blank lines).
+ */
+export const INSTRUCTIONS_MAX = 6000;
+/**
+ * Longest note the generate page takes: one full rule (TEMPLATE_CONTENT_MAX),
+ * the "\n\n" separator and a full note always fit INSTRUCTIONS_MAX.
+ */
+export const NOTE_MAX = INSTRUCTIONS_MAX - TEMPLATE_CONTENT_MAX - 2;
 
 const DraftBody = z
   .object({

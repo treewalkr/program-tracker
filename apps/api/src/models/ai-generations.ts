@@ -3,11 +3,11 @@ import { t } from "elysia";
 import { aiGenerations, clients } from "@pt/db/schema";
 import { createInsertSchema, createSelectSchema, createUpdateSchema, nonNull, spread } from "../utility";
 import { str, as, oneOf, ProviderChoice } from "./shared";
-import { GENERATION_KINDS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS } from "@pt/shared";
+import { GENERATION_KINDS, INSTRUCTIONS_MAX, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS } from "@pt/shared";
 
 const AiGenerationInsert = createInsertSchema(aiGenerations);
 const AiGenerationUpdate = createUpdateSchema(aiGenerations, {
-  instructions: str({ maxLength: 2000 }),
+  instructions: str({ maxLength: INSTRUCTIONS_MAX }),
   direction: str({ maxLength: 500 }),
   revisionMessage: str({ minLength: 1, maxLength: 2000 }),
   rejectReason: str({ maxLength: 2000 }),

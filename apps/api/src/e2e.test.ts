@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import { db, trainers, signalOutbox, aiGenerations, chatMessages, programs, exercises, clients, sessionLogs, periodizationSchemes } from "@pt/db";
-import { EXERCISE_ROLES, draftNoticeText, type WeekPlan, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
+import { EXERCISE_ROLES, INSTRUCTIONS_MAX, draftNoticeText, type WeekPlan, mockChatReply, stampWeeks, type AiProgramDraft } from "@pt/shared";
 import { mockWeekDraft } from "./ai/mock";
 import { loadRevisionConversation } from "./lib/revision";
 import { assertTestDatabaseUrl } from "./testing/test-db";
@@ -2547,7 +2547,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
 
   test("generation bodies: long or null text, bad ids and empty revisions are refused", async () => {
     const gen = (body: Record<string, unknown>) => call("POST", "/v1/ai/generate", { clientId, providerId: "mock", ...body });
-    expect((await gen({ instructions: "x".repeat(2001) })).status).toBe(422);
+    expect((await gen({ instructions: "x".repeat(INSTRUCTIONS_MAX + 1) })).status).toBe(422);
     expect((await gen({ direction: "x".repeat(501) })).status).toBe(422);
     expect((await gen({ instructions: null })).status).toBe(422);
     expect((await gen({ clientId: "nope" })).status).toBe(422);
