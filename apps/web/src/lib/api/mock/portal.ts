@@ -15,6 +15,11 @@ import {
   portalWeekLabel,
   profileOn,
   weekOf,
+  cardioWeekTotals,
+  isoWeekStart,
+  portalCardioLog,
+  PortalProgressDto,
+  type Vo2Protocol,
   weekSessions,
   type Equipment,
   type PortalWeek,
@@ -156,6 +161,40 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio };
 }
 
+/** Same shape and rules as `GET /v1/portal/progress`: this week, the recent cardio, one VO₂max trend. */
+export function mockPortalProgress(now = Date.now(), asked?: Vo2Protocol | null, scenario = mockScenario()): PortalProgressDto {
+  const client = demoClient(scenario);
+  const weekStart = isoWeekStart(new Date(now));
+  const cardio = mockState.logs.filter((l) => l.clientId === client.id && l.kind === "cardio");
+  const thisWeek = cardio.filter((l) => l.date >= weekStart).map((l) => ({ date: l.date, kind: l.kind, cardio: l.cardio ?? null }));
+  const { minutes, sessions, load, byModality } = cardioWeekTotals(thisWeek, weekStart);
+  const recent = [...cardio]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, RECENT_CARDIO)
+    .map((l) =>
+      portalCardioLog({
+        id: l.sessionLogId,
+        date: l.date,
+        cardio: l.cardio ?? null,
+        loggedBy: l.loggedBy ?? "trainer",
+        trainerFeedback: l.trainerFeedback ?? null,
+        reviewedAt: l.reviewedAt ?? null,
+      }),
+    );
+  const tests = mockState.assessments.filter((a) => a.clientId === client.id).sort((a, b) => a.testedOn.localeCompare(b.testedOn));
+  const protocols = [...new Set([...tests].reverse().map((a) => a.protocol))];
+  const protocol = asked && protocols.includes(asked) ? asked : (protocols[0] ?? null);
+  return PortalProgressDto.parse({
+    week: { minutes, sessions, load, byModality },
+    target: portalCardio(client.cardioTarget ?? null, thisWeek, now),
+    recent,
+    vo2: { protocols, protocol, points: tests.filter((a) => a.protocol === protocol).map((a) => ({ testedOn: a.testedOn, value: a.result })) },
+  });
+}
+
+/** As many recent cardio logs as the API sends. */
+const RECENT_CARDIO = 12;
+
 const fail = (status: number, message: string) => Object.assign(new Error(message), { status });
 
 const rawMockPortalApi: PortalApi = {
@@ -166,6 +205,10 @@ const rawMockPortalApi: PortalApi = {
   async week() {
     await delay(250);
     return mockPortalWeek();
+  },
+  async progress(protocol) {
+    await delay(250);
+    return mockPortalProgress(Date.now(), protocol);
   },
   async log(asked: PortalLogInput): Promise<PortalSavedLog> {
     await delay(450);

@@ -58,6 +58,7 @@
   const cardio = $derived(session.kind === "cardio");
   const count = $derived(session.exercises.length === 1 ? t("session.oneExercise") : t("session.exercises", { n: session.exercises.length }));
   const byCoach = $derived(session.log?.loggedBy === "trainer");
+  const feedback = $derived(session.log?.entry?.trainerFeedback?.trim() || null);
   /** The page's one green action: the session in focus, not yet logged. */
   const lead = $derived(!!logHref && focus && !session.log);
 </script>
@@ -92,6 +93,10 @@
       {/if}
     </div>
     {#if removeFailed}<p class="remove-err" role="alert">{t("session.removeFailed")}</p>{/if}
+    {#if feedback}
+      <!-- the coach's word on this log, once they've reviewed it -->
+      <p class="feedback"><span class="fb-by">{t("session.feedback")}{#if session.log.entry?.reviewedAt}{" · "}{fmtShortDate(session.log.entry.reviewedAt.slice(0, 10))}{/if}</span> {feedback}</p>
+    {/if}
   {/if}
 
   {#if lead}
@@ -263,6 +268,8 @@
   .remove:disabled { cursor: default; opacity: 0.7; }
   .remove-err { margin: -4px 0 0; font-size: 14px; color: var(--bad); }
   .when { font-weight: 400; }
+  .feedback { margin: 0; padding: 10px 12px; font-size: 15px; background: var(--good-bg); border-radius: var(--radius); text-wrap: pretty; }
+  .fb-by { display: block; margin-bottom: 2px; font: 600 13px/1.3 var(--font-ui); color: var(--good); }
   .intensity { margin: 0; font-size: 16px; text-wrap: pretty; }
   /* the session's intervals: one row each, the hard reps on a flat tint */
   .iv { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; }
