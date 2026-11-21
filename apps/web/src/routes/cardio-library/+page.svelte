@@ -133,7 +133,7 @@
 {#if tab === "templates"}
   <div role="tabpanel" id="panel-templates" aria-labelledby="cl-templates" class="stack">
     <Panel title="Built in" count={templates ? templates.presets.filter((p) => !p.hidden).length : undefined}>
-      <p class="lock-note"><Icon name="lock" /> Every trainer gets these six. Hide the ones you don't use; a hidden one leaves the editor's chips.</p>
+      <p class="lock-note"><Icon name="lock" /> <span>Every trainer gets these six. Hide the ones you don't use; a hidden one leaves the editor's chips.</span></p>
       {#if !templates}
         <SkeletonRows rows={6} dense />
       {:else if presets.length === 0}
@@ -157,7 +157,7 @@
     </Panel>
 
     <Panel title="Yours" count={own.length}>
-      <p class="lock-note"><Icon name="bolt" /> Save one from any cardio session with <b>Save as template</b> in the session editor.</p>
+      <p class="lock-note"><Icon name="bolt" /> <span>Save one from any cardio session with <b>Save as template</b> in the session editor.</span></p>
       {#if !templates}
         <SkeletonRows rows={2} dense />
       {:else if own.length === 0}
@@ -188,7 +188,7 @@
 {:else}
   <div role="tabpanel" id="panel-modalities" aria-labelledby="cl-modalities" class="stack">
     <Panel title="Presets" count={presetModalities.length}>
-      <p class="lock-note"><Icon name="lock" /> Fixed names and pace, so logs read the same everywhere. Archive the ones you don't use.</p>
+      <p class="lock-note"><Icon name="lock" /> <span>Fixed names and pace, so logs read the same everywhere. Archive the ones you don't use.</span></p>
       {#if !modalities}
         <SkeletonRows rows={8} dense />
       {:else if presetModalities.length === 0}
@@ -266,7 +266,7 @@
   .err { margin-bottom: 12px; }
   .search { max-width: 360px; margin: 16px 0; }
   .stack { display: grid; gap: 16px; }
-  .lock-note { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
+  .lock-note { display: flex; align-items: baseline; gap: 6px; margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
   .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
   .add { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
   .new-name { flex: 1; min-width: 200px; }
