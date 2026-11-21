@@ -11,7 +11,7 @@ import {
   deleteClientSession,
 } from "../lib/client-auth";
 import { clientContext } from "../lib/client-context";
-import { createSessionLog, deleteSessionLog, refineLogKind, SessionLogFields } from "../lib/log-service";
+import { createSessionLog, deleteSessionLog, refineCardioLog, refineLogKind, SessionLogFields } from "../lib/log-service";
 import { loadPortalWeek, portalWeekContext } from "../lib/portal";
 import { ErrorBody } from "../models/shared";
 
@@ -27,7 +27,10 @@ const PortalLogInput = SessionLogFields.omit({ clientId: true, programId: true, 
     /** The phone's local date: "today" and the block week follow it (within a day of the server's). */
     today: z.string().optional(),
   })
-  .superRefine(refineLogKind);
+  .superRefine((val, ctx) => {
+    refineLogKind(val, ctx);
+    refineCardioLog(val, ctx);
+  });
 
 /**
  * The client portal: sign-in by access link, sign-out, and the signed-in

@@ -1666,12 +1666,13 @@ describe.skipIf(!dbUp)("cardio logging and weekly target", () => {
       programSessionId: null,
       date: today,
       kind: "cardio",
-      cardio: { modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5 },
+      cardio: { modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5, rpe: 5 },
       sets: [],
     });
     expect(cardio.status).toBe(201);
     expect(cardio.body.kind).toBe("cardio");
-    expect(cardio.body.cardio).toEqual({ modality: "Run", durationMin: 35, hrZone: 2, distanceKm: 5.5 });
+    // an older minutes-only payload is stored with its seconds too
+    expect(cardio.body.cardio).toEqual({ modality: "Run", durationMin: 35, durationSec: 2100, hrZone: 2, distanceKm: 5.5, rpe: 5 });
     expect(cardio.body.sets).toEqual([]);
 
     const exerciseLog = await call("POST", "/v1/logs/sessions", {

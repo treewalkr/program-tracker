@@ -93,7 +93,7 @@ describe.skipIf(!dbUp)("chat grounding (F11)", () => {
         programId,
         date: daysAgo(n),
         kind: "cardio",
-        cardio: { modality: "Run", durationMin: min, hrZone: 2, distanceKm: 5 },
+        cardio: { modality: "Run", durationMin: min, hrZone: 2, distanceKm: 5, rpe: 4 },
         sets: [],
       });
       expect(res.status).toBe(201);
@@ -102,9 +102,9 @@ describe.skipIf(!dbUp)("chat grounding (F11)", () => {
     const { reply, context, prompt } = await chatTurn(clientId, "Is she hitting her cardio target?");
     const log = context.trainingLog as string;
     expect(log.split("\n")).toEqual([
-      `${daysAgo(2)} Cardio: Run 40 min, zone 2, 5 km`,
-      `${daysAgo(4)} Cardio: Run 35 min, zone 2, 5 km`,
-      `${daysAgo(6)} Cardio: Run 30 min, zone 2, 5 km`,
+      `${daysAgo(2)} Cardio: Run 40 min, zone 2, RPE 4, 5 km`,
+      `${daysAgo(4)} Cardio: Run 35 min, zone 2, RPE 4, 5 km`,
+      `${daysAgo(6)} Cardio: Run 30 min, zone 2, RPE 4, 5 km`,
     ]);
     expect(prompt).toContain(`TRAINING LOG (dated, newest first — every logged set and cardio session, last 8 weeks):\n${log}`);
     expect(prompt).toContain("never say there are no completed sessions");

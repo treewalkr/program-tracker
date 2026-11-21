@@ -6,6 +6,8 @@ import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
 import { createSessionLog, deleteSessionLog, SessionLogInput, serializeSets } from "../lib/log-service";
 import { loadLogPrograms, timedIdsOf, timedSlotIdsOf } from "../lib/signals-service";
+import { LogModel } from "../models/logs";
+import { ErrorBody } from "../models/shared";
 
 /** Logs carry no trainer_id — scope them through the trainer's clients. */
 const ofTrainer = (trainerId: string) =>
@@ -71,6 +73,35 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       return status(204);
     },
     { params: t.Object({ id: t.String({ format: "uuid" }) }) }
+  )
+  /** Coach review: stamp (or clear) reviewed, and set the feedback the member sees in the portal. */
+  .patch(
+    "/sessions/:id/review",
+    async ({ params, body, status, trainerId }) => {
+      const feedback = body.feedback === undefined ? {} : { trainerFeedback: body.feedback?.trim() ? body.feedback.trim() : null };
+      const [row] = await db
+        .update(sessionLogs)
+        .set({
+          reviewedAt: body.reviewed ? new Date() : null,
+          reviewedBy: body.reviewed ? trainerId : null,
+          ...feedback,
+        })
+        .where(and(eq(sessionLogs.id, params.id), ofTrainer(trainerId)))
+        .returning({
+          id: sessionLogs.id,
+          reviewedAt: sessionLogs.reviewedAt,
+          reviewedBy: sessionLogs.reviewedBy,
+          trainerFeedback: sessionLogs.trainerFeedback,
+        });
+      if (!row) return status(404, { error: "log not found" });
+      return row;
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: LogModel.review,
+      response: { 200: LogModel.reviewed, 404: ErrorBody, 422: ErrorBody },
+      detail: { summary: "Review a session log and leave feedback for the member" },
+    }
   )
   .get(
     "/sessions",

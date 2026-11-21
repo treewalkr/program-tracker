@@ -3,7 +3,10 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, sessionLogs, setLogs, exercises, programs, clientHrProfiles } from "@pt/db";
 import {
   CardioLog,
+  cardioLogIssues,
   profileOn,
+  upgradeCardioLog,
+  withDurationMin,
   Readiness,
   SessionFlag,
   SessionKind,
@@ -95,8 +98,27 @@ export function refineLogKind(
   }
 }
 
+/**
+ * The cardio write rule (shared cardioLogIssues): a completed log needs its
+ * time and session RPE, a skipped one only its reason. A minutes-only payload
+ * (an older form) counts as its seconds.
+ */
+export function refineCardioLog(val: { kind: SessionKind; cardio?: CardioLog | null }, ctx: z.RefinementCtx): void {
+  if (val.kind !== "cardio" || !val.cardio) return;
+  for (const message of cardioLogIssues(upgradeCardioLog(val.cardio))) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["cardio"] });
+  }
+}
+
+/** A cardio payload as stored: seconds authoritative, minutes mirrored for a rollback. */
+export const storedCardio = (cardio: CardioLog | null | undefined): CardioLog | null =>
+  cardio ? withDurationMin(upgradeCardioLog(cardio)) : null;
+
 /** Write boundary for a full session log. */
-export const SessionLogInput = SessionLogFields.superRefine(refineLogKind);
+export const SessionLogInput = SessionLogFields.superRefine((val, ctx) => {
+  refineLogKind(val, ctx);
+  refineCardioLog(val, ctx);
+});
 export type SessionLogInput = z.infer<typeof SessionLogInput>;
 
 /** numeric columns come back as strings — convert to numbers at the API boundary. */
@@ -228,7 +250,7 @@ export async function createSessionLog({
         programSessionId: input.programSessionId ?? null,
         date: input.date,
         kind: input.kind,
-        cardio: input.cardio ?? null,
+        cardio: storedCardio(input.cardio),
         notes: input.notes ?? null,
         perceivedEnergy: input.perceivedEnergy ?? null,
         // An empty readiness or flag list stores as null, like an old row.
