@@ -11,6 +11,7 @@ import { llmFeedbackRoutes } from "./routes/llm-feedback";
 import { coachingRuleRoutes } from "./routes/coaching-rules";
 import { clientRoutes } from "./routes/clients";
 import { hrProfileRoutes } from "./routes/hr-profiles";
+import { assessmentRoutes } from "./routes/assessments";
 import { programRoutes } from "./routes/programs";
 import { exampleRoutes } from "./routes/examples";
 import { logRoutes } from "./routes/logs";
@@ -151,6 +152,7 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(chatRoutes)
   .use(clientRoutes)
   .use(hrProfileRoutes)
+  .use(assessmentRoutes)
   .use(programRoutes)
   .use(exampleRoutes)
   .use(logRoutes)
