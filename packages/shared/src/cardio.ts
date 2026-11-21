@@ -7,12 +7,14 @@ import {
   HrBpmRange,
   MAX_CARDIO_INTERVALS,
   PaceSecPerKm,
+  ProgramSession,
   ProgramWeeksDocument,
   type CardioLog,
   type CardioMetric,
   type CardioTarget,
   type CardioTargetUnit,
 } from "./domain";
+import { HrZones } from "./hr";
 
 /**
  * Weekly cardio math: ISO-week windows and target progress.
@@ -350,3 +352,21 @@ export function upgradeCardioLog<T extends LogTime>(log: T): T {
   if (log.durationSec != null || log.durationMin == null) return log;
   return { ...log, durationSec: log.durationMin * 60 };
 }
+
+// ---------------------------------------------------------------------------
+// Plan snapshot on a log
+// ---------------------------------------------------------------------------
+
+/**
+ * The prescribed session a log fulfils, copied when the log is written so a
+ * later program edit never rewrites what the log was measured against. A
+ * cardio session also carries the bpm zones of the HR profile version in
+ * effect on the log's date.
+ */
+export const LogPrescription = z.object({
+  programVersion: z.number().int().min(1),
+  session: ProgramSession,
+  hrProfileVersion: z.number().int().min(1).optional(),
+  zonesBpm: HrZones.optional(),
+});
+export type LogPrescription = z.infer<typeof LogPrescription>;
