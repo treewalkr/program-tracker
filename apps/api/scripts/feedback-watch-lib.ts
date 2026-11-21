@@ -83,15 +83,20 @@ export function parseRunPointer(raw: string | null): RunPointer | null {
 export const transcriptName = (startedAt: number) => `run-${new Date(startedAt).toISOString().replace(/[:.]/g, "-")}.jsonl`;
 
 /**
- * The agent the watcher starts: headless Claude Code running the skill, with
- * the same narrow tool allowlist the T3 schedule uses, writing its run as
- * stream-json (which `-p` only allows with `--verbose`) so the watcher can
- * save the transcript. FEEDBACK_WATCH_CMD replaces it (run through `sh -c`).
+ * The agent the watcher starts: headless Claude Code running the skill on
+ * Opus at medium effort (pinned, not the global default model), with the same
+ * narrow tool allowlist the T3 schedule uses, writing its run as stream-json
+ * (which `-p` only allows with `--verbose`) so the watcher can save the
+ * transcript. FEEDBACK_WATCH_CMD replaces it (run through `sh -c`).
  */
 export const DEFAULT_AGENT_CMD = [
   "claude",
   "-p",
   "/answer-feedback",
+  "--model",
+  "opus",
+  "--effort",
+  "medium",
   "--output-format",
   "stream-json",
   "--verbose",

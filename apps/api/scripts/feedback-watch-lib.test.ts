@@ -53,6 +53,10 @@ describe("DEFAULT_AGENT_CMD", () => {
     expect(DEFAULT_AGENT_CMD[i + 1]).toBe("stream-json");
     expect(DEFAULT_AGENT_CMD).toContain("--verbose");
   });
+  test("pins Opus at medium effort instead of the global default model", () => {
+    expect(DEFAULT_AGENT_CMD[DEFAULT_AGENT_CMD.indexOf("--model") + 1]).toBe("opus");
+    expect(DEFAULT_AGENT_CMD[DEFAULT_AGENT_CMD.indexOf("--effort") + 1]).toBe("medium");
+  });
 });
 
 describe("run pointer", () => {
