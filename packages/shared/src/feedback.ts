@@ -263,13 +263,10 @@ export interface FeedbackAuthor {
  * The feedback auto-reply agent's call on a ticket: it already exists, it
  * shipped after the reporter's build, here's how to do it — or it's a real
  * bug / feature request / unclear and a person should look. `needs_info`:
- * one specific fact from the reporter would settle it — the reply asks for
- * it, always as a draft the owner sends.
+ * one specific fact from the reporter would settle it — the reply asks for it.
  */
 export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear", "needs_info"] as const;
 export type FeedbackAiVerdict = (typeof FEEDBACK_AI_VERDICTS)[number];
-/** Verdicts an AI answer may go out on by itself (auto mode, medium or high confidence). */
-export const FEEDBACK_AI_AUTO_VERDICTS: readonly FeedbackAiVerdict[] = ["exists", "shipped", "how_to"];
 
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;
 export type FeedbackAiConfidence = (typeof FEEDBACK_AI_CONFIDENCE)[number];
@@ -292,7 +289,7 @@ export const FEEDBACK_ACCEPTANCE_ITEM_MAX = 200;
 /** The export's line above the criteria — the fix CLI reads them back by it. */
 export const FEEDBACK_ACCEPTANCE_HEADING = "- Acceptance criteria (each needs a test, story or browser check):";
 
-/** The admin's switch: no AI answers, drafts for review only, or send confident ones. */
+/** The admin's switch: no AI answers, drafts for review only, or send every answer ("Auto-send all"; a re-answer after a 👎 still drafts). */
 export const FEEDBACK_AI_MODES = ["off", "drafts", "auto"] as const;
 export type FeedbackAiMode = (typeof FEEDBACK_AI_MODES)[number];
 export const DEFAULT_FEEDBACK_AI_MODE: FeedbackAiMode = "drafts";

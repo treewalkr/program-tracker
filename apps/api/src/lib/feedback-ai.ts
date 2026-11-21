@@ -7,7 +7,6 @@ import {
   pendingDownvote,
   ticketBasis,
   DEFAULT_FEEDBACK_AI_MODE,
-  FEEDBACK_AI_AUTO_VERDICTS,
   FEEDBACK_AI_MEDIUM_CAP,
   isOpenFeedback,
   type FeedbackAiConfidence,
@@ -27,9 +26,9 @@ import { getDefaultTrainerId } from "./trainer";
  * - inbox: open tickets where the reporter spoke last (a reply, or an edit
  *   of their ticket) and the agent hasn't answered this version of it yet,
  *   or where the reporter gave the last AI answer 👎 (once per 👎)
- * - send vs draft: only auto mode, medium or high confidence, an "it already works"
- *   verdict, and at most one AI answer per reporter message goes out alone;
- *   an answer after a 👎 is always a draft
+ * - send vs draft: in auto mode every answer goes out alone, whatever its
+ *   verdict or confidence — but at most one AI answer per reporter message,
+ *   and an answer after a 👎 is always a draft; drafts mode drafts them all
  */
 
 /** The admin's trainer id: ADMIN_EMAIL's row, or with auth off the oldest trainer (who acts as admin). */
@@ -116,16 +115,15 @@ export function cappedConfidence(answer: {
 
 export type AnswerOutcome = "sent" | "drafted";
 
-/** Send the reply on its own, or leave it as a draft for the admin. Pure. A re-answer after a 👎 is always a draft. */
-export function routeAnswer(
-  mode: FeedbackAiMode,
-  answer: { verdict: FeedbackAiVerdict; confidence: FeedbackAiConfidence },
-  item: FeedbackItem,
-): AnswerOutcome {
-  if (pendingDownvote(item)) return "drafted";
-  const confident =
-    mode === "auto" && answer.confidence !== "low" && FEEDBACK_AI_AUTO_VERDICTS.includes(answer.verdict);
-  return confident && !aiRepliedSinceReporter(item) ? "sent" : "drafted";
+/**
+ * Send the reply on its own, or leave it as a draft for the admin. Pure.
+ * Auto mode sends every verdict at every confidence; the reply itself says
+ * how sure it is. A re-answer after a 👎 is always a draft, and so is a
+ * second AI answer to the same reporter message.
+ */
+export function routeAnswer(mode: FeedbackAiMode, item: FeedbackItem): AnswerOutcome {
+  if (mode !== "auto" || pendingDownvote(item)) return "drafted";
+  return aiRepliedSinceReporter(item) ? "drafted" : "sent";
 }
 
 /** Verdicts the fix agent may take: something to change in the code. */

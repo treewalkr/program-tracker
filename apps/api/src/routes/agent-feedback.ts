@@ -462,7 +462,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         if (!downvote && item.thread.some((c) => c.authorKind === "ai" && c.aiMeta?.basis === basis)) {
           return { error: "answered" as const, basis };
         }
-        const outcome = reply ? routeAnswer(mode, { verdict: body.verdict, confidence }, item) : null;
+        const outcome = reply ? routeAnswer(mode, item) : null;
         const now = Date.now();
         const aiMeta: FeedbackAiMeta = {
           verdict: body.verdict,

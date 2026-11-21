@@ -310,7 +310,7 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     await flush();
   });
 
-  test("needs_info: questions and a reply, always a draft — and the ticket comes back once the reporter answers", async () => {
+  test("needs_info: questions and a reply, sent in auto mode — and the ticket comes back once the reporter answers", async () => {
     await setMode("auto");
     const id = await ticket("Logging is broken");
     const basis = await basisOf(id);
@@ -322,23 +322,36 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect((await answer(id, { basis, verdict: "exists", reply: "x", questions: ["Which?"] })).status).toBe(422);
 
     const res = await answer(id, { ...ask, reply: "Which client, and what did you tap?", questions: [" Which client? ", "What did you tap?"] });
-    expect(await json(res)).toMatchObject({ outcome: "drafted", confidence: "medium" });
-    expect(await flush()).toEqual([]);
+    expect(await json(res)).toMatchObject({ outcome: "sent", confidence: "medium" });
+    expect((await flush()).map((m) => m.to)).toContain(EMAIL);
     const note = (await asAdmin(id)).thread[0];
     expect(note.aiMeta).toMatchObject({ verdict: "needs_info", confidence: "medium", questions: ["Which client?", "What did you tap?"] });
     const md = await (await call("GET", "/v1/feedback/export?status=new")).text();
     expect(md).toContain("  - Asked the reporter:\n    - Which client?\n    - What did you tap?");
     expect(await inInbox(id)).toBeUndefined();
+    expect((await asKai(id)).thread.map((c: any) => c.body)).toEqual(["Which client, and what did you tap?"]);
 
-    // the owner sends the draft; the reporter answers; the agent sees the ticket again
-    const draft = (await asAdmin(id)).thread.find((c: any) => c.visibility === "draft");
-    expect((await call("POST", `/v1/feedback/${id}/comments/${draft.id}/publish`, {})).status).toBe(200);
-    expect(await inInbox(id)).toBeUndefined();
+    // the reporter answers; the agent sees the ticket again
     await call("POST", `/v1/feedback/${id}/comments`, { body: "Somchai, I tapped Save" }, kai);
     const back = await inInbox(id);
     expect(back.basis).not.toBe(basis);
     expect(back.markdown).toContain("Somchai, I tapped Save");
     await flush();
+  });
+
+  test("needs_info in drafts mode waits as a draft", async () => {
+    await setMode("drafts");
+    const id = await ticket("Logging is broken too");
+    const res = await answer(id, {
+      basis: await basisOf(id),
+      verdict: "needs_info",
+      confidence: "medium",
+      reply: "Which client?",
+      questions: ["Which client?"],
+    });
+    expect((await json(res)).outcome).toBe("drafted");
+    expect(await flush()).toEqual([]);
+    expect((await asKai(id)).thread).toEqual([]);
   });
 
   test("a bug answer stores its fix plan and risk on the private note", async () => {
@@ -397,12 +410,15 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     ["auto", "high", "how_to", "sent"],
     ["auto", "medium", "exists", "sent"],
     ["auto", "medium", "how_to", "sent"],
-    ["auto", "medium", "bug", "drafted"],
-    ["auto", "low", "how_to", "drafted"],
-    ["auto", "high", "bug", "drafted"],
-    ["auto", "high", "feature", "drafted"],
-    ["auto", "high", "unclear", "drafted"],
+    ["auto", "low", "how_to", "sent"],
+    ["auto", "low", "exists", "sent"],
+    ["auto", "medium", "bug", "sent"],
+    ["auto", "medium", "feature", "sent"],
+    ["auto", "medium", "unclear", "sent"],
+    ["auto", "low", "unclear", "sent"],
     ["drafts", "high", "exists", "drafted"],
+    ["drafts", "medium", "bug", "drafted"],
+    ["drafts", "low", "how_to", "drafted"],
   ];
   for (const [mode, confidence, verdict, want] of cases) {
     test(`${mode} · ${confidence} · ${verdict} → ${want}`, async () => {
