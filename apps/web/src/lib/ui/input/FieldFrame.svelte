@@ -23,7 +23,7 @@
 
 <div class="field">
 	<div class="row">
-		<label class="lbl" for={id}>{label}{#if optional}<span class="opt"> optional</span>{/if}</label>
+		<label class="lbl" id="{id}-l" for={id}>{label}{#if optional}<span class="opt"> optional</span>{/if}</label>
 		{#if meta}<span class="meta">{@render meta()}</span>{/if}
 	</div>
 	{@render children()}
