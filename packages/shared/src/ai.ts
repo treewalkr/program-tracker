@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { normalizeKinds } from "./sessionKind";
+import { CoercedCardioPrescription } from "./cardio";
 import {
-  CardioPrescription,
+  type CardioPrescription,
   ExerciseRole,
   Phasing,
   PrescribedSet,
@@ -148,7 +149,8 @@ export const DraftSession = z
     /** Suggested ISO weekday (1=Mon…7=Sun). Kept when it passes the placement
      *  rules, else re-placed; a bad value is dropped, never fails the draft. */
     weekday: z.number().int().min(1).max(7).nullable().optional().catch(null),
-    cardio: CardioPrescription.nullable().optional(),
+    /** Coerced: a bad optional field or interval drops instead of failing the draft. */
+    cardio: CoercedCardioPrescription.nullable().optional(),
     exercises: z.array(DraftExerciseRef).max(20).default([]),
     notes: z.string().max(2000).optional(),
   })

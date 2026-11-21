@@ -1,5 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart } from "./cardio";
+import {
+  cardioDone,
+  cardioIssues,
+  cardioTotals,
+  cardioUnitLabel,
+  cardioWeekTotals,
+  coerceCardio,
+  isoWeekStart,
+  ProgramWeeksWrite,
+} from "./cardio";
+import { CardioPrescription, ProgramWeeksDocument } from "./domain";
+import { DraftSession } from "./ai";
 
 describe("isoWeekStart", () => {
   test("returns the Monday", () => {
@@ -44,5 +55,132 @@ describe("cardioUnitLabel", () => {
     expect(cardioUnitLabel("minutes")).toBe("min");
     expect(cardioUnitLabel("sessions")).toBe("sessions");
     expect(cardioUnitLabel("zone_minutes")).toBe("zone-min");
+  });
+});
+
+
+describe("cardioTotals", () => {
+  // 10:00 warm-up, 4 × 3:00 work with 2:00 recovery between reps (3 recoveries), 5:00 cool-down = 33:00.
+  const intervals = CardioPrescription.parse({
+    modality: "Run",
+    intervals: [
+      { id: "a", type: "warmup", durationSec: 600 },
+      { id: "b", type: "work", repeat: 4, durationSec: 180, recovery: { type: "active_recovery", durationSec: 120 } },
+      { id: "c", type: "cooldown", durationSec: 300 },
+    ],
+  });
+
+  test("33:00 interval session: recovery counts between reps only", () => {
+    expect(cardioTotals(intervals)).toEqual({
+      durationSec: 33 * 60,
+      distanceM: 0,
+      workSec: 720,
+      recoverySec: 360,
+      untimedDistance: false,
+    });
+  });
+
+  test("recoveryAfterLast adds one more recovery", () => {
+    const rx = structuredClone(intervals);
+    rx.intervals![1].recoveryAfterLast = true;
+    expect(cardioTotals(rx).durationSec).toBe(35 * 60);
+  });
+
+  test("a distance-only interval makes the time null, never guessed", () => {
+    const t = cardioTotals({
+      intervals: [
+        { id: "a", type: "warmup", repeat: 1, durationSec: 600 },
+        { id: "b", type: "work", repeat: 6, distanceM: 400, recovery: { type: "passive_recovery", durationSec: 90 } },
+      ],
+    });
+    expect(t.durationSec).toBeNull();
+    expect(t.untimedDistance).toBe(true);
+    expect(t.distanceM).toBe(2400);
+    expect(t.recoverySec).toBe(450);
+  });
+
+  test("without intervals the session's own duration and distance are the plan", () => {
+    expect(cardioTotals({ durationMin: 40, distanceKm: 6.5 })).toEqual({
+      durationSec: 2400,
+      distanceM: 6500,
+      workSec: 2400,
+      recoverySec: 0,
+      untimedDistance: false,
+    });
+    expect(cardioTotals({ distanceKm: 5 }).durationSec).toBeNull();
+  });
+});
+
+describe("cardioIssues", () => {
+  test("needs at least one workload", () => {
+    expect(cardioIssues({})).toHaveLength(1);
+    expect(cardioIssues({ durationMin: 30 })).toEqual([]);
+    expect(cardioIssues({ distanceKm: 5 })).toEqual([]);
+    expect(cardioIssues({ intervals: [{ id: "a", type: "work", repeat: 1, distanceM: 400 }] })).toEqual([]);
+    expect(cardioIssues({ intervals: [{ id: "a", type: "work", repeat: 1, notes: "hard" }] })).toHaveLength(1);
+  });
+
+  test("recovery belongs on a work interval and needs a time or distance", () => {
+    const issues = cardioIssues({
+      durationMin: 30,
+      intervals: [
+        { id: "a", type: "warmup", repeat: 1, durationSec: 60, recovery: { type: "passive_recovery", durationSec: 30 } },
+        { id: "b", type: "work", repeat: 2, durationSec: 60, recovery: { type: "passive_recovery" } },
+      ],
+    });
+    expect(issues).toHaveLength(2);
+  });
+
+  test("schema rejects an inverted HR band and more than 20 intervals", () => {
+    expect(CardioPrescription.safeParse({ modality: "Run", hrBpm: { min: 160, max: 140 } }).success).toBe(false);
+    const many = Array.from({ length: 21 }, (_, i) => ({ id: `i${i}`, type: "work", durationSec: 60 }));
+    expect(CardioPrescription.safeParse({ modality: "Run", intervals: many }).success).toBe(false);
+  });
+
+  test("an old prescription still parses", () => {
+    expect(CardioPrescription.safeParse({ modality: "Bike", durationMin: 30, hrZone: 2 }).success).toBe(true);
+  });
+});
+
+describe("ProgramWeeksWrite", () => {
+  const doc = (cardio: unknown) => [
+    { week: 1, sessions: [{ id: "s1", name: "Cardio 1", seq: 1, order: 0, kind: "cardio", cardio }] },
+  ];
+
+  test("rejects a cardio session with no workload; reads still accept it", () => {
+    expect(ProgramWeeksWrite.safeParse(doc({ modality: "Run" })).success).toBe(false);
+    expect(ProgramWeeksDocument.safeParse(doc({ modality: "Run" })).success).toBe(true);
+    expect(ProgramWeeksWrite.safeParse(doc({ modality: "Run", durationMin: 30 })).success).toBe(true);
+  });
+});
+
+describe("coerceCardio", () => {
+  test("drops bad optional fields and invalid intervals instead of failing", () => {
+    const rx = coerceCardio({
+      modality: "Run",
+      durationMin: 999,
+      paceSecPerKm: 330,
+      hrBpm: { min: 170, max: 150 },
+      intervals: [
+        { type: "work", repeat: 5, durationSec: 120, rpe: 42 },
+        { id: "x", type: "sprint", durationSec: 30 },
+        { id: "y", type: "cooldown", durationSec: 300, recovery: { durationSec: 60 } },
+      ],
+    });
+    expect(rx).not.toBeNull();
+    expect(rx!.durationMin).toBeUndefined();
+    expect(rx!.paceSecPerKm).toBe(330);
+    expect(rx!.hrBpm).toBeUndefined();
+    expect(rx!.intervals).toHaveLength(2);
+    expect(rx!.intervals![0]).toMatchObject({ id: "i1", type: "work", repeat: 5, durationSec: 120 });
+    expect(rx!.intervals![0].rpe).toBeUndefined();
+    expect(rx!.intervals![1].recovery).toBeUndefined();
+  });
+
+  test("a draft session with old or messy cardio still parses", () => {
+    const old = DraftSession.safeParse({ name: "Cardio", kind: "cardio", cardio: { modality: "Bike", durationMin: 30, hrZone: 2 } });
+    expect(old.success).toBe(true);
+    const messy = DraftSession.safeParse({ name: "Cardio", kind: "cardio", cardio: { modality: "Run", intervals: "lots" } });
+    expect(messy.success).toBe(true);
   });
 });

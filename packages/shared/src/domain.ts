@@ -726,6 +726,54 @@ export const LOGGED_BY = ["trainer", "client"] as const;
 export const LoggedBy = z.enum(LOGGED_BY);
 export type LoggedBy = z.infer<typeof LoggedBy>;
 
+/** A target heart-rate band in bpm; overrides the zone when both are set. */
+export const HrBpmRange = z
+  .object({
+    min: z.number().int().min(30).max(240),
+    max: z.number().int().min(30).max(240),
+  })
+  .refine((r) => r.min <= r.max, { message: "hrBpm min must be ≤ max", path: ["min"] });
+export type HrBpmRange = z.infer<typeof HrBpmRange>;
+
+/** Seconds per km a prescription or interval can target: 1:00/km to 30:00/km. */
+export const PaceSecPerKm = z.number().int().min(60).max(1800);
+
+export const CARDIO_INTERVAL_TYPES = ["warmup", "work", "active_recovery", "passive_recovery", "cooldown"] as const;
+export const CardioIntervalType = z.enum(CARDIO_INTERVAL_TYPES);
+export type CardioIntervalType = z.infer<typeof CardioIntervalType>;
+
+/** The rest between reps of a work interval. */
+export const CardioRecovery = z.object({
+  type: z.enum(["active_recovery", "passive_recovery"]).default("passive_recovery"),
+  durationSec: z.number().int().min(1).max(3600).optional(),
+  distanceM: z.number().int().min(1).max(10000).optional(),
+});
+export type CardioRecovery = z.infer<typeof CardioRecovery>;
+
+/** Most intervals one cardio session holds. */
+export const MAX_CARDIO_INTERVALS = 20;
+
+/**
+ * One line of a structured cardio session. Never name a key `kind` or
+ * `format`: normalizeKinds rewrites those everywhere in a document.
+ */
+export const CardioInterval = z.object({
+  id: z.string().min(1).max(64),
+  type: CardioIntervalType,
+  repeat: z.number().int().min(1).max(50).default(1),
+  durationSec: z.number().int().min(1).max(4 * 3600).optional(),
+  distanceM: z.number().int().min(1).max(100_000).optional(),
+  hrZone: z.number().int().min(1).max(5).optional(),
+  hrBpm: HrBpmRange.optional(),
+  paceSecPerKm: PaceSecPerKm.optional(),
+  rpe: z.number().min(1).max(10).optional(),
+  notes: z.string().max(280).optional(),
+  /** Work intervals only: rest between reps, counted repeat − 1 times (or repeat with recoveryAfterLast). */
+  recovery: CardioRecovery.optional(),
+  recoveryAfterLast: z.boolean().optional(),
+});
+export type CardioInterval = z.infer<typeof CardioInterval>;
+
 export const CardioPrescription = z.object({
   modality: z.string().min(1).max(80), // "Bike", "Run", "Rower"…
   durationMin: z.number().int().min(1).max(300).nullable().optional(), // null = unspecified (legacy)
@@ -733,6 +781,15 @@ export const CardioPrescription = z.object({
   intensity: z.string().max(60).optional(), // labelled intensity ("easy", "85% FTP")
   distanceKm: z.number().min(0).max(300).optional(),
   targetRpe: z.number().min(1).max(10).optional(),
+  /** Target pace for the whole session. */
+  paceSecPerKm: PaceSecPerKm.optional(),
+  /** Target HR band in bpm; overrides hrZone when set. */
+  hrBpm: HrBpmRange.optional(),
+  /** The trainer's modality row (or a preset key) the name was captured from. */
+  modalityId: z.string().min(1).max(64).optional(),
+  /** The template (preset key or saved template id) this was started from. */
+  templateId: z.string().min(1).max(64).optional(),
+  intervals: z.array(CardioInterval).max(MAX_CARDIO_INTERVALS).optional(),
 });
 export type CardioPrescription = z.infer<typeof CardioPrescription>;
 
