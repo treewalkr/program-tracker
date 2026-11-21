@@ -87,7 +87,7 @@ export function guessExercise(
   name: string,
   catalog: readonly Searchable[]
 ): { primaryMuscleGroup: string; equipment: string; movementPattern: string | null } {
-  // movementPattern: the best match's primary — quick-create takes one pattern.
+  // movementPattern: the best match's primary — seeds quick-create's first (primary) pattern.
   const n = norm(name);
   const equipment = EQUIPMENT_WORDS.find(([re]) => re.test(n))?.[1] ?? "";
   const words = new Set(n.split(/\s+/).filter((w) => w.length > 2));

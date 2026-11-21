@@ -2,8 +2,9 @@
   import { tick } from "svelte";
   import type { ExerciseDto, ExerciseInput } from "$lib/api/types";
   import { exerciseMeta, groupByPattern, guessExercise, searchExercises } from "$lib/exerciseSearch";
-  import { EQUIPMENT_OPTIONS, MUSCLE_OPTIONS, PATTERN_OPTIONS } from "$lib/exerciseLibrary";
+  import { EQUIPMENT_OPTIONS, MUSCLE_OPTIONS } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
+  import PatternChips from "./PatternChips.svelte";
 
   /**
    * Searchable exercise picker (ARIA combobox). The trigger shows the current
@@ -56,7 +57,7 @@
   /** Options incl. the trailing create row. */
   const count = $derived(flat.length + (canCreate ? 1 : 0));
 
-  type Draft = { name: string; primaryMuscleGroup: string; equipment: string; movementPattern: string };
+  type Draft = { name: string; primaryMuscleGroup: string; equipment: string; movementPatterns: string[] };
   let draft = $state<Draft | null>(null);
   let saving = $state(false);
   let createError = $state("");
@@ -64,7 +65,7 @@
 
   async function startCreate() {
     const g = guessExercise(typed, catalog);
-    draft = { name: typed, primaryMuscleGroup: g.primaryMuscleGroup, equipment: g.equipment, movementPattern: g.movementPattern ?? "" };
+    draft = { name: typed, primaryMuscleGroup: g.primaryMuscleGroup, equipment: g.equipment, movementPatterns: g.movementPattern ? [g.movementPattern] : [] };
     createError = "";
     await tick();
     nameInput?.focus();
@@ -92,7 +93,7 @@
         name,
         primaryMuscleGroup: draft.primaryMuscleGroup,
         equipment: draft.equipment,
-        movementPatterns: draft.movementPattern ? [draft.movementPattern] : [],
+        movementPatterns: draft.movementPatterns,
       });
       draft = null;
       onpick(created);
@@ -227,13 +228,10 @@
                   {#each EQUIPMENT_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
                 </select>
               </label>
-              <label class="xp-f wide">
-                <span>Movement pattern <em>optional</em></span>
-                <select bind:value={draft.movementPattern} class="select">
-                  <option value="">Untagged</option>
-                  {#each PATTERN_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
-                </select>
-              </label>
+              <div class="xp-f wide xp-patterns" role="group" aria-labelledby="{uid}-patterns">
+                <span><span id="{uid}-patterns">Movement patterns</span> <em>optional · <span class="xp-star" aria-hidden="true"><Icon name="star" /></span>primary</em></span>
+                <PatternChips bind:value={draft.movementPatterns} />
+              </div>
             </div>
             {#if createError}<p class="xp-err" role="alert">{createError}</p>{/if}
           </div>
@@ -528,6 +526,9 @@
   .xp-new-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .xp-f { display: grid; gap: 4px; min-width: 0; }
   .xp-f.wide { grid-column: 1 / -1; }
+  .xp-patterns { display: flex; flex-direction: column; gap: 0; }
+  .xp-patterns > span { margin-bottom: -4px; }
+  .xp-star :global(svg) { width: 11px; height: 11px; fill: currentColor; vertical-align: -1px; margin-right: 2px; }
   .xp-f > span { font: 500 12px var(--font-ui); color: var(--ink); }
   .xp-f em { font-style: normal; font-weight: 400; color: var(--muted); }
   .xp-f .input, .xp-f .select { width: 100%; font-size: 14px; }
