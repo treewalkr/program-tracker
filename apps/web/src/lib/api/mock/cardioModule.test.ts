@@ -68,8 +68,8 @@ describe("mock cardio module", () => {
     const all = await mockApi.modalities();
     expect(all.find((m) => m.presetKey === "running")?.usedIn).toBeGreaterThan(0);
     await expect(mockApi.patchModality("md-running", { name: "Jogging" })).rejects.toThrow();
-    const own = await mockApi.createModality({ name: "Assault bike", metric: "none" });
-    await expect(mockApi.createModality({ name: "assault BIKE", metric: "none" })).rejects.toThrow();
+    const own = await mockApi.createModality({ name: "Swimming", metric: "none" });
+    await expect(mockApi.createModality({ name: "swimming", metric: "none" })).rejects.toThrow();
     await mockApi.deleteModality(own.id);
   });
 

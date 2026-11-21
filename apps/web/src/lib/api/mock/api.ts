@@ -315,7 +315,7 @@ const state = {
     presetKey: p.key as string | null,
     archivedAt: null as string | null,
     createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
-  })),
+  })).concat({ id: "md-assault-bike", name: "Assault bike", metric: "none", presetKey: null, archivedAt: null, createdAt: "2026-02-03T09:12:41.000Z" }),
   cardioTemplates: [
     {
       id: "ct-hill-repeats",
