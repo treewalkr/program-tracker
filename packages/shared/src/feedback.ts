@@ -264,8 +264,19 @@ export interface FeedbackAuthor {
  * shipped after the reporter's build, here's how to do it — or it's a real
  * bug / feature request / unclear and a person should look. `needs_info`:
  * one specific fact from the reporter would settle it — the reply asks for it.
+ * `closing`: the reporter's latest word is only thanks, an acknowledgement or
+ * "it's solved" — no reply; with `resolve` (auto mode) the ticket closes quietly.
  */
-export const FEEDBACK_AI_VERDICTS = ["exists", "shipped", "how_to", "bug", "feature", "unclear", "needs_info"] as const;
+export const FEEDBACK_AI_VERDICTS = [
+  "exists",
+  "shipped",
+  "how_to",
+  "bug",
+  "feature",
+  "unclear",
+  "needs_info",
+  "closing",
+] as const;
 export type FeedbackAiVerdict = (typeof FEEDBACK_AI_VERDICTS)[number];
 
 export const FEEDBACK_AI_CONFIDENCE = ["high", "medium", "low"] as const;

@@ -17,6 +17,7 @@ export const AI_VERDICT_LABEL: Record<FeedbackAiVerdict, string> = {
   feature: "Feature request",
   unclear: "Unclear",
   needs_info: "Needs info",
+  closing: "Closing",
 };
 
 export const AI_CONFIDENCE_LABEL: Record<FeedbackAiConfidence, string> = {

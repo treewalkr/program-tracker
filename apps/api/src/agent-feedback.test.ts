@@ -128,6 +128,7 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
       verdict: "exists",
       confidence: "high",
       citations: ["apps/web/src/routes/settings/+page.svelte:220"],
+      reply: "It's under Settings → Email.",
       ...body,
     }, agent);
   const basisOf = async (id: string) => (await inInbox(id))?.basis as string;
@@ -316,7 +317,7 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     const basis = await basisOf(id);
     const ask = { basis, verdict: "needs_info", confidence: "high", citations: ["apps/web/src/routes/clients/[id]/log/+page.svelte:40"] };
     expect((await answer(id, { ...ask, reply: "Which client?" })).status).toBe(422); // no questions
-    expect((await answer(id, { ...ask, questions: ["Which client?"] })).status).toBe(422); // no reply
+    expect((await answer(id, { ...ask, reply: undefined, questions: ["Which client?"] })).status).toBe(422); // no reply
     expect((await answer(id, { ...ask, reply: "x", questions: ["a", "b", "c", "d"] })).status).toBe(422);
     expect((await answer(id, { ...ask, reply: "x", questions: ["x".repeat(201)] })).status).toBe(422);
     expect((await answer(id, { basis, verdict: "exists", reply: "x", questions: ["Which?"] })).status).toBe(422);
@@ -397,11 +398,82 @@ describe.skipIf(!dbUp)("feedback agent API", () => {
     expect(meta.risk).toBeUndefined();
   });
 
-  test("a note without a reply is stored privately", async () => {
-    const id = await ticket("Note only");
-    const out = await json(await answer(id, { basis: await basisOf(id), verdict: "bug", confidence: "medium" }));
-    expect(out).toMatchObject({ outcome: "noted", replyId: null });
-    expect((await asAdmin(id)).thread.map((c: any) => c.visibility)).toEqual(["private"]);
+  test("every verdict but closing needs a reply", async () => {
+    const id = await ticket("Reply required");
+    const basis = await basisOf(id);
+    for (const verdict of ["exists", "shipped", "how_to", "bug", "feature", "unclear"]) {
+      expect((await answer(id, { basis, verdict, confidence: "medium", reply: undefined })).status).toBe(422);
+      expect((await answer(id, { basis, verdict, confidence: "medium", reply: "  " })).status).toBe(422);
+    }
+    expect(await inInbox(id)).toBeDefined(); // nothing was stored
+  });
+
+  describe("closing", () => {
+    const close = { verdict: "closing", confidence: "high", reply: undefined, note: "Reporter said thanks." };
+
+    test("takes no reply, plan or criteria; resolve goes only with closing", async () => {
+      const id = await ticket("Closing validation");
+      const basis = await basisOf(id);
+      expect((await answer(id, { ...close, basis, reply: "You're welcome!" })).status).toBe(422);
+      expect((await answer(id, { ...close, basis, questions: ["Anything else?"] })).status).toBe(422);
+      expect((await answer(id, { ...close, basis, fixPlan: ["Step"] })).status).toBe(422);
+      expect((await answer(id, { ...close, basis, acceptance: ["Works"] })).status).toBe(422);
+      expect((await answer(id, { ...close, basis, risk: "low" })).status).toBe(422);
+      expect((await answer(id, { ...close, basis, ready: false })).status).toBe(422);
+      expect((await answer(id, { basis, resolve: true })).status).toBe(422);
+      expect((await answer(id, { basis, resolve: false })).status).toBe(422);
+      expect(await inInbox(id)).toBeDefined(); // nothing was stored
+    });
+
+    test("thanks: a private note only, the ticket leaves the inbox and stays open", async () => {
+      await setMode("auto");
+      const id = await ticket("Thanks closing");
+      const out = await json(await answer(id, { ...close, basis: await basisOf(id) }));
+      expect(out).toMatchObject({ outcome: "noted", replyId: null });
+      expect(await flush()).toEqual([]);
+      const admin = await asAdmin(id);
+      expect(admin.status).toBe("new");
+      expect(admin.thread.map((c: any) => [c.kind, c.visibility, c.aiMeta?.verdict])).toEqual([["reply", "private", "closing"]]);
+      expect(await inInbox(id)).toBeUndefined();
+      expect((await asKai(id)).thread).toEqual([]);
+    });
+
+    test("solved, auto mode: done silently, no version, nobody emailed — but a duplicate closes and its reporter hears", async () => {
+      await setMode("auto");
+      const id = await ticket("Export button does nothing");
+      const dup = await ticket("Export is broken for me too");
+      const { number } = await asAdmin(id);
+      expect((await call("POST", `/v1/agent/feedback/${dup}/duplicate`, { of: number }, agent)).status).toBe(200);
+      const out = await json(await answer(id, { ...close, note: "Reporter: works now.", resolve: true, basis: await basisOf(id) }));
+      expect(out).toMatchObject({ outcome: "resolved", replyId: null, noteId: expect.any(String) });
+
+      const admin = await asAdmin(id);
+      expect(admin).toMatchObject({ status: "done", shippedIn: null });
+      expect(admin.thread.map((c: any) => [c.kind, c.authorKind, c.visibility, c.silent])).toEqual([
+        ["reply", "ai", "private", false],
+        ["status", "ai", "public", true],
+      ]);
+      const other = await asAdmin(dup);
+      expect(other).toMatchObject({ status: "done", shippedIn: null });
+      expect(other.thread.at(-1)).toMatchObject({ kind: "status", status: "done", authorKind: "ai", silent: false });
+
+      const mails = await flush();
+      const dupHandle = feedbackHandle(other.number);
+      expect(mails.map((m) => [m.to, m.subject])).toEqual([[EMAIL, `[${dupHandle}] Done`]]);
+      expect(mails[0].text).toContain("The AI assistant marked your feedback done");
+      expect((await asKai(id)).unread).toBe(false);
+      expect(await inInbox(id)).toBeUndefined();
+    });
+
+    test("solved, drafts mode: a note only, the status stays", async () => {
+      await setMode("drafts");
+      const id = await ticket("Solved in drafts");
+      const out = await json(await answer(id, { ...close, resolve: true, basis: await basisOf(id) }));
+      expect(out).toMatchObject({ outcome: "noted", replyId: null });
+      expect((await asAdmin(id)).status).toBe("new");
+      expect(await flush()).toEqual([]);
+      expect(await inInbox(id)).toBeUndefined();
+    });
   });
 
   const cases: [FeedbackAiMode, string, string, "sent" | "drafted"][] = [

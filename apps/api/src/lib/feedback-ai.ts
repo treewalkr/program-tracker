@@ -29,6 +29,9 @@ import { getDefaultTrainerId } from "./trainer";
  * - send vs draft: in auto mode every answer goes out alone, whatever its
  *   verdict or confidence — but at most one AI answer per reporter message,
  *   and an answer after a 👎 is always a draft; drafts mode drafts them all
+ * - closing: the reporter only said thanks or "it's solved" — no reply, just
+ *   a private note; "solved" in auto mode closes the ticket quietly
+ *   (`mayResolve`), its duplicates' reporters still hear
  */
 
 /** The admin's trainer id: ADMIN_EMAIL's row, or with auth off the oldest trainer (who acts as admin). */
@@ -114,6 +117,15 @@ export function cappedConfidence(answer: {
 }
 
 export type AnswerOutcome = "sent" | "drafted";
+
+/**
+ * May a `closing` answer with `resolve` close the ticket? Only in auto mode,
+ * and not while a 👎 waits — the reporter is unhappy with the last answer,
+ * so a person looks first. Pure.
+ */
+export function mayResolve(mode: FeedbackAiMode, item: FeedbackItem): boolean {
+  return mode === "auto" && !pendingDownvote(item);
+}
 
 /**
  * Send the reply on its own, or leave it as a draft for the admin. Pure.

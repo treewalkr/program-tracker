@@ -196,7 +196,7 @@ export async function logAgentAnswer(input: {
     note: string;
     model?: string;
   };
-  outcome: "sent" | "drafted" | "noted";
+  outcome: "sent" | "drafted" | "noted" | "resolved";
   commentIds: string[];
   downvote: boolean;
   run?: AgentRun;

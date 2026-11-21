@@ -38,6 +38,7 @@ import {
   fixCandidate,
   inboxCursor,
   inboxVersion,
+  mayResolve,
   needsAnswer,
   routeAnswer,
 } from "../lib/feedback-ai";
@@ -164,8 +165,8 @@ const imageResponse = (bytes: Buffer, mime: string) =>
 /**
  * The feedback auto-reply agent's API (see lib/feedback-ai). It reads tickets
  * like the admin does, and writes only AI thread entries: a private note
- * always, plus a reply that is sent or left as a draft. It never changes a
- * ticket's status.
+ * always, plus a reply that is sent or left as a draft. The one status change
+ * it makes: a `closing` answer with `resolve` marks the ticket done, quietly.
  */
 export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", tags: ["agent"] })
   .use(agentAuth)
@@ -418,7 +419,10 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
   /**
    * Record an answer for the ticket version `basis`. The note is stored as a
    * private AI entry; the reply goes out only when `routeAnswer` says so,
-   * otherwise it waits as a draft for the admin.
+   * otherwise it waits as a draft for the admin. Every verdict needs a reply
+   * but `closing`, which takes none: the note alone (`noted`), or with
+   * `resolve` in auto mode the ticket goes to done silently (`resolved`) —
+   * its open duplicates close too, and their reporters are emailed.
    */
   .post(
     "/:id/answer",
@@ -428,6 +432,8 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       const reply = body.reply?.trim() || null;
       const note = body.note.trim();
       if (!note) return status(422, { error: "note is empty" });
+      const closing = body.verdict === "closing";
+      if (body.resolve !== undefined && !closing) return status(422, { error: "resolve goes only with closing" });
       const fixPlan = (body.fixPlan ?? []).map((s) => s.trim()).filter(Boolean);
       if (body.ready && !fixPlan.length) return status(422, { error: "ready needs a fix plan" });
       const acceptance = (body.acceptance ?? []).map((s) => s.trim()).filter(Boolean);
@@ -442,6 +448,10 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       if (questions.length && body.verdict !== "needs_info") {
         return status(422, { error: "questions go only with needs_info" });
       }
+      if (closing && (reply || fixPlan.length || acceptance.length || body.risk || body.ready !== undefined)) {
+        return status(422, { error: "closing takes no reply, fix plan, acceptance criteria, risk or ready" });
+      }
+      if (!closing && !reply) return status(422, { error: "a reply is required (only closing takes none)" });
       // Evidence first: `high` needs a citation, and person-decided verdicts stay at medium.
       const confidence = cappedConfidence(body);
 
@@ -463,6 +473,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           return { error: "answered" as const, basis };
         }
         const outcome = reply ? routeAnswer(mode, item) : null;
+        const resolve = closing && body.resolve === true && mayResolve(mode, item);
         const now = Date.now();
         const aiMeta: FeedbackAiMeta = {
           verdict: body.verdict,
@@ -491,7 +502,30 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
                 .returning({ id: feedbackComments.id })
             )[0]
           : null;
-        return { outcome, noteId: noteRow.id, replyId: replyRow?.id ?? null, item, basis, downvote };
+        if (!resolve) return { outcome, noteId: noteRow.id, replyId: replyRow?.id ?? null, item, basis, downvote, duplicates: [] };
+        // The reporter says it's solved: done, no version (nothing shipped), and silent — no email, no news.
+        await tx
+          .update(feedbackItems)
+          .set({ status: "done", shippedIn: null, updatedAt: new Date(now) })
+          .where(eq(feedbackItems.id, params.id));
+        await tx.insert(feedbackComments).values({
+          itemId: params.id,
+          trainerId: null,
+          authorKind: "ai",
+          kind: "status",
+          status: "done",
+          silent: true,
+          createdAt: new Date(now + 1),
+        });
+        // Its duplicates were someone else's report: they close too, and their reporters hear it.
+        const duplicates = await closeDuplicates(tx, params.id, {
+          status: "done",
+          shippedIn: null,
+          trainerId: null,
+          authorKind: "ai",
+          at: now + 2,
+        });
+        return { outcome: "resolved" as const, noteId: noteRow.id, replyId: null, item, basis, downvote, duplicates };
       });
 
       if ("error" in out) {
@@ -503,6 +537,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       if (out.outcome === "sent" && out.replyId) {
         notifyFeedback({ kind: "reply", itemId: params.id, commentId: out.replyId });
       }
+      for (const d of out.duplicates) notifyFeedback({ kind: "status", itemId: d.itemId, commentId: d.statusId });
       const outcome = out.outcome ?? ("noted" as const);
       // Logged after the commit: a logging failure never loses the answer.
       const callId = await logAgentAnswer({
@@ -522,6 +557,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       body: t.Object({
         basis: t.String({ minLength: 1, maxLength: 64 }),
+        /** Required for every verdict but `closing`, which takes none. */
         reply: t.Optional(t.String({ maxLength: MAX_TEXT })),
         note: t.String({ minLength: 1, maxLength: MAX_TEXT }),
         verdict: t.UnionEnum(FEEDBACK_AI_VERDICTS),
@@ -543,6 +579,8 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
         risk: t.Optional(t.Union(FEEDBACK_AI_RISKS.map((r) => t.Literal(r)))),
         /** For `bug` / `feature`: the plan is complete and checked, nothing left to ask — the fix agent may take it (with low risk). */
         ready: t.Optional(t.Boolean()),
+        /** `closing` only: the reporter says it's solved — in auto mode the ticket goes to done, quietly. */
+        resolve: t.Optional(t.Boolean()),
         model: t.Optional(t.String({ maxLength: 100 })),
         /** The agent run behind it, logged in llm_calls (purpose `feedback_answer`). */
         run: t.Optional(
@@ -554,7 +592,7 @@ export const agentFeedbackRoutes = new Elysia({ prefix: "/v1/agent/feedback", ta
           }),
         ),
       }),
-      detail: { summary: "Record the auto-reply agent's answer: a private note, plus a sent or drafted reply" },
+      detail: { summary: "Record the auto-reply agent's answer: a private note, plus a sent or drafted reply — or a quiet close" },
     },
   )
   /**

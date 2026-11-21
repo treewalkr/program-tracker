@@ -78,6 +78,7 @@ describe.skipIf(!dbUp)("fix agent API", () => {
       {
         basis: await basisOf(id),
         note: "Bug: the timer label is 10px.",
+        reply: "Looks like a bug in the rest timer label; the owner will decide on a fix.",
         verdict: "bug",
         confidence: "medium",
         citations: ["apps/web/src/lib/components/RestTimer.svelte:12"],

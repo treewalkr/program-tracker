@@ -28,9 +28,12 @@
  *                                           share the reporter rated 👍 / 👎
  *
  * answer.json: { "basis", "note", "verdict", "confidence", "citations": [], "reply"?, "questions"?: [],
- *               "fixPlan"?: [], "risk"?, "ready"?, "model"? }
- * (`needs_info` needs "questions" and a "reply"; the API caps `high` to `medium` without a citation,
- * and for bug / feature / needs_info — the printed result says what was recorded)
+ *               "fixPlan"?: [], "acceptance"?: [], "risk"?, "ready"?, "resolve"?, "model"? }
+ * (every verdict needs a "reply" but `closing`, which takes none — nor questions, plan, criteria,
+ * risk or ready; "resolve": true goes only with `closing`, when the reporter says it's solved;
+ * `needs_info` needs "questions" too; the API caps `high` to `medium` without a citation, and for
+ * bug / feature / needs_info. The printed result says what was recorded: "outcome" is sent,
+ * drafted, noted (no reply) or resolved (the ticket closed quietly), plus the confidence kept)
  *
  * Config: PT_API_URL and FEEDBACK_AGENT_TOKEN, from the environment or the
  * repo's gitignored .env.agent (the environment wins).

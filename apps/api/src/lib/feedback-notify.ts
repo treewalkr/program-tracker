@@ -162,7 +162,7 @@ export function feedbackRecipients(kind: FeedbackEvent["kind"], snap: FeedbackSn
 export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapshot): Email[] {
   const handle = feedbackHandle(snap.item.number);
   const { item, actor } = snap;
-  const actorName = actor?.name ?? "Someone";
+  const actorName = actor?.name ?? (snap.comment?.authorKind === "ai" ? "The AI assistant" : "Someone");
   const send = (subject: string, parts: Parts, label: string) =>
     feedbackRecipients(kind, snap).map((p) => compose(snap, kind, p, subject, parts, label));
 
