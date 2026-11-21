@@ -25,6 +25,12 @@ test("a cardio-only day measures minutes; exercises on the same day win", () => 
   expect(dayVolume([cardio(30), lift([{ weightKg: 50, reps: 10 }])])).toEqual({ basis: "tonnage", amount: 500 });
 });
 
+test("a cardio day reads seconds and leaves skipped logs out", () => {
+  const secs = { kind: "cardio", cardio: { modality: "Run", durationSec: 42 * 60 + 30 }, sets: [] };
+  const skipped = { kind: "cardio", cardio: { modality: "Run", skipped: { reason: "time" as const } }, sets: [] };
+  expect(dayVolume([secs, skipped])).toEqual({ basis: "minutes", amount: 42.5 });
+});
+
 test("a cardio log with no duration still counts as one session", () => {
   expect(dayVolume([cardio(null)])).toEqual({ basis: "sessions", amount: 1 });
 });

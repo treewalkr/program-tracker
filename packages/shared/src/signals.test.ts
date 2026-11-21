@@ -67,6 +67,20 @@ describe("cardioBehindSignal", () => {
   });
 });
 
+describe("cardioBehindSignal with a session-load target", () => {
+  const owner = { programId: null, clientId: "cl-1" };
+  const THU = new Date(2026, 9, 29, 12).getTime();
+  const log = (date: string, cardio: object) => ({ date, kind: "cardio", cardio: { modality: "Run", ...cardio } });
+
+  test("counts RPE × minutes in AU and ignores skipped logs", () => {
+    const logs = [log("2026-10-26", { durationSec: 1800, rpe: 5 }), log("2026-10-27", { skipped: { reason: "time" } })];
+    const signal = cardioBehindSignal(owner, { unit: "session_load", value: 600 }, logs as never, THU);
+    expect(signal!.evidence).toBe("150 of 600 AU logged this week — pace expects ≥ 206 by Thu.");
+    const more = [...logs, log("2026-10-28", { durationSec: 2400, rpe: 6 })];
+    expect(cardioBehindSignal(owner, { unit: "session_load", value: 600 }, more as never, THU)).toBeNull();
+  });
+});
+
 describe("cardioBehindSignal is pro-rated from the client's start (F18)", () => {
   const SAT = new Date(2026, 9, 31, 12).getTime();
   const SUN = new Date(2026, 10, 1, 12).getTime();

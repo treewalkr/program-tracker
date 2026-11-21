@@ -1,3 +1,4 @@
+import { cardioTotals } from "./cardio";
 import {
   MAX_SESSIONS_PER_WEEKDAY,
   applyPlacementToAllWeeks,
@@ -82,12 +83,16 @@ function clash(a: SessionFocus, b: SessionFocus, same: boolean): number {
 
 export type CardioLoad = "long" | "hard" | "easy";
 
+/** Planned seconds from the cardio totals (intervals included); 0 when unknown. */
+const plannedSec = (s: Pick<ProgramSession, "cardio">) => (s.cardio ? cardioTotals(s.cardio).durationSec ?? 0 : 0);
+
 /** Key cardio (long or hard) vs easy; null for exercise sessions. */
 export function cardioLoad(s: Pick<ProgramSession, "kind" | "name" | "cardio">): CardioLoad | null {
   if (s.kind !== "cardio") return null;
   const text = `${s.name} ${s.cardio?.intensity ?? ""}`;
-  if ((s.cardio?.durationMin ?? 0) >= 60 || /\blong\b/i.test(text)) return "long";
-  if ((s.cardio?.hrZone ?? 0) >= 4 || /tempo|threshold|interval/i.test(text)) return "hard";
+  if (plannedSec(s) >= 3600 || /\blong\b/i.test(text)) return "long";
+  const hardWork = s.cardio?.intervals?.some((iv) => iv.type === "work" && ((iv.hrZone ?? 0) >= 4 || (iv.rpe ?? 0) >= 8));
+  if ((s.cardio?.hrZone ?? 0) >= 4 || hardWork || /tempo|threshold|interval/i.test(text)) return "hard";
   return "easy";
 }
 
@@ -183,7 +188,7 @@ function longRunOf(cardio: readonly ProgramSession[], load: Map<string, CardioLo
   let best: ProgramSession | null = null;
   for (const s of cardio) {
     if (load.get(s.id) !== "long") continue;
-    if (!best || (s.cardio?.durationMin ?? 0) > (best.cardio?.durationMin ?? 0)) best = s;
+    if (!best || plannedSec(s) > plannedSec(best)) best = s;
   }
   return best;
 }

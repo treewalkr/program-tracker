@@ -37,25 +37,57 @@ export interface CardioCountLog {
   cardio?: CardioLog | null;
 }
 
+/** One modality's week. Distance is only ever summed within a modality. */
+export interface CardioModalityTotals {
+  minutes: number;
+  sessions: number;
+  load: number;
+  distanceKm: number;
+}
+
 export interface CardioTotals {
   minutes: number;
   sessions: number;
+  /** Session load in AU: Σ session RPE × minutes over logs that have an RPE. */
+  load: number;
+  /** Legacy minutes × logged zone, only for a `zone_minutes` target saved before session load. */
   zoneMinutes: number;
+  /** Keyed by the logged modality name; never summed across modalities. */
+  byModality: Record<string, CardioModalityTotals>;
 }
 
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
 /** Totals over cardio logs with `date >= since` (string compare on YYYY-MM-DD).
- *  Exercise logs and other clients' rows are ignored by the caller's filter. */
+ *  Skipped logs don't count. Exercise logs and other clients' rows are ignored
+ *  by the caller's filter. */
 export function cardioWeekTotals(logs: CardioCountLog[], since: string): CardioTotals {
-  const totals: CardioTotals = { minutes: 0, sessions: 0, zoneMinutes: 0 };
+  const totals: CardioTotals = { minutes: 0, sessions: 0, load: 0, zoneMinutes: 0, byModality: {} };
+  let seconds = 0;
+  const modSeconds: Record<string, number> = {};
   for (const log of logs) {
     if (log.kind !== "cardio") continue;
     if (log.date < since) continue;
+    if (isSkippedCardio(log.cardio)) continue;
     totals.sessions += 1;
-    if (log.cardio?.durationMin != null) {
-      totals.minutes += log.cardio.durationMin;
-      totals.zoneMinutes += log.cardio.durationMin * (log.cardio.hrZone ?? 1);
+    const sec = cardioLogSec(log.cardio);
+    const load = sessionLoad(log.cardio) ?? 0;
+    totals.load += load;
+    if (sec != null) {
+      seconds += sec;
+      totals.zoneMinutes += Math.round((sec / 60) * (log.cardio?.hrZone ?? 1));
+    }
+    const name = log.cardio?.modality?.trim();
+    if (name) {
+      const m = (totals.byModality[name] ??= { minutes: 0, sessions: 0, load: 0, distanceKm: 0 });
+      m.sessions += 1;
+      m.load += load;
+      m.distanceKm = round1(m.distanceKm + (log.cardio?.distanceKm ?? 0));
+      modSeconds[name] = (modSeconds[name] ?? 0) + (sec ?? 0);
     }
   }
+  totals.minutes = Math.round(seconds / 60);
+  for (const [name, m] of Object.entries(totals.byModality)) m.minutes = Math.round(modSeconds[name] / 60);
   return totals;
 }
 
@@ -63,12 +95,17 @@ export function cardioWeekTotals(logs: CardioCountLog[], since: string): CardioT
 export function cardioDone(target: CardioTarget, totals: CardioTotals): number {
   if (target.unit === "minutes") return totals.minutes;
   if (target.unit === "sessions") return totals.sessions;
+  if (target.unit === "session_load") return totals.load;
   return totals.zoneMinutes;
 }
 
-export function cardioUnitLabel(unit: CardioTargetUnit): "min" | "sessions" | "zone-min" {
+/** The units a trainer can pick now; `zone_minutes` is still read but no longer offered. */
+export const OFFERED_CARDIO_TARGET_UNITS = ["minutes", "sessions", "session_load"] as const satisfies readonly CardioTargetUnit[];
+
+export function cardioUnitLabel(unit: CardioTargetUnit): "min" | "sessions" | "AU" | "zone-min" {
   if (unit === "minutes") return "min";
   if (unit === "sessions") return "sessions";
+  if (unit === "session_load") return "AU";
   return "zone-min";
 }
 

@@ -286,8 +286,10 @@ export const CLIENT_SEXES = ["female", "male"] as const;
 export const ClientSex = z.enum(CLIENT_SEXES);
 export type ClientSex = z.infer<typeof ClientSex>;
 
-/** Weekly cardio target units — one fixed progress formula per unit (cardio.ts). */
-export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "zone_minutes"] as const;
+/** Weekly cardio target units — one fixed progress formula per unit (cardio.ts).
+ *  `session_load` (RPE × min, AU) replaced `zone_minutes`, which is still accepted
+ *  for one release (never offered) so a rollback's writes still parse. */
+export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "session_load", "zone_minutes"] as const;
 export const CardioTargetUnit = z.enum(CARDIO_TARGET_UNITS);
 export type CardioTargetUnit = z.infer<typeof CardioTargetUnit>;
 export const CardioTarget = z.object({

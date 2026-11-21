@@ -29,30 +29,41 @@ describe("isoWeekStart", () => {
 });
 
 describe("cardioWeekTotals", () => {
-  test("sums minutes, sessions and zone-minutes since week start", () => {
+  test("sums minutes, sessions, load and per-modality distance since week start", () => {
     const logs = [
-      { date: "2026-10-26", kind: "cardio", cardio: { modality: "Run", durationMin: 40, hrZone: 3 } },
-      { date: "2026-10-28", kind: "cardio", cardio: { modality: "Bike", durationMin: 35 } }, // no hrZone → ×1
-      { date: "2026-10-29", kind: "cardio", cardio: { modality: "Row" } }, // no duration → session only
+      { date: "2026-10-26", kind: "cardio", cardio: { modality: "Run", durationMin: 40, hrZone: 3, rpe: 5, distanceKm: 6 } }, // old row
+      { date: "2026-10-28", kind: "cardio", cardio: { modality: "Bike", durationSec: 35 * 60, rpe: 4, distanceKm: 14 } },
+      { date: "2026-10-29", kind: "cardio", cardio: { modality: "Run", durationSec: 42 * 60 + 15, rpe: 4, distanceKm: 6.5 } },
+      { date: "2026-10-30", kind: "cardio", cardio: { modality: "Row" } }, // no duration → session only
+      { date: "2026-10-30", kind: "cardio", cardio: { modality: "Run", skipped: { reason: "time" } } }, // skipped: not counted
       { date: "2026-10-25", kind: "cardio", cardio: { modality: "Run", durationMin: 60, hrZone: 2 } }, // before since
       { date: "2026-10-27", kind: "exercises", sets: [] }, // exercise log ignored
       { date: "2026-10-27", cardio: { modality: "Run", durationMin: 30 } }, // missing kind ignored
     ];
     const totals = cardioWeekTotals(logs as any, "2026-10-26");
-    expect(totals).toEqual({ minutes: 75, sessions: 3, zoneMinutes: 155 });
+    expect(totals.minutes).toBe(117);
+    expect(totals.sessions).toBe(4);
+    expect(totals.load).toBe(200 + 140 + 169);
+    expect(totals.zoneMinutes).toBe(120 + 35 + 42);
+    expect(totals.byModality).toEqual({
+      Run: { minutes: 82, sessions: 2, load: 369, distanceKm: 12.5 },
+      Bike: { minutes: 35, sessions: 1, load: 140, distanceKm: 14 },
+      Row: { minutes: 0, sessions: 1, load: 0, distanceKm: 0 },
+    });
   });
 
   test("empty week is all zeros", () => {
-    expect(cardioWeekTotals([], "2026-10-26")).toEqual({ minutes: 0, sessions: 0, zoneMinutes: 0 });
+    expect(cardioWeekTotals([], "2026-10-26")).toEqual({ minutes: 0, sessions: 0, load: 0, zoneMinutes: 0, byModality: {} });
   });
 });
 
 describe("cardioDone", () => {
-  const totals = { minutes: 75, sessions: 3, zoneMinutes: 155 };
+  const totals = { minutes: 75, sessions: 3, load: 320, zoneMinutes: 155, byModality: {} };
 
   test("maps the target unit onto the totals", () => {
     expect(cardioDone({ unit: "minutes", value: 150 }, totals)).toBe(75);
     expect(cardioDone({ unit: "sessions", value: 4 }, totals)).toBe(3);
+    expect(cardioDone({ unit: "session_load", value: 600 }, totals)).toBe(320);
     expect(cardioDone({ unit: "zone_minutes", value: 200 }, totals)).toBe(155);
   });
 });
@@ -61,10 +72,10 @@ describe("cardioUnitLabel", () => {
   test("one label per unit", () => {
     expect(cardioUnitLabel("minutes")).toBe("min");
     expect(cardioUnitLabel("sessions")).toBe("sessions");
+    expect(cardioUnitLabel("session_load")).toBe("AU");
     expect(cardioUnitLabel("zone_minutes")).toBe("zone-min");
   });
 });
-
 
 describe("cardioTotals", () => {
   // 10:00 warm-up, 4 × 3:00 work with 2:00 recovery between reps (3 recoveries), 5:00 cool-down = 33:00.

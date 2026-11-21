@@ -220,6 +220,14 @@ describe("cardioLoad", () => {
     expect(cardioLoad(run(1, "Easy run", 40, 2))).toBe("easy");
     expect(cardioLoad(lift(1, ["squat"]))).toBeNull();
   });
+
+  test("intervals count: a long interval plan is long, a zone-4 work interval is hard", () => {
+    const base = run(1, "Run", 0, 2);
+    const long = { ...base, cardio: { modality: "Run", intervals: [{ id: "a", type: "work" as const, repeat: 3, durationSec: 1300 }] } };
+    expect(cardioLoad(long)).toBe("long");
+    const hard = { ...base, cardio: { modality: "Run", intervals: [{ id: "a", type: "work" as const, repeat: 5, durationSec: 120, hrZone: 4 }] } };
+    expect(cardioLoad(hard)).toBe("hard");
+  });
 });
 
 describe("placeSessions — Priya's concurrent week", () => {

@@ -1,4 +1,5 @@
 import type { CardioLog, SetType } from "./domain";
+import { cardioLogSec, isSkippedCardio } from "./cardio";
 
 /**
  * Day intensity for the overview's contributions strip: how much a client
@@ -22,7 +23,7 @@ export interface DayVolume {
 
 export interface DayVolumeLog {
   kind?: string;
-  cardio?: Pick<CardioLog, "durationMin"> | null;
+  cardio?: Pick<CardioLog, "durationMin" | "durationSec" | "skipped"> | null;
   sets: { exerciseId: string; type?: SetType; weightKg?: number | null; reps: number }[];
 }
 
@@ -36,8 +37,9 @@ export function dayVolume(logs: DayVolumeLog[], timed: Set<string> = new Set()):
   let cardioLogs = 0;
   for (const log of logs) {
     if (log.kind === "cardio") {
+      if (isSkippedCardio(log.cardio)) continue;
       cardioLogs += 1;
-      minutes += log.cardio?.durationMin ?? 0;
+      minutes += (cardioLogSec(log.cardio) ?? 0) / 60;
       continue;
     }
     for (const s of log.sets) {
