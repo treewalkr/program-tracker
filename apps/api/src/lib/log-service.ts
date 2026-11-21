@@ -1,7 +1,17 @@
 import { z } from "zod";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import { db, sessionLogs, setLogs, exercises, programs } from "@pt/db";
-import { CardioLog, Readiness, SessionFlag, SessionKind, SetType, type LoggedBy } from "@pt/shared";
+import { db, sessionLogs, setLogs, exercises, programs, clientHrProfiles } from "@pt/db";
+import {
+  CardioLog,
+  profileOn,
+  Readiness,
+  SessionFlag,
+  SessionKind,
+  SetType,
+  type LoggedBy,
+  type LogPrescription,
+  type ProgramWeek,
+} from "@pt/shared";
 import { queueSignalsForOutbox } from "./signals-service";
 
 /**
@@ -108,6 +118,38 @@ export type CreateSessionLogResult =
   | { outcome: "unknown_exercises"; ids: string[] }
   | { outcome: "conflict"; existing: { id: string; date: string; setCount: number; loggedBy: LoggedBy } };
 
+/** The program session a log fulfils, wherever it sits in the weeks document; null for freestyle or a stale id. */
+export function findProgramSession(weeks: readonly ProgramWeek[], programSessionId: string | null | undefined) {
+  if (!programSessionId) return null;
+  for (const w of weeks) for (const s of w.sessions) if (s.id === programSessionId) return s;
+  return null;
+}
+
+/**
+ * The snapshot a new log keeps of what it was measured against: the prescribed
+ * session as it is now (deep copy), the program version, and for cardio the
+ * bpm zones of the member's HR profile version in effect on the log's date.
+ */
+export async function logPrescription(
+  program: Pick<typeof programs.$inferSelect, "version" | "sessions">,
+  clientId: string,
+  programSessionId: string | null | undefined,
+  date: string
+): Promise<LogPrescription | null> {
+  const session = findProgramSession(program.sessions, programSessionId);
+  if (!session) return null;
+  const snapshot: LogPrescription = { programVersion: program.version, session: structuredClone(session) };
+  if (session.kind === "cardio") {
+    const versions = await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId));
+    const profile = profileOn(versions, date);
+    if (profile) {
+      snapshot.hrProfileVersion = profile.version;
+      snapshot.zonesBpm = profile.zones;
+    }
+  }
+  return snapshot;
+}
+
 /** Which duplicates a `replace` may remove: any (the trainer), or only the client's own (the portal). */
 export type ReplacePolicy = "any" | "own";
 
@@ -139,6 +181,8 @@ export async function createSessionLog({
     const missing = exerciseIds.filter((id) => !knownIds.has(id));
     if (missing.length) return { outcome: "unknown_exercises", ids: missing };
   }
+
+  const prescription = await logPrescription(program, input.clientId, input.programSessionId, input.date);
 
   const saved = await db.transaction(async (tx) => {
     // A duplicate is this exact program session logged again; ad-hoc logs never are.
@@ -191,6 +235,7 @@ export async function createSessionLog({
         readiness: input.readiness && Object.keys(input.readiness).length > 0 ? input.readiness : null,
         flags: input.flags?.length ? input.flags : null,
         durationMin: input.durationMin ?? null,
+        prescription,
         loggedBy,
       })
       .returning();
