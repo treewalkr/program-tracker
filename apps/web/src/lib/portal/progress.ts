@@ -1,6 +1,7 @@
 import type { PortalCardioLog } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import type { MessageKey } from "./messages";
+import { distanceText } from "./rx";
 
 /** The Progress tab's words and numbers. Pure — the caller passes the portal's `t`. */
 type T = (key: MessageKey, vars?: Record<string, string | number>) => string;
@@ -14,10 +15,8 @@ export function hoursMinutes(minutes: number, t: T): string {
   return m === 0 ? t("progress.h", { h }) : t("progress.hm", { h, m });
 }
 
-/** "11.4 km". */
-export function cardioDistance(km: number, t: T): string {
-  return t("rx.km", { n: String(Math.round(km * 100) / 100) });
-}
+/** "11.4 km" / "7.08 mi", in the member's unit. */
+export const cardioDistance = (km: number, t: T): string => distanceText(km, t);
 
 /** The newest test against the one before, to one decimal; null with fewer than two. */
 export function vo2Delta(points: readonly { value: number }[]): number | null {

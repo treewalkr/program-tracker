@@ -36,8 +36,12 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import { showWeight, units, weightCells, weightStepIn } from "$lib/units.svelte";
 
   let { data } = $props();
+  /** Weight cells in the member's unit (kg passes straight through). */
+  const kgCells = weightCells();
+  const wUnit = $derived(units.weight === "lb" ? t("log.lb") : t("log.kg"));
   const me = $derived(data.portal.kind === "signedIn" ? data.portal.me : null);
 
   const sessionId = $derived(page.params.sessionId ?? "");
@@ -560,12 +564,13 @@
                 {:else}
                 <div class="cells">
                   {#if !r.timed}
+                    <!-- kg is stored; the member sees and types their own unit -->
                     <LogStepper
-                      bind:value={rows[i].weight}
+                      bind:value={() => kgCells.get(r.key, rows[i].weight), (v) => (rows[i].weight = kgCells.set(r.key, v))}
                       id={`kg-${r.key}`}
                       error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
                       errorId={`kg-${r.key}-err`}
-                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${t("log.kg")}`} unit={t("log.kg")} step={2.5} min={0} max={600} from={r.rx?.targetWeightKg ?? null} />
+                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showWeight(r.rx.targetWeightKg) : null} />
                   {/if}
                   <LogStepper
                     bind:value={rows[i].reps}

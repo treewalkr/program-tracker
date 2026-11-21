@@ -23,26 +23,28 @@ import {
  */
 
 const KEY = "pt.displayUnits";
+/** The member portal keeps its own copy: a trainer opening the portal demo keeps theirs. */
+export const PORTAL_UNITS_KEY = "pt.portal.displayUnits";
 
 export const units = $state<DisplayUnits>({ ...DEFAULT_DISPLAY_UNITS });
 
 /** Apply a preference (from the API, or the copy cached for a fast first paint). */
-export function applyUnits(next: unknown) {
+export function applyUnits(next: unknown, key = KEY) {
   const u = displayUnitsOf(next);
   units.weight = u.weight;
   units.distance = u.distance;
   try {
-    localStorage.setItem(KEY, JSON.stringify(u));
+    localStorage.setItem(key, JSON.stringify(u));
   } catch {
     /* private mode */
   }
 }
 
-/** The cached copy, before the API answers. */
-export function restoreUnits() {
+/** The cached copy, before the API answers (none cached: the metric default). */
+export function restoreUnits(key = KEY) {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) applyUnits(JSON.parse(raw));
+    const raw = localStorage.getItem(key);
+    applyUnits(raw ? JSON.parse(raw) : DEFAULT_DISPLAY_UNITS, key);
   } catch {
     /* junk or no storage: stay on the defaults */
   }

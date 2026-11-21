@@ -105,4 +105,10 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     expect(nok.vo2.points.length).toBe(3);
     expect(nok.target?.unit).toBe("session_load");
   });
+
+  test("settings: metric by default, a saved choice comes back, junk is refused", async () => {
+    expect((await mockPortalApi.settings()).units).toEqual({ weight: "kg", distance: "km" });
+    expect((await mockPortalApi.saveSettings({ weight: "lb", distance: "mi" })).units).toEqual({ weight: "lb", distance: "mi" });
+    await expect(mockPortalApi.saveSettings({ weight: "stone", distance: "km" } as never)).rejects.toThrow();
+  });
 });

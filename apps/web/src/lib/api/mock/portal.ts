@@ -15,6 +15,8 @@ import {
   portalWeekLabel,
   profileOn,
   weekOf,
+  DisplayUnits,
+  displayUnitsOf,
   cardioWeekTotals,
   isoWeekStart,
   portalCardioLog,
@@ -192,6 +194,16 @@ export function mockPortalProgress(now = Date.now(), asked?: Vo2Protocol | null,
   });
 }
 
+/** The demo members' display units, kept for the tab like the API keeps them per client. */
+const UNITS_KEY = "pt.mock.portalUnits";
+function storedUnits(): Record<string, DisplayUnits> {
+  try {
+    return JSON.parse(sessionStorage.getItem(UNITS_KEY) ?? "{}") as Record<string, DisplayUnits>;
+  } catch {
+    return {};
+  }
+}
+
 /** As many recent cardio logs as the API sends. */
 const RECENT_CARDIO = 12;
 
@@ -205,6 +217,21 @@ const rawMockPortalApi: PortalApi = {
   async week() {
     await delay(250);
     return mockPortalWeek();
+  },
+  async settings() {
+    await delay(150);
+    return { units: displayUnitsOf(storedUnits()[clientIdOf()]) };
+  },
+  async saveSettings(units) {
+    await delay(250);
+    const parsed = DisplayUnits.safeParse(units);
+    if (!parsed.success) throw fail(422, "invalid units");
+    try {
+      sessionStorage.setItem(UNITS_KEY, JSON.stringify({ ...storedUnits(), [clientIdOf()]: parsed.data }));
+    } catch {
+      // no storage: the choice lasts until reload
+    }
+    return { units: parsed.data };
   },
   async progress(protocol) {
     await delay(250);

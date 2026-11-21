@@ -3,6 +3,7 @@ import type { PortalSet } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
 import { cardioParts, intervalLines, lastSetText, setParts } from "./rx";
 import type { PortalCardioInterval } from "@pt/shared";
+import { units } from "$lib/units.svelte";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
 const tTh = (k: MessageKey, v?: Record<string, string | number>) => format(th[k], v);
@@ -64,5 +65,22 @@ describe("last time", () => {
     expect(lastSetText({ date: "2026-11-09", weightKg: 62.5, reps: 8, rpe: 8 }, tEn)).toBe("62.5 kg × 8 · RPE 8");
     expect(lastSetText({ date: "2026-11-09", weightKg: 60, reps: 8, rpe: null }, tTh)).toBe("60 กก. × 8");
     expect(lastSetText({ date: "2026-11-09", weightKg: null, reps: 10, rpe: null }, tEn)).toBe("10 reps");
+  });
+});
+
+describe("the member's display units", () => {
+  test("lb and miles convert what's shown; metres for track reps stay metres", () => {
+    units.weight = "lb";
+    units.distance = "mi";
+    try {
+      expect(setParts([S({ targetWeightKg: 60 })], tEn)).toEqual(["1 × 8", "132.3 lb"]);
+      expect(setParts([S({ targetWeightKg: 60 })], tTh)).toEqual(["1 × 8", "132.3 ปอนด์"]);
+      expect(lastSetText({ date: "2026-11-09", weightKg: 100, reps: 5, rpe: null }, tEn)).toBe("220.5 lb × 5");
+      expect(cardioParts({ distanceKm: 5.2, paceSecPerKm: 406 }, tEn)).toEqual(["3.23 mi", "10:53 /mi"]);
+      expect(intervalLines([{ id: "t", type: "work", repeat: 6, distanceM: 400 }], tEn)[0].amount).toBe("400 m × 6");
+    } finally {
+      units.weight = "kg";
+      units.distance = "km";
+    }
   });
 });
