@@ -8,13 +8,14 @@
   import CardioReview from "$lib/components/CardioReview.svelte";
   import WeekBars from "$lib/components/WeekBars.svelte";
   import StatTile from "$lib/ui/StatTile.svelte";
+  import ClientAssessments from "$lib/components/ClientAssessments.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, hoursMinutes } from "$lib/cardioTab";
   import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
+  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, AssessmentDto, AssessmentInput, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import { oneRepMaxKg, plannedVolume, pulseCellSets, type PulseCell } from "@pt/shared";
@@ -91,7 +92,7 @@
   let dismissedNow = $state<string[]>([]);
   let snoozing = $state<string | null>(null);
   let snoozeErrors = $state<Record<string, string>>({});
-  let tab = $state<"program" | "pulse" | "history" | "cardio" | "settings">("program");
+  let tab = $state<"program" | "pulse" | "history" | "cardio" | "assessments" | "settings">("program");
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1;
@@ -288,6 +289,21 @@
     if (tab === "cardio" && reviewing === null && cardioRows.length) reviewing = (cardioRows.findLast((r) => r.state === "to_review") ?? cardioRows[0]).id;
   });
 
+  // ---- Assessments tab ----
+  let assessments = $state<AssessmentDto[] | null>(null);
+  $effect(() => {
+    if (tab === "assessments" && assessments === null && id) api.assessments(id).then((a) => (assessments = a)).catch(() => (assessments = []));
+  });
+  async function createAssessment(input: AssessmentInput) {
+    const row = await api.createAssessment(id, input);
+    assessments = [...(assessments ?? []), row];
+    return row;
+  }
+  async function deleteAssessment(assessmentId: string) {
+    await api.deleteAssessment(id, assessmentId);
+    assessments = (assessments ?? []).filter((a) => a.id !== assessmentId);
+  }
+
   async function pickCardioLog(logId: string) {
     reviewing = logId;
     // one column: the review sits under the list, so bring it into view
@@ -377,7 +393,7 @@
 
   onMount(() => {
     const h = location.hash.slice(1);
-    if (h === "pulse" || h === "history" || h === "cardio" || h === "settings" || h === "program") tab = h;
+    if (h === "pulse" || h === "history" || h === "cardio" || h === "assessments" || h === "settings" || h === "program") tab = h;
     load().catch(onLoadError);
   });
 </script>
@@ -423,6 +439,7 @@
         { id: "pulse", label: "Pulse", count: "0 wks" },
         { id: "history", label: "History", count: "8 wks" },
         { id: "cardio", label: "Cardio", count: "0 to review" },
+        { id: "assessments", label: "Assessments", count: "0" },
         { id: "settings", label: "Settings" },
       ]}
     />
@@ -524,6 +541,7 @@
       { id: 'pulse', label: 'Pulse', count: `${pulse.length} wks`, disabled: pulse.length === 0 },
       { id: 'history', label: 'History', count: rangeInfo(range).badge },
       { id: 'cardio', label: 'Cardio', count: cardioToReview ? `${cardioToReview} to review` : `${cardioRows.length} logs` },
+      { id: 'assessments', label: 'Assessments', count: assessments ? String(assessments.length) : undefined },
       { id: 'settings', label: 'Settings' },
     ]}
   />
@@ -969,6 +987,18 @@
           </div>
         </Panel>
       </div>
+    </div>
+  {:else if tab === "assessments"}
+    <div id="panel-assessments" role="tabpanel" aria-labelledby="tab-assessments">
+      {#if client}
+        <ClientAssessments
+          member={{ firstName, sex: client.sex ?? null, birthDate: client.birthDate ?? null, weightKg: client.bodyweightKg ?? null }}
+          {assessments}
+          today={todayStr}
+          oncreate={createAssessment}
+          ondelete={deleteAssessment}
+        />
+      {/if}
     </div>
   {:else}
     <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">

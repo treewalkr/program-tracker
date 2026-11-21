@@ -11,11 +11,16 @@
   interface Props {
     name: string;
     series: { date: string; value: number }[];
-    unit: "kg" | "s";
-    onclose: () => void;
+    unit: "kg" | "s" | "ml/kg/min";
+    /** What each point is; default "Best e1RM" (kg) / "Longest hold" (s). */
+    measure?: string;
+    /** What a point stands for in the sub line; default "session day". */
+    per?: string;
+    /** Absent = no close button (the chart is the panel's content). */
+    onclose?: () => void;
   }
 
-  let { name, series, unit, onclose }: Props = $props();
+  let { name, series, unit, measure: measureLabel, per = "session day", onclose }: Props = $props();
 
   /** Drawn at the container's pixel width so ticks stay 11px at any size. */
   let plotBox = $state(0);
@@ -29,7 +34,7 @@
   const plotH = H - PAD_T - PAD_B;
   const DAY = 86_400_000;
 
-  const measure = $derived(unit === "s" ? "Longest hold" : "Best e1RM");
+  const measure = $derived(measureLabel ?? (unit === "s" ? "Longest hold" : "Best e1RM"));
   const t = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 
   /** Round step 1 / 2 / 2.5 / 5 × 10^k so ticks land on readable numbers. */
@@ -101,7 +106,7 @@
     else if (e.key === "ArrowRight") active = Math.min(pts.length - 1, i + 1);
     else if (e.key === "Home") active = 0;
     else if (e.key === "End") active = pts.length - 1;
-    else if (e.key === "Escape") onclose();
+    else if (e.key === "Escape" && onclose) onclose();
     else return;
     e.preventDefault();
   }
@@ -118,13 +123,13 @@
   <header>
     <div class="head-text">
       <h3>{name}</h3>
-      <span class="sub">{measure} per session day, {unit === "s" ? "seconds" : "kg"}{change ? ` · ${change}` : ""}</span>
+      <span class="sub">{measure} per {per}, {unit === "s" ? "seconds" : unit}{change ? ` · ${change}` : ""}</span>
     </div>
     <div class="readout">
       <span class="val tnum">{fmt(shown.value)}<span class="u">{unit}</span></span>
       <span class="when">{dateLong(shown.date)}</span>
     </div>
-    <button type="button" class="close" aria-label="Close {name} chart" onclick={onclose}><Icon name="x" size={14} /></button>
+    {#if onclose}<button type="button" class="close" aria-label="Close {name} chart" onclick={onclose}><Icon name="x" size={14} /></button>{/if}
   </header>
 
   <div class="plot" bind:clientWidth={plotBox}>
@@ -134,7 +139,7 @@
     viewBox="0 0 {W} {H}"
     role="slider"
     tabindex="0"
-    aria-label="{name}: {measure} from {fmt(series[0].value)} to {fmt(series[series.length - 1].value)} {unit} over {series.length} session days"
+    aria-label="{name}: {measure} from {fmt(series[0].value)} to {fmt(series[series.length - 1].value)} {unit} over {series.length} {per}s"
     aria-valuemin={1}
     aria-valuemax={pts.length}
     aria-valuenow={(active ?? pts.length - 1) + 1}
@@ -149,7 +154,7 @@
       <line x1={PAD_L} x2={W - PAD_R} y1={yOf(v)} y2={yOf(v)} class="grid" />
       <text x={PAD_L - 8} y={yOf(v) + 3.5} class="tick" text-anchor="end">{v}</text>
     {/each}
-    <text x={PAD_L - 8} y={10} class="tick unit" text-anchor="end">{unit}</text>
+    <text x={unit.length > 3 ? 0 : PAD_L - 8} y={10} class="tick unit" text-anchor={unit.length > 3 ? "start" : "end"}>{unit}</text>
     {#each xTicks as ms, i (i)}
       <text
         x={PAD_L + ((ms - xDomain.t0) / (xDomain.t1 - xDomain.t0)) * plotW}
@@ -170,7 +175,7 @@
   </div>
 
   <table class="sr-only">
-    <caption>{name} — {measure} ({unit}) per session day</caption>
+    <caption>{name} — {measure} ({unit}) per {per}</caption>
     <thead><tr><th>Date</th><th>{measure} ({unit})</th></tr></thead>
     <tbody>
       {#each series as p (p.date)}<tr><td>{dateLong(p.date)}</td><td>{fmt(p.value)}</td></tr>{/each}
