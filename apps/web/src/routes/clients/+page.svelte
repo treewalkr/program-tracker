@@ -381,6 +381,9 @@
       padding: 12px 16px; border-bottom: 1px solid var(--line-soft);
     }
     .roster tr:last-child { border-bottom: none; }
+    /* Cells are separate grid items here, so tint the card, not each cell. */
+    .roster tbody tr:hover { background: var(--well); }
+    .roster tbody tr:hover td { background: none; }
     .roster td, .roster td:first-child, .roster td:last-child { padding: 0; border: none; min-width: 0; }
     .who-cell { grid-column: 1; grid-row: 1; }
     .att { grid-column: 2; grid-row: 1; }
