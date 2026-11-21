@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { clients, db, sessionLogs, trainers } from "@pt/db";
-import { addDays, nowOfDate, portalToday, PortalWeekDto } from "@pt/shared";
+import { addDays, DisplayUnits, displayUnitsOf, nowOfDate, portalToday, PortalWeekDto } from "@pt/shared";
 import {
   CLIENT_COOKIE,
   clientCookieSecure,
@@ -14,6 +14,7 @@ import { clientContext } from "../lib/client-context";
 import { createSessionLog, deleteSessionLog, refineCardioLog, refineLogKind, SessionLogFields } from "../lib/log-service";
 import { loadPortalWeek, portalWeekContext } from "../lib/portal";
 import { ErrorBody } from "../models/shared";
+import { UnitsModel } from "../models/account";
 
 const SEEN_EVERY_MS = 60 * 60 * 1000;
 
@@ -116,6 +117,32 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
         401: ErrorBody,
       },
       detail: { summary: "The signed-in portal client" },
+    },
+  )
+  /** The member's own portal settings: display units (language lives in the URL). */
+  .get(
+    "/settings",
+    async ({ clientId }) => {
+      const [row] = await db.select({ units: clients.displayUnits }).from(clients).where(eq(clients.id, clientId));
+      return { units: displayUnitsOf(row?.units) };
+    },
+    {
+      response: { 200: t.Object({ units: UnitsModel.dto }), 401: ErrorBody },
+      detail: { summary: "The signed-in client's portal settings" },
+    },
+  )
+  .put(
+    "/settings",
+    async ({ clientId, body, status }) => {
+      const parsed = DisplayUnits.safeParse(body.units);
+      if (!parsed.success) return status(422, { error: "invalid units", issues: z.treeifyError(parsed.error) });
+      await db.update(clients).set({ displayUnits: parsed.data }).where(eq(clients.id, clientId));
+      return { units: parsed.data };
+    },
+    {
+      body: t.Object({ units: UnitsModel.body }),
+      response: { 200: t.Object({ units: UnitsModel.dto }), 401: ErrorBody, 422: ErrorBody },
+      detail: { summary: "Save the signed-in client's display units" },
     },
   )
   /** The active program's current week (and next, when planned) — a client-safe projection. */

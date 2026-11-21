@@ -1,11 +1,13 @@
 import { Elysia, t } from "elysia";
 import { desc, eq } from "drizzle-orm";
 import { db, feedbackItems, feedbackMutes, trainers } from "@pt/db";
-import { DEFAULT_DELOAD, DeloadSettings, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
+import { DEFAULT_DELOAD, DeloadSettings, DisplayUnits, displayUnitsOf, feedbackEmailPrefs, feedbackHandle } from "@pt/shared";
+import { z } from "zod";
 import { trainerContext } from "../lib/trainer-context";
 import { trainerDeload } from "../lib/deload";
 import { feedbackAiMode } from "../lib/feedback-ai";
-import { AccountModel } from "../models/account";
+import { AccountModel, UnitsModel } from "../models/account";
+import { ErrorBody } from "../models/shared";
 
 const ADMIN_ONLY = { error: "admin only" } as const;
 
@@ -104,6 +106,28 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
       return { choice: body.choice };
     },
     { body: AccountModel.weeksChoice, detail: { summary: "Remember your Weeks choice for the next block draft" } },
+  )
+  .get(
+    "/units",
+    async ({ trainerId }) => {
+      const [row] = await db.select({ units: trainers.displayUnits }).from(trainers).where(eq(trainers.id, trainerId));
+      return displayUnitsOf(row?.units);
+    },
+    { response: { 200: UnitsModel.dto }, detail: { summary: "Your display units (metric until you pick)" } },
+  )
+  .put(
+    "/units",
+    async ({ trainerId, body, status }) => {
+      const parsed = DisplayUnits.safeParse(body);
+      if (!parsed.success) return status(422, { error: "invalid units", issues: z.treeifyError(parsed.error) });
+      await db.update(trainers).set({ displayUnits: parsed.data }).where(eq(trainers.id, trainerId));
+      return parsed.data;
+    },
+    {
+      body: UnitsModel.body,
+      response: { 200: UnitsModel.dto, 422: ErrorBody },
+      detail: { summary: "Show and enter kg or lb, km or mi across the app (storage stays metric)" },
+    },
   )
   .get("/deload", ({ trainerId }) => trainerDeload(trainerId), {
     detail: { summary: "Your deload rule (the default when you haven't set one)" },
