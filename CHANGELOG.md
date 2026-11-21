@@ -46,7 +46,7 @@
 
 ### New
 - To check a bug you've reported, support can now open the app as you and see exactly what you saw, without asking for screenshots. A visit is time-limited and logged, and support can't change anything unless they deliberately turn that on. When support looks from one of your tickets, the ticket shows "Support viewed your account to check this".
-  - th: เวลาคุณแจ้งบั๊ก ทีมซัพพอร์ตเปิดแอปในมุมมองของคุณได้แล้ว เห็นแบบเดียวกับที่คุณเห็น ไม่ต้องขอภาพหน้าจอ การเข้าดูแต่ละครั้งมีเวลาจำกัดและมีบันทึกไว้ ทีมซัพพอร์ตแก้ไขอะไรไม่ได้ ยกเว้นจะตั้งใจเปิดสิทธิ์นั้นเอง ถ้าเข้าดูจากตั๋วของคุณ ตั๋วนั้นจะขึ้นว่า "ทีมซัพพอร์ตเข้าไปดูบัญชีของคุณเพื่อตรวจเรื่องนี้"
+  - th: เวลาคุณแจ้งบั๊ก ทีมซัพพอร์ตเปิดแอปในมุมมองของคุณได้แล้ว เห็นแบบเดียวกับที่คุณเห็นโดยไม่ต้องขอภาพหน้าจอ การเข้าดูแต่ละครั้งจำกัดเวลาและมีบันทึกไว้ ทีมซัพพอร์ตแก้อะไรไม่ได้ เว้นแต่จะตั้งใจเปิดสิทธิ์นั้นเอง ถ้าเข้าดูจากเรื่องที่คุณแจ้ง เรื่องนั้นจะขึ้นว่า "ทีมซัพพอร์ตเข้าไปดูบัญชีของคุณเพื่อตรวจเรื่องนี้"
 
 ## v0.1.36 — 2026-11-18
 
@@ -78,7 +78,7 @@
 - When you send feedback, pick what it is: a bug, wrong behaviour, an idea or a question. For bugs, say what you expected and what happened. The app attaches recent errors and your last few steps, with emails, phone numbers and sign-in keys removed.
   - th: ตอนส่งฟีดแบ็ก เลือกได้ว่าเป็นบั๊ก การทำงานที่ผิด ไอเดีย หรือคำถาม ถ้าเป็นบั๊กให้บอกว่าคาดว่าจะเกิดอะไรและเกิดอะไรขึ้นจริง แอปจะแนบข้อผิดพลาดล่าสุดและขั้นตอนที่คุณเพิ่งทำไปด้วย โดยตัดอีเมล เบอร์โทร และคีย์เข้าระบบออก
 - When a fix ships, rate it 👍 or 👎. A 👎 reopens the ticket, with an optional note on what's still wrong.
-  - th: เมื่อแก้ไขเสร็จแล้ว กด 👍 หรือ 👎 ได้ ถ้ากด 👎 ตั๋วจะถูกเปิดใหม่ และเขียนสั้น ๆ ได้ว่ายังผิดตรงไหน
+  - th: พอการแก้ไขขึ้นระบบแล้ว คุณกด 👍 หรือ 👎 ได้ ถ้ากด 👎 เรื่องจะกลับมาเปิดใหม่ และเขียนบอกสั้น ๆ ได้ว่ายังผิดตรงไหน
 
 ### Fixed
 - While a page loads, its placeholder now has the same shape as the page, so nothing jumps when it appears.
@@ -110,7 +110,7 @@
 
 ### New
 - Feedback has a new **In progress** status, between Accepted and Done, so you can tell when your ticket is being worked on. You get an email when your ticket moves to In progress, as with the other status changes.
-  - th: ฟีดแบ็กมีสถานะใหม่ **กำลังดำเนินการ** อยู่ระหว่าง “รับเรื่องแล้ว” กับ “เสร็จแล้ว” ดูได้ว่ามีคนกำลังแก้ตั๋วของคุณอยู่หรือยัง และคุณจะได้รับอีเมลเมื่อตั๋วเปลี่ยนเป็นกำลังดำเนินการ เหมือนสถานะอื่น ๆ
+  - th: ฟีดแบ็กมีสถานะใหม่ **กำลังดำเนินการ** คั่นระหว่าง “รับเรื่องแล้ว” กับ “เสร็จแล้ว” ดูได้ว่ามีคนลงมือแก้เรื่องที่คุณแจ้งแล้วหรือยัง และพอเรื่องเปลี่ยนเป็นกำลังดำเนินการ ก็จะได้อีเมลแจ้งเหมือนสถานะอื่น ๆ
 
 ## v0.1.31 — 2026-11-17
 
@@ -182,7 +182,7 @@
 - Skipping or switching a block on the log sheet, and discarding template edits, ask in the same dialog.
   - th: การข้ามหรือสลับบล็อกในหน้าบันทึกเซสชัน และการทิ้งการแก้ไขเทมเพลต ก็ถามผ่านกล่องโต้ตอบเดียวกัน
 - Click a feedback ticket's handle (like FB-012) to copy it.
-  - th: คลิกรหัสตั๋วฟีดแบ็ก (เช่น FB-012) เพื่อคัดลอก
+  - th: คลิกรหัสฟีดแบ็ก (เช่น FB-012) เพื่อคัดลอก
 
 ## v0.1.27 — 2026-11-12
 
@@ -262,15 +262,15 @@
 
 ### New
 - Duplicate feedback tickets: a ticket can be linked to an earlier one about the same thing. It shows "Duplicate of FB-nnn", and when the original is fixed or closed, its duplicates close with it and their reporters are told.
-  - th: ตั๋วฟีดแบ็กซ้ำ: ตั๋วหนึ่งลิงก์กับตั๋วก่อนหน้าที่เป็นเรื่องเดียวกันได้ จะแสดง "Duplicate of FB-nnn" และเมื่อตั๋วต้นเรื่องถูกแก้หรือปิด ตั๋วที่ซ้ำจะปิดตามพร้อมแจ้งผู้แจ้งด้วย
+  - th: ฟีดแบ็กซ้ำ: ลิงก์เรื่องหนึ่งไปยังเรื่องก่อนหน้าที่แจ้งปัญหาเดียวกันได้ และจะขึ้นว่า "Duplicate of FB-nnn" พอเรื่องต้นทางแก้เสร็จหรือปิดไป เรื่องที่ซ้ำก็ปิดตามไปด้วย แล้วระบบจะบอกคนที่แจ้งไว้ให้รู้
 - For admins: each ticket shows whether it's ready for an automatic fix, and links to the fix's pull request once one exists.
-  - th: สำหรับแอดมิน: ตั๋วแต่ละใบบอกว่าพร้อมให้แก้อัตโนมัติหรือยัง และลิงก์ไปยัง pull request ของการแก้เมื่อมีแล้ว
+  - th: สำหรับแอดมิน: ฟีดแบ็กแต่ละเรื่องบอกว่าพร้อมให้แก้อัตโนมัติหรือยัง และพอมี pull request ของการแก้แล้ว ก็จะลิงก์ไปให้ด้วย
 - Feedback replies come faster: the agent now checks for new tickets every minute and only runs when there's something to answer.
-  - th: ตอบฟีดแบ็กเร็วขึ้น: เอเจนต์ตรวจตั๋วใหม่ทุกนาที และทำงานเฉพาะเมื่อมีเรื่องให้ตอบ
+  - th: ตอบฟีดแบ็กเร็วขึ้น: เอเจนต์เช็กเรื่องใหม่ทุกนาที และทำงานเฉพาะตอนที่มีอะไรต้องตอบ
 
 ### Fixed
 - On phones, the mute bell stays on the ticket's header line.
-  - th: บนมือถือ กระดิ่งปิดเสียงอยู่บนบรรทัดหัวของตั๋วตามเดิม
+  - th: บนมือถือ กระดิ่งปิดเสียงยังอยู่ที่บรรทัดหัวของฟีดแบ็กเหมือนเดิม
 
 ## v0.1.21 — 2026-11-11
 
@@ -304,7 +304,7 @@
 - The triage note is now private. Reporters no longer see it.
   - th: โน้ตคัดแยกเป็นส่วนตัวแล้ว ผู้แจ้งมองไม่เห็นอีก
 - Feedback cards are easier to use with a keyboard or screen reader: clearer focus rings, bigger click targets, a heading per card, and button names that include the ticket.
-  - th: การ์ดฟีดแบ็กใช้กับคีย์บอร์ดหรือโปรแกรมอ่านหน้าจอได้ง่ายขึ้น: กรอบโฟกัสชัดขึ้น พื้นที่คลิกใหญ่ขึ้น มีหัวข้อทุกการ์ด และชื่อปุ่มระบุตั๋ว
+  - th: การ์ดฟีดแบ็กใช้กับคีย์บอร์ดหรือโปรแกรมอ่านหน้าจอได้ง่ายขึ้น: กรอบโฟกัสชัดขึ้น พื้นที่คลิกใหญ่ขึ้น มีหัวข้อทุกการ์ด และชื่อปุ่มบอกด้วยว่าเป็นของฟีดแบ็กเรื่องไหน
 - Week cells showing "+n" no longer overflow.
   - th: ช่องสัปดาห์ที่แสดง "+n" ไม่ล้นอีกแล้ว
 
@@ -312,7 +312,7 @@
 
 ### New
 - Feedback tickets close themselves when their fix goes live. The ticket shows "Release marked it Done" with the version, and the reporter is told to reload.
-  - th: ตั๋วฟีดแบ็กปิดเองเมื่อการแก้ไขขึ้นระบบจริง ตั๋วจะแสดง "Release marked it Done" พร้อมเลขเวอร์ชัน และแจ้งผู้แจ้งให้รีโหลด
+  - th: พอการแก้ของเรื่องไหนขึ้นระบบจริง เรื่องนั้นจะปิดเอง โดยขึ้นว่า "Release marked it Done" พร้อมเลขเวอร์ชัน และบอกคนที่แจ้งให้รีโหลดหน้า
 - Training week on a Monday: last week's missed and not-yet-logged sessions still count in the counter and row order, shown as e.g. "3 from last week".
   - th: Training week ในวันจันทร์: เซสชันที่พลาดหรือยังไม่บันทึกของสัปดาห์ก่อนยังนับในตัวนับและลำดับแถว แสดงเป็น เช่น "3 from last week"
 
@@ -326,7 +326,7 @@
 
 ### New
 - Edit your feedback tickets after sending them: change the text or the images. The ticket shows when it was edited, and the other side sees the edit as unread.
-  - th: แก้ไขตั๋วฟีดแบ็กหลังส่งได้: เปลี่ยนข้อความหรือรูปภาพ ตั๋วจะบอกเวลาที่แก้ และอีกฝ่ายจะเห็นการแก้ไขเป็นยังไม่ได้อ่าน
+  - th: แก้ฟีดแบ็กหลังส่งไปแล้วได้: เปลี่ยนข้อความหรือรูปภาพก็ได้ เรื่องนั้นจะบอกเวลาที่แก้ และอีกฝ่ายจะเห็นว่ามีการแก้ที่ยังไม่ได้อ่าน
 - Training week: a session now gets two days' grace before it counts as missed. Until then it shows in amber as "not logged yet".
   - th: Training week: เซสชันมีเวลาผ่อนผันสองวันก่อนนับว่าพลาด ระหว่างนั้นจะแสดงเป็นสีเหลืองอำพันว่า "not logged yet"
 - Training week: the counter counts days and changes colour as the week runs out. Idle clients are listed as links, each with the reason it's idle.
@@ -356,7 +356,7 @@
 
 ### New
 - Attach images to feedback tickets and replies. Pick or paste them, and they're shrunk before upload. Click any image to view it full size.
-  - th: แนบรูปในตั๋วฟีดแบ็กและคำตอบได้ เลือกไฟล์หรือวางรูป ระบบจะย่อขนาดก่อนอัปโหลด คลิกรูปเพื่อดูขนาดเต็ม
+  - th: แนบรูปในฟีดแบ็กและคำตอบได้ จะเลือกไฟล์หรือวางรูปก็ได้ ระบบย่อขนาดให้ก่อนอัปโหลด คลิกรูปไหนก็ดูขนาดเต็มได้
 - The log sheet on a phone folds the session pickers and readiness away, so the sets come first.
   - th: หน้าบันทึกเซสชันบนมือถือพับตัวเลือกเซสชันและความพร้อมเก็บไว้ ให้เซตขึ้นมาก่อน
 
@@ -380,11 +380,11 @@
 - Loading screens now show the shape of the page while it loads.
   - th: หน้าจอโหลดแสดงโครงหน้าระหว่างรอโหลด
 - Feedback tickets keep their details behind a Details toggle that remembers your choice.
-  - th: ตั๋วฟีดแบ็กเก็บรายละเอียดไว้หลังปุ่ม Details ซึ่งจำการเลือกของคุณไว้
+  - th: รายละเอียดของฟีดแบ็กพับเก็บไว้หลังปุ่ม Details ปุ่มนี้จำไว้ด้วยว่าคุณเลือกเปิดหรือปิด
 
 ### Fixed
 - Feedback ticket pages that can no longer be opened now show as plain text instead of a broken link.
-  - th: หน้าในตั๋วฟีดแบ็กที่เปิดไม่ได้แล้วแสดงเป็นข้อความธรรมดา แทนลิงก์เสีย
+  - th: หน้าที่อ้างถึงในฟีดแบ็กแต่เปิดไม่ได้แล้ว จะขึ้นเป็นข้อความธรรมดาแทนลิงก์เสีย
 
 ## v0.1.15 — 2026-11-10
 
@@ -410,7 +410,7 @@
 
 ### New
 - On a feedback ticket, "Show me" opens the screenshot when the page can't be opened or the element can't be found, and screenshots open full size.
-  - th: ในตั๋วฟีดแบ็ก "Show me" จะเปิดภาพหน้าจอแทนเมื่อเปิดหน้านั้นไม่ได้หรือหาองค์ประกอบไม่เจอ และภาพหน้าจอเปิดขนาดเต็ม
+  - th: ในฟีดแบ็ก ถ้าเปิดหน้าที่อ้างถึงไม่ได้หรือหาจุดที่ชี้ไว้ไม่เจอ ปุ่ม "Show me" จะเปิดภาพหน้าจอแทน และภาพหน้าจอก็เปิดเป็นขนาดเต็ม
 - Pasted programs with suggested exercise matches show "Did you mean …" buttons. Tap one to pick it, and it's remembered for next time.
   - th: โปรแกรมที่วางซึ่งมีท่าที่ระบบเดาว่าตรงกัน จะแสดงปุ่ม "Did you mean …" แตะเพื่อเลือก แล้วระบบจะจำไว้ใช้ครั้งหน้า
 
@@ -428,7 +428,7 @@
 
 ### New
 - Feedback replies can now come from an AI assistant, marked with an "AI answer" badge. It answers questions it can check against the app, like "this already exists" or "this was added after you reported it". Reply on the ticket if the answer is wrong.
-  - th: คำตอบฟีดแบ็กอาจมาจากผู้ช่วย AI โดยมีป้าย "AI answer" กำกับ AI จะตอบเรื่องที่ตรวจสอบกับแอปได้ เช่น "มีฟีเจอร์นี้อยู่แล้ว" หรือ "เพิ่มเข้ามาหลังจากคุณแจ้ง" ถ้าคำตอบผิด ตอบกลับในตั๋วได้เลย
+  - th: คำตอบฟีดแบ็กอาจมาจากผู้ช่วย AI ซึ่งจะมีป้าย "AI answer" กำกับ ผู้ช่วยนี้ตอบเฉพาะเรื่องที่ตรวจกับแอปได้ เช่น "มีฟีเจอร์นี้อยู่แล้ว" หรือ "เพิ่มเข้ามาหลังจากคุณแจ้ง" ถ้าคำตอบผิด ตอบกลับในฟีดแบ็กเรื่องนั้นได้เลย
 - Feedback replies show formatting such as **bold** text and lists.
   - th: คำตอบฟีดแบ็กแสดงการจัดรูปแบบ เช่น ตัว**หนา**และรายการ
 - On phones the sidebar is replaced by a slim icon rail that stays put.
