@@ -41,3 +41,4 @@ export * from "./hr";
 export * from "./vo2max";
 export * from "./modalities";
 export * from "./cardioTemplates";
+export * from "./units";
