@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { WeekMetrics } from "@pt/shared";
+  import { fmtTonnage } from "$lib/units.svelte";
 
   /**
    * Weekly volume bars (contributions ramp) with an average-RPE line
@@ -69,7 +70,7 @@
     weeks.flatMap((w, i) => (w.avgRpe != null && !w.plannedOnly ? [{ i, rpe: w.avgRpe }] : []))
   );
 
-  const fmtVolume = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
+  const fmtVolume = (t: number) => fmtTonnage(t);
 
   const aria = $derived.by(() => {
     const first = logged[0];

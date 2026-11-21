@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { showWeight, storeWeight, weightUnit } from "$lib/units.svelte";
   import { VO2_FORMULAS, VO2_PROTOCOLS, type Vo2Member, type Vo2Protocol } from "@pt/shared";
   import type { AssessmentDto, AssessmentInput } from "$lib/api/types";
   import {
@@ -99,7 +100,7 @@
         {:else}
           <InputDuration label="Walk time" bind:value={form.timeSec} min={60} max={14400} hint="mm:ss" />
           <InputUnit label="Finishing HR" unit="bpm" min={40} max={240} bind:value={form.heartRate} />
-          <InputUnit label="Weight" unit="kg" step={0.5} min={20} max={300} bind:value={form.weightKg} hint={member.weightKg != null ? "From the profile" : null} />
+          <InputUnit label="Weight" unit={weightUnit()} step={0.5} min={Math.floor(showWeight(20))} max={Math.ceil(showWeight(300))} bind:value={() => (form.weightKg == null ? null : showWeight(form.weightKg)), (v) => (form.weightKg = v == null ? null : storeWeight(v))} hint={member.weightKg != null ? "From the profile" : null} />
         {/if}
       </div>
       {#if form.protocol === "rockport_walk"}

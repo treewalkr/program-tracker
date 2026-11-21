@@ -1,3 +1,4 @@
+import { fmtPace, fmtSpeed } from "./units.svelte";
 import {
   cardioPace,
   cardioTotals,
@@ -211,7 +212,7 @@ export function cardioFormCalc(form: CardioForm, metric: CardioMetric): { pace: 
   const log = { durationSec: form.durationSec ?? undefined, distanceKm: form.distanceKm ?? undefined, rpe: form.rpe ?? undefined };
   const p = cardioPace(log, metric);
   const pace =
-    p?.metric === "pace" ? `${mmss(p.secPerKm)} /km` : p?.metric === "split" ? `${mmss(p.secPer500m)} /500 m` : p?.metric === "speed" ? `${p.kmh} km/h` : null;
+    p?.metric === "pace" ? fmtPace(p.secPerKm) : p?.metric === "split" ? `${mmss(p.secPer500m)} /500 m` : p?.metric === "speed" ? fmtSpeed(p.kmh) : null;
   return { pace, load: sessionLoad(log) };
 }
 

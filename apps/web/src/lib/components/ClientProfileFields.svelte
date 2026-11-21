@@ -13,6 +13,7 @@
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
   import type { ExerciseDto } from "$lib/api/types";
   import { localIso } from "$lib/overview";
+  import { showWeight, storeWeight, weightUnit } from "$lib/units.svelte";
 
   /**
    * The intake boxes of a client profile, in the order a trainer asks:
@@ -93,8 +94,8 @@
   <div class="basics-row">
     <Field label="Bodyweight" htmlFor="{idPrefix}-bw" error={errs.weight}>
       <span class="unit-input">
-        <input class="input tnum" id="{idPrefix}-bw" type="number" inputmode="decimal" min={BODYWEIGHT_KG_RANGE.min} max={BODYWEIGHT_KG_RANGE.max} step="0.1" placeholder="—" aria-invalid={errs.weight ? "true" : undefined} bind:value={form.bodyweightKg} />
-        <span class="subtle">kg</span>
+        <input class="input tnum" id="{idPrefix}-bw" type="number" inputmode="decimal" min={Math.floor(showWeight(BODYWEIGHT_KG_RANGE.min))} max={Math.ceil(showWeight(BODYWEIGHT_KG_RANGE.max))} step="0.1" placeholder="—" aria-invalid={errs.weight ? "true" : undefined} bind:value={() => (form.bodyweightKg == null ? null : showWeight(form.bodyweightKg)), (v) => (form.bodyweightKg = v == null ? null : storeWeight(v))} />
+        <span class="subtle">{weightUnit()}</span>
       </span>
     </Field>
     <Field label="Height" htmlFor="{idPrefix}-ht" error={errs.height}>
@@ -107,15 +108,15 @@
 </ProfileSection>
 
 {#if catalog && ormShown}
-  <ProfileSection title="1RMs" purpose="sets prescribed as % of 1RM take their kg from these">
+  <ProfileSection title="1RMs" purpose="sets prescribed as % of 1RM take their load from these">
     {#if form.oneRepMaxes.length}
       <div class="orm-list">
         {#each form.oneRepMaxes as r, i (i)}
           <div class="orm-row">
             <ExercisePicker value={r.exerciseId} {catalog} label="1RM {i + 1} exercise" onpick={(ex) => (r.exerciseId = ex.id)} />
             <span class="orm-kg">
-              <input class="input tnum" type="number" inputmode="decimal" min="1" max="600" step="0.5" placeholder="—" aria-label="1RM {i + 1} kg" bind:value={r.kg} />
-              <span class="subtle">kg</span>
+              <input class="input tnum" type="number" inputmode="decimal" min="1" max={Math.ceil(showWeight(600))} step="0.5" placeholder="—" aria-label="1RM {i + 1} {weightUnit()}" bind:value={() => (r.kg == null ? null : showWeight(r.kg)), (v) => (r.kg = v == null ? null : storeWeight(v))} />
+              <span class="subtle">{weightUnit()}</span>
             </span>
             <input class="input orm-date" type="date" aria-label="1RM {i + 1} tested on" bind:value={r.date} />
             <button type="button" class="orm-x" aria-label="Remove 1RM {i + 1}" onclick={() => form.oneRepMaxes.splice(i, 1)}>×</button>

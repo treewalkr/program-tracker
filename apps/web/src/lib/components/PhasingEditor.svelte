@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fmtTonnage as tonnage } from "$lib/units.svelte";
   import type { ProgramPhasingDto, ProgramWeekDto, WeekDirective, WeekMetric } from "$lib/api/types";
   import type { OneRepMaxes } from "@pt/shared";
   import { phasingToRows, progressionPreview, rowsToPhasing, type PhasingRow } from "$lib/phasing";
@@ -40,7 +41,7 @@
   const hasRules = $derived(rows.some((r, i) => i > 0 && r.progKind && r.progAmount));
   let previewOpen = $state(false);
   const preview = $derived(previewOpen && weeks && phasing ? progressionPreview(weeks, phasing, oneRepMaxes) : null);
-  const fmtTonnage = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)} t` : `${Math.round(t)} kg`);
+  const fmtTonnage = (t: number) => tonnage(t, undefined, " ");
   const MAX_CHANGES = 6;
 
   function apply() {

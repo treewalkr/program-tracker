@@ -18,6 +18,7 @@
 </script>
 
 <script lang="ts">
+  import { distanceUnit, showDistance, showPace, storeDistance, storePace } from "$lib/units.svelte";
   import { fromCardioTemplate, zoneBpm, type HrZone } from "@pt/shared";
   import type { CardioTemplateDto, CardioTemplateInput, CardioTemplatesDto, ModalityDto } from "$lib/api/types";
   import IntervalBuilder from "./IntervalBuilder.svelte";
@@ -165,8 +166,8 @@
   {#if !hasIntervals}
     <div class="grid targets">
       <InputUnit label="Duration" unit="min" step={5} min={1} max={300} value={cardio.durationMin ?? null} onchange={(v) => (cardio.durationMin = v != null && v > 0 ? Math.round(v) : null)} />
-      <InputUnit label="Distance" unit="km" optional step={0.5} min={0} max={300} value={cardio.distanceKm ?? null} onchange={(v) => (cardio.distanceKm = v != null && v > 0 ? v : undefined)} />
-      <InputDuration label="Pace" optional placeholder="m:ss /km" hint="per km" step={5} min={60} max={1800} value={cardio.paceSecPerKm ?? null} onchange={(v) => (cardio.paceSecPerKm = v != null && v >= 60 ? v : undefined)} />
+      <InputUnit label="Distance" unit={distanceUnit()} optional step={0.5} min={0} max={300} value={cardio.distanceKm != null ? showDistance(cardio.distanceKm) : null} onchange={(v) => (cardio.distanceKm = v != null && v > 0 ? storeDistance(v) : undefined)} />
+      <InputDuration label="Pace" optional placeholder="m:ss /{distanceUnit()}" hint="per {distanceUnit()}" step={5} min={60} max={2900} value={cardio.paceSecPerKm != null ? showPace(cardio.paceSecPerKm) : null} onchange={(v) => (cardio.paceSecPerKm = v != null && v >= 60 ? storePace(v) : undefined)} />
       <SelectField label="HR zone" maxWidth="none" options={zoneOptions} value={cardio.hrZone != null ? String(cardio.hrZone) : ""} onchange={(z) => (cardio.hrZone = z ? Number(z) : null)} />
     </div>
   {/if}

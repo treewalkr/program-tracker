@@ -6,7 +6,7 @@
    */
   interface Props {
     series: { date: string; value: number }[];
-    unit: "kg" | "s";
+    unit: "kg" | "lb" | "s";
     /** What the value is, for the label: "e1RM" or "Hold". */
     measure?: string;
     width?: number;

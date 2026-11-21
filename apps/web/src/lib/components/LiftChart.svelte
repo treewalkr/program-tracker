@@ -11,7 +11,7 @@
   interface Props {
     name: string;
     series: { date: string; value: number }[];
-    unit: "kg" | "s" | "ml/kg/min";
+    unit: "kg" | "lb" | "s" | "ml/kg/min";
     /** What each point is; default "Best e1RM" (kg) / "Longest hold" (s). */
     measure?: string;
     /** What a point stands for in the sub line; default "session day". */

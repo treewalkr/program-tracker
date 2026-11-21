@@ -1,3 +1,4 @@
+import { fmtDistance } from "./units.svelte";
 import type { CardioLog, CardioPrescription } from "@pt/shared";
 
 /** What a cardio line reads: a prescription (targetRpe) or a log (rpe). */
@@ -16,7 +17,7 @@ export function cardioLine(c: CardioLineSource | null | undefined): string {
     c.durationMin ? `${c.durationMin} min` : null,
     c.hrZone ? `Z${c.hrZone}` : null,
     c.intensity || null,
-    c.distanceKm ? `${c.distanceKm} km` : null,
+    c.distanceKm ? fmtDistance(c.distanceKm) : null,
     rpe ? `RPE ${rpe}` : null,
   ]
     .filter(Boolean)

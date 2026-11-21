@@ -1,4 +1,5 @@
-import { resolveLoadKg } from "@pt/shared";
+import { resolveLoadKg, type WeightUnit } from "@pt/shared";
+import { fmtWeight } from "./units.svelte";
 import type { ProgramWeekDto, WeekPlan } from "./api/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -47,10 +48,10 @@ export interface SetLabelInput {
   stopRpe?: number | null;
 }
 /** The load part: resolved kg (with its %1RM), a bare % when the 1RM is unknown, or the kg target. */
-function loadLabel(s: SetLabelInput, oneRepMaxKg: number | null | undefined): string {
+function loadLabel(s: SetLabelInput, oneRepMaxKg: number | null | undefined, unit?: WeightUnit): string {
   const kg = resolveLoadKg(s, oneRepMaxKg);
-  if (s.percent1rm != null && oneRepMaxKg != null && kg != null) return `${kg}kg (${s.percent1rm}%) × `;
-  if (kg != null) return `${kg}kg × `;
+  if (s.percent1rm != null && oneRepMaxKg != null && kg != null) return `${fmtWeight(kg, unit, "")} (${s.percent1rm}%) × `;
+  if (kg != null) return `${fmtWeight(kg, unit, "")} × `;
   if (s.percent1rm != null) return `${s.percent1rm}% × `;
   return "";
 }
@@ -58,8 +59,9 @@ function loadLabel(s: SetLabelInput, oneRepMaxKg: number | null | undefined): st
 export const amrapStop = (s: { amrap?: boolean; stopRpe?: number | null; targetRpe?: number | null }) =>
   s.amrap ? (s.stopRpe ?? s.targetRpe ?? null) : null;
 
-export function fmtSet(s: SetLabelInput, oneRepMaxKg?: number | null): string {
-  const load = loadLabel(s, oneRepMaxKg);
+/** `unit` defaults to the trainer's display unit; stored loads stay kg. */
+export function fmtSet(s: SetLabelInput, oneRepMaxKg?: number | null, unit?: WeightUnit): string {
+  const load = loadLabel(s, oneRepMaxKg, unit);
   if (s.durationSeconds != null) return `${load}${fmtDuration(s.durationSeconds)}`;
   if (s.amrap) {
     const stop = amrapStop(s);
@@ -77,9 +79,9 @@ export function repsLabel(s: SetLabelInput): string {
 }
 
 /** The load alone: kg (resolved from %1RM when the 1RM is known) and the % it came from. */
-export function loadParts(s: SetLabelInput, oneRepMaxKg?: number | null): { kg: string | null; pct: string | null } {
+export function loadParts(s: SetLabelInput, oneRepMaxKg?: number | null, unit?: WeightUnit): { kg: string | null; pct: string | null } {
   const kg = resolveLoadKg(s, oneRepMaxKg);
-  return { kg: kg != null ? `${kg}kg` : null, pct: s.percent1rm != null ? `${s.percent1rm}%` : null };
+  return { kg: kg != null ? fmtWeight(kg, unit, "") : null, pct: s.percent1rm != null ? `${s.percent1rm}%` : null };
 }
 
 /** Target RPE as "8" or "7–8"; null for AMRAP sets (their RPE is the stop, see fmtSet). */

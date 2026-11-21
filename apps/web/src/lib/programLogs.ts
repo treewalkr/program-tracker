@@ -1,4 +1,5 @@
 import { blockWeekOfDate, type ProgramWeek, type SignalProgram } from "@pt/shared";
+import { fmtWeight } from "./units.svelte";
 import type { SessionLogDto } from "./api/types";
 
 /**
@@ -55,8 +56,8 @@ export function loggedSetLabel(
   timed: boolean,
 ): string {
   const rpe = s.rpe != null && s.rpe > 0 ? ` @ ${n(s.rpe)}` : "";
-  if (timed) return `${s.weightKg ? `${n(s.weightKg)} kg · ` : ""}${s.reps} s${rpe}`;
-  return `${s.weightKg ? `${n(s.weightKg)} kg` : "BW"} × ${s.reps}${rpe}`;
+  if (timed) return `${s.weightKg ? `${fmtWeight(s.weightKg)} · ` : ""}${s.reps} s${rpe}`;
+  return `${s.weightKg ? `${fmtWeight(s.weightKg)}` : "BW"} × ${s.reps}${rpe}`;
 }
 
 /** A log's sets for one program exercise: by slot id, else by catalog exercise (logs without slots). */

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { fmtWeight, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
+  /** Weight cells hold kg; the steppers show and take the display unit. */
+  const kgCells = weightCells();
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { browser } from "$app/environment";
@@ -768,7 +771,7 @@
     if (filled.length === 0) {
       error = rows.length > 0 && rows.every((r) => r.skipped)
         ? "Every set is marked skipped — there is nothing to log."
-        : "Enter at least one set — kg or reps.";
+        : `Enter at least one set — ${weightUnit()} or reps.`;
       return;
     }
     fieldErrors = validateRows(filled);
@@ -1140,12 +1143,12 @@
   /** One set in the as-prescribed dialog: "65×5 @8", "BW×12", "—×5" (no load), "45 s". */
   const fmtPreviewSet = (r: Row) => {
     const reps = `${r.reps}${r.timed ? " s" : ""}`;
-    const kg = !isBlank(r.weight) ? String(r.weight) : isBodyweight(r.exerciseId) ? "BW" : "—";
+    const kg = !isBlank(r.weight) ? String(typeof r.weight === "number" ? showWeight(r.weight) : r.weight) : isBodyweight(r.exerciseId) ? "BW" : "—";
     const load = r.timed && isBlank(r.weight) ? reps : `${kg}×${reps}`;
     return isBlank(r.rpe) ? load : `${load} @${r.rpe}`;
   };
   const fmtLast = (l: LastSet | null, timed: boolean) =>
-    l == null ? "—" : `${l.weightKg != null ? `${l.weightKg} × ` : ""}${l.reps}${timed ? " s" : ""}`;
+    l == null ? "—" : `${l.weightKg != null ? `${showWeight(l.weightKg)} × ` : ""}${l.reps}${timed ? " s" : ""}`;
   const fmtRx = (r: Row) =>
     r.rx
       ? `${fmtSet({ reps: r.rx.reps, repsMin: r.rx.repsMin ?? undefined, amrap: r.rx.amrap, durationSeconds: r.rx.durationSeconds ?? undefined, targetWeightKg: r.rx.targetWeightKg, targetRpe: r.rx.targetRpe })}${r.rx.targetRpe != null && !r.rx.amrap ? ` @ ${r.rx.targetRpe}` : ""}`
@@ -1218,7 +1221,7 @@
       {/snippet}
       <div class="sheet">
         <div class="cols">
-          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">kg</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">{weightUnit()}</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
         </div>
       </div>
       <div class="panel-body foot">
@@ -1379,7 +1382,7 @@
         {/if}
 
         <div class="cols" aria-hidden="true">
-          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">kg</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">{weightUnit()}</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
         </div>
 
         {#snippet exHead(b: { programExerciseId: string; rows: Row[] }, tag: string | null)}
@@ -1509,9 +1512,9 @@
                     {fmtRx(r)}
                     {#if chip != null && sg}
                       <!-- A tap explains first: the load differs from the plan, so the trainer sees why before using it. -->
-                      <button type="button" class="sugg-chip" title={`Suggested ${chip} kg · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${chip} kg for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {chip}</button>
+                      <button type="button" class="sugg-chip" title={`Suggested ${fmtWeight(chip)} · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(chip)} for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {showWeight(chip)}</button>
                     {:else if sg && r.rx?.targetWeightKg == null && isBlank(r.weight)}
-                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${sg.kg} kg for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
+                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(sg.kg)} for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
                     {/if}
                   </span>
                   <span class="m-last tnum" title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
@@ -1523,7 +1526,7 @@
                 {:else}
                   {@const hint = (f: SheetField) => (lastCell?.key === r.key && lastCell.field === f ? "done" : "next")}
                   <div class="c-kg" data-cell={`${r.key}:weight`}>
-                    <LogStepper bind:value={r.weight} label={`${label}, kg`} unit="kg" step={2.5} min={0} max={600} from={p.weight} placeholder={p.weight != null ? String(p.weight) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
+                    <LogStepper bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} label={`${label}, ${weightUnit()}`} unit={weightUnit()} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showWeight(p.weight) : null} placeholder={p.weight != null ? String(showWeight(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
                   </div>
                   <div class="c-reps" data-cell={`${r.key}:reps`}>
                     <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} enterkeyhint={hint("reps")} onedit={() => edited(r.key, "reps")} />
@@ -1551,7 +1554,7 @@
                       <span class="cl-src">
                         {why.text}
                         {#if why.use != null && sg}
-                          <button type="button" class="cl-use" aria-label={`Use ${why.use} kg for ${label}`} onclick={() => useSuggestion(r.key, sg)}>Use {why.use} kg</button>
+                          <button type="button" class="cl-use" aria-label={`Use ${fmtWeight(why.use)} for ${label}`} onclick={() => useSuggestion(r.key, sg)}>Use {fmtWeight(why.use)}</button>
                         {/if}
                       </span>
                     {/if}

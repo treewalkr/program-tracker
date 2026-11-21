@@ -1,3 +1,5 @@
+import type { WeightUnit } from "@pt/shared";
+import { showWeight, weightUnit } from "./units.svelte";
 import { estimate1rm, mainLiftIds, sessionTag, timedExerciseIds, timedSlotIds } from "@pt/shared";
 import type { ProgramDto, SessionLogDto } from "./api/types";
 import { logDateLabel, loggedSetLabel } from "./programLogs";
@@ -213,4 +215,10 @@ export function sessionsByWeek(
     else weeks.push({ start, label: weekLabel(start), sessions: [row] });
   }
   return weeks;
+}
+
+/** A lift row's chart data in the display unit: e1RM points convert, holds stay seconds. */
+export function liftInUnit(l: Pick<LiftRow, "series" | "unit">, unit?: WeightUnit): { series: LiftPoint[]; unit: WeightUnit | "s" } {
+  if (l.unit === "s") return { series: l.series, unit: "s" };
+  return { series: l.series.map((p) => ({ ...p, value: showWeight(p.value, unit) })), unit: weightUnit(unit) };
 }

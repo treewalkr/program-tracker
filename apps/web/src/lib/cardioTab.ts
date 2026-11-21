@@ -1,3 +1,4 @@
+import { distanceUnit, fmtDistance, fmtPace, fmtSpeed, showDistance } from "./units.svelte";
 import {
   addDays,
   cardioLogSec,
@@ -152,7 +153,7 @@ export function cardioLogRows(logs: readonly Log[]): CardioLogRow[] {
       const load = sessionLoad(c);
       const facts = skipped
         ? `Not done · ${SKIP_REASON_LABEL[c.skipped!.reason]}`
-        : [c.modality, sec != null ? formatDuration(sec) : null, c.distanceKm ? `${c.distanceKm} km` : null, c.rpe != null ? `RPE ${c.rpe}` : null, load != null ? `${load} AU` : null]
+        : [c.modality, sec != null ? formatDuration(sec) : null, c.distanceKm ? fmtDistance(c.distanceKm) : null, c.rpe != null ? `RPE ${c.rpe}` : null, load != null ? `${load} AU` : null]
             .filter(Boolean)
             .join(" · ");
       return { id: l.id, date: day(l.date), title, facts, state: skipped ? "skipped" : l.reviewedAt ? "reviewed" : "to_review", byMember: l.loggedBy === "client" };
@@ -176,8 +177,10 @@ export interface ReviewRow {
 }
 
 const dash = "—";
+/** "5.20 km" / "3.23 mi" — two decimals, so plan and actual line up. */
+const km2 = (km: number) => `${showDistance(km).toFixed(2)} ${distanceUnit()}`;
 const paceText = (p: ReturnType<typeof cardioPace>) =>
-  p?.metric === "pace" ? `${formatDuration(p.secPerKm)} /km` : p?.metric === "split" ? `${formatDuration(p.secPer500m)} /500 m` : p?.metric === "speed" ? `${p.kmh} km/h` : null;
+  p?.metric === "pace" ? fmtPace(p.secPerKm) : p?.metric === "split" ? `${formatDuration(p.secPer500m)} /500 m` : p?.metric === "speed" ? fmtSpeed(p.kmh) : null;
 
 function planZone(rx: CardioPrescription, zones: LogPrescription["zonesBpm"]): string | null {
   const work = rx.intervals?.find((i) => i.type === "work" && i.hrZone != null);
@@ -199,11 +202,11 @@ export function reviewRows(cardio: CardioLog, plan: LogPrescription | null | und
 
   rows.push({ label: "Duration", plan: totals?.durationSec ? formatDuration(totals.durationSec) : dash, actual: sec != null ? formatDuration(sec) : dash });
   const planKm = rx?.distanceKm ?? (totals && totals.distanceM > 0 ? totals.distanceM / 1000 : null);
-  rows.push({ label: "Distance", plan: planKm ? `${planKm.toFixed(2)} km` : dash, actual: cardio.distanceKm ? `${cardio.distanceKm.toFixed(2)} km` : dash });
+  rows.push({ label: "Distance", plan: planKm ? km2(planKm) : dash, actual: cardio.distanceKm ? km2(cardio.distanceKm) : dash });
 
   const pace = paceText(cardioPace(cardio, metric));
   if (pace || rx?.paceSecPerKm) {
-    rows.push({ label: metric === "split" ? "Average split" : metric === "speed" ? "Average speed" : "Average pace", plan: rx?.paceSecPerKm ? `${formatDuration(rx.paceSecPerKm)} /km` : dash, actual: pace ?? dash, aside: pace ? "calc" : undefined });
+    rows.push({ label: metric === "split" ? "Average split" : metric === "speed" ? "Average speed" : "Average pace", plan: rx?.paceSecPerKm ? fmtPace(rx.paceSecPerKm) : dash, actual: pace ?? dash, aside: pace ? "calc" : undefined });
   }
 
   const zone = rx ? planZone(rx, plan?.zonesBpm) : null;

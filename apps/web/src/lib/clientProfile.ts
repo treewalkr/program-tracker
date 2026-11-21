@@ -1,3 +1,4 @@
+import { fmtWeight } from "./units.svelte";
 import {
   BODYWEIGHT_KG_RANGE,
   EXPERIENCE_LABEL,
@@ -245,6 +246,6 @@ export function basicsSummary(c: ClientDto, today: string = localIso(new Date())
   if (c.experience) parts.push(EXPERIENCE_LABEL[c.experience].label);
   if (c.birthDate) parts.push(`${ageOn(calendarDate(c.birthDate), today)} yrs`);
   if (c.sex) parts.push(c.sex === "female" ? "Female" : "Male");
-  if (c.bodyweightKg != null) parts.push(`${c.bodyweightKg} kg`);
+  if (c.bodyweightKg != null) parts.push(fmtWeight(c.bodyweightKg));
   return parts;
 }

@@ -1,5 +1,6 @@
-import { TEMPO_PATTERN, blockAnchorDate, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
+import { TEMPO_PATTERN, blockAnchorDate, type WeightUnit, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
+import { showWeight, storeWeight } from "./units.svelte";
 
 /** Pure helpers for the inline program editor: set modes, grouped sets, dirty state, header copy. */
 
@@ -20,21 +21,25 @@ export function withMode(s: PrescribedSetDto, mode: SetMode): PrescribedSetDto {
   return { ...base, reps: s.reps > 0 ? s.reps : 8, repsMin: s.durationSeconds == null && !s.amrap ? s.repsMin : undefined };
 }
 
-/** Load cell text: "75%" for a %1RM set, else the kg. */
-export function loadCell(s: PrescribedSetDto): string {
+/** Load cell text: "75%" for a %1RM set, else the load in the display unit (stored kg). */
+export function loadCell(s: PrescribedSetDto, unit?: WeightUnit): string {
   if (s.percent1rm != null) return `${s.percent1rm}%`;
-  return s.targetWeightKg != null ? `${s.targetWeightKg}` : "";
+  return s.targetWeightKg != null ? `${showWeight(s.targetWeightKg, unit)}` : "";
 }
 
-/** Load cell input: "102.5" sets kg, "75%" sets %1RM (each clears the other), blank clears both; junk is ignored. */
-export function withLoad(s: PrescribedSetDto, raw: string): PrescribedSetDto {
+/**
+ * Load cell input: "102.5" sets the load in the display unit (stored as kg),
+ * "75%" sets %1RM (each clears the other), blank clears both; junk is ignored.
+ */
+export function withLoad(s: PrescribedSetDto, raw: string, unit?: WeightUnit): PrescribedSetDto {
   const t = raw.trim();
   if (t === "") return { ...s, targetWeightKg: null, percent1rm: undefined };
   const m = t.match(/^(\d+(?:[.,]\d+)?)\s*(%)?$/);
   if (!m) return s;
   const v = Number(m[1].replace(",", "."));
   if (m[2]) return v >= 1 && v <= 110 ? { ...s, percent1rm: v, targetWeightKg: undefined } : s;
-  return v <= 600 ? { ...s, targetWeightKg: v, percent1rm: undefined } : s;
+  const kg = storeWeight(v, unit);
+  return kg <= 600 ? { ...s, targetWeightKg: kg, percent1rm: undefined } : s;
 }
 
 /** RPE cell text: "8" or "7–8"; in Max mode the stop RPE. */

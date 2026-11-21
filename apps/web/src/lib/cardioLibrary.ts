@@ -1,3 +1,4 @@
+import { fmtDistance } from "./units.svelte";
 import { cardioTotals, type CardioMetric, type CardioPrescription } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 
@@ -17,7 +18,7 @@ export function templateSummary(rx: Shape): string {
     if (zone) parts.push(`Z${zone} work`);
   } else {
     if (rx.durationMin) parts.push(`${rx.durationMin} min`);
-    if (rx.distanceKm) parts.push(`${rx.distanceKm} km`);
+    if (rx.distanceKm) parts.push(fmtDistance(rx.distanceKm));
     if (rx.hrZone) parts.push(`Z${rx.hrZone}`);
   }
   if (rx.targetRpe) parts.push(`RPE ${rx.targetRpe}`);

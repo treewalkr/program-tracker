@@ -8,6 +8,7 @@
   import CardioReview from "$lib/components/CardioReview.svelte";
   import WeekBars from "$lib/components/WeekBars.svelte";
   import StatTile from "$lib/ui/StatTile.svelte";
+  import { distanceUnit, fmtDistance, fmtTonnage, fmtWeightRound, showWeight, weightUnit } from "$lib/units.svelte";
   import ClientAssessments from "$lib/components/ClientAssessments.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, hoursMinutes } from "$lib/cardioTab";
@@ -43,7 +44,7 @@
   import Note from "$lib/ui/Note.svelte";
   import { logDateLabel } from "$lib/programLogs";
   import { slotSwaps } from "$lib/logSheet";
-  import { ALL_LIMIT, HISTORY_RANGES, liftProgress, rangeInfo, rangeStart, sessionsByWeek, type HistoryRange } from "$lib/historyTab";
+  import { ALL_LIMIT, HISTORY_RANGES, liftInUnit, liftProgress, rangeInfo, rangeStart, sessionsByWeek, type HistoryRange } from "$lib/historyTab";
   import Sparkline from "$lib/components/Sparkline.svelte";
   import LiftChart from "$lib/components/LiftChart.svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -159,7 +160,7 @@
 
   const visibleSignals = $derived(signals.filter((s) => !dismissedNow.includes(s.id)));
 
-  const fmtVolume = (t: number) => (t >= 1000 ? `${(t / 1000).toFixed(1)}t` : `${Math.round(t)}kg`);
+  const fmtVolume = (t: number) => fmtTonnage(t);
   const doneWeeks = $derived(pulse.filter((w) => !w.plannedOnly && w.overallVolume > 0));
   const maxVolume = $derived(Math.max(...doneWeeks.map((w) => w.overallVolume), 1));
   /** Planned tonnage per program week from resolved loads (%1RM via the client's 1RMs); null = no loads to plan from. */
@@ -184,7 +185,7 @@
     ];
     if (first.bestE1rm > 0 && last.bestE1rm > 0) {
       const eΔ = Math.round(((last.bestE1rm - first.bestE1rm) / first.bestE1rm) * 100);
-      parts.push(`best e1RM ${Math.round(first.bestE1rm)} → ${Math.round(last.bestE1rm)} kg (${eΔ >= 0 ? "+" : ""}${eΔ}%)`);
+      parts.push(`best e1RM ${Math.round(showWeight(first.bestE1rm))} → ${fmtWeightRound(last.bestE1rm)} (${eΔ >= 0 ? "+" : ""}${eΔ}%)`);
     }
     if (last.avgRpe != null) parts.push(`week ${last.week} avg RPE ${last.avgRpe}`);
     return parts.join(" · ");
@@ -729,7 +730,7 @@
                   <td class="r">
                     {#if w.bestE1rm > 0 && w.topE1rmExerciseId}
                       <span class="top-lift">{liftName(w.topE1rmExerciseId)}</span>
-                      {@render cellBtn(w.week, "e1rm", `${Math.round(w.bestE1rm)} kg`, `Week ${w.week} best e1RM, ${liftName(w.topE1rmExerciseId)}: show the sets`)}
+                      {@render cellBtn(w.week, "e1rm", fmtWeightRound(w.bestE1rm), `Week ${w.week} best e1RM, ${liftName(w.topE1rmExerciseId)}: show the sets`)}
                     {:else}—{/if}
                     {#if w.e1rmDelta != null && w.bestE1rm > 0}<span class="delta {w.e1rmDelta < 0 ? 'down' : 'up'}">{w.e1rmDelta >= 0 ? "+" : ""}{w.e1rmDelta}%</span>{/if}
                   </td>
@@ -813,7 +814,7 @@
                   <td class="trend">
                     {#if l.series.length > 1}
                       <button type="button" class="spark-btn" tabindex="-1" aria-hidden="true" onclick={() => toggleChart(l.exerciseId)}>
-                        <Sparkline series={l.series} unit={l.unit} />
+                        <Sparkline {...liftInUnit(l)} />
                       </button>
                     {:else}
                       <span class="subtle">—</span>
@@ -821,7 +822,7 @@
                   </td>
                   <td class="r">
                     {#if l.bestE1rm != null}
-                      <span class="num big">{Math.round(l.bestE1rm)}</span><span class="unit">kg</span>
+                      <span class="num big">{Math.round(showWeight(l.bestE1rm))}</span><span class="unit">{weightUnit()}</span>
                     {:else}
                       <span class="num big" title={l.timed ? "Timed hold — no e1RM" : "No loaded sets"}>—</span>
                     {/if}
@@ -836,7 +837,7 @@
         </div>
         {#if chartRow}
           <div id="lift-chart">
-            <LiftChart name={chartRow.name} series={chartRow.series} unit={chartRow.unit} onclose={() => (chartLift = null)} />
+            <LiftChart name={chartRow.name} {...liftInUnit(chartRow)} onclose={() => (chartLift = null)} />
           </div>
         {/if}
       {:else}
@@ -941,11 +942,11 @@
               <thead><tr><th>Modality</th><th class="r">Sessions</th><th class="r">Distance</th></tr></thead>
               <tbody>
                 {#each cardioDistance as d (d.modality)}
-                  <tr><td>{d.modality}</td><td class="r num">{d.sessions}</td><td class="r num">{d.distanceKm ? `${d.distanceKm.toFixed(1)} km` : "—"}</td></tr>
+                  <tr><td>{d.modality}</td><td class="r num">{d.sessions}</td><td class="r num">{d.distanceKm ? fmtDistance(d.distanceKm) : "—"}</td></tr>
                 {/each}
               </tbody>
             </table>
-            <p class="cardio-foot pad">Never added together: 1 km on a bike isn't 1 km of running.</p>
+            <p class="cardio-foot pad">Never added together: 1 {distanceUnit()} on a bike isn't 1 {distanceUnit()} of running.</p>
           {:else}
             <EmptyState>No cardio logged this week.</EmptyState>
           {/if}

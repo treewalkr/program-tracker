@@ -92,6 +92,7 @@ import {
   cardioTemplatePreset,
   CARDIO_TEMPLATE_PRESETS,
   DEFAULT_DISPLAY_UNITS,
+  displayUnitsOf,
   DisplayUnits as DisplayUnitsSchema,
   estimateVo2,
   HrProfileInput as HrProfileInputSchema,
@@ -166,6 +167,14 @@ import {
 import { DuplicateLogError, type SessionLogDto } from "../types";
 
 import { uuid } from "$lib/uuid";
+function mockUnits(): DisplayUnits {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem("pt.displayUnits");
+    return raw ? displayUnitsOf(JSON.parse(raw)) : { ...DEFAULT_DISPLAY_UNITS };
+  } catch {
+    return { ...DEFAULT_DISPLAY_UNITS };
+  }
+}
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A stored log as the API serializes it — copies, so callers can't reach into state. */
@@ -335,7 +344,8 @@ const state = {
     },
   ] as Omit<CardioTemplateDto, "trainerId">[],
   hiddenCardioPresets: [] as string[],
-  units: { ...DEFAULT_DISPLAY_UNITS } as DisplayUnits,
+  /** The demo keeps the last choice across reloads (the real API stores it per trainer). */
+  units: mockUnits(),
 };
 
 /** Programs with a cardio session pointing at this modality (like the API's usage count). */

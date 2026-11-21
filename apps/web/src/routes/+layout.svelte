@@ -2,6 +2,7 @@
   import "../app.css";
   import { page } from "$app/state";
   import { onMount, untrack } from "svelte";
+  import { applyUnits, restoreUnits } from "$lib/units.svelte";
   import { fade } from "svelte/transition";
   import { afterNavigate, beforeNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
@@ -253,6 +254,8 @@
 
   onMount(async () => {
     if (bare) return;
+    restoreUnits();
+    api.displayUnits().then(applyUnits, () => {});
     try {
       clientCount = (await api.clients()).length;
     } catch {

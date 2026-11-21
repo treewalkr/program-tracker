@@ -1,5 +1,6 @@
 import { estimateVo2, VO2_FORMULAS, type Vo2Member, type Vo2Protocol, type Vo2Result } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
+import { fmtWeight } from "./units.svelte";
 
 /**
  * VO₂max field tests on the member page: the entry form per protocol, the
@@ -81,7 +82,7 @@ export function inputsText(a: Pick<Saved, "protocol" | "inputs">): string {
   const i = a.inputs;
   if (a.protocol === "cooper_12min") return `${(i.distanceM ?? 0).toLocaleString("en-US")} m`;
   if (a.protocol === "run_1_5mile") return formatDuration(i.timeSec);
-  return [formatDuration(i.timeSec), i.heartRate ? `HR ${i.heartRate}` : null, i.weightKg ? `${i.weightKg} kg` : null].filter(Boolean).join(" · ");
+  return [formatDuration(i.timeSec), i.heartRate ? `HR ${i.heartRate}` : null, i.weightKg ? fmtWeight(i.weightKg) : null].filter(Boolean).join(" · ");
 }
 
 /** The protocols the member has results for, most tests first; the switch offers only these. */

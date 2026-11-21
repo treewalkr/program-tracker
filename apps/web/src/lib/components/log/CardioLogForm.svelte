@@ -32,6 +32,7 @@
 
 <script lang="ts">
   import type { CardioMetric, SkipReason } from "@pt/shared";
+  import { distanceUnit, showDistance, storeDistance } from "$lib/units.svelte";
   import { cardioFormCalc, SKIP_REASON_LABEL, type CardioForm, type CardioFormError, type IntervalResultRow } from "$lib/cardioForm";
   import { formatDuration } from "$lib/ui/input/duration";
   import InputDuration from "$lib/ui/InputDuration.svelte";
@@ -106,7 +107,7 @@
   function setCell(row: IntervalResultRow, key: "distanceKm" | "avgHr" | "rpe", raw: string) {
     const t = raw.trim().replace(",", ".");
     const n = t === "" ? null : Number(t);
-    row[key] = n != null && Number.isFinite(n) ? n : null;
+    row[key] = n != null && Number.isFinite(n) ? (key === "distanceKm" ? storeDistance(n) : n) : null;
   }
 </script>
 
@@ -144,7 +145,7 @@
         <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} />
         {#if problem === "rpe"}<p class="err">{text.rpeHint}</p>{:else}<p class="hint">{text.rpeHint}</p>{/if}
       </div>
-      <InputUnit label={text.distance} unit="km" bind:value={value.distanceKm} step={0.1} min={0} max={300} optional />
+      <InputUnit label={text.distance} unit={distanceUnit()} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional />
       <InputUnit label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional />
       <InputUnit label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional error={problem === "maxHr" ? "Can't be below the average" : null} />
     </div>
@@ -174,14 +175,14 @@
             <div class="scroll">
               <table class="sheet">
                 <thead>
-                  <tr><th>{text.rep}</th><th class="r">{text.time}</th><th class="r">km</th><th class="r">{text.avgHr}</th><th class="r">RPE</th></tr>
+                  <tr><th>{text.rep}</th><th class="r">{text.time}</th><th class="r">{distanceUnit()}</th><th class="r">{text.avgHr}</th><th class="r">RPE</th></tr>
                 </thead>
                 <tbody>
                   {#each value.intervals as row (row.key)}
                     <tr class:work={row.type === "work"}>
                       <td>{row.label}</td>
                       <td class="r num"><InputDuration label="{text.time} · {row.label}" bind:value={row.durationSec} cell step={5} /></td>
-                      <td class="r num"><InputCell label="km · {row.label}" figure value={cellNum(row.distanceKm)} oncommit={(v) => setCell(row, "distanceKm", v)} /></td>
+                      <td class="r num"><InputCell label="{distanceUnit()} · {row.label}" figure value={cellNum(row.distanceKm == null ? null : showDistance(row.distanceKm))} oncommit={(v) => setCell(row, "distanceKm", v)} /></td>
                       <td class="r num"><InputCell label="{text.avgHr} · {row.label}" figure value={cellNum(row.avgHr)} oncommit={(v) => setCell(row, "avgHr", v)} /></td>
                       <td class="r num"><InputCell label="RPE · {row.label}" figure value={cellNum(row.rpe)} oncommit={(v) => setCell(row, "rpe", v)} /></td>
                     </tr>
