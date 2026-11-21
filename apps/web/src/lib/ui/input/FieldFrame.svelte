@@ -37,7 +37,8 @@
 </div>
 
 <style>
-	.field { display: grid; gap: 4px; min-width: 0; }
+	/* relative: keeps sr-only labels and live regions inside scrolling tables */
+	.field { position: relative; display: grid; gap: 4px; min-width: 0; }
 	.row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 	.lbl { font: 500 12px var(--font-ui); color: var(--ink); }
 	.opt { font-weight: 400; color: var(--muted); }
