@@ -51,7 +51,8 @@
   } from "@pt/shared";
   import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, primaryPattern, typeFitsKind } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
-  import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
+  import { cardioLine } from "$lib/cardioLine";
+  import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
   import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
@@ -738,7 +739,7 @@
                   <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}
                     {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}</span>
                   {#each logsOf(s.id) as l (l.id)}
-                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLogLabel(l.cardio)}</span>{/if}
+                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLine(l.cardio)}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
                     {@const extras = s.kind === "exercises" ? extraSets(l, s.exercises) : []}
                     {#if extras.length > 0}
@@ -755,14 +756,7 @@
                   <div class="cardio-display">
                     <span class="cond-chip">
                       <Icon name="pulse" />
-                      {[
-                        s.cardio.modality,
-                        s.cardio.durationMin ? `${s.cardio.durationMin} min` : null,
-                        s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null,
-                        s.cardio.intensity || null,
-                        s.cardio.distanceKm ? `${s.cardio.distanceKm} km` : null,
-                        s.cardio.targetRpe ? `RPE ${s.cardio.targetRpe}` : null,
-                      ].filter(Boolean).join(" · ")}
+                      {cardioLine(s.cardio)}
                     </span>
                   </div>
                 {/if}
@@ -871,7 +865,7 @@
             <div class="logline">
               <span class="log-date">{logDateLabel(l.date)}</span>
               {#if l.kind === "cardio"}
-                <span class="log-chip">{cardioLogLabel(l.cardio)}</span>
+                <span class="log-chip">{cardioLine(l.cardio)}</span>
               {:else}
                 {#each l.sets as d, di (di)}<span class="log-chip">{nameOf(d.exerciseId)} {loggedSetLabel(d, false)}</span>{/each}
               {/if}

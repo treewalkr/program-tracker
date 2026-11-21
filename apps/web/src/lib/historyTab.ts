@@ -1,6 +1,7 @@
 import { estimate1rm, mainLiftIds, sessionTag, timedExerciseIds, timedSlotIds } from "@pt/shared";
 import type { ProgramDto, SessionLogDto } from "./api/types";
-import { cardioLogLabel, logDateLabel, loggedSetLabel } from "./programLogs";
+import { logDateLabel, loggedSetLabel } from "./programLogs";
+import { cardioLine } from "./cardioLine";
 import { flagChips, readinessLine } from "./logFlags";
 
 /**
@@ -198,7 +199,7 @@ export function sessionsByWeek(
       kind: l.kind,
       setCount: l.sets.length,
       exercises,
-      cardio: l.kind === "cardio" && l.cardio ? cardioLogLabel(l.cardio) : null,
+      cardio: l.kind === "cardio" && l.cardio ? cardioLine(l.cardio) : null,
       notes: l.notes || null,
       readiness: readinessLine(l),
       flags,

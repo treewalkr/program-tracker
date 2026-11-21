@@ -84,11 +84,3 @@ export function logDateLabel(iso: string): string {
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-/** "Run · 35 min · Z2 · 5.5 km · RPE 6" */
-export function cardioLogLabel(c: SessionLogDto["cardio"]): string {
-  return c
-    ? [c.modality, c.durationMin ? `${c.durationMin} min` : null, c.hrZone ? `Z${c.hrZone}` : null, c.distanceKm ? `${c.distanceKm} km` : null, c.rpe ? `RPE ${c.rpe}` : null]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
-}
