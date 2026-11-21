@@ -179,6 +179,12 @@ describe.skipIf(!dbUp)("cardio log rules and review", () => {
     expect(skipped.body.cardio).toEqual({ modality: "Running", skipped: { reason: "time" } });
   });
 
+  test("a minutes-only log from the previous web build still saves without an RPE", async () => {
+    const r = await log({ modality: "Running", durationMin: 30 });
+    expect(r.status).toBe(201);
+    expect(r.body.cardio).toMatchObject({ durationMin: 30 });
+  });
+
   test("a completed log stores seconds and mirrors rounded minutes", async () => {
     const r = await log({
       modality: "Running",

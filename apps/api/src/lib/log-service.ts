@@ -101,10 +101,12 @@ export function refineLogKind(
 /**
  * The cardio write rule (shared cardioLogIssues): a completed log needs its
  * time and session RPE, a skipped one only its reason. A minutes-only payload
- * (an older form) counts as its seconds.
+ * comes from the previous web build (deploy window, rollback), which has no
+ * required RPE, so it keeps the old rule: its minutes are enough.
  */
 export function refineCardioLog(val: { kind: SessionKind; cardio?: CardioLog | null }, ctx: z.RefinementCtx): void {
   if (val.kind !== "cardio" || !val.cardio) return;
+  if (val.cardio.durationSec == null && val.cardio.durationMin != null) return;
   for (const message of cardioLogIssues(upgradeCardioLog(val.cardio))) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["cardio"] });
   }
