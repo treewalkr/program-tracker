@@ -76,7 +76,7 @@
   <form class="tg-form" onsubmit={(e) => e.preventDefault()}>
     <InputField label="Name" bind:value={name} autocomplete="name" required />
     <InputField label="Email" type="email" bind:value={email} autocomplete="email" hint="The portal link goes to this address." />
-    <SelectField label="Primary goal" options={goals} bind:value={goal} />
+    <SelectField label="Primary goal" options={goals} bind:value={goal} maxWidth="none" />
     <InputUnit label="Bodyweight" unit="kg" bind:value={bodyweight} step={0.5} min={30} max={250} />
     <InputDate label="Week 1 starts" bind:value={start} {today} mondayOnly />
     <div class="wide"><InputNote label="Limitations" bind:value={limits} hint="The AI avoids anything listed here." /></div>

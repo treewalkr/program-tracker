@@ -21,9 +21,11 @@
 		invalid?: boolean;
 		/** Controlled open state (stories, tests). */
 		open?: boolean;
+		/** Widest the field grows; `none` fills a form-grid column. */
+		maxWidth?: string;
 	}
 
-	let { options, value = $bindable(), onchange, label, placeholder = 'Choose…', disabled = false, invalid = false, open = $bindable(false) }: Props = $props();
+	let { options, value = $bindable(), onchange, label, placeholder = 'Choose…', disabled = false, invalid = false, open = $bindable(false), maxWidth = '300px' }: Props = $props();
 
 	const uid = $props.id();
 	const chosen = $derived(options.find((o) => o.value === value));
@@ -45,7 +47,7 @@
 
 <div class="field">
 	<span class="lbl" id="{uid}-l">{label}</span>
-	<Dropdown bind:open>
+	<Dropdown bind:open {maxWidth}>
 		{#snippet trigger()}
 			<button
 				type="button"
