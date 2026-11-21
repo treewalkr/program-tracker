@@ -522,6 +522,7 @@ code,
   align-items: center;
   gap: 7px;
   font: 500 14px/1 var(--font-ui);
+  min-height: 32px; /* Primer medium: one height with inputs and selects */
   padding: 5px 16px;
   border-radius: 6px;
   border: 1px solid var(--btn-border);
@@ -545,7 +546,7 @@ code,
 }
 .btn.primary:hover { background: var(--green-btn-hov); }
 
-.btn.small { padding: 3px 12px; font-size: 12px; }
+.btn.small { min-height: 28px; padding: 3px 12px; font-size: 12px; } /* Primer small */
 
 .btn.ghost {
   background: transparent;
