@@ -27,6 +27,7 @@
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
     patternBalance,
+    primaryPattern,
     type SessionKind,
   } from "@pt/shared";
   import RoleChip from "$lib/components/RoleChip.svelte";
@@ -79,7 +80,7 @@
   const units = $derived(exerciseUnits(exercises));
 
   const primaryInfo = (e: { movementPatterns?: readonly string[] | null }) => {
-    const p = e.movementPatterns?.[0];
+    const p = primaryPattern({ movementPatterns: e.movementPatterns });
     return p && p in MOVEMENT_PATTERN_INFO && p !== "no_pattern" ? MOVEMENT_PATTERN_INFO[p as MovementPattern] : null;
   };
 
@@ -200,7 +201,7 @@
     {#if hasPattern || legend}
       <!-- the notation key lives here, not over the columns: it must survive the stacked (≤660px) card -->
       <div class="balance">
-        {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises.map((e) => ({ movementPattern: e.movementPatterns?.[0] ?? null, sets: e.sets }))))}</span>{/if}
+        {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises.map((e) => ({ movementPattern: primaryPattern({ movementPatterns: e.movementPatterns }), sets: e.sets }))))}</span>{/if}
         {#if legend}<span class="legend">RPE {legend}</span>{/if}
       </div>
     {/if}

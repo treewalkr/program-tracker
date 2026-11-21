@@ -28,7 +28,7 @@
     type Sort,
     type Tab,
   } from "$lib/exerciseLibrary";
-  import { MAX_MOVEMENT_PATTERNS, NO_PATTERN } from "@pt/shared";
+  import { MAX_MOVEMENT_PATTERNS, MULTI_MOVEMENT, NO_PATTERN, primaryPattern } from "@pt/shared";
   import ExerciseCoverage from "$lib/components/ExerciseCoverage.svelte";
   import ExerciseInspector from "$lib/components/ExerciseInspector.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -566,10 +566,14 @@
                   <td><span class="pill neutral">{humanize(e.primaryMuscleGroup)}</span></td>
                   <td>
                     {#if e.movementPatterns.length}
-                      {@const rest = e.movementPatterns.slice(1)}
+                      {@const lead = primaryPattern(e) ?? e.movementPatterns[0]}
+                      {@const multi = lead !== MULTI_MOVEMENT && e.movementPatterns.includes(MULTI_MOVEMENT)}
+                      {@const rest = e.movementPatterns.filter((p) => p !== lead && p !== MULTI_MOVEMENT)}
                       <span class="pats">
-                        <span class="pill neutral" title={patternName(e.movementPatterns[0])}>{patternShort(e.movementPatterns[0])}</span>
-                        {#if rest.length}<span class="pill more" title={`Also: ${rest.map(patternName).join(", ")}`}>+{rest.length}</span>{/if}
+                        <span class="pill neutral" title={patternName(lead)}>{patternShort(lead)}</span>
+                        {#if rest.length || multi}<span class="pill more" title={`Also: ${[...rest, ...(multi ? [MULTI_MOVEMENT] : [])].map(patternName).join(", ")}`}
+                            >{rest.length ? `+${rest.length + (multi ? 1 : 0)}` : "+more"}</span
+                          >{/if}
                       </span>
                     {:else}
                       <button type="button" class="untag" aria-label="Tag pattern for {e.name}" onclick={(ev) => openMenu(ev, "Pattern tag", () => patternItems([e.id]))}>Tag</button>

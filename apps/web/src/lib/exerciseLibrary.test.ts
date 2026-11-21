@@ -124,6 +124,23 @@ describe("togglePattern / makePrimary", () => {
     expect(togglePattern(full, "vertical_pull")).toEqual(full);
   });
 
+  test("Multi-movement sits last, counts toward the cap, and is exclusive with No pattern (FB-019)", () => {
+    expect(togglePattern(["knee_dominant"], "multi_movement")).toEqual(["knee_dominant", "multi_movement"]);
+    expect(togglePattern(["knee_dominant", "multi_movement"], "hip_dominant")).toEqual(["knee_dominant", "hip_dominant", "multi_movement"]);
+    expect(togglePattern(["multi_movement"], "carry")).toEqual(["carry", "multi_movement"]);
+    const fourPlusMulti = ["knee_dominant", "hip_dominant", "carry", "rotation", "multi_movement"];
+    expect(togglePattern(fourPlusMulti, "isolation")).toEqual(fourPlusMulti);
+    const five = ["knee_dominant", "hip_dominant", "carry", "rotation", "isolation"];
+    expect(togglePattern(five, "multi_movement")).toEqual(five);
+    expect(togglePattern(["knee_dominant", "multi_movement"], "no_pattern")).toEqual(["no_pattern"]);
+    expect(togglePattern(["no_pattern"], "multi_movement")).toEqual(["multi_movement"]);
+    expect(makePrimary(["knee_dominant", "multi_movement"], "multi_movement")).toEqual(["knee_dominant", "multi_movement"]);
+    expect(addPattern(["multi_movement"], "hip_dominant")).toEqual(["hip_dominant", "multi_movement"]);
+    expect(PATTERN_GROUPS.find((g) => g.patterns.includes("multi_movement"))?.label).toBe("Other");
+    expect(patternTitle(["knee_dominant", "multi_movement"])).toContain("Also: Multi-movement.");
+    expect(patternTitle(["multi_movement"])).toBe("");
+  });
+
   test("makePrimary moves a selected tag to the front", () => {
     expect(makePrimary(["knee_dominant", "hip_dominant", "carry"], "carry")).toEqual(["carry", "knee_dominant", "hip_dominant"]);
     expect(makePrimary(["knee_dominant"], "carry")).toEqual(["knee_dominant"]);

@@ -1,13 +1,15 @@
 <script lang="ts">
   import { PATTERN_GROUPS, makePrimary, togglePattern } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
-  import { MAX_MOVEMENT_PATTERNS, MOVEMENT_PATTERN_INFO, NO_PATTERN, type MovementPattern } from "@pt/shared";
+  import { MAX_MOVEMENT_PATTERNS, MOVEMENT_PATTERN_INFO, MULTI_MOVEMENT, NO_PATTERN, type MovementPattern } from "@pt/shared";
 
   /**
    * Movement-pattern toggle chips, grouped (Upper / Lower / Core / Other) with
    * "No pattern" on its own row. The first selected is the primary (★); a
    * selected secondary splits into ☆ (make primary) and its label (remove).
-   * A full list disables the rest. The caller wraps it in a labelled group.
+   * A full list disables the rest. "Multi-movement" (in Other) is a marker,
+   * never the primary: it sits last and carries no star. The caller wraps it
+   * in a labelled group.
    */
   let { value = $bindable() }: { value: string[] } = $props();
 
@@ -23,7 +25,8 @@
 {#snippet patternChip(p: MovementPattern)}
   {@const name = MOVEMENT_PATTERN_INFO[p].name}
   {@const i = value.indexOf(p)}
-  {#if i > 0}
+  {@const marker = p === NO_PATTERN || p === MULTI_MOVEMENT}
+  {#if i > 0 && !marker}
     <!-- A selected secondary: the ☆ makes it primary, the label removes it. Two buttons, never nested. -->
     <span class="tchip on split">
       <button type="button" class="star" aria-label="Make {name} primary" title="Make primary" onclick={() => (value = makePrimary(value, p))}
@@ -34,13 +37,14 @@
     <button
       type="button"
       class="tchip"
-      class:on={i === 0}
+      class:on={i >= 0}
       class:none={p === NO_PATTERN}
-      aria-pressed={i === 0}
-      aria-describedby={i === 0 && p !== NO_PATTERN ? primaryId : undefined}
+      aria-pressed={i >= 0}
+      aria-describedby={i === 0 && !marker ? primaryId : undefined}
+      title={p === MULTI_MOVEMENT ? MOVEMENT_PATTERN_INFO[p].description : undefined}
       disabled={i === -1 && p !== NO_PATTERN && full}
       onclick={() => (value = togglePattern(value, p))}
-      >{#if i === 0 && p !== NO_PATTERN}<span class="prim"><Icon name="star" /></span>{/if}{name}</button
+      >{#if i === 0 && !marker}<span class="prim"><Icon name="star" /></span>{/if}{name}</button
     >
   {/if}
 {/snippet}

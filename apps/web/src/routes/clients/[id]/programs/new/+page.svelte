@@ -33,7 +33,7 @@
     type ProgramSession,
     type WeekPlan,
   } from "@pt/shared";
-  import { SCHEME_PRESETS, kindForType, newBlockFillBlocker, schemePreset, typeFitsKind } from "@pt/shared";
+  import { SCHEME_PRESETS, kindForType, newBlockFillBlocker, primaryPattern, schemePreset, typeFitsKind } from "@pt/shared";
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
@@ -137,7 +137,10 @@
    * A and B weeks are placed each on their own.
    */
   function placementOf(list: SessionRow[], listSeqs: number[]) {
-    const patternOf = (exId: string) => catalog.find((c) => c.id === exId)?.movementPatterns[0] ?? null;
+    const patternOf = (exId: string) => {
+      const c = catalog.find((x) => x.id === exId);
+      return c ? primaryPattern(c) : null;
+    };
     const draft = list.map((s, i) => ({
       id: s.key,
       name: s.name || "x",

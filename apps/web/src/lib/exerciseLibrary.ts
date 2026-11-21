@@ -6,7 +6,10 @@ import {
   MOVEMENT_PATTERNS,
   MAX_MOVEMENT_PATTERNS,
   MUSCLE_GROUPS,
+  MULTI_MOVEMENT,
   NO_PATTERN,
+  orderPatterns,
+  primaryPattern,
   type MovementPattern,
 } from "@pt/shared";
 import type { ExerciseDto } from "./api/types";
@@ -31,33 +34,36 @@ export const functionalName = (k: string | null) =>
 
 /**
  * Tooltip for a primary-pattern tag: the primary's description, then the
- * secondary tags by name ("… Also: Hip-dominant.").
+ * secondary tags by name ("… Also: Hip-dominant, Multi-movement.").
  */
 export function patternTitle(patterns: readonly string[]): string {
-  const [first, ...rest] = patterns.filter((p) => p in MOVEMENT_PATTERN_INFO) as MovementPattern[];
+  const known = patterns.filter((p) => p in MOVEMENT_PATTERN_INFO) as MovementPattern[];
+  const first = primaryPattern({ movementPatterns: known });
   if (!first || first === NO_PATTERN) return "";
-  const also = rest.map((p) => MOVEMENT_PATTERN_INFO[p].name);
+  const also = known.filter((p) => p !== first).map((p) => MOVEMENT_PATTERN_INFO[p].name);
   return also.length ? `${MOVEMENT_PATTERN_INFO[first].description} Also: ${also.join(", ")}.` : MOVEMENT_PATTERN_INFO[first].description;
 }
 
-/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation, No pattern). */
+/** Map row groups: Upper (push/pull), Lower (knee/hip), Core, Other (carries, isolation, Multi-movement, No pattern). */
 export const PATTERN_GROUPS: { label: string; patterns: MovementPattern[] }[] = [
   { label: "Upper", patterns: MOVEMENT_PATTERNS.filter((p) => /push|pull/.test(p)) },
   { label: "Lower", patterns: MOVEMENT_PATTERNS.filter((p) => p === "knee_dominant" || p === "hip_dominant") },
   { label: "Core", patterns: MOVEMENT_PATTERNS.filter((p) => MOVEMENT_PATTERN_INFO[p].core) },
-  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation" || p === NO_PATTERN) },
+  { label: "Other", patterns: MOVEMENT_PATTERNS.filter((p) => p === "carry" || p === "isolation" || p === MULTI_MOVEMENT || p === NO_PATTERN) },
 ];
 
 /**
  * Toggle one movement pattern in an ordered list (first = primary). The first
  * tag added becomes primary; removing the primary promotes the next. "No
- * pattern" is exclusive both ways. A full list (MAX_MOVEMENT_PATTERNS) takes no more.
+ * pattern" is exclusive both ways. "Multi-movement" counts toward the cap but
+ * always sits last, so it is never the primary. A full list
+ * (MAX_MOVEMENT_PATTERNS) takes no more.
  */
 export function togglePattern(list: readonly string[], p: string): string[] {
   if (list.includes(p)) return list.filter((x) => x !== p);
   if (p === NO_PATTERN) return [NO_PATTERN];
   const rest = list.filter((x) => x !== NO_PATTERN);
-  return rest.length >= MAX_MOVEMENT_PATTERNS ? rest : [...rest, p];
+  return rest.length >= MAX_MOVEMENT_PATTERNS ? orderPatterns(rest) : orderPatterns([...rest, p]);
 }
 
 /**
@@ -77,9 +83,9 @@ export function patternShare(rows: readonly Pick<ExerciseDto, "movementPatterns"
   return { n, all, text: all ? "✓ all" : n ? `${n} of ${rows.length}` : "" };
 }
 
-/** Move a selected tag to the front, making it the primary. */
+/** Move a selected tag to the front, making it the primary. "Multi-movement" never moves: it stays last. */
 export const makePrimary = (list: readonly string[], p: string): string[] =>
-  list.includes(p) ? [p, ...list.filter((x) => x !== p)] : [...list];
+  list.includes(p) && p !== MULTI_MOVEMENT ? [p, ...list.filter((x) => x !== p)] : [...list];
 
 /** The "untagged" filter value for the pattern axis. */
 export const NONE = "none";
@@ -167,8 +173,8 @@ export function coverage(list: readonly ExerciseDto[]): Coverage {
     }
   }
   let gaps = 0;
-  // "No pattern" is a deliberate tag, not a slot the library should fill.
-  for (const p of MOVEMENT_PATTERNS) if (p !== NO_PATTERN) for (const q of EQUIPMENT) if (!cells.get(`${p}|${q}`)) gaps++;
+  // "No pattern" and "Multi-movement" are deliberate markers, not slots the library should fill.
+  for (const p of MOVEMENT_PATTERNS) if (p !== NO_PATTERN && p !== MULTI_MOVEMENT) for (const q of EQUIPMENT) if (!cells.get(`${p}|${q}`)) gaps++;
   return {
     cells,
     rowTotal: (p) => rows.get(p) ?? 0,

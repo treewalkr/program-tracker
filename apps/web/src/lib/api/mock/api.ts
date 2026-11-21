@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema, normalizeKind, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS, startsOnIssue, localDateOf } from "@pt/shared";
+import { DeloadSettings as DeloadSettingsSchema, normalizeKind, orderPatterns, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS, startsOnIssue, localDateOf } from "@pt/shared";
 import { asRelease1, withKindAlias } from "./kindAlias";
 import {
   AiProgramDraft as AiProgramDraftSchema,
@@ -958,7 +958,7 @@ const rawMockApi: TrainerApi = {
       primaryMuscleGroup: input.primaryMuscleGroup,
       secondaryMuscleGroups: (input.secondaryMuscleGroups ?? []).filter((m) => m !== input.primaryMuscleGroup),
       equipment: input.equipment,
-      movementPatterns: [...(input.movementPatterns ?? [])],
+      movementPatterns: orderPatterns(input.movementPatterns ?? []),
       functionalMovement: input.functionalMovement ?? null,
       note: input.note?.trim() || null,
       custom: true,
@@ -982,6 +982,7 @@ const rawMockApi: TrainerApi = {
     const updated: ExerciseDto = {
       ...cur,
       ...defined,
+      ...(rest.movementPatterns ? { movementPatterns: orderPatterns(rest.movementPatterns) } : {}),
       ...(archived !== undefined ? { archivedAt: archived ? (cur.archivedAt ?? new Date().toISOString()) : null } : {}),
       usedIn: mockUsage(id),
     };

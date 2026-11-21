@@ -49,7 +49,7 @@
     type SessionKind,
     type SignalProgram,
   } from "@pt/shared";
-  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, typeFitsKind } from "@pt/shared";
+  import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, primaryPattern, typeFitsKind } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
@@ -787,7 +787,7 @@
                     />
                   {:else}
                     {@const patterns = patternsOf(e.exerciseId)}
-                    {@const pattern = patterns[0]}
+                    {@const pattern = primaryPattern({ movementPatterns: patterns })}
                     <div class="exblock" class:editable>
                       <div class="exhead">
                         {#if e.group}<GroupTag tag={groupTag(s.exercises, ei) ?? e.group} />{/if}
