@@ -150,9 +150,10 @@
 	.tok button:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; opacity: 1; }
 	.tok :global(svg) { width: 10px; height: 10px; }
 	.tok.flash { animation: flash 0.9s ease-out; }
+	/* a ring that fades, so the token's ink keeps its contrast while it flashes */
 	@keyframes flash {
-		0%, 40% { background: var(--blue-line); border-color: var(--blue); }
-		100% { background: var(--pulse-now-bg); border-color: var(--blue-line); }
+		0%, 40% { border-color: var(--blue); outline: 2px solid var(--blue); outline-offset: 1px; }
+		100% { border-color: var(--blue-line); outline: 2px solid transparent; outline-offset: 1px; }
 	}
 	.in {
 		flex: 1;
