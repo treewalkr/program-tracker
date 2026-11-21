@@ -66,11 +66,11 @@
 		border-radius: var(--radius);
 		background: transparent;
 		color: var(--ink);
-		font: 400 14px var(--font-ui);
+		font: 400 14px/17px var(--font-ui);
 		caret-color: var(--blue);
 	}
 	.cell::placeholder { color: var(--muted); }
-	.fig { font: 400 13px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+	.fig { font: 400 13px/17px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 	.cell:hover:not(:disabled):not(:focus) { border-color: var(--line); background: var(--well); }
 	.cell:focus { outline: none; border-color: var(--blue); background: var(--surface); box-shadow: 0 0 0 3px var(--focus-ring); }
 	.cell:disabled { cursor: not-allowed; opacity: 0.55; }
