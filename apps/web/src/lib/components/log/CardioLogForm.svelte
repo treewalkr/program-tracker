@@ -229,11 +229,11 @@
   .more-body { display: grid; gap: 14px; padding-top: 12px; }
   .ivs { display: grid; gap: 4px; }
   .scroll { overflow-x: auto; }
-  .sheet { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sheet { width: 100%; min-width: 440px; border-collapse: collapse; font-size: 13px; }
   .sheet th { text-align: left; font: 500 12px var(--font-ui); color: var(--muted); padding: 4px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .sheet td { padding: 3px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
   .sheet .r { text-align: right; }
-  .sheet td.num { width: 9ch; }
+  .sheet td.num { width: 11ch; }
   .sheet tr.work td:first-child { font-weight: 600; }
   .skip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .reasons { display: flex; flex-wrap: wrap; gap: 6px; }
