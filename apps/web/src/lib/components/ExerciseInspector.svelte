@@ -5,21 +5,15 @@
     EQUIPMENT_OPTIONS,
     FUNCTIONAL_OPTIONS,
     MUSCLE_OPTIONS,
-    PATTERN_GROUPS,
     formFrom,
-    makePrimary,
     patternName,
-    togglePattern,
     removeAction,
     similarNames,
     validateForm,
     type ExerciseForm,
   } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
-  import { MAX_MOVEMENT_PATTERNS, MOVEMENT_PATTERN_INFO, NO_PATTERN, type MovementPattern } from "@pt/shared";
-
-  /** Chip groups for the pattern field; "No pattern" sits on its own below them. */
-  const CHIP_GROUPS = PATTERN_GROUPS.map((g) => ({ ...g, patterns: g.patterns.filter((p) => p !== NO_PATTERN) }));
+  import PatternChips from "./PatternChips.svelte";
 
   /**
    * Side panel that creates or edits one exercise. Library (seed) entries lock
@@ -89,33 +83,6 @@
     (exercise && locked ? patternField?.querySelector("button") : nameInput)?.focus({ preventScroll: true });
   });
 </script>
-
-{#snippet patternChip(p: MovementPattern)}
-  {@const name = MOVEMENT_PATTERN_INFO[p].name}
-  {@const i = form.movementPatterns.indexOf(p)}
-  {#if i > 0}
-    <!-- A selected secondary: the ☆ makes it primary, the label removes it. Two buttons, never nested. -->
-    <span class="tchip on split">
-      <button type="button" class="star" aria-label="Make {name} primary" title="Make primary" onclick={() => (form.movementPatterns = makePrimary(form.movementPatterns, p))}
-        ><Icon name="star" /></button
-      ><button type="button" class="lbl" aria-pressed="true" onclick={() => (form.movementPatterns = togglePattern(form.movementPatterns, p))}>{name}</button>
-    </span>
-  {:else}
-    <button
-      type="button"
-      class="tchip"
-      class:on={i === 0}
-      class:none={p === NO_PATTERN}
-      aria-pressed={i === 0}
-      aria-describedby={i === 0 && p !== NO_PATTERN ? "xf-primary-tag" : undefined}
-      disabled={i === -1 && p !== NO_PATTERN && form.movementPatterns.filter((x) => x !== NO_PATTERN).length >= MAX_MOVEMENT_PATTERNS}
-      onclick={() => (form.movementPatterns = togglePattern(form.movementPatterns, p))}
-      >{#if i === 0 && p !== NO_PATTERN}<span class="prim"><Icon name="star" /></span>{/if}{name}</button
-    >
-  {/if}
-{/snippet}
-
-<span hidden id="xf-primary-tag">Primary</span>
 
 <aside class="panel insp" aria-label={exercise ? `Edit ${exercise.name}` : "New exercise"}>
   <div class="panel-head">
@@ -219,13 +186,7 @@
       <span class="label" id="xf-pattern"
         >Movement patterns <span class="hint-inline"><span class="star-key" aria-hidden="true"><Icon name="star" /></span>primary drives balance and roles</span></span
       >
-      {#each CHIP_GROUPS as g (g.label)}
-        <span class="grp">{g.label}</span>
-        <div class="chips">
-          {#each g.patterns as p (p)}{@render patternChip(p)}{/each}
-        </div>
-      {/each}
-      <div class="chips none-row">{@render patternChip(NO_PATTERN)}</div>
+      <PatternChips bind:value={form.movementPatterns} />
       <p class="hint" id="xf-pattern-hint">Rotation here = trunk rotation as core work.</p>
     </div>
 
@@ -279,23 +240,8 @@
   .f { display: flex; flex-direction: column; min-width: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; }
   .tchip:disabled { opacity: 0.6; cursor: default; }
-  .grp { font: 500 11px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin: 8px 0 4px; }
-  .none-row { margin-top: 10px; }
   .hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .star-key :global(svg) { width: 11px; height: 11px; fill: currentColor; vertical-align: -1px; margin-right: 3px; }
-  .prim { display: inline-flex; }
-  .prim :global(svg) { fill: currentColor; }
-  /* A selected secondary: one pill holding the ☆ (make primary) and the label (remove). */
-  .tchip.split { padding: 0; gap: 0; cursor: default; }
-  .split button {
-    appearance: none; border: 0; background: none; color: inherit; font: inherit; cursor: pointer;
-    display: inline-flex; align-items: center;
-  }
-  .split .star { padding: 4px 2px 4px 10px; border-radius: 99px 0 0 99px; }
-  .split .lbl { padding: 4px 12px 4px 4px; border-radius: 0 99px 99px 0; }
-  .split .star:hover :global(svg) { fill: currentColor; }
-  .split button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-  .tchip.none:not(.on) { border-style: dashed; }
   .textarea { resize: vertical; font-family: var(--font-ui); }
   .err { margin-top: 4px; }
   .meta { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
