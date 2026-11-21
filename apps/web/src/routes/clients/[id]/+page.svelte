@@ -4,11 +4,12 @@
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
+  import ClientHrProfile from "$lib/components/ClientHrProfile.svelte";
   import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
+  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import { oneRepMaxKg, plannedVolume, pulseCellSets, type PulseCell } from "@pt/shared";
@@ -44,6 +45,8 @@
   const id = $derived(page.params.id ?? "");
 
   let client = $state<ClientDto | null>(null);
+  /** HR profile versions, oldest first; null while loading. */
+  let hrVersions = $state<HrProfileDto[] | null>(null);
   /** First load failed before the client arrived (e.g. 404): show that, not an endless skeleton. */
   let loadError = $state<unknown>(null);
   const onLoadError = (e: unknown) => {
@@ -219,11 +222,13 @@
   const cardioLabel = $derived(client?.cardioTarget ? cardioUnitLabel(client.cardioTarget.unit) : "");
 
   async function load() {
-    const [detail, exList, cw] = await Promise.all([
+    const [detail, exList, cw, hr] = await Promise.all([
       api.client(id),
       api.exercises(),
       api.chainWeek(id).catch(() => null),
+      api.hrProfiles(id).catch(() => [] as HrProfileDto[]),
     ]);
+    hrVersions = hr;
     catalogById = new Map(exList.map((e) => [e.id, e]));
     chainWeekData = cw;
     const cur = detail.currentProgram;
@@ -252,6 +257,12 @@
     idPhone = detail.client.phone ?? "";
     savedId = idKey();
     latestGen = (await api.generations(id))[0] ?? null;
+  }
+
+  async function saveHrProfile(input: HrProfileInputDto) {
+    const row = await api.createHrProfile(id, input);
+    hrVersions = [...(hrVersions ?? []), row];
+    return row;
   }
 
   async function save() {
@@ -876,6 +887,9 @@
     <!-- Saves on its own, so it sits outside the profile form and its save bar. -->
     <div class="pf deload-pf">
       <ClientDeloadRule {client} onchange={(c) => (client = c)} />
+    </div>
+    <div class="pf deload-pf">
+      <ClientHrProfile versions={hrVersions} today={localIso(new Date())} onsave={saveHrProfile} />
     </div>
     </div>
   {/if}
