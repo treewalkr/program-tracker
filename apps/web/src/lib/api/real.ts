@@ -34,6 +34,13 @@ import type {
   SignalDto,
   TrainerApi,
   ExistingLogDto,
+  AssessmentDto,
+  CardioTemplateDto,
+  CardioTemplatesDto,
+  DisplayUnitsDto,
+  HrProfileDto,
+  LogReviewDto,
+  ModalityDto,
 } from "./types";
 import { DuplicateLogError } from "./types";
 import type { DeloadSettings, WeeksChoice } from "@pt/shared";
@@ -66,6 +73,11 @@ async function unwrap<T>(
   }
   return trainerWire(data) as T;
 }
+
+/** Eden revives calendar days into Dates (and trainerWire back into full ISO); pages want YYYY-MM-DD. */
+const day = <T extends string | null | undefined>(v: T): T => (typeof v === "string" ? (v.slice(0, 10) as T) : v);
+const hrProfileDay = (p: HrProfileDto): HrProfileDto => ({ ...p, effectiveFrom: day(p.effectiveFrom), maxHrTestedOn: day(p.maxHrTestedOn) });
+const assessmentDay = (a: AssessmentDto): AssessmentDto => ({ ...a, testedOn: day(a.testedOn) });
 
 /** Wire-up against the running Elysia API via Eden Treaty. Enabled via PUBLIC_API_MODE=live. */
 export const realApi: TrainerApi = {
@@ -155,6 +167,35 @@ export const realApi: TrainerApi = {
     }
   },
   deleteSessionLog: (id) => unwrap<void>(client.v1.logs.sessions({ id }).delete()),
+  reviewSessionLog: (id, input) => unwrap<LogReviewDto>(client.v1.logs.sessions({ id }).review.patch(input)),
+
+  hrProfiles: async (clientId) =>
+    (await unwrap<HrProfileDto[]>(client.v1.clients({ id: clientId })["hr-profiles"].get())).map(hrProfileDay),
+  createHrProfile: async (clientId, input) =>
+    hrProfileDay(await unwrap<HrProfileDto>(client.v1.clients({ id: clientId })["hr-profiles"].post({ ...input, zones: input.zones ?? undefined }))),
+  assessments: async (clientId) =>
+    (await unwrap<AssessmentDto[]>(client.v1.clients({ id: clientId }).assessments.get())).map(assessmentDay),
+  createAssessment: async (clientId, input) =>
+    assessmentDay(await unwrap<AssessmentDto>(client.v1.clients({ id: clientId }).assessments.post(input))),
+  patchAssessment: async (clientId, id, patch) =>
+    assessmentDay(await unwrap<AssessmentDto>(client.v1.clients({ id: clientId }).assessments({ assessmentId: id }).patch(patch))),
+  deleteAssessment: (clientId, id) =>
+    unwrap<void>(client.v1.clients({ id: clientId }).assessments({ assessmentId: id }).delete()),
+
+  modalities: () => unwrap<ModalityDto[]>(client.v1.modalities.get()),
+  createModality: (input) => unwrap<ModalityDto>(client.v1.modalities.post(input)),
+  patchModality: (id, patch) => unwrap<ModalityDto>(client.v1.modalities({ id }).patch(patch)),
+  deleteModality: (id) => unwrap<void>(client.v1.modalities({ id }).delete()),
+  cardioTemplates: () => unwrap<CardioTemplatesDto>(client.v1["cardio-templates"].get()),
+  createCardioTemplate: (input) =>
+    unwrap<CardioTemplateDto>(client.v1["cardio-templates"].post({ ...input, basedOn: input.basedOn ?? undefined })),
+  patchCardioTemplate: (id, patch) => unwrap<CardioTemplateDto>(client.v1["cardio-templates"]({ id }).patch(patch)),
+  deleteCardioTemplate: (id) => unwrap<void>(client.v1["cardio-templates"]({ id }).delete()),
+  setCardioPresetHidden: async (key, hidden) =>
+    (await unwrap<{ hidden: string[] }>(client.v1["cardio-templates"].presets({ key }).put({ hidden }))).hidden,
+
+  displayUnits: () => unwrap<DisplayUnitsDto>(client.v1.account.units.get()),
+  setDisplayUnits: (units) => unwrap<DisplayUnitsDto>(client.v1.account.units.put(units)),
   clientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.get()),
   enableClientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.post()),
   resetClientPortal: (id) => unwrap<ClientPortalDto>(client.v1.clients({ id }).portal.reset.post()),

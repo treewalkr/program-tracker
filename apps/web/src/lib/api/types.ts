@@ -40,6 +40,12 @@ import type {
   VocabularyAlias,
   Readiness,
   SessionFlag,
+  CardioMetric,
+  CardioTemplatePrescription,
+  DisplayUnits,
+  HrProfileInput,
+  LogPrescription,
+  Vo2Protocol,
 } from "@pt/shared";
 import type { Treaty } from "@elysiajs/eden";
 import type { client } from "./treaty";
@@ -80,7 +86,7 @@ export interface ClientDto {
   /** Planned training weekdays, ISO: 1=Mon … 7=Sun. */
   trainingDays?: number[];
   /** Standing weekly cardio target — null/undefined = none. */
-  cardioTarget?: { unit: "minutes" | "sessions" | "zone_minutes"; value: number } | null;
+  cardioTarget?: { unit: "minutes" | "sessions" | "session_load" | "zone_minutes"; value: number } | null;
   /** ISO weekdays available for cardio on top of trainingDays; null/absent = trainingDays. */
   cardioDays?: number[] | null;
   /** ISO weekday the long run is pinned to; null/absent = the placer decides. */
@@ -439,6 +445,13 @@ export interface SessionLogDto {
   flags: SessionFlagDto[] | null;
   /** Minutes from first entry to Save, when the client logged it live in the portal. */
   durationMin?: number | null;
+  /** The prescribed session as it was when the log was saved (and its bpm zones); null on older logs or freestyle. */
+  prescription?: LogPrescription | null;
+  /** ISO; set once the trainer marked it reviewed. */
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  /** What the member sees on this session in the portal. */
+  trainerFeedback?: string | null;
   sets: {
     id?: string;
     /** The program slot the set was logged against; null = ad-hoc. */
@@ -641,6 +654,57 @@ export interface NoteInput {
   violatedRuleId?: string;
 }
 
+/** PATCH /v1/logs/sessions/:id/review — the review stamp and the member-facing feedback. */
+export interface LogReviewDto {
+  id: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  trainerFeedback: string | null;
+}
+
+export interface LogReviewInput {
+  reviewed: boolean;
+  /** null clears it; absent keeps it. */
+  feedback?: string | null;
+}
+
+type ClientRoute = ReturnType<typeof client.v1.clients>;
+
+/** A member's HR profile version, inferred from GET /v1/clients/:id/hr-profiles. Dates are YYYY-MM-DD. */
+export type HrProfileDto = Wire<Treaty.Data<ClientRoute["hr-profiles"]["get"]>>[number];
+export type HrProfileInputDto = HrProfileInput;
+
+/** A VO₂max field test, inferred from GET /v1/clients/:id/assessments. `result` is the server's estimate. */
+export type AssessmentDto = Wire<Treaty.Data<ClientRoute["assessments"]["get"]>>[number];
+export interface AssessmentInput {
+  protocol: Vo2Protocol;
+  testedOn: string;
+  inputs: Record<string, number>;
+  notes?: string | null;
+}
+export type AssessmentPatch = Partial<AssessmentInput>;
+
+/** A modality (preset or the trainer's own), inferred from GET /v1/modalities. */
+export type ModalityDto = Wire<Treaty.Data<typeof client.v1.modalities.get>>[number];
+export interface ModalityInput {
+  name: string;
+  metric: CardioMetric;
+}
+export type ModalityPatch = Partial<ModalityInput> & { archived?: boolean };
+
+/** GET /v1/cardio-templates: the built-in presets (hidden flagged) and the trainer's saved templates. */
+export type CardioTemplatesDto = Wire<Treaty.Data<(typeof client.v1)["cardio-templates"]["get"]>>;
+export type CardioTemplateDto = CardioTemplatesDto["templates"][number];
+export type CardioTemplatePresetDto = CardioTemplatesDto["presets"][number];
+export interface CardioTemplateInput {
+  name: string;
+  prescription: CardioTemplatePrescription;
+  basedOn?: string | null;
+}
+export type CardioTemplatePatch = Partial<Pick<CardioTemplateInput, "name" | "prescription">> & { archived?: boolean };
+
+export type DisplayUnitsDto = DisplayUnits;
+
 export interface TrainerApi {
   /** The API's build id ("0.1.3+42a93f5"); in demo mode, the web build. */
   apiBuild(): Promise<string>;
@@ -733,6 +797,36 @@ export interface TrainerApi {
   logSession(input: SessionLogInput): Promise<SavedLogDto>;
   /** Undo a save: the log and its sets go. */
   deleteSessionLog(id: string): Promise<void>;
+  /** Mark a log reviewed (or not) and set the feedback the member sees. */
+  reviewSessionLog(id: string, input: LogReviewInput): Promise<LogReviewDto>;
+
+  /** A member's HR profile versions, oldest first. */
+  hrProfiles(clientId: string): Promise<HrProfileDto[]>;
+  /** A new version (zones computed by the server unless custom). */
+  createHrProfile(clientId: string, input: HrProfileInputDto): Promise<HrProfileDto>;
+  /** A member's VO₂max tests, oldest first. */
+  assessments(clientId: string): Promise<AssessmentDto[]>;
+  createAssessment(clientId: string, input: AssessmentInput): Promise<AssessmentDto>;
+  patchAssessment(clientId: string, id: string, patch: AssessmentPatch): Promise<AssessmentDto>;
+  deleteAssessment(clientId: string, id: string): Promise<void>;
+
+  /** Presets (seeded on first read) and the trainer's own, archived flagged. */
+  modalities(): Promise<ModalityDto[]>;
+  createModality(input: ModalityInput): Promise<ModalityDto>;
+  /** Presets take only `archived`. */
+  patchModality(id: string, patch: ModalityPatch): Promise<ModalityDto>;
+  /** Unused custom modalities only. */
+  deleteModality(id: string): Promise<void>;
+  cardioTemplates(): Promise<CardioTemplatesDto>;
+  createCardioTemplate(input: CardioTemplateInput): Promise<CardioTemplateDto>;
+  patchCardioTemplate(id: string, patch: CardioTemplatePatch): Promise<CardioTemplateDto>;
+  deleteCardioTemplate(id: string): Promise<void>;
+  /** Hide or show a built-in template; returns the hidden keys after the change. */
+  setCardioPresetHidden(key: string, hidden: boolean): Promise<string[]>;
+
+  /** kg/lb and km/mi for this trainer (metric until picked). */
+  displayUnits(): Promise<DisplayUnitsDto>;
+  setDisplayUnits(units: DisplayUnitsDto): Promise<DisplayUnitsDto>;
 
   /** The client portal for one client: on/off, the access link, Google and last seen. */
   clientPortal(clientId: string): Promise<ClientPortalDto>;

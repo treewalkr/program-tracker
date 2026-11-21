@@ -1,4 +1,6 @@
 import type {
+  AssessmentDto,
+  HrProfileDto,
   ClientDto,
   ExerciseDto,
   PeriodizationSchemeDto,
@@ -9,7 +11,28 @@ import type {
   ProgramWeekDto,
   SessionLogInput,
 } from "../types";
-import { placeSession, placeWeeks, primaryPattern, sessionKey, type CardioLog, type Readiness, type SessionFlag, type SessionKind, type SetType, type LoggedBy } from "@pt/shared";
+import {
+  computeHrZones,
+  cooperVo2,
+  fromCardioTemplate,
+  cardioTemplatePreset,
+  isoWeekStart,
+  localDateOf,
+  placeSession,
+  placeWeeks,
+  primaryPattern,
+  sessionKey,
+  VO2_FORMULAS,
+  withDurationMin,
+  type CardioLog,
+  type CardioPrescription,
+  type LogPrescription,
+  type Readiness,
+  type SessionFlag,
+  type SessionKind,
+  type SetType,
+  type LoggedBy,
+} from "@pt/shared";
 
 /** The sample trainer's own scheme; built-in presets come from SCHEME_PRESETS (@pt/shared). */
 export const schemes: PeriodizationSchemeDto[] = [
@@ -129,7 +152,7 @@ type SessionTemplate = {
   name: string;
   order?: number;
   kind?: "exercises" | "cardio";
-  cardio?: { modality: string; durationMin?: number | null; hrZone?: number | null; intensity?: string; distanceKm?: number; targetRpe?: number } | null;
+  cardio?: CardioPrescription | null;
   exercises?: ProgramExerciseDto[];
   notes?: string;
   /** Leave this session unscheduled ("any day") after default placement. */
@@ -455,6 +478,11 @@ export interface StoredLog {
   notes?: string;
   /** Minutes from first entry to Save (portal, logged live). */
   durationMin?: number | null;
+  /** The prescribed session as it was when logged (see LogPrescription). */
+  prescription?: LogPrescription | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  trainerFeedback?: string | null;
   sets: {
     programExerciseId?: string | null;
     exerciseId: string;
@@ -672,7 +700,7 @@ export const trainerProgram: ProgramDto = {
             id: uuid(),
             name: "Cardio Zone 2–3",
             kind: "cardio",
-            cardio: { modality: "Cardio Zone 2–3", intensity: "40–60 min steady" },
+            cardio: { modality: "Cardio Zone 2–3", durationMin: 50, intensity: "40–60 min steady" },
           },
         ],
       },
@@ -695,7 +723,7 @@ export const trainerProgram: ProgramDto = {
             id: uuid(),
             name: "Cardio Zone 1–2",
             kind: "cardio",
-            cardio: { modality: "Cardio Zone 1–2", intensity: "Long run 10 km+" },
+            cardio: { modality: "Cardio Zone 1–2", distanceKm: 10, intensity: "Long run 10 km+" },
           },
         ],
       },
@@ -718,7 +746,7 @@ export const trainerProgram: ProgramDto = {
             id: uuid(),
             name: "Cardio Zone 2–3",
             kind: "cardio",
-            cardio: { modality: "Cardio Zone 2–3", intensity: "40–60 min steady" },
+            cardio: { modality: "Cardio Zone 2–3", durationMin: 50, intensity: "40–60 min steady" },
           },
         ],
       },
@@ -740,7 +768,7 @@ export const trainerProgram: ProgramDto = {
             id: uuid(),
             name: "Cardio VO2max",
             kind: "cardio",
-            cardio: { modality: "Cardio VO2max", intensity: "Intervals 90%+, 1 : 3–5 — 20–30 min total (excl. warm-up)" },
+            cardio: { modality: "Cardio VO2max", durationMin: 25, intensity: "Intervals 90%+, 1 : 3–5 — 20–30 min total (excl. warm-up)" },
           },
         ],
       },
@@ -843,3 +871,231 @@ logs.push(
 // The mock API reads through the alias (kindAlias.ts) like the live client does.
 trainerProgram.weeks = asRelease1(trainerProgram.weeks);
 for (const [i, l] of logs.entries()) if (l.clientId === "cl-nat" && (l.kind ?? "exercises") === "exercises") logs[i] = asRelease1({ ...l, kind: "exercises" as const });
+
+// ---------------------------------------------------------------------------
+// Nok — the cardio member (docs/mocks/cardio/mockup.html): week 2 of an 8-week
+// General Fitness block with strength and three cardio sessions a week, an HR
+// profile (two versions), Cooper tests, and six weeks of cardio logs — one
+// reviewed with feedback, one skipped, one waiting for review.
+// ---------------------------------------------------------------------------
+
+/** YYYY-MM-DD `n` days after `iso`. */
+const plusDays = (iso: string, n: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const todayIso = localDateOf(Date.now());
+/** Monday of this week; the block started the Monday before, so this is week 2. */
+const thisMonday = isoWeekStart(new Date());
+const nokStart = plusDays(thisMonday, -7);
+
+export const nokClient: ClientDto = {
+  id: "cl-nok",
+  name: "Nok Siriporn",
+  email: "nok@example.com",
+  status: "active",
+  goals: "Run a 10 km under an hour by March; keep two strength days.",
+  limitations: null,
+  sessionsPerWeek: 2,
+  trainingDays: [1, 4],
+  cardioDays: [2, 3, 6],
+  cardioTarget: { unit: "session_load", value: 600 },
+  experience: "intermediate",
+  birthDate: "1991-04-12",
+  sex: "female",
+  bodyweightKg: 61.5,
+  heightCm: 164,
+  startedOn: "2026-08-03",
+  oneRepMaxes: { "ex-squat": { kg: 80, date: plusDays(nokStart, -10) }, "ex-bench": { kg: 45, date: plusDays(nokStart, -10) } },
+};
+clients.push(nokClient);
+
+const nokIntervals = cardioTemplatePreset("intervals")!;
+/** The mockup's Saturday session: 10′ warm-up, 5 × 2′ in Z4 with 2′ jog between, 5′ cool-down = 33:00. */
+const intervalsRx: CardioPrescription = {
+  ...fromCardioTemplate(nokIntervals, "Running"),
+  modalityId: "md-running",
+  intervals: [
+    { id: "warmup", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2 },
+    { id: "reps", type: "work", repeat: 5, durationSec: 120, hrZone: 4, rpe: 8, recovery: { type: "active_recovery", durationSec: 120 } },
+    { id: "cooldown", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1 },
+  ],
+};
+
+function nokWeek(week: number): ProgramWeekDto {
+  const id = (n: number) => `ps-nok-w${week}-${n}`;
+  const ex = (n: number, exerciseId: string, order: number, sets: ProgramExerciseDto["prescribedSets"]): ProgramExerciseDto => ({
+    id: `pe-nok-w${week}-${n}`,
+    exerciseId,
+    order,
+    prescribedSets: sets,
+  });
+  return {
+    week,
+    sessions: [
+      { id: id(1), name: "Upper body", seq: 1, weekday: 1, order: 0, kind: "exercises", exercises: [
+        ex(1, "ex-bench", 0, [S(1, 8, { targetWeightKg: 37.5 }), S(2, 8, { targetWeightKg: 37.5 }), S(3, 8, { targetWeightKg: 37.5 })]),
+        ex(2, "ex-crow", 1, [S(1, 12, { targetWeightKg: 35 }), S(2, 12, { targetWeightKg: 35 })]),
+      ], cardio: null },
+      { id: id(2), name: "Zone 2 run", seq: 1, weekday: 2, order: 0, kind: "cardio", exercises: [],
+        cardio: { ...fromCardioTemplate(cardioTemplatePreset("easy-zone2")!, "Running"), modalityId: "md-running", durationMin: 40 } },
+      { id: id(3), name: "Easy bike", seq: 2, weekday: 3, order: 0, kind: "cardio", exercises: [],
+        cardio: { modality: "Cycling", modalityId: "md-cycling", durationMin: 60, hrZone: 2, targetRpe: 3, intensity: "easy" } },
+      { id: id(4), name: "Lower body", seq: 2, weekday: 4, order: 0, kind: "exercises", exercises: [
+        ex(3, "ex-squat", 0, [S(1, 6, { targetWeightKg: 62.5 }), S(2, 6, { targetWeightKg: 62.5 }), S(3, 6, { targetWeightKg: 62.5 })]),
+        ex(4, "ex-rdl", 1, [S(1, 8, { targetWeightKg: 50 }), S(2, 8, { targetWeightKg: 50 })]),
+      ], cardio: null },
+      { id: id(5), name: "Intervals 5 × 2 min", seq: 3, weekday: 6, order: 0, kind: "cardio", exercises: [],
+        notes: "Run the hard reps at a pace you could hold for about 10 minutes. Walk or jog easy in between.",
+        cardio: structuredClone(intervalsRx) },
+    ],
+  };
+}
+
+export const nokProgram: ProgramDto = {
+  id: "pg-nok-a",
+  trainerId: "me",
+  clientId: "cl-nok",
+  name: "General Fitness — 8 wk",
+  description: "Two strength days, three cardio sessions. Building to a sub-60 10 km.",
+  status: "active",
+  version: 4,
+  aiAssisted: false,
+  createdFromProgramId: null,
+  direction: null,
+  activatedAt: `${nokStart}T08:00:00.000Z`,
+  startsOn: nokStart,
+  phasing: null,
+  createdAt: `${plusDays(nokStart, -3)}T09:00:00.000Z`,
+  weeks: Array.from({ length: 8 }, (_, i) => nokWeek(i + 1)),
+};
+programs.push(nokProgram);
+
+const nokProfile = (version: number, effectiveFrom: string, method: "hrmax" | "karvonen", restingHr: number | null): HrProfileDto => ({
+  id: `hr-nok-${version}`,
+  clientId: "cl-nok",
+  version,
+  effectiveFrom,
+  method,
+  restingHr,
+  maxHr: 188,
+  maxHrTestedOn: plusDays(nokStart, -45),
+  lthr: null,
+  zones: computeHrZones(method, { restingHr, maxHr: 188 })!,
+  createdAt: `${effectiveFrom}T09:00:00.000Z`,
+});
+
+/** HR profile versions per client: v1 % of max, v2 heart-rate reserve from 10 days ago. */
+export const hrProfiles: HrProfileDto[] = [
+  nokProfile(1, plusDays(todayIso, -41), "hrmax", null),
+  nokProfile(2, plusDays(todayIso, -10), "karvonen", 58),
+];
+
+const cooper = (id: string, testedOn: string, distanceM: number): AssessmentDto => ({
+  id,
+  clientId: "cl-nok",
+  protocol: "cooper_12min",
+  formulaVersion: VO2_FORMULAS.cooper_12min.version,
+  testedOn,
+  inputs: { distanceM },
+  result: cooperVo2(distanceM),
+  notes: null,
+  createdAt: `${testedOn}T09:00:00.000Z`,
+  updatedAt: `${testedOn}T09:00:00.000Z`,
+});
+
+export const assessments: AssessmentDto[] = [
+  cooper("as-nok-1", plusDays(todayIso, -61), 2350),
+  cooper("as-nok-2", plusDays(todayIso, -33), 2480),
+  cooper("as-nok-3", plusDays(todayIso, -1), 2560),
+];
+
+/** The snapshot a log keeps: the session as prescribed, with bpm zones from the profile in effect then. */
+function snapshotOf(sessionId: string, date: string): LogPrescription | null {
+  const session = nokProgram.weeks.flatMap((w) => w.sessions).find((x) => x.id === sessionId);
+  if (!session) return null;
+  const profile = [...hrProfiles].reverse().find((p) => p.effectiveFrom <= date);
+  return {
+    programVersion: nokProgram.version,
+    session: structuredClone(session),
+    ...(session.kind === "cardio" && profile ? { hrProfileVersion: profile.version, zonesBpm: profile.zones } : {}),
+  };
+}
+
+function nokCardio(date: string, cardio: CardioLog, extra: Partial<StoredLog> = {}): StoredLog {
+  return {
+    sessionLogId: `lg-nok-${date}-${cardio.modality.toLowerCase()}`,
+    loggedBy: "client",
+    clientId: "cl-nok",
+    programId: "pg-nok-a",
+    date,
+    kind: "cardio",
+    cardio: withDurationMin(cardio),
+    sets: [],
+    ...extra,
+  };
+}
+
+// Four weeks before the block: freestyle cardio, so the session-load bars have a history.
+for (const [weeksAgo, run, bike, reps] of [
+  [5, 4, 3, 7],
+  [4, 4, 3, 8],
+  [3, 4, 4, 7],
+  [2, 5, 3, 8],
+] as const) {
+  const monday = plusDays(thisMonday, -7 * weeksAgo);
+  logs.push(
+    nokCardio(plusDays(monday, 1), { modality: "Running", durationSec: 40 * 60 + weeksAgo * 30, distanceKm: 6.1, rpe: run, avgHr: 142 }, { reviewedAt: `${plusDays(monday, 2)}T10:00:00.000Z`, reviewedBy: "me" }),
+    nokCardio(plusDays(monday, 2), { modality: "Cycling", durationSec: 55 * 60, distanceKm: 22, rpe: bike }, { reviewedAt: `${plusDays(monday, 3)}T10:00:00.000Z`, reviewedBy: "me" }),
+    nokCardio(plusDays(monday, 5), { modality: "Running", durationSec: 32 * 60, distanceKm: 4.9, rpe: reps, avgHr: 150, maxHr: 174 }, { reviewedAt: `${plusDays(monday, 6)}T10:00:00.000Z`, reviewedBy: "me" }),
+  );
+}
+
+// Week 1 of the block: reviewed with feedback, skipped, and the mockup's intervals waiting for review.
+logs.push(
+  nokCardio(plusDays(nokStart, 1), { modality: "Running", durationSec: 41 * 60 + 20, distanceKm: 6.3, rpe: 4, avgHr: 141, maxHr: 156 }, {
+    programSessionId: "ps-nok-w1-2",
+    prescription: snapshotOf("ps-nok-w1-2", plusDays(nokStart, 1)),
+    reviewedAt: `${plusDays(nokStart, 2)}T07:30:00.000Z`,
+    reviewedBy: "me",
+    trainerFeedback: "Nice and easy — that's exactly the Zone 2 feel. Keep the cadence light.",
+    notes: "Felt easy, could have gone longer.",
+  }),
+  nokCardio(plusDays(nokStart, 2), { modality: "Cycling", skipped: { reason: "time" } }, {
+    programSessionId: "ps-nok-w1-3",
+    prescription: snapshotOf("ps-nok-w1-3", plusDays(nokStart, 2)),
+    notes: "Work ran late.",
+  }),
+  nokCardio(plusDays(nokStart, 5), { modality: "Running", durationSec: 35 * 60 + 10, distanceKm: 5.2, rpe: 7, avgHr: 151, maxHr: 176, pain: { reported: false } }, {
+    programSessionId: "ps-nok-w1-5",
+    prescription: snapshotOf("ps-nok-w1-5", plusDays(nokStart, 5)),
+    notes: "Legs heavy on the last two reps.",
+  }),
+  {
+    sessionLogId: "lg-nok-upper-w1",
+    loggedBy: "trainer",
+    clientId: "cl-nok",
+    programId: "pg-nok-a",
+    programSessionId: "ps-nok-w1-1",
+    prescription: snapshotOf("ps-nok-w1-1", nokStart),
+    date: nokStart,
+    kind: "exercises",
+    perceivedEnergy: 7,
+    sets: [
+      { programExerciseId: "pe-nok-w1-1", exerciseId: "ex-bench", setNumber: 1, type: "working", weightKg: 37.5, reps: 8, rpe: 7 },
+      { programExerciseId: "pe-nok-w1-1", exerciseId: "ex-bench", setNumber: 2, type: "working", weightKg: 37.5, reps: 8, rpe: 8 },
+      { programExerciseId: "pe-nok-w1-2", exerciseId: "ex-crow", setNumber: 1, type: "working", weightKg: 35, reps: 12, rpe: 7 },
+    ],
+  },
+);
+
+// This week: what's already happened (Monday's strength, Tuesday's run).
+if (todayIso >= plusDays(thisMonday, 1)) {
+  logs.push(
+    nokCardio(plusDays(thisMonday, 1), { modality: "Running", durationSec: 42 * 60 + 5, distanceKm: 6.4, rpe: 4, avgHr: 143, maxHr: 158 }, {
+      programSessionId: "ps-nok-w2-2",
+      prescription: snapshotOf("ps-nok-w2-2", plusDays(thisMonday, 1)),
+    }),
+  );
+}
