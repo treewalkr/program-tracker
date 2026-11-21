@@ -2,6 +2,13 @@ import { describe, expect, test } from "bun:test";
 import {
   cardioDone,
   cardioIssues,
+  cardioLogIssues,
+  cardioLogSec,
+  cardioPace,
+  isSkippedCardio,
+  sessionLoad,
+  upgradeCardioLog,
+  withDurationMin,
   cardioTotals,
   cardioUnitLabel,
   cardioWeekTotals,
@@ -9,7 +16,7 @@ import {
   isoWeekStart,
   ProgramWeeksWrite,
 } from "./cardio";
-import { CardioPrescription, ProgramWeeksDocument } from "./domain";
+import { CardioLog, CardioPrescription, ProgramWeeksDocument } from "./domain";
 import { DraftSession } from "./ai";
 
 describe("isoWeekStart", () => {
@@ -182,5 +189,68 @@ describe("coerceCardio", () => {
     expect(old.success).toBe(true);
     const messy = DraftSession.safeParse({ name: "Cardio", kind: "cardio", cardio: { modality: "Run", intervals: "lots" } });
     expect(messy.success).toBe(true);
+  });
+});
+
+describe("cardio logs", () => {
+  test("sessionLoad: RPE 4 × 42:15 = 169 AU", () => {
+    expect(sessionLoad({ durationSec: 42 * 60 + 15, rpe: 4 })).toBe(169);
+    expect(sessionLoad({ durationMin: 30, rpe: 5 })).toBe(150); // old row: minutes × 60
+    expect(sessionLoad({ durationSec: 1800 })).toBeNull();
+    expect(sessionLoad({ durationSec: 1800, rpe: 5, skipped: { reason: "time" } })).toBeNull();
+  });
+
+  test("cardioPace: 35:10 over 5.2 km is 6:46/km; split and speed by metric", () => {
+    const log = { durationSec: 35 * 60 + 10, distanceKm: 5.2 };
+    expect(cardioPace(log, "pace")).toEqual({ metric: "pace", secPerKm: 6 * 60 + 46 });
+    expect(cardioPace(log, "split")).toEqual({ metric: "split", secPer500m: 203 });
+    expect(cardioPace(log, "speed")).toEqual({ metric: "speed", kmh: 8.9 });
+    expect(cardioPace(log, "none")).toBeNull();
+    expect(cardioPace({ durationSec: 600 }, "pace")).toBeNull();
+    expect(cardioPace({ durationSec: 600, distanceKm: 0 }, "pace")).toBeNull();
+  });
+
+  test("an old minutes-only log reads as seconds", () => {
+    expect(cardioLogSec({ durationMin: 40 })).toBe(2400);
+    expect(cardioLogSec({ durationSec: 2410, durationMin: 40 })).toBe(2410);
+    expect(cardioLogSec({})).toBeNull();
+    expect(upgradeCardioLog<CardioLog>({ modality: "Run", durationMin: 40, hrZone: 3 })).toEqual({
+      modality: "Run",
+      durationMin: 40,
+      durationSec: 2400,
+      hrZone: 3,
+    });
+    expect(CardioLog.safeParse({ modality: "Run", durationMin: 40, hrZone: 3 }).success).toBe(true);
+  });
+
+  test("writes mirror durationMin (rounded, at least 1)", () => {
+    expect(withDurationMin<CardioLog>({ modality: "Run", durationSec: 2535 })).toEqual({ modality: "Run", durationSec: 2535, durationMin: 42 });
+    expect(withDurationMin<CardioLog>({ modality: "Run", durationSec: 20 }).durationMin).toBe(1);
+    expect(withDurationMin({ durationMin: 30 })).toEqual({ durationMin: 30 });
+  });
+
+  test("write rule: completed needs duration and RPE; skipped needs only a reason", () => {
+    expect(cardioLogIssues({ modality: "Run", durationSec: 1800, rpe: 6 })).toEqual([]);
+    expect(cardioLogIssues({ modality: "Run", durationSec: 1800 })).toHaveLength(1);
+    expect(cardioLogIssues({ modality: "Run" })).toHaveLength(2);
+    expect(cardioLogIssues({ modality: "Run", skipped: { reason: "pain" } })).toEqual([]);
+    expect(CardioLog.safeParse({ modality: "Run", skipped: { reason: "bored" } }).success).toBe(false);
+  });
+
+  test("max HR must be at least the average", () => {
+    expect(CardioLog.safeParse({ modality: "Run", avgHr: 150, maxHr: 140 }).success).toBe(false);
+    expect(CardioLog.safeParse({ modality: "Run", avgHr: 150, maxHr: 172 }).success).toBe(true);
+  });
+
+  test("interval results and pain parse", () => {
+    const log = CardioLog.parse({
+      modality: "Run",
+      durationSec: 1980,
+      rpe: 7,
+      pain: { reported: true, note: "left calf" },
+      intervals: [{ intervalId: "b", rep: 1, durationSec: 178, avgHr: 168, rpe: 8 }],
+    });
+    expect(log.intervals).toHaveLength(1);
+    expect(isSkippedCardio(log)).toBe(false);
   });
 });

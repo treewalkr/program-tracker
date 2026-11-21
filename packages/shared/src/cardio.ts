@@ -9,6 +9,7 @@ import {
   PaceSecPerKm,
   ProgramWeeksDocument,
   type CardioLog,
+  type CardioMetric,
   type CardioTarget,
   type CardioTargetUnit,
 } from "./domain";
@@ -245,3 +246,70 @@ export const ProgramWeeksWrite = ProgramWeeksDocument.superRefine((weeks, ctx) =
     })
   );
 });
+
+// ---------------------------------------------------------------------------
+// Cardio logs
+// ---------------------------------------------------------------------------
+
+type LogTime = Pick<CardioLog, "durationSec" | "durationMin">;
+
+/** A log's time in seconds: `durationSec`, else an old row's minutes × 60; null when neither. */
+export function cardioLogSec(log: LogTime | null | undefined): number | null {
+  if (!log) return null;
+  if (log.durationSec != null) return log.durationSec;
+  if (log.durationMin != null) return log.durationMin * 60;
+  return null;
+}
+
+/** True for a log the member marked as not done. */
+export function isSkippedCardio(log: Pick<CardioLog, "skipped"> | null | undefined): boolean {
+  return log?.skipped != null;
+}
+
+/** Session load in AU: session RPE × minutes, rounded; null without both (or when skipped). */
+export function sessionLoad(log: (LogTime & Pick<CardioLog, "rpe" | "skipped">) | null | undefined): number | null {
+  if (!log || isSkippedCardio(log) || log.rpe == null) return null;
+  const sec = cardioLogSec(log);
+  if (sec == null) return null;
+  return Math.round((log.rpe * sec) / 60);
+}
+
+export type CardioPace =
+  | { metric: "pace"; secPerKm: number }
+  | { metric: "split"; secPer500m: number }
+  | { metric: "speed"; kmh: number };
+
+/** Pace, split or speed by the modality's metric; null without a distance > 0 and a time, or for metric "none". */
+export function cardioPace(log: (LogTime & Pick<CardioLog, "distanceKm">) | null | undefined, metric: CardioMetric): CardioPace | null {
+  const sec = cardioLogSec(log);
+  const km = log?.distanceKm ?? 0;
+  if (sec == null || sec <= 0 || km <= 0) return null;
+  if (metric === "pace") return { metric, secPerKm: Math.round(sec / km) };
+  if (metric === "split") return { metric, secPer500m: Math.round(sec / (km * 2)) };
+  if (metric === "speed") return { metric, kmh: Math.round((km / (sec / 3600)) * 10) / 10 };
+  return null;
+}
+
+/**
+ * Why a cardio log can't be written now (empty = fine): a completed log needs
+ * its time and session RPE; a skipped one needs only its reason.
+ */
+export function cardioLogIssues(log: CardioLog): string[] {
+  if (isSkippedCardio(log)) return [];
+  const issues: string[] = [];
+  if (log.durationSec == null) issues.push("a completed cardio log needs its duration (durationSec)");
+  if (log.rpe == null) issues.push("a completed cardio log needs a session RPE");
+  return issues;
+}
+
+/** The log as it's stored: `durationMin` mirrors `durationSec` (rounded, at least 1) so a rollback still reads it. */
+export function withDurationMin<T extends LogTime>(log: T): T {
+  if (log.durationSec == null) return log;
+  return { ...log, durationMin: Math.max(1, Math.round(log.durationSec / 60)) };
+}
+
+/** Reading any stored log: an old minutes-only row gains `durationSec`. Nothing else changes. */
+export function upgradeCardioLog<T extends LogTime>(log: T): T {
+  if (log.durationSec != null || log.durationMin == null) return log;
+  return { ...log, durationSec: log.durationMin * 60 };
+}
