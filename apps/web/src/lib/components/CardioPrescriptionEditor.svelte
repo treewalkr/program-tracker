@@ -54,7 +54,8 @@
   ]);
 
   function apply(c: Choice) {
-    const next = fromCardioTemplate({ id: c.id, prescription: c.prescription }, cardio.modality);
+    // templates arrive as page state; the shared copy uses structuredClone, which a proxy breaks
+    const next = fromCardioTemplate({ id: c.id, prescription: $state.snapshot(c.prescription) }, cardio.modality);
     // the session keeps its modality; the template only brings the shape
     cardio = { ...next, ...(cardio.modalityId ? { modalityId: cardio.modalityId } : {}) };
   }
