@@ -5,11 +5,16 @@
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
   import ClientHrProfile from "$lib/components/ClientHrProfile.svelte";
+  import CardioReview from "$lib/components/CardioReview.svelte";
+  import WeekBars from "$lib/components/WeekBars.svelte";
+  import StatTile from "$lib/ui/StatTile.svelte";
+  import Pill from "$lib/ui/Pill.svelte";
+  import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, hoursMinutes } from "$lib/cardioTab";
   import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
+  import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
   import { oneRepMaxKg, plannedVolume, pulseCellSets, type PulseCell } from "@pt/shared";
@@ -86,7 +91,7 @@
   let dismissedNow = $state<string[]>([]);
   let snoozing = $state<string | null>(null);
   let snoozeErrors = $state<Record<string, string>>({});
-  let tab = $state<"program" | "pulse" | "history" | "settings">("program");
+  let tab = $state<"program" | "pulse" | "history" | "cardio" | "settings">("program");
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const isoDay = (d: Date) => (d.getDay() + 6) % 7 + 1;
@@ -259,6 +264,45 @@
     latestGen = (await api.generations(id))[0] ?? null;
   }
 
+  // ---- Cardio tab ----
+  const thisMonday = isoWeekStart(new Date());
+  const cardioRows = $derived(cardioLogRows(sessionLogRows));
+  const cardioToReview = $derived(cardioRows.filter((r) => r.state === "to_review").length);
+  const cardioWeekBars = $derived(cardioWeeks(sessionLogRows, thisMonday, 6));
+  const cardioTile = $derived(cardioTiles(sessionLogRows, current, thisMonday, todayStr));
+  const cardioDistance = $derived(distanceByModality(sessionLogRows, thisMonday));
+  let cardioModalities = $state<ModalityDto[]>([]);
+  let reviewing = $state<string | null>(null);
+  let allCardioLogs = $state(false);
+  const shownCardioRows = $derived(allCardioLogs ? cardioRows : cardioRows.slice(0, 8));
+  const reviewLog = $derived(reviewing ? (sessionLogRows.find((l) => l.id === reviewing) ?? null) : null);
+  const metricOf = (modality: string) => cardioModalities.find((m) => m.name.toLowerCase() === modality.toLowerCase())?.metric ?? "none";
+  const firstName = $derived(client?.name.split(" ")[0] ?? "Member");
+  const loadTarget = $derived(client?.cardioTarget?.unit === "session_load" ? client.cardioTarget.value : null);
+
+  $effect(() => {
+    if (tab === "cardio" && !cardioModalities.length) api.modalities().then((m) => (cardioModalities = m)).catch(() => {});
+  });
+  $effect(() => {
+    // open the oldest one waiting, so the tab lands on work to do
+    if (tab === "cardio" && reviewing === null && cardioRows.length) reviewing = (cardioRows.findLast((r) => r.state === "to_review") ?? cardioRows[0]).id;
+  });
+
+  async function pickCardioLog(logId: string) {
+    reviewing = logId;
+    // one column: the review sits under the list, so bring it into view
+    if (matchMedia("(max-width: 900px)").matches) {
+      await tick();
+      document.getElementById("cardio-review")?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }
+  }
+
+  async function reviewCardio(logId: string, input: LogReviewInput) {
+    const out = await api.reviewSessionLog(logId, input);
+    sessionLogRows = sessionLogRows.map((l) => (l.id === logId ? { ...l, reviewedAt: out.reviewedAt, reviewedBy: out.reviewedBy, trainerFeedback: out.trainerFeedback } : l));
+    return out;
+  }
+
   async function saveHrProfile(input: HrProfileInputDto) {
     const row = await api.createHrProfile(id, input);
     hrVersions = [...(hrVersions ?? []), row];
@@ -333,7 +377,7 @@
 
   onMount(() => {
     const h = location.hash.slice(1);
-    if (h === "pulse" || h === "history" || h === "settings" || h === "program") tab = h;
+    if (h === "pulse" || h === "history" || h === "cardio" || h === "settings" || h === "program") tab = h;
     load().catch(onLoadError);
   });
 </script>
@@ -378,6 +422,7 @@
         { id: "program", label: "Program", count: "6 sessions" },
         { id: "pulse", label: "Pulse", count: "0 wks" },
         { id: "history", label: "History", count: "8 wks" },
+        { id: "cardio", label: "Cardio", count: "0 to review" },
         { id: "settings", label: "Settings" },
       ]}
     />
@@ -478,6 +523,7 @@
       { id: 'program', label: 'Program', count: `${currentWeek?.sessions.length ?? 0} sessions` },
       { id: 'pulse', label: 'Pulse', count: `${pulse.length} wks`, disabled: pulse.length === 0 },
       { id: 'history', label: 'History', count: rangeInfo(range).badge },
+      { id: 'cardio', label: 'Cardio', count: cardioToReview ? `${cardioToReview} to review` : `${cardioRows.length} logs` },
       { id: 'settings', label: 'Settings' },
     ]}
   />
@@ -851,6 +897,79 @@
       </Panel>
     {/if}
     </div>
+  {:else if tab === "cardio"}
+    <div class="cardio-stack" id="panel-cardio" role="tabpanel" aria-labelledby="tab-cardio">
+      <div class="tiles">
+        <StatTile label="Sessions this week" value={String(cardioTile.sessions.done)} of={cardioTile.sessions.planned ? `of ${cardioTile.sessions.planned}` : undefined} />
+        <StatTile label="Time" value={hoursMinutes(cardioTile.minutes.done)} sub={cardioTile.minutes.planned != null ? `plan ${hoursMinutes(cardioTile.minutes.planned)}` : "no plan this week"} />
+        <StatTile label="Session load" value={String(cardioTile.load)} sub={loadTarget ? `target ${loadTarget} AU` : "AU this week"} />
+        <StatTile
+          label="Completion · 4 wks"
+          value={cardioTile.completion.pct != null ? `${cardioTile.completion.pct}%` : "—"}
+          sub={cardioTile.completion.due ? `${cardioTile.completion.done} of ${cardioTile.completion.due} sessions` : "no cardio planned"}
+        />
+      </div>
+
+      <div class="cardio-grid">
+        <Panel title="Session load by week" count="6 wks">
+          <div class="panel-body">
+            <WeekBars weeks={cardioWeekBars.map((w) => ({ label: w.label, value: w.load }))} unit="AU" target={loadTarget} />
+            <p class="cardio-foot">Session load = session RPE × minutes. It measures training load, not fitness gained.</p>
+          </div>
+        </Panel>
+        <Panel title="Distance by modality" count="this week">
+          {#if cardioDistance.length}
+            <table class="dist">
+              <thead><tr><th>Modality</th><th class="r">Sessions</th><th class="r">Distance</th></tr></thead>
+              <tbody>
+                {#each cardioDistance as d (d.modality)}
+                  <tr><td>{d.modality}</td><td class="r num">{d.sessions}</td><td class="r num">{d.distanceKm ? `${d.distanceKm.toFixed(1)} km` : "—"}</td></tr>
+                {/each}
+              </tbody>
+            </table>
+            <p class="cardio-foot pad">Never added together: 1 km on a bike isn't 1 km of running.</p>
+          {:else}
+            <EmptyState>No cardio logged this week.</EmptyState>
+          {/if}
+        </Panel>
+      </div>
+
+      <div class="cardio-grid review-grid">
+        <Panel title="Cardio logs" count={cardioToReview ? `${cardioToReview} to review` : String(cardioRows.length)}>
+          {#if cardioRows.length}
+            <ul class="clogs">
+              {#each shownCardioRows as r (r.id)}
+                <li>
+                  <button type="button" class="clog" class:on={reviewing === r.id} aria-pressed={reviewing === r.id} onclick={() => pickCardioLog(r.id)}>
+                    <span class="clog-main">
+                      <span class="clog-title">{dayLabel(r.date)} · {r.title}</span>
+                      <span class="clog-facts">{r.facts}</span>
+                    </span>
+                    {#if r.state === "to_review"}<Pill tone="warn">To review</Pill>{:else if r.state === "reviewed"}<Pill tone="good">Reviewed</Pill>{:else}<Pill>Not done</Pill>{/if}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+            {#if cardioRows.length > 8}
+              <button type="button" class="more-logs" onclick={() => (allCardioLogs = !allCardioLogs)}>{allCardioLogs ? "Show the latest 8" : `Show ${cardioRows.length - 8} older`}</button>
+            {/if}
+          {:else}
+            <EmptyState>No cardio logged yet. Logs show here once {firstName} or you log a cardio session.</EmptyState>
+          {/if}
+        </Panel>
+        <Panel title="Review" id="cardio-review">
+          <div class="panel-body">
+            {#if reviewLog?.cardio}
+              {#key reviewLog.id}
+                <CardioReview log={reviewLog} member={firstName} metric={metricOf(reviewLog.cardio.modality)} onreview={(input) => reviewCardio(reviewLog.id, input)} />
+              {/key}
+            {:else}
+              <p class="cardio-foot">Pick a log to see plan against actual.</p>
+            {/if}
+          </div>
+        </Panel>
+      </div>
+    </div>
   {:else}
     <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">
     <!-- First: the link a trainer comes here to copy. Saves on its own, outside the profile form. -->
@@ -917,6 +1036,31 @@
 
   .sig-panel { margin: 18px 0 0; }
   .deload-pf { margin-top: 16px; }
+  .cardio-stack { display: grid; gap: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .cardio-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  .review-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  .cardio-foot { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .cardio-foot.pad { padding: 0 16px 12px; }
+  .dist { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dist th { font: 500 12px var(--font-ui); color: var(--muted); text-align: left; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  .dist td { padding: 8px 16px; border-bottom: 1px solid var(--line-soft); }
+  .dist .r { text-align: right; }
+  .dist .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .clogs { list-style: none; margin: 0; padding: 0; }
+  .more-logs { display: block; width: 100%; padding: 10px 16px; border: 0; border-top: 1px solid var(--line-soft); background: none; font: 500 12px var(--font-ui); color: var(--blue); text-align: left; cursor: pointer; }
+  .more-logs:hover { text-decoration: underline; }
+  .clog { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 16px; border: 0; border-bottom: 1px solid var(--line-soft); background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .clogs li:last-child .clog { border-bottom: 0; }
+  .clog:hover { background: var(--well); }
+  .clog.on { background: var(--well); box-shadow: inset 2px 0 0 var(--blue); }
+  .clog:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .clog-main { display: grid; gap: 2px; min-width: 0; }
+  .clog-title { font: 600 13px var(--font-ui); color: var(--ink); }
+  .clog-facts { font: 400 12px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 900px) {
+    .cardio-grid, .review-grid { grid-template-columns: 1fr; }
+  }
   .portal-pf { margin-bottom: 16px; }
   .sig-panel :global(.signal .act) { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .snooze:disabled { color: var(--muted); cursor: default; }
