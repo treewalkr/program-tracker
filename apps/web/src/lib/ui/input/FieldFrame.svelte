@@ -13,16 +13,18 @@
 		hint?: string | null;
 		error?: string | null;
 		optional?: boolean;
+		/** Keep the label for screen readers only (table cells under a column head). */
+		hideLabel?: boolean;
 		/** Right side of the label row (counts). */
 		meta?: Snippet;
 		children: Snippet;
 	}
 
-	let { id, label, hint, error, optional = false, meta, children }: Props = $props();
+	let { id, label, hint, error, optional = false, hideLabel = false, meta, children }: Props = $props();
 </script>
 
 <div class="field">
-	<div class="row">
+	<div class="row" class:sr-only={hideLabel}>
 		<label class="lbl" id="{id}-l" for={id}>{label}{#if optional}<span class="opt"> optional</span>{/if}</label>
 		{#if meta}<span class="meta">{@render meta()}</span>{/if}
 	</div>

@@ -25,6 +25,8 @@
 		hint?: string | null;
 		error?: string | null;
 		disabled?: boolean;
+		/** Label for screen readers only, for a table cell under a column head. */
+		hideLabel?: boolean;
 		onchange?: (value: number | null) => void;
 	}
 
@@ -41,6 +43,7 @@
 		hint,
 		error,
 		disabled = false,
+		hideLabel = false,
 		onchange,
 	}: Props = $props();
 
@@ -96,7 +99,7 @@
 	}
 </script>
 
-<FieldFrame {id} {label} {hint} error={issue}>
+<FieldFrame {id} {label} {hint} error={issue} {hideLabel}>
 	<div class="row">
 		<div class="box" class:bad={!!issue} class:off={disabled}>
 			<span class="cap base" id="{id}-base">{baselineLabel}&nbsp;{#if changed}<s>{formatFigure(baseline)}</s>{:else}<span class="fig">{formatFigure(baseline)}</span>{/if}</span>
@@ -119,10 +122,11 @@
 			/>
 			<span class="cap" id="{id}-unit">{unit}</span>
 		</div>
-		{#if changed}
-			<span class="delta" aria-hidden="true">{signedDelta(delta)}</span>
+		<!-- the chip and reset keep their slot when hidden, so boxes in a column share a right edge -->
+		<span class="after" class:hide={!changed}>
+			<span class="delta" aria-hidden="true">{changed ? signedDelta(delta) : '+0.0'}</span>
 			<button type="button" class="undo" aria-label="Reset to {baselineLabel}" title="Reset to {baselineLabel}" {disabled} onclick={reset}><Icon name="undo" /></button>
-		{/if}
+		</span>
 	</div>
 	<span class="sr-only" aria-live="polite">{spoken}</span>
 </FieldFrame>
@@ -145,7 +149,7 @@
 	.box.off { opacity: 0.55; }
 	.in {
 		flex: 1;
-		min-width: 5ch;
+		min-width: calc(6ch + 22px);
 		padding: 5px 10px 5px 12px;
 		border: 0;
 		background: transparent;
@@ -170,8 +174,12 @@
 	.base { border-left: 0; border-right: 1px solid var(--line); }
 	.fig, s { font: 400 12px var(--font-mono); font-variant-numeric: tabular-nums; }
 	s { color: var(--muted); text-decoration-color: var(--line-strong); }
+	.after { flex: none; display: flex; align-items: center; gap: 6px; }
+	.after.hide { visibility: hidden; }
 	.delta {
 		flex: none;
+		min-width: 6ch;
+		text-align: center;
 		padding: 0 6px;
 		border-radius: 99px;
 		border: 1px solid var(--blue-line);
