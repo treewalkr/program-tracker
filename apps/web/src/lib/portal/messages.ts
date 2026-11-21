@@ -213,7 +213,7 @@ export const en = {
   "cardio.durationHint": "min:sec, like 35:10",
   "cardio.rpeHint": "1 = very easy · 10 = all-out, couldn't go on",
   "cardio.distance": "Distance",
-  "cardio.avgHr": "Average heart rate",
+  "cardio.avgHr": "Avg heart rate",
   "cardio.maxHr": "Max heart rate",
   "cardio.pain": "Pain or discomfort",
   "cardio.painNote": "Where, and how bad?",
