@@ -9,10 +9,10 @@ const answer = (r: FeedbackAnswerRating | null) =>
 const human = { aiPublic: null } as unknown as FeedbackComment;
 
 describe("publicConfidence", () => {
-  test("high reads good, medium warn, low isn't shown", () => {
+  test("high reads good, medium warn, low neutral — every level is shown", () => {
     expect(publicConfidence("high")).toEqual({ label: "High confidence", tone: "good" });
     expect(publicConfidence("medium")).toEqual({ label: "Medium confidence", tone: "warn" });
-    expect(publicConfidence("low")).toBeNull();
+    expect(publicConfidence("low")).toEqual({ label: "Low confidence", tone: "neutral" });
   });
 });
 

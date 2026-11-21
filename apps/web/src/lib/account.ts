@@ -40,7 +40,7 @@ export const accountApi = {
   notifications: () => unwrap<NotificationSettings>(client.v1.account.notifications.get()),
   setNotifications: (patch: NotificationPatch) =>
     unwrap<NotificationSettings>(client.v1.account.notifications.patch(patch)),
-  /** Admin: AI answers on feedback — off, drafts only, or auto-send confident ones. */
+  /** Admin: AI answers on feedback — off, drafts only, or auto-send all. */
   feedbackAiMode: async () => (await unwrap<{ mode: FeedbackAiMode }>(client.v1.account["feedback-ai"].get())).mode,
   setFeedbackAiMode: async (mode: FeedbackAiMode) =>
     (await unwrap<{ mode: FeedbackAiMode }>(client.v1.account["feedback-ai"].put({ mode }))).mode,

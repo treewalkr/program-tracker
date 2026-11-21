@@ -77,7 +77,7 @@ export const accountRoutes = new Elysia({ prefix: "/v1/account", tags: ["account
   .get(
     "/feedback-ai",
     async ({ isAdmin, status }) => (isAdmin ? { mode: await feedbackAiMode() } : status(403, ADMIN_ONLY)),
-    { detail: { summary: "AI answers on feedback: off, drafts only, or auto-send confident ones (admin)" } },
+    { detail: { summary: "AI answers on feedback: off, drafts only, or auto-send all (admin)" } },
   )
   .put(
     "/feedback-ai",

@@ -51,19 +51,17 @@ export const AI_MODE_OPTIONS: { value: FeedbackAiMode; label: string; help: stri
   { value: "drafts", label: "Drafts only", help: "Every answer waits on the ticket for you to send, edit or discard." },
   {
     value: "auto",
-    label: "Auto-send confident",
-    help: "Answers it verified in the code (already exists, shipped, how-to) go to the reporter; the rest wait as drafts.",
+    label: "Auto-send all",
+    help: "Every answer goes to the reporter — questions and best guesses included. After a 👎 the next one waits for you. A reporter's “solved” closes the ticket quietly.",
   },
 ];
 
 /**
- * The confidence a reporter sees beside a sent AI answer. Only high and
- * medium: a low-confidence answer goes out only after the admin sent it,
- * and then the admin's judgement, not the AI's guess, stands behind it.
+ * The confidence a reporter sees beside a sent AI answer — low included:
+ * in Auto-send all a best guess goes out too, and the badge says so.
  */
-export function publicConfidence(c: FeedbackAiConfidence): { label: string; tone: "good" | "warn" } | null {
-  if (c === "low") return null;
-  return { label: AI_CONFIDENCE_LABEL[c], tone: c === "high" ? "good" : "warn" };
+export function publicConfidence(c: FeedbackAiConfidence): { label: string; tone: "good" | "warn" | "neutral" } {
+  return { label: AI_CONFIDENCE_LABEL[c], tone: AI_CONFIDENCE_TONE[c] };
 }
 
 /** "Wrong · Unclear · “It moved”" — a 👎's tags and comment in one quiet line. */
