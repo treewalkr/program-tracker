@@ -63,6 +63,13 @@ describe("newClientDraft", () => {
     expect(restored?.profile).toMatchObject({ experience: "", birthDate: "", sex: "", bodyweightKg: null, heightCm: null });
   });
 
+  test("a session-load target survives the draft round trip", () => {
+    const s = mem();
+    const profile = { ...emptyProfile(), cardioUnit: "session_load", cardioValue: 600 };
+    s.setItem("sl", JSON.stringify({ v: 1, savedAt: "x", data: { name: "Nok", email: "", profile } }));
+    expect(readNewClientDraft("sl", s)?.profile).toMatchObject({ cardioUnit: "session_load", cardioValue: 600 });
+  });
+
   test("sign-out clears every new-client draft and nothing else", () => {
     const s = mem();
     s.setItem("pt.newClientDraft.mock.open", "x");

@@ -386,3 +386,10 @@ describe("folding on-track clients", () => {
     expect(foldsOnTrack(rows(0, 12))).toBe(false);
   });
 });
+
+test("a session-load target counts RPE × minutes this week, labelled AU", () => {
+  const nok = { ...client, cardioTarget: { unit: "session_load", value: 600 } } as unknown as ClientDto;
+  const ride = { ...log("2026-11-03", null, [], "p1", "cardio"), cardio: { modality: "Cycling", durationSec: 3600, rpe: 4 } } as unknown as SessionLogDto;
+  const s = buildClientStrip(nok, program([session("a", 1, 1)]), [ride], weeks, "2026-11-04");
+  expect(s.cardio).toEqual({ done: 240, target: 600, unitLabel: "AU" });
+});

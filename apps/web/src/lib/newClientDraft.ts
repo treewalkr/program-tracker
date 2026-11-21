@@ -66,7 +66,7 @@ function validProfile(p: unknown): p is ProfileForm {
     f.oneRepMaxes.every(
       (r) => r != null && typeof r === "object" && typeof r.exerciseId === "string" && (r.kg === null || typeof r.kg === "number") && typeof r.date === "string"
     ) &&
-    ["none", "minutes", "sessions", "zone_minutes"].includes(f.cardioUnit as string) &&
+    ["none", "minutes", "sessions", "session_load", "zone_minutes"].includes(f.cardioUnit as string) &&
     typeof f.cardioValue === "number" &&
     typeof f.goals === "string" &&
     typeof f.limitations === "string"
