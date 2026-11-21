@@ -191,8 +191,9 @@ function kindOf(hints: RoleHints): Kind {
   if (PREP_NAME.test(hints.name)) return "movement_prep";
   if (MOBILITY_NAME.test(hints.name)) return "mobility";
   if (CONDITIONING_NAME.test(hints.name) && !SPRINT.test(hints.name)) return "conditioning";
-  // "No pattern" (mobility, drills) gives no hint: the name heuristics decide.
-  const e = hints.movementPattern === "no_pattern" ? { ...hints, movementPattern: null } : hints;
+  // "No pattern" (mobility, drills) and a lone "Multi-movement" give no hint: the name heuristics decide.
+  const e =
+    hints.movementPattern === "no_pattern" || hints.movementPattern === "multi_movement" ? { ...hints, movementPattern: null } : hints;
   if (EXPLOSIVE.test(e.name)) return "power";
   if (e.movementPattern && TRUNK_PATTERNS.has(e.movementPattern)) return "core";
   if (e.primaryMuscleGroup === "core" || e.primaryMuscleGroup === "obliques") return "core";

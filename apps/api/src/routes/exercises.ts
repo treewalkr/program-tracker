@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exercises, setLogs, type ExerciseRow } from "@pt/db";
-import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup, NO_PATTERN, primaryPattern } from "@pt/shared";
+import { Equipment, FunctionalMovement, MovementPattern, MuscleGroup, NO_PATTERN, orderPatterns, primaryPattern } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { ExerciseModel } from "../models/exercises";
 
@@ -14,7 +14,7 @@ interface Fields {
   functionalMovement?: string | null;
 }
 
-/** A movement-pattern list with an unknown value, a duplicate, or "No pattern" combined with another tag. */
+/** A movement-pattern list with an unknown value, a duplicate, or "No pattern" combined with another tag (Multi-movement included). */
 function invalidPatterns(list: readonly string[]): boolean {
   return (
     list.some((p) => !MovementPattern.safeParse(p).success) ||
@@ -23,9 +23,12 @@ function invalidPatterns(list: readonly string[]): boolean {
   );
 }
 
-/** The new list from a body: `movementPatterns`, or the previous web build's single `movementPattern`. */
+/**
+ * The new list from a body: `movementPatterns` ("Multi-movement" moved last, so
+ * it is never the primary), or the previous web build's single `movementPattern`.
+ */
 function patternsFrom(b: Fields): MovementPattern[] | undefined {
-  if (b.movementPatterns !== undefined) return b.movementPatterns as MovementPattern[];
+  if (b.movementPatterns !== undefined) return orderPatterns(b.movementPatterns as MovementPattern[]);
   if (b.movementPattern !== undefined) return b.movementPattern === null ? [] : [b.movementPattern as MovementPattern];
   return undefined;
 }

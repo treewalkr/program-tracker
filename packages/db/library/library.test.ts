@@ -33,6 +33,7 @@ const PRIMARY_FOR: Record<MP, MG[]> = {
   anti_extension: ["core"],
   carry: ["forearms", "core", "traps", "quads", "full_body", "shoulders"],
   isolation: MuscleGroup.options,
+  multi_movement: MuscleGroup.options,
   no_pattern: MuscleGroup.options,
 };
 
@@ -53,6 +54,7 @@ const FUNCTIONAL_FOR: Record<MP, (FM | null)[]> = {
   anti_extension: [null],
   carry: ["locomotion"],
   isolation: [null],
+  multi_movement: [...FunctionalMovement.options, null],
   no_pattern: [null],
 };
 

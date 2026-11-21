@@ -102,6 +102,20 @@ describe.skipIf(!dbUp)("exercise library", () => {
     expect(cleared.movementPatterns).toEqual([]);
   });
 
+  test("Multi-movement is stored last, never primary, counts toward the cap (FB-019)", async () => {
+    const { status, body } = await create({ movementPatterns: ["multi_movement", "knee_dominant", "hip_dominant"] });
+    expect(status).toBe(201);
+    expect(body.movementPatterns).toEqual(["knee_dominant", "hip_dominant", "multi_movement"]);
+    expect(body.movementPattern).toBe("knee_dominant");
+    const { body: patched } = await call("PATCH", `/v1/exercises/${body.id}`, { movementPatterns: ["multi_movement"] });
+    expect(patched.movementPatterns).toEqual(["multi_movement"]);
+    expect(patched.movementPattern).toBeNull();
+    const fourPlusMulti = ["carry", "rotation", "knee_dominant", "hip_dominant", "multi_movement"];
+    expect((await create({ movementPatterns: fourPlusMulti })).status).toBe(201);
+    expect((await create({ movementPatterns: [...fourPlusMulti, "isolation"] })).status).toBe(422);
+    expect((await create({ movementPatterns: ["multi_movement", "no_pattern"] })).status).toBe(422);
+  });
+
   test("the previous web build's single movementPattern still sets the list", async () => {
     const { body } = await create({ movementPattern: "carry" });
     expect(body.movementPatterns).toEqual(["carry"]);

@@ -107,6 +107,7 @@ export const MOVEMENT_PATTERNS = [
   "anti_extension",
   "carry",
   "isolation",
+  "multi_movement",
   "no_pattern",
 ] as const;
 export const MovementPattern = z.enum(MOVEMENT_PATTERNS);
@@ -218,6 +219,12 @@ export const MOVEMENT_PATTERN_INFO: Record<
     description: "Single-joint work — curls, lateral raises, triceps extensions, calf raises.",
     core: false,
   },
+  multi_movement: {
+    label: "multi",
+    name: "Multi-movement",
+    description: "Covers more patterns than listed — complexes, flows, full-body drills.",
+    core: false,
+  },
   no_pattern: {
     label: "no pattern",
     name: "No pattern",
@@ -228,6 +235,18 @@ export const MOVEMENT_PATTERN_INFO: Record<
 
 /** The exclusive "No pattern" tag: tagged on purpose, never combined with other tags. */
 export const NO_PATTERN = "no_pattern" satisfies MovementPattern;
+
+/**
+ * The "Multi-movement" marker: the exercise covers more patterns than its list
+ * shows. Picked alongside specific tags (it counts toward the cap), always
+ * stored last, never the primary, and exclusive with "No pattern".
+ */
+export const MULTI_MOVEMENT = "multi_movement" satisfies MovementPattern;
+
+/** Put "Multi-movement" last in a pattern list, keeping the rest in order. */
+export function orderPatterns<P extends string>(list: readonly P[]): P[] {
+  return list.includes(MULTI_MOVEMENT as P) ? [...list.filter((p) => p !== MULTI_MOVEMENT), MULTI_MOVEMENT as P] : [...list];
+}
 
 export const FUNCTIONAL_MOVEMENT_INFO: Record<
   FunctionalMovement,
@@ -349,11 +368,12 @@ export const Exercise = z.object({
 export type Exercise = z.infer<typeof Exercise>;
 
 /**
- * The primary movement pattern: the first tag, or null when untagged. Balance,
- * roles and placement read only this; the rest are for search, filters and AI context.
+ * The primary movement pattern: the first tag that isn't "Multi-movement", or
+ * null when there is none (untagged, or only the marker). Balance, roles and
+ * placement read only this; the rest are for search, filters and AI context.
  */
 export function primaryPattern<P extends string>(e: { movementPatterns?: readonly P[] | null }): P | null {
-  return e.movementPatterns?.[0] ?? null;
+  return e.movementPatterns?.find((p) => p !== MULTI_MOVEMENT) ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -570,7 +590,8 @@ export function patternBalance(
   for (const item of list) {
     const n = hardSetCount(item.sets);
     const p = item.movementPattern;
-    if (!p) {
+    // "Multi-movement" is never a primary; on its own it counts as untagged.
+    if (!p || p === MULTI_MOVEMENT) {
       result.unclassified += n;
       continue;
     }

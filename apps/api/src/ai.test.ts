@@ -320,6 +320,23 @@ describe("buildGenerationMessages", () => {
     expect(user).toContain("- ex-4 | Bulgarian Split Squat (quads, dumbbell, knee_dominant (primary)/hip_dominant, single_leg)");
   });
 
+  test("a Multi-movement entry lists it last, explained, never as primary (FB-019)", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya", sessionsPerWeek: 2 },
+      previousProgram: null,
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [
+        { id: "ex-5", name: "Barbell Complex", primaryMuscleGroup: "full_body", equipment: "barbell", movementPatterns: ["knee_dominant", "hip_dominant", "multi_movement"], functionalMovement: null },
+        { id: "ex-6", name: "Animal Flow", primaryMuscleGroup: "full_body", equipment: "bodyweight", movementPatterns: ["multi_movement"], functionalMovement: null },
+      ],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- ex-5 | Barbell Complex (full_body, barbell, knee_dominant (primary)/hip_dominant/multi_movement (also covers patterns not listed), function n/a)");
+    expect(user).toContain("- ex-6 | Animal Flow (full_body, bodyweight, multi_movement (also covers patterns not listed), function n/a)");
+  });
+
   test("a No pattern entry reads as 'no pattern', not n/a", () => {
     const { user } = buildGenerationMessages({
       client: { name: "Maya", sessionsPerWeek: 2 },

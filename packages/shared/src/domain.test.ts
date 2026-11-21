@@ -32,6 +32,7 @@ import {
   newSet,
   patternBalance,
   primaryPattern,
+  orderPatterns,
   hardSetCount,
   sessionsPatternBalance,
   Phasing,
@@ -813,6 +814,7 @@ describe("Movement taxonomy", () => {
       "anti_extension",
       "carry",
       "isolation",
+      "multi_movement",
       "no_pattern",
     ]);
     expect(Object.keys(MOVEMENT_PATTERN_INFO)).toEqual([...MOVEMENT_PATTERNS]);
@@ -882,6 +884,20 @@ describe("primaryPattern", () => {
     expect(primaryPattern({ movementPatterns: [] })).toBeNull();
     expect(primaryPattern({})).toBeNull();
   });
+
+  test("skips Multi-movement: a lone marker is no primary (FB-019)", () => {
+    expect(primaryPattern({ movementPatterns: ["multi_movement", "hip_dominant"] })).toBe("hip_dominant");
+    expect(primaryPattern({ movementPatterns: ["knee_dominant", "multi_movement"] })).toBe("knee_dominant");
+    expect(primaryPattern({ movementPatterns: ["multi_movement"] })).toBeNull();
+  });
+});
+
+describe("orderPatterns", () => {
+  test("puts Multi-movement last and keeps the rest in order (FB-019)", () => {
+    expect(orderPatterns(["multi_movement", "knee_dominant", "hip_dominant"])).toEqual(["knee_dominant", "hip_dominant", "multi_movement"]);
+    expect(orderPatterns(["hip_dominant", "knee_dominant"])).toEqual(["hip_dominant", "knee_dominant"]);
+    expect(MOVEMENT_PATTERN_INFO.multi_movement).toMatchObject({ name: "Multi-movement", core: false });
+  });
 });
 
 describe("patternBalance", () => {
@@ -931,6 +947,10 @@ describe("patternBalance", () => {
     const b = patternBalance([ex("no_pattern", 2), ex("isolation", 3), ex(null, 1)]);
     expect(b).toMatchObject({ noPattern: 2, iso: 3, unclassified: 1, core: 0 });
     expect(formatPatternBalance(b)).toBe("6 sets — iso 3 · 2 no pattern · 1 untagged");
+  });
+
+  test("Multi-movement is never a primary: on its own it counts as untagged (FB-019)", () => {
+    expect(patternBalance([ex("multi_movement", 2), ex("knee_dominant", 3)])).toMatchObject({ unclassified: 2, knee: 3, core: 0 });
   });
 
   test("formatPatternBalance names the unit", () => {

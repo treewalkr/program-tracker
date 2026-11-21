@@ -158,6 +158,7 @@ describe("suggestRole", () => {
     expect(suggestRole(ex("Dead Bug", { movementPattern: "no_pattern" }), [], 0)).toBe("core");
     expect(suggestRole(ex("Cat Camel", { movementPattern: "no_pattern" }), [], 0)).toBe("mobility");
     expect(suggestRole(ex("Mystery Drill", { movementPattern: "no_pattern" }), [], 0)).toBe("accessory");
+    expect(suggestRole(ex("Cat Camel", { movementPattern: "multi_movement" }), [], 0)).toBe("mobility");
   });
 
   test("warm-up and activation names → movement prep", () => {

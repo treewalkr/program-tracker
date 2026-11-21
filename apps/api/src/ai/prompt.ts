@@ -1,5 +1,6 @@
 import {
   BUILTIN_ROLE_LABELS,
+  MULTI_MOVEMENT,
   groupTag,
   deloadRulesText,
   type DeloadSettings,
@@ -89,12 +90,16 @@ export interface ExerciseHistoryEntry {
 /**
  * A catalog line's pattern field: every tag, the primary marked when there are
  * several ("knee_dominant (primary)/hip_dominant"); "no pattern" for mobility
- * and drills; "pattern n/a" when untagged.
+ * and drills; "pattern n/a" when untagged. The Multi-movement marker goes last
+ * and says what it means inline, since it is never the primary.
  */
 function patternTags(tags: readonly string[]): string {
   if (tags.length === 0) return "pattern n/a";
   if (tags[0] === "no_pattern") return "no pattern";
-  return tags.length === 1 ? tags[0] : [`${tags[0]} (primary)`, ...tags.slice(1)].join("/");
+  const more = tags.includes(MULTI_MOVEMENT) ? "multi_movement (also covers patterns not listed)" : "";
+  const real = tags.filter((t) => t !== MULTI_MOVEMENT);
+  const listed = real.length > 1 ? [`${real[0]} (primary)`, ...real.slice(1)] : real;
+  return [...listed, ...(more ? [more] : [])].join("/");
 }
 
 export interface CatalogEntry {
