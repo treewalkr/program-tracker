@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
+  clientHrProfiles,
   clients,
   exercises,
   programExamples,
@@ -11,6 +12,8 @@ import {
 } from "@pt/db";
 import {
   ageOn,
+  localDateOf,
+  profileOn,
   effectiveDeload,
   blockPulse,
   chainBalanceText,
@@ -207,6 +210,8 @@ export async function loadContext(
         date: m.date,
       })),
       cardioTarget: client.cardioTarget ?? null,
+      // Only the bpm bands of today's profile version reach the AI — never the inputs behind them.
+      hrZones: profileOn(await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId)), localDateOf(Date.now()))?.zones ?? null,
       // Basics for the AI. Phone and start date stay out of every prompt.
       experience: client.experience ?? null,
       age: client.birthDate ? ageOn(client.birthDate, new Date().toISOString().slice(0, 10)) : null,

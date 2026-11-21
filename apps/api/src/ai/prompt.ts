@@ -16,6 +16,7 @@ import {
   draftAlternates,
   sameLetterWeeks,
   type CardioTarget,
+  type HrZones,
   type SessionTypeFormat,
   groupSessionTypes,
   type Phasing,
@@ -51,6 +52,8 @@ export interface ClientContext {
   /** ISO weekday the long run is pinned to. */
   longRunDay?: number | null;
   cardioTarget?: CardioTarget | null;
+  /** Bpm per zone from the HR profile version in effect today; null = no profile (never estimated). */
+  hrZones?: HrZones | null;
   /** Recorded 1RMs with catalog names, for %1RM prescriptions. */
   oneRepMaxes?: { exerciseId: string; name: string; kg: number; date: string }[] | null;
   /** Client basics. Phone and start date are admin-only and never reach the AI. */
@@ -257,12 +260,31 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
       "weekday"?: number,           // 1=Mon … 7=Sun, from the client's days (see the weekday rule); sessions may share a day
       "type"?: string,              // one of SESSION TYPES whose format matches kind (e.g. "Mobility"); omit if none fits
       "cardio"?: {                   // required if kind is "cardio"; omit/null for exercises
-        "modality": string,          // "Bike", "Run", "Rower", etc.
-        "durationMin"?: number,      // 1-300
-        "hrZone"?: number,           // 1-5
+        "modality": string,          // "Running", "Cycling", "Rowing", etc.
+        "durationMin"?: number,      // 1-300; a session needs a duration, a distance or timed/measured intervals
+        "hrZone"?: number,           // 1-5: 1 recovery, 2 easy aerobic, 3 steady, 4 threshold, 5 max
         "intensity"?: string,        // e.g. "easy", "threshold"
         "distanceKm"?: number,
-        "targetRpe"?: number         // 1-10
+        "paceSecPerKm"?: number,     // target pace in seconds per km, e.g. 330 = 5:30/km
+        "targetRpe"?: number,        // 1-10, the whole session
+        "intervals"?: [              // structured sessions only (tempo, intervals); up to 20, in order
+          {
+            "id": string,            // short and unique in the session, e.g. "wu", "reps"
+            "type": "warmup" | "work" | "active_recovery" | "passive_recovery" | "cooldown",
+            "repeat"?: number,       // 1-50, work reps
+            "durationSec"?: number,  // time per rep, or…
+            "distanceM"?: number,    // …distance per rep (never both needed)
+            "hrZone"?: number,       // 1-5
+            "paceSecPerKm"?: number,
+            "rpe"?: number,
+            "notes"?: string,
+            "recovery"?: {           // work only: rest between reps (counted repeat − 1 times)
+              "type": "active_recovery" | "passive_recovery",
+              "durationSec"?: number,
+              "distanceM"?: number
+            }
+          }
+        ]
       },
       "notes": string?,             // optional
       "exercises": [
@@ -368,7 +390,7 @@ function sessionStructureRules(client: ClientContext, previous: ProgramSummary |
   const days = [...new Set(client.trainingDays ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   return [
     `- Exercise sessions (kind "exercises") per week: ${exerciseSessionTarget(client, previous, block)}. List them in the order they should be trained.`,
-    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes or zone-minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min). With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the exercise session number and do not use up a training day. List cardio sessions after the exercise sessions.',
+    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min); session load (AU = session RPE × minutes) → pick sessions whose targetRpe × minutes add up to it (e.g. 600 AU → 2 × 40 min at RPE 4 + 1 × 40 min at RPE 7 = 600), keeping most sessions easy. Every cardio session states a targetRpe so its load is known. Use intervals only for structured work (tempo, intervals); an easy or long session is one duration. With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the exercise session number and do not use up a training day. List cardio sessions after the exercise sessions.',
     '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
     weekdayRule(client, days),
   ];
@@ -424,8 +446,31 @@ function cardioTargetLine(target: CardioTarget): string {
       ? "prescribed minutes"
       : target.unit === "sessions"
         ? "cardio sessions"
-        : "zone-minutes";
+        : target.unit === "session_load"
+          ? "session load (targetRpe × minutes)"
+          : "zone-minutes";
   return `CARDIO TARGET (per week): ${target.value} ${label} — prescribe the week's cardio sessions so their ${unitPhrase} add up to it.`;
+}
+
+/** The HR line when it matters: the member has zones, or cardio is in play (a target, cardio days, a cardio session now). */
+function hrProfileLines(ctx: Pick<GenerationContext, "client" | "previousProgram">): string[] {
+  const c = ctx.client;
+  const cardio =
+    !!c.hrZones?.length ||
+    !!c.cardioTarget ||
+    !!c.cardioDays?.length ||
+    c.longRunDay != null ||
+    !!ctx.previousProgram?.sessions.some((s) => s.kind === "cardio");
+  return cardio ? [hrProfileLine(c.hrZones)] : [];
+}
+
+/** The member's HR zones in bpm, or the rule for when they have none. */
+export function hrProfileLine(zones: HrZones | null | undefined): string {
+  if (!zones?.length) {
+    return "HR PROFILE: none — prescribe cardio by hrZone and targetRpe only; never invent HRmax, LTHR, resting HR or VO₂max, and never write bpm.";
+  }
+  const bands = [...zones].sort((a, b) => a.zone - b.zone).map((z) => `Z${z.zone} ${z.min}–${z.max}`).join(", ");
+  return `HR PROFILE (bpm per zone, from the trainer): ${bands}. Prescribe by hrZone; the app shows the member these bpm bands.`;
 }
 
 /** SESSION TYPES section: presets grouped by main type, then the trainer's own, each with the format it needs. */
@@ -480,6 +525,7 @@ export function buildGenerationMessages(ctx: GenerationContext) {
       : "LIMITATIONS: none listed",
     ...oneRepMaxLines(ctx.client),
     ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
+    ...hrProfileLines(ctx),
     "",
     ctx.previousProgram
       ? [
@@ -604,7 +650,7 @@ export interface RevisionContext extends GenerationContext {
 }
 
 /** Output schema spec for proposal turns (propose → build). */
-const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"week"?: number (the WEEK heading in DRAFT SLOTS the day/slot numbers read; the change reaches every week with that week's letter — omit for week 1 or a one-week draft), "day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4")}]} | null}`;
+const PROPOSAL_TURN_SCHEMA_SPEC = `{"reply": string (1-4 sentences — answers the message; when proposing, says in plain words what would change and why), "proposal": {"summary": string (one sentence), "changes": [{"week"?: number (the WEEK heading in DRAFT SLOTS the day/slot numbers read; the change reaches every week with that week's letter — omit for week 1 or a one-week draft), "day": number (the session's #N from DRAFT SLOTS — its position in the list, cardio included; NOT a weekday), "slot": number | null (exercise number from DRAFT SLOTS; null for kind "add", and for an "edit" of a cardio session), "kind": "swap" | "edit" | "add" | "remove", "from": string | null (current exercise name, or the cardio session name; null for "add"), "to": string | null (new exercise name, or the same name for "edit"; null for "remove"), "detail": string (prescription after the change, e.g. "5×5 @RPE 7–8 · rest 180s", or for cardio "35 min · Z2 · RPE 4" or, with intervals, "10:00 warm-up Z2 + 5×3:00 Z4 / 2:00 easy + 5:00 cool-down · RPE 7")}]} | null}`;
 
 /**
  * Hand edits reach the model as "Edited the draft by hand (vN): …" lines in
@@ -619,7 +665,7 @@ function handEditRules(conversation: string | null | undefined): string[] {
 
 const PROPOSAL_RULES = [
   "- This is a CHAT TURN. You do NOT write a new draft in this turn.",
-  '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. To change a cardio session (modality, duration, zone, intensity, distance, RPE), add one "edit" with that session\'s day, slot null and the full new cardio prescription in "detail". Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
+  '- If the message asks to change the program (swap/add/remove/reorder exercises, sets, reps, RPE, rest, volume, intensity, schedule), set "proposal" to the smallest list of slot changes that does what is asked: one entry per exercise slot touched, numbered as in DRAFT SLOTS. To change a cardio session (modality, duration, zone, intensity, distance, pace, RPE or its intervals), add one "edit" with that session\'s day, slot null and the full new cardio prescription in "detail" — every interval in order, with reps, time or distance, zone and the recovery between reps. Never include a change the trainer did not ask for. Otherwise set "proposal" to null and answer in "reply". When the request is unclear, set "proposal" to null and ask one clarifying question in "reply".',
 ];
 
 /**
@@ -696,6 +742,7 @@ export function buildRevisionMessages(ctx: RevisionContext): { system: string; u
       : "LIMITATIONS: none listed",
     ...oneRepMaxLines(ctx.client),
     ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
+    ...hrProfileLines(ctx),
     "",
     ctx.previousProgram
       ? [
@@ -803,6 +850,7 @@ export function buildWeekMessages(ctx: WeekContext): { system: string; user: str
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
     ...oneRepMaxLines(ctx.client),
+    ...hrProfileLines(ctx),
     "",
     ctx.previousProgram
       ? [
@@ -891,6 +939,7 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
       ? `LIMITATIONS (hard constraints): ${ctx.client.limitations}`
       : "LIMITATIONS: none listed",
     ...oneRepMaxLines(ctx.client),
+    ...hrProfileLines(ctx),
     "",
     ctx.previousProgram
       ? [
@@ -1234,6 +1283,7 @@ export function buildChatSystem(ctx: ChatContext): string {
       : "LIMITATIONS: none listed",
     ...oneRepMaxLines(ctx.client),
     ...(ctx.client.cardioTarget ? [cardioTargetLine(ctx.client.cardioTarget)] : []),
+    ...hrProfileLines(ctx),
     "",
     ctx.previousProgram
       ? [

@@ -108,6 +108,10 @@ test("cardio interval, pace and bpm changes are compared deeply and labelled", (
   const same = v1();
   same.weeks[0].sessions[1] = withIntervals(180);
   expect(diffDrafts(before, same)).toEqual([]);
+  // a jsonb round trip reorders keys; still no change
+  const reordered = v1();
+  reordered.weeks[0].sessions[1] = cardio("Tempo Ride", { intervals: [{ recovery: { durationSec: 60 }, durationSec: 180, repeat: 4, type: "work", id: "i1" }] });
+  expect(diffDrafts(before, reordered)).toEqual([]);
   const after = v1();
   after.weeks[0].sessions[1] = withIntervals(240);
   expect(diffDrafts(before, after).map((c) => [c.kind, c.from, c.to])).toEqual([["cardio", "4×3:00 work", "4×4:00 work"]]);

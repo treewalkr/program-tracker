@@ -319,6 +319,16 @@ function intervalLabel(iv: SlotDiffInterval): string {
 
 type CardioValue = string | number | null;
 
+/** JSON with object keys sorted, so a jsonb round trip (which reorders keys) still compares equal. */
+function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  if (v && typeof v === "object") {
+    const entries = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined);
+    return `{${entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, x]) => `${JSON.stringify(k)}:${stableJson(x)}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+
 /** Each field: how to read it (a comparable value) and how to label it. Intervals compare as a whole. */
 const CARDIO_FIELDS: { get: (c: SlotDiffCardio) => CardioValue; label: (c: SlotDiffCardio) => string; none: string }[] = [
   { get: (c) => c.modality ?? null, label: (c) => `${c.modality}`, none: "no modality" },
@@ -330,7 +340,7 @@ const CARDIO_FIELDS: { get: (c: SlotDiffCardio) => CardioValue; label: (c: SlotD
   { get: (c) => c.paceSecPerKm ?? null, label: (c) => `${mmss(c.paceSecPerKm!)}/km`, none: "no pace" },
   { get: (c) => c.targetRpe ?? null, label: (c) => `RPE ${c.targetRpe}`, none: "no RPE" },
   {
-    get: (c) => (c.intervals?.length ? JSON.stringify(c.intervals) : null),
+    get: (c) => (c.intervals?.length ? stableJson(c.intervals) : null),
     label: (c) => c.intervals!.map(intervalLabel).join(" + "),
     none: "no intervals",
   },
