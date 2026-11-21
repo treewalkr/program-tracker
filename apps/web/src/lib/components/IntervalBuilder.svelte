@@ -127,20 +127,27 @@
   }
   const remove = (i: number) => commit(intervals.filter((_, j) => j !== i));
   const recoveryOf = (iv: CardioInterval) => iv.recovery ?? { type: "passive_recovery" as const };
+
+  /** The builder's own width: under 600px (a half-width editor, a phone) the targets drop to a second line. */
+  let width = $state(0);
+  const narrow = $derived(width > 0 && width < 600);
+  const cols = $derived(narrow ? 6 : 8);
 </script>
 
-<div class="ib">
+<div class="ib" bind:clientWidth={width}>
   <div class="scroll">
-    <table class="sheet">
+    <table class="sheet" class:narrow>
       <thead>
         <tr>
           <th class="ord"><span class="sr-only">Order</span></th>
           <th>Type</th>
           <th class="r">Repeat</th>
           <th class="r">Time</th>
-          <th class="r">Distance m</th>
-          <th>Target</th>
-          <th class="r">RPE</th>
+          <th class="r">{narrow ? "Dist. m" : "Distance m"}</th>
+          {#if !narrow}
+            <th>Target</th>
+            <th class="r">RPE</th>
+          {/if}
           <th><span class="sr-only">Remove</span></th>
         </tr>
       </thead>
@@ -148,7 +155,14 @@
         {#each intervals as iv, i (iv.id)}
           {@const name = `interval ${i + 1}`}
           {@const bpm = iv.hrBpm ?? zoneBpm(zones, iv.hrZone)}
-          <tr class="row-{kindOf(iv.type)}">
+          {#snippet zoneCell()}
+            <span class="zone"><SelectCell label="HR zone of {name}" options={zoneOptions} value={iv.hrZone != null ? String(iv.hrZone) : ""} onchange={(z) => patch(i, { hrZone: z ? Number(z) : undefined })} /></span>
+            {#if bpm}<span class="bpm">{bpm.min}–{bpm.max} bpm</span>{/if}
+          {/snippet}
+          {#snippet rpeCell()}
+            <InputCell label="RPE of {name}" figure placeholder="—" value={iv.rpe != null ? String(iv.rpe) : ""} oncommit={(v) => { const n = numOrUndef(v, false); patch(i, { rpe: n != null ? Math.min(10, Math.max(1, n)) : undefined }); }} />
+          {/snippet}
+          <tr class="row-{kindOf(iv.type)}" class:has-sub={narrow}>
             <td class="ord">
               <button type="button" class="icon-btn" aria-label="Move {name} up" disabled={i === 0} onclick={() => move(i, -1)}><Icon name="arrow-up" size={12} /></button>
               <button type="button" class="icon-btn" aria-label="Move {name} down" disabled={i === intervals.length - 1} onclick={() => move(i, 1)}><Icon name="arrow-down" size={12} /></button>
@@ -157,40 +171,63 @@
             <td class="r w-rep"><InputCell label="Repeats of {name}" figure value={String(iv.repeat ?? 1)} oncommit={(v) => patch(i, { repeat: Math.min(50, Math.max(1, numOrUndef(v) ?? 1)) })} /></td>
             <td class="r w-time"><InputDuration label="Time of {name}" cell step={15} value={iv.durationSec ?? null} onchange={(s) => patch(i, { durationSec: s && s > 0 ? s : undefined })} /></td>
             <td class="r w-dist"><InputCell label="Distance in metres of {name}" figure placeholder="—" value={iv.distanceM != null ? String(iv.distanceM) : ""} oncommit={(v) => patch(i, { distanceM: numOrUndef(v) })} /></td>
-            <td class="target">
-              <span class="zone"><SelectCell label="HR zone of {name}" options={zoneOptions} value={iv.hrZone != null ? String(iv.hrZone) : ""} onchange={(z) => patch(i, { hrZone: z ? Number(z) : undefined })} /></span>
-              {#if bpm}<span class="bpm">{bpm.min}–{bpm.max} bpm</span>{/if}
-            </td>
-            <td class="r w-rpe"><InputCell label="RPE of {name}" figure placeholder="—" value={iv.rpe != null ? String(iv.rpe) : ""} oncommit={(v) => { const n = numOrUndef(v, false); patch(i, { rpe: n != null ? Math.min(10, Math.max(1, n)) : undefined }); }} /></td>
+            {#if !narrow}
+              <td class="target">{@render zoneCell()}</td>
+              <td class="r w-rpe">{@render rpeCell()}</td>
+            {/if}
             <td><button type="button" class="icon-btn" aria-label="Remove {name}" onclick={() => remove(i)}><Icon name="x" size={12} /></button></td>
           </tr>
+          {#if narrow}
+            <!-- a narrow editor puts the targets on a line of their own, so no column is cut off -->
+            <tr class="sub row-{kindOf(iv.type)}">
+              <td></td>
+              <td colspan="4">
+                <span class="sub-line">
+                  <span class="lbl">Target</span>{@render zoneCell()}
+                  <span class="lbl rpe-lbl">RPE</span><span class="rpe">{@render rpeCell()}</span>
+                </span>
+              </td>
+              <td></td>
+            </tr>
+          {/if}
           {#if iv.type === "work"}
             <tr class="rec">
               <td></td>
               {#if iv.recovery}
                 <td class="rec-type"><span class="arrow" aria-hidden="true">↳</span><SelectCell label="Recovery type after {name}" options={RECOVERY_OPTIONS} value={recoveryOf(iv).type} onchange={(t) => patch(i, { recovery: { ...recoveryOf(iv), type: t } })} /></td>
-                <td class="r muted mono">between · {recoveryCount(iv)}×</td>
+                <td class="r muted mono">{narrow ? "" : "between · "}{recoveryCount(iv)}×</td>
                 <td class="r w-time"><InputDuration label="Recovery time after {name}" cell step={15} value={iv.recovery.durationSec ?? null} onchange={(s) => patch(i, { recovery: { ...recoveryOf(iv), durationSec: s && s > 0 ? s : undefined } })} /></td>
                 <td class="r w-dist"><InputCell label="Recovery distance after {name}" figure placeholder="—" value={iv.recovery.distanceM != null ? String(iv.recovery.distanceM) : ""} oncommit={(v) => patch(i, { recovery: { ...recoveryOf(iv), distanceM: numOrUndef(v) } })} /></td>
-                <td colspan="2">
-                  <ToggleChip on={iv.recoveryAfterLast ?? false} onclick={() => patch(i, { recoveryAfterLast: iv.recoveryAfterLast ? undefined : true })}>Also after the last rep</ToggleChip>
-                </td>
+                {#if !narrow}
+                  <td colspan="2">{@render afterLast(iv, i)}</td>
+                {/if}
                 <td><button type="button" class="icon-btn" aria-label="Remove the recovery after {name}" onclick={() => patch(i, { recovery: undefined, recoveryAfterLast: undefined })}><Icon name="x" size={12} /></button></td>
               {:else}
-                <td colspan="7"><button type="button" class="link" onclick={() => patch(i, { recovery: { type: "active_recovery", durationSec: 120 } })}>+ Recovery between reps</button></td>
+                <td colspan={cols - 1}><button type="button" class="link" onclick={() => patch(i, { recovery: { type: "active_recovery", durationSec: 120 } })}>+ Recovery between reps</button></td>
               {/if}
             </tr>
+            {#if narrow && iv.recovery}
+              <tr class="rec sub">
+                <td></td>
+                <td colspan="4"><span class="sub-line">{@render afterLast(iv, i)}</span></td>
+                <td></td>
+              </tr>
+            {/if}
           {/if}
         {/each}
       </tbody>
       <tfoot>
         <tr>
           <td></td>
-          <td colspan="7"><Button small type="button" onclick={add}>+ Add interval</Button></td>
+          <td colspan={cols - 1}><Button small type="button" onclick={add}>+ Add interval</Button></td>
         </tr>
       </tfoot>
     </table>
   </div>
+
+{#snippet afterLast(iv: CardioInterval, i: number)}
+  <ToggleChip on={iv.recoveryAfterLast ?? false} onclick={() => patch(i, { recoveryAfterLast: iv.recoveryAfterLast ? undefined : true })}>Also after the last rep</ToggleChip>
+{/snippet}
 
   <p class="total">{line}</p>
   {#if parts.length}
@@ -222,6 +259,15 @@
   .w-dist { width: 9ch; }
   .w-rpe { width: 5ch; }
   .target { min-width: 150px; }
+  .sheet.narrow { min-width: 340px; }
+  .sheet.narrow .type { min-width: 0; width: 40%; }
+  tr.has-sub td { border-bottom: 0; }
+  tr.sub td { padding-top: 0; }
+  .sub-line { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; }
+  .lbl { font: 500 12px var(--font-ui); color: var(--muted); }
+  .sub-line .zone { min-width: 52px; }
+  .rpe-lbl { margin-left: auto; }
+  .rpe { display: inline-block; width: 6ch; }
   .zone { display: inline-block; min-width: 72px; }
   .bpm { margin-left: 6px; font: 400 12px var(--font-mono); color: var(--muted); }
   tr.row-work td.type { font-weight: 600; }
