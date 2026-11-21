@@ -3,6 +3,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import { fmtShortDate, latinLang, t } from "./i18n.svelte";
   import { cardioParts, intervalLines, setParts } from "./rx";
+  import { reviewDay } from "./progress";
 
   /**
    * One session as the client sees it. The session in focus leads: larger
@@ -95,7 +96,7 @@
     {#if removeFailed}<p class="remove-err" role="alert">{t("session.removeFailed")}</p>{/if}
     {#if feedback}
       <!-- the coach's word on this log, once they've reviewed it -->
-      <p class="feedback"><span class="fb-by">{t("session.feedback")}{#if session.log.entry?.reviewedAt}{" · "}{fmtShortDate(session.log.entry.reviewedAt.slice(0, 10))}{/if}</span> {feedback}</p>
+      <p class="feedback"><span class="fb-by">{t("session.feedback")}{#if session.log.entry?.reviewedAt}{" · "}{fmtShortDate(reviewDay(session.log.entry.reviewedAt))}{/if}</span> {feedback}</p>
     {/if}
   {/if}
 

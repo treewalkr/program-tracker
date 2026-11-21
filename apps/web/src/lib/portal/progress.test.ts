@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalCardioLog } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { hoursMinutes, logLine, trendPath, vo2Delta } from "./progress";
+import { hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
+import { localDateOf } from "@pt/shared";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
 const tTh = (k: MessageKey, v?: Record<string, string | number>) => format(th[k], v);
@@ -44,5 +45,10 @@ describe("portal progress", () => {
   test("a recent log reads time, then distance · RPE · average HR; a skip says so", () => {
     expect(logLine(log(), tEn)).toEqual({ time: "35:10", detail: "5.2 km · RPE 7 · avg 151 bpm" });
     expect(logLine(log({ skipped: true }), tTh).time).toBe("ไม่ได้เล่น");
+  });
+
+  test("a review shows on the member's own calendar day, not the UTC one", () => {
+    const at = "2026-11-21T20:30:00.000Z";
+    expect(reviewDay(at)).toBe(localDateOf(Date.parse(at)));
   });
 });

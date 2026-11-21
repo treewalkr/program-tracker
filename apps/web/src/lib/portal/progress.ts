@@ -1,4 +1,4 @@
-import type { PortalCardioLog } from "@pt/shared";
+import { localDateOf, type PortalCardioLog } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import type { MessageKey } from "./messages";
 import { distanceText } from "./rx";
@@ -49,4 +49,10 @@ export function logLine(l: PortalCardioLog, t: T, distance: (km: number) => stri
     l.avgHr != null ? t("progress.avgHr", { n: l.avgHr }) : null,
   ].filter(Boolean);
   return { time: l.durationSec != null ? formatDuration(l.durationSec) : "—", detail: detail.join(" · ") };
+}
+
+/** A review timestamp as the member's own calendar day (a Bangkok evening is the next UTC day's morning). */
+export function reviewDay(at: string): string {
+  const ms = Date.parse(at);
+  return Number.isNaN(ms) ? at.slice(0, 10) : localDateOf(ms);
 }

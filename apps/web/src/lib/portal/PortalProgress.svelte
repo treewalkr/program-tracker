@@ -3,7 +3,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import { fmtShortDate, latinLang, t } from "./i18n.svelte";
-  import { cardioDistance, hoursMinutes, logLine, trendPath, vo2Delta } from "./progress";
+  import { cardioDistance, hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
 
   /**
    * The Progress tab: this week's cardio, the VO₂max trend, the coach's
@@ -81,7 +81,7 @@
   {#if latestWord}
     <section class="card word" aria-labelledby="pg-word">
       <h3 id="pg-word">
-        {t("progress.fromCoach", { date: fmtShortDate((latestWord.reviewedAt ?? latestWord.date).slice(0, 10)) })}
+        {t("progress.fromCoach", { date: fmtShortDate(latestWord.reviewedAt ? reviewDay(latestWord.reviewedAt) : latestWord.date) })}
         <span class="pill good"><Icon name="check" />{t("progress.reviewed")}</span>
       </h3>
       <p class="said">{latestWord.trainerFeedback}</p>
