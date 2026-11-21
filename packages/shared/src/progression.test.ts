@@ -60,6 +60,17 @@ describe("applyProgression", () => {
     expect(out[2].sessions[1].cardio?.durationMin).toBe(30);
   });
 
+  test("derived weeks deep-copy cardio intervals (no shared nested objects)", () => {
+    const w1 = week1();
+    w1.sessions[1].cardio!.intervals = [{ id: "i1", type: "work", repeat: 4, durationSec: 180, recovery: { type: "passive_recovery", durationSec: 60 } }];
+    const out = applyProgression([w1], plan([{ week: 1, directive: "base" }, { week: 2, directive: "base" }]));
+    const iv1 = out[0].sessions[1].cardio!.intervals!;
+    const iv2 = out[1].sessions[1].cardio!.intervals!;
+    expect(iv2).toEqual(iv1);
+    expect(iv2).not.toBe(iv1);
+    expect(iv2[0].recovery).not.toBe(iv1[0].recovery);
+  });
+
   test("+% adds points to %1RM targets and scales kg targets (to 0.5 kg)", () => {
     const out = applyProgression([week1()], plan([{ week: 1, directive: "base" }, { week: 2, directive: "+intensity", progression: { kind: "percent", amount: 2.5 } }]));
     expect(loads(out[1], "dl")).toEqual([77.5, 77.5]);

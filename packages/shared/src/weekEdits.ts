@@ -201,7 +201,7 @@ export function applyForward(weeks: ProgramWeek[], from: number, edits: readonly
           id: crypto.randomUUID(),
           weekday,
           order,
-          cardio: edit.session.cardio ? { ...edit.session.cardio } : edit.session.cardio,
+          cardio: edit.session.cardio ? structuredClone(edit.session.cardio) : edit.session.cardio,
           // A whole new session keeps its own supersets.
           exercises: edit.session.exercises.map((e, i) => ({ ...freshExercise(chains[i].get(n)!), ...(e.group ? { group: e.group } : {}) })),
         };

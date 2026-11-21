@@ -53,7 +53,7 @@ function deriveWeek(base: ProgramWeek, week: number, rule: WeekProgression | und
     return {
       ...s,
       id: old?.id ?? crypto.randomUUID(),
-      cardio: s.cardio ? { ...s.cardio } : s.cardio,
+      cardio: s.cardio ? structuredClone(s.cardio) : s.cardio,
       exercises: s.exercises.map((e, i) => {
         const oldEx = old?.exercises[i]?.exerciseId === e.exerciseId ? old.exercises[i] : undefined;
         return { ...progressExercise(e, s.kind === "exercises" ? rule : undefined), id: oldEx?.id ?? crypto.randomUUID() };

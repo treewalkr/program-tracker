@@ -38,6 +38,16 @@ export interface SlotDiffCardio {
   intensity?: string | null;
   distanceKm?: number | null;
   targetRpe?: number | null;
+  paceSecPerKm?: number | null;
+  hrBpm?: { min: number; max: number } | null;
+  intervals?: readonly SlotDiffInterval[] | null;
+}
+/** The interval fields a label shows; the diff compares whole intervals. */
+export interface SlotDiffInterval {
+  type: string;
+  repeat?: number;
+  durationSec?: number;
+  distanceM?: number;
 }
 export interface SlotDiffSession {
   name: string;
@@ -298,19 +308,41 @@ export function diffDraftSlots(before: SlotDiffWeek, after: SlotDiffWeek): SlotC
 
 // ---- session, cardio and plan changes ----
 
-const CARDIO_FIELDS: { key: keyof SlotDiffCardio; label: (v: string | number) => string; none: string }[] = [
-  { key: "modality", label: (v) => `${v}`, none: "no modality" },
-  { key: "durationMin", label: (v) => `${v} min`, none: "no duration" },
-  { key: "hrZone", label: (v) => `Z${v}`, none: "no zone" },
-  { key: "intensity", label: (v) => `${v}`, none: "no intensity" },
-  { key: "distanceKm", label: (v) => `${v} km`, none: "no distance" },
-  { key: "targetRpe", label: (v) => `RPE ${v}`, none: "no RPE" },
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+
+/** "4×3:00 work" — one interval in a label. */
+function intervalLabel(iv: SlotDiffInterval): string {
+  const size = iv.durationSec != null ? mmss(iv.durationSec) : iv.distanceM != null ? `${iv.distanceM} m` : "";
+  const reps = (iv.repeat ?? 1) > 1 ? `${iv.repeat}×` : "";
+  return `${reps}${size}${size ? " " : ""}${iv.type.replace(/_/g, " ")}`;
+}
+
+type CardioValue = string | number | null;
+
+/** Each field: how to read it (a comparable value) and how to label it. Intervals compare as a whole. */
+const CARDIO_FIELDS: { get: (c: SlotDiffCardio) => CardioValue; label: (c: SlotDiffCardio) => string; none: string }[] = [
+  { get: (c) => c.modality ?? null, label: (c) => `${c.modality}`, none: "no modality" },
+  { get: (c) => c.durationMin ?? null, label: (c) => `${c.durationMin} min`, none: "no duration" },
+  { get: (c) => c.hrZone ?? null, label: (c) => `Z${c.hrZone}`, none: "no zone" },
+  { get: (c) => (c.hrBpm ? `${c.hrBpm.min}-${c.hrBpm.max}` : null), label: (c) => `${c.hrBpm!.min}–${c.hrBpm!.max} bpm`, none: "no HR target" },
+  { get: (c) => c.intensity ?? null, label: (c) => `${c.intensity}`, none: "no intensity" },
+  { get: (c) => c.distanceKm ?? null, label: (c) => `${c.distanceKm} km`, none: "no distance" },
+  { get: (c) => c.paceSecPerKm ?? null, label: (c) => `${mmss(c.paceSecPerKm!)}/km`, none: "no pace" },
+  { get: (c) => c.targetRpe ?? null, label: (c) => `RPE ${c.targetRpe}`, none: "no RPE" },
+  {
+    get: (c) => (c.intervals?.length ? JSON.stringify(c.intervals) : null),
+    label: (c) => c.intervals!.map(intervalLabel).join(" + "),
+    none: "no intervals",
+  },
 ];
 
 /** "Bike · 30 min · Z3 · RPE 4" — one-line cardio label. */
 export function cardioLabel(c: SlotDiffCardio): string {
-  return CARDIO_FIELDS.filter((f) => c[f.key] != null && c[f.key] !== "")
-    .map((f) => f.label(c[f.key] as string | number))
+  return CARDIO_FIELDS.filter((f) => {
+    const v = f.get(c);
+    return v != null && v !== "";
+  })
+    .map((f) => f.label(c))
     .join(" · ");
 }
 
@@ -319,11 +351,11 @@ function cardioDelta(a: SlotDiffCardio, b: SlotDiffCardio): [string, string] | n
   const from: string[] = [];
   const to: string[] = [];
   for (const f of CARDIO_FIELDS) {
-    const x = a[f.key] ?? null;
-    const y = b[f.key] ?? null;
+    const x = f.get(a);
+    const y = f.get(b);
     if (x === y) continue;
-    from.push(x == null || x === "" ? f.none : f.label(x));
-    to.push(y == null || y === "" ? f.none : f.label(y));
+    from.push(x == null || x === "" ? f.none : f.label(a));
+    to.push(y == null || y === "" ? f.none : f.label(b));
   }
   return from.length ? [from.join(", "), to.join(", ")] : null;
 }

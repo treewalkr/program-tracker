@@ -100,6 +100,22 @@ test("F04: cardio zone, RPE and modality changes surface", () => {
   ]);
 });
 
+test("cardio interval, pace and bpm changes are compared deeply and labelled", () => {
+  const withIntervals = (secs: number) =>
+    cardio("Tempo Ride", { intervals: [{ id: "i1", type: "work", repeat: 4, durationSec: secs, recovery: { durationSec: 60 } }] });
+  const before = v1();
+  before.weeks[0].sessions[1] = withIntervals(180);
+  const same = v1();
+  same.weeks[0].sessions[1] = withIntervals(180);
+  expect(diffDrafts(before, same)).toEqual([]);
+  const after = v1();
+  after.weeks[0].sessions[1] = withIntervals(240);
+  expect(diffDrafts(before, after).map((c) => [c.kind, c.from, c.to])).toEqual([["cardio", "4×3:00 work", "4×4:00 work"]]);
+  const paced = v1();
+  paced.weeks[0].sessions[1] = cardio("Tempo Ride", { paceSecPerKm: 330, hrBpm: { min: 140, max: 155 } });
+  expect(diffDrafts(v1(), paced).map((c) => [c.from, c.to])).toEqual([["no HR target, no pace", "140–155 bpm, 5:30/km"]]);
+});
+
 test("session rename and kind/type changes surface", () => {
   const after = v1();
   after.weeks[0].sessions[0] = { ...after.weeks[0].sessions[0], name: "Lower B", type: "Strength" } as SlotDiffDraft["weeks"][number]["sessions"][number];
