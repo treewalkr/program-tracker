@@ -211,6 +211,22 @@ describe("feedbackMarkdown", () => {
       expect(out).not.toContain("Note stale");
     });
 
+    test("stays current after the AI's own reply goes out, but not after anyone else's", () => {
+      const aiReply = (id: string, day: number) => ({ ...note(id, current, day), visibility: "public" as const, body: `Sent ${id}`, aiMeta: null });
+      const human = { ...aiReply("h", 3), authorKind: "human" as const, author: { id: "t1", name: "Kai", avatarUrl: null }, body: "Still broken" };
+      const sent = feedbackMarkdown([item({ thread: [note("n", current, 1), aiReply("r", 2)] })], { imageUrl: () => null });
+      expect(sent).toContain("> Note n");
+      const replied = feedbackMarkdown([item({ thread: [note("n", current, 1), aiReply("r", 2), human] })], { imageUrl: () => null });
+      expect(replied).not.toContain("AI triage (");
+      // a second round: the note judged the thread with the first AI reply in it
+      const round2 = ticketBasis(item({ thread: [aiReply("r", 2), human] }));
+      const later = feedbackMarkdown(
+        [item({ thread: [note("n", current, 1), aiReply("r", 2), human, note("m", round2, 4), aiReply("s", 5)] })],
+        { imageUrl: () => null },
+      );
+      expect(later).toContain("> Note m");
+    });
+
     test("leaves out risk and plan when the note has none", () => {
       const out = feedbackMarkdown([item({ thread: [note("n", current, 1, { verdict: "how_to" })] })], { imageUrl: () => null });
       expect(out).toContain("**AI triage (read the code, 2026-11-01):** how to · medium confidence\n");

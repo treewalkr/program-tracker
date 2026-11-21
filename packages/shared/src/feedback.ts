@@ -720,12 +720,15 @@ const fence = (lang: string, body: string) => {
 /**
  * The auto-reply agent's latest private note that still matches the ticket
  * (same `ticketBasis`), or null. Older notes judged a different ticket text.
+ * AI replies after the note don't count: its own reply going out (or the
+ * owner sending its draft) changes nothing the note judged.
  * Needs the admin view: other viewers get no private notes or `aiMeta`.
  */
 export function currentAiNote(item: FeedbackItem): (FeedbackComment & { aiMeta: FeedbackAiMeta }) | null {
-  const basis = ticketBasis(item);
+  const basisFor = (n: FeedbackComment) =>
+    ticketBasis({ ...item, thread: item.thread.filter((c) => !(c.authorKind === "ai" && c.createdAt > n.createdAt)) });
   const note = item.thread.findLast(
-    (c) => c.authorKind === "ai" && c.visibility === "private" && c.aiMeta?.basis === basis,
+    (c) => c.authorKind === "ai" && c.visibility === "private" && !!c.aiMeta && c.aiMeta.basis === basisFor(c),
   );
   return note?.aiMeta ? (note as FeedbackComment & { aiMeta: FeedbackAiMeta }) : null;
 }
