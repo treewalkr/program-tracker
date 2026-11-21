@@ -281,7 +281,7 @@ A bordered, quietly rounded form language. Default radius 6px on every control a
 ## Components
 
 ### Buttons
-- **Shape:** softly rounded (6px), tight (5px/16px padding, 14px/500, 7px icon gap; `.small` 3px/12px at 12px)
+- **Shape:** softly rounded (6px), 32px tall like inputs and selects (5px/16px padding, 14px/500, 7px icon gap; `.small` 28px, 3px/12px at 12px) — Primer's medium and small sizes
 - **Default:** a "secondary" Primer button — Well Gray on Ink with a translucent hairline border and the 1px lip; hover deepens the well
 - **Primary:** Action Green with white text, reserved for the review-flow verb; hover darkens one step
 - **Danger:** Well Gray body with Danger Red text; hover fills Danger Red Tint and borders its edge
