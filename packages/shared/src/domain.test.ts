@@ -868,7 +868,7 @@ describe("Movement taxonomy", () => {
       Exercise.parse({ ...base, movementPatterns: ["push_press"] })
     ).toThrow();
     expect(() =>
-      Exercise.parse({ ...base, movementPatterns: ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant"] })
+      Exercise.parse({ ...base, movementPatterns: ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant", "vertical_pull"] })
     ).toThrow();
     expect(() =>
       Exercise.parse({ ...base, functionalMovement: "invalid" })

@@ -118,8 +118,10 @@ describe("togglePattern / makePrimary", () => {
   });
 
   test("a full list takes no more", () => {
-    const full = ["knee_dominant", "hip_dominant", "carry", "rotation"];
-    expect(togglePattern(full, "isolation")).toEqual(full);
+    const four = ["knee_dominant", "hip_dominant", "carry", "rotation"];
+    expect(togglePattern(four, "isolation")).toEqual([...four, "isolation"]);
+    const full = [...four, "isolation"];
+    expect(togglePattern(full, "vertical_pull")).toEqual(full);
   });
 
   test("makePrimary moves a selected tag to the front", () => {

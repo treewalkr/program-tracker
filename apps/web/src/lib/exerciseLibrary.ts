@@ -51,7 +51,7 @@ export const PATTERN_GROUPS: { label: string; patterns: MovementPattern[] }[] = 
 /**
  * Toggle one movement pattern in an ordered list (first = primary). The first
  * tag added becomes primary; removing the primary promotes the next. "No
- * pattern" is exclusive both ways. A full list (4) takes no more.
+ * pattern" is exclusive both ways. A full list (MAX_MOVEMENT_PATTERNS) takes no more.
  */
 export function togglePattern(list: readonly string[], p: string): string[] {
   if (list.includes(p)) return list.filter((x) => x !== p);

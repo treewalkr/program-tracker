@@ -82,7 +82,14 @@ describe.skipIf(!dbUp)("exercise library", () => {
     expect((await create({ movementPatterns: ["knee_dominant", "knee_dominant"] })).status).toBe(422);
     expect((await create({ movementPatterns: ["no_pattern", "carry"] })).status).toBe(422);
     expect((await create({ movementPatterns: ["no_pattern"] })).status).toBe(201);
-    expect((await create({ movementPatterns: ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant"] })).status).toBe(422);
+    expect((await create({ movementPatterns: ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant", "vertical_pull"] })).status).toBe(422);
+  });
+
+  test("an exercise takes up to five movement patterns", async () => {
+    const five = ["carry", "rotation", "isolation", "knee_dominant", "hip_dominant"];
+    const { status, body } = await create({ movementPatterns: five });
+    expect(status).toBe(201);
+    expect(body.movementPatterns).toEqual(five);
   });
 
   test("movement patterns keep their order; the first is the primary", async () => {

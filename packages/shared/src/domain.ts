@@ -331,6 +331,9 @@ export type Client = z.infer<typeof Client>;
 // Exercise library
 // ---------------------------------------------------------------------------
 
+/** Most movement patterns an exercise can carry. */
+export const MAX_MOVEMENT_PATTERNS = 5;
+
 export const Exercise = z.object({
   id: z.string().uuid(),
   /** null on the global seed library; set for trainer-defined custom exercises. */
@@ -340,13 +343,10 @@ export const Exercise = z.object({
   secondaryMuscleGroups: z.array(MuscleGroup).max(4).default([]),
   equipment: Equipment,
   /** Ordered movement patterns; the first is the primary. Empty = untagged. */
-  movementPatterns: z.array(MovementPattern).max(4).default([]),
+  movementPatterns: z.array(MovementPattern).max(MAX_MOVEMENT_PATTERNS).default([]),
   functionalMovement: FunctionalMovement.nullable().optional(),
 });
 export type Exercise = z.infer<typeof Exercise>;
-
-/** Most movement patterns an exercise can carry. */
-export const MAX_MOVEMENT_PATTERNS = 4;
 
 /**
  * The primary movement pattern: the first tag, or null when untagged. Balance,

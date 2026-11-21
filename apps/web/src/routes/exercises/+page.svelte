@@ -28,7 +28,7 @@
     type Sort,
     type Tab,
   } from "$lib/exerciseLibrary";
-  import { NO_PATTERN } from "@pt/shared";
+  import { MAX_MOVEMENT_PATTERNS, NO_PATTERN } from "@pt/shared";
   import ExerciseCoverage from "$lib/components/ExerciseCoverage.svelte";
   import ExerciseInspector from "$lib/components/ExerciseInspector.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -146,7 +146,7 @@
     const rows = ids.map((id) => list.find((e) => e.id === id)).filter((e): e is ExerciseDto => !!e);
     const before = new Map(rows.map((e) => [e.id, [...e.movementPatterns]]));
     const changed = rows.filter((e) => change(e.movementPatterns).join() !== e.movementPatterns.join()).map((e) => e.id);
-    if (!changed.length) return flash("Nothing to change — every exercise is already full (4 patterns) or tagged.");
+    if (!changed.length) return flash(`Nothing to change — every exercise is already full (${MAX_MOVEMENT_PATTERNS} patterns) or tagged.`);
     try {
       await patchMany(changed, (e) => ({ movementPatterns: change(e.movementPatterns) }));
       selected = [];
