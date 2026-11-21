@@ -1,4 +1,4 @@
-import { ProgramWeeksDocument, sessionTag } from "@pt/shared";
+import { ProgramWeeksWrite, sessionTag } from "@pt/shared";
 import type { ProgramWeekDto } from "./api/types";
 
 const FIELD: Record<string, string> = {
@@ -10,7 +10,7 @@ const FIELD: Record<string, string> = {
 export function validateProgramDoc(
   weeks: ProgramWeekDto[]
 ): { ok: true } | { ok: false; message: string } {
-  const res = ProgramWeeksDocument.safeParse(weeks);
+  const res = ProgramWeeksWrite.safeParse(weeks);
   if (res.success) {
     return { ok: true };
   }

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import type { ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
+  import type { CardioTemplateDto, CardioTemplateInput, CardioTemplatesDto, ModalityDto, ProgramSessionDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
+  import type { HrZone } from "@pt/shared";
+  import CardioPrescriptionEditor from "./CardioPrescriptionEditor.svelte";
   import { defaultCardio, kindForType, switchSessionKind, type SessionKind } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import SessionTypePicker from "./SessionTypePicker.svelte";
@@ -15,6 +17,10 @@
     onday,
     onremove,
     onclose,
+    modalities = [],
+    templates = null,
+    zones = null,
+    onsavetemplate,
   }: {
     session: ProgramSessionDto;
     /** Trainer's session types for the picker. */
@@ -29,10 +35,14 @@
     onday: (weekday: number | null) => void;
     onremove: () => void;
     onclose: () => void;
+    /** Cardio: the modality picker, the template chips, the member's bpm zones and "Save as template". */
+    modalities?: ModalityDto[];
+    templates?: CardioTemplatesDto | null;
+    zones?: readonly HrZone[] | null;
+    onsavetemplate?: (input: CardioTemplateInput) => Promise<CardioTemplateDto>;
   } = $props();
 
   const DAYS = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const num = (raw: string) => (raw.trim() === "" ? undefined : Number(raw));
   const cardio = () => (session.cardio ??= defaultCardio());
 </script>
 
@@ -70,32 +80,7 @@
   </label>
 
   {#if session.kind === "cardio"}
-    <div class="row">
-      <label class="f grow">
-        <span>Modality</span>
-        <input class="input" maxlength="80" placeholder="Bike, Run, Rower…" value={session.cardio?.modality ?? ""} oninput={(e) => (cardio().modality = e.currentTarget.value)} />
-      </label>
-      <label class="f">
-        <span>Minutes</span>
-        <input class="input num" type="number" min="1" max="300" value={session.cardio?.durationMin ?? ""} oninput={(e) => (cardio().durationMin = num(e.currentTarget.value) ?? null)} />
-      </label>
-      <label class="f">
-        <span>HR zone</span>
-        <input class="input num" type="number" min="1" max="5" value={session.cardio?.hrZone ?? ""} oninput={(e) => (cardio().hrZone = num(e.currentTarget.value) ?? null)} />
-      </label>
-      <label class="f">
-        <span>km</span>
-        <input class="input num" type="number" min="0" step="0.5" value={session.cardio?.distanceKm ?? ""} oninput={(e) => (cardio().distanceKm = num(e.currentTarget.value))} />
-      </label>
-      <label class="f">
-        <span>RPE</span>
-        <input class="input num" type="number" min="1" max="10" value={session.cardio?.targetRpe ?? ""} oninput={(e) => (cardio().targetRpe = num(e.currentTarget.value))} />
-      </label>
-      <label class="f grow">
-        <span>Intensity</span>
-        <input class="input" maxlength="60" placeholder="easy, 85% FTP…" value={session.cardio?.intensity ?? ""} oninput={(e) => (cardio().intensity = e.currentTarget.value)} />
-      </label>
-    </div>
+    <CardioPrescriptionEditor bind:cardio={() => cardio(), (v) => (session.cardio = v)} {modalities} {templates} {zones} {onsavetemplate} />
   {/if}
 
   <div class="foot">
@@ -119,7 +104,6 @@
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
   .f { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
   .f.grow { flex: 1; min-width: 160px; }
-  .num { width: 72px; text-align: right; font-family: var(--font-mono); }
   .foot { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .grow { flex: 1; }
 </style>

@@ -62,6 +62,8 @@
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
+  import type { CardioTemplateInput, CardioTemplatesDto, ModalityDto } from "$lib/api/types";
+  import { profileOn, type HrZones } from "@pt/shared";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
@@ -346,6 +348,11 @@
     document.getElementById(`sess-${sid}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  let modalities = $state<ModalityDto[]>([]);
+  let cardioTemplates = $state<CardioTemplatesDto | null>(null);
+  /** The member's bpm zones in effect today (the editor shows Z2 as 136–148 bpm). */
+  let hrZones = $state<HrZones | null>(null);
+
   const validation = $derived(
     program ? validateProgramDoc(program.weeks) : { ok: true as const }
   );
@@ -355,6 +362,9 @@
     baseline = snapshot(program);
     deloadUndo = new Map();
     [catalog, types] = await Promise.all([api.exercises(), api.sessionTypes()]);
+    // cardio editor: the modality list and templates (a failed read leaves the free-text path)
+    api.modalities().then((m) => (modalities = m), () => {});
+    api.cardioTemplates().then((t) => (cardioTemplates = t), () => {});
     const mine = await api.examples(id);
     existingExample = mine[0] ?? null;
     if (!existingExample) marking = false;
@@ -367,6 +377,7 @@
       oneRepMaxes = detail.client.oneRepMaxes ?? null;
       deload = clientDeload(detail.client);
       logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
+      api.hrProfiles(program.clientId).then((v) => (hrZones = profileOn(v, today)?.zones ?? null), () => {});
     }
     // Open on the client's current week (FB-017: edits on a finished week never reached them).
     currentWeekIndex = openingWeekIndex(weekTabDates(program, logs, today));
@@ -397,6 +408,12 @@
     if (!existingExample) return;
     await api.deleteExample(existingExample.id);
     existingExample = null;
+  }
+
+  async function saveCardioTemplate(input: CardioTemplateInput) {
+    const saved = await api.createCardioTemplate(input);
+    if (cardioTemplates) cardioTemplates = { ...cardioTemplates, templates: [...cardioTemplates.templates, saved] };
+    return saved;
   }
 
   async function save() {
@@ -724,6 +741,10 @@
                   onday={(wd) => place(s.id, wd, 99)}
                   onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); closeEditors(); }}
                   onclose={closeEditors}
+                  {modalities}
+                  templates={cardioTemplates}
+                  zones={hrZones}
+                  onsavetemplate={saveCardioTemplate}
                 />
               {:else}
                 <div class="session-header">
