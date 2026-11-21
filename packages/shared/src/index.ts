@@ -38,3 +38,4 @@ export * from "./fill";
 export * from "./portal";
 export * from "./redact";
 export * from "./hr";
+export * from "./vo2max";
