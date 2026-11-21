@@ -18,6 +18,8 @@ import { logRoutes } from "./routes/logs";
 import { exerciseRoutes } from "./routes/exercises";
 import { schemeRoutes } from "./routes/schemes";
 import { sessionTypeRoutes } from "./routes/session-types";
+import { modalityRoutes } from "./routes/modalities";
+import { cardioTemplateRoutes } from "./routes/cardio-templates";
 import { chainRoutes } from "./routes/chains";
 import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
@@ -159,6 +161,8 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(exerciseRoutes)
   .use(schemeRoutes)
   .use(sessionTypeRoutes)
+  .use(modalityRoutes)
+  .use(cardioTemplateRoutes)
   .use(chainRoutes)
   .use(promptTemplateRoutes)
   .use(notificationRoutes)
