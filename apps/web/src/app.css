@@ -6,6 +6,18 @@
    Spec: prototypes/direction-g.html
    ———————————————————————————————————————————— */
 
+/* Thai glyphs only: Safari's -apple-system falls back to Thonburi for Thai while
+   Chrome falls through to Noto, so Thai comes first in the stack and Latin
+   (outside this unicode-range) still resolves to the system UI font. */
+@font-face {
+  font-family: "Thai UI";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/noto-sans-thai/files/noto-sans-thai-thai-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC;
+}
+
 :root {
   /* canvas & ink */
   --bg: #ffffff;
@@ -79,7 +91,7 @@
   --cell-edge: rgba(31, 35, 40, 0.06);
   --scrim: rgba(31, 35, 40, 0.25);
 
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Thai Variable", "Noto Sans", Helvetica, Arial, sans-serif;
+  --font-ui: "Thai UI", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
   --font-cond: var(--font-ui);
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
