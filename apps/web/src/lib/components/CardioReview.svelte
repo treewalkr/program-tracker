@@ -93,7 +93,7 @@
     {/if}
   </dl>
 
-  <InputNote label="Feedback for {member}" placeholder="What went well, and what to change next time" optional maxlength={1000} rows={2} bind:value={feedback} disabled={busy} hint="{member} sees this on the session in the portal." />
+  <InputNote label="Feedback for {member}" placeholder="What went well, and what to change next time" optional maxlength={2000} rows={2} bind:value={feedback} disabled={busy} hint="{member} sees this on the session in the portal." />
 
   <div class="acts">
     {#if error}<p class="err" role="alert">{error}</p>{/if}
