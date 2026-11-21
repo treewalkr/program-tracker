@@ -1,13 +1,14 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { page } from "$app/state";
-  import { addDays, localDateOf, type PortalSession, type PortalWeek } from "@pt/shared";
+  import { addDays, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
   import { blocksOf, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
+  import type { CardioFormError } from "$lib/cardioForm";
   import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
   import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
@@ -231,6 +232,7 @@
   async function save() {
     if (!session || saving) return;
     error = null;
+    cardioProblem = null;
     const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags, startedAt }, byYou);
     if ("error" in built) {
       if (built.error === "kg") {
@@ -238,6 +240,7 @@
         await jumpToMissing();
         return;
       }
+      if (built.error !== "nothing") cardioProblem = built.error === "activity" ? "modality" : built.error;
       error =
         built.error === "nothing"
           ? t("log.nothing")
@@ -295,12 +298,47 @@
     },
     valueLabel: (label, v, max) => t("log.scaleValue", { label, v, max }),
   });
-  // The form's other labels are English until the portal's cardio pass (run D) adds them.
-  const cardioText: Partial<CardioFormText> = $derived({
+  const cardioText: CardioFormText = $derived({
     modality: t("cardio.activity"),
     modalityPlaceholder: t("cardio.activityPlaceholder"),
+    duration: t("cardio.duration"),
+    durationHint: t("cardio.durationHint"),
     rpe: t("cardio.rpe"),
+    rpeHint: t("cardio.rpeHint"),
+    distance: t("cardio.distance"),
+    avgHr: t("cardio.avgHr"),
+    maxHr: t("cardio.maxHr"),
+    pain: t("cardio.pain"),
+    painNote: t("cardio.painNote"),
+    more: t("cardio.more"),
+    calories: t("cardio.calories"),
+    intervals: t("cardio.intervals"),
+    intervalsHint: t("cardio.intervalsHint"),
+    rep: t("cardio.rep"),
+    time: t("cardio.time"),
+    pace: t("cardio.pace"),
+    load: t("cardio.load"),
+    skip: t("cardio.skip"),
+    skipped: t("cardio.skipped"),
+    skipReason: t("cardio.skipReason"),
+    undoSkip: t("cardio.undoSkip"),
+    reasons: { time: t("log.reason.time"), pain: t("log.reason.pain"), equipment: t("log.reason.equipment"), other: t("log.reason.other") },
+    modalityError: t("log.cardioNeedsActivity"),
+    maxHrError: t("log.cardioMaxHr"),
+    minutes: t("cardio.min"),
+    types: {
+      warmup: t("iv.warmup"),
+      work: t("iv.work"),
+      active_recovery: t("iv.active_recovery"),
+      passive_recovery: t("iv.passive_recovery"),
+      cooldown: t("iv.cooldown"),
+    },
+    repOf: t("cardio.repOf"),
+    optional: t("log.optional"),
+    distanceUnits: { km: t("cardio.km"), mi: t("cardio.mi") },
   });
+  /** The cardio field the last save was missing: ringed in the form as well as named by the save bar. */
+  let cardioProblem = $state<CardioFormError | null>(null);
 
   /** "Target 6–8 reps · 100 kg · RPE 8" — the plan beside the cells, always with its unit. */
   function targetOf(r: PortalRow): string {
@@ -435,7 +473,7 @@
       {/if}
 
       {#if cardioSession}
-        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" />
+        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} />
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">

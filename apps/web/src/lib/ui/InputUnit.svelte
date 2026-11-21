@@ -22,7 +22,7 @@
 		decimals?: number;
 		hint?: string | null;
 		error?: string | null;
-		optional?: boolean;
+		optional?: boolean | string;
 		disabled?: boolean;
 		/** `auto` fits about 7 figures plus the caps; `fill` takes the column. */
 		width?: 'auto' | 'fill';

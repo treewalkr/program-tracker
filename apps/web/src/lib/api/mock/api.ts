@@ -2881,4 +2881,4 @@ function mockRoster(query: RosterQuery): RosterPageDto {
 export const mockApi: TrainerApi = withKindAlias(rawMockApi);
 
 /** The client portal's mock runs over this same state, as the demo client. */
-export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName };
+export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName, logPrescriptionOf as mockLogPrescription };

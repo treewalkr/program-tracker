@@ -1,4 +1,5 @@
-import type { CardioPrescription, PortalLastSet, PortalSet } from "@pt/shared";
+import { cardioTotals, recoveryCount, type CardioIntervalType, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
+import { formatDuration } from "$lib/ui/input/duration";
 import type { MessageKey } from "./messages";
 
 /**
@@ -59,15 +60,93 @@ export function setParts(sets: PortalSet[], t: T): string[] {
   return parts;
 }
 
-/** A cardio prescription's parts: "40 min · zone 2 · 5 km · easy". */
-export function cardioParts(c: CardioPrescription, t: T): string[] {
+/** A time as the client reads it: "2 min", "45 s", "1:30 min". */
+export function durationText(sec: number, t: T): string {
+  if (sec < 60) return t("rx.seconds", { n: sec });
+  return t("rx.minutes", { n: sec % 60 === 0 ? sec / 60 : formatDuration(sec) });
+}
+
+/** A distance in metres: "400 m" under a kilometre, else "1.6 km". */
+export function metresText(m: number, t: T): string {
+  return m < 1000 ? t("rx.metres", { n: m }) : t("rx.km", { n: num(Math.round(m / 10) / 100) });
+}
+
+const paceText = (secPerKm: number, t: T) => t("rx.pace", { t: formatDuration(secPerKm) });
+const bpmText = (b: { min: number; max: number }) => `${b.min}–${b.max} bpm`;
+
+/** A cardio prescription's parts: "40 min · zone 2 · 123–148 bpm · 5 km · RPE 4 · easy". */
+export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "hrZone" | "distanceKm" | "targetRpe" | "intensity" | "hrBpm" | "paceSecPerKm" | "intervals">, t: T): string[] {
   const parts: string[] = [];
-  if (c.durationMin) parts.push(t("rx.minutes", { n: c.durationMin }));
-  if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));
-  if (c.distanceKm) parts.push(t("rx.km", { n: num(c.distanceKm) }));
+  // a session built from intervals shows its total time, as the coach's editor adds it up
+  const total = c.intervals?.length ? cardioTotals({ intervals: c.intervals.map((iv) => ({ ...iv })) }) : null;
+  if (total) {
+    if (total.durationSec) parts.push(durationText(total.durationSec, t));
+    if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
+  } else {
+    if (c.durationMin) parts.push(t("rx.minutes", { n: c.durationMin }));
+    if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));
+    if (c.hrBpm) parts.push(bpmText(c.hrBpm));
+    if (c.distanceKm) parts.push(t("rx.km", { n: num(c.distanceKm) }));
+    if (c.paceSecPerKm) parts.push(paceText(c.paceSecPerKm, t));
+  }
   if (c.targetRpe) parts.push(t("rx.rpe", { n: num(c.targetRpe) }));
   if (c.intensity) parts.push(c.intensity);
   return parts;
+}
+
+/** One line of the session's intervals, in order, as the client reads it. */
+export interface IntervalLine {
+  key: string;
+  kind: "easy" | "work" | "recovery";
+  name: string;
+  /** "10 min", "2 min × 5", "400 m × 6". */
+  amount: string;
+  zone: string | null;
+  bpm: string | null;
+  /** RPE, pace, or "between hard reps". */
+  extra: string | null;
+  notes: string | null;
+}
+
+const kindOf = (type: CardioIntervalType): IntervalLine["kind"] =>
+  type === "work" ? "work" : type === "active_recovery" || type === "passive_recovery" ? "recovery" : "easy";
+
+function amountOf(p: { durationSec?: number; distanceM?: number }, times: number, t: T): string {
+  const base = p.durationSec ? durationText(p.durationSec, t) : p.distanceM ? metresText(p.distanceM, t) : "";
+  return times > 1 && base ? `${base} × ${times}` : base;
+}
+
+/** The intervals line by line: each block, then its recovery between reps. */
+export function intervalLines(intervals: readonly PortalCardioInterval[], t: T): IntervalLine[] {
+  const out: IntervalLine[] = [];
+  for (const iv of intervals) {
+    const reps = iv.repeat ?? 1;
+    const extra = [iv.rpe != null ? t("rx.rpe", { n: num(iv.rpe) }) : null, iv.paceSecPerKm ? paceText(iv.paceSecPerKm, t) : null].filter(Boolean).join(" · ");
+    out.push({
+      key: iv.id,
+      kind: kindOf(iv.type),
+      name: t(`iv.${iv.type}`),
+      amount: amountOf(iv, reps, t),
+      zone: iv.hrZone ? t("iv.zone", { n: iv.hrZone }) : null,
+      bpm: iv.hrBpm ? bpmText(iv.hrBpm) : null,
+      extra: extra || null,
+      notes: iv.notes ?? null,
+    });
+    const recs = recoveryCount(iv);
+    if (iv.recovery && recs > 0) {
+      out.push({
+        key: `${iv.id}:rec`,
+        kind: "recovery",
+        name: t(`iv.${iv.recovery.type}`),
+        amount: amountOf(iv.recovery, recs, t),
+        zone: null,
+        bpm: null,
+        extra: iv.recoveryAfterLast ? t("iv.afterEach") : t("iv.between"),
+        notes: null,
+      });
+    }
+  }
+  return out;
 }
 
 /** "62.5 kg × 8 · RPE 8" — what the client did last time; RPE only when they gave it. */

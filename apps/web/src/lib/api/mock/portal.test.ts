@@ -82,4 +82,16 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     expect(await mockPortalApi.linkInfo(EXPIRED_TOKEN)).toBeNull();
     expect(await mockPortalApi.linkInfo("demo-nattapong")).toMatchObject({ trainerName: "Coach Ploy" });
   });
+
+  test("cardio demo: Nok's intervals with bpm from her HR zones, nothing of the profile itself", () => {
+    const dto = mockPortalWeek(Date.now(), "cardio");
+    expect(dto.program?.name).toBe("General Fitness — 8 wk");
+    const run = dto.weeks[0].sessions.find((s) => s.cardio?.intervals?.length)!;
+    expect(run.id).toMatch(/^ps-nok-\d$/);
+    const work = run.cardio!.intervals!.find((iv) => iv.type === "work")!;
+    expect(work.hrZone).toBe(4);
+    expect(work.hrBpm?.min).toBeGreaterThan(100);
+    const json = JSON.stringify(dto);
+    for (const leak of ["restingHr", "lthr", "method", "zones", "modalityId", "maxHrTestedOn"]) expect(json).not.toContain(`"${leak}"`);
+  });
 });

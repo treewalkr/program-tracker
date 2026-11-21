@@ -27,13 +27,26 @@
     skipReason: string;
     undoSkip: string;
     reasons: Record<SkipReason, string>;
+    /** Shown under the field the last save was missing. */
+    modalityError: string;
+    maxHrError: string;
+    /** "min" in the load line. */
+    minutes: string;
+    /** Interval names for the per-interval rows. */
+    types: Record<CardioIntervalType, string>;
+    /** A repeated interval's row: `{name}`, `{rep}`, `{reps}`. */
+    repOf: string;
+    /** The word after an optional field's label. */
+    optional: string;
+    /** Distance unit names as shown. */
+    distanceUnits: Record<DistanceUnit, string>;
   }
 </script>
 
 <script lang="ts">
-  import type { CardioMetric, SkipReason } from "@pt/shared";
+  import type { CardioIntervalType, CardioMetric, DistanceUnit, SkipReason } from "@pt/shared";
   import { distanceUnit, showDistance, storeDistance } from "$lib/units.svelte";
-  import { cardioFormCalc, SKIP_REASON_LABEL, type CardioForm, type CardioFormError, type IntervalResultRow } from "$lib/cardioForm";
+  import { cardioFormCalc, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type CardioFormError, type IntervalResultRow } from "$lib/cardioForm";
   import { formatDuration } from "$lib/ui/input/duration";
   import InputDuration from "$lib/ui/InputDuration.svelte";
   import InputUnit from "$lib/ui/InputUnit.svelte";
@@ -71,6 +84,13 @@
     skipReason: "Why?",
     undoSkip: "Did it after all",
     reasons: SKIP_REASON_LABEL,
+    modalityError: "Say what you did.",
+    maxHrError: "Can't be below the average",
+    minutes: "min",
+    types: INTERVAL_TYPE_LABEL,
+    repOf: "{name} {rep} of {reps}",
+    optional: "optional",
+    distanceUnits: { km: "km", mi: "mi" },
   };
 
   const RPE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -91,7 +111,14 @@
 
   let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null }: Props = $props();
 
-  const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons } });
+  const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits } });
+  const distLabel = $derived(text.distanceUnits[distanceUnit()]);
+  /** "Work 3 of 5" in the form's language. */
+  function rowLabel(row: IntervalResultRow): string {
+    const reps = value.intervals.filter((r) => r.intervalId === row.intervalId).length;
+    const name = text.types[row.type];
+    return reps > 1 ? text.repOf.replace("{name}", name).replace("{rep}", String(row.rep)).replace("{reps}", String(reps)) : name;
+  }
   const calc = $derived(cardioFormCalc(value, metric));
   const load = $derived(calc.load != null && value.rpe != null && value.durationSec != null ? { au: calc.load, rpe: value.rpe, min: Math.round((value.durationSec / 60) * 10) / 10 } : null);
 
@@ -136,7 +163,7 @@
             {#if problem === "modality"}<p class="err">Pick what they did.</p>{/if}
           </div>
         {:else}
-          <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={value.modality} maxlength={80} error={problem === "modality" ? "Say what you did." : null} />
+          <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={value.modality} maxlength={80} error={problem === "modality" ? text.modalityError : null} />
         {/if}
       </div>
       <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={text.durationHint} error={problem === "duration" ? text.durationHint : null} />
@@ -145,9 +172,9 @@
         <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} />
         {#if problem === "rpe"}<p class="err">{text.rpeHint}</p>{:else}<p class="hint">{text.rpeHint}</p>{/if}
       </div>
-      <InputUnit label={text.distance} unit={distanceUnit()} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional />
-      <InputUnit label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional />
-      <InputUnit label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional error={problem === "maxHr" ? "Can't be below the average" : null} />
+      <InputUnit label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} />
+      <InputUnit label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional={text.optional} />
+      <InputUnit label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional={text.optional} error={problem === "maxHr" ? text.maxHrError : null} />
     </div>
 
     <div class="pain">
@@ -160,14 +187,14 @@
     {#if calc.pace || load}
       <p class="calc" aria-live="polite">
         {#if calc.pace}<span>{text.pace} <b>{calc.pace}</b></span>{/if}
-        {#if load}<span>{text.load} <b>{load.au} AU</b> <span class="muted">= {load.rpe} × {load.min} min</span></span>{/if}
+        {#if load}<span>{text.load} <b>{load.au} AU</b> <span class="muted">= {load.rpe} × {load.min} {text.minutes}</span></span>{/if}
       </p>
     {/if}
 
     <details class="more">
       <summary>{text.more}</summary>
       <div class="more-body">
-        <InputUnit label={text.calories} unit="kcal" bind:value={value.calories} min={0} max={10000} optional width="auto" />
+        <InputUnit label={text.calories} unit="kcal" bind:value={value.calories} min={0} max={10000} optional={text.optional} width="auto" />
         {#if value.intervals.length}
           <div class="ivs">
             <span class="lbl">{text.intervals}</span>
@@ -175,16 +202,17 @@
             <div class="scroll">
               <table class="sheet">
                 <thead>
-                  <tr><th>{text.rep}</th><th class="r">{text.time}</th><th class="r">{distanceUnit()}</th><th class="r">{text.avgHr}</th><th class="r">RPE</th></tr>
+                  <tr><th>{text.rep}</th><th class="r">{text.time}</th><th class="r">{distLabel}</th><th class="r">{text.avgHr}</th><th class="r">RPE</th></tr>
                 </thead>
                 <tbody>
                   {#each value.intervals as row (row.key)}
+                    {@const label = rowLabel(row)}
                     <tr class:work={row.type === "work"}>
-                      <td>{row.label}</td>
-                      <td class="r num"><InputDuration label="{text.time} · {row.label}" bind:value={row.durationSec} cell step={5} /></td>
-                      <td class="r num"><InputCell label="{distanceUnit()} · {row.label}" figure value={cellNum(row.distanceKm == null ? null : showDistance(row.distanceKm))} oncommit={(v) => setCell(row, "distanceKm", v)} /></td>
-                      <td class="r num"><InputCell label="{text.avgHr} · {row.label}" figure value={cellNum(row.avgHr)} oncommit={(v) => setCell(row, "avgHr", v)} /></td>
-                      <td class="r num"><InputCell label="RPE · {row.label}" figure value={cellNum(row.rpe)} oncommit={(v) => setCell(row, "rpe", v)} /></td>
+                      <td>{label}</td>
+                      <td class="r num"><InputDuration label="{text.time} · {label}" bind:value={row.durationSec} cell step={5} /></td>
+                      <td class="r num"><InputCell label="{distLabel} · {label}" figure value={cellNum(row.distanceKm == null ? null : showDistance(row.distanceKm))} oncommit={(v) => setCell(row, "distanceKm", v)} /></td>
+                      <td class="r num"><InputCell label="{text.avgHr} · {label}" figure value={cellNum(row.avgHr)} oncommit={(v) => setCell(row, "avgHr", v)} /></td>
+                      <td class="r num"><InputCell label="RPE · {label}" figure value={cellNum(row.rpe)} oncommit={(v) => setCell(row, "rpe", v)} /></td>
                     </tr>
                   {/each}
                 </tbody>
@@ -245,4 +273,8 @@
   .touch { padding: 0; }
   .touch .grid { grid-template-columns: 1fr 1fr; }
   .touch .wide { grid-column: 1 / -1; }
+  /* the portal reads one size up, at arm's length */
+  .touch :global(.lbl) { font-size: 14px; }
+  .touch .hint, .touch .calc, .touch .more summary { font-size: 14px; }
+  .touch .calc b { font-size: 14px; }
 </style>

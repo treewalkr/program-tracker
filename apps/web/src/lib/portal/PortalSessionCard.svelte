@@ -2,7 +2,7 @@
   import type { PortalSession } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import { fmtShortDate, latinLang, t } from "./i18n.svelte";
-  import { cardioParts, setParts } from "./rx";
+  import { cardioParts, intervalLines, setParts } from "./rx";
 
   /**
    * One session as the client sees it. The session in focus leads: larger
@@ -110,6 +110,24 @@
       </ul>
     {/if}
     {#if session.cardio.intensity}<p class="intensity">{session.cardio.intensity}</p>{/if}
+    {#if session.cardio.intervals?.length}
+      <ol class="iv" aria-label={t("session.intervals")}>
+        {#each intervalLines(session.cardio.intervals, t) as l (l.key)}
+          <li class="iv-{l.kind}">
+            <span class="iv-name">{l.name}</span>
+            <span class="iv-amt tnum">{l.amount}</span>
+            {#if l.zone || l.bpm || l.extra}
+              <span class="iv-target">
+                {#if l.zone}<span class="zone">{l.zone}</span>{/if}
+                {#if l.bpm}<span class="tnum">{l.bpm}</span>{/if}
+                {#if l.extra}<span>{l.extra}</span>{/if}
+              </span>
+            {/if}
+            {#if l.notes}<span class="iv-note">{l.notes}</span>{/if}
+          </li>
+        {/each}
+      </ol>
+    {/if}
   {:else if session.exercises.length && focus}
     <ol id={`ex-${session.id}`}>
       {#each listed as e (e.id)}{@render exercise(e)}{/each}
@@ -246,6 +264,25 @@
   .remove-err { margin: -4px 0 0; font-size: 14px; color: var(--bad); }
   .when { font-weight: 400; }
   .intensity { margin: 0; font-size: 16px; text-wrap: pretty; }
+  /* the session's intervals: one row each, the hard reps on a flat tint */
+  .iv { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; }
+  .iv li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .iv li:first-child { border-top: 0; }
+  .iv-name { font: 500 15px/1.35 var(--font-ui); }
+  .iv-amt { font: 500 14px/1.35 var(--font-mono); text-align: right; white-space: nowrap; }
+  .iv-target, .iv-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
+  .iv-target .tnum { font-family: var(--font-mono); font-size: 13px; }
+  .zone { padding: 0 6px; border-radius: 4px; background: var(--chip-bg); color: var(--ink); font: 600 12px/1.6 var(--font-ui); }
+  .iv-work { background: var(--pulse-now-bg); }
+  .iv-work .iv-name { font-weight: 600; }
+  .iv-work .zone { background: var(--surface); }
+  .iv-recovery .iv-name { color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
     .list summary :global(svg), .more :global(svg) { transition: none; }
   }

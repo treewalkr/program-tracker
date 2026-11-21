@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSet } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { cardioParts, lastSetText, setParts } from "./rx";
+import { cardioParts, intervalLines, lastSetText, setParts } from "./rx";
+import type { PortalCardioInterval } from "@pt/shared";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
 const tTh = (k: MessageKey, v?: Record<string, string | number>) => format(th[k], v);
@@ -28,6 +29,33 @@ describe("portal prescription text", () => {
   test("cardio", () => {
     expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2, intensity: "easy" }, tEn)).toEqual(["40 min", "zone 2", "easy"]);
     expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2 }, tTh)).toEqual(["40 นาที", "โซน 2"]);
+    expect(cardioParts({ durationMin: 40, hrZone: 2, hrBpm: { min: 136, max: 148 }, paceSecPerKm: 400 }, tEn)).toEqual(["40 min", "zone 2", "136–148 bpm", "6:40 /km"]);
+  });
+
+  const mockup: PortalCardioInterval[] = [
+    { id: "w", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2, hrBpm: { min: 123, max: 148 } },
+    { id: "r", type: "work", repeat: 5, durationSec: 120, hrZone: 4, hrBpm: { min: 162, max: 174 }, rpe: 8, recovery: { type: "active_recovery", durationSec: 120 } },
+    { id: "c", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1, hrBpm: { min: 123, max: 135 } },
+  ];
+
+  test("an interval session shows its total, never a zone chip; each block and its recovery a line", () => {
+    expect(cardioParts({ targetRpe: 8, intervals: mockup }, tTh)).toEqual(["33 นาที", "RPE 8"]);
+    const lines = intervalLines(mockup, tTh);
+    expect(lines.map((l) => [l.name, l.amount, l.zone, l.bpm, l.extra])).toEqual([
+      ["วอร์มอัพ", "10 นาที", "โซน 2", "123–148 bpm", null],
+      ["ช่วงหนัก", "2 นาที × 5", "โซน 4", "162–174 bpm", "RPE 8"],
+      ["พักแบบขยับเบา ๆ", "2 นาที × 4", null, null, "ระหว่างช่วงหนัก"],
+      ["คูลดาวน์", "5 นาที", "โซน 1", "123–135 bpm", null],
+    ]);
+    expect(lines.map((l) => l.kind)).toEqual(["easy", "work", "recovery", "easy"]);
+  });
+
+  test("distance and odd times read plainly", () => {
+    const lines = intervalLines([{ id: "d", type: "work", repeat: 6, distanceM: 400, recovery: { type: "passive_recovery", durationSec: 90 }, recoveryAfterLast: true }], tEn);
+    expect(lines.map((l) => [l.name, l.amount, l.extra])).toEqual([
+      ["Hard reps", "400 m × 6", null],
+      ["Rest", "1:30 min × 6", "after each hard rep"],
+    ]);
   });
 });
 

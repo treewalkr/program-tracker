@@ -12,7 +12,8 @@
 		label: string;
 		hint?: string | null;
 		error?: string | null;
-		optional?: boolean;
+		/** Marks the field optional; a string is the word to show (the portal's own language). */
+		optional?: boolean | string;
 		/** Keep the label for screen readers only (table cells under a column head). */
 		hideLabel?: boolean;
 		/** Right side of the label row (counts). */
@@ -25,7 +26,7 @@
 
 <div class="field">
 	<div class="row" class:sr-only={hideLabel}>
-		<label class="lbl" id="{id}-l" for={id}>{label}{#if optional}{' '}<span class="opt">optional</span>{/if}</label>
+		<label class="lbl" id="{id}-l" for={id}>{label}{#if optional}{' '}<span class="opt">{typeof optional === "string" ? optional : "optional"}</span>{/if}</label>
 		{#if meta}<span class="meta">{@render meta()}</span>{/if}
 	</div>
 	{@render children()}
