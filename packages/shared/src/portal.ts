@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { normalizeKind } from "./sessionKind";
 import {
+  CardioIntervalType,
   CardioLog,
-  CardioPrescription,
+  HrBpmRange,
   LoggedBy,
   Readiness,
   SessionFlag,
@@ -10,6 +11,8 @@ import {
   SetType,
   sessionsInSeqOrder,
   CardioTargetUnit,
+  type CardioInterval,
+  type CardioPrescription,
   type CardioTarget,
   type OneRepMaxes,
   type Phasing,
@@ -17,7 +20,9 @@ import {
 } from "./domain";
 import { oneRepMaxKg, resolveLoadKg } from "./load";
 import { addDays } from "./importHistory";
-import { cardioDone, cardioWeekTotals, isoWeekStart, type CardioCountLog } from "./cardio";
+import { cardioDone, cardioLogSec, cardioWeekTotals, isoWeekStart, sessionLoad, type CardioCountLog } from "./cardio";
+import { zoneBpm, type HrZones } from "./hr";
+import { Vo2Protocol } from "./vo2max";
 import { localDateOf } from "./metrics";
 
 // ---------------------------------------------------------------------------
@@ -94,6 +99,9 @@ export const PortalLogEntry = z.object({
   perceivedEnergy: z.number().int().nullable(),
   readiness: Readiness.nullable(),
   flags: z.array(SessionFlag).nullable(),
+  /** The coach's note on this log and when they reviewed it (optional: older API builds don't send them). */
+  trainerFeedback: z.string().nullable().optional(),
+  reviewedAt: z.string().nullable().optional(),
 });
 export type PortalLogEntry = z.infer<typeof PortalLogEntry>;
 
@@ -107,6 +115,40 @@ export const PortalSessionLog = z.object({
 });
 export type PortalSessionLog = z.infer<typeof PortalSessionLog>;
 
+/** An interval as the client sees it: bpm already resolved from their HR zones. */
+export const PortalCardioInterval = z.object({
+  id: z.string(),
+  type: CardioIntervalType,
+  repeat: z.number().int(),
+  durationSec: z.number().int().optional(),
+  distanceM: z.number().int().optional(),
+  hrZone: z.number().int().optional(),
+  hrBpm: HrBpmRange.optional(),
+  paceSecPerKm: z.number().int().optional(),
+  rpe: z.number().optional(),
+  notes: z.string().optional(),
+  recovery: z
+    .object({ type: z.enum(["active_recovery", "passive_recovery"]), durationSec: z.number().int().optional(), distanceM: z.number().int().optional() })
+    .optional(),
+  recoveryAfterLast: z.boolean().optional(),
+});
+export type PortalCardioInterval = z.infer<typeof PortalCardioInterval>;
+
+/** The cardio prescription a client sees: targets and intervals, bpm resolved; no library ids or HR profile. */
+export const PortalCardioPrescription = z.object({
+  modality: z.string(),
+  durationMin: z.number().int().optional(),
+  hrZone: z.number().int().optional(),
+  intensity: z.string().optional(),
+  distanceKm: z.number().optional(),
+  targetRpe: z.number().optional(),
+  paceSecPerKm: z.number().int().optional(),
+  /** The coach's own bpm band, else the zone's band from the client's HR profile. */
+  hrBpm: HrBpmRange.optional(),
+  intervals: z.array(PortalCardioInterval).optional(),
+});
+export type PortalCardioPrescription = z.infer<typeof PortalCardioPrescription>;
+
 export const PortalSession = z.object({
   id: z.string(),
   name: z.string(),
@@ -117,7 +159,7 @@ export const PortalSession = z.object({
   typeName: z.string().optional(),
   notes: z.string().optional(),
   exercises: z.array(PortalExercise),
-  cardio: CardioPrescription.nullable(),
+  cardio: PortalCardioPrescription.nullable(),
   log: PortalSessionLog.nullable(),
 });
 export type PortalSession = z.infer<typeof PortalSession>;
@@ -200,6 +242,8 @@ export function portalLogEntry(
     perceivedEnergy?: number | null;
     readiness?: Readiness | null;
     flags?: SessionFlag[] | null;
+    trainerFeedback?: string | null;
+    reviewedAt?: Date | string | null;
   },
   sets: readonly {
     programExerciseId?: string | null;
@@ -230,6 +274,8 @@ export function portalLogEntry(
     perceivedEnergy: log.perceivedEnergy ?? null,
     readiness: log.readiness ?? null,
     flags: log.flags ?? null,
+    trainerFeedback: log.trainerFeedback ?? null,
+    reviewedAt: log.reviewedAt instanceof Date ? log.reviewedAt.toISOString() : (log.reviewedAt ?? null),
   };
 }
 
@@ -238,6 +284,8 @@ export interface PortalLoadContext {
   isBodyweight?: (exerciseId: string) => boolean;
   lastWeights?: LastWeights;
   lastSets?: LastSets;
+  /** The client's HR zones in effect now; a zone target shows as its bpm band. */
+  hrZones?: HrZones | null;
 }
 
 /** Per exercise, the client's sessions with it, newest first: each session's sets. */
@@ -365,17 +413,45 @@ export function portalSession(
           })),
         };
       }),
-    cardio: s.cardio
-      ? {
-          modality: s.cardio.modality,
-          durationMin: opt(s.cardio.durationMin),
-          hrZone: opt(s.cardio.hrZone),
-          intensity: opt(s.cardio.intensity),
-          distanceKm: opt(s.cardio.distanceKm),
-          targetRpe: opt(s.cardio.targetRpe),
-        }
-      : null,
+    cardio: s.cardio ? portalCardioRx(s.cardio, loads.hrZones) : null,
     log,
+  };
+}
+
+const bpmOf = (own: { min: number; max: number } | undefined, zone: number | null | undefined, zones: HrZones | null | undefined) =>
+  own ? { min: own.min, max: own.max } : (zoneBpm(zones, zone) ?? undefined);
+
+function portalInterval(iv: CardioInterval, zones: HrZones | null | undefined): PortalCardioInterval {
+  return {
+    id: iv.id,
+    type: iv.type,
+    repeat: iv.repeat ?? 1,
+    durationSec: opt(iv.durationSec),
+    distanceM: opt(iv.distanceM),
+    hrZone: opt(iv.hrZone),
+    hrBpm: bpmOf(iv.hrBpm, iv.hrZone, zones),
+    paceSecPerKm: opt(iv.paceSecPerKm),
+    rpe: opt(iv.rpe),
+    notes: opt(iv.notes),
+    recovery: iv.recovery
+      ? { type: iv.recovery.type ?? "passive_recovery", durationSec: opt(iv.recovery.durationSec), distanceM: opt(iv.recovery.distanceM) }
+      : undefined,
+    recoveryAfterLast: opt(iv.recoveryAfterLast),
+  };
+}
+
+/** The cardio prescription through the allow-list, with bpm resolved from the client's zones. */
+export function portalCardioRx(c: CardioPrescription, zones?: HrZones | null): PortalCardioPrescription {
+  return {
+    modality: c.modality,
+    durationMin: opt(c.durationMin),
+    hrZone: opt(c.hrZone),
+    intensity: opt(c.intensity),
+    distanceKm: opt(c.distanceKm),
+    targetRpe: opt(c.targetRpe),
+    paceSecPerKm: opt(c.paceSecPerKm),
+    hrBpm: bpmOf(c.hrBpm, c.hrZone, zones),
+    intervals: c.intervals?.length ? c.intervals.map((iv) => portalInterval(iv, zones)) : undefined,
   };
 }
 
@@ -406,4 +482,74 @@ export function latestLogBySession<
 /** First day of block week `week` given the block anchor day. */
 export function blockWeekStart(anchor: string, week: number): string {
   return addDays(anchor, (week - 1) * 7);
+}
+
+// ---------------------------------------------------------------------------
+// Progress tab: this week's cardio, recent cardio logs, one VO₂max trend
+// ---------------------------------------------------------------------------
+
+/** One of the client's recent cardio logs, picked by name. */
+export const PortalCardioLog = z.object({
+  id: z.string(),
+  date: z.string(),
+  modality: z.string(),
+  durationSec: z.number().int().nullable(),
+  distanceKm: z.number().nullable(),
+  rpe: z.number().nullable(),
+  /** Session RPE × minutes (AU); null without both, or when skipped. */
+  load: z.number().int().nullable(),
+  avgHr: z.number().int().nullable(),
+  maxHr: z.number().int().nullable(),
+  skipped: z.boolean(),
+  loggedBy: LoggedBy,
+  trainerFeedback: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+});
+export type PortalCardioLog = z.infer<typeof PortalCardioLog>;
+
+export const PortalProgressDto = z.object({
+  week: z.object({
+    minutes: z.number(),
+    sessions: z.number().int(),
+    load: z.number(),
+    /** Per modality; distance is never summed across modalities. */
+    byModality: z.record(z.string(), z.object({ minutes: z.number(), sessions: z.number().int(), load: z.number(), distanceKm: z.number() })),
+  }),
+  /** Null when the coach set no weekly target. */
+  target: PortalCardio.nullable(),
+  recent: z.array(PortalCardioLog),
+  vo2: z.object({
+    /** Protocols the client has results for, newest test first. */
+    protocols: z.array(Vo2Protocol),
+    protocol: Vo2Protocol.nullable(),
+    points: z.array(z.object({ testedOn: z.string(), value: z.number() })),
+  }),
+});
+export type PortalProgressDto = z.infer<typeof PortalProgressDto>;
+
+/** A stored cardio log row → what the progress tab shows. */
+export function portalCardioLog(row: {
+  id: string;
+  date: string;
+  cardio: CardioLog | null;
+  loggedBy: LoggedBy;
+  trainerFeedback?: string | null;
+  reviewedAt?: Date | string | null;
+}): PortalCardioLog {
+  const c = row.cardio;
+  return {
+    id: row.id,
+    date: row.date,
+    modality: c?.modality ?? "Cardio",
+    durationSec: cardioLogSec(c),
+    distanceKm: c?.distanceKm ?? null,
+    rpe: c?.rpe ?? null,
+    load: sessionLoad(c),
+    avgHr: c?.avgHr ?? null,
+    maxHr: c?.maxHr ?? null,
+    skipped: c?.skipped != null,
+    loggedBy: row.loggedBy,
+    trainerFeedback: row.trainerFeedback ?? null,
+    reviewedAt: row.reviewedAt instanceof Date ? row.reviewedAt.toISOString() : (row.reviewedAt ?? null),
+  };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "./metrics";
-import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
+import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -34,6 +34,8 @@ describe("portalLogEntry", () => {
       perceivedEnergy: 6,
       readiness: { sleep: 2 },
       flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
+      trainerFeedback: null,
+      reviewedAt: null,
     });
     expect(PortalLogEntry.parse(entry)).toEqual(entry);
   });
@@ -100,5 +102,31 @@ describe("the client's today (time zones)", () => {
   });
   test("a date's clock time lands on that date locally, so the week math reads the client's day", () => {
     expect(localDateOf(nowOfDate("2026-11-18"))).toBe("2026-11-18");
+  });
+});
+
+describe("portalCardioRx", () => {
+  const zones = [1, 2, 3, 4, 5].map((zone) => ({ zone, min: 100 + zone * 12, max: 111 + zone * 12 }));
+
+  test("intervals and bpm cross; zone bands resolve, the coach's own band wins; library ids stay home", () => {
+    const rx = portalCardioRx(
+      {
+        modality: "Running",
+        hrZone: 2,
+        modalityId: "secret-modality",
+        templateId: "secret-template",
+        intervals: [
+          { id: "w", type: "warmup", repeat: 1, durationSec: 600, hrZone: 1 },
+          { id: "r", type: "work", repeat: 4, durationSec: 180, hrZone: 4, hrBpm: { min: 160, max: 170 }, recovery: { type: "active_recovery", durationSec: 120 } },
+        ],
+      },
+      zones
+    );
+    expect(rx.hrBpm).toEqual({ min: 124, max: 135 });
+    expect(rx.intervals![0].hrBpm).toEqual({ min: 112, max: 123 });
+    expect(rx.intervals![1].hrBpm).toEqual({ min: 160, max: 170 });
+    expect(rx.intervals![1].recovery).toEqual({ type: "active_recovery", durationSec: 120, distanceM: undefined });
+    expect(JSON.stringify(rx)).not.toContain("secret");
+    expect(portalCardioRx({ modality: "Bike", hrZone: 2 }, null).hrBpm).toBeUndefined();
   });
 });

@@ -435,6 +435,8 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
       perceivedEnergy: 7,
       readiness: null,
       flags: [pain],
+      trainerFeedback: null,
+      reviewedAt: null,
     });
     // the logged 100 kg becomes the last load: set 1 by its own number, set 2 by the lift's latest
     const squat = week.body.weeks[0].sessions.find((s: any) => s.id === s1).exercises[0];

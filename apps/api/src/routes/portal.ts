@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { clients, db, sessionLogs, trainers } from "@pt/db";
-import { addDays, DisplayUnits, displayUnitsOf, nowOfDate, portalToday, PortalWeekDto } from "@pt/shared";
+import { addDays, DisplayUnits, displayUnitsOf, nowOfDate, PortalProgressDto, portalToday, PortalWeekDto, VO2_PROTOCOLS } from "@pt/shared";
 import {
   CLIENT_COOKIE,
   clientCookieSecure,
@@ -12,8 +12,8 @@ import {
 } from "../lib/client-auth";
 import { clientContext } from "../lib/client-context";
 import { createSessionLog, deleteSessionLog, refineCardioLog, refineLogKind, SessionLogFields } from "../lib/log-service";
-import { loadPortalWeek, portalWeekContext } from "../lib/portal";
-import { ErrorBody } from "../models/shared";
+import { loadPortalProgress, loadPortalWeek, portalWeekContext } from "../lib/portal";
+import { ErrorBody, oneOf } from "../models/shared";
 import { UnitsModel } from "../models/account";
 
 const SEEN_EVERY_MS = 60 * 60 * 1000;
@@ -157,6 +157,20 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })) }),
       response: { 200: t.Unsafe<PortalWeekDto>(t.Any()), 401: ErrorBody },
       detail: { summary: "This week and next for the signed-in client" },
+    },
+  )
+  /** The Progress tab: this week's cardio, recent cardio with the coach's feedback, one VO₂max trend. */
+  .get(
+    "/progress",
+    async ({ clientId, query }) => {
+      const today = portalToday(query.today, Date.now()) ?? portalToday(undefined, Date.now())!;
+      // parsed through the allow-list: nothing beyond the DTO's fields leaves the server
+      return PortalProgressDto.parse(await loadPortalProgress(clientId, nowOfDate(today), query.protocol));
+    },
+    {
+      query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })), protocol: t.Optional(oneOf(VO2_PROTOCOLS)) }),
+      response: { 200: t.Unsafe<PortalProgressDto>(t.Any()), 401: ErrorBody },
+      detail: { summary: "This week's cardio, recent cardio and a VO₂max trend for the signed-in client" },
     },
   )
   /** Log a session from the portal: current week only, dated today or earlier. */
