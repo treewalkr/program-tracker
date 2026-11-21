@@ -11,8 +11,13 @@
 	interface Props {
 		/** Allowed values, ascending. */
 		values: number[];
-		value: number;
+		/** null = not given yet: the placeholder shows and the first step lands on `start`. */
+		value: number | null;
 		onchange?: (value: number) => void;
+		/** Shown while the value is null. */
+		placeholder?: string;
+		/** Where a first step or the open grid starts from a null value (default: the middle value). */
+		start?: number;
 		/** Accessible name: "RPE", "Rest". */
 		label: string;
 		/** Small unit after the figure: "RPE", "s rest", "kg". */
@@ -26,15 +31,18 @@
 		open?: boolean;
 	}
 
-	let { values, value = $bindable(), onchange, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false) }: Props = $props();
+	let { values, value = $bindable(), onchange, placeholder = '—', start, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false) }: Props = $props();
 
 	const uid = $props.id();
 	let active = $state(0);
 	$effect(() => {
-		if (open) active = Math.max(0, untrack(() => index));
+		if (open) active = untrack(() => home());
 	});
 
-	const index = $derived(values.indexOf(value));
+	const index = $derived(value == null ? -1 : values.indexOf(value));
+	const startIndex = $derived(Math.max(0, start != null ? values.indexOf(start) : Math.floor((values.length - 1) / 2)));
+	/** The grid cell an opening highlights: the value, else the start. */
+	const home = () => (value == null ? startIndex : Math.max(0, index));
 	const shown = $derived(open ? (values[active] ?? value) : value);
 
 	function set(v: number) {
@@ -43,13 +51,18 @@
 	}
 
 	function step(by: number) {
-		const from = index === -1 ? values.findIndex((v) => v >= value) : index;
+		if (value == null) {
+			set(values[startIndex]);
+			return;
+		}
+		const current = value;
+		const from = index === -1 ? values.findIndex((v) => v >= current) : index;
 		const next = values[Math.min(values.length - 1, Math.max(0, (from === -1 ? values.length - 1 : from) + by))];
 		if (next !== undefined) set(next);
 	}
 
 	function show() {
-		active = Math.max(0, index);
+		active = home();
 		open = true;
 	}
 
@@ -93,11 +106,11 @@
 				onclick={() => (open ? (open = false) : show())}
 				{onkeydown}
 			>
-				{value}{#if unit}<small>{unit}</small>{/if}
+				{#if value == null}<span class="ph">{placeholder}</span>{:else}{value}{/if}{#if unit}<small>{unit}</small>{/if}
 			</button>
 			<div class="st">
-				<button type="button" tabindex="-1" aria-label="Increase {label}" disabled={disabled || index === values.length - 1} onclick={() => step(1)}><Icon name="arrow-up" /></button>
-				<button type="button" tabindex="-1" aria-label="Decrease {label}" disabled={disabled || index === 0} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
+				<button type="button" tabindex="-1" aria-label="Increase {label}" disabled={disabled || (value != null && index === values.length - 1)} onclick={() => step(1)}><Icon name="arrow-up" /></button>
+				<button type="button" tabindex="-1" aria-label="Decrease {label}" disabled={disabled || (value != null && index === 0)} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
 			</div>
 		</div>
 	{/snippet}
@@ -118,7 +131,7 @@
 			>{v}</div>
 		{/each}
 	</div>
-	{#if describe}<div class="ft">{shown} · {describe(shown)}</div>{/if}
+	{#if describe && shown != null}<div class="ft">{shown} · {describe(shown)}</div>{/if}
 </Dropdown>
 
 <style>
@@ -142,6 +155,7 @@
 	.v:focus-visible { outline: none; }
 	.v:hover:not(:disabled) { background: var(--well-2); }
 	small { font: 400 12px var(--font-ui); color: var(--muted); }
+	.ph { color: var(--muted); font-weight: 400; }
 	.st { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
 	.st button { flex: 1; width: 26px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 0; cursor: pointer; }
 	.st button + button { border-top: 1px solid var(--line-soft); }

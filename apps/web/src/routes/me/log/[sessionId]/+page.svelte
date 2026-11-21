@@ -142,7 +142,7 @@
       return;
     }
     fresh(s);
-    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows);
+    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows, cardioFormOf(s.cardio));
     if (draft && !sameForm(draft, freshForm(s))) {
       rows = draft.rows;
       cardio = draft.cardio;
@@ -238,7 +238,16 @@
         await jumpToMissing();
         return;
       }
-      error = built.error === "nothing" ? t("log.nothing") : t("log.cardioNeedsActivity");
+      error =
+        built.error === "nothing"
+          ? t("log.nothing")
+          : built.error === "duration"
+            ? t("log.cardioNeedsDuration")
+            : built.error === "rpe"
+              ? t("log.cardioNeedsRpe")
+              : built.error === "maxHr"
+                ? t("log.cardioMaxHr")
+                : t("log.cardioNeedsActivity");
       return;
     }
     saving = true;
@@ -286,14 +295,10 @@
     },
     valueLabel: (label, v, max) => t("log.scaleValue", { label, v, max }),
   });
-  const cardioText: CardioFormText = $derived({
+  // The form's other labels are English until the portal's cardio pass (run D) adds them.
+  const cardioText: Partial<CardioFormText> = $derived({
     modality: t("cardio.activity"),
     modalityPlaceholder: t("cardio.activityPlaceholder"),
-    minutes: t("cardio.minutes"),
-    hrZone: t("cardio.zone"),
-    intensity: t("cardio.intensity"),
-    intensityPlaceholder: t("cardio.intensityPlaceholder"),
-    km: t("cardio.km"),
     rpe: t("cardio.rpe"),
   });
 

@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Mono tabular value with a unit, stacked step buttons, and a number grid on open. For numbers picked repeatedly: reps, kg, RPE, rest. Closed, ↑/↓ step the value; open, arrows move through the grid.',
+            'Mono tabular value with a unit, stacked step buttons, and a number grid on open. For numbers picked repeatedly: reps, kg, RPE, rest. Closed, ↑/↓ step the value; open, arrows move through the grid. A null value shows the placeholder until it is picked (a required session RPE is never prefilled), and the first step lands on `start`.',
         },
       },
     },
@@ -24,6 +24,7 @@
 <script lang="ts">
   let rpe = $state(8.5);
   let rest = $state(120);
+  let sessionRpe = $state<number | null>(null);
   let open = $state(true);
 </script>
 
@@ -33,4 +34,8 @@
 
 <Story name="Rest seconds" asChild>
   <div style="min-height: 190px"><SelectStepper label="Rest" unit="s rest" values={rests} columns={3} bind:value={rest} /></div>
+</Story>
+
+<Story name="Not given yet" asChild>
+  <div style="min-height: 190px"><SelectStepper label="Session RPE" unit="RPE" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} columns={5} start={5} bind:value={sessionRpe} /></div>
 </Story>

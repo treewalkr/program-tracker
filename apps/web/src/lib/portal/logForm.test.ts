@@ -99,12 +99,15 @@ describe("portal log form", () => {
     ]);
   });
 
-  test("cardio RPE is saved only when the client gave it", () => {
+  test("cardio RPE is never prefilled from the target, and a log needs the client's own", () => {
     const withTarget: PortalSession = { ...cardio, cardio: { modality: "Run", durationMin: 30, targetRpe: 6 } };
-    expect(cardioFormOf(withTarget.cardio).rpe).toBe("");
-    const r = buildPortalLog(withTarget, form(withTarget), false);
+    expect(cardioFormOf(withTarget.cardio).rpe).toBeNull();
+    expect(buildPortalLog(withTarget, form(withTarget), false)).toEqual({ error: "rpe" });
+    const given = form(withTarget);
+    given.cardio.rpe = 5;
+    const r = buildPortalLog(withTarget, given, false);
     if (!("input" in r)) throw new Error("expected input");
-    expect(r.input.cardio?.rpe).toBeUndefined();
+    expect(r.input.cardio?.rpe).toBe(5);
   });
 
   test("as prescribed is one save; edits go through", () => {
@@ -126,8 +129,14 @@ describe("portal log form", () => {
     const empty = form(exerciseSession, { rows: rowsOfSession(exerciseSession).map((r) => ({ ...r, weight: "", reps: "" })) });
     expect(buildPortalLog(exerciseSession, empty, false)).toEqual({ error: "nothing" });
     expect(buildPortalLog(cardio, form(cardio, { cardio: { ...cardioFormOf(null) } }), false)).toEqual({ error: "activity" });
-    const ok = buildPortalLog(cardio, form(cardio, { readiness: { energy: 7, sleep: 4, soreness: null }, notes: " good " }), false);
-    expect(ok).toMatchObject({ input: { kind: "cardio", cardio: { modality: "Run", durationMin: 30, hrZone: 2 }, perceivedEnergy: 7, readiness: { sleep: 4 }, notes: "good", sets: [] } });
+    const f = form(cardio, { readiness: { energy: 7, sleep: 4, soreness: null }, notes: " good " });
+    f.cardio.rpe = 4;
+    const ok = buildPortalLog(cardio, f, false);
+    expect(ok).toMatchObject({ input: { kind: "cardio", cardio: { modality: "Run", durationSec: 1800, durationMin: 30, rpe: 4 }, perceivedEnergy: 7, readiness: { sleep: 4 }, notes: "good", sets: [] } });
+    expect(buildPortalLog(cardio, form(cardio, { cardio: { ...cardioFormOf(cardio.cardio), durationSec: null } }), false)).toEqual({ error: "duration" });
+    expect(buildPortalLog(cardio, form(cardio, { cardio: { ...cardioFormOf(cardio.cardio), skipped: "time" } }), false)).toMatchObject({
+      input: { cardio: { modality: "Run", skipped: { reason: "time" } } },
+    });
   });
 
   test("a draft round-trips, and one that no longer fits the session is dropped", () => {
@@ -204,12 +213,18 @@ describe("edit log: the client's own entry reopens", () => {
     ]);
   });
 
+  test("an older build's cardio draft reads as the current form", () => {
+    const f = form(cardio);
+    const raw = JSON.stringify({ ...JSON.parse(portalDraftJson(f)), cardio: { modality: "Run", durationMin: "25", hrZone: "2", intensity: "", distanceKm: "4", rpe: "" } });
+    expect(parsePortalDraft(raw, f.rows)?.cardio).toMatchObject({ modality: "Run", durationSec: 1500, distanceKm: 4, rpe: null });
+  });
+
   test("a saved cardio entry reopens its numbers", () => {
     const s: PortalSession = {
       ...cardio,
       log: { id: "l2", loggedBy: "client", date: "2026-11-15", entry: { ...entry([]), cardio: { modality: "Bike", durationMin: 40, rpe: 6 } } },
     };
-    expect(formOfSession(s, "2026-11-16").cardio).toEqual({ modality: "Bike", durationMin: "40", hrZone: "", intensity: "", distanceKm: "", rpe: "6" });
+    expect(formOfSession(s, "2026-11-16").cardio).toMatchObject({ modality: "Bike", durationSec: 2400, rpe: 6, distanceKm: null, skipped: null });
   });
 });
 

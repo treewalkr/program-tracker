@@ -31,7 +31,20 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import ReadinessStrip from "$lib/components/log/ReadinessStrip.svelte";
-  import CardioLogForm, { type CardioForm } from "$lib/components/log/CardioLogForm.svelte";
+  import CardioLogForm from "$lib/components/log/CardioLogForm.svelte";
+  import {
+    asPrescribedForm,
+    CARDIO_FORM_ERROR,
+    cardioFormDirty,
+    cardioFormOf,
+    cardioLogOf,
+    emptyCardioForm,
+    readCardioForm,
+    type CardioForm,
+    type CardioFormError,
+  } from "$lib/cardioForm";
+  import type { ModalityDto } from "$lib/api/types";
+  import { modalityMetric } from "@pt/shared";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
@@ -99,6 +112,7 @@
     FLAG_NOTE_MAX,
     painExercises,
     readinessInput,
+    readinessRated,
     sessionFlags,
     setFlagNote,
     toggleFlag,
@@ -168,14 +182,13 @@
   /** Slot whose swap picker is open. */
   let swapOpen = $state<string | null>(null);
 
-  let cardioForm = $state<CardioForm>({
-    modality: "",
-    durationMin: "",
-    hrZone: "",
-    intensity: "",
-    distanceKm: "",
-    rpe: "",
-  });
+  let cardioForm = $state<CardioForm>(emptyCardioForm());
+  /** The form as prefilled from the plan — a draft is kept only once it differs. */
+  let cardioBase = $state<CardioForm>(emptyCardioForm());
+  /** The field the last cardio save was missing. */
+  let cardioProblem = $state<CardioFormError | null>(null);
+  let modalities = $state<ModalityDto[]>([]);
+  const cardioMetric = $derived(modalityMetric(cardioForm.modality, modalities));
 
   const slots = $derived(program ? slotIds(program) : new Map<string, string>());
   /** "Last" = the last time this prescribed slot was done (same session, same lift, same set). */
@@ -319,6 +332,15 @@
     if (session?.kind === "cardio") {
       rows = [];
       prefillCardio(session.cardio);
+      const raw = browser ? localStorage.getItem(draftKey(id, sessionId)) : null;
+      const draft = raw ? parseCardioDraft(raw) : null;
+      if (draft) {
+        cardioForm = readCardioForm(draft.cardio, cardioBase);
+        notes = draft.notes;
+        readiness = draft.readiness;
+        date = draft.date;
+        draftSavedAt = draft.savedAt;
+      }
       return;
     }
     const fresh = freshRows();
@@ -341,6 +363,39 @@
 
   let draftSavedAt = $state<string | null>(null);
   const dirty = $derived(isDirty(rows, notes, readiness, flags));
+
+  // Cardio sessions keep a draft too: the form, notes, readiness and date.
+  $effect(() => {
+    if (!program || !sessionId || !isCardioSession) return;
+    const key = draftKey(id, sessionId);
+    const body = JSON.stringify({ cardio: cardioForm, notes, readiness, date, savedAt: new Date().toISOString() });
+    if (!cardioFormDirty(cardioForm, cardioBase) && notes.trim() === "" && !readinessRated(readiness)) {
+      localStorage.removeItem(key);
+      return;
+    }
+    try {
+      localStorage.setItem(key, body);
+    } catch {
+      // Storage full or blocked: the unsaved-work prompts still guard the form.
+    }
+  });
+
+  /** A stored cardio draft (anything else under the key → null). */
+  function parseCardioDraft(raw: string): { cardio: unknown; notes: string; readiness: ReadinessForm; date: string; savedAt: string } | null {
+    try {
+      const d = JSON.parse(raw);
+      if (!d || typeof d !== "object" || !d.cardio || typeof d.date !== "string") return null;
+      return {
+        cardio: d.cardio,
+        notes: typeof d.notes === "string" ? d.notes : "",
+        readiness: d.readiness && typeof d.readiness === "object" ? { ...EMPTY_READINESS, ...d.readiness } : { ...EMPTY_READINESS },
+        date: d.date,
+        savedAt: typeof d.savedAt === "string" ? d.savedAt : "",
+      };
+    } catch {
+      return null;
+    }
+  }
 
   $effect(() => {
     if (!program || !sessionId || isCardioSession) return;
@@ -491,20 +546,11 @@
     }),
   });
 
-  /** Fill the cardio form from a prescription (or a prior actual). */
+  /** Fill the cardio form from the prescription: modality, planned time and distance, never the RPE. */
   function prefillCardio(c?: ProgramSessionDto["cardio"]) {
+    cardioBase = cardioFormOf(c);
     cardioForm = cardioFormOf(c);
-  }
-
-  function cardioFormOf(c?: ProgramSessionDto["cardio"]): CardioForm {
-    return {
-      modality: c?.modality ?? "",
-      durationMin: c?.durationMin != null ? String(c.durationMin) : "",
-      hrZone: c?.hrZone != null ? String(c.hrZone) : "",
-      intensity: c?.intensity ?? "",
-      distanceKm: c?.distanceKm != null ? String(c.distanceKm) : "",
-      rpe: c?.targetRpe != null ? String(c.targetRpe) : "",
-    };
+    cardioProblem = null;
   }
 
   /** The row with every empty cell filled from what was prescribed. Skips stay skipped. */
@@ -600,7 +646,10 @@
     };
   }
 
-  function cardioPending(form: CardioForm): Pending {
+  /** The save for a cardio form, or the field it's missing (shown on the form). */
+  function cardioPending(form: CardioForm): Pending | CardioFormError {
+    const built = cardioLogOf(form);
+    if ("error" in built) return built.error;
     return {
       input: {
         clientId: id,
@@ -610,19 +659,12 @@
         ...readinessInput(readiness),
         notes: notes || undefined,
         kind: "cardio",
-        cardio: {
-          modality: form.modality.trim(),
-          durationMin: cellNumber(form.durationMin) ?? null,
-          hrZone: cellNumber(form.hrZone) ?? null,
-          intensity: form.intensity.trim() === "" ? undefined : form.intensity.trim(),
-          distanceKm: cellNumber(form.distanceKm),
-          rpe: cellNumber(form.rpe),
-        },
+        cardio: built.cardio,
         sets: [],
       },
       sent: null,
       count: 1,
-      snapshot: { ...snapshot(rows), cardio: { ...form } },
+      snapshot: { ...snapshot(rows), cardio: $state.snapshot(form) as CardioForm },
     };
   }
 
@@ -710,11 +752,14 @@
 
   async function saveCardio() {
     if (!program || !sessionId) return;
-    if (cardioForm.modality.trim() === "") {
-      error = "Enter the modality — what did they do?";
+    const pending = cardioPending(cardioForm);
+    if (typeof pending === "string") {
+      cardioProblem = pending;
+      error = CARDIO_FORM_ERROR[pending];
       return;
     }
-    await send(cardioPending(cardioForm));
+    cardioProblem = null;
+    await send(pending);
   }
 
   async function save() {
@@ -740,13 +785,16 @@
     if (!program || !sessionId) return;
     error = null;
     if (isCardioSession) {
-      const form = cardioFormOf(selectedSession?.cardio);
-      if (form.modality.trim() === "") {
+      const form = asPrescribedForm(selectedSession?.cardio);
+      const pending = cardioPending(form);
+      if (typeof pending === "string") {
+        // Not loggable as is (no target RPE, or no time): fill in the plan and say what's missing.
         cardioForm = form;
-        error = "Enter the modality — what did they do?";
+        cardioProblem = pending;
+        error = CARDIO_FORM_ERROR[pending];
         return;
       }
-      await openAsk({ mode: "confirm", summary: null, preview: null, shown: null, pending: cardioPending(form) });
+      await openAsk({ mode: "confirm", summary: null, preview: null, shown: null, pending });
       return;
     }
     const preview = rows.map(withPrescribed);
@@ -1126,6 +1174,8 @@
   async function firstLoad() {
     const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
     catalog = exercises;
+    // The modality picker; a failed read leaves the free-text field's list empty, nothing else.
+    api.modalities().then((m) => (modalities = m), () => {});
     client = detail.client;
     program = detail.currentProgram;
     pastLogs = await api.sessionLogs(id);
@@ -1290,7 +1340,7 @@
         <ReadinessStrip bind:value={readiness} bind:open={readinessOpen} />
       {/if}
       {#if isCardioSession}
-        <CardioLogForm bind:value={cardioForm} />
+        <CardioLogForm bind:value={cardioForm} modalities={modalities.filter((m) => !m.archivedAt)} metric={cardioMetric} problem={cardioProblem} />
         <div class="panel-body foot">
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">
