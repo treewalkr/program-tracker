@@ -133,8 +133,8 @@
 		white-space: nowrap;
 	}
 	.warn { display: grid; justify-items: start; gap: 2px; font: 500 12px/1.4 var(--font-ui); color: var(--warn); }
-	/* the ghost button's label lines up with the warning text */
-	.warn .btn { margin-left: -12px; }
+	/* the fix reads as a link-style action (CopyButton's quiet look), its label lined up with the warning text */
+	.warn .btn { margin-left: -12px; color: var(--blue); }
 	@media (max-width: 720px) { .box { min-height: 40px; } .in { font-size: 16px; } }
 	@media (max-width: 420px) { .box { flex-wrap: wrap; } }
 </style>
