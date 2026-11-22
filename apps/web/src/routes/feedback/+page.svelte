@@ -993,10 +993,6 @@
   .page :global(:focus-visible) {
     outline-color: var(--blue);
   }
-  /* Small buttons reach the 24px minimum target. */
-  .page :global(.btn.small) {
-    min-height: 24px;
-  }
   .page > :global(.note) {
     margin-bottom: 16px;
   }
