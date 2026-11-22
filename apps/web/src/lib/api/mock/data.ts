@@ -772,6 +772,8 @@ export const trainerProgram: ProgramDto = {
               { id: "pe-nat-29", exerciseId: "ex-torsotwist", order: 9, prescribedSets: many(4, 10) },
               { id: "pe-nat-30", exerciseId: "ex-plank", order: 10, prescribedSets: toFailure(4) },
               { id: "pe-nat-31", exerciseId: "ex-sideplank", order: 11, prescribedSets: toFailure(4) },
+              // a bodyweight move a member may load with a belt: BW or "Added kg"
+              { id: "pe-nat-37", exerciseId: "ex-pullup", order: 12, prescribedSets: many(3, 6) },
             ],
           },
           {
