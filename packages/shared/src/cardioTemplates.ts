@@ -23,15 +23,15 @@ export const CARDIO_TEMPLATE_PRESETS: readonly CardioTemplatePreset[] = [
     key: "easy-zone2",
     name: "Easy / Zone 2",
     summary: "Conversational pace that builds the aerobic base. Should feel easy all the way.",
-    prescription: { durationMin: 40, hrZone: 2, targetRpe: 3, intensity: "easy" },
+    prescription: { durationMin: 40, hrZone: 2, targetRpe: 3 },
   },
   {
     key: "tempo-threshold",
     name: "Tempo / Threshold",
     summary: "Comfortably hard, sustained work near threshold, between an easy warm-up and cool-down.",
     prescription: {
-      targetRpe: 7,
-      intensity: "tempo",
+      // the whole session averages out below the 20-minute block's effort
+      targetRpe: 6,
       intervals: [
         { id: "warmup", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2 },
         { id: "tempo", type: "work", repeat: 1, durationSec: 1200, hrZone: 4, rpe: 7 },
@@ -44,8 +44,8 @@ export const CARDIO_TEMPLATE_PRESETS: readonly CardioTemplatePreset[] = [
     name: "Intervals",
     summary: "Hard repeats with easy recovery between them, for speed and VO₂max.",
     prescription: {
-      targetRpe: 8,
-      intensity: "intervals",
+      // the reps are hard (8); with the easy work between them the session rates about 7
+      targetRpe: 7,
       intervals: [
         { id: "warmup", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2 },
         {
@@ -53,9 +53,11 @@ export const CARDIO_TEMPLATE_PRESETS: readonly CardioTemplatePreset[] = [
           type: "work",
           repeat: 4,
           durationSec: 180,
-          hrZone: 5,
+          // zone 4: a 3-minute rep never settles into zone 5, heart rate lags the effort
+          hrZone: 4,
           rpe: 8,
-          recovery: { type: "active_recovery", durationSec: 120 },
+          notes: "Go by effort; HR lags in short reps.",
+          recovery: { type: "active_recovery", durationSec: 180 },
         },
         { id: "cooldown", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1 },
       ],
@@ -65,13 +67,13 @@ export const CARDIO_TEMPLATE_PRESETS: readonly CardioTemplatePreset[] = [
     key: "long-endurance",
     name: "Long / Endurance",
     summary: "The week's longest session at an easy, steady effort.",
-    prescription: { durationMin: 75, hrZone: 2, targetRpe: 4, intensity: "long" },
+    prescription: { durationMin: 60, hrZone: 2, targetRpe: 4 },
   },
   {
     key: "continuous",
     name: "Continuous",
     summary: "One steady effort at a moderate pace.",
-    prescription: { durationMin: 30, hrZone: 3, targetRpe: 5 },
+    prescription: { durationMin: 30, hrZone: 3, targetRpe: 4 },
   },
   {
     key: "custom",

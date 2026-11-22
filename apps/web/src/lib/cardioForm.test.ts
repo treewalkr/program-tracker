@@ -9,7 +9,7 @@ describe("cardioFormOf", () => {
   test("prefills the modality and planned time, never the RPE", () => {
     const f = cardioFormOf({ ...intervals, targetRpe: 8 } as never);
     expect(f.modality).toBe("Running");
-    expect(f.durationSec).toBe(600 + 4 * 180 + 3 * 120 + 300);
+    expect(f.durationSec).toBe(600 + 4 * 180 + 3 * 180 + 300);
     expect(f.rpe).toBeNull();
   });
   test("a row per rep of each interval", () => {

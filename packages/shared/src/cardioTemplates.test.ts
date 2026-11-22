@@ -21,10 +21,23 @@ describe("cardio template presets", () => {
     }
   });
 
-  test("the Intervals preset is the 33:00 session", () => {
+  test("the Intervals preset: 4×3:00 in zone 4 at RPE 8, 3:00 easy between, session RPE 7 (36:00)", () => {
     const rx = fromCardioTemplate(CARDIO_TEMPLATE_PRESETS[2], "Running");
-    expect(cardioTotals(rx).durationSec).toBe(33 * 60);
+    // 10 warm-up + 4×3 + 3×3 recovery + 5 cool-down
+    expect(cardioTotals(rx).durationSec).toBe(36 * 60);
     expect(rx.templateId).toBe("intervals");
+    expect(rx.targetRpe).toBe(7);
+    expect(rx.intervals![1]).toMatchObject({ repeat: 4, durationSec: 180, hrZone: 4, rpe: 8, recovery: { type: "active_recovery", durationSec: 180 } });
+    expect(rx.intervals![1].notes).toBe("Go by effort; HR lags in short reps.");
+  });
+
+  test("preset science: tempo 6 (reps 7), continuous RPE 4, long 60 min, no stray intensity slug", () => {
+    const by = Object.fromEntries(CARDIO_TEMPLATE_PRESETS.map((p) => [p.key, p.prescription]));
+    expect(by["tempo-threshold"].targetRpe).toBe(6);
+    expect(by["tempo-threshold"].intervals![1].rpe).toBe(7);
+    expect(by.continuous.targetRpe).toBe(4);
+    expect(by["long-endurance"].durationMin).toBe(60);
+    for (const p of CARDIO_TEMPLATE_PRESETS) expect(p.prescription.intensity).toBeUndefined();
   });
 
   test("a template copy never shares intervals with the preset", () => {
