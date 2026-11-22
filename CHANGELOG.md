@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### New
+- **Cardio, built out.** A cardio session can now hold intervals: warm-up, work reps with recovery between them, and cool-down. Each part can have a time or distance, an HR zone or bpm range, and an RPE. The editor adds up the total time as you go, and won't guess a time for a part given only by distance.
+  - th: เซสชันคาร์ดิโอใส่อินเทอร์วัลได้แล้ว ทั้งวอร์มอัพ ช่วงหนักหลายรอบพร้อมช่วงพักระหว่างรอบ และคูลดาวน์ แต่ละช่วงกำหนดเวลาหรือระยะ โซนหรือช่วง bpm และ RPE ได้ ระบบรวมเวลาให้ทันที ส่วนช่วงที่กำหนดแค่ระยะ ระบบจะไม่เดาเวลาให้
+- **Cardio templates and modalities.** Start a session from 6 built-in templates (Easy / Zone 2, Tempo, Intervals, Long, Continuous, Custom) or save your own. A new **Cardio library** page manages your templates and your own modalities, like "Assault bike".
+  - th: เริ่มเซสชันคาร์ดิโอจากเทมเพลต 6 แบบที่มีให้ หรือบันทึกเทมเพลตของคุณเองก็ได้ หน้าใหม่ **Cardio library** ใช้จัดการเทมเพลตและประเภทคาร์ดิโอที่เพิ่มเอง เช่น "Assault bike"
+- **Richer cardio logs.** A log now takes the time in mm:ss, session RPE, distance, average and max heart rate, pain with a note, calories, and optional results for each interval. Pace and session load are worked out for you. A session can also be marked as not done, with a reason, and it won't count as done or as missed.
+  - th: บันทึกคาร์ดิโอกรอกเวลาเป็นนาทีกับวินาที RPE ทั้งเซสชัน ระยะทาง ชีพจรเฉลี่ยและสูงสุด อาการเจ็บพร้อมโน้ต แคลอรี และผลแยกรายช่วงได้ (ไม่บังคับ) เพซกับโหลดระบบคำนวณให้ ถ้าเมมเบอร์ไม่ได้เล่น ก็บันทึกว่าไม่ได้เล่นพร้อมเหตุผลได้ด้วย ระบบจะไม่นับว่าเล่นแล้วหรือขาด
+- **Review cardio on the new Cardio tab.** Each member page has a Cardio tab with weekly session load, distance by activity, and the cardio logs to review. Open a log to see the plan next to what was done, write feedback, and mark it reviewed. The member sees your feedback in the portal. Pain on a cardio log now raises the pain flag too.
+  - th: หน้าเมมเบอร์มีแท็บ Cardio ใหม่ แสดงโหลดรายสัปดาห์ ระยะทางแยกตามประเภท และบันทึกคาร์ดิโอที่รอรีวิว เปิดบันทึกแล้วจะเห็นแผนเทียบกับที่เล่นจริง เขียนฟีดแบ็กแล้วกดรีวิวได้เลย เมมเบอร์จะเห็นฟีดแบ็กในพอร์ทัล ส่วนอาการเจ็บในบันทึกคาร์ดิโอก็ขึ้นเป็นสัญญาณเตือนด้วย
+- **Every new log keeps a copy of its plan.** Editing a program later no longer changes what a past log is compared against. This works for strength sessions too.
+  - th: บันทึกใหม่ทุกครั้งเก็บสำเนาแผนไว้ด้วย แก้โปรแกรมทีหลัง บันทึกเก่าก็ยังเทียบกับแผนตอนที่เล่นจริง ใช้กับเซสชันเวทด้วย
+- **HR zones per member.** In a member's Settings, set HR zones by % of max HR, heart-rate reserve (Karvonen), % of LTHR, or your own table. Each change is a new version from a date, so older sessions keep the zones they had. Nothing estimates max HR from age; an untested max HR is marked as approximate.
+  - th: ตั้ง HR zone ของเมมเบอร์แต่ละคนได้ในแท็บ Settings เลือกได้ว่าจะคิดจาก % ของชีพจรสูงสุด, ชีพจรสำรอง (Karvonen), % ของ LTHR หรือกรอกตารางเอง ทุกครั้งที่แก้จะเป็นเวอร์ชันใหม่ตามวันที่เริ่มใช้ เซสชันก่อนหน้าก็ยังใช้โซนเดิม ระบบไม่เดาชีพจรสูงสุดจากอายุ และถ้ายังไม่ได้เทสต์จริงจะบอกว่าเป็นค่าประมาณ
+- **VO₂max field tests.** A new Assessments tab records the Cooper 12-minute run, the 1.5-mile run and the Rockport 1-mile walk, with a trend chart for each. Results are estimates from field tests and say so.
+  - th: แท็บ Assessments ใหม่ใช้บันทึกเทส VO₂max ได้ 3 แบบ คือวิ่ง 12 นาที (Cooper), วิ่ง 1.5 ไมล์ และเดิน 1 ไมล์ (Rockport) พร้อมกราฟแนวโน้มแยกตามแบบ ผลที่ได้เป็นค่าประมาณจากการทดสอบภาคสนาม และระบบก็บอกไว้ชัด
+- **Weekly cardio target by session load.** Set the weekly target as session load (RPE × minutes) instead of zone-minutes. Existing zone-minutes targets were cleared, so set a new one where you need it.
+  - th: เป้าคาร์ดิโอรายสัปดาห์ตั้งเป็นโหลด (RPE × นาที) แทน zone-minutes แล้ว เป้าแบบ zone-minutes เดิมถูกล้างออก ถ้ายังต้องใช้ ก็ตั้งใหม่ได้เลย
+- **Miles and pounds.** In Settings › Units, show distances in km or mi and weights in kg or lb across the whole app. Everything is still stored in kg and km, so switching never changes a number. Members choose their own units in the portal.
+  - th: เลือกแสดงระยะทางเป็นกม. หรือไมล์ และน้ำหนักเป็นกก. หรือปอนด์ได้ทั้งแอปที่ Settings › Units ข้อมูลยังเก็บเป็นกก. กับกม. เหมือนเดิม สลับไปมาตัวเลขก็ไม่เปลี่ยน ส่วนเมมเบอร์เลือกหน่วยของตัวเองในพอร์ทัลได้
+- **Cardio in the member portal.** Members see each interval with its zone and bpm, log cardio with the new form, and get a **Progress** tab with this week's cardio, their VO₂max trend and your latest feedback. A new portal settings page holds units and language.
+  - th: ในพอร์ทัล เมมเบอร์จะเห็นอินเทอร์วัลแต่ละช่วงพร้อมโซนและ bpm บันทึกคาร์ดิโอด้วยฟอร์มใหม่ และมีแท็บ **พัฒนาการ** ที่รวมคาร์ดิโอสัปดาห์นี้ แนวโน้ม VO₂max และฟีดแบ็กล่าสุดจากคุณ หน้าตั้งค่าใหม่ของพอร์ทัลใช้เลือกหน่วยและภาษา
+- **AI writes cardio with intervals** and uses the member's HR zones when they have them. It never invents max HR, LTHR or VO₂max.
+  - th: AI เขียนคาร์ดิโอแบบมีอินเทอร์วัลได้ และใช้ HR zone ของเมมเบอร์ถ้ามี โดยไม่เดาชีพจรสูงสุด LTHR หรือ VO₂max เอง
+- A new **Cardio** guide explains all of this, in English and Thai.
+  - th: มีคู่มือ **Cardio** ใหม่ อธิบายทุกเรื่องข้างบน ทั้งภาษาไทยและอังกฤษ
+- Pick **Multi-movement** as a pattern, and give an exercise up to 5 patterns.
+  - th: เลือกแพตเทิร์น **Multi-movement** ได้แล้ว และท่าหนึ่งใส่แพตเทิร์นได้สูงสุด 5 แบบ
+- The AI brief can now be up to 6,000 characters, and the generate page shows how much you've used.
+  - th: บรีฟให้ AI ยาวได้ถึง 6,000 ตัวอักษร และหน้าสร้างโปรแกรมจะแสดงว่าใช้ไปเท่าไรแล้ว
+
+### Fixed
+- Form fields look and size the same across the app, and buttons match the field height.
+  - th: ช่องกรอกทั้งแอปหน้าตาและขนาดเท่ากันแล้ว ปุ่มก็สูงเท่าช่องกรอก
+- Thai text uses the right font in Safari too.
+  - th: ข้อความภาษาไทยใช้ฟอนต์ถูกตัวบน Safari ด้วยแล้ว
+- Error messages name the field that needs fixing.
+  - th: ข้อความแจ้งข้อผิดพลาดบอกชื่อช่องที่ต้องแก้แล้ว
+- Small fixes to the ⌘K hint, the roster hover and duplicate tags.
+  - th: แก้จุดเล็ก ๆ ที่ปุ่มลัด ⌘K การชี้เมาส์ในรายชื่อเมมเบอร์ และแท็กซ้ำ
+
 ## v0.1.40 — 2026-11-20
 
 ### New
