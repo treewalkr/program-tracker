@@ -1,9 +1,9 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { page } from "$app/state";
-  import { addDays, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
+  import { addDays, groupKind, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
-  import { blocksOf, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type SkipReason } from "$lib/logSheet";
+  import { blocksOf, roundBreaks, roundOrder, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type RoundBreak, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
@@ -38,6 +38,7 @@
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import Pill from "$lib/ui/Pill.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import { showLoad, units, weightCells, weightStepIn } from "$lib/units.svelte";
 
@@ -71,6 +72,8 @@
   /** RPE is optional: hidden until asked for, so kg and reps share one row on a phone. */
   let showRpe = $state(false);
   let feelOpen = $state(false);
+  /** "Skip or pain?" opened on this card. Paging closes it, unless the card has a skip or pain to show. */
+  let issuesOpen = $state(false);
 
   /** Set after a save was refused for missing kg: from then on the missing cells are ringed live. */
   let kgChecked = $state(false);
@@ -93,6 +96,33 @@
   const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
   const missingKeys = $derived(new Set(missingKg.map((r) => r.key)));
   const exerciseOf = (peId: string) => session?.exercises.find((e) => e.id === peId) ?? null;
+  /**
+   * The card's sets as they're done on the floor. A superset or circuit runs round by
+   * round under a "Set N" header (extras last, under their own); a single exercise as built.
+   * Display order only: the rows, drafts and the save keep their build order.
+   */
+  const rounds = $derived.by(() => {
+    if (!block) return [];
+    const shown = (block.group ? roundOrder(block.rows) : block.rows).filter((r) => !r.exerciseSkip);
+    if (!block.group) return [{ key: "all", brk: null as RoundBreak | null, rows: shown }];
+    const breaks = roundBreaks(shown);
+    const out: { key: string; brk: RoundBreak | null; rows: PortalRow[] }[] = [];
+    for (const r of shown) {
+      const brk = breaks.get(r.key);
+      if (brk || out.length === 0) out.push({ key: brk ? (brk.kind === "extra" ? "extra" : `round-${brk.n}`) : "all", brk: brk ?? null, rows: [] });
+      out[out.length - 1].rows.push(r);
+    }
+    return out;
+  });
+  /** "Circuit · 3 rounds" over a group card's title. */
+  const groupKicker = $derived.by(() => {
+    if (!block?.group) return "";
+    const n = Math.max(1, ...block.rows.filter((r) => !r.extra).map((r) => r.setNumber));
+    const kind = groupKind(block.memberIds.length) === "Circuit" ? t("log.circuit") : t("log.superset");
+    return `${kind} · ${n === 1 ? t("log.roundsOne") : t("log.rounds", { n })}`;
+  });
+  /** Every exercise on a card, as the Next button names it: "SkiErg + Wall Ball". */
+  const blockName = (b: { memberIds: string[] }) => b.memberIds.map((id) => exerciseOf(id)?.exerciseName ?? "").join(" + ");
   /** The rest this exercise prescribes (a superset: its first member's), for the timer. */
   const blockRest = $derived(block ? restOf(block.memberIds.flatMap((id) => exerciseOf(id)?.prescribedSets ?? [])) : null);
   // never before the week (the server refuses it), never in the future
@@ -161,6 +191,8 @@
       date = draft.date >= minDate && draft.date <= maxDate ? draft.date : freshForm(s).date;
       restored = true;
     }
+    // a restored draft or a saved log may already carry a skip or pain: never hide it
+    issuesOpen = flaggedAt(0);
     loadState = "ready";
   }
 
@@ -201,6 +233,7 @@
     localStorage.removeItem(portalDraftKey(session.id));
     fresh(session);
     restored = false;
+    issuesOpen = flaggedAt(0);
   }
 
   function addSet(peId: string) {
@@ -220,6 +253,32 @@
     }
   }
   const skipReasonOf = (peId: string) => rows.find((r) => r.programExerciseId === peId)?.exerciseSkip ?? null;
+  const hurtOn = (peId: string) => flags[peId]?.kind === "pain";
+  /** This card's skips and pain, as the tags under its title name them. */
+  const cardIssues = $derived(
+    !block
+      ? []
+      : block.memberIds.flatMap((peId) => [
+          ...(skipReasonOf(peId) ? [{ peId, kind: "skip" as const }] : []),
+          ...(hurtOn(peId) ? [{ peId, kind: "pain" as const }] : []),
+        ]),
+  );
+  const flaggedAt = (i: number) => (blocks[i]?.memberIds ?? []).some((peId) => skipReasonOf(peId) || hurtOn(peId));
+  /** Page to a card: its "Skip or pain?" panel starts closed unless something on it is flagged. */
+  function goTo(i: number) {
+    current = i;
+    issuesOpen = flaggedAt(i);
+  }
+  /** A tag opens the panel at its exercise's row. */
+  async function openIssue(peId: string) {
+    issuesOpen = true;
+    await tick();
+    const row = document.getElementById(`issue-${peId}`);
+    if (!row) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+    row.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+  }
   const toggleMissed = (key: string) => (rows = rows.map((r) => (r.key === key ? { ...r, skipped: !r.skipped } : r)));
 
   /** Page to the first set still missing its kg, scroll it into view, ring it, and put the cursor there. */
@@ -227,7 +286,7 @@
     const first = missingKg[0];
     if (!first) return;
     const at = blocks.findIndex((b) => b.memberIds.includes(first.programExerciseId));
-    if (at >= 0) current = at;
+    if (at >= 0 && at !== current) goTo(at);
     await tick();
     const el = document.getElementById(`kg-${first.key}`);
     if (!el) return;
@@ -521,63 +580,47 @@
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">
-            <button type="button" class="pg" aria-label={t("log.prev")} disabled={current === 0} onclick={() => (current -= 1)}>
+            <button type="button" class="pg" aria-label={t("log.prev")} disabled={current === 0} onclick={() => goTo(current - 1)}>
               <Icon name="chevron" />
             </button>
             <p class="pg-pos tnum">{t("log.exercise", { n: current + 1, total: blocks.length })}</p>
-            <button type="button" class="pg next" aria-label={t("log.next")} disabled={current >= blocks.length - 1} onclick={() => (current += 1)}>
+            <button type="button" class="pg next" aria-label={t("log.next")} disabled={current >= blocks.length - 1} onclick={() => goTo(current + 1)}>
               <Icon name="chevron" />
             </button>
           </div>
           <div class="steps" aria-hidden="true">
             {#each blocks as b, i (b.key)}
               {@const done = b.memberIds.some((id) => touched.has(id) || flags[id])}
-              <span class:on={i === current} class:past={i < current} class:done>{#if done}<Icon name="check" />{/if}</span>
+              <span class:on={i === current} class:done>{#if done}<Icon name="check" />{/if}</span>
             {/each}
           </div>
 
+          {#if groupKicker}<p class="kicker">{groupKicker}</p>{/if}
           <h2 id="ex-title">
             {#each block.memberIds as peId, i (peId)}
-              {#if i > 0}<span class="plus"> + </span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
+              {#if i > 0}<span class="plus">{" + "}</span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
             {/each}
           </h2>
+          {#if cardIssues.length > 0}
+            <!-- what's flagged stays in sight while the panel is shut; a tap opens it at that exercise -->
+            <ul class="tags">
+              {#each cardIssues as is (`${is.kind}-${is.peId}`)}
+                {@const label = `${is.kind === "skip" ? t("log.tagSkipped") : t("log.tagPain")}${block.memberIds.length > 1 ? ` · ${exerciseOf(is.peId)?.exerciseName ?? ""}` : ""}`}
+                <li>
+                  <button type="button" class="tag" aria-controls="issues-panel" onclick={() => openIssue(is.peId)}>
+                    <Pill tone={is.kind === "pain" ? "bad" : "neutral"}>{label}</Pill>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
           {#each block.memberIds as peId (peId)}
             {@const ex = exerciseOf(peId)}
             {#if ex?.notes}<p class="cue"><span>{t("session.coachNote")}</span> {ex.notes}</p>{/if}
             {#if ex?.last}
               <!-- a reference to beat or match, not a suggestion: the coach sets the load -->
-              <p class="last"><span>{t("log.last", { date: fmtShortDate(ex.last.date) })}{#if block.memberIds.length > 1} · <span lang={latinLang(ex.exerciseName)}>{ex.exerciseName}</span>{/if}</span> <span class="tnum">{lastSetText(ex.last, t)}</span></p>
+              <p class="last"><span>{t("log.last", { date: fmtShortDate(ex.last.date) })}{#if block.memberIds.length > 1}{" · "}<span lang={latinLang(ex.exerciseName)}>{ex.exerciseName}</span>{/if}</span> <span class="tnum">{lastSetText(ex.last, t)}</span></p>
             {/if}
-          {/each}
-
-          <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain. -->
-          {#each block.memberIds as peId (peId)}
-            {@const ex = exerciseOf(peId)}
-            {@const skip = skipReasonOf(peId)}
-            {@const hurt = flags[peId]?.kind === "pain"}
-            {@const named = block.memberIds.length > 1 ? ` · ${ex?.exerciseName ?? ""}` : ""}
-            <div class="issues">
-              <div class="issue-btns">
-                <button type="button" class="chip" aria-pressed={!!skip} onclick={() => toggleSkip(peId)}>{skip ? t("log.unskip") : t("log.skip")}{named}</button>
-                <button type="button" class="chip" class:bad={hurt} aria-pressed={hurt} onclick={() => (flags = toggleFlag(flags, peId, "pain"))}>{t("log.hurt")}{named}</button>
-              </div>
-              {#if skip}
-                <p class="issue-note">{t("log.skippedNote")}</p>
-                <div class="reasons" role="group" aria-label={t("log.skipWhy")}>
-                  <span class="reasons-k">{t("log.skipWhy")}</span>
-                  {#each SKIP_REASONS as reason (reason)}
-                    <button type="button" class="chip sm" aria-pressed={skip.reason === reason} onclick={() => (rows = setSkipReason(rows, peId, skip.reason === reason ? null : (reason as SkipReason)))}>{t(`log.reason.${reason}`)}</button>
-                  {/each}
-                </div>
-              {/if}
-              {#if hurt}
-                <label class="hurt">
-                  <span>{t("log.hurtWhere")}</span>
-                  <input class="input" type="text" maxlength={FLAG_NOTE_MAX} value={flags[peId]?.note ?? ""} oninput={(e) => (flags = setFlagNote(flags, peId, e.currentTarget.value))} />
-                  <span class="hint">{t("log.hurtHint")}</span>
-                </label>
-              {/if}
-            </div>
           {/each}
 
           <button type="button" class="rpe-toggle" aria-expanded={showRpe} aria-controls="rpe-def" onclick={() => (showRpe = !showRpe)}>
@@ -586,54 +629,63 @@
           {#if showRpe}<p class="rpe-def" id="rpe-def">{t("log.rpeDef")}</p>{/if}
 
           <ol class="sets">
-            {#each block.rows.filter((x) => !x.exerciseSkip) as r (r.key)}
-              {@const i = rows.findIndex((x) => x.key === r.key)}
-              {@const target = targetOf(r)}
-              <li class="set">
-                <div class="set-head">
-                  <span class="set-n">{t("log.set", { n: r.setNumber })}{#if block.memberIds.length > 1}<span class="set-ex"> · {r.name}</span>{/if}</span>
-                  {#if target}<span class="set-rx tnum">{target}</span>{/if}
-                  {#if r.extra}
-                    <button type="button" class="rm" aria-label={t("log.removeSet", { n: r.setNumber })} onclick={() => (rows = withoutExtra(rows, r.key))}><Icon name="x" /></button>
-                  {:else}
-                    <button type="button" class="missed-btn" aria-pressed={!!r.skipped} aria-label={t("log.missedLabel", { n: r.setNumber })} onclick={() => toggleMissed(r.key)}>{t("log.missed")}</button>
-                  {/if}
-                </div>
-                {#if r.skipped}
-                  <p class="missed-note">{t("log.missedNote")}</p>
-                {:else}
-                <div class="cells">
-                  {#if !r.timed}
-                    <!-- kg is stored; the member sees and types their own unit -->
-                    <LogStepper
-                      bind:value={() => kgCells.get(r.key, rows[i].weight), (v) => (rows[i].weight = kgCells.set(r.key, v))}
-                      id={`kg-${r.key}`}
-                      error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
-                      errorId={`kg-${r.key}-err`}
-                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showLoad(r.rx.targetWeightKg) : null} />
-                  {/if}
-                  <LogStepper
-                    bind:value={rows[i].reps}
-                    label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${r.timed ? t("log.seconds") : t("log.reps")}`}
-                    unit={r.timed ? t("log.seconds") : t("log.reps")}
-                    step={r.timed ? 5 : 1}
-                    min={0}
-                    max={r.timed ? 3600 : 200}
-                    inputmode="numeric"
-                  />
-                  {#if showRpe}
-                    <LogStepper bind:value={rows[i].rpe} label={`${r.name} ${t("log.set", { n: r.setNumber })}, RPE`} unit={`${t("log.rpe")} · ${t("log.optional")}`} step={0.5} min={1} max={10} from={r.rx?.targetRpe ?? 7} />
-                  {/if}
-                </div>
-                {/if}
-              </li>
+            {#each rounds as g (g.key)}
+              {#if g.brk}
+                <li class="round">
+                  <h3 class="round-h">{g.brk.kind === "extra" ? t("log.extraSets") : t("log.set", { n: g.brk.n })}</h3>
+                  <ol class="sets">
+                    {#each g.rows as r (r.key)}{@render setItem(r, true)}{/each}
+                  </ol>
+                </li>
+              {:else}
+                {#each g.rows as r (r.key)}{@render setItem(r, false)}{/each}
+              {/if}
             {/each}
           </ol>
           {#each block.memberIds as peId (peId)}
             {#if !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS}
-              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1} · {exerciseOf(peId)?.exerciseName}{/if}</button>
+              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1}{" · "}{exerciseOf(peId)?.exerciseName}{/if}</button>
             {/if}
           {/each}
+
+          <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain.
+               Rarely needed, so one quiet link under the sets; the tags above keep anything flagged in sight. -->
+          <button type="button" class="issues-toggle" aria-expanded={issuesOpen} aria-controls="issues-panel" onclick={() => (issuesOpen = !issuesOpen)}>
+            {t("log.issues")}<Icon name="chevron" />
+          </button>
+          {#if issuesOpen}
+            <div class="issues-panel" id="issues-panel">
+              {#each block.memberIds as peId (peId)}
+                {@const ex = exerciseOf(peId)}
+                {@const skip = skipReasonOf(peId)}
+                {@const hurt = hurtOn(peId)}
+                {@const named = block.memberIds.length > 1}
+                <div class="issues" id={`issue-${peId}`} role={named ? "group" : undefined} aria-labelledby={named ? `issue-${peId}-name` : undefined}>
+                  {#if named}<p class="issue-name" id={`issue-${peId}-name`} lang={latinLang(ex?.exerciseName)}>{ex?.exerciseName ?? ""}</p>{/if}
+                  <div class="issue-btns">
+                    <button type="button" class="chip" aria-pressed={!!skip} onclick={() => toggleSkip(peId)}>{skip ? t("log.unskip") : t("log.skip")}</button>
+                    <button type="button" class="chip" class:bad={hurt} aria-pressed={hurt} onclick={() => (flags = toggleFlag(flags, peId, "pain"))}>{t("log.hurt")}</button>
+                  </div>
+                  {#if skip}
+                    <p class="issue-note">{t("log.skippedNote")}</p>
+                    <div class="reasons" role="group" aria-label={t("log.skipWhy")}>
+                      <span class="reasons-k">{t("log.skipWhy")}</span>
+                      {#each SKIP_REASONS as reason (reason)}
+                        <button type="button" class="chip sm" aria-pressed={skip.reason === reason} onclick={() => (rows = setSkipReason(rows, peId, skip.reason === reason ? null : (reason as SkipReason)))}>{t(`log.reason.${reason}`)}</button>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if hurt}
+                    <label class="hurt">
+                      <span>{t("log.hurtWhere")}</span>
+                      <input class="input" type="text" maxlength={FLAG_NOTE_MAX} value={flags[peId]?.note ?? ""} oninput={(e) => (flags = setFlagNote(flags, peId, e.currentTarget.value))} />
+                      <span class="hint">{t("log.hurtHint")}</span>
+                    </label>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
 
           {#if blockRest}
             <!-- one timer for the whole session: paging to the next exercise doesn't reset a running rest -->
@@ -641,8 +693,8 @@
           {/if}
 
           {#if current < blocks.length - 1}
-            <button type="button" class="btn next-ex" onclick={() => { current += 1; document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
-              {t("log.next")} · {exerciseOf(blocks[current + 1].programExerciseId)?.exerciseName}
+            <button type="button" class="btn next-ex" onclick={() => { goTo(current + 1); document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
+              <span>{t("log.next")} · {blockName(blocks[current + 1])}</span>
               <Icon name="chevron" />
             </button>
           {/if}
@@ -664,6 +716,57 @@
     {/if}
   </form>
 {/if}
+
+{#snippet setItem(r: PortalRow, inRound: boolean)}
+  {@const i = rows.findIndex((x) => x.key === r.key)}
+  {@const target = targetOf(r)}
+  <li class="set">
+    <div class="set-head">
+      {#if inRound}
+        <!-- the round header says the set; the row names the exercise, its target under it -->
+        <span class="set-id">
+          <span class="set-n" lang={latinLang(r.name)}>{r.name}</span>
+          {#if target}<span class="set-rx tnum">{target}</span>{/if}
+        </span>
+      {:else}
+        <span class="set-n">{t("log.set", { n: r.setNumber })}</span>
+        {#if target}<span class="set-rx tnum">{target}</span>{/if}
+      {/if}
+      {#if r.extra}
+        <button type="button" class="rm" aria-label={inRound ? t("log.removeSetEx", { name: r.name, n: r.setNumber }) : t("log.removeSet", { n: r.setNumber })} onclick={() => (rows = withoutExtra(rows, r.key))}><Icon name="x" /></button>
+      {:else}
+        <button type="button" class="missed-btn" aria-pressed={!!r.skipped} aria-label={inRound ? t("log.missedLabelEx", { name: r.name, n: r.setNumber }) : t("log.missedLabel", { n: r.setNumber })} onclick={() => toggleMissed(r.key)}>{t("log.missed")}</button>
+      {/if}
+    </div>
+    {#if r.skipped}
+      <p class="missed-note">{t("log.missedNote")}</p>
+    {:else}
+    <div class="cells">
+      {#if !r.timed}
+        <!-- kg is stored; the member sees and types their own unit -->
+        <LogStepper
+          bind:value={() => kgCells.get(r.key, rows[i].weight), (v) => (rows[i].weight = kgCells.set(r.key, v))}
+          id={`kg-${r.key}`}
+          error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
+          errorId={`kg-${r.key}-err`}
+          label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showLoad(r.rx.targetWeightKg) : null} />
+      {/if}
+      <LogStepper
+        bind:value={rows[i].reps}
+        label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${r.timed ? t("log.seconds") : t("log.reps")}`}
+        unit={r.timed ? t("log.seconds") : t("log.reps")}
+        step={r.timed ? 5 : 1}
+        min={0}
+        max={r.timed ? 3600 : 200}
+        inputmode="numeric"
+      />
+      {#if showRpe}
+        <LogStepper bind:value={rows[i].rpe} label={`${r.name} ${t("log.set", { n: r.setNumber })}, RPE`} unit={`${t("log.rpe")} · ${t("log.optional")}`} step={0.5} min={1} max={10} from={r.rx?.targetRpe ?? 7} />
+      {/if}
+    </div>
+    {/if}
+  </li>
+{/snippet}
 
 {#snippet notesField()}
   <label class="notes">
@@ -707,7 +810,7 @@
     cursor: pointer;
   }
 
-  .ex { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .ex { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .pager { display: flex; align-items: center; gap: 8px; }
   .pg {
     display: grid;
@@ -734,7 +837,6 @@
     border-radius: 4px;
     background: var(--well-2);
   }
-  .steps span.past { background: var(--line-strong); }
   .steps span.done { color: var(--good); background: var(--good-bg); box-shadow: inset 0 0 0 1px var(--good-line); }
   .steps span.on { box-shadow: inset 0 0 0 2px var(--ink); }
   .steps span.on:not(.done) { background: var(--surface); }
@@ -753,6 +855,7 @@
   }
   h2 { margin: 4px 0 0; font: 600 20px/1.3 var(--font-ui); text-wrap: balance; }
   .plus { color: var(--muted); font-weight: 400; }
+  .kicker { margin: 4px 0 -8px; font: 600 13px/1.3 var(--font-ui); color: var(--muted); }
   .cue { margin: 0; font-size: 14px; }
   .session-note { margin: 0; padding: 12px 16px; font-size: 16px; background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .session-note span { font-weight: 600; color: var(--muted); }
@@ -762,6 +865,30 @@
   .last > span:first-child { color: var(--muted); }
   .last .tnum { font-weight: 600; }
 
+  /* skip or pain: tags under the title, a quiet link under the sets, the chips in a panel */
+  .tags { display: flex; flex-wrap: wrap; gap: 0 4px; margin: -8px 0 -10px -6px; padding: 0; list-style: none; }
+  .tag { display: inline-flex; align-items: center; max-width: 100%; min-height: 44px; padding: 0 6px; background: none; border: 0; border-radius: var(--radius); cursor: pointer; }
+  .tag :global(.pill) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .issues-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-self: start;
+    min-height: 44px;
+    margin: -8px 0 -4px;
+    padding: 0 4px;
+    font: 500 14px/1 var(--font-ui);
+    color: var(--blue);
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .issues-toggle :global(svg) { width: 14px; height: 14px; transition: transform 150ms ease-out; }
+  .issues-toggle[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
+  .issues-panel { display: grid; gap: 14px; padding: 12px; background: var(--well); border-radius: var(--radius); }
+  .issues-panel .issues + .issues { padding-top: 14px; border-top: 1px solid var(--line); }
+  .issue-name { margin: 0; font: 600 14px/1.3 var(--font-ui); }
+  .issues-panel .chip:not([aria-pressed="true"]) { background: var(--surface); }
   .issues { display: grid; gap: 10px; }
   .issue-btns, .reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .chip {
@@ -801,7 +928,14 @@
   .set { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
   .set-head { display: flex; align-items: baseline; gap: 8px; min-height: 24px; }
   .set-n { font: 600 16px/1.3 var(--font-ui); }
-  .set-ex { font-weight: 400; color: var(--muted); }
+  /* a group card's round: "Set 1" over each exercise done in it */
+  .round { border-top: 1px solid var(--line); }
+  .round:first-child { border-top: 0; }
+  .round-h { margin: 12px 0 0; padding: 6px 10px; font: 600 16px/1.3 var(--font-ui); background: var(--well); border-radius: var(--radius); }
+  .round .set:first-child { border-top: 0; }
+  .set-id { display: grid; gap: 2px; min-width: 0; }
+  .set-id .set-rx { margin-left: 0; font-family: var(--font-ui); text-align: left; }
+  .set-id + .missed-btn, .set-id + .rm { margin-left: auto; }
   .set-rx { margin-left: auto; font: 500 13px/1.3 var(--font-mono); color: var(--muted); text-align: right; }
   .rm {
     display: grid;
@@ -833,8 +967,9 @@
     cursor: pointer;
   }
   .add :global(svg) { width: 16px; height: 16px; }
-  .next-ex { justify-content: space-between; min-height: 48px; font-size: 16px; }
-  .next-ex :global(svg) { width: 16px; height: 16px; transform: rotate(-90deg); }
+  /* a group names every exercise: wrap rather than widen the card */
+  .next-ex { justify-content: space-between; gap: 12px; min-height: 48px; padding-block: 10px; font-size: 16px; line-height: 1.35; text-align: left; white-space: normal; }
+  .next-ex :global(svg) { flex: none; width: 16px; height: 16px; transform: rotate(-90deg); }
 
   .feel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .feel summary {
@@ -922,7 +1057,7 @@
   .empty-title { margin: 0; font-weight: 600; }
 
   @media (prefers-reduced-motion: reduce) {
-    .feel summary :global(svg) { transition: none; }
+    .feel summary :global(svg), .issues-toggle :global(svg) { transition: none; }
     .tick, .tick :global(path) { animation: none; }
   }
   @media (min-width: 700px) {

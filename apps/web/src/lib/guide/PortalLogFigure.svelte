@@ -12,7 +12,7 @@
   ];
 </script>
 
-<PhoneFrame height={540}>
+<PhoneFrame height={576}>
   <div class="col">
     <p class="crumb"><Icon name="chevron" size={14} />Upper A</p>
     <p class="count">{t("log.exercise", { n: 1, total: 5 })}</p>
@@ -32,6 +32,8 @@
       </div>
     {/each}
     <p class="more">{t("log.rpeShow")}</p>
+    <!-- skip and pain sit behind one quiet link under the sets -->
+    <p class="more issues">{t("log.issues")}<Icon name="chevron" size={12} /></p>
   </div>
   <div class="save"><span class="btn primary">{t("log.save")}</span></div>
 </PhoneFrame>
@@ -51,6 +53,7 @@
   .cell.changed { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
   .tick { color: var(--blue); }
   .more { margin: 6px 0 0; font-size: 14px; color: var(--blue); }
+  .more.issues { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
   .save { position: absolute; inset: auto 12px 12px; z-index: 1; }
   .save .btn { display: grid; place-items: center; width: 100%; min-height: 44px; font-size: 16px; }
 </style>

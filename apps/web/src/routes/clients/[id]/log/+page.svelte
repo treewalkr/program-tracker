@@ -64,6 +64,8 @@
     blocksOf,
     blockIndexOf,
     roundOrder,
+    roundBreaks,
+    type RoundBreak,
     cellNumber,
     isBlank,
     isSwapped,
@@ -1135,18 +1137,8 @@
   /** "A1" for a row on a group card. */
   const tagOf = (b: { group?: string; memberIds: string[] }, pe: string) =>
     b.group ? `${b.group}${b.memberIds.indexOf(pe) + 1}` : null;
-  /** Rows of a group card that open a round: key → "Round 2" / "Extra sets". Skipped exercises' rows are hidden. */
-  function roundBreaks(rs: Row[]): Map<string, string> {
-    const out = new Map<string, string>();
-    let prev = "";
-    for (const r of rs) {
-      if (r.exerciseSkip) continue;
-      const label = r.extra ? "Extra sets" : `Round ${r.setNumber}`;
-      if (label !== prev) out.set(r.key, label);
-      prev = label;
-    }
-    return out;
-  }
+  /** The divider over a round's first row on a group card. */
+  const breakLabel = (b: RoundBreak) => (b.kind === "extra" ? "Extra sets" : `Round ${b.n}`);
 
   /** A card is done once every set is entered or skipped. */
   const blockDone = (b: { rows: Row[] }) => b.rows.every((r) => r.skipped || !isBlank(r.reps));
@@ -1595,7 +1587,8 @@
               {/each}
               {#each b.rows as r (r.key)}
                 {#if !r.exerciseSkip}
-                  {#if breaks.has(r.key)}<div class="round-div">{breaks.get(r.key)}</div>{/if}
+                  {@const brk = breaks.get(r.key)}
+                  {#if brk}<div class="round-div">{breakLabel(brk)}</div>{/if}
                   {@render setRow(r, tagOf(b, r.programExerciseId))}
                 {/if}
               {/each}
