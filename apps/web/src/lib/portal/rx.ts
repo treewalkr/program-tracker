@@ -1,6 +1,7 @@
-import { cardioTotals, recoveryCount, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
+import { cardioTotals, kmToMi, recoveryCount, type CardioMetric, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import { coachIntensity } from "$lib/cardioLine";
+import { targetMetric } from "$lib/cardioTarget";
 
 export { coachIntensity };
 import { loadIn } from "@pt/shared";
@@ -91,15 +92,28 @@ export function metresText(m: number, t: T): string {
   return m < 1000 ? t("rx.metres", { n: m }) : distanceText(m / 1000, t);
 }
 
-const paceText = (secPerKm: number, t: T) =>
-  units.distance === "mi" ? t("rx.paceMi", { t: formatDuration(showPace(secPerKm, "mi")) }) : t("rx.pace", { t: formatDuration(secPerKm) });
+/** A pace target in the modality's metric: "5:20 /km" (run, walk), "1:50 /500 m" (row, ski), "30 km/h" (bike); null for none. */
+export function paceText(secPerKm: number, t: T, metric: CardioMetric = "pace"): string | null {
+  if (metric === "split") return `${formatDuration(Math.round(secPerKm / 2))} ${t("unit.per500m")}`;
+  if (metric === "speed") {
+    const kmh = 3600 / secPerKm;
+    return units.distance === "mi" ? `${num1(kmToMi(kmh))} ${t("unit.mph")}` : `${num1(kmh)} ${t("unit.kmh")}`;
+  }
+  if (metric === "none") return null;
+  return units.distance === "mi" ? t("rx.paceMi", { t: formatDuration(showPace(secPerKm, "mi")) }) : t("rx.pace", { t: formatDuration(secPerKm) });
+}
+const num1 = (n: number) => String(Math.round(n * 10) / 10);
+
+/** The metric the portal reads a pace in (a coach's own modality, unknown here, keeps pace per km). */
+export const portalMetric = (modality: string | null | undefined): CardioMetric => targetMetric(modality);
 const bpmText = (b: { min: number; max: number }) => `${b.min}–${b.max} bpm`;
 
 /** A cardio prescription's parts: "40 min · zone 2 · 123–148 bpm · 5 km · RPE 4 · easy". */
-export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "hrZone" | "distanceKm" | "targetRpe" | "intensity" | "hrBpm" | "paceSecPerKm" | "intervals">, t: T): string[] {
+export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "hrZone" | "distanceKm" | "targetRpe" | "intensity" | "hrBpm" | "paceSecPerKm" | "intervals"> & { modality?: string }, t: T): string[] {
   const parts: string[] = [];
   // a session built from intervals shows its total time, as the coach's editor adds it up
   const total = c.intervals?.length ? cardioTotals({ intervals: c.intervals.map((iv) => ({ ...iv })) }) : null;
+  const metric = portalMetric(c.modality);
   if (total) {
     if (total.durationSec) parts.push(durationText(total.durationSec, t));
     if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
@@ -108,7 +122,8 @@ export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "h
     if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));
     if (c.hrBpm) parts.push(bpmText(c.hrBpm));
     if (c.distanceKm) parts.push(distanceText(c.distanceKm, t));
-    if (c.paceSecPerKm) parts.push(paceText(c.paceSecPerKm, t));
+    const pace = c.paceSecPerKm ? paceText(c.paceSecPerKm, t, metric) : null;
+    if (pace) parts.push(pace);
   }
   if (c.targetRpe) parts.push(t("rx.rpe", { n: num(c.targetRpe) }));
   const intensity = coachIntensity(c.intensity);
@@ -149,11 +164,11 @@ function amountOf(p: { durationSec?: number; distanceM?: number }, times: number
 }
 
 /** The intervals line by line: each block, then its recovery between reps. */
-export function intervalLines(intervals: readonly PortalCardioInterval[], t: T): IntervalLine[] {
+export function intervalLines(intervals: readonly PortalCardioInterval[], t: T, metric: CardioMetric = "pace"): IntervalLine[] {
   const out: IntervalLine[] = [];
   for (const iv of intervals) {
     const reps = iv.repeat ?? 1;
-    const extra = [iv.rpe != null ? t("rx.rpe", { n: num(iv.rpe) }) : null, iv.paceSecPerKm ? paceText(iv.paceSecPerKm, t) : null].filter(Boolean).join(" · ");
+    const extra = [iv.rpe != null ? t("rx.rpe", { n: num(iv.rpe) }) : null, iv.paceSecPerKm ? paceText(iv.paceSecPerKm, t, metric) : null].filter(Boolean).join(" · ");
     out.push({
       key: iv.id,
       kind: kindOf(iv.type),
@@ -171,9 +186,9 @@ export function intervalLines(intervals: readonly PortalCardioInterval[], t: T):
         kind: "recovery",
         name: t(`iv.${iv.recovery.type}`),
         amount: amountOf(iv.recovery, recs, t),
-        zone: null,
-        bpm: null,
-        extra: iv.recoveryAfterLast ? t("iv.afterEach") : t("iv.between"),
+        zone: iv.recovery.hrZone ? t("iv.zone", { n: iv.recovery.hrZone }) : null,
+        bpm: iv.recovery.hrBpm ? bpmText(iv.recovery.hrBpm) : null,
+        extra: [iv.recoveryAfterLast ? t("iv.afterEach") : t("iv.between"), iv.recovery.paceSecPerKm ? paceText(iv.recovery.paceSecPerKm, t, metric) : null].filter(Boolean).join(" · "),
         notes: null,
       });
     }

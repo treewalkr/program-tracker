@@ -207,6 +207,15 @@ export function cardioTotals(rx: Rx): CardioPlanTotals {
 
 const optionalCatch = <T extends z.ZodTypeAny>(s: T) => s.optional().catch(undefined);
 
+/** A recovery as the AI wrote it: a bad target drops, the rest stays. */
+const LooseRecovery = z.object({
+  type: CardioRecovery.shape.type.catch("passive_recovery"),
+  durationSec: optionalCatch(CardioRecovery.shape.durationSec),
+  distanceM: optionalCatch(CardioRecovery.shape.distanceM),
+  hrZone: optionalCatch(CardioRecovery.shape.hrZone),
+  paceSecPerKm: optionalCatch(PaceSecPerKm),
+});
+
 /** One interval as the AI wrote it; bad optional fields drop, a bad interval drops (see coerceIntervals). */
 const LooseInterval = z.object({
   id: z.string().min(1).max(64),
@@ -219,7 +228,7 @@ const LooseInterval = z.object({
   paceSecPerKm: optionalCatch(PaceSecPerKm),
   rpe: optionalCatch(CardioInterval.shape.rpe),
   notes: optionalCatch(CardioInterval.shape.notes),
-  recovery: optionalCatch(CardioRecovery),
+  recovery: optionalCatch(LooseRecovery),
   recoveryAfterLast: optionalCatch(z.boolean()),
 });
 

@@ -15,6 +15,7 @@ import {
   localDateOf,
   profileOn,
   type HrZones,
+  type HrZoneMethod,
   effectiveDeload,
   blockPulse,
   chainBalanceText,
@@ -261,8 +262,12 @@ export async function loadContext(
 }
 
 /** Today's HR zones for the AI (bpm only), and whether they rest on an untested max HR. */
-async function hrForAi(clientId: string): Promise<{ hrZones: HrZones | null; hrMaxUntested: boolean }> {
+async function hrForAi(clientId: string): Promise<{ hrZones: HrZones | null; hrMaxUntested: boolean; hrZoneMethod: HrZoneMethod | null }> {
   const p = profileOn(await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId)), localDateOf(Date.now()));
-  if (!p) return { hrZones: null, hrMaxUntested: false };
-  return { hrZones: p.zones, hrMaxUntested: !!p.maxHr && !p.maxHrTestedOn && (p.method === "hrmax" || p.method === "karvonen") };
+  if (!p) return { hrZones: null, hrMaxUntested: false, hrZoneMethod: null };
+  return {
+    hrZones: p.zones,
+    hrMaxUntested: !!p.maxHr && !p.maxHrTestedOn && (p.method === "hrmax" || p.method === "karvonen"),
+    hrZoneMethod: p.method,
+  };
 }

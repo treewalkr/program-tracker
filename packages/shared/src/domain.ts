@@ -749,11 +749,13 @@ export const CARDIO_INTERVAL_TYPES = ["warmup", "work", "active_recovery", "pass
 export const CardioIntervalType = z.enum(CARDIO_INTERVAL_TYPES);
 export type CardioIntervalType = z.infer<typeof CardioIntervalType>;
 
-/** The rest between reps of a work interval. */
+/** The rest between reps of a work interval, with an optional easy target (an active jog at Z1, 7:00/km). */
 export const CardioRecovery = z.object({
   type: z.enum(["active_recovery", "passive_recovery"]).default("passive_recovery"),
   durationSec: z.number().int().min(1).max(3600).optional(),
   distanceM: z.number().int().min(1).max(10000).optional(),
+  hrZone: z.number().int().min(1).max(5).optional(),
+  paceSecPerKm: PaceSecPerKm.optional(),
 });
 export type CardioRecovery = z.infer<typeof CardioRecovery>;
 

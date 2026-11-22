@@ -22,6 +22,8 @@
     type PlanChange,
   } from "$lib/draftReview";
   import SessionCard, { type SessionEditable, type SlotMark } from "./SessionCard.svelte";
+  import CardioBreakdown from "./CardioBreakdown.svelte";
+  import type { HrZone } from "@pt/shared";
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import BlockPlanEditor from "./BlockPlanEditor.svelte";
   import StatusPill from "./StatusPill.svelte";
@@ -63,6 +65,8 @@
     onrevised?: (child: GenerationDto) => Promise<void> | void;
     /** A hand edit saved the next version: show it. Without it, sessions are read-only. */
     oneditsaved?: (res: DraftEditResultDto) => void;
+    /** The member's bpm zones in effect now, for the interval breakdown; null = zones only. */
+    zones?: readonly HrZone[] | null;
   }
 
   let {
@@ -82,6 +86,7 @@
     onsaveplan,
     onrevised,
     oneditsaved,
+    zones = null,
   }: Props = $props();
 
   let rejectOpen = $state(false);
@@ -564,6 +569,7 @@
           onnote={editing ? undefined : (slot) => (noteAt = { day: i, slot })}
           editable={s.kind === "cardio" ? undefined : editableFor(i + 1)}
         />
+        {#if s.kind === "cardio"}<div class="ivb-slot"><CardioBreakdown cardio={s.cardio} {zones} /></div>{/if}
         {#if noteAt?.day === i}
           {#key noteAt.slot}
             <div class="note-slot">

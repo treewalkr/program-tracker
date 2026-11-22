@@ -89,3 +89,30 @@ describe("the member's display units", () => {
     }
   });
 });
+
+describe("interval targets", () => {
+  const tempo: PortalCardioInterval[] = [
+    { id: "wu", type: "warmup", repeat: 1, durationSec: 300, hrZone: 2, notes: "easy jog, finish with 2 strides" },
+    { id: "r", type: "work", repeat: 3, durationSec: 300, hrZone: 4, hrBpm: { min: 149, max: 168 }, paceSecPerKm: 320, recovery: { type: "active_recovery", durationSec: 60, hrZone: 1, paceSecPerKm: 420 } },
+  ];
+  test("a run shows pace per km, the recovery its own target, notes as written", () => {
+    const lines = intervalLines(tempo, tEn, "pace");
+    expect(lines[0].notes).toBe("easy jog, finish with 2 strides");
+    expect(lines[1]).toMatchObject({ zone: "Zone 4", bpm: "149–168 bpm", extra: "5:20 /km" });
+    expect(lines[2]).toMatchObject({ kind: "recovery", zone: "Zone 1", extra: "between hard reps · 7:00 /km" });
+  });
+  test("pace per mile on miles; a row reads a /500 m split, a bike km/h, an elliptical nothing", () => {
+    units.distance = "mi";
+    try {
+      expect(intervalLines(tempo, tEn, "pace")[1].extra).toBe("8:35 /mi");
+    } finally {
+      units.distance = "km";
+    }
+    expect(intervalLines(tempo, tTh, "split")[1].extra).toBe("2:40 /500 ม.");
+    expect(intervalLines(tempo, tEn, "speed")[1].extra).toBe("11.3 km/h");
+    expect(intervalLines(tempo, tEn, "none")[1].extra).toBeNull();
+    expect(cardioParts({ modality: "Rowing", paceSecPerKm: 220 }, tEn)).toEqual(["1:50 /500 m"]);
+    expect(cardioParts({ modality: "Elliptical", durationMin: 30, paceSecPerKm: 220 }, tEn)).toEqual(["30 min"]);
+  });
+});
+

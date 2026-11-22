@@ -18,8 +18,9 @@
 </script>
 
 <script lang="ts">
-  import { distanceUnit, showDistance, showPace, storeDistance, storePace } from "$lib/units.svelte";
+  import { distanceUnit, showDistance, storeDistance, units } from "$lib/units.svelte";
   import { fromCardioTemplate, zoneBpm, type HrZone } from "@pt/shared";
+  import { paceField, targetMetric } from "$lib/cardioTarget";
   import type { CardioTemplateDto, CardioTemplateInput, CardioTemplatesDto, ModalityDto } from "$lib/api/types";
   import IntervalBuilder from "./IntervalBuilder.svelte";
   import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
@@ -81,6 +82,22 @@
   ]);
 
   const hasIntervals = $derived((cardio.intervals?.length ?? 0) > 0);
+  /** Pace follows the modality: /km or /mi for run and walk, /500 m for row and ski, km/h or mph for bike, none otherwise. */
+  const metric = $derived(targetMetric(cardio.modality, modalities));
+  const pace = $derived(paceField(metric, units.distance));
+  const bpmIn = (v: number | null) => (v != null && v >= 30 && v <= 240 ? Math.round(v) : null);
+  /** One end typed: the other follows until it's typed too; a cleared end drops the band (the zone stands). */
+  function setBand(end: "min" | "max", v: number | null) {
+    const n = bpmIn(v);
+    const band = cardio.hrBpm;
+    if (n == null) {
+      // a cleared end clears the band (the zone takes over); an out-of-range figure shows its error and saves nothing
+      if (v == null) delete cardio.hrBpm;
+      return;
+    }
+    const o = (end === "min" ? band?.max : band?.min) ?? n;
+    cardio.hrBpm = end === "min" ? { min: n, max: Math.max(n, o) } : { min: Math.min(n, o), max: n };
+  }
   const line = $derived(workloadLine(cardio));
 
   /** The steady block becomes intervals: its time, distance and pace go, so no card shows stale targets. */
@@ -172,8 +189,14 @@
     <div class="grid targets">
       <InputUnit label="Duration" unit="min" step={5} min={1} max={300} value={cardio.durationMin ?? null} onchange={(v) => (cardio.durationMin = v != null && v > 0 ? Math.round(v) : null)} />
       <InputUnit label="Distance" unit={distanceUnit()} optional step={0.5} min={0} max={300} value={cardio.distanceKm != null ? showDistance(cardio.distanceKm) : null} onchange={(v) => (cardio.distanceKm = v != null && v > 0 ? storeDistance(v) : undefined)} />
-      <InputDuration label="Pace" optional placeholder="m:ss /{distanceUnit()}" hint="per {distanceUnit()}" step={5} min={60} max={2900} value={cardio.paceSecPerKm != null ? showPace(cardio.paceSecPerKm) : null} onchange={(v) => (cardio.paceSecPerKm = v != null && v >= 60 ? storePace(v) : undefined)} />
+      {#if pace?.kind === "duration"}
+        <InputDuration label={metric === "split" ? "Split" : "Pace"} optional placeholder={pace.placeholder} hint="per {pace.unit.slice(1)}" step={5} min={pace.min} max={pace.max} value={cardio.paceSecPerKm != null ? pace.show(cardio.paceSecPerKm) : null} onchange={(v) => (cardio.paceSecPerKm = v != null && v > 0 ? pace.store(v) : undefined)} />
+      {:else if pace?.kind === "speed"}
+        <InputUnit label="Speed" unit={pace.unit} optional step={pace.step} min={pace.min} max={pace.max} decimals={1} value={cardio.paceSecPerKm != null ? pace.show(cardio.paceSecPerKm) : null} onchange={(v) => (cardio.paceSecPerKm = v != null && v > 0 ? pace.store(v) : undefined)} />
+      {/if}
       <SelectField label="HR zone" maxWidth="none" options={zoneOptions} value={cardio.hrZone != null ? String(cardio.hrZone) : ""} onchange={(z) => (cardio.hrZone = z ? Number(z) : null)} />
+      <InputUnit label="HR from" unit="bpm" optional hint="A bpm band overrides the zone" step={1} min={30} max={240} value={cardio.hrBpm?.min ?? null} onchange={(v) => setBand("min", v)} />
+      <InputUnit label="HR to" unit="bpm" optional step={1} min={30} max={240} value={cardio.hrBpm?.max ?? null} onchange={(v) => setBand("max", v)} />
     </div>
   {/if}
 
@@ -185,7 +208,7 @@
       {/if}
     </div>
     {#if hasIntervals}
-      <IntervalBuilder bind:intervals={cardio.intervals!} {zones} />
+      <IntervalBuilder bind:intervals={cardio.intervals!} {zones} {metric} />
     {:else}
       <p class="hint">
         One steady block. <button type="button" class="link" onclick={buildIntervals}>Build intervals</button> for warm-up, reps and recovery.

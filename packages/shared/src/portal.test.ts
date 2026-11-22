@@ -129,6 +129,12 @@ describe("portalCardioRx", () => {
     expect(rx.intervals![1].recovery).toEqual({ type: "active_recovery", durationSec: 120, distanceM: undefined });
     expect(JSON.stringify(rx)).not.toContain("secret");
     expect(portalCardioRx({ modality: "Bike", hrZone: 2 }, null).hrBpm).toBeUndefined();
+    // a recovery's own target crosses, its zone resolved to bpm
+    const jog = portalCardioRx(
+      { modality: "Running", intervals: [{ id: "r", type: "work", repeat: 3, durationSec: 300, recovery: { type: "active_recovery", durationSec: 60, hrZone: 1, paceSecPerKm: 420 } }] },
+      zones
+    );
+    expect(jog.intervals![0].recovery).toMatchObject({ hrZone: 1, hrBpm: { min: 112, max: 123 }, paceSecPerKm: 420 });
   });
 });
 

@@ -271,12 +271,28 @@ export function placementConflicts(
   return out;
 }
 
-/** Return the sessions with `weekday` and within-day `order` set. Content untouched. */
+/** Return the sessions with `weekday` and within-day `order` set. Content untouched.
+ *  With `keepWeekdays`, a result that still breaks more rules than a fresh
+ *  placement gives way to the fresh one: approval never keeps a fixable clash. */
 export function placeSessions(
   sessions: readonly ProgramSession[],
   days?: PlacementDaysInput,
   patternOf?: PatternOf,
   opts: PlaceOptions = {}
+): ProgramSession[] {
+  const out = placeOnce(sessions, days, patternOf, opts);
+  if (!opts.keepWeekdays) return out;
+  const kept = placementConflicts(out, days, patternOf).length;
+  if (kept === 0) return out;
+  const fresh = placeOnce(sessions, days, patternOf, {});
+  return placementConflicts(fresh, days, patternOf).length < kept ? fresh : out;
+}
+
+function placeOnce(
+  sessions: readonly ProgramSession[],
+  days: PlacementDaysInput,
+  patternOf: PatternOf | undefined,
+  opts: PlaceOptions
 ): ProgramSession[] {
   const avail = resolveDays(days);
   const ordered = sessionsInSeqOrder(sessions);
@@ -303,10 +319,12 @@ export function placeSessions(
   const long = avail.longRunDay != null ? longRunOf(cardio, ctx.load) : null;
   if (long) fix(long, avail.longRunDay!);
 
-  // 0b. Suggested weekdays (AI drafts) stay where they break no rule. Key runs
-  //     first, then exercise sessions, then easy cardio: the expensive sessions win a day.
+  // 0b. Suggested weekdays (AI drafts) stay where they break no rule. Exercise
+  //     sessions first (they may only use trainingDays, so they can't move far),
+  //     then key runs (cardio days are a superset: a clashing run finds another
+  //     day), then easy cardio.
   if (opts.keepWeekdays) {
-    const rank = (s: ProgramSession) => (isKey(ctx.load.get(s.id)) ? 0 : s.kind === "exercises" ? 1 : 2);
+    const rank = (s: ProgramSession) => (s.kind === "exercises" ? 0 : isKey(ctx.load.get(s.id)) ? 1 : 2);
     const candidates = ordered.filter((s) => s.weekday != null && !isFixed.has(s.id)).sort((a, b) => rank(a) - rank(b));
     for (const s of candidates) {
       const d = s.weekday!;

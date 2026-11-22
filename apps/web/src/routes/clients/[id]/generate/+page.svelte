@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
-  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, NOTE_MAX, fillLockedWeeks, loggedWeeks, mentionsAlternating, selectExamples, weekRangeLabel, type SignalProgram, type WeeksChoice } from "@pt/shared";
+  import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, NOTE_MAX, fillLockedWeeks, localDateOf, loggedWeeks, mentionsAlternating, profileOn, selectExamples, weekRangeLabel, type HrZone, type SignalProgram, type WeeksChoice } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
   import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
@@ -442,11 +442,14 @@
 
   /** Settles once the form/review data (stage 2 of firstLoad) is in; the review waits on it. */
   let restLoaded: Promise<void> = Promise.resolve();
+  /** The member's bpm zones today, for the draft's interval breakdown; null = none (zones show on their own). */
+  let hrZones = $state<readonly HrZone[] | null>(null);
 
   async function firstLoad() {
     const params = new URLSearchParams(page.url.search);
     // Stage 1: just what decides the page state and draws the progress / failed view.
     const [detail, gens, provList] = await Promise.all([api.client(id), api.generations(id), api.providers()]);
+    api.hrProfiles(id).then((v) => (hrZones = profileOn(v, localDateOf(Date.now()))?.zones ?? null), () => {});
     current = detail.currentProgram;
     programs = detail.programs;
     providers = provList.filter((p) => p.configured);
@@ -859,6 +862,7 @@
 
 {:else if gen?.draft}
   <DraftReview
+    zones={hrZones}
     {gen}
     gens={allGens}
     {client}

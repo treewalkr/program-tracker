@@ -130,7 +130,14 @@ export const PortalCardioInterval = z.object({
   rpe: z.number().optional(),
   notes: z.string().optional(),
   recovery: z
-    .object({ type: z.enum(["active_recovery", "passive_recovery"]), durationSec: z.number().int().optional(), distanceM: z.number().int().optional() })
+    .object({
+      type: z.enum(["active_recovery", "passive_recovery"]),
+      durationSec: z.number().int().optional(),
+      distanceM: z.number().int().optional(),
+      hrZone: z.number().int().optional(),
+      hrBpm: HrBpmRange.optional(),
+      paceSecPerKm: z.number().int().optional(),
+    })
     .optional(),
   recoveryAfterLast: z.boolean().optional(),
 });
@@ -452,7 +459,14 @@ function portalInterval(iv: CardioInterval, zones: HrZones | null | undefined): 
     rpe: opt(iv.rpe),
     notes: opt(iv.notes),
     recovery: iv.recovery
-      ? { type: iv.recovery.type ?? "passive_recovery", durationSec: opt(iv.recovery.durationSec), distanceM: opt(iv.recovery.distanceM) }
+      ? {
+          type: iv.recovery.type ?? "passive_recovery",
+          durationSec: opt(iv.recovery.durationSec),
+          distanceM: opt(iv.recovery.distanceM),
+          hrZone: opt(iv.recovery.hrZone),
+          hrBpm: bpmOf(undefined, iv.recovery.hrZone, zones),
+          paceSecPerKm: opt(iv.recovery.paceSecPerKm),
+        }
       : undefined,
     recoveryAfterLast: opt(iv.recoveryAfterLast),
   };
