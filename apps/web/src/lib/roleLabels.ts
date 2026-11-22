@@ -2,6 +2,7 @@ import {
   ROLE_CATEGORIES,
   ROLE_CATEGORY_NAMES,
   primaryPattern,
+  isRetiredRole,
   resolveRole,
   suggestRole,
   type BuiltinRole,
@@ -23,6 +24,11 @@ export const UNKNOWN_LABEL = { name: "Unknown label", chip: "Label", description
 /** How a stored role reads: its label, or a neutral stand-in. Archived labels still resolve. */
 export function roleDisplay(role: string, labels: readonly RoleLabel[]): { name: string; chip: string; description: string } {
   return resolveRole(role, labels) ?? UNKNOWN_LABEL;
+}
+
+/** Labels the picker offers: retired built-ins (Movement Prep, now a block) left out; a slot already on one still reads it. */
+export function pickableLabels(labels: readonly RoleLabel[]): RoleLabel[] {
+  return labels.filter((l) => !isRetiredRole(l.key));
 }
 
 /** Active labels matching every word of the query on name, chip or meaning; name hits first, else rank order. */

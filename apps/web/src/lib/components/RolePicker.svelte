@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import type { ExerciseRole, RoleLabel } from "@pt/shared";
-  import { canCreateLabel, groupRoleLabels, roleDisplay, searchRoleLabels } from "$lib/roleLabels";
+  import { canCreateLabel, groupRoleLabels, pickableLabels, roleDisplay, searchRoleLabels } from "$lib/roleLabels";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import Icon from "$lib/ui/Icon.svelte";
 
@@ -39,7 +39,7 @@
 
   const current = $derived(value ? roleDisplay(value, labels) : null);
   const typed = $derived(query.trim().replace(/\s+/g, " "));
-  const matches = $derived(searchRoleLabels(labels, query));
+  const matches = $derived(searchRoleLabels(pickableLabels(labels), query));
   const groups = $derived(typed ? [{ label: "", items: matches }] : groupRoleLabels(matches));
   const canCreate = $derived(editable && canCreateLabel(labels, typed));
 

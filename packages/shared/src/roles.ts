@@ -186,10 +186,22 @@ const ISOLATION_NAME =
 const COMPOUND_NAME =
   /\b(squats?|deadlifts?|dl|rdl|bench|press(es)?|rows?|pull[\s-]?ups?|chin[\s-]?ups?|pull[\s-]?downs?|lunges?|split squats?|step[\s-]?ups?|hip thrusts?|thrusts?|good[\s-]?mornings?|dips?|push[\s-]?ups?|hinges?)\b/i;
 
-type Kind = "movement_prep" | "mobility" | "conditioning" | "power" | "core" | "compound" | "accessory";
+/**
+ * Built-in labels still read on old programs but no longer offered: Movement
+ * Prep is a session block now (blocks.ts), so the picker and the AI label list
+ * leave it out.
+ */
+export const RETIRED_ROLES: readonly BuiltinRole[] = ["movement_prep"];
+export const isRetiredRole = (role: string | null | undefined): boolean => !!role && (RETIRED_ROLES as readonly string[]).includes(role);
+
+/** A warm-up / activation / ramp name: a hint that the exercise belongs in Movement prep. */
+export const looksLikePrep = (name: string): boolean => PREP_NAME.test(name);
+
+type Kind = "mobility" | "conditioning" | "power" | "core" | "compound" | "accessory";
 
 function kindOf(hints: RoleHints): Kind {
-  if (PREP_NAME.test(hints.name)) return "movement_prep";
+  // A warm-up is prep by block now (looksLikePrep), not by label: it takes Mobility.
+  if (PREP_NAME.test(hints.name)) return "mobility";
   if (MOBILITY_NAME.test(hints.name)) return "mobility";
   if (CONDITIONING_NAME.test(hints.name) && !SPRINT.test(hints.name)) return "conditioning";
   // "No pattern" (mobility, drills) and a lone "Multi-movement" give no hint: the name heuristics decide.
@@ -219,8 +231,8 @@ function isHeavy(e: RoleHints): boolean {
 
 /**
  * Built-in label for `sessionExercises[index]` (`exercise`): by name first —
- * warm-up/activation → movement_prep, stretching/foam rolling/breathing →
- * mobility, bike/erg/sled/run/intervals → conditioning (a sprint stays
+ * warm-up/activation and stretching/foam rolling/breathing → mobility (the
+ * Movement Prep label is retired: the session block says prep), bike/erg/sled/run/intervals → conditioning (a sprint stays
  * power); then explosive → power; trunk → core; the session's first heavy compound (≤ 6 reps when
  * known, not to failure) → primary, the next → secondary; other compound work → strength;
  * everything else → accessory (Auxiliary). Pure; never a custom label, and

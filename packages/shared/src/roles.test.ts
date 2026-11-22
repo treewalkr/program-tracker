@@ -11,6 +11,7 @@ import {
   mergeRoleLabels,
   rankAfter,
   resolveRole,
+  looksLikePrep,
   suggestRole,
   suggestRoles,
   type RoleHints,
@@ -161,12 +162,14 @@ describe("suggestRole", () => {
     expect(suggestRole(ex("Cat Camel", { movementPattern: "multi_movement" }), [], 0)).toBe("mobility");
   });
 
-  test("warm-up and activation names → movement prep", () => {
+  test("warm-up and activation names → mobility, and read as prep (the Movement Prep label is retired)", () => {
     for (const n of ["Dynamic Warm-up", "Warmup Circuit", "Glute Activation", "Scap Activation", "Ramp-up Drills", "Movement Prep Flow", "Dynamic Stretching"]) {
-      expect(suggestRole(ex(n), [], 0)).toBe("movement_prep");
+      expect(suggestRole(ex(n), [], 0)).toBe("mobility");
+      expect(looksLikePrep(n)).toBe(true);
     }
     // a warm-up on the bike is still a warm-up
-    expect(suggestRole(ex("Bike Warm-up"), [], 0)).toBe("movement_prep");
+    expect(suggestRole(ex("Bike Warm-up"), [], 0)).toBe("mobility");
+    expect(looksLikePrep("Back Squat")).toBe(false);
   });
 
   test("conditioning names → conditioning", () => {
@@ -225,7 +228,7 @@ describe("suggestRole", () => {
       ex("Deadlift", { movementPattern: "hip_dominant", prescribedSets: reps(5) }),
       ex("Hip Flexor Stretch"),
     ];
-    expect(suggestRoles(session)).toEqual(["movement_prep", "conditioning", "primary", "secondary", "mobility"]);
+    expect(suggestRoles(session)).toEqual(["mobility", "conditioning", "primary", "secondary", "mobility"]);
   });
 
   test("first heavy compound → primary, next → secondary, then strength", () => {

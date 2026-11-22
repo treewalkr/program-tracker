@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { BUILTIN_ROLE_LABELS, mergeRoleLabels } from "@pt/shared";
-import { canCreateLabel, groupRoleLabels, roleDisplay, searchRoleLabels, suggestRoleIn } from "./roleLabels";
+import { canCreateLabel, groupRoleLabels, pickableLabels, roleDisplay, searchRoleLabels, suggestRoleIn } from "./roleLabels";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const gone = "22222222-2222-4222-8222-222222222222";
@@ -8,6 +8,14 @@ const labels = mergeRoleLabels([
   { id, builtinKey: null, name: "Speed", chip: "Spd", description: "Fast, light reps.", rank: 150, archivedAt: null },
   { id: gone, builtinKey: null, name: "Old", chip: null, description: "Retired.", rank: 160, archivedAt: "2026-01-01" },
 ]);
+
+describe("pickableLabels", () => {
+  test("Movement Prep leaves the picker (it's a block now) but still reads on old slots", () => {
+    expect(pickableLabels(labels).some((l) => l.key === "movement_prep")).toBe(false);
+    expect(pickableLabels(labels).some((l) => l.key === "primary")).toBe(true);
+    expect(roleDisplay("movement_prep", labels).name).toBe("Movement Prep");
+  });
+});
 
 describe("searchRoleLabels", () => {
   test("empty query → every active label by rank", () => {
