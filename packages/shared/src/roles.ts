@@ -1,4 +1,4 @@
-import { mainWork } from "./blocks";
+import { isPrep, mainWork, MAX_PREP_EXERCISES, orderByBlock } from "./blocks";
 import {
   EXERCISE_ROLES,
   EXERCISE_ROLE_INFO,
@@ -277,6 +277,10 @@ interface DraftLike {
 }
 
 /**
+ * A retired Movement Prep label → block "prep" (unless the draft said
+ * otherwise) plus a suggested spec role; prep is then listed first. Prep
+ * past the cap, or prep with no main work at all, goes back to main, so the
+ * draft always saves.
  * A missing or unknown (or archived) label → suggestRole; a exercise session
  * with more than one Primary in main work (prep never counts) keeps them, with an info note for the trainer
  * (once per session name, however many weeks repeat it).
@@ -296,11 +300,17 @@ export function fixDraftRoles<D extends DraftLike>(
       name: e.exerciseName ?? "",
       prescribedSets: e.prescribedSets,
     }));
-    const exercises = s.exercises.map((e, i) => {
+    const labelled = s.exercises.map((e, i) => {
+      if (isRetiredRole(e.role)) return { ...e, block: e.block ?? "prep", role: suggestRole(hints[i], hints, i) };
       if (isKnownRole(e.role, labels)) return e;
       filled++;
       return { ...e, role: suggestRole(hints[i], hints, i) };
     });
+    const allPrep = labelled.every(isPrep);
+    let kept = 0;
+    const exercises = orderByBlock(
+      labelled.map((e) => (isPrep(e) && (allPrep || ++kept > MAX_PREP_EXERCISES) ? { ...e, block: "main" } : e))
+    );
     if (mainWork(exercises).filter((e) => e.role === "primary").length > 1) {
       notes.add(`${s.name} has more than one Primary lift — usually one leads the session.`);
     }

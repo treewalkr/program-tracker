@@ -195,6 +195,41 @@ describe("every planned counter ignores prep", () => {
     };
     expect(fixDraftRoles(draft, BUILTIN_ROLE_LABELS).notes).toEqual([]);
   });
+  test("fixDraftRoles turns a movement_prep label into block prep plus a spec role, listed first", () => {
+    const draft = {
+      rationale: "",
+      weeks: [
+        {
+          sessions: [
+            {
+              name: "Lower",
+              exercises: [
+                { exerciseName: "Back Squat", role: "primary" as const, prescribedSets: [set(1)] },
+                { exerciseName: "Hip CARs", role: "movement_prep" as const, prescribedSets: [set(1)] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const out = fixDraftRoles(draft, BUILTIN_ROLE_LABELS).draft.weeks[0].sessions[0].exercises;
+    expect(out.map((e) => [e.exerciseName, (e as { block?: string }).block ?? "main", e.role])).toEqual([
+      ["Hip CARs", "prep", "mobility"],
+      ["Back Squat", "main", "primary"],
+    ]);
+  });
+  test("fixDraftRoles keeps a draft savable: prep past the cap, or prep alone, goes to main", () => {
+    const draftOf = (exercises: { exerciseName: string; role: "mobility"; block: string; prescribedSets: ReturnType<typeof set>[] }[]) => ({
+      rationale: "",
+      weeks: [{ sessions: [{ name: "Day", exercises }] }],
+    });
+    const prep = (n: number) => Array.from({ length: n }, (_, i) => ({ exerciseName: `p${i}`, role: "mobility" as const, block: "prep", prescribedSets: [set(1)] }));
+    const capped = fixDraftRoles(draftOf([...prep(10), { ...prep(1)[0], exerciseName: "m", block: "main" }]), BUILTIN_ROLE_LABELS).draft.weeks[0].sessions[0].exercises;
+    expect(capped.map((e) => e.block).join(",")).toBe([...Array(8).fill("prep"), "main", "main", "main"].join(","));
+    expect(ProgramSession.safeParse(session(capped.map((e, i) => ({ ...ex(`x${i}`), block: e.block })))).success).toBe(true);
+    const alone = fixDraftRoles(draftOf(prep(2)), BUILTIN_ROLE_LABELS).draft.weeks[0].sessions[0].exercises;
+    expect(alone.map((e) => e.block)).toEqual(["main", "main"]);
+  });
   test("deload and progression leave prep as planned", () => {
     const w = {
       week: 4,
