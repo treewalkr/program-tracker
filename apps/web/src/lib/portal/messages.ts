@@ -279,6 +279,18 @@ export const en = {
   "log.cardioCaloriesRange": "Calories must be 0–10,000.",
   "log.cardioIntervalRange": "Check each interval: RPE is 1–10, heart rate 30–240 bpm.",
   "log.invalid": "Some numbers are out of range. Check the fields and save again.",
+  "input.junkTime": "Type a time like 35:10",
+  "input.between": "Between {min} and {max}",
+  "input.atLeast": "At least {min}",
+  "input.atMost": "At most {max}",
+  "input.increase": "Increase {label}",
+  "input.decrease": "Decrease {label}",
+  "unit.perKm": "/km",
+  "unit.perMi": "/mi",
+  "unit.per500m": "/500 m",
+  "unit.kmh": "km/h",
+  "unit.mph": "mph",
+  "unit.kcal": "kcal",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -556,6 +568,18 @@ export const th: Record<MessageKey, string> = {
   "log.cardioCaloriesRange": "แคลอรีต้องอยู่ระหว่าง 0–10,000",
   "log.cardioIntervalRange": "เช็กแต่ละช่วงอีกที RPE ต้องเป็น 1–10 ชีพจร 30–240 bpm",
   "log.invalid": "มีตัวเลขบางช่องเกินช่วงที่รับได้ เช็กแล้วบันทึกอีกครั้ง",
+  "input.junkTime": "พิมพ์เวลาแบบ 35:10",
+  "input.between": "ระหว่าง {min} ถึง {max}",
+  "input.atLeast": "อย่างน้อย {min}",
+  "input.atMost": "ไม่เกิน {max}",
+  "input.increase": "เพิ่ม {label}",
+  "input.decrease": "ลด {label}",
+  "unit.perKm": "/กม.",
+  "unit.perMi": "/ไมล์",
+  "unit.per500m": "/500 ม.",
+  "unit.kmh": "กม./ชม.",
+  "unit.mph": "ไมล์/ชม.",
+  "unit.kcal": "แคลอรี",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };

@@ -74,6 +74,10 @@ test("pace and load: 35:10 over 5.2 km is 6:46 /km; RPE 7 × 35.2 min is 246 AU"
   expect(cardioFormCalc(f, "pace")).toEqual({ pace: "6:46 /km", load: 246 });
   expect(cardioFormCalc({ ...f, distanceKm: null }, "pace").pace).toBeNull();
   expect(cardioFormCalc(f, "speed").pace).toBe("8.9 km/h");
+  // the portal's Thai unit words
+  const th = { perKm: "/กม.", perMi: "/ไมล์", per500m: "/500 ม.", kmh: "กม./ชม.", mph: "ไมล์/ชม." };
+  expect(cardioFormCalc(f, "pace", th).pace).toBe("6:46 /กม.");
+  expect(cardioFormCalc(f, "speed", th).pace).toBe("8.9 กม./ชม.");
 });
 
 test("readCardioForm upgrades an old draft's minutes and drops junk", () => {

@@ -1,6 +1,7 @@
-import { fmtPace, fmtSpeed } from "./units.svelte";
+import { distanceUnit, showPace } from "./units.svelte";
 import {
   CARDIO_LOG_LIMITS as LIM,
+  KM_PER_MI,
   cardioPace,
   cardioTotals,
   SKIP_REASONS,
@@ -241,16 +242,33 @@ export function cardioLogOf(form: CardioForm): { cardio: CardioLog } | { error: 
 
 const mmss = (sec: number) => formatDuration(sec);
 
+/** Unit words for the calculated line; English by default, the portal passes its own. */
+export interface PaceWords {
+  perKm: string;
+  perMi: string;
+  per500m: string;
+  kmh: string;
+  mph: string;
+}
+export const PACE_WORDS_EN: PaceWords = { perKm: "/km", perMi: "/mi", per500m: "/500 m", kmh: "km/h", mph: "mph" };
+
 /**
  * The calculated line under the form: pace (or split, or speed) when there's a
  * distance and a time, and the session load when there's a time and an RPE.
  */
-export function cardioFormCalc(form: CardioForm, metric: CardioMetric): { pace: string | null; load: number | null } {
+export function cardioFormCalc(form: CardioForm, metric: CardioMetric, words: PaceWords = PACE_WORDS_EN): { pace: string | null; load: number | null } {
   if (form.skipped) return { pace: null, load: null };
   const log = { durationSec: form.durationSec ?? undefined, distanceKm: form.distanceKm ?? undefined, rpe: form.rpe ?? undefined };
   const p = cardioPace(log, metric);
+  const mi = distanceUnit() === "mi";
   const pace =
-    p?.metric === "pace" ? fmtPace(p.secPerKm) : p?.metric === "split" ? `${mmss(p.secPer500m)} /500 m` : p?.metric === "speed" ? fmtSpeed(p.kmh) : null;
+    p?.metric === "pace"
+      ? `${mmss(showPace(p.secPerKm))} ${mi ? words.perMi : words.perKm}`
+      : p?.metric === "split"
+        ? `${mmss(p.secPer500m)} ${words.per500m}`
+        : p?.metric === "speed"
+          ? `${Math.round((mi ? p.kmh / KM_PER_MI : p.kmh) * 10) / 10} ${mi ? words.mph : words.kmh}`
+          : null;
   return { pace, load: sessionLoad(log) };
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts" module>
-  import type { CardioFormError } from "$lib/cardioForm";
+  import type { CardioFormError, PaceWords } from "$lib/cardioForm";
+  import type { RangeWords } from "$lib/ui/input/duration";
   export type { CardioForm } from "$lib/cardioForm";
 
   /** Words the form shows — English by default; the client portal passes its own locale (any subset). */
@@ -45,14 +46,26 @@
     distanceUnits: Record<DistanceUnit, string>;
     /** A range error names its field and limits (shown under that field). */
     errors: Record<CardioFormError, string>;
+    /** A time that isn't one ("Type a time like 35:10"). */
+    junkTime: string;
+    /** A field's own range message. */
+    rangeWords: RangeWords;
+    /** The pace, split and speed unit words. */
+    paceWords: PaceWords;
+    /** "kcal". */
+    kcal: string;
+    /** After the load figure: "AU" for the coach; blank for the member, who never sees the unit. */
+    loadUnit: string;
+    /** The RPE stepper's buttons; `{label}` is the field. */
+    stepWords: { up: string; down: string };
   }
 </script>
 
 <script lang="ts">
   import type { CardioIntervalType, CardioMetric, DistanceUnit, SkipReason } from "@pt/shared";
   import { distanceUnit, showDistance, storeDistance } from "$lib/units.svelte";
-  import { CARDIO_FORM_ERROR, cardioFormCalc, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type IntervalResultRow } from "$lib/cardioForm";
-  import { farUnderPlan, formatDuration } from "$lib/ui/input/duration";
+  import { CARDIO_FORM_ERROR, cardioFormCalc, PACE_WORDS_EN, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type IntervalResultRow } from "$lib/cardioForm";
+  import { farUnderPlan, formatDuration, RANGE_WORDS_EN } from "$lib/ui/input/duration";
   import InputDuration from "$lib/ui/InputDuration.svelte";
   import InputUnit from "$lib/ui/InputUnit.svelte";
   import InputField from "$lib/ui/InputField.svelte";
@@ -99,6 +112,12 @@
     optional: "optional",
     distanceUnits: { km: "km", mi: "mi" },
     errors: CARDIO_FORM_ERROR,
+    junkTime: "Type a time like 35:10",
+    rangeWords: RANGE_WORDS_EN,
+    paceWords: PACE_WORDS_EN,
+    kcal: "kcal",
+    loadUnit: "AU",
+    stepWords: { up: "Increase {label}", down: "Decrease {label}" },
   };
 
   const RPE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -117,11 +136,14 @@
     problem?: CardioFormError | null;
     /** The planned session time in seconds, for the "much shorter than planned" warning. */
     plannedSec?: number | null;
+    /** The modality as shown and typed (the portal shows preset names in Thai); stored names pass through. */
+    showModality?: (stored: string) => string;
+    storeModality?: (typed: string) => string;
   }
 
-  let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null, plannedSec = null }: Props = $props();
+  let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null, plannedSec = null, showModality = (m) => m, storeModality = (m) => m }: Props = $props();
 
-  const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits }, errors: { ...ENGLISH.errors, ...given.errors } });
+  const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits }, errors: { ...ENGLISH.errors, ...given.errors }, rangeWords: { ...ENGLISH.rangeWords, ...given.rangeWords }, paceWords: { ...ENGLISH.paceWords, ...given.paceWords } });
   const errorOf = (e: CardioFormError) => (problem === e ? text.errors[e] : null);
   /** A problem inside the folded section opens it, so the named field is on screen. */
   let moreOpen = $state(false);
@@ -135,7 +157,7 @@
     const name = text.types[row.type];
     return reps > 1 ? text.repOf.replace("{name}", name).replace("{rep}", String(row.rep)).replace("{reps}", String(reps)) : name;
   }
-  const calc = $derived(cardioFormCalc(value, metric));
+  const calc = $derived(cardioFormCalc(value, metric, text.paceWords));
   /** A logged time far under the plan is usually minutes read as seconds: say so, don't block. */
   const durationHint = $derived(farUnderPlan(value.durationSec, plannedSec) ? text.underPlan.replace("{planned}", formatDuration(plannedSec)) : text.durationHint);
   const load = $derived(calc.load != null && value.rpe != null && value.durationSec != null ? { au: calc.load, rpe: value.rpe, min: Math.round((value.durationSec / 60) * 10) / 10 } : null);
@@ -184,18 +206,18 @@
             {#if problem === "modality"}<p class="err">Pick what they did.</p>{/if}
           </div>
         {:else}
-          <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={value.modality} maxlength={80} error={problem === "modality" ? text.modalityError : null} />
+          <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={() => showModality(value.modality), (v) => (value.modality = storeModality(v))} maxlength={80} error={problem === "modality" ? text.modalityError : null} />
         {/if}
       </div>
-      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
+      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} junkText={text.junkTime} rangeWords={text.rangeWords} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
       <div class="lbl-field rpe-field">
         <span class="lbl">{text.rpe}</span>
-        <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} block />
+        <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} block stepWords={text.stepWords} />
         {#if problem === "rpe"}<p class="err">{text.rpeHint}</p>{:else}<p class="hint">{text.rpeHint}</p>{/if}
       </div>
-      <InputUnit label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} error={errorOf("distanceRange")} />
-      <InputUnit label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional={text.optional} error={errorOf("avgHrRange")} />
-      <InputUnit label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional={text.optional} error={problem === "maxHr" ? text.maxHrError : errorOf("maxHrRange")} />
+      <InputUnit rangeWords={text.rangeWords} label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} error={errorOf("distanceRange")} />
+      <InputUnit rangeWords={text.rangeWords} label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional={text.optional} error={errorOf("avgHrRange")} />
+      <InputUnit rangeWords={text.rangeWords} label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional={text.optional} error={problem === "maxHr" ? text.maxHrError : errorOf("maxHrRange")} />
     </div>
 
     <div class="pain">
@@ -208,14 +230,14 @@
     {#if calc.pace || load}
       <p class="calc" aria-live="polite">
         {#if calc.pace}<span>{text.pace} <b>{calc.pace}</b></span>{/if}
-        {#if load}<span>{text.load} <b>{load.au} AU</b> <span class="muted">= {load.rpe} × {load.min} {text.minutes}</span></span>{/if}
+        {#if load}<span>{text.load} <b>{load.au}{text.loadUnit ? ` ${text.loadUnit}` : ""}</b> <span class="muted">= {load.rpe} × {load.min} {text.minutes}</span></span>{/if}
       </p>
     {/if}
 
     <details class="more" bind:open={moreOpen}>
       <summary>{text.more}</summary>
       <div class="more-body">
-        <InputUnit label={text.calories} unit="kcal" bind:value={value.calories} min={0} max={10000} optional={text.optional} width="auto" error={errorOf("caloriesRange")} />
+        <InputUnit rangeWords={text.rangeWords} label={text.calories} unit={text.kcal} bind:value={value.calories} min={0} max={10000} optional={text.optional} width="auto" error={errorOf("caloriesRange")} />
         {#if value.intervals.length}
           <div class="ivs">
             <span class="lbl">{text.intervals}</span>
@@ -227,10 +249,10 @@
                   <li class="rep" class:work={row.type === "work"}>
                     <span class="rep-name">{label}</span>
                     <div class="rep-fields">
-                      <InputDuration label={text.time} bind:value={row.durationSec} step={5} />
-                      <InputUnit label={distLabel} unit={distLabel} step={0.1} min={0} bind:value={() => (row.distanceKm == null ? null : showDistance(row.distanceKm)), (v) => (row.distanceKm = v == null ? null : storeDistance(v))} />
-                      <InputUnit label={text.avgHr} unit="bpm" min={30} max={240} bind:value={row.avgHr} />
-                      <InputUnit label="RPE" unit="/10" min={1} max={10} bind:value={row.rpe} />
+                      <InputDuration label={text.time} bind:value={row.durationSec} step={5} junkText={text.junkTime} rangeWords={text.rangeWords} />
+                      <InputUnit rangeWords={text.rangeWords} label={distLabel} unit={distLabel} step={0.1} min={0} bind:value={() => (row.distanceKm == null ? null : showDistance(row.distanceKm)), (v) => (row.distanceKm = v == null ? null : storeDistance(v))} />
+                      <InputUnit rangeWords={text.rangeWords} label={text.avgHr} unit="bpm" min={30} max={240} bind:value={row.avgHr} />
+                      <InputUnit rangeWords={text.rangeWords} label="RPE" unit="/10" min={1} max={10} bind:value={row.rpe} />
                     </div>
                   </li>
                 {/each}
@@ -246,7 +268,7 @@
                     {@const label = rowLabel(row)}
                     <tr class:work={row.type === "work"}>
                       <td>{label}</td>
-                      <td class="r num"><InputDuration label="{text.time} · {label}" bind:value={row.durationSec} cell step={5} /></td>
+                      <td class="r num"><InputDuration label="{text.time} · {label}" bind:value={row.durationSec} cell step={5} junkText={text.junkTime} rangeWords={text.rangeWords} /></td>
                       <td class="r num"><InputCell label="{distLabel} · {label}" figure value={cellNum(row.distanceKm == null ? null : showDistance(row.distanceKm))} oncommit={(v) => setCell(row, "distanceKm", v)} /></td>
                       <td class="r num"><InputCell label="{text.avgHr} · {label}" figure value={cellNum(row.avgHr)} oncommit={(v) => setCell(row, "avgHr", v)} /></td>
                       <td class="r num"><InputCell label="RPE · {label}" figure value={cellNum(row.rpe)} oncommit={(v) => setCell(row, "rpe", v)} /></td>

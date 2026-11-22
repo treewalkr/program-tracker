@@ -12,6 +12,7 @@
   import type { MessageKey } from "$lib/portal/messages";
   import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
+  import { modalityName, modalityStored } from "$lib/portal/modality";
   import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
   import {
     buildPortalLog,
@@ -351,6 +352,13 @@
     optional: t("log.optional"),
     distanceUnits: { km: t("cardio.km"), mi: t("cardio.mi") },
     errors: Object.fromEntries(Object.entries(CARDIO_ERROR_KEY).map(([k, key]) => [k, t(key)])) as Record<CardioFormError, string>,
+    junkTime: t("input.junkTime"),
+    rangeWords: { between: t("input.between"), atLeast: t("input.atLeast"), atMost: t("input.atMost") },
+    paceWords: { perKm: t("unit.perKm"), perMi: t("unit.perMi"), per500m: t("unit.per500m"), kmh: t("unit.kmh"), mph: t("unit.mph") },
+    kcal: t("unit.kcal"),
+    // the member sees load as a plain number; AU is the coach's word
+    loadUnit: "",
+    stepWords: { up: t("input.increase"), down: t("input.decrease") },
   });
   /** The cardio field the last save was missing: ringed in the form as well as named by the save bar. */
   let cardioProblem = $state<CardioFormError | null>(null);
@@ -504,7 +512,7 @@
       {/if}
 
       {#if cardioSession}
-        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} />
+        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} showModality={(m) => modalityName(m, i18n.locale)} storeModality={modalityStored} />
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">

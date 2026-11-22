@@ -2,7 +2,8 @@
   import type { PortalProgressDto, Vo2Protocol } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
-  import { fmtShortDate, latinLang, t } from "./i18n.svelte";
+  import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
+  import { modalityName } from "./modality";
   import { cardioDistance, hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
 
   /**
@@ -43,7 +44,7 @@
       <div><dt>{t("progress.load")}</dt><dd class="tnum">{Math.round(week.load)}</dd></div>
       {#each modalities as [name, m] (name)}
         <div>
-          <dt lang={latinLang(name)}>{name}</dt>
+          <dt lang={latinLang(modalityName(name, i18n.locale))}>{modalityName(name, i18n.locale)}</dt>
           <dd class="tnum">{m.distanceKm > 0 ? cardioDistance(m.distanceKm, t) : hoursMinutes(m.minutes, t)}</dd>
         </div>
       {/each}
@@ -85,7 +86,7 @@
         <span class="pill good"><Icon name="check" />{t("progress.reviewed")}</span>
       </h3>
       <p class="said">{latestWord.trainerFeedback}</p>
-      <p class="quiet">{fmtShortDate(latestWord.date)} · <span lang={latinLang(latestWord.modality)}>{latestWord.modality}</span></p>
+      <p class="quiet">{fmtShortDate(latestWord.date)} · <span lang={latinLang(modalityName(latestWord.modality, i18n.locale))}>{modalityName(latestWord.modality, i18n.locale)}</span></p>
     </section>
   {/if}
 
@@ -99,7 +100,7 @@
           {@const line = logLine(l, t)}
           <li class="card">
             <div class="r1">
-              <span>{fmtShortDate(l.date)} · <span lang={latinLang(l.modality)}>{l.modality}</span></span>
+              <span>{fmtShortDate(l.date)} · <span lang={latinLang(modalityName(l.modality, i18n.locale))}>{modalityName(l.modality, i18n.locale)}</span></span>
               <span class="tnum mono">{line.time}</span>
             </div>
             <div class="r2">

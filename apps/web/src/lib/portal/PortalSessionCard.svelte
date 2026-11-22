@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { PortalSession } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
-  import { fmtShortDate, latinLang, t } from "./i18n.svelte";
+  import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
+  import { modalityName } from "./modality";
   import { cardioParts, intervalLines, setParts } from "./rx";
   import { reviewDay } from "./progress";
 
@@ -71,7 +72,7 @@
     <div class="title">
       <h3 id={`s-${session.id}`} lang={latinLang(session.name)}>{session.name}</h3>
       {#if cardio}
-        <p class="meta"><Icon name="pulse" />{t("session.cardio")}{#if session.cardio && session.cardio.modality !== session.name} · {session.cardio.modality}{/if}</p>
+        <p class="meta"><Icon name="pulse" />{t("session.cardio")}{#if session.cardio && session.cardio.modality !== session.name}{" · "}{modalityName(session.cardio.modality, i18n.locale)}{/if}</p>
       {:else if session.typeName}
         <p class="meta">{session.typeName}</p>
       {/if}
@@ -117,7 +118,7 @@
   {#if cardio && session.cardio}
     {@const parts = cardioParts({ ...session.cardio, intensity: undefined }, t)}
     {#if parts.length}
-      <ul class="chips" aria-label={session.cardio.modality}>
+      <ul class="chips" aria-label={modalityName(session.cardio.modality, i18n.locale)}>
         {#each parts as p}<li class="chip">{p}</li>{/each}
       </ul>
     {/if}

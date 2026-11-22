@@ -31,9 +31,11 @@
 		open?: boolean;
 		/** Take the column's width, with the grid as wide as the field (never past the screen edge). */
 		block?: boolean;
+		/** The step buttons' accessible names, in the page's language; `{label}` is filled in. */
+		stepWords?: { up: string; down: string };
 	}
 
-	let { values, value = $bindable(), onchange, placeholder = '—', start, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false), block = false }: Props = $props();
+	let { values, value = $bindable(), onchange, placeholder = '—', start, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false), block = false, stepWords = { up: 'Increase {label}', down: 'Decrease {label}' } }: Props = $props();
 
 	const uid = $props.id();
 	let active = $state(0);
@@ -111,8 +113,8 @@
 				{#if value == null}<span class="ph">{placeholder}</span>{:else}{value}{/if}{#if unit}<small>{unit}</small>{/if}
 			</button>
 			<div class="st">
-				<button type="button" tabindex="-1" aria-label="Increase {label}" disabled={disabled || (value != null && index === values.length - 1)} onclick={() => step(1)}><Icon name="arrow-up" /></button>
-				<button type="button" tabindex="-1" aria-label="Decrease {label}" disabled={disabled || (value != null && index === 0)} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
+				<button type="button" tabindex="-1" aria-label={stepWords.up.replace('{label}', label)} disabled={disabled || (value != null && index === values.length - 1)} onclick={() => step(1)}><Icon name="arrow-up" /></button>
+				<button type="button" tabindex="-1" aria-label={stepWords.down.replace('{label}', label)} disabled={disabled || (value != null && index === 0)} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
 			</div>
 		</div>
 	{/snippet}
