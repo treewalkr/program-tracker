@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   applyForward,
   applyPlacementToAllWeeks,
+  blockEditText,
+  groupedSetsOf,
+  moveToBlock,
+  orderByBlock,
   forwardWeeks,
   ProgramWeeksDocument,
   sessionKey,
@@ -241,5 +245,48 @@ describe("applyPlacementToAllWeeks with targets", () => {
     weeks[1].sessions[0].weekday = 2;
     const out = applyPlacementToAllWeeks(weeks, 2, [3, 4]);
     expect(out.map((w) => w.sessions[0].weekday)).toEqual([1, 2, 2, 2]);
+  });
+});
+
+describe("session block edits", () => {
+  const lower = "exercises:1";
+  test("a block change is its own edit and goes forward", () => {
+    const weeks = block(3);
+    const after = clone(weeks[0]);
+    after.sessions[0].exercises = moveToBlock(after.sessions[0].exercises, 1, "prep");
+    const edits = weekStructureDiff(weeks[0], after);
+    expect(edits).toEqual([{ kind: "blockExercise", ref: { key: lower, exerciseId: "bench", occurrence: 0 }, name: "bench", to: "prep" }]);
+    expect(blockEditText("Band pull-apart", "prep")).toBe("Band pull-apart → movement prep");
+    const r = applyForward([after, weeks[1], weeks[2]], 1, edits, { targets: [2, 3], ...noLogs });
+    expect(r.changed).toEqual([2, 3]);
+    const s = r.weeks[1].sessions.find((x) => sessionKey(x) === lower)!;
+    expect(s.exercises.map((e) => [e.exerciseId, e.block ?? "main", e.order])).toEqual([["bench", "prep", 0], ["squat", "main", 1]]);
+    expect(ProgramWeeksDocument.safeParse(r.weeks).success).toBe(true);
+  });
+
+  test("prep never takes a session's last main exercise; a logged slot is kept", () => {
+    const weeks = block(2);
+    const edit = { kind: "blockExercise" as const, ref: { key: "exercises:2", exerciseId: "deadlift", occurrence: 0 }, name: "deadlift", to: "prep" as const };
+    expect(applyForward(weeks, 1, [edit], { targets: [2], ...noLogs }).skipped.map((x) => x.reason)).toEqual(["empty"]);
+    const benchEdit = { ...edit, ref: { key: lower, exerciseId: "bench", occurrence: 0 }, name: "bench" };
+    const logged = applyForward(weeks, 1, [benchEdit], { targets: [2], sessionHasLogs: () => false, exerciseHasLogs: () => true });
+    expect(logged.skipped.map((x) => x.reason)).toEqual(["logged"]);
+  });
+
+  test("an added prep exercise lands at the end of prep in later weeks", () => {
+    const weeks = block(2);
+    const after = clone(weeks[0]);
+    const band = { ...ex("band", null), block: "prep" as const };
+    after.sessions[0].exercises = orderByBlock([...after.sessions[0].exercises, { ...band, order: 2 }]);
+    const edits = weekStructureDiff(weeks[0], after);
+    expect(edits.map((e) => e.kind)).toEqual(["addExercise"]);
+    const r = applyForward([after, weeks[1]], 1, edits, { targets: [2], ...noLogs });
+    expect(exIds(r.weeks[1], lower)).toEqual(["band", "squat", "bench"]);
+  });
+
+  test("the draft diff shows a block move as a change", () => {
+    const a = [{ prescribedSets: [{ reps: 8, amrap: false }] }];
+    expect(groupedSetsOf(a, 0)).toBe("8");
+    expect(groupedSetsOf([{ ...a[0], block: "prep" }], 0)).toBe("8 · prep");
   });
 });

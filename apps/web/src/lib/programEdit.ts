@@ -1,4 +1,4 @@
-import { TEMPO_PATTERN, blockAnchorDate, type WeightUnit, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
+import { TEMPO_PATTERN, blockAnchorDate, blockEditText, type WeightUnit, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
 import { showWeight, storeWeight } from "./units.svelte";
 
@@ -271,6 +271,8 @@ const editSentence = (e: WeekEdit, where: string): string => {
       return `Removed ${e.name} from ${where}`;
     case "swapExercise":
       return `Swapped ${e.from} for ${e.exerciseName} in ${where}`;
+    case "blockExercise":
+      return `Moved ${blockEditText(e.name, e.to)} in ${where}`;
   }
 };
 

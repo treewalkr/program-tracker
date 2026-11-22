@@ -1,3 +1,5 @@
+import { blockOf, mainWork, MAX_MAIN_EXERCISES, MAX_PREP_EXERCISES, movementPrep, moveToBlock, orderByBlock, SESSION_BLOCK_NAMES, type SessionBlock } from "./blocks";
+import { normalizeGroups } from "./groups";
 import {
   MAX_SESSIONS_PER_WEEKDAY,
   sessionKey,
@@ -14,8 +16,9 @@ import { progressExercise } from "./progression";
 //
 // Across weeks a session is identified by its key (kind + seq), an exercise by
 // its catalog exerciseId plus its occurrence among same-id exercises in the
-// session (the second "Bench" is occurrence 1). Only structure travels: sets,
-// reps, loads, rest, notes, order, grouping and cardio values stay per week.
+// session (the second "Bench" is occurrence 1). Only structure travels (a
+// session block counts as structure): sets, reps, loads, rest, notes, order,
+// grouping and cardio values stay per week.
 // ---------------------------------------------------------------------------
 
 /** Where an exercise sits across weeks: session key, catalog id, occurrence. */
@@ -31,7 +34,16 @@ export type WeekEdit =
   | { kind: "renameSession"; key: string; name: string; from: string }
   | { kind: "addExercise"; key: string; sessionName: string; exercise: ProgramExercise }
   | { kind: "removeExercise"; ref: ExerciseRef; name: string }
-  | { kind: "swapExercise"; ref: ExerciseRef; from: string; exerciseId: string; exerciseName: string };
+  | { kind: "swapExercise"; ref: ExerciseRef; from: string; exerciseId: string; exerciseName: string }
+  /** Moved to the other session block ("Band pull-apart → prep"). */
+  | { kind: "blockExercise"; ref: ExerciseRef; name: string; to: SessionBlock };
+
+/** "Band pull-apart → movement prep" — a block change as one line. */
+export const blockEditText = (name: string, to: SessionBlock): string => `${name} → ${SESSION_BLOCK_NAMES[to].toLowerCase()}`;
+
+/** Room for one more exercise in `block` of session `s`. */
+const hasRoom = (s: ProgramSession, block: SessionBlock) =>
+  block === "prep" ? movementPrep(s.exercises).length < MAX_PREP_EXERCISES : mainWork(s.exercises).length < MAX_MAIN_EXERCISES;
 
 const byOrder = (a: ProgramExercise, b: ProgramExercise) => a.order - b.order;
 
@@ -52,7 +64,8 @@ const nameOf = (e: Pick<ProgramExercise, "exerciseName" | "exerciseId">) => e.ex
  * The structural edits between one week before and after an edit. Sessions are
  * matched by id within the week (a session whose key changed counts as removed
  * and added); exercises by their program-exercise id: a kept id with a new
- * catalog exercise is a swap.
+ * catalog exercise is a swap, one in the other block a block move (listed
+ * first, so it still finds the exercise by its old catalog id).
  */
 export function weekStructureDiff(before: ProgramWeek, after: ProgramWeek): WeekEdit[] {
   const edits: WeekEdit[] = [];
@@ -72,6 +85,7 @@ export function weekStructureDiff(before: ProgramWeek, after: ProgramWeek): Week
     for (const e of [...b.exercises].sort(byOrder)) {
       const now = aEx.get(e.id);
       const ref = { key, exerciseId: e.exerciseId, occurrence: occurrenceOf(b, e) };
+      if (now && blockOf(now) !== blockOf(e)) edits.push({ kind: "blockExercise", ref, name: nameOf(now), to: blockOf(now) });
       if (!now) edits.push({ kind: "removeExercise", ref, name: nameOf(e) });
       else if (now.exerciseId !== e.exerciseId) {
         edits.push({ kind: "swapExercise", ref, from: nameOf(e), exerciseId: now.exerciseId, exerciseName: nameOf(now) });
@@ -218,18 +232,19 @@ export function applyForward(weeks: ProgramWeek[], from: number, edits: readonly
           skip(n, "missing", edit);
           continue;
         }
-        if (s.exercises.length >= 20) {
+        if (!hasRoom(s, blockOf(edit.exercise))) {
           skip(n, "full", edit);
           continue;
         }
-        s.exercises = [...s.exercises, { ...freshExercise(chain.get(n)!), order: s.exercises.length }];
+        // Lands at the end of its block: prep stays before main.
+        s.exercises = orderByBlock([...s.exercises.sort(byOrder), { ...freshExercise(chain.get(n)!), order: s.exercises.length }]);
         changed.add(n);
       }
       continue;
     }
     for (const n of targets) {
       const w = week(n)!;
-      const key = edit.kind === "removeExercise" || edit.kind === "swapExercise" ? edit.ref.key : edit.key;
+      const key = edit.kind === "removeExercise" || edit.kind === "swapExercise" || edit.kind === "blockExercise" ? edit.ref.key : edit.key;
       const s = w.sessions.find((x) => sessionKey(x) === key);
       if (!s) {
         skip(n, "missing", edit);
@@ -254,8 +269,21 @@ export function applyForward(weeks: ProgramWeek[], from: number, edits: readonly
           skip(n, "logged", edit);
           continue;
         }
-        if (edit.kind === "removeExercise") {
-          if (s.exercises.length <= 1) {
+        if (edit.kind === "blockExercise") {
+          if (blockOf(e) === edit.to) continue;
+          if (!hasRoom(s, edit.to)) {
+            skip(n, "full", edit);
+            continue;
+          }
+          // Prep may not take the session's last main exercise.
+          if (edit.to === "prep" && mainWork(s.exercises).length <= 1) {
+            skip(n, "empty", edit);
+            continue;
+          }
+          const sorted = [...s.exercises].sort(byOrder);
+          s.exercises = normalizeGroups(moveToBlock(sorted, sorted.indexOf(e), edit.to));
+        } else if (edit.kind === "removeExercise") {
+          if (s.exercises.length <= 1 || (blockOf(e) === "main" && mainWork(s.exercises).length <= 1 && movementPrep(s.exercises).some((x) => x.block === "prep"))) {
             skip(n, "empty", edit);
             continue;
           }

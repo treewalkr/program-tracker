@@ -199,6 +199,10 @@ describe("weekTabDates", () => {
 });
 
 describe("forwardNotice", () => {
+  test("a block move reads as one line", () => {
+    const move = { kind: "blockExercise" as const, ref: { key: "exercises:1", exerciseId: "x", occurrence: 0 }, name: "Band pull-apart", to: "prep" as const };
+    expect(forwardNotice([move], { changed: [3], skipped: [] })).toBe("Moved Band pull-apart → movement prep in W3");
+  });
   const add = { kind: "addSession", key: "exercises:3", session: { name: "Home" } } as unknown as WeekEdit;
   const rm = { kind: "removeExercise", ref: { key: "exercises:1", exerciseId: "b", occurrence: 0 }, name: "Bench" } as WeekEdit;
   test("what went where, and which weeks were kept", () => {

@@ -1,5 +1,6 @@
 import { draftWeek, type AiProgramDraft } from "./ai";
 import type { ProgramWeek } from "./domain";
+import { isPrep } from "./blocks";
 import { groupTag, type Groupable } from "./groups";
 
 export interface DiffRow {
@@ -20,13 +21,13 @@ export interface DiffSource {
 export const setsOf = (prescribedSets: { reps: number; amrap: boolean }[]) =>
   prescribedSets.map((s) => `${s.reps}${s.amrap ? "+" : ""}`).join("/");
 
-/** Sets plus the superset tag ("8/8/8 · A1"), so joining or leaving a group shows as a change. */
+/** Sets plus the superset tag and a prep mark ("8/8/8 · A1 · prep"), so joining a group or moving block shows as a change. */
 export function groupedSetsOf(
   list: readonly (Groupable & { prescribedSets: { reps: number; amrap: boolean }[] })[],
   i: number
 ): string {
   const tag = groupTag(list, i);
-  return `${setsOf(list[i].prescribedSets)}${tag ? ` · ${tag}` : ""}`;
+  return `${setsOf(list[i].prescribedSets)}${tag ? ` · ${tag}` : ""}${isPrep(list[i]) ? " · prep" : ""}`;
 }
 
 export function diffRowsToText(rows: DiffRow[]): string {
