@@ -32,7 +32,7 @@
     id?: string;
     /** Unique accessible name of the input, e.g. "Bench back-off set 2, kg". */
     label: string;
-    /** Visible field label at phone width: "kg", "reps", "RPE". */
+    /** Visible field label at phone width: "kg", "reps", "RPE"; "" when the caller draws its own. */
     unit: string;
     step: number;
     min: number;
@@ -60,7 +60,8 @@
 </script>
 
 <div class="lstep" class:invalid={!!error} class:copied>
-  <span class="lstep-unit" aria-hidden="true">{unit}</span>
+  <!-- no unit: the caller labels the cell itself (LoadCell) -->
+  {#if unit}<span class="lstep-unit" aria-hidden="true">{unit}</span>{/if}
   <div class="lstep-row">
     <button type="button" class="lstep-btn" tabindex="-1" aria-label={`${label} −${step}`} {disabled} onclick={() => nudge(-1)}>
       <Icon name="minus" />
