@@ -926,9 +926,11 @@
   .hurt { display: grid; gap: 6px; font-size: 14px; }
   .hurt .input { min-height: 44px; font-size: 16px; }
   .hint { font-size: 13px; color: var(--muted); }
+  /* 44px to hit, pulled into the row's margins so it sits on the name's line and its word
+     lines up with the fields' right edge */
   .missed-btn {
-    min-height: 36px;
-    margin: -6px 0;
+    min-height: 44px;
+    margin: -12px -8px -12px 0;
     padding: 0 8px;
     font: 500 13px/1 var(--font-ui);
     color: var(--muted);
@@ -955,9 +957,9 @@
   .rm {
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
-    margin: -6px -6px -6px 0;
+    width: 44px;
+    height: 44px;
+    margin: -12px -14px -12px 0;
     color: var(--muted);
     background: none;
     border: 0;
