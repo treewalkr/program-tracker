@@ -1569,7 +1569,7 @@
                       <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(sg.kg)} for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
                     {/if}
                   </span>
-                  <span class="m-last tnum" title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
+                  <span class="m-last tnum" class:none={!last} title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
                     <span class="mob">last&nbsp;</span>{fmtLast(last, r.timed)}
                   </span>
                 </div>
@@ -2265,27 +2265,30 @@
 
     .blk-head { padding: 14px 14px 8px; }
     .blk-title h3 { font-size: 16px; }
-    .blk-act { width: 100%; }
+    /* + Set and More sit at the end of the title's line, sized to their words: a group
+       card has one pair per member, and full-width pairs pushed the sets off the screen */
+    .blk-act { margin-left: auto; }
     .blk-act :global(.btn) {
       min-height: 44px;
-      flex: 1;
+      padding: 0 12px;
       justify-content: center;
       font-size: 14px;
       background: var(--well);
       border: 1px solid var(--line);
     }
+    .blk-head.member { padding: 2px 14px; }
 
     .set {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       grid-template-areas:
         "meta meta"
         "kg   reps"
-        "rpe  skip";
+        "rpe  .";
       gap: 10px 10px;
       padding: 12px 14px 14px;
       align-items: end;
     }
-    .set.skipped { grid-template-areas: "meta meta" "note skip"; align-items: center; }
+    .set.skipped { grid-template-areas: "meta meta" "note note"; align-items: center; }
     .meta {
       grid-area: meta;
       display: flex;
@@ -2297,12 +2300,19 @@
     .m-set { font: 600 14px/1.3 var(--font-ui); }
     .m-rx { font-size: 13px; color: var(--ink); }
     .m-last { margin-left: auto; font-size: 12px; }
+    /* nothing logged in this slot yet: the desk column shows "—", the phone shows nothing */
+    .m-last.none { display: none; }
+    /* room on the head line for Skip set (Remove set on an extra) */
+    .meta { padding-right: 84px; }
+    .set.extra .meta { padding-right: 116px; }
     .c-kg { grid-area: kg; }
     .c-reps { grid-area: reps; }
     .c-rpe { grid-area: rpe; }
-    .c-skip { grid-area: skip; }
+    .c-skip { grid-row: 1; grid-column: 2; justify-self: end; align-self: start; margin: -13px -8px -13px 0; }
     .skip-note { grid-area: note; grid-column: auto; text-align: left; }
-    .skip-btn { width: 100%; height: 44px; font-size: 14px; }
+    .skip-btn { height: 44px; padding: 0 8px; font-size: 14px; border-color: transparent; }
+    .skip-btn:hover { border-color: transparent; }
+    .skip-btn[aria-pressed="true"] { border-color: var(--line); }
     /* Visual only: the button's aria-label already names the set. */
     .skip-word::after { content: " set" / ""; }
     .coach-line { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: -4px; font-size: 12px; }
@@ -2359,7 +2369,7 @@
     .fb-dock { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 6px; }
     .fb-word { display: none; }
     .save-bar :global(.recap .action .btn) { min-height: 44px; padding: 0 16px; }
-    .blk-act { flex-wrap: wrap; }
+    .blk-act { flex-wrap: wrap; justify-content: flex-end; }
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 44px; padding: 0 6px; font-size: 14px; flex: 1; }
     .blk-flag .subtle { flex-basis: 100%; }
