@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.42 — 2026-11-22
+
 ### New
 - **Smarter AI cardio.** The AI now works out paces from the member's race goal: tempo a little slower than race pace, interval reps a little faster, easy and long runs well slower. It keeps easy and long runs at RPE 2–3, plans at most one or two hard sessions a week, and only calls a session "VO₂max" when the reps really are that hard. It also puts runs on the member's cardio days.
   - th: AI วางคาร์ดิโอเก่งขึ้น คิดเพซจากเป้าแข่งของเมมเบอร์ให้เอง เทมโปช้ากว่าเพซแข่งนิดหน่อย ช่วงหนักของอินเทอร์วัลเร็วกว่าเล็กน้อย ส่วนวิ่งเบาและลองรันช้ากว่าชัดเจน วิ่งเบากับลองรันอยู่ที่ RPE 2–3 เซสชันหนักไม่เกิน 1–2 ครั้งต่อสัปดาห์ และจะเรียกว่า "VO₂max" ก็ต่อเมื่อช่วงหนักหนักถึงระดับนั้นจริง ๆ แถมยังวางวิ่งลงวันคาร์ดิโอของเมมเบอร์ด้วย
