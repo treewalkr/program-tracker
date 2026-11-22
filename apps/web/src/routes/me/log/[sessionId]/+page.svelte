@@ -38,6 +38,7 @@
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import Pill from "$lib/ui/Pill.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import { showLoad, units, weightCells, weightStepIn } from "$lib/units.svelte";
 
@@ -71,6 +72,8 @@
   /** RPE is optional: hidden until asked for, so kg and reps share one row on a phone. */
   let showRpe = $state(false);
   let feelOpen = $state(false);
+  /** "Skip or pain?" opened on this card. Paging closes it, unless the card has a skip or pain to show. */
+  let issuesOpen = $state(false);
 
   /** Set after a save was refused for missing kg: from then on the missing cells are ringed live. */
   let kgChecked = $state(false);
@@ -188,6 +191,8 @@
       date = draft.date >= minDate && draft.date <= maxDate ? draft.date : freshForm(s).date;
       restored = true;
     }
+    // a restored draft or a saved log may already carry a skip or pain: never hide it
+    issuesOpen = flaggedAt(0);
     loadState = "ready";
   }
 
@@ -228,6 +233,7 @@
     localStorage.removeItem(portalDraftKey(session.id));
     fresh(session);
     restored = false;
+    issuesOpen = flaggedAt(0);
   }
 
   function addSet(peId: string) {
@@ -247,6 +253,32 @@
     }
   }
   const skipReasonOf = (peId: string) => rows.find((r) => r.programExerciseId === peId)?.exerciseSkip ?? null;
+  const hurtOn = (peId: string) => flags[peId]?.kind === "pain";
+  /** This card's skips and pain, as the tags under its title name them. */
+  const cardIssues = $derived(
+    !block
+      ? []
+      : block.memberIds.flatMap((peId) => [
+          ...(skipReasonOf(peId) ? [{ peId, kind: "skip" as const }] : []),
+          ...(hurtOn(peId) ? [{ peId, kind: "pain" as const }] : []),
+        ]),
+  );
+  const flaggedAt = (i: number) => (blocks[i]?.memberIds ?? []).some((peId) => skipReasonOf(peId) || hurtOn(peId));
+  /** Page to a card: its "Skip or pain?" panel starts closed unless something on it is flagged. */
+  function goTo(i: number) {
+    current = i;
+    issuesOpen = flaggedAt(i);
+  }
+  /** A tag opens the panel at its exercise's row. */
+  async function openIssue(peId: string) {
+    issuesOpen = true;
+    await tick();
+    const row = document.getElementById(`issue-${peId}`);
+    if (!row) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+    row.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+  }
   const toggleMissed = (key: string) => (rows = rows.map((r) => (r.key === key ? { ...r, skipped: !r.skipped } : r)));
 
   /** Page to the first set still missing its kg, scroll it into view, ring it, and put the cursor there. */
@@ -254,7 +286,7 @@
     const first = missingKg[0];
     if (!first) return;
     const at = blocks.findIndex((b) => b.memberIds.includes(first.programExerciseId));
-    if (at >= 0) current = at;
+    if (at >= 0 && at !== current) goTo(at);
     await tick();
     const el = document.getElementById(`kg-${first.key}`);
     if (!el) return;
@@ -548,11 +580,11 @@
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">
-            <button type="button" class="pg" aria-label={t("log.prev")} disabled={current === 0} onclick={() => (current -= 1)}>
+            <button type="button" class="pg" aria-label={t("log.prev")} disabled={current === 0} onclick={() => goTo(current - 1)}>
               <Icon name="chevron" />
             </button>
             <p class="pg-pos tnum">{t("log.exercise", { n: current + 1, total: blocks.length })}</p>
-            <button type="button" class="pg next" aria-label={t("log.next")} disabled={current >= blocks.length - 1} onclick={() => (current += 1)}>
+            <button type="button" class="pg next" aria-label={t("log.next")} disabled={current >= blocks.length - 1} onclick={() => goTo(current + 1)}>
               <Icon name="chevron" />
             </button>
           </div>
@@ -569,6 +601,19 @@
               {#if i > 0}<span class="plus">{" + "}</span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
             {/each}
           </h2>
+          {#if cardIssues.length > 0}
+            <!-- what's flagged stays in sight while the panel is shut; a tap opens it at that exercise -->
+            <ul class="tags">
+              {#each cardIssues as is (`${is.kind}-${is.peId}`)}
+                {@const label = `${is.kind === "skip" ? t("log.tagSkipped") : t("log.tagPain")}${block.memberIds.length > 1 ? ` · ${exerciseOf(is.peId)?.exerciseName ?? ""}` : ""}`}
+                <li>
+                  <button type="button" class="tag" aria-controls="issues-panel" onclick={() => openIssue(is.peId)}>
+                    <Pill tone={is.kind === "pain" ? "bad" : "neutral"}>{label}</Pill>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
           {#each block.memberIds as peId (peId)}
             {@const ex = exerciseOf(peId)}
             {#if ex?.notes}<p class="cue"><span>{t("session.coachNote")}</span> {ex.notes}</p>{/if}
@@ -576,36 +621,6 @@
               <!-- a reference to beat or match, not a suggestion: the coach sets the load -->
               <p class="last"><span>{t("log.last", { date: fmtShortDate(ex.last.date) })}{#if block.memberIds.length > 1}{" · "}<span lang={latinLang(ex.exerciseName)}>{ex.exerciseName}</span>{/if}</span> <span class="tnum">{lastSetText(ex.last, t)}</span></p>
             {/if}
-          {/each}
-
-          <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain. -->
-          {#each block.memberIds as peId (peId)}
-            {@const ex = exerciseOf(peId)}
-            {@const skip = skipReasonOf(peId)}
-            {@const hurt = flags[peId]?.kind === "pain"}
-            {@const named = block.memberIds.length > 1 ? ` · ${ex?.exerciseName ?? ""}` : ""}
-            <div class="issues">
-              <div class="issue-btns">
-                <button type="button" class="chip" aria-pressed={!!skip} onclick={() => toggleSkip(peId)}>{skip ? t("log.unskip") : t("log.skip")}{named}</button>
-                <button type="button" class="chip" class:bad={hurt} aria-pressed={hurt} onclick={() => (flags = toggleFlag(flags, peId, "pain"))}>{t("log.hurt")}{named}</button>
-              </div>
-              {#if skip}
-                <p class="issue-note">{t("log.skippedNote")}</p>
-                <div class="reasons" role="group" aria-label={t("log.skipWhy")}>
-                  <span class="reasons-k">{t("log.skipWhy")}</span>
-                  {#each SKIP_REASONS as reason (reason)}
-                    <button type="button" class="chip sm" aria-pressed={skip.reason === reason} onclick={() => (rows = setSkipReason(rows, peId, skip.reason === reason ? null : (reason as SkipReason)))}>{t(`log.reason.${reason}`)}</button>
-                  {/each}
-                </div>
-              {/if}
-              {#if hurt}
-                <label class="hurt">
-                  <span>{t("log.hurtWhere")}</span>
-                  <input class="input" type="text" maxlength={FLAG_NOTE_MAX} value={flags[peId]?.note ?? ""} oninput={(e) => (flags = setFlagNote(flags, peId, e.currentTarget.value))} />
-                  <span class="hint">{t("log.hurtHint")}</span>
-                </label>
-              {/if}
-            </div>
           {/each}
 
           <button type="button" class="rpe-toggle" aria-expanded={showRpe} aria-controls="rpe-def" onclick={() => (showRpe = !showRpe)}>
@@ -633,13 +648,52 @@
             {/if}
           {/each}
 
+          <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain.
+               Rarely needed, so one quiet link under the sets; the tags above keep anything flagged in sight. -->
+          <button type="button" class="issues-toggle" aria-expanded={issuesOpen} aria-controls="issues-panel" onclick={() => (issuesOpen = !issuesOpen)}>
+            {t("log.issues")}<Icon name="chevron" />
+          </button>
+          {#if issuesOpen}
+            <div class="issues-panel" id="issues-panel">
+              {#each block.memberIds as peId (peId)}
+                {@const ex = exerciseOf(peId)}
+                {@const skip = skipReasonOf(peId)}
+                {@const hurt = hurtOn(peId)}
+                {@const named = block.memberIds.length > 1}
+                <div class="issues" id={`issue-${peId}`} role={named ? "group" : undefined} aria-labelledby={named ? `issue-${peId}-name` : undefined}>
+                  {#if named}<p class="issue-name" id={`issue-${peId}-name`} lang={latinLang(ex?.exerciseName)}>{ex?.exerciseName ?? ""}</p>{/if}
+                  <div class="issue-btns">
+                    <button type="button" class="chip" aria-pressed={!!skip} onclick={() => toggleSkip(peId)}>{skip ? t("log.unskip") : t("log.skip")}</button>
+                    <button type="button" class="chip" class:bad={hurt} aria-pressed={hurt} onclick={() => (flags = toggleFlag(flags, peId, "pain"))}>{t("log.hurt")}</button>
+                  </div>
+                  {#if skip}
+                    <p class="issue-note">{t("log.skippedNote")}</p>
+                    <div class="reasons" role="group" aria-label={t("log.skipWhy")}>
+                      <span class="reasons-k">{t("log.skipWhy")}</span>
+                      {#each SKIP_REASONS as reason (reason)}
+                        <button type="button" class="chip sm" aria-pressed={skip.reason === reason} onclick={() => (rows = setSkipReason(rows, peId, skip.reason === reason ? null : (reason as SkipReason)))}>{t(`log.reason.${reason}`)}</button>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if hurt}
+                    <label class="hurt">
+                      <span>{t("log.hurtWhere")}</span>
+                      <input class="input" type="text" maxlength={FLAG_NOTE_MAX} value={flags[peId]?.note ?? ""} oninput={(e) => (flags = setFlagNote(flags, peId, e.currentTarget.value))} />
+                      <span class="hint">{t("log.hurtHint")}</span>
+                    </label>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+
           {#if blockRest}
             <!-- one timer for the whole session: paging to the next exercise doesn't reset a running rest -->
             <RestTimer seconds={blockRest} />
           {/if}
 
           {#if current < blocks.length - 1}
-            <button type="button" class="btn next-ex" onclick={() => { current += 1; document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
+            <button type="button" class="btn next-ex" onclick={() => { goTo(current + 1); document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
               <span>{t("log.next")} · {blockName(blocks[current + 1])}</span>
               <Icon name="chevron" />
             </button>
@@ -811,6 +865,30 @@
   .last > span:first-child { color: var(--muted); }
   .last .tnum { font-weight: 600; }
 
+  /* skip or pain: tags under the title, a quiet link under the sets, the chips in a panel */
+  .tags { display: flex; flex-wrap: wrap; gap: 0 4px; margin: -8px 0 -10px -6px; padding: 0; list-style: none; }
+  .tag { display: inline-flex; align-items: center; max-width: 100%; min-height: 44px; padding: 0 6px; background: none; border: 0; border-radius: var(--radius); cursor: pointer; }
+  .tag :global(.pill) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .issues-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-self: start;
+    min-height: 44px;
+    margin: -8px 0 -4px;
+    padding: 0 4px;
+    font: 500 14px/1 var(--font-ui);
+    color: var(--blue);
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .issues-toggle :global(svg) { width: 14px; height: 14px; transition: transform 150ms ease-out; }
+  .issues-toggle[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
+  .issues-panel { display: grid; gap: 14px; padding: 12px; background: var(--well); border-radius: var(--radius); }
+  .issues-panel .issues + .issues { padding-top: 14px; border-top: 1px solid var(--line); }
+  .issue-name { margin: 0; font: 600 14px/1.3 var(--font-ui); }
+  .issues-panel .chip:not([aria-pressed="true"]) { background: var(--surface); }
   .issues { display: grid; gap: 10px; }
   .issue-btns, .reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .chip {
@@ -979,7 +1057,7 @@
   .empty-title { margin: 0; font-weight: 600; }
 
   @media (prefers-reduced-motion: reduce) {
-    .feel summary :global(svg) { transition: none; }
+    .feel summary :global(svg), .issues-toggle :global(svg) { transition: none; }
     .tick, .tick :global(path) { animation: none; }
   }
   @media (min-width: 700px) {
