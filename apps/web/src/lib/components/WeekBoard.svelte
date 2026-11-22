@@ -4,12 +4,14 @@
    * each listing the clients who train that day (status as ink-on-tint, the
    * session tag under the name). Due, not-logged and missed entries open the
    * logger; the rest open the client. Last week's missed / not-logged days
-   * inside the look-back carry over as one line under the board; clients with
+   * inside the look-back fold into one summary line under the board (opened,
+   * one line per client; the choice is remembered per device); clients with
    * nothing this week collapse into the idle line. Purely presentational —
    * strips arrive built and sorted (exceptions first) from the page.
    */
   import type { ClientStrip, StripDay } from "$lib/overview";
-  import { LOOKBACK_DAYS, addDays, dayDateLabel, daySentence, idleReason, plural } from "$lib/overview";
+  import Button from "$lib/ui/Button.svelte";
+  import { carriedOver, carriedSummary, dayDateLabel, daySentence, idleReason, plural } from "$lib/overview";
 
   interface Props {
     /** Built by `buildClientStrip`, ordered by `exceptionOrder`; every strip has the same weeks. */
@@ -36,17 +38,29 @@
       }),
     }))
   );
-  /** Earlier weeks' days still open inside the look-back. */
-  const carried = $derived.by(() => {
-    const since = addDays(today, -LOOKBACK_DAYS);
-    return strips.flatMap((s) =>
-      s.weeks
-        .slice(0, -1)
-        .flat()
-        .filter((d) => (d.status === "missed" || d.status === "unlogged") && d.date >= since)
-        .map((d) => ({ s, d }))
-    );
-  });
+  /** Earlier weeks' days still open inside the look-back, per client. */
+  const carried = $derived(carriedOver(strips, today));
+  const carriedMissed = $derived(carried.some((c) => c.days.some((d) => d.status === "missed")));
+
+  /** Open/closed "From last week", per device. Storage can throw (private mode, blocked site data). */
+  const CARRIED_KEY = "pt-overview-carried-open";
+  let carriedOpen = $state(readCarriedOpen());
+  function readCarriedOpen(): boolean {
+    try {
+      return localStorage.getItem(CARRIED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+  function toggleCarried() {
+    carriedOpen = !carriedOpen;
+    try {
+      localStorage.setItem(CARRIED_KEY, carriedOpen ? "1" : "0");
+    } catch {
+      /* not remembered — still toggles */
+    }
+  }
+  const carriedId = $props.id();
 
   const marks = (d: StripDay) => d.status !== "rest" && d.status !== "before-start";
   const loggable = (d: StripDay) => d.status === "today" || d.status === "unlogged" || d.status === "missed";
@@ -98,16 +112,27 @@
   </div>
 
   {#if carried.length}
-    <p class="foot">
-      <span class={["pill", carried.some((c) => c.d.status === "missed") ? "bad" : "warn"]}>From last week</span>
-      {#each carried as { s, d } (s.client.id + d.date)}
-        <span class="carry">
-          <b>{s.client.name}</b> · {tagOf(d)}
-          <span class="when">{dayDateLabel(d.date)}</span>
-          <a href={logHref(s, d)} aria-label={`${daySentence(s.client.name, d)} Open the logger.`}>Log</a>
-        </span>
-      {/each}
-    </p>
+    <div class="foot carried">
+      <p class="carried-head">
+        <span class={["pill", carriedMissed ? "bad" : "warn"]}>From last week</span>
+        <span class="sum">{carriedSummary(carried)}</span>
+        <Button variant="ghost" small aria-expanded={carriedOpen} aria-controls={carriedId} onclick={toggleCarried}>
+          {carriedOpen ? "Hide" : "Show"}
+        </Button>
+      </p>
+      <ul class="carried-list" id={carriedId} hidden={!carriedOpen}>
+        {#each carried as { strip: s, days: cdays } (s.client.id)}
+          <li>
+            <b>{s.client.name}</b>
+            {#each cdays as d (d.date)}
+              <a class="carry {d.status}" href={logHref(s, d)} aria-label={`${daySentence(s.client.name, d)} Open the logger.`}>
+                {tagOf(d)} <span class="when">{dayDateLabel(d.date)}</span>
+              </a>
+            {/each}
+          </li>
+        {/each}
+      </ul>
+    </div>
   {/if}
 
   {#if idle.length}
@@ -180,6 +205,18 @@
   .when { font: 400 12px/1 var(--font-mono); margin: 0 4px; }
   .foot .pill.neutral { font-size: 11px; padding: 0 6px; }
 
+  /* From last week: one summary line; opened, one line per client. */
+  .foot.carried { display: block; }
+  .carried-head { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .carried-head .sum { color: var(--ink); }
+  .carried-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .carried-list[hidden] { display: none; }
+  .carried-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+  .carried-list b { min-width: 9em; font-weight: 600; }
+  .carried-list .carry { font: 400 13px/1.5 var(--font-ui); white-space: nowrap; }
+  .carried-list .carry.missed { color: var(--bad-ink); }
+  .carried-list .when { margin: 0 0 0 2px; }
+
   /* Too narrow for seven columns: each day becomes a row, entries flow beside its label. */
   @container weekboard (max-width: 600px) {
     .board { grid-template-columns: 1fr; }
@@ -199,5 +236,7 @@
     .list li { min-width: 0; flex: 1 1 120px; max-width: 200px; }
     .rest { margin: 4px 0 0; }
     .foot { padding: 10px 12px; }
+    .carried-list li { gap: 2px 10px; }
+    .carried-list b { min-width: 0; flex-basis: 100%; }
   }
 </style>

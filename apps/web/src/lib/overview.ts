@@ -427,3 +427,32 @@ export function idleReason(s: ClientStrip): string {
   if (s.client.status && s.client.status !== "active") return s.client.status;
   return s.program ? "nothing planned" : "no program";
 }
+
+/** One client's earlier-week days still open inside the look-back, oldest first. */
+export interface CarriedClient {
+  strip: ClientStrip;
+  days: StripDay[];
+}
+
+/** Last week's missed / not-logged days inside the look-back, one entry per client
+ *  (in strip order) — the board's "From last week" line. */
+export function carriedOver(strips: ClientStrip[], today: string): CarriedClient[] {
+  const since = addDays(today, -LOOKBACK_DAYS);
+  return strips.flatMap((strip) => {
+    const days = strip.weeks
+      .slice(0, -1)
+      .flat()
+      .filter((d) => (d.status === "missed" || d.status === "unlogged") && d.date >= since);
+    return days.length ? [{ strip, days }] : [];
+  });
+}
+
+/** "34 not logged · 4 missed · 14 clients" — zero parts left out. */
+export function carriedSummary(carried: CarriedClient[]): string {
+  const days = carried.flatMap((c) => c.days);
+  const unlogged = days.filter((d) => d.status === "unlogged").length;
+  const missed = days.filter((d) => d.status === "missed").length;
+  return [unlogged ? `${unlogged} not logged` : "", missed ? `${missed} missed` : "", plural(carried.length, "client")]
+    .filter(Boolean)
+    .join(" · ");
+}

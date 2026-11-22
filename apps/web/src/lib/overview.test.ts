@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
 import {
   buildClientStrip,
+  carriedOver,
+  carriedSummary,
   dayDateLabel,
   daySentence,
   volumeLabel,
@@ -272,6 +274,19 @@ describe("Monday carry-over (7-day look-back)", () => {
     const s = buildClientStrip(client, p, [lastMon, log("2026-11-06", "w3-5")], monday, "2026-11-09");
     expect(s.exception).toBe("unlogged");
     expect(weekCounter([s], "2026-11-09")).toEqual([{ text: "2 from last week", tone: "warn" }, { text: "1 due today" }]);
+  });
+
+  test("carried days group per client with a one-line summary", () => {
+    const late = buildClientStrip(client, p, [lastMon], monday, "2026-11-09");
+    const unlogged = buildClientStrip({ ...client, id: "c2", name: "Bo" } as ClientDto, p, [lastMon, log("2026-11-06", "w3-5")], monday, "2026-11-09");
+    const clean = buildClientStrip({ ...client, id: "c3" } as ClientDto, p, [lastMon, ...lastWeekDone.map((d, i) => log(d, `w3-${5 + i}`))], monday, "2026-11-09");
+    const carried = carriedOver([late, clean, unlogged], "2026-11-09");
+    expect(carried.map((c) => [c.strip.client.id, c.days.map((d) => d.date)])).toEqual([
+      ["c1", ["2026-11-06", "2026-11-07", "2026-11-08"]],
+      ["c2", ["2026-11-07", "2026-11-08"]],
+    ]);
+    expect(carriedSummary(carried)).toBe("4 not logged · 1 missed · 2 clients");
+    expect(carriedSummary(carried.slice(1))).toBe("2 not logged · 1 client");
   });
 
   test("carried days say missed / not logged in their label", () => {
