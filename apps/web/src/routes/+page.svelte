@@ -33,6 +33,11 @@
   /** Each client's portal access link: a string when it's on, null when it's off, absent when it didn't load. */
   let portals = $state<Record<string, string | null>>({});
   let signals = $state<SignalDto[]>([]);
+  /** Signal ids hidden on this visit (snoozed; the next load leaves them out). */
+  let hidden = $state<string[]>([]);
+  /** Row key → why its snooze failed; `hiding` is the row key in flight. */
+  let hideErrors = $state<Record<string, string>>({});
+  let hiding = $state<string | null>(null);
   let strips = $state<ClientStrip[]>([]);
   let rowsReady = $state(false);
 
@@ -41,6 +46,7 @@
   const weekDates = weeks[weeks.length - 1];
   const today = localIso(now);
 
+  const openSignals = $derived(signals.filter((s) => !hidden.includes(s.id)));
   const tally = $derived(weekTally(strips));
   const trainingClients = $derived(strips.filter((s) => s.program).length);
   /** Says what the head line doesn't: which days need the trainer now, counted like the cells. */
@@ -83,6 +89,19 @@
       console.error(err);
       loadError = err instanceof Error ? err.message : "the server didn't answer";
     }
+  }
+
+  /** Snooze every signal behind one row for `days`, then drop the row. */
+  async function hide(key: string, ids: string[], days: number) {
+    hiding = key;
+    hideErrors[key] = "";
+    const until = new Date(Date.now() + days * 86400_000).toISOString();
+    const results = await Promise.allSettled(ids.map((id) => api.snoozeSignal(id, until)));
+    // Keep what did snooze hidden; a merged row stays while any of its signals failed.
+    hidden = [...hidden, ...ids.filter((_, i) => results[i].status === "fulfilled")];
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) hideErrors[key] = (failed.reason as Error)?.message || "try again";
+    hiding = null;
   }
 
   onMount(load);
@@ -136,23 +155,28 @@
   </Panel>
   <div class="grid-2">
     <div class="col">
-      <Panel title="Needs review" count={signals.length ? plural(signals.length, "signal") : undefined}>
-        {#if signals.length === 0}
+      <Panel title="Needs review" count={openSignals.length ? plural(openSignals.length, "signal") : undefined}>
+        {#if openSignals.length === 0}
           <p class="clear">Nothing needs review right now.</p>
         {:else}
           <div class="signal-list">
-            {#each signals as signal (signal.id)}
+            {#each openSignals as signal (signal.id)}
               {@const client = clients.find((c) => c.id === signal.clientId)}
               {#if client}
                 {@const clientHref = `/clients/${client.id}`}
-                <SignalRow severity={signal.severity} evidence={signal.evidence}>
+                {@const lead = signal.severity === "info" ? "default" : "primary"}
+                <SignalRow
+                  severity={signal.severity}
+                  evidence={signal.evidence}
+                  error={hideErrors[signal.id] ? `Couldn't hide — ${hideErrors[signal.id]}` : undefined}
+                >
                   {#snippet title()}
                     {signal.title} — <a class="client-link" href={clientHref}>{client.name}</a>
                   {/snippet}
                   {#snippet actions()}
                     {#if signal.targetWeek}
                       <Button
-                        variant="primary"
+                        variant={lead}
                         small
                         href={`${clientHref}/generate?week=${signal.targetWeek}${signal.prefillNote ? `&note=${encodeURIComponent(signal.prefillNote)}` : ""}`}
                       >
@@ -161,7 +185,7 @@
                       </Button>
                     {:else if signal.prefillNote}
                       <Button
-                        variant="primary"
+                        variant={lead}
                         small
                         href={`${clientHref}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
                       >
@@ -174,6 +198,9 @@
                     {#if signal.altHref !== clientHref || signal.targetWeek || signal.prefillNote}
                       <Button variant="ghost" small href={clientHref}>Open client</Button>
                     {/if}
+                    <Button variant="ghost" small disabled={hiding === signal.id} onclick={() => hide(signal.id, [signal.id], 7)}>
+                      {hiding === signal.id ? "Hiding…" : "Hide 1 wk"}
+                    </Button>
                   {/snippet}
                 </SignalRow>
               {/if}
