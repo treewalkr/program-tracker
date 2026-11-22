@@ -4,7 +4,7 @@
   import Segmented from "$lib/ui/Segmented.svelte";
   import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
   import { modalityName } from "./modality";
-  import { cardioDistance, cardioSummary, hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
+  import { cardioDistance, cardioSummary, hoursMinutes, logLine, reviewDay, trendAxis, trendPath, vo2Delta, vo2Tone } from "./progress";
 
   /**
    * The Progress tab: this week's cardio, the VO₂max trend, the coach's
@@ -24,6 +24,7 @@
   const last = $derived(vo2.points.at(-1) ?? null);
   const delta = $derived(vo2Delta(vo2.points));
   const path = $derived(trendPath(vo2.points, 260, 44));
+  const axis = $derived(trendAxis(vo2.points));
   const feedback = $derived(progress.recent.filter((l) => l.trainerFeedback));
   const latestWord = $derived(feedback[0] ?? null);
 </script>
@@ -59,15 +60,20 @@
       <h3 id="pg-vo2">
         {t("progress.vo2")}
         {#if delta != null && delta !== 0}
-          <span class={["pill", delta > 0 ? "good" : "neutral"]}>{delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>
+          <span class={["pill", vo2Tone(delta)]}>{delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>
         {/if}
       </h3>
-      <p class="vo2"><span class="big tnum">{last.value}</span> <span class="unit">ml/kg/min · {t(`vo2.${vo2.protocol}`)} · {fmtShortDate(last.testedOn)}</span></p>
+      <p class="vo2"><span class="big tnum">≈ {Math.round(last.value)}</span> <span class="unit">ml/kg/min · {t(`vo2.${vo2.protocol}`)} · {fmtShortDate(last.testedOn)}</span></p>
       {#if vo2.points.length > 1}
-        <svg class="trend" viewBox="0 0 260 44" preserveAspectRatio="none" role="img" aria-label={t("progress.vo2Trend", { n: vo2.points.length })}>
-          <polyline points={path.line} />
-          {#each path.dots as d, i (i)}<circle cx={d.x} cy={d.y} r="3" />{/each}
-        </svg>
+        <div class="trend-wrap">
+          {#if axis}
+            <span class="axis tnum" aria-hidden="true"><span>{axis.top}</span><span>{axis.bottom}</span></span>
+          {/if}
+          <svg class="trend" viewBox="0 0 260 44" preserveAspectRatio="none" role="img" aria-label={t("progress.vo2Trend", { n: vo2.points.length })}>
+            <polyline points={path.line} />
+            {#each path.dots as d, i (i)}<circle cx={d.x} cy={d.y} r="3" />{/each}
+          </svg>
+        </div>
       {/if}
       {#if vo2.protocols.length > 1 && onprotocol}
         <Segmented
@@ -145,7 +151,9 @@
   .vo2 { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .big { font: 600 32px/1.1 var(--font-ui); letter-spacing: -0.02em; }
   .unit { font-size: 13px; color: var(--muted); }
-  .trend { width: 100%; height: 44px; overflow: visible; }
+  .trend-wrap { display: flex; align-items: stretch; gap: 8px; }
+  .axis { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; font: 400 11px var(--font-mono); color: var(--muted); border-right: 1px solid var(--line-soft); padding-right: 6px; }
+  .trend { flex: 1; min-width: 0; width: 100%; height: 44px; overflow: visible; }
   .trend polyline { fill: none; stroke: var(--good); stroke-width: 2; vector-effect: non-scaling-stroke; }
   .trend circle { fill: var(--good); }
   .quiet { margin: 0; font-size: 13px; color: var(--muted); text-wrap: pretty; }
