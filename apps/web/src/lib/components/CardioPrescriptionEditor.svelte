@@ -83,8 +83,12 @@
   const hasIntervals = $derived((cardio.intervals?.length ?? 0) > 0);
   const line = $derived(workloadLine(cardio));
 
+  /** The steady block becomes intervals: its time, distance and pace go, so no card shows stale targets. */
   function buildIntervals() {
     const min = cardio.durationMin ?? 30;
+    delete cardio.durationMin;
+    delete cardio.distanceKm;
+    delete cardio.paceSecPerKm;
     cardio.intervals = [
       { id: "i1", type: "warmup", repeat: 1, durationSec: 600, ...(cardio.hrZone ? { hrZone: Math.min(2, cardio.hrZone) } : {}) },
       { id: "i2", type: "work", repeat: 1, durationSec: Math.max(60, (min - 15) * 60), ...(cardio.hrZone ? { hrZone: cardio.hrZone } : {}) },
