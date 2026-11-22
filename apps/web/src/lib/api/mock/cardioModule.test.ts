@@ -51,7 +51,7 @@ describe("mock cardio module", () => {
     const before = await mockApi.hrProfiles("cl-nok");
     const v = await mockApi.createHrProfile("cl-nok", { effectiveFrom: "2026-11-20", method: "karvonen", restingHr: 58, maxHr: 188 });
     expect(v.version).toBe(before.length + 1);
-    expect(v.zones[0]).toEqual({ zone: 1, min: 123, max: 135 });
+    expect(v.zones[0]).toEqual({ zone: 1, min: 97, max: 109 });
     await expect(mockApi.createHrProfile("cl-nok", { effectiveFrom: "2026-11-20", method: "lthr" })).rejects.toThrow();
   });
 

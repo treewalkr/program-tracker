@@ -21,7 +21,7 @@ export const HR_METHOD_LABEL: Record<HrZoneMethod, string> = {
 
 export const HR_METHOD_HINT: Record<HrZoneMethod, string> = {
   hrmax: "50–100 % of max HR. Needs a max HR.",
-  karvonen: "Karvonen: resting HR plus a share of the reserve. Needs resting and max HR.",
+  karvonen: "Karvonen: resting HR plus 30–100 % of the reserve (max − resting). Needs resting and max HR.",
   lthr: "65–106 % of lactate-threshold HR. Needs an LTHR from a field test.",
   custom: "Your own bpm for each zone, from a lab test or a watch.",
 };

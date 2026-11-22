@@ -37,8 +37,10 @@ export interface HrInputs {
 const BANDS: Record<Exclude<HrZoneMethod, "custom">, { lows: number[]; top: number }> = {
   // %HRmax: 50 / 60 / 70 / 80 / 90 – 100 %
   hrmax: { lows: [0.5, 0.6, 0.7, 0.8, 0.9], top: 1 },
-  // Karvonen: the same fractions of heart-rate reserve, added to resting HR
-  karvonen: { lows: [0.5, 0.6, 0.7, 0.8, 0.9], top: 1 },
+  // Karvonen: 30 / 40 / 55 / 70 / 85 – 100 % of heart-rate reserve, added to
+  // resting HR. Lower than the %HRmax bands: 60 % of reserve is already ~75 % of
+  // max (ACSM "vigorous"), so reusing 50/60/70 put "easy" a zone too hard.
+  karvonen: { lows: [0.3, 0.4, 0.55, 0.7, 0.85], top: 1 },
   // %LTHR: 65 / 85 / 90 / 95 / 100 – 106 % of lactate-threshold HR
   lthr: { lows: [0.65, 0.85, 0.9, 0.95, 1.0], top: 1.06 },
 };

@@ -12,14 +12,21 @@ import {
 } from "./hr";
 
 describe("computeHrZones", () => {
-  test("Karvonen for resting 58 / max 188 (HRR 130)", () => {
+  test("Karvonen for resting 58 / max 188 (HRR 130): 30/40/55/70/85 % of reserve", () => {
     expect(computeHrZones("karvonen", { restingHr: 58, maxHr: 188 })).toEqual([
-      { zone: 1, min: 123, max: 135 },
-      { zone: 2, min: 136, max: 148 },
-      { zone: 3, min: 149, max: 161 },
-      { zone: 4, min: 162, max: 174 },
-      { zone: 5, min: 175, max: 188 },
+      { zone: 1, min: 97, max: 109 },
+      { zone: 2, min: 110, max: 129 },
+      { zone: 3, min: 130, max: 148 },
+      { zone: 4, min: 149, max: 168 },
+      { zone: 5, min: 169, max: 188 },
     ]);
+  });
+
+  test("Karvonen zone 2 stays moderate: under ~75 % of max HR, unlike the %HRmax bands reused on reserve", () => {
+    const z2 = computeHrZones("karvonen", { restingHr: 60, maxHr: 190 })![1];
+    // 40–55 % of a 130 bpm reserve on top of 60 resting
+    expect(z2).toEqual({ zone: 2, min: 112, max: 131 });
+    expect(z2.max / 190).toBeLessThan(0.75);
   });
 
   test("%HRmax and %LTHR", () => {
@@ -47,9 +54,9 @@ describe("zoneIssues", () => {
   const ok: HrZones = computeHrZones("karvonen", { restingHr: 58, maxHr: 188 })!;
 
   test("finds gaps and overlaps", () => {
-    const gap = ok.map((z) => (z.zone === 3 ? { ...z, min: 152 } : z));
-    expect(zoneIssues(gap)).toEqual(["gap between zone 2 and zone 3 (149–151 bpm)"]);
-    const overlap = ok.map((z) => (z.zone === 2 ? { ...z, max: 155 } : z));
+    const gap = ok.map((z) => (z.zone === 3 ? { ...z, min: 133 } : z));
+    expect(zoneIssues(gap)).toEqual(["gap between zone 2 and zone 3 (130–132 bpm)"]);
+    const overlap = ok.map((z) => (z.zone === 2 ? { ...z, max: 135 } : z));
     expect(zoneIssues(overlap)).toEqual(["zone 2 and zone 3 overlap"]);
     expect(zoneIssues(ok.slice(0, 4))).toEqual(["zones must be 1 to 5, once each"]);
   });

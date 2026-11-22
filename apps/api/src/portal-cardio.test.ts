@@ -106,9 +106,9 @@ describe.skipIf(!dbUp)("portal cardio", () => {
     const r = await call("GET", "/v1/portal/week", { token });
     expect(r.status).toBe(200);
     const cardio = r.body.weeks[0].sessions[0].cardio;
-    expect(cardio.hrBpm).toEqual({ min: 136, max: 148 });
-    expect(cardio.intervals[0]).toMatchObject({ id: "w", type: "warmup", hrBpm: { min: 136, max: 148 } });
-    expect(cardio.intervals[1]).toMatchObject({ repeat: 4, hrBpm: { min: 162, max: 174 }, recovery: { type: "active_recovery", durationSec: 120 } });
+    expect(cardio.hrBpm).toEqual({ min: 110, max: 129 });
+    expect(cardio.intervals[0]).toMatchObject({ id: "w", type: "warmup", hrBpm: { min: 110, max: 129 } });
+    expect(cardio.intervals[1]).toMatchObject({ repeat: 4, hrBpm: { min: 149, max: 168 }, recovery: { type: "active_recovery", durationSec: 120 } });
     // explicit allow-list: the JSON carries bpm targets and nothing else from the profile
     for (const leak of ["restingHr", "maxHr", "lthr", "karvonen", "method", "zones", "hrProfileVersion", "zonesBpm", "modalityId", "mod-internal-id", "templateId"]) {
       expect(r.text).not.toContain(leak);

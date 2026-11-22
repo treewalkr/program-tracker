@@ -59,7 +59,7 @@ describe.skipIf(!dbUp)("member HR profiles", () => {
     });
     expect(r.status).toBe(201);
     expect(r.body).toMatchObject({ clientId, version: 1, effectiveFrom: "2026-10-01", method: "karvonen", restingHr: 58, maxHr: 188 });
-    expect(r.body.zones[1]).toEqual({ zone: 2, min: 136, max: 148 });
+    expect(r.body.zones[1]).toEqual({ zone: 2, min: 110, max: 129 });
   });
 
   test("a change is a new version; GET lists them oldest first", async () => {

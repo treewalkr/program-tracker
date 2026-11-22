@@ -18,10 +18,10 @@ describe("AI cardio: shape, HR profile and session load", () => {
   test("a member with an HR profile gets bpm per zone; without one, the never-invent rule", () => {
     const zones = computeHrZones("karvonen", { restingHr: 58, maxHr: 188 })!;
     expect(hrProfileLine(zones)).toBe(
-      "HR PROFILE (bpm per zone, from the trainer): Z1 123–135, Z2 136–148, Z3 149–161, Z4 162–174, Z5 175–188. Prescribe by hrZone; the app shows the member these bpm bands."
+      "HR PROFILE (bpm per zone, from the trainer): Z1 97–109, Z2 110–129, Z3 130–148, Z4 149–168, Z5 169–188. Prescribe by hrZone; the app shows the member these bpm bands."
     );
     const withZones = buildGenerationMessages({ ...ctxBase, client: { name: "Nok", hrZones: zones } });
-    expect(withZones.user).toContain("Z2 136–148");
+    expect(withZones.user).toContain("Z2 110–129");
     expect(withZones.user).not.toContain("58");
     const none = buildGenerationMessages({ ...ctxBase, client: { name: "Nok", cardioTarget: { unit: "minutes", value: 120 } } });
     expect(none.user).toContain("HR PROFILE: none");
