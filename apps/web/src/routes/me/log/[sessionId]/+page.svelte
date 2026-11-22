@@ -736,16 +736,15 @@
   {@const target = targetOf(r)}
   <li class="set">
     <div class="set-head">
-      {#if inRound}
-        <!-- the round header says the set; the row names the exercise, its target under it -->
-        <span class="set-id">
+      <!-- the row's name over its target: in a round the header says the set, so the row names the exercise -->
+      <span class="set-id">
+        {#if inRound}
           <span class="set-n" lang={latinLang(r.name)}>{r.name}</span>
-          {#if target}<span class="set-rx tnum">{target}</span>{/if}
-        </span>
-      {:else}
-        <span class="set-n">{t("log.set", { n: r.setNumber })}</span>
-        {#if target}<span class="set-rx tnum">{target}</span>{/if}
-      {/if}
+        {:else}
+          <span class="set-n">{t("log.set", { n: r.setNumber })}</span>
+        {/if}
+        {#if target}<span class="set-rx">{target}</span>{/if}
+      </span>
       {#if r.extra}
         <button type="button" class="rm" aria-label={inRound ? t("log.removeSetEx", { name: r.name, n: r.setNumber }) : t("log.removeSet", { n: r.setNumber })} onclick={() => (rows = withoutExtra(rows, r.key))}><Icon name="x" /></button>
       {:else}
@@ -938,13 +937,12 @@
     border-radius: var(--radius);
     cursor: pointer;
   }
-  .set-n + .missed-btn { margin-left: auto; }
   .missed-btn[aria-pressed="true"] { color: var(--ink); background: var(--well-2); border-color: var(--line); }
   .missed-note { margin: 0; font-size: 14px; color: var(--muted); }
 
   .sets { display: grid; margin: 0; padding: 0; list-style: none; }
   .set { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
-  .set-head { display: flex; align-items: baseline; gap: 8px; min-height: 24px; }
+  .set-head { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; }
   .set-n { font: 600 16px/1.3 var(--font-ui); }
   /* a group card's round: "Set 1" over each exercise done in it */
   .round { border-top: 1px solid var(--line); }
@@ -952,9 +950,8 @@
   .round-h { margin: 12px 0 0; padding: 6px 10px; font: 600 16px/1.3 var(--font-ui); background: var(--well); border-radius: var(--radius); }
   .round .set:first-child { border-top: 0; }
   .set-id { display: grid; gap: 2px; min-width: 0; }
-  .set-id .set-rx { margin-left: 0; font-family: var(--font-ui); text-align: left; }
   .set-id + .missed-btn, .set-id + .rm { margin-left: auto; }
-  .set-rx { margin-left: auto; font: 500 13px/1.3 var(--font-mono); color: var(--muted); text-align: right; }
+  .set-rx { font: 400 13px/1.35 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--muted); }
   .rm {
     display: grid;
     place-items: center;
