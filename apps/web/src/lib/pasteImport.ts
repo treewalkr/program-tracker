@@ -1,4 +1,5 @@
 import {
+  orderByBlock,
   blockLabel,
   defaultCardio,
   historyExerciseKey,
@@ -258,6 +259,8 @@ export function formFromImport(
           prescribedSets: structuredClone(ex.sets),
           ...(ex.note ? { notes: ex.note } : {}),
           ...(ex.group ? { group: ex.group } : {}),
+          // A warm-up section in the notes → movement prep.
+          ...(ex.block === "prep" ? { block: "prep" as const } : {}),
         };
       });
       // every imported exercise gets a suggested role; the trainer can change it
@@ -266,7 +269,7 @@ export function formFromImport(
         name: s.name.slice(0, 60),
         kind: "exercises",
         cardio: defaultCardio(),
-        exercises: rows.map((row, i) => ({ ...row, role: suggestRoleIn(rows, i, opts.catalog ?? []) })),
+        exercises: orderByBlock(rows.map((row, i) => ({ ...row, role: suggestRoleIn(rows, i, opts.catalog ?? []) }))),
       };
     }),
   );

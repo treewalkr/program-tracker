@@ -94,6 +94,8 @@ describe("buildGenerationMessages", () => {
     const imp = buildImportMessages({ numbered: "L1: x", from: 1, to: 1, glossary: [] }).system;
     expect(imp).toContain('"kind": "exercises"|"cardio"');
     expect(imp).not.toContain('"lifting"');
+    expect(imp).toContain('"block"?: "prep"');
+    expect(imp).toContain('skip it with reason "section heading"');
     const answer = { name: "B", rationale: "r", clientSummary: "c", weeks: [{ week: 1, sessions: [{ name: "Lower", kind: "lifting", exercises: [{ exerciseName: "Squat", prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }] }] }] };
     expect(AiProgramDraft.parse(answer).weeks[0].sessions[0].kind).toBe("exercises");
     const chunk = ImportChunk.parse({ weeks: [{ label: null, line: null, days: [{ label: "Day 1", line: 1, sessions: [{ name: "Day 1", kind: "lifting", line: 1, exercises: [] }] }] }], skipped: [] });

@@ -678,3 +678,37 @@ describe("buildImportResult makes supersets", () => {
     expect(ImportExercise.parse({ line: 1, sourceName: "x", name: "x", prescription: null, group: 42 }).group).toBeNull();
   });
 });
+
+describe("session sections", () => {
+  const blocksOf = (r: ImportResult) => exercises(r).map((e) => `${e.name}:${e.block ?? "main"}`);
+
+  test("a warm-up heading puts the lines under it in prep, until the next heading; cooldown is main", () => {
+    const text = ["Day 1 Lower", "Warm-up", "Hip CARs 2x5", "Glute bridge 2x10", "Main", "Back squat 4x6", "Cooldown", "Hamstring stretch 2x30s"].join("\n");
+    const ex = (line: number, name: string) => ({ line, sourceName: name, name, prescription: { sets: 2, reps: 5 } });
+    const data: ImportChunk = {
+      weeks: [{ label: null, line: null, days: [{ label: "Day 1 Lower", line: 1, sessions: [{ name: "Lower", kind: "exercises", line: 1, exercises: [
+        ex(3, "Hip CARs"), ex(4, "Glute bridge"), ex(6, "Back squat"), ex(8, "Hamstring stretch"),
+      ] }] }] }],
+      skipped: [2, 5, 7].map((line) => ({ line, reason: "section heading" })),
+    };
+    const r = buildImportResult(text, [{ from: 1, to: 8, ok: true, data }]);
+    expect(blocksOf(r)).toEqual(["Hip CARs:prep", "Glute bridge:prep", "Back squat:main", "Hamstring stretch:main"]);
+  });
+
+  test("no heading: the extraction's own block stands; a prep-only session goes back to main", () => {
+    const data = (block: "prep" | null): ImportChunk => ({
+      weeks: [{ label: null, line: null, days: [{ label: "Day", line: 1, sessions: [{ name: "S", kind: "exercises", line: 1, exercises: [
+        { line: 2, sourceName: "CARs", name: "CARs", prescription: null, block },
+        { line: 3, sourceName: "Squat", name: "Squat", prescription: { sets: 3, reps: 5 } },
+      ] }] }] }],
+      skipped: [],
+    });
+    expect(blocksOf(buildImportResult("Day\nCARs\nSquat 3x5", [{ from: 1, to: 3, ok: true, data: data("prep") }]))).toEqual(["CARs:prep", "Squat:main"]);
+    const onlyPrep = ImportChunk.parse({ ...data(null), weeks: [{ ...data(null).weeks[0], days: [{ ...data(null).weeks[0].days[0], sessions: [{ ...data(null).weeks[0].days[0].sessions[0], exercises: [{ line: 2, sourceName: "CARs", name: "CARs", prescription: null, block: "prep" }] }] }] }] });
+    expect(blocksOf(buildImportResult("Day\nCARs", [{ from: 1, to: 2, ok: true, data: onlyPrep }]))).toEqual(["CARs:main"]);
+  });
+
+  test("a bad block from the model reads as none", () => {
+    expect(ImportExercise.parse({ line: 1, sourceName: "x", name: "x", prescription: null, block: "warmup" }).block).toBeNull();
+  });
+});

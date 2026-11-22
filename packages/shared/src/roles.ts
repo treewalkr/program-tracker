@@ -1,4 +1,4 @@
-import { isPrep, mainWork, MAX_PREP_EXERCISES, orderByBlock } from "./blocks";
+import { fitBlocks, mainWork, orderByBlock } from "./blocks";
 import {
   EXERCISE_ROLES,
   EXERCISE_ROLE_INFO,
@@ -306,11 +306,7 @@ export function fixDraftRoles<D extends DraftLike>(
       filled++;
       return { ...e, role: suggestRole(hints[i], hints, i) };
     });
-    const allPrep = labelled.every(isPrep);
-    let kept = 0;
-    const exercises = orderByBlock(
-      labelled.map((e) => (isPrep(e) && (allPrep || ++kept > MAX_PREP_EXERCISES) ? { ...e, block: "main" } : e))
-    );
+    const exercises = orderByBlock(fitBlocks(labelled));
     if (mainWork(exercises).filter((e) => e.role === "primary").length > 1) {
       notes.add(`${s.name} has more than one Primary lift — usually one leads the session.`);
     }

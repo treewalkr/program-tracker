@@ -100,6 +100,20 @@ describe("blocks", () => {
 });
 
 describe("formFromImport", () => {
+  test("a warm-up section lands in movement prep, listed first", () => {
+    const text = ["Day 1 Lower", "Back squat 4x6", "Warm-up", "Hip CARs 2x5"].join("\n");
+    const ex = (line: number, name: string) => ({ line, sourceName: name, name, prescription: { sets: 2, reps: 5 } });
+    const r = buildImportResult(text, [{ from: 1, to: 4, ok: true, data: {
+      weeks: [{ label: null, line: null, days: [{ label: "Day 1 Lower", line: 1, sessions: [{ name: "Lower", kind: "exercises", line: 1, exercises: [ex(2, "Back squat"), ex(4, "Hip CARs")] }] }] }],
+      skipped: [{ line: 3, reason: "section heading" }],
+    } }]);
+    const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey });
+    expect(form.sessions[0].exercises.map((e) => [e.exerciseId, e.block ?? "main", e.order])).toEqual([
+      ["new:Hip CARs", "prep", 0],
+      ["new:Back squat", "main", 1],
+    ]);
+  });
+
   test("drafts the default block (Week 12) as the form", () => {
     const r = result();
     const form = formFromImport(r, r.defaultBlock, BASE, { choices: {}, resolve, newKey });

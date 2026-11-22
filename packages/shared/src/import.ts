@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SessionKind, type CardioPrescription, type PrescribedSet } from "./domain";
 import { ImportNewTerm, filterNewTerms, type GlossaryTerm } from "./vocabulary";
 import { withSetCount } from "./groups";
+import { fitBlocks, SessionBlock } from "./blocks";
 
 /**
  * Paste notes (docs/paste-import-plan.md): a trainer's plain-text program →
@@ -59,6 +60,8 @@ export const ImportExercise = z.object({
   actuals: z.array(ImportActual).max(30).nullish(),
   /** Superset letter ("A" for A1/A2 or the lines under one group header); null when alone. */
   group: z.string().max(3).nullish().catch(null),
+  /** "prep" under a warm-up / prep / RAMP / activation heading; absent = main work. */
+  block: SessionBlock.nullish().catch(null),
 });
 export type ImportExercise = z.infer<typeof ImportExercise>;
 
@@ -636,9 +639,39 @@ function reviewSession(s: LocatedSession, lines: string[]): ReviewSession {
     line: s.line,
     source: null,
     cardio: null,
-    exercises: groupExercises(s.exercises.map((e) => reviewExercise(e, lines)), lines),
+    exercises: fitBlocks(sectionBlocks(groupExercises(s.exercises.map((e) => reviewExercise(e, lines)), lines), lines, s.line)),
     flags,
   };
+}
+
+/** A warm-up section heading: "Warm-up", "Movement prep:", "RAMP (10 min)", "Activation", "วอร์มอัพ". */
+const PREP_HEADING = /^[\s#*•\-–—]*(warm[\s-]?ups?|movement\s+prep(aration)?|prep|ramp|activation|วอร์ม\s*อัพ|อบอุ่นร่างกาย)\b/i;
+/** Any other section heading ends prep: "Main", "Strength", "Cooldown", "Stretch"… */
+const MAIN_HEADING = /^[\s#*•\-–—]*(main(\s+work)?|workout|strength|conditioning|accessor(y|ies)|finisher|cool[\s-]?down|stretch(ing)?|ยืดเหยียด|คูลดาวน์)\b/i;
+/** A heading is short and names a section, not an exercise with numbers. */
+const isHeading = (text: string, re: RegExp) => text.trim().length <= 40 && re.test(text) && !/\d\s*[x×]\s*\d/i.test(text);
+
+/**
+ * Session sections from the notes: a warm-up heading puts the exercises under
+ * it in movement prep, up to the next section heading (a cooldown or stretch
+ * section is main work). Read from the unreferenced lines between exercises,
+ * so an exercise line is never a heading. With no heading the extraction's
+ * own `block` stands.
+ */
+function sectionBlocks<E extends ImportExercise>(exercises: E[], lines: string[], sessionLine: number): E[] {
+  let section: SessionBlock | null = null;
+  let from = sessionLine;
+  return exercises.map((e) => {
+    for (let n = from + 1; n < e.line; n++) {
+      const text = lines[n - 1] ?? "";
+      if (isHeading(text, PREP_HEADING)) section = "prep";
+      else if (isHeading(text, MAIN_HEADING)) section = "main";
+    }
+    from = Math.max(from, e.line);
+    const block = section ?? (e.block === "prep" ? "prep" : null);
+    const { block: _b, ...rest } = e;
+    return (block === "prep" ? { ...rest, block } : rest) as E;
+  });
 }
 
 /** The group-header part of an exercise's notes ("Superset x 3 sets"), lowercased; null when none or timed. */

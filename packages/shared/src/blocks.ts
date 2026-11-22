@@ -64,6 +64,17 @@ export function orderByBlock<T extends Blockable>(list: readonly T[]): T[] {
   );
 }
 
+/**
+ * Keep a session savable: prep past the cap, or prep with no main work at
+ * all, goes back to main. For lists read from outside (AI drafts, paste
+ * import); a trainer's own edit is refused instead.
+ */
+export function fitBlocks<T extends Blockable>(list: readonly T[]): T[] {
+  const allPrep = list.length > 0 && list.every(isPrep);
+  let kept = 0;
+  return list.map((e) => (isPrep(e) && (allPrep || ++kept > MAX_PREP_EXERCISES) ? { ...e, block: "main" } : e));
+}
+
 /** Set one slot's block. Leaves its group: a superset never spans blocks, normalizeGroups tidies the rest. */
 export function withBlock<T extends Blockable & { group?: string | null }>(e: T, to: SessionBlock): T {
   const { group: _g, ...rest } = e;
