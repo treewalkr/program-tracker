@@ -14,6 +14,7 @@ import {
   portalSessions,
   portalWeekLabel,
   profileOn,
+  sessionDateIn,
   weekOf,
   DisplayUnits,
   displayUnitsOf,
@@ -151,7 +152,10 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
       loggable: week === currentWeek && started,
       weekLabel: portalWeekLabel(program.phasing, week),
       sessions: doc
-        ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads).map((s, i) => ({
+        ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), {
+            ...loads,
+            hrZonesFor: (weekday) => profileOn(mockState.hrProfiles.filter((p) => p.clientId === CLIENT_ID), sessionDateIn(start, weekday))?.zones ?? null,
+          }).map((s, i) => ({
             ...s,
             id: aliasOf(s.id, i + 1, week === currentWeek, CLIENT_ID),
           }))

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "./metrics";
-import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx, latestLogBySession } from "./portal";
+import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx, latestLogBySession, portalSessions, sessionDateIn } from "./portal";
+import { computeHrZones, profileOn } from "./hr";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -141,5 +142,29 @@ describe("latestLogBySession", () => {
     expect(m.get("s1")).toEqual({ id: "a", loggedBy: "client", date: "2026-11-18", skipped: true });
     expect(m.get("s2")).toEqual({ id: "b", loggedBy: "client", date: "2026-11-18" });
     expect(m.get("s3")).toEqual({ id: "c", loggedBy: "trainer", date: "2026-11-18" });
+  });
+});
+
+describe("sessionDateIn", () => {
+  test("a weekday lands inside a block week that starts mid-week; any day is the start", () => {
+    // 2026-11-25 is a Wednesday
+    expect(sessionDateIn("2026-11-25", 3)).toBe("2026-11-25");
+    expect(sessionDateIn("2026-11-25", 1)).toBe("2026-11-30");
+    expect(sessionDateIn("2026-11-25", 7)).toBe("2026-11-29");
+    expect(sessionDateIn("2026-11-25", null)).toBe("2026-11-25");
+  });
+
+  test("a profile effective 30 Nov reaches the Monday session of the week that starts 25 Nov, not the Wednesday one", () => {
+    const old = computeHrZones("hrmax", { maxHr: 190 })!;
+    const next = computeHrZones("hrmax", { maxHr: 200 })!;
+    const versions = [
+      { version: 1, effectiveFrom: "2026-10-01", zones: old },
+      { version: 2, effectiveFrom: "2026-11-30", zones: next },
+    ];
+    const zonesFor = (wd: number | null) => profileOn(versions, sessionDateIn("2026-11-25", wd))?.zones ?? null;
+    const run = (weekday: number) => ({ id: `s${weekday}`, name: "Run", seq: weekday, order: 0, kind: "cardio" as const, weekday, exercises: [], cardio: { modality: "Running", durationMin: 40, hrZone: 2 } });
+    const out = portalSessions([run(3), run(1)], null, () => null, { hrZonesFor: zonesFor });
+    expect(out.find((s) => s.weekday === 3)?.cardio?.hrBpm).toEqual({ min: old[1].min, max: old[1].max });
+    expect(out.find((s) => s.weekday === 1)?.cardio?.hrBpm).toEqual({ min: next[1].min, max: next[1].max });
   });
 });

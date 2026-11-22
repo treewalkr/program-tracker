@@ -19,7 +19,7 @@ import {
   type ProgramSession,
 } from "./domain";
 import { oneRepMaxKg, resolveLoadKg } from "./load";
-import { addDays } from "./importHistory";
+import { addDays, isoWeekday } from "./importHistory";
 import { cardioDone, cardioLogSec, cardioWeekTotals, isoWeekStart, sessionLoad, type CardioCountLog } from "./cardio";
 import { zoneBpm, type HrZones } from "./hr";
 import { Vo2Protocol } from "./vo2max";
@@ -288,6 +288,18 @@ export interface PortalLoadContext {
   lastSets?: LastSets;
   /** The client's HR zones in effect now; a zone target shows as its bpm band. */
   hrZones?: HrZones | null;
+  /**
+   * The zones in effect on a session's own day (by ISO weekday; null = any
+   * day). Wins over `hrZones`, so a profile starting later in the block shows
+   * only on the weeks it covers.
+   */
+  hrZonesFor?: (weekday: number | null) => HrZones | null;
+}
+
+/** The calendar day of an ISO weekday inside a 7-day block week starting `weekStart`; the start for "any day". */
+export function sessionDateIn(weekStart: string, weekday: number | null | undefined): string {
+  if (!weekday) return weekStart;
+  return addDays(weekStart, (weekday - isoWeekday(weekStart) + 7) % 7);
 }
 
 /** Per exercise, the client's sessions with it, newest first: each session's sets. */
@@ -415,7 +427,7 @@ export function portalSession(
           })),
         };
       }),
-    cardio: s.cardio ? portalCardioRx(s.cardio, loads.hrZones) : null,
+    cardio: s.cardio ? portalCardioRx(s.cardio, loads.hrZonesFor ? loads.hrZonesFor(s.weekday ?? null) : loads.hrZones) : null,
     log,
   };
 }

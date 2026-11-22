@@ -62,8 +62,8 @@
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
-  import type { CardioTemplateInput, CardioTemplatesDto, ModalityDto } from "$lib/api/types";
-  import { profileOn, type HrZones } from "@pt/shared";
+  import type { CardioTemplateInput, CardioTemplatesDto, HrProfileDto, ModalityDto } from "$lib/api/types";
+  import { profileOn, sessionDateIn, type HrZones } from "@pt/shared";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
@@ -350,8 +350,13 @@
 
   let modalities = $state<ModalityDto[]>([]);
   let cardioTemplates = $state<CardioTemplatesDto | null>(null);
-  /** The member's bpm zones in effect today (the editor shows Z2 as 136–148 bpm). */
-  let hrZones = $state<HrZones | null>(null);
+  /** The member's HR profile versions; each session's bpm come from the one in effect on its own day. */
+  let hrVersions = $state<HrProfileDto[]>([]);
+  /** The zones for a session in the shown week: its day's profile, so week 5 shows week 5's zones. Draft blocks have no dates: today's. */
+  function zonesFor(s: { weekday?: number | null }): HrZones | null {
+    const start = weekDates?.[weekIndex]?.start;
+    return profileOn(hrVersions, start ? sessionDateIn(start, s.weekday) : today)?.zones ?? null;
+  }
 
   const validation = $derived(
     program ? validateProgramDoc(program.weeks) : { ok: true as const }
@@ -377,7 +382,7 @@
       oneRepMaxes = detail.client.oneRepMaxes ?? null;
       deload = clientDeload(detail.client);
       logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
-      api.hrProfiles(program.clientId).then((v) => (hrZones = profileOn(v, today)?.zones ?? null), () => {});
+      api.hrProfiles(program.clientId).then((v) => (hrVersions = v), () => {});
     }
     // Open on the client's current week (FB-017: edits on a finished week never reached them).
     currentWeekIndex = openingWeekIndex(weekTabDates(program, logs, today));
@@ -743,7 +748,7 @@
                   onclose={closeEditors}
                   {modalities}
                   templates={cardioTemplates}
-                  zones={hrZones}
+                  zones={zonesFor(s)}
                   onsavetemplate={saveCardioTemplate}
                 />
               {:else}

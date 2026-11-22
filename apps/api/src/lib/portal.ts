@@ -17,6 +17,7 @@ import {
   portalCardioLog,
   cardioWeekTotals,
   profileOn,
+  sessionDateIn,
   weekOf,
   weekSessions,
   type CardioTarget,
@@ -98,7 +99,8 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
     .from(sessionLogs)
     .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));
   const done = await withClientEntries(latestLogBySession(logs));
-  const loads = { ...(await loadContext(clientId, program, startDate)), hrZones: await hrZonesOn(clientId, localDateOf(now)) };
+  const hrVersions = await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId));
+  const loads = { ...(await loadContext(clientId, program, startDate)), hrZones: profileOn(hrVersions, localDateOf(now))?.zones ?? null };
 
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
@@ -114,17 +116,15 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
       loggable: week === currentWeek && started,
       weekLabel: portalWeekLabel(program.phasing, week),
       sessions: named
-        ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads)
+        ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), {
+            ...loads,
+            // each session's bpm from the profile in effect on its own day, so next week shows next week's zones
+            hrZonesFor: (weekday) => profileOn(hrVersions, sessionDateIn(start, weekday))?.zones ?? null,
+          })
         : [],
     });
   }
   return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
-}
-
-/** The client's HR zones in effect on `date` (only the bpm bands leave this function). */
-async function hrZonesOn(clientId: string, date: string) {
-  const versions = await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId));
-  return profileOn(versions, date)?.zones ?? null;
 }
 
 /** How many recent cardio logs the progress tab lists. */
