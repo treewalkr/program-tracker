@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### New
+- **Client logs on the Overview.** When a member logs a session in the portal, it now shows in a new Client logs panel under Needs review: what they did, when, and their note. Tap Seen to clear it, and their next log brings it back.
+  - th: พอเมมเบอร์บันทึกเซสชันในพอร์ทัล ก็จะขึ้นในช่อง Client logs ใหม่ใต้ Needs review บอกว่าเล่นอะไร วันไหน พร้อมโน้ตที่เขียนไว้ กด Seen แล้วรายการก็หายไป จนกว่าเมมเบอร์คนนั้นจะบันทึกอีก
+
+### Improved
+- **A calmer Needs review.** The most important signals sit at the top, and a filter splits them into Check in and Plan ahead. Weeks ending soon share one row with a link per member, and Hide 1 wk tucks any signal away for a week.
+  - th: Needs review โล่งขึ้น สัญญาณที่สำคัญที่สุดอยู่บนสุด มีตัวกรองแยก Check in กับ Plan ahead สัปดาห์ที่ใกล้จบรวมเป็นแถวเดียว แยกลิงก์ตามเมมเบอร์ ส่วนสัญญาณไหนยังไม่อยากเห็น กด Hide 1 wk ซ่อนไว้หนึ่งสัปดาห์ได้เลย
+- **"From last week" folds into one line.** It shows only how many sessions were missed or not logged. Tap Show to list them, one line per member, and this device remembers your choice.
+  - th: From last week ย่อเหลือบรรทัดเดียว บอกแค่จำนวนเซสชันที่พลาดหรือยังไม่ได้บันทึก อยากดูรายการก็กด Show จะเห็นเรียงบรรทัดละเมมเบอร์ และเครื่องนี้จะจำไว้ว่าคุณเปิดหรือปิดไว้
+
 ## v0.1.45 — 2026-11-23
 
 ### New
