@@ -1362,7 +1362,7 @@
             </Field>
           </div>
         </div>
-        {@render saveBar("cardio session — counts toward the weekly target")}
+        {@render saveBar(cardioForm.skipped ? "not done — doesn't count, isn't missed" : "cardio session — counts toward the weekly target")}
       {:else}
       <div class="sheet" id="log-sheet">
         {#if blocks.length > 1}
