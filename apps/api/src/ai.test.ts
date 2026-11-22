@@ -221,11 +221,13 @@ describe("buildGenerationMessages", () => {
       trainerInstructions: "",
     });
     expect(system).toContain(
-      '"role": "movement_prep" | "power" | "primary" | "secondary" | "strength" | "supplemental" | "accessory" | "core" | "conditioning" | "mobility"'
+      '"role": "power" | "primary" | "secondary" | "strength" | "supplemental" | "accessory" | "core" | "conditioning" | "mobility"'
     );
     expect(system).toContain("One Primary per exercise session");
+    expect(system).not.toContain("movement_prep");
+    expect(system).toContain('"block": "prep" | "main"');
+    expect(system).toContain("- Session blocks: an exercise session is optional Movement prep");
     for (const line of [
-      "movement_prep (Movement Prep): Prepare the body for training",
       "power (Power): Develop explosive force",
       "primary (Primary): The main exercise around which the session is structured.",
       "secondary (Secondary): Secondary compound movement supporting the primary objective.",
@@ -241,6 +243,30 @@ describe("buildGenerationMessages", () => {
     expect(user).toContain("Back Squat (primary) [5 reps]");
   });
 
+  test("prep is listed apart, under Movement prep (not counted)", () => {
+    const { user } = buildGenerationMessages({
+      client: { name: "Maya" },
+      previousProgram: {
+        name: "Block 1",
+        sessions: [
+          {
+            name: "Day A",
+            exercises: [
+              { name: "Hip CARs", role: "mobility", block: "prep", sets: ["5 reps"] },
+              { name: "Back Squat", role: "primary", sets: ["5 reps"] },
+            ],
+          },
+        ],
+      },
+      periodization: null,
+      chainBalance: null,
+      history: [],
+      catalog: [],
+      trainerInstructions: "",
+    });
+    expect(user).toContain("- Day A: Movement prep (not counted): Hip CARs (mobility) [5 reps] · Main work: Back Squat (primary) [5 reps]");
+  });
+
   test("the trainer's own labels reach the role rule and the JSON shape, archived ones don't", () => {
     const id = "33333333-3333-4333-8333-333333333333";
     const gone = "44444444-4444-4444-8444-444444444444";
@@ -254,7 +280,7 @@ describe("buildGenerationMessages", () => {
       buildGenerationMessages(base),
       buildWeekMessages({ ...base, targetWeek: 2, plannedWeeks: 4, targetDirective: null, target: null }),
     ]) {
-      expect(system).toContain(`"role": "movement_prep" | "power" | "label:${id}" | "primary"`);
+      expect(system).toContain(`"role": "power" | "label:${id}" | "primary"`);
       expect(system).toContain(`label:${id} (Speed): Fast, light reps.`);
       expect(system).toContain("core (Core): Abs, my way.");
       expect(system).not.toContain(gone);
@@ -1325,6 +1351,19 @@ describe("draftSlotsText", () => {
   test("lists each cardio session's current prescription for cardio proposals", () => {
     const text = draftSlotsText({ ...draft, weeks: [{ week: 1, sessions: [draftLift("Lower"), draftCardio("Zone 2 row")] }] });
     expect(text).toContain("#2 Cardio 1 · Zone 2 row\n  cardio Row · 25 min");
+  });
+
+  test("a session with prep gets section heads; slot numbers stay positional", () => {
+    const text = draftSlotsText({
+      ...draft,
+      weeks: [{ week: 1, sessions: [{ name: "Lower", kind: "exercises" as const, exercises: [
+        { exerciseName: "Hip CARs", block: "prep" as const, prescribedSets: sets },
+        { exerciseName: "Back Squat", prescribedSets: sets },
+      ] }] }],
+    });
+    expect(text).toContain("#1 Session 1 · Lower\n  Movement prep (not counted):\n  slot 1 Hip CARs — ");
+    expect(text).toContain("\n  Main work:\n  slot 2 Back Squat — ");
+    expect(draftSlotsText({ ...draft, weeks: [{ week: 1, sessions: [draftLift("Upper")] }] })).not.toContain("Main work:");
   });
 });
 

@@ -1,5 +1,8 @@
 import {
   BUILTIN_ROLE_LABELS,
+  isPrep,
+  isRetiredRole,
+  MAX_PREP_EXERCISES,
   MULTI_MOVEMENT,
   groupTag,
   deloadRulesText,
@@ -79,7 +82,8 @@ export interface ProgramSummary {
     name: string;
     kind?: "exercises" | "cardio";
     /** `group` is the superset tag ("A1", "A2") when the exercise is in one. */
-    exercises: { name: string; role?: string; group?: string; sets: string[] }[];
+    /** `block` "prep" = movement prep (never counted); absent = main work. */
+    exercises: { name: string; role?: string; group?: string; block?: "prep"; sets: string[] }[];
   }[];
   /** An A/B program followed up by a new block: both routines (latest week of each letter). */
   routines?: { week: number; rotation: "A" | "B"; sessions: ProgramSummary["sessions"] }[];
@@ -299,6 +303,7 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
           "exerciseId": string?,    // preferred: use a catalog id
           "exerciseName": string,   // required if exerciseId omitted
           "role": ${activeLabels(labels).map((l) => JSON.stringify(l.key)).join(" | ")}, // label, see the role rule
+          "block": "prep" | "main", // optional, default "main"; see the session block rule
           "prescribedSets": [
             {
               "setNumber": number,  // 1-indexed, sequential
@@ -329,17 +334,39 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
 /** Labels the AI may use: built-ins (overrides applied) + the trainer's own, archived left out, by rank. */
 function activeLabels(labels: readonly RoleLabel[] | undefined): RoleLabel[] {
   const list = labels?.length ? labels : BUILTIN_ROLE_LABELS;
-  return list.filter((l) => !l.archived).sort((a, b) => a.rank - b.rank);
+  // Retired labels (Movement Prep: the block says "prep" now) are never offered.
+  return list.filter((l) => !l.archived && !isRetiredRole(l.key)).sort((a, b) => a.rank - b.rank);
 }
 
 /** The role rule, built from the same list as the JSON shape so the two can't drift. */
 export function roleRule(labels?: readonly RoleLabel[]): string {
   const list = activeLabels(labels);
   return [
-    "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per exercise session. List each session's exercises in label order (the order below). Labels:",
+    "- Give every exercise exactly one role: the label for what the session emphasizes with that exercise. One Primary per exercise session, in main work. List each block's exercises in label order (the order below). Labels:",
     ...list.map((l) => `  ${l.key} (${l.name}): ${l.description}`),
+    BLOCK_RULE,
     SUPERSET_RULE,
   ].join("\n");
+}
+
+/** Session blocks: movement prep then main work. A role never sets the dose. */
+export const BLOCK_RULE = [
+  `- Session blocks: an exercise session is optional Movement prep ("block": "prep", listed first, at most ${MAX_PREP_EXERCISES}) then Main work (the default; at least one exercise). Prep is never counted: no volume, progression or PRs.`,
+  "  Movement prep: pick it for THIS session's main work and the client's limitations, mobility restrictions and injuries; short and low fatigue; not every RAMP part (raise, activate, mobilize, potentiate) every time. Omit it when it adds nothing.",
+  "  Main work: order by priority, technical demand and fatigue. Don't force every role into a session: add Power or Plyometric only when the goal, ability and readiness justify it; conditioning is optional; core goes in when it is relevant.",
+  "  A role or block never sets the sets, reps, load or rest.",
+].join("\n");
+
+/** Items split under "Movement prep (not counted):" / "Main work:" when the list has prep; plain otherwise. */
+function blockedText<T extends { block?: string | null; role?: string | null }>(
+  list: readonly T[],
+  render: (e: T, i: number) => string,
+  sep: string
+): string {
+  const rendered = list.map((e, i) => ({ prep: isPrep(e), text: render(e, i) }));
+  if (!rendered.some((r) => r.prep)) return rendered.map((r) => r.text).join(sep);
+  const part = (prep: boolean) => rendered.filter((r) => r.prep === prep).map((r) => r.text).join(sep);
+  return `Movement prep (not counted): ${part(true)} · Main work: ${part(false)}`;
 }
 
 const SUPERSET_RULE =
@@ -739,9 +766,13 @@ export function draftSlotsText(d: AiProgramDraft): string {
       const body = w.sessions.map((s, di) => {
         const kind = s.kind === "cardio" ? "cardio" : "exercises";
         const tag = `${kind === "cardio" ? "Cardio" : "Session"} ${++seq[kind]}`;
-        const rows = s.exercises.map((e, ei) => {
+        const hasPrep = s.exercises.some(isPrep);
+        const rows = s.exercises.flatMap((e, ei) => {
           const tag = groupTag(s.exercises, ei);
-          return `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+          const row = `  slot ${ei + 1} ${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}${e.role ? ` (${e.role})` : ""} — ${rxLabel(e.prescribedSets)}`;
+          // Section heads before the first slot of each block, when the session has prep.
+          const head = hasPrep && (ei === 0 || isPrep(e) !== isPrep(s.exercises[ei - 1])) ? [isPrep(e) ? "  Movement prep (not counted):" : "  Main work:"] : [];
+          return [...head, row];
         });
         if (s.cardio) rows.push(`  cardio ${cardioLabel(s.cardio)}`);
         return [`#${di + 1} ${tag} · ${s.name}`, ...rows].join("\n");
@@ -1056,8 +1087,9 @@ export function buildWeekRevisionMessages(ctx: WeekRevisionContext): { system: s
 
 /** One draft session as a text line: "- Name: A1 Squat (primary) [5 reps @ RPE 8, rest 180s; …], …". */
 function draftSessionLine(s: DraftSession): string {
-  const exercises = s.exercises
-    .map((e, i) => {
+  const exercises = blockedText(
+    s.exercises,
+    (e, i) => {
       // Superset tag ("A1 "), so a revision keeps the trainer's groups.
       const tag = groupTag(s.exercises, i);
       const name = `${tag ? `${tag} ` : ""}${e.exerciseName ?? e.exerciseId ?? ""}`;
@@ -1069,8 +1101,9 @@ function draftSessionLine(s: DraftSession): string {
         return `${amount}${load}${rpe}${rest}`;
       });
       return `${name}${e.role ? ` (${e.role})` : ""} [${sets.join("; ")}]`;
-    })
-    .join(", ");
+    },
+    ", "
+  );
   const cardio = s.cardio ? ` cardio ${cardioLabel(s.cardio)}` : "";
   return `- ${s.name}:${cardio}${exercises ? ` ${exercises}` : ""}`;
 }
@@ -1105,9 +1138,11 @@ function programToText(p: ProgramSummary): string {
   return p.sessions
     .map(
       (s) =>
-        `- ${s.name}${s.kind === "cardio" ? " (cardio)" : ""}: ${s.exercises
-          .map((e) => `${e.group ? `${e.group}. ` : ""}${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`)
-          .join(", ")}`
+        `- ${s.name}${s.kind === "cardio" ? " (cardio)" : ""}: ${blockedText(
+          s.exercises,
+          (e) => `${e.group ? `${e.group}. ` : ""}${e.name}${e.role ? ` (${e.role})` : ""} [${e.sets.join("; ")}]`,
+          ", "
+        )}`
     )
     .join("\n");
 }

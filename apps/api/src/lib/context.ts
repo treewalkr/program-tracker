@@ -22,6 +22,7 @@ import {
   chainSetCounts,
   combinePreferenceDocs,
   groupTag,
+  isPrep,
   pulseSummary,
   selectExamples,
   sessionsInSeqOrder,
@@ -74,6 +75,7 @@ export async function loadContext(
             name: nameById.get(e.exerciseId) ?? e.exerciseId,
             role: e.role,
             ...(e.group ? { group: groupTag(s.exercises, i) ?? undefined } : {}),
+            ...(isPrep(e) ? { block: "prep" as const } : {}),
             sets: e.prescribedSets.map(
               (ps) =>
                 `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
@@ -187,6 +189,7 @@ export async function loadContext(
             name: e.exerciseName ?? e.exerciseId,
             role: e.role,
             ...(e.group ? { group: groupTag(s.exercises, i) ?? undefined } : {}),
+            ...(isPrep(e) ? { block: "prep" as const } : {}),
             sets: e.prescribedSets.map(
               (ps) => `${ps.reps}${ps.amrap ? "+" : ""} reps${ps.targetRpe ? ` @ RPE ${ps.targetRpe}` : ""}`
             ),
