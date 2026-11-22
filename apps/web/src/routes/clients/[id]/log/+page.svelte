@@ -57,6 +57,8 @@
   import GroupTag from "$lib/components/GroupTag.svelte";
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
   import LogStepper from "$lib/components/LogStepper.svelte";
+  import LoadCell, { type LoadCellText } from "$lib/components/LoadCell.svelte";
+  import { asSent, draftLoad, isBwSet, restartLoads, setLoad, startLoad, type LoadMode } from "$lib/loadMode";
   import { feedbackMode } from "$lib/feedback/mode.svelte";
   import {
     asPrescribed,
@@ -83,6 +85,7 @@
     rowLabels,
     rowsToSave,
     serverFieldErrors,
+    takesNoKg,
     sheetCounts,
     slotIds,
     swapSlot,
@@ -179,6 +182,8 @@
     rx: Prescription | null;
     timed: boolean;
     last: LastSet | null;
+    /** BW (no kg logged) or kg; a timed hold keeps a plain kg cell and ignores it. */
+    load: LoadMode;
   }
 
   let rows = $state<Row[]>([]);
@@ -258,7 +263,7 @@
     const lifts = program ? timedExerciseIds(program) : new Set<string>();
     return historySets(pastLogs, (s) => (!!s.programExerciseId && slots.has(s.programExerciseId)) || lifts.has(s.exerciseId));
   });
-  const coach = $derived(coachSheet(rows, { equipmentOf, history, stored: client?.oneRepMaxes, now: date }));
+  const coach = $derived(coachSheet(rows.map(asSent), { equipmentOf, history, stored: client?.oneRepMaxes, now: date }));
   /** Rows whose suggestion is explained (chip or "suggested" link tapped). */
   const sourceOpen = new SvelteSet<string>();
   /** Rows filled from a "→" chip: what was used and where it came from, until the cell is edited. */
@@ -283,6 +288,16 @@
     else sourceOpen.add(key);
   }
 
+  /**
+   * The mode a set opens in, as on the member's log: kg with a coach-set load, BW for a
+   * library bodyweight move or (free weights) when last time had no load, else kg.
+   */
+  const loadAtStart = (exerciseId: string, rx: Prescription | null, last: LastSet | null): LoadMode =>
+    startLoad({ bodyweight: isBodyweight(exerciseId), equipment: equipmentOf(exerciseId), last }, rx ?? {});
+
+  /** A row's opening mode now: a swapped slot has no target or history for its new lift. */
+  const loadOf = (r: Row): LoadMode => (isSwapped(r) ? loadAtStart(r.exerciseId, null, null) : loadAtStart(r.exerciseId, r.rx, r.last));
+
   /** Prescribed rows for the selected session, nothing entered yet. */
   function freshRows(): Row[] {
     const session = weekSessionsList.find((ws) => ws.id === sessionId)?.session;
@@ -292,6 +307,7 @@
         e.prescribedSets.map((ps): Row => {
           const rx: Prescription = prescriptionOf(ps, oneRepMaxKg(client?.oneRepMaxes, e.exerciseId));
           const last = lastSets.get(`${slots.get(e.id)}#${ps.setNumber}`) ?? null;
+          const timed = ps.durationSeconds != null;
           return {
             key: `${e.id}-${ps.setNumber}`,
             exerciseId: e.exerciseId,
@@ -301,8 +317,9 @@
             type: ps.type,
             prescribedReps: asPrescribed(rx, { bodyweight: false, swapped: false, last: null }).reps,
             rx,
-            timed: ps.durationSeconds != null,
+            timed,
             last,
+            load: timed ? "kg" : loadAtStart(e.exerciseId, rx, last),
             weight: "",
             reps: "",
             rpe: "",
@@ -353,7 +370,8 @@
     if (draft) {
       // the program's groups win over the draft's (it may predate a superset)
       const groupOf = new Map(fresh.map((r) => [r.programExerciseId, r.group]));
-      rows = draft.rows.map((r) => ({ ...r, group: groupOf.get(r.programExerciseId) }));
+      // a draft from before load modes opens each set as the fresh sheet would (a typed kg stays kg)
+      rows = draft.rows.map((r) => draftLoad({ ...r, group: groupOf.get(r.programExerciseId) }, fresh));
       notes = draft.notes;
       readiness = draft.readiness;
       flags = draft.flags;
@@ -632,7 +650,8 @@
   }
 
   function exercisePending(sheetRows: Row[]): Pending {
-    const sent = rowsToSave(sheetRows);
+    // a BW set logs no kg, whatever was typed before the switch
+    const sent = rowsToSave(sheetRows.map(asSent));
     return {
       input: {
         clientId: id,
@@ -723,7 +742,7 @@
       : [];
     if (p.sent === null && p.input.cardio?.skipped) return { title: `${name} noted as not done`, counts: "doesn't count toward this week's cardio, and isn't missed", notes: replaced };
     if (p.sent === null) return { title: `${name} logged`, counts: "counts toward this week's cardio", notes: replaced };
-    const r = saveRecap(p.snapshot.rows, p.snapshot.flags);
+    const r = saveRecap(p.snapshot.rows.map(asSent), p.snapshot.flags);
     return { title: `${name} logged`, counts: recapCounts(r), notes: [...recapNotes(r, nameOf), ...replaced] };
   }
 
@@ -779,7 +798,7 @@
   }
 
   async function save() {
-    const filled = rowsToSave(rows);
+    const filled = rowsToSave(rows.map(asSent));
     if (!program || !sessionId) return;
     if (filled.length === 0) {
       error = rows.length > 0 && rows.every((r) => r.skipped)
@@ -814,12 +833,14 @@
       return;
     }
     const preview = rows.map(withPrescribed);
-    const summary = prescribedSummary(preview, isBodyweight);
-    const filled = rowsToSave(preview);
+    // what the log would hold: a BW set's hidden kg stays on the sheet, out of the save
+    const sent = preview.map(asSent);
+    const summary = prescribedSummary(sent, isBodyweight);
+    const filled = rowsToSave(sent);
     const invalid = Object.keys(validateRows(filled)).length > 0;
     // Open AMRAPs or bad cells can't be logged yet; the dialog says what's missing.
     const pending = summary.openAmrap === 0 && summary.sets > 0 && !invalid ? exercisePending(preview) : null;
-    await openAsk({ mode: "confirm", summary, preview, shown: previewBlocks(rows, preview), pending });
+    await openAsk({ mode: "confirm", summary, preview, shown: previewBlocks(rows.map(asSent), sent), pending });
   }
 
   /**
@@ -835,7 +856,7 @@
       (r) =>
         !r.skipped &&
         (!pe || r.programExerciseId === pe) &&
-        (field === "reps" ? !r.extra && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !isBodyweight(r.exerciseId))
+        (field === "reps" ? !r.extra && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !takesNoKg(r, isBodyweight))
     );
     if (target) await focusCell(target.key, field);
   }
@@ -1006,6 +1027,27 @@
     clearCell(key, field);
   }
 
+  /** BW ↔ kg on one set; the exercise's later untouched sets follow. */
+  function switchLoad(key: string, mode: LoadMode) {
+    rows = setLoad(rows, key, mode);
+    if (mode === "bw") {
+      clearCell(key, "weight");
+      usedSuggestion.delete(key);
+    }
+  }
+
+  /** The load cell's words for one set: BW or kg, and the switch named for the set. */
+  const loadText = (label: string): LoadCellText => ({
+    unit: weightUnit(),
+    added: `Added ${weightUnit()}`,
+    load: "Load",
+    bodyweight: "Bodyweight",
+    bw: "BW",
+    addLoad: `+ ${weightUnit()}`,
+    toBw: `${label}: bodyweight`,
+    toLoad: `${label}: add weight`,
+  });
+
   /** A committed kg fills the later blank sets of the exercise. */
   function fillKg(key: string) {
     rows = fillDown(rows, key, "weight");
@@ -1029,6 +1071,8 @@
   function addSet(programExerciseId: string) {
     const head = rows.find((r) => r.programExerciseId === programExerciseId);
     if (!head) return;
+    // an extra set follows the slot's last set: BW after BW rounds
+    const tail = rows.findLast((r) => r.programExerciseId === programExerciseId) ?? head;
     rows = withExtraSet(rows, programExerciseId, (n): Row => ({
       key: `${programExerciseId}-x${crypto.randomUUID().slice(0, 8)}`,
       exerciseId: head.exerciseId,
@@ -1041,6 +1085,7 @@
       rx: null,
       timed: head.timed,
       last: null,
+      load: tail.load,
       weight: "",
       reps: "",
       rpe: "",
@@ -1053,7 +1098,8 @@
   }
 
   function swap(programExerciseId: string, exerciseId: string) {
-    rows = swapSlot(rows, programExerciseId, exerciseId);
+    // the new lift opens its sets as a fresh sheet would; a mode picked by hand stays
+    rows = restartLoads(swapSlot(rows, programExerciseId, exerciseId), programExerciseId, loadOf);
     swapOpen = null;
   }
 
@@ -1143,10 +1189,10 @@
   /** A card is done once every set is entered or skipped. */
   const blockDone = (b: { rows: Row[] }) => b.rows.every((r) => r.skipped || !isBlank(r.reps));
 
-  /** One set in the as-prescribed dialog: "65×5 @8", "BW×12", "—×5" (no load), "45 s". */
+  /** One set in the as-prescribed dialog: "65×5 @8", "BW×12" (a BW set), "—×5" (no load), "45 s". */
   const fmtPreviewSet = (r: Row) => {
     const reps = `${r.reps}${r.timed ? " s" : ""}`;
-    const kg = !isBlank(r.weight) ? String(typeof r.weight === "number" ? showWeight(r.weight) : r.weight) : isBodyweight(r.exerciseId) ? "BW" : "—";
+    const kg = !isBlank(r.weight) ? String(typeof r.weight === "number" ? showWeight(r.weight) : r.weight) : takesNoKg(r, isBodyweight) ? "BW" : "—";
     const load = r.timed && isBlank(r.weight) ? reps : `${kg}×${reps}`;
     return isBlank(r.rpe) ? load : `${load} @${r.rpe}`;
   };
@@ -1173,8 +1219,9 @@
    * plan. With no kg in the plan, the suggested load stands in for it.
    */
   const rxCell = (r: Row) => {
-    const p = asPrescribed(r.rx, { bodyweight: isBodyweight(r.exerciseId), swapped: isSwapped(r), last: r.last });
-    const s = r.rx?.targetWeightKg == null ? coach.suggest.get(r.key) : undefined;
+    // a BW set takes no kg: neither last time's load nor a suggestion; Added kg on a bodyweight move takes both
+    const p = asPrescribed(r.rx, { bodyweight: takesNoKg(r, isBodyweight), swapped: isSwapped(r), last: r.last });
+    const s = r.rx?.targetWeightKg == null && !isBwSet(r) ? coach.suggest.get(r.key) : undefined;
     return s ? { ...p, weight: s.kg } : p;
   };
 
@@ -1498,7 +1545,8 @@
               {@const label = labels.get(r.key) ?? r.key}
               {@const p = rxCell(r)}
               {@const last = isSwapped(r) ? null : r.last}
-              {@const sg = coach.suggest.get(r.key)}
+              <!-- a BW set takes no kg: no suggested load beside it -->
+              {@const sg = isBwSet(r) ? undefined : coach.suggest.get(r.key)}
               {@const chip = chipFor(r, sg, equipmentOf(r.exerciseId))}
               {@const fb = coach.feedback.get(r.key)}
               {@const used = usedSuggestion.get(r.key)}
@@ -1530,7 +1578,13 @@
                 {:else}
                   {@const hint = (f: SheetField) => (lastCell?.key === r.key && lastCell.field === f ? "done" : "next")}
                   <div class="c-kg" data-cell={`${r.key}:weight`}>
-                    <LogStepper bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} label={`${label}, ${weightUnit()}`} unit={weightUnit()} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showLoad(p.weight) : null} placeholder={p.weight != null ? String(showLoad(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
+                    {#if r.timed}
+                      <LogStepper bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} label={`${label}, ${weightUnit()}`} unit={weightUnit()} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showLoad(p.weight) : null} placeholder={p.weight != null ? String(showLoad(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
+                    {:else}
+                      {@const added = isBodyweight(r.exerciseId)}
+                      <!-- the load held or added: BW is none, and the set logs no kg -->
+                      <LoadCell compact bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} mode={r.load} onmode={(m) => switchLoad(r.key, m)} {added} label={`${label}, ${added ? `added ${weightUnit()}` : weightUnit()}`} text={loadText(label)} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showLoad(p.weight) : null} placeholder={p.weight != null ? String(showLoad(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
+                    {/if}
                   </div>
                   <div class="c-reps" data-cell={`${r.key}:reps`}>
                     <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} enterkeyhint={hint("reps")} onedit={() => edited(r.key, "reps")} />
@@ -1791,7 +1845,7 @@
   .tnum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
   /* ---- The sheet: one block per prescribed exercise, one row per set ---- */
-  .sheet { --set-cols: 92px minmax(0, 1fr) 104px 96px 76px 76px 64px; }
+  .sheet { --set-cols: 92px minmax(0, 1fr) 104px 132px 76px 76px 64px; }
   .cols,
   .set {
     display: grid;
