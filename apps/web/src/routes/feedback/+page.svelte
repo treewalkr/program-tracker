@@ -38,6 +38,7 @@
   import Author from "$lib/feedback/Author.svelte";
   import Thread from "$lib/feedback/Thread.svelte";
   import TicketEditor from "$lib/feedback/TicketEditor.svelte";
+  import { loadErrorText } from "$lib/feedback/errors";
   import { ago } from "$lib/draftReview";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { ticketDetails } from "$lib/feedback/details.svelte";
@@ -75,6 +76,9 @@
 
   let items = $state<FeedbackItem[]>([]);
   let loaded = $state(false);
+  /** The list itself didn't load: replaces the tabs and list, so an outage never reads as an empty queue. */
+  let loadError = $state<string | null>(null);
+  /** A page action failed (copy, filing a ticket); shown above the list. */
   let error = $state<string | null>(null);
   let filter = $state<Filter>("new");
   /** The accepted list was just copied for the agent. */
@@ -127,19 +131,21 @@
   ]);
 
   async function load() {
+    loaded = false;
+    loadError = null;
     try {
       items = await feedbackApi.list();
       notes = Object.fromEntries(items.map((i) => [i.id, i.triageNote ?? ""]));
       fresh = new Set(items.filter((i) => i.unread).map((i) => i.id));
       // Reporters follow their own few items: show them all at once.
       if (!isAdmin) filter = "all";
-      error = null;
     } catch (err) {
-      error = err instanceof Error ? err.message : "Could not load feedback";
+      loadError = loadErrorText(err);
     } finally {
       loaded = true;
     }
   }
+
 
   onMount(async () => {
     await load();
@@ -546,6 +552,12 @@
     </form>
   {/if}
 
+  {#if loadError}
+    <Note tone="bad" role="alert">
+      Couldn't load feedback — {loadError}.
+      <Button small onclick={load}>Try again</Button>
+    </Note>
+  {:else}
   <div class="tabbar">
     <Tabs items={tabs} value={filter} onchange={(id) => (filter = id as Filter)} label="Feedback status" idPrefix="fb" />
     {#if isAdmin && tally.up + tally.down + tally.unrated > 0}
@@ -953,6 +965,7 @@
       </ol>
     {/if}
   </div>
+  {/if}
 </div>
 
 <style>
