@@ -80,6 +80,8 @@
   let loadError = $state<string | null>(null);
   /** A page action failed (copy, filing a ticket); shown above the list. */
   let error = $state<string | null>(null);
+  /** Screen-reader confirmation for actions that only relabel a button ("Copied"). */
+  let announcement = $state("");
   let filter = $state<Filter>("new");
   /** The accepted list was just copied for the agent. */
   let copied = $state(false);
@@ -146,6 +148,12 @@
     }
   }
 
+  /** Clears first so the same text twice is announced twice. */
+  async function announce(text: string) {
+    announcement = "";
+    await tick();
+    announcement = text;
+  }
 
   onMount(async () => {
     await load();
@@ -413,6 +421,7 @@
     try {
       await navigator.clipboard.writeText(handle);
       copiedHandle = handle;
+      announce(`Copied ${handle}`);
       clearTimeout(copiedHandleTimer);
       copiedHandleTimer = setTimeout(() => (copiedHandle = null), 1500);
     } catch (err) {
@@ -424,6 +433,8 @@
     try {
       await navigator.clipboard.writeText(await feedbackApi.exportMarkdown("accepted"));
       copied = true;
+      const n = counts.accepted;
+      announce(`Copied ${n} accepted ${n === 1 ? "ticket" : "tickets"} for the agent`);
       setTimeout(() => (copied = false), 2000);
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not copy export";
@@ -497,6 +508,7 @@
     {/snippet}
   </PageHead>
 
+  <p class="sr-only" role="status">{announcement}</p>
   {#if error}
     <Note tone="bad" role="alert">{error}</Note>
   {/if}
