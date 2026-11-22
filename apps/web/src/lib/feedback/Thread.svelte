@@ -683,6 +683,8 @@
     font: 400 12px/1 var(--font-ui);
     color: var(--muted);
     cursor: default;
+    /* A long author name truncates; the date never breaks over two lines. */
+    white-space: nowrap;
   }
   button.when:focus-visible {
     outline: 2px solid var(--blue);
