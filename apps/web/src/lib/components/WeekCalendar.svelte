@@ -2,6 +2,7 @@
   import type { ProgramSessionDto } from "$lib/api/types";
   import { MAX_SESSIONS_PER_WEEKDAY, sessionTag, sessionsByWeekday, type SessionFocus } from "@pt/shared";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import { cardioLine } from "$lib/cardioLine";
 
   /**
    * Week placement board: Mon–Sun columns plus an "Any day" tray. Sessions drag
@@ -44,9 +45,8 @@
 
   function summary(s: ProgramSessionDto): string {
     if (s.kind === "cardio" && s.cardio) {
-      return [s.cardio.modality, s.cardio.durationMin ? `${s.cardio.durationMin} min` : null, s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null]
-        .filter(Boolean)
-        .join(" · ");
+      // compact: what and how long (an interval session: its reps and total), no effort targets
+      return cardioLine({ ...s.cardio, targetRpe: undefined, intensity: undefined, distanceKm: undefined });
     }
     const f = FOCUS[focusOf(s)];
     const n = s.exercises.length;
