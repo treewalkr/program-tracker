@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  import type { CardioFormError } from "$lib/cardioForm";
   export type { CardioForm } from "$lib/cardioForm";
 
   /** Words the form shows — English by default; the client portal passes its own locale (any subset). */
@@ -42,13 +43,15 @@
     optional: string;
     /** Distance unit names as shown. */
     distanceUnits: Record<DistanceUnit, string>;
+    /** A range error names its field and limits (shown under that field). */
+    errors: Record<CardioFormError, string>;
   }
 </script>
 
 <script lang="ts">
   import type { CardioIntervalType, CardioMetric, DistanceUnit, SkipReason } from "@pt/shared";
   import { distanceUnit, showDistance, storeDistance } from "$lib/units.svelte";
-  import { cardioFormCalc, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type CardioFormError, type IntervalResultRow } from "$lib/cardioForm";
+  import { CARDIO_FORM_ERROR, cardioFormCalc, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type IntervalResultRow } from "$lib/cardioForm";
   import { farUnderPlan, formatDuration } from "$lib/ui/input/duration";
   import InputDuration from "$lib/ui/InputDuration.svelte";
   import InputUnit from "$lib/ui/InputUnit.svelte";
@@ -94,6 +97,7 @@
     repOf: "{name} {rep} of {reps}",
     optional: "optional",
     distanceUnits: { km: "km", mi: "mi" },
+    errors: CARDIO_FORM_ERROR,
   };
 
   const RPE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -116,7 +120,13 @@
 
   let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null, plannedSec = null }: Props = $props();
 
-  const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits } });
+  const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits }, errors: { ...ENGLISH.errors, ...given.errors } });
+  const errorOf = (e: CardioFormError) => (problem === e ? text.errors[e] : null);
+  /** A problem inside the folded section opens it, so the named field is on screen. */
+  let moreOpen = $state(false);
+  $effect(() => {
+    if (problem === "intervalRange" || problem === "caloriesRange") moreOpen = true;
+  });
   const distLabel = $derived(text.distanceUnits[distanceUnit()]);
   /** "Work 3 of 5" in the form's language. */
   function rowLabel(row: IntervalResultRow): string {
@@ -173,15 +183,15 @@
           <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={value.modality} maxlength={80} error={problem === "modality" ? text.modalityError : null} />
         {/if}
       </div>
-      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={durationHint} error={problem === "duration" ? text.durationHint : null} />
+      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
       <div class="lbl-field">
         <span class="lbl">{text.rpe}</span>
         <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} />
         {#if problem === "rpe"}<p class="err">{text.rpeHint}</p>{:else}<p class="hint">{text.rpeHint}</p>{/if}
       </div>
-      <InputUnit label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} />
-      <InputUnit label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional={text.optional} />
-      <InputUnit label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional={text.optional} error={problem === "maxHr" ? text.maxHrError : null} />
+      <InputUnit label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} error={errorOf("distanceRange")} />
+      <InputUnit label={text.avgHr} unit="bpm" bind:value={value.avgHr} min={30} max={240} optional={text.optional} error={errorOf("avgHrRange")} />
+      <InputUnit label={text.maxHr} unit="bpm" bind:value={value.maxHr} min={30} max={240} optional={text.optional} error={problem === "maxHr" ? text.maxHrError : errorOf("maxHrRange")} />
     </div>
 
     <div class="pain">
@@ -198,14 +208,14 @@
       </p>
     {/if}
 
-    <details class="more">
+    <details class="more" bind:open={moreOpen}>
       <summary>{text.more}</summary>
       <div class="more-body">
-        <InputUnit label={text.calories} unit="kcal" bind:value={value.calories} min={0} max={10000} optional={text.optional} width="auto" />
+        <InputUnit label={text.calories} unit="kcal" bind:value={value.calories} min={0} max={10000} optional={text.optional} width="auto" error={errorOf("caloriesRange")} />
         {#if value.intervals.length}
           <div class="ivs">
             <span class="lbl">{text.intervals}</span>
-            <p class="hint">{text.intervalsHint}</p>
+            {#if problem === "intervalRange"}<p class="err" role="alert">{text.errors.intervalRange}</p>{:else}<p class="hint">{text.intervalsHint}</p>{/if}
             <div class="scroll">
               <table class="sheet">
                 <thead>

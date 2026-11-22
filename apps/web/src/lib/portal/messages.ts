@@ -272,6 +272,13 @@ export const en = {
   "session.skipped": "Not done",
   "week.allResolved": "Nothing left this week: {done} done, {skipped} not done.",
   "cardio.underPlan": "Much shorter than the planned {planned}. Check the time.",
+  "log.cardioDurationRange": "Time must be under 5 hours.",
+  "log.cardioAvgHrRange": "Average heart rate must be 30–240 bpm.",
+  "log.cardioMaxHrRange": "Max heart rate must be 30–240 bpm.",
+  "log.cardioDistanceRange": "Distance looks too long. Check it.",
+  "log.cardioCaloriesRange": "Calories must be 0–10,000.",
+  "log.cardioIntervalRange": "Check each interval: RPE is 1–10, heart rate 30–240 bpm.",
+  "log.invalid": "Some numbers are out of range. Check the fields and save again.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -542,6 +549,13 @@ export const th: Record<MessageKey, string> = {
   "session.skipped": "ไม่ได้เล่น",
   "week.allResolved": "สัปดาห์นี้ไม่มีอะไรค้างแล้ว เล่นไป {done} ไม่ได้เล่น {skipped}",
   "cardio.underPlan": "สั้นกว่าแผน {planned} มาก ลองเช็กเวลาอีกที",
+  "log.cardioDurationRange": "เวลาต้องไม่เกิน 5 ชั่วโมง",
+  "log.cardioAvgHrRange": "ชีพจรเฉลี่ยต้องอยู่ระหว่าง 30–240 bpm",
+  "log.cardioMaxHrRange": "ชีพจรสูงสุดต้องอยู่ระหว่าง 30–240 bpm",
+  "log.cardioDistanceRange": "ระยะทางดูยาวเกินไป ลองเช็กอีกที",
+  "log.cardioCaloriesRange": "แคลอรีต้องอยู่ระหว่าง 0–10,000",
+  "log.cardioIntervalRange": "เช็กแต่ละช่วงอีกที RPE ต้องเป็น 1–10 ชีพจร 30–240 bpm",
+  "log.invalid": "มีตัวเลขบางช่องเกินช่วงที่รับได้ เช็กแล้วบันทึกอีกครั้ง",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };

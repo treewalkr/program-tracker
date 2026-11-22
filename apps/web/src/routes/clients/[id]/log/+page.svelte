@@ -754,6 +754,16 @@
     else await save();
   }
 
+  // A corrected field clears its error: once a save named a problem, it's re-checked as the form changes.
+  $effect(() => {
+    if (!cardioProblem) return;
+    const built = cardioLogOf(cardioForm);
+    const now = "error" in built ? built.error : null;
+    if (now === cardioProblem) return;
+    cardioProblem = now;
+    error = now ? CARDIO_FORM_ERROR[now] : null;
+  });
+
   async function saveCardio() {
     if (!program || !sessionId) return;
     const pending = cardioPending(cardioForm);

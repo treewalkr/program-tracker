@@ -1,5 +1,5 @@
 import { localDateOf, PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
-import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm, type CardioForm } from "$lib/cardioForm";
+import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm, type CardioForm, type CardioFormError } from "$lib/cardioForm";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
@@ -137,7 +137,7 @@ export function durationOf(f: Pick<PortalLogForm, "startedAt" | "date">, now: nu
 
 export type BuildResult =
   | { input: PortalLogInput; sets: number }
-  | { error: "nothing" | "activity" | "duration" | "rpe" | "maxHr" }
+  | { error: "nothing" | "activity" | Exclude<CardioFormError, "modality"> }
   /** Weighted sets saved with no kg: how many, and the first one's slot (to page to it). */
   | { error: "kg"; sets: number; programExerciseId: string };
 

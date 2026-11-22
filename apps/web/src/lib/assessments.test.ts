@@ -10,7 +10,7 @@ describe("assessments", () => {
     const f = emptyAssessmentForm(today);
     expect(liveEstimate(f, nok)).toBeNull();
     expect(liveEstimate({ ...f, distanceM: 2560 }, nok)).toEqual({ ok: true, value: 45.9, formulaVersion: "cooper-1968" });
-    expect(liveEstimate({ ...f, distanceM: 90 }, nok)).toEqual({ ok: false, error: "Distance must be 200–6,000 m." });
+    expect(liveEstimate({ ...f, distanceM: 90 }, nok)).toEqual({ ok: false, error: "Distance covered must be 1,000–5,000 m." });
   });
 
   test("Rockport needs time, HR and weight, and the member's sex", () => {
@@ -33,5 +33,16 @@ describe("assessments", () => {
     expect(protocolsTested(list)).toEqual(["cooper_12min", "run_1_5mile"]);
     expect(inputsText({ protocol: "cooper_12min", inputs: { distanceM: 2560 } })).toBe("2,560 m");
     expect(formulaLine("cooper_12min")).toBe("Cooper · formula cooper-1968: (distance − 504.9) ÷ 44.73");
+  });
+});
+
+describe("range errors name the field (QA B4)", () => {
+  const nok = { sex: "female" as const, birthDate: "1990-04-02" };
+  const f = emptyAssessmentForm("2026-11-20");
+  test("1.5 mile at 1:00 and a 4-hour Rockport are refused with the field's range", () => {
+    expect(liveEstimate({ ...f, protocol: "run_1_5mile", timeSec: 60 }, nok)).toEqual({ ok: false, error: "Finishing time must be 5:30–30:00." });
+    expect(liveEstimate({ ...f, protocol: "rockport_walk", timeSec: 4 * 3600, heartRate: 130, weightKg: 60 }, nok)).toEqual({ ok: false, error: "Walk time must be 8:00–30:00." });
+    expect(liveEstimate({ ...f, protocol: "rockport_walk", timeSec: 900, heartRate: 230, weightKg: 60 }, nok)).toEqual({ ok: false, error: "Finishing HR must be 60–220 bpm." });
+    expect(liveEstimate({ ...f, distanceM: 6000 }, nok)).toEqual({ ok: false, error: "Distance covered must be 1,000–5,000 m." });
   });
 });

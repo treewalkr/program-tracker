@@ -1,5 +1,6 @@
 import { fmtPace, fmtSpeed } from "./units.svelte";
 import {
+  CARDIO_LOG_LIMITS as LIM,
   cardioPace,
   cardioTotals,
   SKIP_REASONS,
@@ -150,15 +151,50 @@ export function cardioFormOfLog(log: CardioLog, rx?: Rx): CardioForm {
   };
 }
 
-export type CardioFormError = "modality" | "duration" | "rpe" | "maxHr";
+export type CardioFormError =
+  | "modality"
+  | "duration"
+  | "durationRange"
+  | "rpe"
+  | "maxHr"
+  | "avgHrRange"
+  | "maxHrRange"
+  | "distanceRange"
+  | "caloriesRange"
+  | "intervalRange";
 
-/** What each error asks for, in the trainer app's words. */
+/** What each error asks for, in the trainer app's words. Range errors name the field and its limits. */
 export const CARDIO_FORM_ERROR: Record<CardioFormError, string> = {
   modality: "Enter the modality — what did they do?",
   duration: "Enter how long it took (mm:ss).",
+  durationRange: "Duration must be under 5 hours.",
   rpe: "Pick the session RPE — how hard the whole session felt.",
   maxHr: "Max HR can't be below the average.",
+  avgHrRange: `Average HR must be ${LIM.hr.min}–${LIM.hr.max} bpm.`,
+  maxHrRange: `Max HR must be ${LIM.hr.min}–${LIM.hr.max} bpm.`,
+  distanceRange: `Distance must be ${LIM.distanceKm.max} km or less.`,
+  caloriesRange: `Calories must be ${LIM.calories.min}–${LIM.calories.max.toLocaleString("en-US")}.`,
+  intervalRange: `Check the per-interval results: RPE ${LIM.rpe.min}–${LIM.rpe.max}, heart rate ${LIM.hr.min}–${LIM.hr.max} bpm.`,
 };
+
+const outside = (v: number | null | undefined, r: { min: number; max: number }) => v != null && (v < r.min || v > r.max);
+
+/** The first value outside what the API accepts, so the form can name it instead of a 422. */
+export function cardioRangeError(form: CardioForm): CardioFormError | null {
+  if (form.durationSec != null && form.durationSec > LIM.durationSec.max) return "durationRange";
+  if (outside(form.avgHr, LIM.hr)) return "avgHrRange";
+  if (outside(form.maxHr, LIM.hr)) return "maxHrRange";
+  if (outside(form.distanceKm, LIM.distanceKm)) return "distanceRange";
+  if (outside(form.calories, LIM.calories)) return "caloriesRange";
+  const badRow = form.intervals.some(
+    (r) =>
+      outside(r.rpe, LIM.rpe) ||
+      outside(r.avgHr, LIM.hr) ||
+      outside(r.durationSec, LIM.durationSec) ||
+      (r.distanceKm != null && (r.distanceKm < 0 || r.distanceKm > 100)),
+  );
+  return badRow ? "intervalRange" : null;
+}
 
 const n = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? undefined : v);
 
@@ -173,6 +209,8 @@ export function cardioLogOf(form: CardioForm): { cardio: CardioLog } | { error: 
   if (form.skipped) return { cardio: { modality, skipped: { reason: form.skipped } } };
   if (form.durationSec == null || form.durationSec <= 0) return { error: "duration" };
   if (form.rpe == null) return { error: "rpe" };
+  const range = cardioRangeError(form);
+  if (range) return { error: range };
   if (form.avgHr != null && form.maxHr != null && form.maxHr < form.avgHr) return { error: "maxHr" };
   const intervals = form.intervals
     .filter((r) => r.durationSec != null || r.distanceKm != null || r.avgHr != null || r.rpe != null)

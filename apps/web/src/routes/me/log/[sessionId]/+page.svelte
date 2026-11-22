@@ -8,7 +8,8 @@
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
-  import type { CardioFormError } from "$lib/cardioForm";
+  import { cardioLogOf, type CardioFormError } from "$lib/cardioForm";
+  import type { MessageKey } from "$lib/portal/messages";
   import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
   import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
@@ -244,17 +245,12 @@
         await jumpToMissing();
         return;
       }
-      if (built.error !== "nothing") cardioProblem = built.error === "activity" ? "modality" : built.error;
-      error =
-        built.error === "nothing"
-          ? t("log.nothing")
-          : built.error === "duration"
-            ? t("log.cardioNeedsDuration")
-            : built.error === "rpe"
-              ? t("log.cardioNeedsRpe")
-              : built.error === "maxHr"
-                ? t("log.cardioMaxHr")
-                : t("log.cardioNeedsActivity");
+      if (built.error === "nothing") {
+        error = t("log.nothing");
+        return;
+      }
+      cardioProblem = built.error === "activity" ? "modality" : built.error;
+      error = cardioErrorText(cardioProblem);
       return;
     }
     saving = true;
@@ -271,7 +267,8 @@
         if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
       } else {
         const status = (e as { status?: unknown }).status;
-        error = status === 422 ? t("log.notThisWeek") : t("log.error");
+        // the server's schema refused a value: say so, never "check your connection"
+        error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
       }
     } finally {
       saving = false;
@@ -302,6 +299,18 @@
     },
     valueLabel: (label, v, max) => t("log.scaleValue", { label, v, max }),
   });
+  const CARDIO_ERROR_KEY: Record<CardioFormError, MessageKey> = {
+    modality: "log.cardioNeedsActivity",
+    duration: "log.cardioNeedsDuration",
+    durationRange: "log.cardioDurationRange",
+    rpe: "log.cardioNeedsRpe",
+    maxHr: "log.cardioMaxHr",
+    avgHrRange: "log.cardioAvgHrRange",
+    maxHrRange: "log.cardioMaxHrRange",
+    distanceRange: "log.cardioDistanceRange",
+    caloriesRange: "log.cardioCaloriesRange",
+    intervalRange: "log.cardioIntervalRange",
+  };
   const cardioText: CardioFormText = $derived({
     modality: t("cardio.activity"),
     modalityPlaceholder: t("cardio.activityPlaceholder"),
@@ -341,9 +350,20 @@
     repOf: t("cardio.repOf"),
     optional: t("log.optional"),
     distanceUnits: { km: t("cardio.km"), mi: t("cardio.mi") },
+    errors: Object.fromEntries(Object.entries(CARDIO_ERROR_KEY).map(([k, key]) => [k, t(key)])) as Record<CardioFormError, string>,
   });
   /** The cardio field the last save was missing: ringed in the form as well as named by the save bar. */
   let cardioProblem = $state<CardioFormError | null>(null);
+  const cardioErrorText = (e: CardioFormError) => t(CARDIO_ERROR_KEY[e]);
+  // A corrected field clears its error: once a save named a problem, it's re-checked as the form changes.
+  $effect(() => {
+    if (!cardioProblem) return;
+    const built = cardioLogOf(cardio);
+    const now = "error" in built ? built.error : null;
+    if (now === cardioProblem) return;
+    cardioProblem = now;
+    error = now ? cardioErrorText(now) : null;
+  });
 
   /** "Target 6–8 reps · 100 kg · RPE 8" — the plan beside the cells, always with its unit. */
   function targetOf(r: PortalRow): string {

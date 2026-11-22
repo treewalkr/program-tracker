@@ -1573,15 +1573,25 @@ export type SkipReason = z.infer<typeof SkipReason>;
 /** Longest cardio log: 300 minutes, so the rounded `durationMin` still fits the old schema. */
 export const CARDIO_LOG_MAX_SEC = 300 * 60;
 
+/** What a cardio log accepts, shared by the schema and the forms so both agree. */
+export const CARDIO_LOG_LIMITS = {
+  hr: { min: 30, max: 240 },
+  rpe: { min: 1, max: 10 },
+  distanceKm: { min: 0, max: 300 },
+  calories: { min: 0, max: 10_000 },
+  durationSec: { min: 1, max: CARDIO_LOG_MAX_SEC },
+} as const;
+const L = CARDIO_LOG_LIMITS;
+
 /** What one rep of one interval actually was. All optional; folded away in the form. */
 export const CardioIntervalResult = z.object({
   intervalId: z.string().min(1).max(64),
   /** 1-based rep of that interval. */
   rep: z.number().int().min(1).max(50),
-  durationSec: z.number().int().min(1).max(CARDIO_LOG_MAX_SEC).optional(),
+  durationSec: z.number().int().min(L.durationSec.min).max(L.durationSec.max).optional(),
   distanceM: z.number().int().min(1).max(100_000).optional(),
-  avgHr: z.number().int().min(30).max(240).optional(),
-  rpe: z.number().min(1).max(10).optional(),
+  avgHr: z.number().int().min(L.hr.min).max(L.hr.max).optional(),
+  rpe: z.number().min(L.rpe.min).max(L.rpe.max).optional(),
 });
 export type CardioIntervalResult = z.infer<typeof CardioIntervalResult>;
 
@@ -1594,16 +1604,16 @@ export const CardioLog = z
   .object({
     modality: z.string().min(1).max(80),
     durationMin: z.number().int().min(1).max(300).nullable().optional(),
-    durationSec: z.number().int().min(1).max(CARDIO_LOG_MAX_SEC).optional(),
+    durationSec: z.number().int().min(L.durationSec.min).max(L.durationSec.max).optional(),
     /** Legacy (member-picked zone); old rows keep it, nothing reads it. */
     hrZone: z.number().int().min(1).max(5).nullable().optional(),
     intensity: z.string().max(60).optional(),
-    distanceKm: z.number().min(0).max(300).optional(),
+    distanceKm: z.number().min(L.distanceKm.min).max(L.distanceKm.max).optional(),
     /** Session RPE 1–10; required on a completed log written now. */
-    rpe: z.number().min(1).max(10).optional(),
-    avgHr: z.number().int().min(30).max(240).optional(),
-    maxHr: z.number().int().min(30).max(240).optional(),
-    calories: z.number().int().min(0).max(10_000).optional(),
+    rpe: z.number().min(L.rpe.min).max(L.rpe.max).optional(),
+    avgHr: z.number().int().min(L.hr.min).max(L.hr.max).optional(),
+    maxHr: z.number().int().min(L.hr.min).max(L.hr.max).optional(),
+    calories: z.number().int().min(L.calories.min).max(L.calories.max).optional(),
     pain: z.object({ reported: z.boolean(), note: z.string().trim().max(280).optional() }).optional(),
     /** Set when the member didn't do the session: it resolves the session (never "missed") but isn't done. */
     skipped: z.object({ reason: SkipReason }).optional(),

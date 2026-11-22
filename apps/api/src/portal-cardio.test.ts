@@ -150,6 +150,17 @@ describe.skipIf(!dbUp)("portal cardio", () => {
     });
     expect(noRpe.status).toBe(422);
 
+    // a per-interval RPE past 10 (or a max HR of 300) is refused by the schema, not stored
+    for (const cardio of [
+      { modality: "Running", durationSec: 1980, rpe: 7, intervals: [{ intervalId: "r", rep: 1, rpe: 11 }] },
+      { modality: "Running", durationSec: 1980, rpe: 7, intervals: [{ intervalId: "r", rep: 1, rpe: 15 }] },
+      { modality: "Running", durationSec: 1980, rpe: 7, maxHr: 300 },
+    ]) {
+      const bad = await call("POST", "/v1/portal/logs", { token, body: { programSessionId: runId, date: today, kind: "cardio", cardio, sets: [], onDuplicate: "replace" } });
+      expect(bad.status).toBe(422);
+      expect(bad.body.error).toBe("invalid log");
+    }
+
     await db.update(sessionLogs).set({ trainerFeedback: "Strong last rep.", reviewedAt: new Date() }).where(eq(sessionLogs.id, log.body.id));
     const week = await call("GET", "/v1/portal/week", { token });
     const entry = week.body.weeks[0].sessions[0].log.entry;

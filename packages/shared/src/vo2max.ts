@@ -37,18 +37,37 @@ export const VO2_FORMULAS: Record<Vo2Protocol, Vo2Formula> = {
   },
 };
 
-const Seconds = z.number().int().min(60).max(4 * 3600);
+/**
+ * Plausible inputs per protocol. Outside these the equation runs off its data
+ * (Cooper 6,000 m gives 122.9; a 4-hour Rockport walk gives −688), so they're
+ * refused rather than stored. The forms use the same numbers.
+ */
+export const VO2_LIMITS = {
+  /** 12-minute run distance, metres. */
+  cooperDistanceM: { min: 1000, max: 5000 },
+  /** 1.5-mile run time, seconds (5:30 – 30:00). */
+  run15TimeSec: { min: 330, max: 1800 },
+  /** Rockport 1-mile walk time, seconds (8:00 – 30:00). */
+  rockportTimeSec: { min: 480, max: 1800 },
+  /** Heart rate at the end of the walk. */
+  rockportHr: { min: 60, max: 220 },
+  weightKg: { min: 20, max: 300 },
+  /** Rockport was derived on adults 30–69; under 18 it isn't valid at all. */
+  rockportAge: { min: 18, validFrom: 30, validTo: 69 },
+} as const;
+const V = VO2_LIMITS;
+const range = (r: { min: number; max: number }) => z.number().int().min(r.min).max(r.max);
 
 /** What the trainer enters per protocol; the server computes the result from these. */
 export const Vo2Inputs = {
-  cooper_12min: z.object({ distanceM: z.number().int().min(200).max(6000) }).strict(),
-  run_1_5mile: z.object({ timeSec: Seconds }).strict(),
+  cooper_12min: z.object({ distanceM: range(V.cooperDistanceM) }).strict(),
+  run_1_5mile: z.object({ timeSec: range(V.run15TimeSec) }).strict(),
   rockport_walk: z
     .object({
-      timeSec: Seconds,
+      timeSec: range(V.rockportTimeSec),
       /** Heart rate at the end of the mile. */
-      heartRate: z.number().int().min(40).max(240),
-      weightKg: z.number().min(20).max(300),
+      heartRate: range(V.rockportHr),
+      weightKg: z.number().min(V.weightKg.min).max(V.weightKg.max),
     })
     .strict(),
 } as const;
@@ -60,7 +79,8 @@ export interface Vo2Member {
   birthDate?: string | null;
 }
 
-export type Vo2Result = { ok: true; value: number; formulaVersion: string } | { ok: false; error: string };
+/** `warning`: the estimate stands but the member is outside the equation's population. */
+export type Vo2Result = { ok: true; value: number; formulaVersion: string; warning?: string } | { ok: false; error: string };
 
 const LB_PER_KG = 2.2046226218;
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -104,5 +124,10 @@ export function estimateVo2(protocol: Vo2Protocol, inputs: unknown, member: Vo2M
   if (!member.birthDate) return { ok: false, error: "Rockport needs the member's birth date recorded" };
   const age = ageOn(member.birthDate, testedOn);
   if (age < 1) return { ok: false, error: "birth date must be before the test date" };
-  return { ok: true, value: rockportVo2({ ...r, age, sex: member.sex }), formulaVersion };
+  if (age < V.rockportAge.min) return { ok: false, error: `Rockport isn't valid under ${V.rockportAge.min} (the member is ${age})` };
+  const warning =
+    age < V.rockportAge.validFrom || age > V.rockportAge.validTo
+      ? `Rockport was derived on adults ${V.rockportAge.validFrom}–${V.rockportAge.validTo}; at ${age} the estimate is rougher`
+      : undefined;
+  return { ok: true, value: rockportVo2({ ...r, age, sex: member.sex }), formulaVersion, ...(warning ? { warning } : {}) };
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { showWeight, storeWeight, weightUnit } from "$lib/units.svelte";
-  import { VO2_FORMULAS, VO2_PROTOCOLS, type Vo2Member, type Vo2Protocol } from "@pt/shared";
+  import { VO2_FORMULAS, VO2_LIMITS, VO2_PROTOCOLS, type Vo2Member, type Vo2Protocol } from "@pt/shared";
   import type { AssessmentDto, AssessmentInput } from "$lib/api/types";
   import {
     assessmentInputs,
@@ -94,12 +94,12 @@
       <div class="row">
         <div class="date"><InputDate label="Date" {today} max={today} bind:value={form.testedOn} /></div>
         {#if form.protocol === "cooper_12min"}
-          <InputUnit label="Distance covered" unit="m" step={10} min={200} max={6000} bind:value={form.distanceM} />
+          <InputUnit label="Distance covered" unit="m" step={10} min={VO2_LIMITS.cooperDistanceM.min} max={VO2_LIMITS.cooperDistanceM.max} bind:value={form.distanceM} />
         {:else if form.protocol === "run_1_5mile"}
-          <InputDuration label="Finishing time" bind:value={form.timeSec} min={60} max={14400} hint="mm:ss" />
+          <InputDuration label="Finishing time" bind:value={form.timeSec} min={VO2_LIMITS.run15TimeSec.min} max={VO2_LIMITS.run15TimeSec.max} hint="mm:ss" />
         {:else}
-          <InputDuration label="Walk time" bind:value={form.timeSec} min={60} max={14400} hint="mm:ss" />
-          <InputUnit label="Finishing HR" unit="bpm" min={40} max={240} bind:value={form.heartRate} />
+          <InputDuration label="Walk time" bind:value={form.timeSec} min={VO2_LIMITS.rockportTimeSec.min} max={VO2_LIMITS.rockportTimeSec.max} hint="mm:ss" />
+          <InputUnit label="Finishing HR" unit="bpm" min={VO2_LIMITS.rockportHr.min} max={VO2_LIMITS.rockportHr.max} bind:value={form.heartRate} hint="From a monitor, or a 15-second count × 4 straight away" />
           <InputUnit label="Weight" unit={weightUnit()} step={0.5} min={Math.floor(showWeight(20))} max={Math.ceil(showWeight(300))} bind:value={() => (form.weightKg == null ? null : showWeight(form.weightKg)), (v) => (form.weightKg = v == null ? null : storeWeight(v))} hint={member.weightKg != null ? "From the profile" : null} />
         {/if}
       </div>
@@ -119,6 +119,7 @@
         {:else if estimate.ok}
           <span class="est-v">{estimate.value} <span class="u">ml/kg/min</span></span>
           <span class="est-f">{formulaLine(form.protocol)}</span>
+          {#if estimate.warning}<span class="est-f warn" role="status">{estimate.warning}</span>{/if}
         {:else}
           <span class="est-f">{estimate.error}</span>
         {/if}
@@ -182,6 +183,7 @@
   .est-v.muted { color: var(--faint); }
   .est-f { font: 400 12px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
   .est.bad .est-f { color: var(--bad); font-family: var(--font-ui); font-size: 13px; }
+  .est-f.warn { color: var(--warn-ink); font-family: var(--font-ui); font-size: 13px; }
   .acts { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
   .acts p { margin: 0 auto 0 0; font-size: 12px; }
   .err { color: var(--bad); }

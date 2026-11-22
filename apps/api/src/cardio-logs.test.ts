@@ -174,6 +174,8 @@ describe.skipIf(!dbUp)("cardio log rules and review", () => {
     expect((await log({ modality: "Running", rpe: 4 })).status).toBe(422);
     expect((await log({ modality: "Running", durationSec: 2400, rpe: 4, avgHr: 150, maxHr: 140 })).status).toBe(422);
     expect((await log({ modality: "Running", skipped: { reason: "nope" } })).status).toBe(422);
+    // out-of-range per-interval RPE
+    expect((await log({ modality: "Running", durationSec: 2400, rpe: 4, intervals: [{ intervalId: "w", rep: 1, rpe: 11 }] })).status).toBe(422);
     const skipped = await log({ modality: "Running", skipped: { reason: "time" } });
     expect(skipped.status).toBe(201);
     expect(skipped.body.cardio).toEqual({ modality: "Running", skipped: { reason: "time" } });

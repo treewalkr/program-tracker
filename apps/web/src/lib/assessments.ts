@@ -1,4 +1,4 @@
-import { estimateVo2, VO2_FORMULAS, type Vo2Member, type Vo2Protocol, type Vo2Result } from "@pt/shared";
+import { estimateVo2, VO2_FORMULAS, VO2_LIMITS as V, type Vo2Member, type Vo2Protocol, type Vo2Result } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import { fmtWeight } from "./units.svelte";
 
@@ -56,11 +56,15 @@ export function assessmentInputs(f: AssessmentForm): Record<string, number> | nu
   return f.timeSec != null && f.heartRate != null && f.weightKg != null ? { timeSec: Math.round(f.timeSec), heartRate: Math.round(f.heartRate), weightKg: f.weightKg } : null;
 }
 
-const plainError = (e: string) => {
-  if (/distanceM/.test(e)) return "Distance must be 200–6,000 m.";
-  if (/timeSec/.test(e)) return "Time must be between 1:00 and 4:00:00.";
-  if (/heartRate/.test(e)) return "Heart rate must be 40–240 bpm.";
-  if (/weightKg/.test(e)) return "Weight must be 20–300 kg.";
+/** The schema's complaint as a sentence that names the field and its range. */
+const plainError = (e: string, protocol: Vo2Protocol) => {
+  if (/distanceM/.test(e)) return `Distance covered must be ${V.cooperDistanceM.min.toLocaleString("en-US")}–${V.cooperDistanceM.max.toLocaleString("en-US")} m.`;
+  if (/timeSec/.test(e)) {
+    const r = protocol === "rockport_walk" ? V.rockportTimeSec : V.run15TimeSec;
+    return `${protocol === "rockport_walk" ? "Walk time" : "Finishing time"} must be ${formatDuration(r.min)}–${formatDuration(r.max)}.`;
+  }
+  if (/heartRate/.test(e)) return `Finishing HR must be ${V.rockportHr.min}–${V.rockportHr.max} bpm.`;
+  if (/weightKg/.test(e)) return `Weight must be ${V.weightKg.min}–${V.weightKg.max} kg.`;
   return e[0].toUpperCase() + e.slice(1) + ".";
 };
 
@@ -69,7 +73,7 @@ export function liveEstimate(f: AssessmentForm, member: Vo2Member): Vo2Result | 
   const inputs = assessmentInputs(f);
   if (!inputs || !f.testedOn) return null;
   const r = estimateVo2(f.protocol, inputs, member, f.testedOn);
-  return r.ok ? r : { ok: false, error: plainError(r.error) };
+  return r.ok ? (r.warning ? { ...r, warning: plainError(r.warning, f.protocol) } : r) : { ok: false, error: plainError(r.error, f.protocol) };
 }
 
 /** "Cooper 12-min · formula cooper-1968: (distance − 504.9) ÷ 44.73" */

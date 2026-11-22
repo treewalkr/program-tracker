@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { CardioLog } from "@pt/shared";
 import { cardioTemplatePreset, fromCardioTemplate } from "@pt/shared";
 import { asPrescribedForm, cardioFormCalc, cardioFormOf, cardioFormOfLog, cardioLogOf, emptyCardioForm, intervalRows, readCardioForm } from "./cardioForm";
 
@@ -33,6 +34,19 @@ describe("cardioLogOf", () => {
     expect(cardioLogOf({ ...done, rpe: null })).toEqual({ error: "rpe" });
     expect(cardioLogOf({ ...done, maxHr: 140 })).toEqual({ error: "maxHr" });
     expect(cardioLogOf({ ...done, modality: " " })).toEqual({ error: "modality" });
+  });
+  test("values the API would refuse are named before saving, and agree with the schema", () => {
+    expect(cardioLogOf({ ...done, maxHr: 300 })).toEqual({ error: "maxHrRange" });
+    expect(cardioLogOf({ ...done, avgHr: 20 })).toEqual({ error: "avgHrRange" });
+    expect(cardioLogOf({ ...done, distanceKm: 301 })).toEqual({ error: "distanceRange" });
+    expect(cardioLogOf({ ...done, calories: 20000 })).toEqual({ error: "caloriesRange" });
+    expect(cardioLogOf({ ...done, durationSec: 5 * 3600 + 1 })).toEqual({ error: "durationRange" });
+    const row = { key: "r:1", intervalId: "r", rep: 1, label: "Work 1 of 5", type: "work" as const, durationSec: null, distanceKm: null, avgHr: null, rpe: 11 };
+    expect(cardioLogOf({ ...done, intervals: [row] })).toEqual({ error: "intervalRange" });
+    expect(cardioLogOf({ ...done, intervals: [{ ...row, rpe: 15 }] })).toEqual({ error: "intervalRange" });
+    // corrected, it saves
+    const fixed = cardioLogOf({ ...done, intervals: [{ ...row, rpe: 8 }] });
+    expect("cardio" in fixed && CardioLog.safeParse(fixed.cardio).success).toBe(true);
   });
   test("a skipped log sends only its reason", () => {
     expect(cardioLogOf({ ...done, skipped: "time" })).toEqual({ cardio: { modality: "Running", skipped: { reason: "time" } } });
