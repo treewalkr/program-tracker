@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+- **Movement prep and main work.** Every session now has two parts. Movement prep is an optional warm-up of up to 8 exercises, and it never counts toward volume, progress or PRs. Main work is everything that counts. Use "+ Movement prep" or "Move to movement prep" to put an exercise there. Members tick prep off as a checklist and log sets only on main work, and history shows "Prep 3/4". The AI plans prep to suit each session, and pasted notes with a "Warm-up" heading land in prep. Movement Prep is no longer a role label, and old programs keep reading it as prep.
+  - th: ทุกเซสชันแบ่งเป็นสองส่วนแล้ว ส่วนแรกคือเตรียมร่างกาย ใส่ท่าวอร์มได้ไม่เกิน 8 ท่า จะใส่หรือไม่ใส่ก็ได้ และไม่นับรวมในวอลุ่ม ความคืบหน้า หรือ PR ส่วนที่สองคือท่าหลัก ซึ่งนับทุกอย่างตามเดิม เพิ่มท่าเข้าส่วนเตรียมร่างกายได้ด้วยปุ่ม "+ Movement prep" หรือ "Move to movement prep" ฝั่งเมมเบอร์แค่ติ๊กท่าเตรียมร่างกายว่าทำแล้ว และบันทึกเซตเฉพาะท่าหลัก ในประวัติจะเห็นเป็น "Prep 3/4" AI จะเลือกท่าเตรียมร่างกายให้เข้ากับแต่ละเซสชัน และถ้าโน้ตที่วางมีหัวข้อ "Warm-up" ท่าใต้หัวข้อนั้นจะเข้าส่วนเตรียมร่างกายให้เอง ป้าย Movement Prep ไม่อยู่ในรายการ role แล้ว แต่โปรแกรมเก่าที่ใช้ป้ายนี้ยังนับเป็นส่วนเตรียมร่างกายเหมือนเดิม
+
 ## v0.1.47 — 2026-11-23
 
 ### Improved
