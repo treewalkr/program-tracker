@@ -70,3 +70,7 @@
 <Story name="Skipped" asChild>
   <div style="max-width: 640px"><CardioReview log={{ ...base, cardio: { modality: 'Cycling', skipped: { reason: 'time' } }, notes: null }} member="Nok" metric="speed" onreview={review} /></div>
 </Story>
+
+<Story name="Coach-entered, untested max HR" asChild>
+  <div style="max-width: 640px"><CardioReview log={{ ...base, loggedBy: 'trainer' }} member="Nok" metric="pace" zonesApprox onreview={review} /></div>
+</Story>

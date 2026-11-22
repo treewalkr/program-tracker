@@ -16,7 +16,7 @@
    */
   interface Props {
     log: SessionLogDto;
-    /** First name, for "Nok's note" / "Feedback for Nok". */
+    /** First name, for "Nok's note" (on their own logs) / "Feedback for Nok". */
     member: string;
     /** How pace shows for this log's modality. */
     metric: CardioMetric;
@@ -91,7 +91,7 @@
   {/if}
 
   <dl class="facts">
-    <div><dt>{member}'s note</dt><dd>{log.notes ? `“${log.notes}”` : "None"}</dd></div>
+    <div><dt>{log.loggedBy === "client" ? `${member}'s note` : "Session note"}</dt><dd>{log.notes ? `“${log.notes}”` : "None"}</dd></div>
     {#if !skipped}
       <div><dt>Pain or discomfort</dt><dd class:bad={cardio.pain?.reported}>{cardio.pain?.reported ? (cardio.pain.note ? `Reported: “${cardio.pain.note}”` : "Reported") : "None reported"}</dd></div>
     {/if}
