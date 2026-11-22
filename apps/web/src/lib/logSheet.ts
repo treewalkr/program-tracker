@@ -545,6 +545,8 @@ export interface SheetDraft<R extends SheetRow = SheetRow> {
   notes: string;
   readiness: ReadinessForm;
   flags: ExerciseFlags;
+  /** Movement prep ticked (program-exercise ids). */
+  prepDone?: string[];
   date: string;
   savedAt: string;
 }
@@ -563,7 +565,7 @@ export const draftKey = (clientId: string, sessionId: string) => `pt:log-draft:$
  */
 export function parseDraft<R extends SheetRow>(raw: string | null, fresh: R[]): SheetDraft<R> | null {
   if (!raw) return null;
-  let d: { rows?: R[]; notes?: unknown; energy?: unknown; readiness?: unknown; flags?: unknown; date?: unknown; savedAt?: unknown };
+  let d: { rows?: R[]; notes?: unknown; energy?: unknown; readiness?: unknown; flags?: unknown; prepDone?: unknown; date?: unknown; savedAt?: unknown };
   try {
     d = JSON.parse(raw);
   } catch {
@@ -579,6 +581,7 @@ export function parseDraft<R extends SheetRow>(raw: string | null, fresh: R[]): 
     notes: d.notes,
     readiness: parseReadiness(d),
     flags: parseFlags(d.flags),
+    ...(Array.isArray(d.prepDone) ? { prepDone: d.prepDone.filter((x): x is string => typeof x === "string") } : {}),
     date: d.date,
     savedAt: typeof d.savedAt === "string" ? d.savedAt : "",
   };

@@ -1,4 +1,4 @@
-import { localDateOf, PortalWeek, sessionDateIn, type PortalExercise, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
+import { localDateOf, mainWork, movementPrep, PortalWeek, sessionDateIn, type PortalExercise, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
 import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm, type CardioForm, type CardioFormError } from "$lib/cardioForm";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
@@ -12,7 +12,8 @@ export { setLoad, startLoad, type LoadMode } from "$lib/loadMode";
  * was prescribed (so "did it as planned" is one tap on Save), cardio becomes
  * its form, and a draft survives a reload on this phone. A set saved untouched
  * goes out marked `asPlanned`, and RPE is never prefilled: the coach only sees
- * effort the client reported.
+ * effort the client reported. Movement prep is a checklist, never rows: the
+ * one-tap save writes main sets only.
  */
 
 export interface PortalRow extends SheetRow {
@@ -44,9 +45,9 @@ export function prescriptionOfPortal(ps: PortalSet): Prescription {
 
 const cell = (v: number | null) => (v == null ? "" : v);
 
-/** Rows for a exercise session, in prescribed order, prefilled as prescribed. */
+/** Rows for a exercise session's main work, in prescribed order, prefilled as prescribed (prep is a checklist). */
 export function rowsOfSession(session: PortalSession): PortalRow[] {
-  return session.exercises.flatMap((e) =>
+  return mainWork(session.exercises).flatMap((e) =>
     e.prescribedSets.map((ps) => {
       const rx = prescriptionOfPortal(ps);
       const bodyweight = e.bodyweight ?? false;
@@ -133,6 +134,23 @@ export interface PortalLogForm {
   flags: ExerciseFlags;
   /** When the client first changed anything (ISO), for the session's duration. */
   startedAt?: string | null;
+  /** Movement-prep items ticked (program-exercise ids). */
+  prepDone?: string[];
+}
+
+/** The session's prep items ticked in `done`, in session order (stale ids dropped). */
+export function prepTicked(session: Pick<PortalSession, "exercises">, done: readonly string[] | undefined): string[] {
+  const on = new Set(done ?? []);
+  return movementPrep(session.exercises).map((e) => e.id).filter((id) => on.has(id));
+}
+
+/** "Save · 12 sets · prep 3/4" parts: main sets the save writes, prep ticked of all. Null prep = the session has none. */
+export function saveSummary(session: PortalSession, f: Pick<PortalLogForm, "rows" | "prepDone">): { sets: number; prep: { done: number; total: number } | null } {
+  const total = movementPrep(session.exercises).length;
+  return {
+    sets: session.kind === "cardio" ? 0 : rowsToSave([...f.rows]).length,
+    prep: total > 0 && session.kind !== "cardio" ? { done: prepTicked(session, f.prepDone).length, total } : null,
+  };
 }
 
 /** Under this, the form was filled in after the session, not during it. */
@@ -195,7 +213,11 @@ export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace
   if (missing.length > 0) return { error: "kg", sets: missing.length, programExerciseId: missing[0].programExerciseId };
   // pain and whole-exercise skips: the same flags the trainer's sheet sends, so the pain signal fires
   const flags = sessionFlags(f.rows, f.flags ?? {});
-  return { input: { ...base, kind: "exercises", sets: saved.map(portalSet), ...(flags.length ? { flags } : {}) }, sets: saved.length };
+  const prepDone = prepTicked(session, f.prepDone);
+  return {
+    input: { ...base, kind: "exercises", sets: saved.map(portalSet), ...(flags.length ? { flags } : {}), ...(prepDone.length ? { prepDone } : {}) },
+    sets: saved.length,
+  };
 }
 
 /** Untouched since the page opened it: still on the prefilled kg and reps, no RPE given. */
@@ -220,7 +242,7 @@ export function defaultLogDate(session: Pick<PortalSession, "weekday">, weekStar
 
 export function formOfSession(session: PortalSession, today: string): PortalLogForm {
   const entry = session.log?.loggedBy === "client" ? session.log.entry : undefined;
-  if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today, flags: {} };
+  if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today, flags: {}, prepDone: [] };
   let rows = session.kind === "cardio" ? rowsOfSession(session) : rowsOfEntry(session, entry);
   const flags: ExerciseFlags = {};
   for (const fl of entry.flags ?? []) {
@@ -236,6 +258,8 @@ export function formOfSession(session: PortalSession, today: string): PortalLogF
     readiness: parseReadiness({ energy: entry.perceivedEnergy, readiness: entry.readiness }),
     notes: entry.notes ?? "",
     date: session.log?.date ?? today,
+    // an older log with sets on a slot that's prep now reopens as that item ticked
+    prepDone: prepTicked(session, [...(entry.prepDone ?? []), ...entry.sets.flatMap((s) => (s.programExerciseId ? [s.programExerciseId] : []))]),
   };
 }
 
@@ -271,6 +295,7 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCa
     notes: d.notes,
     date: d.date,
     readiness: parseReadiness({ energy: r.energy, readiness: r }),
+    prepDone: Array.isArray(d.prepDone) ? d.prepDone.filter((x): x is string => typeof x === "string") : [],
   };
 }
 
@@ -284,7 +309,7 @@ const rowSig = (r: PortalRow) => [r.key, r.timed ? "" : r.load, String(r.weight)
 export function sameForm(a: PortalLogForm, b: PortalLogForm): boolean {
   const sig = (f: PortalLogForm) => {
     const flags = Object.entries(f.flags ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, v.kind, v.note.trim()]);
-    return JSON.stringify([f.rows.map(rowSig), f.cardio, f.readiness, f.notes.trim(), f.date, flags]);
+    return JSON.stringify([f.rows.map(rowSig), f.cardio, f.readiness, f.notes.trim(), f.date, flags, [...(f.prepDone ?? [])].sort()]);
   };
   return sig(a) === sig(b);
 }

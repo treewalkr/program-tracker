@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { blockOf, mainWork, moveToBlock, orderByBlock, sessionBlocks } from "./blocks";
+import { blockOf, mainWork, moveToBlock, orderByBlock, prepTag, sessionBlocks } from "./blocks";
 import { DraftExerciseRef } from "./ai";
 import { deloadWeek } from "./deload";
 import { blockIssues, ProgramSession, sessionsPatternBalance, sortExercisesByRole, type ProgramWeek } from "./domain";
@@ -44,6 +44,15 @@ describe("sessionBlocks / mainWork", () => {
     expect(ids(v.movementPrep)).toBe("a,b");
     expect(ids(v.mainWork)).toBe("c,d");
     expect(ids(mainWork(list))).toBe("c,d");
+  });
+});
+
+describe("prepTag", () => {
+  test("ticked of the session's prep items; none without prep", () => {
+    const list = [ex("p1", { block: "prep" }), ex("p2", { role: "movement_prep" }), ex("m1")];
+    expect(prepTag(list, ["p2", "m1", "gone"])).toBe("Prep 1/2");
+    expect(prepTag([ex("m1")], [])).toBeNull();
+    expect(prepTag(null, null)).toBeNull();
   });
 });
 

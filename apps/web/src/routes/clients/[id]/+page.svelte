@@ -885,7 +885,7 @@
                         <Icon name="flag" size={11} />{s.pain ? "Pain" : s.flags.length === 1 ? "1 flag" : `${s.flags.length} flags`}
                       </span>
                     {/if}
-                    <span class="sess-count subtle">{s.kind === "cardio" ? "cardio" : `${s.setCount} ${s.setCount === 1 ? "set" : "sets"}`}{#if s.duration}<span class="tnum" title="First entry to Save, timed in the portal"> · {s.duration}</span>{/if}</span>
+                    <span class="sess-count subtle">{s.kind === "cardio" ? "cardio" : `${s.setCount} ${s.setCount === 1 ? "set" : "sets"}${s.prep ? ` · ${s.prep}` : ""}`}{#if s.duration}<span class="tnum" title="First entry to Save, timed in the portal"> · {s.duration}</span>{/if}</span>
                   </button>
                   <a class="sess-prog" href="/programs/{s.programId}" title="Open {s.programName}">{s.programName}</a>
                 </div>

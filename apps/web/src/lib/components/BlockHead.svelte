@@ -12,10 +12,13 @@
   let {
     block,
     tag,
+    label,
     children,
   }: {
     block: SessionBlock;
     tag?: string | null;
+    /** The block's name in another language (the portal); defaults to the English one. */
+    label?: string;
     children?: Snippet;
   } = $props();
 
@@ -23,7 +26,7 @@
 </script>
 
 <div class="block-head" data-block={block}>
-  <span class="name">{SESSION_BLOCK_NAMES[block]}</span>
+  <span class="name">{label ?? SESSION_BLOCK_NAMES[block]}</span>
   {#if text}<Pill tone={block === "main" && tag === undefined ? "good" : "neutral"}>{text}</Pill>{/if}
   {#if children}<span class="end">{@render children()}</span>{/if}
 </div>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { page } from "$app/state";
-  import { addDays, groupKind, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
+  import { addDays, groupKind, localDateOf, modalityMetric, movementPrep, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
   import { blocksOf, roundBreaks, roundOrder, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type RoundBreak, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
@@ -9,6 +9,7 @@
   import LoadCell, { type LoadCellText } from "$lib/components/LoadCell.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
+  import PrepChecklist from "$lib/components/log/PrepChecklist.svelte";
   import { cardioLogOf, type CardioFormError } from "$lib/cardioForm";
   import type { MessageKey } from "$lib/portal/messages";
   import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
@@ -28,6 +29,7 @@
     portalWeekCacheJson,
     PORTAL_WEEK_CACHE_KEY,
     sameForm,
+    saveSummary,
     setLoad,
     setsMissingKg,
     touchedExercises,
@@ -62,6 +64,8 @@
   let readiness = $state<ReadinessForm>({ ...EMPTY_READINESS });
   let notes = $state("");
   let flags = $state<ExerciseFlags>({});
+  /** Movement-prep items ticked: a checklist, never sets. */
+  let prepDone = $state<string[]>([]);
   /** The first change to the form (ISO): Save minus this is how long the session took. */
   let startedAt = $state<string | null>(null);
   /** A skipped exercise's rows as they were, so Undo skip brings back what was typed. */
@@ -81,7 +85,7 @@
   let kgChecked = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
-  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean; pain: boolean } | null>(null);
+  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean; pain: boolean; prep?: { done: number; total: number } | null } | null>(null);
   let undoing = $state(false);
   let undone = $state(false);
 
@@ -125,6 +129,21 @@
   });
   /** Every exercise on a card, as the Next button names it: "SkiErg + Wall Ball". */
   const blockName = (b: { memberIds: string[] }) => b.memberIds.map((id) => exerciseOf(id)?.exerciseName ?? "").join(" + ");
+  /** Movement prep: a checklist above the main sets, never counted. */
+  const prepItems = $derived(
+    session && !cardioSession
+      ? movementPrep(session.exercises).map((e) => ({ id: e.id, name: e.exerciseName, rx: setParts(e.prescribedSets, t)[0], lang: latinLang(e.exerciseName) }))
+      : [],
+  );
+  /** "Save · 12 sets · prep 3/4" on a session with prep; the plain label otherwise. */
+  const summary = $derived(session ? saveSummary(session, { rows, prepDone }) : null);
+  const saveLabel = $derived(
+    summary?.prep
+      ? summary.sets === 0
+        ? t("log.needMain")
+        : t("log.saveWithPrep", { n: summary.sets, done: summary.prep.done, total: summary.prep.total })
+      : t("log.save"),
+  );
   /** The rest this exercise prescribes (a superset: its first member's), for the timer. */
   const blockRest = $derived(block ? restOf(block.memberIds.flatMap((id) => exerciseOf(id)?.prescribedSets ?? [])) : null);
   // never before the week (the server refuses it), never in the future
@@ -138,6 +157,7 @@
     readiness = f.readiness;
     notes = f.notes;
     flags = f.flags;
+    prepDone = f.prepDone ?? [];
     startedAt = null;
     beforeSkip = {};
     date = f.date;
@@ -189,6 +209,7 @@
       readiness = draft.readiness;
       notes = draft.notes;
       flags = draft.flags;
+      prepDone = draft.prepDone ?? [];
       startedAt = draft.startedAt ?? null;
       date = draft.date >= minDate && draft.date <= maxDate ? draft.date : freshForm(s).date;
       restored = true;
@@ -213,7 +234,7 @@
   // Autosave the half-filled form on this phone; a save or "start over" clears it.
   $effect(() => {
     if (loadState !== "ready" || !session || saved || byCoach) return;
-    const form = { rows, cardio, readiness, notes, date, flags, startedAt };
+    const form = { rows, cardio, readiness, notes, date, flags, startedAt, prepDone };
     // untouched prefill is not a draft: write nothing until the first real edit
     const dirty = !sameForm(form, freshForm(session));
     if (dirty && !startedAt) startedAt = new Date().toISOString();
@@ -303,7 +324,7 @@
     if (!session || saving) return;
     error = null;
     cardioProblem = null;
-    const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags, startedAt }, byYou);
+    const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags, startedAt, prepDone }, byYou);
     if ("error" in built) {
       if (built.error === "kg") {
         kgChecked = true;
@@ -311,7 +332,7 @@
         return;
       }
       if (built.error === "nothing") {
-        error = t("log.nothing");
+        error = summary?.prep ? t("log.needMain") : t("log.nothing");
         return;
       }
       cardioProblem = built.error === "activity" ? "modality" : built.error;
@@ -322,7 +343,7 @@
     try {
       const log = await portalApi.log(built.input);
       localStorage.removeItem(portalDraftKey(session.id));
-      saved = { log, sets: built.sets, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
+      saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
       undone = false;
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -519,7 +540,7 @@
         <span class="tick" aria-hidden="true"><Icon name="check" /></span>
         <h1>{t("log.saved")}</h1>
       {/if}
-      <p class="recap-line">{session.name} · {savedLine} · {fmtDay(saved.log.date)}</p>
+      <p class="recap-line">{session.name} · {savedLine}{#if saved.prep} · {t("log.prepRecap", { done: saved.prep.done, total: saved.prep.total })}{/if} · {fmtDay(saved.log.date)}</p>
       {#if saved.pain}<p class="safety" role="note">{t("cardio.painSafety")}</p>{/if}
       {#if after}
         <div class="week-now">
@@ -587,8 +608,12 @@
         <ReadinessStrip bind:value={readiness} variant="touch" text={readinessText} />
       </details>
 
+      {#if prepItems.length > 0}
+        <PrepChecklist items={prepItems} bind:done={prepDone} variant="touch" title={t("log.prep")} tag={t("log.prepTag")} />
+      {/if}
+
       {#if !cardioSession && block}
-        <p class="warmups">{t("log.warmups")}</p>
+        <p class="warmups">{prepItems.length > 0 ? t("log.mainWork") : t("log.warmups")}</p>
       {/if}
 
       {#if cardioSession}
@@ -736,7 +761,7 @@
             </button>
           {:else if error}<p class="err">{error}</p>{/if}
         </div>
-        <button type="submit" class="btn primary save" disabled={saving}>{saving ? t("log.saving") : t("log.save")}</button>
+        <button type="submit" class="btn primary save" disabled={saving || (!!summary?.prep && summary.sets === 0)}>{saving ? t("log.saving") : saveLabel}</button>
       </div>
     {/if}
   </form>

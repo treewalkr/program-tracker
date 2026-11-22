@@ -102,3 +102,14 @@ export function logPrepCheck(
   const done = new Set(ticked ?? []);
   return { prepSets, prepDone: prepIds.filter((id) => done.has(id)) };
 }
+
+/** "Prep 3/4" on a logged session: ticked of the session's prep items; null when it has none. */
+export function prepTag(
+  exercises: readonly (Blockable & { id: string })[] | null | undefined,
+  prepDone: readonly string[] | null | undefined
+): string | null {
+  const prep = movementPrep(exercises ?? []);
+  if (prep.length === 0) return null;
+  const done = new Set(prepDone ?? []);
+  return `Prep ${prep.filter((e) => done.has(e.id)).length}/${prep.length}`;
+}

@@ -171,6 +171,22 @@ describe("sessionsByWeek", () => {
     expect(weekLabel("2026-10-19")).toBe("Week of 19 Oct");
   });
 
+  test("a session with movement prep shows Prep n/m from the logged snapshot", () => {
+    const prepped = structuredClone(program);
+    const s1 = prepped.weeks[0].sessions[0];
+    s1.exercises = [{ id: "e-band", exerciseId: "band", block: "prep", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 10, amrap: false }] }, ...s1.exercises.map((e) => ({ ...e, order: e.order + 1 }))];
+    const [week] = sessionsByWeek(
+      [
+        log({ programSessionId: "s1", sets: [set("bench", 45, 5)], prepDone: ["e-band"], prescription: { programVersion: 1, session: s1 } }),
+        log({ programSessionId: "s1", date: "2026-10-20", sets: [set("bench", 45, 5)] }),
+      ],
+      [prepped],
+      nameOf,
+    );
+    expect(week.sessions.map((s) => s.prep)).toEqual(["Prep 0/1", "Prep 1/1"]);
+    expect(sessionsByWeek([log({ programSessionId: "s1", sets: [set("bench", 45, 5)] })], [program], nameOf)[0].sessions[0].prep).toBeNull();
+  });
+
   test("a session the client timed in the portal shows how long it took", () => {
     const [week] = sessionsByWeek([log({ sets: [set("bench", 45, 5)], durationMin: 52 }), log({ date: "2026-10-20", sets: [set("bench", 45, 5)] })], [program], nameOf);
     expect(week.sessions.map((s) => s.duration)).toEqual([null, "52 min"]);

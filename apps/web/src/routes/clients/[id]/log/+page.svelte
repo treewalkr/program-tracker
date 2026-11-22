@@ -23,7 +23,7 @@
     type SessionLogDto,
     type SessionLogInput,
   } from "$lib/api/types";
-  import { groupKind, logToInput, oneRepMaxKg, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
+  import { groupKind, logToInput, mainWork, movementPrep, oneRepMaxKg, prepTag, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { chipFor, coachSheet, historySets, suggestionNote, type Suggestion } from "$lib/logCoach";
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
@@ -35,6 +35,7 @@
   import Field from "$lib/ui/Field.svelte";
   import ReadinessStrip from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm from "$lib/components/log/CardioLogForm.svelte";
+  import PrepChecklist from "$lib/components/log/PrepChecklist.svelte";
   import {
     asPrescribedForm,
     CARDIO_FORM_ERROR,
@@ -165,6 +166,8 @@
   let readinessOpen = $state(false);
   /** programExerciseId → its Pain / Technique flag. */
   let flags = $state<ExerciseFlags>({});
+  /** Movement prep ticked on this log (program-exercise ids). */
+  let prepDone = $state<string[]>([]);
   /** Slot whose flag menu is open. */
   let flagOpen = $state<string | null>(null);
   let notes = $state("");
@@ -302,8 +305,9 @@
   function freshRows(): Row[] {
     const session = weekSessionsList.find((ws) => ws.id === sessionId)?.session;
     // a superset's sets run round by round: A1 set 1, A2 set 1, A1 set 2…
+    // movement prep is a checklist above the sheet, never rows: a save never writes prep sets
     return roundOrder(
-      session?.exercises.flatMap((e) =>
+      mainWork(session?.exercises ?? []).flatMap((e) =>
         e.prescribedSets.map((ps): Row => {
           const rx: Prescription = prescriptionOf(ps, oneRepMaxKg(client?.oneRepMaxes, e.exerciseId));
           const last = lastSets.get(`${slots.get(e.id)}#${ps.setNumber}`) ?? null;
@@ -326,8 +330,21 @@
             ...(e.group ? { group: e.group } : {}),
           };
         })
-      ) ?? []
+      )
     );
+  }
+
+  const prepItems = $derived(
+    selectedSession && !isCardioSession
+      ? movementPrep(selectedSession.exercises).map((e) => ({ id: e.id, name: e.exerciseName ?? nameOf(e.exerciseId), rx: setsLine(e.prescribedSets) }))
+      : []
+  );
+  /** "2 × 10", "1 × 3:00" — the prep item's sets at a glance. */
+  function setsLine(sets: readonly { reps: number; durationSeconds?: number | null }[]): string {
+    const first = sets[0];
+    if (!first) return "";
+    const each = first.durationSeconds != null ? `${Math.floor(first.durationSeconds / 60)}:${String(first.durationSeconds % 60).padStart(2, "0")}` : String(first.reps);
+    return `${sets.length} × ${each}`;
   }
 
   /** Reset the sheet to the selected session — or to its draft, when one was left on this device. */
@@ -345,6 +362,7 @@
     notes = "";
     readiness = { ...EMPTY_READINESS };
     flags = {};
+    prepDone = [];
     flagOpen = null;
     if (!program || !sessionId) {
       rows = [];
@@ -375,6 +393,7 @@
       notes = draft.notes;
       readiness = draft.readiness;
       flags = draft.flags;
+      prepDone = draft.prepDone ?? [];
       date = draft.date;
       draftSavedAt = draft.savedAt;
     } else {
@@ -385,7 +404,7 @@
   // ---- Drafts: the sheet is kept on this device until it's saved or discarded ----
 
   let draftSavedAt = $state<string | null>(null);
-  const dirty = $derived(isDirty(rows, notes, readiness, flags));
+  const dirty = $derived(isDirty(rows, notes, readiness, flags) || prepDone.length > 0);
 
   // Cardio sessions keep a draft too: the form, notes, readiness and date.
   $effect(() => {
@@ -428,7 +447,7 @@
       return;
     }
     // Stringifying reads every cell, so any edit re-runs this.
-    const body = draftJson({ rows, notes, readiness, flags, date, savedAt: new Date().toISOString() });
+    const body = draftJson({ rows, notes, readiness, flags, prepDone, date, savedAt: new Date().toISOString() });
     try {
       localStorage.setItem(key, body);
     } catch {
@@ -601,6 +620,7 @@
     notes: string;
     readiness: ReadinessForm;
     flags: ExerciseFlags;
+    prepDone: string[];
     date: string;
     cardio: CardioForm;
   }
@@ -644,6 +664,7 @@
       notes,
       readiness: $state.snapshot(readiness),
       flags: $state.snapshot(flags),
+      prepDone: [...prepDone],
       date,
       cardio: $state.snapshot(cardioForm),
     };
@@ -662,6 +683,7 @@
         // Skips and their reasons travel as flags; the notes are the trainer's own words.
         flags: sessionFlags(sheetRows, flags),
         notes: notes.trim() || undefined,
+        ...(prepDone.length ? { prepDone: [...prepDone] } : {}),
         sets: sent.map(toLoggedSet),
       },
       sent,
@@ -743,7 +765,8 @@
     if (p.sent === null && p.input.cardio?.skipped) return { title: `${name} noted as not done`, counts: "doesn't count toward this week's cardio, and isn't missed", notes: replaced };
     if (p.sent === null) return { title: `${name} logged`, counts: "counts toward this week's cardio", notes: replaced };
     const r = saveRecap(p.snapshot.rows.map(asSent), p.snapshot.flags);
-    return { title: `${name} logged`, counts: recapCounts(r), notes: [...recapNotes(r, nameOf), ...replaced] };
+    const prep = prepTag(selectedSession?.exercises, p.snapshot.prepDone);
+    return { title: `${name} logged`, counts: `${recapCounts(r)}${prep ? ` · ${prep}` : ""}`, notes: [...recapNotes(r, nameOf), ...replaced] };
   }
 
   /** Who's next today: every active client's week, read like the overview reads it. */
@@ -998,6 +1021,7 @@
       notes = u.snapshot.notes;
       readiness = u.snapshot.readiness;
       flags = u.snapshot.flags;
+      prepDone = u.snapshot.prepDone;
       date = u.snapshot.date;
       cardioForm = u.snapshot.cardio;
       pastLogs = await api.sessionLogs(id).catch(() => pastLogs);
@@ -1404,6 +1428,9 @@
         </div>
         {@render saveBar(cardioForm.skipped ? "not done — doesn't count, isn't missed" : "cardio session — counts toward the weekly target")}
       {:else}
+      {#if prepItems.length > 0}
+        <PrepChecklist items={prepItems} bind:done={prepDone} />
+      {/if}
       <div class="sheet" id="log-sheet">
         {#if blocks.length > 1}
           <nav class="pager" aria-label="Exercises in this session">

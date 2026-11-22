@@ -1,6 +1,6 @@
 import type { WeightUnit } from "@pt/shared";
 import { showWeight, weightUnit } from "./units.svelte";
-import { estimate1rm, mainLiftIds, sessionTag, timedExerciseIds, timedSlotIds } from "@pt/shared";
+import { estimate1rm, mainLiftIds, prepTag, sessionTag, timedExerciseIds, timedSlotIds } from "@pt/shared";
 import type { ProgramDto, SessionLogDto } from "./api/types";
 import { logDateLabel, loggedSetLabel } from "./programLogs";
 import { cardioLine } from "./cardioLine";
@@ -126,6 +126,8 @@ export interface SessionRow {
   programName: string;
   kind: SessionLogDto["kind"];
   setCount: number;
+  /** "Prep 3/4": movement prep ticked of the session's items; null when the session had none. */
+  prep: string | null;
   /** Sets per exercise, in the order first logged. */
   exercises: { exerciseId: string; name: string; sets: string[] }[];
   /** "Run · 35 min · Z2 · 5.5 km" for a cardio log; null otherwise. */
@@ -170,8 +172,14 @@ export function sessionsByWeek(
   const isTimed = timedSetTest(programs);
   const programById = new Map(programs.map((p) => [p.id, p]));
   const sessionName = new Map<string, string>();
+  const sessionExercises = new Map<string, ProgramDto["weeks"][number]["sessions"][number]["exercises"]>();
   for (const p of programs) {
-    for (const w of p.weeks) for (const s of w.sessions) sessionName.set(`${p.id}:${s.id}`, s.name || sessionTag(s));
+    for (const w of p.weeks) {
+      for (const s of w.sessions) {
+        sessionName.set(`${p.id}:${s.id}`, s.name || sessionTag(s));
+        sessionExercises.set(`${p.id}:${s.id}`, s.exercises);
+      }
+    }
   }
 
   const ordered = logs
@@ -200,6 +208,11 @@ export function sessionsByWeek(
       programName: programById.get(l.programId)?.name ?? "Program",
       kind: l.kind,
       setCount: l.sets.length,
+      // the session as it was logged (the snapshot), else as it is now
+      prep:
+        l.kind === "cardio" || !l.programSessionId
+          ? null
+          : prepTag(l.prescription?.session.exercises ?? sessionExercises.get(`${l.programId}:${l.programSessionId}`), l.prepDone),
       exercises,
       cardio: l.kind === "cardio" && l.cardio ? cardioLine(l.cardio) : null,
       notes: l.notes || null,

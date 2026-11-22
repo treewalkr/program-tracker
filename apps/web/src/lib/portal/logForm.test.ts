@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
+import { buildPortalLog, cachedSession, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -452,5 +452,48 @@ describe("bodyweight or load: each set's load cell", () => {
     const rows = formOfSession(saved, "2026-11-16").rows;
     expect(loads(rows.filter((r) => !r.skipped))).toEqual(["pa:1=bw", "pa:2=kg", "pc:1=kg"]);
     expect(formOfSession({ ...exerciseSession, log: { id: "l1", loggedBy: "client", date: "2026-11-15", entry: { sets: [{ programExerciseId: "pe2", exerciseId: "ex-plank", setNumber: 1, type: "working", weightKg: null, reps: 45, rpe: null, asPlanned: true }], cardio: null, notes: null, perceivedEnergy: null, readiness: null, flags: null } } }, "2026-11-16").rows.at(-1)?.load).toBe("kg");
+  });
+});
+
+describe("movement prep on the portal log", () => {
+  const withPrep: PortalSession = {
+    ...exerciseSession,
+    id: "ps9",
+    exercises: [
+      { id: "pp1", exerciseId: "ex-bike", exerciseName: "Easy bike", order: 0, block: "prep", prescribedSets: [{ setNumber: 1, type: "working", reps: 0, amrap: false, durationSeconds: 180, targetWeightKg: null }] },
+      { id: "pp2", exerciseId: "ex-bridge", exerciseName: "Glute bridge", order: 1, block: "prep", prescribedSets: [{ setNumber: 1, type: "working", reps: 10, amrap: false, targetWeightKg: null }] },
+      ...exerciseSession.exercises.map((e, i) => ({ ...e, order: i + 2 })),
+    ],
+  };
+
+  test("the one-tap save never writes prep: rows are main work only", () => {
+    const built = buildPortalLog(withPrep, form(withPrep), false);
+    if (!("input" in built)) throw new Error("expected a payload");
+    expect(built.input.sets.map((s) => s.programExerciseId)).toEqual(["pe1", "pe1", "pe2"]);
+    expect(built.input.prepDone).toBeUndefined();
+  });
+
+  test("ticks go out with the log, stale ids dropped; the save line counts both", () => {
+    const f = form(withPrep, { prepDone: ["pp2", "gone", "pe1"] });
+    const built = buildPortalLog(withPrep, f, false);
+    if (!("input" in built)) throw new Error("expected a payload");
+    expect(built.input.prepDone).toEqual(["pp2"]);
+    expect(saveSummary(withPrep, f)).toEqual({ sets: 3, prep: { done: 1, total: 2 } });
+    expect(saveSummary(exerciseSession, form(exerciseSession)).prep).toBeNull();
+  });
+
+  test("prep alone is not a session", () => {
+    const f = form(withPrep, { prepDone: ["pp1", "pp2"], rows: rowsOfSession(withPrep).map((r) => ({ ...r, skipped: true })) });
+    expect(buildPortalLog(withPrep, f, false)).toEqual({ error: "nothing" });
+    expect(saveSummary(withPrep, f).sets).toBe(0);
+  });
+
+  test("reopening a saved log brings back its ticks, and a draft keeps them", () => {
+    const entry = { sets: [], cardio: null, notes: null, perceivedEnergy: null, readiness: null, flags: null, prepDone: ["pp1"] };
+    const opened = formOfSession({ ...withPrep, log: { id: "l", loggedBy: "client", date: "2026-11-16", entry } }, "2026-11-16");
+    expect(opened.prepDone).toEqual(["pp1"]);
+    const draft = parsePortalDraft(portalDraftJson(form(withPrep, { prepDone: ["pp2"] })), rowsOfSession(withPrep));
+    expect(draft?.prepDone).toEqual(["pp2"]);
+    expect(sameForm(form(withPrep, { prepDone: [] }), form(withPrep, { prepDone: ["pp2"] }))).toBe(false);
   });
 });

@@ -716,8 +716,8 @@ export const trainerProgram: ProgramDto = {
           {
             id: "ps-nat-2", name: "Chest / Triceps", order: 0,
             exercises: [
-              { id: "pe-nat-9", exerciseId: "ex-cheststretch", order: 0, prescribedSets: timed(2, 12), notes: "PAILs/RAILs" },
-              { id: "pe-nat-10", exerciseId: "ex-cars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
+              { id: "pe-nat-9", block: "prep", exerciseId: "ex-cheststretch", order: 0, prescribedSets: timed(2, 12), notes: "PAILs/RAILs" },
+              { id: "pe-nat-10", block: "prep", exerciseId: "ex-cars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
               { id: "pe-nat-11", exerciseId: "ex-extrot", order: 2, prescribedSets: many(3, 10), notes: "2–3 sets" },
               { id: "pe-nat-12", exerciseId: "ex-cgmp", order: 3, prescribedSets: range(3, 6, 10), notes: "Asymmetrical load" },
               { id: "pe-nat-13", exerciseId: "ex-bench", order: 4, prescribedSets: many(4, 12) },
@@ -739,8 +739,8 @@ export const trainerProgram: ProgramDto = {
           {
             id: "ps-nat-3", name: "Lower", order: 0,
             exercises: [
-              { id: "pe-nat-17", exerciseId: "ex-hipflex", order: 0, prescribedSets: timed(2, 12) },
-              { id: "pe-nat-18", exerciseId: "ex-hipcars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
+              { id: "pe-nat-17", block: "prep", exerciseId: "ex-hipflex", order: 0, prescribedSets: timed(2, 12) },
+              { id: "pe-nat-18", block: "prep", exerciseId: "ex-hipcars", order: 1, prescribedSets: range(2, 3, 5), notes: "Rounds" },
               { id: "pe-nat-19", exerciseId: "ex-kbdlsq", order: 2, prescribedSets: many(3, 10) },
               { id: "pe-nat-20", exerciseId: "ex-kbswing", order: 3, prescribedSets: timed(3, 60) },
               { id: "pe-nat-21", exerciseId: "ex-dead", order: 4, prescribedSets: many(4, 10) },
