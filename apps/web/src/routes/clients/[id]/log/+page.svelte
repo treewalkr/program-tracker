@@ -1272,7 +1272,7 @@
       {/snippet}
       <div class="sheet">
         <div class="cols">
-          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">{weightUnit()}</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r f">{weightUnit()}</span><span class="r f">Reps</span><span class="r f">RPE</span><span></span>
         </div>
       </div>
       <div class="panel-body foot">
@@ -1433,7 +1433,7 @@
         {/if}
 
         <div class="cols" aria-hidden="true">
-          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">{weightUnit()}</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r f">{weightUnit()}</span><span class="r f">Reps</span><span class="r f">RPE</span><span></span>
         </div>
 
         {#snippet exHead(b: { programExerciseId: string; rows: Row[] }, tag: string | null)}
@@ -1863,6 +1863,8 @@
     color: var(--muted);
   }
   .cols .r { text-align: right; }
+  /* over a field, the head lines up with the number, not the box: the input's padding and border in */
+  .cols .f { padding-right: 9px; }
 
   .block + .block { border-top: 1px solid var(--line); }
   .blk-head {
@@ -1893,13 +1895,14 @@
     background: var(--well);
   }
   .round-div + :global(.set) { border-top: none; }
+  /* a group row names its exercise: words in the UI face, the whole name while the column has room */
   .m-who {
-    display: inline-block;
-    max-width: 14ch;
+    flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    vertical-align: bottom;
+    font: 500 13px/1.3 var(--font-ui);
     color: var(--ink);
     margin-right: 6px;
   }
@@ -2003,7 +2006,7 @@
   .m-set { display: flex; align-items: baseline; gap: 6px; }
   .tag { font: 500 11px/1.2 var(--font-ui); color: var(--muted); }
   .extra .tag { color: var(--blue); }
-  .m-rx { color: var(--muted); font-size: 12px; }
+  .m-rx { display: flex; align-items: baseline; min-width: 0; color: var(--muted); font-size: 12px; }
   .m-last { color: var(--faint); font-size: 12px; text-align: right; }
   .mob { display: none; }
 
