@@ -86,7 +86,7 @@ const en: ProgramsGuide = {
           p: "In the portal the member sees each interval with its zone in bpm. *Log it* opens a short form: time taken and how hard the whole session felt (RPE) are required; distance, average and max heart rate, pain and a note are optional. Per-interval results and calories are folded away.",
         },
         {
-          p: "The form works out pace and session load as they type. *I didn't do it today* records a skip with a reason, so the session isn't counted as missed.",
+          p: "The form works out pace and session load as they type. *I didn't do this one* records a skip with a reason, so the session isn't counted as missed.",
         },
       ],
     },
@@ -213,7 +213,7 @@ const th: ProgramsGuide = {
           p: "ในพอร์ทัล เมมเบอร์เห็นแต่ละช่วงพร้อมโซนเป็น bpm ปุ่ม *กรอกผล* เปิดฟอร์มสั้น ๆ ที่ต้องกรอกคือเวลาที่ใช้กับความเหนื่อยทั้งเซสชัน (RPE) ส่วนระยะทาง ชีพจรเฉลี่ย ชีพจรสูงสุด อาการเจ็บ และข้อความถึงโค้ชไม่บังคับ ผลแยกรายช่วงกับแคลอรีพับเก็บไว้",
         },
         {
-          p: "ฟอร์มคำนวณเพซกับโหลดให้ระหว่างกรอก ถ้ากด *วันนี้ไม่ได้เล่น* จะบันทึกเป็นการข้ามพร้อมเหตุผล เซสชันนั้นจึงไม่นับเป็นขาด",
+          p: "ฟอร์มคำนวณเพซกับโหลดให้ระหว่างกรอก ถ้ากด *ครั้งนี้ไม่ได้เล่น* จะบันทึกเป็นการข้ามพร้อมเหตุผล เซสชันนั้นจึงไม่นับเป็นขาด",
         },
       ],
     },

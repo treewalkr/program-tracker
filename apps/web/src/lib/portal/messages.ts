@@ -215,7 +215,7 @@ export const en = {
   "cardio.distance": "Distance",
   "cardio.avgHr": "Avg heart rate",
   "cardio.maxHr": "Max heart rate",
-  "cardio.pain": "Pain or discomfort",
+  "cardio.pain": "I had pain or discomfort",
   "cardio.painNote": "Where, and how bad?",
   "cardio.more": "Each interval and calories (optional)",
   "cardio.calories": "Calories",
@@ -226,7 +226,7 @@ export const en = {
   "cardio.pace": "Pace",
   "cardio.load": "Load",
   "cardio.min": "min",
-  "cardio.skip": "I didn't do it today",
+  "cardio.skip": "I didn't do this one",
   "cardio.skipped": "Not done",
   "cardio.skipReason": "Why?",
   "cardio.undoSkip": "I did it after all",
@@ -246,7 +246,7 @@ export const en = {
   "progress.vo2Test": "Field test",
   "progress.vo2Note": "An estimate from a field test, not a lab measurement. Compare it with the same test over time.",
   "progress.fromCoach": "From your coach · {date}",
-  "progress.reviewed": "Reviewed",
+  "progress.reviewed": "Coach reviewed",
   "progress.recent": "Recent cardio",
   "progress.recentEmpty": "Your cardio sessions show up here once you log them.",
   "progress.skipped": "Not done",
@@ -299,6 +299,7 @@ export const en = {
   "rpe.feel5": "all-out",
   "week.cardio.lead": "{sessions} sessions · {time}",
   "progress.loadExplain": "Load = how hard × minutes. It shows your coach how heavy the week was.",
+  "cardio.notesPlaceholder": "How did it go?",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -512,7 +513,7 @@ export const th: Record<MessageKey, string> = {
   "cardio.distance": "ระยะทาง",
   "cardio.avgHr": "ชีพจรเฉลี่ย",
   "cardio.maxHr": "ชีพจรสูงสุด",
-  "cardio.pain": "เจ็บหรือไม่สบายตรงไหน",
+  "cardio.pain": "มีอาการเจ็บหรือไม่สบาย",
   "cardio.painNote": "ตรงไหน เจ็บแค่ไหน",
   "cardio.more": "ผลแยกรายช่วงและแคลอรี (ไม่บังคับ)",
   "cardio.calories": "แคลอรี",
@@ -523,10 +524,10 @@ export const th: Record<MessageKey, string> = {
   "cardio.pace": "เพซ",
   "cardio.load": "โหลด",
   "cardio.min": "นาที",
-  "cardio.skip": "วันนี้ไม่ได้เล่น",
+  "cardio.skip": "ครั้งนี้ไม่ได้เล่น",
   "cardio.skipped": "ไม่ได้เล่น",
   "cardio.skipReason": "เพราะอะไร",
-  "cardio.undoSkip": "จริง ๆ เล่นแล้ว",
+  "cardio.undoSkip": "ที่จริงเล่นแล้ว",
   "cardio.repOf": "{name} รอบ {rep}/{reps}",
   "week.progressTab": "พัฒนาการ",
   "progress.loading": "กำลังโหลดพัฒนาการ…",
@@ -543,7 +544,7 @@ export const th: Record<MessageKey, string> = {
   "progress.vo2Test": "แบบทดสอบ",
   "progress.vo2Note": "เป็นค่าประมาณจากการทดสอบภาคสนาม ไม่ใช่ผลจากแล็บ เทียบกับแบบทดสอบเดิมจะเห็นแนวโน้มชัดกว่า",
   "progress.fromCoach": "จากโค้ช · {date}",
-  "progress.reviewed": "รีวิวแล้ว",
+  "progress.reviewed": "โค้ชดูแล้ว",
   "progress.recent": "คาร์ดิโอล่าสุด",
   "progress.recentEmpty": "พอบันทึกคาร์ดิโอแล้ว เซสชันจะขึ้นที่นี่",
   "progress.skipped": "ไม่ได้เล่น",
@@ -596,6 +597,7 @@ export const th: Record<MessageKey, string> = {
   "rpe.feel5": "สุดแรง",
   "week.cardio.lead": "{sessions} เซสชัน · {time}",
   "progress.loadExplain": "โหลด = ความเหนื่อย × นาที ใช้ให้โค้ชดูว่าสัปดาห์นี้หนักแค่ไหน",
+  "cardio.notesPlaceholder": "เป็นอย่างไรบ้าง",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };

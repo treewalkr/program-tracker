@@ -66,6 +66,7 @@
 </script>
 
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import type { CardioIntervalType, CardioMetric, DistanceUnit, SkipReason } from "@pt/shared";
   import { distanceUnit, showDistance, storeDistance } from "$lib/units.svelte";
   import { CARDIO_FORM_ERROR, cardioFormCalc, PACE_WORDS_EN, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type IntervalResultRow } from "$lib/cardioForm";
@@ -146,9 +147,11 @@
     /** The modality as shown and typed (the portal shows preset names in Thai); stored names pass through. */
     showModality?: (stored: string) => string;
     storeModality?: (typed: string) => string;
+    /** The page's note field, placed above "I didn't do this one" so it isn't missed. */
+    notes?: Snippet;
   }
 
-  let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null, plannedSec = null, showModality = (m) => m, storeModality = (m) => m }: Props = $props();
+  let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null, plannedSec = null, showModality = (m) => m, storeModality = (m) => m, notes }: Props = $props();
 
   const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits }, errors: { ...ENGLISH.errors, ...given.errors }, rangeWords: { ...ENGLISH.rangeWords, ...given.rangeWords }, paceWords: { ...ENGLISH.paceWords, ...given.paceWords } });
   const errorOf = (e: CardioFormError) => (problem === e ? text.errors[e] : null);
@@ -200,6 +203,7 @@
       <div class="pain-note"><InputField label={text.painNote} bind:value={value.painNote} maxlength={280} optional /></div>
       {#if text.painSafety}<p class="safety" role="note">{text.painSafety}</p>{/if}
     {/if}
+    {@render notes?.()}
   {:else}
     <div class="grid">
       <div class="wide">
@@ -295,6 +299,8 @@
         {/if}
       </div>
     </details>
+
+    {@render notes?.()}
 
     <div class="skip">
       {#if skipping}

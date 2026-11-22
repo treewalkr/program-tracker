@@ -515,7 +515,7 @@
       {/if}
 
       {#if cardioSession}
-        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} showModality={(m) => modalityName(m, i18n.locale)} storeModality={modalityStored} />
+        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} showModality={(m) => modalityName(m, i18n.locale)} storeModality={modalityStored} notes={notesField} />
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">
@@ -647,10 +647,7 @@
         </section>
       {/if}
 
-      <label class="notes">
-        <span class="sub-h">{t("log.notes")}</span>
-        <textarea class="input" rows="3" maxlength="2000" placeholder={t("log.notesPlaceholder")} bind:value={notes}></textarea>
-      </label>
+      {#if !cardioSession}{@render notesField()}{/if}
 
       <div class="savebar">
         <div role="alert" class="alerts">
@@ -665,6 +662,13 @@
     {/if}
   </form>
 {/if}
+
+{#snippet notesField()}
+  <label class="notes">
+    <span class="sub-h">{t("log.notes")}</span>
+    <textarea class="input" rows="3" maxlength="2000" placeholder={cardioSession ? t("cardio.notesPlaceholder") : t("log.notesPlaceholder")} bind:value={notes}></textarea>
+  </label>
+{/snippet}
 
 <style>
   .back {
