@@ -356,6 +356,7 @@
     distanceUnits: { km: t("cardio.km"), mi: t("cardio.mi") },
     errors: Object.fromEntries(Object.entries(CARDIO_ERROR_KEY).map(([k, key]) => [k, t(key)])) as Record<CardioFormError, string>,
     junkTime: t("input.junkTime"),
+    timePlaceholder: t("input.timePlaceholder"),
     rangeWords: { between: t("input.between"), atLeast: t("input.atLeast"), atMost: t("input.atMost") },
     paceWords: { perKm: t("unit.perKm"), perMi: t("unit.perMi"), per500m: t("unit.per500m"), kmh: t("unit.kmh"), mph: t("unit.mph") },
     kcal: t("unit.kcal"),

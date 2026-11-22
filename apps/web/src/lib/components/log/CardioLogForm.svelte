@@ -52,6 +52,8 @@
     errors: Record<CardioFormError, string>;
     /** A time that isn't one ("Type a time like 35:10"). */
     junkTime: string;
+    /** Placeholder in an empty time field ("mm:ss"). */
+    timePlaceholder: string;
     /** A field's own range message. */
     rangeWords: RangeWords;
     /** The pace, split and speed unit words. */
@@ -120,6 +122,7 @@
     distanceUnits: { km: "km", mi: "mi" },
     errors: CARDIO_FORM_ERROR,
     junkTime: "Type a time like 35:10",
+    timePlaceholder: "mm:ss",
     rangeWords: RANGE_WORDS_EN,
     paceWords: PACE_WORDS_EN,
     kcal: "kcal",
@@ -225,7 +228,7 @@
           <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={() => showModality(value.modality), (v) => (value.modality = storeModality(v))} maxlength={80} error={problem === "modality" ? text.modalityError : null} />
         {/if}
       </div>
-      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} junkText={text.junkTime} rangeWords={text.rangeWords} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
+      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} junkText={text.junkTime} placeholder={text.timePlaceholder} rangeWords={text.rangeWords} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
       <div class="lbl-field rpe-field">
         <span class="lbl">{text.rpe}</span>
         <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} block stepWords={text.stepWords} describe={(v) => text.rpeFeel[Math.min(4, Math.floor((v - 1) / 2))]} />
@@ -266,7 +269,7 @@
                   <li class="rep" class:work={row.type === "work"}>
                     <span class="rep-name">{label}</span>
                     <div class="rep-fields">
-                      <InputDuration label={text.time} bind:value={row.durationSec} step={5} junkText={text.junkTime} rangeWords={text.rangeWords} />
+                      <InputDuration label={text.time} bind:value={row.durationSec} step={5} junkText={text.junkTime} placeholder={text.timePlaceholder} rangeWords={text.rangeWords} />
                       <InputUnit rangeWords={text.rangeWords} label={distLabel} unit={distLabel} step={0.1} min={0} bind:value={() => (row.distanceKm == null ? null : showDistance(row.distanceKm)), (v) => (row.distanceKm = v == null ? null : storeDistance(v))} />
                       <InputUnit rangeWords={text.rangeWords} label={text.avgHr} unit="bpm" min={30} max={240} bind:value={row.avgHr} />
                       <InputUnit rangeWords={text.rangeWords} label="RPE" unit="/10" min={1} max={10} bind:value={row.rpe} />
@@ -285,7 +288,7 @@
                     {@const label = rowLabel(row)}
                     <tr class:work={row.type === "work"}>
                       <td>{label}</td>
-                      <td class="r num"><InputDuration label="{text.time} · {label}" bind:value={row.durationSec} cell step={5} junkText={text.junkTime} rangeWords={text.rangeWords} /></td>
+                      <td class="r num"><InputDuration label="{text.time} · {label}" bind:value={row.durationSec} cell step={5} junkText={text.junkTime} placeholder={text.timePlaceholder} rangeWords={text.rangeWords} /></td>
                       <td class="r num"><InputCell label="{distLabel} · {label}" figure value={cellNum(row.distanceKm == null ? null : showDistance(row.distanceKm))} oncommit={(v) => setCell(row, "distanceKm", v)} /></td>
                       <td class="r num"><InputCell label="{text.avgHr} · {label}" figure value={cellNum(row.avgHr)} oncommit={(v) => setCell(row, "avgHr", v)} /></td>
                       <td class="r num"><InputCell label="RPE · {label}" figure value={cellNum(row.rpe)} oncommit={(v) => setCell(row, "rpe", v)} /></td>
