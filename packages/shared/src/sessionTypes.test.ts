@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   SESSION_TYPE_NAME_MAX,
+  cardioDraftType,
   SESSION_TYPE_PRESETS,
   SESSION_TYPE_TAXONOMY,
   groupSessionTypes,
@@ -89,5 +90,23 @@ describe("groupSessionTypes", () => {
     expect(groups[0].row).toBeNull();
     expect(groups[0].subs.map((s) => s.name)).toEqual(["Performance"]);
     expect(custom.map((t) => t.name)).toEqual(["Old"]);
+  });
+});
+
+describe("cardioDraftType", () => {
+  const ab = { id: "ab", name: "Aerobic base", format: "cardio" as const, presetKey: "cardiovascular.aerobic-base" };
+  const ae = { id: "ae", name: "Anaerobic endurance", format: "cardio" as const, presetKey: "cardiovascular.anaerobic-endurance" };
+  const z2 = { id: "z2", name: "Zone 2", format: "cardio" as const };
+  const types = [ab, ae, z2];
+  test("swaps the wrong objective for the effort, fills a missing one, keeps custom types", () => {
+    expect(cardioDraftType(types, ab, "hard")).toBe(ae);
+    expect(cardioDraftType(types, null, "hard")).toBe(ae);
+    expect(cardioDraftType(types, ae, "easy")).toBe(ab);
+    expect(cardioDraftType(types, ab, "long")).toBe(ab);
+    expect(cardioDraftType(types, z2, "hard")).toBe(z2);
+    expect(cardioDraftType(types, null, null)).toBeNull();
+  });
+  test("an archived preset is never picked; the AI's choice stays", () => {
+    expect(cardioDraftType([ab, { ...ae, archivedAt: "2026-01-01" }], ab, "hard")).toBe(ab);
   });
 });

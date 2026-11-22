@@ -1,4 +1,6 @@
 import {
+  cardioDraftType,
+  cardioLoad,
   findSessionType,
   typeFitsKind,
   MAX_SESSIONS_PER_WEEKDAY,
@@ -113,7 +115,9 @@ export function draftTemplateSessions(
     const grouped = normalizeGroups(exercises).map((e, i) => ({ ...e, order: i }));
 
     const kind = isCardio ? ("cardio" as const) : ("exercises" as const);
-    const type = findSessionType(types, s.type);
+    const asked = findSessionType(types, s.type);
+    // a cardio session's objective follows its effort: a tempo is never "Aerobic base"
+    const type = isCardio && s.cardio ? cardioDraftType(types, asked, cardioLoad({ kind, name: s.name, cardio: s.cardio })) : asked;
     return {
       id: crypto.randomUUID(),
       name: s.name,

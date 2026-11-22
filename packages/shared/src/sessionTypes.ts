@@ -142,3 +142,31 @@ export function findSessionType<T extends SessionTypeLike>(types: readonly T[], 
   const key = normalizeTypeName(name).toLowerCase();
   return types.find((t) => t.name.toLowerCase() === key) ?? null;
 }
+
+/** The cardio objective a session's effort calls for (see `cardioLoad` in placement.ts). */
+const CARDIO_OBJECTIVE: Record<"hard" | "easy" | "long", string> = {
+  hard: "cardiovascular.anaerobic-endurance",
+  easy: "cardiovascular.aerobic-base",
+  long: "cardiovascular.aerobic-base",
+};
+
+/**
+ * The type an AI-drafted cardio session gets. The AI's pick stands unless it is
+ * the wrong cardio objective for the session's effort (a tempo labelled
+ * "Aerobic base", an easy run labelled "Anaerobic endurance") or missing; then
+ * the matching built-in sub-type is used when the trainer has it. Custom types
+ * and "Anaerobic power" picks are the trainer's/AI's call and stay.
+ */
+export function cardioDraftType<T extends SessionTypeLike>(
+  types: readonly T[],
+  requested: T | null,
+  load: "hard" | "easy" | "long" | null
+): T | null {
+  if (!load) return requested;
+  const objectiveKeys = new Set(Object.values(CARDIO_OBJECTIVE));
+  const want = CARDIO_OBJECTIVE[load];
+  if (requested && !(requested.presetKey && objectiveKeys.has(requested.presetKey))) return requested;
+  if (requested?.presetKey === want) return requested;
+  const match = types.find((t) => t.presetKey === want && !t.archivedAt);
+  return match ?? requested;
+}

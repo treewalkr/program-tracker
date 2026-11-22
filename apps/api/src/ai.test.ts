@@ -1933,6 +1933,32 @@ describe("session types in AI drafts", () => {
     expect(byName.get("Cardio AMRAP")).toMatchObject({ kind: "cardio", typeId: "t-amrap", typeName: "AMRAP" });
     expect(ProgramWeeksDocument.safeParse(weeks).success).toBe(true);
   });
+
+  test("a cardio session's objective follows its effort: a tempo labelled Aerobic base becomes Anaerobic endurance", () => {
+    const cardioTypes = [
+      { id: "t-ab", name: "Aerobic base", format: "cardio" as const, presetKey: "cardiovascular.aerobic-base" },
+      { id: "t-ae", name: "Anaerobic endurance", format: "cardio" as const, presetKey: "cardiovascular.anaerobic-endurance" },
+      { id: "t-ap", name: "Anaerobic power", format: "cardio" as const, presetKey: "cardiovascular.anaerobic-power" },
+    ];
+    const tempo = { modality: "Running", hrZone: 4, intensity: "tempo", targetRpe: 6, durationMin: 25 };
+    const d: AiProgramDraft = {
+      ...draft,
+      weeks: [{ week: 1, sessions: [
+        { name: "Tempo Run — Threshold", kind: "cardio", type: "Aerobic base", cardio: tempo, exercises: [] },
+        { name: "Track intervals", kind: "cardio", cardio: { modality: "Running", hrZone: 4, durationMin: 30 }, exercises: [] },
+        { name: "Easy run", kind: "cardio", type: "Anaerobic endurance", cardio: { modality: "Running", hrZone: 2, durationMin: 35, targetRpe: 3 }, exercises: [] },
+        { name: "Long run", kind: "cardio", type: "Aerobic base", cardio: { modality: "Running", hrZone: 2, durationMin: 70, targetRpe: 3 }, exercises: [] },
+        { name: "Sprints", kind: "cardio", type: "Anaerobic power", cardio: { modality: "Running", hrZone: 5, durationMin: 20 }, exercises: [] },
+      ] }],
+    };
+    const { weeks } = draftToWeeks(stretch(d, 1), catalog, null, cardioTypes);
+    const typeOf = (n: string) => weeks[0].sessions.find((s) => s.name === n)?.typeName;
+    expect(typeOf("Tempo Run — Threshold")).toBe("Anaerobic endurance");
+    expect(typeOf("Track intervals")).toBe("Anaerobic endurance");
+    expect(typeOf("Easy run")).toBe("Aerobic base");
+    expect(typeOf("Long run")).toBe("Aerobic base");
+    expect(typeOf("Sprints")).toBe("Anaerobic power");
+  });
 });
 
 describe("client PROFILE line", () => {
