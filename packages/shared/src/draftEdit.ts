@@ -10,18 +10,23 @@
  * result looks the same as before is reported as `changed: false` (the UI
  * disables it).
  *
+ * Session blocks: each session lists movement prep first, then main work. A
+ * move or superset stays inside its block; `block` moves rows across; rows
+ * moved to another session land in its main work.
+ *
  * `ref` = { day, slot }, both 1-based, into the draft as stored — the same
  * addressing `diffDrafts` uses. Each op edits one week (`week`, by number;
  * absent = the draft's first week); one request edits one week.
  */
 import { z } from "zod";
 import type { AiProgramDraft, DraftExerciseRef, DraftSession } from "./ai";
+import { blockOf, isPrep, MAX_MAIN_EXERCISES, MAX_PREP_EXERCISES, mainWork, movementPrep, orderByBlock, SESSION_BLOCK_NAMES, SessionBlock } from "./blocks";
 import { sortExercisesByRole, type RoleRank } from "./domain";
 import { exerciseUnits, groupKind, normalizeGroups, withSetCount } from "./groups";
 
 export const DraftRef = z.object({
   day: z.number().int().min(1).max(14),
-  slot: z.number().int().min(1).max(20),
+  slot: z.number().int().min(1).max(MAX_PREP_EXERCISES + MAX_MAIN_EXERCISES),
 });
 export type DraftRef = z.infer<typeof DraftRef>;
 
@@ -37,8 +42,10 @@ export const DraftEditOp = z.discriminatedUnion("op", [
   z.object({ op: z.literal("superset"), ref: DraftRef, with: z.enum(["above", "below"]), week: OpWeek }),
   /** Take a row out of its superset; it lands just after the group. */
   z.object({ op: z.literal("leave"), ref: DraftRef, week: OpWeek }),
-  /** Append rows to the end of a session, out of any superset. */
+  /** Append rows to the end of a session's main work, out of any superset. */
   z.object({ op: z.literal("moveTo"), refs: Refs, day: z.number().int().min(1).max(14), week: OpWeek }),
+  /** Move rows to the end of their session's movement prep or main work, out of any superset. */
+  z.object({ op: z.literal("block"), refs: Refs, to: SessionBlock, week: OpWeek }),
   /** Make the rows (2+, one session) one new superset at the first row's place. */
   z.object({ op: z.literal("group"), refs: Refs.min(2), week: OpWeek }),
   /**
@@ -57,9 +64,11 @@ export const DraftEditOp = z.discriminatedUnion("op", [
               from: DraftRef,
               group: z.string().regex(/^[A-Z]$/).nullable(),
               sets: z.number().int().min(1).max(20),
+              /** The row's stored block; absent = none stored (main, or a legacy prep label). */
+              block: SessionBlock.optional(),
             })
           )
-          .max(20)
+          .max(MAX_PREP_EXERCISES + MAX_MAIN_EXERCISES)
       )
       .min(1)
       .max(14),
@@ -210,12 +219,12 @@ export function shownExerciseOrder<T extends { role?: string | null; group?: str
   labels?: readonly RoleRank[],
   opts: DraftOrderOpts = {}
 ): T[] {
-  return opts.keepOrder ? [...l] : sortExercisesByRole(l, labels);
+  return opts.keepOrder ? orderByBlock(l) : sortExercisesByRole(l, labels);
 }
 
-/** Groups tidied and lettered by appearance, in role order unless the order is the trainer's — what the trainer sees. */
+/** Groups tidied and lettered by appearance, prep first, in role order unless the order is the trainer's — what the trainer sees. */
 function canonicalList<T extends Ex>(l: readonly T[], labels?: readonly RoleRank[], keepOrder = false): T[] {
-  return keepOrder ? normalizeGroups(l) : normalizeGroups(sortExercisesByRole(normalizeGroups(l), labels));
+  return keepOrder ? normalizeGroups(orderByBlock(l)) : normalizeGroups(sortExercisesByRole(normalizeGroups(l), labels));
 }
 
 function strip(e: W): Ex {
@@ -337,7 +346,11 @@ function assertNotEmpty(w: Work) {
     if (w.sessions[d].kind !== "cardio" && l.length === 0) {
       throw new DraftEditError(`${w.tags[d]} would have no exercises`);
     }
-    if (l.length > 20) throw new DraftEditError(`${w.tags[d]} would have more than 20 exercises`);
+    if (l.length > 0 && mainWork(l).length === 0) throw new DraftEditError(`${w.tags[d]} would have no main work`);
+    if (movementPrep(l).length > MAX_PREP_EXERCISES) {
+      throw new DraftEditError(`${w.tags[d]} would have more than ${MAX_PREP_EXERCISES} movement prep exercises`);
+    }
+    if (mainWork(l).length > MAX_MAIN_EXERCISES) throw new DraftEditError(`${w.tags[d]} would have more than ${MAX_MAIN_EXERCISES} exercises`);
   });
 }
 
@@ -363,6 +376,8 @@ function moveOne(l: W[], e: W, dir: -1 | 1, blocked: (x: W) => boolean): boolean
   const units = exerciseUnits(l);
   const ui = units.findIndex((u) => i >= u.start && i < u.start + u.items.length);
   const u = units[ui];
+  // A unit in the other block is a wall: a move stays inside its block.
+  const other = (v: { items: readonly W[] } | undefined) => !!v && blockOf(v.items[0]) !== blockOf(e);
   if (u.group && u.items.length > 1) {
     const j = i + dir;
     if (j >= u.start && j < u.start + u.items.length) {
@@ -371,7 +386,8 @@ function moveOne(l: W[], e: W, dir: -1 | 1, blocked: (x: W) => boolean): boolean
       return true;
     }
     // At the group's edge: out of the group, past the unit beyond it.
-    const beyond = units[ui + dir];
+    const next = units[ui + dir];
+    const beyond = other(next) ? undefined : next;
     if (beyond?.items.some(blocked)) return false;
     l.splice(i, 1);
     ungroup(e);
@@ -380,7 +396,7 @@ function moveOne(l: W[], e: W, dir: -1 | 1, blocked: (x: W) => boolean): boolean
     return true;
   }
   const v = units[ui + dir];
-  if (!v || v.items.some(blocked)) return false;
+  if (!v || other(v) || v.items.some(blocked)) return false;
   l.splice(i, 1);
   l.splice(dir === -1 ? v.start : v.start + v.items.length - 1, 0, e);
   return true;
@@ -417,6 +433,7 @@ function applySuperset(w: Work, ref: DraftRef, side: "above" | "below"): string[
   const n = l[side === "above" ? i - 1 : i + 1];
   if (!n) throw new DraftEditError(`nothing ${side} ${nameOf(e)}`);
   if (e.group && n.group === e.group) throw new DraftEditError(`${nameOf(e)} is already in that superset`);
+  if (blockOf(n) !== blockOf(e)) throw new DraftEditError("a superset stays inside movement prep or main work");
   // Neighbours are adjacent, so joining is only a letter change; the old group may dissolve.
   const g = n.group ?? freshLetter(l);
   n.group = g;
@@ -459,6 +476,7 @@ function applyGroup(w: Work, refs: readonly DraftRef[]): string[] {
   if (picked.length < 2) throw new DraftEditError("pick two or more exercises");
   const { d, i: first } = w.where(picked[0]);
   if (picked.some((e) => w.where(e).d !== d)) throw new DraftEditError("pick exercises from one session");
+  if (picked.some((e) => blockOf(e) !== blockOf(picked[0]))) throw new DraftEditError("pick exercises from one block");
   const sel = new Set(picked);
   const l = w.lists[d].filter((e) => !sel.has(e));
   // Land at the first row's place, but never inside another superset.
@@ -490,6 +508,7 @@ function applyMoveTo(w: Work, refs: readonly DraftRef[], day: number): string[] 
     const { d, i } = w.where(e);
     w.lists[d].splice(i, 1);
     ungroup(e);
+    toBlock(e, "main");
     w.lists[t].push(e);
   }
   assertNotEmpty(w);
@@ -497,7 +516,38 @@ function applyMoveTo(w: Work, refs: readonly DraftRef[], day: number): string[] 
   return [`moved ${list(picked.map(nameOf))} to ${w.tags[t]}`];
 }
 
-/** Append rows to the end of a session (out of any superset). */
+/** Set a row's block; main is stored as no block unless a legacy prep label needs it said. */
+function toBlock(e: W, to: SessionBlock) {
+  delete e.block;
+  if (blockOf(e) !== to) e.block = to;
+}
+
+function applyBlock(w: Work, refs: readonly DraftRef[], to: SessionBlock): string[] {
+  const picked = uniqueRefs(w, refs).filter((e) => blockOf(e) !== to);
+  const moved = new Map<number, string[]>();
+  for (const e of picked) {
+    const { d, i } = w.where(e);
+    const l = w.lists[d];
+    l.splice(i, 1);
+    ungroup(e);
+    toBlock(e, to);
+    // The list is prep first: the end of prep is right after the last prep row.
+    l.splice(to === "prep" ? l.filter(isPrep).length : l.length, 0, e);
+    moved.set(d, [...(moved.get(d) ?? []), nameOf(e)]);
+  }
+  assertNotEmpty(w);
+  w.settle();
+  return [...moved].map(([d, names]) => `moved ${list(names)} to ${SESSION_BLOCK_NAMES[to].toLowerCase()} in ${w.tags[d]}`);
+}
+
+/** Move rows to the end of their session's movement prep or main work. */
+export function moveToBlockInDraft(draft: AiProgramDraft, refs: DraftRef[], to: SessionBlock, labels?: readonly RoleRank[],
+  opts: DraftOrderOpts = {}
+) {
+  return applyDraftEdit(draft, [{ op: "block", refs, to }], labels, opts);
+}
+
+/** Append rows to the end of a session's main work (out of any superset). */
 export function moveToSession(draft: AiProgramDraft, refs: DraftRef[], day: number, labels?: readonly RoleRank[],
   opts: DraftOrderOpts = {}
 ) {
@@ -519,9 +569,11 @@ function applyRestore(w: Work, sessions: Extract<DraftEditOp, { op: "restore" }>
       const e: W = { ...src, prescribedSets: withSetCount(src.prescribedSets, it.sets) };
       if (it.group) e.group = it.group;
       else ungroup(e);
+      if (it.block) e.block = it.block;
+      else delete e.block;
       return e;
     });
-    return normalizeGroups(l);
+    return normalizeGroups(orderByBlock(l));
   });
   if (used.size !== total) throw new DraftEditError("every exercise must be placed");
   assertNotEmpty(w);
@@ -564,6 +616,7 @@ export function applyDraftEdit(
     else if (op.op === "leave") changes.push(...applyLeave(w, op.ref));
     else if (op.op === "moveTo") changes.push(...applyMoveTo(w, op.refs, op.day));
     else if (op.op === "group") changes.push(...applyGroup(w, op.refs));
+    else if (op.op === "block") changes.push(...applyBlock(w, op.refs, op.to));
     else {
       changes.push(...applyRestore(w, op.sessions));
       restoring = true;
@@ -586,7 +639,7 @@ export function applyDraftEdit(
     op: "restore",
     ...(multiWeek ? { week: weekNo } : {}),
     sessions: shownAt.map((l) =>
-      l.map((e) => ({ from: at.get(e.__k)!, group: e.group ?? null, sets: e.prescribedSets.length }))
+      l.map((e) => ({ from: at.get(e.__k)!, group: e.group ?? null, sets: e.prescribedSets.length, ...(e.block ? { block: e.block } : {}) }))
     ),
   };
   // In a block of several weeks the change list says which week it edited.

@@ -1,4 +1,5 @@
 import {
+  blockOf,
   canApplyDraftEdit,
   draftSessionLabels,
   draftWeek,
@@ -72,10 +73,14 @@ export function rowMenuItems(
   add("Move down", "arrow-down", { op: "move", refs: [ref], dir: "down" });
   for (const side of ["above", "below"] as const) {
     const n = rows[side === "above" ? at - 1 : at + 1];
-    if (!n || (me.group && n.group === me.group)) continue;
+    // A superset stays inside movement prep or main work.
+    if (!n || (me.group && n.group === me.group) || blockOf(n) !== blockOf(me)) continue;
     add(`Superset with ${nameOf(n)}`, "link", { op: "superset", ref, with: side });
   }
   if (me.group) add(`Leave superset ${me.group}`, "unlink", { op: "leave", ref });
+  // Off when it would empty main work or overfill prep.
+  if (blockOf(me) === "prep") add("Move to main work", "layers", { op: "block", refs: [ref], to: "main" });
+  else add("Move to movement prep", "layers", { op: "block", refs: [ref], to: "prep" });
   for (const t of moveTargets(dto, opts.week)) {
     if (t.day === ref.day) continue;
     add(t.label, "arrow-right", { op: "moveTo", refs: [ref], day: t.day }, "Move to");

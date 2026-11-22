@@ -29,6 +29,16 @@ const labelsOf = (items: { label: string; disabled?: boolean; section?: string }
   items.map((i) => `${i.disabled ? "(off) " : ""}${i.section ? `${i.section} › ` : ""}${i.label}`);
 
 describe("row menu", () => {
+  test("session blocks: move between prep and main, no superset across them", () => {
+    const d = {
+      ...draft,
+      weeks: [{ week: 1, sessions: [{ name: "Lower", kind: "exercises", exercises: [{ ...ex("Band", "mobility"), block: "prep" }, ex("Squat", "primary")] }] }],
+    } as AiProgramDraft;
+    expect(labelsOf(rowMenuItems(d, { day: 1, slot: 1 }, () => {}))).toEqual(["(off) Move up", "(off) Move down", "Move to main work"]);
+    // Squat is the only main exercise: it can't leave main work.
+    expect(labelsOf(rowMenuItems(d, { day: 1, slot: 2 }, () => {}))).toEqual(["(off) Move up", "(off) Move down", "(off) Move to movement prep"]);
+  });
+
   test("a superset's edge member: moves, superset, leave and move-to offered", () => {
     const items = rowMenuItems(draft, { day: 1, slot: 2 }, () => {});
     expect(labelsOf(items)).toEqual([
@@ -36,6 +46,7 @@ describe("row menu", () => {
       "Move down",
       "Superset with Squat",
       "Leave superset A",
+      "Move to movement prep",
       "Move to › Session 2 · Upper",
     ]);
   });
@@ -46,6 +57,7 @@ describe("row menu", () => {
       "(off) Move up",
       "Move down",
       "Superset with Row",
+      "Move to movement prep",
       "Move to › Session 1 · Lower",
     ]);
     expect(moveTargets(draft).map((t) => t.day)).toEqual([1, 3]);

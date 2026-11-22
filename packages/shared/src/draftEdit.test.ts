@@ -411,3 +411,56 @@ test("a locked week (the trainer's, in a fill) can't be edited", () => {
   expect(() => applyDraftEdit(locked, [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 1 }])).toThrow("week 1 is yours");
   expect(applyDraftEdit(locked, [{ op: "move", refs: [{ day: 1, slot: 2 }], dir: "up", week: 2 }]).changed).toBe(true);
 });
+
+describe("session blocks in hand edits", () => {
+  const prep = (name: string, group?: string) => ({ ...aux(name, group), block: "prep" as const });
+  const blocks = (d: AiProgramDraft, day = 1) => d.weeks[0].sessions[day - 1].exercises.map((e) => `${e.exerciseName}:${e.block ?? "-"}`).join(" ");
+
+  test("move stays inside its block", () => {
+    const d = draft([prep("Band"), aux("Squat"), aux("Row")]);
+    expect(canApplyDraftEdit(d, { op: "move", refs: [{ day: 1, slot: 2 }], dir: "up" })).toBe(false);
+    expect(canApplyDraftEdit(d, { op: "move", refs: [{ day: 1, slot: 1 }], dir: "down" })).toBe(false);
+    expect(shape(moveDraftExercise(d, { day: 1, slot: 3 }, "up").draft)).toBe("Band·Row·Squat");
+  });
+
+  test("a superset never spans the blocks", () => {
+    const d = draft([prep("Band"), aux("Squat"), aux("Row")]);
+    expect(canApplyDraftEdit(d, { op: "superset", ref: { day: 1, slot: 2 }, with: "above" })).toBe(false);
+    expect(canApplyDraftEdit(d, { op: "group", refs: [{ day: 1, slot: 1 }, { day: 1, slot: 2 }] })).toBe(false);
+    expect(canApplyDraftEdit(d, { op: "group", refs: [{ day: 1, slot: 2 }, { day: 1, slot: 3 }] })).toBe(true);
+  });
+
+  test("block moves rows to the end of the other section, out of their superset; undo puts them back", () => {
+    const d = draft([prep("Band", "A"), prep("Hip", "A"), aux("Squat"), aux("Plank")]);
+    const toMain = applyDraftEdit(d, [{ op: "block", refs: [{ day: 1, slot: 1 }], to: "main" }]);
+    expect(blocks(toMain.draft)).toBe("Hip:prep Squat:- Plank:- Band:-");
+    expect(shape(toMain.draft)).toBe("Hip·Squat·Plank·Band");
+    expect(toMain.changes).toEqual(["moved Band to main work in Session 1"]);
+    const back = applyDraftEdit(toMain.draft, [toMain.inverse], undefined, { keepOrder: true });
+    expect(blocks(back.draft)).toBe("Band:prep Hip:prep Squat:- Plank:-");
+
+    const toPrep = applyDraftEdit(d, [{ op: "block", refs: [{ day: 1, slot: 4 }], to: "prep" }]);
+    expect(blocks(toPrep.draft)).toBe("Band:prep Hip:prep Plank:prep Squat:-");
+    expect(toPrep.changes).toEqual(["moved Plank to movement prep in Session 1"]);
+  });
+
+  test("block refuses to empty main work or overfill prep", () => {
+    expect(canApplyDraftEdit(draft([prep("Band"), aux("Squat")]), { op: "block", refs: [{ day: 1, slot: 2 }], to: "prep" })).toBe(false);
+    const full = draft([...Array.from({ length: 8 }, (_, i) => prep(`P${i}`)), aux("Squat"), aux("Row")]);
+    expect(canApplyDraftEdit(full, { op: "block", refs: [{ day: 1, slot: 9 }], to: "prep" })).toBe(false);
+    expect(canApplyDraftEdit(full, { op: "block", refs: [{ day: 1, slot: 1 }], to: "prep" })).toBe(false);
+  });
+
+  test("a row moved to another session lands in its main work", () => {
+    const d = draft([prep("Band"), prep("Hip"), aux("Squat")], [aux("Bench")]);
+    const out = moveToSession(d, [{ day: 1, slot: 1 }], 2);
+    expect(blocks(out.draft, 2)).toBe("Bench:- Band:-");
+    const legacy = draft([ex("CARs", { role: "movement_prep" }), aux("Squat")], [aux("Bench")]);
+    expect(blocks(moveToSession(legacy, [{ day: 1, slot: 1 }], 2).draft, 2)).toBe("Bench:- CARs:main");
+  });
+
+  test("prep is listed first when the order is the trainer's", () => {
+    const d = draft([aux("Squat"), prep("Band")]);
+    expect(shape(applyDraftEdit(d, [{ op: "move", refs: [{ day: 1, slot: 1 }], dir: "down" }], undefined, { keepOrder: true }).draft)).toBe("Band·Squat");
+  });
+});
