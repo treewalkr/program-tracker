@@ -856,7 +856,7 @@
       (r) =>
         !r.skipped &&
         (!pe || r.programExerciseId === pe) &&
-        (field === "reps" ? !r.extra && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !takesNoKg(r, isBodyweight))
+        (field === "reps" ? !r.extra && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !r.timed && !takesNoKg(r, isBodyweight))
     );
     if (target) await focusCell(target.key, field);
   }

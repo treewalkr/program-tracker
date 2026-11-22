@@ -432,6 +432,19 @@ describe("prescribedSummary", () => {
     expect(s.missingLoad).toEqual(["pull", "wall"]);
   });
 
+  test("a timed set never misses a load: its kg is optional (a SkiErg, a weighted plank)", () => {
+    const s = prescribedSummary(
+      [
+        row({ key: "a1", programExerciseId: "skierg", exerciseId: "skierg", slotExerciseId: "skierg", reps: 40, timed: true, load: "kg" }),
+        row({ key: "b1", programExerciseId: "wall", reps: 15, load: "kg" }),
+      ],
+      bw
+    );
+    expect(s.missingLoad).toEqual(["wall"]);
+    expect(s.missingLoadSets).toBe(1);
+    expect(s.sets).toBe(2);
+  });
+
   test("a prescribed set with no reps is an open AMRAP and isn't counted as a set", () => {
     const s = prescribedSummary([row({ key: "a", weight: 60, reps: 5 }), row({ key: "b", weight: 60, reps: "" })], bw);
     expect(s.openAmrap).toBe(1);

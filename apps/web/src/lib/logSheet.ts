@@ -477,7 +477,8 @@ export interface PrescribedSummary {
 /**
  * What "Did it as prescribed" is about to log. `rows` are the sheet as it will
  * be saved (prescription already filled in). A set has no load when its kg is
- * blank and it isn't a BW set (see `takesNoKg`).
+ * blank and it isn't a BW set (see `takesNoKg`). A timed set's kg is optional
+ * (a SkiErg, a weighted plank): it logs no tonnage or e1RM either way.
  */
 export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: string) => boolean): PrescribedSummary {
   const missing: string[] = [];
@@ -490,7 +491,7 @@ export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: s
       continue;
     }
     if (!rowFilled(r)) continue;
-    if (isBlank(r.weight) && !takesNoKg(r, isBodyweight)) {
+    if (isBlank(r.weight) && !r.timed && !takesNoKg(r, isBodyweight)) {
       missingLoadSets++;
       if (!missing.includes(r.programExerciseId)) missing.push(r.programExerciseId);
     }
