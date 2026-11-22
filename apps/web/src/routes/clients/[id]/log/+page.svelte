@@ -1358,7 +1358,7 @@
         <div class="panel-body foot">
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">
-              <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
+              <input class="input" id="log-notes" placeholder="How it went, how it felt…" bind:value={notes} maxlength="2000" />
             </Field>
           </div>
         </div>
