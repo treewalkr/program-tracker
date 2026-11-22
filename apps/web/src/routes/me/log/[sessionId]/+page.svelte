@@ -538,7 +538,7 @@
 
           <h2 id="ex-title">
             {#each block.memberIds as peId, i (peId)}
-              {#if i > 0}<span class="plus"> + </span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
+              {#if i > 0}<span class="plus">{" + "}</span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
             {/each}
           </h2>
           {#each block.memberIds as peId (peId)}
@@ -546,7 +546,7 @@
             {#if ex?.notes}<p class="cue"><span>{t("session.coachNote")}</span> {ex.notes}</p>{/if}
             {#if ex?.last}
               <!-- a reference to beat or match, not a suggestion: the coach sets the load -->
-              <p class="last"><span>{t("log.last", { date: fmtShortDate(ex.last.date) })}{#if block.memberIds.length > 1} · <span lang={latinLang(ex.exerciseName)}>{ex.exerciseName}</span>{/if}</span> <span class="tnum">{lastSetText(ex.last, t)}</span></p>
+              <p class="last"><span>{t("log.last", { date: fmtShortDate(ex.last.date) })}{#if block.memberIds.length > 1}{" · "}<span lang={latinLang(ex.exerciseName)}>{ex.exerciseName}</span>{/if}</span> <span class="tnum">{lastSetText(ex.last, t)}</span></p>
             {/if}
           {/each}
 
@@ -631,7 +631,7 @@
           </ol>
           {#each block.memberIds as peId (peId)}
             {#if !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS}
-              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1} · {exerciseOf(peId)?.exerciseName}{/if}</button>
+              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1}{" · "}{exerciseOf(peId)?.exerciseName}{/if}</button>
             {/if}
           {/each}
 
