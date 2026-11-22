@@ -436,7 +436,7 @@
     position: fixed;
     pointer-events: none;
     z-index: 9998;
-    border-radius: 3px;
+    border-radius: 4px;
   }
   .outline.hover {
     outline: 2px solid var(--blue);
@@ -471,7 +471,7 @@
     width: 340px;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: var(--shadow-overlay);
     padding: 12px;
     display: flex;
@@ -669,7 +669,7 @@
     background: var(--surface);
     color: var(--ink);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: var(--shadow-overlay);
   }
   .unplaced a {

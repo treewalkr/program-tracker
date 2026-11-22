@@ -282,7 +282,7 @@
     bottom: 3px;
     min-width: 14px;
     padding: 1px 3px;
-    border-radius: 3px;
+    border-radius: 2px;
     background: var(--bg);
     color: var(--muted);
     font: 500 10px/1.2 var(--font-mono);
