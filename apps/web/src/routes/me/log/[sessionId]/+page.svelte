@@ -967,8 +967,8 @@
     cursor: pointer;
   }
   .rm :global(svg) { width: 16px; height: 16px; }
-  /* bottom-aligned: the load cell's head is taller (it holds the BW switch), the fields still line up */
-  .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px 12px; }
+  /* both heads are one label line tall (the BW switch sits on the load label's baseline), so the fields line up */
+  .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px 12px; }
   @container logform (min-width: 520px) {
     .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
