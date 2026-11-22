@@ -1269,7 +1269,7 @@
     border-top: 1px solid var(--line-soft);
     background: var(--well);
   }
-  .triage,
+  /* The new-ticket box keeps a reading measure; card fields run the card's width, edge to edge with Delete. */
   .draft-field {
     max-width: var(--measure-form);
   }
