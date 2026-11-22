@@ -45,7 +45,7 @@
   ]);
 </script>
 
-<Story name="5 × 2 min with bpm" asChild>
+<Story name="5 × 2 min with bpm" exportName="FiveByTwoMinWithBpm" asChild>
   <div style="max-width: 760px"><IntervalBuilder bind:intervals={withZones} {zones} /></div>
 </Story>
 

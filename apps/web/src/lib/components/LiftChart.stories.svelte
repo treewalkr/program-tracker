@@ -32,6 +32,6 @@
   <div style="max-width: 640px"><LiftChart name="Back Squat" series={squat} unit="kg" onclose={() => {}} /></div>
 </Story>
 
-<Story name="VO₂max per test" asChild>
+<Story name="VO₂max per test" exportName="Vo2maxPerTest" asChild>
   <div style="max-width: 640px"><LiftChart name="Cooper 12-minute run" series={vo2} unit="ml/kg/min" measure="Estimated VO₂max" per="test" /></div>
 </Story>
