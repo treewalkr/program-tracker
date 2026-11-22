@@ -985,8 +985,8 @@
 
 <style>
   /* The shell pads the page; this column only caps the reading width. */
+  /* Full main column, like every other page; text inside the cards keeps its own measure. */
   .page {
-    max-width: 960px;
     padding-bottom: 32px;
   }
   /* Focus rings: solid blue (the translucent --focus stays as the halo around inputs). */
