@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.45 — 2026-11-23
+
 ### New
 - **Bodyweight or weight on your log sheet too.** Each set on your own log sheet now has the same BW / kg switch your members have, and one tap carries it to the later rounds. Unweighted step-ups no longer need a 0, and "Did it as prescribed" shows those sets as "BW×10".
   - th: ในหน้าบันทึกของคุณเอง ทุกเซตมีปุ่มสลับ BW / กก. เหมือนฝั่งเมมเบอร์แล้ว กดครั้งเดียวรอบถัดไปก็เปลี่ยนตาม สเต็ปอัปที่ไม่ถือน้ำหนักไม่ต้องกรอก 0 อีก และตอนกด "Did it as prescribed" เซตพวกนี้ก็ขึ้นเป็น "BW×10"
