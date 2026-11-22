@@ -182,7 +182,7 @@ describe.skipIf(!dbUp)("portal cardio", () => {
     expect(r.status).toBe(200);
     expect(r.body.week).toMatchObject({ minutes: 33, sessions: 1, load: 231 });
     expect(r.body.week.byModality.Running).toEqual({ minutes: 33, sessions: 1, load: 231, distanceKm: 5.2 });
-    expect(r.body.target).toEqual({ unit: "session_load", target: 600, done: 231 });
+    expect(r.body.target).toEqual({ unit: "session_load", target: 600, done: 231, sessions: 1, minutes: 33 });
     expect(r.body.recent[0]).toMatchObject({ modality: "Running", durationSec: 1980, load: 231, trainerFeedback: "Strong last rep.", skipped: false });
     expect(r.body.vo2).toEqual({ protocols: ["run_1_5mile", "cooper_12min"], protocol: "run_1_5mile", points: [{ testedOn: "2026-10-15", value: 43.8 }] });
     const cooper = await call("GET", "/v1/portal/progress?protocol=cooper_12min", { token });

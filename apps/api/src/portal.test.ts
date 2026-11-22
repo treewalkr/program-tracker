@@ -519,7 +519,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
       body: { programSessionId: cardio1, date: today, kind: "cardio", cardio: { modality: "Run", durationSec: 1800, rpe: 4 }, sets: [] },
     });
     expect(run.status).toBe(201);
-    expect((await call("GET", "/v1/portal/week", { token })).body.cardio).toEqual({ unit: "minutes", target: 120, done: 30 });
+    expect((await call("GET", "/v1/portal/week", { token })).body.cardio).toEqual({ unit: "minutes", target: 120, done: 30, sessions: 1, minutes: 30 });
     expect((await call("DELETE", `/v1/portal/logs/${run.body.id}`, { token })).status).toBe(204);
     await db.update(clients).set({ cardioTarget: null }).where(eq(clients.id, clientId));
   });

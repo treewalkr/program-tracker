@@ -185,6 +185,9 @@ export const PortalCardio = z.object({
   unit: CardioTargetUnit,
   target: z.number(),
   done: z.number(),
+  /** This week's sessions and minutes, which the member reads first (optional: older API builds don't send them). */
+  sessions: z.number().optional(),
+  minutes: z.number().optional(),
 });
 export type PortalCardio = z.infer<typeof PortalCardio>;
 
@@ -202,7 +205,8 @@ export type PortalWeekDto = z.infer<typeof PortalWeekDto>;
 /** This ISO week's cardio done against the target, counted exactly as the coach's cardio-behind signal counts it. */
 export function portalCardio(target: CardioTarget | null | undefined, logs: readonly CardioCountLog[], now: number): PortalCardio | null {
   if (!target) return null;
-  return { unit: target.unit, target: target.value, done: cardioDone(target, cardioWeekTotals([...logs], isoWeekStart(new Date(now)))) };
+  const totals = cardioWeekTotals([...logs], isoWeekStart(new Date(now)));
+  return { unit: target.unit, target: target.value, done: cardioDone(target, totals), sessions: totals.sessions, minutes: totals.minutes };
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;

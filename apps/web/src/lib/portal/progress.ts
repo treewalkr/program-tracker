@@ -1,4 +1,4 @@
-import { localDateOf, type PortalCardioLog } from "@pt/shared";
+import { localDateOf, type PortalCardio, type PortalCardioLog } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import type { MessageKey } from "./messages";
 import { distanceText } from "./rx";
@@ -55,4 +55,17 @@ export function logLine(l: PortalCardioLog, t: T, distance: (km: number) => stri
 export function reviewDay(at: string): string {
   const ms = Date.parse(at);
   return Number.isNaN(ms) ? at.slice(0, 10) : localDateOf(ms);
+}
+
+/**
+ * This week's cardio as the member reads it: sessions and time first. A load
+ * (or zone-minutes) target is the coach's yardstick, so it comes second, as a
+ * plain number; a sessions or minutes target is already the lead.
+ */
+export function cardioSummary(c: PortalCardio, t: T): { lead: string; second: string | null } {
+  const target = t(`week.cardio.${c.unit}` as MessageKey, { done: Math.round(c.done), target: c.target });
+  const coachYardstick = c.unit === "session_load" || c.unit === "zone_minutes";
+  if (!coachYardstick || c.sessions == null || c.minutes == null) return { lead: target, second: null };
+  const lead = t("week.cardio.lead", { sessions: c.sessions, time: hoursMinutes(c.minutes, t) });
+  return { lead, second: target };
 }

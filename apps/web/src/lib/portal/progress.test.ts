@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalCardioLog } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
+import { cardioSummary, hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
 import { localDateOf } from "@pt/shared";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
@@ -50,5 +50,17 @@ describe("portal progress", () => {
   test("a review shows on the member's own calendar day, not the UTC one", () => {
     const at = "2026-11-21T20:30:00.000Z";
     expect(reviewDay(at)).toBe(localDateOf(Date.parse(at)));
+  });
+});
+
+describe("cardioSummary: sessions and time lead, the coach's load comes second", () => {
+  const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
+  test("a load target reads sessions and time first, then load without AU", () => {
+    const s = cardioSummary({ unit: "session_load", target: 600, done: 246.4, sessions: 2, minutes: 75 }, tEn);
+    expect(s).toEqual({ lead: "2 sessions · 1 h 15 min", second: "Load 246 of 600" });
+    expect(s.second).not.toContain("AU");
+  });
+  test("a minutes or sessions target is already the lead", () => {
+    expect(cardioSummary({ unit: "minutes", target: 120, done: 90, sessions: 2, minutes: 90 }, tEn)).toEqual({ lead: "90 of 120 min", second: null });
   });
 });

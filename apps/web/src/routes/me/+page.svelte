@@ -9,6 +9,7 @@
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
   import PortalProgress from "$lib/portal/PortalProgress.svelte";
   import { dayGroups, doneCount, earlierOpen, focusSession, skippedCount } from "$lib/portal/week";
+  import { cardioSummary } from "$lib/portal/progress";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
@@ -116,9 +117,11 @@
     {#if current.weekLabel}<p class="week-label">{t(`week.label.${current.weekLabel}`)}</p>{/if}
     {#if dto.cardio}
       {@const c = dto.cardio}
+      {@const sum = cardioSummary(c, t)}
       <div class="cardio">
-        <p><span>{t("week.cardio")}</span> <strong class="tnum">{t(`week.cardio.${c.unit}`, { done: c.done, target: c.target })}</strong></p>
+        <p><span>{t("week.cardio")}</span> <strong class="tnum">{sum.lead}</strong></p>
         <div class="cbar" aria-hidden="true"><span style:width={`${Math.min(100, (c.done / Math.max(1, c.target)) * 100)}%`}></span></div>
+        {#if sum.second}<p class="second tnum">{sum.second}</p>{/if}
       </div>
     {/if}
   {/if}
@@ -346,6 +349,7 @@
   .cardio { display: grid; gap: 6px; margin-top: 12px; }
   .cardio p { margin: 0; font-size: 14px; color: var(--muted); }
   .cardio strong { margin-left: 4px; font-weight: 600; color: var(--ink); }
+  .cardio .second { font-size: 13px; }
   .cbar { height: 6px; border-radius: 99px; background: var(--well-2); overflow: hidden; }
   .cbar span { display: block; height: 100%; border-radius: 99px; background: var(--good); }
   .day { display: grid; gap: 10px; }

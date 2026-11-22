@@ -180,7 +180,7 @@ export const en = {
   "week.cardio.minutes": "{done} of {target} min",
   "week.cardio.sessions": "{done} of {target} sessions",
   "week.cardio.zone_minutes": "{done} of {target} zone-minutes (minutes × zone)",
-  "week.cardio.session_load": "{done} of {target} load (RPE × min)",
+  "week.cardio.session_load": "Load {done} of {target}",
   "log.offline": "No connection right now. Keep going: your entries stay on this phone, and you can save once you're back online.",
   "session.remove": "Remove log",
   "session.removeConfirm": "Tap again to remove",
@@ -238,7 +238,7 @@ export const en = {
   "progress.weekEmpty": "No cardio logged yet this week.",
   "progress.sessions": "Sessions",
   "progress.time": "Total time",
-  "progress.load": "Load (RPE × min)",
+  "progress.load": "Load",
   "progress.h": "{h} h",
   "progress.hm": "{h} h {m} min",
   "progress.vo2": "Estimated VO₂max",
@@ -297,6 +297,8 @@ export const en = {
   "rpe.feel3": "short sentences",
   "rpe.feel4": "hard, a few words",
   "rpe.feel5": "all-out",
+  "week.cardio.lead": "{sessions} sessions · {time}",
+  "progress.loadExplain": "Load = how hard × minutes. It shows your coach how heavy the week was.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -475,7 +477,7 @@ export const th: Record<MessageKey, string> = {
   "week.cardio.minutes": "{done} จาก {target} นาที",
   "week.cardio.sessions": "{done} จาก {target} ครั้ง",
   "week.cardio.zone_minutes": "{done} จาก {target} นาที-โซน (นาที × โซน)",
-  "week.cardio.session_load": "โหลด {done} จาก {target} (RPE × นาที)",
+  "week.cardio.session_load": "โหลด {done} จาก {target}",
   "log.offline": "ตอนนี้ไม่มีอินเทอร์เน็ต กรอกต่อได้เลย ข้อมูลจะเก็บไว้ในเครื่องนี้ แล้วกดบันทึกเมื่อกลับมาออนไลน์",
   "session.remove": "ลบบันทึก",
   "session.removeConfirm": "แตะอีกครั้งเพื่อลบ",
@@ -533,7 +535,7 @@ export const th: Record<MessageKey, string> = {
   "progress.weekEmpty": "สัปดาห์นี้ยังไม่มีคาร์ดิโอที่บันทึกไว้",
   "progress.sessions": "เซสชัน",
   "progress.time": "เวลารวม",
-  "progress.load": "โหลด (RPE × นาที)",
+  "progress.load": "โหลด",
   "progress.h": "{h} ชม.",
   "progress.hm": "{h} ชม. {m} นาที",
   "progress.vo2": "VO₂max โดยประมาณ",
@@ -592,6 +594,8 @@ export const th: Record<MessageKey, string> = {
   "rpe.feel3": "พูดได้เป็นประโยคสั้น ๆ",
   "rpe.feel4": "หนัก พูดได้ไม่กี่คำ",
   "rpe.feel5": "สุดแรง",
+  "week.cardio.lead": "{sessions} เซสชัน · {time}",
+  "progress.loadExplain": "โหลด = ความเหนื่อย × นาที ใช้ให้โค้ชดูว่าสัปดาห์นี้หนักแค่ไหน",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };

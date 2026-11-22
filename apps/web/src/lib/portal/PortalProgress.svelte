@@ -4,7 +4,7 @@
   import Segmented from "$lib/ui/Segmented.svelte";
   import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
   import { modalityName } from "./modality";
-  import { cardioDistance, hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
+  import { cardioDistance, cardioSummary, hoursMinutes, logLine, reviewDay, trendPath, vo2Delta } from "./progress";
 
   /**
    * The Progress tab: this week's cardio, the VO₂max trend, the coach's
@@ -33,10 +33,12 @@
     <h3 id="pg-week">{t("progress.week")}</h3>
     {#if progress.target}
       {@const c = progress.target}
+      {@const sum = cardioSummary(c, t)}
       <p class="target">
-        <strong class="tnum">{t(`week.cardio.${c.unit}`, { done: c.done, target: c.target })}</strong>
+        <strong class="tnum">{sum.lead}</strong>
       </p>
       <div class="cbar" aria-hidden="true"><span style:width={`${Math.min(100, (c.done / Math.max(1, c.target)) * 100)}%`}></span></div>
+      {#if sum.second}<p class="quiet tnum">{sum.second}</p>{/if}
     {/if}
     <dl class="rows">
       <div><dt>{t("progress.sessions")}</dt><dd class="tnum">{week.sessions}</dd></div>
@@ -49,7 +51,7 @@
         </div>
       {/each}
     </dl>
-    {#if week.sessions === 0}<p class="quiet">{t("progress.weekEmpty")}</p>{/if}
+    {#if week.sessions === 0}<p class="quiet">{t("progress.weekEmpty")}</p>{:else}<p class="quiet">{t("progress.loadExplain")}</p>{/if}
   </section>
 
   {#if vo2.protocol && last}
