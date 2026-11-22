@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fmtWeight, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
+  import { fmtWeight, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
   /** Weight cells hold kg; the steppers show and take the display unit. */
   const kgCells = weightCells();
   import { onMount, tick } from "svelte";
@@ -1527,7 +1527,7 @@
                 {:else}
                   {@const hint = (f: SheetField) => (lastCell?.key === r.key && lastCell.field === f ? "done" : "next")}
                   <div class="c-kg" data-cell={`${r.key}:weight`}>
-                    <LogStepper bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} label={`${label}, ${weightUnit()}`} unit={weightUnit()} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showWeight(p.weight) : null} placeholder={p.weight != null ? String(showWeight(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
+                    <LogStepper bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} label={`${label}, ${weightUnit()}`} unit={weightUnit()} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showLoad(p.weight) : null} placeholder={p.weight != null ? String(showLoad(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
                   </div>
                   <div class="c-reps" data-cell={`${r.key}:reps`}>
                     <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} enterkeyhint={hint("reps")} onedit={() => edited(r.key, "reps")} />

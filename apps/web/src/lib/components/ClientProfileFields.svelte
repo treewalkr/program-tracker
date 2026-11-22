@@ -94,7 +94,7 @@
   <div class="basics-row">
     <Field label="Bodyweight" htmlFor="{idPrefix}-bw" error={errs.weight}>
       <span class="unit-input">
-        <input class="input tnum" id="{idPrefix}-bw" type="number" inputmode="decimal" min={Math.floor(showWeight(BODYWEIGHT_KG_RANGE.min))} max={Math.ceil(showWeight(BODYWEIGHT_KG_RANGE.max))} step="0.1" placeholder="—" aria-invalid={errs.weight ? "true" : undefined} bind:value={() => (form.bodyweightKg == null ? null : showWeight(form.bodyweightKg)), (v) => (form.bodyweightKg = v == null ? null : storeWeight(v))} />
+        <input class="input tnum" id="{idPrefix}-bw" type="number" inputmode="decimal" min={Math.floor(showWeight(BODYWEIGHT_KG_RANGE.min))} max={Math.ceil(showWeight(BODYWEIGHT_KG_RANGE.max))} step="any" placeholder="—" aria-invalid={errs.weight ? "true" : undefined} bind:value={() => (form.bodyweightKg == null ? null : showWeight(form.bodyweightKg)), (v) => (form.bodyweightKg = v == null ? null : storeWeight(v))} />
         <span class="subtle">{weightUnit()}</span>
       </span>
     </Field>
@@ -115,7 +115,7 @@
           <div class="orm-row">
             <ExercisePicker value={r.exerciseId} {catalog} label="1RM {i + 1} exercise" onpick={(ex) => (r.exerciseId = ex.id)} />
             <span class="orm-kg">
-              <input class="input tnum" type="number" inputmode="decimal" min="1" max={Math.ceil(showWeight(600))} step="0.5" placeholder="—" aria-label="1RM {i + 1} {weightUnit()}" bind:value={() => (r.kg == null ? null : showWeight(r.kg)), (v) => (r.kg = v == null ? null : storeWeight(v))} />
+              <input class="input tnum" type="number" inputmode="decimal" min="1" max={Math.ceil(showWeight(600))} step="any" placeholder="—" aria-label="1RM {i + 1} {weightUnit()}" bind:value={() => (r.kg == null ? null : showWeight(r.kg)), (v) => (r.kg = v == null ? null : storeWeight(v))} />
               <span class="subtle">{weightUnit()}</span>
             </span>
             <input class="input orm-date" type="date" aria-label="1RM {i + 1} tested on" bind:value={r.date} />

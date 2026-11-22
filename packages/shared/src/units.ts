@@ -70,6 +70,28 @@ export const snapWeight = (value: number, unit: WeightUnit): number => {
   return round(Math.round(value / step) * step, 2);
 };
 
+/** The grid a load is shown on in lb: real plates come in 2.5 lb steps (1.25 lb a side). */
+export const LB_LOAD_GRID = 2.5;
+
+/**
+ * A stored load as the member or coach reads it, on a plate grid. In kg it's
+ * the stored number. In lb the exact conversion (37.5 kg = 82.67 lb) isn't a
+ * loadable bar, so it snaps to 2.5 lb and says it's approximate. Display only:
+ * the stored kg never changes unless someone edits that field.
+ */
+export function loadIn(kg: number, unit: WeightUnit): { value: number; approx: boolean } {
+  if (unit === "kg") return { value: weightIn(kg, "kg"), approx: false };
+  const exact = kgToLb(kg);
+  const value = round(Math.round(exact / LB_LOAD_GRID) * LB_LOAD_GRID, 2);
+  return { value, approx: Math.abs(value - exact) >= 0.05 };
+}
+
+/** "82.5 lb" / "≈ 82.5 lb" / "37.5 kg". */
+export function formatLoad(kg: number, unit: WeightUnit, sep = " "): string {
+  const { value, approx } = loadIn(kg, unit);
+  return `${approx ? "≈ " : ""}${trim(value)}${sep}${unit}`;
+}
+
 const trim = (n: number) => String(n);
 
 /** "100 kg" / "220.5 lb". */

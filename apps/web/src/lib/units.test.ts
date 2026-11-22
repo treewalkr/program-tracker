@@ -4,7 +4,10 @@ import { fmtSet, loadParts } from "./format";
 import { loadCell, withLoad } from "./programEdit";
 import { loggedSetLabel } from "./programLogs";
 import { cardioLine } from "./cardioLine";
-import { applyUnits, fmtPace, fmtTonnage, fmtWeight, units, weightCells } from "./units.svelte";
+import { applyUnits, fmtLoad, fmtPace, fmtTonnage, fmtWeight, showLoad, showWeight, storeWeight, units, weightCells } from "./units.svelte";
+import { profileFromClient, profilePayload } from "./clientProfile";
+import { stepCell } from "./logSheet";
+import type { ClientDto } from "./api/types";
 
 const set = (over: Partial<PrescribedSetDto> = {}) => ({ setNumber: 1, reps: 5, amrap: false, ...over }) as PrescribedSetDto;
 
@@ -27,8 +30,8 @@ describe("display units", () => {
     const pct = set({ percent1rm: 75 });
     expect(fmtSet(pct, 140)).toBe("105kg (75%) × 5");
     expect(loadParts(pct, 140)).toEqual({ kg: "105kg", pct: "75%" });
-    expect(fmtSet(pct, 140, "lb")).toBe("231.5lb (75%) × 5");
-    expect(loadParts(set({ targetWeightKg: 100 }), null, "lb")).toEqual({ kg: "220.5lb", pct: null });
+    expect(fmtSet(pct, 140, "lb")).toBe("≈ 232.5lb (75%) × 5");
+    expect(loadParts(set({ targetWeightKg: 100 }), null, "lb")).toEqual({ kg: "≈ 220lb", pct: null });
     applyUnits({ weight: "lb", distance: "km" });
     expect(units.weight).toBe("lb");
     expect(loggedSetLabel({ weightKg: 60, reps: 8, rpe: 8 }, false)).toBe("132.3 lb × 8 @ 8");
@@ -40,8 +43,8 @@ describe("display units", () => {
     const kg = c.set("r1", 62.25) as number;
     expect(kg).toBe(28.24);
     expect(c.get("r1", kg)).toBe(62.25);
-    // a value that arrived as kg (prefill, fill-down) shows converted
-    expect(c.get("r2", 100)).toBe(220.5);
+    // a value that arrived as kg (prefill, fill-down) shows on the 2.5 lb plate grid
+    expect(c.get("r2", 100)).toBe(220);
     applyUnits({ weight: "kg", distance: "km" });
     expect(c.set("r1", 61.25)).toBe(61.25);
     expect(c.get("r1", 61.25)).toBe(61.25);
@@ -54,5 +57,45 @@ describe("display units", () => {
     applyUnits({ weight: "kg", distance: "mi" });
     expect(fmtPace(406)).toBe("10:53 /mi");
     expect(cardioLine({ modality: "Running", durationMin: 35, distanceKm: 5.2 })).toContain("3.23 mi");
+  });
+});
+
+describe("lb loads on the plate grid (B3)", () => {
+  test("37.5 kg shows as ≈ 82.5 lb, and ± 5 lb stays on plates", () => {
+    expect(fmtLoad(37.5, "lb")).toBe("≈ 82.5 lb");
+    expect(showLoad(37.5, "lb")).toBe(82.5);
+    expect(fmtLoad(37.5, "kg")).toBe("37.5 kg");
+    // an exact conversion isn't marked
+    expect(fmtLoad(61.23, "lb")).toBe("135 lb");
+    applyUnits({ weight: "lb", distance: "km" });
+    const c = weightCells();
+    const shown = c.get("r1", 37.5) as number;
+    expect(shown).toBe(82.5);
+    expect(stepCell(shown, 5, { min: 0, max: 1300 })).toBe(87.5);
+  });
+
+  test("the stored kg never moves unless the cell is edited", () => {
+    applyUnits({ weight: "lb", distance: "km" });
+    const c = weightCells();
+    const cell = 37.5;
+    c.get("r1", cell);
+    c.get("r1", cell);
+    expect(cell).toBe(37.5);
+    // edited: the typed lb is stored as exact kg and reads back as typed
+    const kg = c.set("r1", 87.5) as number;
+    expect(kg).toBe(39.69);
+    expect(c.get("r1", kg)).toBe(87.5);
+  });
+
+  test("profile save in lb: untouched 1RMs and bodyweight go back as the stored kg", () => {
+    applyUnits({ weight: "lb", distance: "km" });
+    const client = { oneRepMaxes: { squat: { kg: 45, date: "2026-11-01" } }, bodyweightKg: 72.5, sessionsPerWeek: 3 } as unknown as ClientDto;
+    const form = profileFromClient(client);
+    const payload = profilePayload(form);
+    expect(payload.bodyweightKg).toBe(72.5);
+    expect(Object.values(payload.oneRepMaxes ?? {}).map((m) => m.kg)).toEqual([45]);
+    // the 1RM field shows 99.2 lb (off any 0.5 step, hence step="any"); retyping it keeps 45 kg
+    expect(showWeight(45)).toBe(99.2);
+    expect(storeWeight(99.2)).toBe(45);
   });
 });

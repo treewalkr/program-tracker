@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   displayUnitsOf,
+  formatLoad,
+  loadIn,
+  lbToKg,
   distanceFrom,
   distanceIn,
   formatDistance,
@@ -70,5 +73,15 @@ describe("displayUnitsOf", () => {
     expect(displayUnitsOf(null)).toEqual({ weight: "kg", distance: "km" });
     expect(displayUnitsOf({ weight: "stone", distance: "km" })).toEqual({ weight: "kg", distance: "km" });
     expect(displayUnitsOf({ weight: "lb", distance: "mi" })).toEqual({ weight: "lb", distance: "mi" });
+  });
+});
+
+describe("loadIn: lb loads on the 2.5 lb plate grid", () => {
+  test("snaps and marks approximate; kg is untouched", () => {
+    expect(loadIn(37.5, "lb")).toEqual({ value: 82.5, approx: true });
+    expect(loadIn(20, "lb")).toEqual({ value: 45, approx: true });
+    expect(loadIn(lbToKg(225), "lb")).toEqual({ value: 225, approx: false });
+    expect(loadIn(37.5, "kg")).toEqual({ value: 37.5, approx: false });
+    expect(formatLoad(37.5, "lb")).toBe("≈ 82.5 lb");
   });
 });

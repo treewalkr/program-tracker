@@ -1,6 +1,7 @@
 import { cardioTotals, recoveryCount, type CardioIntervalType, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
-import { showDistance, showPace, showWeight, units } from "$lib/units.svelte";
+import { loadIn } from "@pt/shared";
+import { showDistance, showPace, units } from "$lib/units.svelte";
 import type { MessageKey } from "./messages";
 
 /**
@@ -27,10 +28,12 @@ function bareTarget(s: PortalSet, t: T): string {
 
 const uniq = <V>(vs: V[]) => [...new Set(vs)];
 
-/** Stored kg in the member's unit: "60 kg", "132.3 lb" (several: "50 / 55 / 60 kg"). */
+/** Stored kg in the member's unit: "60 kg", "≈ 82.5 lb" on the plate grid (several: "50 / 55 / 60 kg"). */
 export function weightText(kgs: number | number[], t: T): string {
-  const list = (Array.isArray(kgs) ? kgs : [kgs]).map((kg) => num(units.weight === "lb" ? showWeight(kg, "lb") : kg)).join(" / ");
-  return units.weight === "lb" ? t("rx.lb", { n: list }) : t("rx.kg", { n: list });
+  const loads = (Array.isArray(kgs) ? kgs : [kgs]).map((kg) => loadIn(kg, units.weight));
+  const list = loads.map((l) => num(l.value)).join(" / ");
+  const text = units.weight === "lb" ? t("rx.lb", { n: list }) : t("rx.kg", { n: list });
+  return loads.some((l) => l.approx) ? `≈ ${text}` : text;
 }
 
 /** Stored km in the member's unit: "5.2 km", "3.23 mi". */

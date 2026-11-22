@@ -73,9 +73,9 @@ describe("the member's display units", () => {
     units.weight = "lb";
     units.distance = "mi";
     try {
-      expect(setParts([S({ targetWeightKg: 60 })], tEn)).toEqual(["1 × 8", "132.3 lb"]);
-      expect(setParts([S({ targetWeightKg: 60 })], tTh)).toEqual(["1 × 8", "132.3 ปอนด์"]);
-      expect(lastSetText({ date: "2026-11-09", weightKg: 100, reps: 5, rpe: null }, tEn)).toBe("220.5 lb × 5");
+      expect(setParts([S({ targetWeightKg: 60 })], tEn)).toEqual(["1 × 8", "≈ 132.5 lb"]);
+      expect(setParts([S({ targetWeightKg: 60 })], tTh)).toEqual(["1 × 8", "≈ 132.5 ปอนด์"]);
+      expect(lastSetText({ date: "2026-11-09", weightKg: 100, reps: 5, rpe: null }, tEn)).toBe("≈ 220 lb × 5");
       expect(cardioParts({ distanceKm: 5.2, paceSecPerKm: 406 }, tEn)).toEqual(["3.23 mi", "10:53 /mi"]);
       expect(intervalLines([{ id: "t", type: "work", repeat: 6, distanceM: 400 }], tEn)[0].amount).toBe("400 m × 6");
     } finally {

@@ -3,8 +3,10 @@ import {
   displayUnitsOf,
   distanceFrom,
   distanceIn,
+  formatLoad,
   formatPace,
   formatSpeed,
+  loadIn,
   KM_PER_MI,
   weightFrom,
   weightIn,
@@ -67,6 +69,11 @@ export function fmtWeight(kg: number, u?: WeightUnit, sep = " "): string {
   return `${trim(showWeight(kg, u))}${sep}${wu(u)}`;
 }
 
+/** A load on the plate grid: the number a stepper shows (82.5 lb for 37.5 kg). */
+export const showLoad = (kg: number, u?: WeightUnit) => loadIn(kg, wu(u)).value;
+/** A prescribed load as text: "37.5 kg", "≈ 82.5 lb". */
+export const fmtLoad = (kg: number, u?: WeightUnit, sep = " ") => formatLoad(kg, wu(u), sep);
+
 /** Whole-number figures for totals and e1RMs: "4,250 kg", "9,370 lb". */
 export function fmtWeightRound(kg: number, u?: WeightUnit, sep = " "): string {
   return `${Math.round(showWeight(kg, u)).toLocaleString("en-US")}${sep}${wu(u)}`;
@@ -102,7 +109,9 @@ type Cell = string | number | null | undefined;
  * A log-sheet weight cell (stored kg) behind an input in the display unit.
  * In kg it passes values through untouched. In lb it remembers what was typed
  * per row, so "62.25" stays "62.25" while the cell holds exact kg (a plain
- * kg → lb conversion would round it to 62.3 under the cursor).
+ * kg → lb conversion would round it to 62.3 under the cursor). An untyped kg
+ * shows on the 2.5 lb plate grid (37.5 kg → 82.5), so ± 5 lb lands on plates;
+ * the cell keeps its exact kg until the field is edited.
  */
 export function weightCells() {
   const typed = new Map<string, number>();
@@ -110,7 +119,7 @@ export function weightCells() {
     get(key: string, cell: Cell): Cell {
       if (units.weight === "kg" || typeof cell !== "number") return cell;
       const t = typed.get(key);
-      return t != null && storeWeight(t) === cell ? t : showWeight(cell);
+      return t != null && storeWeight(t) === cell ? t : showLoad(cell);
     },
     set(key: string, v: Cell): Cell {
       if (units.weight === "kg" || typeof v !== "number" || !Number.isFinite(v)) return v;

@@ -36,7 +36,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
-  import { showWeight, units, weightCells, weightStepIn } from "$lib/units.svelte";
+  import { showLoad, units, weightCells, weightStepIn } from "$lib/units.svelte";
 
   let { data } = $props();
   /** Weight cells in the member's unit (kg passes straight through). */
@@ -577,7 +577,7 @@
                       id={`kg-${r.key}`}
                       error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
                       errorId={`kg-${r.key}-err`}
-                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showWeight(r.rx.targetWeightKg) : null} />
+                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showLoad(r.rx.targetWeightKg) : null} />
                   {/if}
                   <LogStepper
                     bind:value={rows[i].reps}

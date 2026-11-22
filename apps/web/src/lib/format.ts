@@ -1,5 +1,5 @@
 import { resolveLoadKg, type WeightUnit } from "@pt/shared";
-import { fmtWeight } from "./units.svelte";
+import { fmtLoad, fmtWeight } from "./units.svelte";
 import type { ProgramWeekDto, WeekPlan } from "./api/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -50,8 +50,8 @@ export interface SetLabelInput {
 /** The load part: resolved kg (with its %1RM), a bare % when the 1RM is unknown, or the kg target. */
 function loadLabel(s: SetLabelInput, oneRepMaxKg: number | null | undefined, unit?: WeightUnit): string {
   const kg = resolveLoadKg(s, oneRepMaxKg);
-  if (s.percent1rm != null && oneRepMaxKg != null && kg != null) return `${fmtWeight(kg, unit, "")} (${s.percent1rm}%) × `;
-  if (kg != null) return `${fmtWeight(kg, unit, "")} × `;
+  if (s.percent1rm != null && oneRepMaxKg != null && kg != null) return `${fmtLoad(kg, unit, "")} (${s.percent1rm}%) × `;
+  if (kg != null) return `${fmtLoad(kg, unit, "")} × `;
   if (s.percent1rm != null) return `${s.percent1rm}% × `;
   return "";
 }
@@ -81,7 +81,7 @@ export function repsLabel(s: SetLabelInput): string {
 /** The load alone: kg (resolved from %1RM when the 1RM is known) and the % it came from. */
 export function loadParts(s: SetLabelInput, oneRepMaxKg?: number | null, unit?: WeightUnit): { kg: string | null; pct: string | null } {
   const kg = resolveLoadKg(s, oneRepMaxKg);
-  return { kg: kg != null ? fmtWeight(kg, unit, "") : null, pct: s.percent1rm != null ? `${s.percent1rm}%` : null };
+  return { kg: kg != null ? fmtLoad(kg, unit, "") : null, pct: s.percent1rm != null ? `${s.percent1rm}%` : null };
 }
 
 /** Target RPE as "8" or "7–8"; null for AMRAP sets (their RPE is the stop, see fmtSet). */
