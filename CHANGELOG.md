@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.47 — 2026-11-23
+
 ### Improved
 - **Clearer close-ups in feedback.** When you click something small to send feedback, the close-up now takes in the area around it and outlines your pick in red, so it's plain what you meant.
   - th: พอคลิกจุดเล็ก ๆ เพื่อส่งฟีดแบ็ก ภาพระยะใกล้ก็จะเก็บพื้นที่รอบ ๆ มาด้วย แล้ววงสิ่งที่คุณเลือกไว้ด้วยกรอบสีแดง ดูแล้วรู้เลยว่าหมายถึงตรงไหน
