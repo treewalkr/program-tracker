@@ -678,8 +678,7 @@
     </section>
   {:else}
     <div class="bench" bind:this={benchEl} style:height={benchHeight ? `${benchHeight}px` : null}>
-      <section class="panel col chat" aria-label="Conversation">
-        <div class="panel-head"><h2>Conversation</h2></div>
+      <section class="panel col chat reading" aria-label="Conversation">
         <div class="scroll" bind:this={scrollEl}>{@render thread()}</div>
         {@render composer()}
       </section>
@@ -983,6 +982,63 @@
     border-color: var(--line-strong);
   }
 
+  /* Beside the draft: one centred reading measure, questions read as turn headings, and the
+     composer floats over the end of the thread. Narrow screens keep the sticky dock below. */
+  @media (min-width: 981px) {
+    .reading {
+      position: relative;
+    }
+    .reading .scroll {
+      padding-bottom: 150px;
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 170px), transparent calc(100% - 60px));
+    }
+    .reading :global(.thread) {
+      max-width: 60ch;
+      margin-inline: auto;
+      padding: 28px 24px 12px;
+      gap: 20px;
+    }
+    .reading :global(.you) {
+      align-self: stretch;
+      max-width: none;
+      background: none;
+      border: 0;
+      border-radius: 0;
+      padding: 12px 0 0;
+      font: 600 15px/1.45 var(--font-ui);
+      color: var(--ink);
+    }
+    .reading :global(.you:not(:first-child)) {
+      border-top: 1px solid var(--line-soft);
+    }
+    .reading :global(.ai) {
+      max-width: none;
+    }
+    .reading :global(.sysline) {
+      padding-inline: 0;
+    }
+    .reading :global(.dock) {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      max-width: calc(60ch + 24px);
+      margin-inline: auto;
+      padding: 0;
+      border: 0;
+      background: none;
+    }
+    .reading :global(.dock-box) {
+      border-color: var(--line-strong);
+      border-radius: 8px;
+    }
+    .reading :global(.dock-hint) {
+      margin: 6px 4px 0;
+      font-size: 11px;
+      text-shadow: 0 0 6px var(--surface);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .spinner {
       animation-duration: 3s;
@@ -1008,9 +1064,6 @@
       border: 0;
       height: auto;
       min-height: 0;
-    }
-    .col.chat .panel-head {
-      display: none;
     }
     .scroll {
       overflow: visible;
