@@ -265,6 +265,8 @@
           ...(hurtOn(peId) ? [{ peId, kind: "pain" as const }] : []),
         ]),
   );
+  /** The card's exercises that can take another set: not skipped, under the cap. */
+  const addable = $derived(!block ? [] : block.memberIds.filter((peId) => !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS));
   const flaggedAt = (i: number) => (blocks[i]?.memberIds ?? []).some((peId) => skipReasonOf(peId) || hurtOn(peId));
   /** Page to a card: its "Skip or pain?" panel starts closed unless something on it is flagged. */
   function goTo(i: number) {
@@ -656,11 +658,20 @@
               {/if}
             {/each}
           </ol>
-          {#each block.memberIds as peId (peId)}
-            {#if !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS}
-              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1}{" · "}{exerciseOf(peId)?.exerciseName}{/if}</button>
-            {/if}
-          {/each}
+          {#if block.memberIds.length === 1}
+            {#each addable as peId (peId)}
+              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}</button>
+            {/each}
+          {:else if addable.length > 0}
+            <!-- a group: one "Add a set" line, a name per exercise, instead of a stack of links -->
+            <div class="adds" role="group" aria-label={t("log.addSet")}>
+              <span class="adds-k" aria-hidden="true"><Icon name="plus" />{t("log.addSet")}</span>
+              {#each addable as peId (peId)}
+                {@const name = exerciseOf(peId)?.exerciseName ?? ""}
+                <button type="button" class="add add-ex" aria-label={`${t("log.addSet")} · ${name}`} lang={latinLang(name)} onclick={() => addSet(peId)}>{name}</button>
+              {/each}
+            </div>
+          {/if}
 
           <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain.
                Rarely needed, so one quiet link under the sets; the tags above keep anything flagged in sight. -->
@@ -736,16 +747,15 @@
   {@const target = targetOf(r)}
   <li class="set">
     <div class="set-head">
-      {#if inRound}
-        <!-- the round header says the set; the row names the exercise, its target under it -->
-        <span class="set-id">
+      <!-- the row's name over its target: in a round the header says the set, so the row names the exercise -->
+      <span class="set-id">
+        {#if inRound}
           <span class="set-n" lang={latinLang(r.name)}>{r.name}</span>
-          {#if target}<span class="set-rx tnum">{target}</span>{/if}
-        </span>
-      {:else}
-        <span class="set-n">{t("log.set", { n: r.setNumber })}</span>
-        {#if target}<span class="set-rx tnum">{target}</span>{/if}
-      {/if}
+        {:else}
+          <span class="set-n">{t("log.set", { n: r.setNumber })}</span>
+        {/if}
+        {#if target}<span class="set-rx">{target}</span>{/if}
+      </span>
       {#if r.extra}
         <button type="button" class="rm" aria-label={inRound ? t("log.removeSetEx", { name: r.name, n: r.setNumber }) : t("log.removeSet", { n: r.setNumber })} onclick={() => (rows = withoutExtra(rows, r.key))}><Icon name="x" /></button>
       {:else}
@@ -861,9 +871,9 @@
   .steps span :global(svg) { width: 12px; height: 12px; }
   .rpe-def { margin: 0; font-size: 13px; color: var(--muted); text-wrap: pretty; }
   .rpe-toggle {
-    justify-self: end;
+    justify-self: start;
     min-height: 44px;
-    margin: -8px 0 -12px;
+    margin: -8px 0 -12px -4px;
     padding: 0 4px;
     font: 500 14px/1 var(--font-ui);
     color: var(--blue);
@@ -893,7 +903,7 @@
     gap: 4px;
     justify-self: start;
     min-height: 44px;
-    margin: -8px 0 -4px;
+    margin: -8px 0 -4px -4px;
     padding: 0 4px;
     font: 500 14px/1 var(--font-ui);
     color: var(--blue);
@@ -927,9 +937,11 @@
   .hurt { display: grid; gap: 6px; font-size: 14px; }
   .hurt .input { min-height: 44px; font-size: 16px; }
   .hint { font-size: 13px; color: var(--muted); }
+  /* 44px to hit, pulled into the row's margins so it sits on the name's line and its word
+     lines up with the fields' right edge */
   .missed-btn {
-    min-height: 36px;
-    margin: -6px 0;
+    min-height: 44px;
+    margin: -12px -8px -12px 0;
     padding: 0 8px;
     font: 500 13px/1 var(--font-ui);
     color: var(--muted);
@@ -938,46 +950,45 @@
     border-radius: var(--radius);
     cursor: pointer;
   }
-  .set-n + .missed-btn { margin-left: auto; }
   .missed-btn[aria-pressed="true"] { color: var(--ink); background: var(--well-2); border-color: var(--line); }
   .missed-note { margin: 0; font-size: 14px; color: var(--muted); }
 
   .sets { display: grid; margin: 0; padding: 0; list-style: none; }
   .set { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
-  .set-head { display: flex; align-items: baseline; gap: 8px; min-height: 24px; }
+  .set-head { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; }
   .set-n { font: 600 16px/1.3 var(--font-ui); }
-  /* a group card's round: "Set 1" over each exercise done in it */
-  .round { border-top: 1px solid var(--line); }
-  .round:first-child { border-top: 0; }
-  .round-h { margin: 12px 0 0; padding: 6px 10px; font: 600 16px/1.3 var(--font-ui); background: var(--well); border-radius: var(--radius); }
+  /* a group card's round: the tinted band is the divider, so no rule above it */
+  .round + .round { margin-top: 12px; }
+  .round-h { margin: 4px 0 0; padding: 6px 10px; font: 600 14px/1.3 var(--font-ui); background: var(--well); border-radius: var(--radius); }
   .round .set:first-child { border-top: 0; }
   .set-id { display: grid; gap: 2px; min-width: 0; }
-  .set-id .set-rx { margin-left: 0; font-family: var(--font-ui); text-align: left; }
   .set-id + .missed-btn, .set-id + .rm { margin-left: auto; }
-  .set-rx { margin-left: auto; font: 500 13px/1.3 var(--font-mono); color: var(--muted); text-align: right; }
+  .set-rx { font: 400 13px/1.35 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--muted); }
   .rm {
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
-    margin: -6px -6px -6px 0;
+    width: 44px;
+    height: 44px;
+    margin: -12px -14px -12px 0;
     color: var(--muted);
     background: none;
     border: 0;
     cursor: pointer;
   }
   .rm :global(svg) { width: 16px; height: 16px; }
-  /* bottom-aligned: the load cell's head is taller (it holds the BW switch), the fields still line up */
-  .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px 12px; }
+  /* both heads are one label line tall (the BW switch sits on the load label's baseline), so the fields line up */
+  .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px 12px; }
   @container logform (min-width: 520px) {
     .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+  /* the card's text links (Log RPE, Add a set, Skip or pain?) share the content's left edge: their 4px padding hangs outside it */
   .add {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     justify-self: start;
     min-height: 44px;
+    margin-left: -4px;
     padding: 0 4px;
     font: 500 16px/1 var(--font-ui);
     color: var(--blue);
@@ -986,6 +997,10 @@
     cursor: pointer;
   }
   .add :global(svg) { width: 16px; height: 16px; }
+  .adds { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 14px; }
+  .adds-k { display: inline-flex; align-items: center; gap: 6px; font: 500 14px/1.3 var(--font-ui); color: var(--muted); }
+  .adds-k :global(svg) { width: 14px; height: 14px; }
+  .add-ex { min-width: 44px; margin-left: 0; justify-content: center; }
   /* a group names every exercise: wrap rather than widen the card */
   .next-ex { justify-content: space-between; gap: 12px; min-height: 48px; padding-block: 10px; font-size: 16px; line-height: 1.35; text-align: left; white-space: normal; }
   .next-ex :global(svg) { flex: none; width: 16px; height: 16px; transform: rotate(-90deg); }

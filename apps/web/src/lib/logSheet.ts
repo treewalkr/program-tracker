@@ -1,5 +1,6 @@
 import { resolveLoadKg, type PrescribedSet, type SetType, type SkipReason } from "@pt/shared";
 import { parseFlags, parseReadiness, readinessRated, type ExerciseFlags, type ReadinessForm } from "./logFlags";
+import type { LoadMode } from "./loadMode";
 
 /**
  * A log-sheet cell. Svelte number-input binds give a number, or null/undefined
@@ -31,6 +32,12 @@ export interface SheetRow {
   exerciseSkip?: { reason: SkipReason | null };
   /** Superset letter: the group's rows run round by round on one card. */
   group?: string;
+  /** Prescribed in seconds: a hold keeps a plain kg cell, no load mode. */
+  timed?: boolean;
+  /** Bodyweight (no kg logged) or with load. Unset on rows from before load modes. */
+  load?: LoadMode;
+  /** The load mode was switched by hand. */
+  loadPicked?: boolean;
 }
 
 export type SheetField = "weight" | "reps" | "rpe";
@@ -57,6 +64,16 @@ export function sheetCounts(rows: SheetRow[]) {
   const logged = rowsToSave(rows).length;
   return { logged, skipped, open: rows.length - skipped - logged, total: rows.length };
 }
+
+/**
+ * The set logs no kg, so a blank kg is its answer: a BW set; or, with no mode to
+ * read (a timed hold, an older row), a bodyweight move in the library.
+ */
+export const takesNoKg = (r: Pick<SheetRow, "exerciseId" | "load" | "timed">, isBodyweight: (exerciseId: string) => boolean): boolean =>
+  r.load && !r.timed ? r.load === "bw" : isBodyweight(r.exerciseId);
+
+/** A BW set: its kg cell is hidden, and any kg left in it isn't logged. */
+const bwSet = (r: Pick<SheetRow, "load" | "timed">) => r.load === "bw" && !r.timed;
 
 export const isSwapped = (r: Pick<SheetRow, "exerciseId" | "slotExerciseId">): boolean => r.exerciseId !== r.slotExerciseId;
 
@@ -460,7 +477,8 @@ export interface PrescribedSummary {
 /**
  * What "Did it as prescribed" is about to log. `rows` are the sheet as it will
  * be saved (prescription already filled in). A set has no load when its kg is
- * blank and the exercise isn't bodyweight.
+ * blank and it isn't a BW set (see `takesNoKg`). A timed set's kg is optional
+ * (a SkiErg, a weighted plank): it logs no tonnage or e1RM either way.
  */
 export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: string) => boolean): PrescribedSummary {
   const missing: string[] = [];
@@ -473,7 +491,7 @@ export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: s
       continue;
     }
     if (!rowFilled(r)) continue;
-    if (isBlank(r.weight) && !isBodyweight(r.exerciseId)) {
+    if (isBlank(r.weight) && !r.timed && !takesNoKg(r, isBodyweight)) {
       missingLoadSets++;
       if (!missing.includes(r.programExerciseId)) missing.push(r.programExerciseId);
     }
@@ -514,7 +532,7 @@ export function isDirty(rows: SheetRow[], notes: string, readiness: ReadinessFor
     notes.trim() !== "" ||
     readinessRated(readiness) ||
     Object.keys(flags).length > 0 ||
-    rows.some((r) => r.skipped || r.extra || isSwapped(r) || !isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe))
+    rows.some((r) => r.skipped || r.extra || isSwapped(r) || r.loadPicked || !isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe))
   );
 }
 
@@ -581,17 +599,19 @@ export function markTyped<R extends SheetRow>(r: R, field: SheetField): R {
  * Copy a committed cell into the later sets of the same exercise that are
  * blank (or hold an earlier copy). Skipped and extra sets are left alone, and
  * back-off sets too unless the source is a back-off — their load differs by
- * design. A typed cell is never overwritten; a blank source copies nothing.
+ * design. A kg never goes into (or comes from) a BW set. A typed cell is never
+ * overwritten; a blank source copies nothing.
  */
 export function fillDown<R extends SheetRow>(rows: R[], key: string, field: SheetField): R[] {
   const at = rows.findIndex((r) => r.key === key);
   const src = rows[at];
-  if (!src || src.skipped || isBlank(src[field])) return rows;
+  if (!src || src.skipped || isBlank(src[field]) || (field === "weight" && bwSet(src))) return rows;
   const value = src[field];
   let changed = false;
   const out = rows.map((r, i) => {
     if (i <= at || r.programExerciseId !== src.programExerciseId) return r;
     if (r.skipped || r.extra || (r.type === "backoff" && src.type !== "backoff")) return r;
+    if (field === "weight" && bwSet(r)) return r;
     if (!isBlank(r[field]) && !isCopied(r, field)) return r;
     if (r[field] === value && isCopied(r, field)) return r;
     changed = true;
@@ -608,12 +628,12 @@ export interface CellRef {
 
 const FIELDS: SheetField[] = ["weight", "reps", "rpe"];
 
-/** The sheet's cells in Enter order: kg → reps → RPE per set; skipped rows out, no kg on bodyweight moves. */
+/** The sheet's cells in Enter order: kg → reps → RPE per set; skipped rows out, no kg stop on a set that takes none. */
 export function cellOrder(rows: SheetRow[], isBodyweight: (exerciseId: string) => boolean): CellRef[] {
   return rows.flatMap((r) =>
     r.skipped
       ? []
-      : FIELDS.filter((f) => f !== "weight" || !isBodyweight(r.exerciseId)).map((field) => ({
+      : FIELDS.filter((f) => f !== "weight" || !takesNoKg(r, isBodyweight)).map((field) => ({
           key: r.key,
           field,
           programExerciseId: r.programExerciseId,
@@ -623,7 +643,7 @@ export function cellOrder(rows: SheetRow[], isBodyweight: (exerciseId: string) =
 
 /**
  * The cell Enter (dir 1) or Shift+Enter (dir −1) moves to; null past either
- * end. From a cell missing in the order (kg of a bodyweight move), it moves to
+ * end. From a cell missing in the order (kg of a BW set), it moves to
  * the row's next listed cell.
  */
 export function nextCell(order: CellRef[], key: string, field: SheetField, dir: 1 | -1): CellRef | null {

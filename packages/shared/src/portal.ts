@@ -11,6 +11,7 @@ import {
   SetType,
   sessionsInSeqOrder,
   CardioTargetUnit,
+  Equipment,
   type CardioInterval,
   type CardioPrescription,
   type CardioTarget,
@@ -71,6 +72,8 @@ export const PortalExercise = z.object({
   notes: z.string().optional(),
   /** Bodyweight move: a set with no kg is complete as logged. */
   bodyweight: z.boolean().optional(),
+  /** The library's equipment: a cable or machine move opens in kg whatever last time had. */
+  equipment: Equipment.optional(),
   /** Last time: the client's heaviest set in a comparable rep range, from their newest earlier session with one. */
   last: PortalLastSet.nullable().optional(),
   prescribedSets: z.array(PortalSet),
@@ -295,6 +298,7 @@ export function portalLogEntry(
 /** What the projection knows beyond the program: equipment and the client's last loads. */
 export interface PortalLoadContext {
   isBodyweight?: (exerciseId: string) => boolean;
+  equipmentOf?: (exerciseId: string) => Equipment | undefined;
   lastWeights?: LastWeights;
   lastSets?: LastSets;
   /** The client's HR zones in effect now; a zone target shows as its bpm band. */
@@ -416,6 +420,7 @@ export function portalSession(
           group: opt(e.group),
           notes: opt(e.notes),
           bodyweight: loads.isBodyweight?.(e.exerciseId) ?? false,
+          ...(loads.equipmentOf?.(e.exerciseId) ? { equipment: loads.equipmentOf(e.exerciseId) } : {}),
           last: (() => {
             const range = loads.lastSets ? repRangeOf(e.prescribedSets) : null;
             return range ? lastComparable(loads.lastSets, e.exerciseId, range) : null;

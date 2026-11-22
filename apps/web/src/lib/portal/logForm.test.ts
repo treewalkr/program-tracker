@@ -365,6 +365,14 @@ describe("bodyweight or load: each set's load cell", () => {
     expect(rows.find((r) => r.key === "pe:1")?.weight).toBe(16);
   });
 
+  test("a cable move opens in kg even when last time had no load", () => {
+    const rope: PortalSession = {
+      ...s,
+      exercises: [{ id: "pr", exerciseId: "ex-ropecrunch", exerciseName: "Rope crunch", order: 0, equipment: "cable", last: { date: "2026-11-09", weightKg: null, reps: 12, rpe: 7 }, prescribedSets: [S(1, { reps: 12 })] }],
+    };
+    expect(loads(rowsOfSession(rope))).toEqual(["pr:1=kg"]);
+  });
+
   test("BW sets save with no kg and no 'needs a weight'; a blank kg-mode cell still does", () => {
     const f = form(s);
     expect(buildPortalLog(s, f, false)).toEqual({ error: "kg", sets: 3, programExerciseId: "pb" });

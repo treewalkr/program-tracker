@@ -420,6 +420,31 @@ describe("prescribedSummary", () => {
     expect(s.missingLoad).toEqual([]);
   });
 
+  test("a BW set never misses a load; a blank kg-mode set does, bodyweight move or not", () => {
+    const s = prescribedSummary(
+      [
+        row({ key: "a1", programExerciseId: "stepup", reps: 10, load: "bw" }),
+        row({ key: "b1", programExerciseId: "pull", exerciseId: "pushup", slotExerciseId: "pushup", reps: 6, load: "kg" }),
+        row({ key: "c1", programExerciseId: "wall", reps: 15, load: "kg" }),
+      ],
+      bw
+    );
+    expect(s.missingLoad).toEqual(["pull", "wall"]);
+  });
+
+  test("a timed set never misses a load: its kg is optional (a SkiErg, a weighted plank)", () => {
+    const s = prescribedSummary(
+      [
+        row({ key: "a1", programExerciseId: "skierg", exerciseId: "skierg", slotExerciseId: "skierg", reps: 40, timed: true, load: "kg" }),
+        row({ key: "b1", programExerciseId: "wall", reps: 15, load: "kg" }),
+      ],
+      bw
+    );
+    expect(s.missingLoad).toEqual(["wall"]);
+    expect(s.missingLoadSets).toBe(1);
+    expect(s.sets).toBe(2);
+  });
+
   test("a prescribed set with no reps is an open AMRAP and isn't counted as a set", () => {
     const s = prescribedSummary([row({ key: "a", weight: 60, reps: 5 }), row({ key: "b", weight: 60, reps: "" })], bw);
     expect(s.openAmrap).toBe(1);
@@ -483,6 +508,9 @@ describe("isDirty", () => {
     expect(isDirty([row({ skipped: true })], "", none, {})).toBe(true);
     expect(isDirty([row({ extra: true })], "", none, {})).toBe(true);
     expect(isDirty([row({ exerciseId: "other" })], "", none, {})).toBe(true);
+    // a load switched by hand is an edit too
+    expect(isDirty([row({ load: "bw", loadPicked: true })], "", none, {})).toBe(true);
+    expect(isDirty([row({ load: "bw" })], "", none, {})).toBe(false);
   });
 
   test("notes, any readiness tap or a flag are dirty", () => {

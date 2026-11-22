@@ -102,6 +102,47 @@ describe("fillDown", () => {
   });
 });
 
+describe("fillDown and BW sets", () => {
+  test("a kg never fills into a BW set; it skips past to the kg sets", () => {
+    const rows = [row({ key: "a1", weight: 20 }), row({ key: "a2", setNumber: 2, load: "bw" }), row({ key: "a3", setNumber: 3, load: "kg" })];
+    expect(fillDown(rows, "a1", "weight").map((r) => r.weight)).toEqual([20, "", 20]);
+  });
+
+  test("a BW source fills no kg (its hidden kg isn't logged); reps still fill", () => {
+    const rows = [row({ key: "a1", weight: 20, reps: 8, load: "bw" }), row({ key: "a2", setNumber: 2 })];
+    expect(fillDown(rows, "a1", "weight")).toBe(rows);
+    expect(fillDown(rows, "a1", "reps")[1].reps).toBe(8);
+  });
+
+  test("a timed hold keeps its kg cell whatever its mode", () => {
+    const rows = [row({ key: "a1", weight: 10, timed: true, load: "bw" }), row({ key: "a2", setNumber: 2, timed: true, load: "bw" })];
+    expect(fillDown(rows, "a1", "weight")[1].weight).toBe(10);
+  });
+});
+
+describe("cellOrder with load modes", () => {
+  const bw = (id: string) => id === "ex-bw";
+  const rows = [
+    row({ key: "a1", load: "bw" }),
+    row({ key: "a2", setNumber: 2, load: "kg" }),
+    // a library bodyweight move switched to kg (Added kg): its kg is a stop
+    row({ key: "b1", programExerciseId: "pe2", exerciseId: "ex-bw", load: "kg" }),
+    // a timed bodyweight hold: no stop, by the library, as before
+    row({ key: "c1", programExerciseId: "pe3", exerciseId: "ex-bw", load: "kg", timed: true }),
+    // a timed loaded hold keeps its kg stop
+    row({ key: "d1", programExerciseId: "pe4", load: "bw", timed: true }),
+  ];
+  const fields = (key: string) => cellOrder(rows, bw).filter((c) => c.key === key).map((c) => c.field);
+
+  test("a BW set has no kg stop; a kg set does, even on a bodyweight move", () => {
+    expect(fields("a1")).toEqual(["reps", "rpe"]);
+    expect(fields("a2")).toEqual(["weight", "reps", "rpe"]);
+    expect(fields("b1")).toEqual(["weight", "reps", "rpe"]);
+    expect(fields("c1")).toEqual(["reps", "rpe"]);
+    expect(fields("d1")).toEqual(["weight", "reps", "rpe"]);
+  });
+});
+
 describe("cellOrder / nextCell", () => {
   const bw = (id: string) => id === "ex-bw";
   const rows = [

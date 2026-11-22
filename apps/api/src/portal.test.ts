@@ -253,6 +253,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
   let token = "";
   let siblingToken = "";
   let squatId = "";
+  let squatEquipment = "";
   const s1 = crypto.randomUUID();
   const s2 = crypto.randomUUID();
   const next1 = crypto.randomUUID();
@@ -292,7 +293,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
   });
 
   beforeAll(async () => {
-    [{ id: squatId }] = await db.select({ id: exercises.id }).from(exercises).where(isNull(exercises.trainerId)).limit(1);
+    [{ id: squatId, equipment: squatEquipment }] = await db.select({ id: exercises.id, equipment: exercises.equipment }).from(exercises).where(isNull(exercises.trainerId)).limit(1);
     const [tr] = await db.insert(trainers).values({ name: "Coach Week", email: `${RUN_W}@coach.dev` }).returning();
     const [other] = await db.insert(trainers).values({ name: "Coach Other", email: `${RUN_W}-o@coach.dev` }).returning();
     trainerId = tr.id;
@@ -441,6 +442,8 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     // the logged 100 kg becomes the last load: set 1 by its own number, set 2 by the lift's latest
     const squat = week.body.weeks[0].sessions.find((s: any) => s.id === s1).exercises[0];
     expect(squat.bodyweight).toBe(false);
+    // the library's equipment rides along: a cable or machine move opens its load cell in kg
+    expect(squat.equipment).toBe(squatEquipment);
     expect(squat.prescribedSets.map((s: any) => s.lastWeightKg)).toEqual([100, 100]);
 
     const [row] = await db.select().from(sessionLogs).where(eq(sessionLogs.id, r.body.id));
