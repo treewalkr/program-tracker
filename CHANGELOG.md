@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### New
+- **Bodyweight or weight on your log sheet too.** Each set on your own log sheet now has the same BW / kg switch your members have, and one tap carries it to the later rounds. Unweighted step-ups no longer need a 0, and "Did it as prescribed" shows those sets as "BW×10".
+  - th: ในหน้าบันทึกของคุณเอง ทุกเซตมีปุ่มสลับ BW / กก. เหมือนฝั่งเมมเบอร์แล้ว กดครั้งเดียวรอบถัดไปก็เปลี่ยนตาม สเต็ปอัปที่ไม่ถือน้ำหนักไม่ต้องกรอก 0 อีก และตอนกด "Did it as prescribed" เซตพวกนี้ก็ขึ้นเป็น "BW×10"
+
+### Improved
+- **Cleaner logging screens.** On the member log, targets read one way, the BW / kg switch sits on the label line, and a circuit has one "Add a set" line. On your log sheet, phone cards are lighter and full exercise names show on desktop.
+  - th: หน้าบันทึกทั้งสองฝั่งดูง่ายขึ้น ฝั่งเมมเบอร์ เป้าหมายแสดงแบบเดียวกันทุกเซต ปุ่ม BW / กก. อยู่บรรทัดเดียวกับหัวช่อง และเซอร์กิตมีปุ่มเพิ่มเซตบรรทัดเดียว ส่วนฝั่งคุณ การ์ดบนมือถือโล่งขึ้น บนเดสก์ท็อปก็เห็นชื่อท่าเต็ม
+
+### Fixed
+- Cable and machine moves now always open in kg, even when the last log had no weight.
+  - th: ท่าเคเบิลและท่าเครื่องเปิดมาเป็น กก. เสมอแล้ว แม้ครั้งก่อนจะไม่ได้กรอกน้ำหนัก
+- "Log as prescribed?" no longer counts timed moves like SkiErg as missing a load.
+  - th: หน้าต่าง "Log as prescribed?" ไม่นับท่าจับเวลาอย่าง SkiErg ว่าขาดน้ำหนักแล้ว
+
 ## v0.1.44 — 2026-11-23
 
 ### New
