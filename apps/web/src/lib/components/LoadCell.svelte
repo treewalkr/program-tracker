@@ -1,5 +1,6 @@
 <script module lang="ts">
-  export type LoadMode = "bw" | "kg";
+  import type { LoadMode } from "$lib/loadMode";
+  export type { LoadMode };
   export interface LoadCellText {
     /** The kg-mode label: "kg" (or "lb"). */
     unit: string;

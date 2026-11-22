@@ -3,6 +3,9 @@ import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm,
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
+import { asSent, draftLoad, savedLoad, startLoad, type LoadMode } from "$lib/loadMode";
+
+export { setLoad, startLoad, type LoadMode } from "$lib/loadMode";
 
 /**
  * The portal's log form, pure: a session becomes set rows prefilled with what
@@ -11,13 +14,6 @@ import type { PortalLogInput } from "$lib/api/portalTypes";
  * goes out marked `asPlanned`, and RPE is never prefilled: the coach only sees
  * effort the client reported.
  */
-
-/**
- * What the load cell holds: external weight held or added (`kg`), or none (`bw`).
- * A BW set saves with no kg; the kg typed before a switch to BW stays on the row,
- * hidden, so switching back brings it back.
- */
-export type LoadMode = "bw" | "kg";
 
 export interface PortalRow extends SheetRow {
   /** The exercise's name, for superset rounds that mix two lifts on one card. */
@@ -32,37 +28,6 @@ export interface PortalRow extends SheetRow {
   /** The kg and reps the row opened with; a row still on them (and no RPE) saves as planned. */
   planned?: { weight: string; reps: string };
 }
-
-/**
- * The mode a set opens in: kg when the coach set a load; else BW for a bodyweight
- * move in the library, or when the member's last time on it carried no load; else kg.
- */
-export function startLoad(e: Pick<PortalExercise, "bodyweight" | "last">, ps: Pick<PortalSet, "targetWeightKg">): LoadMode {
-  if (ps.targetWeightKg != null && ps.targetWeightKg > 0) return "kg";
-  if (e.bodyweight) return "bw";
-  if (e.last && !(e.last.weightKg != null && e.last.weightKg > 0)) return "bw";
-  return "kg";
-}
-
-/** Still as the page opened it: no mode picked by hand, no kg typed over the prefill. */
-const loadUntouched = (r: PortalRow) => !r.loadPicked && String(r.weight) === (r.planned?.weight ?? "");
-
-/**
- * Switch one set to BW or kg. The same exercise's later sets the member hasn't
- * touched follow, so one tap in a circuit's Set 1 covers the rounds after it.
- */
-export function setLoad(rows: readonly PortalRow[], key: string, mode: LoadMode): PortalRow[] {
-  const at = rows.find((r) => r.key === key);
-  if (!at) return [...rows];
-  return rows.map((r) => {
-    if (r.key === key) return { ...r, load: mode, loadPicked: true };
-    const later = r.programExerciseId === at.programExerciseId && r.setNumber > at.setNumber && !r.timed;
-    return later && r.load !== mode && loadUntouched(r) ? { ...r, load: mode } : r;
-  });
-}
-
-/** The row as it saves: a BW set carries no kg, whatever was typed before the switch. */
-const asSent = <R extends PortalRow>(r: R): R => (r.load === "bw" && !r.timed && !isBlank(r.weight) ? { ...r, weight: "" } : r);
 
 /** One prescribed set as the logger reads it — the API already resolved %1RM to kg. */
 export function prescriptionOfPortal(ps: PortalSet): Prescription {
@@ -136,7 +101,7 @@ export function rowsOfEntry(session: PortalSession, entry: PortalLogEntry): Port
   const fill = (r: PortalRow, s: PortalLogEntry["sets"][number]): PortalRow => {
     const weight = s.weightKg ?? "";
     // no kg on a set with reps was done at bodyweight
-    const load: LoadMode = r.timed ? r.load : s.weightKg == null ? "bw" : "kg";
+    const load: LoadMode = r.timed ? r.load : savedLoad(s.weightKg);
     return { ...r, weight, reps: s.reps, rpe: s.rpe ?? "", load, planned: s.asPlanned ? { weight: String(weight), reps: String(s.reps) } : undefined };
   };
   const base = rowsOfSession(session);
@@ -300,20 +265,13 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCa
   return {
     flags: parseFlags(d.flags),
     startedAt: typeof d.startedAt === "string" && !Number.isNaN(Date.parse(d.startedAt)) ? d.startedAt : null,
-    rows: d.rows.map((row) => withLoad(row, fresh)),
+    rows: d.rows.map((row) => draftLoad(row, fresh)),
     // an older build's minutes/zone strings read as the current form
     cardio: readCardioForm(d.cardio, freshCardio),
     notes: d.notes,
     date: d.date,
     readiness: parseReadiness({ energy: r.energy, readiness: r }),
   };
-}
-
-/** A draft row's mode; an older build's row has none: a typed kg is kg, else as the session opens it. */
-function withLoad(r: PortalRow, fresh: readonly PortalRow[]): PortalRow {
-  if (r.load === "bw" || r.load === "kg") return r;
-  const like = fresh.find((x) => x.key === r.key) ?? fresh.find((x) => x.programExerciseId === r.programExerciseId);
-  return { ...r, load: !isBlank(r.weight) ? "kg" : (like?.load ?? "kg") };
 }
 
 // ---------------------------------------------------------------------------
