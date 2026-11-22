@@ -48,6 +48,9 @@ export interface SignalLog {
   /** The log's note, and who wrote the log (a client's note goes to the coach). */
   notes?: string | null;
   loggedBy?: LoggedBy;
+  /** The log's id and its session's name, when the caller has them (client-log signal). */
+  id?: string;
+  sessionName?: string | null;
 }
 
 export interface WeekMetrics {

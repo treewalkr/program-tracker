@@ -24,7 +24,12 @@ export type SignalKind =
   | "week-ending"
   | "pain-flag"
   | "low-readiness"
-  | "client-note";
+  | "client-note"
+  | "client-log";
+
+/** Kinds that only feed the overview's Client logs panel: never queued for email
+ *  (the outbox), never counted on the roster, left off the client page. */
+export const FEED_ONLY_KINDS: ReadonlySet<SignalKind> = new Set<SignalKind>(["client-log"]);
 
 export interface Signal {
   /** Deterministic id, e.g. `block-ending:<programId>` — PK for snooze/outbox. */
@@ -527,6 +532,41 @@ export function clientNoteSignals<L extends Pick<SignalLog, "date" | "notes" | "
       severity: "info",
       title: notes.length > 1 ? `${notes.length} notes from the client` : "Note from the client",
       evidence: notes.map((l) => `${shortDate(l.date.slice(0, 10))} “${quote(l.notes!)}”`).join("; "),
+      programId: owner.programId,
+      clientId: owner.clientId,
+      altHref: `/clients/${owner.clientId}`,
+      altLabel: "Review client",
+    },
+  ];
+}
+
+/** Sessions the client logged themselves, merged by each signal caller next to
+ *  computeSignals: one info signal per client covering their own logs in the last
+ *  7 days, newest first — each session's name and date, quoting its note. The id
+ *  carries the newest log (its id, else its date), so the next log re-raises it
+ *  after "Seen". Coach-entered logs never raise it. */
+export function clientLogSignals<L extends Pick<SignalLog, "date" | "notes" | "loggedBy" | "kind" | "cardio" | "id" | "sessionName">>(
+  owner: { programId: string | null; clientId: string | null },
+  logs: readonly L[],
+  now: number = Date.now()
+): Signal[] {
+  const own = recentLogs(logs, READINESS_DAYS, now).filter((l) => l.loggedBy === "client");
+  if (own.length === 0) return [];
+  const nameOf = (l: L) => l.sessionName?.trim() || (l.kind === "cardio" && l.cardio?.modality ? l.cardio.modality : "Workout");
+  const quote = (n: string) => {
+    const t = n.trim().replace(/\s+/g, " ");
+    return t.length > NOTE_QUOTE_MAX ? `${t.slice(0, NOTE_QUOTE_MAX - 1)}…` : t;
+  };
+  const newest = own[0];
+  return [
+    {
+      id: `client-log:${owner.clientId}:${newest.id ?? newest.date.slice(0, 10)}`,
+      kind: "client-log",
+      severity: "info",
+      title: own.length > 1 ? `Logged ${own.length} sessions` : `Logged ${nameOf(newest)}`,
+      evidence: own
+        .map((l) => `${nameOf(l)} · ${shortDate(l.date.slice(0, 10))}${l.notes?.trim() ? ` “${quote(l.notes)}”` : ""}`)
+        .join("; "),
       programId: owner.programId,
       clientId: owner.clientId,
       altHref: `/clients/${owner.clientId}`,

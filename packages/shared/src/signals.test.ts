@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { blockPulse, bySeverity, cardioBehindSignal, clientNoteSignals, computeSignals, lowReadinessSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
+import { blockPulse, bySeverity, cardioBehindSignal, clientLogSignals, clientNoteSignals, FEED_ONLY_KINDS, computeSignals, lowReadinessSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
 
 const owner = { programId: "pg-1", clientId: "cl-1" };
 
@@ -718,5 +718,43 @@ describe("bySeverity", () => {
     const sig = (id: string, severity: "urgent" | "attention" | "info") => ({ id, severity });
     const sorted = [sig("i1", "info"), sig("a1", "attention"), sig("i2", "info"), sig("u1", "urgent"), sig("a2", "attention")].sort(bySeverity);
     expect(sorted.map((s) => s.id)).toEqual(["u1", "a1", "a2", "i1", "i2"]);
+  });
+});
+
+describe("client logs reach the coach", () => {
+  const NOW = Date.parse("2026-11-16T12:00:00Z");
+  const owner = { programId: "pg-1", clientId: "cl-1" };
+  const log = (date: string, extra: Partial<SignalLog> = {}): SignalLog => ({ programId: "pg-1", date, sets: [], loggedBy: "client", ...extra });
+
+  test("one signal per client, newest first, naming each session and quoting its note", () => {
+    const [s, ...rest] = clientLogSignals(
+      owner,
+      [log("2026-11-12", { id: "l1", sessionName: "Upper A" }), log("2026-11-15", { id: "l2", sessionName: "Lower", notes: "  knee   ok " })],
+      NOW
+    );
+    expect(rest).toEqual([]);
+    expect(s).toMatchObject({ id: "client-log:cl-1:l2", kind: "client-log", severity: "info", title: "Logged 2 sessions", clientId: "cl-1" });
+    expect(s.evidence).toBe("Lower · Nov 15 “knee ok”; Upper A · Nov 12");
+  });
+
+  test("a single log names the session; cardio falls back to its modality; no id → the date", () => {
+    const [s] = clientLogSignals(owner, [log("2026-11-14", { kind: "cardio", cardio: { modality: "Running" } as SignalLog["cardio"] })], NOW);
+    expect(s).toMatchObject({ id: "client-log:cl-1:2026-11-14", title: "Logged Running", evidence: "Running · Nov 14" });
+  });
+
+  test("a newer log changes the id, so it comes back after Seen", () => {
+    const before = clientLogSignals(owner, [log("2026-11-12", { id: "l1" })], NOW)[0].id;
+    const after = clientLogSignals(owner, [log("2026-11-12", { id: "l1" }), log("2026-11-16", { id: "l3" })], NOW)[0].id;
+    expect(after).not.toBe(before);
+  });
+
+  test("only the last 7 days, and never the coach's own logs", () => {
+    expect(clientLogSignals(owner, [log("2026-11-09"), log("2026-11-15", { loggedBy: "trainer" }), log("2026-11-17")], NOW)).toEqual([]);
+    expect(clientLogSignals(owner, [log("2026-11-10")], NOW)).toHaveLength(1);
+  });
+
+  test("it is feed-only", () => {
+    expect(FEED_ONLY_KINDS.has("client-log")).toBe(true);
+    expect(FEED_ONLY_KINDS.has("client-note")).toBe(false);
   });
 });
