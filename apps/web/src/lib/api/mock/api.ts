@@ -23,6 +23,7 @@ import {
   cardioBehindSignal,
   painFlagSignals,
   lowReadinessSignals,
+  bySeverity,
   clientNoteSignals,
   chainSetCounts,
   DELOAD_RULES,
@@ -2789,7 +2790,7 @@ async function learnFrom(input: {
 /** Demo verdicts: latest 👍/👎 per subject, in memory. */
 const verdicts = new Map<string, LlmVerdictDto>();
 
-/** Open signals over the demo fixtures, snooze-filtered — the mock of the API's openSignals. */
+/** Open signals over the demo fixtures, snooze-filtered and loudest first — the mock of the API's openSignals. */
 function openSignals(): SignalDto[] {
   const signals: SignalDto[] = [];
   for (const client of state.clients) {
@@ -2817,7 +2818,7 @@ function openSignals(): SignalDto[] {
     const owner = { programId: current?.id ?? null, clientId: client.id };
     signals.push(...painFlagSignals(owner, clientLogs, nameOf), ...lowReadinessSignals(owner, clientLogs), ...clientNoteSignals(owner, clientLogs));
   }
-  return activeSignals(signals);
+  return activeSignals(signals).sort(bySeverity);
 }
 
 const ROSTER_RANK = { active: 0, paused: 1, archived: 2 } as const;

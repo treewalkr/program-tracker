@@ -48,6 +48,13 @@ export interface Signal {
   targetWeek?: number;
 }
 
+const SEVERITY_RANK: Record<Signal["severity"], number> = { urgent: 0, attention: 1, info: 2 };
+
+/** Loudest first: urgent > attention > info. Use with a stable sort (Array#sort is). */
+export function bySeverity(a: Pick<Signal, "severity">, b: Pick<Signal, "severity">): number {
+  return SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+}
+
 /** Same work getting harder: avg RPE at identical load AND reps, latest vs
  *  earliest block week. Matching reps keeps double progression (+1 rep at the
  *  same load) from reading as fatigue. */

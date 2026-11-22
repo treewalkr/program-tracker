@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { blockPulse, cardioBehindSignal, clientNoteSignals, computeSignals, lowReadinessSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
+import { blockPulse, bySeverity, cardioBehindSignal, clientNoteSignals, computeSignals, lowReadinessSignals, DELOAD_RULES, painFlagSignals, type SignalLog, type SignalProgram } from "./index";
 
 const owner = { programId: "pg-1", clientId: "cl-1" };
 
@@ -710,5 +710,13 @@ describe("client notes reach the coach", () => {
 
   test("the trainer's own notes, blank notes and old notes don't", () => {
     expect(clientNoteSignals(owner, [note("2026-11-15", "coach note", "trainer"), note("2026-11-15", "  "), note("2026-10-20", "old")], NOW)).toEqual([]);
+  });
+});
+
+describe("bySeverity", () => {
+  test("sorts urgent > attention > info and keeps order within a severity", () => {
+    const sig = (id: string, severity: "urgent" | "attention" | "info") => ({ id, severity });
+    const sorted = [sig("i1", "info"), sig("a1", "attention"), sig("i2", "info"), sig("u1", "urgent"), sig("a2", "attention")].sort(bySeverity);
+    expect(sorted.map((s) => s.id)).toEqual(["u1", "a1", "a2", "i1", "i2"]);
   });
 });
