@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.44 — 2026-11-23
+
 ### New
 - **Circuits and supersets log round by round.** On the portal, members now see each round as "Set 1" with every exercise in it, the way they do it on the floor. The card also says what it is, like "Circuit · 3 rounds".
   - th: เซอร์กิตกับซูเปอร์เซตในพอร์ทัลเรียงเป็นรอบแล้ว เมมเบอร์จะเห็น "เซต 1" พร้อมทุกท่าในรอบนั้น ตรงกับที่เล่นจริง หัวการ์ดก็บอกด้วยว่าเป็นเซอร์กิตหรือซูเปอร์เซต กี่รอบ
