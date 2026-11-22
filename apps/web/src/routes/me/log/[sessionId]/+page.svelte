@@ -265,6 +265,8 @@
           ...(hurtOn(peId) ? [{ peId, kind: "pain" as const }] : []),
         ]),
   );
+  /** The card's exercises that can take another set: not skipped, under the cap. */
+  const addable = $derived(!block ? [] : block.memberIds.filter((peId) => !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS));
   const flaggedAt = (i: number) => (blocks[i]?.memberIds ?? []).some((peId) => skipReasonOf(peId) || hurtOn(peId));
   /** Page to a card: its "Skip or pain?" panel starts closed unless something on it is flagged. */
   function goTo(i: number) {
@@ -656,11 +658,20 @@
               {/if}
             {/each}
           </ol>
-          {#each block.memberIds as peId (peId)}
-            {#if !skipReasonOf(peId) && rows.filter((r) => r.programExerciseId === peId).length < MAX_SETS}
-              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}{#if block.memberIds.length > 1}{" · "}{exerciseOf(peId)?.exerciseName}{/if}</button>
-            {/if}
-          {/each}
+          {#if block.memberIds.length === 1}
+            {#each addable as peId (peId)}
+              <button type="button" class="add" onclick={() => addSet(peId)}><Icon name="plus" />{t("log.addSet")}</button>
+            {/each}
+          {:else if addable.length > 0}
+            <!-- a group: one "Add a set" line, a name per exercise, instead of a stack of links -->
+            <div class="adds" role="group" aria-label={t("log.addSet")}>
+              <span class="adds-k" aria-hidden="true"><Icon name="plus" />{t("log.addSet")}</span>
+              {#each addable as peId (peId)}
+                {@const name = exerciseOf(peId)?.exerciseName ?? ""}
+                <button type="button" class="add add-ex" aria-label={`${t("log.addSet")} · ${name}`} lang={latinLang(name)} onclick={() => addSet(peId)}>{name}</button>
+              {/each}
+            </div>
+          {/if}
 
           <!-- What didn't go to plan, in the coach's own vocabulary: a skip (with a reason) or pain.
                Rarely needed, so one quiet link under the sets; the tags above keep anything flagged in sight. -->
@@ -860,9 +871,9 @@
   .steps span :global(svg) { width: 12px; height: 12px; }
   .rpe-def { margin: 0; font-size: 13px; color: var(--muted); text-wrap: pretty; }
   .rpe-toggle {
-    justify-self: end;
+    justify-self: start;
     min-height: 44px;
-    margin: -8px 0 -12px;
+    margin: -8px 0 -12px -4px;
     padding: 0 4px;
     font: 500 14px/1 var(--font-ui);
     color: var(--blue);
@@ -892,7 +903,7 @@
     gap: 4px;
     justify-self: start;
     min-height: 44px;
-    margin: -8px 0 -4px;
+    margin: -8px 0 -4px -4px;
     padding: 0 4px;
     font: 500 14px/1 var(--font-ui);
     color: var(--blue);
@@ -946,10 +957,9 @@
   .set { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
   .set-head { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; }
   .set-n { font: 600 16px/1.3 var(--font-ui); }
-  /* a group card's round: "Set 1" over each exercise done in it */
-  .round { border-top: 1px solid var(--line); }
-  .round:first-child { border-top: 0; }
-  .round-h { margin: 12px 0 0; padding: 6px 10px; font: 600 16px/1.3 var(--font-ui); background: var(--well); border-radius: var(--radius); }
+  /* a group card's round: the tinted band is the divider, so no rule above it */
+  .round + .round { margin-top: 12px; }
+  .round-h { margin: 4px 0 0; padding: 6px 10px; font: 600 14px/1.3 var(--font-ui); background: var(--well); border-radius: var(--radius); }
   .round .set:first-child { border-top: 0; }
   .set-id { display: grid; gap: 2px; min-width: 0; }
   .set-id + .missed-btn, .set-id + .rm { margin-left: auto; }
@@ -971,12 +981,14 @@
   @container logform (min-width: 520px) {
     .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+  /* the card's text links (Log RPE, Add a set, Skip or pain?) share the content's left edge: their 4px padding hangs outside it */
   .add {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     justify-self: start;
     min-height: 44px;
+    margin-left: -4px;
     padding: 0 4px;
     font: 500 16px/1 var(--font-ui);
     color: var(--blue);
@@ -985,6 +997,10 @@
     cursor: pointer;
   }
   .add :global(svg) { width: 16px; height: 16px; }
+  .adds { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 14px; }
+  .adds-k { display: inline-flex; align-items: center; gap: 6px; font: 500 14px/1.3 var(--font-ui); color: var(--muted); }
+  .adds-k :global(svg) { width: 14px; height: 14px; }
+  .add-ex { min-width: 44px; margin-left: 0; justify-content: center; }
   /* a group names every exercise: wrap rather than widen the card */
   .next-ex { justify-content: space-between; gap: 12px; min-height: 48px; padding-block: 10px; font-size: 16px; line-height: 1.35; text-align: left; white-space: normal; }
   .next-ex :global(svg) { flex: none; width: 16px; height: 16px; transform: rotate(-90deg); }
