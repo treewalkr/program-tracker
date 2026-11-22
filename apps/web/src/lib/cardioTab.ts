@@ -138,6 +138,8 @@ export interface CardioLogRow {
   facts: string;
   state: ReviewState;
   byMember: boolean;
+  /** Pain reported on the log, or the session skipped for pain: the coach should see it at a glance. */
+  pain: boolean;
 }
 
 /** Cardio logs newest first, with what each still needs. */
@@ -156,7 +158,7 @@ export function cardioLogRows(logs: readonly Log[]): CardioLogRow[] {
         : [c.modality, sec != null ? formatDuration(sec) : null, c.distanceKm ? fmtDistance(c.distanceKm) : null, c.rpe != null ? `RPE ${c.rpe}` : null, load != null ? `${load} AU` : null]
             .filter(Boolean)
             .join(" · ");
-      return { id: l.id, date: day(l.date), title, facts, state: skipped ? "skipped" : l.reviewedAt ? "reviewed" : "to_review", byMember: l.loggedBy === "client" };
+      return { id: l.id, date: day(l.date), title, facts, state: skipped ? "skipped" : l.reviewedAt ? "reviewed" : "to_review", byMember: l.loggedBy === "client", pain: !!c.pain?.reported || c.skipped?.reason === "pain" };
     });
 }
 

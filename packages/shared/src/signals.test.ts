@@ -583,6 +583,21 @@ describe("painFlagSignals", () => {
   const flagLog = (date: string, flags: SignalLog["flags"]) => ({ date, flags });
   const pain = (exerciseId: string, note?: string) => ({ programExerciseId: null, exerciseId, kind: "pain" as const, note });
 
+  test("cardio pain (reported, or skipped for pain) raises the signal per modality", () => {
+    const logs = [
+      { date: "2026-10-26", flags: null, cardio: { modality: "Running", durationSec: 1800, rpe: 5, pain: { reported: true, note: "shin" } } },
+      { date: "2026-10-28", flags: null, cardio: { modality: "Running", skipped: { reason: "pain" as const } } },
+      { date: "2026-10-28", flags: null, cardio: { modality: "Cycling", skipped: { reason: "time" as const } } },
+    ];
+    const signals = painFlagSignals(owner, logs, nameOf, THU);
+    expect(signals).toHaveLength(1);
+    expect(signals[0].kind).toBe("pain-flag");
+    expect(signals[0].title).toBe("Pain flagged — Running ×2");
+    expect(signals[0].evidence).toContain("(skipped)");
+    expect(signals[0].evidence).toContain("“shin”");
+    expect(signals[0].id).toBe("pain-flag:cl-1:cardio:Running:2026-10-28");
+  });
+
   test("one signal per exercise, citing dates and notes, newest first", () => {
     const logs = [
       flagLog("2026-10-20", [pain(SQUAT, "knee twinge")]),

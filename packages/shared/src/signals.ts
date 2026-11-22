@@ -150,7 +150,7 @@ function stall(program: SignalProgram, logs: SignalLog[], nameOf: (id: string) =
     const planProgressed = hasTargets && planned.slice(1).some((l) => l!.value > planned[0]!.value);
     if (hasTargets && !planProgressed) continue;
 
-    const name = nameOf(exId);
+    const name = exId.startsWith(CARDIO_PAIN) ? exId.slice(CARDIO_PAIN.length) : nameOf(exId);
     return {
       id: `stall:${program.id}:${exId}`,
       kind: "stall",
@@ -383,16 +383,20 @@ export function cardioBehindSignal(
   };
 }
 
+/** The key prefix for cardio pain in the per-exercise map: "cardio:Running". */
+const CARDIO_PAIN = "cardio:";
+
 /** How far back a pain flag still raises a signal. */
 export const PAIN_FLAG_DAYS = 14;
 
 /** Pain check, merged by each signal caller next to computeSignals: one signal
  *  per client + exercise with a pain flag (or a skip for pain) in the last
- *  14 days, citing each date and note. The id carries the newest flag's date,
- *  so a fresh flag after a snooze shows again. */
+ *  14 days, citing each date and note. Cardio pain (reported on the log, or a
+ *  session skipped for pain) raises the same signal, per modality. The id
+ *  carries the newest flag's date, so a fresh flag after a snooze shows again. */
 export function painFlagSignals(
   owner: { programId: string | null; clientId: string | null },
-  logs: Pick<SignalLog, "date" | "flags">[],
+  logs: (Pick<SignalLog, "date" | "flags"> & { cardio?: SignalLog["cardio"] })[],
   nameOf: (id: string) => string,
   now: number = Date.now()
 ): Signal[] {
@@ -408,11 +412,18 @@ export function painFlagSignals(
       list.push({ date, note: f.note?.trim() || undefined, skipped: f.kind === "skipped" });
       byExercise.set(f.exerciseId, list);
     }
+    const c = log.cardio;
+    if (c && (c.pain?.reported || c.skipped?.reason === "pain")) {
+      const key = `${CARDIO_PAIN}${c.modality}`;
+      const list = byExercise.get(key) ?? [];
+      list.push({ date, note: c.pain?.note?.trim() || undefined, skipped: c.skipped?.reason === "pain" });
+      byExercise.set(key, list);
+    }
   }
   const signals: Signal[] = [];
   for (const [exId, hits] of byExercise) {
     hits.sort((a, b) => b.date.localeCompare(a.date));
-    const name = nameOf(exId);
+    const name = exId.startsWith(CARDIO_PAIN) ? exId.slice(CARDIO_PAIN.length) : nameOf(exId);
     const cites = hits
       .map((h) => `${shortDate(h.date)}${h.skipped ? " (skipped)" : ""}${h.note ? ` “${h.note}”` : ""}`)
       .join("; ");

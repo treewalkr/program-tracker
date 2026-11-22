@@ -50,6 +50,11 @@ describe("cardioLogOf", () => {
   });
   test("a skipped log sends only its reason", () => {
     expect(cardioLogOf({ ...done, skipped: "time" })).toEqual({ cardio: { modality: "Running", skipped: { reason: "time" } } });
+    // skipped for pain keeps where and how bad
+    expect(cardioLogOf({ ...done, skipped: "pain", painNote: " left shin " })).toEqual({
+      cardio: { modality: "Running", skipped: { reason: "pain" }, pain: { reported: true, note: "left shin" } },
+    });
+    expect(cardioLogOf({ ...done, skipped: "time", painNote: "ignored" })).toEqual({ cardio: { modality: "Running", skipped: { reason: "time" } } });
   });
   test("pain with its note, calories, and only the interval results given", () => {
     const f = { ...cardioFormOf(intervals), durationSec: 1980, rpe: 8, pain: true, painNote: " left knee ", calories: 310 };

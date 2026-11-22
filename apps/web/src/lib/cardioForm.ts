@@ -207,7 +207,11 @@ const n = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? 
 export function cardioLogOf(form: CardioForm): { cardio: CardioLog } | { error: CardioFormError } {
   const modality = form.modality.trim();
   if (!modality) return { error: "modality" };
-  if (form.skipped) return { cardio: { modality, skipped: { reason: form.skipped } } };
+  if (form.skipped) {
+    // skipped for pain: where and how bad still reaches the coach
+    const note = form.skipped === "pain" ? form.painNote.trim() : "";
+    return { cardio: { modality, skipped: { reason: form.skipped }, ...(note ? { pain: { reported: true, note } } : {}) } };
+  }
   if (form.durationSec == null || form.durationSec <= 0) return { error: "duration" };
   if (form.rpe == null) return { error: "rpe" };
   const range = cardioRangeError(form);

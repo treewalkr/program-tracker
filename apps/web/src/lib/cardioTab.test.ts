@@ -76,6 +76,9 @@ describe("cardio tab", () => {
       ["c", "reviewed"],
     ]);
     expect(rows[1].facts).toBe("Not done · No time");
+    expect(rows.every((r) => r.pain === false)).toBe(true);
+    const hurt = cardioLogRows([{ ...logs[0], id: "p", cardio: { modality: "Running", skipped: { reason: "pain" } } }]);
+    expect(hurt[0].pain).toBe(true);
     expect(rows[0].facts).toBe("Cycling · 1:00:00 · 24 km · RPE 3 · 180 AU");
     expect(dayLabel("2026-11-21")).toBe("Sat 21 Nov");
   });

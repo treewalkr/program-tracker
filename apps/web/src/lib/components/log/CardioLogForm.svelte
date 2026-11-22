@@ -18,6 +18,8 @@
     maxHr: string;
     pain: string;
     painNote: string;
+    /** Under the pain field (and on the portal's confirmation): when to stop. Blank on the coach's form. */
+    painSafety: string;
     more: string;
     calories: string;
     intervals: string;
@@ -91,6 +93,7 @@
     maxHr: "Max HR",
     pain: "Pain or discomfort",
     painNote: "Where, and how bad?",
+    painSafety: "",
     more: "Calories and per-interval results",
     calories: "Calories",
     intervals: "Per interval",
@@ -188,6 +191,11 @@
       <span>{text.reasons[value.skipped]}</span>
       <Button small variant="ghost" type="button" onclick={() => (value.skipped = null)}>{text.undoSkip}</Button>
     </div>
+    {#if value.skipped === "pain"}
+      <!-- skipped for pain: where and how bad still reaches the coach -->
+      <div class="pain-note"><InputField label={text.painNote} bind:value={value.painNote} maxlength={280} optional /></div>
+      {#if text.painSafety}<p class="safety" role="note">{text.painSafety}</p>{/if}
+    {/if}
   {:else}
     <div class="grid">
       <div class="wide">
@@ -224,6 +232,7 @@
       <ToggleChip on={value.pain} onclick={() => (value.pain = !value.pain)}>{text.pain}</ToggleChip>
       {#if value.pain}
         <div class="pain-note"><InputField label={text.painNote} bind:value={value.painNote} maxlength={280} /></div>
+        {#if text.painSafety}<p class="safety" role="note">{text.painSafety}</p>{/if}
       {/if}
     </div>
 
@@ -308,6 +317,8 @@
   .err { margin: 0; font: 500 13px/1.5 var(--font-ui); color: var(--bad); }
   .pain { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
   .pain-note { flex: 1; min-width: 220px; }
+  .safety { flex-basis: 100%; margin: 0; padding: 8px 12px; border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--warn-ink); font: 500 13px/1.45 var(--font-ui); text-wrap: pretty; }
+  .touch .safety { font-size: 14px; }
   .calc { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; font-size: 13px; color: var(--muted); }
   .calc b { font: 600 13px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); }
   .muted { color: var(--muted); }

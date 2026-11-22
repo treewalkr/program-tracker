@@ -964,6 +964,7 @@
                       <span class="clog-title">{dayLabel(r.date)} · {r.title}</span>
                       <span class="clog-facts">{r.facts}</span>
                     </span>
+                    {#if r.pain}<Pill tone="bad">Pain</Pill>{/if}
                     {#if r.state === "to_review"}<Pill tone="warn">To review</Pill>{:else if r.state === "reviewed"}<Pill tone="good">Reviewed</Pill>{:else}<Pill>Not done</Pill>{/if}
                   </button>
                 </li>

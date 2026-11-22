@@ -75,7 +75,7 @@
   let kgChecked = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
-  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean } | null>(null);
+  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean; pain: boolean } | null>(null);
   let undoing = $state(false);
   let undone = $state(false);
 
@@ -258,7 +258,7 @@
     try {
       const log = await portalApi.log(built.input);
       localStorage.removeItem(portalDraftKey(session.id));
-      saved = { log, sets: built.sets, replaced: byYou, skipped: !!built.input.cardio?.skipped };
+      saved = { log, sets: built.sets, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
       undone = false;
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -325,6 +325,7 @@
     maxHr: t("cardio.maxHr"),
     pain: t("cardio.pain"),
     painNote: t("cardio.painNote"),
+    painSafety: t("cardio.painSafety"),
     more: t("cardio.more"),
     calories: t("cardio.calories"),
     intervals: t("cardio.intervals"),
@@ -441,6 +442,7 @@
         <h1>{t("log.saved")}</h1>
       {/if}
       <p class="recap-line">{session.name} · {savedLine} · {fmtDay(saved.log.date)}</p>
+      {#if saved.pain}<p class="safety" role="note">{t("cardio.painSafety")}</p>{/if}
       {#if after}
         <div class="week-now">
           <p class="count tnum">{t("log.weekCount", { done: after.done, total: after.total })}</p>
@@ -919,4 +921,5 @@
   @media (min-width: 700px) {
     .savebar { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-overlay-up); bottom: 12px; }
   }
+  .safety { margin: 0; padding: 10px 14px; border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--warn-ink); font: 500 15px/1.5 var(--font-ui); text-align: left; text-wrap: pretty; }
 </style>

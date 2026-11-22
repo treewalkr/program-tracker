@@ -291,6 +291,7 @@ export const en = {
   "unit.kmh": "km/h",
   "unit.mph": "mph",
   "unit.kcal": "kcal",
+  "cardio.painSafety": "If it's sharp pain, chest tightness or dizziness, stop and tell your coach.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -580,6 +581,7 @@ export const th: Record<MessageKey, string> = {
   "unit.kmh": "กม./ชม.",
   "unit.mph": "ไมล์/ชม.",
   "unit.kcal": "แคลอรี",
+  "cardio.painSafety": "ถ้าเจ็บแปลบ แน่นหน้าอก หรือเวียนหัว ให้หยุดก่อน แล้วบอกโค้ช",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };
