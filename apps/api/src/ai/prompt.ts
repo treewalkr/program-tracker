@@ -286,7 +286,9 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
             "recovery"?: {           // work only: rest between reps (counted repeat − 1 times)
               "type": "active_recovery" | "passive_recovery",
               "durationSec"?: number,
-              "distanceM"?: number
+              "distanceM"?: number,
+              "hrZone"?: number,     // optional target, e.g. 1 for an easy jog
+              "paceSecPerKm"?: number
             }
           }
         ]

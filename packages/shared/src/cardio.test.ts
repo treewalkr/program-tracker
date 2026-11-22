@@ -195,6 +195,18 @@ describe("coerceCardio", () => {
     expect(rx!.intervals![1].recovery).toBeUndefined();
   });
 
+  test("a recovery keeps its time when its target is bad, and its good target crosses", () => {
+    const rx = coerceCardio({
+      modality: "Run",
+      intervals: [
+        { id: "a", type: "work", repeat: 3, durationSec: 300, recovery: { type: "active_recovery", durationSec: 60, hrZone: 9, paceSecPerKm: 420 } },
+        { id: "b", type: "work", repeat: 3, durationSec: 300, recovery: { type: "jog", durationSec: 60, hrZone: 1 } },
+      ],
+    });
+    expect(rx!.intervals![0].recovery).toEqual({ type: "active_recovery", durationSec: 60, paceSecPerKm: 420 });
+    expect(rx!.intervals![1].recovery).toEqual({ type: "passive_recovery", durationSec: 60, hrZone: 1 });
+  });
+
   test("a draft session with old or messy cardio still parses", () => {
     const old = DraftSession.safeParse({ name: "Cardio", kind: "cardio", cardio: { modality: "Bike", durationMin: 30, hrZone: 2 } });
     expect(old.success).toBe(true);
