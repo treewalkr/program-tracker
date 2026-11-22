@@ -30,6 +30,12 @@ test("timed holds read as seconds and never get an e1RM (F15)", () => {
   expect(plank.bestE1rm).toBe(0);
 });
 
+test("a set with reps and no load reads as bodyweight, never as a bare rep count", () => {
+  const [squat] = buildHistory({ logs, sets: [set("ex-squat", "working", null, 12, "7"), set("ex-squat", "working", "20", 10)], catalog });
+  expect(squat.recentSets).toEqual(["BW × 12 @ RPE 7", "20kg × 10"]);
+  expect(squat.bestE1rm).toBe(26.7);
+});
+
 test("a hold swapped into a timed slot still reads as seconds", () => {
   const swapped = { ...set("ex-side", "working", null, 45, "7"), programExerciseId: "pe-plank" } as unknown as SetLogRow;
   const [side] = buildHistory({
