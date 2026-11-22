@@ -6,6 +6,7 @@
   import { renderSafeMarkdown } from "$lib/markdown";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Author from "./Author.svelte";
@@ -46,13 +47,12 @@
   /** Collapsible threads: the composer was opened; it also stays open while it holds a draft. */
   let opened = $state(false);
   const expanded = $derived(!collapsible || opened || draft.trim() !== "" || tray.images.length > 0);
-  let field = $state<HTMLTextAreaElement | null>(null);
   let opener = $state<HTMLButtonElement | null>(null);
 
   async function openComposer() {
     opened = true;
     await tick();
-    field?.focus();
+    document.getElementById(`fb-reply-${item.id}`)?.focus();
   }
 
   /** Esc on an empty composer folds it back to the link. */
@@ -113,6 +113,22 @@
     editing = c.id;
     editText = c.body ?? "";
   }
+
+  /**
+   * Private notes open folded: the head carries the verdict, the body its first
+   * paragraph, so triage actions stay close to the ticket. The rest is one click.
+   */
+  let openNotes = $state(new Set<string>());
+  function toggleNote(id: string) {
+    const next = new Set(openNotes);
+    if (!next.delete(id)) next.add(id);
+    openNotes = next;
+  }
+  /** Folding only helps when there's more than a short first paragraph to hide. */
+  const noteHasMore = (c: FeedbackComment) =>
+    !!(c.aiMeta?.fixPlan?.length || c.aiMeta?.acceptance?.length || c.aiMeta?.questions?.length || c.aiMeta?.citations.length) ||
+    /\n\s*\n/.test(c.body?.trim() ?? "") ||
+    (c.body?.length ?? 0) > 240;
 
   /** "Ana's reply", for image names. */
   const replyOf = (c: FeedbackComment) => {
@@ -203,16 +219,19 @@
   {:else}
   <form class="composer" class:dropping={tray.dragging} onsubmit={(e) => (e.preventDefault(), send())} {@attach tray.zone}>
     <div class="row">
-      <textarea
-        bind:this={field}
-        aria-label="Reply to {feedbackHandle(item.number)}"
-        rows="1"
-        placeholder="Reply…"
-        bind:value={draft}
-        {onkeydown}
-        disabled={sending}
-        maxlength="5000"
-      ></textarea>
+      <div class="reply-field">
+        <InputNote
+          id="fb-reply-{item.id}"
+          label="Reply to {feedbackHandle(item.number)}"
+          hideLabel
+          rows={1}
+          maxRows={8}
+          placeholder="Reply…"
+          bind:value={draft}
+          {onkeydown}
+          disabled={sending}
+        />
+      </div>
       <Button small type="submit" disabled={!canSend}>{sending ? "Sending…" : "Reply"}</Button>
     </div>
     <AttachmentInput {tray} disabled={sending} label="the reply" />
@@ -240,13 +259,9 @@
       {@render when(c.createdAt)}
     </div>
     {#if editing === c.id}
-      <textarea
-        class="edit"
-        aria-label="Edit the AI draft"
-        bind:value={editText}
-        maxlength="5000"
-        disabled={busyId === c.id}
-      ></textarea>
+      <div class="edit">
+        <InputNote label="Edit the AI draft" hideLabel rows={3} maxRows={14} bind:value={editText} disabled={busyId === c.id} />
+      </div>
     {:else}
       <div class="body md">{@render html(c.body)}</div>
     {/if}
@@ -267,51 +282,61 @@
 {/snippet}
 
 {#snippet note(c: FeedbackComment)}
+  {@const meta = c.aiMeta}
+  {@const open = openNotes.has(c.id)}
+  {@const more = noteHasMore(c)}
   <section class="ai-note" aria-label="Private AI note">
-    <div class="head">
-      <span class="ai-note-label"><Icon name="lock" />AI triage note</span>
-      {@render verdict(c)}
-      {@render when(c.createdAt)}
-      <span class="spacer"></span>
+    <!-- The head is the summary: verdict, confidence, risk and readiness decide most tickets without opening the note. -->
+    <div class="note-head">
+      <div class="summary">
+        <span class="ai-note-label"><Icon name="lock" />AI triage note</span>
+        {@render verdict(c)}
+        {#if meta?.risk}<Pill tone={AI_RISK_TONE[meta.risk]}>{AI_RISK_LABEL[meta.risk]}</Pill>{/if}
+        {#if meta?.ready !== undefined}
+          <span class="ready" title={meta.ready ? "Plan checked, nothing left to ask — with low risk, the fix agent may take it once accepted" : "Something is still open: the owner decides first"}>
+            {meta.ready ? "Ready to fix" : "Not ready"}
+          </span>
+        {/if}
+        {@render when(c.createdAt)}
+      </div>
       <button type="button" class="dismiss" disabled={busyId !== null} onclick={() => discard(c)}>Dismiss</button>
     </div>
-    <div class="body md">{@render html(c.body)}</div>
-    {#if c.aiMeta?.risk || c.aiMeta?.fixPlan?.length || c.aiMeta?.acceptance?.length}
-      <div class="plan">
-        <div class="plan-head">
-          <span class="plan-label">Fix plan</span>
-          {#if c.aiMeta.risk}<Pill tone={AI_RISK_TONE[c.aiMeta.risk]}>{AI_RISK_LABEL[c.aiMeta.risk]}</Pill>{/if}
-          {#if c.aiMeta.ready !== undefined}
-            <span class="ready" title={c.aiMeta.ready ? "Plan checked, nothing left to ask — with low risk, the fix agent may take it once accepted" : "Something is still open: the owner decides first"}>
-              {c.aiMeta.ready ? "Ready to fix" : "Not ready"}
-            </span>
-          {/if}
-        </div>
-        {#if c.aiMeta.fixPlan?.length}
-          <ol aria-label="Fix plan">
-            {#each c.aiMeta.fixPlan as step, i (i)}<li>{step}</li>{/each}
-          </ol>
+    <div class="body md" class:folded={more && !open}>{@render html(c.body)}</div>
+    {#if more}
+      <div id="ai-note-{c.id}" class="rest" hidden={!open}>
+        {#if meta?.fixPlan?.length || meta?.acceptance?.length}
+          <div class="plan">
+            {#if meta.fixPlan?.length}
+              <span class="plan-label">Fix plan</span>
+              <ol aria-label="Fix plan">
+                {#each meta.fixPlan as step, i (i)}<li>{step}</li>{/each}
+              </ol>
+            {/if}
+            {#if meta.acceptance?.length}
+              <span class="plan-label">Done when</span>
+              <ul aria-label="Acceptance criteria">
+                {#each meta.acceptance as crit, i (i)}<li>{crit}</li>{/each}
+              </ul>
+            {/if}
+          </div>
         {/if}
-        {#if c.aiMeta.acceptance?.length}
-          <span class="plan-label">Done when</span>
-          <ul aria-label="Acceptance criteria">
-            {#each c.aiMeta.acceptance as crit, i (i)}<li>{crit}</li>{/each}
+        {#if meta?.questions?.length}
+          <div class="plan">
+            <span class="plan-label">Asks the reporter</span>
+            <ul aria-label="Questions for the reporter">
+              {#each meta.questions as q, i (i)}<li>{q}</li>{/each}
+            </ul>
+          </div>
+        {/if}
+        {#if meta?.citations.length}
+          <ul class="cites" aria-label="Citations">
+            {#each meta.citations as cite (cite)}<li><code>{cite}</code></li>{/each}
           </ul>
         {/if}
       </div>
-    {/if}
-    {#if c.aiMeta?.questions?.length}
-      <div class="plan">
-        <div class="plan-head"><span class="plan-label">Asks the reporter</span></div>
-        <ul aria-label="Questions for the reporter">
-          {#each c.aiMeta.questions as q, i (i)}<li>{q}</li>{/each}
-        </ul>
-      </div>
-    {/if}
-    {#if c.aiMeta?.citations.length}
-      <ul class="cites" aria-label="Citations">
-        {#each c.aiMeta.citations as cite (cite)}<li><code>{cite}</code></li>{/each}
-      </ul>
+      <button type="button" class="more" aria-expanded={open} aria-controls="ai-note-{c.id}" onclick={() => toggleNote(c.id)}>
+        {open ? "Hide full note" : "Show full note"}<Icon name="chevron" />
+      </button>
     {/if}
     {#if aiError?.id === c.id}<p class="error" role="alert">{aiError.message}</p>{/if}
   </section>
@@ -455,9 +480,26 @@
     padding: 8px 10px;
     background: var(--bg);
   }
-  .ai-draft .head,
-  .ai-note .head {
+  .ai-draft .head {
     flex-wrap: wrap;
+  }
+  /* Summary wraps inside its own box; Dismiss stays top-right on the first line. */
+  .note-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  .note-head .dismiss {
+    flex: none;
+    min-height: 24px;
   }
   .ai-draft .body,
   .ai-note .body {
@@ -465,25 +507,7 @@
     margin-top: 6px;
   }
   .edit {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
     margin-top: 6px;
-    field-sizing: content;
-    min-height: 64px;
-    max-height: 320px;
-    font: 400 13px/1.5 var(--font-ui);
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    resize: vertical;
-    color: var(--ink);
-    background: var(--bg);
-  }
-  .edit:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
   }
   .actions {
     display: flex;
@@ -520,9 +544,6 @@
     width: 12px;
     height: 12px;
   }
-  .spacer {
-    flex: 1;
-  }
   .dismiss {
     appearance: none;
     background: none;
@@ -541,13 +562,61 @@
     outline: 2px solid var(--blue);
     outline-offset: 2px;
   }
+  /* Folded: the first paragraph, two lines; the rest waits behind "Show full note". */
+  .body.folded > :global(:first-child) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+  .body.folded > :global(:not(:first-child)) {
+    display: none;
+  }
+  .rest[hidden] {
+    display: none;
+  }
+  .more {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    margin: 4px 0 0 -4px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    font: 600 12px/1.2 var(--font-ui);
+    color: var(--blue);
+    cursor: pointer;
+  }
+  .more :global(svg) {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.15s ease-out;
+  }
+  .more[aria-expanded="true"] :global(svg) {
+    transform: rotate(180deg);
+  }
+  .more:hover {
+    background: var(--hover-soft);
+  }
+  .more:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .more :global(svg) {
+      transition: none;
+    }
+  }
   .plan {
     margin-top: 8px;
-  }
-  .plan-head {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
   }
   .plan-label {
     font: 600 12px/1 var(--font-ui);
@@ -557,8 +626,9 @@
     font: 500 12px/1 var(--font-ui);
     color: var(--muted);
   }
-  .plan ol {
-    margin: 6px 0 0;
+  .plan ol,
+  .plan ul {
+    margin: 0;
     padding-left: 20px;
     color: var(--ink);
     line-height: 1.5;
@@ -613,6 +683,8 @@
     font: 400 12px/1 var(--font-ui);
     color: var(--muted);
     cursor: default;
+    /* A long author name truncates; the date never breaks over two lines. */
+    white-space: nowrap;
   }
   button.when:focus-visible {
     outline: 2px solid var(--blue);
@@ -667,24 +739,9 @@
   .rate {
     margin-top: 6px;
   }
-  .composer textarea {
+  .reply-field {
     flex: 1;
     min-width: 0;
-    field-sizing: content;
-    min-height: 32px;
-    max-height: 200px;
-    font: 400 13px/1.5 var(--font-ui);
-    padding: 5px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    resize: none;
-    color: var(--ink);
-    background: var(--bg);
-  }
-  .composer textarea:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
   }
   .composer :global(.btn) {
     min-height: 32px;

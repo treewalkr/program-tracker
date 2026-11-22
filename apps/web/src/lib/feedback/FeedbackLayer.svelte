@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { appPath } from "$lib/portal/lang";
   import { feedbackMode } from "./mode.svelte";
-  import { buildContext, chainOf, isFeedbackUi, shortPath, sourceLabel } from "./capture";
+  import { buildContext, chainOf, closeUpFrame, isFeedbackUi, shortPath, sourceLabel } from "./capture";
   import { runtimeSnapshot } from "./runtime";
   import { feedbackApi, type CapturedShot } from "./client";
   import TicketPins from "./TicketPins.svelte";
@@ -184,6 +184,20 @@
     });
   });
 
+  /** Runs a capture with the picked element outlined in red, so a wider shot still shows what the comment is about. */
+  async function outlined<T>(target: HTMLElement, run: () => Promise<T>): Promise<T> {
+    const prev = target.style.outline;
+    const prevOffset = target.style.outlineOffset;
+    target.style.outline = "3px solid var(--bad)";
+    target.style.outlineOffset = "2px";
+    try {
+      return await run();
+    } finally {
+      target.style.outline = prev;
+      target.style.outlineOffset = prevOffset;
+    }
+  }
+
   /** A capture, re-encoded like any other image (webp, ≤ 2000px, ≤ 2 MB). */
   async function shoot(node: HTMLElement, kind: "element" | "page"): Promise<File | undefined> {
     try {
@@ -227,21 +241,11 @@
         filed,
       );
       const target = el as HTMLElement;
-      const elementShot = await shoot(target, "element");
-      let pageShot: File | undefined;
-      if (includePage) {
-        // Mark the picked element so the page shot shows what the comment is about.
-        const prev = target.style.outline;
-        const prevOffset = target.style.outlineOffset;
-        target.style.outline = "3px solid var(--bad)";
-        target.style.outlineOffset = "2px";
-        try {
-          pageShot = await shoot(document.body, "page");
-        } finally {
-          target.style.outline = prev;
-          target.style.outlineOffset = prevOffset;
-        }
-      }
+      // A small element (a heading, a chip) is shot inside a roomier ancestor, outlined.
+      const frame = closeUpFrame(target);
+      const elementShot =
+        frame === target ? await shoot(target, "element") : await outlined(target, () => shoot(frame, "element"));
+      const pageShot = includePage ? await outlined(target, () => shoot(document.body, "page")) : undefined;
       const shots: CapturedShot[] = [
         ...(elementShot ? [{ kind: "element" as const, file: elementShot }] : []),
         ...(pageShot ? [{ kind: "page" as const, file: pageShot }] : []),
@@ -432,7 +436,7 @@
     position: fixed;
     pointer-events: none;
     z-index: 9998;
-    border-radius: 3px;
+    border-radius: 4px;
   }
   .outline.hover {
     outline: 2px solid var(--blue);
@@ -467,7 +471,7 @@
     width: 340px;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: var(--shadow-overlay);
     padding: 12px;
     display: flex;
@@ -665,7 +669,7 @@
     background: var(--surface);
     color: var(--ink);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: var(--shadow-overlay);
   }
   .unplaced a {

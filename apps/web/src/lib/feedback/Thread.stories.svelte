@@ -200,3 +200,31 @@
     ]),
   }}
 />
+
+<Story
+  name="Admin: long triage note (folded)"
+  args={{
+    item: item([
+      entry({
+        authorKind: 'ai',
+        visibility: 'private',
+        aiMeta: meta({
+          verdict: 'feature',
+          confidence: 'medium',
+          risk: 'low',
+          ready: false,
+          citations: ['apps/web/src/routes/+page.svelte:128', 'apps/web/src/lib/ui/Panel.svelte:13'],
+          fixPlan: [
+            'In apps/web/src/lib/ui/Panel.svelte add an optional `collapsible` prop: a chevron button in .panel-head that hides the children.',
+            'When storageKey is set, keep the collapsed state in localStorage so it survives reloads.',
+            'Pass collapsible to the Training week Panel on the overview.',
+          ],
+          acceptance: ['The Training week panel head has a button that hides the week board.', 'The toggle is keyboard-reachable and announces aria-expanded.'],
+        }),
+        body:
+          "Evidence: Idea ticket, 'a hide button would be nice', on the 'Training week' heading of the overview. Steps show ~15 clicks on the panel head in the 40 s before reporting — they were trying to collapse it by clicking the heading.\n\nCode: the overview renders Training week as a plain Panel. Panel has title/count/act props only, no collapse.\n\nOpen decisions: remember the collapsed state across visits, or reset each load.",
+      }),
+      entry({ authorKind: 'ai', visibility: 'draft', aiMeta: meta({ confidence: 'medium' }), body: answer }),
+    ]),
+  }}
+/>

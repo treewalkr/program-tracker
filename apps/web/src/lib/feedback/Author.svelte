@@ -35,7 +35,7 @@
     width: 20px;
     height: 20px;
     border-radius: 99px;
-    font-size: 9px;
+    font-size: 11px;
     flex: none;
   }
   .name {

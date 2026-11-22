@@ -12,6 +12,7 @@ import {
 import type { LightboxImage } from "$lib/ui/Lightbox.svelte";
 import { client } from "$lib/api/treaty";
 import type { ImageSlot } from "./layout";
+import { ApiError } from "./errors";
 
 /** Someone else edited the ticket (or it was closed) while it was open in the editor. */
 export class EditConflict extends Error {}
@@ -25,7 +26,8 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
   if (error) {
     const value = error.value as { error?: string } | string | null;
     const message = typeof value === "string" ? value : value?.error;
-    throw new Error(message ?? `request failed: ${String(error.status ?? "unknown")}`);
+    const status = typeof error.status === "number" ? error.status : null;
+    throw new ApiError(message ?? `request failed: ${String(error.status ?? "unknown")}`, status);
   }
   return data as T;
 }

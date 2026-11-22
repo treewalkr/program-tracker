@@ -337,7 +337,7 @@
     overflow: auto;
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: var(--shadow-overlay);
     padding: 12px;
     display: flex;
