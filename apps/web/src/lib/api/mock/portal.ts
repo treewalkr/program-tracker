@@ -135,6 +135,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   }
   const loads = {
     isBodyweight: (id: string) => loadStep(exercises.find((e) => e.id === id)?.equipment as Equipment | undefined) === null,
+    equipmentOf: (id: string) => exercises.find((e) => e.id === id)?.equipment as Equipment | undefined,
     lastWeights: lastWeightsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID)),
     lastSets: lastSetsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID), startDate),
     // the zones in effect today, so a zone target shows as bpm like the API

@@ -233,6 +233,7 @@ async function loadContext(clientId: string, program: ProgramRow, weekStart: str
   const logs = rows.map((r) => ({ date: r.date, sets: [r] }));
   return {
     isBodyweight: (id: string) => bodyweight.has(id),
+    equipmentOf: (id: string) => equipment.find((e) => e.id === id)?.equipment as Equipment | undefined,
     lastWeights: lastWeightsOf(logs),
     lastSets: lastSetsOf(logs, weekStart),
   };
