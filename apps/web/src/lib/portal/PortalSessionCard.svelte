@@ -3,7 +3,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
   import { modalityName } from "./modality";
-  import { cardioActualParts, cardioParts, coachIntensity, intervalLines, setParts } from "./rx";
+  import { cardioActualParts, cardioParts, coachIntensity, intervalLines, portalMetric, setParts } from "./rx";
   import { reviewDay } from "./progress";
 
   /**
@@ -129,7 +129,7 @@
     {#if intensity}<p class="intensity">{intensity}</p>{/if}
     {#if session.cardio.intervals?.length}
       <ol class="iv" aria-label={t("session.intervals")}>
-        {#each intervalLines(session.cardio.intervals, t) as l (l.key)}
+        {#each intervalLines(session.cardio.intervals, t, portalMetric(session.cardio.modality)) as l (l.key)}
           <li class="iv-{l.kind}">
             <span class="iv-name">{l.name}</span>
             <span class="iv-amt tnum">{l.amount}</span>
