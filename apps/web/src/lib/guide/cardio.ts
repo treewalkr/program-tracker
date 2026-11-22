@@ -68,7 +68,7 @@ const en: ProgramsGuide = {
           defs: [
             { dt: "% of max HR", dd: "Needs a max heart rate." },
             { dt: "Heart-rate reserve (Karvonen)", dd: "Needs resting and max heart rate." },
-            { dt: "% of threshold (LTHR)", dd: "Needs a lactate-threshold heart rate." },
+            { dt: "% of threshold (LTHR)", dd: "Needs a lactate-threshold heart rate from a 30-minute test in the same sport (Friel's running zones). It must be below max HR." },
             { dt: "Custom", dd: "Type each zone's band yourself; gaps and overlaps are flagged." },
           ],
         },
@@ -195,7 +195,7 @@ const th: ProgramsGuide = {
           defs: [
             { dt: "% ของชีพจรสูงสุด", dd: "ต้องมีชีพจรสูงสุด" },
             { dt: "Heart-rate reserve (Karvonen)", dd: "ต้องมีชีพจรขณะพักและชีพจรสูงสุด" },
-            { dt: "% ของ threshold (LTHR)", dd: "ต้องมีชีพจรที่ lactate threshold" },
+            { dt: "% ของ threshold (LTHR)", dd: "ต้องมีชีพจรที่ lactate threshold จากการทดสอบ 30 นาทีในกีฬาเดียวกัน (โซนวิ่งของ Friel) และต้องต่ำกว่าชีพจรสูงสุด" },
             { dt: "Custom", dd: "พิมพ์ช่วง bpm ของแต่ละโซนเอง ระบบจะเตือนถ้ามีช่องว่างหรือช่วงทับกัน" },
           ],
         },

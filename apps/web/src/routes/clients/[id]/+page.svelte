@@ -19,7 +19,8 @@
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, AssessmentDto, AssessmentInput, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
-  import { oneRepMaxKg, plannedVolume, pulseCellSets, type PulseCell } from "@pt/shared";
+  import { oneRepMaxKg, plannedVolume, profileOn, pulseCellSets, type PulseCell } from "@pt/shared";
+  import { maxHrUntested } from "$lib/hrProfile";
   import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
   import { weekOptions } from "$lib/format";
@@ -981,7 +982,7 @@
           <div class="panel-body">
             {#if reviewLog?.cardio}
               {#key reviewLog.id}
-                <CardioReview log={reviewLog} member={firstName} metric={metricOf(reviewLog.cardio.modality)} onreview={(input) => reviewCardio(reviewLog.id, input)} />
+                <CardioReview log={reviewLog} member={firstName} metric={metricOf(reviewLog.cardio.modality)} zonesApprox={maxHrUntested(profileOn(hrVersions ?? [], reviewLog.date))} onreview={(input) => reviewCardio(reviewLog.id, input)} />
               {/key}
             {:else}
               <p class="cardio-foot">Pick a log to see plan against actual.</p>

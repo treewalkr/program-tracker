@@ -1,7 +1,7 @@
 <script lang="ts">
   import { HR_ZONE_METHODS, profileOn, type HrZone, type HrZoneMethod } from "@pt/shared";
   import type { HrProfileDto, HrProfileInputDto } from "$lib/api/types";
-  import { HR_METHOD_HINT, HR_METHOD_LABEL, hrDraftOf, hrDraftZones, hrInputOf, hrInputsLine, type HrDraft } from "$lib/hrProfile";
+  import { HR_METHOD_HINT, HR_METHOD_LABEL, hrDraftOf, hrDraftZones, hrInputOf, hrInputsLine, MAX_HR_UNTESTED, maxHrUntested, type HrDraft } from "$lib/hrProfile";
   import ProfileSection from "./ProfileSection.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import InputUnit from "$lib/ui/InputUnit.svelte";
@@ -128,6 +128,7 @@
       <Button small type="button" onclick={edit}>New version</Button>
     </div>
     {@render table(current?.zones ?? null, false)}
+    {#if maxHrUntested(current)}<p class="approx">{MAX_HR_UNTESTED}</p>{/if}
     {#if versions.length > 1}
       <button type="button" class="toggle" aria-expanded={showHistory} onclick={() => (showHistory = !showHistory)}>
         {showHistory ? "Hide" : "Show"} all {versions.length} versions
@@ -211,5 +212,10 @@
     .zones td, .zones th { padding: 4px; }
     .history li { grid-template-columns: 3ch 1fr; }
     .history li span:nth-child(n + 3) { grid-column: 2; }
+  }
+  .approx {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--warn);
   }
 </style>

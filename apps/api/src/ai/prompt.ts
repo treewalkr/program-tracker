@@ -54,6 +54,8 @@ export interface ClientContext {
   cardioTarget?: CardioTarget | null;
   /** Bpm per zone from the HR profile version in effect today; null = no profile (never estimated). */
   hrZones?: HrZones | null;
+  /** The zones lean on a max HR nobody measured (no test date): they're approximate. */
+  hrMaxUntested?: boolean;
   /** Recorded 1RMs with catalog names, for %1RM prescriptions. */
   oneRepMaxes?: { exerciseId: string; name: string; kg: number; date: string }[] | null;
   /** Client basics. Phone and start date are admin-only and never reach the AI. */
@@ -461,16 +463,17 @@ function hrProfileLines(ctx: Pick<GenerationContext, "client" | "previousProgram
     !!c.cardioDays?.length ||
     c.longRunDay != null ||
     !!ctx.previousProgram?.sessions.some((s) => s.kind === "cardio");
-  return cardio ? [hrProfileLine(c.hrZones)] : [];
+  return cardio ? [hrProfileLine(c.hrZones, { maxUntested: c.hrMaxUntested })] : [];
 }
 
 /** The member's HR zones in bpm, or the rule for when they have none. */
-export function hrProfileLine(zones: HrZones | null | undefined): string {
+export function hrProfileLine(zones: HrZones | null | undefined, o: { maxUntested?: boolean } = {}): string {
   if (!zones?.length) {
     return "HR PROFILE: none — prescribe cardio by hrZone and targetRpe only; never invent HRmax, LTHR, resting HR or VO₂max, and never write bpm.";
   }
   const bands = [...zones].sort((a, b) => a.zone - b.zone).map((z) => `Z${z.zone} ${z.min}–${z.max}`).join(", ");
-  return `HR PROFILE (bpm per zone, from the trainer): ${bands}. Prescribe by hrZone; the app shows the member these bpm bands.`;
+  const approx = o.maxUntested ? " Max HR not tested — zones approximate: pair every zone with a targetRpe." : "";
+  return `HR PROFILE (bpm per zone, from the trainer): ${bands}. Prescribe by hrZone; the app shows the member these bpm bands.${approx}`;
 }
 
 /** SESSION TYPES section: presets grouped by main type, then the trainer's own, each with the format it needs. */

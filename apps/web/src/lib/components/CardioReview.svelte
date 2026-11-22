@@ -3,6 +3,7 @@
   import type { LogReviewDto, LogReviewInput, SessionLogDto } from "$lib/api/types";
   import { dayLabel, planIntervals, planSource, reviewRows } from "$lib/cardioTab";
   import { SKIP_REASON_LABEL } from "$lib/cardioForm";
+  import { MAX_HR_UNTESTED } from "$lib/hrProfile";
   import InputNote from "$lib/ui/InputNote.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Pill from "$lib/ui/Pill.svelte";
@@ -20,9 +21,11 @@
     /** How pace shows for this log's modality. */
     metric: CardioMetric;
     onreview: (input: LogReviewInput) => Promise<LogReviewDto>;
+    /** The HR profile on the log date leans on an untested max HR. */
+    zonesApprox?: boolean;
   }
 
-  let { log, member, metric, onreview }: Props = $props();
+  let { log, member, metric, onreview, zonesApprox = false }: Props = $props();
 
   const cardio = $derived(log.cardio!);
   const plan = $derived(log.prescription ?? null);
@@ -78,6 +81,7 @@
         </tbody>
       </table>
     </div>
+    {#if zonesApprox}<p class="approx">{MAX_HR_UNTESTED}</p>{/if}
     {#if ivs.length}
       <details class="ivs">
         <summary>Planned intervals</summary>
@@ -121,7 +125,7 @@
   .pva tbody th { border-bottom: 1px solid var(--line-soft); }
   .plan { color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .act { color: var(--ink); font: 600 13px var(--font-mono); font-variant-numeric: tabular-nums; }
-  .act.insufficient { font: 500 13px var(--font-ui); color: var(--warn-ink, var(--muted)); }
+  .act.insufficient { font: 500 13px var(--font-ui); color: var(--warn); }
   .aside { margin-left: 8px; font: 400 12px var(--font-ui); color: var(--muted); }
   .note-row td { padding-top: 0; font-size: 12px; color: var(--muted); }
   .pva tr:has(+ .note-row) td, .pva tr:has(+ .note-row) th { border-bottom: none; }
@@ -133,4 +137,9 @@
   .facts dd.bad { color: var(--bad); font-weight: 500; }
   .acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
   .acts .err { margin: 0 auto 0 0; color: var(--bad); font-size: 12px; }
+  .approx {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--warn);
+  }
 </style>

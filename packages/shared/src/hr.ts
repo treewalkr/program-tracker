@@ -97,6 +97,21 @@ export function zoneIssues(zones: readonly HrZone[]): string[] {
   return issues;
 }
 
+/**
+ * Inputs that can't all be true: resting at or above max, an LTHR at or above
+ * max, or a zone topping out above the member's max HR. Empty = plausible.
+ */
+export function hrPlausibilityIssues(p: HrInputs & { zones?: readonly HrZone[] | null }): { field: "restingHr" | "lthr" | "zones"; message: string }[] {
+  const out: { field: "restingHr" | "lthr" | "zones"; message: string }[] = [];
+  if (p.restingHr && p.maxHr && p.restingHr >= p.maxHr) out.push({ field: "restingHr", message: "resting HR must be below max HR" });
+  if (p.lthr && p.maxHr && p.lthr >= p.maxHr) out.push({ field: "lthr", message: "LTHR must be below max HR" });
+  if (p.maxHr && p.zones) {
+    const over = p.zones.find((z) => z.max > p.maxHr!);
+    if (over) out.push({ field: "zones", message: `zone ${over.zone} tops out at ${over.max} bpm, above max HR (${p.maxHr})` });
+  }
+  return out;
+}
+
 /** What a trainer sends to start a new HR profile version. */
 export const HrProfileInput = z
   .object({
@@ -114,8 +129,8 @@ export const HrProfileInput = z
     for (const field of missingHrInputs(p.method, p)) {
       ctx.addIssue({ code: "custom", message: `${p.method} zones need ${field}`, path: [field] });
     }
-    if (p.restingHr && p.maxHr && p.restingHr >= p.maxHr) {
-      ctx.addIssue({ code: "custom", message: "resting HR must be below max HR", path: ["restingHr"] });
+    for (const issue of hrPlausibilityIssues({ ...p, zones: p.method === "custom" ? p.zones : null })) {
+      ctx.addIssue({ code: "custom", message: issue.message, path: [issue.field] });
     }
     if (p.method === "custom") {
       if (!p.zones) ctx.addIssue({ code: "custom", message: "custom zones need a zone table", path: ["zones"] });

@@ -1,5 +1,6 @@
 import {
   computeHrZones,
+  hrPlausibilityIssues,
   HrProfileInput,
   missingHrInputs,
   zoneIssues,
@@ -15,14 +16,14 @@ import {
 export const HR_METHOD_LABEL: Record<HrZoneMethod, string> = {
   hrmax: "% of max HR",
   karvonen: "Heart-rate reserve",
-  lthr: "% of LTHR",
+  lthr: "%LTHR (Friel, running)",
   custom: "Custom",
 };
 
 export const HR_METHOD_HINT: Record<HrZoneMethod, string> = {
   hrmax: "50–100 % of max HR. Needs a max HR.",
   karvonen: "Karvonen: resting HR plus 30–100 % of the reserve (max − resting). Needs resting and max HR.",
-  lthr: "65–106 % of lactate-threshold HR. Needs an LTHR from a field test.",
+  lthr: "65–106 % of lactate-threshold HR (Friel's running zones). LTHR from a 30-min test in the same sport.",
   custom: "Your own bpm for each zone, from a lab test or a watch.",
 };
 
@@ -68,12 +69,13 @@ export function hrDraftOf(current: Stored | null, today: string): HrDraft {
 export function hrDraftZones(d: HrDraft): { zones: HrZone[] } | { missing: string } {
   if (d.method === "custom") {
     if (d.zones.some((z) => !z.min || !z.max)) return { missing: "Type a min and max bpm for every zone." };
-    const issues = zoneIssues(d.zones);
+    const issues = [...zoneIssues(d.zones), ...hrPlausibilityIssues(d).map((i) => i.message)];
     return issues.length ? { missing: cap(issues[0]) + "." } : { zones: d.zones };
   }
   const missing = missingHrInputs(d.method, d);
   if (missing.length) return { missing: `${HR_METHOD_LABEL[d.method]} needs ${missing.map((m) => INPUT_WORD[m]).join(" and ")}.` };
-  if (d.restingHr && d.maxHr && d.restingHr >= d.maxHr) return { missing: "Resting HR must be below max HR." };
+  const implausible = hrPlausibilityIssues(d);
+  if (implausible.length) return { missing: cap(implausible[0].message) + "." };
   const zones = computeHrZones(d.method, d);
   return zones ? { zones } : { missing: "These inputs don't give zones." };
 }
@@ -105,3 +107,10 @@ export function hrInputsLine(p: Pick<Stored, "restingHr" | "maxHr" | "maxHrTeste
   if (p.lthr) parts.push(`LTHR ${p.lthr}`);
   return parts.join(" · ") || "No inputs recorded";
 }
+
+/** Zones from a max HR nobody measured are a guess: the line the zone table, the review and the AI carry. */
+export const MAX_HR_UNTESTED = "Max HR not tested — zones approximate";
+
+/** True when the zones lean on a max HR without a test date. */
+export const maxHrUntested = (p: { method: HrZoneMethod; maxHr: number | null; maxHrTestedOn: string | null } | null | undefined) =>
+  !!p && !!p.maxHr && !p.maxHrTestedOn && (p.method === "hrmax" || p.method === "karvonen");

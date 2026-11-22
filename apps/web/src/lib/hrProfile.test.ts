@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { computeHrZones } from "@pt/shared";
-import { hrDraftOf, hrDraftZones, hrInputOf, hrInputsLine } from "./hrProfile";
+import { hrDraftOf, hrDraftZones, hrInputOf, hrInputsLine, maxHrUntested } from "./hrProfile";
 
 const today = "2026-11-22";
 
@@ -22,6 +22,18 @@ describe("HR profile draft", () => {
 
   test("resting at or above max is refused", () => {
     expect(hrInputOf({ ...hrDraftOf(null, today), method: "karvonen", restingHr: 190, maxHr: 188 })).toEqual({ error: "Resting HR must be below max HR." });
+  });
+
+  test("LTHR at or above max is refused", () => {
+    expect(hrInputOf({ ...hrDraftOf(null, today), method: "lthr", lthr: 190, maxHr: 185 })).toEqual({ error: "LTHR must be below max HR." });
+  });
+
+  test("an untested max HR marks % max and Karvonen zones approximate", () => {
+    const p = { method: "karvonen" as const, maxHr: 188, maxHrTestedOn: null };
+    expect(maxHrUntested(p)).toBe(true);
+    expect(maxHrUntested({ ...p, maxHrTestedOn: "2026-09-28" })).toBe(false);
+    expect(maxHrUntested({ ...p, method: "lthr" })).toBe(false);
+    expect(maxHrUntested(null)).toBe(false);
   });
 
   test("custom: blanks, gaps and overlaps are named; a clean table saves", () => {

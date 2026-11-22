@@ -3,6 +3,7 @@ import {
   availableHrMethods,
   computeHrZones,
   HrProfileInput,
+  hrPlausibilityIssues,
   missingHrInputs,
   profileOn,
   profileZones,
@@ -71,6 +72,17 @@ describe("HrProfileInput", () => {
     expect(profileZones(parsed)).toEqual(custom.zones!);
     const bad = { ...custom, zones: custom.zones!.map((z) => (z.zone === 4 ? { ...z, min: z.min - 5 } : z)) };
     expect(HrProfileInput.safeParse(bad).success).toBe(false);
+  });
+
+  test("refuses an LTHR at or above max HR, and a custom zone above max", () => {
+    const lthr = HrProfileInput.safeParse({ effectiveFrom: "2026-11-01", method: "lthr", lthr: 190, maxHr: 185 });
+    expect(lthr.success).toBe(false);
+    expect(lthr.error!.issues.map((i) => i.message)).toContain("LTHR must be below max HR");
+    expect(HrProfileInput.safeParse({ effectiveFrom: "2026-11-01", method: "lthr", lthr: 170, maxHr: 185 }).success).toBe(true);
+    const custom = { effectiveFrom: "2026-11-01", method: "custom", maxHr: 180, zones: computeHrZones("hrmax", { maxHr: 190 }) };
+    expect(HrProfileInput.safeParse(custom).success).toBe(false);
+    expect(hrPlausibilityIssues(custom)).toEqual([{ field: "zones", message: "zone 5 tops out at 190 bpm, above max HR (180)" }]);
+    expect(HrProfileInput.safeParse({ ...custom, maxHr: 190 }).success).toBe(true);
   });
 });
 

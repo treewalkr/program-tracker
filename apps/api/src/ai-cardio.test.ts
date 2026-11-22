@@ -23,6 +23,9 @@ describe("AI cardio: shape, HR profile and session load", () => {
     const withZones = buildGenerationMessages({ ...ctxBase, client: { name: "Nok", hrZones: zones } });
     expect(withZones.user).toContain("Z2 110–129");
     expect(withZones.user).not.toContain("58");
+    expect(withZones.user).not.toContain("zones approximate");
+    const untested = buildGenerationMessages({ ...ctxBase, client: { name: "Nok", hrZones: zones, hrMaxUntested: true } });
+    expect(untested.user).toContain("Max HR not tested — zones approximate: pair every zone with a targetRpe.");
     const none = buildGenerationMessages({ ...ctxBase, client: { name: "Nok", cardioTarget: { unit: "minutes", value: 120 } } });
     expect(none.user).toContain("HR PROFILE: none");
     expect(none.user).toContain("never invent HRmax, LTHR, resting HR or VO₂max");
