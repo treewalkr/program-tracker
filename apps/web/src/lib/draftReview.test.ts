@@ -227,6 +227,17 @@ describe("review checks, rationale, history", () => {
     expect(r.general).toEqual([]);
   });
 
+  test("rationaleByDay keeps a block that opens with several session names whole and general", () => {
+    const sessions = [{ kind: "cardio", name: "Tempo Run — Threshold" }, { kind: "cardio", name: "Track Intervals" }, { kind: "cardio", name: "Long Run" }];
+    const text = "**Tempo Run — Threshold**, **Track Intervals** and **Long Run** total 600 AU.\n\n**Long Run** builds 60 → 80 min.";
+    const r = rationaleByDay(text, 3, sessions);
+    expect(r.days).toEqual([[], [], ["Builds 60 → 80 min."]]);
+    expect(r.general).toEqual(["**Tempo Run — Threshold**, **Track Intervals** and **Long Run** total 600 AU."]);
+    // a bullet that lists sessions stays in the list, not on the first card with a leading comma
+    const list = rationaleByDay("Runs:\n- **Tempo Run — Threshold** and **Long Run** stay apart.", 3, sessions);
+    expect(list.days.flat()).toEqual([]);
+  });
+
   test("rationaleByDay sends **Day N** blocks to their day", () => {
     const r = rationaleByDay("**Cold start** — no logs.\n\n**Day 1 — Squat:** back squat primary.\n\n**Day 2 — Upper:** bench.\n\n**Day 9:** ignored", 2);
     expect(r.days).toEqual([["Back squat primary."], ["Bench."]]);

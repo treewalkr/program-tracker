@@ -259,6 +259,8 @@ export function rationaleByDay(
     }
     const named = t.match(/^\*\*([^*]+)\*\*[\s:—–-]*/);
     if (!named) return null;
+    // "**A**, **B** and **C** total…" is about several sessions: it stays general, names intact
+    if (/^\s*(,|and\b|&)/.test(t.slice(named[0].length))) return null;
     const day = names.indexOf(leadKey(named[1]));
     return day >= 0 && day < dayCount && names[day] ? { day, rest: t.slice(named[0].length) } : null;
   };
