@@ -330,3 +330,72 @@ describe("placementConflicts", () => {
     expect(placementConflicts(priya(), priyaDays, patternOf)).toEqual([]);
   });
 });
+
+describe("placeSessions — AI draft for Ploy (tempo on the heavy lower day)", () => {
+  // Lifts Mon/Thu, cardio days Tue/Wed/Sat, long run Sat. The AI put the tempo on
+  // Monday with the squat session; the key run used to win the day and the lift,
+  // with Thu taken, had nowhere else to go — so approval kept the clash.
+  const days = { trainingDays: [1, 4], cardioDays: [2, 3, 6], longRunDay: 6 };
+  const tempo: ProgramSession = {
+    ...run(1, "Tempo Run — Threshold", 25, 4, "tempo"),
+    cardio: {
+      modality: "Running",
+      hrZone: 4,
+      intensity: "tempo",
+      targetRpe: 6,
+      durationMin: 25,
+      intervals: [
+        { id: "wu", type: "warmup", repeat: 1, durationSec: 300, hrZone: 2, notes: "easy jog, finish with 2 strides" },
+        { id: "reps", type: "work", repeat: 3, durationSec: 300, hrZone: 4, paceSecPerKm: 320, recovery: { type: "active_recovery", durationSec: 60 } },
+        { id: "cd", type: "cooldown", repeat: 1, durationSec: 180, hrZone: 1 },
+      ],
+    },
+  };
+  const vo2: ProgramSession = {
+    ...run(2, "Track Intervals — VO2 Repeats", 30, 4, "intervals"),
+    cardio: {
+      modality: "Running",
+      hrZone: 4,
+      intensity: "intervals",
+      targetRpe: 7,
+      durationMin: 30,
+      intervals: [
+        { id: "wu", type: "warmup", repeat: 1, durationSec: 480, hrZone: 2 },
+        { id: "reps", type: "work", repeat: 6, durationSec: 120, hrZone: 4, paceSecPerKm: 300, recovery: { type: "active_recovery", durationSec: 60 } },
+        { id: "cd", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1 },
+      ],
+    },
+  };
+  const long = { ...run(3, "Long Run — Saturday Aerobic", 60, 2, "easy"), cardio: { modality: "Running", hrZone: 2, intensity: "easy", targetRpe: 4, durationMin: 60, paceSecPerKm: 370 } };
+  const week: ProgramSession[] = [
+    { ...lift(1, ["squat", "dl", "squat"]), name: "Full Body — Squat Focus", weekday: 1 },
+    { ...lift(2, ["bench", "row", "squat"]), name: "Full Body — Push & Pull", weekday: 4 },
+    { ...tempo, weekday: 1 },
+    { ...vo2, weekday: 3 },
+    { ...long, weekday: 6 },
+  ];
+
+  test("the draft as written breaks the heavy-lower rule", () => {
+    expect(placementConflicts(week, days, patternOf).map((c) => c.rule)).toEqual(["lower-before-key"]);
+  });
+
+  const out = placeSessions(week, days, patternOf, { keepWeekdays: true });
+
+  test("approval moves the tempo off Monday and keeps the lifts on Mon/Thu", () => {
+    expect(dayOf(out, "L1")).toBe(1);
+    expect(dayOf(out, "L2")).toBe(4);
+    expect(dayOf(out, "C1")).not.toBe(1);
+  });
+
+  test("the approved week breaks no placement rule", () => {
+    expect(placementConflicts(out, days, patternOf)).toEqual([]);
+  });
+
+  test("the tempo lands on Thu: Tue is the day after the heavy lower day (rule: ≥ 48 h before a key run)", () => {
+    expect(dayOf(out, "C1")).toBe(4);
+  });
+
+  test("the other AI weekdays that pass stay: intervals Wed, long run Sat", () => {
+    expect([dayOf(out, "C2"), dayOf(out, "C3")]).toEqual([3, 6]);
+  });
+});
