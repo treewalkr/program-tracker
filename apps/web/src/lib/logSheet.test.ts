@@ -7,6 +7,7 @@ import {
   cellOrder,
   nextCell,
   roundOrder,
+  roundBreaks,
   skipExercise,
   unskipExercise,
   isBlank,
@@ -573,6 +574,27 @@ describe("supersets on the sheet", () => {
     const out = withExtraSet(rows, "a1", (n) => ({ ...r("a1", n, "A"), key: "a1-x", extra: true }));
     expect(keys(out).slice(2, 9)).toEqual(["a1-1", "a2-1", "a1-2", "a2-2", "a1-3", "a2-3", "a1-x"]);
     expect(blocksOf(out)).toHaveLength(3);
+  });
+
+  test("a group's extra sets run after every round", () => {
+    const rows = [r("a1", 1, "A"), r("a1", 2, "A"), { ...r("a1", 3, "A"), key: "a1-x", extra: true }, r("a2", 1, "A"), r("a2", 2, "A"), r("a2", 3, "A")];
+    expect(keys(roundOrder(rows))).toEqual(["a1-1", "a2-1", "a1-2", "a2-2", "a2-3", "a1-x"]);
+  });
+
+  test("round breaks: a header on each round's first row, then one for the extras", () => {
+    const rows = roundOrder(built()).filter((x) => x.group);
+    const extra = { ...r("a2", 4, "A"), key: "a2-x", extra: true };
+    expect([...roundBreaks([...rows, extra])]).toEqual([
+      ["a1-1", { kind: "round", n: 1 }],
+      ["a1-2", { kind: "round", n: 2 }],
+      ["a1-3", { kind: "round", n: 3 }],
+      ["a2-x", { kind: "extra" }],
+    ]);
+  });
+
+  test("round breaks skip a skipped member's rows", () => {
+    const rows = skipExercise(roundOrder(built()), "a1").filter((x) => x.group);
+    expect([...roundBreaks(rows).keys()]).toEqual(["a2-1", "a2-2", "a2-3"]);
   });
 
   test("undo skip puts a member's rows back in place", () => {

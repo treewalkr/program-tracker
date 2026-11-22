@@ -348,17 +348,37 @@ export function blockIndexOf(blocks: SheetBlock<SheetRow>[], programExerciseId: 
 /**
  * Rows built exercise by exercise → a superset's rows in round order:
  * A1 set 1, A2 set 1, A1 set 2… Ungrouped rows keep their place; within a
- * round the members keep their order.
+ * round the members keep their order. Extra sets follow every round.
  */
-export function roundOrder<R extends Pick<SheetRow, "group" | "setNumber">>(rows: R[]): R[] {
+export function roundOrder<R extends Pick<SheetRow, "group" | "setNumber" | "extra">>(rows: R[]): R[] {
   const out: R[] = [];
   for (let i = 0; i < rows.length; ) {
     const g = rows[i].group;
     let j = i + 1;
     while (g && j < rows.length && rows[j].group === g) j++;
     const run = rows.slice(i, j);
-    out.push(...(g ? run.map((r, k) => ({ r, k })).sort((a, b) => a.r.setNumber - b.r.setNumber || a.k - b.k).map((x) => x.r) : run));
+    const rank = (r: R) => (r.extra ? MAX_SETS + r.setNumber : r.setNumber);
+    out.push(...(g ? run.map((r, k) => ({ r, k })).sort((a, b) => rank(a.r) - rank(b.r) || a.k - b.k).map((x) => x.r) : run));
     i = j;
+  }
+  return out;
+}
+
+/** Where a group card opens a round: round `n`, or the extra sets added on the day. Each page words it. */
+export type RoundBreak = { kind: "round"; n: number } | { kind: "extra" };
+
+/**
+ * A group card's rows (in round order) that open a round: key → its break.
+ * Rows of an exercise skipped as a whole are hidden, so they never open one.
+ */
+export function roundBreaks(rows: Pick<SheetRow, "key" | "setNumber" | "extra" | "exerciseSkip">[]): Map<string, RoundBreak> {
+  const out = new Map<string, RoundBreak>();
+  let prev = "";
+  for (const r of rows) {
+    if (r.exerciseSkip) continue;
+    const id = r.extra ? "extra" : `round:${r.setNumber}`;
+    if (id !== prev) out.set(r.key, r.extra ? { kind: "extra" } : { kind: "round", n: r.setNumber });
+    prev = id;
   }
   return out;
 }
