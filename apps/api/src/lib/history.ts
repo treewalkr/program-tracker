@@ -48,7 +48,9 @@ export function buildHistory({
     const rpe = set.rpe ? Number(set.rpe) : null;
     const timed = isTimedSet(set, timedExerciseIds, timedSlotIds);
     const entry = byExercise.get(set.exerciseId) ?? { name, sets: [], best: 0 };
-    entry.sets.push(`${weight ? `${weight}kg × ` : ""}${set.reps}${timed ? " s" : ""}${rpe !== null ? ` @ RPE ${rpe}` : ""}`);
+    // no load on a set with reps is bodyweight: say so, as the trainer's own history does
+    const load = weight ? `${weight}kg × ` : timed ? "" : "BW × ";
+    entry.sets.push(`${load}${set.reps}${timed ? " s" : ""}${rpe !== null ? ` @ RPE ${rpe}` : ""}`);
     if (!timed) entry.best = Math.max(entry.best, estimate1rm(weight, set.reps));
     byExercise.set(set.exerciseId, entry);
   }

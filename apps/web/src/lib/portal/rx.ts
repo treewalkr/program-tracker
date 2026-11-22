@@ -196,8 +196,8 @@ export function intervalLines(intervals: readonly PortalCardioInterval[], t: T, 
   return out;
 }
 
-/** "62.5 kg × 8 · RPE 8" — what the client did last time; RPE only when they gave it. */
+/** "62.5 kg × 8 · RPE 8", or "BW × 12" with no load — what the client did last time; RPE only when they gave it. */
 export function lastSetText(s: PortalLastSet, t: T): string {
-  const work = s.weightKg != null && s.weightKg > 0 ? t("rx.lastReps", { kg: weightText(s.weightKg, t), reps: s.reps }) : t("rx.reps", { n: s.reps });
+  const work = s.weightKg != null && s.weightKg > 0 ? t("rx.lastReps", { kg: weightText(s.weightKg, t), reps: s.reps }) : t("rx.lastBw", { reps: s.reps });
   return s.rpe != null ? `${work} · ${t("rx.rpe", { n: num(s.rpe) })}` : work;
 }

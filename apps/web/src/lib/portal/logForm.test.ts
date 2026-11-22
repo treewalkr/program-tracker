@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
+import { buildPortalLog, cachedSession, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -334,5 +334,115 @@ describe("defaultLogDate", () => {
     expect(defaultLogDate({ weekday: 6 }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
     expect(defaultLogDate({ weekday: null }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
     expect(defaultLogDate({ weekday: 2 }, null, "2026-11-19")).toBe("2026-11-19");
+  });
+});
+
+describe("bodyweight or load: each set's load cell", () => {
+  const S = (n: number, over: Partial<PortalSession["exercises"][number]["prescribedSets"][number]> = {}) => ({ setNumber: n, type: "working" as const, reps: 10, amrap: false, targetWeightKg: null, ...over });
+  const s: PortalSession = {
+    ...exerciseSession,
+    id: "ps-bw",
+    exercises: [
+      // a dumbbell move done unloaded last time
+      { id: "pa", exerciseId: "ex-stepup", exerciseName: "Step-up", order: 0, group: "A", last: { date: "2026-11-09", weightKg: null, reps: 10, rpe: null }, prescribedSets: [S(1, { lastWeightKg: 12 }), S(2), S(3)] },
+      // no target, no history: kg, blank
+      { id: "pb", exerciseId: "ex-wall", exerciseName: "Wall Ball", order: 1, group: "A", prescribedSets: [S(1), S(2), S(3)] },
+      // the library says bodyweight
+      { id: "pc", exerciseId: "ex-pullup", exerciseName: "Pull-up", order: 2, bodyweight: true, prescribedSets: [S(1, { reps: 6 }), S(2, { reps: 6 })] },
+      // bodyweight move, but the coach set a load: kg
+      { id: "pd", exerciseId: "ex-dip", exerciseName: "Dip", order: 3, bodyweight: true, prescribedSets: [S(1, { reps: 8, targetWeightKg: 10 })] },
+      // last time with load: kg, prefilled
+      { id: "pe", exerciseId: "ex-lunge", exerciseName: "Lunge", order: 4, last: { date: "2026-11-09", weightKg: 16, reps: 10, rpe: null }, prescribedSets: [S(1, { lastWeightKg: 16 })] },
+    ],
+  };
+  const loads = (rows: PortalRow[]) => rows.map((r) => `${r.key}=${r.load}`);
+
+  test("starting mode: coach target → kg; library bodyweight → BW; last time unloaded → BW; else kg", () => {
+    const rows = rowsOfSession(s);
+    expect(loads(rows)).toEqual(["pa:1=bw", "pa:2=bw", "pa:3=bw", "pb:1=kg", "pb:2=kg", "pb:3=kg", "pc:1=bw", "pc:2=bw", "pd:1=kg", "pe:1=kg"]);
+    // a set that starts BW carries no hidden kg, even with a last load on file
+    expect(rows[0].weight).toBe("");
+    expect(rows.find((r) => r.key === "pe:1")?.weight).toBe(16);
+  });
+
+  test("BW sets save with no kg and no 'needs a weight'; a blank kg-mode cell still does", () => {
+    const f = form(s);
+    expect(buildPortalLog(s, f, false)).toEqual({ error: "kg", sets: 3, programExerciseId: "pb" });
+    expect(setsMissingKg(s, f.rows).map((r) => r.key)).toEqual(["pb:1", "pb:2", "pb:3"]);
+    for (const r of f.rows) if (r.programExerciseId === "pb") r.weight = 9;
+    const ok = buildPortalLog(s, f, false);
+    if (!("input" in ok)) throw new Error("expected input");
+    expect(ok.input.sets.filter((x) => x.programExerciseId === "pa").map((x) => [x.weightKg, x.asPlanned])).toEqual([[undefined, true], [undefined, true], [undefined, true]]);
+    // a library-bodyweight move switched to kg and left blank does need its weight
+    const added = { ...f, rows: setLoad(f.rows, "pc:1", "kg") };
+    expect(setsMissingKg(s, added.rows).map((r) => r.key)).toEqual(["pc:1", "pc:2"]);
+  });
+
+  test("a kg typed then switched back to BW is not sent; switching back to kg brings it back", () => {
+    const f = form(s);
+    let rows = setLoad(f.rows, "pa:1", "kg");
+    rows = rows.map((r) => (r.key === "pa:1" ? { ...r, weight: 12 } : r));
+    rows = setLoad(rows, "pa:1", "bw");
+    const b = buildPortalLog(s, { ...f, rows: rows.map((r) => (r.programExerciseId === "pb" ? { ...r, weight: 9 } : r)) }, false);
+    if (!("input" in b)) throw new Error("expected input");
+    expect(b.input.sets[0]).toMatchObject({ programExerciseId: "pa", weightKg: undefined });
+    expect(setLoad(rows, "pa:1", "kg").find((r) => r.key === "pa:1")?.weight).toBe(12);
+  });
+
+  test("a switch carries to the exercise's later sets the member hasn't touched", () => {
+    const rows = rowsOfSession(s);
+    const typed = rows.map((r) => (r.key === "pb:3" ? { ...r, weight: 6 } : r));
+    expect(loads(setLoad(typed, "pb:1", "bw")).slice(3, 6)).toEqual(["pb:1=bw", "pb:2=bw", "pb:3=kg"]);
+    // from Set 2: Set 1 stays as it was
+    expect(loads(setLoad(rows, "pa:2", "kg")).slice(0, 3)).toEqual(["pa:1=bw", "pa:2=kg", "pa:3=kg"]);
+    // a set switched by hand is the member's choice: a later switch upstream leaves it
+    const picked = setLoad(setLoad(rows, "pa:3", "kg"), "pa:1", "kg");
+    expect(loads(setLoad(picked, "pa:1", "bw")).slice(0, 3)).toEqual(["pa:1=bw", "pa:2=bw", "pa:3=kg"]);
+    // other exercises never follow
+    expect(loads(setLoad(rows, "pa:1", "kg")).slice(3)).toEqual(loads(rows).slice(3));
+  });
+
+  test("a mode switch is an edit: the form isn't pristine and the exercise is touched", () => {
+    const f = form(s);
+    const g = { ...f, rows: setLoad(f.rows, "pc:2", "kg") };
+    expect(sameForm(f, g)).toBe(false);
+    expect([...touchedExercises(f.rows, g.rows)]).toEqual(["pc"]);
+  });
+
+  test("extra sets follow the set they copy", () => {
+    const rows = rowsOfSession(s);
+    expect(extraRow(rows[0], 4).load).toBe("bw");
+    expect(extraRow(setLoad(rows, "pa:3", "kg")[2], 4).load).toBe("kg");
+  });
+
+  test("a draft keeps the chosen mode; an older draft without one reads its mode", () => {
+    const f = form(s);
+    const g = { ...f, rows: setLoad(f.rows, "pc:1", "kg").map((r) => (r.key === "pc:1" ? { ...r, weight: 10 } : r)) };
+    expect(loads(parsePortalDraft(portalDraftJson(g), rowsOfSession(s))!.rows)).toEqual(loads(g.rows));
+    // older build: no `load` on rows → a typed kg is kg, a blank cell opens as the session would
+    const old = JSON.parse(portalDraftJson(g));
+    old.rows = old.rows.map(({ load: _l, loadPicked: _p, ...r }: Record<string, unknown>) => r);
+    const back = parsePortalDraft(JSON.stringify(old), rowsOfSession(s))!;
+    expect(loads(back.rows)).toEqual(["pa:1=bw", "pa:2=bw", "pa:3=bw", "pb:1=kg", "pb:2=kg", "pb:3=kg", "pc:1=kg", "pc:2=bw", "pd:1=kg", "pe:1=kg"]);
+  });
+
+  test("a saved log reopens a no-kg set with reps as BW, a timed one untouched", () => {
+    const saved: PortalSession = {
+      ...s,
+      log: {
+        id: "l9", loggedBy: "client", date: "2026-11-15",
+        entry: {
+          sets: [
+            { programExerciseId: "pa", exerciseId: "ex-stepup", setNumber: 1, type: "working", weightKg: null, reps: 10, rpe: null, asPlanned: true },
+            { programExerciseId: "pa", exerciseId: "ex-stepup", setNumber: 2, type: "working", weightKg: 8, reps: 10, rpe: null, asPlanned: false },
+            { programExerciseId: "pc", exerciseId: "ex-pullup", setNumber: 1, type: "working", weightKg: 10, reps: 6, rpe: null, asPlanned: false },
+          ],
+          cardio: null, notes: null, perceivedEnergy: null, readiness: null, flags: null,
+        },
+      },
+    };
+    const rows = formOfSession(saved, "2026-11-16").rows;
+    expect(loads(rows.filter((r) => !r.skipped))).toEqual(["pa:1=bw", "pa:2=kg", "pc:1=kg"]);
+    expect(formOfSession({ ...exerciseSession, log: { id: "l1", loggedBy: "client", date: "2026-11-15", entry: { sets: [{ programExerciseId: "pe2", exerciseId: "ex-plank", setNumber: 1, type: "working", weightKg: null, reps: 45, rpe: null, asPlanned: true }], cardio: null, notes: null, perceivedEnergy: null, readiness: null, flags: null } } }, "2026-11-16").rows.at(-1)?.load).toBe("kg");
   });
 });

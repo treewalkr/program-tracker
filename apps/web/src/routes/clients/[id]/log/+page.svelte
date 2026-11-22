@@ -1150,8 +1150,9 @@
     const load = r.timed && isBlank(r.weight) ? reps : `${kg}×${reps}`;
     return isBlank(r.rpe) ? load : `${load} @${r.rpe}`;
   };
+  /** Last time on this set: "60 × 8", "BW × 12" (no load), "45 s". */
   const fmtLast = (l: LastSet | null, timed: boolean) =>
-    l == null ? "—" : `${l.weightKg != null ? `${showWeight(l.weightKg)} × ` : ""}${l.reps}${timed ? " s" : ""}`;
+    l == null ? "—" : timed ? `${l.weightKg ? `${showWeight(l.weightKg)} × ` : ""}${l.reps} s` : `${l.weightKg ? showWeight(l.weightKg) : "BW"} × ${l.reps}`;
   const fmtRx = (r: Row) =>
     r.rx
       ? `${fmtSet({ reps: r.rx.reps, repsMin: r.rx.repsMin ?? undefined, amrap: r.rx.amrap, durationSeconds: r.rx.durationSeconds ?? undefined, targetWeightKg: r.rx.targetWeightKg, targetRpe: r.rx.targetRpe })}${r.rx.targetRpe != null && !r.rx.amrap ? ` @ ${r.rx.targetRpe}` : ""}`
