@@ -41,7 +41,7 @@
             {#if l.pace}<span>{l.pace}</span>{/if}
             {#if l.rpe}<span>{l.rpe}</span>{/if}
           </span>
-          {#if l.notes}<span class="note">{l.notes}</span>{/if}
+          {#if l.notes}<span class="iv-note">{l.notes}</span>{/if}
         </li>
       {/each}
     </ol>
@@ -71,7 +71,7 @@
   .tg { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 10px; font: 400 12px var(--font-mono); color: var(--muted); }
   .tg b { font-weight: 600; color: var(--ink); }
   .tg:empty { display: none; }
-  .note { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .iv-note { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
   @media (max-width: 720px) {
     summary { min-height: 44px; display: flex; align-items: center; }
   }
