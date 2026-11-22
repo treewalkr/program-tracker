@@ -51,3 +51,7 @@
 <Story name="Disabled" asChild>
   <div style="max-width: 320px"><InputField label="Name" value="Ann Rattanakul" disabled /></div>
 </Story>
+
+<Story name="Path, no spellcheck" asChild>
+  <div style="max-width: 320px"><InputField label="Page" optional placeholder="/clients" autocomplete="off" spellcheck={false} /></div>
+</Story>

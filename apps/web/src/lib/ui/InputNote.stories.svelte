@@ -22,6 +22,8 @@
     'Week 3 jumps from 4 to 6 working sets on squat and adds a second heavy day. She is coming back from a two-week break and her sleep has been poor, so keep week 3 at 4 sets and move the heavy single to week 4.',
   );
   let blank = $state('');
+  let triage = $state('Yes — show warm-up sets as muted chips.');
+  let reply = $state('');
 </script>
 
 <Story name="Limitations with hint" asChild>
@@ -42,4 +44,18 @@
 
 <Story name="Disabled" asChild>
   <div style="max-width: 480px"><InputNote label="Limitations" value="None known." disabled /></div>
+</Story>
+
+<Story name="Status beside the label" asChild>
+  <div style="max-width: 480px">
+    <InputNote label="Triage note" bind:value={triage} rows={2} hint="Private, read by the agent.">
+      {#snippet meta()}<span style="font-family: var(--font-ui)">Saved</span>{/snippet}
+    </InputNote>
+  </div>
+</Story>
+
+<Story name="Hidden label (inline reply)" asChild>
+  <div style="max-width: 480px">
+    <InputNote label="Reply to FB-012" hideLabel bind:value={reply} rows={1} maxRows={8} placeholder="Reply…" />
+  </div>
 </Story>

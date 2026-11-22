@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
 
@@ -21,7 +22,15 @@
 		disabled?: boolean;
 		readonly?: boolean;
 		name?: string;
+		/** Fixed id, so the page can focus the box; generated when omitted. */
+		id?: string;
+		/** Keep the label for screen readers only (an inline reply box). */
+		hideLabel?: boolean;
+		/** Right side of the label row: a save state, a count. */
+		meta?: Snippet;
 		oninput?: (value: string) => void;
+		onkeydown?: (e: KeyboardEvent) => void;
+		onblur?: () => void;
 	}
 
 	let {
@@ -37,10 +46,16 @@
 		disabled = false,
 		readonly = false,
 		name,
+		id: fixedId,
+		hideLabel = false,
+		meta,
 		oninput,
+		onkeydown,
+		onblur,
 	}: Props = $props();
 
-	const id = $props.id();
+	const autoId = $props.id();
+	const id = $derived(fixedId ?? autoId);
 	const PAD = 16;
 	let el = $state<HTMLTextAreaElement>();
 
@@ -62,7 +77,7 @@
 	});
 </script>
 
-<FieldFrame {id} {label} {error} {optional}>
+<FieldFrame {id} {label} {error} {optional} {hideLabel} {meta}>
 	<div class="box" class:bad={!!error} class:off={disabled} class:ro={readonly}>
 		<textarea
 			bind:this={el}
@@ -78,6 +93,8 @@
 			aria-describedby={describedBy(id, { hint, error })}
 			bind:value
 			oninput={() => (fit(), oninput?.(value))}
+			{onkeydown}
+			onblur={() => onblur?.()}
 		></textarea>
 		{#if hint || maxlength !== undefined}
 			<div class="foot">

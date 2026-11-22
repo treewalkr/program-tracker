@@ -23,6 +23,8 @@
 		autocomplete?: FullAutoFill | null;
 		name?: string;
 		inputmode?: HTMLInputAttributes['inputmode'];
+		/** Off for paths and codes, so they don't get underlined as typos. */
+		spellcheck?: boolean;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
 	}
@@ -42,6 +44,7 @@
 		autocomplete,
 		name,
 		inputmode,
+		spellcheck,
 		oninput,
 		onchange,
 	}: Props = $props();
@@ -66,6 +69,7 @@
 		{maxlength}
 		{autocomplete}
 		{inputmode}
+		{spellcheck}
 		aria-invalid={error ? true : undefined}
 		aria-describedby={describedBy(id, { hint, error })}
 		bind:value
