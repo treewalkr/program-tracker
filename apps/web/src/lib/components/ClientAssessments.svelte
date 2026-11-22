@@ -148,7 +148,7 @@
         {#if series.length}
           <LiftChart name={PROTOCOL_LABEL[shownProtocol]} {series} unit="ml/kg/min" measure="Estimated VO₂max" per="test" />
         {/if}
-        <table class="tbl">
+        <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Date</th><th>{inputHead[shownProtocol]}</th><th class="r">Estimate</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {#each rows as a (a.id)}
@@ -160,7 +160,7 @@
               </tr>
             {/each}
           </tbody>
-        </table>
+        </table></div>
         <p class="caveat">These are field-test estimates, not lab results. The chart shows one protocol at a time, and workout logs never feed it.</p>
       </div>
     {/if}
@@ -189,7 +189,9 @@
   .err { color: var(--bad); }
   .ok { color: var(--good); }
   .caveat { margin: 0; font-size: 12px; color: var(--muted); }
-  .hist { display: grid; gap: 14px; }
+  .hist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  /* the delete button keeps room for its confirm label; on a phone the table scrolls, the page doesn't */
+  .tbl-wrap { overflow-x: auto; }
   .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .tbl th { font: 500 12px var(--font-ui); color: var(--muted); text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
   .tbl td { padding: 4px 8px; border-bottom: 1px solid var(--line-soft); }
