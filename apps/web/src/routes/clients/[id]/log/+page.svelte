@@ -1769,7 +1769,8 @@
           {#if ask.summary.missingLoad.length > 0}
             <li>
               {ask.summary.missingLoadSets} {ask.summary.missingLoadSets === 1 ? "set has" : "sets have"} no load:
-              {#each ask.summary.missingLoad as pe, i (pe)}{#if i > 0}{", "}{/if}<button type="button" class="link-btn" onclick={() => fillFirst("weight", pe)}>{blockNameOf(pe)}</button>{/each}
+              <!-- the comma travels with its name, so a wrap never starts a line with one -->
+              {#each ask.summary.missingLoad as pe, i (pe)}<span class="ask-pe"><button type="button" class="link-btn" onclick={() => fillFirst("weight", pe)}>{blockNameOf(pe)}</button>{#if i < ask.summary.missingLoad.length - 1}{","}{/if}</span>{" "}{/each}
               <span class="ask-sub">They log reps only — no tonnage, no e1RM.</span>
             </li>
           {/if}
@@ -1964,6 +1965,7 @@
     line-height: 1.5;
   }
   .ask-warn li + li { margin-top: 4px; }
+  .ask-pe { white-space: nowrap; }
   .ask-sub { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
   .ask-warn .ask-sub { color: inherit; opacity: 0.85; }
   .ask-dupe { margin: 12px 0 0; font-weight: 600; }
