@@ -225,3 +225,39 @@ export function buildContext(
 /** True when the node belongs to the feedback UI (never pickable, never screenshotted). */
 export const isFeedbackUi = (node: Node | null): boolean =>
   node instanceof Element && node.closest(`[${FEEDBACK_UI_ATTR}]`) !== null;
+
+/** The smallest box an element close-up is taken at: a heading alone reads as an unreadable sliver. */
+export const CLOSE_UP_MIN = { width: 320, height: 96 };
+
+/**
+ * Which box to capture for an element close-up. `boxes[0]` is the picked
+ * element, then its ancestors outward. The element itself when it is big
+ * enough, else the nearest ancestor that is, never one over `maxArea` (so a
+ * tiny target doesn't escalate to the whole page).
+ */
+export function closeUpIndex(
+  boxes: readonly { width: number; height: number }[],
+  min = CLOSE_UP_MIN,
+  maxArea = Infinity,
+): number {
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    if (b.width * b.height > maxArea) return Math.max(0, i - 1);
+    if (b.width >= min.width && b.height >= min.height) return i;
+  }
+  return Math.max(0, boxes.length - 1);
+}
+
+/** The node to screenshot for a close-up of `el`: itself, or a roomier ancestor up to half the viewport. */
+export function closeUpFrame(el: HTMLElement): HTMLElement {
+  const chain: HTMLElement[] = [];
+  for (let n: HTMLElement | null = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    chain.push(n);
+  }
+  const i = closeUpIndex(
+    chain.map((n) => n.getBoundingClientRect()),
+    CLOSE_UP_MIN,
+    window.innerWidth * window.innerHeight * 0.5,
+  );
+  return chain[i] ?? el;
+}
