@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cardioFormOf, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
+import { buildPortalLog, cachedSession, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, touchedExercises, type PortalLogForm } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -321,5 +321,18 @@ describe("session duration: first entry to Save", () => {
     expect(buildPortalLog(exerciseSession, timed("2026-11-16T10:00:00Z", "2026-11-15"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
     expect(buildPortalLog(exerciseSession, timed(null), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
     expect(buildPortalLog(exerciseSession, timed("2026-11-16T04:00:00Z"), false, at("2026-11-16T10:52:00Z"))).not.toHaveProperty("input.durationMin");
+  });
+});
+
+describe("defaultLogDate", () => {
+  // week of Mon 2026-11-16
+  test("a planned day that has passed opens on that day", () => {
+    expect(defaultLogDate({ weekday: 2 }, "2026-11-16", "2026-11-19")).toBe("2026-11-17");
+  });
+  test("today or a later planned day, any-day sessions and no week open on today", () => {
+    expect(defaultLogDate({ weekday: 4 }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
+    expect(defaultLogDate({ weekday: 6 }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
+    expect(defaultLogDate({ weekday: null }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
+    expect(defaultLogDate({ weekday: 2 }, null, "2026-11-19")).toBe("2026-11-19");
   });
 });

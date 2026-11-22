@@ -1,4 +1,4 @@
-import { localDateOf, PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
+import { localDateOf, PortalWeek, sessionDateIn, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
 import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm, type CardioForm, type CardioFormError } from "$lib/cardioForm";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
@@ -199,6 +199,16 @@ function portalSet(r: PortalRow) {
 }
 
 /** The form the page opens with: the client's own saved log when there is one, else the plan. */
+/**
+ * The date a new log opens on: the planned day when it has already passed this
+ * week (a Tuesday run logged on Thursday was done Tuesday, most likely), else today.
+ */
+export function defaultLogDate(session: Pick<PortalSession, "weekday">, weekStart: string | null, today: string): string {
+  if (!weekStart || !session.weekday) return today;
+  const planned = sessionDateIn(weekStart, session.weekday);
+  return planned < today ? planned : today;
+}
+
 export function formOfSession(session: PortalSession, today: string): PortalLogForm {
   const entry = session.log?.loggedBy === "client" ? session.log.entry : undefined;
   if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today, flags: {} };

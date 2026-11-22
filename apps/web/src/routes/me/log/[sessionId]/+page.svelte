@@ -18,6 +18,7 @@
     buildPortalLog,
     cardioFormOf,
     cachedSession,
+    defaultLogDate,
     extraRow,
     formOfSession,
     parsePortalDraft,
@@ -86,7 +87,7 @@
   const block = $derived(blocks[Math.min(current, blocks.length - 1)] ?? null);
   /** The form as the page opened it — nothing touched yet, so nothing worth a draft. */
   /** The form as the page opened it — the client's own saved log, else the plan. */
-  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, today);
+  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, defaultLogDate(s, week?.startDate ?? null, today));
   const pristine = $derived(session ? freshForm(session).rows : []);
   const touched = $derived(touchedExercises(pristine, rows));
   const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
@@ -157,7 +158,7 @@
       notes = draft.notes;
       flags = draft.flags;
       startedAt = draft.startedAt ?? null;
-      date = draft.date >= minDate && draft.date <= maxDate ? draft.date : today;
+      date = draft.date >= minDate && draft.date <= maxDate ? draft.date : freshForm(s).date;
       restored = true;
     }
     loadState = "ready";
