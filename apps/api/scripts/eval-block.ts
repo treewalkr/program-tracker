@@ -11,7 +11,9 @@
  * finish_reason and attempts from llm_calls, then checks the draft: weeks
  * returned vs asked, A/B letters (odd A, even B; none on Same), A and B
  * routines differ, same-letter weeks progress without wild jumps, and on a
- * fill that the trainer's weeks come back unchanged.
+ * fill that the trainer's weeks come back unchanged. Session blocks: prep
+ * kept out of the set totals, one Primary in main work only, the caps, and
+ * each session's prep listed beside its first main lift for a spot-check.
  *
  * Matrix per provider: b6-same, b6-ab, b12-ab (blocks on the two clients with
  * the most logged history) and fill-ab (an A/B copy of the second client's
@@ -66,6 +68,7 @@ const { providerRuntime, resolveEffort } = await import("../src/ai/runtime");
 const { chatText } = await import("../src/ai/provider");
 const { startBlock } = await import("../src/lib/block");
 const { startFill } = await import("../src/lib/fill");
+const { blockEvalCell, evalBlocks } = await import("../src/lib/eval-blocks");
 
 const providers = values.provider!.split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -302,6 +305,7 @@ for (const r of results) {
   }) : null;
   const rawLocked = c.kind === "fill" && last?.parsed ? ((last.parsed as AiProgramDraft).weeks ?? []).filter((w) => lockedWant.has(w.week)).length : 0;
   const reason = r.error ?? (r.row?.status === "validated" ? "" : `${r.row?.status}: ${r.row?.error ?? ""}`);
+  const blocks = draft ? evalBlocks(draft, exName) : null;
   rows.push({
     case: c.id,
     model: r.row?.model ?? "",
@@ -316,6 +320,7 @@ for (const r of results) {
     "A≠B": c.alternate ? (abDiff == null ? "—" : `${abDiff} ex differ`) : "n/a",
     progress: prog ? `${prog.changed}/${prog.pairs} pairs change · ${prog.jumps.length} jumps${prog.added ? ` · ${prog.added} first loads` : ""}` : "—",
     locked: c.kind === "fill" ? (lockedOk == null ? "—" : lockedOk && rawLocked === 0 ? "unchanged" : `CHANGED (raw has ${rawLocked})`) : "n/a",
+    prep: blocks ? blockEvalCell(blocks) : "—",
   });
   details.push(
     [
@@ -327,6 +332,10 @@ for (const r of results) {
       ),
       prog?.jumps.length ? `Jumps: ${prog.jumps.join("; ")}` : "",
       a && b ? `A: ${exerciseKeys(a).join(", ")}\nB: ${exerciseKeys(b).join(", ")}` : "",
+      blocks?.primaryOff.length ? `Primary off (main work): ${blocks.primaryOff.join("; ")}` : "",
+      blocks?.primaryInPrep.length ? `Primary in prep: ${blocks.primaryInPrep.join("; ")}` : "",
+      blocks?.ruleBroken.length ? `Block rules broken: ${blocks.ruleBroken.join("; ")}` : "",
+      blocks?.spotCheck.length ? `Movement prep (not counted, ${blocks.prepSets} sets kept out of the totals) → first main lift:\n${blocks.spotCheck.map((x) => `- ${x}`).join("\n")}` : "",
     ]
       .filter(Boolean)
       .join("\n"),
@@ -361,7 +370,7 @@ function renderDraft(d: AiProgramDraft): string {
     out.push(`## Week ${w.week}${w.rotation ? ` (${w.rotation})` : ""}${w.locked ? " — trainer's" : ""}`);
     for (const s of w.sessions) {
       out.push(`**${s.name}**${s.weekday ? ` · day ${s.weekday}` : ""}${s.kind === "cardio" ? ` · cardio ${JSON.stringify(s.cardio)}` : ""}`);
-      for (const e of s.exercises) out.push(`- ${e.group ? `[${e.group}] ` : ""}${exName(e)}${e.role ? ` (${e.role})` : ""}: ${sets(e.prescribedSets)}${e.notes ? ` — ${e.notes}` : ""}`);
+      for (const e of s.exercises) out.push(`- ${e.block === "prep" ? "(prep) " : ""}${e.group ? `[${e.group}] ` : ""}${exName(e)}${e.role ? ` (${e.role})` : ""}: ${sets(e.prescribedSets)}${e.notes ? ` — ${e.notes}` : ""}`);
       out.push("");
     }
   }
