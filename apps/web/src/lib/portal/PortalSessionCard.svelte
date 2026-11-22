@@ -59,12 +59,14 @@
   const cardio = $derived(session.kind === "cardio");
   const count = $derived(session.exercises.length === 1 ? t("session.oneExercise") : t("session.exercises", { n: session.exercises.length }));
   const byCoach = $derived(session.log?.loggedBy === "trainer");
+  /** "Didn't do it": resolved, but neither done nor missed. */
+  const skipped = $derived(!!session.log?.skipped);
   const feedback = $derived(session.log?.entry?.trainerFeedback?.trim() || null);
   /** The page's one green action: the session in focus, not yet logged. */
   const lead = $derived(!!logHref && focus && !session.log);
 </script>
 
-<article class="card" class:focus class:done={!!session.log} aria-labelledby={`s-${session.id}`}>
+<article class="card" class:focus class:done={!!session.log && !skipped} aria-labelledby={`s-${session.id}`}>
   <div class="head">
     <div class="title">
       <h3 id={`s-${session.id}`} lang={latinLang(session.name)}>{session.name}</h3>
@@ -83,10 +85,14 @@
   {/if}
   {#if session.log}
     <div class="status">
-      <span class={["pill", byCoach ? "neutral" : "good", "state"]}>
-        <Icon name="check" />{byCoach ? t("session.loggedByCoach") : t("session.loggedByYou")}
-        <span class="when">· {fmtShortDate(session.log.date)}</span>
-      </span>
+      {#if skipped}
+        <span class="pill neutral state">{t("session.skipped")}<span class="when">· {fmtShortDate(session.log.date)}</span></span>
+      {:else}
+        <span class={["pill", byCoach ? "neutral" : "good", "state"]}>
+          <Icon name="check" />{byCoach ? t("session.loggedByCoach") : t("session.loggedByYou")}
+          <span class="when">· {fmtShortDate(session.log.date)}</span>
+        </span>
+      {/if}
       {#if removable}
         <button type="button" class="remove" class:armed disabled={removing} onclick={remove}>
           {removing ? t("session.removing") : armed ? t("session.removeConfirm") : t("session.remove")}

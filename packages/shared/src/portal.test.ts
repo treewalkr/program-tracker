@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "./metrics";
-import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx } from "./portal";
+import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx, latestLogBySession } from "./portal";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -128,5 +128,18 @@ describe("portalCardioRx", () => {
     expect(rx.intervals![1].recovery).toEqual({ type: "active_recovery", durationSec: 120, distanceM: undefined });
     expect(JSON.stringify(rx)).not.toContain("secret");
     expect(portalCardioRx({ modality: "Bike", hrZone: 2 }, null).hrBpm).toBeUndefined();
+  });
+});
+
+describe("latestLogBySession", () => {
+  test("a skipped cardio log carries skipped; a done one doesn't", () => {
+    const m = latestLogBySession([
+      { id: "a", programSessionId: "s1", date: "2026-11-18", loggedBy: "client" as const, cardio: { modality: "Running", skipped: { reason: "time" } } },
+      { id: "b", programSessionId: "s2", date: "2026-11-18", loggedBy: "client" as const, cardio: { modality: "Running", durationSec: 600 } },
+      { id: "c", programSessionId: "s3", date: "2026-11-18", loggedBy: "trainer" as const, cardio: null },
+    ]);
+    expect(m.get("s1")).toEqual({ id: "a", loggedBy: "client", date: "2026-11-18", skipped: true });
+    expect(m.get("s2")).toEqual({ id: "b", loggedBy: "client", date: "2026-11-18" });
+    expect(m.get("s3")).toEqual({ id: "c", loggedBy: "trainer", date: "2026-11-18" });
   });
 });

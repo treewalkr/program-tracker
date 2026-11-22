@@ -8,7 +8,7 @@
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
   import PortalProgress from "$lib/portal/PortalProgress.svelte";
-  import { dayGroups, doneCount, earlierOpen, focusSession } from "$lib/portal/week";
+  import { dayGroups, doneCount, earlierOpen, focusSession, skippedCount } from "$lib/portal/week";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
@@ -169,7 +169,8 @@
       <PortalSessionCard session={nextUp} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} onremove={removeLog} />
     </section>
   {:else if current?.loggable && current.sessions.length > 0}
-    <p class="all-done"><Icon name="check" />{t("week.allDone", { total: current.sessions.length })}</p>
+    {@const skippedN = skippedCount(current)}
+    <p class="all-done"><Icon name="check" />{skippedN ? t("week.allResolved", { done: doneCount(current), skipped: skippedN }) : t("week.allDone", { total: current.sessions.length })}</p>
   {/if}
 
   {#if earlier.length > 0}

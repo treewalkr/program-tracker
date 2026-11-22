@@ -267,6 +267,10 @@ export const en = {
   "settings.unitsNote": "Your coach still sees metric. Switching changes how numbers read here, never your logs.",
   "settings.saved": "Saved.",
   "settings.failed": "Couldn't save. Try again.",
+  "log.savedSkipped": "Noted as not done",
+  "log.savedSkippedLine": "Not done",
+  "session.skipped": "Not done",
+  "week.allResolved": "Nothing left this week: {done} done, {skipped} not done.",
   "cardio.underPlan": "Much shorter than the planned {planned}. Check the time.",
 } as const;
 
@@ -533,6 +537,10 @@ export const th: Record<MessageKey, string> = {
   "settings.unitsNote": "โค้ชยังเห็นเป็นหน่วยเมตริก เปลี่ยนตรงนี้แค่เปลี่ยนการแสดงผลในหน้าของคุณ ผลที่บันทึกไว้ไม่เปลี่ยน",
   "settings.saved": "บันทึกแล้ว",
   "settings.failed": "บันทึกไม่ได้ ลองอีกครั้ง",
+  "log.savedSkipped": "บันทึกแล้วว่าไม่ได้เล่น",
+  "log.savedSkippedLine": "ไม่ได้เล่น",
+  "session.skipped": "ไม่ได้เล่น",
+  "week.allResolved": "สัปดาห์นี้ไม่มีอะไรค้างแล้ว เล่นไป {done} ไม่ได้เล่น {skipped}",
   "cardio.underPlan": "สั้นกว่าแผน {planned} มาก ลองเช็กเวลาอีกที",
 };
 

@@ -51,7 +51,11 @@ export function focusSessionId(week: PortalWeek, today: string): string | null {
   return pick?.id ?? null;
 }
 
-export const doneCount = (week: PortalWeek) => week.sessions.filter((s) => s.log).length;
+/** Sessions done this week. A skipped cardio log resolves its session but isn't done. */
+export const doneCount = (week: PortalWeek) => week.sessions.filter((s) => s.log && !s.log.skipped).length;
+
+/** Sessions skipped this week ("didn't do it"): neither done nor missed. */
+export const skippedCount = (week: PortalWeek) => week.sessions.filter((s) => s.log?.skipped).length;
 
 /** The focus session itself, or null when everything is logged. */
 export function focusSession(week: PortalWeek, today: string): PortalSession | null {

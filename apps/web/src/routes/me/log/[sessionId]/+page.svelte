@@ -73,7 +73,7 @@
   let kgChecked = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
-  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean } | null>(null);
+  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean } | null>(null);
   let undoing = $state(false);
   let undone = $state(false);
 
@@ -261,7 +261,7 @@
     try {
       const log = await portalApi.log(built.input);
       localStorage.removeItem(portalDraftKey(session.id));
-      saved = { log, sets: built.sets, replaced: byYou };
+      saved = { log, sets: built.sets, replaced: byYou, skipped: !!built.input.cardio?.skipped };
       undone = false;
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -363,15 +363,17 @@
   const after = $derived.by(() => {
     if (!saved || !week || !session) return null;
     const id = session.id;
-    const log = { id: saved.log.id, loggedBy: "client" as const, date: saved.log.date };
+    const log = { id: saved.log.id, loggedBy: "client" as const, date: saved.log.date, ...(savedSkipped ? { skipped: true } : {}) };
     const w: PortalWeek = { ...week, sessions: week.sessions.map((s) => (s.id === id ? { ...s, log } : s)) };
     const next = focusSession(w, today);
     const day = next ? (dayGroups(w, today).find((g) => g.sessions.some((s) => s.id === next.id)) ?? null) : null;
     const when = !day ? "" : day.weekday === 0 ? t("week.anyDay") : day.isToday ? t("week.today") : weekdayName(day.weekday);
     return { done: doneCount(w), total: w.sessions.length, next, when };
   });
+  /** The save said "didn't do it": noted, never counted as done. */
+  const savedSkipped = $derived(!!saved?.skipped);
   const savedLine = $derived(
-    !saved ? "" : cardioSession ? t("log.savedCardio") : saved.sets === 1 ? t("log.savedOneSet") : t("log.savedSets", { n: saved.sets }),
+    !saved ? "" : savedSkipped ? t("log.savedSkippedLine") : cardioSession ? t("log.savedCardio") : saved.sets === 1 ? t("log.savedOneSet") : t("log.savedSets", { n: saved.sets }),
   );
 </script>
 
@@ -404,8 +406,12 @@
       <h1>{t("log.undone")}</h1>
       <a class="btn primary done-btn" href="/me">{t("log.done")}</a>
     {:else}
-      <span class="tick" aria-hidden="true"><Icon name="check" /></span>
-      <h1>{t("log.saved")}</h1>
+      {#if savedSkipped}
+        <h1>{t("log.savedSkipped")}</h1>
+      {:else}
+        <span class="tick" aria-hidden="true"><Icon name="check" /></span>
+        <h1>{t("log.saved")}</h1>
+      {/if}
       <p class="recap-line">{session.name} · {savedLine} · {fmtDay(saved.log.date)}</p>
       {#if after}
         <div class="week-now">

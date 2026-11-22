@@ -719,6 +719,7 @@
     const replaced: RecapNote[] = saved.replaced?.length
       ? [{ tone: "muted", text: `Replaced the ${saved.replaced.map((l) => fmtDay(l.date)).join(", ")} log` }]
       : [];
+    if (p.sent === null && p.input.cardio?.skipped) return { title: `${name} noted as not done`, counts: "doesn't count toward this week's cardio, and isn't missed", notes: replaced };
     if (p.sent === null) return { title: `${name} logged`, counts: "counts toward this week's cardio", notes: replaced };
     const r = saveRecap(p.snapshot.rows, p.snapshot.flags);
     return { title: `${name} logged`, counts: recapCounts(r), notes: [...recapNotes(r, nameOf), ...replaced] };

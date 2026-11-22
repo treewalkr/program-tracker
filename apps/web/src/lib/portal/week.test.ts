@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSession, PortalWeek } from "@pt/shared";
-import { dateOfWeekday, dayGroups, earlierOpen, focusSession, focusSessionId } from "./week";
+import { dateOfWeekday, dayGroups, doneCount, earlierOpen, focusSession, focusSessionId, skippedCount } from "./week";
 
 const S = (id: string, weekday: number | null, seq: number, log: PortalSession["log"] = null): PortalSession => ({
   id, name: id, kind: "exercises", seq, weekday, order: 0, exercises: [], cardio: null, log,
@@ -52,5 +52,20 @@ describe("portal week", () => {
     expect(earlierOpen(w, "2026-11-20", "wed").map((g) => g.date)).toEqual(["2026-11-19"]);
     expect(earlierOpen({ ...w, loggable: false }, "2026-11-20")).toEqual([]);
     expect(focusSession(w, "2026-11-20")?.id).toBe("fri");
+  });
+});
+
+describe("done and skipped", () => {
+  test("a skipped cardio log resolves the session but isn't done", () => {
+    const w = week([
+      S("a", 1, 1, { id: "l1", loggedBy: "client", date: "2026-11-18" }),
+      S("b", 2, 2, { id: "l2", loggedBy: "client", date: "2026-11-19", skipped: true }),
+      S("c", 3, 3, { id: "l3", loggedBy: "trainer", date: "2026-11-19", skipped: true }),
+      S("d", 4, 4),
+    ]);
+    expect(doneCount(w)).toBe(1);
+    expect(skippedCount(w)).toBe(2);
+    // and it's not open either: focus moves past it
+    expect(focusSessionId(w, "2026-11-18")).toBe("d");
   });
 });

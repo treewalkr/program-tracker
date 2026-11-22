@@ -93,6 +93,7 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
       date: sessionLogs.date,
       loggedBy: sessionLogs.loggedBy,
       createdAt: sessionLogs.createdAt,
+      cardio: sessionLogs.cardio,
     })
     .from(sessionLogs)
     .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));

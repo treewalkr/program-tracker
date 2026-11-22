@@ -110,6 +110,8 @@ export const PortalSessionLog = z.object({
   id: z.string(),
   loggedBy: LoggedBy,
   date: z.string(),
+  /** A cardio log marked "didn't do it": the session is resolved but not done (optional: older API builds don't send it). */
+  skipped: z.boolean().optional(),
   /** Only on the client's own log: what they entered. A coach's log never carries it. */
   entry: PortalLogEntry.optional(),
 });
@@ -465,16 +467,24 @@ export function portalSessions(
   return sessionsInSeqOrder(sessions).map((s) => portalSession(s, maxes, logOf(s.id), loads));
 }
 
-/** The latest log per program session (by date, then creation). */
+/** The latest log per program session (by date, then creation). A skipped cardio log says so. */
 export function latestLogBySession<
-  L extends { id: string; programSessionId: string | null; date: string; loggedBy: LoggedBy; createdAt?: string | Date }
+  L extends {
+    id: string;
+    programSessionId: string | null;
+    date: string;
+    loggedBy: LoggedBy;
+    createdAt?: string | Date;
+    cardio?: { skipped?: unknown } | null;
+  }
 >(logs: readonly L[]): Map<string, PortalSessionLog> {
   const out = new Map<string, PortalSessionLog & { at: string }>();
   for (const l of logs) {
     if (!l.programSessionId) continue;
     const at = `${l.date}|${l.createdAt instanceof Date ? l.createdAt.toISOString() : (l.createdAt ?? "")}`;
     const prev = out.get(l.programSessionId);
-    if (!prev || at > prev.at) out.set(l.programSessionId, { id: l.id, loggedBy: l.loggedBy, date: l.date, at });
+    const skipped = l.cardio?.skipped != null ? { skipped: true } : {};
+    if (!prev || at > prev.at) out.set(l.programSessionId, { id: l.id, loggedBy: l.loggedBy, date: l.date, ...skipped, at });
   }
   return new Map([...out].map(([k, { at: _at, ...v }]) => [k, v]));
 }

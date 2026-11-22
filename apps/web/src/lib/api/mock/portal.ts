@@ -125,7 +125,7 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   const maxes = mockState.clients.find((c) => c.id === CLIENT_ID)?.oneRepMaxes ?? null;
   const mine = mockState.logs.filter((l) => l.clientId === CLIENT_ID && l.programId === program.id);
   const done = latestLogBySession(
-    mine.map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer" })),
+    mine.map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer", cardio: l.cardio ?? null })),
   );
   // the client's own log carries what they entered, like the API
   for (const [sid, log] of done) {
