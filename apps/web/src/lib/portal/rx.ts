@@ -1,5 +1,8 @@
 import { cardioTotals, recoveryCount, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
+import { coachIntensity } from "$lib/cardioLine";
+
+export { coachIntensity };
 import { loadIn } from "@pt/shared";
 import { showDistance, showPace, units } from "$lib/units.svelte";
 import type { MessageKey } from "./messages";
@@ -111,15 +114,6 @@ export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "h
   const intensity = coachIntensity(c.intensity);
   if (intensity) parts.push(intensity);
   return parts;
-}
-
-/** Slugs the old presets stamped on every session; they say nothing the plan doesn't. */
-const PRESET_SLUGS = new Set(["easy", "tempo", "intervals", "long"]);
-
-/** The coach's own intensity words, or null for an old preset slug. */
-export function coachIntensity(s: string | null | undefined): string | null {
-  const v = s?.trim();
-  return v && !PRESET_SLUGS.has(v.toLowerCase()) ? v : null;
 }
 
 /** What the member logged, for the done card: "42:05 · 6.4 km · RPE 4". */

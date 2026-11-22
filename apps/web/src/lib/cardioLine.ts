@@ -10,6 +10,15 @@ export type CardioLineSource = Partial<Pick<CardioPrescription, "durationMin" | 
     intervals?: readonly (CardioInterval | CardioIntervalResult)[];
   };
 
+/** Slugs the old presets stamped on every session; they say nothing the plan doesn't. */
+const PRESET_SLUGS = new Set(["easy", "tempo", "intervals", "long"]);
+
+/** The coach's own intensity words, or null for an old preset slug. */
+export function coachIntensity(s: string | null | undefined): string | null {
+  const v = s?.trim();
+  return v && !PRESET_SLUGS.has(v.toLowerCase()) ? v : null;
+}
+
 const planned = (xs: CardioLineSource["intervals"]): CardioInterval[] => (xs ?? []).filter((x): x is CardioInterval => "type" in x);
 
 /** One rep's amount, compact: 2′, 1′30″, 45″, 400 m. */
@@ -51,7 +60,7 @@ export function cardioLine(c: CardioLineSource | null | undefined): string {
     c.modality,
     c.durationMin ? `${c.durationMin} min` : null,
     c.hrZone ? `Z${c.hrZone}` : null,
-    c.intensity || null,
+    coachIntensity(c.intensity),
     c.distanceKm ? fmtDistance(c.distanceKm) : null,
     rpe ? `RPE ${rpe}` : null,
   ]

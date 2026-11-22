@@ -3,8 +3,8 @@ import { cardioLine } from "./cardioLine";
 
 describe("cardioLine", () => {
   test("a prescription reads modality, time, zone, intensity, distance and target RPE", () => {
-    expect(cardioLine({ modality: "Bike", durationMin: 40, hrZone: 2, intensity: "easy", distanceKm: 15, targetRpe: 5 })).toBe(
-      "Bike · 40 min · Z2 · easy · 15 km · RPE 5",
+    expect(cardioLine({ modality: "Bike", durationMin: 40, hrZone: 2, intensity: "conversational", distanceKm: 15, targetRpe: 5 })).toBe(
+      "Bike · 40 min · Z2 · conversational · 15 km · RPE 5",
     );
   });
   test("a log reads its RPE", () => {
@@ -26,4 +26,8 @@ describe("cardioLine", () => {
     expect(cardioLine({ modality: "Track", intervals: [{ id: "t", type: "work" as const, repeat: 6, distanceM: 400 }] })).toBe("Track · 6×400 m");
     expect(cardioLine({ modality: "Bike", intervals: [{ id: "t", type: "work" as const, repeat: 1, durationSec: 90 }] })).toBe("Bike · 1′30″ · 1:30");
   });
+});
+
+test("an old preset slug (easy, tempo, intervals, long) is left out", () => {
+  expect(cardioLine({ modality: "Bike", durationMin: 60, hrZone: 2, intensity: "easy", targetRpe: 3 })).toBe("Bike · 60 min · Z2 · RPE 3");
 });
