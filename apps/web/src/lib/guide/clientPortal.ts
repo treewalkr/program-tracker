@@ -92,7 +92,7 @@ const en: Guide = {
         },
         {
           h: "Fill in the sets",
-          p: `kg and reps come prefilled from your prescription; they change what differed. RPE is optional behind *${portalEn["log.rpeShow"]}*, as is the ${q("log.readiness")} strip. A superset or circuit is one card, laid out the way it's done: **Set 1** with each exercise under it, then **Set 2**. Skipping an exercise or flagging pain sits behind one quiet *${portalEn["log.issues"]}* link under the sets; anything flagged shows as a tag under the title (*${portalEn["log.tagPain"]} · Wall Ball*) and reaches you with the log.`,
+          p: `kg and reps come prefilled from your prescription; they change what differed. RPE is optional behind *${portalEn["log.rpeShow"]}*, as is the ${q("log.readiness")} strip. Each set's load is either **${portalEn["log.bodyweight"]}** (nothing to type) or kg, switched with *${portalEn["log.addLoad"].replace("{unit}", portalEn["log.kg"])}* / *${portalEn["log.bw"]}*; a step-up done unloaded in a circuit is one tap, and the rounds after it follow. On a bodyweight move the kg reads as added load (a vest, a belt), and a set with no kg reaches you as BW. A superset or circuit is one card, laid out the way it's done: **Set 1** with each exercise under it, then **Set 2**. Skipping an exercise or flagging pain sits behind one quiet *${portalEn["log.issues"]}* link under the sets; anything flagged shows as a tag under the title (*${portalEn["log.tagPain"]} · Wall Ball*) and reaches you with the log.`,
         },
         {
           h: portalEn["log.save"],
