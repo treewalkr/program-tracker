@@ -4,6 +4,7 @@
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
 	import { formatFigure, parseFigure, rangeIssue, signedDelta, stepFigure } from './input/figure';
+	import { RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
 	/**
 	 * Input 08 · Diff field — change a figure against a baseline: plan vs
@@ -27,6 +28,8 @@
 		disabled?: boolean;
 		/** Label for screen readers only, for a table cell under a column head. */
 		hideLabel?: boolean;
+		/** Range messages, in the page's language. */
+		rangeWords?: RangeWords;
 		onchange?: (value: number | null) => void;
 	}
 
@@ -44,6 +47,7 @@
 		error,
 		disabled = false,
 		hideLabel = false,
+		rangeWords = RANGE_WORDS_EN,
 		onchange,
 	}: Props = $props();
 
@@ -60,7 +64,7 @@
 
 	const delta = $derived(value === null || value === undefined ? 0 : Number((value - baseline).toFixed(6)));
 	const changed = $derived(delta !== 0);
-	const issue = $derived(error ?? (checked ? rangeIssue(value ?? null, min, max, unit) : null));
+	const issue = $derived(error ?? (checked ? rangeIssue(value ?? null, min, max, unit, rangeWords) : null));
 	const word = $derived(baselineLabel.charAt(0).toUpperCase() + baselineLabel.slice(1));
 	const spoken = $derived(
 		changed

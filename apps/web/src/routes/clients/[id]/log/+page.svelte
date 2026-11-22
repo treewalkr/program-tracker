@@ -1343,7 +1343,7 @@
         <ReadinessStrip bind:value={readiness} bind:open={readinessOpen} />
       {/if}
       {#if isCardioSession}
-        <CardioLogForm bind:value={cardioForm} modalities={modalities.filter((m) => !m.archivedAt)} metric={cardioMetric} problem={cardioProblem} />
+        <CardioLogForm bind:value={cardioForm} modalities={modalities.filter((m) => !m.archivedAt)} metric={cardioMetric} problem={cardioProblem} plannedSec={cardioBase.durationSec} />
         <div class="panel-body foot">
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">

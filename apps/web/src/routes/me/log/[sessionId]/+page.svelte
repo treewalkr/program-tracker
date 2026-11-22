@@ -307,6 +307,7 @@
     modalityPlaceholder: t("cardio.activityPlaceholder"),
     duration: t("cardio.duration"),
     durationHint: t("cardio.durationHint"),
+    underPlan: t("cardio.underPlan"),
     rpe: t("cardio.rpe"),
     rpeHint: t("cardio.rpeHint"),
     distance: t("cardio.distance"),
@@ -477,7 +478,7 @@
       {/if}
 
       {#if cardioSession}
-        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} />
+        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} />
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">

@@ -210,7 +210,7 @@ export const en = {
   "iv.afterEach": "after each hard rep",
   "session.intervals": "Intervals",
   "cardio.duration": "Time taken",
-  "cardio.durationHint": "min:sec, like 35:10",
+  "cardio.durationHint": "min:sec, like 35:10 (or type 3510)",
   "cardio.rpeHint": "1 = very easy · 10 = all-out, couldn't go on",
   "cardio.distance": "Distance",
   "cardio.avgHr": "Avg heart rate",
@@ -267,6 +267,7 @@ export const en = {
   "settings.unitsNote": "Your coach still sees metric. Switching changes how numbers read here, never your logs.",
   "settings.saved": "Saved.",
   "settings.failed": "Couldn't save. Try again.",
+  "cardio.underPlan": "Much shorter than the planned {planned}. Check the time.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -475,7 +476,7 @@ export const th: Record<MessageKey, string> = {
   "iv.afterEach": "หลังช่วงหนักทุกรอบ",
   "session.intervals": "อินเทอร์วัล",
   "cardio.duration": "เวลาที่ใช้",
-  "cardio.durationHint": "นาที:วินาที เช่น 35:10",
+  "cardio.durationHint": "นาที:วินาที เช่น 35:10 (พิมพ์ 3510 ก็ได้)",
   "cardio.rpeHint": "1 = สบายมาก · 10 = หนักสุด ทำต่อไม่ไหว",
   "cardio.distance": "ระยะทาง",
   "cardio.avgHr": "ชีพจรเฉลี่ย",
@@ -532,6 +533,7 @@ export const th: Record<MessageKey, string> = {
   "settings.unitsNote": "โค้ชยังเห็นเป็นหน่วยเมตริก เปลี่ยนตรงนี้แค่เปลี่ยนการแสดงผลในหน้าของคุณ ผลที่บันทึกไว้ไม่เปลี่ยน",
   "settings.saved": "บันทึกแล้ว",
   "settings.failed": "บันทึกไม่ได้ ลองอีกครั้ง",
+  "cardio.underPlan": "สั้นกว่าแผน {planned} มาก ลองเช็กเวลาอีกที",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };

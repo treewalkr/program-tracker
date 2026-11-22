@@ -2,11 +2,12 @@
 	import { untrack } from 'svelte';
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
-	import { durationIssue, formatDuration, parseDuration } from './input/duration';
+	import { durationIssue, formatDuration, parseDuration, RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
 	/**
-	 * Input 11 · Duration field — a time typed as mm:ss or h:mm:ss (a bare
-	 * number is minutes). The value is whole seconds; the field shows it back
+	 * Input 11 · Duration field — a time typed as mm:ss or h:mm:ss. Keypad
+	 * digits get the colon from the right ("3510" → 35:10), since the iPhone
+	 * numeric keypad has no ":"; one or two digits are minutes. The value is whole seconds; the field shows it back
 	 * in the clock format on blur. ↑/↓ step by `step` seconds (Shift ×10).
 	 * `cell` is the quiet table-cell look of Input 04, for interval rows.
 	 */
@@ -29,6 +30,10 @@
 		width?: 'auto' | 'fill';
 		/** Quiet cell inside a dense table: no label row (the label is the accessible name). */
 		cell?: boolean;
+		/** The "type a time" message, in the page's language. */
+		junkText?: string;
+		/** Range messages, in the page's language. */
+		rangeWords?: RangeWords;
 		onchange?: (value: number | null) => void;
 	}
 
@@ -46,6 +51,8 @@
 		disabled = false,
 		width = 'fill',
 		cell = false,
+		junkText = 'Type a time like 35:10',
+		rangeWords = RANGE_WORDS_EN,
 		onchange,
 	}: Props = $props();
 
@@ -60,7 +67,7 @@
 		if (!focused) text = formatDuration(v, { hours });
 	});
 
-	const issue = $derived(error ?? (junk ? 'Type a time like 35:10' : checked ? durationIssue(value ?? null, min, max) : null));
+	const issue = $derived(error ?? (junk ? junkText : checked ? durationIssue(value ?? null, min, max, rangeWords) : null));
 
 	function set(v: number | null) {
 		value = v;

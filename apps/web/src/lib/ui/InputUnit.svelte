@@ -3,6 +3,7 @@
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
 	import { formatFigure, parseFigure, rangeIssue, stepFigure } from './input/figure';
+	import { RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
 	/**
 	 * Input 02 · Unit field — a typed number with its unit in a cap: 1RM kg,
@@ -26,6 +27,8 @@
 		disabled?: boolean;
 		/** `auto` fits about 7 figures plus the caps; `fill` takes the column. */
 		width?: 'auto' | 'fill';
+		/** Range messages, in the page's language. */
+		rangeWords?: RangeWords;
 		onchange?: (value: number | null) => void;
 	}
 
@@ -43,6 +46,7 @@
 		optional = false,
 		disabled = false,
 		width = 'fill',
+		rangeWords = RANGE_WORDS_EN,
 		onchange,
 	}: Props = $props();
 
@@ -57,7 +61,7 @@
 		if (!focused) text = formatFigure(v, decimals);
 	});
 
-	const issue = $derived(error ?? (checked ? rangeIssue(value ?? null, min, max, unit) : null));
+	const issue = $derived(error ?? (checked ? rangeIssue(value ?? null, min, max, unit, rangeWords) : null));
 
 	function set(v: number | null) {
 		value = v;

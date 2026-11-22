@@ -7,6 +7,8 @@
     modalityPlaceholder: string;
     duration: string;
     durationHint: string;
+    /** Under 30 % of the planned time: `{planned}` is the plan as mm:ss. A warning, never a block. */
+    underPlan: string;
     rpe: string;
     rpeHint: string;
     distance: string;
@@ -47,7 +49,7 @@
   import type { CardioIntervalType, CardioMetric, DistanceUnit, SkipReason } from "@pt/shared";
   import { distanceUnit, showDistance, storeDistance } from "$lib/units.svelte";
   import { cardioFormCalc, INTERVAL_TYPE_LABEL, SKIP_REASON_LABEL, type CardioForm, type CardioFormError, type IntervalResultRow } from "$lib/cardioForm";
-  import { formatDuration } from "$lib/ui/input/duration";
+  import { farUnderPlan, formatDuration } from "$lib/ui/input/duration";
   import InputDuration from "$lib/ui/InputDuration.svelte";
   import InputUnit from "$lib/ui/InputUnit.svelte";
   import InputField from "$lib/ui/InputField.svelte";
@@ -64,6 +66,7 @@
     modalityPlaceholder: "Running, Cycling, Rowing…",
     duration: "Duration",
     durationHint: "mm:ss, or h:mm:ss",
+    underPlan: "Much shorter than the planned {planned}. Check the time.",
     rpe: "Session RPE",
     rpeHint: "How hard the whole session felt, 1–10",
     distance: "Distance",
@@ -107,9 +110,11 @@
     metric?: CardioMetric;
     /** The field the last save attempt was missing. */
     problem?: CardioFormError | null;
+    /** The planned session time in seconds, for the "much shorter than planned" warning. */
+    plannedSec?: number | null;
   }
 
-  let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null }: Props = $props();
+  let { value = $bindable(), text: given = {}, variant = "sheet", modalities, metric = "none", problem = null, plannedSec = null }: Props = $props();
 
   const text = $derived({ ...ENGLISH, ...given, reasons: { ...ENGLISH.reasons, ...given.reasons }, types: { ...ENGLISH.types, ...given.types }, distanceUnits: { ...ENGLISH.distanceUnits, ...given.distanceUnits } });
   const distLabel = $derived(text.distanceUnits[distanceUnit()]);
@@ -120,6 +125,8 @@
     return reps > 1 ? text.repOf.replace("{name}", name).replace("{rep}", String(row.rep)).replace("{reps}", String(reps)) : name;
   }
   const calc = $derived(cardioFormCalc(value, metric));
+  /** A logged time far under the plan is usually minutes read as seconds: say so, don't block. */
+  const durationHint = $derived(farUnderPlan(value.durationSec, plannedSec) ? text.underPlan.replace("{planned}", formatDuration(plannedSec)) : text.durationHint);
   const load = $derived(calc.load != null && value.rpe != null && value.durationSec != null ? { au: calc.load, rpe: value.rpe, min: Math.round((value.durationSec / 60) * 10) / 10 } : null);
 
   const modalityOptions = $derived.by((): SelectOption[] => {
@@ -166,7 +173,7 @@
           <InputField label={text.modality} placeholder={text.modalityPlaceholder} bind:value={value.modality} maxlength={80} error={problem === "modality" ? text.modalityError : null} />
         {/if}
       </div>
-      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={text.durationHint} error={problem === "duration" ? text.durationHint : null} />
+      <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={durationHint} error={problem === "duration" ? text.durationHint : null} />
       <div class="lbl-field">
         <span class="lbl">{text.rpe}</span>
         <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} />

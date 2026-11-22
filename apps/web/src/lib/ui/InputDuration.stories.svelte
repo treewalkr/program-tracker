@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'A time typed as mm:ss or h:mm:ss — a cardio log’s duration, an interval’s time, a 1.5-mile finish. A bare number is minutes ("40" → 40:00). The value is whole seconds and shows back in the clock format on blur; ↑/↓ step by `step` seconds (Shift ×10). `cell` gives the Input 04 quiet-cell look for interval tables. A number with a unit stays Input 02.',
+            'A time typed as mm:ss or h:mm:ss — a cardio log’s duration, an interval’s time, a 1.5-mile finish. Phone keypads have no ":", so three or more digits get the colon from the right ("3510" → 35:10, "10530" → 1:05:30); one or two digits are minutes ("40" → 40:00). Pass `junkText` and `rangeWords` to show the messages in the page’s language. The value is whole seconds and shows back in the clock format on blur; ↑/↓ step by `step` seconds (Shift ×10). `cell` gives the Input 04 quiet-cell look for interval tables. A number with a unit stays Input 02.',
         },
       },
     },
@@ -25,7 +25,7 @@
 </script>
 
 <Story name="Cardio log" asChild>
-  <div style="max-width: 320px"><InputDuration label="Duration" bind:value={logged} min={60} max={18000} hint="35:10, 1:05:00 or 40 for minutes." /></div>
+  <div style="max-width: 320px"><InputDuration label="Duration" bind:value={logged} min={60} max={18000} hint="35:10, 3510 or 40 for minutes." /></div>
 </Story>
 
 <Story name="Blank (required)" asChild>
@@ -45,6 +45,10 @@
 
 <Story name="Out of range" asChild>
   <div style="max-width: 320px"><InputDuration label="1.5-mile time" bind:value={over} min={60} max={14400} error="Between 1:00 and 4:00:00" /></div>
+</Story>
+
+<Story name="Thai messages" asChild>
+  <div style="max-width: 320px"><InputDuration label="เวลาที่ใช้" bind:value={over} min={60} max={14400} junkText="พิมพ์เวลาแบบ 35:10" rangeWords={{ between: 'ระหว่าง {min} ถึง {max}', atLeast: 'อย่างน้อย {min}', atMost: 'ไม่เกิน {max}' }} /></div>
 </Story>
 
 <Story name="Disabled" asChild>
