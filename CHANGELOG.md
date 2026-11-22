@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Improved
+- **Clearer close-ups in feedback.** When you click something small to send feedback, the close-up now takes in the area around it and outlines your pick in red, so it's plain what you meant.
+  - th: พอคลิกจุดเล็ก ๆ เพื่อส่งฟีดแบ็ก ภาพระยะใกล้ก็จะเก็บพื้นที่รอบ ๆ มาด้วย แล้ววงสิ่งที่คุณเลือกไว้ด้วยกรอบสีแดง ดูแล้วรู้เลยว่าหมายถึงตรงไหน
+
+### Fixed
+- When the Feedback page can't load, it now shows just the reason and a Try again button.
+- On a phone, Feedback page buttons are full-size tap targets, and reply dates no longer break over two lines.
+
 ## v0.1.46 — 2026-11-23
 
 ### New
