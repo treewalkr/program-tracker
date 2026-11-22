@@ -31,6 +31,10 @@
    * Bodyweight box, no number to fill in; kg is the log sheet's stepper. The switch
    * sits in the same spot in both modes, so focus stays put and the cell keeps its
    * height. On a bodyweight move the kg reads "Added kg": a vest, a belt.
+   *
+   * `compact`: the trainer's desk table, where a column head already says kg —
+   * one 30px line, the switch left of the number, no label. In the narrow sheet
+   * (the `logform` container under 680px) it reads like the member's cell.
    */
   let {
     value = $bindable(),
@@ -47,7 +51,12 @@
     error,
     errorId,
     disabled = false,
+    compact = false,
+    placeholder,
+    copied = false,
+    enterkeyhint,
     onedit,
+    oncommit,
   }: {
     value: Cell;
     mode: LoadMode;
@@ -66,7 +75,16 @@
     error?: string;
     errorId?: string;
     disabled?: boolean;
+    /** One line for a dense table (the trainer's sheet at desk width). */
+    compact?: boolean;
+    /** The kg input's ghost: what "as prescribed" would log. */
+    placeholder?: string;
+    /** The kg was filled down from an earlier set. */
+    copied?: boolean;
+    enterkeyhint?: "next" | "done";
     onedit?: () => void;
+    /** The kg is committed: the field's change, or a stepper tap. */
+    oncommit?: () => void;
   } = $props();
 
   const uid = $props.id();
@@ -84,7 +102,7 @@
   }
 </script>
 
-<div class="lcell" class:bw>
+<div class="lcell" class:bw class:compact>
   <div class="lc-head">
     <span class="lc-label" aria-hidden="true">{bw ? text.load : added ? text.added : text.unit}</span>
     <button type="button" class="lc-switch" aria-label={bw ? text.toLoad : text.toBw} {disabled} onclick={flip}>
@@ -94,7 +112,7 @@
   {#if bw}
     <p class="lc-bw">{text.bodyweight}</p>
   {:else}
-    <LogStepper bind:value id={inputId} {label} unit="" {step} {min} {max} {from} {error} {errorId} {disabled} {onedit} />
+    <LogStepper bind:value id={inputId} {label} unit="" {step} {min} {max} {from} {placeholder} {copied} {enterkeyhint} {error} {errorId} {disabled} {onedit} {oncommit} />
   {/if}
 </div>
 
@@ -156,6 +174,18 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  /* The desk table: one line, switch then number; the column head is the label. */
+  @container logform (min-width: 680px) {
+    .compact { display: flex; align-items: flex-start; gap: 4px; }
+    .compact .lc-head { display: block; flex: none; height: auto; margin: 0; }
+    .compact .lc-label { display: none; }
+    .compact .lc-switch { min-width: 40px; height: 30px; padding: 0 7px; font-size: 11px; border-radius: 6px; }
+    .compact .lc-switch::before { inset: 0; }
+    .compact .lc-switch:focus-visible { border-radius: 6px; }
+    .compact > :global(:last-child) { flex: 1; min-width: 0; }
+    .compact .lc-bw { justify-content: flex-end; padding: 0 8px; font-size: 12px; }
   }
 
   /* The log page's narrow sheet, as LogStepper: 44px rows. */
