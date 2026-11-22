@@ -6,6 +6,7 @@
   import { blocksOf, roundBreaks, roundOrder, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type RoundBreak, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
   import LogStepper from "$lib/components/LogStepper.svelte";
+  import LoadCell, { type LoadCellText } from "$lib/components/LoadCell.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
   import { cardioLogOf, type CardioFormError } from "$lib/cardioForm";
@@ -27,6 +28,7 @@
     portalWeekCacheJson,
     PORTAL_WEEK_CACHE_KEY,
     sameForm,
+    setLoad,
     setsMissingKg,
     touchedExercises,
     type PortalLogForm,
@@ -436,6 +438,18 @@
     error = now ? cardioErrorText(now) : null;
   });
 
+  /** The load cell's words for one set: BW or kg, and the switch named for the set. */
+  const loadText = (r: PortalRow): LoadCellText => ({
+    unit: wUnit,
+    added: t("log.addedUnit", { unit: wUnit }),
+    load: t("log.load"),
+    bodyweight: t("log.bodyweight"),
+    bw: t("log.bw"),
+    addLoad: t("log.addLoad", { unit: wUnit }),
+    toBw: t("log.toBw", { name: r.name, n: r.setNumber }),
+    toLoad: t("log.toLoad", { name: r.name, n: r.setNumber }),
+  });
+
   /** "Target 6–8 reps · 100 kg · RPE 8" — the plan beside the cells, always with its unit. */
   function targetOf(r: PortalRow): string {
     const ex = exerciseOf(r.programExerciseId);
@@ -743,13 +757,17 @@
     {:else}
     <div class="cells">
       {#if !r.timed}
-        <!-- kg is stored; the member sees and types their own unit -->
-        <LogStepper
+        <!-- the load held or added: BW is none. kg is stored; the member sees and types their own unit -->
+        <LoadCell
           bind:value={() => kgCells.get(r.key, rows[i].weight), (v) => (rows[i].weight = kgCells.set(r.key, v))}
+          mode={r.load}
+          onmode={(m) => (rows = setLoad(rows, r.key, m))}
+          added={!!exerciseOf(r.programExerciseId)?.bodyweight}
           id={`kg-${r.key}`}
           error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
           errorId={`kg-${r.key}-err`}
-          label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showLoad(r.rx.targetWeightKg) : null} />
+          text={loadText(r)}
+          label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${exerciseOf(r.programExerciseId)?.bodyweight ? t("log.addedUnit", { unit: wUnit }) : wUnit}`} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showLoad(r.rx.targetWeightKg) : null} />
       {/if}
       <LogStepper
         bind:value={rows[i].reps}
@@ -949,7 +967,8 @@
     cursor: pointer;
   }
   .rm :global(svg) { width: 16px; height: 16px; }
-  .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  /* bottom-aligned: the load cell's head is taller (it holds the BW switch), the fields still line up */
+  .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px 12px; }
   @container logform (min-width: 520px) {
     .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
