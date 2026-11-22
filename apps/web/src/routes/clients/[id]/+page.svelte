@@ -19,7 +19,7 @@
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, AssessmentDto, AssessmentInput, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
-  import { oneRepMaxKg, plannedVolume, profileOn, pulseCellSets, type PulseCell } from "@pt/shared";
+  import { FEED_ONLY_KINDS, oneRepMaxKg, plannedVolume, profileOn, pulseCellSets, type PulseCell } from "@pt/shared";
   import { maxHrUntested } from "$lib/hrProfile";
   import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
@@ -246,7 +246,8 @@
     const logs = await api.sessionLogs(id);
     sessionLogRows = logs;
     // Client-level signals (cardio pace) exist with or without a program.
-    signals = (await api.notifications()).filter((s) => s.clientId === id);
+    // Feed-only kinds (the client logging a session) belong to the overview, not this list.
+    signals = (await api.notifications()).filter((s) => s.clientId === id && !FEED_ONLY_KINDS.has(s.kind));
     drill = null;
     if (cur) {
       pulse = blockPulse(cur, logs);

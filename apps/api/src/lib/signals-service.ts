@@ -12,7 +12,7 @@ import {
   type SessionLogRow,
   type SetLogRow,
 } from "@pt/db";
-import { bySeverity, cardioBehindSignal, clientNoteSignals, computeSignals, lowReadinessSignals, painFlagSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
+import { bySeverity, cardioBehindSignal, clientLogSignals, clientNoteSignals, FEED_ONLY_KINDS, computeSignals, lowReadinessSignals, painFlagSignals, deloadRulesText, effectiveDeload, timedExerciseIds, timedSlotIds, weekOf } from "@pt/shared";
 import { trainerDeloadSettings } from "./deload";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
@@ -78,6 +78,8 @@ export function toSignalLog(log: SessionLogRow, sets: SetLogRow[]): SignalLog {
     readiness: log.readiness ?? null,
     notes: log.notes ?? null,
     loggedBy: log.loggedBy,
+    id: log.id,
+    sessionName: log.prescription?.session.name ?? null,
     sets: sets.map((s) => ({
       exerciseId: s.exerciseId,
       type: s.type as SignalLog["sets"][number]["type"],
@@ -166,7 +168,11 @@ export async function computeTrainerSignals(
     }
     const owner = { programId: program?.id ?? null, clientId: client.id };
     signals.push(...painFlagSignals(owner, clientLogs, nameOf, now));
-    signals.push(...lowReadinessSignals(owner, clientLogs, now), ...clientNoteSignals(owner, clientLogs, now));
+    signals.push(
+      ...lowReadinessSignals(owner, clientLogs, now),
+      ...clientNoteSignals(owner, clientLogs, now),
+      ...clientLogSignals(owner, clientLogs, now)
+    );
   }
   return signals;
 }
@@ -182,10 +188,11 @@ export async function openSignals(trainerId: string, now = Date.now()): Promise<
   return signals.filter((s) => !hidden.has(s.id)).sort(bySeverity);
 }
 
-/** Write path: queue unseen signal ids for the (L5) email dispatcher.
- *  Dedupe = PK conflict — signal ids are deterministic. */
+/** Write path: queue unseen signal ids for the (L5) email dispatcher, minus the
+ *  feed-only kinds. Dedupe = PK conflict — signal ids are deterministic. */
 export async function queueSignalsForOutbox(trainerId: string, clientId: string): Promise<void> {
-  const signals = await computeTrainerSignals(trainerId, clientId);
+  // Feed-only kinds (client-log) are an in-app heads-up, never an email.
+  const signals = (await computeTrainerSignals(trainerId, clientId)).filter((s) => !FEED_ONLY_KINDS.has(s.kind));
   if (signals.length === 0) return;
   await db
     .insert(signalOutbox)

@@ -7,6 +7,8 @@ import { CLIENT_COOKIE, claimClient, createClientSession, deleteClientSessions }
 import type { GoogleProfile } from "./lib/auth";
 import { app } from "./app";
 import { getDefaultTrainerId } from "./lib/trainer";
+import { openSignals } from "./lib/signals-service";
+import { clientRoster } from "./lib/roster";
 
 assertTestDatabaseUrl(process.env.DATABASE_URL);
 
@@ -511,6 +513,20 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((low[0]?.payload as { evidence: string }).evidence).toContain("sleep 2/5, soreness 4/5");
     const note = await db.select().from(signalOutbox).where(like(signalOutbox.signalId, `client-note:${clientId}:%`));
     expect((note[0]?.payload as { evidence: string }).evidence).toContain("Lower back tight after deadlifts");
+    expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
+  });
+
+  test("a client's own log shows in the feed as client-log, but is never emailed or counted for review", async () => {
+    const r = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { notes: "All good today" }) });
+    expect(r.status).toBe(201);
+    const feed = await openSignals(trainerId);
+    const log = feed.find((s) => s.kind === "client-log" && s.clientId === clientId);
+    expect(log?.id).toBe(`client-log:${clientId}:${r.body.id}`);
+    expect(log?.evidence).toContain("“All good today”");
+    expect(await db.select().from(signalOutbox).where(like(signalOutbox.signalId, `client-log:${clientId}:%`))).toEqual([]);
+    const others = feed.filter((s) => s.clientId === clientId && s.kind !== "client-log").length;
+    const { items } = await clientRoster(trainerId, { status: "all", sort: "name", limit: 100, page: 1 });
+    expect(items.find((c) => c.id === clientId)?.attention).toBe(others);
     expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
   });
 

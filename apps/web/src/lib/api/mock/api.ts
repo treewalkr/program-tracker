@@ -24,7 +24,9 @@ import {
   painFlagSignals,
   lowReadinessSignals,
   bySeverity,
+  clientLogSignals,
   clientNoteSignals,
+  FEED_ONLY_KINDS,
   chainSetCounts,
   DELOAD_RULES,
   DEFAULT_DELOAD,
@@ -2790,6 +2792,13 @@ async function learnFrom(input: {
 /** Demo verdicts: latest 👍/👎 per subject, in memory. */
 const verdicts = new Map<string, LlmVerdictDto>();
 
+/** The name of the program session a log was saved against, when the demo program still has it. */
+function sessionNameOf(programId: string, sessionId: string | null | undefined): string | null {
+  if (!sessionId) return null;
+  const program = state.programs.find((p) => p.id === programId);
+  return program?.weeks.flatMap((w) => w.sessions).find((s) => s.id === sessionId)?.name ?? null;
+}
+
 /** Open signals over the demo fixtures, snooze-filtered and loudest first — the mock of the API's openSignals. */
 function openSignals(): SignalDto[] {
   const signals: SignalDto[] = [];
@@ -2802,6 +2811,7 @@ function openSignals(): SignalDto[] {
       .map((l) => ({
         programId: l.programId, date: l.date, kind: l.kind, cardio: l.cardio ?? null, flags: l.flags ?? null, sets: l.sets,
         perceivedEnergy: l.perceivedEnergy ?? null, readiness: l.readiness ?? null, notes: l.notes ?? null, loggedBy: l.loggedBy ?? "trainer",
+        id: l.sessionLogId, sessionName: l.prescription?.session.name ?? sessionNameOf(l.programId, l.programSessionId),
       }));
     if (current) signals.push(...computeSignals(current, clientLogs, nameOf, client.sessionsPerWeek, undefined, deloadRulesText(effectiveDeload(state.deload, client.deloadSettings))));
     // Cardio targets are a client attribute — checked with or without a program (F18).
@@ -2816,7 +2826,7 @@ function openSignals(): SignalDto[] {
       if (behind) signals.push(behind);
     }
     const owner = { programId: current?.id ?? null, clientId: client.id };
-    signals.push(...painFlagSignals(owner, clientLogs, nameOf), ...lowReadinessSignals(owner, clientLogs), ...clientNoteSignals(owner, clientLogs));
+    signals.push(...painFlagSignals(owner, clientLogs, nameOf), ...lowReadinessSignals(owner, clientLogs), ...clientNoteSignals(owner, clientLogs), ...clientLogSignals(owner, clientLogs));
   }
   return activeSignals(signals).sort(bySeverity);
 }
@@ -2853,7 +2863,7 @@ function mockRoster(query: RosterQuery): RosterPageDto {
   const page = pageOf(sorted, query.page ?? 1, limit);
 
   const attention = new Map<string, number>();
-  for (const s of openSignals()) if (s.clientId) attention.set(s.clientId, (attention.get(s.clientId) ?? 0) + 1);
+  for (const s of openSignals()) if (s.clientId && !FEED_ONLY_KINDS.has(s.kind)) attention.set(s.clientId, (attention.get(s.clientId) ?? 0) + 1);
 
   const items = page.items.map((c) => {
     const p = state.programs.find((x) => x.clientId === c.id && x.status === "active");

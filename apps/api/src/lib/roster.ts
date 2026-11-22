@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, ilike, inArray, max, or, sql, type SQL } from "drizzle-orm";
 import { db, clients, programs, sessionLogs } from "@pt/db";
-import { clampPage, weekOf, type Page, type RosterSort, type RosterStatus } from "@pt/shared";
+import { clampPage, FEED_ONLY_KINDS, weekOf, type Page, type RosterSort, type RosterStatus } from "@pt/shared";
 import { openSignals, toSignalProgram } from "./signals-service";
 
 export interface RosterQuery {
@@ -85,7 +85,8 @@ export async function clientRoster(trainerId: string, query: RosterQuery, now = 
   ]);
 
   const attention = new Map<string, number>();
-  for (const s of signals) if (s.clientId) attention.set(s.clientId, (attention.get(s.clientId) ?? 0) + 1);
+  // Feed-only kinds (a client logging a session) are news, not something to review.
+  for (const s of signals) if (s.clientId && !FEED_ONLY_KINDS.has(s.kind)) attention.set(s.clientId, (attention.get(s.clientId) ?? 0) + 1);
 
   const programOf = (clientId: string) => {
     const p = active.find((a) => a.clientId === clientId);

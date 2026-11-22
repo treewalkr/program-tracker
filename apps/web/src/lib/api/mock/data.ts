@@ -547,7 +547,8 @@ export const logs: StoredLog[] = [
     { exerciseId: "ex-dead", setNumber: 2, type: "working", weightKg: 80, reps: 5, rpe: 8 },
     { exerciseId: "ex-pulldown", setNumber: 1, type: "working", weightKg: 50, reps: 10, rpe: 8 },
   ], notes: "Squat felt smooth, +2.5 on AMRAP." },
-  { sessionLogId: uuid(), clientId: "cl-jonas", programId: "pg-jonas-a", date: day(5), perceivedEnergy: 7, sets: [
+  // Jonas logs from the portal: the overview's Client logs panel has a second row.
+  { sessionLogId: uuid(), loggedBy: "client", clientId: "cl-jonas", programId: "pg-jonas-a", date: day(5), perceivedEnergy: 7, sets: [
     { exerciseId: "ex-bench", setNumber: 1, type: "working", weightKg: 70, reps: 8, rpe: 8 },
     { exerciseId: "ex-bench", setNumber: 2, type: "working", weightKg: 70, reps: 8, rpe: 8 },
     { exerciseId: "ex-crow", setNumber: 1, type: "working", weightKg: 55, reps: 12, rpe: 7 },
@@ -556,7 +557,7 @@ export const logs: StoredLog[] = [
     { exerciseId: "ex-squat", setNumber: 2, type: "working", weightKg: 90, reps: 8, rpe: 8 },
     { exerciseId: "ex-squat", setNumber: 3, type: "working", weightKg: 90, reps: 8, rpe: 9 },
     { exerciseId: "ex-rdl", setNumber: 1, type: "working", weightKg: 100, reps: 10, rpe: 7 },
-  ]},
+  ], loggedBy: "client", notes: "Squats felt heavy — slept badly." },
 ];
 
 export const sessionLogInputs: SessionLogInput[] = [];
