@@ -134,7 +134,7 @@
   interface Props {
     value: CardioForm;
     text?: Partial<CardioFormText>;
-    /** `touch`: one column, 44px fields (the client portal). */
+    /** `touch`: one column, 16px type, 44px buttons and steppers (the client portal). */
     variant?: "sheet" | "touch";
     /** The trainer's modalities (names) for the picker; absent = a free text field. */
     modalities?: { name: string; metric: CardioMetric }[];
@@ -362,5 +362,7 @@
   /* the portal reads one size up, at arm's length */
   .touch :global(.lbl) { font-size: 14px; }
   .touch .hint, .touch .calc, .touch .more summary { font-size: 14px; }
+  /* a thumb-sized row to open the per-rep results */
+  .touch .more summary { padding-block: 12px; line-height: 20px; }
   .touch .calc b { font-size: 14px; }
 </style>
