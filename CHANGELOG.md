@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### New
+- **Smarter AI cardio.** The AI now works out paces from the member's race goal: tempo a little slower than race pace, interval reps a little faster, easy and long runs well slower. It keeps easy and long runs at RPE 2–3, plans at most one or two hard sessions a week, and only calls a session "VO₂max" when the reps really are that hard. It also puts runs on the member's cardio days.
+  - th: AI วางคาร์ดิโอเก่งขึ้น คิดเพซจากเป้าแข่งของเมมเบอร์ให้เอง เทมโปช้ากว่าเพซแข่งนิดหน่อย ช่วงหนักของอินเทอร์วัลเร็วกว่าเล็กน้อย ส่วนวิ่งเบาและลองรันช้ากว่าชัดเจน วิ่งเบากับลองรันอยู่ที่ RPE 2–3 เซสชันหนักไม่เกิน 1–2 ครั้งต่อสัปดาห์ และจะเรียกว่า "VO₂max" ก็ต่อเมื่อช่วงหนักหนักถึงระดับนั้นจริง ๆ แถมยังวางวิ่งลงวันคาร์ดิโอของเมมเบอร์ด้วย
+- **Targets on every interval.** Each interval can have its own pace, bpm range and note, and recoveries can have a zone and pace too. The pace follows the activity: per km or mile for running and walking, per 500 m for rowing, km/h for cycling. Members see the same targets in the portal.
+  - th: อินเทอร์วัลแต่ละช่วงกำหนดเพซ ช่วง bpm และโน้ตของตัวเองได้ ช่วงพักก็ใส่โซนกับเพซได้ด้วย เพซจะเปลี่ยนตามประเภท วิ่งกับเดินเป็นต่อกม. หรือต่อไมล์ พายเรือเป็นต่อ 500 ม. ปั่นจักรยานเป็นกม./ชม. เมมเบอร์ก็เห็นเป้าเดียวกันในพอร์ทัล
+- **See the full interval plan in a draft.** In the AI draft review, open a cardio session's breakdown to see each part with its zone, bpm and pace before you approve.
+  - th: ตอนรีวิวดราฟต์จาก AI กดเปิดรายละเอียดเซสชันคาร์ดิโอ ก็เห็นทุกช่วงพร้อมโซน bpm และเพซได้ก่อนอนุมัติ
+
+### Fixed
+- Approving a draft now moves a hard run off a heavy leg day, as the draft's checks said it would.
+  - th: ตอนอนุมัติดราฟต์ ระบบย้ายวิ่งหนักออกจากวันเล่นขาหนักให้แล้ว ตรงกับที่หน้าตรวจดราฟต์บอกไว้
+- AI tempo and interval runs get the session type Anaerobic endurance instead of Aerobic base.
+  - th: เทมโปกับอินเทอร์วัลที่ AI เขียน ได้ประเภทเซสชัน Anaerobic endurance แทน Aerobic base แล้ว
+- "Why this session" notes no longer lose session names or start with a stray comma.
+  - th: โน้ต "Why this session" ไม่หลุดชื่อเซสชัน และไม่ขึ้นต้นด้วยจุลภาคเกินมาแล้ว
+
 ## v0.1.41 — 2026-11-22
 
 ### New
