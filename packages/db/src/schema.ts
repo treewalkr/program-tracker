@@ -306,6 +306,8 @@ export const sessionLogs = pgTable("session_logs", {
   readiness: jsonb("readiness").$type<Readiness>(),
   /** Per-exercise pain / technique / skipped flags; null on older rows. */
   flags: jsonb("flags").$type<SessionFlag[]>(),
+  /** Movement-prep items ticked: program-exercise ids of the session's prep slots (a checklist, no sets). */
+  prepDone: jsonb("prep_done").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   /** Who entered it: the trainer, or the client in the portal (check constraint). */
   loggedBy: text("logged_by").$type<LoggedBy>().notNull().default("trainer"),
   /** Minutes from the first entry to Save, when the client logged it live in the portal; null otherwise. */

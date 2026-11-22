@@ -84,3 +84,21 @@ export function moveToBlock<T extends Blockable & { group?: string | null }>(lis
   const out = to === "prep" ? [...prep, moved, ...main] : [...prep, ...main, moved];
   return out.map((e, k) => (typeof (e as { order?: unknown }).order === "number" ? { ...e, order: k } : e));
 }
+
+/**
+ * A log's movement-prep check against its program session (API and mock
+ * alike): `prepSets` = prep slots a set was logged on (a 422: prep is a
+ * checklist), `prepDone` = the ticks kept, only the session's prep slot ids,
+ * in session order. A freestyle log (no session) keeps no ticks.
+ */
+export function logPrepCheck(
+  session: { kind?: string | null; exercises?: readonly (Blockable & { id: string })[] } | null | undefined,
+  sets: readonly { programExerciseId?: string | null }[],
+  ticked: readonly string[] | null | undefined
+): { prepSets: string[]; prepDone: string[] } {
+  const prepIds = session && (session.kind ?? "exercises") === "exercises" ? movementPrep(session.exercises ?? []).map((e) => e.id) : [];
+  const prep = new Set(prepIds);
+  const prepSets = [...new Set(sets.flatMap((s) => (s.programExerciseId && prep.has(s.programExerciseId) ? [s.programExerciseId] : [])))];
+  const done = new Set(ticked ?? []);
+  return { prepSets, prepDone: prepIds.filter((id) => done.has(id)) };
+}

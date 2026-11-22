@@ -57,6 +57,8 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
           return status(422, { error: "program does not belong to client" });
         case "unknown_exercises":
           return status(422, { error: "unknown exercises", ids: result.ids });
+        case "prep_sets":
+          return status(422, { error: "movement prep is a checklist: log sets on main work only", ids: result.ids });
         case "conflict":
           return status(409, { error: "already logged", existing: result.existing });
       }

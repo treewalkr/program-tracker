@@ -478,6 +478,8 @@ export interface StoredLog {
   notes?: string;
   /** Minutes from first entry to Save (portal, logged live). */
   durationMin?: number | null;
+  /** Movement-prep items ticked (program-exercise ids). */
+  prepDone?: string[];
   /** The prescribed session as it was when logged (see LogPrescription). */
   prescription?: LogPrescription | null;
   reviewedAt?: string | null;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { logToInput } from "@pt/shared";
-import { mockApi } from "./api";
+import { mockApi, mockState } from "./api";
 import { DuplicateLogError, type SessionLogInput } from "../types";
 
 const base = async (): Promise<SessionLogInput> => {
@@ -134,5 +134,45 @@ describe("mockApi session log readiness and flags", () => {
     const { id: _a, ...restored } = after[0];
     const { id: _b, ...was } = before;
     expect(restored).toEqual(was);
+  });
+});
+
+describe("mockApi movement prep on a log (same rule as the API)", () => {
+  const sets = [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }];
+  const setup = async () => {
+    const input = { ...(await base()), programId: `pg-zz-prep-${crypto.randomUUID()}`, programSessionId: "ps-zz-prep" };
+    mockState.programs.push({
+      id: input.programId,
+      clientId: input.clientId,
+      version: 1,
+      weeks: [
+        {
+          week: 1,
+          sessions: [
+            {
+              id: "ps-zz-prep", name: "Day", seq: 1, order: 0, kind: "exercises",
+              exercises: [
+                { id: "pp-1", exerciseId: "ex-squat", order: 0, block: "prep", prescribedSets: sets },
+                { id: "pp-2", exerciseId: "ex-squat", order: 1, block: "prep", prescribedSets: sets },
+                { id: "pm-1", exerciseId: "ex-squat", order: 2, prescribedSets: sets },
+              ],
+            },
+          ],
+        },
+      ],
+    } as never);
+    return input;
+  };
+
+  test("a set on a prep slot is a 422", async () => {
+    const input = await setup();
+    const err = await mockApi.logSession({ ...input, sets: [{ ...input.sets[0], programExerciseId: "pp-1" }] }).catch((e) => e);
+    expect(err.status).toBe(422);
+  });
+
+  test("keeps only the session's prep ticks", async () => {
+    const input = await setup();
+    const saved = await mockApi.logSession({ ...input, sets: [{ ...input.sets[0], programExerciseId: "pm-1" }], prepDone: ["pm-1", "pp-2", "nope"] });
+    expect(saved.prepDone).toEqual(["pp-2"]);
   });
 });

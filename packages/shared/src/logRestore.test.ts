@@ -14,6 +14,7 @@ const exerciseLog: LogDtoLike & { id: string; createdAt: string } = {
   perceivedEnergy: 6,
   readiness: { sleep: 2, soreness: 4 },
   flags: [{ programExerciseId: "pe1", exerciseId: "ex1", kind: "pain", note: "low back" }],
+  prepDone: ["pp1"],
   sets: [
     { programExerciseId: "pe1", exerciseId: "ex1", setNumber: 1, type: "backoff", weightKg: 60, reps: 5, rpe: null },
     { programExerciseId: "pe2", exerciseId: "ex2", setNumber: 1, type: "working", weightKg: 100, reps: 5, rpe: 8.5 },
@@ -34,6 +35,7 @@ describe("logToInput", () => {
       perceivedEnergy: 6,
       readiness: { sleep: 2, soreness: 4 },
       flags: [{ programExerciseId: "pe1", exerciseId: "ex1", kind: "pain", note: "low back" }],
+      prepDone: ["pp1"],
       onDuplicate: "add",
       sets: [
         { programExerciseId: "pe1", exerciseId: "ex1", setNumber: 1, type: "backoff", weightKg: 60, reps: 5 },

@@ -438,6 +438,7 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
       perceivedEnergy: 7,
       readiness: null,
       flags: [pain],
+      prepDone: [],
       trainerFeedback: null,
       reviewedAt: null,
     });

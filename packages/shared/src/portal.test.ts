@@ -35,10 +35,36 @@ describe("portalLogEntry", () => {
       perceivedEnergy: 6,
       readiness: { sleep: 2 },
       flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
+      prepDone: [],
       trainerFeedback: null,
       reviewedAt: null,
     });
     expect(PortalLogEntry.parse(entry)).toEqual(entry);
+  });
+
+  test("carries the ticked movement prep", () => {
+    expect(portalLogEntry({ prepDone: ["pe1"] }, []).prepDone).toEqual(["pe1"]);
+  });
+});
+
+describe("portalSessions: movement prep", () => {
+  test("prep comes first and says so; main work carries no block", () => {
+    const sets = [{ setNumber: 1, type: "working" as const, reps: 5, amrap: false }];
+    const [s] = portalSessions(
+      [
+        {
+          id: "s", name: "Day", seq: 1, order: 0, kind: "exercises",
+          exercises: [
+            { id: "m", exerciseId: "x", order: 0, prescribedSets: sets },
+            { id: "legacy", exerciseId: "x", order: 1, role: "movement_prep", prescribedSets: sets },
+            { id: "p", exerciseId: "x", order: 2, block: "prep", prescribedSets: sets },
+          ],
+        },
+      ],
+      null,
+      () => null,
+    );
+    expect(s.exercises.map((e) => [e.id, e.block ?? "-"])).toEqual([["legacy", "prep"], ["p", "prep"], ["m", "-"]]);
   });
 });
 

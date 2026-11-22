@@ -31,7 +31,7 @@ import {
   normalizeKind,
 } from "@pt/shared";
 import { uuid } from "$lib/uuid";
-import { mockExerciseName, mockLogPrescription, mockState } from "./api";
+import { mockExerciseName, mockLogPrescription, mockPrepDone, mockState } from "./api";
 import { exercises } from "./data";
 import { nokClient, trainerClient } from "./data";
 import { withKindAlias } from "./kindAlias";
@@ -258,6 +258,7 @@ const rawMockPortalApi: PortalApi = {
     }
     if (input.date > today) throw fail(422, "date is in the future");
     if (input.date < ctx.startDate) throw fail(422, "date is before this week");
+    const prepDone = mockPrepDone(ctx.program.id, input.programSessionId, input.sets, input.prepDone);
     const dupes = mockState.logs.filter(
       (l) => l.clientId === CLIENT_ID && l.programId === ctx.program.id && l.programSessionId === input.programSessionId,
     );
@@ -284,6 +285,7 @@ const rawMockPortalApi: PortalApi = {
       flags: input.flags?.length ? input.flags.map((f) => ({ ...f })) : null,
       notes: input.notes,
       durationMin: input.durationMin ?? null,
+      prepDone,
       sets: input.sets.map((s) => ({ ...s, type: s.type ?? "working" })),
     });
     return { id, programSessionId: alias, date: input.date, loggedBy: "client" };

@@ -26,6 +26,8 @@ export interface PortalLogInput {
   perceivedEnergy?: number;
   readiness?: ReadinessDto | null;
   flags?: SessionFlagDto[] | null;
+  /** Movement-prep items ticked (program-exercise ids). */
+  prepDone?: string[];
   /** Already logged by the client: 409 (reject) or swap it (replace). */
   onDuplicate?: "reject" | "replace";
   sets: LogSetInput[];

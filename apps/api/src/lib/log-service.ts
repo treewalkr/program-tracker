@@ -4,6 +4,7 @@ import { db, sessionLogs, setLogs, exercises, programs, clientHrProfiles } from 
 import {
   CardioLog,
   cardioLogIssues,
+  logPrepCheck,
   profileOn,
   upgradeCardioLog,
   withDurationMin,
@@ -41,6 +42,8 @@ export const SessionLogFields = z.object({
   flags: z.array(SessionFlag).max(100).nullable().optional(),
   /** Minutes from the first entry to Save (portal, logged live). */
   durationMin: z.number().int().min(1).max(600).optional(),
+  /** Movement-prep items ticked (program-exercise ids); only the session's prep slots are kept. */
+  prepDone: z.array(z.string().min(1).max(64)).max(50).optional(),
   /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
   onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
   sets: z
@@ -140,6 +143,7 @@ export type CreateSessionLogResult =
   | { outcome: "program_not_found" }
   | { outcome: "program_mismatch" }
   | { outcome: "unknown_exercises"; ids: string[] }
+  | { outcome: "prep_sets"; ids: string[] }
   | { outcome: "conflict"; existing: { id: string; date: string; setCount: number; loggedBy: LoggedBy } };
 
 /** The program session a log fulfils, wherever it sits in the weeks document; null for freestyle or a stale id. */
@@ -206,6 +210,11 @@ export async function createSessionLog({
     if (missing.length) return { outcome: "unknown_exercises", ids: missing };
   }
 
+  // Movement prep is a checklist: a set on a prep slot is refused, so no logged-set metric ever sees prep.
+  // Only the session's prep slot ids are kept as ticks.
+  const { prepSets, prepDone } = logPrepCheck(findProgramSession(program.sessions, input.programSessionId), input.sets, input.prepDone);
+  if (prepSets.length) return { outcome: "prep_sets", ids: prepSets };
+
   const prescription = await logPrescription(program, input.clientId, input.programSessionId, input.date);
 
   const saved = await db.transaction(async (tx) => {
@@ -259,6 +268,7 @@ export async function createSessionLog({
         readiness: input.readiness && Object.keys(input.readiness).length > 0 ? input.readiness : null,
         flags: input.flags?.length ? input.flags : null,
         durationMin: input.durationMin ?? null,
+        prepDone,
         prescription,
         loggedBy,
       })

@@ -13,6 +13,8 @@ export interface LogDtoLike {
   perceivedEnergy?: number | null;
   readiness?: Readiness | null;
   flags?: SessionFlag[] | null;
+  /** Movement-prep items ticked (program-exercise ids). */
+  prepDone?: readonly string[] | null;
   sets: {
     programExerciseId?: string | null;
     exerciseId: string;
@@ -36,6 +38,7 @@ export interface LogRestoreInput {
   perceivedEnergy?: number;
   readiness: Readiness | null;
   flags: SessionFlag[] | null;
+  prepDone: string[];
   /** A restore sits beside whatever is logged now — never a 409, never a swap. */
   onDuplicate: "add";
   sets: {
@@ -62,6 +65,7 @@ export function logToInput(log: LogDtoLike): LogRestoreInput {
     ...(log.perceivedEnergy != null ? { perceivedEnergy: log.perceivedEnergy } : {}),
     readiness: log.readiness ? { ...log.readiness } : null,
     flags: log.flags ? log.flags.map((f) => ({ ...f })) : null,
+    prepDone: [...(log.prepDone ?? [])],
     onDuplicate: "add",
     // Order kept: set numbers repeat across exercises.
     sets: log.sets.map((s) => ({

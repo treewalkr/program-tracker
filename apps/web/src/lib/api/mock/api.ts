@@ -91,6 +91,7 @@ import {
   buildHistory as buildImportHistory,
   isIsoDate,
   cardioLogIssues,
+  logPrepCheck,
   CardioTemplatePrescription,
   cardioTemplatePreset,
   CARDIO_TEMPLATE_PRESETS,
@@ -194,6 +195,7 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   readiness: l.readiness ? { ...l.readiness } : null,
   flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
   durationMin: l.durationMin ?? null,
+  prepDone: [...(l.prepDone ?? [])],
   prescription: l.prescription ? structuredClone(l.prescription) : null,
   reviewedAt: l.reviewedAt ?? null,
   reviewedBy: l.reviewedBy ?? null,
@@ -367,6 +369,16 @@ const validationError = (message: string) => Object.assign(new Error(message), {
 const conflict = (message: string) => Object.assign(new Error(message), { status: 409 });
 
 /** The snapshot a new log keeps (like the API's logPrescription). */
+/** Same movement-prep rule as the API: a set on a prep slot is a 422; only the session's prep ids are kept. */
+export function mockPrepDone(programId: string, programSessionId: string | null | undefined, sets: readonly { programExerciseId?: string | null }[], ticked: readonly string[] | undefined): string[] {
+  const session = programSessionId
+    ? state.programs.find((p) => p.id === programId)?.weeks.flatMap((w) => w.sessions).find((x) => x.id === programSessionId)
+    : null;
+  const { prepSets, prepDone } = logPrepCheck(session, sets, ticked);
+  if (prepSets.length) throw validationError("movement prep is a checklist: log sets on main work only");
+  return prepDone;
+}
+
 function logPrescriptionOf(programId: string, programSessionId: string | null | undefined, clientId: string, date: string): LogPrescription | null {
   if (!programSessionId) return null;
   const program = state.programs.find((p) => p.id === programId);
@@ -1147,6 +1159,7 @@ const rawMockApi: TrainerApi = {
       const issues = cardioLogIssues(upgradeCardioLog(input.cardio));
       if (issues.length) throw validationError(issues[0]);
     }
+    const prepDone = mockPrepDone(input.programId, input.programSessionId, input.sets, input.prepDone);
     // Same rule as the API: this exact program session again; ad-hoc logs never are.
     const dupes = input.programSessionId
       ? state.logs
@@ -1180,6 +1193,7 @@ const rawMockApi: TrainerApi = {
       readiness: input.readiness && Object.keys(input.readiness).length > 0 ? { ...input.readiness } : null,
       flags: input.flags?.length ? input.flags.map((f) => ({ ...f })) : null,
       notes: input.notes,
+      prepDone,
       sets: input.sets.map((s) => ({
         programExerciseId: s.programExerciseId ?? null,
         exerciseId: s.exerciseId,

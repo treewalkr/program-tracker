@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { normalizeKind } from "./sessionKind";
-import { SessionBlock } from "./blocks";
+import { blockOf, SessionBlock } from "./blocks";
 import {
   CardioIntervalType,
   CardioLog,
@@ -105,6 +105,8 @@ export const PortalLogEntry = z.object({
   perceivedEnergy: z.number().int().nullable(),
   readiness: Readiness.nullable(),
   flags: z.array(SessionFlag).nullable(),
+  /** Movement-prep items ticked (program-exercise ids; optional: older API builds don't send it). */
+  prepDone: z.array(z.string()).optional(),
   /** The coach's note on this log and when they reviewed it (optional: older API builds don't send them). */
   trainerFeedback: z.string().nullable().optional(),
   reviewedAt: z.string().nullable().optional(),
@@ -261,6 +263,7 @@ export function portalLogEntry(
     perceivedEnergy?: number | null;
     readiness?: Readiness | null;
     flags?: SessionFlag[] | null;
+    prepDone?: readonly string[] | null;
     trainerFeedback?: string | null;
     reviewedAt?: Date | string | null;
   },
@@ -293,6 +296,7 @@ export function portalLogEntry(
     perceivedEnergy: log.perceivedEnergy ?? null,
     readiness: log.readiness ?? null,
     flags: log.flags ?? null,
+    prepDone: [...(log.prepDone ?? [])],
     trainerFeedback: log.trainerFeedback ?? null,
     reviewedAt: log.reviewedAt instanceof Date ? log.reviewedAt.toISOString() : (log.reviewedAt ?? null),
   };
@@ -411,8 +415,9 @@ export function portalSession(
     order: s.order,
     typeName: opt(s.typeName),
     notes: opt(s.notes),
+    // Prep first (a legacy movement_prep slot may sit anywhere), then the trainer's order.
     exercises: [...(s.exercises ?? [])]
-      .sort((a, b) => a.order - b.order)
+      .sort((a, b) => (blockOf(a) === blockOf(b) ? a.order - b.order : blockOf(a) === "prep" ? -1 : 1))
       .map((e) => {
         const max = oneRepMaxKg(maxes, e.exerciseId);
         return {
@@ -421,6 +426,7 @@ export function portalSession(
           exerciseName: e.exerciseName ?? "Exercise",
           order: e.order,
           group: opt(e.group),
+          ...(blockOf(e) === "prep" ? { block: "prep" as const } : {}),
           notes: opt(e.notes),
           bodyweight: loads.isBodyweight?.(e.exerciseId) ?? false,
           ...(loads.equipmentOf?.(e.exerciseId) ? { equipment: loads.equipmentOf(e.exerciseId) } : {}),

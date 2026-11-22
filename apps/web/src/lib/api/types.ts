@@ -404,6 +404,8 @@ export interface SessionLogInput {
   readiness?: ReadinessDto | null;
   /** Per-exercise pain / technique / skipped flags. */
   flags?: SessionFlagDto[] | null;
+  /** Movement-prep items ticked (program-exercise ids); the API keeps only the session's prep slots. */
+  prepDone?: string[];
   /** This program session is already logged: throw DuplicateLogError (default),
    *  swap the old log for this one, or keep both. */
   onDuplicate?: "reject" | "replace" | "add";
@@ -447,6 +449,8 @@ export interface SessionLogDto {
   flags: SessionFlagDto[] | null;
   /** Minutes from first entry to Save, when the client logged it live in the portal. */
   durationMin?: number | null;
+  /** Movement-prep items ticked (program-exercise ids); empty on older logs. */
+  prepDone?: string[];
   /** The prescribed session as it was when the log was saved (and its bpm zones); null on older logs or freestyle. */
   prescription?: LogPrescription | null;
   /** ISO; set once the trainer marked it reviewed. */
