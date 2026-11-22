@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSet } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { cardioParts, lastSetText, setParts } from "./rx";
+import { cardioActualParts, cardioParts, coachIntensity, intervalLines, lastSetText, setParts } from "./rx";
+import type { PortalCardioInterval } from "@pt/shared";
+import { units } from "$lib/units.svelte";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
 const tTh = (k: MessageKey, v?: Record<string, string | number>) => format(th[k], v);
@@ -26,8 +28,40 @@ describe("portal prescription text", () => {
   });
 
   test("cardio", () => {
-    expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2, intensity: "easy" }, tEn)).toEqual(["40 min", "zone 2", "easy"]);
+    // an old preset slug says nothing; the coach's own words stay
+    expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2, intensity: "easy" }, tEn)).toEqual(["40 min", "zone 2"]);
+    expect(cardioParts({ modality: "Run", durationMin: 40, intensity: "conversational" }, tEn)).toEqual(["40 min", "conversational"]);
+    expect(["easy", "Tempo", "intervals", "long", "", null].map(coachIntensity)).toEqual([null, null, null, null, null, null]);
+    expect(cardioActualParts({ durationSec: 2525, distanceKm: 6.4, rpe: 4 }, tTh)).toEqual(["42:05", "6.4 กม.", "RPE 4"]);
+    expect(cardioActualParts({ durationMin: 30 }, tEn)).toEqual(["30:00"]);
     expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2 }, tTh)).toEqual(["40 นาที", "โซน 2"]);
+    expect(cardioParts({ durationMin: 40, hrZone: 2, hrBpm: { min: 136, max: 148 }, paceSecPerKm: 400 }, tEn)).toEqual(["40 min", "zone 2", "136–148 bpm", "6:40 /km"]);
+  });
+
+  const mockup: PortalCardioInterval[] = [
+    { id: "w", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2, hrBpm: { min: 123, max: 148 } },
+    { id: "r", type: "work", repeat: 5, durationSec: 120, hrZone: 4, hrBpm: { min: 162, max: 174 }, rpe: 8, recovery: { type: "active_recovery", durationSec: 120 } },
+    { id: "c", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1, hrBpm: { min: 123, max: 135 } },
+  ];
+
+  test("an interval session shows its total, never a zone chip; each block and its recovery a line", () => {
+    expect(cardioParts({ targetRpe: 8, intervals: mockup }, tTh)).toEqual(["33 นาที", "RPE 8"]);
+    const lines = intervalLines(mockup, tTh);
+    expect(lines.map((l) => [l.name, l.amount, l.zone, l.bpm, l.extra])).toEqual([
+      ["วอร์มอัพ", "10 นาที", "โซน 2", "123–148 bpm", null],
+      ["ช่วงหนัก", "2 นาที × 5", "โซน 4", "162–174 bpm", "RPE 8"],
+      ["พักแบบขยับเบา ๆ", "2 นาที × 4", null, null, "ระหว่างช่วงหนัก"],
+      ["คูลดาวน์", "5 นาที", "โซน 1", "123–135 bpm", null],
+    ]);
+    expect(lines.map((l) => l.kind)).toEqual(["easy", "work", "recovery", "easy"]);
+  });
+
+  test("distance and odd times read plainly", () => {
+    const lines = intervalLines([{ id: "d", type: "work", repeat: 6, distanceM: 400, recovery: { type: "passive_recovery", durationSec: 90 }, recoveryAfterLast: true }], tEn);
+    expect(lines.map((l) => [l.name, l.amount, l.extra])).toEqual([
+      ["Hard reps", "400 m × 6", null],
+      ["Rest", "1:30 min × 6", "after each hard rep"],
+    ]);
   });
 });
 
@@ -36,5 +70,22 @@ describe("last time", () => {
     expect(lastSetText({ date: "2026-11-09", weightKg: 62.5, reps: 8, rpe: 8 }, tEn)).toBe("62.5 kg × 8 · RPE 8");
     expect(lastSetText({ date: "2026-11-09", weightKg: 60, reps: 8, rpe: null }, tTh)).toBe("60 กก. × 8");
     expect(lastSetText({ date: "2026-11-09", weightKg: null, reps: 10, rpe: null }, tEn)).toBe("10 reps");
+  });
+});
+
+describe("the member's display units", () => {
+  test("lb and miles convert what's shown; metres for track reps stay metres", () => {
+    units.weight = "lb";
+    units.distance = "mi";
+    try {
+      expect(setParts([S({ targetWeightKg: 60 })], tEn)).toEqual(["1 × 8", "≈ 132.5 lb"]);
+      expect(setParts([S({ targetWeightKg: 60 })], tTh)).toEqual(["1 × 8", "≈ 132.5 ปอนด์"]);
+      expect(lastSetText({ date: "2026-11-09", weightKg: 100, reps: 5, rpe: null }, tEn)).toBe("≈ 220 lb × 5");
+      expect(cardioParts({ distanceKm: 5.2, paceSecPerKm: 406 }, tEn)).toEqual(["3.23 mi", "10:53 /mi"]);
+      expect(intervalLines([{ id: "t", type: "work", repeat: 6, distanceM: 400 }], tEn)[0].amount).toBe("400 m × 6");
+    } finally {
+      units.weight = "kg";
+      units.distance = "km";
+    }
   });
 });

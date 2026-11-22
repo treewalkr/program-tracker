@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { PortalSession } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
-  import { fmtShortDate, latinLang, t } from "./i18n.svelte";
-  import { cardioParts, setParts } from "./rx";
+  import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
+  import { modalityName } from "./modality";
+  import { cardioActualParts, cardioParts, coachIntensity, intervalLines, setParts } from "./rx";
+  import { reviewDay } from "./progress";
 
   /**
    * One session as the client sees it. The session in focus leads: larger
@@ -58,16 +60,21 @@
   const cardio = $derived(session.kind === "cardio");
   const count = $derived(session.exercises.length === 1 ? t("session.oneExercise") : t("session.exercises", { n: session.exercises.length }));
   const byCoach = $derived(session.log?.loggedBy === "trainer");
+  /** "Didn't do it": resolved, but neither done nor missed. */
+  const skipped = $derived(!!session.log?.skipped);
+  const feedback = $derived(session.log?.entry?.trainerFeedback?.trim() || null);
   /** The page's one green action: the session in focus, not yet logged. */
   const lead = $derived(!!logHref && focus && !session.log);
+  /** What was done, so the card says it rather than the plan. */
+  const actual = $derived(cardio && !skipped && session.log?.entry?.cardio ? cardioActualParts(session.log.entry.cardio, t) : []);
 </script>
 
-<article class="card" class:focus class:done={!!session.log} aria-labelledby={`s-${session.id}`}>
+<article class="card" class:focus class:done={!!session.log && !skipped} aria-labelledby={`s-${session.id}`}>
   <div class="head">
     <div class="title">
       <h3 id={`s-${session.id}`} lang={latinLang(session.name)}>{session.name}</h3>
       {#if cardio}
-        <p class="meta"><Icon name="pulse" />{t("session.cardio")}{#if session.cardio && session.cardio.modality !== session.name} · {session.cardio.modality}{/if}</p>
+        <p class="meta"><Icon name="pulse" />{t("session.cardio")}{#if session.cardio && session.cardio.modality !== session.name}{" · "}{modalityName(session.cardio.modality, i18n.locale)}{/if}</p>
       {:else if session.typeName}
         <p class="meta">{session.typeName}</p>
       {/if}
@@ -81,17 +88,26 @@
   {/if}
   {#if session.log}
     <div class="status">
-      <span class={["pill", byCoach ? "neutral" : "good", "state"]}>
-        <Icon name="check" />{byCoach ? t("session.loggedByCoach") : t("session.loggedByYou")}
-        <span class="when">· {fmtShortDate(session.log.date)}</span>
-      </span>
+      {#if skipped}
+        <span class="pill neutral state">{t("session.skipped")}<span class="when">· {fmtShortDate(session.log.date)}</span></span>
+      {:else}
+        <span class={["pill", byCoach ? "neutral" : "good", "state"]}>
+          <Icon name="check" />{byCoach ? t("session.loggedByCoach") : t("session.loggedByYou")}
+          <span class="when">· {fmtShortDate(session.log.date)}</span>
+        </span>
+      {/if}
       {#if removable}
         <button type="button" class="remove" class:armed disabled={removing} onclick={remove}>
           {removing ? t("session.removing") : armed ? t("session.removeConfirm") : t("session.remove")}
         </button>
       {/if}
     </div>
+    {#if actual.length}<p class="actual tnum">{actual.join(" · ")}</p>{/if}
     {#if removeFailed}<p class="remove-err" role="alert">{t("session.removeFailed")}</p>{/if}
+    {#if feedback}
+      <!-- the coach's word on this log, once they've reviewed it -->
+      <p class="feedback"><span class="fb-by">{t("session.feedback")}{#if session.log.entry?.reviewedAt}{" · "}{fmtShortDate(reviewDay(session.log.entry.reviewedAt))}{/if}</span> {feedback}</p>
+    {/if}
   {/if}
 
   {#if lead}
@@ -104,12 +120,31 @@
 
   {#if cardio && session.cardio}
     {@const parts = cardioParts({ ...session.cardio, intensity: undefined }, t)}
+    {@const intensity = coachIntensity(session.cardio.intensity)}
     {#if parts.length}
-      <ul class="chips" aria-label={session.cardio.modality}>
+      <ul class="chips" aria-label={modalityName(session.cardio.modality, i18n.locale)}>
         {#each parts as p}<li class="chip">{p}</li>{/each}
       </ul>
     {/if}
-    {#if session.cardio.intensity}<p class="intensity">{session.cardio.intensity}</p>{/if}
+    {#if intensity}<p class="intensity">{intensity}</p>{/if}
+    {#if session.cardio.intervals?.length}
+      <ol class="iv" aria-label={t("session.intervals")}>
+        {#each intervalLines(session.cardio.intervals, t) as l (l.key)}
+          <li class="iv-{l.kind}">
+            <span class="iv-name">{l.name}</span>
+            <span class="iv-amt tnum">{l.amount}</span>
+            {#if l.zone || l.bpm || l.extra}
+              <span class="iv-target">
+                {#if l.zone}<span class="zone">{l.zone}</span>{/if}
+                {#if l.bpm}<span class="tnum">{l.bpm}</span>{/if}
+                {#if l.extra}<span>{l.extra}</span>{/if}
+              </span>
+            {/if}
+            {#if l.notes}<span class="iv-note">{l.notes}</span>{/if}
+          </li>
+        {/each}
+      </ol>
+    {/if}
   {:else if session.exercises.length && focus}
     <ol id={`ex-${session.id}`}>
       {#each listed as e (e.id)}{@render exercise(e)}{/each}
@@ -245,8 +280,30 @@
   .remove:disabled { cursor: default; opacity: 0.7; }
   .remove-err { margin: -4px 0 0; font-size: 14px; color: var(--bad); }
   .when { font-weight: 400; }
+  .feedback { margin: 0; padding: 10px 12px; font-size: 15px; background: var(--good-bg); border-radius: var(--radius); text-wrap: pretty; }
+  .fb-by { display: block; margin-bottom: 2px; font: 600 13px/1.3 var(--font-ui); color: var(--good); }
   .intensity { margin: 0; font-size: 16px; text-wrap: pretty; }
+  /* the session's intervals: one row each, the hard reps on a flat tint */
+  .iv { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; }
+  .iv li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .iv li:first-child { border-top: 0; }
+  .iv-name { font: 500 15px/1.35 var(--font-ui); }
+  .iv-amt { font: 500 14px/1.35 var(--font-mono); text-align: right; white-space: nowrap; }
+  .iv-target, .iv-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
+  .iv-target .tnum { font-family: var(--font-mono); font-size: 13px; }
+  .zone { padding: 0 6px; border-radius: 4px; background: var(--chip-bg); color: var(--ink); font: 600 12px/1.6 var(--font-ui); }
+  .iv-work { background: var(--pulse-now-bg); }
+  .iv-work .iv-name { font-weight: 600; }
+  .iv-work .zone { background: var(--surface); }
+  .iv-recovery .iv-name { color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
     .list summary :global(svg), .more :global(svg) { transition: none; }
   }
+  .actual { margin: 8px 0 0; font-size: 14px; font-weight: 600; }
 </style>

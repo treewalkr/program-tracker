@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
+  clientHrProfiles,
   clients,
   exercises,
   programExamples,
@@ -11,6 +12,9 @@ import {
 } from "@pt/db";
 import {
   ageOn,
+  localDateOf,
+  profileOn,
+  type HrZones,
   effectiveDeload,
   blockPulse,
   chainBalanceText,
@@ -207,6 +211,8 @@ export async function loadContext(
         date: m.date,
       })),
       cardioTarget: client.cardioTarget ?? null,
+      // Only the bpm bands of today's profile version reach the AI — never the inputs behind them.
+      ...(await hrForAi(clientId)),
       // Basics for the AI. Phone and start date stay out of every prompt.
       experience: client.experience ?? null,
       age: client.birthDate ? ageOn(client.birthDate, new Date().toISOString().slice(0, 10)) : null,
@@ -252,4 +258,11 @@ export async function loadContext(
       note: e.note,
     })),
   };
+}
+
+/** Today's HR zones for the AI (bpm only), and whether they rest on an untested max HR. */
+async function hrForAi(clientId: string): Promise<{ hrZones: HrZones | null; hrMaxUntested: boolean }> {
+  const p = profileOn(await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId)), localDateOf(Date.now()));
+  if (!p) return { hrZones: null, hrMaxUntested: false };
+  return { hrZones: p.zones, hrMaxUntested: !!p.maxHr && !p.maxHrTestedOn && (p.method === "hrmax" || p.method === "karvonen") };
 }

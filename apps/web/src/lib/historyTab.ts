@@ -1,6 +1,9 @@
+import type { WeightUnit } from "@pt/shared";
+import { showWeight, weightUnit } from "./units.svelte";
 import { estimate1rm, mainLiftIds, sessionTag, timedExerciseIds, timedSlotIds } from "@pt/shared";
 import type { ProgramDto, SessionLogDto } from "./api/types";
-import { cardioLogLabel, logDateLabel, loggedSetLabel } from "./programLogs";
+import { logDateLabel, loggedSetLabel } from "./programLogs";
+import { cardioLine } from "./cardioLine";
 import { flagChips, readinessLine } from "./logFlags";
 
 /**
@@ -198,7 +201,7 @@ export function sessionsByWeek(
       kind: l.kind,
       setCount: l.sets.length,
       exercises,
-      cardio: l.kind === "cardio" && l.cardio ? cardioLogLabel(l.cardio) : null,
+      cardio: l.kind === "cardio" && l.cardio ? cardioLine(l.cardio) : null,
       notes: l.notes || null,
       readiness: readinessLine(l),
       flags,
@@ -212,4 +215,10 @@ export function sessionsByWeek(
     else weeks.push({ start, label: weekLabel(start), sessions: [row] });
   }
   return weeks;
+}
+
+/** A lift row's chart data in the display unit: e1RM points convert, holds stay seconds. */
+export function liftInUnit(l: Pick<LiftRow, "series" | "unit">, unit?: WeightUnit): { series: LiftPoint[]; unit: WeightUnit | "s" } {
+  if (l.unit === "s") return { series: l.series, unit: "s" };
+  return { series: l.series.map((p) => ({ ...p, value: showWeight(p.value, unit) })), unit: weightUnit(unit) };
 }

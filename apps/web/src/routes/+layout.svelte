@@ -2,6 +2,7 @@
   import "../app.css";
   import { page } from "$app/state";
   import { onMount, untrack } from "svelte";
+  import { applyUnits, restoreUnits } from "$lib/units.svelte";
   import { fade } from "svelte/transition";
   import { afterNavigate, beforeNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
@@ -71,6 +72,7 @@
       items: [
         { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
         { href: "/session-types", label: "Session types", icon: "layers" },
+        { href: "/cardio-library", label: "Cardio library", icon: "timer" },
         { href: "/schemes", label: "Progression schemes", icon: "trending" },
         { href: "/vocabulary", label: "Vocabulary", icon: "pencil" },
         { href: "/chains", label: "Kinetic chains", icon: "link" },
@@ -252,6 +254,8 @@
 
   onMount(async () => {
     if (bare) return;
+    restoreUnits();
+    api.displayUnits().then(applyUnits, () => {});
     try {
       clientCount = (await api.clients()).length;
     } catch {

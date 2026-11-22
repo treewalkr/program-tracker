@@ -34,6 +34,7 @@
   import SetChips from "$lib/components/SetChips.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
   import { groupSets } from "$lib/setChips";
+  import { cardioLine } from "$lib/cardioLine";
   import { patternTitle } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
   import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
@@ -102,18 +103,7 @@
     return parts.join(" · ");
   });
 
-  const cardioLine = $derived.by(() => {
-    if (!cardio) return "";
-    const parts = [
-      cardio.modality,
-      cardio.durationMin ? `${cardio.durationMin} min` : null,
-      cardio.hrZone ? `Z${cardio.hrZone}` : null,
-      cardio.intensity || null,
-      cardio.distanceKm ? `${cardio.distanceKm} km` : null,
-      cardio.targetRpe ? `RPE ${cardio.targetRpe}` : null,
-    ].filter(Boolean);
-    return parts.join(" · ");
-  });
+  const cardioText = $derived(cardioLine(cardio));
 </script>
 
 <div class="session">
@@ -129,7 +119,7 @@
   </div>
   {#if kind === "cardio" || (cardio && exercises.length === 0)}
     <div class="session-head cond-row">
-      <span class="cond"><Icon name="pulse" />{cardioLine}</span>
+      <span class="cond"><Icon name="pulse" />{cardioText}</span>
     </div>
   {:else}
     <div class="session-body">
@@ -207,7 +197,7 @@
     {/if}
     {#if cardio}
       <div class="session-head cond-row">
-        <span class="cond"><Icon name="pulse" />{cardioLine}</span>
+        <span class="cond"><Icon name="pulse" />{cardioText}</span>
       </div>
     {/if}
   {/if}

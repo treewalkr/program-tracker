@@ -2,6 +2,7 @@
   import { GUIDE, GUIDE_IDS } from "$lib/guide/clientPortal";
   import { PROGRAMS_GUIDE } from "$lib/guide/programsWeeks";
   import { TRAINER_ACCESS_GUIDE } from "$lib/guide/trainerAccess";
+  import { CARDIO_GUIDE } from "$lib/guide/cardio";
   import { page } from "$app/state";
   import { isAdminSession } from "$lib/settingsNav";
   import GuideSearchTrigger from "$lib/guide/GuideSearchTrigger.svelte";
@@ -45,6 +46,12 @@
         title: portal.title,
         sub: portal.sub,
         sections: GUIDE_IDS.map((id, i) => ({ id, h: portalHeads[i] })),
+      },
+      {
+        href: "/guide/cardio",
+        title: CARDIO_GUIDE[i18n.locale].title,
+        sub: CARDIO_GUIDE[i18n.locale].sub,
+        sections: CARDIO_GUIDE[i18n.locale].sections.map((s) => ({ id: s.id, h: s.h })),
       },
       ...(isAdmin ? [TRAINER_ACCESS_GUIDE[i18n.locale]].map((access) => ({
         href: "/guide/trainer-access",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fmtWeight } from "$lib/units.svelte";
   import { untrack } from "svelte";
   import { page } from "$app/state";
   import { EXPERIENCE_LABEL, sessionsByWeekday, sessionTag } from "@pt/shared";
@@ -128,7 +129,7 @@
         <dt>Sex</dt>
         <dd>{#if client.sex}{SEX_LABEL[client.sex]}{:else}{@render unset()}{/if}</dd>
         <dt>Bodyweight</dt>
-        <dd class="tnum">{#if client.bodyweightKg != null}{fmtNum(client.bodyweightKg)} kg{:else}{@render unset()}{/if}</dd>
+        <dd class="tnum">{#if client.bodyweightKg != null}{fmtWeight(client.bodyweightKg)}{:else}{@render unset()}{/if}</dd>
         <dt>Height</dt>
         <dd class="tnum">{#if client.heightCm != null}{fmtNum(client.heightCm)} cm{:else}{@render unset()}{/if}</dd>
         <dt>Exercise sessions / week</dt>

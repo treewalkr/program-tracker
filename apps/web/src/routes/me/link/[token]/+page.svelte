@@ -49,7 +49,7 @@
 
 <!-- bar and content share one 400px column, so their edges line up on a wide screen -->
 <div class="narrow">
-<PortalBar coach={info?.trainerName ?? null} />
+<PortalBar coach={info?.trainerName ?? null} settings={false} />
 
 <main class="link">
   {#if info === undefined && !failed}

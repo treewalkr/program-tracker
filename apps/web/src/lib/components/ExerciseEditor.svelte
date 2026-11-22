@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fmtWeight, weightUnit } from "$lib/units.svelte";
   import type { ExerciseDto, ExerciseInput, PrescribedSetDto, ProgramExerciseDto } from "$lib/api/types";
   import { suggestRoleIn } from "$lib/roleLabels";
   import {
@@ -80,8 +81,8 @@
   const percentNote = $derived.by(() => {
     const pcts = [...new Set(sets.map((s) => s.percent1rm).filter((p): p is number => p != null))];
     if (pcts.length === 0) return null;
-    if (oneRepMaxKg == null) return "No 1RM on file for this lift: add it in the client's Settings to see the kg.";
-    return pcts.map((p) => `${p}% = ${resolveLoadKg({ percent1rm: p }, oneRepMaxKg)} kg`).join(" · ") + ` (1RM ${oneRepMaxKg} kg, rounded to 2.5)`;
+    if (oneRepMaxKg == null) return "No 1RM on file for this lift: add it in the client's Settings to see the load.";
+    return pcts.map((p) => `${p}% = ${fmtWeight(resolveLoadKg({ percent1rm: p }, oneRepMaxKg)!)}`).join(" · ") + ` (1RM ${fmtWeight(oneRepMaxKg)}, rounded to 2.5 kg)`;
   });
   const MODES: { id: SetMode; label: string; title: string }[] = [
     { id: "reps", label: "Reps", title: "Rep target or range, e.g. 8 or 6–10" },
@@ -130,7 +131,7 @@
   {:else}
     <td><input class="input cell" inputmode="numeric" aria-label={mode === "max" ? "Minimum reps" : "Reps"} placeholder={mode === "max" ? "any" : ""} value={mode === "max" ? (s.reps || "") : repsLabel(s)} onchange={(e) => apply((x) => reps(x, e.currentTarget.value || "0"))} /></td>
   {/if}
-  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label="Load: kg, or % of 1RM like 75%" value={loadCell(s)} onchange={(e) => apply((x) => withLoad(x, e.currentTarget.value))} /></td>
+  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label="Load: {weightUnit()}, or % of 1RM like 75%" value={loadCell(s)} onchange={(e) => apply((x) => withLoad(x, e.currentTarget.value))} /></td>
   <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label={mode === "max" ? "Stop at RPE" : "RPE, or a range like 7–8"} value={rpeCell(s, mode)} onchange={(e) => apply((x) => withRpe(x, e.currentTarget.value, mode))} /></td>
   {#if showMore}
     <td><input class="input cell" type="number" min="0" max="10" step="0.5" placeholder="—" aria-label="Reps in reserve" value={s.targetRir ?? ""} onchange={(e) => apply((x) => withRir(x, e.currentTarget.value))} /></td>
@@ -165,7 +166,7 @@
         <th class:l={split}>{split ? "Set" : "Sets"}</th>
         {#if split}<th class="l inset">Type</th>{/if}
         <th>{mode === "timed" ? "Seconds" : mode === "max" ? "Min reps" : "Reps"}</th>
-        <th title="kg, or % of 1RM like 75%">Load</th>
+        <th title="{weightUnit()}, or % of 1RM like 75%">Load</th>
         <th title={mode === "max" ? "End the set at this RPE" : "One value or a range like 7–8"}>{mode === "max" ? "Stop RPE" : "RPE"}</th>
         {#if showMore}<th title="Reps in reserve">RIR</th><th title="Eccentric, pause, concentric, top; X = explosive">Tempo</th>{/if}
         <th>Rest s</th>

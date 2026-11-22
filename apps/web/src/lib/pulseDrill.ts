@@ -1,4 +1,5 @@
 import type { PulseCell, PulseCellSet, SetType } from "@pt/shared";
+import { fmtWeight } from "./units.svelte";
 
 /** Plain number, decimals kept ("107.5", never "107."). */
 const n = (v: number) => String(Math.round(v * 100) / 100);
@@ -6,8 +7,8 @@ const n = (v: number) => String(Math.round(v * 100) / 100);
 /** "150 kg × 3 @ 8", "BW × 8 @ 9", "10 kg · 45 s @ 7" — what was actually done. */
 export function drillLoad(r: PulseCellSet): string {
   const rpe = r.rpe != null && r.rpe > 0 ? ` @ ${n(r.rpe)}` : "";
-  if (r.timed) return `${r.weightKg ? `${n(r.weightKg)} kg · ` : ""}${r.reps} s${rpe}`;
-  return `${r.weightKg ? `${n(r.weightKg)} kg` : "BW"} × ${r.reps}${rpe}`;
+  if (r.timed) return `${r.weightKg ? `${fmtWeight(r.weightKg)} · ` : ""}${r.reps} s${rpe}`;
+  return `${r.weightKg ? `${fmtWeight(r.weightKg)}` : "BW"} × ${r.reps}${rpe}`;
 }
 
 export function drillType(t: SetType): string {

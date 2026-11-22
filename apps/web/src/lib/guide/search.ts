@@ -2,6 +2,7 @@ import type { Locale } from "$lib/portal/messages";
 import { GUIDE, GUIDE_IDS } from "./clientPortal";
 import { PROGRAMS_GUIDE, type GuideSection } from "./programsWeeks";
 import { TRAINER_ACCESS_GUIDE } from "./trainerAccess";
+import { CARDIO_GUIDE } from "./cardio";
 
 /**
  * Full-text search over the guides, for the ⌘K palette. Every guide is
@@ -11,7 +12,7 @@ import { TRAINER_ACCESS_GUIDE } from "./trainerAccess";
  * language and the result shows in the page's.
  */
 
-export type GuideId = "programs" | "portal" | "access";
+export type GuideId = "programs" | "portal" | "cardio" | "access";
 export type UnitKind = "section" | "question" | "step" | "term" | "text";
 
 export interface GuideUnit {
@@ -40,6 +41,7 @@ export interface GuideUnit {
 const PATHS: Record<GuideId, string> = {
   programs: "/guide/programs-and-weeks",
   portal: "/guide/client-portal",
+  cardio: "/guide/cardio",
   access: "/guide/trainer-access",
 };
 
@@ -141,6 +143,7 @@ export function guideUnits(locale: Locale, { admin = false } = {}): GuideUnit[] 
     all = [
       ...unitsOf("programs", PROGRAMS_GUIDE[locale].title, blockUnits("programs", PROGRAMS_GUIDE[locale].sections)),
       ...unitsOf("portal", GUIDE[locale].title, portalUnits(locale)),
+      ...unitsOf("cardio", CARDIO_GUIDE[locale].title, blockUnits("cardio", CARDIO_GUIDE[locale].sections)),
       ...unitsOf("access", TRAINER_ACCESS_GUIDE[locale].title, blockUnits("access", TRAINER_ACCESS_GUIDE[locale].sections)),
     ].map((u, order) => ({ ...u, order }));
     cache.set(locale, all);

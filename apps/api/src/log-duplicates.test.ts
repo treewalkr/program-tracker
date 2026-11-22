@@ -141,7 +141,7 @@ describe.skipIf(!dbUp)("session log duplicates", () => {
     const again = await call("POST", "/v1/logs/sessions", logToInput(first.body));
     expect(again.status).toBe(201);
     expect(again.body.kind).toBe("cardio");
-    expect(again.body.cardio).toEqual(cardio);
+    expect(again.body.cardio).toEqual({ ...cardio, durationSec: 1800 });
     expect(again.body.date).toBe("2026-11-04");
   });
 });

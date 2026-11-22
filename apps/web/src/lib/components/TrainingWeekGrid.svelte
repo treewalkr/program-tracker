@@ -9,6 +9,10 @@
     type ProfileForm,
   } from "$lib/clientProfile";
   import DayChips from "$lib/components/DayChips.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import InputUnit from "$lib/ui/InputUnit.svelte";
+  import { OFFERED_CARDIO_TARGET_UNITS } from "@pt/shared";
+  import type { SelectOption } from "$lib/ui/select/options";
 
   /**
    * A client's training week: exercise sessions a week (stepper), exercise days
@@ -43,6 +47,16 @@
     form.cardioUnit = "none";
   }
 
+  const longDayOptions: SelectOption[] = [{ value: "", label: "No preference" }, ...DAY_FULL.map((name, i) => ({ value: String(i + 1), label: name }))];
+  type Unit = ProfileForm["cardioUnit"];
+  const UNIT_LABEL: Record<Unit, string> = { none: "No target", minutes: "Minutes", sessions: "Sessions", session_load: "Session load (RPE × min)", zone_minutes: "Zone minutes" };
+  const TARGET_UNIT: Record<Exclude<Unit, "none">, string> = { minutes: "min", sessions: "sessions", session_load: "AU", zone_minutes: "zone-min" };
+  /** Zone minutes are still read but no longer offered; a client still on them sees it until changed. */
+  const targetOptions = $derived<SelectOption<Unit>[]>([
+    ...(["none", ...OFFERED_CARDIO_TARGET_UNITS] as Unit[]).map((u) => ({ value: u, label: UNIT_LABEL[u] })),
+    ...(form.cardioUnit === "zone_minutes" ? [{ value: "zone_minutes" as Unit, label: "Zone minutes (retired)" }] : []),
+  ]);
+
   function setUnit(unit: ProfileForm["cardioUnit"]) {
     form.cardioUnit = unit;
     if (unit !== "none") form.cardioValue = CARDIO_DEFAULT[unit];
@@ -75,31 +89,19 @@
         <DayChips bind:days={form.cardioDays} label="Cardio days" idPrefix="{idPrefix}-cardio" empty="No fixed days — on exercise days" />
         <div class="twk-cardio-row">
           <div>
-            <label class="label" for="{idPrefix}-long">Long session day <span class="subtle">— long run, ride or swim</span></label>
-            <select
-              class="select"
-              id="{idPrefix}-long"
-              value={form.longRunDay == null ? "" : String(form.longRunDay)}
-              onchange={(e) => (form.longRunDay = e.currentTarget.value === "" ? null : Number(e.currentTarget.value))}
-            >
-              <option value="">No preference</option>
-              {#each DAY_FULL as name, i (name)}<option value={String(i + 1)}>{name}</option>{/each}
-            </select>
+            <SelectField label="Long session day" options={longDayOptions} value={form.longRunDay == null ? "" : String(form.longRunDay)} onchange={(v) => (form.longRunDay = v === "" ? null : Number(v))} />
+            <p class="subtle twk-hint">Long run, ride or swim.</p>
           </div>
           <div>
-            <label class="label" for="{idPrefix}-target">Weekly target <span class="subtle">— resets every Monday</span></label>
             <div class="twk-target">
-              <select class="select" id="{idPrefix}-target" value={form.cardioUnit} onchange={(e) => setUnit(e.currentTarget.value as ProfileForm["cardioUnit"])}>
-                <option value="none">No target</option>
-                <option value="minutes">Minutes</option>
-                <option value="sessions">Sessions</option>
-                <option value="zone_minutes">Zone minutes</option>
-              </select>
+              <SelectField label="Weekly target" options={targetOptions} value={form.cardioUnit} onchange={setUnit} />
               {#if form.cardioUnit !== "none"}
-                <input class="input tnum" type="number" inputmode="numeric" min="1" max="10000" bind:value={form.cardioValue} aria-label="Target {CARDIO_UNIT_WORD[form.cardioUnit]}" />
-                <span class="subtle">{CARDIO_UNIT_WORD[form.cardioUnit]}</span>
+                <div class="twk-target-val">
+                  <InputUnit label="Target a week" unit={TARGET_UNIT[form.cardioUnit]} min={1} max={10000} step={form.cardioUnit === "session_load" ? 50 : form.cardioUnit === "sessions" ? 1 : 10} bind:value={() => Number(form.cardioValue), (v) => (form.cardioValue = v ?? 1)} />
+                </div>
               {/if}
             </div>
+            <p class="subtle twk-hint">{form.cardioUnit === "session_load" ? "Session load = session RPE × minutes, summed over the week. Resets every Monday." : "Resets every Monday."}</p>
           </div>
         </div>
       </div>
@@ -150,9 +152,9 @@
   .twk-switch input { width: 16px; height: 16px; margin: 0; accent-color: var(--hover-ink); cursor: pointer; }
   .twk-cardio-body { display: flex; flex-direction: column; gap: 14px; padding-left: 12px; border-left: 2px solid var(--line); }
   .twk-cardio-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-  .twk-target { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .twk-target .select { width: auto; }
-  .twk-target .input { width: 96px; }
+  .twk-target { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; }
+  .twk-target-val { width: 160px; }
+  .twk-hint { margin: 4px 0 0; font-size: 12px; }
 
   .summary { margin: 0; font-size: 13px; color: var(--muted); }
 

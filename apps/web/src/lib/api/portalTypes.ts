@@ -1,4 +1,4 @@
-import type { PortalWeekDto } from "@pt/shared";
+import type { DisplayUnits, PortalProgressDto, PortalWeekDto, Vo2Protocol } from "@pt/shared";
 import type { CardioLogDto, LogSetInput, ReadinessDto, SessionFlagDto } from "./types";
 
 /** Client portal API types — no SvelteKit imports, so the mock and unit tests load them directly. */
@@ -54,7 +54,12 @@ export class PortalDuplicateError extends Error {
 export interface PortalApi {
   session(): Promise<PortalSession>;
   week(): Promise<PortalWeekDto>;
+  /** The Progress tab; `protocol` picks which field test's VO₂max trend (default: the newest test's). */
+  progress(protocol?: Vo2Protocol | null): Promise<PortalProgressDto>;
   log(input: PortalLogInput): Promise<PortalSavedLog>;
+  /** The member's own settings: display units (the language lives in the URL). */
+  settings(): Promise<{ units: DisplayUnits }>;
+  saveSettings(units: DisplayUnits): Promise<{ units: DisplayUnits }>;
   /** Undo: delete one of the client's own logs. */
   deleteLog(id: string): Promise<void>;
   /** Null when the link is unknown, reset, or the portal is off. */

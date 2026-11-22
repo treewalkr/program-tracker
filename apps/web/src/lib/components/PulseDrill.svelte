@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fmtWeightRound } from "$lib/units.svelte";
   import type { PulseCell, PulseCellSet } from "@pt/shared";
   import { drillHeading, drillLoad, drillType } from "$lib/pulseDrill";
 
@@ -18,7 +19,7 @@
 
   let { id, rows, cell, week, nameOf, onclose }: Props = $props();
 
-  const fmtKg = (kg: number) => `${Math.round(kg).toLocaleString("en-US")} kg`;
+  const fmtKg = (kg: number) => fmtWeightRound(kg);
   const total = $derived(rows.reduce((t, r) => t + (r.weightKg ?? 0) * r.reps, 0));
 </script>
 
@@ -51,7 +52,7 @@
               <td class="r">{drillLoad(r)}</td>
               <td class:backoff={r.type === "backoff"}>{drillType(r.type)}</td>
               {#if cell === "volume"}<td class="r">{fmtKg((r.weightKg ?? 0) * r.reps)}</td>{/if}
-              {#if cell === "e1rm"}<td class="r">{r.e1rm != null ? `${Math.round(r.e1rm)} kg` : "—"}</td>{/if}
+              {#if cell === "e1rm"}<td class="r">{r.e1rm != null ? fmtWeightRound(r.e1rm) : "—"}</td>{/if}
             </tr>
           {/each}
         </tbody>

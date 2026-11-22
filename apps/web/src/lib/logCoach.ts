@@ -1,3 +1,4 @@
+import { fmtWeight, showWeight } from "./units.svelte";
 import {
   bestE1rm,
   e1rmAtRpe,
@@ -125,7 +126,7 @@ function historyBests(history: E1rmHistorySet[]): Map<string, number> {
   return out;
 }
 
-const fmtKg = (n: number) => String(Math.round(n * 10) / 10);
+const fmtKg = (n: number) => String(showWeight(n));
 const setName = (r: Pick<CoachRow, "type" | "setNumber">) => `${r.type === "backoff" ? "back-off set" : "set"} ${r.setNumber}`;
 
 /**
@@ -236,7 +237,7 @@ function backoffFromTop(r: CoachRow, rows: CoachRow[], entered: Map<string, E1rm
   const ratio = planned / planTop;
   const kg = roundLoad(top.kg! * ratio, eq);
   if (kg == null) return null;
-  return { kg, source: `${Math.round(ratio * 100)}% of today's top set (${top.kg} kg), as planned`, adjusted: false };
+  return { kg, source: `${Math.round(ratio * 100)}% of today's top set (${top.kg != null ? fmtWeight(top.kg) : "no load"}), as planned`, adjusted: false };
 }
 
 /**
@@ -272,9 +273,9 @@ export function suggestionNote(
   s: Suggestion | undefined,
   o: { used?: Suggestion; open: boolean; chip: number | null; unplannedBlank: boolean }
 ): SuggestionNote | null {
-  if (o.used) return { text: `Used ${o.used.kg} kg · ${o.used.source}`, use: null };
+  if (o.used) return { text: `Used ${fmtWeight(o.used.kg)} · ${o.used.source}`, use: null };
   if (!s || !o.open) return null;
-  if (o.chip != null) return { text: `Suggested ${o.chip} kg · ${s.source}`, use: o.chip };
-  if (o.unplannedBlank) return { text: `Suggested ${s.kg} kg · ${s.source}`, use: null };
+  if (o.chip != null) return { text: `Suggested ${fmtWeight(o.chip)} · ${s.source}`, use: o.chip };
+  if (o.unplannedBlank) return { text: `Suggested ${fmtWeight(s.kg)} · ${s.source}`, use: null };
   return null;
 }

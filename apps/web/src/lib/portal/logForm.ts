@@ -1,5 +1,5 @@
-import { localDateOf, PortalWeek, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
-import type { CardioForm } from "$lib/components/log/CardioLogForm.svelte";
+import { localDateOf, PortalWeek, sessionDateIn, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
+import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm, type CardioForm, type CardioFormError } from "$lib/cardioForm";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
 import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
@@ -75,22 +75,9 @@ export function extraRow(like: PortalRow, setNumber: number): PortalRow {
   return { ...like, key: `${like.programExerciseId}:x${setNumber}`, setNumber, type: "working", prescribedReps: null, weight: "", reps: "", rpe: "", rx: null, extra: true, copied: undefined, planned: undefined };
 }
 
+/** The cardio form for a session: the plan's modality, time and distance (never the RPE). */
 export function cardioFormOf(c: PortalSession["cardio"]): CardioForm {
-  return {
-    modality: c?.modality ?? "",
-    durationMin: c?.durationMin != null ? String(c.durationMin) : "",
-    hrZone: c?.hrZone != null ? String(c.hrZone) : "",
-    intensity: c?.intensity ?? "",
-    distanceKm: c?.distanceKm != null ? String(c.distanceKm) : "",
-    // never the target: RPE is saved only when the client gives it
-    rpe: "",
-  };
-}
-
-/** Cardio actuals back into the form's strings. */
-function cardioFormOfLog(c: NonNullable<PortalLogEntry["cardio"]>): CardioForm {
-  const str = (v: number | null | undefined) => (v != null ? String(v) : "");
-  return { modality: c.modality, durationMin: str(c.durationMin), hrZone: str(c.hrZone), intensity: c.intensity ?? "", distanceKm: str(c.distanceKm), rpe: str(c.rpe) };
+  return planForm(c);
 }
 
 /**
@@ -150,7 +137,7 @@ export function durationOf(f: Pick<PortalLogForm, "startedAt" | "date">, now: nu
 
 export type BuildResult =
   | { input: PortalLogInput; sets: number }
-  | { error: "nothing" | "activity" }
+  | { error: "nothing" | "activity" | Exclude<CardioFormError, "modality"> }
   /** Weighted sets saved with no kg: how many, and the first one's slot (to page to it). */
   | { error: "kg"; sets: number; programExerciseId: string };
 
@@ -181,20 +168,13 @@ export function buildPortalLog(session: PortalSession, f: PortalLogForm, replace
     ...(replace ? { onDuplicate: "replace" as const } : {}),
   };
   if (session.kind === "cardio") {
-    const modality = f.cardio.modality.trim();
-    if (!modality) return { error: "activity" };
+    const built = cardioLogOf(f.cardio);
+    if ("error" in built) return { error: built.error === "modality" ? "activity" : built.error };
     return {
       input: {
         ...base,
         kind: "cardio",
-        cardio: {
-          modality,
-          durationMin: cellNumber(f.cardio.durationMin) ?? null,
-          hrZone: cellNumber(f.cardio.hrZone) ?? null,
-          intensity: f.cardio.intensity.trim() || undefined,
-          distanceKm: cellNumber(f.cardio.distanceKm),
-          rpe: cellNumber(f.cardio.rpe),
-        },
+        cardio: built.cardio,
         sets: [],
       },
       sets: 0,
@@ -219,6 +199,16 @@ function portalSet(r: PortalRow) {
 }
 
 /** The form the page opens with: the client's own saved log when there is one, else the plan. */
+/**
+ * The date a new log opens on: the planned day when it has already passed this
+ * week (a Tuesday run logged on Thursday was done Tuesday, most likely), else today.
+ */
+export function defaultLogDate(session: Pick<PortalSession, "weekday">, weekStart: string | null, today: string): string {
+  if (!weekStart || !session.weekday) return today;
+  const planned = sessionDateIn(weekStart, session.weekday);
+  return planned < today ? planned : today;
+}
+
 export function formOfSession(session: PortalSession, today: string): PortalLogForm {
   const entry = session.log?.loggedBy === "client" ? session.log.entry : undefined;
   if (!entry) return { rows: rowsOfSession(session), cardio: cardioFormOf(session.cardio), readiness: { ...EMPTY_READINESS }, notes: "", date: today, flags: {} };
@@ -233,7 +223,7 @@ export function formOfSession(session: PortalSession, today: string): PortalLogF
   return {
     rows,
     flags,
-    cardio: entry.cardio ? cardioFormOfLog(entry.cardio) : cardioFormOf(session.cardio),
+    cardio: entry.cardio ? cardioFormOfLog(entry.cardio, session.cardio) : cardioFormOf(session.cardio),
     readiness: parseReadiness({ energy: entry.perceivedEnergy, readiness: entry.readiness }),
     notes: entry.notes ?? "",
     date: session.log?.date ?? today,
@@ -251,7 +241,7 @@ export function portalDraftJson(f: PortalLogForm): string {
 }
 
 /** A stored draft, if it still fits the session (every prescribed row still there). Junk → null. */
-export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): PortalLogForm | null {
+export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCardio?: CardioForm): PortalLogForm | null {
   if (!raw) return null;
   let d: Partial<PortalLogForm> & { readiness?: unknown };
   try {
@@ -267,7 +257,8 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[]): Portal
     flags: parseFlags(d.flags),
     startedAt: typeof d.startedAt === "string" && !Number.isNaN(Date.parse(d.startedAt)) ? d.startedAt : null,
     rows: d.rows,
-    cardio: d.cardio,
+    // an older build's minutes/zone strings read as the current form
+    cardio: readCardioForm(d.cardio, freshCardio),
     notes: d.notes,
     date: d.date,
     readiness: parseReadiness({ energy: r.energy, readiness: r }),

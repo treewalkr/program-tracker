@@ -1,5 +1,5 @@
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
-import { clients, db, exercises, programs, sessionLogs, setLogs, type ProgramRow } from "@pt/db";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
+import { assessments, clientHrProfiles, clients, db, exercises, programs, sessionLogs, setLogs, type ProgramRow } from "@pt/db";
 import {
   addDays,
   blockAnchorDate,
@@ -14,11 +14,17 @@ import {
   portalCardio,
   portalSessions,
   portalWeekLabel,
+  portalCardioLog,
+  cardioWeekTotals,
+  profileOn,
+  sessionDateIn,
   weekOf,
   weekSessions,
   type CardioTarget,
   type Equipment,
+  type PortalProgressDto,
   type PortalSessionLog,
+  type Vo2Protocol,
   type PortalWeek,
   type PortalWeekDto,
 } from "@pt/shared";
@@ -88,11 +94,13 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
       date: sessionLogs.date,
       loggedBy: sessionLogs.loggedBy,
       createdAt: sessionLogs.createdAt,
+      cardio: sessionLogs.cardio,
     })
     .from(sessionLogs)
     .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));
   const done = await withClientEntries(latestLogBySession(logs));
-  const loads = await loadContext(clientId, program, startDate);
+  const hrVersions = await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId));
+  const loads = { ...(await loadContext(clientId, program, startDate)), hrZones: profileOn(hrVersions, localDateOf(now))?.zones ?? null };
 
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
@@ -108,11 +116,65 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
       loggable: week === currentWeek && started,
       weekLabel: portalWeekLabel(program.phasing, week),
       sessions: named
-        ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads)
+        ? portalSessions(named.sessions, client?.oneRepMaxes ?? null, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), {
+            ...loads,
+            // each session's bpm from the profile in effect on its own day, so next week shows next week's zones
+            hrZonesFor: (weekday) => profileOn(hrVersions, sessionDateIn(start, weekday))?.zones ?? null,
+          })
         : [],
     });
   }
   return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
+}
+
+/** How many recent cardio logs the progress tab lists. */
+const RECENT_CARDIO = 12;
+
+/**
+ * `GET /v1/portal/progress`: this ISO week's cardio (totals and the coach's
+ * target), the recent cardio logs with the coach's feedback, and one VO₂max
+ * trend (the asked protocol, else the newest test's). Any program counts.
+ */
+export async function loadPortalProgress(clientId: string, now: number, asked?: Vo2Protocol): Promise<PortalProgressDto> {
+  const weekStart = isoWeekStart(new Date(now));
+  const [client] = await db.select({ cardioTarget: clients.cardioTarget }).from(clients).where(eq(clients.id, clientId));
+  const [weekLogs, recentRows, tests] = await Promise.all([
+    db
+      .select({ date: sessionLogs.date, kind: sessionLogs.kind, cardio: sessionLogs.cardio })
+      .from(sessionLogs)
+      .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.kind, "cardio"), gte(sessionLogs.date, weekStart))),
+    db
+      .select({
+        id: sessionLogs.id,
+        date: sessionLogs.date,
+        cardio: sessionLogs.cardio,
+        loggedBy: sessionLogs.loggedBy,
+        trainerFeedback: sessionLogs.trainerFeedback,
+        reviewedAt: sessionLogs.reviewedAt,
+      })
+      .from(sessionLogs)
+      .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.kind, "cardio")))
+      .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt))
+      .limit(RECENT_CARDIO),
+    db
+      .select({ protocol: assessments.protocol, testedOn: assessments.testedOn, result: assessments.result })
+      .from(assessments)
+      .where(eq(assessments.clientId, clientId))
+      .orderBy(asc(assessments.testedOn), asc(assessments.createdAt)),
+  ]);
+  const { minutes, sessions, load, byModality } = cardioWeekTotals(weekLogs, weekStart);
+  const protocols = [...new Set([...tests].reverse().map((t) => t.protocol))];
+  const protocol = asked && protocols.includes(asked) ? asked : (protocols[0] ?? null);
+  return {
+    week: { minutes, sessions, load, byModality },
+    target: portalCardio(client?.cardioTarget ?? null, weekLogs, now),
+    recent: recentRows.map(portalCardioLog),
+    vo2: {
+      protocols,
+      protocol,
+      points: tests.filter((t) => t.protocol === protocol).map((t) => ({ testedOn: t.testedOn, value: t.result })),
+    },
+  };
 }
 
 /** This ISO week's cardio against the coach's target — any program, as the coach's pace check counts it. */

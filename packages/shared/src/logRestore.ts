@@ -57,7 +57,7 @@ export function logToInput(log: LogDtoLike): LogRestoreInput {
     programSessionId: log.programSessionId ?? null,
     date: log.date,
     kind: normalizeKind(log.kind ?? "exercises"),
-    cardio: log.cardio ? { ...log.cardio } : null,
+    cardio: log.cardio ? structuredClone(log.cardio) : null,
     ...(log.notes != null ? { notes: log.notes } : {}),
     ...(log.perceivedEnergy != null ? { perceivedEnergy: log.perceivedEnergy } : {}),
     readiness: log.readiness ? { ...log.readiness } : null,

@@ -11,6 +11,7 @@ import {
   type DayVolume,
 } from "@pt/shared";
 import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
+import { fmtWeightRound } from "./units.svelte";
 
 /**
  * A planned session's state on its date. `unlogged` is the grace period: a past
@@ -393,7 +394,7 @@ export function dayDateLabel(iso: string, long = false): string {
 /** "4,250 kg", "12 sets", "40 min", "1 session". */
 export function volumeLabel(v: DayVolume): string {
   const n = Math.round(v.amount).toLocaleString("en-US");
-  if (v.basis === "tonnage") return `${n} kg`;
+  if (v.basis === "tonnage") return fmtWeightRound(v.amount);
   if (v.basis === "minutes") return `${n} min`;
   return plural(Math.round(v.amount), v.basis === "sets" ? "set" : "session");
 }

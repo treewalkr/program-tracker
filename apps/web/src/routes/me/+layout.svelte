@@ -1,7 +1,18 @@
 <script lang="ts">
   import { i18n } from "$lib/portal/i18n.svelte";
+  import { portalApi } from "$lib/api/portal";
+  import { applyUnits, PORTAL_UNITS_KEY, restoreUnits } from "$lib/units.svelte";
 
-  let { children } = $props();
+  let { children, data } = $props();
+
+  // The member's own display units: this phone's copy first, then the saved choice.
+  // Leaving the portal puts the trainer's back.
+  const signedIn = $derived(data.portal.kind === "signedIn");
+  $effect(() => {
+    restoreUnits(PORTAL_UNITS_KEY);
+    if (signedIn) portalApi.settings().then((s) => applyUnits(s.units, PORTAL_UNITS_KEY), () => {});
+    return () => restoreUnits();
+  });
 
   // <html lang> follows the portal's language (Thai line-breaking, screen readers); the trainer app is English
   $effect(() => {

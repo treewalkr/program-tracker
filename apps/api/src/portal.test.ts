@@ -435,6 +435,8 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
       perceivedEnergy: 7,
       readiness: null,
       flags: [pain],
+      trainerFeedback: null,
+      reviewedAt: null,
     });
     // the logged 100 kg becomes the last load: set 1 by its own number, set 2 by the lift's latest
     const squat = week.body.weeks[0].sessions.find((s: any) => s.id === s1).exercises[0];
@@ -514,10 +516,10 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     await db.update(clients).set({ cardioTarget: { unit: "minutes", value: 120 } }).where(eq(clients.id, clientId));
     const run = await call("POST", "/v1/portal/logs", {
       token,
-      body: { programSessionId: cardio1, date: today, kind: "cardio", cardio: { modality: "Run", durationMin: 30 }, sets: [] },
+      body: { programSessionId: cardio1, date: today, kind: "cardio", cardio: { modality: "Run", durationSec: 1800, rpe: 4 }, sets: [] },
     });
     expect(run.status).toBe(201);
-    expect((await call("GET", "/v1/portal/week", { token })).body.cardio).toEqual({ unit: "minutes", target: 120, done: 30 });
+    expect((await call("GET", "/v1/portal/week", { token })).body.cardio).toEqual({ unit: "minutes", target: 120, done: 30, sessions: 1, minutes: 30 });
     expect((await call("DELETE", `/v1/portal/logs/${run.body.id}`, { token })).status).toBe(204);
     await db.update(clients).set({ cardioTarget: null }).where(eq(clients.id, clientId));
   });

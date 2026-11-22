@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { clients, db, sessionLogs, trainers } from "@pt/db";
-import { addDays, nowOfDate, portalToday, PortalWeekDto } from "@pt/shared";
+import { addDays, DisplayUnits, displayUnitsOf, nowOfDate, PortalProgressDto, portalToday, PortalWeekDto, VO2_PROTOCOLS } from "@pt/shared";
 import {
   CLIENT_COOKIE,
   clientCookieSecure,
@@ -11,9 +11,10 @@ import {
   deleteClientSession,
 } from "../lib/client-auth";
 import { clientContext } from "../lib/client-context";
-import { createSessionLog, deleteSessionLog, refineLogKind, SessionLogFields } from "../lib/log-service";
-import { loadPortalWeek, portalWeekContext } from "../lib/portal";
-import { ErrorBody } from "../models/shared";
+import { createSessionLog, deleteSessionLog, refineCardioLog, refineLogKind, SessionLogFields } from "../lib/log-service";
+import { loadPortalProgress, loadPortalWeek, portalWeekContext } from "../lib/portal";
+import { ErrorBody, oneOf } from "../models/shared";
+import { UnitsModel } from "../models/account";
 
 const SEEN_EVERY_MS = 60 * 60 * 1000;
 
@@ -27,7 +28,10 @@ const PortalLogInput = SessionLogFields.omit({ clientId: true, programId: true, 
     /** The phone's local date: "today" and the block week follow it (within a day of the server's). */
     today: z.string().optional(),
   })
-  .superRefine(refineLogKind);
+  .superRefine((val, ctx) => {
+    refineLogKind(val, ctx);
+    refineCardioLog(val, ctx);
+  });
 
 /**
  * The client portal: sign-in by access link, sign-out, and the signed-in
@@ -115,6 +119,32 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       detail: { summary: "The signed-in portal client" },
     },
   )
+  /** The member's own portal settings: display units (language lives in the URL). */
+  .get(
+    "/settings",
+    async ({ clientId }) => {
+      const [row] = await db.select({ units: clients.displayUnits }).from(clients).where(eq(clients.id, clientId));
+      return { units: displayUnitsOf(row?.units) };
+    },
+    {
+      response: { 200: t.Object({ units: UnitsModel.dto }), 401: ErrorBody },
+      detail: { summary: "The signed-in client's portal settings" },
+    },
+  )
+  .put(
+    "/settings",
+    async ({ clientId, body, status }) => {
+      const parsed = DisplayUnits.safeParse(body.units);
+      if (!parsed.success) return status(422, { error: "invalid units", issues: z.treeifyError(parsed.error) });
+      await db.update(clients).set({ displayUnits: parsed.data }).where(eq(clients.id, clientId));
+      return { units: parsed.data };
+    },
+    {
+      body: t.Object({ units: UnitsModel.body }),
+      response: { 200: t.Object({ units: UnitsModel.dto }), 401: ErrorBody, 422: ErrorBody },
+      detail: { summary: "Save the signed-in client's display units" },
+    },
+  )
   /** The active program's current week (and next, when planned) — a client-safe projection. */
   .get(
     "/week",
@@ -127,6 +157,20 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })) }),
       response: { 200: t.Unsafe<PortalWeekDto>(t.Any()), 401: ErrorBody },
       detail: { summary: "This week and next for the signed-in client" },
+    },
+  )
+  /** The Progress tab: this week's cardio, recent cardio with the coach's feedback, one VO₂max trend. */
+  .get(
+    "/progress",
+    async ({ clientId, query }) => {
+      const today = portalToday(query.today, Date.now()) ?? portalToday(undefined, Date.now())!;
+      // parsed through the allow-list: nothing beyond the DTO's fields leaves the server
+      return PortalProgressDto.parse(await loadPortalProgress(clientId, nowOfDate(today), query.protocol));
+    },
+    {
+      query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })), protocol: t.Optional(oneOf(VO2_PROTOCOLS)) }),
+      response: { 200: t.Unsafe<PortalProgressDto>(t.Any()), 401: ErrorBody },
+      detail: { summary: "This week's cardio, recent cardio and a VO₂max trend for the signed-in client" },
     },
   )
   /** Log a session from the portal: current week only, dated today or earlier. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fmtWeight, fmtWeightRound } from "$lib/units.svelte";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { api } from "$lib/api";
@@ -247,7 +248,7 @@
                 {stats.adherencePct != null ? ` (${stats.adherencePct}% adherence)` : ""}
               </p>
               <p>
-                {stats.overallVolume}kg lifted · {stats.sets} sets
+                {fmtWeightRound(stats.overallVolume)} lifted · {stats.sets} sets
                 {stats.avgRpe != null ? ` · avg RPE ${stats.avgRpe}` : ""}
                 {stats.overallVolumeDelta != null
                   ? ` · ${stats.overallVolumeDelta >= 0 ? "+" : ""}${stats.overallVolumeDelta}% vs last week`
@@ -257,8 +258,8 @@
                 <ul class="pr-list">
                   {#each stats.prs as pr (pr.exerciseId)}
                     <li>
-                      {pr.exerciseName} {pr.weightKg}kg × {pr.reps}
-                      <span class="subtle">(best {pr.e1rm}kg est. 1RM, was {pr.prevBest}kg)</span>
+                      {pr.exerciseName} {fmtWeight(pr.weightKg)} × {pr.reps}
+                      <span class="subtle">(best {fmtWeight(pr.e1rm)} est. 1RM, was {fmtWeight(pr.prevBest)})</span>
                     </li>
                   {/each}
                 </ul>

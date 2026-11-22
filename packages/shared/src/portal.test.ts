@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "./metrics";
-import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry } from "./portal";
+import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx, latestLogBySession, portalSessions, sessionDateIn } from "./portal";
+import { computeHrZones, profileOn } from "./hr";
 
 describe("lastWeightsOf", () => {
   test("newest log wins per exercise and set; the exercise key holds its latest load; no-kg sets are ignored", () => {
@@ -34,6 +35,8 @@ describe("portalLogEntry", () => {
       perceivedEnergy: 6,
       readiness: { sleep: 2 },
       flags: [{ programExerciseId: null, exerciseId: EX, kind: "pain", note: "knee" }],
+      trainerFeedback: null,
+      reviewedAt: null,
     });
     expect(PortalLogEntry.parse(entry)).toEqual(entry);
   });
@@ -83,8 +86,8 @@ describe("portalCardio", () => {
   const run = (date: string, min: number) => ({ date, kind: "cardio", cardio: { modality: "Run", durationMin: min, hrZone: 2 } });
   test("this ISO week's cardio against the coach's weekly target, the same count the coach's signal uses", () => {
     const logs = [run("2026-11-15", 60), run("2026-11-16", 30), run("2026-11-18", 60)];
-    expect(portalCardio({ unit: "minutes", value: 120 }, logs, WED)).toEqual({ unit: "minutes", target: 120, done: 90 });
-    expect(portalCardio({ unit: "sessions", value: 3 }, logs.slice(0, 2), MON)).toEqual({ unit: "sessions", target: 3, done: 1 });
+    expect(portalCardio({ unit: "minutes", value: 120 }, logs, WED)).toEqual({ unit: "minutes", target: 120, done: 90, sessions: 2, minutes: 90 });
+    expect(portalCardio({ unit: "sessions", value: 3 }, logs.slice(0, 2), MON)).toEqual({ unit: "sessions", target: 3, done: 1, sessions: 1, minutes: 30 });
     expect(portalCardio(null, logs, WED)).toBeNull();
   });
 });
@@ -100,5 +103,68 @@ describe("the client's today (time zones)", () => {
   });
   test("a date's clock time lands on that date locally, so the week math reads the client's day", () => {
     expect(localDateOf(nowOfDate("2026-11-18"))).toBe("2026-11-18");
+  });
+});
+
+describe("portalCardioRx", () => {
+  const zones = [1, 2, 3, 4, 5].map((zone) => ({ zone, min: 100 + zone * 12, max: 111 + zone * 12 }));
+
+  test("intervals and bpm cross; zone bands resolve, the coach's own band wins; library ids stay home", () => {
+    const rx = portalCardioRx(
+      {
+        modality: "Running",
+        hrZone: 2,
+        modalityId: "secret-modality",
+        templateId: "secret-template",
+        intervals: [
+          { id: "w", type: "warmup", repeat: 1, durationSec: 600, hrZone: 1 },
+          { id: "r", type: "work", repeat: 4, durationSec: 180, hrZone: 4, hrBpm: { min: 160, max: 170 }, recovery: { type: "active_recovery", durationSec: 120 } },
+        ],
+      },
+      zones
+    );
+    expect(rx.hrBpm).toEqual({ min: 124, max: 135 });
+    expect(rx.intervals![0].hrBpm).toEqual({ min: 112, max: 123 });
+    expect(rx.intervals![1].hrBpm).toEqual({ min: 160, max: 170 });
+    expect(rx.intervals![1].recovery).toEqual({ type: "active_recovery", durationSec: 120, distanceM: undefined });
+    expect(JSON.stringify(rx)).not.toContain("secret");
+    expect(portalCardioRx({ modality: "Bike", hrZone: 2 }, null).hrBpm).toBeUndefined();
+  });
+});
+
+describe("latestLogBySession", () => {
+  test("a skipped cardio log carries skipped; a done one doesn't", () => {
+    const m = latestLogBySession([
+      { id: "a", programSessionId: "s1", date: "2026-11-18", loggedBy: "client" as const, cardio: { modality: "Running", skipped: { reason: "time" } } },
+      { id: "b", programSessionId: "s2", date: "2026-11-18", loggedBy: "client" as const, cardio: { modality: "Running", durationSec: 600 } },
+      { id: "c", programSessionId: "s3", date: "2026-11-18", loggedBy: "trainer" as const, cardio: null },
+    ]);
+    expect(m.get("s1")).toEqual({ id: "a", loggedBy: "client", date: "2026-11-18", skipped: true });
+    expect(m.get("s2")).toEqual({ id: "b", loggedBy: "client", date: "2026-11-18" });
+    expect(m.get("s3")).toEqual({ id: "c", loggedBy: "trainer", date: "2026-11-18" });
+  });
+});
+
+describe("sessionDateIn", () => {
+  test("a weekday lands inside a block week that starts mid-week; any day is the start", () => {
+    // 2026-11-25 is a Wednesday
+    expect(sessionDateIn("2026-11-25", 3)).toBe("2026-11-25");
+    expect(sessionDateIn("2026-11-25", 1)).toBe("2026-11-30");
+    expect(sessionDateIn("2026-11-25", 7)).toBe("2026-11-29");
+    expect(sessionDateIn("2026-11-25", null)).toBe("2026-11-25");
+  });
+
+  test("a profile effective 30 Nov reaches the Monday session of the week that starts 25 Nov, not the Wednesday one", () => {
+    const old = computeHrZones("hrmax", { maxHr: 190 })!;
+    const next = computeHrZones("hrmax", { maxHr: 200 })!;
+    const versions = [
+      { version: 1, effectiveFrom: "2026-10-01", zones: old },
+      { version: 2, effectiveFrom: "2026-11-30", zones: next },
+    ];
+    const zonesFor = (wd: number | null) => profileOn(versions, sessionDateIn("2026-11-25", wd))?.zones ?? null;
+    const run = (weekday: number) => ({ id: `s${weekday}`, name: "Run", seq: weekday, order: 0, kind: "cardio" as const, weekday, exercises: [], cardio: { modality: "Running", durationMin: 40, hrZone: 2 } });
+    const out = portalSessions([run(3), run(1)], null, () => null, { hrZonesFor: zonesFor });
+    expect(out.find((s) => s.weekday === 3)?.cardio?.hrBpm).toEqual({ min: old[1].min, max: old[1].max });
+    expect(out.find((s) => s.weekday === 1)?.cardio?.hrBpm).toEqual({ min: next[1].min, max: next[1].max });
   });
 });

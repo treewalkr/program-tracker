@@ -67,6 +67,20 @@ describe("cardioBehindSignal", () => {
   });
 });
 
+describe("cardioBehindSignal with a session-load target", () => {
+  const owner = { programId: null, clientId: "cl-1" };
+  const THU = new Date(2026, 9, 29, 12).getTime();
+  const log = (date: string, cardio: object) => ({ date, kind: "cardio", cardio: { modality: "Run", ...cardio } });
+
+  test("counts RPE × minutes in AU and ignores skipped logs", () => {
+    const logs = [log("2026-10-26", { durationSec: 1800, rpe: 5 }), log("2026-10-27", { skipped: { reason: "time" } })];
+    const signal = cardioBehindSignal(owner, { unit: "session_load", value: 600 }, logs as never, THU);
+    expect(signal!.evidence).toBe("150 of 600 AU logged this week — pace expects ≥ 206 by Thu.");
+    const more = [...logs, log("2026-10-28", { durationSec: 2400, rpe: 6 })];
+    expect(cardioBehindSignal(owner, { unit: "session_load", value: 600 }, more as never, THU)).toBeNull();
+  });
+});
+
 describe("cardioBehindSignal is pro-rated from the client's start (F18)", () => {
   const SAT = new Date(2026, 9, 31, 12).getTime();
   const SUN = new Date(2026, 10, 1, 12).getTime();
@@ -568,6 +582,21 @@ describe("painFlagSignals", () => {
   const nameOf = (id: string) => (id === SQUAT ? "Hack Squat" : "Cable Row");
   const flagLog = (date: string, flags: SignalLog["flags"]) => ({ date, flags });
   const pain = (exerciseId: string, note?: string) => ({ programExerciseId: null, exerciseId, kind: "pain" as const, note });
+
+  test("cardio pain (reported, or skipped for pain) raises the signal per modality", () => {
+    const logs = [
+      { date: "2026-10-26", flags: null, cardio: { modality: "Running", durationSec: 1800, rpe: 5, pain: { reported: true, note: "shin" } } },
+      { date: "2026-10-28", flags: null, cardio: { modality: "Running", skipped: { reason: "pain" as const } } },
+      { date: "2026-10-28", flags: null, cardio: { modality: "Cycling", skipped: { reason: "time" as const } } },
+    ];
+    const signals = painFlagSignals(owner, logs, nameOf, THU);
+    expect(signals).toHaveLength(1);
+    expect(signals[0].kind).toBe("pain-flag");
+    expect(signals[0].title).toBe("Pain flagged — Running ×2");
+    expect(signals[0].evidence).toContain("(skipped)");
+    expect(signals[0].evidence).toContain("“shin”");
+    expect(signals[0].id).toBe("pain-flag:cl-1:cardio:Running:2026-10-28");
+  });
 
   test("one signal per exercise, citing dates and notes, newest first", () => {
     const logs = [

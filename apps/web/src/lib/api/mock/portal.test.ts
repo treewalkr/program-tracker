@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "@pt/shared";
 import { mockApi } from "./api";
-import { EXPIRED_TOKEN, mockPortalApi, mockPortalWeek } from "./portal";
+import { EXPIRED_TOKEN, mockPortalApi, mockPortalProgress, mockPortalWeek } from "./portal";
 import { PortalDuplicateError } from "../portalTypes";
 
 describe("mock portal (the demo client over the trainer mock)", () => {
@@ -81,5 +81,34 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     expect(mid.startDate < today).toBe(true);
     expect(await mockPortalApi.linkInfo(EXPIRED_TOKEN)).toBeNull();
     expect(await mockPortalApi.linkInfo("demo-nattapong")).toMatchObject({ trainerName: "Coach Ploy" });
+  });
+
+  test("cardio demo: Nok's intervals with bpm from her HR zones, nothing of the profile itself", () => {
+    const dto = mockPortalWeek(Date.now(), "cardio");
+    expect(dto.program?.name).toBe("General Fitness — 8 wk");
+    const run = dto.weeks[0].sessions.find((s) => s.cardio?.intervals?.length)!;
+    expect(run.id).toMatch(/^ps-nok-\d$/);
+    const work = run.cardio!.intervals!.find((iv) => iv.type === "work")!;
+    expect(work.hrZone).toBe(4);
+    expect(work.hrBpm?.min).toBeGreaterThan(100);
+    const json = JSON.stringify(dto);
+    for (const leak of ["restingHr", "lthr", "method", "zones", "modalityId", "maxHrTestedOn"]) expect(json).not.toContain(`"${leak}"`);
+  });
+
+  test("cardio demo progress: this week, recent cardio with the coach's feedback, a Cooper trend", async () => {
+    const p = await mockPortalApi.progress(null);
+    expect(p).toEqual(mockPortalProgress(Date.now(), null, null));
+    const nok = mockPortalProgress(Date.now(), null, "cardio");
+    expect(nok.recent.length).toBeGreaterThan(3);
+    expect(nok.recent.some((l) => l.trainerFeedback?.includes("Zone 2"))).toBe(true);
+    expect(nok.vo2.protocol).toBe("cooper_12min");
+    expect(nok.vo2.points.length).toBe(3);
+    expect(nok.target?.unit).toBe("session_load");
+  });
+
+  test("settings: metric by default, a saved choice comes back, junk is refused", async () => {
+    expect((await mockPortalApi.settings()).units).toEqual({ weight: "kg", distance: "km" });
+    expect((await mockPortalApi.saveSettings({ weight: "lb", distance: "mi" })).units).toEqual({ weight: "lb", distance: "mi" });
+    await expect(mockPortalApi.saveSettings({ weight: "stone", distance: "km" } as never)).rejects.toThrow();
   });
 });

@@ -286,8 +286,10 @@ export const CLIENT_SEXES = ["female", "male"] as const;
 export const ClientSex = z.enum(CLIENT_SEXES);
 export type ClientSex = z.infer<typeof ClientSex>;
 
-/** Weekly cardio target units — one fixed progress formula per unit (cardio.ts). */
-export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "zone_minutes"] as const;
+/** Weekly cardio target units — one fixed progress formula per unit (cardio.ts).
+ *  `session_load` (RPE × min, AU) replaced `zone_minutes`, which is still accepted
+ *  for one release (never offered) so a rollback's writes still parse. */
+export const CARDIO_TARGET_UNITS = ["minutes", "sessions", "session_load", "zone_minutes"] as const;
 export const CardioTargetUnit = z.enum(CARDIO_TARGET_UNITS);
 export type CardioTargetUnit = z.infer<typeof CardioTargetUnit>;
 export const CardioTarget = z.object({
@@ -726,6 +728,59 @@ export const LOGGED_BY = ["trainer", "client"] as const;
 export const LoggedBy = z.enum(LOGGED_BY);
 export type LoggedBy = z.infer<typeof LoggedBy>;
 
+/** How a modality shows speed: pace per km (run, walk), split per 500 m (row, ski), km/h (bike), or not at all. */
+export const CARDIO_METRICS = ["pace", "split", "speed", "none"] as const;
+export const CardioMetric = z.enum(CARDIO_METRICS);
+export type CardioMetric = z.infer<typeof CardioMetric>;
+
+/** A target heart-rate band in bpm; overrides the zone when both are set. */
+export const HrBpmRange = z
+  .object({
+    min: z.number().int().min(30).max(240),
+    max: z.number().int().min(30).max(240),
+  })
+  .refine((r) => r.min <= r.max, { message: "hrBpm min must be ≤ max", path: ["min"] });
+export type HrBpmRange = z.infer<typeof HrBpmRange>;
+
+/** Seconds per km a prescription or interval can target: 1:00/km to 30:00/km. */
+export const PaceSecPerKm = z.number().int().min(60).max(1800);
+
+export const CARDIO_INTERVAL_TYPES = ["warmup", "work", "active_recovery", "passive_recovery", "cooldown"] as const;
+export const CardioIntervalType = z.enum(CARDIO_INTERVAL_TYPES);
+export type CardioIntervalType = z.infer<typeof CardioIntervalType>;
+
+/** The rest between reps of a work interval. */
+export const CardioRecovery = z.object({
+  type: z.enum(["active_recovery", "passive_recovery"]).default("passive_recovery"),
+  durationSec: z.number().int().min(1).max(3600).optional(),
+  distanceM: z.number().int().min(1).max(10000).optional(),
+});
+export type CardioRecovery = z.infer<typeof CardioRecovery>;
+
+/** Most intervals one cardio session holds. */
+export const MAX_CARDIO_INTERVALS = 20;
+
+/**
+ * One line of a structured cardio session. Never name a key `kind` or
+ * `format`: normalizeKinds rewrites those everywhere in a document.
+ */
+export const CardioInterval = z.object({
+  id: z.string().min(1).max(64),
+  type: CardioIntervalType,
+  repeat: z.number().int().min(1).max(50).default(1),
+  durationSec: z.number().int().min(1).max(4 * 3600).optional(),
+  distanceM: z.number().int().min(1).max(100_000).optional(),
+  hrZone: z.number().int().min(1).max(5).optional(),
+  hrBpm: HrBpmRange.optional(),
+  paceSecPerKm: PaceSecPerKm.optional(),
+  rpe: z.number().min(1).max(10).optional(),
+  notes: z.string().max(280).optional(),
+  /** Work intervals only: rest between reps, counted repeat − 1 times (or repeat with recoveryAfterLast). */
+  recovery: CardioRecovery.optional(),
+  recoveryAfterLast: z.boolean().optional(),
+});
+export type CardioInterval = z.infer<typeof CardioInterval>;
+
 export const CardioPrescription = z.object({
   modality: z.string().min(1).max(80), // "Bike", "Run", "Rower"…
   durationMin: z.number().int().min(1).max(300).nullable().optional(), // null = unspecified (legacy)
@@ -733,6 +788,15 @@ export const CardioPrescription = z.object({
   intensity: z.string().max(60).optional(), // labelled intensity ("easy", "85% FTP")
   distanceKm: z.number().min(0).max(300).optional(),
   targetRpe: z.number().min(1).max(10).optional(),
+  /** Target pace for the whole session. */
+  paceSecPerKm: PaceSecPerKm.optional(),
+  /** Target HR band in bpm; overrides hrZone when set. */
+  hrBpm: HrBpmRange.optional(),
+  /** The trainer's modality row (or a preset key) the name was captured from. */
+  modalityId: z.string().min(1).max(64).optional(),
+  /** The template (preset key or saved template id) this was started from. */
+  templateId: z.string().min(1).max(64).optional(),
+  intervals: z.array(CardioInterval).max(MAX_CARDIO_INTERVALS).optional(),
 });
 export type CardioPrescription = z.infer<typeof CardioPrescription>;
 
@@ -1502,14 +1566,63 @@ export const LoggedSet = z.object({
 });
 export type LoggedSet = z.infer<typeof LoggedSet>;
 
-export const CardioLog = z.object({
-  modality: z.string().min(1).max(80),
-  durationMin: z.number().int().min(1).max(300).nullable().optional(),
-  hrZone: z.number().int().min(1).max(5).nullable().optional(),
-  intensity: z.string().max(60).optional(),
-  distanceKm: z.number().min(0).max(300).optional(),
-  rpe: z.number().min(1).max(10).optional(),
+export const SKIP_REASONS = ["time", "pain", "equipment", "other"] as const;
+export const SkipReason = z.enum(SKIP_REASONS);
+export type SkipReason = z.infer<typeof SkipReason>;
+
+/** Longest cardio log: 300 minutes, so the rounded `durationMin` still fits the old schema. */
+export const CARDIO_LOG_MAX_SEC = 300 * 60;
+
+/** What a cardio log accepts, shared by the schema and the forms so both agree. */
+export const CARDIO_LOG_LIMITS = {
+  hr: { min: 30, max: 240 },
+  rpe: { min: 1, max: 10 },
+  distanceKm: { min: 0, max: 300 },
+  calories: { min: 0, max: 10_000 },
+  durationSec: { min: 1, max: CARDIO_LOG_MAX_SEC },
+} as const;
+const L = CARDIO_LOG_LIMITS;
+
+/** What one rep of one interval actually was. All optional; folded away in the form. */
+export const CardioIntervalResult = z.object({
+  intervalId: z.string().min(1).max(64),
+  /** 1-based rep of that interval. */
+  rep: z.number().int().min(1).max(50),
+  durationSec: z.number().int().min(L.durationSec.min).max(L.durationSec.max).optional(),
+  distanceM: z.number().int().min(1).max(100_000).optional(),
+  avgHr: z.number().int().min(L.hr.min).max(L.hr.max).optional(),
+  rpe: z.number().min(L.rpe.min).max(L.rpe.max).optional(),
 });
+export type CardioIntervalResult = z.infer<typeof CardioIntervalResult>;
+
+/**
+ * A cardio log. `durationSec` is the authoritative time; `durationMin` is still
+ * written (rounded) so a rollback reads it, and old rows only have minutes —
+ * read through cardioLogSec. `hrZone` is legacy: kept in old rows, never read.
+ */
+export const CardioLog = z
+  .object({
+    modality: z.string().min(1).max(80),
+    durationMin: z.number().int().min(1).max(300).nullable().optional(),
+    durationSec: z.number().int().min(L.durationSec.min).max(L.durationSec.max).optional(),
+    /** Legacy (member-picked zone); old rows keep it, nothing reads it. */
+    hrZone: z.number().int().min(1).max(5).nullable().optional(),
+    intensity: z.string().max(60).optional(),
+    distanceKm: z.number().min(L.distanceKm.min).max(L.distanceKm.max).optional(),
+    /** Session RPE 1–10; required on a completed log written now. */
+    rpe: z.number().min(L.rpe.min).max(L.rpe.max).optional(),
+    avgHr: z.number().int().min(L.hr.min).max(L.hr.max).optional(),
+    maxHr: z.number().int().min(L.hr.min).max(L.hr.max).optional(),
+    calories: z.number().int().min(L.calories.min).max(L.calories.max).optional(),
+    pain: z.object({ reported: z.boolean(), note: z.string().trim().max(280).optional() }).optional(),
+    /** Set when the member didn't do the session: it resolves the session (never "missed") but isn't done. */
+    skipped: z.object({ reason: SkipReason }).optional(),
+    intervals: z.array(CardioIntervalResult).max(200).optional(),
+  })
+  .refine((c) => c.avgHr === undefined || c.maxHr === undefined || c.maxHr >= c.avgHr, {
+    message: "max HR must be ≥ average HR",
+    path: ["maxHr"],
+  });
 export type CardioLog = z.infer<typeof CardioLog>;
 
 /** Pre-session readiness, 1–5 each (both optional). Energy stays in `perceivedEnergy`. */
@@ -1524,10 +1637,6 @@ export type Readiness = z.infer<typeof Readiness>;
 export const SESSION_FLAG_KINDS = ["pain", "technique", "skipped"] as const;
 export const SessionFlagKind = z.enum(SESSION_FLAG_KINDS);
 export type SessionFlagKind = z.infer<typeof SessionFlagKind>;
-
-export const SKIP_REASONS = ["time", "pain", "equipment", "other"] as const;
-export const SkipReason = z.enum(SKIP_REASONS);
-export type SkipReason = z.infer<typeof SkipReason>;
 
 /** A per-exercise note on a logged session: pain, a technique issue, or a skip (with its reason). */
 export const SessionFlag = z

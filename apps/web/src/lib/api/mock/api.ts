@@ -87,6 +87,23 @@ import {
   addDays,
   buildHistory as buildImportHistory,
   isIsoDate,
+  cardioLogIssues,
+  CardioTemplatePrescription,
+  cardioTemplatePreset,
+  CARDIO_TEMPLATE_PRESETS,
+  DEFAULT_DISPLAY_UNITS,
+  displayUnitsOf,
+  DisplayUnits as DisplayUnitsSchema,
+  estimateVo2,
+  HrProfileInput as HrProfileInputSchema,
+  MODALITY_PRESETS,
+  profileOn,
+  profileZones,
+  ProgramWeeksWrite,
+  upgradeCardioLog,
+  withDurationMin,
+  type DisplayUnits,
+  type LogPrescription,
 } from "@pt/shared";
 import type { Signal as SignalDto } from "@pt/shared";
 import type {
@@ -127,6 +144,10 @@ import type {
   RosterPageDto,
   RosterQuery,
   TrainerApi,
+  AssessmentDto,
+  CardioTemplateDto,
+  HrProfileDto,
+  ModalityDto,
 } from "../types";
 import { revisionChain } from "../../generation";
 import { mockBlock, mockFillWeeks, type LegacyMockDraft } from "./blockDraft";
@@ -139,11 +160,21 @@ import {
   patternOf,
   programs as seedPrograms,
   schemes as seedSchemes,
+  assessments as seedAssessments,
+  hrProfiles as seedHrProfiles,
   type StoredLog,
 } from "./data";
 import { DuplicateLogError, type SessionLogDto } from "../types";
 
 import { uuid } from "$lib/uuid";
+function mockUnits(): DisplayUnits {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem("pt.displayUnits");
+    return raw ? displayUnitsOf(JSON.parse(raw)) : { ...DEFAULT_DISPLAY_UNITS };
+  } catch {
+    return { ...DEFAULT_DISPLAY_UNITS };
+  }
+}
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A stored log as the API serializes it — copies, so callers can't reach into state. */
@@ -160,6 +191,10 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   readiness: l.readiness ? { ...l.readiness } : null,
   flags: l.flags ? l.flags.map((f) => ({ ...f })) : null,
   durationMin: l.durationMin ?? null,
+  prescription: l.prescription ? structuredClone(l.prescription) : null,
+  reviewedAt: l.reviewedAt ?? null,
+  reviewedBy: l.reviewedBy ?? null,
+  trainerFeedback: l.trainerFeedback ?? null,
   sets: l.sets.map((s) => ({ ...s })),
   loggedBy: l.loggedBy ?? "trainer",
 });
@@ -279,7 +314,71 @@ const state = {
     ...SESSION_TYPE_PRESETS.map((p) => ({ id: `st-${p.key}`, name: p.name, format: p.format, presetKey: p.key, archivedAt: null })),
     { id: "st-hypertrophy", name: "Hypertrophy", format: "exercises", presetKey: null, archivedAt: null },
   ].map((t) => (t.format === "exercises" ? asRelease1(t) : t)) as Omit<SessionTypeDto, "usedIn">[], // stored release-1 style (kindAlias.ts)
+  hrProfiles: structuredClone(seedHrProfiles),
+  assessments: structuredClone(seedAssessments),
+  /** Presets seeded as the API does on first read, ids `md-<key>`. */
+  modalities: MODALITY_PRESETS.map((p, i) => ({
+    id: `md-${p.key}`,
+    name: p.name,
+    metric: p.metric,
+    presetKey: p.key as string | null,
+    archivedAt: null as string | null,
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+  })).concat({ id: "md-assault-bike", name: "Assault bike", metric: "none", presetKey: null, archivedAt: null, createdAt: "2026-02-03T09:12:41.000Z" }),
+  cardioTemplates: [
+    {
+      id: "ct-hill-repeats",
+      name: "Hill repeats",
+      prescription: {
+        targetRpe: 8,
+        intervals: [
+          { id: "warmup", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2 },
+          { id: "hills", type: "work", repeat: 6, durationSec: 60, rpe: 8, notes: "Steady climb, jog down", recovery: { type: "active_recovery", durationSec: 90 } },
+          { id: "cooldown", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1 },
+        ],
+      },
+      basedOn: "intervals",
+      archivedAt: null,
+      createdAt: "2026-10-02T09:00:00.000Z",
+      updatedAt: "2026-10-02T09:00:00.000Z",
+    },
+  ] as Omit<CardioTemplateDto, "trainerId">[],
+  hiddenCardioPresets: [] as string[],
+  /** The demo keeps the last choice across reloads (the real API stores it per trainer). */
+  units: mockUnits(),
 };
+
+/** Programs with a cardio session pointing at this modality (like the API's usage count). */
+const modalityUsage = (id: string) =>
+  state.programs.filter((p) => p.weeks.some((w) => w.sessions.some((s) => s.cardio?.modalityId === id))).length;
+const modalityDto = (m: (typeof state.modalities)[number]): ModalityDto => ({
+  id: m.id,
+  name: m.name,
+  metric: m.metric,
+  presetKey: m.presetKey,
+  archivedAt: m.archivedAt,
+  usedIn: modalityUsage(m.id),
+});
+const templateDto = (t: (typeof state.cardioTemplates)[number]): CardioTemplateDto => ({ ...structuredClone(t), trainerId: "me" });
+const validationError = (message: string) => Object.assign(new Error(message), { status: 422 });
+const conflict = (message: string) => Object.assign(new Error(message), { status: 409 });
+
+/** The snapshot a new log keeps (like the API's logPrescription). */
+function logPrescriptionOf(programId: string, programSessionId: string | null | undefined, clientId: string, date: string): LogPrescription | null {
+  if (!programSessionId) return null;
+  const program = state.programs.find((p) => p.id === programId);
+  const session = program?.weeks.flatMap((w) => w.sessions).find((x) => x.id === programSessionId);
+  if (!program || !session) return null;
+  const snapshot: LogPrescription = { programVersion: program.version, session: JSON.parse(JSON.stringify(session)) };
+  if (session.kind === "cardio") {
+    const profile = profileOn(state.hrProfiles.filter((p) => p.clientId === clientId), date);
+    if (profile) {
+      snapshot.hrProfileVersion = profile.version;
+      snapshot.zonesBpm = structuredClone(profile.zones);
+    }
+  }
+  return snapshot;
+}
 
 function portalDto(clientId: string): ClientPortalDto {
   const p = state.portal[clientId];
@@ -854,9 +953,9 @@ const rawMockApi: TrainerApi = {
 
   async saveProgram(id, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null) {
     await delay(400);
-    const parsed = ProgramWeeksDocument.safeParse(weeks);
+    const parsed = ProgramWeeksWrite.safeParse(weeks);
     if (!parsed.success) {
-      throw new Error("invalid weeks document");
+      throw Object.assign(new Error("invalid weeks document"), { status: 422, issues: parsed.error.issues });
     }
     const i = state.programs.findIndex((p) => p.id === id);
     if (i < 0) throw new Error("program not found");
@@ -917,6 +1016,8 @@ const rawMockApi: TrainerApi = {
 
   async createProgram(input) {
     await delay(450);
+    const parsed = ProgramWeeksWrite.safeParse(input.weeks);
+    if (!parsed.success) throw Object.assign(new Error("invalid weeks document"), { status: 422, issues: parsed.error.issues });
     const program: ProgramDto = {
       id: `pg-${uuid().slice(0, 8)}`,
       trainerId: "me",
@@ -1038,6 +1139,11 @@ const rawMockApi: TrainerApi = {
 
   async logSession(input: SessionLogInput) {
     await delay(500);
+    // Same cardio rule as the API: a completed log needs seconds and RPE (a minutes-only one is the old build's).
+    if (input.kind === "cardio" && input.cardio && !(input.cardio.durationSec == null && input.cardio.durationMin != null)) {
+      const issues = cardioLogIssues(upgradeCardioLog(input.cardio));
+      if (issues.length) throw validationError(issues[0]);
+    }
     // Same rule as the API: this exact program session again; ad-hoc logs never are.
     const dupes = input.programSessionId
       ? state.logs
@@ -1064,7 +1170,8 @@ const rawMockApi: TrainerApi = {
       programSessionId: input.programSessionId ?? null,
       date: input.date,
       kind: normalizeKind(input.kind ?? "exercises"),
-      cardio: input.cardio ?? null,
+      cardio: input.cardio ? withDurationMin(upgradeCardioLog(structuredClone(input.cardio))) : null,
+      prescription: logPrescriptionOf(input.programId, input.programSessionId, input.clientId, input.date),
       perceivedEnergy: input.perceivedEnergy,
       // Same as the API: an empty readiness or flag list stores as null.
       readiness: input.readiness && Object.keys(input.readiness).length > 0 ? { ...input.readiness } : null,
@@ -1109,6 +1216,210 @@ const rawMockApi: TrainerApi = {
     const before = state.logs.length;
     state.logs = state.logs.filter((l) => l.sessionLogId !== id);
     if (state.logs.length === before) throw Object.assign(new Error("log not found"), { status: 404 });
+  },
+
+  async reviewSessionLog(id, input) {
+    await delay(200);
+    const log = state.logs.find((l) => l.sessionLogId === id);
+    if (!log) throw Object.assign(new Error("log not found"), { status: 404 });
+    log.reviewedAt = input.reviewed ? new Date().toISOString() : null;
+    log.reviewedBy = input.reviewed ? "me" : null;
+    if (input.feedback !== undefined) log.trainerFeedback = input.feedback?.trim() ? input.feedback.trim() : null;
+    return { id, reviewedAt: log.reviewedAt, reviewedBy: log.reviewedBy, trainerFeedback: log.trainerFeedback ?? null };
+  },
+
+  async hrProfiles(clientId) {
+    await delay(120);
+    return structuredClone(state.hrProfiles.filter((p) => p.clientId === clientId).sort((a, b) => a.version - b.version));
+  },
+
+  async createHrProfile(clientId, body) {
+    await delay(250);
+    const parsed = HrProfileInputSchema.safeParse(body.method === "custom" ? body : { ...body, zones: undefined });
+    if (!parsed.success) throw Object.assign(validationError("invalid HR profile"), { issues: parsed.error.issues });
+    const input = parsed.data;
+    const zones = profileZones(input);
+    if (!zones) throw validationError("these inputs don't give zones for this method");
+    const version = Math.max(0, ...state.hrProfiles.filter((p) => p.clientId === clientId).map((p) => p.version)) + 1;
+    const row: HrProfileDto = {
+      id: `hr-${uuid().slice(0, 8)}`,
+      clientId,
+      version,
+      effectiveFrom: input.effectiveFrom,
+      method: input.method,
+      restingHr: input.restingHr ?? null,
+      maxHr: input.maxHr ?? null,
+      maxHrTestedOn: input.maxHrTestedOn ?? null,
+      lthr: input.lthr ?? null,
+      zones: [...zones].sort((a, b) => a.zone - b.zone),
+      createdAt: new Date().toISOString(),
+    };
+    state.hrProfiles.push(row);
+    return structuredClone(row);
+  },
+
+  async assessments(clientId) {
+    await delay(150);
+    return structuredClone(state.assessments.filter((a) => a.clientId === clientId).sort((a, b) => a.testedOn.localeCompare(b.testedOn)));
+  },
+
+  async createAssessment(clientId, input) {
+    await delay(250);
+    const client = state.clients.find((c) => c.id === clientId);
+    const result = estimateVo2(input.protocol, input.inputs, { sex: client?.sex, birthDate: client?.birthDate }, input.testedOn);
+    if (!result.ok) throw validationError(result.error);
+    const now = new Date().toISOString();
+    const row: AssessmentDto = {
+      id: `as-${uuid().slice(0, 8)}`,
+      clientId,
+      protocol: input.protocol,
+      formulaVersion: result.formulaVersion,
+      testedOn: input.testedOn,
+      inputs: { ...input.inputs },
+      result: result.value,
+      notes: input.notes?.trim() || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.assessments.push(row);
+    return structuredClone(row);
+  },
+
+  async patchAssessment(clientId, id, patch) {
+    await delay(200);
+    const cur = state.assessments.find((a) => a.id === id && a.clientId === clientId);
+    if (!cur) throw Object.assign(new Error("assessment not found"), { status: 404 });
+    const client = state.clients.find((c) => c.id === clientId);
+    const protocol = patch.protocol ?? cur.protocol;
+    const testedOn = patch.testedOn ?? cur.testedOn;
+    const inputs = patch.inputs ?? cur.inputs;
+    const result = estimateVo2(protocol, inputs, { sex: client?.sex, birthDate: client?.birthDate }, testedOn);
+    if (!result.ok) throw validationError(result.error);
+    Object.assign(cur, {
+      protocol,
+      testedOn,
+      inputs: { ...inputs },
+      result: result.value,
+      formulaVersion: result.formulaVersion,
+      ...(patch.notes !== undefined ? { notes: patch.notes?.trim() || null } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return structuredClone(cur);
+  },
+
+  async deleteAssessment(clientId, id) {
+    await delay(150);
+    const before = state.assessments.length;
+    state.assessments = state.assessments.filter((a) => !(a.id === id && a.clientId === clientId));
+    if (state.assessments.length === before) throw Object.assign(new Error("assessment not found"), { status: 404 });
+  },
+
+  async modalities() {
+    await delay(120);
+    return state.modalities.map(modalityDto);
+  },
+
+  async createModality(input) {
+    await delay(200);
+    const name = normalizeTypeName(input.name);
+    if (!name) throw validationError("name is required");
+    if (state.modalities.some((m) => m.name.toLowerCase() === name.toLowerCase())) throw conflict(`"${name}" is already a modality`);
+    const row = { id: `md-${uuid().slice(0, 8)}`, name, metric: input.metric, presetKey: null, archivedAt: null, createdAt: new Date().toISOString() };
+    state.modalities.push(row);
+    return modalityDto(row);
+  },
+
+  async patchModality(id, patch) {
+    await delay(150);
+    const cur = state.modalities.find((m) => m.id === id);
+    if (!cur) throw Object.assign(new Error("modality not found"), { status: 404 });
+    if (cur.presetKey && (patch.name !== undefined || patch.metric !== undefined)) throw conflict("preset modalities can't be edited");
+    if (patch.name !== undefined) {
+      const name = normalizeTypeName(patch.name);
+      if (!name) throw validationError("name is required");
+      if (state.modalities.some((m) => m.id !== id && m.name.toLowerCase() === name.toLowerCase())) throw conflict(`"${name}" is already a modality`);
+      cur.name = name;
+    }
+    if (patch.metric !== undefined) cur.metric = patch.metric;
+    if (patch.archived !== undefined) cur.archivedAt = patch.archived ? (cur.archivedAt ?? new Date().toISOString()) : null;
+    return modalityDto(cur);
+  },
+
+  async deleteModality(id) {
+    await delay(150);
+    const cur = state.modalities.find((m) => m.id === id);
+    if (!cur) throw Object.assign(new Error("modality not found"), { status: 404 });
+    if (cur.presetKey) throw conflict("preset modalities can only be archived");
+    const n = modalityUsage(id);
+    if (n) throw conflict(`used in ${n} program${n === 1 ? "" : "s"} — archive it instead`);
+    state.modalities = state.modalities.filter((m) => m.id !== id);
+  },
+
+  async cardioTemplates() {
+    await delay(120);
+    return {
+      presets: CARDIO_TEMPLATE_PRESETS.map((p) => ({ ...structuredClone(p), hidden: state.hiddenCardioPresets.includes(p.key) })),
+      templates: state.cardioTemplates.map(templateDto),
+    };
+  },
+
+  async createCardioTemplate(input) {
+    await delay(200);
+    const parsed = CardioTemplatePrescription.safeParse(input.prescription);
+    if (!parsed.success) throw Object.assign(validationError("invalid cardio template"), { issues: parsed.error.issues });
+    const name = input.name.trim();
+    if (!name) throw validationError("name is required");
+    const now = new Date().toISOString();
+    const row = { id: `ct-${uuid().slice(0, 8)}`, name, prescription: parsed.data, basedOn: input.basedOn ?? null, archivedAt: null, createdAt: now, updatedAt: now };
+    state.cardioTemplates.push(row);
+    return templateDto(row);
+  },
+
+  async patchCardioTemplate(id, patch) {
+    await delay(150);
+    const cur = state.cardioTemplates.find((t) => t.id === id);
+    if (!cur) throw Object.assign(new Error("template not found"), { status: 404 });
+    if (patch.prescription !== undefined) {
+      const parsed = CardioTemplatePrescription.safeParse(patch.prescription);
+      if (!parsed.success) throw Object.assign(validationError("invalid cardio template"), { issues: parsed.error.issues });
+      cur.prescription = parsed.data;
+    }
+    if (patch.name !== undefined) {
+      if (!patch.name.trim()) throw validationError("name is required");
+      cur.name = patch.name.trim();
+    }
+    if (patch.archived !== undefined) cur.archivedAt = patch.archived ? (cur.archivedAt ?? new Date().toISOString()) : null;
+    cur.updatedAt = new Date().toISOString();
+    return templateDto(cur);
+  },
+
+  async deleteCardioTemplate(id) {
+    await delay(150);
+    const before = state.cardioTemplates.length;
+    state.cardioTemplates = state.cardioTemplates.filter((t) => t.id !== id);
+    if (state.cardioTemplates.length === before) throw Object.assign(new Error("template not found"), { status: 404 });
+  },
+
+  async setCardioPresetHidden(key, hidden) {
+    await delay(120);
+    if (!cardioTemplatePreset(key)) throw Object.assign(new Error("preset not found"), { status: 404 });
+    state.hiddenCardioPresets = hidden
+      ? [...new Set([...state.hiddenCardioPresets, key])]
+      : state.hiddenCardioPresets.filter((k) => k !== key);
+    return [...state.hiddenCardioPresets];
+  },
+
+  async displayUnits() {
+    await delay(60);
+    return { ...state.units };
+  },
+
+  async setDisplayUnits(units) {
+    await delay(120);
+    const parsed = DisplayUnitsSchema.safeParse(units);
+    if (!parsed.success) throw validationError("invalid units");
+    state.units = parsed.data;
+    return { ...state.units };
   },
 
   async generate(input) {
@@ -2570,4 +2881,4 @@ function mockRoster(query: RosterQuery): RosterPageDto {
 export const mockApi: TrainerApi = withKindAlias(rawMockApi);
 
 /** The client portal's mock runs over this same state, as the demo client. */
-export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName };
+export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName, logPrescriptionOf as mockLogPrescription };

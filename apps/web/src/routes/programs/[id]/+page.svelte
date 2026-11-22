@@ -51,7 +51,8 @@
   } from "@pt/shared";
   import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, primaryPattern, typeFitsKind } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
-  import { cardioLogLabel, extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
+  import { cardioLine } from "$lib/cardioLine";
+  import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { validateProgramDoc } from "$lib/programDoc";
   import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
@@ -61,6 +62,8 @@
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
+  import type { CardioTemplateInput, CardioTemplatesDto, HrProfileDto, ModalityDto } from "$lib/api/types";
+  import { profileOn, sessionDateIn, type HrZones } from "@pt/shared";
   import WeekCalendar from "$lib/components/WeekCalendar.svelte";
   import PhasingEditor from "$lib/components/PhasingEditor.svelte";
   import RoleChip from "$lib/components/RoleChip.svelte";
@@ -345,6 +348,16 @@
     document.getElementById(`sess-${sid}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  let modalities = $state<ModalityDto[]>([]);
+  let cardioTemplates = $state<CardioTemplatesDto | null>(null);
+  /** The member's HR profile versions; each session's bpm come from the one in effect on its own day. */
+  let hrVersions = $state<HrProfileDto[]>([]);
+  /** The zones for a session in the shown week: its day's profile, so week 5 shows week 5's zones. Draft blocks have no dates: today's. */
+  function zonesFor(s: { weekday?: number | null }): HrZones | null {
+    const start = weekDates?.[weekIndex]?.start;
+    return profileOn(hrVersions, start ? sessionDateIn(start, s.weekday) : today)?.zones ?? null;
+  }
+
   const validation = $derived(
     program ? validateProgramDoc(program.weeks) : { ok: true as const }
   );
@@ -354,6 +367,9 @@
     baseline = snapshot(program);
     deloadUndo = new Map();
     [catalog, types] = await Promise.all([api.exercises(), api.sessionTypes()]);
+    // cardio editor: the modality list and templates (a failed read leaves the free-text path)
+    api.modalities().then((m) => (modalities = m), () => {});
+    api.cardioTemplates().then((t) => (cardioTemplates = t), () => {});
     const mine = await api.examples(id);
     existingExample = mine[0] ?? null;
     if (!existingExample) marking = false;
@@ -366,6 +382,7 @@
       oneRepMaxes = detail.client.oneRepMaxes ?? null;
       deload = clientDeload(detail.client);
       logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
+      api.hrProfiles(program.clientId).then((v) => (hrVersions = v), () => {});
     }
     // Open on the client's current week (FB-017: edits on a finished week never reached them).
     currentWeekIndex = openingWeekIndex(weekTabDates(program, logs, today));
@@ -396,6 +413,12 @@
     if (!existingExample) return;
     await api.deleteExample(existingExample.id);
     existingExample = null;
+  }
+
+  async function saveCardioTemplate(input: CardioTemplateInput) {
+    const saved = await api.createCardioTemplate(input);
+    if (cardioTemplates) cardioTemplates = { ...cardioTemplates, templates: [...cardioTemplates.templates, saved] };
+    return saved;
   }
 
   async function save() {
@@ -723,6 +746,10 @@
                   onday={(wd) => place(s.id, wd, 99)}
                   onremove={() => { if (currentWeek) setWeek(removeSession($state.snapshot(currentWeek) as ProgramWeek, s.id)); closeEditors(); }}
                   onclose={closeEditors}
+                  {modalities}
+                  templates={cardioTemplates}
+                  zones={zonesFor(s)}
+                  onsavetemplate={saveCardioTemplate}
                 />
               {:else}
                 <div class="session-header">
@@ -738,7 +765,7 @@
                   <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}
                     {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}</span>
                   {#each logsOf(s.id) as l (l.id)}
-                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLogLabel(l.cardio)}</span>{/if}
+                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLine(l.cardio)}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
                     {@const extras = s.kind === "exercises" ? extraSets(l, s.exercises) : []}
                     {#if extras.length > 0}
@@ -755,14 +782,7 @@
                   <div class="cardio-display">
                     <span class="cond-chip">
                       <Icon name="pulse" />
-                      {[
-                        s.cardio.modality,
-                        s.cardio.durationMin ? `${s.cardio.durationMin} min` : null,
-                        s.cardio.hrZone ? `Z${s.cardio.hrZone}` : null,
-                        s.cardio.intensity || null,
-                        s.cardio.distanceKm ? `${s.cardio.distanceKm} km` : null,
-                        s.cardio.targetRpe ? `RPE ${s.cardio.targetRpe}` : null,
-                      ].filter(Boolean).join(" · ")}
+                      {cardioLine(s.cardio)}
                     </span>
                   </div>
                 {/if}
@@ -871,7 +891,7 @@
             <div class="logline">
               <span class="log-date">{logDateLabel(l.date)}</span>
               {#if l.kind === "cardio"}
-                <span class="log-chip">{cardioLogLabel(l.cardio)}</span>
+                <span class="log-chip">{cardioLine(l.cardio)}</span>
               {:else}
                 {#each l.sets as d, di (di)}<span class="log-chip">{nameOf(d.exerciseId)} {loggedSetLabel(d, false)}</span>{/each}
               {/if}

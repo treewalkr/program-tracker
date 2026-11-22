@@ -2,12 +2,14 @@
   import { goto } from "$app/navigation";
   import { apiMode } from "$lib/api";
   import { portalApi } from "$lib/api/portal";
-  import type { PortalWeekDto } from "@pt/shared";
+  import type { PortalProgressDto, PortalWeekDto, Vo2Protocol } from "@pt/shared";
   import { localDateOf } from "@pt/shared";
   import { fmtDay, fmtShortDate, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
-  import { dayGroups, doneCount, earlierOpen, focusSession } from "$lib/portal/week";
+  import PortalProgress from "$lib/portal/PortalProgress.svelte";
+  import { dayGroups, doneCount, earlierOpen, focusSession, skippedCount } from "$lib/portal/week";
+  import { cardioSummary } from "$lib/portal/progress";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
@@ -21,7 +23,22 @@
   let failed = $state(false);
   /** Render cold starts take 30–50 s: after a few seconds say so, instead of looking broken. */
   let slow = $state(false);
-  let tab = $state<"this" | "next">("this");
+  let tab = $state<"this" | "next" | "progress">("this");
+  let progress = $state<PortalProgressDto | null>(null);
+  let progressFailed = $state(false);
+
+  /** The Progress tab loads when first opened, and again for another field test. */
+  async function loadProgress(protocol?: Vo2Protocol) {
+    progressFailed = false;
+    try {
+      progress = await portalApi.progress(protocol ?? progress?.vo2.protocol ?? null);
+    } catch {
+      progressFailed = true;
+    }
+  }
+  $effect(() => {
+    if (tab === "progress" && !progress) void loadProgress();
+  });
   const today = localDateOf(Date.now());
 
   async function load() {
@@ -47,6 +64,7 @@
   const current = $derived(dto?.weeks.find((w) => w.loggable) ?? (startsOn ? (dto?.weeks[0] ?? null) : null));
   const next = $derived(dto?.weeks.find((w) => !w.loggable && w !== current) ?? null);
   const shown = $derived(tab === "next" && next ? next : current);
+  const tabs = $derived<("this" | "next" | "progress")[]>(next ? ["this", "next", "progress"] : ["this", "progress"]);
   /** The calendar leaves out the session "Next up" already shows, and any day that leaves empty. */
   const groups = $derived(
     shown
@@ -75,9 +93,10 @@
   }
 
   function onTabKey(e: KeyboardEvent) {
-    if (!next || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    tab = tab === "this" ? "next" : "this";
+    const i = tabs.indexOf(tab);
+    tab = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
     document.getElementById(`wk-${tab}`)?.focus();
   }
 </script>
@@ -98,9 +117,11 @@
     {#if current.weekLabel}<p class="week-label">{t(`week.label.${current.weekLabel}`)}</p>{/if}
     {#if dto.cardio}
       {@const c = dto.cardio}
+      {@const sum = cardioSummary(c, t)}
       <div class="cardio">
-        <p><span>{t("week.cardio")}</span> <strong class="tnum">{t(`week.cardio.${c.unit}`, { done: c.done, target: c.target })}</strong></p>
+        <p><span>{t("week.cardio")}</span> <strong class="tnum">{sum.lead}</strong></p>
         <div class="cbar" aria-hidden="true"><span style:width={`${Math.min(100, (c.done / Math.max(1, c.target)) * 100)}%`}></span></div>
+        {#if sum.second}<p class="second tnum">{sum.second}</p>{/if}
       </div>
     {/if}
   {/if}
@@ -151,7 +172,8 @@
       <PortalSessionCard session={nextUp} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} onremove={removeLog} />
     </section>
   {:else if current?.loggable && current.sessions.length > 0}
-    <p class="all-done"><Icon name="check" />{t("week.allDone", { total: current.sessions.length })}</p>
+    {@const skippedN = skippedCount(current)}
+    <p class="all-done"><Icon name="check" />{skippedN ? t("week.allResolved", { done: doneCount(current), skipped: skippedN }) : t("week.allDone", { total: current.sessions.length })}</p>
   {/if}
 
   {#if earlier.length > 0}
@@ -188,9 +210,32 @@
         {t("week.next")}
       </button>
     {/if}
-    <span class="range tnum">{t("week.range", { from: fmtShortDate(shown.startDate), to: fmtShortDate(shown.endDate) })}</span>
+    <button type="button" role="tab" id="wk-progress" aria-selected={tab === "progress"} aria-controls="wk-panel" tabindex={tab === "progress" ? 0 : -1} class:on={tab === "progress"} onclick={() => (tab = "progress")} onkeydown={onTabKey}>
+      {t("week.progressTab")}
+    </button>
+    {#if tab !== "progress"}
+      <span class="range tnum">{t("week.range", { from: fmtShortDate(shown.startDate), to: fmtShortDate(shown.endDate) })}</span>
+    {/if}
   </div>
 
+  {#if tab === "progress"}
+    <div id="wk-panel" role="tabpanel" tabindex="-1" aria-labelledby="wk-progress" class="days">
+      {#if progress}
+        <PortalProgress {progress} onprotocol={(p) => loadProgress(p)} />
+      {:else if progressFailed}
+        <div class="empty" role="alert">
+          <p class="empty-title">{t("progress.error")}</p>
+          <Button onclick={() => loadProgress()}>{t("week.retry")}</Button>
+        </div>
+      {:else}
+        <div class="sk" role="status" aria-live="polite">
+          <span class="sr-only">{t("progress.loading")}</span>
+          <Skeleton h="140px" />
+          <Skeleton h="120px" />
+        </div>
+      {/if}
+    </div>
+  {:else}
   <div id="wk-panel" role="tabpanel" tabindex="-1" aria-labelledby={`wk-${tab}`} class="days">
     {#if !shown.loggable && !(startsOn && shown === current)}<p class="preview">{t("week.nextPreview")}</p>{/if}
     {#if !shown.loggable && shown.weekLabel}<p class="week-label">{t(`week.label.${shown.weekLabel}`)}</p>{/if}
@@ -216,6 +261,7 @@
       </section>
     {/each}
   </div>
+  {/if}
 {/if}
 
 {#if apiMode === "live"}
@@ -303,6 +349,7 @@
   .cardio { display: grid; gap: 6px; margin-top: 12px; }
   .cardio p { margin: 0; font-size: 14px; color: var(--muted); }
   .cardio strong { margin-left: 4px; font-weight: 600; color: var(--ink); }
+  .cardio .second { font-size: 13px; }
   .cbar { height: 6px; border-radius: 99px; background: var(--well-2); overflow: hidden; }
   .cbar span { display: block; height: 100%; border-radius: 99px; background: var(--good); }
   .day { display: grid; gap: 10px; }

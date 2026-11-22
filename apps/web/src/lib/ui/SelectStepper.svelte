@@ -11,8 +11,13 @@
 	interface Props {
 		/** Allowed values, ascending. */
 		values: number[];
-		value: number;
+		/** null = not given yet: the placeholder shows and the first step lands on `start`. */
+		value: number | null;
 		onchange?: (value: number) => void;
+		/** Shown while the value is null. */
+		placeholder?: string;
+		/** Where a first step or the open grid starts from a null value (default: the middle value). */
+		start?: number;
 		/** Accessible name: "RPE", "Rest". */
 		label: string;
 		/** Small unit after the figure: "RPE", "s rest", "kg". */
@@ -24,17 +29,24 @@
 		columns?: number;
 		disabled?: boolean;
 		open?: boolean;
+		/** Take the column's width, with the grid as wide as the field (never past the screen edge). */
+		block?: boolean;
+		/** The step buttons' accessible names, in the page's language; `{label}` is filled in. */
+		stepWords?: { up: string; down: string };
 	}
 
-	let { values, value = $bindable(), onchange, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false) }: Props = $props();
+	let { values, value = $bindable(), onchange, placeholder = '—', start, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false), block = false, stepWords = { up: 'Increase {label}', down: 'Decrease {label}' } }: Props = $props();
 
 	const uid = $props.id();
 	let active = $state(0);
 	$effect(() => {
-		if (open) active = Math.max(0, untrack(() => index));
+		if (open) active = untrack(() => home());
 	});
 
-	const index = $derived(values.indexOf(value));
+	const index = $derived(value == null ? -1 : values.indexOf(value));
+	const startIndex = $derived(Math.max(0, start != null ? values.indexOf(start) : Math.floor((values.length - 1) / 2)));
+	/** The grid cell an opening highlights: the value, else the start. */
+	const home = () => (value == null ? startIndex : Math.max(0, index));
 	const shown = $derived(open ? (values[active] ?? value) : value);
 
 	function set(v: number) {
@@ -43,13 +55,18 @@
 	}
 
 	function step(by: number) {
-		const from = index === -1 ? values.findIndex((v) => v >= value) : index;
+		if (value == null) {
+			set(values[startIndex]);
+			return;
+		}
+		const current = value;
+		const from = index === -1 ? values.findIndex((v) => v >= current) : index;
 		const next = values[Math.min(values.length - 1, Math.max(0, (from === -1 ? values.length - 1 : from) + by))];
 		if (next !== undefined) set(next);
 	}
 
 	function show() {
-		active = Math.max(0, index);
+		active = home();
 		open = true;
 	}
 
@@ -77,9 +94,9 @@
 	}
 </script>
 
-<Dropdown bind:open inline panelWidth="280px">
+<Dropdown bind:open inline={!block} panelWidth={block ? '100%' : '280px'}>
 	{#snippet trigger()}
-		<div class="sel" class:off={disabled}>
+		<div class="sel" class:off={disabled} class:block>
 			<button
 				type="button"
 				class="v"
@@ -93,11 +110,11 @@
 				onclick={() => (open ? (open = false) : show())}
 				{onkeydown}
 			>
-				{value}{#if unit}<small>{unit}</small>{/if}
+				{#if value == null}<span class="ph">{placeholder}</span>{:else}{value}{/if}{#if unit}<small>{unit}</small>{/if}
 			</button>
 			<div class="st">
-				<button type="button" tabindex="-1" aria-label="Increase {label}" disabled={disabled || index === values.length - 1} onclick={() => step(1)}><Icon name="arrow-up" /></button>
-				<button type="button" tabindex="-1" aria-label="Decrease {label}" disabled={disabled || index === 0} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
+				<button type="button" tabindex="-1" aria-label={stepWords.up.replace('{label}', label)} disabled={disabled || (value != null && index === values.length - 1)} onclick={() => step(1)}><Icon name="arrow-up" /></button>
+				<button type="button" tabindex="-1" aria-label={stepWords.down.replace('{label}', label)} disabled={disabled || (value != null && index === 0)} onclick={() => step(-1)}><Icon name="arrow-down" /></button>
 			</div>
 		</div>
 	{/snippet}
@@ -118,7 +135,7 @@
 			>{v}</div>
 		{/each}
 	</div>
-	{#if describe}<div class="ft">{shown} · {describe(shown)}</div>{/if}
+	{#if describe && shown != null}<div class="ft">{shown} · {describe(shown)}</div>{/if}
 </Dropdown>
 
 <style>
@@ -142,6 +159,7 @@
 	.v:focus-visible { outline: none; }
 	.v:hover:not(:disabled) { background: var(--well-2); }
 	small { font: 400 12px var(--font-ui); color: var(--muted); }
+	.ph { color: var(--muted); font-weight: 400; }
 	.st { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
 	.st button { flex: 1; width: 26px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 0; cursor: pointer; }
 	.st button + button { border-top: 1px solid var(--line-soft); }
@@ -156,5 +174,16 @@
 	.n.hov { background: var(--well-2); }
 	.n.on { background: var(--hover-ink); color: var(--on-ink); }
 	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
+	.sel.block { display: flex; width: 100%; }
+	.sel.block .v { flex: 1; }
 	@media (max-width: 720px) { .sel { min-height: 40px; } .v { font-size: 16px; } }
+	/* touch: the step buttons and the grid figures are 44px targets */
+	@media (max-width: 720px), (pointer: coarse) {
+		.sel { min-height: 44px; }
+		.st { flex-direction: row; }
+		.st button { width: 44px; }
+		.st button + button { border-top: 0; border-left: 1px solid var(--line-soft); }
+		.st :global(svg) { width: 14px; height: 14px; }
+		.n { min-height: 44px; display: grid; place-items: center; padding: 0; font-size: 15px; }
+	}
 </style>

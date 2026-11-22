@@ -1,4 +1,10 @@
-import type { CardioPrescription, PortalLastSet, PortalSet } from "@pt/shared";
+import { cardioTotals, recoveryCount, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
+import { formatDuration } from "$lib/ui/input/duration";
+import { coachIntensity } from "$lib/cardioLine";
+
+export { coachIntensity };
+import { loadIn } from "@pt/shared";
+import { showDistance, showPace, units } from "$lib/units.svelte";
 import type { MessageKey } from "./messages";
 
 /**
@@ -25,6 +31,21 @@ function bareTarget(s: PortalSet, t: T): string {
 
 const uniq = <V>(vs: V[]) => [...new Set(vs)];
 
+/** Stored kg in the member's unit: "60 kg", "≈ 82.5 lb" on the plate grid (several: "50 / 55 / 60 kg"). */
+export function weightText(kgs: number | number[], t: T): string {
+  const loads = (Array.isArray(kgs) ? kgs : [kgs]).map((kg) => loadIn(kg, units.weight));
+  const list = loads.map((l) => num(l.value)).join(" / ");
+  const text = units.weight === "lb" ? t("rx.lb", { n: list }) : t("rx.kg", { n: list });
+  return loads.some((l) => l.approx) ? `≈ ${text}` : text;
+}
+
+/** Stored km in the member's unit: "5.2 km", "3.23 mi". */
+export function distanceText(km: number, t: T): string {
+  return units.distance === "mi" ? t("rx.mi", { n: num2(showDistance(km, "mi")) }) : t("rx.km", { n: num2(km) });
+}
+
+const num2 = (n: number) => String(Math.round(n * 100) / 100);
+
 /** Rest as "2 min" / "90 s". */
 export function restText(seconds: number, t: T): string {
   if (seconds >= 60 && seconds % 30 === 0) return t("rx.minutes", { n: num(seconds / 60) });
@@ -40,8 +61,8 @@ export function setParts(sets: PortalSet[], t: T): string[] {
 
   const kgs = sets.map((s) => s.targetWeightKg).filter((k): k is number => k != null && k > 0);
   const distinctKg = uniq(kgs);
-  if (distinctKg.length === 1) parts.push(t("rx.kg", { n: num(distinctKg[0]) }));
-  else if (distinctKg.length > 1) parts.push(t("rx.kg", { n: kgs.map(num).join(" / ") }));
+  if (distinctKg.length === 1) parts.push(weightText(distinctKg[0], t));
+  else if (distinctKg.length > 1) parts.push(weightText(kgs, t));
 
   const efforts = sets.map((s) => (s.targetRpe == null ? null : s.targetRpeMin != null ? `${num(s.targetRpeMin)}–${num(s.targetRpe)}` : num(s.targetRpe)));
   const distinctEffort = uniq(efforts.filter((e): e is string => e != null));
@@ -59,19 +80,109 @@ export function setParts(sets: PortalSet[], t: T): string[] {
   return parts;
 }
 
-/** A cardio prescription's parts: "40 min · zone 2 · 5 km · easy". */
-export function cardioParts(c: CardioPrescription, t: T): string[] {
+/** A time as the client reads it: "2 min", "45 s", "1:30 min". */
+export function durationText(sec: number, t: T): string {
+  if (sec < 60) return t("rx.seconds", { n: sec });
+  return t("rx.minutes", { n: sec % 60 === 0 ? sec / 60 : formatDuration(sec) });
+}
+
+/** A distance in metres: "400 m" under a kilometre (track reps stay in metres), else "1.6 km" / "0.99 mi". */
+export function metresText(m: number, t: T): string {
+  return m < 1000 ? t("rx.metres", { n: m }) : distanceText(m / 1000, t);
+}
+
+const paceText = (secPerKm: number, t: T) =>
+  units.distance === "mi" ? t("rx.paceMi", { t: formatDuration(showPace(secPerKm, "mi")) }) : t("rx.pace", { t: formatDuration(secPerKm) });
+const bpmText = (b: { min: number; max: number }) => `${b.min}–${b.max} bpm`;
+
+/** A cardio prescription's parts: "40 min · zone 2 · 123–148 bpm · 5 km · RPE 4 · easy". */
+export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "hrZone" | "distanceKm" | "targetRpe" | "intensity" | "hrBpm" | "paceSecPerKm" | "intervals">, t: T): string[] {
   const parts: string[] = [];
-  if (c.durationMin) parts.push(t("rx.minutes", { n: c.durationMin }));
-  if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));
-  if (c.distanceKm) parts.push(t("rx.km", { n: num(c.distanceKm) }));
+  // a session built from intervals shows its total time, as the coach's editor adds it up
+  const total = c.intervals?.length ? cardioTotals({ intervals: c.intervals.map((iv) => ({ ...iv })) }) : null;
+  if (total) {
+    if (total.durationSec) parts.push(durationText(total.durationSec, t));
+    if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
+  } else {
+    if (c.durationMin) parts.push(t("rx.minutes", { n: c.durationMin }));
+    if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));
+    if (c.hrBpm) parts.push(bpmText(c.hrBpm));
+    if (c.distanceKm) parts.push(distanceText(c.distanceKm, t));
+    if (c.paceSecPerKm) parts.push(paceText(c.paceSecPerKm, t));
+  }
   if (c.targetRpe) parts.push(t("rx.rpe", { n: num(c.targetRpe) }));
-  if (c.intensity) parts.push(c.intensity);
+  const intensity = coachIntensity(c.intensity);
+  if (intensity) parts.push(intensity);
   return parts;
+}
+
+/** What the member logged, for the done card: "42:05 · 6.4 km · RPE 4". */
+export function cardioActualParts(c: Pick<CardioLog, "durationSec" | "durationMin" | "distanceKm" | "rpe">, t: T): string[] {
+  const parts: string[] = [];
+  const sec = c.durationSec ?? (c.durationMin ? c.durationMin * 60 : null);
+  if (sec) parts.push(formatDuration(sec));
+  if (c.distanceKm) parts.push(distanceText(c.distanceKm, t));
+  if (c.rpe) parts.push(t("rx.rpe", { n: num(c.rpe) }));
+  return parts;
+}
+
+/** One line of the session's intervals, in order, as the client reads it. */
+export interface IntervalLine {
+  key: string;
+  kind: "easy" | "work" | "recovery";
+  name: string;
+  /** "10 min", "2 min × 5", "400 m × 6". */
+  amount: string;
+  zone: string | null;
+  bpm: string | null;
+  /** RPE, pace, or "between hard reps". */
+  extra: string | null;
+  notes: string | null;
+}
+
+const kindOf = (type: CardioIntervalType): IntervalLine["kind"] =>
+  type === "work" ? "work" : type === "active_recovery" || type === "passive_recovery" ? "recovery" : "easy";
+
+function amountOf(p: { durationSec?: number; distanceM?: number }, times: number, t: T): string {
+  const base = p.durationSec ? durationText(p.durationSec, t) : p.distanceM ? metresText(p.distanceM, t) : "";
+  return times > 1 && base ? `${base} × ${times}` : base;
+}
+
+/** The intervals line by line: each block, then its recovery between reps. */
+export function intervalLines(intervals: readonly PortalCardioInterval[], t: T): IntervalLine[] {
+  const out: IntervalLine[] = [];
+  for (const iv of intervals) {
+    const reps = iv.repeat ?? 1;
+    const extra = [iv.rpe != null ? t("rx.rpe", { n: num(iv.rpe) }) : null, iv.paceSecPerKm ? paceText(iv.paceSecPerKm, t) : null].filter(Boolean).join(" · ");
+    out.push({
+      key: iv.id,
+      kind: kindOf(iv.type),
+      name: t(`iv.${iv.type}`),
+      amount: amountOf(iv, reps, t),
+      zone: iv.hrZone ? t("iv.zone", { n: iv.hrZone }) : null,
+      bpm: iv.hrBpm ? bpmText(iv.hrBpm) : null,
+      extra: extra || null,
+      notes: iv.notes ?? null,
+    });
+    const recs = recoveryCount(iv);
+    if (iv.recovery && recs > 0) {
+      out.push({
+        key: `${iv.id}:rec`,
+        kind: "recovery",
+        name: t(`iv.${iv.recovery.type}`),
+        amount: amountOf(iv.recovery, recs, t),
+        zone: null,
+        bpm: null,
+        extra: iv.recoveryAfterLast ? t("iv.afterEach") : t("iv.between"),
+        notes: null,
+      });
+    }
+  }
+  return out;
 }
 
 /** "62.5 kg × 8 · RPE 8" — what the client did last time; RPE only when they gave it. */
 export function lastSetText(s: PortalLastSet, t: T): string {
-  const work = s.weightKg != null && s.weightKg > 0 ? t("rx.lastReps", { kg: t("rx.kg", { n: num(s.weightKg) }), reps: s.reps }) : t("rx.reps", { n: s.reps });
+  const work = s.weightKg != null && s.weightKg > 0 ? t("rx.lastReps", { kg: weightText(s.weightKg, t), reps: s.reps }) : t("rx.reps", { n: s.reps });
   return s.rpe != null ? `${work} · ${t("rx.rpe", { n: num(s.rpe) })}` : work;
 }

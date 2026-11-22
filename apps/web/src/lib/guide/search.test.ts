@@ -3,11 +3,13 @@ import { GUIDE_IDS } from "./clientPortal";
 import { PROGRAMS_GUIDE_IDS } from "./programsWeeks";
 import { commonQuestions, guideSections, guideUnits, plain, searchGuides, snippet } from "./search";
 import { TRAINER_ACCESS_IDS } from "./trainerAccess";
+import { CARDIO_GUIDE_IDS } from "./cardio";
 
 const SECTION_IDS: Record<string, readonly string[]> = {
   "/guide/programs-and-weeks": PROGRAMS_GUIDE_IDS,
   "/guide/client-portal": GUIDE_IDS,
   "/guide/trainer-access": TRAINER_ACCESS_IDS,
+  "/guide/cardio": CARDIO_GUIDE_IDS,
 };
 
 describe("guide search index", () => {
@@ -120,8 +122,8 @@ describe("empty state", () => {
 
   test("sections are grouped per guide", () => {
     const groups = guideSections("en");
-    expect(groups.map((g) => g.guide)).toEqual(["programs", "portal"]);
+    expect(groups.map((g) => g.guide)).toEqual(["programs", "portal", "cardio"]);
     expect(groups[0].units.map((u) => u.sectionId)).toEqual([...PROGRAMS_GUIDE_IDS]);
-    expect(guideSections("en", { admin: true }).map((g) => g.guide)).toEqual(["programs", "portal", "access"]);
+    expect(guideSections("en", { admin: true }).map((g) => g.guide)).toEqual(["programs", "portal", "cardio", "access"]);
   });
 });

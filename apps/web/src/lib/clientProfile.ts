@@ -1,3 +1,4 @@
+import { fmtWeight } from "./units.svelte";
 import {
   BODYWEIGHT_KG_RANGE,
   EXPERIENCE_LABEL,
@@ -21,7 +22,7 @@ export interface ProfileForm {
   longRunDay: number | null;
   /** 1RM rows being edited; rows without an exercise, kg or date are dropped on save. */
   oneRepMaxes: OneRepMaxRow[];
-  cardioUnit: "none" | "minutes" | "sessions" | "zone_minutes";
+  cardioUnit: "none" | "minutes" | "sessions" | "session_load" | "zone_minutes";
   cardioValue: number;
   goals: string;
   limitations: string;
@@ -140,6 +141,7 @@ export function profileKey(f: ProfileForm): string {
 export const CARDIO_DEFAULT: Record<Exclude<ProfileForm["cardioUnit"], "none">, number> = {
   minutes: 120,
   sessions: 2,
+  session_load: 600,
   zone_minutes: 60,
 };
 
@@ -163,7 +165,12 @@ export const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as co
 const dayList = (days: number[]) => [...days].sort((a, b) => a - b).map((d) => DAY_SHORT[d - 1]).join(" ");
 
 /** Unit word for a weekly cardio target: "120 minutes a week". */
-export const CARDIO_UNIT_WORD = { minutes: "minutes a week", sessions: "sessions a week", zone_minutes: "zone minutes a week" } as const;
+export const CARDIO_UNIT_WORD = {
+  minutes: "minutes a week",
+  sessions: "sessions a week",
+  session_load: "AU of session load a week",
+  zone_minutes: "zone minutes a week",
+} as const;
 
 type WeekFields = Pick<ProfileForm, "sessionsPerWeek" | "trainingDays" | "cardioDays" | "longRunDay" | "cardioUnit" | "cardioValue">;
 
@@ -239,6 +246,6 @@ export function basicsSummary(c: ClientDto, today: string = localIso(new Date())
   if (c.experience) parts.push(EXPERIENCE_LABEL[c.experience].label);
   if (c.birthDate) parts.push(`${ageOn(calendarDate(c.birthDate), today)} yrs`);
   if (c.sex) parts.push(c.sex === "female" ? "Female" : "Male");
-  if (c.bodyweightKg != null) parts.push(`${c.bodyweightKg} kg`);
+  if (c.bodyweightKg != null) parts.push(fmtWeight(c.bodyweightKg));
   return parts;
 }

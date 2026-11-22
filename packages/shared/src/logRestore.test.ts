@@ -63,3 +63,19 @@ describe("logToInput", () => {
     expect(out.programSessionId).toBeNull();
   });
 });
+
+describe("logToInput with cardio", () => {
+  test("deep-copies the cardio payload so the restore doesn't share interval results", () => {
+    const log: LogDtoLike = {
+      ...exerciseLog,
+      kind: "cardio",
+      sets: [],
+      cardio: { modality: "Run", durationSec: 1800, rpe: 6, intervals: [{ intervalId: "i1", rep: 1, durationSec: 180 }] } as never,
+    };
+    const input = logToInput(log);
+    const ivs = (c: unknown) => (c as { intervals: unknown[] }).intervals;
+    expect(input.cardio as unknown).toEqual(log.cardio);
+    expect(ivs(input.cardio)).not.toBe(ivs(log.cardio));
+    expect(ivs(input.cardio)).toEqual(ivs(log.cardio));
+  });
+});

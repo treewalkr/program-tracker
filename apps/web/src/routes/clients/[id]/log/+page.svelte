@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { fmtWeight, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
+  /** Weight cells hold kg; the steppers show and take the display unit. */
+  const kgCells = weightCells();
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { browser } from "$app/environment";
@@ -31,7 +34,20 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
   import ReadinessStrip from "$lib/components/log/ReadinessStrip.svelte";
-  import CardioLogForm, { type CardioForm } from "$lib/components/log/CardioLogForm.svelte";
+  import CardioLogForm from "$lib/components/log/CardioLogForm.svelte";
+  import {
+    asPrescribedForm,
+    CARDIO_FORM_ERROR,
+    cardioFormDirty,
+    cardioFormOf,
+    cardioLogOf,
+    emptyCardioForm,
+    readCardioForm,
+    type CardioForm,
+    type CardioFormError,
+  } from "$lib/cardioForm";
+  import type { ModalityDto } from "$lib/api/types";
+  import { modalityMetric } from "@pt/shared";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import ClientLoadError from "$lib/components/ClientLoadError.svelte";
@@ -99,6 +115,7 @@
     FLAG_NOTE_MAX,
     painExercises,
     readinessInput,
+    readinessRated,
     sessionFlags,
     setFlagNote,
     toggleFlag,
@@ -168,14 +185,13 @@
   /** Slot whose swap picker is open. */
   let swapOpen = $state<string | null>(null);
 
-  let cardioForm = $state<CardioForm>({
-    modality: "",
-    durationMin: "",
-    hrZone: "",
-    intensity: "",
-    distanceKm: "",
-    rpe: "",
-  });
+  let cardioForm = $state<CardioForm>(emptyCardioForm());
+  /** The form as prefilled from the plan — a draft is kept only once it differs. */
+  let cardioBase = $state<CardioForm>(emptyCardioForm());
+  /** The field the last cardio save was missing. */
+  let cardioProblem = $state<CardioFormError | null>(null);
+  let modalities = $state<ModalityDto[]>([]);
+  const cardioMetric = $derived(modalityMetric(cardioForm.modality, modalities));
 
   const slots = $derived(program ? slotIds(program) : new Map<string, string>());
   /** "Last" = the last time this prescribed slot was done (same session, same lift, same set). */
@@ -319,6 +335,15 @@
     if (session?.kind === "cardio") {
       rows = [];
       prefillCardio(session.cardio);
+      const raw = browser ? localStorage.getItem(draftKey(id, sessionId)) : null;
+      const draft = raw ? parseCardioDraft(raw) : null;
+      if (draft) {
+        cardioForm = readCardioForm(draft.cardio, cardioBase);
+        notes = draft.notes;
+        readiness = draft.readiness;
+        date = draft.date;
+        draftSavedAt = draft.savedAt;
+      }
       return;
     }
     const fresh = freshRows();
@@ -341,6 +366,39 @@
 
   let draftSavedAt = $state<string | null>(null);
   const dirty = $derived(isDirty(rows, notes, readiness, flags));
+
+  // Cardio sessions keep a draft too: the form, notes, readiness and date.
+  $effect(() => {
+    if (!program || !sessionId || !isCardioSession) return;
+    const key = draftKey(id, sessionId);
+    const body = JSON.stringify({ cardio: cardioForm, notes, readiness, date, savedAt: new Date().toISOString() });
+    if (!cardioFormDirty(cardioForm, cardioBase) && notes.trim() === "" && !readinessRated(readiness)) {
+      localStorage.removeItem(key);
+      return;
+    }
+    try {
+      localStorage.setItem(key, body);
+    } catch {
+      // Storage full or blocked: the unsaved-work prompts still guard the form.
+    }
+  });
+
+  /** A stored cardio draft (anything else under the key → null). */
+  function parseCardioDraft(raw: string): { cardio: unknown; notes: string; readiness: ReadinessForm; date: string; savedAt: string } | null {
+    try {
+      const d = JSON.parse(raw);
+      if (!d || typeof d !== "object" || !d.cardio || typeof d.date !== "string") return null;
+      return {
+        cardio: d.cardio,
+        notes: typeof d.notes === "string" ? d.notes : "",
+        readiness: d.readiness && typeof d.readiness === "object" ? { ...EMPTY_READINESS, ...d.readiness } : { ...EMPTY_READINESS },
+        date: d.date,
+        savedAt: typeof d.savedAt === "string" ? d.savedAt : "",
+      };
+    } catch {
+      return null;
+    }
+  }
 
   $effect(() => {
     if (!program || !sessionId || isCardioSession) return;
@@ -491,20 +549,11 @@
     }),
   });
 
-  /** Fill the cardio form from a prescription (or a prior actual). */
+  /** Fill the cardio form from the prescription: modality, planned time and distance, never the RPE. */
   function prefillCardio(c?: ProgramSessionDto["cardio"]) {
+    cardioBase = cardioFormOf(c);
     cardioForm = cardioFormOf(c);
-  }
-
-  function cardioFormOf(c?: ProgramSessionDto["cardio"]): CardioForm {
-    return {
-      modality: c?.modality ?? "",
-      durationMin: c?.durationMin != null ? String(c.durationMin) : "",
-      hrZone: c?.hrZone != null ? String(c.hrZone) : "",
-      intensity: c?.intensity ?? "",
-      distanceKm: c?.distanceKm != null ? String(c.distanceKm) : "",
-      rpe: c?.targetRpe != null ? String(c.targetRpe) : "",
-    };
+    cardioProblem = null;
   }
 
   /** The row with every empty cell filled from what was prescribed. Skips stay skipped. */
@@ -600,7 +649,10 @@
     };
   }
 
-  function cardioPending(form: CardioForm): Pending {
+  /** The save for a cardio form, or the field it's missing (shown on the form). */
+  function cardioPending(form: CardioForm): Pending | CardioFormError {
+    const built = cardioLogOf(form);
+    if ("error" in built) return built.error;
     return {
       input: {
         clientId: id,
@@ -610,19 +662,12 @@
         ...readinessInput(readiness),
         notes: notes || undefined,
         kind: "cardio",
-        cardio: {
-          modality: form.modality.trim(),
-          durationMin: cellNumber(form.durationMin) ?? null,
-          hrZone: cellNumber(form.hrZone) ?? null,
-          intensity: form.intensity.trim() === "" ? undefined : form.intensity.trim(),
-          distanceKm: cellNumber(form.distanceKm),
-          rpe: cellNumber(form.rpe),
-        },
+        cardio: built.cardio,
         sets: [],
       },
       sent: null,
       count: 1,
-      snapshot: { ...snapshot(rows), cardio: { ...form } },
+      snapshot: { ...snapshot(rows), cardio: $state.snapshot(form) as CardioForm },
     };
   }
 
@@ -674,6 +719,7 @@
     const replaced: RecapNote[] = saved.replaced?.length
       ? [{ tone: "muted", text: `Replaced the ${saved.replaced.map((l) => fmtDay(l.date)).join(", ")} log` }]
       : [];
+    if (p.sent === null && p.input.cardio?.skipped) return { title: `${name} noted as not done`, counts: "doesn't count toward this week's cardio, and isn't missed", notes: replaced };
     if (p.sent === null) return { title: `${name} logged`, counts: "counts toward this week's cardio", notes: replaced };
     const r = saveRecap(p.snapshot.rows, p.snapshot.flags);
     return { title: `${name} logged`, counts: recapCounts(r), notes: [...recapNotes(r, nameOf), ...replaced] };
@@ -708,13 +754,26 @@
     else await save();
   }
 
+  // A corrected field clears its error: once a save named a problem, it's re-checked as the form changes.
+  $effect(() => {
+    if (!cardioProblem) return;
+    const built = cardioLogOf(cardioForm);
+    const now = "error" in built ? built.error : null;
+    if (now === cardioProblem) return;
+    cardioProblem = now;
+    error = now ? CARDIO_FORM_ERROR[now] : null;
+  });
+
   async function saveCardio() {
     if (!program || !sessionId) return;
-    if (cardioForm.modality.trim() === "") {
-      error = "Enter the modality — what did they do?";
+    const pending = cardioPending(cardioForm);
+    if (typeof pending === "string") {
+      cardioProblem = pending;
+      error = CARDIO_FORM_ERROR[pending];
       return;
     }
-    await send(cardioPending(cardioForm));
+    cardioProblem = null;
+    await send(pending);
   }
 
   async function save() {
@@ -723,7 +782,7 @@
     if (filled.length === 0) {
       error = rows.length > 0 && rows.every((r) => r.skipped)
         ? "Every set is marked skipped — there is nothing to log."
-        : "Enter at least one set — kg or reps.";
+        : `Enter at least one set — ${weightUnit()} or reps.`;
       return;
     }
     fieldErrors = validateRows(filled);
@@ -740,13 +799,16 @@
     if (!program || !sessionId) return;
     error = null;
     if (isCardioSession) {
-      const form = cardioFormOf(selectedSession?.cardio);
-      if (form.modality.trim() === "") {
+      const form = asPrescribedForm(selectedSession?.cardio);
+      const pending = cardioPending(form);
+      if (typeof pending === "string") {
+        // Not loggable as is (no target RPE, or no time): fill in the plan and say what's missing.
         cardioForm = form;
-        error = "Enter the modality — what did they do?";
+        cardioProblem = pending;
+        error = CARDIO_FORM_ERROR[pending];
         return;
       }
-      await openAsk({ mode: "confirm", summary: null, preview: null, shown: null, pending: cardioPending(form) });
+      await openAsk({ mode: "confirm", summary: null, preview: null, shown: null, pending });
       return;
     }
     const preview = rows.map(withPrescribed);
@@ -1092,12 +1154,12 @@
   /** One set in the as-prescribed dialog: "65×5 @8", "BW×12", "—×5" (no load), "45 s". */
   const fmtPreviewSet = (r: Row) => {
     const reps = `${r.reps}${r.timed ? " s" : ""}`;
-    const kg = !isBlank(r.weight) ? String(r.weight) : isBodyweight(r.exerciseId) ? "BW" : "—";
+    const kg = !isBlank(r.weight) ? String(typeof r.weight === "number" ? showWeight(r.weight) : r.weight) : isBodyweight(r.exerciseId) ? "BW" : "—";
     const load = r.timed && isBlank(r.weight) ? reps : `${kg}×${reps}`;
     return isBlank(r.rpe) ? load : `${load} @${r.rpe}`;
   };
   const fmtLast = (l: LastSet | null, timed: boolean) =>
-    l == null ? "—" : `${l.weightKg != null ? `${l.weightKg} × ` : ""}${l.reps}${timed ? " s" : ""}`;
+    l == null ? "—" : `${l.weightKg != null ? `${showWeight(l.weightKg)} × ` : ""}${l.reps}${timed ? " s" : ""}`;
   const fmtRx = (r: Row) =>
     r.rx
       ? `${fmtSet({ reps: r.rx.reps, repsMin: r.rx.repsMin ?? undefined, amrap: r.rx.amrap, durationSeconds: r.rx.durationSeconds ?? undefined, targetWeightKg: r.rx.targetWeightKg, targetRpe: r.rx.targetRpe })}${r.rx.targetRpe != null && !r.rx.amrap ? ` @ ${r.rx.targetRpe}` : ""}`
@@ -1126,6 +1188,8 @@
   async function firstLoad() {
     const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
     catalog = exercises;
+    // The modality picker; a failed read leaves the free-text field's list empty, nothing else.
+    api.modalities().then((m) => (modalities = m), () => {});
     client = detail.client;
     program = detail.currentProgram;
     pastLogs = await api.sessionLogs(id);
@@ -1168,7 +1232,7 @@
       {/snippet}
       <div class="sheet">
         <div class="cols">
-          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">kg</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">{weightUnit()}</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
         </div>
       </div>
       <div class="panel-body foot">
@@ -1290,15 +1354,15 @@
         <ReadinessStrip bind:value={readiness} bind:open={readinessOpen} />
       {/if}
       {#if isCardioSession}
-        <CardioLogForm bind:value={cardioForm} />
+        <CardioLogForm bind:value={cardioForm} modalities={modalities.filter((m) => !m.archivedAt)} metric={cardioMetric} problem={cardioProblem} plannedSec={cardioBase.durationSec} />
         <div class="panel-body foot">
           <div class="notes">
             <Field label="Session notes" htmlFor="log-notes">
-              <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
+              <input class="input" id="log-notes" placeholder="How it went, how it felt…" bind:value={notes} maxlength="2000" />
             </Field>
           </div>
         </div>
-        {@render saveBar("cardio session — counts toward the weekly target")}
+        {@render saveBar(cardioForm.skipped ? "not done — doesn't count, isn't missed" : "cardio session — counts toward the weekly target")}
       {:else}
       <div class="sheet" id="log-sheet">
         {#if blocks.length > 1}
@@ -1329,7 +1393,7 @@
         {/if}
 
         <div class="cols" aria-hidden="true">
-          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">kg</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
+          <span>Set</span><span>Prescribed</span><span class="r">Last</span><span class="r">{weightUnit()}</span><span class="r">Reps</span><span class="r">RPE</span><span></span>
         </div>
 
         {#snippet exHead(b: { programExerciseId: string; rows: Row[] }, tag: string | null)}
@@ -1459,9 +1523,9 @@
                     {fmtRx(r)}
                     {#if chip != null && sg}
                       <!-- A tap explains first: the load differs from the plan, so the trainer sees why before using it. -->
-                      <button type="button" class="sugg-chip" title={`Suggested ${chip} kg · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${chip} kg for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {chip}</button>
+                      <button type="button" class="sugg-chip" title={`Suggested ${fmtWeight(chip)} · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(chip)} for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {showWeight(chip)}</button>
                     {:else if sg && r.rx?.targetWeightKg == null && isBlank(r.weight)}
-                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${sg.kg} kg for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
+                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(sg.kg)} for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
                     {/if}
                   </span>
                   <span class="m-last tnum" title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>
@@ -1473,7 +1537,7 @@
                 {:else}
                   {@const hint = (f: SheetField) => (lastCell?.key === r.key && lastCell.field === f ? "done" : "next")}
                   <div class="c-kg" data-cell={`${r.key}:weight`}>
-                    <LogStepper bind:value={r.weight} label={`${label}, kg`} unit="kg" step={2.5} min={0} max={600} from={p.weight} placeholder={p.weight != null ? String(p.weight) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
+                    <LogStepper bind:value={() => kgCells.get(r.key, r.weight), (v) => (r.weight = kgCells.set(r.key, v))} label={`${label}, ${weightUnit()}`} unit={weightUnit()} step={weightStepIn()} min={0} max={Math.ceil(showWeight(600))} from={p.weight != null ? showLoad(p.weight) : null} placeholder={p.weight != null ? String(showLoad(p.weight)) : "—"} error={fe?.weight} errorId={`${r.key}-weight-err`} copied={isCopied(r, "weight")} enterkeyhint={hint("weight")} onedit={() => edited(r.key, "weight")} oncommit={() => fillKg(r.key)} />
                   </div>
                   <div class="c-reps" data-cell={`${r.key}:reps`}>
                     <LogStepper bind:value={r.reps} label={`${label}, ${r.timed ? "seconds" : "reps"}`} unit={r.timed ? "sec" : "reps"} step={r.timed ? 5 : 1} min={0} max={r.timed ? 3600 : 200} from={p.reps} inputmode="numeric" placeholder={p.reps != null ? String(p.reps) : r.rx?.amrap ? "max" : "—"} error={fe?.reps} errorId={`${r.key}-reps-err`} enterkeyhint={hint("reps")} onedit={() => edited(r.key, "reps")} />
@@ -1501,7 +1565,7 @@
                       <span class="cl-src">
                         {why.text}
                         {#if why.use != null && sg}
-                          <button type="button" class="cl-use" aria-label={`Use ${why.use} kg for ${label}`} onclick={() => useSuggestion(r.key, sg)}>Use {why.use} kg</button>
+                          <button type="button" class="cl-use" aria-label={`Use ${fmtWeight(why.use)} for ${label}`} onclick={() => useSuggestion(r.key, sg)}>Use {fmtWeight(why.use)}</button>
                         {/if}
                       </span>
                     {/if}

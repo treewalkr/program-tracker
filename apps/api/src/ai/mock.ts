@@ -9,6 +9,19 @@ import {
   type WeekDirective,
 } from "@pt/shared";
 
+/** The mock's cardio: 30 minutes as structured intervals, so mock mode shows them end to end. */
+const mockCardio = (): NonNullable<DraftSession["cardio"]> => ({
+  modality: "Bike",
+  durationMin: 30,
+  hrZone: 2,
+  targetRpe: 5,
+  intervals: [
+    { id: "wu", type: "warmup", repeat: 1, durationSec: 480, hrZone: 2 },
+    { id: "reps", type: "work", repeat: 4, durationSec: 180, hrZone: 4, rpe: 7, recovery: { type: "active_recovery", durationSec: 120 } },
+    { id: "cd", type: "cooldown", repeat: 1, durationSec: 240, hrZone: 1 },
+  ],
+});
+
 const sets = (n: number, reps: number, rest: number, extra: Partial<DraftSession["exercises"][number]["prescribedSets"][number]> = {}) =>
   Array.from({ length: n }, (_, i) => ({ setNumber: i + 1, type: "working" as const, reps, amrap: false, targetRpe: 8, restSeconds: rest, ...extra }));
 
@@ -43,7 +56,7 @@ const ROUTINE_A: DraftSession[] = [
       },
     ],
   },
-  { name: "Cardio 1", weekday: 3, kind: "cardio", cardio: { modality: "Bike", durationMin: 30, hrZone: 2 }, exercises: [] },
+  { name: "Cardio 1", weekday: 3, kind: "cardio", cardio: mockCardio(), exercises: [] },
 ];
 
 /** Week B: same days, different lifts. */
@@ -66,7 +79,7 @@ const ROUTINE_B: DraftSession[] = [
       { exerciseName: "Lat Pulldown", role: "accessory", prescribedSets: sets(3, 10, 90) },
     ],
   },
-  { name: "Cardio 1", weekday: 3, kind: "cardio", cardio: { modality: "Bike", durationMin: 30, hrZone: 2 }, exercises: [] },
+  { name: "Cardio 1", weekday: 3, kind: "cardio", cardio: mockCardio(), exercises: [] },
 ];
 
 /** base → +volume → +intensity → … with the last week a deload (blocks of 4+). */

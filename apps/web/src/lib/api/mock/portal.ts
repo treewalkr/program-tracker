@@ -13,7 +13,16 @@ import {
   portalCardio,
   portalSessions,
   portalWeekLabel,
+  profileOn,
+  sessionDateIn,
   weekOf,
+  DisplayUnits,
+  displayUnitsOf,
+  cardioWeekTotals,
+  isoWeekStart,
+  portalCardioLog,
+  PortalProgressDto,
+  type Vo2Protocol,
   weekSessions,
   type Equipment,
   type PortalWeek,
@@ -22,9 +31,9 @@ import {
   normalizeKind,
 } from "@pt/shared";
 import { uuid } from "$lib/uuid";
-import { mockExerciseName, mockState } from "./api";
+import { mockExerciseName, mockLogPrescription, mockState } from "./api";
 import { exercises } from "./data";
-import { trainerClient } from "./data";
+import { nokClient, trainerClient } from "./data";
 import { withKindAlias } from "./kindAlias";
 import { PortalDuplicateError, type PortalApi, type PortalLogInput, type PortalSavedLog } from "../portalTypes";
 
@@ -35,17 +44,19 @@ import { PortalDuplicateError, type PortalApi, type PortalLogInput, type PortalS
  */
 
 export const MOCK_TRAINER_NAME = "Coach Ploy";
-const CLIENT_ID = trainerClient.id;
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Demo states for browser checks, picked with `?mock=` on any portal URL and
  * kept for the tab: `empty` (no program yet), `midweek` (the block week
- * started 3 days ago, so earlier days are open), `off` clears it. Link token
- * `expired` (`/me/link/expired`) is always the dead-link page.
+ * started 3 days ago, so earlier days are open), `cardio` (Nok, the cardio
+ * member: intervals with bpm targets, coach feedback, VO₂max tests), `off`
+ * clears it. Link token `expired` (`/me/link/expired`) is always the dead-link page.
  */
-export type MockPortalScenario = "empty" | "midweek" | null;
+export type MockPortalScenario = "empty" | "midweek" | "cardio" | null;
+const SCENARIOS = ["empty", "midweek", "cardio"] as const;
+const isScenario = (v: string | null): v is Exclude<MockPortalScenario, null> => (SCENARIOS as readonly (string | null)[]).includes(v);
 const SCENARIO_KEY = "pt.mock.portal";
 export const EXPIRED_TOKEN = "expired";
 
@@ -55,36 +66,42 @@ export function mockScenario(): MockPortalScenario {
   try {
     if (asked) sessionStorage.setItem(SCENARIO_KEY, asked === "off" ? "" : asked);
     const v = sessionStorage.getItem(SCENARIO_KEY);
-    return v === "empty" || v === "midweek" ? v : null;
+    return isScenario(v) ? v : null;
   } catch {
-    return asked === "empty" || asked === "midweek" ? asked : null;
+    return isScenario(asked) ? asked : null;
   }
 }
+
+/** The demo member: Nattapong, or Nok in the `cardio` scenario. */
+const demoClient = (scenario = mockScenario()) => (scenario === "cardio" ? nokClient : trainerClient);
+const clientIdOf = (scenario = mockScenario()) => demoClient(scenario).id;
 
 /**
  * Stable session ids for the demo: the trainer mock mints fresh uuids on every
  * load, so `/me/log/<id>` would die on reload. This week's sessions read
- * `ps-nat-<n>` (n = 1… in the week's session order), next week's `ps-nat-next-<n>`; a save maps back.
+ * `ps-nat-<n>` (n = 1… in the week's session order; `ps-nok-<n>` for Nok), next
+ * week's `ps-nat-next-<n>`; a save maps back.
  */
 const realIdOf = new Map<string, string>();
-const aliasOf = (real: string, n: number, loggable: boolean) => {
-  const alias = loggable ? `ps-nat-${n}` : `ps-nat-next-${n}`;
+const aliasOf = (real: string, n: number, loggable: boolean, clientId: string) => {
+  const who = clientId.replace(/^cl-/, "");
+  const alias = loggable ? `ps-${who}-${n}` : `ps-${who}-next-${n}`;
   realIdOf.set(alias, real);
   return alias;
 };
 const realId = (id: string) => realIdOf.get(id) ?? id;
 
-function activeProgram() {
+function activeProgram(clientId: string) {
   return (
     mockState.programs
-      .filter((p) => p.clientId === CLIENT_ID && p.status === "active")
+      .filter((p) => p.clientId === clientId && p.status === "active")
       .sort((a, b) => (b.activatedAt ?? "").localeCompare(a.activatedAt ?? ""))[0] ?? null
   );
 }
 
 function context(now = Date.now(), scenario = mockScenario()) {
   if (scenario === "empty") return null;
-  const program = activeProgram();
+  const program = activeProgram(clientIdOf(scenario));
   if (!program) return null;
   const logs = mockState.logs.filter((l) => l.programId === program.id).map((l) => ({ programId: l.programId, date: l.date, sets: [] }));
   const currentWeek = weekOf(program, logs, now);
@@ -105,10 +122,11 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   const ctx = context(now, scenario);
   if (!ctx) return { program: null, currentWeek: null, weeks: [] };
   const { program, currentWeek, startDate, started } = ctx;
+  const CLIENT_ID = clientIdOf(scenario);
   const maxes = mockState.clients.find((c) => c.id === CLIENT_ID)?.oneRepMaxes ?? null;
   const mine = mockState.logs.filter((l) => l.clientId === CLIENT_ID && l.programId === program.id);
   const done = latestLogBySession(
-    mine.map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer" })),
+    mine.map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer", cardio: l.cardio ?? null })),
   );
   // the client's own log carries what they entered, like the API
   for (const [sid, log] of done) {
@@ -119,6 +137,8 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
     isBodyweight: (id: string) => loadStep(exercises.find((e) => e.id === id)?.equipment as Equipment | undefined) === null,
     lastWeights: lastWeightsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID)),
     lastSets: lastSetsOf(mockState.logs.filter((l) => l.clientId === CLIENT_ID), startDate),
+    // the zones in effect today, so a zone target shows as bpm like the API
+    hrZones: profileOn(mockState.hrProfiles.filter((p) => p.clientId === CLIENT_ID), localDateOf(now))?.zones ?? null,
   };
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
@@ -132,9 +152,12 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
       loggable: week === currentWeek && started,
       weekLabel: portalWeekLabel(program.phasing, week),
       sessions: doc
-        ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), loads).map((s, i) => ({
+        ? portalSessions(named(doc.sessions), maxes, (id) => (week === currentWeek ? (done.get(id) ?? null) : null), {
+            ...loads,
+            hrZonesFor: (weekday) => profileOn(mockState.hrProfiles.filter((p) => p.clientId === CLIENT_ID), sessionDateIn(start, weekday))?.zones ?? null,
+          }).map((s, i) => ({
             ...s,
-            id: aliasOf(s.id, i + 1, week === currentWeek),
+            id: aliasOf(s.id, i + 1, week === currentWeek, CLIENT_ID),
           }))
         : [],
     });
@@ -144,20 +167,85 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio };
 }
 
+/** Same shape and rules as `GET /v1/portal/progress`: this week, the recent cardio, one VO₂max trend. */
+export function mockPortalProgress(now = Date.now(), asked?: Vo2Protocol | null, scenario = mockScenario()): PortalProgressDto {
+  const client = demoClient(scenario);
+  const weekStart = isoWeekStart(new Date(now));
+  const cardio = mockState.logs.filter((l) => l.clientId === client.id && l.kind === "cardio");
+  const thisWeek = cardio.filter((l) => l.date >= weekStart).map((l) => ({ date: l.date, kind: l.kind, cardio: l.cardio ?? null }));
+  const { minutes, sessions, load, byModality } = cardioWeekTotals(thisWeek, weekStart);
+  const recent = [...cardio]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, RECENT_CARDIO)
+    .map((l) =>
+      portalCardioLog({
+        id: l.sessionLogId,
+        date: l.date,
+        cardio: l.cardio ?? null,
+        loggedBy: l.loggedBy ?? "trainer",
+        trainerFeedback: l.trainerFeedback ?? null,
+        reviewedAt: l.reviewedAt ?? null,
+      }),
+    );
+  const tests = mockState.assessments.filter((a) => a.clientId === client.id).sort((a, b) => a.testedOn.localeCompare(b.testedOn));
+  const protocols = [...new Set([...tests].reverse().map((a) => a.protocol))];
+  const protocol = asked && protocols.includes(asked) ? asked : (protocols[0] ?? null);
+  return PortalProgressDto.parse({
+    week: { minutes, sessions, load, byModality },
+    target: portalCardio(client.cardioTarget ?? null, thisWeek, now),
+    recent,
+    vo2: { protocols, protocol, points: tests.filter((a) => a.protocol === protocol).map((a) => ({ testedOn: a.testedOn, value: a.result })) },
+  });
+}
+
+/** The demo members' display units, kept for the tab like the API keeps them per client. */
+const UNITS_KEY = "pt.mock.portalUnits";
+function storedUnits(): Record<string, DisplayUnits> {
+  try {
+    return JSON.parse(sessionStorage.getItem(UNITS_KEY) ?? "{}") as Record<string, DisplayUnits>;
+  } catch {
+    return {};
+  }
+}
+
+/** As many recent cardio logs as the API sends. */
+const RECENT_CARDIO = 12;
+
 const fail = (status: number, message: string) => Object.assign(new Error(message), { status });
 
 const rawMockPortalApi: PortalApi = {
   async session() {
-    return { kind: "signedIn", me: { client: { id: CLIENT_ID, name: trainerClient.name }, trainer: { name: MOCK_TRAINER_NAME } } };
+    const c = demoClient();
+    return { kind: "signedIn", me: { client: { id: c.id, name: c.name }, trainer: { name: MOCK_TRAINER_NAME } } };
   },
   async week() {
     await delay(250);
     return mockPortalWeek();
   },
+  async settings() {
+    await delay(150);
+    return { units: displayUnitsOf(storedUnits()[clientIdOf()]) };
+  },
+  async saveSettings(units) {
+    await delay(250);
+    const parsed = DisplayUnits.safeParse(units);
+    if (!parsed.success) throw fail(422, "invalid units");
+    try {
+      sessionStorage.setItem(UNITS_KEY, JSON.stringify({ ...storedUnits(), [clientIdOf()]: parsed.data }));
+    } catch {
+      // no storage: the choice lasts until reload
+    }
+    return { units: parsed.data };
+  },
+  async progress(protocol) {
+    await delay(250);
+    return mockPortalProgress(Date.now(), protocol);
+  },
   async log(asked: PortalLogInput): Promise<PortalSavedLog> {
     await delay(450);
     const alias = asked.programSessionId;
     const input = { ...asked, programSessionId: realId(alias) };
+    const CLIENT_ID = clientIdOf();
     // same rules as the API: the phone's date within a day of ours, nothing before the week
     const today = portalToday(input.today ?? localDateOf(Date.now()), Date.now());
     if (!today) throw fail(422, "check the date on your phone");
@@ -185,6 +273,8 @@ const rawMockPortalApi: PortalApi = {
       clientId: CLIENT_ID,
       programId: ctx.program.id,
       programSessionId: input.programSessionId,
+      // the session as prescribed, kept with the log like the API
+      prescription: mockLogPrescription(ctx.program.id, input.programSessionId, CLIENT_ID, input.date),
       date: input.date,
       kind: normalizeKind(input.kind ?? "exercises"),
       cardio: input.cardio ?? null,
@@ -199,6 +289,7 @@ const rawMockPortalApi: PortalApi = {
   },
   async deleteLog(id) {
     await delay(200);
+    const CLIENT_ID = clientIdOf();
     // like the API: only a log whose session is in this week
     const own = mockState.logs.find((l) => l.sessionLogId === id && l.clientId === CLIENT_ID && l.loggedBy === "client");
     const ctx = context();
@@ -212,7 +303,7 @@ const rawMockPortalApi: PortalApi = {
   async linkInfo(token) {
     await delay(150);
     if (token === EXPIRED_TOKEN) return null;
-    return { clientFirstName: trainerClient.name.split(/\s+/)[0], trainerName: MOCK_TRAINER_NAME };
+    return { clientFirstName: demoClient().name.split(/\s+/)[0], trainerName: MOCK_TRAINER_NAME };
   },
   async openLink() {
     await delay(200);

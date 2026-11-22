@@ -29,7 +29,14 @@ import type {
   GenerationKind,
   SlotChange,
   CardioLog,
+  CardioMetric,
   CardioTarget,
+  CardioTemplatePrescription,
+  DisplayUnits,
+  HrZoneMethod,
+  HrZones,
+  LogPrescription,
+  Vo2Protocol,
   DeloadSettings,
   OneRepMaxes,
   ClientExperience,
@@ -129,6 +136,10 @@ export const trainers = pgTable("trainers", {
   hiddenSchemePresets: text("hidden_scheme_presets").array().notNull().default(sql`'{}'::text[]`),
   /** The generate page's last Weeks choice (FB-013); null = same every week. */
   lastWeeksChoice: text("last_weeks_choice").$type<WeeksChoice>(),
+  /** kg/lb and km/mi for showing and entering values; null = metric. Storage stays metric. */
+  displayUnits: jsonb("display_units").$type<DisplayUnits>(),
+  /** Built-in cardio templates (CARDIO_TEMPLATE_PRESETS keys) this trainer has hidden. */
+  hiddenCardioPresets: text("hidden_cardio_presets").array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -191,6 +202,8 @@ export const clients = pgTable("clients", {
   portalToken: text("portal_token").unique(),
   /** Last portal visit, stamped at most hourly. */
   portalLastSeenAt: timestamp("portal_last_seen_at", { withTimezone: true }),
+  /** The member's own kg/lb and km/mi choice in the portal; null = metric. */
+  displayUnits: jsonb("display_units").$type<DisplayUnits>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -297,8 +310,103 @@ export const sessionLogs = pgTable("session_logs", {
   loggedBy: text("logged_by").$type<LoggedBy>().notNull().default("trainer"),
   /** Minutes from the first entry to Save, when the client logged it live in the portal; null otherwise. */
   durationMin: integer("duration_min"),
+  /** The prescribed session this log fulfils, copied when the log was written; null on older and freestyle logs. */
+  prescription: kindJsonb<LogPrescription>()("prescription"),
+  /** Coach review stamp; null = not reviewed. */
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy: uuid("reviewed_by").references(() => trainers.id, { onDelete: "set null" }),
+  /** The coach's note on this log, shown to the member in the portal. */
+  trainerFeedback: text("trainer_feedback"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Cardio module (docs/cardio-plan.md)
+// ---------------------------------------------------------------------------
+
+/** Versioned HR zones per member: a change adds a version; logs resolve by date (profileOn). */
+export const clientHrProfiles = pgTable(
+  "client_hr_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** 1, 2, 3… per client; unique per client in code. */
+    version: integer("version").notNull(),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    method: text("method").$type<HrZoneMethod>().notNull(),
+    restingHr: integer("resting_hr"),
+    maxHr: integer("max_hr"),
+    maxHrTestedOn: date("max_hr_tested_on", { mode: "string" }),
+    lthr: integer("lthr"),
+    /** Five bpm bands, computed by the server (or the trainer's custom table). */
+    zones: jsonb("zones").$type<HrZones>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("client_hr_profiles_client_effective_idx").on(t.clientId, t.effectiveFrom)]
+);
+export type ClientHrProfileRow = typeof clientHrProfiles.$inferSelect;
+
+/** VO2max field tests; `result` is computed by the server from `inputs` with the shared formula. */
+export const assessments = pgTable(
+  "assessments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    protocol: text("protocol").$type<Vo2Protocol>().notNull(),
+    formulaVersion: text("formula_version").notNull(),
+    testedOn: date("tested_on", { mode: "string" }).notNull(),
+    inputs: jsonb("inputs").$type<Record<string, number>>().notNull(),
+    result: real("result").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("assessments_client_tested_idx").on(t.clientId, t.testedOn)]
+);
+export type AssessmentRow = typeof assessments.$inferSelect;
+
+/** A trainer's saved cardio templates (the built-in ones live in code). */
+export const cardioTemplates = pgTable(
+  "cardio_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prescription: jsonb("prescription").$type<CardioTemplatePrescription>().notNull(),
+    /** The preset key or template id it was saved from. */
+    basedOn: text("based_on"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("cardio_templates_trainer_idx").on(t.trainerId)]
+);
+export type CardioTemplateRow = typeof cardioTemplates.$inferSelect;
+
+/** Cardio modalities, managed like session types: presets (archive/restore) plus the trainer's own. */
+export const cardioModalities = pgTable(
+  "cardio_modalities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainerId: uuid("trainer_id")
+      .notNull()
+      .references(() => trainers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    metric: text("metric").$type<CardioMetric>().notNull(),
+    /** A MODALITY_PRESETS key = a locked preset; null = the trainer's own. */
+    presetKey: text("preset_key"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("cardio_modalities_trainer_name_idx").on(t.trainerId, sql`lower(${t.name})`)]
+);
+export type CardioModalityRow = typeof cardioModalities.$inferSelect;
 
 export const setLogs = pgTable("set_logs", {
   id: uuid("id").primaryKey().defaultRandom(),

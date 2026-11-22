@@ -106,6 +106,27 @@ describe("applyForward", () => {
     expect(ProgramWeeksDocument.safeParse(r.weeks).success).toBe(true);
   });
 
+  test("an added cardio session is deep-copied into each later week", () => {
+    const weeks = block(3);
+    const after = clone(weeks[0]);
+    const cardio: ProgramSession = {
+      id: crypto.randomUUID(),
+      name: "Intervals",
+      seq: 1,
+      weekday: 5,
+      order: 0,
+      kind: "cardio",
+      exercises: [],
+      cardio: { modality: "Run", intervals: [{ id: "i1", type: "work", repeat: 4, durationSec: 180 }] },
+    };
+    after.sessions.push(cardio);
+    const r = applyForward(weeks, 1, weekStructureDiff(weeks[0], after), { targets: [2, 3], ...noLogs });
+    const [a, b] = [r.weeks[1], r.weeks[2]].map((w) => w.sessions.find((s) => s.kind === "cardio")!.cardio!.intervals!);
+    expect(a).toEqual(b);
+    expect(a).not.toBe(b);
+    expect(a[0]).not.toBe(b[0]);
+  });
+
   test("a session whose key the target already has is skipped", () => {
     const weeks = block(3);
     weeks[2].sessions.push(session(3, "Other", [ex("curl")], 5));

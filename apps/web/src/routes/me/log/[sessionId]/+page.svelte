@@ -1,20 +1,24 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { page } from "$app/state";
-  import { addDays, localDateOf, type PortalSession, type PortalWeek } from "@pt/shared";
+  import { addDays, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
   import { blocksOf, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
   import LogStepper from "$lib/components/LogStepper.svelte";
   import ReadinessStrip, { type ReadinessText } from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm, { type CardioForm, type CardioFormText } from "$lib/components/log/CardioLogForm.svelte";
+  import { cardioLogOf, type CardioFormError } from "$lib/cardioForm";
+  import type { MessageKey } from "$lib/portal/messages";
   import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
+  import { modalityName, modalityStored } from "$lib/portal/modality";
   import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
   import {
     buildPortalLog,
     cardioFormOf,
     cachedSession,
+    defaultLogDate,
     extraRow,
     formOfSession,
     parsePortalDraft,
@@ -35,8 +39,12 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import { showLoad, units, weightCells, weightStepIn } from "$lib/units.svelte";
 
   let { data } = $props();
+  /** Weight cells in the member's unit (kg passes straight through). */
+  const kgCells = weightCells();
+  const wUnit = $derived(units.weight === "lb" ? t("log.lb") : t("log.kg"));
   const me = $derived(data.portal.kind === "signedIn" ? data.portal.me : null);
 
   const sessionId = $derived(page.params.sessionId ?? "");
@@ -68,7 +76,7 @@
   let kgChecked = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
-  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean } | null>(null);
+  let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean; pain: boolean } | null>(null);
   let undoing = $state(false);
   let undone = $state(false);
 
@@ -79,7 +87,7 @@
   const block = $derived(blocks[Math.min(current, blocks.length - 1)] ?? null);
   /** The form as the page opened it — nothing touched yet, so nothing worth a draft. */
   /** The form as the page opened it — the client's own saved log, else the plan. */
-  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, today);
+  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, defaultLogDate(s, week?.startDate ?? null, today));
   const pristine = $derived(session ? freshForm(session).rows : []);
   const touched = $derived(touchedExercises(pristine, rows));
   const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
@@ -142,7 +150,7 @@
       return;
     }
     fresh(s);
-    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows);
+    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows, cardioFormOf(s.cardio));
     if (draft && !sameForm(draft, freshForm(s))) {
       rows = draft.rows;
       cardio = draft.cardio;
@@ -150,7 +158,7 @@
       notes = draft.notes;
       flags = draft.flags;
       startedAt = draft.startedAt ?? null;
-      date = draft.date >= minDate && draft.date <= maxDate ? draft.date : today;
+      date = draft.date >= minDate && draft.date <= maxDate ? draft.date : freshForm(s).date;
       restored = true;
     }
     loadState = "ready";
@@ -231,6 +239,7 @@
   async function save() {
     if (!session || saving) return;
     error = null;
+    cardioProblem = null;
     const built = buildPortalLog(session, { rows, cardio, readiness, notes, date, flags, startedAt }, byYou);
     if ("error" in built) {
       if (built.error === "kg") {
@@ -238,14 +247,19 @@
         await jumpToMissing();
         return;
       }
-      error = built.error === "nothing" ? t("log.nothing") : t("log.cardioNeedsActivity");
+      if (built.error === "nothing") {
+        error = t("log.nothing");
+        return;
+      }
+      cardioProblem = built.error === "activity" ? "modality" : built.error;
+      error = cardioErrorText(cardioProblem);
       return;
     }
     saving = true;
     try {
       const log = await portalApi.log(built.input);
       localStorage.removeItem(portalDraftKey(session.id));
-      saved = { log, sets: built.sets, replaced: byYou };
+      saved = { log, sets: built.sets, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
       undone = false;
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -255,7 +269,8 @@
         if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
       } else {
         const status = (e as { status?: unknown }).status;
-        error = status === 422 ? t("log.notThisWeek") : t("log.error");
+        // the server's schema refused a value: say so, never "check your connection"
+        error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
       }
     } finally {
       saving = false;
@@ -286,15 +301,80 @@
     },
     valueLabel: (label, v, max) => t("log.scaleValue", { label, v, max }),
   });
+  const CARDIO_ERROR_KEY: Record<CardioFormError, MessageKey> = {
+    modality: "log.cardioNeedsActivity",
+    duration: "log.cardioNeedsDuration",
+    durationRange: "log.cardioDurationRange",
+    rpe: "log.cardioNeedsRpe",
+    maxHr: "log.cardioMaxHr",
+    avgHrRange: "log.cardioAvgHrRange",
+    maxHrRange: "log.cardioMaxHrRange",
+    distanceRange: "log.cardioDistanceRange",
+    caloriesRange: "log.cardioCaloriesRange",
+    intervalRange: "log.cardioIntervalRange",
+  };
   const cardioText: CardioFormText = $derived({
     modality: t("cardio.activity"),
     modalityPlaceholder: t("cardio.activityPlaceholder"),
-    minutes: t("cardio.minutes"),
-    hrZone: t("cardio.zone"),
-    intensity: t("cardio.intensity"),
-    intensityPlaceholder: t("cardio.intensityPlaceholder"),
-    km: t("cardio.km"),
+    duration: t("cardio.duration"),
+    durationHint: t("cardio.durationHint"),
+    underPlan: t("cardio.underPlan"),
     rpe: t("cardio.rpe"),
+    rpeHint: t("cardio.rpeHint"),
+    rpeFeel: [t("rpe.feel1"), t("rpe.feel2"), t("rpe.feel3"), t("rpe.feel4"), t("rpe.feel5")],
+    distance: t("cardio.distance"),
+    avgHr: t("cardio.avgHr"),
+    maxHr: t("cardio.maxHr"),
+    pain: t("cardio.pain"),
+    painNote: t("cardio.painNote"),
+    painSafety: t("cardio.painSafety"),
+    more: t("cardio.more"),
+    calories: t("cardio.calories"),
+    intervals: t("cardio.intervals"),
+    intervalsHint: t("cardio.intervalsHint"),
+    rep: t("cardio.rep"),
+    time: t("cardio.time"),
+    pace: t("cardio.pace"),
+    load: t("cardio.load"),
+    skip: t("cardio.skip"),
+    skipped: t("cardio.skipped"),
+    skipReason: t("cardio.skipReason"),
+    undoSkip: t("cardio.undoSkip"),
+    reasons: { time: t("log.reason.time"), pain: t("log.reason.pain"), equipment: t("log.reason.equipment"), other: t("log.reason.other") },
+    modalityError: t("log.cardioNeedsActivity"),
+    maxHrError: t("log.cardioMaxHr"),
+    minutes: t("cardio.min"),
+    types: {
+      warmup: t("iv.warmup"),
+      work: t("iv.work"),
+      active_recovery: t("iv.active_recovery"),
+      passive_recovery: t("iv.passive_recovery"),
+      cooldown: t("iv.cooldown"),
+    },
+    repOf: t("cardio.repOf"),
+    optional: t("log.optional"),
+    distanceUnits: { km: t("cardio.km"), mi: t("cardio.mi") },
+    errors: Object.fromEntries(Object.entries(CARDIO_ERROR_KEY).map(([k, key]) => [k, t(key)])) as Record<CardioFormError, string>,
+    junkTime: t("input.junkTime"),
+    timePlaceholder: t("input.timePlaceholder"),
+    rangeWords: { between: t("input.between"), atLeast: t("input.atLeast"), atMost: t("input.atMost") },
+    paceWords: { perKm: t("unit.perKm"), perMi: t("unit.perMi"), per500m: t("unit.per500m"), kmh: t("unit.kmh"), mph: t("unit.mph") },
+    kcal: t("unit.kcal"),
+    // the member sees load as a plain number; AU is the coach's word
+    loadUnit: "",
+    stepWords: { up: t("input.increase"), down: t("input.decrease") },
+  });
+  /** The cardio field the last save was missing: ringed in the form as well as named by the save bar. */
+  let cardioProblem = $state<CardioFormError | null>(null);
+  const cardioErrorText = (e: CardioFormError) => t(CARDIO_ERROR_KEY[e]);
+  // A corrected field clears its error: once a save named a problem, it's re-checked as the form changes.
+  $effect(() => {
+    if (!cardioProblem) return;
+    const built = cardioLogOf(cardio);
+    const now = "error" in built ? built.error : null;
+    if (now === cardioProblem) return;
+    cardioProblem = now;
+    error = now ? cardioErrorText(now) : null;
   });
 
   /** "Target 6–8 reps · 100 kg · RPE 8" — the plan beside the cells, always with its unit. */
@@ -315,15 +395,17 @@
   const after = $derived.by(() => {
     if (!saved || !week || !session) return null;
     const id = session.id;
-    const log = { id: saved.log.id, loggedBy: "client" as const, date: saved.log.date };
+    const log = { id: saved.log.id, loggedBy: "client" as const, date: saved.log.date, ...(savedSkipped ? { skipped: true } : {}) };
     const w: PortalWeek = { ...week, sessions: week.sessions.map((s) => (s.id === id ? { ...s, log } : s)) };
     const next = focusSession(w, today);
     const day = next ? (dayGroups(w, today).find((g) => g.sessions.some((s) => s.id === next.id)) ?? null) : null;
     const when = !day ? "" : day.weekday === 0 ? t("week.anyDay") : day.isToday ? t("week.today") : weekdayName(day.weekday);
     return { done: doneCount(w), total: w.sessions.length, next, when };
   });
+  /** The save said "didn't do it": noted, never counted as done. */
+  const savedSkipped = $derived(!!saved?.skipped);
   const savedLine = $derived(
-    !saved ? "" : cardioSession ? t("log.savedCardio") : saved.sets === 1 ? t("log.savedOneSet") : t("log.savedSets", { n: saved.sets }),
+    !saved ? "" : savedSkipped ? t("log.savedSkippedLine") : cardioSession ? t("log.savedCardio") : saved.sets === 1 ? t("log.savedOneSet") : t("log.savedSets", { n: saved.sets }),
   );
 </script>
 
@@ -356,9 +438,14 @@
       <h1>{t("log.undone")}</h1>
       <a class="btn primary done-btn" href="/me">{t("log.done")}</a>
     {:else}
-      <span class="tick" aria-hidden="true"><Icon name="check" /></span>
-      <h1>{t("log.saved")}</h1>
+      {#if savedSkipped}
+        <h1>{t("log.savedSkipped")}</h1>
+      {:else}
+        <span class="tick" aria-hidden="true"><Icon name="check" /></span>
+        <h1>{t("log.saved")}</h1>
+      {/if}
       <p class="recap-line">{session.name} · {savedLine} · {fmtDay(saved.log.date)}</p>
+      {#if saved.pain}<p class="safety" role="note">{t("cardio.painSafety")}</p>{/if}
       {#if after}
         <div class="week-now">
           <p class="count tnum">{t("log.weekCount", { done: after.done, total: after.total })}</p>
@@ -430,7 +517,7 @@
       {/if}
 
       {#if cardioSession}
-        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" />
+        <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} showModality={(m) => modalityName(m, i18n.locale)} storeModality={modalityStored} notes={notesField} />
       {:else if block}
         <section class="ex" aria-labelledby="ex-title">
           <div class="pager">
@@ -517,12 +604,13 @@
                 {:else}
                 <div class="cells">
                   {#if !r.timed}
+                    <!-- kg is stored; the member sees and types their own unit -->
                     <LogStepper
-                      bind:value={rows[i].weight}
+                      bind:value={() => kgCells.get(r.key, rows[i].weight), (v) => (rows[i].weight = kgCells.set(r.key, v))}
                       id={`kg-${r.key}`}
                       error={missingKeys.has(r.key) ? t("log.kgCell") : undefined}
                       errorId={`kg-${r.key}-err`}
-                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${t("log.kg")}`} unit={t("log.kg")} step={2.5} min={0} max={600} from={r.rx?.targetWeightKg ?? null} />
+                      label={`${r.name} ${t("log.set", { n: r.setNumber })}, ${wUnit}`} unit={wUnit} step={weightStepIn()} min={0} max={units.weight === "lb" ? 1300 : 600} from={r.rx?.targetWeightKg != null ? showLoad(r.rx.targetWeightKg) : null} />
                   {/if}
                   <LogStepper
                     bind:value={rows[i].reps}
@@ -561,10 +649,7 @@
         </section>
       {/if}
 
-      <label class="notes">
-        <span class="sub-h">{t("log.notes")}</span>
-        <textarea class="input" rows="3" maxlength="2000" placeholder={t("log.notesPlaceholder")} bind:value={notes}></textarea>
-      </label>
+      {#if !cardioSession}{@render notesField()}{/if}
 
       <div class="savebar">
         <div role="alert" class="alerts">
@@ -579,6 +664,13 @@
     {/if}
   </form>
 {/if}
+
+{#snippet notesField()}
+  <label class="notes">
+    <span class="sub-h">{t("log.notes")}</span>
+    <textarea class="input" rows="3" maxlength="2000" placeholder={cardioSession ? t("cardio.notesPlaceholder") : t("log.notesPlaceholder")} bind:value={notes}></textarea>
+  </label>
+{/snippet}
 
 <style>
   .back {
@@ -836,4 +928,5 @@
   @media (min-width: 700px) {
     .savebar { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-overlay-up); bottom: 12px; }
   }
+  .safety { margin: 0; padding: 10px 14px; border-left: 3px solid var(--warn); background: var(--warn-bg); color: var(--warn-ink); font: 500 15px/1.5 var(--font-ui); text-align: left; text-wrap: pretty; }
 </style>

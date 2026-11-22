@@ -56,7 +56,8 @@ describe("mockApi cardio", () => {
     const logged = after.find((l) => l.cardio?.modality === "Bike");
     expect(logged).toBeDefined();
     expect(logged!.kind).toBe("cardio");
-    expect(logged!.cardio).toEqual({ modality: "Bike", durationMin: 45, hrZone: 2 });
+    // stored like the API: seconds filled from an old build's minutes
+    expect(logged!.cardio).toEqual({ modality: "Bike", durationMin: 45, durationSec: 2700, hrZone: 2 });
     expect(logged!.sets).toEqual([]);
   });
 });

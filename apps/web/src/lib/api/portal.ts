@@ -1,5 +1,5 @@
 import { browser } from "$app/environment";
-import { localDateOf, type PortalWeekDto } from "@pt/shared";
+import { localDateOf, type DisplayUnits, type PortalProgressDto, type PortalWeekDto } from "@pt/shared";
 import { apiMode } from "./index";
 import { client } from "./treaty";
 import { mockPortalApi } from "./mock/portal";
@@ -57,6 +57,10 @@ export const livePortalApi: PortalApi = {
   },
   // the phone's own date: "today" and the week rollover follow the client's time zone, not the server's
   week: () => unwrap<PortalWeekDto>(client.v1.portal.week.get({ query: { today: localDateOf(Date.now()) } })),
+  progress: (protocol) =>
+    unwrap<PortalProgressDto>(client.v1.portal.progress.get({ query: { today: localDateOf(Date.now()), ...(protocol ? { protocol } : {}) } })),
+  settings: () => unwrap<{ units: DisplayUnits }>(client.v1.portal.settings.get()),
+  saveSettings: (units) => unwrap<{ units: DisplayUnits }>(client.v1.portal.settings.put({ units })),
   log: (input) => unwrap<PortalSavedLog>(client.v1.portal.logs.post({ ...input, today: input.today ?? localDateOf(Date.now()) })),
   async deleteLog(id) {
     await unwrap<unknown>(client.v1.portal.logs({ id }).delete(undefined, { query: { today: localDateOf(Date.now()) } }));

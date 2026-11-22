@@ -10,12 +10,16 @@ import { roleLabelRoutes } from "./routes/role-labels";
 import { llmFeedbackRoutes } from "./routes/llm-feedback";
 import { coachingRuleRoutes } from "./routes/coaching-rules";
 import { clientRoutes } from "./routes/clients";
+import { hrProfileRoutes } from "./routes/hr-profiles";
+import { assessmentRoutes } from "./routes/assessments";
 import { programRoutes } from "./routes/programs";
 import { exampleRoutes } from "./routes/examples";
 import { logRoutes } from "./routes/logs";
 import { exerciseRoutes } from "./routes/exercises";
 import { schemeRoutes } from "./routes/schemes";
 import { sessionTypeRoutes } from "./routes/session-types";
+import { modalityRoutes } from "./routes/modalities";
+import { cardioTemplateRoutes } from "./routes/cardio-templates";
 import { chainRoutes } from "./routes/chains";
 import { promptTemplateRoutes } from "./routes/prompt-templates";
 import { notificationRoutes } from "./routes/notifications";
@@ -149,12 +153,16 @@ export const app = new Elysia({ serve: { idleTimeout: 255 } })
   .use(preferenceRoutes)
   .use(chatRoutes)
   .use(clientRoutes)
+  .use(hrProfileRoutes)
+  .use(assessmentRoutes)
   .use(programRoutes)
   .use(exampleRoutes)
   .use(logRoutes)
   .use(exerciseRoutes)
   .use(schemeRoutes)
   .use(sessionTypeRoutes)
+  .use(modalityRoutes)
+  .use(cardioTemplateRoutes)
   .use(chainRoutes)
   .use(promptTemplateRoutes)
   .use(notificationRoutes)

@@ -2,14 +2,14 @@ import { Elysia, t } from "elysia";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, programs } from "@pt/db";
-import { localDateOf, Phasing, ProgramWeeksDocument, startsOnIssue } from "@pt/shared";
+import { localDateOf, Phasing, ProgramWeeksWrite, startsOnIssue } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordProgramEdit } from "../lib/llm-feedback";
 import { ProgramModel } from "../models/programs";
 import { ErrorBody } from "../models/shared";
 
-/** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema. */
-const WeeksDoc = ProgramWeeksDocument;
+/** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema and the cardio workload rule. */
+const WeeksDoc = ProgramWeeksWrite;
 
 export function toProgramDto(row: typeof programs.$inferSelect) {
   const { sessions, ...rest } = row;

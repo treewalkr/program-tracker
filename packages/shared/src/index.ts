@@ -37,3 +37,8 @@ export * from "./loginTheme";
 export * from "./fill";
 export * from "./portal";
 export * from "./redact";
+export * from "./hr";
+export * from "./vo2max";
+export * from "./modalities";
+export * from "./cardioTemplates";
+export * from "./units";

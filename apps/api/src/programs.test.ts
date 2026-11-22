@@ -71,6 +71,25 @@ describe.skipIf(!dbUp)("program body validation", () => {
     expect((await call("POST", "/v1/programs", { name: "ok", weeks, direction: "x".repeat(501) })).status).toBe(422);
   });
 
+  test("create and edit refuse a cardio session with no workload (and an inverted HR band)", async () => {
+    const cardioWeeks = (cardio: unknown) => [
+      { week: 1, sessions: [{ id: crypto.randomUUID(), name: "Cardio 1", seq: 1, order: 0, kind: "cardio", cardio }] },
+    ];
+    const bare = await call("POST", "/v1/programs", { name: "ok", weeks: cardioWeeks({ modality: "Run" }) });
+    expect(bare.status).toBe(422);
+    const band = cardioWeeks({ modality: "Run", durationMin: 30, hrBpm: { min: 160, max: 140 } });
+    expect((await call("POST", "/v1/programs", { name: "ok", weeks: band })).status).toBe(422);
+    expect((await call("PUT", `/v1/programs/${ids[0]}`, { weeks: cardioWeeks({ modality: "Run" }) })).status).toBe(422);
+    const intervals = cardioWeeks({
+      modality: "Run",
+      intervals: [{ id: "w", type: "work", repeat: 4, durationSec: 180, recovery: { durationSec: 120 } }],
+    });
+    const ok = await call("POST", "/v1/programs", { name: "Intervals", weeks: intervals });
+    expect(ok.status).toBe(201);
+    expect(ok.body.weeks[0].sessions[0].cardio.intervals[0]).toMatchObject({ type: "work", repeat: 4 });
+    ids.push(ok.body.id);
+  });
+
   test("create refuses a client id that is not a uuid", async () => {
     expect((await call("POST", "/v1/programs", { name: "ok", weeks, clientId: "nope" })).status).toBe(422);
   });

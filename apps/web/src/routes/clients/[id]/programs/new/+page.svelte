@@ -33,7 +33,9 @@
     type ProgramSession,
     type WeekPlan,
   } from "@pt/shared";
-  import { SCHEME_PRESETS, kindForType, newBlockFillBlocker, primaryPattern, schemePreset, typeFitsKind } from "@pt/shared";
+  import { SCHEME_PRESETS, cardioIssues, kindForType, localDateOf, newBlockFillBlocker, primaryPattern, profileOn, schemePreset, typeFitsKind, type CardioPrescription, type HrZones } from "@pt/shared";
+  import CardioPrescriptionEditor from "$lib/components/CardioPrescriptionEditor.svelte";
+  import type { CardioTemplateInput, CardioTemplatesDto, ModalityDto } from "$lib/api/types";
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
@@ -353,6 +355,7 @@
       for (const [i, s] of list.entries()) {
         if (s.kind === "exercises" && s.exercises.length === 0) return `${prefix}${labelOf(s, i, listSeqs)} needs an exercise.`;
         if (s.kind === "cardio" && !s.cardio.modality.trim()) return `${prefix}${labelOf(s, i, listSeqs)} needs a modality.`;
+        if (s.kind === "cardio" && cardioIssues(s.cardio).length) return `${prefix}${labelOf(s, i, listSeqs)}: ${cardioIssues(s.cardio)[0]}.`;
       }
     }
     return null;
@@ -421,14 +424,8 @@
           kind: "cardio",
           ...typed,
           exercises: [],
-          cardio: {
-            modality: s.cardio.modality.trim() || "Cardio",
-            durationMin: s.cardio.durationMin != null && s.cardio.durationMin > 0 ? Number(s.cardio.durationMin) : null,
-            hrZone: s.cardio.hrZone != null && s.cardio.hrZone >= 1 && s.cardio.hrZone <= 5 ? Number(s.cardio.hrZone) : null,
-            intensity: s.cardio.intensity?.trim() || undefined,
-            distanceKm: s.cardio.distanceKm != null && s.cardio.distanceKm > 0 ? Number(s.cardio.distanceKm) : undefined,
-            targetRpe: s.cardio.targetRpe != null && s.cardio.targetRpe >= 1 ? Number(s.cardio.targetRpe) : undefined,
-          },
+          // the whole prescription (intervals, pace, bpm, template), not a by-name copy
+          cardio: cardioForSave(s.cardio),
         };
       } else {
         session = {
@@ -490,9 +487,31 @@
     }
   }
 
+  /** A cardio session as saved: the editor's prescription, with blanks dropped. */
+  function cardioForSave(c: SessionRow["cardio"]): CardioPrescription {
+    const rx = $state.snapshot(c) as CardioPrescription;
+    const out: CardioPrescription = { ...rx, modality: rx.modality.trim() || "Cardio" };
+    if (!out.intensity?.trim()) delete out.intensity;
+    if (out.distanceKm != null && !(out.distanceKm > 0)) delete out.distanceKm;
+    return out;
+  }
+
+  let modalities = $state<ModalityDto[]>([]);
+  let cardioTemplates = $state<CardioTemplatesDto | null>(null);
+  let hrZones = $state<HrZones | null>(null);
+
+  async function saveCardioTemplate(input: CardioTemplateInput) {
+    const saved = await api.createCardioTemplate(input);
+    if (cardioTemplates) cardioTemplates = { ...cardioTemplates, templates: [...cardioTemplates.templates, saved] };
+    return saved;
+  }
+
   async function firstLoad() {
     const detail = await api.client(id);
     client = detail.client;
+    api.modalities().then((m) => (modalities = m), () => {});
+    api.cardioTemplates().then((t) => (cardioTemplates = t), () => {});
+    api.hrProfiles(id).then((v) => (hrZones = profileOn(v, localDateOf(Date.now()))?.zones ?? null), () => {});
     [catalog, schemes, types, hiddenPresets] = await Promise.all([
       api.exercises(),
       api.schemes(),
@@ -836,32 +855,7 @@
           <div class="panel-body sess-body">
 
             {#if s.kind === "cardio"}
-              <div class="cardio">
-                <label class="f grow">
-                  <span>Modality</span>
-                  <input class="input" placeholder="Bike, Run, Rower…" bind:value={s.cardio.modality} maxlength="80" />
-                </label>
-                <label class="f">
-                  <span>Minutes</span>
-                  <input class="input num" type="number" min="1" max="300" bind:value={s.cardio.durationMin} />
-                </label>
-                <label class="f">
-                  <span>HR zone</span>
-                  <input class="input num" type="number" min="1" max="5" bind:value={s.cardio.hrZone} />
-                </label>
-                <label class="f">
-                  <span>km</span>
-                  <input class="input num" type="number" min="0" step="0.5" placeholder="—" bind:value={s.cardio.distanceKm} />
-                </label>
-                <label class="f">
-                  <span>RPE</span>
-                  <input class="input num" type="number" min="1" max="10" placeholder="—" bind:value={s.cardio.targetRpe} />
-                </label>
-                <label class="f grow">
-                  <span>Intensity</span>
-                  <input class="input" placeholder="easy, 85% FTP…" bind:value={s.cardio.intensity} maxlength="60" />
-                </label>
-              </div>
+              <CardioPrescriptionEditor bind:cardio={s.cardio} {modalities} templates={cardioTemplates} zones={hrZones} onsavetemplate={saveCardioTemplate} />
             {:else if s.exercises.length === 0}
               <EmptyState>
                 No exercises yet.
@@ -1008,9 +1002,6 @@
 
   .sess-body { display: flex; flex-direction: column; gap: 14px; }
   .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
-  .f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-  .f.grow { flex: 1; min-width: 160px; }
-  .f .input { font-size: 14px; }
   .num { width: 72px; text-align: right; font-family: var(--font-mono); }
   /* exercises are ruled rows, not boxes inside the session box */
   .exlist { display: flex; flex-direction: column; gap: 14px; }
