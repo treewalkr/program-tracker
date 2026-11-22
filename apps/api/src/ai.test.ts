@@ -122,7 +122,7 @@ describe("buildGenerationMessages", () => {
       ...base,
       client: { name: "Priya", sessionsPerWeek: 2, trainingDays: [1, 2, 4, 5], cardioDays: [3, 7], longRunDay: 7 },
     });
-    expect(runner.system).toContain("Exercise sessions only on Mon, Tue, Thu, Fri; cardio on Mon, Tue, Wed, Thu, Fri, Sun; the long run on Sun.");
+    expect(runner.system).toContain("Exercise sessions only on Mon, Tue, Thu, Fri; cardio first on the member's cardio days Wed, Sun, and on Mon, Tue, Thu, Fri only when those run out; the long run on Sun.");
 
     const noDays = buildGenerationMessages({ ...base, client: { name: "Ada", sessionsPerWeek: 3 } });
     expect(noDays.system).toContain("Do not assign weekdays: the app places sessions on the calendar.");

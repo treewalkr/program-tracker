@@ -17,6 +17,7 @@ import {
   sameLetterWeeks,
   type CardioTarget,
   type HrZones,
+  type HrZoneMethod,
   type SessionTypeFormat,
   groupSessionTypes,
   type Phasing,
@@ -56,6 +57,8 @@ export interface ClientContext {
   hrZones?: HrZones | null;
   /** The zones lean on a max HR nobody measured (no test date): they're approximate. */
   hrMaxUntested?: boolean;
+  /** How the zones were set (%HRmax, Karvonen, %LTHR, custom): it changes what Z4/Z5 mean. */
+  hrZoneMethod?: HrZoneMethod | null;
   /** Recorded 1RMs with catalog names, for %1RM prescriptions. */
   oneRepMaxes?: { exerciseId: string; name: string; kg: number; date: string }[] | null;
   /** Client basics. Phone and start date are admin-only and never reach the AI. */
@@ -264,11 +267,11 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
       "cardio"?: {                   // required if kind is "cardio"; omit/null for exercises
         "modality": string,          // "Running", "Cycling", "Rowing", etc.
         "durationMin"?: number,      // 1-300; a session needs a duration, a distance or timed/measured intervals
-        "hrZone"?: number,           // 1-5: 1 recovery, 2 easy aerobic, 3 steady, 4 threshold, 5 max
+        "hrZone"?: number,           // 1-5: 1 recovery, 2 easy aerobic, 3 moderate, 4 hard / near threshold, 5 very hard (short VO₂max reps only)
         "intensity"?: string,        // e.g. "easy", "threshold"
         "distanceKm"?: number,
         "paceSecPerKm"?: number,     // target pace in seconds per km, e.g. 330 = 5:30/km
-        "targetRpe"?: number,        // 1-10, the whole session
+        "targetRpe"?: number,        // CR-10 session RPE: 2 easy, 3 moderate, 5 hard, 7 very hard, 9-10 maximal
         "intervals"?: [              // structured sessions only (tempo, intervals); up to 20, in order
           {
             "id": string,            // short and unique in the session, e.g. "wu", "reps"
@@ -277,7 +280,7 @@ function draftSchemaSpecSessions(labels: readonly RoleLabel[]): string {
             "durationSec"?: number,  // time per rep, or…
             "distanceM"?: number,    // …distance per rep (never both needed)
             "hrZone"?: number,       // 1-5
-            "paceSecPerKm"?: number,
+            "paceSecPerKm"?: number, // run/walk: s per km · row/SkiErg: 2 × the /500 m split · bike: 3600 ÷ km/h
             "rpe"?: number,
             "notes"?: string,
             "recovery"?: {           // work only: rest between reps (counted repeat − 1 times)
@@ -392,9 +395,33 @@ function sessionStructureRules(client: ClientContext, previous: ProgramSummary |
   const days = [...new Set(client.trainingDays ?? [])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   return [
     `- Exercise sessions (kind "exercises") per week: ${exerciseSessionTarget(client, previous, block)}. List them in the order they should be trained.`,
-    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min); session load (AU = session RPE × minutes) → pick sessions whose targetRpe × minutes add up to it (e.g. 600 AU → 2 × 40 min at RPE 4 + 1 × 40 min at RPE 7 = 600), keeping most sessions easy. Every cardio session states a targetRpe so its load is known. Use intervals only for structured work (tempo, intervals); an easy or long session is one duration. With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the exercise session number and do not use up a training day. List cardio sessions after the exercise sessions.',
+    '- Cardio is separate: each cardio bout is its own kind "cardio" session (no exercises), sized from the CARDIO TARGET — unit "sessions" → exactly that many cardio sessions; minutes → split the total into sensible sessions (typically 20–60 min each, e.g. 150 min → 3 × 50 min); session load (AU = session RPE × minutes) → pick sessions whose targetRpe × minutes add up to it (e.g. 600 AU → easy 40 min at RPE 3 + long 70 min at RPE 3 + tempo 45 min at RPE 6 = 120 + 210 + 270 = 600), keeping most sessions easy. Every cardio session states a targetRpe so its load is known. Use intervals only for structured work (tempo, intervals); an easy or long session is one duration. With no CARDIO TARGET, add cardio only when the goals or trainer instructions call for it. Cardio sessions never count toward the exercise session number and do not use up a training day. List cardio sessions after the exercise sessions.',
     '- Name every session by its focus (e.g. "Lower — squat focus", "Upper — push", "Zone 2 bike"), never by weekday or "Day N".',
+    ...(cardioInPlay(client, previous) ? cardioScienceRules(client) : []),
     weekdayRule(client, days),
+  ];
+}
+
+/** Cardio matters to this prompt: a target, zones, cardio days or cardio in the current program. */
+function cardioInPlay(c: ClientContext, previous: Pick<ProgramSummary, "sessions"> | null | undefined): boolean {
+  return (
+    !!c.hrZones?.length ||
+    !!c.cardioTarget ||
+    !!c.cardioDays?.length ||
+    c.longRunDay != null ||
+    !!previous?.sessions.some((s) => s.kind === "cardio")
+  );
+}
+
+/** Intensity, naming and pace rules for cardio sessions (CR-10, hard-session cap, race-pace anchors). */
+export function cardioScienceRules(client: Pick<ClientContext, "experience">): string[] {
+  const novice = client.experience === "beginner";
+  return [
+    "- Cardio effort: targetRpe is CR-10 session RPE — 2 easy, 3 moderate, 5 hard, 7 very hard, 9–10 maximal. Easy, recovery and long runs are RPE 2–3 in zone 1–2; tempo/threshold work is RPE 5–6 in zone 3–4; intervals RPE 6–8. Session RPE rates the whole session, so it sits below the work reps' rpe.",
+    `- Hard cardio sessions (tempo, threshold, intervals, any work in zone 4–5): at most ${novice ? "1 a week — this client is a beginner" : "2 a week"}; every other cardio session is easy or long. The long run is never also a hard session.`,
+    '- Name a cardio session after what it is: "Easy run", "Long run", "Tempo run", "Threshold intervals", "Hill repeats". Call it "VO₂max" only when the work reps are zone 5 at rep rpe 8–9, 2–5 min each, with recovery roughly equal to the work (e.g. 5 × 3:00 Z5 / 3:00 jog); zone-4 reps are "intervals" or "threshold", never VO₂max.',
+    "- Paces: when GOALS or the instructions give a race time or pace (e.g. 10 km in 50:00 = 5:00/km), derive paceSecPerKm from it — threshold/tempo ≈ 10–15 s/km slower than 10K pace, VO₂max reps ≈ 10–20 s/km faster, easy and long runs ≈ 60–90 s/km slower — and say the anchor in rationale. With no race time or logged pace, leave pace out and prescribe by zone and RPE; never invent a pace.",
+    "- Cardio session type: easy, recovery and long sessions are \"Aerobic base\"; tempo, threshold and interval sessions (zone 4–5 work) are \"Anaerobic endurance\"; only short all-out sprints (≤ 30 s, RPE 9–10) are \"Anaerobic power\".",
   ];
 }
 
@@ -405,9 +432,13 @@ function weekdayRule(client: ClientContext, days: number[]): string {
   const cardio = [...new Set([...days, ...(client.cardioDays ?? []), ...(client.longRunDay ? [client.longRunDay] : [])])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   if (days.length === 0 && cardio.length === 0) return "- Do not assign weekdays: the app places sessions on the calendar.";
   const long = client.longRunDay && client.longRunDay >= 1 && client.longRunDay <= 7 ? WEEKDAY_NAMES[client.longRunDay - 1] : null;
+  const own = [...new Set([...(client.cardioDays ?? []), ...(client.longRunDay ? [client.longRunDay] : [])])].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
+  const cardioWhere = own.length
+    ? `cardio first on the member's cardio days ${dayList(own)}, and on ${dayList(cardio.filter((d) => !own.includes(d))) || "no other day"} only when those run out`
+    : `cardio on ${dayList(cardio)}`;
   return [
-    `- Give every session a "weekday" (1=Mon … 7=Sun). Exercise sessions only on ${days.length ? dayList(days) : "no day (leave their weekday out)"}; cardio on ${dayList(cardio)}${long ? `; the long run on ${long}` : ""}. Sessions may share a day.`,
-    "  Concurrent-training rules (the app keeps weekdays that follow them and re-places the rest): key runs are the long run (≥ 60 min) and hard runs (tempo, threshold, intervals, zone ≥ 4) — never two key runs on one day; heavy lower-body lifting is never the day after a key run and at least 48 h before one; easy runs go on different days where possible.",
+    `- Give every session a "weekday" (1=Mon … 7=Sun). Exercise sessions only on ${days.length ? dayList(days) : "no day (leave their weekday out)"}; ${cardioWhere}${long ? `; the long run on ${long}` : ""}. Sessions may share a day.`,
+    "  Concurrent-training rules (the app keeps weekdays that follow them and re-places the rest): key runs are the long run (≥ 60 min) and hard runs (tempo, threshold, intervals, zone ≥ 4) — never two key runs on one day; heavy lower-body lifting is never on the same day as a key run, never the day after one, and at least 48 h before one (so a hard run is not the day after a heavy squat or deadlift day); easy runs go on different days where possible.",
   ].join("\n");
 }
 
@@ -463,17 +494,35 @@ function hrProfileLines(ctx: Pick<GenerationContext, "client" | "previousProgram
     !!c.cardioDays?.length ||
     c.longRunDay != null ||
     !!ctx.previousProgram?.sessions.some((s) => s.kind === "cardio");
-  return cardio ? [hrProfileLine(c.hrZones, { maxUntested: c.hrMaxUntested })] : [];
+  return cardio ? [hrProfileLine(c.hrZones, { maxUntested: c.hrMaxUntested, method: c.hrZoneMethod })] : [];
+}
+
+const HR_METHOD_LABEL: Record<HrZoneMethod, string> = {
+  hrmax: "%HRmax",
+  karvonen: "Karvonen (% of heart-rate reserve)",
+  lthr: "%LTHR (lactate-threshold HR)",
+  custom: "custom bands set by the trainer",
+};
+
+/** What each zone means under a method: %LTHR puts the threshold between Z4 and Z5. */
+export function zoneMeaning(method: HrZoneMethod | null | undefined): string {
+  return method === "lthr"
+    ? "Z1 recovery, Z2 easy aerobic, Z3 moderate, Z4 hard — just below threshold, Z5 at or above threshold (short reps only)"
+    : "Z1 recovery, Z2 easy aerobic, Z3 moderate, Z4 hard / near threshold, Z5 very hard (short VO₂max reps only)";
 }
 
 /** The member's HR zones in bpm, or the rule for when they have none. */
-export function hrProfileLine(zones: HrZones | null | undefined, o: { maxUntested?: boolean } = {}): string {
+export function hrProfileLine(
+  zones: HrZones | null | undefined,
+  o: { maxUntested?: boolean; method?: HrZoneMethod | null } = {}
+): string {
   if (!zones?.length) {
-    return "HR PROFILE: none — prescribe cardio by hrZone and targetRpe only; never invent HRmax, LTHR, resting HR or VO₂max, and never write bpm.";
+    return `HR PROFILE: none — prescribe cardio by hrZone and targetRpe only; never invent HRmax, LTHR, resting HR or VO₂max, and never write bpm. Zones: ${zoneMeaning(null)}.`;
   }
   const bands = [...zones].sort((a, b) => a.zone - b.zone).map((z) => `Z${z.zone} ${z.min}–${z.max}`).join(", ");
+  const method = o.method ? ` Method: ${HR_METHOD_LABEL[o.method]}.` : "";
   const approx = o.maxUntested ? " Max HR not tested — zones approximate: pair every zone with a targetRpe." : "";
-  return `HR PROFILE (bpm per zone, from the trainer): ${bands}. Prescribe by hrZone; the app shows the member these bpm bands.${approx}`;
+  return `HR PROFILE (bpm per zone, from the trainer): ${bands}.${method} Zones: ${zoneMeaning(o.method)}. Prescribe by hrZone; the app shows the member these bpm bands.${approx}`;
 }
 
 /** SESSION TYPES section: presets grouped by main type, then the trainer's own, each with the format it needs. */
