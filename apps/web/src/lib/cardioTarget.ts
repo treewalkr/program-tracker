@@ -1,4 +1,20 @@
-import { KM_PER_MI, MODALITY_PRESETS, formatPace, formatSpeed, kmToMi, modalityMetric, type CardioMetric, type DistanceUnit, type ModalityLike } from "@pt/shared";
+import {
+  KM_PER_MI,
+  MODALITY_PRESETS,
+  formatPace,
+  formatSpeed,
+  kmToMi,
+  modalityMetric,
+  recoveryCount,
+  zoneBpm,
+  type CardioInterval,
+  type CardioIntervalType,
+  type CardioMetric,
+  type DistanceUnit,
+  type HrZone,
+  type ModalityLike,
+} from "@pt/shared";
+import { INTERVAL_TYPE_LABEL } from "$lib/cardioForm";
 import { formatDuration } from "$lib/ui/input/duration";
 
 /**
@@ -76,4 +92,71 @@ export function paceTargetText(secPerKm: number, metric: CardioMetric, unit: Dis
   if (metric === "split") return `${formatDuration(Math.round(secPerKm / 2))} /500 m`;
   if (metric === "speed") return formatSpeed(3600 / secPerKm, unit);
   return null;
+}
+
+/** One line of the folded interval breakdown: "Work × 3 · 5:00 · Z4 · 149–168 bpm · 5:20 /km". */
+export interface BreakdownLine {
+  key: string;
+  kind: "easy" | "work" | "recovery";
+  /** "Warm-up", "Work × 3", "Active recovery × 2". */
+  label: string;
+  /** "5:00", "400 m", "—". */
+  amount: string;
+  zone: string | null;
+  bpm: string | null;
+  pace: string | null;
+  rpe: string | null;
+  notes: string | null;
+}
+
+const kindOfType = (t: CardioIntervalType): BreakdownLine["kind"] =>
+  t === "work" ? "work" : t === "active_recovery" || t === "passive_recovery" ? "recovery" : "easy";
+
+const amountText = (p: { durationSec?: number; distanceM?: number }) =>
+  [p.durationSec ? formatDuration(p.durationSec) : null, p.distanceM ? (p.distanceM >= 1000 ? `${p.distanceM / 1000} km` : `${p.distanceM} m`) : null].filter(Boolean).join(" · ") || "—";
+
+/**
+ * Every part of an interval session in order, with its targets: warm-up, work
+ * × reps, the recovery between them, cool-down. Bpm comes from the interval's
+ * own band, else its zone in the member's profile; pace reads in the
+ * modality's metric.
+ */
+export function intervalBreakdown(
+  intervals: readonly CardioInterval[],
+  o: { zones?: readonly HrZone[] | null; metric: CardioMetric; unit: DistanceUnit }
+): BreakdownLine[] {
+  const bpm = (band: { min: number; max: number } | null | undefined) => (band ? `${band.min}–${band.max} bpm` : null);
+  const pace = (s: number | undefined) => (s ? paceTargetText(s, o.metric, o.unit) : null);
+  const out: BreakdownLine[] = [];
+  for (const iv of intervals) {
+    const reps = iv.repeat ?? 1;
+    const name = INTERVAL_TYPE_LABEL[iv.type];
+    out.push({
+      key: iv.id,
+      kind: kindOfType(iv.type),
+      label: reps > 1 ? `${name} × ${reps}` : name,
+      amount: amountText(iv),
+      zone: iv.hrZone ? `Z${iv.hrZone}` : null,
+      bpm: bpm(iv.hrBpm ?? zoneBpm(o.zones, iv.hrZone)),
+      pace: pace(iv.paceSecPerKm),
+      rpe: iv.rpe != null ? `RPE ${iv.rpe}` : null,
+      notes: iv.notes?.trim() || null,
+    });
+    const recs = recoveryCount(iv);
+    if (iv.recovery && recs > 0) {
+      const r = iv.recovery;
+      out.push({
+        key: `${iv.id}:rec`,
+        kind: "recovery",
+        label: `${INTERVAL_TYPE_LABEL[r.type ?? "passive_recovery"]} × ${recs}`,
+        amount: amountText(r),
+        zone: r.hrZone ? `Z${r.hrZone}` : null,
+        bpm: bpm(zoneBpm(o.zones, r.hrZone)),
+        pace: pace(r.paceSecPerKm),
+        rpe: null,
+        notes: iv.recoveryAfterLast ? "also after the last rep" : "between reps",
+      });
+    }
+  }
+  return out;
 }

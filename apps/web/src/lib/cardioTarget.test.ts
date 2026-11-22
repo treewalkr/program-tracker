@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { paceField, paceTargetText, targetMetric } from "./cardioTarget";
+import { intervalBreakdown, paceField, paceTargetText, targetMetric } from "./cardioTarget";
 
 describe("pace targets follow the modality", () => {
   test("run and walk: pace per km or per mile", () => {
@@ -52,5 +52,33 @@ describe("pace targets follow the modality", () => {
     expect(targetMetric("Elliptical")).toBe("none");
     expect(targetMetric("Assault bike", [{ name: "Assault bike", metric: "speed" }])).toBe("speed");
     expect(targetMetric("Trail run")).toBe("pace");
+  });
+});
+
+describe("intervalBreakdown", () => {
+  test("the AI tempo, part by part, with zone, bpm and pace", () => {
+    const zones = [
+      { zone: 1, min: 97, max: 109 },
+      { zone: 2, min: 110, max: 129 },
+      { zone: 3, min: 130, max: 148 },
+      { zone: 4, min: 149, max: 168 },
+      { zone: 5, min: 169, max: 188 },
+    ];
+    const lines = intervalBreakdown(
+      [
+        { id: "wu", type: "warmup", repeat: 1, durationSec: 300, hrZone: 2, notes: "easy jog, finish with 2 strides" },
+        { id: "reps", type: "work", repeat: 3, durationSec: 300, hrZone: 4, paceSecPerKm: 320, recovery: { type: "active_recovery", durationSec: 60 } },
+        { id: "cd", type: "cooldown", repeat: 1, durationSec: 180, hrZone: 1 },
+      ],
+      { zones, metric: "pace", unit: "km" }
+    );
+    expect(lines.map((l) => [l.label, l.amount, l.zone, l.bpm, l.pace])).toEqual([
+      ["Warm-up", "5:00", "Z2", "110–129 bpm", null],
+      ["Work × 3", "5:00", "Z4", "149–168 bpm", "5:20 /km"],
+      ["Active recovery × 2", "1:00", null, null, null],
+      ["Cool-down", "3:00", "Z1", "97–109 bpm", null],
+    ]);
+    expect(lines[0].notes).toBe("easy jog, finish with 2 strides");
+    expect(lines[2].notes).toBe("between reps");
   });
 });
