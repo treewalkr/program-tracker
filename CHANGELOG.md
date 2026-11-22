@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.41 — 2026-11-22
+
 ### New
 - **Cardio, built out.** A cardio session can now hold intervals: warm-up, work reps with recovery between them, and cool-down. Each part can have a time or distance, an HR zone or bpm range, and an RPE. The editor adds up the total time as you go, and won't guess a time for a part given only by distance.
   - th: เซสชันคาร์ดิโอใส่อินเทอร์วัลได้แล้ว ทั้งวอร์มอัพ ช่วงหนักหลายรอบพร้อมช่วงพักระหว่างรอบ และคูลดาวน์ แต่ละช่วงกำหนดเวลาหรือระยะ โซนหรือช่วง bpm และ RPE ได้ ระบบรวมเวลาให้ทันที ส่วนช่วงที่กำหนดแค่ระยะ ระบบจะไม่เดาเวลาให้
