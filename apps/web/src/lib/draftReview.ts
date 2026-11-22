@@ -257,7 +257,7 @@ export function rationaleByDay(
       const day = indexOf(num[1], Number(num[2]));
       return day >= 0 && day < dayCount ? { day, rest: t.slice(num[0].length) } : null;
     }
-    const named = t.match(/^\*\*([^*]+)\*\*[\s:—–-]*/);
+    const named = t.match(/^\*\*([^*]+)\*\*[\s:—–-]*(?:\([^)]*\)[\s:—–-]*)?/);
     if (!named) return null;
     // "**A**, **B** and **C** total…" is about several sessions: it stays general, names intact
     if (/^\s*(,|and\b|&)/.test(t.slice(named[0].length))) return null;

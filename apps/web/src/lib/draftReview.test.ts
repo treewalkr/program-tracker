@@ -236,6 +236,8 @@ describe("review checks, rationale, history", () => {
     // a bullet that lists sessions stays in the list, not on the first card with a leading comma
     const list = rationaleByDay("Runs:\n- **Tempo Run — Threshold** and **Long Run** stay apart.", 3, sessions);
     expect(list.days.flat()).toEqual([]);
+    // "**Long Run** (Sat): …" drops the weekday aside with the lead
+    expect(rationaleByDay("- **Long Run** (Sat): 70 min in Z2.", 3, sessions).days[2]).toEqual(["70 min in Z2."]);
   });
 
   test("rationaleByDay sends **Day N** blocks to their day", () => {
