@@ -69,7 +69,12 @@ describe("last time", () => {
   test("kg × reps with the RPE the client gave; reps alone with no kg", () => {
     expect(lastSetText({ date: "2026-11-09", weightKg: 62.5, reps: 8, rpe: 8 }, tEn)).toBe("62.5 kg × 8 · RPE 8");
     expect(lastSetText({ date: "2026-11-09", weightKg: 60, reps: 8, rpe: null }, tTh)).toBe("60 กก. × 8");
-    expect(lastSetText({ date: "2026-11-09", weightKg: null, reps: 10, rpe: null }, tEn)).toBe("10 reps");
+    expect(lastSetText({ date: "2026-11-09", weightKg: null, reps: 10, rpe: null }, tEn)).toBe("BW × 10");
+  });
+
+  test("a set with no load reads as bodyweight, in both languages", () => {
+    expect(lastSetText({ date: "2026-11-09", weightKg: 0, reps: 12, rpe: 7 }, tEn)).toBe("BW × 12 · RPE 7");
+    expect(lastSetText({ date: "2026-11-09", weightKg: null, reps: 12, rpe: null }, tTh)).toBe("น้ำหนักตัว × 12");
   });
 });
 
