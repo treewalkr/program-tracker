@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+- **The AI answers every piece of feedback.** Send feedback and the AI answers it, even when it isn't sure. It says so plainly when it's only a best guess, and may ask you a question or for a screenshot. Bugs and ideas still go to the owner, who decides what happens next. If you write back "solved" or "works now", it closes the feedback for you.
+  - th: ส่งฟีดแบ็กมาเรื่องไหน AI ก็ตอบให้ทุกเรื่อง แม้จะยังไม่แน่ใจ ถ้าเป็นแค่การเดา AI จะบอกตรง ๆ และอาจถามกลับหรือขอภาพหน้าจอเพิ่ม ส่วนบั๊กกับไอเดียใหม่ยังส่งต่อให้เจ้าของแอปตัดสินใจเหมือนเดิม และถ้าตอบกลับว่า "ได้แล้ว" หรือ "ใช้ได้แล้ว" AI จะปิดเรื่องนั้นให้เอง
+
 ## v0.1.42 — 2026-11-22
 
 ### New
