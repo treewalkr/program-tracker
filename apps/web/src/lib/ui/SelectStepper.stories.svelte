@@ -39,3 +39,7 @@
 <Story name="Not given yet" asChild>
   <div style="min-height: 190px"><SelectStepper label="Session RPE" unit="RPE" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} columns={5} start={5} bind:value={sessionRpe} /></div>
 </Story>
+
+<Story name="Full width (portal)" asChild>
+  <div style="width: 358px; min-height: 260px"><SelectStepper label="Session RPE" unit="RPE" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} columns={5} start={5} block bind:value={sessionRpe} /></div>
+</Story>

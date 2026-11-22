@@ -29,9 +29,11 @@
 		columns?: number;
 		disabled?: boolean;
 		open?: boolean;
+		/** Take the column's width, with the grid as wide as the field (never past the screen edge). */
+		block?: boolean;
 	}
 
-	let { values, value = $bindable(), onchange, placeholder = '—', start, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false) }: Props = $props();
+	let { values, value = $bindable(), onchange, placeholder = '—', start, label, unit, scale, describe, columns = 6, disabled = false, open = $bindable(false), block = false }: Props = $props();
 
 	const uid = $props.id();
 	let active = $state(0);
@@ -90,9 +92,9 @@
 	}
 </script>
 
-<Dropdown bind:open inline panelWidth="280px">
+<Dropdown bind:open inline={!block} panelWidth={block ? '100%' : '280px'}>
 	{#snippet trigger()}
-		<div class="sel" class:off={disabled}>
+		<div class="sel" class:off={disabled} class:block>
 			<button
 				type="button"
 				class="v"
@@ -170,5 +172,16 @@
 	.n.hov { background: var(--well-2); }
 	.n.on { background: var(--hover-ink); color: var(--on-ink); }
 	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
+	.sel.block { display: flex; width: 100%; }
+	.sel.block .v { flex: 1; }
 	@media (max-width: 720px) { .sel { min-height: 40px; } .v { font-size: 16px; } }
+	/* touch: the step buttons and the grid figures are 44px targets */
+	@media (max-width: 720px), (pointer: coarse) {
+		.sel { min-height: 44px; }
+		.st { flex-direction: row; }
+		.st button { width: 44px; }
+		.st button + button { border-top: 0; border-left: 1px solid var(--line-soft); }
+		.st :global(svg) { width: 14px; height: 14px; }
+		.n { min-height: 44px; display: grid; place-items: center; padding: 0; font-size: 15px; }
+	}
 </style>

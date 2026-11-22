@@ -174,13 +174,16 @@
   </svg>
   </div>
 
-  <table class="sr-only">
-    <caption>{name} — {measure} ({unit}) per {per}</caption>
-    <thead><tr><th>Date</th><th>{measure} ({unit})</th></tr></thead>
-    <tbody>
-      {#each series as p (p.date)}<tr><td>{dateLong(p.date)}</td><td>{fmt(p.value)}</td></tr>{/each}
-    </tbody>
-  </table>
+  <!-- the wrapper clips: a table ignores sr-only's 1px box and widened the page by its column widths -->
+  <div class="sr-only">
+    <table>
+      <caption>{name} — {measure} ({unit}) per {per}</caption>
+      <thead><tr><th>Date</th><th>{measure} ({unit})</th></tr></thead>
+      <tbody>
+        {#each series as p (p.date)}<tr><td>{dateLong(p.date)}</td><td>{fmt(p.value)}</td></tr>{/each}
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <style>

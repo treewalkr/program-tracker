@@ -63,6 +63,7 @@
   import Button from "$lib/ui/Button.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import type { SelectOption } from "$lib/ui/select/options";
+  import { MediaQuery } from "svelte/reactivity";
 
   const ENGLISH: CardioFormText = {
     modality: "Modality",
@@ -146,6 +147,9 @@
   });
 
   let skipping = $state(false);
+  /** A phone or a touch screen: one card per rep instead of a 440px table that scrolls sideways. */
+  const coarse = new MediaQuery("(max-width: 720px), (pointer: coarse)", false);
+  const repCards = $derived(variant === "touch" || coarse.current);
 
   const cellNum = (v: number | null) => (v == null ? "" : String(v));
   function setCell(row: IntervalResultRow, key: "distanceKm" | "avgHr" | "rpe", raw: string) {
@@ -184,9 +188,9 @@
         {/if}
       </div>
       <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
-      <div class="lbl-field">
+      <div class="lbl-field rpe-field">
         <span class="lbl">{text.rpe}</span>
-        <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} />
+        <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} block />
         {#if problem === "rpe"}<p class="err">{text.rpeHint}</p>{:else}<p class="hint">{text.rpeHint}</p>{/if}
       </div>
       <InputUnit label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} error={errorOf("distanceRange")} />
@@ -216,6 +220,22 @@
           <div class="ivs">
             <span class="lbl">{text.intervals}</span>
             {#if problem === "intervalRange"}<p class="err" role="alert">{text.errors.intervalRange}</p>{:else}<p class="hint">{text.intervalsHint}</p>{/if}
+            {#if repCards}
+              <ol class="reps">
+                {#each value.intervals as row (row.key)}
+                  {@const label = rowLabel(row)}
+                  <li class="rep" class:work={row.type === "work"}>
+                    <span class="rep-name">{label}</span>
+                    <div class="rep-fields">
+                      <InputDuration label={text.time} bind:value={row.durationSec} step={5} />
+                      <InputUnit label={distLabel} unit={distLabel} step={0.1} min={0} bind:value={() => (row.distanceKm == null ? null : showDistance(row.distanceKm)), (v) => (row.distanceKm = v == null ? null : storeDistance(v))} />
+                      <InputUnit label={text.avgHr} unit="bpm" min={30} max={240} bind:value={row.avgHr} />
+                      <InputUnit label="RPE" unit="/10" min={1} max={10} bind:value={row.rpe} />
+                    </div>
+                  </li>
+                {/each}
+              </ol>
+            {:else}
             <div class="scroll">
               <table class="sheet">
                 <thead>
@@ -235,6 +255,7 @@
                 </tbody>
               </table>
             </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -280,6 +301,11 @@
   .sheet .r { text-align: right; }
   .sheet td.num { width: 11ch; }
   .sheet tr.work td:first-child { font-weight: 600; }
+  .reps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+  .rep { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--radius); }
+  .rep-name { font: 500 13px var(--font-ui); color: var(--ink); }
+  .rep.work .rep-name { font-weight: 600; }
+  .rep-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .skip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .reasons { display: flex; flex-wrap: wrap; gap: 6px; }
   .skipped { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; }
@@ -289,7 +315,7 @@
   }
   .touch { padding: 0; }
   .touch .grid { grid-template-columns: 1fr 1fr; }
-  .touch .wide { grid-column: 1 / -1; }
+  .touch .wide, .touch .rpe-field { grid-column: 1 / -1; }
   /* the portal reads one size up, at arm's length */
   .touch :global(.lbl) { font-size: 14px; }
   .touch .hint, .touch .calc, .touch .more summary { font-size: 14px; }

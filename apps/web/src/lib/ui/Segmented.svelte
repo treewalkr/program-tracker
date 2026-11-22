@@ -4,6 +4,7 @@
    * the picked one filled Inverted Ink,
    * e.g. "Moves apply to: every week · week 3 only". Controlled: the parent
    * owns `value` and updates it in `onchange`. Arrow keys move the choice.
+   * Under 720px or on a touch screen the choices wrap as separate 44px targets.
    */
   interface Item {
     value: T;
@@ -76,4 +77,13 @@
   button.on { background: var(--hover-ink); border-color: var(--hover-ink); color: var(--on-ink); font-weight: 600; position: relative; }
   button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--focus); outline-offset: 1px; }
   button:disabled { cursor: default; opacity: 0.6; }
+  /* A phone or a touch screen: the choices wrap instead of pushing the page wide
+     (four HR methods were 459px on a 390px screen), each a separate 44px target. */
+  @media (max-width: 720px), (pointer: coarse) {
+    .segmented { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+    .lead { flex-basis: 100%; margin: 0; }
+    button { min-height: 44px; padding: 6px 14px; font-size: 14px; }
+    button + button { margin-left: 0; }
+    button, button:first-of-type, button:last-of-type { border-radius: var(--radius); }
+  }
 </style>

@@ -198,6 +198,6 @@
   .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .strong { font-weight: 600; color: var(--ink); }
   @media (max-width: 900px) {
-    .as-grid { grid-template-columns: 1fr; }
+    .as-grid { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
