@@ -211,7 +211,7 @@ export const en = {
   "session.intervals": "Intervals",
   "cardio.duration": "Time taken",
   "cardio.durationHint": "min:sec, like 35:10 (or type 3510)",
-  "cardio.rpeHint": "1 = very easy · 10 = all-out, couldn't go on",
+  "cardio.rpeHint": "1–2 very easy · 3–4 can chat · 5–6 short sentences · 7–8 hard, a few words · 9–10 all-out. Rate the whole session about 30 min after.",
   "cardio.distance": "Distance",
   "cardio.avgHr": "Avg heart rate",
   "cardio.maxHr": "Max heart rate",
@@ -292,6 +292,11 @@ export const en = {
   "unit.mph": "mph",
   "unit.kcal": "kcal",
   "cardio.painSafety": "If it's sharp pain, chest tightness or dizziness, stop and tell your coach.",
+  "rpe.feel1": "very easy",
+  "rpe.feel2": "can chat",
+  "rpe.feel3": "short sentences",
+  "rpe.feel4": "hard, a few words",
+  "rpe.feel5": "all-out",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -501,7 +506,7 @@ export const th: Record<MessageKey, string> = {
   "session.intervals": "อินเทอร์วัล",
   "cardio.duration": "เวลาที่ใช้",
   "cardio.durationHint": "นาที:วินาที เช่น 35:10 (พิมพ์ 3510 ก็ได้)",
-  "cardio.rpeHint": "1 = สบายมาก · 10 = หนักสุด ทำต่อไม่ไหว",
+  "cardio.rpeHint": "1–2 สบายมาก · 3–4 ยังคุยสบาย · 5–6 พูดได้เป็นประโยคสั้น ๆ · 7–8 หนัก พูดได้ไม่กี่คำ · 9–10 สุดแรง ให้คะแนนทั้งเซสชันหลังเล่นเสร็จราว 30 นาที",
   "cardio.distance": "ระยะทาง",
   "cardio.avgHr": "ชีพจรเฉลี่ย",
   "cardio.maxHr": "ชีพจรสูงสุด",
@@ -582,6 +587,11 @@ export const th: Record<MessageKey, string> = {
   "unit.mph": "ไมล์/ชม.",
   "unit.kcal": "แคลอรี",
   "cardio.painSafety": "ถ้าเจ็บแปลบ แน่นหน้าอก หรือเวียนหัว ให้หยุดก่อน แล้วบอกโค้ช",
+  "rpe.feel1": "สบายมาก",
+  "rpe.feel2": "ยังคุยสบาย",
+  "rpe.feel3": "พูดได้เป็นประโยคสั้น ๆ",
+  "rpe.feel4": "หนัก พูดได้ไม่กี่คำ",
+  "rpe.feel5": "สุดแรง",
 };
 
 export const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, th };

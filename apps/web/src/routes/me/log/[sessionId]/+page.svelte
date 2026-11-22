@@ -320,6 +320,7 @@
     underPlan: t("cardio.underPlan"),
     rpe: t("cardio.rpe"),
     rpeHint: t("cardio.rpeHint"),
+    rpeFeel: [t("rpe.feel1"), t("rpe.feel2"), t("rpe.feel3"), t("rpe.feel4"), t("rpe.feel5")],
     distance: t("cardio.distance"),
     avgHr: t("cardio.avgHr"),
     maxHr: t("cardio.maxHr"),

@@ -13,6 +13,8 @@
     underPlan: string;
     rpe: string;
     rpeHint: string;
+    /** What each pair of RPE figures feels like (CR-10): 1–2, 3–4, 5–6, 7–8, 9–10. */
+    rpeFeel: [string, string, string, string, string];
     distance: string;
     avgHr: string;
     maxHr: string;
@@ -87,7 +89,8 @@
     durationHint: "mm:ss, or h:mm:ss",
     underPlan: "Much shorter than the planned {planned}. Check the time.",
     rpe: "Session RPE",
-    rpeHint: "How hard the whole session felt, 1–10",
+    rpeHint: "1–2 very easy · 3–4 can chat · 5–6 short sentences · 7–8 hard, a few words · 9–10 all-out. Rate the whole session about 30 min after.",
+    rpeFeel: ["very easy", "can chat", "short sentences", "hard, a few words", "all-out"],
     distance: "Distance",
     avgHr: "Average HR",
     maxHr: "Max HR",
@@ -124,7 +127,8 @@
   };
 
   const RPE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-  const rpeScale = (v: number) => (v <= 4 ? "low" : v <= 7 ? "mid" : "high") as "low" | "mid" | "high";
+  // the --rpe-high red is for 9–10 (maximal): a prescribed hard 8 isn't an alarm
+  const rpeScale = (v: number) => (v <= 4 ? "low" : v <= 8 ? "mid" : "high") as "low" | "mid" | "high";
 
   interface Props {
     value: CardioForm;
@@ -220,7 +224,7 @@
       <InputDuration label={text.duration} bind:value={value.durationSec} min={1} max={18000} junkText={text.junkTime} rangeWords={text.rangeWords} hint={durationHint} error={problem === "duration" ? text.durationHint : errorOf("durationRange")} />
       <div class="lbl-field rpe-field">
         <span class="lbl">{text.rpe}</span>
-        <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} block stepWords={text.stepWords} />
+        <SelectStepper label={text.rpe} values={RPE} columns={5} start={5} scale={rpeScale} bind:value={value.rpe} block stepWords={text.stepWords} describe={(v) => text.rpeFeel[Math.min(4, Math.floor((v - 1) / 2))]} />
         {#if problem === "rpe"}<p class="err">{text.rpeHint}</p>{:else}<p class="hint">{text.rpeHint}</p>{/if}
       </div>
       <InputUnit rangeWords={text.rangeWords} label={text.distance} unit={distLabel} bind:value={() => (value.distanceKm == null ? null : showDistance(value.distanceKm)), (v) => (value.distanceKm = v == null ? null : storeDistance(v))} step={0.1} min={0} max={300} optional={text.optional} error={errorOf("distanceRange")} />
