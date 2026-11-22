@@ -532,7 +532,7 @@
           <div class="steps" aria-hidden="true">
             {#each blocks as b, i (b.key)}
               {@const done = b.memberIds.some((id) => touched.has(id) || flags[id])}
-              <span class:on={i === current} class:past={i < current} class:done>{#if done}<Icon name="check" />{/if}</span>
+              <span class:on={i === current} class:done>{#if done}<Icon name="check" />{/if}</span>
             {/each}
           </div>
 
@@ -734,7 +734,6 @@
     border-radius: 4px;
     background: var(--well-2);
   }
-  .steps span.past { background: var(--line-strong); }
   .steps span.done { color: var(--good); background: var(--good-bg); box-shadow: inset 0 0 0 1px var(--good-line); }
   .steps span.on { box-shadow: inset 0 0 0 2px var(--ink); }
   .steps span.on:not(.done) { background: var(--surface); }
