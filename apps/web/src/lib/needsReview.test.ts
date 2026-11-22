@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SignalDto } from "$lib/api/types";
-import { filterCounts, generateWeekHref, reviewGroup, reviewRows, rowSignalCount, rowSignalIds, showFilter } from "./needsReview";
+import { clientLogRows, filterCounts, reviewSignals, generateWeekHref, reviewGroup, reviewRows, rowSignalCount, rowSignalIds, showFilter } from "./needsReview";
 
 const sig = (id: string, kind: SignalDto["kind"], extra: Partial<SignalDto> = {}): SignalDto =>
   ({ id, kind, severity: "info", title: id, evidence: "", programId: "p", clientId: `c-${id}`, ...extra }) as SignalDto;
@@ -62,4 +62,11 @@ test("generate link carries the week and the encoded note", () => {
     "/clients/c1/generate?week=3&note=Re-draft%20week%203%20%26%20go"
   );
   expect(generateWeekHref({ clientId: "c1", targetWeek: 3 })).toBe("/clients/c1/generate?week=3");
+});
+
+test("client notes and logs leave Needs review; the logs panel lists client-log rows only", () => {
+  const all = [...feed, sig("note", "client-note"), sig("log", "client-log")];
+  expect(reviewSignals(all).map((s) => s.id)).toEqual(feed.map((s) => s.id));
+  expect(filterCounts(reviewSignals(all))).toEqual({ all: 5, check: 2, plan: 3 });
+  expect(clientLogRows(all).map((s) => s.id)).toEqual(["log"]);
 });

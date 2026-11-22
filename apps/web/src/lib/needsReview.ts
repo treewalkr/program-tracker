@@ -1,5 +1,7 @@
 /**
- * The overview's Needs review panel, as pure data: the Check in / Plan ahead filter, and the merged "weeks end soon" row.
+ * The overview's Needs review and Client logs panels, as pure data: which
+ * signals each lists, the Check in / Plan ahead filter, and the merged
+ * "weeks end soon" row.
  * The page only renders what comes out of here.
  */
 import type { SignalDto } from "$lib/api/types";
@@ -10,6 +12,16 @@ export type ReviewFilter = "all" | ReviewGroup;
 
 /** Calendar work the trainer can plan ahead for; everything else is a check-in. */
 export const PLAN_AHEAD_KINDS: ReadonlySet<SignalKind> = new Set<SignalKind>(["week-ending", "block-ending", "transition-due", "deload-week"]);
+
+/** Kinds the overview keeps out of Needs review: a client's notes and logs live in
+ *  the Client logs panel (the client-log row quotes the notes, so they show once). */
+export const CLIENT_LOG_KINDS: ReadonlySet<SignalKind> = new Set<SignalKind>(["client-note", "client-log"]);
+
+/** The signals Needs review lists. */
+export const reviewSignals = (signals: SignalDto[]): SignalDto[] => signals.filter((s) => !CLIENT_LOG_KINDS.has(s.kind));
+
+/** The Client logs panel: one client-log signal per client, in feed order. */
+export const clientLogRows = (signals: SignalDto[]): SignalDto[] => signals.filter((s) => s.kind === "client-log");
 
 export const reviewGroup = (s: Pick<SignalDto, "kind">): ReviewGroup => (PLAN_AHEAD_KINDS.has(s.kind) ? "plan" : "check");
 

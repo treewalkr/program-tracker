@@ -27,11 +27,13 @@
   import Note from "$lib/ui/Note.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import {
+    clientLogRows,
     filterCounts,
     generateWeekHref,
     reviewRows,
     rowSignalCount,
     rowSignalIds,
+    reviewSignals,
     showFilter,
     type ReviewFilter,
   } from "$lib/needsReview";
@@ -59,8 +61,11 @@
   const openSignals = $derived(signals.filter((s) => !hidden.includes(s.id)));
   /** Needs review: All / Check in / Plan ahead, not remembered. */
   let reviewFilter = $state<ReviewFilter>("all");
-  const reviewCounts = $derived(filterCounts(openSignals));
-  const rows = $derived(reviewRows(openSignals, reviewFilter));
+  const review = $derived(reviewSignals(openSignals));
+  const reviewCounts = $derived(filterCounts(review));
+  const rows = $derived(reviewRows(review, reviewFilter));
+  /** Sessions clients logged themselves this week, one row per client. */
+  const clientLogs = $derived(clientLogRows(openSignals));
   const listedCount = $derived(rowSignalCount(rows));
   const clientName = (id: string | null) => clients?.find((c) => c.id === id)?.name ?? null;
   const tally = $derived(weekTally(strips));
@@ -144,7 +149,10 @@
     <WeekGridSkeleton />
   </SkeletonPanel>
   <div class="grid-2">
-    <div class="col"><SkeletonPanel title="Needs review" rows={3} /></div>
+    <div class="col">
+      <SkeletonPanel title="Needs review" rows={3} />
+      <SkeletonPanel title="Client logs" rows={2} />
+    </div>
     <div class="col"><SkeletonPanel title="Clients" count rows={4} /></div>
   </div>
 {:else if clients.length === 0}
@@ -249,6 +257,33 @@
         {/if}
       </Panel>
 
+      <Panel title="Client logs" count={clientLogs.length ? plural(clientLogs.length, "client") : undefined}>
+        {#if clientLogs.length === 0}
+          <p class="clear">No client logs this week.</p>
+        {:else}
+          <div class="signal-list">
+            {#each clientLogs as signal (signal.id)}
+              {@const name = clientName(signal.clientId)}
+              {#if name}
+                <SignalRow
+                  severity="info"
+                  evidence={signal.evidence}
+                  error={hideErrors[signal.id] ? `Couldn't mark seen — ${hideErrors[signal.id]}` : undefined}
+                >
+                  {#snippet title()}
+                    <a class="client-link" href={`/clients/${signal.clientId}`}>{name}</a> {signal.title.replace(/^Logged /, "logged ")}
+                  {/snippet}
+                  {#snippet actions()}
+                    <Button variant="ghost" small disabled={hiding === signal.id} onclick={() => hide(signal.id, [signal.id], 365)}>
+                      {hiding === signal.id ? "Saving…" : "Seen"}
+                    </Button>
+                  {/snippet}
+                </SignalRow>
+              {/if}
+            {/each}
+          </div>
+        {/if}
+      </Panel>
     </div>
 
     <div class="col">
