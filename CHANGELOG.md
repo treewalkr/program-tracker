@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### New
+- **Circuits and supersets log round by round.** On the portal, members now see each round as "Set 1" with every exercise in it, the way they do it on the floor. The card also says what it is, like "Circuit · 3 rounds".
+  - th: เซอร์กิตกับซูเปอร์เซตในพอร์ทัลเรียงเป็นรอบแล้ว เมมเบอร์จะเห็น "เซต 1" พร้อมทุกท่าในรอบนั้น ตรงกับที่เล่นจริง หัวการ์ดก็บอกด้วยว่าเป็นเซอร์กิตหรือซูเปอร์เซต กี่รอบ
+- **Bodyweight or weight, set by set.** Members can mark any set as bodyweight (BW) or enter a weight, and one tap carries it to the later rounds. Bodyweight moves start as BW, and a vest or belt goes in as added weight. You see these sets as "BW × 10" in History.
+  - th: เมมเบอร์เลือกได้ทีละเซตว่าเล่นน้ำหนักตัว (BW) หรือใส่น้ำหนัก กดครั้งเดียวรอบถัดไปก็เปลี่ยนตาม ท่าบอดี้เวทเริ่มที่ BW ให้เลย ถ้าใส่เวสต์หรือเข็มขัดถ่วงก็กรอกเฉพาะน้ำหนักที่เพิ่ม ส่วนฝั่งคุณจะเห็นเซตแบบนี้เป็น "BW × 10" ใน History
+- **A cleaner log screen.** Skip and "Something hurt" now sit behind one "Skip or pain?" link under the sets, so the sets come first. Anything a member flags still shows as a tag at the top of the card.
+  - th: หน้าบันทึกโล่งขึ้น ปุ่มข้ามท่ากับแจ้งเจ็บย้ายไปอยู่ในลิงก์ "ข้ามท่า หรือเจ็บ?" ใต้เซต เมมเบอร์เลยเห็นเซตก่อนอย่างอื่น แต่ถ้ามีท่าไหนข้ามหรือเจ็บ ก็ยังขึ้นป้ายไว้บนหัวการ์ดอยู่ดี
+
+### Fixed
+- The progress bar on the member log no longer greys out exercises a member scrolled past without changing, which looked like they'd been skipped. Exercise names in a group have their spaces back ("SkiErg + Wall Ball").
+  - th: แถบความคืบหน้าในหน้าบันทึกไม่ขึ้นสีเทาตรงท่าที่เมมเบอร์เลื่อนผ่านโดยไม่ได้แก้อะไรแล้ว เพราะดูเหมือนข้ามท่าไป ชื่อท่าในกลุ่มก็กลับมามีเว้นวรรคถูกต้อง ("SkiErg + Wall Ball")
+
 ## v0.1.43 — 2026-11-22
 
 ### New
