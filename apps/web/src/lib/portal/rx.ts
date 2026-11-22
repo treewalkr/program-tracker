@@ -1,4 +1,4 @@
-import { cardioTotals, recoveryCount, type CardioIntervalType, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
+import { cardioTotals, recoveryCount, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import { loadIn } from "@pt/shared";
 import { showDistance, showPace, units } from "$lib/units.svelte";
@@ -108,7 +108,27 @@ export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "h
     if (c.paceSecPerKm) parts.push(paceText(c.paceSecPerKm, t));
   }
   if (c.targetRpe) parts.push(t("rx.rpe", { n: num(c.targetRpe) }));
-  if (c.intensity) parts.push(c.intensity);
+  const intensity = coachIntensity(c.intensity);
+  if (intensity) parts.push(intensity);
+  return parts;
+}
+
+/** Slugs the old presets stamped on every session; they say nothing the plan doesn't. */
+const PRESET_SLUGS = new Set(["easy", "tempo", "intervals", "long"]);
+
+/** The coach's own intensity words, or null for an old preset slug. */
+export function coachIntensity(s: string | null | undefined): string | null {
+  const v = s?.trim();
+  return v && !PRESET_SLUGS.has(v.toLowerCase()) ? v : null;
+}
+
+/** What the member logged, for the done card: "42:05 · 6.4 km · RPE 4". */
+export function cardioActualParts(c: Pick<CardioLog, "durationSec" | "durationMin" | "distanceKm" | "rpe">, t: T): string[] {
+  const parts: string[] = [];
+  const sec = c.durationSec ?? (c.durationMin ? c.durationMin * 60 : null);
+  if (sec) parts.push(formatDuration(sec));
+  if (c.distanceKm) parts.push(distanceText(c.distanceKm, t));
+  if (c.rpe) parts.push(t("rx.rpe", { n: num(c.rpe) }));
   return parts;
 }
 

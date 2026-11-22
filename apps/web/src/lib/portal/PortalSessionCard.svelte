@@ -3,7 +3,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
   import { modalityName } from "./modality";
-  import { cardioParts, intervalLines, setParts } from "./rx";
+  import { cardioActualParts, cardioParts, coachIntensity, intervalLines, setParts } from "./rx";
   import { reviewDay } from "./progress";
 
   /**
@@ -65,6 +65,8 @@
   const feedback = $derived(session.log?.entry?.trainerFeedback?.trim() || null);
   /** The page's one green action: the session in focus, not yet logged. */
   const lead = $derived(!!logHref && focus && !session.log);
+  /** What was done, so the card says it rather than the plan. */
+  const actual = $derived(cardio && !skipped && session.log?.entry?.cardio ? cardioActualParts(session.log.entry.cardio, t) : []);
 </script>
 
 <article class="card" class:focus class:done={!!session.log && !skipped} aria-labelledby={`s-${session.id}`}>
@@ -100,6 +102,7 @@
         </button>
       {/if}
     </div>
+    {#if actual.length}<p class="actual tnum">{actual.join(" · ")}</p>{/if}
     {#if removeFailed}<p class="remove-err" role="alert">{t("session.removeFailed")}</p>{/if}
     {#if feedback}
       <!-- the coach's word on this log, once they've reviewed it -->
@@ -117,12 +120,13 @@
 
   {#if cardio && session.cardio}
     {@const parts = cardioParts({ ...session.cardio, intensity: undefined }, t)}
+    {@const intensity = coachIntensity(session.cardio.intensity)}
     {#if parts.length}
       <ul class="chips" aria-label={modalityName(session.cardio.modality, i18n.locale)}>
         {#each parts as p}<li class="chip">{p}</li>{/each}
       </ul>
     {/if}
-    {#if session.cardio.intensity}<p class="intensity">{session.cardio.intensity}</p>{/if}
+    {#if intensity}<p class="intensity">{intensity}</p>{/if}
     {#if session.cardio.intervals?.length}
       <ol class="iv" aria-label={t("session.intervals")}>
         {#each intervalLines(session.cardio.intervals, t) as l (l.key)}
@@ -301,4 +305,5 @@
   @media (prefers-reduced-motion: reduce) {
     .list summary :global(svg), .more :global(svg) { transition: none; }
   }
+  .actual { margin: 8px 0 0; font-size: 14px; font-weight: 600; }
 </style>

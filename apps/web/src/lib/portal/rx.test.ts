@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSet } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { cardioParts, intervalLines, lastSetText, setParts } from "./rx";
+import { cardioActualParts, cardioParts, coachIntensity, intervalLines, lastSetText, setParts } from "./rx";
 import type { PortalCardioInterval } from "@pt/shared";
 import { units } from "$lib/units.svelte";
 
@@ -28,7 +28,12 @@ describe("portal prescription text", () => {
   });
 
   test("cardio", () => {
-    expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2, intensity: "easy" }, tEn)).toEqual(["40 min", "zone 2", "easy"]);
+    // an old preset slug says nothing; the coach's own words stay
+    expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2, intensity: "easy" }, tEn)).toEqual(["40 min", "zone 2"]);
+    expect(cardioParts({ modality: "Run", durationMin: 40, intensity: "conversational" }, tEn)).toEqual(["40 min", "conversational"]);
+    expect(["easy", "Tempo", "intervals", "long", "", null].map(coachIntensity)).toEqual([null, null, null, null, null, null]);
+    expect(cardioActualParts({ durationSec: 2525, distanceKm: 6.4, rpe: 4 }, tTh)).toEqual(["42:05", "6.4 กม.", "RPE 4"]);
+    expect(cardioActualParts({ durationMin: 30 }, tEn)).toEqual(["30:00"]);
     expect(cardioParts({ modality: "Run", durationMin: 40, hrZone: 2 }, tTh)).toEqual(["40 นาที", "โซน 2"]);
     expect(cardioParts({ durationMin: 40, hrZone: 2, hrBpm: { min: 136, max: 148 }, paceSecPerKm: 400 }, tEn)).toEqual(["40 min", "zone 2", "136–148 bpm", "6:40 /km"]);
   });
