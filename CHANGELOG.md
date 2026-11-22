@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.46 — 2026-11-23
+
 ### New
 - **Client logs on the Overview.** When a member logs a session in the portal, it now shows in a new Client logs panel under Needs review: what they did, when, and their note. Tap Seen to clear it, and their next log brings it back.
   - th: พอเมมเบอร์บันทึกเซสชันในพอร์ทัล ก็จะขึ้นในช่อง Client logs ใหม่ใต้ Needs review บอกว่าเล่นอะไร วันไหน พร้อมโน้ตที่เขียนไว้ กด Seen แล้วรายการก็หายไป จนกว่าเมมเบอร์คนนั้นจะบันทึกอีก
