@@ -1,3 +1,4 @@
+import { mainWork } from "./blocks";
 import { cardioTotals } from "./cardio";
 import {
   MAX_SESSIONS_PER_WEEKDAY,
@@ -51,12 +52,12 @@ type PatternOf = (exerciseId: string) => string | null | undefined;
 const LOWER = new Set(["knee_dominant", "hip_dominant"]);
 const UPPER = new Set(["vertical_push", "horizontal_push", "vertical_pull", "horizontal_pull"]);
 
-/** What a exercise session mostly loads, from its exercises' movement patterns. */
+/** What a exercise session mostly loads, from its main-work exercises' movement patterns (prep never counts). */
 export function sessionFocus(s: Pick<ProgramSession, "kind" | "exercises">, patternOf?: PatternOf): SessionFocus {
   if (s.kind !== "exercises" || !patternOf) return "none";
   let lower = 0;
   let upper = 0;
-  for (const e of s.exercises) {
+  for (const e of mainWork(s.exercises)) {
     const p = patternOf(e.exerciseId);
     if (p && LOWER.has(p)) lower++;
     else if (p && UPPER.has(p)) upper++;

@@ -601,6 +601,7 @@
                       sets: e.prescribedSets,
                       oneRepMaxKg: oneRepMaxKg(client?.oneRepMaxes, e.exerciseId),
                       group: e.group,
+                      block: e.block,
                     }))}
                   />
                 {/each}

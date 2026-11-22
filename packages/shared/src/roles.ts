@@ -1,3 +1,4 @@
+import { mainWork } from "./blocks";
 import {
   EXERCISE_ROLES,
   EXERCISE_ROLE_INFO,
@@ -253,6 +254,7 @@ interface DraftSessionLike {
     exerciseId?: string;
     exerciseName?: string;
     role?: ExerciseRole;
+    block?: string;
     prescribedSets: readonly { reps?: number | null; repsMin?: number | null; amrap?: boolean | null; type?: string | null }[];
   }[];
 }
@@ -264,7 +266,7 @@ interface DraftLike {
 
 /**
  * A missing or unknown (or archived) label → suggestRole; a exercise session
- * with more than one Primary keeps them, with an info note for the trainer
+ * with more than one Primary in main work (prep never counts) keeps them, with an info note for the trainer
  * (once per session name, however many weeks repeat it).
  * `hintsFor` supplies catalog fields (pattern, muscle, equipment) by id.
  */
@@ -287,7 +289,7 @@ export function fixDraftRoles<D extends DraftLike>(
       filled++;
       return { ...e, role: suggestRole(hints[i], hints, i) };
     });
-    if (exercises.filter((e) => e.role === "primary").length > 1) {
+    if (mainWork(exercises).filter((e) => e.role === "primary").length > 1) {
       notes.add(`${s.name} has more than one Primary lift — usually one leads the session.`);
     }
     return { ...s, exercises };

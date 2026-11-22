@@ -191,6 +191,17 @@ describe("review checks, rationale, history", () => {
     expect(texts).toContain(`Knee ${b.knee} · hip ${b.hip} sets`);
   });
 
+  test("reviewChecks never counts movement prep", () => {
+    const withPrep: typeof draft = {
+      ...draft,
+      sessions: [
+        { name: "Day 1", exercises: [{ exerciseId: "bench", exerciseName: "Push-up", block: "prep", prescribedSets: [set(9), set(9)] }, ...draft.sessions[0].exercises] },
+        draft.sessions[1],
+      ],
+    };
+    expect(reviewChecks(withPrep, 3, catalog)).toEqual(reviewChecks(draft, 3, catalog));
+  });
+
   test("reviewChecks counts only exercise sessions against sessionsPerWeek", () => {
     const withCardio: typeof draft = { ...draft, sessions: [...draft.sessions, { name: "Bike", kind: "cardio", exercises: [] }] };
     expect(reviewChecks(withCardio, 2, catalog)[0]).toEqual({ tone: "ok", text: "2 exercise sessions — matches the client's 2/week" });

@@ -1,8 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { blockOf, mainWork, moveToBlock, orderByBlock, sessionBlocks } from "./blocks";
 import { DraftExerciseRef } from "./ai";
-import { blockIssues, ProgramSession, sortExercisesByRole } from "./domain";
+import { deloadWeek } from "./deload";
+import { blockIssues, ProgramSession, sessionsPatternBalance, sortExercisesByRole, type ProgramWeek } from "./domain";
 import { normalizeGroups } from "./groups";
+import { plannedVolume } from "./load";
+import { mainLiftIds } from "./metrics";
+import { sessionFocus } from "./placement";
+import { progressExercise } from "./progression";
+import { BUILTIN_ROLE_LABELS, fixDraftRoles } from "./roles";
 
 const set = (n: number) => ({ setNumber: n, type: "working" as const, reps: 8, amrap: false });
 const ex = (id: string, o: { block?: "prep" | "main"; role?: string; group?: string; sets?: number } = {}) => ({
@@ -127,5 +133,60 @@ describe("DraftExerciseRef.block", () => {
     const base = { exerciseName: "Band pull-apart", prescribedSets: [set(1)] };
     expect(DraftExerciseRef.parse({ ...base, block: "prep" }).block).toBe("prep");
     expect(DraftExerciseRef.parse({ ...base, block: "warmup" }).block).toBeUndefined();
+  });
+});
+
+describe("every planned counter ignores prep", () => {
+  const loaded = (id: string, o: { block?: "prep"; role?: string } = {}) => ({
+    ...ex(id, o),
+    prescribedSets: [1, 2, 3].map((n) => ({ ...set(n), targetWeightKg: 100 })),
+  });
+  const pattern = (id: string) => (id.startsWith("sq") ? "knee_dominant" : id.startsWith("bp") ? "horizontal_push" : null);
+  const lower = { kind: "exercises", exercises: [loaded("band", { block: "prep" }), loaded("sq")] };
+
+  test("sessionsPatternBalance and plannedVolume", () => {
+    const b = sessionsPatternBalance([{ exercises: [loaded("bp1", { block: "prep" }), loaded("sq")] }], pattern);
+    expect(b.push).toBe(0);
+    expect(b.knee).toBe(3);
+    expect(plannedVolume([lower], null)).toBe(2400);
+  });
+  test("sessionFocus", () => {
+    const s = { kind: "exercises" as const, exercises: [loaded("bp1", { block: "prep" }), loaded("bp2", { block: "prep" }), loaded("sq")] } as never;
+    expect(sessionFocus(s, pattern)).toBe("lower");
+  });
+  test("mainLiftIds", () => {
+    const program = { weeks: [{ week: 1, sessions: [{ exercises: [loaded("pw", { block: "prep", role: "power" }), loaded("sq", { role: "primary" })] }] }] } as never;
+    expect([...(mainLiftIds(program) ?? [])]).toEqual(["sq"]);
+  });
+  test("fixDraftRoles' more-than-one-Primary note counts main only", () => {
+    const draft = {
+      rationale: "",
+      weeks: [
+        {
+          sessions: [
+            {
+              name: "Lower",
+              exercises: [
+                { exerciseName: "Squat jump", role: "primary" as const, block: "prep", prescribedSets: [set(1)] },
+                { exerciseName: "Squat", role: "primary" as const, prescribedSets: [set(1)] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(fixDraftRoles(draft, BUILTIN_ROLE_LABELS).notes).toEqual([]);
+  });
+  test("deload and progression leave prep as planned", () => {
+    const w = {
+      week: 4,
+      sessions: [{ id: "s", name: "Lower", seq: 1, order: 0, kind: "exercises" as const, exercises: [loaded("band", { block: "prep" }), loaded("sq")] }],
+    } as ProgramWeek;
+    const out = deloadWeek(w).sessions[0].exercises;
+    expect(out[0].prescribedSets).toEqual(w.sessions[0].exercises[0].prescribedSets);
+    expect(out[1].prescribedSets).not.toEqual(w.sessions[0].exercises[1].prescribedSets);
+    const prep = w.sessions[0].exercises[0];
+    expect(progressExercise(prep, { kind: "kg", amount: 5 }).prescribedSets).toEqual(prep.prescribedSets);
+    expect(progressExercise(w.sessions[0].exercises[1], { kind: "kg", amount: 5 }).prescribedSets[0].targetWeightKg).toBe(105);
   });
 });

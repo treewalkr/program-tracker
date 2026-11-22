@@ -188,6 +188,8 @@ export interface DraftExerciseRef {
   notes?: string;
   /** Superset letter shared by adjacent members. */
   group?: string;
+  /** Session block; absent = main work. */
+  block?: "prep" | "main";
 }
 
 export interface AiDraftDto {

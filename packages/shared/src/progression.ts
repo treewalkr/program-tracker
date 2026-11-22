@@ -1,3 +1,4 @@
+import { isPrep } from "./blocks";
 import { isAlternating, rotationOfWeek, sessionKey, type Phasing, type PrescribedSet, type ProgramExercise, type ProgramSession, type ProgramWeek, type WeekProgression } from "./domain";
 
 // ---------------------------------------------------------------------------
@@ -39,9 +40,9 @@ function progressSets(sets: PrescribedSet[], amount: number): PrescribedSet[] {
   return [...next, ...backoff.map((s) => ({ ...s }))].map((s, i) => ({ ...s, setNumber: i + 1 }));
 }
 
-/** One exercise one week on: `rule` applied to its sets (no rule = a copy). Pure. */
+/** One exercise one week on: `rule` applied to its sets (no rule, or movement prep = a copy). Pure. */
 export function progressExercise(e: ProgramExercise, rule: WeekProgression | undefined): ProgramExercise {
-  if (!rule) return { ...e, prescribedSets: e.prescribedSets.map((s) => ({ ...s })) };
+  if (!rule || isPrep(e)) return { ...e, prescribedSets: e.prescribedSets.map((s) => ({ ...s })) };
   const sets = rule.kind === "sets" ? progressSets(e.prescribedSets, rule.amount) : e.prescribedSets.map((s) => progressSet(s, rule));
   return { ...e, prescribedSets: sets };
 }

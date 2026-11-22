@@ -1,3 +1,4 @@
+import { isPrep } from "./blocks";
 import type { OneRepMaxes } from "./domain";
 
 // ---------------------------------------------------------------------------
@@ -41,13 +42,14 @@ export interface VolumeSet extends LoadLike {
 }
 export interface VolumeSession {
   kind?: string | null;
-  exercises: { exerciseId: string; prescribedSets: VolumeSet[] }[];
+  exercises: { exerciseId: string; prescribedSets: VolumeSet[]; block?: string | null; role?: string | null }[];
 }
 
 /**
  * Planned tonnage of a week: Σ resolved kg × reps over its sets (rep ranges
  * count their bottom, AMRAP its minimum; timed sets never count). Null when no
- * set has a resolvable load — "no plan", not "0 kg".
+ * set has a resolvable load — "no plan", not "0 kg". Main work only: movement
+ * prep is never counted.
  */
 export function plannedVolume(sessions: VolumeSession[], maxes: OneRepMaxes | null | undefined): number | null {
   let total = 0;
@@ -55,6 +57,7 @@ export function plannedVolume(sessions: VolumeSession[], maxes: OneRepMaxes | nu
   for (const s of sessions) {
     if ((s.kind ?? "exercises") !== "exercises") continue;
     for (const e of s.exercises) {
+      if (isPrep(e)) continue;
       const max = oneRepMaxKg(maxes, e.exerciseId);
       for (const ps of e.prescribedSets) {
         if (ps.durationSeconds != null) continue;

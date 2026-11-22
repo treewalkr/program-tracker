@@ -162,7 +162,7 @@
               tag={sessionTag(s)}
               kind={s.kind}
               cardio={s.cardio}
-              exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", role: e.role, sets: e.prescribedSets, group: e.group }))}
+              exercises={s.exercises.map((e) => ({ name: e.exerciseName ?? "", role: e.role, sets: e.prescribedSets, group: e.group, block: e.block }))}
             />
           {/each}
         {/each}

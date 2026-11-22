@@ -4,6 +4,7 @@ import {
   deloadVolumeDeltaPercent,
   type DeloadSettings,
   hardSetCount,
+  mainWork,
   sessionsPatternBalance,
   weekTargetLabel,
   planChanges,
@@ -146,7 +147,8 @@ export function reviewChecks(
   let total = 0;
   let maxRpe = 0;
   for (const s of draft.sessions) {
-    for (const e of s.exercises) {
+    // Movement prep is never counted (sets, effort).
+    for (const e of mainWork(s.exercises)) {
       total += hardSetCount(e.prescribedSets);
       for (const ps of e.prescribedSets) if (ps.targetRpe != null) maxRpe = Math.max(maxRpe, ps.targetRpe);
     }
@@ -193,7 +195,7 @@ function weekdayChecks(
       order: 0,
       kind,
       weekday: s.weekday ?? null,
-      exercises: s.exercises.map((e, ei) => ({ id: `d${i}e${ei}`, exerciseId: e.exerciseId ?? "", order: ei, prescribedSets: e.prescribedSets })),
+      exercises: s.exercises.map((e, ei) => ({ id: `d${i}e${ei}`, exerciseId: e.exerciseId ?? "", order: ei, prescribedSets: e.prescribedSets, role: e.role, block: e.block })),
       cardio: s.cardio ?? null,
     } as ProgramSession;
   });

@@ -86,6 +86,7 @@ export interface PreviewSessionCard {
     movementPatterns: string[];
     sets: PrescribedSetDto[];
     group?: string;
+    block?: "prep" | "main";
   }[];
 }
 
@@ -198,6 +199,7 @@ export function draftPreviewModel(
         movementPatterns: e.exerciseId ? catalogById.get(e.exerciseId)?.movementPatterns ?? [] : [],
         sets: e.prescribedSets,
         group: e.group,
+        block: e.block,
       })),
     };
     return { index, state, card };
@@ -313,6 +315,7 @@ export function versionView(
       sets: e.prescribedSets,
       slot: e.slot,
       group: e.group,
+      block: e.block,
     })),
   }));
   // Only the shown week's changes mark its rows (plan changes have no rows).

@@ -1,3 +1,4 @@
+import { isPrep } from "./blocks";
 import { estimate1rm } from "./domain";
 import type { CardioLog, LoggedBy, Phasing, Readiness, SessionFlag, ProgramWeek, SetType, WeekDirective, WeekTarget } from "./domain";
 
@@ -158,14 +159,14 @@ export function weekOf(program: SignalProgram, logs: SignalLog[], now = Date.now
   return blockWeekOfDate(program, logs, localDateOf(now));
 }
 
-/** Exercises the program marks as its main lifts (role power or primary);
- *  null when no exercise carries one of those roles. */
+/** Exercises the program marks as its main lifts (role power or primary, in
+ *  main work); null when no exercise carries one of those roles. */
 export function mainLiftIds(program: Pick<SignalProgram, "weeks">): Set<string> | null {
   const ids = new Set<string>();
   for (const w of program.weeks ?? []) {
     for (const s of w.sessions ?? []) {
       for (const e of s.exercises ?? []) {
-        if (e.role === "power" || e.role === "primary") ids.add(e.exerciseId);
+        if ((e.role === "power" || e.role === "primary") && !isPrep(e)) ids.add(e.exerciseId);
       }
     }
   }

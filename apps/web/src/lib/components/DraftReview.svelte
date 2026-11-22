@@ -1,7 +1,7 @@
 <script lang="ts">
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { effortSummary } from "$lib/effort";
-  import { diffDrafts, draftWeek, mergeWeekChanges, shownExerciseOrder, weekRangeLabel, type SlotChange } from "@pt/shared";
+  import { diffDrafts, draftWeek, mainWork, mergeWeekChanges, shownExerciseOrder, weekRangeLabel, type SlotChange } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, LlmNoteDto, NoteAnchorDto, ProgramDto, ProgramPhasingDto } from "$lib/api/types";
   import { DraftEditor } from "$lib/draftEditor.svelte";
   import { rowMenuItems } from "$lib/draftEditMenu";
@@ -283,6 +283,7 @@
         sets: e.prescribedSets,
         slot: e.slot,
         group: e.group,
+        block: e.block,
       })),
     }))
   );
@@ -534,7 +535,7 @@
     </select>
     <strong class="count">{plural(mergeWeekChanges(compareAll).length, "change")}</strong>
   {:else}
-    <span class="subtle">{plural(shown.sessions.length, "session")} · {shown.sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
+    <span class="subtle">{plural(shown.sessions.length, "session")} · {shown.sessions.reduce((n, s) => n + mainWork(s.exercises).reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
   {/if}
   {#if handEditable && !shown.locked && (mode === "sessions" || version < 2)}
     <button

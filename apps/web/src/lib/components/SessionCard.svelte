@@ -24,6 +24,7 @@
     formatPatternBalance,
     groupKind,
     groupTag,
+    mainWork,
     MOVEMENT_PATTERN_INFO,
     type MovementPattern,
     patternBalance,
@@ -65,6 +66,8 @@
       slot?: number;
       /** Superset letter shared by adjacent members. */
       group?: string | null;
+      /** Session block; absent = main work (or prep for the legacy movement_prep role). */
+      block?: "prep" | "main";
     }[];
     /** Change marks keyed by exercise `slot` (chat draft preview). */
     marks?: Map<number, SlotMark>;
@@ -191,7 +194,7 @@
     {#if hasPattern || legend}
       <!-- the notation key lives here, not over the columns: it must survive the stacked (≤660px) card -->
       <div class="balance">
-        {#if hasPattern}<span>{formatPatternBalance(patternBalance(exercises.map((e) => ({ movementPattern: primaryPattern({ movementPatterns: e.movementPatterns }), sets: e.sets }))))}</span>{/if}
+        {#if hasPattern}<span>{formatPatternBalance(patternBalance(mainWork(exercises).map((e) => ({ movementPattern: primaryPattern({ movementPatterns: e.movementPatterns }), sets: e.sets }))))}</span>{/if}
         {#if legend}<span class="legend">RPE {legend}</span>{/if}
       </div>
     {/if}

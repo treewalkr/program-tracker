@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isPrep } from "./blocks";
 import { firstWeekOfLetter, type PrescribedSet, type ProgramExercise, type ProgramWeek } from "./domain";
 
 /**
@@ -148,7 +149,7 @@ export function deloadBasisWeek(weeks: readonly ProgramWeek[], week: number): Pr
 
 /**
  * A deloaded copy of `week` by the rule `settings`: exercise sessions only;
- * cardio is left as planned. With the week-1 basis, pass the block's `week1`
+ * cardio and movement prep are left as planned. With the week-1 basis, pass the block's `week1`
  * (`deloadBasisWeek`: the first same-letter week in an A/B block).
  */
 export function deloadWeek(week: ProgramWeek, settings: DeloadSettings = DEFAULT_DELOAD, week1?: ProgramWeek): ProgramWeek {
@@ -163,6 +164,7 @@ export function deloadWeek(week: ProgramWeek, settings: DeloadSettings = DEFAULT
         ? {
             ...s,
             exercises: s.exercises.map((e) => {
+              if (isPrep(e)) return e;
               const slot = slotOf.get(e);
               return deloadExercise(e, settings, slot ? baseSlots?.get(slot) : undefined);
             }),

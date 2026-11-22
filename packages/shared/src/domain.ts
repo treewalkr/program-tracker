@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { blockOf, MAX_MAIN_EXERCISES, MAX_PREP_EXERCISES, orderByBlock, SessionBlock } from "./blocks";
+import { blockOf, mainWork, MAX_MAIN_EXERCISES, MAX_PREP_EXERCISES, orderByBlock, SessionBlock } from "./blocks";
 import { exerciseUnits, groupIssues, normalizeGroups } from "./groups";
 import { normalizeKind } from "./sessionKind";
 
@@ -627,16 +627,21 @@ export function patternBalance(
   return result;
 }
 
-/** Pattern balance over sessions whose exercises are catalog refs (a program week, an AI draft). */
+/** Pattern balance over sessions whose exercises are catalog refs (a program week, an AI draft). Main work only. */
 export function sessionsPatternBalance(
   sessions: readonly {
-    exercises: readonly { exerciseId?: string | null; prescribedSets: readonly { type?: SetType }[] }[];
+    exercises: readonly {
+      exerciseId?: string | null;
+      prescribedSets: readonly { type?: SetType }[];
+      block?: string | null;
+      role?: string | null;
+    }[];
   }[],
   patternOf: (exerciseId: string) => string | null | undefined
 ): PatternBalance {
   return patternBalance(
     sessions.flatMap((s) =>
-      s.exercises.map((e) => ({
+      mainWork(s.exercises).map((e) => ({
         movementPattern: e.exerciseId ? patternOf(e.exerciseId) : null,
         sets: e.prescribedSets,
       }))
