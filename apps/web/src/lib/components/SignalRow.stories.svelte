@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            'The needs-review unit — lamp dot (red/amber/green) beside a title and evidence line, actions right. The lamp always travels with a label and evidence; color never signals alone. Actions wrap to their own row at 520px.',
+            'The needs-review unit — lamp dot (red/amber/green) beside a title and evidence line, actions right. The lamp always travels with a label and evidence; color never signals alone. Actions wrap to their own row at 520px. Only urgent/attention rows get a primary button; info rows stay default, with a quiet Hide 1 wk. A `body` snippet replaces the evidence line when the detail is a list (merged week-ending row).',
         },
       },
     },
@@ -69,6 +69,23 @@
       {/snippet}
       {#snippet actions()}
         <Button href="/clients/1" variant="ghost" small>Open client</Button>
+      {/snippet}
+    </SignalRow>
+  </section>
+</Story>
+
+<Story name="Merged weeks (body links, quiet actions)" asChild>
+  <section class="panel">
+    <SignalRow severity="info" title="3 weeks end soon — draft next week">
+      {#snippet body()}
+        <ul style="list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px;">
+          <li><a href="/clients/1/generate?week=3">Alex Rivera · wk 3</a></li>
+          <li><a href="/clients/2/generate?week=5">Maya Chen · wk 5</a></li>
+          <li><a href="/clients/3/generate?week=2">Jonas Weber · wk 2</a></li>
+        </ul>
+      {/snippet}
+      {#snippet actions()}
+        <Button variant="ghost" small>Hide 1 wk</Button>
       {/snippet}
     </SignalRow>
   </section>

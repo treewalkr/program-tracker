@@ -25,6 +25,16 @@
   import Panel from "$lib/ui/Panel.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import Segmented from "$lib/ui/Segmented.svelte";
+  import {
+    filterCounts,
+    generateWeekHref,
+    reviewRows,
+    rowSignalCount,
+    rowSignalIds,
+    showFilter,
+    type ReviewFilter,
+  } from "$lib/needsReview";
 
   let clients = $state<ClientDto[] | null>(null);
   let providers = $state<ProviderDto[]>([]);
@@ -47,6 +57,12 @@
   const today = localIso(now);
 
   const openSignals = $derived(signals.filter((s) => !hidden.includes(s.id)));
+  /** Needs review: All / Check in / Plan ahead, not remembered. */
+  let reviewFilter = $state<ReviewFilter>("all");
+  const reviewCounts = $derived(filterCounts(openSignals));
+  const rows = $derived(reviewRows(openSignals, reviewFilter));
+  const listedCount = $derived(rowSignalCount(rows));
+  const clientName = (id: string | null) => clients?.find((c) => c.id === id)?.name ?? null;
   const tally = $derived(weekTally(strips));
   const trainingClients = $derived(strips.filter((s) => s.program).length);
   /** Says what the head line doesn't: which days need the trainer now, counted like the cells. */
@@ -155,54 +171,78 @@
   </Panel>
   <div class="grid-2">
     <div class="col">
-      <Panel title="Needs review" count={openSignals.length ? plural(openSignals.length, "signal") : undefined}>
-        {#if openSignals.length === 0}
+      <Panel title="Needs review" count={listedCount ? plural(listedCount, "signal") : undefined}>
+        {#snippet act()}
+          {#if showFilter(reviewCounts)}
+            <Segmented
+              label="Show signals"
+              value={reviewFilter}
+              onchange={(v) => (reviewFilter = v)}
+              items={[
+                { value: "all", label: `All ${reviewCounts.all}` },
+                { value: "check", label: `Check in ${reviewCounts.check}`, title: "Clients to check in with: pain, readiness, adherence, fatigue" },
+                { value: "plan", label: `Plan ahead ${reviewCounts.plan}`, title: "Weeks and blocks to draft ahead" },
+              ]}
+            />
+          {/if}
+        {/snippet}
+        {#if rows.length === 0}
           <p class="clear">Nothing needs review right now.</p>
         {:else}
           <div class="signal-list">
-            {#each openSignals as signal (signal.id)}
-              {@const client = clients.find((c) => c.id === signal.clientId)}
-              {#if client}
-                {@const clientHref = `/clients/${client.id}`}
-                {@const lead = signal.severity === "info" ? "default" : "primary"}
-                <SignalRow
-                  severity={signal.severity}
-                  evidence={signal.evidence}
-                  error={hideErrors[signal.id] ? `Couldn't hide — ${hideErrors[signal.id]}` : undefined}
-                >
-                  {#snippet title()}
-                    {signal.title} — <a class="client-link" href={clientHref}>{client.name}</a>
+            {#each rows as row (row.key)}
+              {@const error = hideErrors[row.key] ? `Couldn't hide — ${hideErrors[row.key]}` : undefined}
+              {#snippet hideButton()}
+                <Button variant="ghost" small disabled={hiding === row.key} onclick={() => hide(row.key, rowSignalIds(row), 7)}>
+                  {hiding === row.key ? "Hiding…" : "Hide 1 wk"}
+                </Button>
+              {/snippet}
+              {#if row.type === "weeks"}
+                <SignalRow severity="info" title={row.title} {error}>
+                  {#snippet body()}
+                    <ul class="week-links">
+                      {#each row.signals as w (w.id)}
+                        <li><a href={generateWeekHref(w)}>{clientName(w.clientId) ?? "Client"} · wk {w.targetWeek}</a></li>
+                      {/each}
+                    </ul>
                   {/snippet}
-                  {#snippet actions()}
-                    {#if signal.targetWeek}
-                      <Button
-                        variant={lead}
-                        small
-                        href={`${clientHref}/generate?week=${signal.targetWeek}${signal.prefillNote ? `&note=${encodeURIComponent(signal.prefillNote)}` : ""}`}
-                      >
-                        {#snippet icon()}<Icon name="sparkle" />{/snippet}
-                        Generate week {signal.targetWeek}
-                      </Button>
-                    {:else if signal.prefillNote}
-                      <Button
-                        variant={lead}
-                        small
-                        href={`${clientHref}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
-                      >
-                        {#snippet icon()}<Icon name="sparkle" />{/snippet}
-                        Draft next block
-                      </Button>
-                    {:else if signal.altHref}
-                      <Button small href={signal.altHref}>{signal.altLabel}</Button>
-                    {/if}
-                    {#if signal.altHref !== clientHref || signal.targetWeek || signal.prefillNote}
-                      <Button variant="ghost" small href={clientHref}>Open client</Button>
-                    {/if}
-                    <Button variant="ghost" small disabled={hiding === signal.id} onclick={() => hide(signal.id, [signal.id], 7)}>
-                      {hiding === signal.id ? "Hiding…" : "Hide 1 wk"}
-                    </Button>
-                  {/snippet}
+                  {#snippet actions()}{@render hideButton()}{/snippet}
                 </SignalRow>
+              {:else}
+                {@const signal = row.signal}
+                {@const name = clientName(signal.clientId)}
+                {#if name}
+                  {@const clientHref = `/clients/${signal.clientId}`}
+                  {@const lead = signal.severity === "info" ? "default" : "primary"}
+                  <SignalRow severity={signal.severity} evidence={signal.evidence} {error}>
+                    {#snippet title()}
+                      {signal.title} — <a class="client-link" href={clientHref}>{name}</a>
+                    {/snippet}
+                    {#snippet actions()}
+                      {#if signal.targetWeek}
+                        <Button variant={lead} small href={generateWeekHref(signal)}>
+                          {#snippet icon()}<Icon name="sparkle" />{/snippet}
+                          Generate week {signal.targetWeek}
+                        </Button>
+                      {:else if signal.prefillNote}
+                        <Button
+                          variant={lead}
+                          small
+                          href={`${clientHref}/generate?tpl=${signal.templateHint ?? ""}&note=${encodeURIComponent(signal.prefillNote)}`}
+                        >
+                          {#snippet icon()}<Icon name="sparkle" />{/snippet}
+                          Draft next block
+                        </Button>
+                      {:else if signal.altHref}
+                        <Button small href={signal.altHref}>{signal.altLabel}</Button>
+                      {/if}
+                      {#if signal.altHref !== clientHref || signal.targetWeek || signal.prefillNote}
+                        <Button variant="ghost" small href={clientHref}>Open client</Button>
+                      {/if}
+                      {@render hideButton()}
+                    {/snippet}
+                  </SignalRow>
+                {/if}
               {/if}
             {/each}
           </div>
@@ -298,6 +338,7 @@
   }
   .portal-on:hover { text-decoration: underline; text-underline-offset: 3px; }
   .portal-on:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+  .week-links { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
 

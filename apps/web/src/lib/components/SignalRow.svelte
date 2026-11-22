@@ -12,13 +12,16 @@
 		severity: Severity;
 		/** Plain string, or a snippet when the title embeds a client link. */
 		title: string | Snippet;
-		evidence: string;
+		/** Evidence line; omit when `body` carries the detail. */
+		evidence?: string;
+		/** Richer detail under the title (a list of links), in place of or after the evidence. */
+		body?: Snippet;
 		/** Failure line under the evidence (e.g. snooze error). */
 		error?: string;
 		actions?: Snippet;
 	}
 
-	let { severity, title, evidence, error, actions }: Props = $props();
+	let { severity, title, evidence, body, error, actions }: Props = $props();
 
 	const LAMP: Record<Severity, string> = { urgent: 'red', attention: 'amber', info: 'green' };
 </script>
@@ -33,7 +36,8 @@
 				{@render title()}
 			{/if}
 		</strong>
-		<p class="evi">{evidence}</p>
+		{#if evidence}<p class="evi">{evidence}</p>{/if}
+		{@render body?.()}
 		{#if error}<p class="evi err" role="alert">{error}</p>{/if}
 	</div>
 	{#if actions}
