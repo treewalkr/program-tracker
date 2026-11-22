@@ -1,6 +1,7 @@
 export * from "./domain";
 export * from "./sessionKind";
 export * from "./groups";
+export * from "./blocks";
 export * from "./draftEdit";
 export * from "./placement";
 export * from "./ai";

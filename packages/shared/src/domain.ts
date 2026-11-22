@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { blockOf, MAX_MAIN_EXERCISES, MAX_PREP_EXERCISES, orderByBlock, SessionBlock } from "./blocks";
 import { exerciseUnits, groupIssues, normalizeGroups } from "./groups";
 import { normalizeKind } from "./sessionKind";
 
@@ -528,11 +529,12 @@ export interface RoleRank {
 }
 
 /**
- * Stable sort by label rank (built-ins + the trainer's labels). Exercises
- * without a role, with an unknown label or an archived one keep their
- * relative order at the end.
+ * Stable sort by session block (prep first), then by label rank (built-ins +
+ * the trainer's labels) inside each block. Exercises without a role, with an
+ * unknown label or an archived one keep their relative order at the end of
+ * their block.
  */
-export function sortExercisesByRole<T extends { role?: string | null; group?: string | null }>(
+export function sortExercisesByRole<T extends { role?: string | null; group?: string | null; block?: string | null }>(
   list: readonly T[],
   labels?: readonly RoleRank[]
 ): T[] {
@@ -543,9 +545,13 @@ export function sortExercisesByRole<T extends { role?: string | null; group?: st
   );
   const rank = (r: string | null | undefined) => (r ? (ranks.get(r) ?? Infinity) : Infinity);
   // A superset sorts as one unit, ranked by its best-ranked member; its inside order is kept.
-  const units = exerciseUnits(list).map((u) => ({ items: u.items, rank: Math.min(...u.items.map((e) => rank(e.role))) }));
+  const units = exerciseUnits(list).map((u) => ({
+    items: u.items,
+    block: blockOf(u.items[0]) === "prep" ? 0 : 1,
+    rank: Math.min(...u.items.map((e) => rank(e.role))),
+  }));
   return units
-    .sort((a, b) => (a.rank === b.rank ? 0 : a.rank - b.rank))
+    .sort((a, b) => a.block - b.block || (a.rank === b.rank ? 0 : a.rank - b.rank))
     .flatMap((u) => u.items);
 }
 
@@ -715,8 +721,28 @@ export const ProgramExercise = z.object({
   notes: z.string().max(1000).optional(),
   /** Superset / circuit letter; members share it, sit adjacent and have equal set counts (= rounds). */
   group: z.string().regex(/^[A-Z]$/).optional(),
+  /** Session block, separate from the role label. Absent = main (or prep for the legacy movement_prep role, see blockOf). */
+  block: SessionBlock.optional(),
 });
 export type ProgramExercise = z.infer<typeof ProgramExercise>;
+
+/**
+ * Block rules for an exercise session: at most MAX_PREP_EXERCISES prep and
+ * MAX_MAIN_EXERCISES main, and at least one main exercise. A legacy session
+ * whose only exercises read as prep through the old movement_prep role (no
+ * explicit block anywhere) is let through, so an old program still saves.
+ */
+export function blockIssues(list: readonly { block?: string | null; role?: string | null }[]): string[] {
+  const issues: string[] = [];
+  const prep = list.filter((e) => blockOf(e) === "prep").length;
+  const main = list.length - prep;
+  if (prep > MAX_PREP_EXERCISES) issues.push(`movement prep holds at most ${MAX_PREP_EXERCISES} exercises`);
+  if (main > MAX_MAIN_EXERCISES) issues.push(`main work holds at most ${MAX_MAIN_EXERCISES} exercises`);
+  if (list.length > 0 && main === 0 && list.some((e) => e.block === "prep")) {
+    issues.push("exercise session requires at least one main-work exercise");
+  }
+  return issues;
+}
 
 export const SESSION_KINDS = ["exercises", "cardio"] as const;
 /** Reads through the kind alias (sessionKind.ts): "lifting" (release 1 data) parses as "exercises". */
@@ -818,11 +844,12 @@ export const ProgramSession = z
     typeId: z.string().min(1).max(64).optional(),
     typeName: z.string().min(1).max(40).optional(),
     notes: z.string().max(2000).optional(),
-    /** Groups are tidied on the way in (re-lettered, singletons dropped, rounds evened) so a lopsided edit never 422s. */
+    /** Prep sorted before main, then groups tidied (re-lettered, split at the block
+     *  boundary, singletons dropped, rounds evened) so a lopsided edit never 422s. */
     exercises: z
       .preprocess(
-        (v) => (Array.isArray(v) && v.every((e) => e !== null && typeof e === "object") ? normalizeGroups(v) : v),
-        z.array(ProgramExercise).max(20)
+        (v) => (Array.isArray(v) && v.every((e) => e !== null && typeof e === "object") ? normalizeGroups(orderByBlock(v)) : v),
+        z.array(ProgramExercise).max(MAX_PREP_EXERCISES + MAX_MAIN_EXERCISES)
       )
       .default([]),
     cardio: CardioPrescription.nullable().optional(),
@@ -844,6 +871,9 @@ export const ProgramSession = z
         });
       }
       for (const message of groupIssues(val.exercises)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["exercises"] });
+      }
+      for (const message of blockIssues(val.exercises)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["exercises"] });
       }
     } else if (val.kind === "cardio") {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizeKind } from "./sessionKind";
+import { SessionBlock } from "./blocks";
 import {
   CardioIntervalType,
   CardioLog,
@@ -69,6 +70,8 @@ export const PortalExercise = z.object({
   exerciseName: z.string(),
   order: z.number().int(),
   group: z.string().optional(),
+  /** "prep" = a movement-prep checklist item (no sets logged); absent = main work. */
+  block: SessionBlock.optional(),
   notes: z.string().optional(),
   /** Bodyweight move: a set with no kg is complete as logged. */
   bodyweight: z.boolean().optional(),

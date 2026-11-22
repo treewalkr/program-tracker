@@ -1,3 +1,5 @@
+import { blockOf, type Blockable } from "./blocks";
+
 /**
  * Supersets and circuits: exercises sharing a `group` letter are done back to
  * back — A1 then A2 is one round, repeated for the group's rounds. Rounds are
@@ -6,7 +8,7 @@
  * Pure list helpers, generic over any exercise shape that carries a `group`.
  */
 
-export interface Groupable {
+export interface Groupable extends Blockable {
   group?: string | null;
 }
 
@@ -20,13 +22,17 @@ export interface ExerciseUnit<T> {
 
 const keyOf = (g: string | null | undefined) => (g ? g : undefined);
 
-/** Consecutive units: a run of exercises sharing a group letter, or an ungrouped exercise alone. */
+/**
+ * Consecutive units: a run of exercises sharing a group letter, or an
+ * ungrouped exercise alone. A run never spans session blocks, so a superset
+ * straddling the prep/main boundary reads as two (normalizeGroups splits it).
+ */
 export function exerciseUnits<T extends Groupable>(list: readonly T[]): ExerciseUnit<T>[] {
   const units: ExerciseUnit<T>[] = [];
   list.forEach((e, i) => {
     const g = keyOf(e.group);
     const last = units[units.length - 1];
-    if (g && last?.group === g) last.items.push(e);
+    if (g && last?.group === g && blockOf(last.items[0]) === blockOf(e)) last.items.push(e);
     else units.push(g ? { group: g, start: i, items: [e] } : { start: i, items: [e] });
   });
   return units;

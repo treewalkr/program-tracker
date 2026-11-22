@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizeKinds } from "./sessionKind";
+import { MAX_MAIN_EXERCISES, MAX_PREP_EXERCISES, SessionBlock } from "./blocks";
 import { CoercedCardioPrescription } from "./cardio";
 import {
   type CardioPrescription,
@@ -134,6 +135,8 @@ export const DraftExerciseRef = z
     notes: z.string().max(1000).optional(),
     /** Superset letter; members adjacent with equal set counts. Tidied by normalizeGroups when settled. */
     group: z.string().regex(/^[A-Z]$/).optional().catch(undefined),
+    /** Session block: "prep" (movement prep, not counted) or "main" (default). A bad value drops to main. */
+    block: SessionBlock.optional().catch(undefined),
   })
   .refine((v) => v.exerciseId !== undefined || v.exerciseName !== undefined, {
     message: "Provide exerciseId (from catalog) or exerciseName",
@@ -151,7 +154,7 @@ export const DraftSession = z
     weekday: z.number().int().min(1).max(7).nullable().optional().catch(null),
     /** Coerced: a bad optional field or interval drops instead of failing the draft. */
     cardio: CoercedCardioPrescription.nullable().optional(),
-    exercises: z.array(DraftExerciseRef).max(20).default([]),
+    exercises: z.array(DraftExerciseRef).max(MAX_PREP_EXERCISES + MAX_MAIN_EXERCISES).default([]),
     notes: z.string().max(2000).optional(),
   })
   .superRefine((val, ctx) => {

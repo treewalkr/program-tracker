@@ -1,0 +1,131 @@
+import { describe, expect, test } from "bun:test";
+import { blockOf, mainWork, moveToBlock, orderByBlock, sessionBlocks } from "./blocks";
+import { DraftExerciseRef } from "./ai";
+import { blockIssues, ProgramSession, sortExercisesByRole } from "./domain";
+import { normalizeGroups } from "./groups";
+
+const set = (n: number) => ({ setNumber: n, type: "working" as const, reps: 8, amrap: false });
+const ex = (id: string, o: { block?: "prep" | "main"; role?: string; group?: string; sets?: number } = {}) => ({
+  id,
+  exerciseId: id,
+  order: 0,
+  prescribedSets: Array.from({ length: o.sets ?? 3 }, (_, i) => set(i + 1)),
+  ...(o.block ? { block: o.block } : {}),
+  ...(o.role ? { role: o.role } : {}),
+  ...(o.group ? { group: o.group } : {}),
+});
+const ids = (l: { id: string }[]) => l.map((e) => e.id).join(",");
+const session = (exercises: unknown[]) => ({ id: "s", name: "Day", seq: 1, order: 0, kind: "exercises", exercises });
+
+describe("blockOf", () => {
+  test("absent block reads as main", () => {
+    expect(blockOf({})).toBe("main");
+    expect(blockOf({ role: "primary" })).toBe("main");
+  });
+  test("the legacy movement_prep role reads as prep", () => {
+    expect(blockOf({ role: "movement_prep" })).toBe("prep");
+  });
+  test("an explicit block wins over the role", () => {
+    expect(blockOf({ role: "movement_prep", block: "main" })).toBe("main");
+    expect(blockOf({ role: "mobility", block: "prep" })).toBe("prep");
+  });
+});
+
+describe("sessionBlocks / mainWork", () => {
+  test("splits one list into the two views", () => {
+    const list = [ex("a", { block: "prep" }), ex("b", { role: "movement_prep" }), ex("c"), ex("d", { block: "main" })];
+    const v = sessionBlocks({ exercises: list });
+    expect(ids(v.movementPrep)).toBe("a,b");
+    expect(ids(v.mainWork)).toBe("c,d");
+    expect(ids(mainWork(list))).toBe("c,d");
+  });
+});
+
+describe("orderByBlock", () => {
+  test("puts prep first, stable, and renumbers order", () => {
+    const out = orderByBlock([ex("m1"), ex("p1", { block: "prep" }), ex("m2"), ex("p2", { block: "prep" })]);
+    expect(ids(out)).toBe("p1,p2,m1,m2");
+    expect(out.map((e) => e.order)).toEqual([0, 1, 2, 3]);
+  });
+  test("an ordered list comes back untouched", () => {
+    const list = [{ ...ex("p", { block: "prep" }), order: 5 }, ex("m")];
+    expect(orderByBlock(list).map((e) => e.order)).toEqual([5, 0]);
+  });
+});
+
+describe("moveToBlock", () => {
+  test("moves to the end of main work and leaves its superset", () => {
+    const list = normalizeGroups([ex("p1", { block: "prep", group: "A" }), ex("p2", { block: "prep", group: "A" }), ex("m1")]);
+    const out = normalizeGroups(moveToBlock(list, 0, "main"));
+    expect(ids(out)).toBe("p2,m1,p1");
+    expect(out.map((e) => e.group ?? "-").join("")).toBe("---");
+    expect(out[2].block).toBe("main");
+  });
+  test("moves to the end of movement prep", () => {
+    const out = moveToBlock([ex("p1", { block: "prep" }), ex("m1"), ex("m2")], 2, "prep");
+    expect(ids(out)).toBe("p1,m2,m1");
+    expect(out.map((e) => e.order)).toEqual([0, 1, 2]);
+  });
+});
+
+describe("ProgramSession block rules", () => {
+  test("prep is sorted before main on the way in", () => {
+    const s = ProgramSession.parse(session([ex("m1"), ex("p1", { block: "prep" })]));
+    expect(ids(s.exercises)).toBe("p1,m1");
+    expect(s.exercises.map((e) => e.order)).toEqual([0, 1]);
+  });
+  test("a superset spanning the boundary is split", () => {
+    const s = ProgramSession.parse(
+      session([ex("p1", { block: "prep", group: "A" }), ex("p2", { block: "prep", group: "A" }), ex("m1", { group: "A" }), ex("m2", { group: "A" })])
+    );
+    expect(s.exercises.map((e) => e.group).join("")).toBe("AABB");
+  });
+  test("a lone member left on one side is ungrouped", () => {
+    const s = ProgramSession.parse(session([ex("p1", { block: "prep", group: "A" }), ex("m1", { group: "A" }), ex("m2")]));
+    expect(s.exercises.map((e) => e.group ?? "-").join("")).toBe("---");
+  });
+  test("a circuit inside prep is fine", () => {
+    const s = ProgramSession.parse(
+      session([ex("p1", { block: "prep", group: "A" }), ex("p2", { block: "prep", group: "A" }), ex("p3", { block: "prep", group: "A" }), ex("m1")])
+    );
+    expect(s.exercises.map((e) => e.group ?? "-").join("")).toBe("AAA-");
+  });
+  test("needs at least one main exercise", () => {
+    expect(ProgramSession.safeParse(session([ex("p1", { block: "prep" })])).success).toBe(false);
+  });
+  test("a legacy session of only movement_prep labels still parses", () => {
+    expect(ProgramSession.safeParse(session([ex("p1", { role: "movement_prep" })])).success).toBe(true);
+  });
+  test("caps: prep ≤ 8, main ≤ 20", () => {
+    const prep = (n: number) => Array.from({ length: n }, (_, i) => ex(`p${i}`, { block: "prep" }));
+    const main = (n: number) => Array.from({ length: n }, (_, i) => ex(`m${i}`));
+    expect(ProgramSession.safeParse(session([...prep(8), ...main(20)])).success).toBe(true);
+    expect(ProgramSession.safeParse(session([...prep(9), ...main(1)])).success).toBe(false);
+    expect(ProgramSession.safeParse(session(main(21))).success).toBe(false);
+    expect(blockIssues([...prep(9), ...main(1)])).toEqual(["movement prep holds at most 8 exercises"]);
+  });
+  test("a bad block value fails the write", () => {
+    expect(ProgramSession.safeParse(session([{ ...ex("m"), block: "warmup" }])).success).toBe(false);
+  });
+});
+
+describe("sortExercisesByRole", () => {
+  test("never sorts prep into main", () => {
+    const out = sortExercisesByRole([ex("acc", { role: "accessory" }), ex("prim", { role: "primary" }), ex("mob", { role: "mobility", block: "prep" })]);
+    expect(ids(out)).toBe("mob,prim,acc");
+  });
+  test("a Primary placed in prep stays in prep", () => {
+    const out = sortExercisesByRole([ex("acc", { role: "accessory" }), ex("pw", { role: "power", block: "prep" })]);
+    expect(ids(out)).toBe("pw,acc");
+    const out2 = sortExercisesByRole([ex("pw", { role: "power", block: "prep" }), ex("prim", { role: "primary" })]);
+    expect(ids(out2)).toBe("pw,prim");
+  });
+});
+
+describe("DraftExerciseRef.block", () => {
+  test("keeps a valid block, drops a bad one", () => {
+    const base = { exerciseName: "Band pull-apart", prescribedSets: [set(1)] };
+    expect(DraftExerciseRef.parse({ ...base, block: "prep" }).block).toBe("prep");
+    expect(DraftExerciseRef.parse({ ...base, block: "warmup" }).block).toBeUndefined();
+  });
+});
