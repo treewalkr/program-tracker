@@ -92,7 +92,7 @@ const en: Guide = {
         },
         {
           h: "Fill in the sets",
-          p: `kg and reps come prefilled from your prescription; they change what differed. RPE is optional behind *${portalEn["log.rpeShow"]}*, as is the ${q("log.readiness")} strip.`,
+          p: `kg and reps come prefilled from your prescription; they change what differed. RPE is optional behind *${portalEn["log.rpeShow"]}*, as is the ${q("log.readiness")} strip. A superset or circuit is one card, laid out the way it's done: **Set 1** with each exercise under it, then **Set 2**.`,
         },
         {
           h: portalEn["log.save"],
@@ -202,7 +202,7 @@ const th: Guide = {
         },
         {
           h: "กรอกเซต",
-          p: `ระบบกรอก กก. และจำนวนครั้งไว้ให้ล่วงหน้าตามโปรแกรมของคุณ เมมเบอร์แก้เฉพาะที่ต่างไป RPE ไม่บังคับ ซ่อนอยู่หลังปุ่ม *${portalTh["log.rpeShow"]}* แถบ "${portalTh["log.readiness"]}" ก็เหมือนกัน`,
+          p: `ระบบกรอก กก. และจำนวนครั้งไว้ให้ล่วงหน้าตามโปรแกรมของคุณ เมมเบอร์แก้เฉพาะที่ต่างไป RPE ไม่บังคับ ซ่อนอยู่หลังปุ่ม *${portalTh["log.rpeShow"]}* แถบ "${portalTh["log.readiness"]}" ก็เหมือนกัน ซูเปอร์เซตและเซอร์กิตรวมอยู่ในการ์ดเดียว เรียงตามที่เล่นจริง คือ **เซต 1** มีทุกท่าอยู่ข้างใต้ แล้วต่อด้วย **เซต 2**`,
         },
         {
           h: portalTh["log.save"],
