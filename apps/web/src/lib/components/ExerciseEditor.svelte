@@ -44,6 +44,8 @@
     tag = null,
     onlink,
     onunlink,
+    block = "main",
+    onblock,
   }: {
     exercise: ProgramExerciseDto;
     /** The session's exercises (this one included) — picking an exercise with no role suggests one from its place. */
@@ -66,6 +68,10 @@
     onlink?: () => void;
     /** Take this exercise out of its group. */
     onunlink?: () => void;
+    /** The session block this slot sits in. */
+    block?: "prep" | "main";
+    /** Move it to the other block ("Move to main work" / "Move to movement prep"); omit when the move isn't allowed. */
+    onblock?: () => void;
   } = $props();
 
   const grouped = $derived(tag != null);
@@ -238,6 +244,14 @@
       <button type="button" class="btn ghost small" onclick={onunlink} title="Take this exercise out of the superset">Unlink</button>
     {:else if !grouped && onlink}
       <button type="button" class="btn ghost small" onclick={onlink} title="Do this and the next exercise back to back, as rounds">Superset with next</button>
+    {/if}
+    {#if onblock}
+      <button
+        type="button"
+        class="btn ghost small"
+        onclick={onblock}
+        title={block === "prep" ? "Count it: sets, balance and progress read main work" : "Warm-up or activation before the main work — never counted"}
+      >{block === "prep" ? "Move to main work" : "Move to movement prep"}</button>
     {/if}
     <span class="grow"></span>
     <ConfirmButton label="Remove exercise" confirmLabel="Really remove?" variant="danger" class="ghost" small onconfirm={onremove} />

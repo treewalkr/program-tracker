@@ -7,6 +7,15 @@
   import {
     addExercise,
     addSet,
+    blockOf,
+    mainWork,
+    MAX_MAIN_EXERCISES,
+    MAX_PREP_EXERCISES,
+    movementPrep,
+    moveToBlock,
+    orderByBlock,
+    type ExerciseUnit,
+    type SessionBlock,
     addSession,
     applyForward,
     applyPlacementToAllWeeks,
@@ -61,6 +70,7 @@
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
+  import BlockHead from "$lib/components/BlockHead.svelte";
   import SessionHeadEditor from "$lib/components/SessionHeadEditor.svelte";
   import type { CardioTemplateInput, CardioTemplatesDto, HrProfileDto, ModalityDto } from "$lib/api/types";
   import { profileOn, sessionDateIn, type HrZones } from "@pt/shared";
@@ -141,6 +151,22 @@
     if (!currentWeek) return;
     currentWeek.sessions[si] = { ...currentWeek.sessions[si], exercises: normalizeGroups(list).map((e, i) => ({ ...e, order: i })) };
   }
+  /** Add a placeholder exercise at the end of a block; the editor swaps it right away and the edit goes forward when it closes. */
+  function addExerciseTo(si: number, block: SessionBlock) {
+    const first = catalog[0];
+    if (!currentWeek || !first) return;
+    beginEdit();
+    const sess = addExercise(currentWeek.sessions[si], first.id, first.name);
+    const last = sess.exercises.length - 1;
+    const added = { ...addSet(sess.exercises[last]), ...(block === "prep" ? { block } : {}) };
+    currentWeek.sessions[si] = { ...sess, exercises: orderByBlock(sess.exercises.map((x, i) => (i === last ? added : x))) };
+    openExerciseEditor(added.id);
+  }
+  /** "prep 3 not counted" after the session's balance line, when it has prep. */
+  const prepNote = (s: ProgramSessionDto) => {
+    const n = movementPrep(s.exercises).length;
+    return n > 0 ? ` · prep ${n} not counted` : "";
+  };
   const dirty = $derived(program != null && baseline !== "" && snapshot(program) !== baseline);
   let saving = $state(false);
   let savedAt = $state<string | null>(null);
@@ -731,7 +757,7 @@
         <section class="panel" class:sel={selected === s.id} id="sess-{s.id}">
           <div class="panel-head">
             <span class="eyebrow">{DAY_NAMES[day]} · {sessionTag(s)}{#if s.typeName}{" · "}<span class="stype">{s.typeName}</span>{/if}</span>
-            {#if s.kind === "exercises"}<span class="subtle">{formatPatternBalance(sessionsPatternBalance([s], patternOf))}</span>{/if}
+            {#if s.kind === "exercises"}<span class="subtle">{formatPatternBalance(sessionsPatternBalance([s], patternOf))}{prepNote(s)}</span>{/if}
           </div>
 
           <div class="panel-body exlist">
@@ -801,7 +827,13 @@
                       onmoveup={() => setExercises(si, moveUnit(s.exercises, ei, -1))}
                       onmovedown={() => setExercises(si, moveUnit(s.exercises, ei, 1))}
                       onremove={() => { setExercises(si, s.exercises.filter((_, j) => j !== ei)); closeEditors(); }}
-                      onlink={ei < s.exercises.length - 1 ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
+                      block={blockOf(e)}
+                      onblock={blockOf(e) === "prep"
+                        ? mainWork(s.exercises).length < MAX_MAIN_EXERCISES ? () => setExercises(si, moveToBlock(s.exercises, ei, "main")) : undefined
+                        : movementPrep(s.exercises).length < MAX_PREP_EXERCISES && mainWork(s.exercises).length > 1
+                          ? () => setExercises(si, moveToBlock(s.exercises, ei, "prep"))
+                          : undefined}
+                      onlink={ei < s.exercises.length - 1 && blockOf(s.exercises[ei + 1]) === blockOf(e) ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
                       onunlink={() => setExercises(si, unlink(s.exercises, ei))}
                       onclose={closeEditors}
                     />
@@ -836,45 +868,56 @@
                     </div>
                   {/if}
                 {/snippet}
-                {#each exerciseUnits(s.exercises) as u, ui (u.items[0].id)}
-                  {@const lastUnit = u.start + u.items.length === s.exercises.length}
-                  {#if u.group}
-                    {@const g = u.group}
-                    <ExerciseGroup
-                      group={g}
-                      count={u.items.length}
-                      rounds={u.items[0].prescribedSets.length}
-                      onrounds={editable ? (n) => setExercises(si, setGroupRounds(s.exercises, g, n)) : undefined}
-                      canMoveUp={ui > 0}
-                      canMoveDown={!lastUnit}
-                      onmoveup={editable ? () => setExercises(si, moveUnit(s.exercises, u.start, -1, "unit")) : undefined}
-                      onmovedown={editable ? () => setExercises(si, moveUnit(s.exercises, u.start, 1, "unit")) : undefined}
-                      onungroup={editable ? () => setExercises(si, dissolveGroup(s.exercises, g)) : undefined}
-                    >
-                      {#each u.items as e, k (e.id)}
-                        {@render exitem(e, u.start + k, k === 0, k === u.items.length - 1)}
-                      {/each}
-                    </ExerciseGroup>
-                  {:else}
-                    {@render exitem(u.items[0], u.start, ui === 0, lastUnit)}
-                  {/if}
-                  {#if !lastUnit}<hr class="divider" />{/if}
-                {/each}
-                {#if editable && s.exercises.length < 20}
-                  <button
-                    class="add-link"
-                    onclick={() => {
-                      const first = catalog[0];
-                      if (!currentWeek || !first) return;
-                      // A placeholder the editor swaps right away: the edit goes forward when the editor closes.
-                      beginEdit();
-                      const sess = addExercise(currentWeek.sessions[si], first.id, first.name);
-                      const last = sess.exercises.length - 1;
-                      sess.exercises[last] = addSet(sess.exercises[last]);
-                      currentWeek.sessions[si] = sess;
-                      openExerciseEditor(sess.exercises[last].id);
-                    }}>+ Exercise</button
-                  >
+                {#snippet blockUnits(us: ExerciseUnit<(typeof s.exercises)[number]>[])}
+                  {#each us as u, ui (u.items[0].id)}
+                    {@const lastUnit = ui === us.length - 1}
+                    {#if u.group}
+                      {@const g = u.group}
+                      <ExerciseGroup
+                        group={g}
+                        count={u.items.length}
+                        rounds={u.items[0].prescribedSets.length}
+                        onrounds={editable ? (n) => setExercises(si, setGroupRounds(s.exercises, g, n)) : undefined}
+                        canMoveUp={ui > 0}
+                        canMoveDown={!lastUnit}
+                        onmoveup={editable ? () => setExercises(si, moveUnit(s.exercises, u.start, -1, "unit")) : undefined}
+                        onmovedown={editable ? () => setExercises(si, moveUnit(s.exercises, u.start, 1, "unit")) : undefined}
+                        onungroup={editable ? () => setExercises(si, dissolveGroup(s.exercises, g)) : undefined}
+                      >
+                        {#each u.items as e, k (e.id)}
+                          {@render exitem(e, u.start + k, k === 0, k === u.items.length - 1)}
+                        {/each}
+                      </ExerciseGroup>
+                    {:else}
+                      {@render exitem(u.items[0], u.start, ui === 0, lastUnit)}
+                    {/if}
+                    {#if !lastUnit}<hr class="divider" />{/if}
+                  {/each}
+                {/snippet}
+                {@const units = exerciseUnits(s.exercises)}
+                {@const prepUnits = units.filter((u) => blockOf(u.items[0]) === "prep")}
+                {@const prepCount = movementPrep(s.exercises).length}
+                {@const mainCount = s.exercises.length - prepCount}
+                {#if prepUnits.length > 0}
+                  <div class="prep-block">
+                    <BlockHead block="prep" />
+                    {@render blockUnits(prepUnits)}
+                    {#if editable && prepCount < MAX_PREP_EXERCISES}
+                      <button class="add-link" onclick={() => addExerciseTo(si, "prep")}>+ Movement prep</button>
+                    {/if}
+                  </div>
+                  <BlockHead block="main" />
+                {/if}
+                {@render blockUnits(units.filter((u) => blockOf(u.items[0]) !== "prep"))}
+                {#if editable}
+                  <div class="add-row">
+                    {#if mainCount < MAX_MAIN_EXERCISES}
+                      <button class="add-link" onclick={() => addExerciseTo(si, "main")}>+ Exercise</button>
+                    {/if}
+                    {#if prepUnits.length === 0}
+                      <button class="add-link quiet" onclick={() => addExerciseTo(si, "prep")} title="Warm-up and activation before the main work — never counted">+ Movement prep</button>
+                    {/if}
+                  </div>
                 {/if}
               {/if}
             </div>
@@ -1090,6 +1133,9 @@
   .edit-link:hover, .add-link:hover { text-decoration: underline; }
   .sub-link { margin-left: 6px; font-size: inherit; }
   .add-link { align-self: flex-start; }
+  .add-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; }
+  .add-link.quiet { color: var(--muted); }
+  .prep-block { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; margin: 0 -10px 4px; border-radius: var(--radius); background: var(--well); }
   .sess-notes, .exnotes { margin: 0; font-size: 12.5px; }
 
   /* What was done, under what was planned */

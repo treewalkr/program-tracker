@@ -144,7 +144,8 @@ export function unlink<T extends WithSets>(list: readonly T[], i: number): T[] {
 
 /**
  * Move up (-1) or down (+1). A group member moves only inside its group; an
- * ungrouped exercise jumps over a whole neighbouring group. `scope: "unit"`
+ * ungrouped exercise jumps over a whole neighbouring group. Nothing crosses
+ * the prep/main block boundary. `scope: "unit"`
  * moves the whole unit holding `i` (a group header's arrows).
  */
 export function moveUnit<T extends Groupable>(
@@ -166,6 +167,8 @@ export function moveUnit<T extends Groupable>(
   }
   const vi = ui + dir;
   if (vi < 0 || vi >= units.length) return [...list];
+  // A move stays inside its session block: prep and main never swap.
+  if (blockOf(units[vi].items[0]) !== blockOf(u.items[0])) return [...list];
   const swapped = [...units];
   [swapped[ui], swapped[vi]] = [swapped[vi], swapped[ui]];
   return withOrder(swapped.flatMap((x) => x.items));

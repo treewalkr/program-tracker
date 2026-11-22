@@ -50,6 +50,14 @@
     { name: 'Untagged Drill', role: 'accessory' as ExerciseRole, sets: working(12, 3, 20) },
   ];
 
+  /** Movement prep (not counted) above main work: the balance line reads main only. */
+  const withPrep = [
+    { name: '90/90 Hip Switch', role: 'mobility' as ExerciseRole, block: 'prep' as const, movementPatterns: ['no_pattern'], sets: working(6, 2, 0) },
+    { name: 'Glute Bridge', role: 'accessory' as ExerciseRole, block: 'prep' as const, movementPatterns: ['hip_dominant'], sets: working(10, 2, 0) },
+    { name: 'Back Squat', role: 'primary' as ExerciseRole, movementPatterns: ['knee_dominant'], sets: working(5, 4, 140, 8) },
+    { name: 'Romanian Deadlift', role: 'secondary' as ExerciseRole, movementPatterns: ['hip_dominant'], sets: working(8, 3, 100, 7) },
+  ];
+
   /** Top set + back-offs, %1RM, an AMRAP and an RPE 9 ramp: every load/effort form on one card. */
   const set = (o: Partial<PrescribedSetDto>, n: number): PrescribedSetDto =>
     ({ setNumber: n, type: 'working', reps: 5, amrap: false, restSeconds: 180, ...o }) as PrescribedSetDto;
@@ -64,7 +72,7 @@
   ];
 </script>
 
-{#snippet template(args: { name: string; when?: string; kind?: SessionKindDto; cardio?: CardioPrescriptionDto | null; exercises?: { name: string; role?: ExerciseRole; movementPatterns?: readonly string[] | null; sets: PrescribedSetDto[] }[] })}
+{#snippet template(args: { name: string; when?: string; kind?: SessionKindDto; cardio?: CardioPrescriptionDto | null; exercises?: { name: string; role?: ExerciseRole; movementPatterns?: readonly string[] | null; sets: PrescribedSetDto[]; block?: 'prep' | 'main' }[] })}
   <SessionCard {...args} />
 {/snippet}
 
@@ -74,3 +82,4 @@
 <Story name="Two-a-day (evening cardio)" {template} args={{ name: 'Evening Cardio', when: 'Thursday · evening', kind: 'cardio', cardio: { modality: 'Run', durationMin: 30, hrZone: 3, targetRpe: 7 } }} />
 <Story name="With movement patterns & balance" {template} args={{ name: 'Pattern balance', tag: 'Session 3', kind: 'exercises', exercises: patternSession }} />
 <Story name="Loaded strength day" {template} args={{ name: 'Lower — squat focus', tag: 'Session 1', kind: 'exercises', exercises: loaded }} />
+<Story name="Movement prep and main work" {template} args={{ name: 'Lower', tag: 'Session 1', kind: 'exercises', exercises: withPrep }} />

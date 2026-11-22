@@ -3,7 +3,7 @@ import { blockOf, mainWork, moveToBlock, orderByBlock, sessionBlocks } from "./b
 import { DraftExerciseRef } from "./ai";
 import { deloadWeek } from "./deload";
 import { blockIssues, ProgramSession, sessionsPatternBalance, sortExercisesByRole, type ProgramWeek } from "./domain";
-import { normalizeGroups } from "./groups";
+import { moveUnit, normalizeGroups } from "./groups";
 import { plannedVolume } from "./load";
 import { mainLiftIds } from "./metrics";
 import { sessionFocus } from "./placement";
@@ -71,6 +71,15 @@ describe("moveToBlock", () => {
     const out = moveToBlock([ex("p1", { block: "prep" }), ex("m1"), ex("m2")], 2, "prep");
     expect(ids(out)).toBe("p1,m2,m1");
     expect(out.map((e) => e.order)).toEqual([0, 1, 2]);
+  });
+});
+
+describe("moveUnit stays inside its block", () => {
+  test("main never moves above prep, prep never below main", () => {
+    const list = [ex("p1", { block: "prep" }), ex("m1"), ex("m2")];
+    expect(ids(moveUnit(list, 1, -1))).toBe("p1,m1,m2");
+    expect(ids(moveUnit(list, 0, 1))).toBe("p1,m1,m2");
+    expect(ids(moveUnit(list, 2, -1))).toBe("p1,m2,m1");
   });
 });
 

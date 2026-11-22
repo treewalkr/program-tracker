@@ -20,7 +20,9 @@
 <script lang="ts">
   import type { CardioPrescriptionDto, ExerciseRole, PrescribedSetDto } from "$lib/api/types";
   import {
+    blockOf,
     exerciseUnits,
+    orderByBlock,
     formatPatternBalance,
     groupKind,
     groupTag,
@@ -34,6 +36,7 @@
   import RoleChip from "$lib/components/RoleChip.svelte";
   import SetChips from "$lib/components/SetChips.svelte";
   import GroupTag from "$lib/components/GroupTag.svelte";
+  import BlockHead from "$lib/components/BlockHead.svelte";
   import { groupSets } from "$lib/setChips";
   import { cardioLine } from "$lib/cardioLine";
   import { patternTitle } from "$lib/exerciseLibrary";
@@ -81,7 +84,12 @@
 
   let { name, tag, when, kind = "exercises", cardio = null, exercises = [], marks, onnote, noted, editable }: Props = $props();
 
-  const units = $derived(exerciseUnits(exercises));
+  // Prep first (a legacy movement_prep slot may sit anywhere); rows keep their `slot`, so marks still line up.
+  const ordered = $derived(orderByBlock(exercises));
+  const units = $derived(exerciseUnits(ordered));
+  /** Sections show only when the session has movement prep, so a session without any looks as before. */
+  const hasPrep = $derived(ordered.some((e) => blockOf(e) === "prep"));
+  const firstMain = $derived(units.findIndex((u) => blockOf(u.items[0]) !== "prep"));
 
   const primaryInfo = (e: { movementPatterns?: readonly string[] | null }) => {
     const p = primaryPattern({ movementPatterns: e.movementPatterns });
@@ -135,7 +143,8 @@
         <div
           class="exrow"
           class:stripe={striped}
-          class:is-primary={e.role === "primary"}
+          class:is-primary={e.role === "primary" && blockOf(e) === "main"}
+          class:prep={blockOf(e) === "prep"}
           class:is-changed={!!m}
           class:is-unasked={m?.kind === "unproposed"}
           class:editable={!!editable}
@@ -154,7 +163,7 @@
                 onchange={() => editable.ontoggle(slot)}
               />
             {/if}
-            {#if e.group}<GroupTag tag={groupTag(exercises, i) ?? e.group} />{/if}
+            {#if e.group}<GroupTag tag={groupTag(ordered, i) ?? e.group} />{/if}
             {#if e.role}<RoleChip role={e.role} />{/if}
             <span class="ex-name">{e.name || "Unmapped exercise"}{#if m?.was}<span class="was">was {m.was}{#if m.kind === "unproposed"}{" · not in proposal"}{/if}</span>{/if}</span>
             {#if primaryInfo(e)}
@@ -177,7 +186,9 @@
         </div>
       {/snippet}
       <!-- rows stripe by exercise index; a superset is one framed, tinted block that pauses them -->
-      {#each units as u (u.start)}
+      {#each units as u, ui (u.start)}
+        {#if hasPrep && ui === 0 && firstMain !== 0}<div class="blockrow"><BlockHead block="prep" /></div>{/if}
+        {#if hasPrep && ui === firstMain}<div class="blockrow"><BlockHead block="main" /></div>{/if}
         {#if u.group}
           <div class="xgroup" role="group" aria-label="{groupKind(u.items.length)} {u.group}">
             <div class="grouphead">
@@ -223,6 +234,12 @@
   }
   .is-primary .ex-name {
     font-weight: 600;
+  }
+  .blockrow {
+    padding: 8px 14px 2px;
+  }
+  .exrow.prep .ex-name {
+    color: var(--muted);
   }
   .ex-name {
     min-width: 0;
