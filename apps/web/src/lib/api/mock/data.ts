@@ -917,8 +917,8 @@ const intervalsRx: CardioPrescription = {
   ...fromCardioTemplate(nokIntervals, "Running"),
   modalityId: "md-running",
   intervals: [
-    { id: "warmup", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2 },
-    { id: "reps", type: "work", repeat: 5, durationSec: 120, hrZone: 4, rpe: 8, recovery: { type: "active_recovery", durationSec: 120 } },
+    { id: "warmup", type: "warmup", repeat: 1, durationSec: 600, hrZone: 2, notes: "easy jog, finish with 2 strides" },
+    { id: "reps", type: "work", repeat: 5, durationSec: 120, hrZone: 4, rpe: 8, paceSecPerKm: 320, recovery: { type: "active_recovery", durationSec: 120, hrZone: 1 } },
     { id: "cooldown", type: "cooldown", repeat: 1, durationSec: 300, hrZone: 1 },
   ],
 };

@@ -45,7 +45,9 @@
 </script>
 
 <script lang="ts">
-  import { zoneBpm } from "@pt/shared";
+  import { zoneBpm, type CardioMetric, type HrBpmRange } from "@pt/shared";
+  import { paceField } from "$lib/cardioTarget";
+  import { units } from "$lib/units.svelte";
   import SelectCell from "$lib/ui/SelectCell.svelte";
   import InputCell from "$lib/ui/InputCell.svelte";
   import InputDuration from "$lib/ui/InputDuration.svelte";
@@ -58,11 +60,16 @@
     intervals: CardioInterval[];
     /** The member's bpm zones; null = zones show on their own. */
     zones?: readonly HrZone[] | null;
+    /** How the modality reads a pace target (run /km, row /500 m, bike km/h, none). */
+    metric?: CardioMetric;
     /** Called after any change, with the new list. */
     onchange?: (intervals: CardioInterval[]) => void;
   }
 
-  let { intervals = $bindable([]), zones = null, onchange }: Props = $props();
+  let { intervals = $bindable([]), zones = null, metric = "pace", onchange }: Props = $props();
+
+  /** The pace input in the modality's metric and the member's distance unit; null = no pace for this modality. */
+  const pace = $derived(paceField(metric, units.distance));
 
   const TYPE_OPTIONS: SelectOption<CardioIntervalType>[] = (Object.keys(INTERVAL_TYPE_LABEL) as CardioIntervalType[]).map((t) => ({
     value: t,
@@ -127,6 +134,24 @@
   }
   const remove = (i: number) => commit(intervals.filter((_, j) => j !== i));
   const recoveryOf = (iv: CardioInterval) => iv.recovery ?? { type: "passive_recovery" as const };
+  /** A recovery patch that drops cleared keys. */
+  function patchRecovery(i: number, change: Partial<NonNullable<CardioInterval["recovery"]>>) {
+    const next = { ...recoveryOf(intervals[i]), ...change };
+    for (const k of Object.keys(change) as (keyof typeof next)[]) if (change[k] === undefined) delete next[k];
+    patch(i, { recovery: next });
+  }
+  const bpmNum = (raw: string) => {
+    const n = numOrUndef(raw);
+    return n != null && n >= 30 && n <= 240 ? n : undefined;
+  };
+  /** One end of a bpm band typed; the other end follows until it's typed too. Both ends cleared = no band. */
+  function bandWith(band: HrBpmRange | undefined, end: "min" | "max", raw: string): HrBpmRange | undefined {
+    const n = bpmNum(raw);
+    const other = end === "min" ? band?.max : band?.min;
+    if (n == null) return raw.trim() ? band : undefined;
+    const o = other ?? n;
+    return end === "min" ? { min: n, max: Math.max(n, o) } : { min: Math.min(n, o), max: n };
+  }
 
   /** The builder's own width: under 600px (a half-width editor, a phone) the targets drop to a second line. */
   let width = $state(0);
@@ -159,10 +184,23 @@
             <span class="zone"><SelectCell label="HR zone of {name}" options={zoneOptions} value={iv.hrZone != null ? String(iv.hrZone) : ""} onchange={(z) => patch(i, { hrZone: z ? Number(z) : undefined })} /></span>
             {#if bpm}<span class="bpm">{bpm.min}–{bpm.max} bpm</span>{/if}
           {/snippet}
+          {#snippet targetsLine()}
+            {#if pace}
+              <span class="tg"><span class="lbl">Pace</span>{@render paceInput(`Pace of ${name}`, iv.paceSecPerKm, (v) => patch(i, { paceSecPerKm: v }))}</span>
+            {/if}
+            <span class="tg"><span class="lbl">HR</span>
+            <span class="band">
+              <InputCell label="Lowest bpm of {name}" figure width={4} placeholder="—" value={iv.hrBpm ? String(iv.hrBpm.min) : ""} oncommit={(v) => patch(i, { hrBpm: bandWith(iv.hrBpm, "min", v) })} />
+              <span aria-hidden="true">–</span>
+              <InputCell label="Highest bpm of {name}" figure width={4} placeholder="—" value={iv.hrBpm ? String(iv.hrBpm.max) : ""} oncommit={(v) => patch(i, { hrBpm: bandWith(iv.hrBpm, "max", v) })} />
+              <span class="unit">bpm</span>
+            </span></span>
+            <span class="note"><InputCell label="Note for {name}" placeholder="Note" value={iv.notes ?? ""} oncommit={(v) => patch(i, { notes: v.trim() ? v.trim().slice(0, 280) : undefined })} /></span>
+          {/snippet}
           {#snippet rpeCell()}
             <InputCell label="RPE of {name}" figure placeholder="—" value={iv.rpe != null ? String(iv.rpe) : ""} oncommit={(v) => { const n = numOrUndef(v, false); patch(i, { rpe: n != null ? Math.min(10, Math.max(1, n)) : undefined }); }} />
           {/snippet}
-          <tr class="row-{kindOf(iv.type)}" class:has-sub={narrow}>
+          <tr class="row-{kindOf(iv.type)} has-sub">
             <td class="ord">
               <button type="button" class="icon-btn" aria-label="Move {name} up" disabled={i === 0} onclick={() => move(i, -1)}><Icon name="arrow-up" size={12} /></button>
               <button type="button" class="icon-btn" aria-label="Move {name} down" disabled={i === intervals.length - 1} onclick={() => move(i, 1)}><Icon name="arrow-down" size={12} /></button>
@@ -177,19 +215,20 @@
             {/if}
             <td><button type="button" class="icon-btn" aria-label="Remove {name}" onclick={() => remove(i)}><Icon name="x" size={12} /></button></td>
           </tr>
-          {#if narrow}
-            <!-- a narrow editor puts the targets on a line of their own, so no column is cut off -->
-            <tr class="sub row-{kindOf(iv.type)}">
-              <td></td>
-              <td colspan="4">
-                <span class="sub-line">
-                  <span class="lbl">Target</span>{@render zoneCell()}
-                  <span class="lbl rpe-lbl">RPE</span><span class="rpe">{@render rpeCell()}</span>
-                </span>
-              </td>
-              <td></td>
-            </tr>
-          {/if}
+          <!-- pace, bpm band and note sit on a line of their own; a narrow editor adds the zone and RPE to it, so no column is cut off -->
+          <tr class="sub row-{kindOf(iv.type)}">
+            <td></td>
+            <td colspan={cols - 2}>
+              <span class="sub-line">
+                {#if narrow}
+                  <span class="tg"><span class="lbl">Target</span>{@render zoneCell()}</span>
+                  <span class="tg"><span class="lbl">RPE</span><span class="rpe">{@render rpeCell()}</span></span>
+                {/if}
+                {@render targetsLine()}
+              </span>
+            </td>
+            <td></td>
+          </tr>
           {#if iv.type === "work"}
             <tr class="rec">
               <td></td>
@@ -199,17 +238,29 @@
                 <td class="r w-time"><InputDuration label="Recovery time after {name}" cell step={15} value={iv.recovery.durationSec ?? null} onchange={(s) => patch(i, { recovery: { ...recoveryOf(iv), durationSec: s && s > 0 ? s : undefined } })} /></td>
                 <td class="r w-dist"><InputCell label="Recovery distance after {name}" figure placeholder="—" value={iv.recovery.distanceM != null ? String(iv.recovery.distanceM) : ""} oncommit={(v) => patch(i, { recovery: { ...recoveryOf(iv), distanceM: numOrUndef(v) } })} /></td>
                 {#if !narrow}
-                  <td colspan="2">{@render afterLast(iv, i)}</td>
+                  <td colspan="2"></td>
                 {/if}
                 <td><button type="button" class="icon-btn" aria-label="Remove the recovery after {name}" onclick={() => patch(i, { recovery: undefined, recoveryAfterLast: undefined })}><Icon name="x" size={12} /></button></td>
               {:else}
                 <td colspan={cols - 1}><button type="button" class="link" onclick={() => patch(i, { recovery: { type: "active_recovery", durationSec: 120 } })}>+ Recovery between reps</button></td>
               {/if}
             </tr>
-            {#if narrow && iv.recovery}
+            {#if iv.recovery}
+              {@const rec = iv.recovery}
+              {@const recBpm = zoneBpm(zones, rec.hrZone)}
               <tr class="rec sub">
                 <td></td>
-                <td colspan="4"><span class="sub-line">{@render afterLast(iv, i)}</span></td>
+                <td colspan={cols - 2}>
+                  <span class="sub-line">
+                    <span class="tg"><span class="lbl">Target</span>
+                    <span class="zone"><SelectCell label="HR zone of the recovery after {name}" options={zoneOptions} value={rec.hrZone != null ? String(rec.hrZone) : ""} onchange={(z) => patchRecovery(i, { hrZone: z ? Number(z) : undefined })} /></span>
+                    {#if recBpm}<span class="bpm">{recBpm.min}–{recBpm.max} bpm</span>{/if}</span>
+                    {#if pace}
+                      <span class="tg"><span class="lbl">Pace</span>{@render paceInput(`Pace of the recovery after ${name}`, rec.paceSecPerKm, (v) => patchRecovery(i, { paceSecPerKm: v }))}</span>
+                    {/if}
+                    <span class="after">{@render afterLast(iv, i)}</span>
+                  </span>
+                </td>
                 <td></td>
               </tr>
             {/if}
@@ -224,6 +275,14 @@
       </tfoot>
     </table>
   </div>
+
+{#snippet paceInput(label: string, secPerKm: number | undefined, set: (v: number | undefined) => void)}
+  {#if pace?.kind === "duration"}
+    <span class="pace"><span class="pace-in"><InputDuration {label} cell step={5} min={pace.min} max={pace.max} placeholder="m:ss" value={secPerKm != null ? pace.show(secPerKm) : null} onchange={(v) => set(v != null && v > 0 ? pace.store(v) : undefined)} /></span><span class="unit">{pace.unit}</span></span>
+  {:else if pace?.kind === "speed"}
+    <span class="pace speed"><InputCell {label} figure width={5} placeholder="—" value={secPerKm != null ? String(pace.show(secPerKm)) : ""} oncommit={(v) => { const n = numOrUndef(v, false); set(n != null ? pace.store(n) : undefined); }} /><span class="unit">{pace.unit}</span></span>
+  {/if}
+{/snippet}
 
 {#snippet afterLast(iv: CardioInterval, i: number)}
   <ToggleChip on={iv.recoveryAfterLast ?? false} onclick={() => patch(i, { recoveryAfterLast: iv.recoveryAfterLast ? undefined : true })}>Also after the last rep</ToggleChip>
@@ -259,14 +318,22 @@
   .w-dist { width: 9ch; }
   .w-rpe { width: 5ch; }
   .target { min-width: 150px; }
-  .sheet.narrow { min-width: 340px; }
   .sheet.narrow .type { min-width: 0; width: 40%; }
+  /* a phone-width editor: tighter gutters so the row fits without a sideways scroll */
+  .sheet.narrow th, .sheet.narrow td { padding-left: 2px; padding-right: 2px; }
+  .sheet.narrow tbody td:first-child { padding-left: 4px; }
+  .sheet.narrow { min-width: 300px; }
   tr.has-sub td { border-bottom: 0; }
   tr.sub td { padding-top: 0; }
-  .sub-line { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; }
+  .sub-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
   .lbl { font: 500 12px var(--font-ui); color: var(--muted); }
   .sub-line .zone { min-width: 52px; }
-  .rpe-lbl { margin-left: auto; }
+  .band, .pace { display: inline-flex; align-items: center; gap: 2px; }
+  .pace-in { display: inline-block; width: 8ch; }
+  .unit { font: 400 12px var(--font-mono); color: var(--muted); margin-left: 2px; }
+  .note { flex: 1 1 200px; min-width: 160px; }
+  .after { margin-left: auto; }
+  .tg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; margin-right: 10px; }
   .rpe { display: inline-block; width: 6ch; }
   .zone { display: inline-block; min-width: 72px; }
   .bpm { margin-left: 6px; font: 400 12px var(--font-mono); color: var(--muted); }
