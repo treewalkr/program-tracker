@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { page } from "$app/state";
-  import { addDays, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
+  import { addDays, groupKind, localDateOf, modalityMetric, type PortalSession, type PortalWeek } from "@pt/shared";
   import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
   import { blocksOf, roundBreaks, roundOrder, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type RoundBreak, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
@@ -111,6 +111,15 @@
     }
     return out;
   });
+  /** "Circuit · 3 rounds" over a group card's title. */
+  const groupKicker = $derived.by(() => {
+    if (!block?.group) return "";
+    const n = Math.max(1, ...block.rows.filter((r) => !r.extra).map((r) => r.setNumber));
+    const kind = groupKind(block.memberIds.length) === "Circuit" ? t("log.circuit") : t("log.superset");
+    return `${kind} · ${n === 1 ? t("log.roundsOne") : t("log.rounds", { n })}`;
+  });
+  /** Every exercise on a card, as the Next button names it: "SkiErg + Wall Ball". */
+  const blockName = (b: { memberIds: string[] }) => b.memberIds.map((id) => exerciseOf(id)?.exerciseName ?? "").join(" + ");
   /** The rest this exercise prescribes (a superset: its first member's), for the timer. */
   const blockRest = $derived(block ? restOf(block.memberIds.flatMap((id) => exerciseOf(id)?.prescribedSets ?? [])) : null);
   // never before the week (the server refuses it), never in the future
@@ -554,6 +563,7 @@
             {/each}
           </div>
 
+          {#if groupKicker}<p class="kicker">{groupKicker}</p>{/if}
           <h2 id="ex-title">
             {#each block.memberIds as peId, i (peId)}
               {#if i > 0}<span class="plus">{" + "}</span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
@@ -630,7 +640,7 @@
 
           {#if current < blocks.length - 1}
             <button type="button" class="btn next-ex" onclick={() => { current += 1; document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
-              <span>{t("log.next")} · {exerciseOf(blocks[current + 1].programExerciseId)?.exerciseName}</span>
+              <span>{t("log.next")} · {blockName(blocks[current + 1])}</span>
               <Icon name="chevron" />
             </button>
           {/if}
@@ -791,6 +801,7 @@
   }
   h2 { margin: 4px 0 0; font: 600 20px/1.3 var(--font-ui); text-wrap: balance; }
   .plus { color: var(--muted); font-weight: 400; }
+  .kicker { margin: 4px 0 -8px; font: 600 13px/1.3 var(--font-ui); color: var(--muted); }
   .cue { margin: 0; font-size: 14px; }
   .session-note { margin: 0; padding: 12px 16px; font-size: 16px; background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .session-note span { font-weight: 600; color: var(--muted); }
