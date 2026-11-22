@@ -47,6 +47,13 @@ describe("preferences helpers", () => {
     expect(mockLines.length).toBe(52);
     expect(mockOutput.length).toBeLessThanOrEqual(4000);
 
+    // 3b. one huge signal is clipped, so the lines after it survive the 4,000 cap
+    const huge = mockDistillPreferences([
+      { kind: "instruction", clientName: null, at: "2026-10-30T12:00:00.000Z", text: "x".repeat(6000) },
+      { kind: "revision", clientName: "Maya", at: "2026-10-31T05:00:00.000Z", text: "prefer free weights" },
+    ]);
+    expect(huge).toContain("prefer free weights");
+
     // 4. combinePreferenceDocs
     expect(combinePreferenceDocs("Trainer doc", null)).toBe("Trainer doc");
     expect(combinePreferenceDocs(null, "Client doc")).toBe("Client doc");

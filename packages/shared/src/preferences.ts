@@ -18,7 +18,10 @@ export function mockDistillPreferences(signals: PreferenceSignal[]): string {
   if (signals.length === 0) {
     return "Mock distilled preferences:";
   }
-  const lines = renderPreferenceSignals(signals).split("\n");
+  // One very long signal (a 6,000-character brief) mustn't push every other line past the 4,000 cap.
+  const lines = renderPreferenceSignals(signals)
+    .split("\n")
+    .map((l) => (l.length > 300 ? `${l.slice(0, 299)}…` : l));
   const rendered = [
     "Mock distilled preferences:",
     ...lines.slice(0, 50),
