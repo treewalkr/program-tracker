@@ -52,6 +52,8 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
   import Button from "$lib/ui/Button.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Pill from "$lib/ui/Pill.svelte";
@@ -93,7 +95,7 @@
   /** A failed triage or delete, shown beside that card's actions. */
   let cardError = $state<Record<string, string | null>>({});
   type NoteState = { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
-  /** Triage-note save state under each textarea. */
+  /** Triage-note save state, beside each note's label. */
   let noteState = $state<Record<string, NoteState | null>>({});
   const savedTimers: Record<string, ReturnType<typeof setTimeout>> = {};
   /** Items that had unread activity when the page opened; stay marked for this visit. */
@@ -112,7 +114,6 @@
   let draftNudged = false;
   let filing = $state(false);
   const draftImages = new ImageTray();
-  let draftField = $state<HTMLTextAreaElement | null>(null);
 
   const counts = $derived(
     items.reduce(
@@ -346,7 +347,7 @@
   async function openComposer() {
     composing = true;
     await tick();
-    draftField?.focus();
+    document.getElementById("fb-draft")?.focus();
   }
 
   function closeComposer() {
@@ -525,20 +526,20 @@
       aria-label="New ticket"
       {@attach draftImages.zone}
     >
-      <label class="field">
-        <span>What should change?</span>
-        <textarea
-          rows="3"
-          maxlength="5000"
-          bind:this={draftField}
-          bind:value={draft}
-          placeholder="e.g. Let me duplicate last week's program for a client"
-          onkeydown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) fileTicket();
-            if (e.key === "Escape") closeComposer();
-          }}
-        ></textarea>
-      </label>
+      <div class="draft-field">
+      <InputNote
+        id="fb-draft"
+        label="What should change?"
+        rows={3}
+        maxlength={5000}
+        bind:value={draft}
+        placeholder="e.g. Let me duplicate last week's program for a client"
+        onkeydown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) fileTicket();
+          if (e.key === "Escape") closeComposer();
+        }}
+      />
+      </div>
       <KindFields
         bind:kind={draftKind}
         bind:report={draftReport}
@@ -548,10 +549,9 @@
         onsendanyway={() => fileTicket(undefined, true)}
       />
       <AttachmentInput tray={draftImages} disabled={filing} label="the new ticket" />
-      <label class="field page-field">
-        <span>Page <span class="muted">— optional</span></span>
-        <input type="text" bind:value={draftPage} placeholder="/clients" autocomplete="off" spellcheck="false" />
-      </label>
+      <div class="page-field">
+        <InputField label="Page" optional bind:value={draftPage} placeholder="/clients" autocomplete="off" spellcheck={false} />
+      </div>
       <p class="hint muted">
         Not about one thing on screen. To point at an element, turn on <strong>Feedback</strong> (bottom right) and click it.
       </p>
@@ -768,26 +768,28 @@
               {@const note = noteState[item.id]}
               <div class="triage-box">
                 <div class="triage">
-                  <div class="note-head">
-                    <label for="fb-note-{item.id}">Triage note <span class="muted">— private, read by the agent</span></label>
-                    <p class="note-state" class:bad={note?.kind === "error"} aria-live="polite">
-                    {#if note?.kind === "saving"}
-                      Saving…
-                    {:else if note?.kind === "saved"}
-                      <span out:fade={{ duration: 300 }}>Saved</span>
-                    {:else if note?.kind === "error"}
-                      Not saved: {note.message}
-                      <button type="button" class="linkish" onclick={() => saveNote(item)}>Retry</button>
-                    {/if}
-                    </p>
-                  </div>
-                  <textarea
+                  <InputNote
                     id="fb-note-{item.id}"
-                    rows="2"
-                    bind:value={notes[item.id]}
+                    label="Triage note"
+                    hint="Private, read by the agent"
+                    rows={2}
+                    bind:value={() => notes[item.id] ?? "", (v) => (notes[item.id] = v)}
                     onblur={() => saveNote(item)}
                     placeholder="e.g. Yes — show warm-up sets as muted chips"
-                  ></textarea>
+                  >
+                    {#snippet meta()}
+                      <span class="note-state" class:bad={note?.kind === "error"} aria-live="polite">
+                        {#if note?.kind === "saving"}
+                          Saving…
+                        {:else if note?.kind === "saved"}
+                          <span out:fade={{ duration: 300 }}>Saved</span>
+                        {:else if note?.kind === "error"}
+                          Not saved: {note.message}
+                          <button type="button" class="linkish" onclick={() => saveNote(item)}>Retry</button>
+                        {/if}
+                      </span>
+                    {/snippet}
+                  </InputNote>
                 </div>
                 {#if item.fixPr}
                   <p class="dup-row">
@@ -813,22 +815,21 @@
                 {:else if isOpenFeedback(item.status) && item.duplicates.length === 0}
                   {@const of = parseFeedbackHandle(dupDrafts[item.id] ?? "")}
                   <form
-                    class="dup-row"
+                    class="dup-row dup-form"
                     onsubmit={(e) => {
                       e.preventDefault();
                       if (of) setDuplicate(item, of);
                     }}
                   >
-                    <label for="fb-dup-{item.id}">Duplicate of</label>
-                    <input
-                      id="fb-dup-{item.id}"
-                      type="text"
-                      inputmode="numeric"
-                      autocomplete="off"
-                      spellcheck="false"
-                      placeholder="FB-012"
-                      bind:value={dupDrafts[item.id]}
-                    />
+                    <div class="dup-input">
+                      <InputField
+                        label="Duplicate of"
+                        autocomplete="off"
+                        spellcheck={false}
+                        placeholder="FB-012"
+                        bind:value={() => dupDrafts[item.id] ?? "", (v) => (dupDrafts[item.id] = v)}
+                      />
+                    </div>
                     <Button
                       small
                       type="submit"
@@ -941,18 +942,20 @@
                 {#if closing === item.id && item.status === "new"}
                   <div class="closing" id="fb-closing-{item.id}">
                     <div class="triage">
-                      <label for="fb-reason-{item.id}">Reason for the reporter <span class="muted">(optional) — posts as a reply</span></label>
-                      <textarea
-                        id="fb-reason-{item.id}"
-                        rows="2"
-                        maxlength="5000"
-                        bind:value={reasons[item.id]}
-                        placeholder="e.g. Supersets log as one block on purpose, so totals match the program"
-                        onkeydown={(e) => {
-                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) confirmWontfix(item);
-                          if (e.key === "Escape") cancelWontfix(item);
-                        }}
-                      ></textarea>
+                    <InputNote
+                      id="fb-reason-{item.id}"
+                      label="Reason for the reporter"
+                      optional
+                      hint="Posts as a reply"
+                      rows={2}
+                      maxlength={5000}
+                      bind:value={() => reasons[item.id] ?? "", (v) => (reasons[item.id] = v)}
+                      placeholder="e.g. Supersets log as one block on purpose, so totals match the program"
+                      onkeydown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) confirmWontfix(item);
+                        if (e.key === "Escape") cancelWontfix(item);
+                      }}
+                    />
                     </div>
                     <div class="actions">
                       <Button
@@ -1270,26 +1273,12 @@
     border-top: 1px solid var(--line-soft);
     background: var(--well);
   }
-  .triage {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font: 500 12px/1.2 var(--font-ui);
+  .triage,
+  .draft-field {
     max-width: var(--measure-form);
   }
-  .triage .muted {
-    font-weight: 400;
-  }
-  /* Label left, save state right: "Saving…" / "Saved" / the error never shifts the layout. */
-  .note-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 2px 12px;
-  }
+  /* Beside the label: "Saving…" / "Saved" / the error never shifts the layout. */
   .note-state {
-    margin: 0;
     font: 400 12px/1.4 var(--font-ui);
     color: var(--muted);
   }
@@ -1316,20 +1305,6 @@
       transform: rotate(360deg);
     }
   }
-  .triage textarea {
-    font: 400 13px/1.5 var(--font-ui);
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    resize: vertical;
-    color: var(--ink);
-    background: var(--bg);
-  }
-  .triage textarea:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
-  }
   /* Duplicate links: quiet text in the header, a one-line field in the triage box. */
   .dup {
     font-size: 12px;
@@ -1349,19 +1324,12 @@
   .dup-row .muted {
     font-weight: 400;
   }
-  .dup-row input {
-    width: 7rem;
-    font: 400 13px/1.5 var(--font-mono);
-    padding: 3px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    color: var(--ink);
-    background: var(--bg);
+  /* The field's label sits above it, so the Link button lines up with the box. */
+  .dup-form {
+    align-items: flex-end;
   }
-  .dup-row input:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
+  .dup-input {
+    width: 9rem;
   }
   /* Won't fix: the optional reason, inline under the actions. */
   .closing {
@@ -1385,40 +1353,8 @@
     border-radius: var(--radius);
     background: var(--surface);
   }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font: 500 12px/1.2 var(--font-ui);
-    max-width: var(--measure-form);
-  }
-  .field .muted {
-    font-weight: 400;
-  }
   .page-field {
     max-width: 22rem;
-  }
-  .field textarea,
-  .field input {
-    font: 400 14px/1.5 var(--font-ui);
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    color: var(--ink);
-    background: var(--bg);
-  }
-  .field textarea {
-    resize: vertical;
-  }
-  .field input {
-    font-family: var(--font-mono);
-    font-size: 13px;
-  }
-  .field textarea:focus,
-  .field input:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
   }
   .hint {
     margin: 0;

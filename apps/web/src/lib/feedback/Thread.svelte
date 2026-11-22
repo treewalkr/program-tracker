@@ -6,6 +6,7 @@
   import { renderSafeMarkdown } from "$lib/markdown";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Author from "./Author.svelte";
@@ -46,13 +47,12 @@
   /** Collapsible threads: the composer was opened; it also stays open while it holds a draft. */
   let opened = $state(false);
   const expanded = $derived(!collapsible || opened || draft.trim() !== "" || tray.images.length > 0);
-  let field = $state<HTMLTextAreaElement | null>(null);
   let opener = $state<HTMLButtonElement | null>(null);
 
   async function openComposer() {
     opened = true;
     await tick();
-    field?.focus();
+    document.getElementById(`fb-reply-${item.id}`)?.focus();
   }
 
   /** Esc on an empty composer folds it back to the link. */
@@ -219,16 +219,19 @@
   {:else}
   <form class="composer" class:dropping={tray.dragging} onsubmit={(e) => (e.preventDefault(), send())} {@attach tray.zone}>
     <div class="row">
-      <textarea
-        bind:this={field}
-        aria-label="Reply to {feedbackHandle(item.number)}"
-        rows="1"
-        placeholder="Reply…"
-        bind:value={draft}
-        {onkeydown}
-        disabled={sending}
-        maxlength="5000"
-      ></textarea>
+      <div class="reply-field">
+        <InputNote
+          id="fb-reply-{item.id}"
+          label="Reply to {feedbackHandle(item.number)}"
+          hideLabel
+          rows={1}
+          maxRows={8}
+          placeholder="Reply…"
+          bind:value={draft}
+          {onkeydown}
+          disabled={sending}
+        />
+      </div>
       <Button small type="submit" disabled={!canSend}>{sending ? "Sending…" : "Reply"}</Button>
     </div>
     <AttachmentInput {tray} disabled={sending} label="the reply" />
@@ -256,13 +259,9 @@
       {@render when(c.createdAt)}
     </div>
     {#if editing === c.id}
-      <textarea
-        class="edit"
-        aria-label="Edit the AI draft"
-        bind:value={editText}
-        maxlength="5000"
-        disabled={busyId === c.id}
-      ></textarea>
+      <div class="edit">
+        <InputNote label="Edit the AI draft" hideLabel rows={3} maxRows={14} bind:value={editText} disabled={busyId === c.id} />
+      </div>
     {:else}
       <div class="body md">{@render html(c.body)}</div>
     {/if}
@@ -508,25 +507,7 @@
     margin-top: 6px;
   }
   .edit {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
     margin-top: 6px;
-    field-sizing: content;
-    min-height: 64px;
-    max-height: 320px;
-    font: 400 13px/1.5 var(--font-ui);
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    resize: vertical;
-    color: var(--ink);
-    background: var(--bg);
-  }
-  .edit:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
   }
   .actions {
     display: flex;
@@ -756,24 +737,9 @@
   .rate {
     margin-top: 6px;
   }
-  .composer textarea {
+  .reply-field {
     flex: 1;
     min-width: 0;
-    field-sizing: content;
-    min-height: 32px;
-    max-height: 200px;
-    font: 400 13px/1.5 var(--font-ui);
-    padding: 5px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    resize: none;
-    color: var(--ink);
-    background: var(--bg);
-  }
-  .composer textarea:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
   }
   .composer :global(.btn) {
     min-height: 32px;
