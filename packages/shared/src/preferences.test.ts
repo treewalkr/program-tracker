@@ -31,7 +31,7 @@ describe("preferences helpers", () => {
     // 2. mockDistillPreferences with empty signals
     expect(mockDistillPreferences([])).toBe("Mock distilled preferences:");
 
-    // 3. mockDistillPreferences with > 50 signals
+    // 3. mockDistillPreferences with > 50 signals keeps the newest
     const manySignals: PreferenceSignal[] = Array.from({ length: 55 }, (_, i) => ({
       kind: "revision" as const,
       clientName: "Maya",
@@ -41,9 +41,9 @@ describe("preferences helpers", () => {
     const mockOutput = mockDistillPreferences(manySignals);
     const mockLines = mockOutput.split("\n");
     expect(mockLines[0]).toBe("Mock distilled preferences:");
-    expect(mockLines[1]).toBe("- revision · Maya · 2026-10-31: signal 1");
-    expect(mockLines[50]).toBe("- revision · Maya · 2026-10-31: signal 50");
-    expect(mockLines[51]).toBe("(+ 5 more signals)");
+    expect(mockLines[1]).toBe("(+ 5 earlier signals)");
+    expect(mockLines[2]).toBe("- revision · Maya · 2026-10-31: signal 6");
+    expect(mockLines[51]).toBe("- revision · Maya · 2026-10-31: signal 55");
     expect(mockLines.length).toBe(52);
     expect(mockOutput.length).toBeLessThanOrEqual(4000);
 

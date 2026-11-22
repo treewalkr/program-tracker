@@ -22,12 +22,18 @@ export function mockDistillPreferences(signals: PreferenceSignal[]): string {
   const lines = renderPreferenceSignals(signals)
     .split("\n")
     .map((l) => (l.length > 300 ? `${l.slice(0, 299)}…` : l));
-  const rendered = [
-    "Mock distilled preferences:",
-    ...lines.slice(0, 50),
-    ...(lines.length > 50 ? [`(+ ${lines.length - 50} more signals)`] : []),
-  ].join("\n");
-  return rendered.slice(0, 4000);
+  // Over 50 lines or 4,000 characters, the oldest lines drop first: recent feedback matters most.
+  const head = "Mock distilled preferences:";
+  const budget = 4000 - head.length - 40; // room for the "(+ n earlier signals)" line
+  const kept: string[] = [];
+  let size = 0;
+  for (let i = lines.length - 1; i >= 0 && kept.length < 50; i--) {
+    if (size + lines[i].length + 1 > budget) break;
+    kept.unshift(lines[i]);
+    size += lines[i].length + 1;
+  }
+  const dropped = lines.length - kept.length;
+  return [head, ...(dropped > 0 ? [`(+ ${dropped} earlier signals)`] : []), ...kept].join("\n");
 }
 
 export function combinePreferenceDocs(trainer: string | null, client: string | null): string | null {
