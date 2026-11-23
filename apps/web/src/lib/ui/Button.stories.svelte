@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Primer button. `variant="primary"` is the one green action per screen state — reserve it for the verb that advances the review flow (Generate draft, Approve as draft program, Save).',
+            'Primer button. `variant="primary"` is the one green action per screen state — reserve it for the verb that advances the review flow (Generate draft, Approve as draft program, Save). Under 720px every button is a 44px touch target (small ones also on touch screens).',
         },
       },
     },

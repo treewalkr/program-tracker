@@ -547,6 +547,10 @@ code,
 .btn.primary:hover { background: var(--green-btn-hov); }
 
 .btn.small { min-height: 28px; padding: 3px 12px; font-size: 12px; } /* Primer small */
+/* Phone: a medium button is a 44px target too, as inputs and selects grow under 720px. */
+@media (max-width: 720px) {
+  .btn { min-height: 44px; }
+}
 
 .btn.ghost {
   background: transparent;
