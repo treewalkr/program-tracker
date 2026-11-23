@@ -28,6 +28,7 @@
   import { isPortalPath } from "$lib/portal/gate";
   import { appPath, relinked } from "$lib/portal/lang";
   import { headingTo, i18n, inLang } from "$lib/portal/i18n.svelte";
+  import { trackNavigation } from "$lib/nav/back.svelte";
   import ViewAsBanner from "$lib/components/ViewAsBanner.svelte";
   import { viewAs } from "$lib/viewAs.svelte";
 
@@ -222,8 +223,11 @@
     queueMicrotask(() => void goto(inLang(to.pathname + to.search + to.hash)));
   });
 
-  // Unread feedback badge: cheap count, refreshed on every navigation (no polling).
-  afterNavigate(({ to }) => {
+  // Back button history, and the unread feedback badge: a cheap count refreshed
+  // on every navigation (no polling).
+  afterNavigate((nav) => {
+    const { to } = nav;
+    trackNavigation(nav);
     if (to) runtime.breadcrumb("route", to.url.pathname);
     if (!bare) feedbackUnread.refresh();
   });
