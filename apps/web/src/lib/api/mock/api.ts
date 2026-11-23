@@ -2069,6 +2069,8 @@ const rawMockApi: TrainerApi = {
     await delay(600);
     const gen = state.generations.find((g) => g.id === id);
     if (!gen || !gen.draft) throw new Error("generation not found");
+    // Mirrors the API: a draft is approved at most once (a second tab, a retry).
+    if (gen.status === "approved") throw Object.assign(new Error("This draft was already approved."), { status: 409 });
     const client = state.clients.find((c) => c.id === gen.clientId);
     // Mirrors the API: draft sessions get seq per kind in draft order; code places them.
     const toSessions = (draftSessions: AiDraftSessionDto[]): ProgramSessionDto[] => {

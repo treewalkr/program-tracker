@@ -2,9 +2,11 @@ import { asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, exercises, roleLabels, type RoleLabelRow } from "@pt/db";
 import { mergeRoleLabels, primaryPattern, type Equipment, type MuscleGroup, type RoleLabel } from "@pt/shared";
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /** The trainer's rows plus the global ones (none yet) — globals first, so a personal row wins. */
-export async function roleLabelRows(trainerId: string): Promise<RoleLabelRow[]> {
-  const rows = await db
+export async function roleLabelRows(trainerId: string, q: typeof db | Tx = db): Promise<RoleLabelRow[]> {
+  const rows = await q
     .select()
     .from(roleLabels)
     .where(or(eq(roleLabels.trainerId, trainerId), isNull(roleLabels.trainerId)))
@@ -13,8 +15,8 @@ export async function roleLabelRows(trainerId: string): Promise<RoleLabelRow[]> 
 }
 
 /** Built-ins (with the trainer's overrides) + the trainer's own labels, by rank; archived flagged. */
-export async function loadRoleLabels(trainerId: string): Promise<RoleLabel[]> {
-  return mergeRoleLabels(await roleLabelRows(trainerId));
+export async function loadRoleLabels(trainerId: string, q: typeof db | Tx = db): Promise<RoleLabel[]> {
+  return mergeRoleLabels(await roleLabelRows(trainerId, q));
 }
 
 /** exerciseId → the catalog fields suggestRole reads, for the ids a draft names. */
