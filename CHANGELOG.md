@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New
+- **A Back button on phones and the home-screen app.** PT opened from the home screen on an iPhone or iPad has no browser back button, so pages inside a member, program or guide now show ‹ Back at the top left. It returns to the page you came from, or to the page above if you opened it from a link. Members' session and settings pages work the same way.
+  - th: มีปุ่มย้อนกลับบนมือถือและแอปที่เปิดจากหน้าโฮม เวลาเปิด PT จากหน้าโฮมของ iPhone หรือ iPad จะไม่มีปุ่มย้อนกลับของเบราว์เซอร์ หน้าย่อยอย่างหน้าเมมเบอร์ โปรแกรม หรือคู่มือ จึงมีปุ่ม ‹ Back ที่มุมซ้ายบน กดแล้วกลับไปหน้าที่เพิ่งมา ถ้าเปิดมาจากลิงก์ก็จะไปหน้าหลักของส่วนนั้น หน้าเซสชันและหน้าตั้งค่าของเมมเบอร์ก็ใช้แบบเดียวกัน
+
 ## v0.1.49 — 2026-11-24
 
 ### Improved
