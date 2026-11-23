@@ -474,7 +474,7 @@
   .stack { display: flex; flex-direction: column; gap: 14px; }
   .form-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
-  .item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .item-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
 
   .body {
     margin: 0 0 12px;
@@ -500,6 +500,7 @@
   .pref-empty {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 12px;
     padding: 12px 14px;
@@ -508,8 +509,9 @@
     color: var(--muted);
   }
   .pref-empty p { margin: 0; }
-  .picker { display: flex; gap: 8px; align-items: center; }
-  .picker .select { width: auto; min-width: 220px; max-width: 320px; }
+  /* Wraps rather than pushing the card wide on a phone: the button drops under the select. */
+  .picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .picker .select { flex: 1 1 220px; width: auto; min-width: 0; max-width: 320px; }
 
 
   /* ---- library: sticky list rail + reader ---- */

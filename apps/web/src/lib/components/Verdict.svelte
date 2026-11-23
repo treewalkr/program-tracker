@@ -13,7 +13,7 @@
 	 * down opens a small inline tray for optional reasons and a note; the 👎
 	 * summary reopens it to edit. Clicking the chosen thumb again takes the
 	 * verdict back. Quiet by design: two muted icon buttons until used, then
-	 * ink-on-tint for the chosen one.
+	 * ink-on-tint for the chosen one. 44px thumbs on a phone or touch screen.
 	 */
 	interface Props {
 		subjectKind: LlmSubjectKindDto;
@@ -353,6 +353,13 @@
 		font-size: 12px;
 		font-weight: 500;
 		color: var(--bad);
+	}
+	/* A phone or a touch screen: each thumb is a 44px target (a 26px icon box is a mis-tap). */
+	@media (max-width: 720px), (pointer: coarse) {
+		.thumb {
+			width: 44px;
+			height: 44px;
+		}
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.thumb {

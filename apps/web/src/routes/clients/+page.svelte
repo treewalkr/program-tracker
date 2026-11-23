@@ -16,6 +16,7 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Pager from "$lib/ui/Pager.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Tooltip from "$lib/ui/Tooltip.svelte";
   import { ROSTER_SORTS, ROSTER_STATUSES, cardioUnitLabel, type RosterStatus } from "@pt/shared";
 
   const DAY = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -244,13 +245,22 @@
                         <a class="name" href={`/clients/${c.id}`}>{c.name}</a>
                         {#if c.status !== "active"}<StatusPill status={c.status} />{/if}
                         {#if c.limitations}
-                          <span class="lim" title={`Limitations: ${c.limitations}`}>
-                            <Icon name="flag" /><span class="sr-only">Limitations: {c.limitations}</span>
+                          <span class="lim-flag">
+                            <Tooltip text={`Limitations: ${c.limitations}`}>
+                              {#snippet children()}
+                                <button type="button" class="lim">
+                                  <Icon name="flag" /><span class="sr-only">Limitations: {c.limitations}</span>
+                                </button>
+                              {/snippet}
+                            </Tooltip>
                           </span>
                         {/if}
                       </div>
                       {#if c.goals || c.email}
                         <div class="meta">{[c.email, c.goals].filter(Boolean).join(" · ")}</div>
+                      {/if}
+                      {#if c.limitations}
+                        <div class="lim-line"><Icon name="flag" /><span>{c.limitations}</span></div>
                       {/if}
                     </div>
                   </div>
@@ -343,8 +353,15 @@
     font-size: 12px; color: var(--muted); max-width: 340px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .lim { display: inline-flex; color: var(--warn); }
+  .lim-flag { display: inline-flex; }
+  .lim {
+    display: inline-flex; padding: 2px; margin: -2px; border: 0; border-radius: 4px;
+    background: none; color: var(--warn); cursor: help;
+  }
+  .lim:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .lim :global(svg) { width: 13px; height: 13px; }
+  /* Card layout (phones): the limitation is read, not hovered — at most two lines under the name. */
+  .lim-line { display: none; }
 
   .prog-cell { min-width: 180px; }
   .prog { display: flex; align-items: baseline; gap: 8px; }
@@ -393,6 +410,13 @@
     .m-label { display: inline; width: 88px; flex: none; color: var(--muted); font-size: 12px; }
     .meta { max-width: none; }
     .track { max-width: none; }
+    .lim-flag { display: none; }
+    .lim-line {
+      display: flex; align-items: baseline; gap: 5px; margin-top: 2px;
+      font-size: 12px; color: var(--warn); min-width: 0;
+    }
+    .lim-line :global(svg) { width: 12px; height: 12px; flex: none; align-self: center; }
+    .lim-line span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; min-width: 0; }
   }
   .sk-who { display: grid; gap: 10px; padding: 4px 0 5px; flex: 1; }
 </style>
