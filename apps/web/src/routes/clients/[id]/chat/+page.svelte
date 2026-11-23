@@ -48,6 +48,7 @@
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { DraftEditor } from "$lib/draftEditor.svelte";
+  import { liftFeedback } from "$lib/feedback/lift";
 
   const id = $derived(page.params.id ?? "");
 
@@ -480,7 +481,7 @@
 </script>
 
 {#snippet composer()}
-  <div class="dock" bind:offsetHeight={dockH}>
+  <div class="dock" bind:offsetHeight={dockH} {@attach liftFeedback}>
     <div class="dock-box">
       <textarea
         bind:this={textareaEl}
