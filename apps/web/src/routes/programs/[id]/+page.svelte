@@ -62,7 +62,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLine } from "$lib/cardioLine";
   import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
-  import { validateProgramDoc } from "$lib/programDoc";
+  import { exerciseIssue, validateProgramDoc } from "$lib/programDoc";
   import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
@@ -384,9 +384,12 @@
     return profileOn(hrVersions, start ? sessionDateIn(start, s.weekday) : today)?.zones ?? null;
   }
 
-  const validation = $derived(
-    program ? validateProgramDoc(program.weeks) : { ok: true as const }
-  );
+  /** An open exercise editor holds a cell it couldn't parse (RPE "abc"): named in the save bar, save held. */
+  let editorIssue = $state<string | null>(null);
+  const validation = $derived.by(() => {
+    const doc = program ? validateProgramDoc(program.weeks) : { ok: true as const };
+    return doc.ok && editorIssue ? { ok: false as const, message: editorIssue } : doc;
+  });
 
   async function load() {
     program = await api.program(id);
@@ -836,6 +839,7 @@
                       onlink={ei < s.exercises.length - 1 && blockOf(s.exercises[ei + 1]) === blockOf(e) ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
                       onunlink={() => setExercises(si, unlink(s.exercises, ei))}
                       onclose={closeEditors}
+                      oninvalid={(m) => (editorIssue = m && `Week ${currentWeek.week} · ${sessionTag(s)} (${s.name}): ${exerciseIssue(e.exerciseName ?? "Exercise", m)}`)}
                     />
                   {:else}
                     {@const patterns = patternsOf(e.exerciseId)}

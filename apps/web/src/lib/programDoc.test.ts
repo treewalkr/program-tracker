@@ -83,4 +83,15 @@ describe("validateProgramDoc", () => {
       expect(emptyRes.message).toContain("exercise session requires at least one exercise");
     }
   });
+
+  test("names a bad set field in plain words", () => {
+    const negRest: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
+    negRest[0].sessions[0].exercises[0].prescribedSets[0].restSeconds = -30;
+    expect(validateProgramDoc(negRest)).toEqual({ ok: false, message: "Week 1 · Session 1 (Session 1): Squat — rest can't be negative" });
+
+    const highRpe: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
+    const sets = highRpe[0].sessions[1].exercises[0].prescribedSets;
+    sets.push({ ...sets[0], setNumber: 2, targetRpe: 12 });
+    expect(validateProgramDoc(highRpe)).toEqual({ ok: false, message: "Week 1 · Session 2 (Session 2): Bench — set 2: RPE must be 1–10" });
+  });
 });

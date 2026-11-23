@@ -51,6 +51,21 @@ export function rpeCell(s: PrescribedSetDto, mode: SetMode): string {
 
 const rpeOk = (v: number) => v >= 1 && v <= 10;
 
+/** Why an RPE cell's text can't be used, or null when blank or valid. */
+export function rpeIssue(raw: string): string | null {
+  if (raw.trim() === "") return null;
+  const r = parseRange(raw);
+  return r && rpeOk(r.max) && (r.min == null || rpeOk(r.min)) ? null : "RPE must be 1–10, or a range like 7–8";
+}
+
+/** Why a set's rest can't be saved, or null when it's fine (blank included). */
+export function restIssue(sec: number | null | undefined): string | null {
+  if (sec == null) return null;
+  if (sec < 0) return "Rest can't be negative";
+  if (sec > 600) return "Rest can't be over 600 s";
+  return Number.isInteger(sec) ? null : "Rest must be whole seconds";
+}
+
 /** RPE cell input: "8" or "7–8" (range); in Max mode the stop RPE. Blank clears; junk is ignored. */
 export function withRpe(s: PrescribedSetDto, raw: string, mode: SetMode): PrescribedSetDto {
   if (raw.trim() === "") return mode === "max" ? { ...s, stopRpe: undefined } : { ...s, targetRpe: undefined, targetRpeMin: undefined };
