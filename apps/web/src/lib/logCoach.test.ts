@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { e1rmAtRpe, loadFor, roundLoad, type E1rmHistorySet, type Equipment } from "@pt/shared";
 import { chipFor, coachSheet, historySets, rpeOff, suggestionNote, type CoachCtx, type CoachRow, type Suggestion } from "./logCoach";
 import { rowsToSave } from "./logSheet";
+import { applyUnits, fmtWeight } from "./units.svelte";
 
 const row = (over: Partial<CoachRow> = {}): CoachRow => ({
   key: `pe1-${over.setNumber ?? 1}`,
@@ -237,6 +238,19 @@ describe("suggestionNote", () => {
       use: null,
     });
     expect(suggestionNote(s, { open: true, chip: null, unplannedBlank: false })).toBeNull();
+  });
+
+  test("lb: the load is on the plate grid, and Use fills that load", () => {
+    applyUnits({ weight: "lb", distance: "km" });
+    try {
+      // 62.5 kg is 137.8 lb exactly; the prescription shows ≈ 137.5 lb, so the suggestion does too
+      const note = suggestionNote(s, { ...closed, open: true })!;
+      expect(note.text).toBe("Suggested 137.5 lb · From set 1: 60 × 5 @ 6 · e1RM 72");
+      expect(fmtWeight(note.use!)).toBe("137.5 lb");
+      expect(suggestionNote(undefined, { ...closed, used: s })!.text).toStartWith("Used 137.5 lb");
+    } finally {
+      applyUnits({ weight: "kg", distance: "km" });
+    }
   });
 
   test("a used chip keeps naming where its kg came from", () => {

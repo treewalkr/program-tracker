@@ -71,6 +71,8 @@ export function fmtWeight(kg: number, u?: WeightUnit, sep = " "): string {
 
 /** A load on the plate grid: the number a stepper shows (82.5 lb for 37.5 kg). */
 export const showLoad = (kg: number, u?: WeightUnit) => loadIn(kg, wu(u)).value;
+/** A kg load moved onto the shown plate grid, still as kg: 62.5 kg → 62.37 kg (137.5 lb); kg passes through. */
+export const gridKg = (kg: number, u?: WeightUnit) => (wu(u) === "kg" ? kg : storeWeight(showLoad(kg, u), u));
 /** A prescribed load as text: "37.5 kg", "≈ 82.5 lb". */
 export const fmtLoad = (kg: number, u?: WeightUnit, sep = " ") => formatLoad(kg, wu(u), sep);
 
