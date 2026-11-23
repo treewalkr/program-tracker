@@ -169,6 +169,8 @@
   };
   const dirty = $derived(program != null && baseline !== "" && snapshot(program) !== baseline);
   let saving = $state(false);
+  /** The last save hit a newer version (another tab, an AI fill): saving again can't win; reload instead. */
+  let stale = $state(false);
   let savedAt = $state<string | null>(null);
   let activating = $state(false);
   let currentWeekIndex = $state(0);
@@ -453,14 +455,27 @@
     saving = true;
     saveError = null;
     try {
-      program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null);
+      program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null, program.version);
       baseline = snapshot(program);
       savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     } catch (e) {
+      // The edits stay on screen either way; a 409 means only a reload can get past it.
       saveError = (e as Error).message;
+      stale = (e as { status?: unknown }).status === 409;
     } finally {
       saving = false;
     }
+  }
+
+  /** Drop the local edits for the latest saved version (after a 409). */
+  async function reloadLatest() {
+    await load();
+    pending = null;
+    openExercise = null;
+    openSession = null;
+    phasingResets++;
+    saveError = null;
+    stale = false;
   }
 
   function discard() {
@@ -969,8 +984,12 @@
               Unsaved changes · saving makes v{program.version + 1}{program.status === "active" ? " and updates the client portal" : ""}.
             {/if}
           </span>
-          <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
-          <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+          {#if stale}
+            <ConfirmButton label="Reload latest" confirmLabel="Drop my edits and reload?" variant="primary" armedVariant="danger" small onconfirm={reloadLatest} />
+          {:else}
+            <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
+            <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
+          {/if}
         </div>
       {/if}
     </div>

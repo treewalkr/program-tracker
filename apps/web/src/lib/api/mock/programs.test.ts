@@ -115,6 +115,17 @@ describe("mockApi.saveProgram", () => {
     expect(() => structuredClone(saved.weeks)).not.toThrow();
   });
 
+  test("saveProgram refuses a save from an older version and keeps the newer one", async () => {
+    const opened = await mockApi.program("pg-maya-a");
+    const first = await mockApi.saveProgram("pg-maya-a", opened.weeks, undefined, opened.version);
+    expect(first.version).toBe(opened.version + 1);
+    await expect(mockApi.saveProgram("pg-maya-a", opened.weeks, undefined, opened.version)).rejects.toMatchObject({
+      status: 409,
+      message: "This program changed since you opened it. Reload to see the latest.",
+    });
+    expect((await mockApi.program("pg-maya-a")).version).toBe(first.version);
+  });
+
   test("saveProgram rejects an invalid weeks document", async () => {
     // Empty exercise session (no exercises)
     const invalidWeeks: ProgramWeekDto[] = [
