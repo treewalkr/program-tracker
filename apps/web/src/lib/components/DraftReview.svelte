@@ -713,6 +713,10 @@
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--tab-on); }
   .seg button:disabled { cursor: default; opacity: 0.6; }
+  /* A phone or a touch screen: 44px targets, as the Segmented control. */
+  @media (max-width: 720px), (pointer: coarse) {
+    .seg button { min-height: 44px; padding: 6px 14px; font-size: 14px; }
+  }
   .base { width: auto; }
   .count { font-size: 13px; }
   .ask { margin-left: auto; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }

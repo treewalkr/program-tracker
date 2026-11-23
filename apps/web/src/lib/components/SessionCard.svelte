@@ -345,6 +345,13 @@
   .note-btn.noted { opacity: 1; color: var(--blue); }
   .note-btn.noted span { display: none; }
   @media (hover: none) { .note-btn { opacity: 1; } }
+  /* A phone or a touch screen: a 44px-tall hit area around the small pill, without growing the row. */
+  @media (max-width: 720px), (pointer: coarse) {
+    .note-btn { position: relative; z-index: 1; min-width: 44px; justify-content: center; }
+    .note-btn::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+    /* The card clips at the head's top edge, so the head's note reaches down instead. */
+    .head-note::before { top: auto; bottom: -16px; transform: none; }
+  }
   @media (prefers-reduced-motion: reduce) { .note-btn { transition: none; } }
   /* Hand edits: a third column for the ⋯ menu; ticked rows take the selection tint. */
   .exrow.editable {

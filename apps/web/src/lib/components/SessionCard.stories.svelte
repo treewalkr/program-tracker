@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Prescribed session row: name, optional day pill, exercise rows with an optional role chip and set chips, optional cardio footer. Hairline-divided when stacked inside a Panel — pass multiple as children to see the dividers.',
+            'Prescribed session row: name, optional day pill, exercise rows with an optional role chip and set chips, optional cardio footer. Hairline-divided when stacked inside a Panel — pass multiple as children to see the dividers. With `onnote`, each row gets a Note button: quiet until hover, always shown on touch, with a 44px-tall hit area on a phone.',
         },
       },
     },
