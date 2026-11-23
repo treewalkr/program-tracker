@@ -966,7 +966,7 @@ const rawMockApi: TrainerApi = {
     return state.programs.filter((p) => p.clientId === clientId).map(withNames);
   },
 
-  async saveProgram(id, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null) {
+  async saveProgram(id, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null, baseVersion?: number) {
     await delay(400);
     const parsed = ProgramWeeksWrite.safeParse(weeks);
     if (!parsed.success) {
@@ -975,6 +975,10 @@ const rawMockApi: TrainerApi = {
     const i = state.programs.findIndex((p) => p.id === id);
     if (i < 0) throw new Error("program not found");
     const current = state.programs[i];
+    // Same rule as the API: a save from an older version than the stored one loses nothing.
+    if (baseVersion !== undefined && baseVersion !== current.version) {
+      throw Object.assign(new Error("This program changed since you opened it. Reload to see the latest."), { status: 409 });
+    }
     // Copy like the wire does: the page passes its live $state proxy, which structuredClone can't copy
     // and which later edits would change behind the "saved" version.
     const updated: ProgramDto = {

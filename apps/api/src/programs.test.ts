@@ -182,3 +182,58 @@ describe.skipIf(!dbUp)("when Week 1 starts (startsOn)", () => {
     expect((await call("PATCH", `/v1/programs/${crypto.randomUUID()}/starts-on`, { startsOn: today })).status).toBe(404);
   });
 });
+
+describe.skipIf(!dbUp)("saving from a stale version (baseVersion)", () => {
+  const ids: string[] = [];
+  let weeks: unknown[] = [];
+  afterAll(async () => {
+    if (ids.length) await db.delete(programs).where(inArray(programs.id, ids));
+  });
+  const fresh = async () => {
+    const squat = await call("GET", "/v1/exercises?q=squat");
+    weeks = weeksWith(squat.body[0].id);
+    const { body } = await call("POST", "/v1/programs", { name: "Stale", weeks });
+    ids.push(body.id);
+    return body.id as string;
+  };
+
+  test("a save from an older version is refused and leaves the program alone", async () => {
+    const id = await fresh();
+    expect((await call("PUT", `/v1/programs/${id}`, { weeks, direction: "tab A", baseVersion: 1 })).body.version).toBe(2);
+    const stale = await call("PUT", `/v1/programs/${id}`, { weeks, direction: "tab B", baseVersion: 1 });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toBe("This program changed since you opened it. Reload to see the latest.");
+    const now = await call("GET", `/v1/programs/${id}`);
+    expect(now.body).toMatchObject({ version: 2, direction: "tab A" });
+  });
+
+  test("a save from the current version goes through", async () => {
+    const id = await fresh();
+    const res = await call("PUT", `/v1/programs/${id}`, { weeks, baseVersion: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe(2);
+  });
+
+  test("a save without baseVersion still overwrites (older web builds)", async () => {
+    const id = await fresh();
+    await call("PUT", `/v1/programs/${id}`, { weeks });
+    const res = await call("PUT", `/v1/programs/${id}`, { weeks });
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBe(3);
+  });
+
+  test("two saves racing from the same version: one wins, one is refused", async () => {
+    const id = await fresh();
+    const results = await Promise.all(
+      ["tab A", "tab B", "tab C"].map((direction) => call("PUT", `/v1/programs/${id}`, { weeks, direction, baseVersion: 1 }))
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409, 409]);
+    const now = await call("GET", `/v1/programs/${id}`);
+    expect(now.body.version).toBe(2);
+  });
+
+  test("baseVersion must be a whole number", async () => {
+    const id = await fresh();
+    expect((await call("PUT", `/v1/programs/${id}`, { weeks, baseVersion: 1.5 })).status).toBe(422);
+  });
+});

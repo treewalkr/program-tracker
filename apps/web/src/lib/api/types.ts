@@ -754,7 +754,8 @@ export interface TrainerApi {
 
   program(id: string): Promise<ProgramDto>;
   programs(clientId: string): Promise<ProgramDto[]>;
-  saveProgram(id: string, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null): Promise<ProgramDto>;
+  /** `baseVersion`: the version the editor opened; a save from an older one rejects with status 409. */
+  saveProgram(id: string, weeks: ProgramWeekDto[], phasing?: ProgramPhasingDto | null, baseVersion?: number): Promise<ProgramDto>;
   createProgram(input: {
     clientId: string;
     name: string;
