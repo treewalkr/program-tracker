@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 
 // goBack's SvelteKit imports; backDelta never touches them
 mock.module("$app/navigation", () => ({ goto: async () => {}, beforeNavigate: () => {}, afterNavigate: () => {} }));
-const { backDelta } = await import("./back.svelte");
+const { backDelta, backNav, trackNavigation } = await import("./back.svelte");
 
 const at = (...paths: string[]) => paths.map((p) => `https://pt.test${p}`);
 
@@ -36,5 +36,31 @@ describe("backDelta", () => {
 
   test("an entry with no URL ends the search", () => {
     expect(backDelta([null, "https://pt.test/clients/5"], 1, "/clients/5")).toBeNull();
+  });
+});
+
+describe("backNav.can (the layout's own Back)", () => {
+  const nav = (type: "enter" | "link" | "popstate", path: string, delta?: number) =>
+    trackNavigation({ type, to: { url: new URL(`https://pt.test${path}`) } as never, delta } as never);
+
+  test("a menu page opened from a link inside another page can go back", () => {
+    nav("enter", "/th/clients/5/programs/new");
+    expect(backNav.can).toBe(false);
+    nav("link", "/th/schemes");
+    expect(backNav.can).toBe(true);
+    nav("popstate", "/th/clients/5/programs/new", -1);
+    expect(backNav.can).toBe(false);
+  });
+
+  test("a cold launch has nowhere to go back to", () => {
+    nav("link", "/clients");
+    nav("enter", "/schemes");
+    expect(backNav.can).toBe(false);
+  });
+
+  test("not back onto sign-in", () => {
+    nav("enter", "/login");
+    nav("link", "/");
+    expect(backNav.can).toBe(false);
   });
 });

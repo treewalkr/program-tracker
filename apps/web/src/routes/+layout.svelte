@@ -28,7 +28,8 @@
   import { isPortalPath } from "$lib/portal/gate";
   import { appPath, relinked } from "$lib/portal/lang";
   import { headingTo, i18n, inLang } from "$lib/portal/i18n.svelte";
-  import { trackNavigation } from "$lib/nav/back.svelte";
+  import { backNav, trackNavigation } from "$lib/nav/back.svelte";
+  import BackButton from "$lib/ui/BackButton.svelte";
   import ViewAsBanner from "$lib/components/ViewAsBanner.svelte";
   import { viewAs } from "$lib/viewAs.svelte";
 
@@ -461,6 +462,9 @@
       </Note>
     {/if}
     <ReleaseBanner />
+    <!-- Pages without crumbs (menu pages) still get Back when reached from
+         another page; a page's own crumbs Back takes over when it has one. -->
+    {#if backNav.can}<p class="history-back"><BackButton fallback="/" /></p>{/if}
     {@render children()}
   </main>
 </div>
@@ -599,6 +603,14 @@
   /* Crumbs ride the toggle's 28px line (centre y=40, like the brand); the
      title below keeps its place. */
   .main > :global(.crumbs) { line-height: 28px; margin: -2px 0 0; }
+  /* The layout's own Back (pages without crumbs): phones and the home-screen
+     app only, on the toggle's line like crumbs, and never beside a crumbs Back. */
+  .history-back { display: none; margin: -2px 0 0; }
+  .history-back + :global(*) { clear: left; }
+  @media (max-width: 860px), (display-mode: standalone) {
+    .history-back { display: flex; }
+    .main:has(:global(.crumbs.compact)) > .history-back { display: none; }
+  }
   .side-toggle {
     display: grid;
     place-items: center;
