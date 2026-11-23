@@ -48,6 +48,7 @@
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { DraftEditor } from "$lib/draftEditor.svelte";
+  import { liftFeedback } from "$lib/feedback/lift";
 
   const id = $derived(page.params.id ?? "");
 
@@ -155,6 +156,8 @@
   let scrollEl = $state<HTMLDivElement | null>(null);
   let paneEl = $state<HTMLDivElement | null>(null);
   let benchEl = $state<HTMLElement | null>(null);
+  /** The composer's height beside the draft: it floats over the thread, so the thread reserves exactly this much. */
+  let dockH = $state(0);
   /** Desktop: the bench fills the viewport below its own top edge (banners vary). */
   let benchHeight = $state<number | null>(null);
 
@@ -478,7 +481,7 @@
 </script>
 
 {#snippet composer()}
-  <div class="dock">
+  <div class="dock" bind:offsetHeight={dockH} {@attach liftFeedback}>
     <div class="dock-box">
       <textarea
         bind:this={textareaEl}
@@ -531,6 +534,11 @@
 {#snippet thread()}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="thread" role="log" aria-live="polite" aria-label="Conversation with AI" onpointerup={() => setTimeout(readSelection)} onkeyup={(e) => e.shiftKey && readSelection()}>
+    {#if messages.length === 0 && !sending}
+      <p class="thread-empty">
+        No messages yet. Ask about {firstName}'s numbers, or describe a change to the draft.
+      </p>
+    {/if}
     {#each messages as m (m.id)}
       {#if m.kind === "edit"}
         <!-- A hand edit: exactly the line the AI reads, as a quiet system line. -->
@@ -678,8 +686,7 @@
     </section>
   {:else}
     <div class="bench" bind:this={benchEl} style:height={benchHeight ? `${benchHeight}px` : null}>
-      <section class="panel col chat" aria-label="Conversation">
-        <div class="panel-head"><h2>Conversation</h2></div>
+      <section class="panel col chat reading" aria-label="Conversation" style:--dock-h={dockH ? `${dockH}px` : null}>
         <div class="scroll" bind:this={scrollEl}>{@render thread()}</div>
         {@render composer()}
       </section>
@@ -954,6 +961,10 @@
   }
   .sk-line { display: flex; align-items: center; min-height: 1lh; }
   .sk-para { display: grid; gap: 10px; padding-block: 5px; }
+  .thread-empty {
+    margin: 0;
+    color: var(--muted);
+  }
   .chat-empty h2 {
     font-size: 16px;
     margin-bottom: 6px;
@@ -983,6 +994,73 @@
     border-color: var(--line-strong);
   }
 
+  /* Beside the draft: one centred reading measure, questions read as turn headings, and the
+     composer floats over the end of the thread. Narrow screens keep the sticky dock below. */
+  @media (min-width: 981px) {
+    .reading {
+      position: relative;
+    }
+    /* The dock floats 12px off the bottom and grows with its text, errors and hint; its measured
+       height (--dock-h) sets how far the thread must scroll past it. The thread fades out over the
+       40px above the dock, so text never sits half-hidden against its edge. */
+    .reading {
+      --dock-clear: calc(var(--dock-h, 160px) + 12px);
+    }
+    .reading .scroll {
+      padding-bottom: calc(var(--dock-clear) + 48px);
+      mask-image: linear-gradient(
+        to bottom,
+        #000 calc(100% - var(--dock-clear) - 40px),
+        transparent calc(100% - var(--dock-clear))
+      );
+    }
+    .reading :global(.thread) {
+      max-width: 60ch;
+      margin-inline: auto;
+      padding: 28px 24px 12px;
+      gap: 20px;
+    }
+    .reading :global(.you) {
+      align-self: stretch;
+      max-width: none;
+      background: none;
+      border: 0;
+      border-radius: 0;
+      padding: 12px 0 0;
+      font: 600 15px/1.45 var(--font-ui);
+      color: var(--ink);
+    }
+    .reading :global(.you:not(:first-child)) {
+      border-top: 1px solid var(--line-soft);
+    }
+    .reading :global(.ai) {
+      max-width: none;
+    }
+    .reading :global(.sysline) {
+      padding-inline: 0;
+    }
+    .reading :global(.dock) {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      max-width: calc(60ch + 24px);
+      margin-inline: auto;
+      padding: 0;
+      border: 0;
+      background: none;
+    }
+    .reading :global(.dock-box) {
+      border-color: var(--line-strong);
+      border-radius: 8px;
+    }
+    .reading :global(.dock-hint) {
+      margin: 6px 4px 0;
+      font-size: 11px;
+      text-shadow: 0 0 6px var(--surface);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .spinner {
       animation-duration: 3s;
@@ -1008,9 +1086,6 @@
       border: 0;
       height: auto;
       min-height: 0;
-    }
-    .col.chat .panel-head {
-      display: none;
     }
     .scroll {
       overflow: visible;
