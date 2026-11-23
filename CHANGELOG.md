@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Improved
+- **Draft chat reads like a document.** Beside the draft, your questions read as headings and the answers sit in one centred column, with the message box floating at the bottom. The newest reply always stays clear of the box, and an empty chat says so instead of showing a blank panel.
+  - th: แชตร่างโปรแกรมอ่านง่ายขึ้น ตอนเปิดคู่กับร่าง คำถามของคุณจะเป็นหัวข้อ คำตอบเรียงเป็นคอลัมน์เดียวตรงกลาง ช่องพิมพ์ลอยอยู่ด้านล่าง คำตอบล่าสุดไม่โดนช่องพิมพ์บังแล้ว และถ้ายังไม่มีข้อความก็จะบอกไว้ ไม่ปล่อยเป็นกล่องว่าง
+- **Bigger tap targets on phones.** Buttons are 44px tall on a phone, including Snooze, Open program, the Good/Bad draft rating, Sessions/Compare and each exercise's Note on draft review.
+  - th: บนมือถือ ปุ่มสูง 44px กดง่ายขึ้น รวมถึง Snooze, Open program, ปุ่มให้คะแนนร่าง Good/Bad, Sessions/Compare และปุ่ม Note ของแต่ละท่าในหน้ารีวิวร่าง
+- **Arrow keys move between tabs**, and Home and End jump to the first and last tab.
+  - th: ใช้ปุ่มลูกศรสลับแท็บได้แล้ว กด Home หรือ End เพื่อไปแท็บแรกหรือแท็บสุดท้าย
+
+### Fixed
+- Saving a program that changed in another tab, or through an approved AI fill, no longer overwrites the newer version. You'll see "This program changed since you opened it" and can reload the latest.
+  - th: ถ้าโปรแกรมถูกแก้จากแท็บอื่น หรือถูกเปลี่ยนจากการอนุมัติร่างที่ AI เติมไว้ ตอนกดบันทึกจะไม่ทับเวอร์ชันที่ใหม่กว่าแล้ว จะขึ้นข้อความ "This program changed since you opened it" ให้โหลดเวอร์ชันล่าสุดแทน
+- Approving the same draft twice at once no longer creates two programs.
+  - th: กดอนุมัติร่างเดียวกันซ้ำพร้อมกัน จะไม่ได้โปรแกรมออกมาสองอันแล้ว
+- On the Members list, a member's limitations show as text under their name on a phone, and on a computer the flag can be reached with the keyboard.
+  - th: ในหน้า Members บนมือถือจะเห็นข้อจำกัดของเมมเบอร์เป็นข้อความใต้ชื่อ ส่วนบนคอมพิวเตอร์ใช้คีย์บอร์ดไปที่ธงเพื่ออ่านได้
+- On Templates, the "Distill for client" row wraps on a phone instead of sticking out of the card.
+  - th: หน้า Templates แถว "Distill for client" ขึ้นบรรทัดใหม่บนมือถือ ไม่ล้นออกนอกการ์ดแล้ว
+- The Direction box on a member's page is labelled for screen readers.
+  - th: ช่อง Direction ในหน้าเมมเบอร์มีชื่อกำกับให้โปรแกรมอ่านหน้าจอแล้ว
+- The program editor marks a negative rest or an RPE it can't read right on the set, and says which exercise and set to fix.
+  - th: ตัวแก้โปรแกรมจะไฮไลต์เวลาพักที่ติดลบ หรือ RPE ที่อ่านไม่ออก ตรงเซตนั้นเลย และบอกว่าต้องแก้ท่าไหน เซตไหน
+- In pounds, the session logger's suggested load is rounded like the prescription (110 lb, not 110.2), and Use fills the rounded value.
+  - th: ถ้าใช้หน่วยปอนด์ น้ำหนักที่แนะนำในหน้าบันทึกเซสชันจะปัดแบบเดียวกับในโปรแกรม (110 lb ไม่ใช่ 110.2) และปุ่ม Use ก็ใส่ค่าที่ปัดแล้ว
+- Delete buttons that ask "Really…?" no longer make pages scroll sideways on a phone.
+  - th: ปุ่มลบที่ถามยืนยันอีกครั้ง ไม่ทำให้หน้าเลื่อนออกด้านข้างบนมือถือแล้ว
+- The Feedback button no longer covers Save changes on a program, or the hint under the message box in draft chat.
+  - th: ปุ่ม Feedback ไม่บังปุ่ม Save changes ในหน้าโปรแกรม และไม่บังคำแนะนำใต้ช่องพิมพ์ในแชตร่างแล้ว
+
 ## v0.1.48 — 2026-11-23
 
 ### New
