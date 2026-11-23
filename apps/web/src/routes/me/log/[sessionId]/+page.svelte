@@ -41,6 +41,7 @@
   import { restOf } from "$lib/portal/restTimer";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import BackButton from "$lib/ui/BackButton.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
@@ -511,7 +512,7 @@
 
 <PortalBar coach={me?.trainer.name ?? null} />
 
-<a class="back" href="/me"><Icon name="chevron" />{t("log.back")}</a>
+<div class="back-row"><BackButton fallback="/me" label={t("log.back")} /></div>
 
 {#if loadState === "loading"}
   <div class="sk" aria-hidden="true">
@@ -829,17 +830,8 @@
 {/snippet}
 
 <style>
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 44px;
-    margin: 4px 0 0 -6px;
-    padding: 0 6px;
-    font: 500 16px/1 var(--font-ui);
-    color: var(--blue);
-  }
-  .back :global(svg) { width: 16px; height: 16px; transform: rotate(90deg); }
+  /* The old 44px row: the button's touch target fits inside it. */
+  .back-row { margin-top: 4px; padding: 8px 0; }
 
   .sk { display: grid; gap: 14px; margin-top: 12px; }
   .sk :global(.skeleton) { display: block; }

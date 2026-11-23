@@ -6,7 +6,7 @@
   import LangToggle from "$lib/portal/LangToggle.svelte";
   import { distanceText, weightText } from "$lib/portal/rx";
   import { applyUnits, PORTAL_UNITS_KEY, units } from "$lib/units.svelte";
-  import Icon from "$lib/ui/Icon.svelte";
+  import BackButton from "$lib/ui/BackButton.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
 
   /**
@@ -42,7 +42,7 @@
 
 <PortalBar coach={me?.trainer.name ?? null} />
 
-<a class="back" href="/me"><Icon name="chevron" />{t("log.back")}</a>
+<div class="back-row"><BackButton fallback="/me" label={t("log.back")} /></div>
 
 <h1>{t("settings.title")}</h1>
 
@@ -87,17 +87,8 @@
 </section>
 
 <style>
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 44px;
-    margin: 4px 0 0 -6px;
-    padding: 0 6px;
-    font: 500 16px/1 var(--font-ui);
-    color: var(--blue);
-  }
-  .back :global(svg) { width: 16px; height: 16px; transform: rotate(90deg); }
+  /* The old 44px row: the button's touch target fits inside it. */
+  .back-row { margin-top: 4px; padding: 8px 0; }
   h1 { margin: 8px 0 20px; font: 600 26px/1.2 var(--font-ui); letter-spacing: -0.015em; }
   .group { display: grid; gap: 12px; padding: 16px 0; border-top: 1px solid var(--line-soft); }
   h2 { margin: 0; font: 600 14px/1.3 var(--font-ui); color: var(--muted); }
