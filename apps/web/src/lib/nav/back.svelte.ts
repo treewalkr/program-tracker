@@ -35,6 +35,26 @@ export function backDelta(entries: readonly (string | null)[], index: number, he
 let seen: string[] = [];
 let at = 0;
 
+/**
+ * Whether this page has an earlier page to go back to. The layout shows its
+ * own `‹ Back` from it on pages without crumbs (a menu page reached from a
+ * link inside another page, like Schemes from a new program).
+ */
+export const backNav = $state({ can: false });
+
+interface NavigationLike {
+  currentEntry: { index: number } | null;
+  entries(): { url: string | null }[];
+}
+
+/** Steps back from `here`: the Navigation API's entries when there is one, else ours. */
+function deltaFrom(here: string): number | null {
+  const navigation = (globalThis as unknown as { navigation?: NavigationLike }).navigation;
+  return navigation?.currentEntry
+    ? backDelta(navigation.entries().map((e) => e.url), navigation.currentEntry.index, here)
+    : backDelta(seen, at, here);
+}
+
 /** Called from the root layout's `afterNavigate`. */
 export function trackNavigation(nav: Pick<AfterNavigate, "type" | "to" | "delta">): void {
   const url = nav.to?.url.href;
@@ -49,20 +69,12 @@ export function trackNavigation(nav: Pick<AfterNavigate, "type" | "to" | "delta"
     seen = [...seen.slice(0, at + 1), url];
     at = seen.length - 1;
   }
-}
-
-interface NavigationLike {
-  currentEntry: { index: number } | null;
-  entries(): { url: string | null }[];
+  backNav.can = deltaFrom(appPath(nav.to!.url)) != null;
 }
 
 /** Go back to the previous page, or to `fallback` when there's none to go to. */
 export function goBack(fallback: string): void {
-  const here = appPath(window.location);
-  const navigation = (window as unknown as { navigation?: NavigationLike }).navigation;
-  const delta = navigation?.currentEntry
-    ? backDelta(navigation.entries().map((e) => e.url), navigation.currentEntry.index, here)
-    : backDelta(seen, at, here);
+  const delta = deltaFrom(appPath(window.location));
   if (delta) history.go(delta);
   else {
     const lang = splitLang(window.location.pathname).lang;
