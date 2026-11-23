@@ -155,6 +155,8 @@
   let scrollEl = $state<HTMLDivElement | null>(null);
   let paneEl = $state<HTMLDivElement | null>(null);
   let benchEl = $state<HTMLElement | null>(null);
+  /** The composer's height beside the draft: it floats over the thread, so the thread reserves exactly this much. */
+  let dockH = $state(0);
   /** Desktop: the bench fills the viewport below its own top edge (banners vary). */
   let benchHeight = $state<number | null>(null);
 
@@ -478,7 +480,7 @@
 </script>
 
 {#snippet composer()}
-  <div class="dock">
+  <div class="dock" bind:offsetHeight={dockH}>
     <div class="dock-box">
       <textarea
         bind:this={textareaEl}
@@ -531,6 +533,11 @@
 {#snippet thread()}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="thread" role="log" aria-live="polite" aria-label="Conversation with AI" onpointerup={() => setTimeout(readSelection)} onkeyup={(e) => e.shiftKey && readSelection()}>
+    {#if messages.length === 0 && !sending}
+      <p class="thread-empty">
+        No messages yet. Ask about {firstName}'s numbers, or describe a change to the draft.
+      </p>
+    {/if}
     {#each messages as m (m.id)}
       {#if m.kind === "edit"}
         <!-- A hand edit: exactly the line the AI reads, as a quiet system line. -->
@@ -678,7 +685,7 @@
     </section>
   {:else}
     <div class="bench" bind:this={benchEl} style:height={benchHeight ? `${benchHeight}px` : null}>
-      <section class="panel col chat reading" aria-label="Conversation">
+      <section class="panel col chat reading" aria-label="Conversation" style:--dock-h={dockH ? `${dockH}px` : null}>
         <div class="scroll" bind:this={scrollEl}>{@render thread()}</div>
         {@render composer()}
       </section>
@@ -953,6 +960,10 @@
   }
   .sk-line { display: flex; align-items: center; min-height: 1lh; }
   .sk-para { display: grid; gap: 10px; padding-block: 5px; }
+  .thread-empty {
+    margin: 0;
+    color: var(--muted);
+  }
   .chat-empty h2 {
     font-size: 16px;
     margin-bottom: 6px;
@@ -988,9 +999,19 @@
     .reading {
       position: relative;
     }
+    /* The dock floats 12px off the bottom and grows with its text, errors and hint; its measured
+       height (--dock-h) sets how far the thread must scroll past it. The thread fades out over the
+       40px above the dock, so text never sits half-hidden against its edge. */
+    .reading {
+      --dock-clear: calc(var(--dock-h, 160px) + 12px);
+    }
     .reading .scroll {
-      padding-bottom: 150px;
-      mask-image: linear-gradient(to bottom, #000 calc(100% - 170px), transparent calc(100% - 60px));
+      padding-bottom: calc(var(--dock-clear) + 48px);
+      mask-image: linear-gradient(
+        to bottom,
+        #000 calc(100% - var(--dock-clear) - 40px),
+        transparent calc(100% - var(--dock-clear))
+      );
     }
     .reading :global(.thread) {
       max-width: 60ch;
