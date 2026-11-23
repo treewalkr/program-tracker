@@ -11,6 +11,8 @@ import { ErrorBody } from "../models/shared";
 /** Write boundary: raw jsonb weeks are only accepted if they pass the shared schema and the cardio workload rule. */
 const WeeksDoc = ProgramWeeksWrite;
 
+const STALE_SAVE = "This program changed since you opened it. Reload to see the latest.";
+
 export function toProgramDto(row: typeof programs.$inferSelect) {
   const { sessions, ...rest } = row;
   return { ...rest, weeks: sessions };
@@ -82,7 +84,8 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
     }
   )
   /** Replace the whole weeks document (trainer edited an active program) → version++.
-   *  An absent phasing leaves it untouched; explicit null clears it. */
+   *  An absent phasing leaves it untouched; explicit null clears it.
+   *  A `baseVersion` other than the stored one is a 409 (another tab or an AI fill saved first). */
   .put(
     "/:id",
     async ({ params, body, status, trainerId }) => {
@@ -92,6 +95,9 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
       }
       const [current] = await db.select().from(programs).where(eq(programs.id, params.id));
       if (!current) return status(404, { error: "program not found" });
+      if (body.baseVersion !== undefined && body.baseVersion !== current.version) {
+        return status(409, { error: STALE_SAVE });
+      }
 
       const update: Record<string, unknown> = { sessions: parsed.data, version: current.version + 1 };
       if (body.phasing !== undefined) {
@@ -105,18 +111,24 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
         update.direction = body.direction;
       }
 
+      // Conditional on the version read above, so of two saves racing from one version only the first lands.
       const [updated] = await db
         .update(programs)
         .set(update)
-        .where(eq(programs.id, params.id))
+        .where(
+          body.baseVersion === undefined
+            ? eq(programs.id, params.id)
+            : and(eq(programs.id, params.id), eq(programs.version, current.version))
+        )
         .returning();
+      if (!updated) return body.baseVersion === undefined ? status(404, { error: "program not found" }) : status(409, { error: STALE_SAVE });
       await recordProgramEdit(trainerId, current, updated);
       return toProgramDto(updated);
     },
     {
       params: t.Object({ id: t.String() }),
       body: ProgramModel.replace,
-      response: { 200: ProgramModel.dto, 404: ErrorBody, 422: ErrorBody },
+      response: { 200: ProgramModel.dto, 404: ErrorBody, 409: ErrorBody, 422: ErrorBody },
     }
   )
   .patch(

@@ -31,9 +31,11 @@ export const ProgramModel = {
     ...spread(t.Pick(ProgramUpdate, ["clientId", "description", "direction", "aiAssisted", "createdFromProgramId", "phasing"])),
     weeks: ProgramInsert.properties.sessions,
   }),
+  /** `baseVersion`: the version the editor opened; a save from an older one is a 409. Absent = last write wins (older web builds). */
   replace: t.Object({
     weeks: ProgramInsert.properties.sessions,
     ...spread(t.Pick(ProgramUpdate, ["phasing", "direction"])),
+    baseVersion: t.Optional(ProgramSelect.properties.version),
   }),
   direction: t.Required(t.Pick(ProgramUpdate, ["direction"])),
   /** Activating may say when Week 1 starts (YYYY-MM-DD); the previous web sends none (legacy anchor). */
