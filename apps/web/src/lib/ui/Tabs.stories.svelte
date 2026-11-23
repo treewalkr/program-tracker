@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Orange-underline tabs (Tab Coral — the system\'s only warm flourish). Tabs carry counters citing their evidence; disabled tabs dim to 50%.',
+            'Orange-underline tabs (Tab Coral — the system\'s only warm flourish). Tabs carry counters citing their evidence; disabled tabs dim to 50%. Keyboard: one tab stop on the selected tab; ←/→ move (wrapping), Home/End jump to the ends, disabled tabs are skipped. Arrows select as they move unless `activation="manual"`, where Enter/Space selects — use that when a switch navigates.',
         },
       },
     },
@@ -18,6 +18,7 @@
 
 <script>
   let tab = $state('program');
+  let manualTab = $state('program');
   const items = [
     { id: 'program', label: 'Program', count: '4 days' },
     { id: 'pulse', label: 'Pulse', count: '8 wks' },
@@ -43,6 +44,22 @@
     ]}
     value="program"
   />
+</Story>
+
+<Story name="Manual activation" asChild>
+  <div>
+    <Tabs
+      items={items}
+      value={manualTab}
+      onchange={(id) => (manualTab = id)}
+      label="Client sections (manual)"
+      idPrefix="manual"
+      activation="manual"
+    />
+    <div id={`panel-${manualTab}`} role="tabpanel" aria-labelledby={`manual-${manualTab}`} class="body">
+      Arrows move focus; Enter or Space opens {manualTab}
+    </div>
+  </div>
 </Story>
 
 <style>
