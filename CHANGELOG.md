@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.49 — 2026-11-24
+
 ### Improved
 - **Draft chat reads like a document.** Beside the draft, your questions read as headings and the answers sit in one centred column, with the message box floating at the bottom. The newest reply always stays clear of the box, and an empty chat says so instead of showing a blank panel.
   - th: แชตร่างโปรแกรมอ่านง่ายขึ้น ตอนเปิดคู่กับร่าง คำถามของคุณจะเป็นหัวข้อ คำตอบเรียงเป็นคอลัมน์เดียวตรงกลาง ช่องพิมพ์ลอยอยู่ด้านล่าง คำตอบล่าสุดไม่โดนช่องพิมพ์บังแล้ว และถ้ายังไม่มีข้อความก็จะบอกไว้ ไม่ปล่อยเป็นกล่องว่าง
