@@ -1,11 +1,9 @@
 import { Elysia, t } from "elysia";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
-import { z } from "zod";
 import {
   db,
   aiGenerations,
   clients,
-  exercises,
   programs,
   sessionLogs,
   setLogs,
@@ -14,7 +12,6 @@ import {
 } from "@pt/db";
 import {
   AiProgramDraft,
-  ProgramWeeksDocument,
   blockPulse,
   chainBalanceText,
   chainSetCounts,
@@ -31,11 +28,9 @@ import {
 } from "../ai/prompt";
 import { mockWeekDraft } from "../ai/mock";
 import { stampWeekDraft } from "../lib/draft-weeks";
-import { applyFill, startFill } from "../lib/fill";
+import { startFill } from "../lib/fill";
+import { approveGeneration } from "../lib/approve";
 import { startBlock } from "../lib/block";
-import { bindPendingExercises, draftToWeeks, replaceWeek } from "../lib/draftToProgram";
-import { loadRoleLabels } from "../lib/role-labels";
-import { ensureSessionTypes } from "../lib/session-types";
 import { buildHistory } from "../lib/history";
 import { trainerContext } from "../lib/trainer-context";
 import { ensureSeededChains } from "../lib/chains";
@@ -250,152 +245,19 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
     },
     { params: t.Object({ id: t.String() }) }
   )
-  /** Approve: draft → real draft-status Program (never client-visible until trainer activates). */
+  /**
+   * Approve: draft → real draft-status Program (never client-visible until trainer activates),
+   * or a week / fill written into the active program. At most once: a second approve (409
+   * "This draft was already approved.") waits on the first and writes nothing.
+   */
   .post(
     "/generations/:id/approve",
     async ({ params, status, trainerId }) => {
-      const [gen] = await db.select().from(aiGenerations).where(eq(aiGenerations.id, params.id));
-      if (!gen) return status(404, { error: "generation not found" });
-      if (gen.status !== "validated") return status(409, { error: `generation is ${gen.status}, not validated` });
-      if (!gen.draft) return status(409, { error: "generation has no draft" });
-
-      const [client] = gen.clientId
-        ? await db.select().from(clients).where(eq(clients.id, gen.clientId))
-        : [null];
-
-      if (gen.kind === "fill") {
-        const res = await applyFill(trainerId, gen);
-        if (!res.ok) return status(res.status, { error: res.error, ...(res.refs ? { refs: res.refs } : {}) });
-        await recordApproval(trainerId, gen, res.program.sessions.find((w) => w.week === res.written[0]), res.program.id);
-        return status(201, toProgramDto(res.program));
-      }
-      const catalog = await db.select().from(exercises);
-      if (gen.kind === "week") {
-        if (!gen.basedOnProgramId) return status(404, { error: "program not found" });
-        const [prog] = await db.select().from(programs).where(eq(programs.id, gen.basedOnProgramId));
-        if (!prog) return status(404, { error: "program not found" });
-        if (prog.status !== "active") return status(409, { error: "program is not active" });
-
-        const weekNow = await currentBlockWeek(prog);
-        if (
-          !gen.targetWeek ||
-          gen.targetWeek > prog.sessions.length ||
-          !(gen.targetWeek === weekNow || gen.targetWeek === weekNow + 1)
-        ) {
-          return status(409, { error: "generation targets a week that is no longer current" });
-        }
-
-        const { weeks, createdNames, unresolvable } = replaceWeek(
-          prog.sessions,
-          gen.targetWeek,
-          gen.draft,
-          catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-          client,
-          await ensureSessionTypes(trainerId),
-          await loadRoleLabels(trainerId),
-          gen.trainerOrder
-        );
-        if (unresolvable.length > 0) {
-          return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
-        }
-
-        const nameToId = new Map<string, string>();
-        for (const name of createdNames) {
-          const [created] = await db
-            .insert(exercises)
-            .values({
-              trainerId,
-              name,
-              primaryMuscleGroup: "full_body",
-              equipment: "other",
-            })
-            .returning();
-          nameToId.set(name.toLowerCase(), created.id);
-        }
-
-        const finalWeeks = bindPendingExercises(weeks, nameToId);
-        const parsedDoc = ProgramWeeksDocument.safeParse(finalWeeks);
-        if (!parsedDoc.success) {
-          return status(422, { error: "invalid weeks document" });
-        }
-
-        const [updatedProgram] = await db
-          .update(programs)
-          .set({
-            sessions: parsedDoc.data,
-            version: prog.version + 1,
-          })
-          .where(eq(programs.id, prog.id))
-          .returning();
-
-        await db
-          .update(aiGenerations)
-          .set({ status: "approved", approvedProgramId: prog.id })
-          .where(eq(aiGenerations.id, gen.id));
-        await recordApproval(trainerId, gen, parsedDoc.data.find((w) => w.week === gen.targetWeek), prog.id);
-        return status(201, toProgramDto(updatedProgram));
-      }
-
-      const { weeks, createdNames, unresolvable } = draftToWeeks(
-        gen.draft,
-        catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId),
-        client,
-        await ensureSessionTypes(trainerId),
-        await loadRoleLabels(trainerId),
-        gen.trainerOrder
-      );
-      if (unresolvable.length > 0) {
-        return status(422, { error: "draft references unresolvable exercises", refs: unresolvable });
-      }
-
-      const parsedDoc = ProgramWeeksDocument.safeParse(weeks);
-      if (!parsedDoc.success) {
-        await db
-          .update(aiGenerations)
-          .set({ status: "failed_validation", error: z.prettifyError(parsedDoc.error) })
-          .where(eq(aiGenerations.id, gen.id));
-        return status(422, { error: "invalid weeks document" });
-      }
-
-      // Create custom exercise rows for genuinely new movements.
-      const nameToId = new Map<string, string>();
-      for (const name of createdNames) {
-        const [created] = await db
-          .insert(exercises)
-          .values({
-            trainerId,
-            name,
-            primaryMuscleGroup: "full_body", // trainer renames/recategorizes later
-            equipment: "other",
-          })
-          .returning();
-        nameToId.set(name.toLowerCase(), created.id);
-      }
-
-      const finalWeeks = bindPendingExercises(parsedDoc.data, nameToId);
-      const [program] = await db
-        .insert(programs)
-        .values({
-          trainerId,
-          clientId: gen.clientId,
-          name: gen.draft.name,
-          description: gen.draft.clientSummary,
-          sessions: finalWeeks,
-          phasing: gen.draft.phasing ?? null,
-          direction: gen.direction ?? null,
-          aiAssisted: true,
-          createdFromProgramId: gen.basedOnProgramId,
-          status: "draft",
-        })
-        .returning();
-
-      await db
-        .update(aiGenerations)
-        .set({ status: "approved", approvedProgramId: program.id })
-        .where(eq(aiGenerations.id, gen.id));
-      await recordApproval(trainerId, gen, finalWeeks[0], program.id);
-      const { sessions, ...rest } = program;
-      return status(201, { ...rest, weeks: sessions });
+      const res = await approveGeneration(trainerId, params.id);
+      if (!res.ok) return status(res.status, { error: res.error, ...(res.refs ? { refs: res.refs } : {}) });
+      // After commit, so only the winning approve records feedback.
+      await recordApproval(trainerId, res.gen, res.week, res.program.id);
+      return status(201, toProgramDto(res.program));
     },
     { params: t.Object({ id: t.String() }) }
   )

@@ -35,9 +35,11 @@ import { loadRoleLabels } from "./role-labels";
  * written back.
  */
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /** Weeks of a program that have logs (by logged session, else by date). */
-export async function programLoggedWeeks(p: ProgramRow): Promise<number[]> {
-  const rows = await db
+export async function programLoggedWeeks(p: ProgramRow, q: typeof db | Tx = db): Promise<number[]> {
+  const rows = await q
     .select({ programId: sessionLogs.programId, programSessionId: sessionLogs.programSessionId, date: sessionLogs.date })
     .from(sessionLogs)
     .where(eq(sessionLogs.programId, p.id));
@@ -145,10 +147,12 @@ export type FillApply =
  * Apply a fill: each AI week replaces its program week (fresh ids, the old
  * week's calendar kept, its A/B letter kept). The trainer's weeks are never
  * written; a week logged since the draft was made is skipped and listed.
+ * Runs in the approve transaction (`approveGeneration`): the program row is
+ * locked, and a refusal rolls back every write.
  */
-export async function applyFill(trainerId: string, gen: AiGenerationRow): Promise<FillApply> {
+export async function applyFill(tx: Tx, trainerId: string, gen: AiGenerationRow): Promise<FillApply> {
   if (!gen.basedOnProgramId || !gen.draft) return { ok: false, status: 404, error: "program not found" };
-  const [prog] = await db.select().from(programs).where(eq(programs.id, gen.basedOnProgramId));
+  const [prog] = await tx.select().from(programs).where(eq(programs.id, gen.basedOnProgramId)).for("update");
   if (!prog) return { ok: false, status: 404, error: "program not found" };
   if (prog.status === "archived") return { ok: false, status: 409, error: "program is archived" };
   // The fill was written against this version; edits since would be overwritten.
@@ -156,11 +160,11 @@ export async function applyFill(trainerId: string, gen: AiGenerationRow): Promis
     return { ok: false, status: 409, error: "This program changed after the fill was drafted. Draft the fill again." };
   }
 
-  const logged = new Set(await programLoggedWeeks(prog));
-  const [client] = await db.select().from(clients).where(eq(clients.id, gen.clientId));
-  const catalog = (await db.select().from(exercises)).filter((e) => e.trainerId === null || e.trainerId === trainerId);
-  const types = await ensureSessionTypes(trainerId);
-  const labels = await loadRoleLabels(trainerId);
+  const logged = new Set(await programLoggedWeeks(prog, tx));
+  const [client] = await tx.select().from(clients).where(eq(clients.id, gen.clientId));
+  const catalog = (await tx.select().from(exercises)).filter((e) => e.trainerId === null || e.trainerId === trainerId);
+  const types = await ensureSessionTypes(trainerId, { q: tx });
+  const labels = await loadRoleLabels(trainerId, tx);
   let weeks: ProgramWeek[] = prog.sessions;
   const created = new Set<string>();
   const unresolvable = new Set<string>();
@@ -185,12 +189,12 @@ export async function applyFill(trainerId: string, gen: AiGenerationRow): Promis
 
   const nameToId = new Map<string, string>();
   for (const name of created) {
-    const [row] = await db.insert(exercises).values({ trainerId, name, primaryMuscleGroup: "full_body", equipment: "other" }).returning();
+    const [row] = await tx.insert(exercises).values({ trainerId, name, primaryMuscleGroup: "full_body", equipment: "other" }).returning();
     nameToId.set(name.toLowerCase(), row.id);
   }
   const doc = ProgramWeeksDocument.safeParse(bindPendingExercises(weeks, nameToId));
   if (!doc.success) return { ok: false, status: 422, error: "invalid weeks document" };
-  const [updated] = await db.update(programs).set({ sessions: doc.data, version: prog.version + 1 }).where(eq(programs.id, prog.id)).returning();
-  await db.update(aiGenerations).set({ status: "approved", approvedProgramId: prog.id }).where(eq(aiGenerations.id, gen.id));
+  const [updated] = await tx.update(programs).set({ sessions: doc.data, version: prog.version + 1 }).where(eq(programs.id, prog.id)).returning();
+  await tx.update(aiGenerations).set({ status: "approved", approvedProgramId: prog.id }).where(eq(aiGenerations.id, gen.id));
   return { ok: true, program: updated, written, skipped };
 }

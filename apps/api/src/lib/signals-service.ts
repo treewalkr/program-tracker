@@ -16,6 +16,8 @@ import { bySeverity, cardioBehindSignal, clientLogSignals, clientNoteSignals, FE
 import { trainerDeloadSettings } from "./deload";
 import type { Signal, SignalLog, SignalProgram } from "@pt/shared";
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * One rule engine, three trigger paths (docs/notifications.md):
  * read path (GET /v1/notifications), write path (log insert → outbox),
@@ -40,8 +42,8 @@ export function toSignalProgram(p: ProgramRow): SignalProgram {
 /** Current block week of a program, anchored like every other block window
  *  (the earlier of activation and the first log) — so weekly generation
  *  targets the same week the signals and the client page show. */
-export async function currentBlockWeek(p: ProgramRow, now = Date.now()): Promise<number> {
-  const rows = await db
+export async function currentBlockWeek(p: ProgramRow, now = Date.now(), q: typeof db | Tx = db): Promise<number> {
+  const rows = await q
     .select({ date: sessionLogs.date })
     .from(sessionLogs)
     .where(eq(sessionLogs.programId, p.id));
