@@ -48,4 +48,6 @@ export const AiGenerationModel = {
   revise: t.Object({ message: nonNull(AiGenerationValues.properties.revisionMessage) }),
   /** `GET /generations/pending`: the trainer's running generations, newest first. */
   pending: t.Array(t.Object({ ...spread(PendingFields), clientName: ClientName.properties.name })),
+  /** An approve refusal; `refs` names the draft's unresolvable exercises (422). */
+  approveError: t.Object({ error: t.String(), refs: t.Optional(t.Array(t.String())) }),
 };

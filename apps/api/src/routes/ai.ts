@@ -42,6 +42,7 @@ import { savePhasingEdit } from "../lib/phasing-edit";
 import { saveDraftEdit } from "../lib/draft-edit";
 import { abortGeneration, deregisterGeneration, registerGeneration } from "../ai/cancellation";
 import { AiGenerationModel } from "../models/ai-generations";
+import { ProgramModel } from "../models/programs";
 
 /** Approve verdict: unedited when the approved week matches the AI draft, else edited with the diff. */
 async function recordApproval(
@@ -259,7 +260,15 @@ export const aiRoutes = new Elysia({ prefix: "/v1/ai", tags: ["ai"] })
       await recordApproval(trainerId, res.gen, res.week, res.program.id);
       return status(201, toProgramDto(res.program));
     },
-    { params: t.Object({ id: t.String() }) }
+    {
+      params: t.Object({ id: t.String() }),
+      response: {
+        201: ProgramModel.dto,
+        404: AiGenerationModel.approveError,
+        409: AiGenerationModel.approveError,
+        422: AiGenerationModel.approveError,
+      },
+    }
   )
   .post(
     "/generations/:id/reject",
