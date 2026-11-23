@@ -64,7 +64,7 @@ test("subline never says draft", () => {
   expect(programSubline(p, null)).toBe("v1 · AI-assisted");
 });
 
-import { loadCell, rpeCell, withLoad, withRir, withRpe, withTempo } from "./programEdit";
+import { loadCell, restIssue, rpeCell, rpeIssue, withLoad, withRir, withRpe, withTempo } from "./programEdit";
 
 describe("prescription cells (F22)", () => {
   test("load takes kg or a %1RM; one replaces the other", () => {
@@ -217,5 +217,20 @@ describe("forwardNotice", () => {
     expect(weekSpan([3])).toBe("W3");
     expect(weekSpan([3, 4])).toBe("W3, W4");
     expect(weekSpan([4, 3, 5])).toBe("W3–W5");
+  });
+});
+
+describe("cell issues", () => {
+  test("rpeIssue: blank and 1–10 values or ranges pass; junk and out-of-range don't", () => {
+    for (const ok of ["", " ", "8", "7–8", "6.5-7"]) expect(rpeIssue(ok)).toBeNull();
+    for (const bad of ["abc", "11", "0", "7-12"]) expect(rpeIssue(bad)).toBe("RPE must be 1–10, or a range like 7–8");
+  });
+  test("restIssue: blank and 0–600 whole seconds pass", () => {
+    expect(restIssue(undefined)).toBeNull();
+    expect(restIssue(0)).toBeNull();
+    expect(restIssue(600)).toBeNull();
+    expect(restIssue(-30)).toBe("Rest can't be negative");
+    expect(restIssue(601)).toBe("Rest can't be over 600 s");
+    expect(restIssue(12.5)).toBe("Rest must be whole seconds");
   });
 });

@@ -4,7 +4,7 @@ import { fmtSet, loadParts } from "./format";
 import { loadCell, withLoad } from "./programEdit";
 import { loggedSetLabel } from "./programLogs";
 import { cardioLine } from "./cardioLine";
-import { applyUnits, fmtLoad, fmtPace, fmtTonnage, fmtWeight, showLoad, showWeight, storeWeight, units, weightCells } from "./units.svelte";
+import { applyUnits, fmtLoad, gridKg, fmtPace, fmtTonnage, fmtWeight, showLoad, showWeight, storeWeight, units, weightCells } from "./units.svelte";
 import { profileFromClient, profilePayload } from "./clientProfile";
 import { stepCell } from "./logSheet";
 import type { ClientDto } from "./api/types";
@@ -67,6 +67,9 @@ describe("lb loads on the plate grid (B3)", () => {
     expect(fmtLoad(37.5, "kg")).toBe("37.5 kg");
     // an exact conversion isn't marked
     expect(fmtLoad(61.23, "lb")).toBe("135 lb");
+    // gridKg: the kg behind the grid load, so logging it reads back as the shown lb
+    expect(gridKg(62.5, "kg")).toBe(62.5);
+    expect(showWeight(gridKg(62.5, "lb"), "lb")).toBe(137.5);
     applyUnits({ weight: "lb", distance: "km" });
     const c = weightCells();
     const shown = c.get("r1", 37.5) as number;

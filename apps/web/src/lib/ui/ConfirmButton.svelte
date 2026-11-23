@@ -3,9 +3,10 @@
 
 	/**
 	 * Two-step destructive action: first click arms ("Delete"), second click
-	 * within `ms` confirms. Auto-resets after the window closes. Both labels
-	 * share one grid cell (the idle one hidden), so arming never resizes the
-	 * button or shifts its neighbours.
+	 * within `ms` confirms. Auto-resets after the window closes. Idle, the
+	 * button is only as wide as its label; armed, it keeps at least that width
+	 * (so the pointer stays on it for the second click) and the longer label
+	 * may wrap rather than push the row past a phone's edge.
 	 */
 	interface Props {
 		label?: string;
@@ -40,10 +41,13 @@
 
 	let armed = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let labelEl = $state<HTMLSpanElement>();
+	/** The idle button's width, held while armed so arming never shrinks it. */
+	let idleWidth = $state<number | null>(null);
 
 	const armedText = $derived(confirmLabel ?? `Confirm ${label.toLowerCase()}`);
 	const text = $derived(armed ? armedText : label);
-	const cls = $derived([armed ? 'armed' : undefined, extra].filter(Boolean).join(' ') || undefined);
+	const cls = $derived([armed ? 'armed cb-armed' : undefined, extra].filter(Boolean).join(' ') || undefined);
 
 	$effect(() => {
 		return () => clearTimeout(timer);
@@ -55,6 +59,7 @@
 			armed = false;
 			onconfirm();
 		} else {
+			idleWidth = labelEl?.closest('.btn')?.getBoundingClientRect().width ?? null;
 			armed = true;
 			timer = setTimeout(() => (armed = false), ms);
 		}
@@ -67,24 +72,22 @@
 	class={cls}
 	disabled={disabled || undefined}
 	aria-label={subject ? `${text} ${subject}` : undefined}
+	style={armed && idleWidth ? `min-width: ${idleWidth}px` : undefined}
 	onclick={click}
 >
-	<span class="cb-labels">
-		<span class:cb-idle={armed}>{label}</span>
-		<span class:cb-idle={!armed} aria-hidden={!armed}>{armedText}</span>
-	</span>
+	<span class="cb-label" bind:this={labelEl}>{text}</span>
 </Button>
 
 <style>
-	.cb-labels {
-		display: inline-grid;
-		justify-items: center;
+	/* Armed: a long label wraps inside the row instead of overflowing it. */
+	:global(.btn.cb-armed) {
+		white-space: normal;
+		max-width: 100%;
+		justify-content: center;
+		text-align: center;
 	}
-	.cb-labels > span {
-		grid-area: 1 / 1;
-	}
-	.cb-idle {
-		visibility: hidden;
+	:global(.btn.cb-armed) .cb-label {
+		line-height: 1.2;
 	}
 	:global(.btn.danger.armed) {
 		outline: 2px solid var(--bad);

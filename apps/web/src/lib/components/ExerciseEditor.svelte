@@ -8,7 +8,9 @@
     parseRange,
     patchAll,
     repsLabel,
+    restIssue,
     rpeCell,
+    rpeIssue,
     setMode,
     withLoad,
     withMode,
@@ -46,6 +48,7 @@
     onunlink,
     block = "main",
     onblock,
+    oninvalid,
   }: {
     exercise: ProgramExerciseDto;
     /** The session's exercises (this one included) — picking an exercise with no role suggests one from its place. */
@@ -72,6 +75,8 @@
     block?: "prep" | "main";
     /** Move it to the other block ("Move to main work" / "Move to movement prep"); omit when the move isn't allowed. */
     onblock?: () => void;
+    /** An RPE cell holds text that can't be saved (it never reaches the doc), or null once cleared — lets the save bar hold. */
+    oninvalid?: (message: string | null) => void;
   } = $props();
 
   const grouped = $derived(tag != null);
@@ -118,6 +123,35 @@
   };
   const rest = (s: PrescribedSetDto, raw: string) => ({ ...s, restSeconds: num(raw) ?? undefined });
 
+  /** RPE text that didn't parse, by row ("all" or the set index): kept in the cell and marked, not silently dropped. */
+  let badRpe = $state<Record<string, string>>({});
+  function rpeInput(key: string, raw: string, apply: (fn: (s: PrescribedSetDto) => PrescribedSetDto) => void) {
+    if (rpeIssue(raw)) {
+      badRpe[key] = raw;
+      return;
+    }
+    delete badRpe[key];
+    apply((x) => withRpe(x, raw, mode));
+  }
+  // Switching between one row and per-set rows rebuilds the cells from the doc.
+  $effect(() => {
+    void split;
+    badRpe = {};
+  });
+  const rowLabel = (key: string) => (key === "all" ? "" : `Set ${Number(key) + 1}: `);
+  /** Plain messages under the table, one per bad cell. */
+  const issues = $derived([
+    ...Object.keys(badRpe).map((k) => `${rowLabel(k)}${rpeIssue(badRpe[k])}`),
+    ...(split
+      ? sets.flatMap((s, i) => (restIssue(s.restSeconds) ? [`Set ${i + 1}: ${restIssue(s.restSeconds)}`] : []))
+      : restIssue(sets[0]?.restSeconds) ? [restIssue(sets[0]?.restSeconds)!] : []),
+  ]);
+  const rpeMessage = $derived(Object.keys(badRpe).length > 0 ? issues[0] : null);
+  $effect(() => {
+    oninvalid?.(rpeMessage);
+    return () => oninvalid?.(null);
+  });
+
   function pickExercise(ex: ExerciseDto) {
     exercise.exerciseId = ex.id;
     exercise.exerciseName = ex.name;
@@ -131,19 +165,19 @@
   }
 </script>
 
-{#snippet effort(s: PrescribedSetDto, apply: (fn: (s: PrescribedSetDto) => PrescribedSetDto) => void)}
+{#snippet effort(s: PrescribedSetDto, key: string, apply: (fn: (s: PrescribedSetDto) => PrescribedSetDto) => void)}
   {#if mode === "timed"}
     <td><input class="input cell" type="number" min="1" max="3600" step="5" aria-label="Seconds" value={s.durationSeconds ?? ""} onchange={(e) => apply((x) => secs(x, e.currentTarget.value))} /></td>
   {:else}
     <td><input class="input cell" inputmode="numeric" aria-label={mode === "max" ? "Minimum reps" : "Reps"} placeholder={mode === "max" ? "any" : ""} value={mode === "max" ? (s.reps || "") : repsLabel(s)} onchange={(e) => apply((x) => reps(x, e.currentTarget.value || "0"))} /></td>
   {/if}
   <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label="Load: {weightUnit()}, or % of 1RM like 75%" value={loadCell(s)} onchange={(e) => apply((x) => withLoad(x, e.currentTarget.value))} /></td>
-  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label={mode === "max" ? "Stop at RPE" : "RPE, or a range like 7–8"} value={rpeCell(s, mode)} onchange={(e) => apply((x) => withRpe(x, e.currentTarget.value, mode))} /></td>
+  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label={mode === "max" ? "Stop at RPE" : "RPE, or a range like 7–8"} aria-invalid={badRpe[key] != null || undefined} value={badRpe[key] ?? rpeCell(s, mode)} onchange={(e) => rpeInput(key, e.currentTarget.value, apply)} /></td>
   {#if showMore}
     <td><input class="input cell" type="number" min="0" max="10" step="0.5" placeholder="—" aria-label="Reps in reserve" value={s.targetRir ?? ""} onchange={(e) => apply((x) => withRir(x, e.currentTarget.value))} /></td>
     <td><input class="input cell tempo" maxlength="7" placeholder="3-1-1-0" aria-label="Tempo: eccentric, pause, concentric, top" value={s.tempo ?? ""} onchange={(e) => apply((x) => withTempo(x, e.currentTarget.value))} /></td>
   {/if}
-  <td><input class="input cell" type="number" min="0" max="600" step="15" placeholder="—" aria-label="Rest seconds" value={s.restSeconds ?? ""} onchange={(e) => apply((x) => rest(x, e.currentTarget.value))} /></td>
+  <td><input class="input cell" type="number" min="0" max="600" step="15" placeholder="—" aria-label="Rest seconds" aria-invalid={restIssue(s.restSeconds) != null || undefined} value={s.restSeconds ?? ""} onchange={(e) => apply((x) => rest(x, e.currentTarget.value))} /></td>
 {/snippet}
 
 <div class="exedit" class:inline={!onclose}>
@@ -190,7 +224,7 @@
                 <option value="backoff">backoff</option>
               </select>
             </td>
-            {@render effort(s, (fn) => setOne(i, fn))}
+            {@render effort(s, String(i), (fn) => setOne(i, fn))}
             <td>
               <button type="button" class="x" aria-label="Remove set {s.setNumber}" disabled={sets.length <= 1 || grouped} title={grouped ? "Rounds are set on the group" : undefined} onclick={() => (exercise.prescribedSets = withSetCount(sets.filter((_, j) => j !== i), sets.length - 1))}>×</button>
             </td>
@@ -203,12 +237,18 @@
           {:else}
             <td><input class="input cell" type="number" min="1" max="20" aria-label="Number of sets" value={sets.length} onchange={(e) => (exercise.prescribedSets = withSetCount(sets, Number(e.currentTarget.value)))} /></td>
           {/if}
-          {@render effort(sets[0], setAll)}
+          {@render effort(sets[0], "all", setAll)}
         </tr>
       {/if}
     </tbody>
   </table>
   </div>
+
+  {#if issues.length > 0}
+    <ul class="issues" role="alert">
+      {#each issues as m (m)}<li>{m}</li>{/each}
+    </ul>
+  {/if}
 
   {#if percentNote}<p class="setsnote pct" role="status">{percentNote}</p>{/if}
 
@@ -304,6 +344,8 @@
   .cell::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .cell.type { width: auto; text-align: left; font-family: var(--font-ui); }
   .cell.tempo { width: 76px; }
+  .cell[aria-invalid="true"] { border-color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad); }
+  .issues { margin: -6px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--bad); }
   .setsnote.pct { margin: -6px 0 0; font-variant-numeric: tabular-nums; }
   .x { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 0 4px; }
   .x:hover:not(:disabled) { color: var(--bad); }

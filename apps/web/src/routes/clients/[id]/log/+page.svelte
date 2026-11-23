@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fmtWeight, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
+  import { fmtWeight, gridKg, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
   /** Weight cells hold kg; the steppers show and take the display unit. */
   const kgCells = weightCells();
   import { onMount, tick } from "svelte";
@@ -276,7 +276,8 @@
   function useSuggestion(key: string, s: Suggestion) {
     const r = rows.find((x) => x.key === key);
     if (!r) return;
-    r.weight = s.kg;
+    // lb: the plate-grid load the chip shows (137.5 lb), not the exact conversion (137.8)
+    r.weight = gridKg(s.kg);
     edited(key, "weight");
     usedSuggestion.set(key, s);
     sourceOpen.delete(key);
@@ -1246,7 +1247,7 @@
     // a BW set takes no kg: neither last time's load nor a suggestion; Added kg on a bodyweight move takes both
     const p = asPrescribed(r.rx, { bodyweight: takesNoKg(r, isBodyweight), swapped: isSwapped(r), last: r.last });
     const s = r.rx?.targetWeightKg == null && !isBwSet(r) ? coach.suggest.get(r.key) : undefined;
-    return s ? { ...p, weight: s.kg } : p;
+    return s ? { ...p, weight: gridKg(s.kg) } : p;
   };
 
   async function firstLoad() {
@@ -1591,9 +1592,9 @@
                     {fmtRx(r)}
                     {#if chip != null && sg}
                       <!-- A tap explains first: the load differs from the plan, so the trainer sees why before using it. -->
-                      <button type="button" class="sugg-chip" title={`Suggested ${fmtWeight(chip)} · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(chip)} for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {showWeight(chip)}</button>
+                      <button type="button" class="sugg-chip" title={`Suggested ${fmtWeight(gridKg(chip))} · ${sg.source}`} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(gridKg(chip))} for ${label} — why?`} onclick={() => toggleSource(r.key)}>→ {showLoad(chip)}</button>
                     {:else if sg && r.rx?.targetWeightKg == null && isBlank(r.weight)}
-                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(sg.kg)} for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
+                      <button type="button" class="sugg-src" class:adj={sg.adjusted} title={sg.source} aria-expanded={sourceOpen.has(r.key)} aria-controls={`${r.key}-why`} aria-label={`Suggested ${fmtWeight(gridKg(sg.kg))} for ${label} — where from?`} onclick={() => toggleSource(r.key)}>{sg.adjusted ? "adjusted" : "suggested"}</button>
                     {/if}
                   </span>
                   <span class="m-last tnum" class:none={!last} title={last ? `Last done ${fmtDay(last.date)}${last.rpe != null ? ` @ RPE ${last.rpe}` : ""}` : isSwapped(r) ? "Swapped — last time was a different exercise" : "Not logged yet in this slot"}>

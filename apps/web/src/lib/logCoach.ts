@@ -1,4 +1,4 @@
-import { fmtWeight, showWeight } from "./units.svelte";
+import { fmtWeight, gridKg, showWeight } from "./units.svelte";
 import {
   bestE1rm,
   e1rmAtRpe,
@@ -273,9 +273,9 @@ export function suggestionNote(
   s: Suggestion | undefined,
   o: { used?: Suggestion; open: boolean; chip: number | null; unplannedBlank: boolean }
 ): SuggestionNote | null {
-  if (o.used) return { text: `Used ${fmtWeight(o.used.kg)} · ${o.used.source}`, use: null };
+  if (o.used) return { text: `Used ${fmtWeight(gridKg(o.used.kg))} · ${o.used.source}`, use: null };
   if (!s || !o.open) return null;
-  if (o.chip != null) return { text: `Suggested ${fmtWeight(o.chip)} · ${s.source}`, use: o.chip };
-  if (o.unplannedBlank) return { text: `Suggested ${fmtWeight(s.kg)} · ${s.source}`, use: null };
+  if (o.chip != null) return { text: `Suggested ${fmtWeight(gridKg(o.chip))} · ${s.source}`, use: gridKg(o.chip) };
+  if (o.unplannedBlank) return { text: `Suggested ${fmtWeight(gridKg(s.kg))} · ${s.source}`, use: null };
   return null;
 }
