@@ -581,9 +581,9 @@
     {#each { length: 2 }, i (i)}<SkeletonPanel head rows={i % 2 ? 3 : 4} dense />{/each}
   </div>
 {:else}
+  <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
   <div class="page-head">
     <div>
-      <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
       <h1>{program.name} <StatusPill status={program.status} /></h1>
       <p class="sub">
         {programSubline(program, savedAt, weekLine(weekDates))}
