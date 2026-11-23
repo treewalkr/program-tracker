@@ -36,6 +36,7 @@
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
@@ -630,13 +631,14 @@
           <div class="panel dir-panel">
             <h3 class="side-h">Direction</h3>
             <p class="side-hint">standing steer — every weekly generation follows it</p>
-            <textarea
-              class="dir-input"
-              maxlength="500"
-              rows="3"
+            <InputNote
+              label="Direction"
+              hideLabel
+              maxlength={500}
+              rows={3}
               placeholder="e.g. Build squat volume; keep upper body at maintenance."
               bind:value={directionText}
-            ></textarea>
+            />
             <div class="dir-actions">
               <Button small onclick={saveDirection} disabled={savingDirection}>
                 {savingDirection ? "Saving…" : directionSaved ? "Saved" : "Save"}
@@ -1327,19 +1329,5 @@
   .week-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 4px; }
   .dir-panel { padding: 12px 14px; }
   .side-hint { margin: 2px 0 8px; font-size: 11.5px; color: var(--faint); line-height: 1.4; }
-  .dir-input {
-    width: 100%;
-    box-sizing: border-box;
-    font-family: inherit;
-    font-size: 13px;
-    line-height: 1.4;
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm, 6px);
-    background: var(--surface);
-    color: var(--ink);
-    resize: vertical;
-  }
-  .dir-input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
   .dir-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 </style>
