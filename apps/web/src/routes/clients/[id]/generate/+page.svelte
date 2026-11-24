@@ -559,7 +559,7 @@
         <div class="skel-summary"><span class="t">AI reads</span><Skeleton shape="line" h="11px" w="min(260px, 50%)" /><span class="more">Details</span></div>
       </div>
       <div class="starters">
-        {#each [372, 230, 189] as w, i (i)}<Skeleton shape="round" h="31px" w={`min(${w}px, 100%)`} />{/each}
+        {#each [372, 230, 189] as w, i (i)}<Skeleton shape="round" h="var(--starter-h, 31px)" w={`min(${w}px, 100%)`} />{/each}
       </div>
       <div class="box">
         <div class="skel-text"></div>
@@ -965,6 +965,11 @@
     border-radius: 99px; padding: 6px 12px; cursor: pointer; color: var(--ink); text-align: left;
   }
   .starter:hover { border-color: var(--line-strong); background: var(--well); }
+  /* the same touch size as the rule chips (.tchip) */
+  @media (max-width: 720px), (pointer: coarse) {
+    .starter { min-height: 44px; padding: 6px 14px; font-size: 14px; }
+    .starters { --starter-h: 44px; }
+  }
 
   .box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .box:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
