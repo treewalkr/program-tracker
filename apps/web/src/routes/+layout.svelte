@@ -507,7 +507,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    padding: 8px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
     position: sticky;
     /* below the view-as bar when there is one */
     top: var(--view-bar-h, 0px);
@@ -892,7 +892,8 @@
   .drawer .side {
     position: fixed;
     left: 0;
-    width: 236px;
+    width: calc(236px + env(safe-area-inset-left));
+    padding-left: calc(8px + env(safe-area-inset-left));
     z-index: 40;
     box-shadow: var(--shadow-overlay);
     /* The rail unfolds: the clip edge starts at the rail's 56px and pulls out to

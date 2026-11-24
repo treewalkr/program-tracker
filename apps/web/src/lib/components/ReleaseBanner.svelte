@@ -59,7 +59,7 @@
   /* A toast: one row, bottom-centre, floats over the page and leaves by itself. */
   .toast {
     position: fixed;
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
     left: 50%;
     translate: -50% 0;
     z-index: 60;

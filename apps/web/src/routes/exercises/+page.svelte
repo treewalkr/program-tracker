@@ -764,7 +764,7 @@
   .pill.more { background: none; border: 1px dashed var(--line-strong); color: var(--muted); }
 
   .flash {
-    position: fixed; left: 50%; bottom: 24px; z-index: 40; display: flex; gap: 12px; align-items: center;
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 40; display: flex; gap: 12px; align-items: center;
     font: 500 13px/1.5 var(--font-ui); color: var(--ink); background: var(--surface); border: 1px solid var(--line);
     border-radius: 6px; padding: 8px 8px 8px 14px; box-shadow: var(--shadow-overlay);
     opacity: 0; transform: translate(-50%, 8px); pointer-events: none;

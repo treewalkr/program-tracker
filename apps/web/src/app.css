@@ -476,6 +476,7 @@ body {
   color: var(--ink);
   font: 14px/1.5 var(--font-ui);
   -webkit-font-smoothing: antialiased;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 
 ::selection {
@@ -1105,7 +1106,7 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 /* Sticky save bar: floats at the bottom of the viewport while edits are unsaved (program page, client Settings, new client). */
 .savebar {
   position: sticky;
-  bottom: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 5;
   margin-top: 18px;
   display: flex;
@@ -1121,7 +1122,7 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 .savemsg .err { color: var(--bad); }
 @media (max-width: 700px) {
   /* Clear the fixed Feedback launcher in the bottom-right corner. */
-  .savebar { bottom: 60px; }
+  .savebar { bottom: calc(60px + env(safe-area-inset-bottom)); }
   .savebar .btn { min-height: 40px; }
 }
 

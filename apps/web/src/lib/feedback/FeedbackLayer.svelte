@@ -561,9 +561,9 @@
 
   .bar {
     position: fixed;
-    right: 16px;
-    /* A page with a sticky bottom bar (the log sheet's Save) sets the lift. */
-    bottom: calc(16px + var(--feedback-lift, 0px));
+    right: calc(16px + env(safe-area-inset-right));
+    /* A page with a sticky bottom bar (the log sheet's Save) sets the lift; that bar already clears the home indicator. */
+    bottom: calc(16px + max(var(--feedback-lift, 0px), env(safe-area-inset-bottom)));
     z-index: 9999;
     display: flex;
     align-items: center;

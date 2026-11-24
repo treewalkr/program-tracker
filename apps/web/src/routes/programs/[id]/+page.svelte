@@ -1031,7 +1031,7 @@
   /* The copy toast and the save bar float together, toast on top, so the toast clears the bar at any height. */
   .dock {
     position: sticky;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 6;
     margin-top: 18px;
     display: flex;
@@ -1039,7 +1039,7 @@
     gap: 8px;
   }
   .dock > :global(.savebar) { position: static; margin-top: 0; }
-  @media (max-width: 700px) { .dock { bottom: 60px; } }
+  @media (max-width: 700px) { .dock { bottom: calc(60px + env(safe-area-inset-bottom)); } }
   /* Same look as the draft edit dock's toast. */
   .copy-toast {
     display: flex;

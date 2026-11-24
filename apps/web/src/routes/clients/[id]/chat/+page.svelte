@@ -1098,7 +1098,7 @@
       bottom: 0;
       z-index: 5;
       background: var(--surface);
-      padding: 10px 0 12px;
+      padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
     }
     .you {
       max-width: 90%;

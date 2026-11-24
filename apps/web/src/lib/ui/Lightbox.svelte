@@ -146,17 +146,17 @@
     outline-offset: 2px;
   }
   .close {
-    top: 14px;
-    right: 14px;
+    top: calc(14px + env(safe-area-inset-top));
+    right: calc(14px + env(safe-area-inset-right));
   }
   .nav {
     top: 50%;
     transform: translateY(-50%);
   }
   .prev {
-    left: 14px;
+    left: calc(14px + env(safe-area-inset-left));
   }
   .next {
-    right: 14px;
+    right: calc(14px + env(safe-area-inset-right));
   }
 </style>
