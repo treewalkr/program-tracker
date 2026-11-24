@@ -41,8 +41,16 @@
 		pop.style.setProperty('--pop-max', `${Math.max(MIN_LIST, p.maxHeight - chrome)}px`);
 	}
 
+	const trigger_ = () => root?.querySelector<HTMLElement>('button:not([tabindex="-1"]), input');
+
+	// A list that starts open (stories, restored state) doesn't take focus on load.
+	let quiet = open;
+
 	$effect(() => {
 		if (!open || !pop || !root) return;
+		// Safari doesn't focus a tapped button: put focus on the trigger so Esc and arrows reach it.
+		if (quiet) quiet = false;
+		else if (!root.contains(document.activeElement)) trigger_()?.focus({ preventScroll: true });
 		place();
 		const vv = window.visualViewport;
 		vv?.addEventListener('resize', place);
@@ -63,11 +71,16 @@
 		if (e.key !== 'Escape' || !open) return;
 		e.stopPropagation();
 		open = false;
-		root?.querySelector<HTMLElement>('button:not([tabindex="-1"]), input')?.focus();
+		trigger_()?.focus();
+	}
+
+	/** Esc with focus outside the select (it landed on the page): still closes it. */
+	function onwindowkey(e: KeyboardEvent) {
+		if (open && root && !root.contains(e.target as Node)) onkeydown(e);
 	}
 </script>
 
-<svelte:window onpointerdown={outside} />
+<svelte:window onpointerdown={outside} onkeydown={onwindowkey} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="dd" class:inline bind:this={root} style:max-width={inline ? undefined : maxWidth} {onkeydown}>
