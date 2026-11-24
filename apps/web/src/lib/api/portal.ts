@@ -1,6 +1,6 @@
 import { browser } from "$app/environment";
 import { localDateOf, type DisplayUnits, type PortalProgressDto, type PortalWeekDto } from "@pt/shared";
-import { apiMode } from "./index";
+import { PUBLIC_API_MODE } from "$env/static/public";
 import { client } from "./treaty";
 import { lazyApi } from "./lazy";
 import { portalWire } from "./portalWire";
@@ -90,4 +90,5 @@ function lazyMockPortalApi(): PortalApi {
   });
 }
 
-export const portalApi: PortalApi = apiMode === "live" ? livePortalApi : lazyMockPortalApi();
+// read the env constant itself (not `apiMode`) so a live build folds the mock branch away entirely
+export const portalApi: PortalApi = PUBLIC_API_MODE === "live" ? livePortalApi : lazyMockPortalApi();
