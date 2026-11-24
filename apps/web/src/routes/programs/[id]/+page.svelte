@@ -61,7 +61,7 @@
   } from "@pt/shared";
   import { EXAMPLE_LEVELS, MAX_AI_BLOCK_WEEKS, primaryPattern, typeFitsKind } from "@pt/shared";
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
-  import { cardioLine } from "$lib/cardioLine";
+  import { cardioLine, sessionLogTag } from "$lib/cardioLine";
   import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { exerciseIssue, sessionLabel, validateProgramDoc } from "$lib/programDoc";
   import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, sameProgramDoc, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
@@ -830,8 +830,9 @@
                 {#if s.notes}<p class="subtle sess-notes">{s.notes}</p>{/if}
               {/if}
               {#if logsOf(s.id).length > 0}
+                {@const tag = sessionLogTag(logsOf(s.id))}
                 <div class="logged">
-                  <span class="logged-tag"><Icon name="check" size={12} /> Logged {logsOf(s.id).map((l) => logDateLabel(l.date)).join(", ")}
+                  <span class="logged-tag" class:not-done={!tag.done}>{#if tag.done}<Icon name="check" size={12} />{/if} {tag.text}
                     {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}</span>
                   {#each logsOf(s.id) as l (l.id)}
                     {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLine(l.cardio)}</span>{/if}
@@ -1215,6 +1216,7 @@
   .tab-logs :global(svg) { width: 11px; height: 11px; stroke-width: 2.4; }
   .logged { display: flex; flex-direction: column; gap: 4px; }
   .logged-tag { display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px var(--font-ui); color: var(--good, var(--muted)); }
+  .logged-tag.not-done { color: var(--muted); }
   .log-notes { margin: 0; font-size: 12px; white-space: pre-line; }
   .logline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; margin-top: 6px; }
   .log-date { font: 500 11px var(--font-ui); color: var(--muted); min-width: 72px; }
