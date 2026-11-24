@@ -118,6 +118,30 @@
     },
   });
 
+  /** The button's tap: drafting over an open or approved message asks first, since each draft is an AI call. */
+  async function askDraft() {
+    if (selectedWeek == null) return;
+    if (draftMsg?.status === "validated") {
+      const edited = text !== (draftMsg.draft?.message ?? "");
+      const a = await guard.ask({
+        title: "Replace this draft?",
+        body: `A new draft for W${selectedWeek} replaces the one open${edited ? ", with your edits" : ""}. It uses a new AI call.`,
+        confirmLabel: "Replace draft",
+        cancelLabel: "Keep this draft",
+      });
+      if (a !== "confirm") return;
+    } else if (draftMsg?.status === "approved") {
+      const a = await guard.ask({
+        title: `Write a new draft for W${selectedWeek}?`,
+        body: "The approved message stays in history. A new draft uses an AI call.",
+        confirmLabel: "Draft new message",
+        danger: false,
+      });
+      if (a !== "confirm") return;
+    }
+    await draft();
+  }
+
   async function draft() {
     if (!current || selectedWeek == null) return;
     drafting = true;
@@ -233,7 +257,7 @@
       </button>
     {/each}
     <div class="weekbar-actions">
-      <Button variant="primary" onclick={draft} disabled={drafting || selectedWeek == null}>
+      <Button variant="primary" onclick={askDraft} disabled={drafting || selectedWeek == null}>
         {#snippet icon()}<Icon name="sparkle" />{/snippet}
         {drafting ? "Drafting…" : draftMsg?.status === "approved" ? "Draft again" : "Draft message"}
       </Button>
@@ -324,7 +348,7 @@
       <p class="final-text">{draftMsg.finalText}</p>
       <div class="final-actions">
         <CopyButton text={draftMsg.finalText ?? ""} oncopy={() => copied(draftMsg!.id)} />
-        <Button small onclick={draft} disabled={drafting}>{drafting ? "Drafting…" : "Draft another"}</Button>
+        <Button small onclick={askDraft} disabled={drafting}>{drafting ? "Drafting…" : `New draft for W${draftMsg.week}`}</Button>
         <span class="rate"><Verdict subjectKind="client_message" subjectId={draftMsg.id} noun="draft message" /></span>
       </div>
     </div>
