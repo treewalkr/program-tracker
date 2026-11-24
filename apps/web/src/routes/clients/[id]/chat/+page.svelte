@@ -953,6 +953,12 @@
     outline: none;
     caret-color: var(--blue);
   }
+  /* 16px on phones and touch screens: iOS Safari zooms the page into any focused field under 16px. */
+  @media (max-width: 720px), (pointer: coarse) {
+    .dock textarea {
+      font-size: 16px;
+    }
+  }
   .dock textarea::placeholder {
     color: var(--muted);
   }
