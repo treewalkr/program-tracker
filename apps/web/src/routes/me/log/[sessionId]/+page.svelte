@@ -559,6 +559,8 @@
     rep: t("cardio.rep"),
     time: t("cardio.time"),
     pace: t("cardio.pace"),
+    speed: t("cardio.speed"),
+    split: t("cardio.split"),
     load: t("cardio.load"),
     skip: t("cardio.skip"),
     skipped: t("cardio.skipped"),
