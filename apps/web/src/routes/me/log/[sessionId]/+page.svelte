@@ -104,6 +104,8 @@
   let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean; pain: boolean; prep?: { done: number; total: number } | null } | null>(null);
   let undoing = $state(false);
   let undone = $state(false);
+  /** The page's polite status line: "Saved", "Removed". */
+  let announce = $state("");
 
   const cardioSession = $derived(session?.kind === "cardio");
   const byCoach = $derived(session?.log?.loggedBy === "trainer");
@@ -186,6 +188,7 @@
     // the recap links straight to the next session: same page, fresh state
     saved = null;
     undone = false;
+    announce = "";
     error = null;
     restored = false;
     merged = false;
@@ -341,6 +344,14 @@
     current = i;
     issuesOpen = flaggedAt(i);
   }
+  /** The bottom "Next exercise": the reader (and the eye) start again at the new exercise's name. */
+  async function nextExercise() {
+    goTo(current + 1);
+    await tick();
+    const title = document.getElementById("ex-title");
+    title?.scrollIntoView({ block: "start" });
+    title?.focus({ preventScroll: true });
+  }
   /** A tag opens the panel at its exercise's row. */
   async function openIssue(peId: string) {
     issuesOpen = true;
@@ -429,6 +440,18 @@
     saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
     undone = false;
     window.scrollTo({ top: 0 });
+    void focusRecap();
+  }
+
+  /**
+   * The Save (or Undo) button just went away with the form: put the screen reader on what
+   * replaced it, and say it in the status line that's always there (a region born with its
+   * text often goes unread).
+   */
+  async function focusRecap() {
+    announce = undone ? t("log.undone") : savedSkipped ? t("log.savedSkipped") : t("log.saved");
+    await tick();
+    document.getElementById("recap-title")?.focus();
   }
 
   async function undo() {
@@ -437,6 +460,7 @@
     try {
       await portalApi.deleteLog(saved.log.id);
       undone = true;
+      void focusRecap();
     } catch {
       error = t("log.error");
     } finally {
@@ -584,6 +608,8 @@
 
 <div class="back-row"><BackButton fallback="/me" label={t("log.back")} /></div>
 
+<p class="sr-only" role="status">{announce}</p>
+
 {#if loadState === "loading"}
   <div class="sk" aria-hidden="true">
     <Skeleton shape="line" w="60%" h="26px" />
@@ -600,16 +626,16 @@
   <div class="empty"><p class="empty-title">{t("log.notFound")}</p></div>
 {:else if saved}
   <!-- After save: one calm confirmation, Undo beside it, then back to the week. -->
-  <section class="recap" aria-live="polite">
+  <section class="recap" aria-labelledby="recap-title">
     {#if undone}
-      <h1>{t("log.undone")}</h1>
+      <h1 id="recap-title" tabindex="-1">{t("log.undone")}</h1>
       <a class="btn primary done-btn" href="/me">{t("log.done")}</a>
     {:else}
       {#if savedSkipped}
-        <h1>{t("log.savedSkipped")}</h1>
+        <h1 id="recap-title" tabindex="-1">{t("log.savedSkipped")}</h1>
       {:else}
         <span class="tick" aria-hidden="true"><Icon name="check" /></span>
-        <h1>{t("log.saved")}</h1>
+        <h1 id="recap-title" tabindex="-1">{t("log.saved")}</h1>
       {/if}
       <p class="recap-line">{session.name} · {savedLine}{#if saved.prep} · {t("log.prepRecap", { done: saved.prep.done, total: saved.prep.total })}{/if} · {fmtDay(saved.log.date)}</p>
       {#if saved.pain}<p class="safety" role="note">{t("cardio.painSafety")}</p>{/if}
@@ -703,7 +729,7 @@
             <button type="button" class="pg" aria-label={t("log.prev")} disabled={current === 0} onclick={() => goTo(current - 1)}>
               <Icon name="chevron" />
             </button>
-            <p class="pg-pos tnum">{t("log.exercise", { n: current + 1, total: blocks.length })}</p>
+            <p class="pg-pos tnum" aria-live="polite">{t("log.exercise", { n: current + 1, total: blocks.length })}</p>
             <button type="button" class="pg next" aria-label={t("log.next")} disabled={current >= blocks.length - 1} onclick={() => goTo(current + 1)}>
               <Icon name="chevron" />
             </button>
@@ -716,7 +742,7 @@
           </div>
 
           {#if groupKicker}<p class="kicker">{groupKicker}</p>{/if}
-          <h2 id="ex-title">
+          <h2 id="ex-title" tabindex="-1">
             {#each block.memberIds as peId, i (peId)}
               {#if i > 0}<span class="plus">{" + "}</span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
             {/each}
@@ -823,7 +849,7 @@
           {/if}
 
           {#if current < blocks.length - 1}
-            <button type="button" class="btn next-ex" onclick={() => { goTo(current + 1); document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
+            <button type="button" class="btn next-ex" onclick={nextExercise}>
               <span>{t("log.next")} · {blockName(blocks[current + 1])}</span>
               <Icon name="chevron" />
             </button>
