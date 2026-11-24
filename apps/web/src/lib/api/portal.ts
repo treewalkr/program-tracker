@@ -2,6 +2,7 @@ import { browser } from "$app/environment";
 import { localDateOf, type DisplayUnits, type PortalProgressDto, type PortalWeekDto } from "@pt/shared";
 import { apiMode } from "./index";
 import { client } from "./treaty";
+import { apiFailure } from "./errors";
 import { mockPortalApi } from "./mock/portal";
 import { portalWire } from "./portalWire";
 import { splitLang, withLang } from "../portal/lang";
@@ -31,8 +32,8 @@ function toPortalLogin() {
   window.location.assign(lang ? withLang(login, lang) : login);
 }
 
-async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>): Promise<T> {
-  const { data, error } = await p;
+async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null; headers?: unknown }>): Promise<T> {
+  const { data, error, headers } = await p;
   if (error) {
     const value = error.value as { error?: string; existing?: unknown } | string | null;
     const code = typeof error.status === "number" ? error.status : "unknown";
@@ -40,8 +41,7 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
     if (code === 409 && typeof value === "object" && value?.existing) {
       throw new PortalDuplicateError(portalWire(value.existing) as PortalDuplicateError["existing"]);
     }
-    const message = typeof value === "string" ? value : value?.error;
-    throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code });
+    throw apiFailure(error, headers as HeadersInit | undefined);
   }
   return portalWire(data) as T;
 }

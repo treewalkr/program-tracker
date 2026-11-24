@@ -11,6 +11,7 @@ import {
 } from "@pt/shared";
 import type { LightboxImage } from "$lib/ui/Lightbox.svelte";
 import { client } from "$lib/api/treaty";
+import { apiErrorText, isNetworkFailure } from "$lib/api/errors";
 import type { ImageSlot } from "./layout";
 import { ApiError } from "./errors";
 
@@ -24,10 +25,9 @@ export class EditConflict extends Error {}
 async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>): Promise<T> {
   const { data, error } = await p;
   if (error) {
-    const value = error.value as { error?: string } | string | null;
-    const message = typeof value === "string" ? value : value?.error;
-    const status = typeof error.status === "number" ? error.status : null;
-    throw new ApiError(message ?? `request failed: ${String(error.status ?? "unknown")}`, status);
+    // Eden reports a dropped connection as 503; keep it apart so the copy says "connection"
+    const status = typeof error.status === "number" && !isNetworkFailure(error) ? error.status : null;
+    throw Object.assign(new ApiError(apiErrorText(error), status), { network: isNetworkFailure(error) });
   }
   return data as T;
 }

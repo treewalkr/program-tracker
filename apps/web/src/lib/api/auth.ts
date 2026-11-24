@@ -1,4 +1,5 @@
 import { client } from "./treaty";
+import { apiErrorText } from "./errors";
 import { splitLang, withLang } from "../portal/lang";
 
 export interface SessionTrainer {
@@ -39,9 +40,7 @@ export type Session =
 
 /** The error text an Eden error carries (`{ error }` bodies), else a status line. */
 function errorText(error: { value: unknown; status?: unknown }): string {
-  const value = error.value as { error?: string } | string | null;
-  const message = typeof value === "string" ? value : value?.error;
-  return message ?? `request failed: ${String(error.status ?? "unknown")}`;
+  return apiErrorText(error);
 }
 
 /**
