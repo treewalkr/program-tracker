@@ -20,7 +20,8 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
-  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { editChanged, hasDraft } from "$lib/libraryDraft";
 
   /** Below this library width the list and the reader stop sitting side by side. */
   const NARROW = 760;
@@ -96,7 +97,10 @@
       newContent = "";
       await load();
       const mine = [...templates].reverse().find((t) => t.name === name);
-      if (mine) await pick(mine.id);
+      if (mine) {
+        await pick(mine.id);
+        announce(`Created ${name}.`);
+      }
     } catch (e) {
       error = (e as Error).message;
     } finally {
@@ -118,6 +122,7 @@
       await api.updateInstructionTemplate(id, { name: editName.trim(), content: editContent.trim() });
       editingId = null;
       await load();
+      announce("Saved.");
     } catch (e) {
       listError = (e as Error).message;
     } finally {
@@ -190,26 +195,36 @@
   let composing = $state(false);
   const picked = $derived(entries.find((e) => e.id === selId) ?? entries[0] ?? null);
 
-  /** An open edit that differs from what is saved. */
-  const dirty = $derived.by(() => {
-    const t = editingId ? templates.find((x) => x.id === editingId) : null;
-    return !!t && (editName !== t.name || editContent !== t.content);
-  });
+  /** A new template with any text in it, or an open edit that differs from what is saved. */
+  const drafting = $derived(composing && hasDraft(newName, newContent));
+  const editDirty = $derived(
+    editChanged({ name: editName, content: editContent }, editingId ? templates.find((x) => x.id === editingId) : null)
+  );
+  const dirty = $derived(drafting || editDirty);
   const editingName = () => templates.find((x) => x.id === editingId)?.name || "this template";
-  const leaveGuard = createLeaveGuard({
+  const guard = createLibraryGuard({
     dirty: () => dirty,
-    prompt: () => ({ title: "Leave without saving?", body: `Your changes to ${editingName()} haven't been saved. Leaving drops them.` }),
+    what: () => (drafting ? "Your new template" : `Your edit to ${editingName()}`),
   });
-  /** True when there's no unsaved edit, or the trainer agrees to drop it. */
+  /** True when there's no unsaved work, or the trainer agrees to drop it (and then it's dropped). */
   async function leaveEdit() {
-    if (!dirty) return true;
-    const a = await leaveGuard.ask({
-      title: "Discard your changes?",
-      body: `Your changes to ${editingName()} haven't been saved.`,
-      confirmLabel: "Discard changes",
-      cancelLabel: "Keep editing",
-    });
-    return a === "confirm";
+    if (!(await guard.discard())) return false;
+    newName = "";
+    newContent = "";
+    editingId = null;
+    return true;
+  }
+  async function cancelEdit() {
+    await leaveEdit();
+  }
+
+  /** A short "Created" / "Saved" line in the reader head, so the trainer sees the save landed. */
+  let notice = $state<string | null>(null);
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  function announce(text: string) {
+    notice = text;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => (notice = null), 4000);
   }
 
   /* Narrow (phone, iPad portrait): the list and the reader take turns. Opening
@@ -238,10 +253,10 @@
   });
 
   async function pick(id: string) {
-    if (id !== editingId) {
+    if (id !== editingId || composing) {
       if (!(await leaveEdit())) return;
-      editingId = null;
     }
+    notice = null;
     selId = id;
     composing = false;
     await open();
@@ -249,7 +264,8 @@
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
   async function startNew() {
-    if (!(await leaveEdit())) return;
+    if (!composing && !(await leaveEdit())) return;
+    notice = null;
     composing = true;
     editingId = null;
     await open();
@@ -339,6 +355,7 @@
   </aside>
 
   <section class="reader" aria-label="Selected template">
+    <p class="notice" role="status">{#if notice}<Icon name="check" size={14} />{notice}{/if}</p>
     {#if composing}
       <header class="rd-head"><div><h2 id="rd-title" tabindex="-1">New template</h2><p class="rd-sum">Write it as a headed list. It lands in the prompt exactly as written.</p></div></header>
       <form
@@ -384,7 +401,7 @@
             <Button variant="primary" type="submit" disabled={savingEdit || !editName.trim() || !editContent.trim()}>
               {savingEdit ? "Saving…" : "Save"}
             </Button>
-            <Button variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
+            <Button variant="ghost" type="button" onclick={cancelEdit}>Cancel</Button>
           </div>
         </form>
       {:else}
@@ -516,7 +533,7 @@
 </div>
 </div>
 
-<LeaveGuard guard={leaveGuard} />
+<LeaveGuard guard={guard.asker} />
 
 <style>
   .stack { display: flex; flex-direction: column; gap: 14px; }
@@ -593,6 +610,8 @@
 
   .reader { min-width: 0; }
   .reader :global(#rd-title:focus) { outline: none; }
+  .notice { display: flex; align-items: center; gap: 6px; margin: 0; font: 500 13px var(--font-ui); color: var(--good); }
+  .notice:not(:empty) { margin-bottom: 12px; }
   .rd-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 22px; }
   .rd-head > div:first-child { min-width: 0; flex: 1 1 280px; }
   .rd-head h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; text-wrap: balance; }
