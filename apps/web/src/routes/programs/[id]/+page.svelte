@@ -5,6 +5,7 @@
   import { liftFeedback } from "$lib/feedback/lift";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
+  import { isTransient, saveErrorText } from "$lib/api/errors";
   import {
     addExercise,
     addSet,
@@ -466,7 +467,7 @@
       savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     } catch (e) {
       // The edits stay on screen either way; a 409 means only a reload can get past it.
-      saveError = (e as Error).message;
+      saveError = isTransient(e) ? saveErrorText(e) : `Save failed: ${saveErrorText(e)}`;
       stale = (e as { status?: unknown }).status === 409;
     } finally {
       saving = false;
@@ -968,7 +969,7 @@
             {#if !validation.ok}
               <span class="gate-error">{validation.message}</span>
             {:else if saveError}
-              <span class="gate-error">Save failed: {saveError}</span>
+              <span class="gate-error">{saveError}</span>
             {:else}
               Unsaved changes · saving makes v{program.version + 1}{program.status === "active" ? " and updates the client portal" : ""}.
             {/if}

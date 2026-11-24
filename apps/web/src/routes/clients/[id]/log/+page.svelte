@@ -8,6 +8,7 @@
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
+  import { saveErrorText } from "$lib/api/errors";
   import { fmtSet } from "$lib/format";
   import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
   import { nextToLog, recapCounts, recapNotes, saveRecap, type RecapNote } from "$lib/logRecap";
@@ -730,7 +731,8 @@
       closeAsk();
       fieldErrors = p.sent ? serverFieldErrors((err as { issues?: unknown }).issues, p.sent) : {};
       const flagged = Object.keys(fieldErrors).length > 0;
-      error = flagged ? "Fix the highlighted cells, then save." : (err as Error).message;
+      // a blip keeps the entries (and the device draft): say so instead of a status code
+      error = flagged ? "Fix the highlighted cells, then save." : saveErrorText(err);
       if (flagged) await focusFirstInvalid();
     } finally {
       saving = false;
