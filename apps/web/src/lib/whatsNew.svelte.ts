@@ -1,9 +1,8 @@
-import changelog from "../../../../CHANGELOG.md?raw";
-import { latestVersion, parseChangelog } from "./changelog";
-
-/** Released changelog sections, bundled at build time — same in demo and live mode. */
-export const releases = parseChangelog(changelog);
-export const latest = latestVersion(releases);
+/**
+ * Newest released version, read from CHANGELOG.md at build time (vite `define`),
+ * so the banner and the unread dot don't ship the changelog. The sections: $lib/releases.
+ */
+export const latest: string | null = __LATEST_RELEASE__;
 
 const SEEN_KEY = "pt:seen-version";
 
