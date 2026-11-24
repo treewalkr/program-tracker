@@ -1,3 +1,4 @@
+import { withExternalBrowser } from "./inAppBrowser";
 import type { Locale } from "./messages";
 
 /**
@@ -10,7 +11,13 @@ const LINES: Record<Locale, (name: string, link: string) => string> = {
   th: (name, link) => `สวัสดี ${name} โปรแกรมฝึกของคุณอยู่ที่ลิงก์นี้ เปิดบนมือถือได้เลย ไม่ต้องใช้รหัสผ่าน: ${link}`,
 };
 
-export const lineMessage = (locale: Locale, firstName: string, link: string) => LINES[locale](firstName.trim(), link);
+/**
+ * The link carries `openExternalBrowser=1` so LINE opens it in Safari/Chrome:
+ * Google sign-in works there, and the member stays signed in in the phone's
+ * own browser rather than LINE's.
+ */
+export const lineMessage = (locale: Locale, firstName: string, link: string) =>
+  LINES[locale](firstName.trim(), withExternalBrowser(link));
 
 /**
  * The client's language when nothing better is known: Thai when their name is

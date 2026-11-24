@@ -7,12 +7,12 @@ describe("LINE message", () => {
     expect(guessClientLocale("Nattapong W.")).toBe("en");
   });
 
-  test("both languages carry the name and the whole link", () => {
+  test("both languages carry the name and the whole link, set to open outside LINE", () => {
     const link = "https://pt.pinroj.com/me/link/abc123";
     for (const l of ["en", "th"] as const) {
       const m = lineMessage(l, " Nat ", link);
       expect(m).toContain("Nat");
-      expect(m.endsWith(link)).toBe(true);
+      expect(m.endsWith(`${link}?openExternalBrowser=1`)).toBe(true);
     }
     expect(lineMessage("th", "Nat", link)).toMatch(/[\u0E00-\u0E7F]/);
   });

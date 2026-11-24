@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
+  import { browser } from "$app/environment";
+  import { afterNavigate, goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { portalApi, type PortalLinkInfo } from "$lib/api/portal";
   import { t } from "$lib/portal/i18n.svelte";
+  import { inAppHint, withExternalBrowser, withoutExternalBrowser } from "$lib/portal/inAppBrowser";
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -27,9 +29,25 @@
     info = undefined;
     failed = false;
     portalApi.linkInfo(tk).then(
-      (r) => (info = r),
+      (r) => {
+        info = r;
+        // tapped again in a browser that's already in as this member: straight to the week
+        if (r?.signedIn) void goto("/me", { replaceState: true });
+      },
       () => (failed = true),
     );
+  });
+
+  // inside LINE / Messenger / Instagram the sign-in stays in that app's browser
+  const hint = inAppHint(browser ? navigator.userAgent : "");
+  const vars: Record<string, string> | undefined = $derived(hint ? { app: hint.name ?? t("inApp.thisApp"), browser: hint.browser, menu: hint.menu } : undefined);
+  const externalHref = $derived(withExternalBrowser(page.url.href));
+
+  // LINE's openExternalBrowser flag has done its job once the page is open; keep it out of the address bar
+  // (afterNavigate, not onMount: replaceState needs the router, which isn't ready on a first load's mount)
+  afterNavigate(() => {
+    const clean = withoutExternalBrowser(page.url);
+    if (clean) replaceState(clean, page.state);
   });
 
   async function open() {
@@ -52,7 +70,7 @@
 <PortalBar coach={info?.trainerName ?? null} settings={false} />
 
 <main class="link">
-  {#if info === undefined && !failed}
+  {#if (info === undefined && !failed) || info?.signedIn}
     <p class="sr-only" role="status">{t("link.checking")}</p>
     <div aria-hidden="true" class="sk">
       <Skeleton h="30px" w="80%" />
@@ -66,6 +84,12 @@
     <Button variant="primary" class="go" onclick={open} disabled={opening}>
       {opening ? t("link.opening") : t("link.open")}
     </Button>
+    {#if hint}
+      <p class="in-app">
+        {t("link.inApp", vars)}
+        {#if hint.app === "line"}<a href={externalHref}>{t("inApp.open", vars)}</a>{:else}{t("inApp.menu", vars)}{/if}
+      </p>
+    {/if}
     <p class="exit">{t("link.notMe", { name: info.clientFirstName })} <a href="/me/login">{t("link.signIn")}</a></p>
   {:else}
   {#if failed}
@@ -100,6 +124,8 @@
   }
   .lede { margin: 0; color: var(--muted); text-wrap: pretty; }
   .link :global(.err) { padding: 10px 12px; font-size: 14px; }
+  .in-app { margin: 0; font-size: 14px; color: var(--muted); text-wrap: pretty; }
+  .in-app a { display: inline-block; padding-block: 4px; font-weight: 500; }
   .exit { margin: 8px 0 0; padding-top: 16px; border-top: 1px solid var(--line-soft); font-size: 14px; color: var(--muted); }
   .go-link { justify-content: center; min-height: 48px; margin-top: 12px; font-size: 16px; }
   .link :global(.go) { min-height: 48px; margin-top: 12px; justify-content: center; font-size: 16px; }

@@ -7,6 +7,7 @@ import {
   CLIENT_COOKIE,
   clientCookieSecure,
   clientForLink,
+  clientForToken,
   createClientSession,
   deleteClientSession,
 } from "../lib/client-auth";
@@ -42,14 +43,16 @@ const portalSignIn = new Elysia({ tags: ["portal"] })
   /** Whose link this is. No side effects — link scanners prefetch GETs. */
   .get(
     "/link/:token",
-    async ({ params, status }) => {
+    async ({ params, status, cookie }) => {
       const found = await clientForLink(params.token);
       if (!found) return status(404, { error: "link not found" });
-      return { clientFirstName: found.clientFirstName, trainerName: found.trainerName };
+      // already signed in as this client in this browser: the page skips "Open my program"
+      const current = await clientForToken(cookie[CLIENT_COOKIE]?.value as string | undefined);
+      return { clientFirstName: found.clientFirstName, trainerName: found.trainerName, signedIn: current?.clientId === found.clientId };
     },
     {
       params: t.Object({ token: t.String({ maxLength: 200 }) }),
-      response: { 200: t.Object({ clientFirstName: t.String(), trainerName: t.String() }), 404: ErrorBody },
+      response: { 200: t.Object({ clientFirstName: t.String(), trainerName: t.String(), signedIn: t.Boolean() }), 404: ErrorBody },
       detail: { summary: "Check a portal access link (no side effects)" },
     },
   )
