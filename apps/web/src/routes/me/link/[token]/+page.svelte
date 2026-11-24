@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { browser } from "$app/environment";
-  import { goto, replaceState } from "$app/navigation";
+  import { afterNavigate, goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { portalApi, type PortalLinkInfo } from "$lib/api/portal";
   import { t } from "$lib/portal/i18n.svelte";
@@ -45,7 +44,8 @@
   const externalHref = $derived(withExternalBrowser(page.url.href));
 
   // LINE's openExternalBrowser flag has done its job once the page is open; keep it out of the address bar
-  onMount(() => {
+  // (afterNavigate, not onMount: replaceState needs the router, which isn't ready on a first load's mount)
+  afterNavigate(() => {
     const clean = withoutExternalBrowser(page.url);
     if (clean) replaceState(clean, page.state);
   });

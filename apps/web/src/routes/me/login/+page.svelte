@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { browser } from "$app/environment";
-  import { replaceState } from "$app/navigation";
+  import { afterNavigate, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { portalApi } from "$lib/api/portal";
   import { inLang, t } from "$lib/portal/i18n.svelte";
@@ -24,7 +23,8 @@
   const externalHref = $derived(withExternalBrowser(page.url.href));
 
   // the flag has done its job once the page is open; keep it out of the address bar
-  onMount(() => {
+  // (afterNavigate, not onMount: replaceState needs the router, which isn't ready on a first load's mount)
+  afterNavigate(() => {
     const clean = withoutExternalBrowser(page.url);
     if (clean) replaceState(clean, page.state);
   });
