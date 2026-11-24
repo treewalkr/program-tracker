@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { afterNavigate, pushState, replaceState } from "$app/navigation";
   import { api } from "$lib/api";
@@ -257,7 +257,23 @@
     window.scrollTo(0, 0);
   }
   async function backToList() {
+    if (composing && !(await leaveEdit())) return;
     if (page.state.tplOpen) history.back();
+  }
+
+  /* The composer is a shallow history entry, and stepping back off one never
+     reaches the leave guard: a Back gesture that drops a draft steps forward
+     again and asks, the same as a link would. */
+  let wasComposing = false;
+  $effect(() => {
+    const now = composing;
+    const lost = wasComposing && !now && hasDraft(newName, newContent);
+    wasComposing = now;
+    if (lost) untrack(reclaimDraft);
+  });
+  async function reclaimDraft() {
+    pushState(`${listPath()}/new`, { tplOpen: true, tplNew: true });
+    if (await leaveEdit()) history.back();
   }
   let wasReading = false;
   $effect(() => {
