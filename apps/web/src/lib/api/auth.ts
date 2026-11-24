@@ -83,13 +83,40 @@ export const authApi = {
 /** Only same-app paths — never `//evil.com` or absolute URLs. */
 export const safeReturnTo = (v: string | null | undefined) => (v && v.startsWith("/") && !v.startsWith("//") ? v : "/");
 
+/** A hash worth carrying through sign-in: an in-page anchor like `#FB-042`, nothing else. */
+const ANCHOR = /^#[\w-]{1,64}$/;
+
+/**
+ * The hash of the page being left. `load`'s URL refuses to show its hash, so
+ * on a first load it comes from the address bar — when that is the same page,
+ * maybe still without its language prefix (`/feedback#FB-042` → `/en/feedback`).
+ */
+function anchorOf(from: URL): string {
+  let hash = "";
+  try {
+    hash = from.hash;
+  } catch {
+    // SvelteKit's load URL throws on .hash
+  }
+  if (!hash && typeof window !== "undefined") {
+    const here = window.location;
+    const same = splitLang(here.pathname).path + here.search === splitLang(from.pathname).path + from.search;
+    if (same) hash = here.hash;
+  }
+  return ANCHOR.test(hash) ? hash : "";
+}
+
 /**
  * Send the browser to /login in the page's language, remembering where it
- * was: `returnTo` is the unprefixed path, prefixed again on the way back.
+ * was: `returnTo` is the unprefixed path (and its `#anchor`, so an emailed
+ * ticket link survives sign-in), prefixed again on the way back.
  */
 export function toLogin(from: URL): string {
   const { lang, path } = splitLang(from.pathname);
   const back = path + from.search;
-  const login = back === "/" || back.startsWith("/login") ? "/login" : `/login?returnTo=${encodeURIComponent(back)}`;
+  const login =
+    back === "/" || back.startsWith("/login")
+      ? "/login"
+      : `/login?returnTo=${encodeURIComponent(back + anchorOf(from))}`;
   return lang ? withLang(login, lang) : login;
 }

@@ -49,16 +49,24 @@ describe("feedbackEmails", () => {
     expect(out[0].text).toContain("  Which screen?");
   });
 
-  test("an AI answer is labelled as one and invites a correction", () => {
+  test("an AI answer is labelled as one: the reporter is invited to correct it, others to review it", () => {
     const out = feedbackEmails(
       "reply",
       snap({ actor: null, comment: { body: "It's under Settings → Email.", status: null, authorKind: "ai" } }),
     );
     expect(to(out)).toEqual(["boss@example.com", "kai@example.com"]);
-    expect(out[0].subject).toBe("[FB-012] AI answer to your feedback");
-    expect(out[0].text).toContain("The AI assistant answered FB-012");
-    expect(out[0].text).toContain("  It's under Settings → Email.");
-    expect(out[0].text).toContain("reply on the ticket to correct it");
+    const forKai = out.find((e) => e.to === "kai@example.com")!;
+    expect(forKai.subject).toBe("[FB-012] AI answer to your feedback");
+    expect(forKai.text).toContain("The AI assistant answered FB-012");
+    expect(forKai.text).toContain("  It's under Settings → Email.");
+    expect(forKai.text).toContain("reply on the ticket to correct it and a person will take a look");
+    // the admin is the person who takes a look — not addressed as the reporter
+    const forBoss = out.find((e) => e.to === "boss@example.com")!;
+    expect(forBoss.subject).toBe("[FB-012] AI answered Kai's ticket");
+    expect(forBoss.text).toContain("The AI assistant answered FB-012");
+    expect(forBoss.text).toContain("for Kai:");
+    expect(forBoss.text).toContain("  It's under Settings → Email.");
+    expect(forBoss.text).not.toContain("a person will take a look");
   });
 
   test("status changes email the reporter: accepted, won't fix with reason, shipped", () => {
@@ -117,6 +125,27 @@ describe("feedbackEmails", () => {
     expect(e.html).toContain("&lt;script&gt;");
   });
 
+  test("the HTML is a phone-safe document: colour schemes declared, long text wraps, 44px button", () => {
+    const [e] = feedbackEmails("created", snap({ item: { ...snap().item, comment: `see https://x.test/${"a".repeat(200)}` } }));
+    expect(e.html).toStartWith("<!doctype html><html lang=\"en\">");
+    expect(e.html).toContain('<meta name="color-scheme" content="light dark">');
+    expect(e.html).toContain('<meta name="supported-color-schemes" content="light dark">');
+    expect(e.html).toContain('width="100%"');
+    expect(e.html).toContain("overflow-wrap:anywhere");
+    expect(e.html).toMatch(/padding:12px 20px;[^"]*line-height:20px[^"]*">Open FB-012</);
+  });
+
+  test("a reply's markdown renders in the HTML and reads clean in the text", () => {
+    const body = "Use `Pause` — **not** delete.\n\n```\nweek = 3\n```";
+    const [e] = feedbackEmails("reply", snap({ actor: boss, comment: { body, status: null, authorKind: "human" } }));
+    expect(e.html).toContain("<strong>not</strong>");
+    expect(e.html).toContain("<code>week = 3</code></pre>");
+    expect(e.html).not.toContain("```");
+    expect(e.text).toContain("  Use Pause — not delete.");
+    expect(e.text).toContain("      week = 3");
+    expect(e.text).not.toContain("```");
+  });
+
   test("the master switch off silences every event", () => {
     const off = (p: Person) => ({ ...p, feedbackEmails: false });
     expect(feedbackEmails("created", snap({ admin: off(boss) }))).toEqual([]);
@@ -168,7 +197,7 @@ describe("feedbackEmails", () => {
       expect(body).not.toContain("tok-boss");
     }
     expect(kaiMail.text).toContain("Mute FB-012: ");
-    expect(kaiMail.html).toContain("Mute FB-012</a> · <a");
+    expect(kaiMail.html).toContain(">Mute FB-012</a><a"); // one link per row
     expect(kaiMail.html).toContain(">Stop reply emails</a>");
     expect(kaiMail.html).toContain(">Unsubscribe from all</a>");
     expect(kaiMail.html).toContain(">Manage in Settings</a>");

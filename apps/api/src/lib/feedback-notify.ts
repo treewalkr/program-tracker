@@ -9,6 +9,7 @@ import {
 } from "@pt/shared";
 import { adminEmailFromEnv } from "./auth";
 import { appUrl, ensureEmailToken, unsubscribeUrl, type EmailEvent, type UnsubscribeScope } from "./email-links";
+import { markdownEmailHtml, markdownEmailText } from "./email-markdown";
 import { emailConfigured, sendEmail, type Email, type SendResult } from "./mailer";
 
 /**
@@ -17,7 +18,8 @@ import { emailConfigured, sendEmail, type Email, type SendResult } from "./maile
  *
  * - created → the admin (unless the admin filed it)
  * - reply   → everyone on the thread (reporter, admin, other repliers) but the author;
- *             an AI answer is labelled as one and invites a correction. AI drafts
+ *             an AI answer is labelled as one and invites the reporter to correct it
+ *             (everyone else is told it went out, to review it). AI drafts
  *             and private notes never notify — only publishing one does.
  * - status  → the reporter, for accepted / in progress / won't fix / done (unless they made the change)
  * Nobody hears about their own actions. On top of that each person's own say:
@@ -79,6 +81,35 @@ const clip = (s: string, n: number) => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
+const MUTED = "color:#656d76";
+
+/**
+ * The HTML shell every feedback email shares: a real document that declares
+ * light and dark (so dark-mode clients don't guess), an explicit white canvas
+ * for clients that invert, and a full-width content cell that wraps long URLs
+ * and code instead of widening the message past a phone screen.
+ */
+function emailDocument(body: string): string {
+  const dark = [
+    ".pt-canvas{background:#0d1117 !important;color:#e6edf3 !important}",
+    ".pt-muted,.pt-muted a{color:#9198a1 !important}",
+    ".pt-quote{border-color:#3d444d !important}",
+    ".pt-code{background:#161b22 !important;color:#e6edf3 !important}",
+    ".pt-canvas a.pt-link{color:#4493f8 !important}",
+  ].join("");
+  return [
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">`,
+    `<meta name="viewport" content="width=device-width,initial-scale=1">`,
+    `<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">`,
+    `<style>:root{color-scheme:light dark;supported-color-schemes:light dark}@media (prefers-color-scheme:dark){${dark}}</style>`,
+    `</head><body class="pt-canvas" style="margin:0;padding:0;background:#ffffff">`,
+    `<table role="presentation" class="pt-canvas" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;background:#ffffff">`,
+    `<tr><td class="pt-canvas" style="padding:16px;font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;background:#ffffff;overflow-wrap:anywhere;word-break:break-word">`,
+    `<div style="max-width:560px;overflow-wrap:anywhere;word-break:break-word">${body}</div>`,
+    `</td></tr></table></body></html>`,
+  ].join("");
+}
+
 const EVENT_PREF: Record<FeedbackEvent["kind"], { pref: EmailEvent; label: string }> = {
   created: { pref: "newTickets", label: "new-ticket" },
   reply: { pref: "replies", label: "reply" },
@@ -88,6 +119,8 @@ const EVENT_PREF: Record<FeedbackEvent["kind"], { pref: EmailEvent; label: strin
 interface Parts {
   lead: string;
   quote?: string;
+  /** The quote is a thread reply, written in markdown: render it like the app does. */
+  markdown?: boolean;
   after?: string;
 }
 
@@ -103,9 +136,10 @@ function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person
     { label: "Unsubscribe from all", href: unsub({ kind: "all" }) },
     { label: "Manage in Settings", href: settings },
   ].filter((l): l is { label: string; href: string } => l.href !== null);
+  const quoteText = parts.quote && parts.markdown ? markdownEmailText(parts.quote) : (parts.quote ?? "");
   const text = [
     parts.lead,
-    ...(parts.quote ? ["", ...parts.quote.split("\n").map((l) => `  ${l}`)] : []),
+    ...(parts.quote ? ["", ...quoteText.split("\n").map((l) => `  ${l}`)] : []),
     ...(parts.after ? ["", parts.after] : []),
     "",
     `Open ${handle}: ${link}`,
@@ -114,20 +148,24 @@ function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person
     "Program Tracker feedback.",
     ...footer.map((l) => `${l.label}: ${l.href}`),
   ].join("\n");
-  const muted = "color:#656d76";
-  const html = [
-    `<div style="font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;max-width:560px">`,
-    `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
-    parts.quote
-      ? `<blockquote style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
-      : "",
-    parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
-    `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:6px 14px;border-radius:6px;background:#1f883d;color:#fff;text-decoration:none;font-weight:600">Open ${handle}</a></p>`,
-    `<p style="margin:24px 0 0;font-size:12px;${muted}">Program Tracker feedback · ${footer
-      .map((l) => `<a href="${esc(l.href)}" style="${muted}">${esc(l.label)}</a>`)
-      .join(" · ")}</p>`,
-    `</div>`,
-  ].join("");
+  const html = emailDocument(
+    [
+      `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
+      parts.quote && parts.markdown
+        ? `<div class="pt-quote" style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de">${markdownEmailHtml(parts.quote)}</div>`
+        : parts.quote
+          ? `<blockquote class="pt-quote" style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
+          : "",
+      parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
+      // 12px + 20px line + 12px = a 44px tap target
+      `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#1f883d;color:#ffffff;text-decoration:none;font-size:16px;line-height:20px;font-weight:600">Open ${handle}</a></p>`,
+      `<div class="pt-muted" style="margin:24px 0 0;font-size:13px;line-height:20px;${MUTED}">`,
+      `<p style="margin:0 0 4px">Program Tracker feedback</p>`,
+      // one per line, each a full-height row, so a thumb can't hit the neighbour
+      ...footer.map((l) => `<a href="${esc(l.href)}" style="display:block;padding:12px 0;${MUTED}">${esc(l.label)}</a>`),
+      `</div>`,
+    ].join(""),
+  );
   const all = unsub({ kind: "all" });
   const headers = all ? { "List-Unsubscribe": `<${all}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined;
   const log = { trainerId: to.id, kind: `feedback.${kind}`, label: `${handle} · ${label}`, feedbackItemId: snap.item.id };
@@ -174,17 +212,29 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
   }
 
   if (kind === "reply" && snap.comment?.authorKind === "ai") {
-    return send(`[${handle}] AI answer to your feedback`, {
-      lead: `The AI assistant answered ${handle} ("${clip(item.comment, 80)}"):`,
-      quote: snap.comment.body?.trim() ?? "",
-      after: "This answer was written by an AI that read the app's code. If it's wrong or doesn't help, reply on the ticket to correct it and a person will take a look.",
-    }, "AI answer");
+    const answer = { quote: snap.comment.body?.trim() ?? "", markdown: true };
+    const about = `${handle} ("${clip(item.comment, 80)}")`;
+    // the reporter is the one it answers; the admin and other repliers are the people who review it
+    return feedbackRecipients(kind, snap).map((p) =>
+      p.id === snap.reporter?.id
+        ? compose(snap, kind, p, `[${handle}] AI answer to your feedback`, {
+            ...answer,
+            lead: `The AI assistant answered ${about}:`,
+            after: "This answer was written by an AI that read the app's code. If it's wrong or doesn't help, reply on the ticket to correct it and a person will take a look.",
+          }, "AI answer")
+        : compose(snap, kind, p, `[${handle}] AI answered ${snap.reporter ? `${snap.reporter.name}'s` : "a"} ticket`, {
+            ...answer,
+            lead: `The AI assistant answered ${about}${snap.reporter ? ` for ${snap.reporter.name}` : ""}:`,
+            after: "It's already on the ticket. Open it to check the answer, and reply there if it needs correcting.",
+          }, "AI answer"),
+    );
   }
 
   if (kind === "reply") {
     return send(`[${handle}] ${actorName} replied`, {
       lead: `${actorName} replied on ${handle} ("${clip(item.comment, 80)}"):`,
       quote: snap.comment?.body?.trim() ?? "",
+      markdown: true,
     }, "Reply");
   }
 

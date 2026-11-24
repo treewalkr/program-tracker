@@ -113,7 +113,7 @@ export function emailPreviews(appUrl: string, from = DEFAULT_FROM): EmailPreview
       group: "Replies",
       title: "AI answer",
       trigger: "The feedback auto-reply agent answers a ticket on its own (Auto-send all mode), or the admin sends one of its drafts.",
-      recipients: "Everyone on the thread, like a reply. Labelled as an AI answer and invites the reporter to reply if it's wrong.",
+      recipients: "Everyone on the thread, like a reply. Labelled as an AI answer; the reporter (shown) is invited to reply if it's wrong, the admin and other repliers get an \"AI answered <name>'s ticket\" copy to review it.",
       kind: "reply",
       snap: snap(
         {},
