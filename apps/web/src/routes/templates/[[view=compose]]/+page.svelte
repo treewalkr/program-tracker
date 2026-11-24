@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { pushState } from "$app/navigation";
+  import { afterNavigate, pushState, replaceState } from "$app/navigation";
   import { api } from "$lib/api";
   import { fmtDate } from "$lib/format";
   import { INSTRUCTION_PRESETS, type InstructionPreset } from "@pt/shared";
@@ -187,7 +187,10 @@
     { label: "Built-in", rows: entries.filter((e) => e.kind === "builtin" && matches(e)) },
   ]);
   let selId = $state<string | null>(null);
-  let composing = $state(false);
+  /* The composer has its own address, /templates/new: a shallow history entry
+     when opened here, a real route when loaded or shared. */
+  const composing = $derived(!!page.state.tplNew);
+  const listPath = () => page.url.pathname.replace(/\/new\/?$/, "");
   const picked = $derived(entries.find((e) => e.id === selId) ?? entries[0] ?? null);
 
   /** An open edit that differs from what is saved. */
@@ -243,16 +246,21 @@
       editingId = null;
     }
     selId = id;
-    composing = false;
+    if (page.state.tplNew) replaceState(listPath(), narrow ? { tplOpen: true } : {});
     await open();
     await tick();
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
   async function startNew() {
     if (!(await leaveEdit())) return;
-    composing = true;
     editingId = null;
-    await open();
+    if (!page.state.tplNew) {
+      if (!page.state.tplOpen) listScroll = window.scrollY;
+      const go = page.state.tplOpen ? replaceState : pushState;
+      go(`${listPath()}/new`, { tplOpen: true, tplNew: true });
+    }
+    await tick();
+    if (narrow) window.scrollTo(0, 0);
     await tick();
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
@@ -280,6 +288,15 @@
     }
     return blocks;
   }
+
+  /* Loaded at /templates/new: put the list underneath, so Back lands on it.
+     (Shallow routing waits for the router, which is ready by afterNavigate.) */
+  afterNavigate(({ type }) => {
+    if (type !== "enter" || page.params.view !== "new" || page.state.tplNew) return;
+    const at = page.url.pathname;
+    replaceState(listPath(), {});
+    pushState(at, { tplOpen: true, tplNew: true });
+  });
 
   onMount(async () => {
     await load();
