@@ -263,6 +263,7 @@
   .err { margin-bottom: 12px; }
 
   .search { max-width: 360px; margin-bottom: 16px; }
+  @container main (max-width: 700px) { .search { max-width: none; } }
 
   :global(.types-panel) + :global(.types-panel) { margin-top: 16px; }
 
