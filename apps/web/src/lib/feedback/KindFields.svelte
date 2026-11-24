@@ -9,6 +9,7 @@
     type FeedbackKind,
     type FeedbackReport,
   } from "@pt/shared";
+  import InputNote from "$lib/ui/InputNote.svelte";
 
   /**
    * What a ticket is (Bug / Wrong behaviour / Idea / Question), and for the
@@ -36,10 +37,8 @@
   }: Props = $props();
 
   const detailed = $derived(hasReportFields(kind));
-  let expectedInput = $state<HTMLTextAreaElement>();
-
   $effect(() => {
-    if (nudge) expectedInput?.focus();
+    if (nudge) document.getElementById(`${idPrefix}-expected`)?.focus();
   });
 
   const HINT: Record<FeedbackKind, string> = {
@@ -68,25 +67,26 @@
 
 {#if detailed}
   <div class="report">
-    <label for="{idPrefix}-expected">What did you expect to happen?</label>
-    <textarea
+    <InputNote
       id="{idPrefix}-expected"
-      bind:this={expectedInput}
-      rows="2"
+      label="What did you expect to happen?"
+      rows={2}
+      maxRows={6}
       maxlength={FEEDBACK_REPORT_TEXT_MAX}
       {disabled}
       value={report.expected ?? ""}
-      oninput={(e) => (report = { ...report, expected: e.currentTarget.value })}
-    ></textarea>
-    <label for="{idPrefix}-actual">What happened instead?</label>
-    <textarea
+      oninput={(v) => (report = { ...report, expected: v })}
+    />
+    <InputNote
       id="{idPrefix}-actual"
-      rows="2"
+      label="What happened instead?"
+      rows={2}
+      maxRows={6}
       maxlength={FEEDBACK_REPORT_TEXT_MAX}
       {disabled}
       value={report.actual ?? ""}
-      oninput={(e) => (report = { ...report, actual: e.currentTarget.value })}
-    ></textarea>
+      oninput={(v) => (report = { ...report, actual: v })}
+    />
     <div class="repeat" role="radiogroup" aria-label="How often does it happen?">
       <span class="label">How often?</span>
       {#each FEEDBACK_REPEATS as r (r)}
@@ -133,6 +133,14 @@
     padding: 1px 8px;
     font-size: 11px;
   }
+  /* A finger needs a bigger target than the 26 / 21 px desktop chips. */
+  @media (pointer: coarse) {
+    .chip,
+    .chip.small {
+      min-height: 40px;
+      padding-inline: 14px;
+    }
+  }
   .chip:hover:not(:disabled) {
     border-color: var(--blue);
   }
@@ -148,35 +156,14 @@
   .report {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
   }
-  label,
   .label {
     font-size: 12px;
     color: var(--muted);
   }
   .repeat {
     margin-top: 2px;
-  }
-  textarea {
-    width: 100%;
-    box-sizing: border-box;
-    resize: vertical;
-    min-height: 44px;
-    field-sizing: content;
-    max-height: 160px;
-    font: inherit;
-    font-size: 13px;
-    padding: 4px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-  }
-  textarea:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
   }
   .nudge {
     display: flex;
