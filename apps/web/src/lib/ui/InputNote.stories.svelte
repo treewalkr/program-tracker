@@ -24,6 +24,7 @@
   let blank = $state('');
   let triage = $state('Yes — show warm-up sets as muted chips.');
   let reply = $state('');
+  let body = $state('Rules:\n- Cap main lifts at RPE 8.\n- Progress by 2.5 kg when all sets hit target reps.');
 </script>
 
 <Story name="Limitations with hint" asChild>
@@ -57,5 +58,11 @@
 <Story name="Hidden label (inline reply)" asChild>
   <div style="max-width: 480px">
     <InputNote label="Reply to FB-012" hideLabel bind:value={reply} rows={1} maxRows={8} placeholder="Reply…" />
+  </div>
+</Story>
+
+<Story name="Mono body (prompt text)" asChild>
+  <div style="max-width: 480px">
+    <InputNote label="Body" mono bind:value={body} rows={6} maxRows={16} maxlength={4000} />
   </div>
 </Story>

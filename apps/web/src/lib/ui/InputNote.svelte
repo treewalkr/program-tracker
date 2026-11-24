@@ -26,6 +26,8 @@
 		id?: string;
 		/** Keep the label for screen readers only (an inline reply box). */
 		hideLabel?: boolean;
+		/** Mono body, for text pasted into a prompt as written (rules, templates). */
+		mono?: boolean;
 		/** Right side of the label row: a save state, a count. */
 		meta?: Snippet;
 		oninput?: (value: string) => void;
@@ -48,6 +50,7 @@
 		name,
 		id: fixedId,
 		hideLabel = false,
+		mono = false,
 		meta,
 		oninput,
 		onkeydown,
@@ -83,6 +86,7 @@
 			bind:this={el}
 			{id}
 			class="ta"
+			class:mono
 			{name}
 			{rows}
 			{placeholder}
@@ -128,6 +132,7 @@
 		resize: none;
 		overflow-y: hidden;
 	}
+	.ta.mono { font: 400 12px/20px var(--font-mono); }
 	.ta::placeholder { color: var(--muted); }
 	.ta:focus { outline: none; }
 	.box:not(.ro):focus-within .ta { background: var(--surface); }
@@ -144,5 +149,5 @@
 	}
 	.cnt { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.full { color: var(--warn); }
-	@media (max-width: 720px) { .ta { font-size: 16px; line-height: 22px; } }
+	@media (max-width: 720px) { .ta, .ta.mono { font-size: 16px; line-height: 22px; } }
 </style>
