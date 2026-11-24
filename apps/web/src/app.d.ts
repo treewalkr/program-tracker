@@ -3,6 +3,8 @@
 declare global {
 	/** Short git SHA of the build (vite `define`). */
 	const __APP_VERSION__: string;
+	/** Newest released version in CHANGELOG.md, or null (vite `define`). */
+	const __LATEST_RELEASE__: string | null;
 
 	namespace App {
 		// interface Error {}

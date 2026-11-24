@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // the file itself, not @pt/shared: the config loads under plain Node, which can't resolve the package's extensionless imports
 import { buildId } from '../../packages/shared/src/build';
+import { latestVersion, parseChangelog } from './src/lib/changelog';
 
 /** Build ID ("0.1.3+42a93f5") — shown in the sidebar and stamped on feedback items. */
 const appVersion = (() => {
@@ -19,8 +20,13 @@ const appVersion = (() => {
 	return buildId(root.version, sha);
 })();
 
+/** Newest released version — the release banner and unread dot need only this, not the whole changelog. */
+const latestRelease = latestVersion(
+	parseChangelog(readFileSync(fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url)), 'utf8'))
+);
+
 export default defineConfig(({ mode }) => ({
-	define: { __APP_VERSION__: JSON.stringify(appVersion) },
+	define: { __APP_VERSION__: JSON.stringify(appVersion), __LATEST_RELEASE__: JSON.stringify(latestRelease) },
 	server: {
 		host: true,
 		allowedHosts: ['.ts.net'],

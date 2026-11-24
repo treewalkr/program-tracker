@@ -5,7 +5,8 @@
   import { intlTag } from "$lib/portal/messages";
   import { PAGE_TEXT } from "$lib/releaseNote";
   import { renderInlineMarkdown } from "$lib/markdown";
-  import { releases, whatsNew } from "$lib/whatsNew.svelte";
+  import { releases } from "$lib/releases";
+  import { whatsNew } from "$lib/whatsNew.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Pill from "$lib/ui/Pill.svelte";

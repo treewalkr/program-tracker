@@ -1,9 +1,9 @@
 import { browser } from "$app/environment";
 import { localDateOf, type DisplayUnits, type PortalProgressDto, type PortalWeekDto } from "@pt/shared";
-import { apiMode } from "./index";
+import { PUBLIC_API_MODE } from "$env/static/public";
 import { client } from "./treaty";
 import { apiFailure } from "./errors";
-import { mockPortalApi } from "./mock/portal";
+import { lazyApi } from "./lazy";
 import { portalWire } from "./portalWire";
 import { splitLang, withLang } from "../portal/lang";
 import {
@@ -86,4 +86,13 @@ export const livePortalApi: PortalApi = {
   googleHref: (returnTo) => `/v1/auth/google?as=client&returnTo=${encodeURIComponent(returnTo)}`,
 };
 
-export const portalApi: PortalApi = apiMode === "live" ? livePortalApi : mockPortalApi;
+/** The demo portal, loaded on its first call (see lazyApi); `googleHref` is the one synchronous member. */
+function lazyMockPortalApi(): PortalApi {
+  const calls = lazyApi<Omit<PortalApi, "googleHref">>(() => import("./mock/portal").then((m) => m.mockPortalApi));
+  return new Proxy(calls as PortalApi, {
+    get: (target, key, receiver) => (key === "googleHref" ? (returnTo: string) => returnTo : Reflect.get(target, key, receiver)),
+  });
+}
+
+// read the env constant itself (not `apiMode`) so a live build folds the mock branch away entirely
+export const portalApi: PortalApi = PUBLIC_API_MODE === "live" ? livePortalApi : lazyMockPortalApi();
