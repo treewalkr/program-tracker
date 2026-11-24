@@ -1322,8 +1322,21 @@
   @container main (max-width: 760px) {
     .two-col { grid-template-columns: minmax(0, 1fr); }
   }
+  /* Narrow: one row that scrolls sideways, Generate first so the main action
+     is never the one cut off. 4px padding keeps lips and focus rings unclipped. */
   @media (max-width: 900px) {
-    .client-top .head-actions { width: 100%; }
+    .client-top .head-actions {
+      width: calc(100% + 8px);
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      margin: -4px;
+      padding: 4px;
+    }
+    .client-top .head-actions::-webkit-scrollbar { display: none; }
+    .client-top .head-actions > :global(*) { flex: none; }
+    .client-top .head-actions > :global(.primary),
+    .client-top .head-actions > :global(.skeleton) { order: -1; }
   }
 
   .week-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 4px; }
