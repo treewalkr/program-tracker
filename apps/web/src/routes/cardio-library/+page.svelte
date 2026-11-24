@@ -265,6 +265,8 @@
 <style>
   .err { margin-bottom: 12px; }
   .search { max-width: 360px; margin: 16px 0; }
+  /* Phone: the full column, like every other phone field. */
+  @media (max-width: 720px) { .search { max-width: none; } }
   .stack { display: grid; gap: 16px; }
   .lock-note { display: flex; align-items: baseline; gap: 6px; margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
   .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
