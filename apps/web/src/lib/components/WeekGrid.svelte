@@ -19,13 +19,13 @@
   import type { ClientStrip, StripDay } from "$lib/overview";
   import {
     LEVEL_WORDS,
-    SESSION_WORDS,
     dayDateLabel,
     daySentence,
     foldsOnTrack,
     idleReason,
     plural,
     sessionLine,
+    sessionState,
     volumeLabel,
   } from "$lib/overview";
 
@@ -86,7 +86,7 @@
   /** Extra sessions on a day show as marks under the tag — one each, up to this many, then "+n". */
   const MAX_MARKS = 3;
   /** In-cell state word at wider widths; today's cell has none (ring + header say it). */
-  const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", missed: "missed", unlogged: "to log" };
+  const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", skipped: "skipped", missed: "missed", unlogged: "to log" };
   const tagOf = (name: string) => name.split(" + ")[0].split("—")[0].trim() || "Session";
   const marks = (d: StripDay) => d.status !== "rest" && d.status !== "before-start";
   /** Due, not logged yet, or missed: the cell (and the popover's Log link) opens the logger. */
@@ -100,7 +100,7 @@
       .filter((m): m is string => !!m);
 
   // ── Legend: only what this data draws ──
-  const LEGEND_WORDS = { logged: "Done", missed: "Missed", unlogged: "Not logged", today: "Due today", upcoming: "Planned" } as const;
+  const LEGEND_WORDS = { logged: "Done", skipped: "Not done", missed: "Missed", unlogged: "Not logged", today: "Due today", upcoming: "Planned" } as const;
   type LegendState = keyof typeof LEGEND_WORDS;
   const legend = $derived.by(() => {
     const seen = new Set<string>();
@@ -416,7 +416,7 @@
         <li class={x.status}>
           <span class="dot" aria-hidden="true"></span>
           <span class="nm">{x.name}</span>
-          <span class="st">{x.loggedOn ? `logged ${dayDateLabel(x.loggedOn)}` : SESSION_WORDS[x.status]}</span>
+          <span class="st">{sessionState(x)}</span>
           {#if t.pinned && x.planned && loggable(x)}
             <a class="go" href={logHref(t.strip.client.id, x.id, t.day.date)} aria-label={`Log ${sessionLine(x)}`}>Log</a>
           {/if}
@@ -524,6 +524,7 @@
   .sq.today { background: var(--pulse-now-bg); border-color: var(--blue); }
   /* Faint, not line-strong: the planned outline needs 3:1 on canvas in every palette. */
   .sq.upcoming { background: var(--surface); border-color: var(--faint); }
+  .sq.skipped { background: var(--surface); border: 1px dashed var(--line-strong); }
   /* Partly done: the ramp fill for what was logged, the missed / not-logged edge
      (from .missed / .unlogged) for what wasn't — red or amber on green. */
   .sq.partial[data-level="1"] { background: var(--done-1); }
@@ -592,6 +593,8 @@
   .cell.unlogged { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
   .cell.unlogged:hover { border-color: var(--ink); }
   .cell.upcoming { background: var(--well); color: var(--muted); }
+  /* Skipped ("not done" by the client): neutral, a dashed edge so it never reads as done or missed. */
+  .cell.skipped { background: var(--surface); border: 1px dashed var(--line-strong); color: var(--muted); }
   .offday {
     width: 4px;
     height: 4px;
@@ -676,6 +679,7 @@
   .sw.unlogged { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
   .sw.today { background: var(--pulse-now-bg); border-color: var(--blue); color: var(--blue); }
   .sw.upcoming { background: var(--well); color: var(--muted); }
+  .sw.skipped { background: var(--surface); border: 1px dashed var(--line-strong); color: var(--muted); }
 
   /* Tooltip / popover */
   .tip {
@@ -706,6 +710,7 @@
   /* Hollow, so it never reads as a logged dot where the ramp is blue (colourblind). */
   .tip li.today .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--blue); }
   .tip li.upcoming .dot { background: transparent; box-shadow: none; border: 1px solid var(--line-strong); }
+  .tip li.skipped .dot { background: transparent; box-shadow: none; border: 1px dashed var(--line-strong); }
   .tip .st { color: var(--muted); white-space: nowrap; }
   .tip li.missed .st { color: var(--bad); font-weight: 600; }
   .tip li.unlogged .st { color: var(--warn-ink); }

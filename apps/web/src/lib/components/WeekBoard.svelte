@@ -23,7 +23,7 @@
   let { strips, today }: Props = $props();
 
   const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", missed: "missed", unlogged: "to log" };
+  const STATE_WORDS: Partial<Record<StripDay["status"], string>> = { logged: "done", skipped: "skipped", missed: "missed", unlogged: "to log" };
 
   const active = $derived(strips.filter((s) => s.exception !== "none"));
   const idle = $derived(strips.filter((s) => s.exception === "none"));
@@ -184,6 +184,8 @@
   .ent.missed .who, .ent.missed .what { color: var(--bad-ink); }
   .ent.missed .st { font-weight: 600; }
   .ent.unlogged { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
+  /* Skipped by the client ("not done"): neutral, a dashed edge so it never reads as done or missed. */
+  .ent.skipped { background: var(--surface); border-style: dashed; border-color: var(--line-strong); color: var(--muted); }
   .ent.today { background: var(--pulse-now-bg); border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); color: var(--blue); }
   .rest { margin: 4px 2px 0; font: 400 12px/1.4 var(--font-ui); color: var(--faint); }
 
