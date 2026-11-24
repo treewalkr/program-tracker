@@ -364,7 +364,11 @@
     messages = [...messages, optimistic];
     draft = "";
     sending = true;
-    if (fromComposer) tick().then(() => textareaEl?.focus());
+    // Shrink the emptied composer back to its resting height.
+    tick().then(() => {
+      autogrow();
+      if (fromComposer) textareaEl?.focus();
+    });
     try {
       const res = await submitChatTurn(api, {
         clientId: id,
