@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { pushState } from "$app/navigation";
   import { api } from "$lib/api";
+  import { errorText } from "$lib/api/errors";
   import { fmtDate } from "$lib/format";
   import { INSTRUCTION_PRESETS, type InstructionPreset } from "@pt/shared";
   import type { ClientDto, InstructionTemplateDto, PreferencesDto } from "$lib/api/types";
@@ -34,6 +35,9 @@
   let distilling = $state(false);
   let distillingClient = $state(false);
   let prefError = $state<string | null>(null);
+  /** The API's 422 when a distill has nothing to learn from yet: an empty state, not a failure. */
+  const NO_SIGNALS = /no feedback signals/i;
+  let prefNothing = $state<string | null>(null);
 
   const trainerPref = $derived(prefs.find((p) => p.clientId === null) ?? null);
   const clientPrefs = $derived(prefs.filter((p) => p.clientId !== null));
@@ -64,11 +68,17 @@
     if (clientId === null) distilling = true;
     else distillingClient = true;
     prefError = null;
+    prefNothing = null;
     try {
       await api.distillPreferences(clientId === null ? {} : { clientId });
       await loadPrefs();
     } catch (e) {
-      prefError = (e as Error).message;
+      if (NO_SIGNALS.test((e as Error).message)) {
+        const name = clientId === null ? null : (clients.find((c) => c.id === clientId)?.name ?? "this client");
+        prefNothing = name
+          ? `Nothing to learn from for ${name} yet — notes, reject reasons and edits on their drafts feed this.`
+          : "Nothing to learn from yet — notes, reject reasons and edits on your drafts feed this.";
+      } else prefError = errorText(e);
     } finally {
       distilling = false;
       distillingClient = false;
@@ -81,7 +91,7 @@
       await api.deletePreference(id);
       await loadPrefs();
     } catch (e) {
-      prefError = (e as Error).message;
+      prefError = errorText(e);
     }
   }
 
@@ -510,6 +520,7 @@
         </div>
       </section>
 
+      {#if prefNothing}<p class="subtle" role="status">{prefNothing}</p>{/if}
       {#if prefError}<Note tone="bad">{prefError}</Note>{/if}
     </div>
   </Panel>
