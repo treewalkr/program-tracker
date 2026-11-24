@@ -3,7 +3,7 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 const page = { url: new URL("http://x/th/me") };
 mock.module("$app/state", () => ({ page }));
 mock.module("$app/environment", () => ({ browser: false }));
-mock.module("$app/navigation", () => ({ goto: async () => {} }));
+mock.module("$app/navigation", () => ({ goto: async () => {}, beforeNavigate: () => {}, afterNavigate: () => {} }));
 const { fmtDay, fmtShortDate, weekdayName } = await import("./i18n.svelte");
 
 const Real = Intl.DateTimeFormat;

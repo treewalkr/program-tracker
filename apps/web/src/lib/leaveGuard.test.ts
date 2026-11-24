@@ -3,9 +3,11 @@ import { render } from "svelte/server";
 
 type Nav = { type: string; delta?: number; from?: { url: URL } | null; to: { url: URL; route?: { id: string | null } } | null; cancel: () => void };
 let navHook: ((nav: Nav) => void) | null = null;
+let afterHook: (() => void) | null = null;
 const gotos: string[] = [];
 mock.module("$app/navigation", () => ({
   beforeNavigate: (fn: (nav: Nav) => void) => (navHook = fn),
+  afterNavigate: (fn: () => void) => (afterHook = fn),
   goto: async (to: string) => void gotos.push(to),
 }));
 
@@ -139,6 +141,42 @@ describe("leave guard", () => {
     expect(cancelled).toBe(false);
     navigate();
     expect(g.open).toBe(true);
+    delete (globalThis as { history?: unknown }).history;
+  });
+
+  test("a replay that never reaches the guard doesn't wave the next Back through", async () => {
+    const steps: number[] = [];
+    (globalThis as { history?: unknown }).history = { go: (d: number) => void steps.push(d) };
+    const g = createLeaveGuard({ dirty: () => true, prompt: () => ({ title: "t", body: "b" }) });
+    const back = () => {
+      let cancelled = false;
+      navHook!({ type: "popstate", delta: -1, to: { url: new URL("/clients", "http://x") }, cancel: () => (cancelled = true) });
+      return cancelled;
+    };
+    back();
+    await g.answer("confirm");
+    await Promise.resolve();
+    expect(steps).toEqual([-1]);
+    // another navigation was in flight, so SvelteKit skipped beforeNavigate for the replay; it lands
+    afterHook!();
+    expect(back()).toBe(true);
+    expect(g.open).toBe(true);
+    delete (globalThis as { history?: unknown }).history;
+  });
+
+  test("a replay only lets a Back / Forward the same way through", async () => {
+    const steps: number[] = [];
+    (globalThis as { history?: unknown }).history = { go: (d: number) => void steps.push(d) };
+    const g = createLeaveGuard({ dirty: () => true, prompt: () => ({ title: "t", body: "b" }) });
+    const pop = (delta: number) => {
+      let cancelled = false;
+      navHook!({ type: "popstate", delta, to: { url: new URL("/clients", "http://x") }, cancel: () => (cancelled = true) });
+      return cancelled;
+    };
+    pop(-1);
+    await g.answer("confirm");
+    await Promise.resolve();
+    expect(pop(1)).toBe(true);
     delete (globalThis as { history?: unknown }).history;
   });
 
