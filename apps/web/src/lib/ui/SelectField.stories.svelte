@@ -44,3 +44,7 @@
 <Story name="Disabled" asChild>
   <div style="max-width: 300px"><SelectField label="Primary goal" options={goals} value="general" disabled /></div>
 </Story>
+
+<Story name="Hidden label (inline row)" asChild>
+  <div style="max-width: 300px"><SelectField label="Primary goal" options={goals} bind:value={goal} hideLabel /></div>
+</Story>

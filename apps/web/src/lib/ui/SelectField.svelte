@@ -23,9 +23,11 @@
 		open?: boolean;
 		/** Widest the field grows; `none` fills a form-grid column. */
 		maxWidth?: string;
+		/** Keep the label for screen readers only (an inline add or edit row). */
+		hideLabel?: boolean;
 	}
 
-	let { options, value = $bindable(), onchange, label, placeholder = 'Choose…', disabled = false, invalid = false, open = $bindable(false), maxWidth = '300px' }: Props = $props();
+	let { options, value = $bindable(), onchange, label, placeholder = 'Choose…', disabled = false, invalid = false, open = $bindable(false), maxWidth = '300px', hideLabel = false }: Props = $props();
 
 	const uid = $props.id();
 	const chosen = $derived(options.find((o) => o.value === value));
@@ -46,7 +48,7 @@
 </script>
 
 <div class="field">
-	<span class="lbl" id="{uid}-l">{label}</span>
+	<span class="lbl" class:sr-only={hideLabel} id="{uid}-l">{label}</span>
 	<Dropdown bind:open {maxWidth}>
 		{#snippet trigger()}
 			<button
