@@ -26,3 +26,11 @@ export function placePanel(
   if (panelHeight <= above) return { side: "above", maxHeight: above };
   return below >= above ? { side: "below", maxHeight: below } : { side: "above", maxHeight: above };
 }
+
+/** Scroll `list` (only the list, never the page) so `row` is fully inside it. */
+export function keepInView(list: HTMLElement, row: HTMLElement) {
+  const r = row.getBoundingClientRect();
+  const l = list.getBoundingClientRect();
+  if (r.top < l.top) list.scrollTop -= l.top - r.top;
+  else if (r.bottom > l.bottom) list.scrollTop += r.bottom - l.bottom;
+}

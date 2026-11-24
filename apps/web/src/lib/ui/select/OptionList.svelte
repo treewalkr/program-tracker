@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import Icon from '../Icon.svelte';
 	import { matchParts, type SelectOption } from './options';
+	import { keepInView } from './place';
 
 	/**
 	 * The listbox body shared by every select: tick or checkbox, label, optional
@@ -39,11 +40,7 @@
 	// also scroll the page, dragging a panel that just opened upward off its trigger.
 	$effect(() => {
 		const row = list?.querySelector<HTMLElement>(`#${CSS.escape(`${id}-${active}`)}`);
-		if (!list || !row) return;
-		const r = row.getBoundingClientRect();
-		const l = list.getBoundingClientRect();
-		if (r.top < l.top) list.scrollTop -= l.top - r.top;
-		else if (r.bottom > l.bottom) list.scrollTop += r.bottom - l.bottom;
+		if (list && row) keepInView(list, row);
 	});
 </script>
 

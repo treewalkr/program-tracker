@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { placePanel } from './place';
+	import { keepInView, placePanel } from './place';
 
 	/**
 	 * The one open-list panel every select shares: a relative anchor, the trigger,
@@ -39,6 +39,10 @@
 		const p = placePanel(root.getBoundingClientRect(), h, vv ? { height: vv.height, offsetTop: vv.offsetTop } : { height: window.innerHeight, offsetTop: 0 });
 		up = p.side === 'above';
 		pop.style.setProperty('--pop-max', `${Math.max(MIN_LIST, p.maxHeight - chrome)}px`);
+		// A shorter list can hide the active row: bring it back.
+		const id = trigger_()?.getAttribute('aria-activedescendant');
+		const row = id ? document.getElementById(id) : null;
+		if (list && row) keepInView(list, row);
 	}
 
 	const trigger_ = () => root?.querySelector<HTMLElement>('button:not([tabindex="-1"]), input');
