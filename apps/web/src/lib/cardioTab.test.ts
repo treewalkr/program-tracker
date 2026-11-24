@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { computeHrZones, type CardioLog, type LogPrescription, type ProgramSession } from "@pt/shared";
-import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, planSource, repResults, reviewRows } from "./cardioTab";
+import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, hoursMinutes, planSource, repResults, reviewRows } from "./cardioTab";
 
 const monday = "2026-11-16";
 const log = (id: string, date: string, cardio: CardioLog, extra: Record<string, unknown> = {}) => ({
@@ -144,4 +144,11 @@ describe("plan vs actual", () => {
     const work = intervals.cardio!.intervals!.map((iv) => (iv.type === "work" ? { ...iv, hrBpm: { min: 160, max: 170 } } : iv));
     expect(hr(bike({ modality: "Running", intervals: work }))).toBe("work · 160–170 bpm");
   });
+});
+
+test("the Time tile reads hours and minutes in words, not h:mm", () => {
+  expect(hoursMinutes(104)).toBe("1 h 44 min");
+  expect(hoursMinutes(42)).toBe("42 min");
+  expect(hoursMinutes(120)).toBe("2 h");
+  expect(hoursMinutes(119.6)).toBe("2 h");
 });

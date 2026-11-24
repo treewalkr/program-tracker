@@ -47,8 +47,13 @@ export const dayLabel = (iso: string) => {
   return `${DAY_NAMES[wd]} ${dayMonth(iso)}`;
 };
 
-/** "2:15" (h:mm) for a minute total. */
-export const hoursMinutes = (min: number) => `${Math.floor(min / 60)}:${String(Math.round(min % 60)).padStart(2, "0")}`;
+/** "45 min", "1 h 44 min", "2 h" for a minute total — never "1:44", which the log list would read as m:ss. */
+export const hoursMinutes = (min: number) => {
+  const total = Math.round(min);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+};
 
 const isCardio = (l: Log) => l.kind === "cardio" && !!l.cardio;
 const day = (iso: string) => iso.slice(0, 10);
