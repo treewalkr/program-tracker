@@ -366,6 +366,10 @@
     .grid { grid-template-columns: 1fr 1fr; }
     .wide { grid-column: 1 / -1; }
   }
+  /* iPhone SE: the RPE stepper (two 44px arrows + the figure) won't fit half a 320px sheet */
+  @media (max-width: 400px) {
+    .rpe-field { grid-column: 1 / -1; }
+  }
   .touch { padding: 0; }
   .touch .grid { grid-template-columns: 1fr 1fr; }
   .touch .wide, .touch .rpe-field { grid-column: 1 / -1; }
