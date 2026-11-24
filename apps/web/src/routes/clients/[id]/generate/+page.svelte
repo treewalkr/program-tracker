@@ -942,6 +942,10 @@
 <style>
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
+  /* touch: a 44px-tall hit area around the same 12px text link (WCAG 2.5.5) */
+  @media (pointer: coarse) {
+    .manage { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 8px; margin-block: -10px; margin-right: -8px; }
+  }
   .skel-manage { flex-basis: 100%; text-align: right; }
   .save-tpl { display: flex; gap: 8px; margin-top: 14px; }
   .tpl-name { flex: 1; min-width: 0; }
