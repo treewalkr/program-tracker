@@ -1228,4 +1228,15 @@
   @media (max-width: 980px) {
     .sessions-grid { grid-template-columns: minmax(0, 1fr); }
   }
+
+  /* Touch: 44 px targets. Week tabs grow; the text links keep their look and get an invisible hit area. */
+  @media (pointer: coarse) {
+    .tab-btn { min-height: 44px; }
+    .edit-link, .add-link, .exname { position: relative; }
+    .edit-link::after, .add-link::after, .exname::after {
+      content: "";
+      position: absolute;
+      inset: -14px -6px;
+    }
+  }
 </style>
