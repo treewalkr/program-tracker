@@ -55,3 +55,10 @@
 <Story name="Hidden label (inline row)" asChild>
   <div style="max-width: 300px"><SelectField label="Primary goal" options={goals} bind:value={goal} hideLabel /></div>
 </Story>
+
+<Story name="Near the bottom of the screen" asChild>
+  <!-- No room below the field: the list opens upward, fully on screen. -->
+  <div style="max-width: 300px; height: calc(100vh - 32px); display: flex; flex-direction: column; justify-content: flex-end">
+    <SelectField label="Primary goal" options={goals} bind:value={goal} />
+  </div>
+</Story>

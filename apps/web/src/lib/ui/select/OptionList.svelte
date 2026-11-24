@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import Icon from '../Icon.svelte';
 	import { matchParts, type SelectOption } from './options';
+	import { keepInView } from './place';
 
 	/**
 	 * The listbox body shared by every select: tick or checkbox, label, optional
@@ -35,8 +36,11 @@
 		return m;
 	});
 
+	// Keep the active row in view by scrolling the list only: scrollIntoView would
+	// also scroll the page, dragging a panel that just opened upward off its trigger.
 	$effect(() => {
-		list?.querySelector(`#${CSS.escape(`${id}-${active}`)}`)?.scrollIntoView({ block: 'nearest' });
+		const row = list?.querySelector<HTMLElement>(`#${CSS.escape(`${id}-${active}`)}`);
+		if (list && row) keepInView(list, row);
 	});
 </script>
 
@@ -88,7 +92,7 @@
 </div>
 
 <style>
-	.list { padding: 4px 0; max-height: 280px; overflow-y: auto; }
+	.list { padding: 4px 0; max-height: min(280px, var(--pop-max, 280px)); overflow-y: auto; }
 	.opt {
 		display: flex;
 		align-items: center;
@@ -155,4 +159,10 @@
 	.cnt { font: 500 11px var(--font-mono); background: var(--well-2); border-radius: 99px; padding: 0 6px; }
 	.sep { height: 1px; background: var(--line-soft); margin: 4px 0; }
 	.empty { padding: 8px 12px; color: var(--muted); font-size: 13px; }
+	/* Finger-sized rows on touch screens: the same 44px the Stepper's grid gives. */
+	@media (pointer: coarse) {
+		.opt { min-height: 44px; }
+		.opt.two { align-items: center; }
+		.opt.two .tick, .opt.two .box { margin-top: 0; }
+	}
 </style>
