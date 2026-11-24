@@ -24,6 +24,7 @@
   let phone = $state('');
   let invite = $state('');
   let inviteErr = $state<string | null>(null);
+  let scheme = $state('');
 </script>
 
 <Story name="Default" asChild>
@@ -69,5 +70,12 @@
       placeholder="name@gmail.com"
       onblur={() => (inviteErr = invite.includes('@') ? null : 'Enter a full email address.')}
     />
+  </div>
+</Story>
+
+<Story name="Hidden label" asChild>
+  <div style="display: flex; gap: 8px; align-items: center; max-width: 420px">
+    <div style="flex: 1"><InputField label="Scheme name" hideLabel bind:value={scheme} placeholder="Scheme name, e.g. 5-week peak" /></div>
+    <button type="button" class="btn small">Save scheme</button>
   </div>
 </Story>

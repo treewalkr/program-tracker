@@ -33,6 +33,9 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
+  import InputDate from "$lib/ui/InputDate.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import SelectButtonPanel from "$lib/ui/SelectButtonPanel.svelte";
   import ReadinessStrip from "$lib/components/log/ReadinessStrip.svelte";
   import CardioLogForm from "$lib/components/log/CardioLogForm.svelte";
   import PrepChecklist from "$lib/components/log/PrepChecklist.svelte";
@@ -246,6 +249,7 @@
       .filter((g) => g.items.length > 0);
   });
   const weekSessionsList = $derived(sessionGroups.flatMap((g) => g.items));
+  const sessionOptions = $derived(sessionGroups.flatMap((g) => g.items.map((ws) => ({ value: ws.id, label: ws.label, group: g.label }))));
 
   const selectedSession = $derived(
     sessionId ? weekSessionsList.find((ws) => ws.id === sessionId)?.session ?? null : null
@@ -527,12 +531,9 @@
       : `Dated ${fmtLongDay(d.date)}: the day ${sessionName()} is scheduled.`;
   }
 
-  async function changeWeek(e: Event & { currentTarget: HTMLSelectElement }) {
-    const el = e.currentTarget;
-    const next = Number(el.value);
-    el.value = String(selectedWeekNumber); // until the trainer agrees
+  async function changeWeek(value: string) {
+    const next = Number(value);
     if (!(await confirmSwitch())) return;
-    el.value = String(next);
     // Stay on the same session slot ("Session 2") in the new week when it has one.
     const was = selectedSession;
     selectedWeekNumber = next;
@@ -543,39 +544,36 @@
     dateFromSession();
   }
 
-  async function changeSession(e: Event & { currentTarget: HTMLSelectElement }) {
-    const el = e.currentTarget;
-    const next = el.value;
-    el.value = sessionId; // until the trainer agrees
+  async function changeSession(next: string) {
     if (!(await confirmSwitch())) return;
-    el.value = next;
     sessionId = next;
     undo = null;
     loadSession();
     dateFromSession();
   }
 
-  async function changeDate(e: Event & { currentTarget: HTMLInputElement }) {
-    const el = e.currentTarget;
-    let next = el.value;
+  /** What the date field shows while it differs from `date`; null follows `date`. */
+  let dateTyped = $state<string | null>(null);
+
+  async function changeDate(value: string) {
+    let next = value;
     // Mid-typing ("0202-…") or cleared: wait for a real date; blur puts the old one back.
     if (!next || next < "2000-01-01") return;
     if (next > today) next = today;
     const pick = program ? sessionForDate(program, pastLogs, next) : null;
     if (!pick || (pick.week === selectedWeekNumber && pick.sessionId === sessionId)) {
       date = next;
-      el.value = next;
+      dateTyped = null;
       pickNote = null;
       return;
     }
-    el.value = date; // until the trainer agrees
+    dateTyped = null; // until the trainer agrees
     if (!(await confirmSwitch())) return;
     selectedWeekNumber = pick.week;
     sessionId = pick.sessionId;
     undo = null;
     loadSession();
     date = next;
-    el.value = next;
     pickNote = pickText(pick, next);
   }
 
@@ -1289,10 +1287,10 @@
     <Panel title="Session">
       {#snippet act()}
         <div class="head-controls collapsed" inert>
-          <div class="hc-summary"><span class="hc-sum-text"><Skeleton shape="line" h="12px" w="min(272px, calc(100vw - 96px))" /></span></div>
-          <span class="hc-pair"><span class="label">Week</span><Skeleton h="31px" w="95px" class="sk-pick" /></span>
-          <span class="hc-pair"><span class="label">Session</span><Skeleton h="31px" w="285px" class="sk-pick" /></span>
-          <span class="hc-pair"><span class="label">Date</span><Skeleton h="31px" w="150px" class="sk-pick" /></span>
+          <div class="hc-summary"><span class="hc-sum-text"><Skeleton shape="line" h="12px" w="min(292px, calc(100vw - 96px))" /></span></div>
+          <span class="hc-pair"><Skeleton h="32px" w="95px" class="sk-pick" /></span>
+          <span class="hc-pair"><Skeleton h="32px" w="285px" class="sk-pick" /></span>
+          <span class="hc-pair date"><Skeleton h="32px" w="292px" class="sk-pick" /></span>
         </div>
       {/snippet}
       <div class="sheet">
@@ -1350,46 +1348,27 @@
               </button>
             </div>
             <span class="hc-pair">
-              <label class="label" for="log-week">Week</label>
-              <select
-                class="select"
-                id="log-week"
-                value={selectedWeekNumber}
+              <SelectButtonPanel
+                label="Week"
+                title="Switch week"
+                mono
+                options={prog.weeks.map((w) => ({ value: String(w.week), label: String(w.week) }))}
+                bind:value={() => String(selectedWeekNumber), () => {}}
                 onchange={changeWeek}
-              >
-                {#each prog.weeks as w (w.week)}
-                  <option value={w.week}>Week {w.week}</option>
-                {/each}
-              </select>
-            </span>
-            <span class="hc-pair">
-              <label class="label" for="log-session">Session</label>
-              <select
-                class="select"
-                id="log-session"
-                value={sessionId}
-                onchange={changeSession}
-              >
-                {#each sessionGroups as g (g.day)}
-                  <optgroup label={g.label}>
-                    {#each g.items as ws (ws.id)}
-                      <option value={ws.id}>{ws.label}</option>
-                    {/each}
-                  </optgroup>
-                {/each}
-              </select>
-            </span>
-            <span class="hc-pair">
-              <label class="label" for="log-date">Date</label>
-              <input
-                class="input date"
-                id="log-date"
-                type="date"
-                max={today}
-                value={date}
-                onchange={changeDate}
-                onblur={(e) => (e.currentTarget.value = date)}
               />
+            </span>
+            <span class="hc-pair">
+              <SelectButtonPanel
+                label="Session"
+                title="Switch session"
+                options={sessionOptions}
+                bind:value={() => sessionId, () => {}}
+                onchange={changeSession}
+              />
+            </span>
+            <!-- Blur puts the shown date back when the typing stopped mid-date. -->
+            <span class="hc-pair date" onfocusout={() => (dateTyped = null)}>
+              <InputDate label="Date" {today} max={today} bind:value={() => dateTyped ?? date, (v) => (dateTyped = v)} onchange={changeDate} />
             </span>
             {#if prefillable && !isCardioSession}
               <Button variant="ghost" small type="button" onclick={prefill}>Prefill prescribed</Button>
@@ -1422,9 +1401,7 @@
         <CardioLogForm bind:value={cardioForm} modalities={modalities.filter((m) => !m.archivedAt)} metric={cardioMetric} problem={cardioProblem} plannedSec={cardioBase.durationSec} />
         <div class="panel-body foot">
           <div class="notes">
-            <Field label="Session notes" htmlFor="log-notes">
-              <input class="input" id="log-notes" placeholder="How it went, how it felt…" bind:value={notes} maxlength="2000" />
-            </Field>
+            <InputField label="Session notes" placeholder="How it went, how it felt…" bind:value={notes} maxlength={2000} />
           </div>
         </div>
         {@render saveBar(cardioForm.skipped ? "not done — doesn't count, isn't missed" : "cardio session — counts toward the weekly target")}
@@ -1539,14 +1516,15 @@
                     >{FLAG_LABEL[k]}</button>
                   {/each}
                   {#if flag}
-                    <input
-                      class="input flag-input"
-                      aria-label={`Note on the ${FLAG_LABEL[flag.kind].toLowerCase()} flag, optional`}
-                      placeholder={flag.kind === "pain" ? "Where, when? e.g. left knee at the bottom" : "What broke down? e.g. hips rise first"}
-                      maxlength={FLAG_NOTE_MAX}
-                      value={flag.note}
-                      oninput={(e) => noteFlag(b.programExerciseId, e.currentTarget.value)}
-                    />
+                    <div class="flag-input">
+                      <InputField
+                        label={`Note on the ${FLAG_LABEL[flag.kind].toLowerCase()} flag, optional`}
+                        hideLabel
+                        placeholder={flag.kind === "pain" ? "Where, when? e.g. left knee at the bottom" : "What broke down? e.g. hips rise first"}
+                        maxlength={FLAG_NOTE_MAX}
+                        bind:value={() => flag.note, (v) => noteFlag(b.programExerciseId, v)}
+                      />
+                    </div>
                   {:else}
                     <span class="faint flag-hint">Tap one — tap again to clear</span>
                   {/if}
@@ -1702,9 +1680,7 @@
       </div>
         <div class="panel-body foot">
           <div class="notes">
-            <Field label="Session notes" htmlFor="log-notes">
-              <input class="input" id="log-notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength="2000" />
-            </Field>
+            <InputField label="Session notes" placeholder="Felt strong, bar speed good…" bind:value={notes} maxlength={2000} />
           </div>
         </div>
         {#if painList.length > 0}
@@ -1859,7 +1835,7 @@
   .head-controls {
     min-width: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 8px;
     flex-wrap: wrap;
   }
@@ -1868,9 +1844,7 @@
   .head-controls :global(.sk-pick) { max-width: 100%; }
   /* A label never wraps away from its field. */
   .hc-pair { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
-  .head-controls .label { margin: 0; }
-  .head-controls .select { width: auto; max-width: 100%; }
-  .date { width: 150px; }
+  .hc-pair.date { width: 292px; }
   .tnum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
   /* ---- The sheet: one block per prescribed exercise, one row per set ---- */
@@ -2154,7 +2128,7 @@
   }
   .blk-flag .subtle { font-size: 13px; margin-right: 4px; }
   .reason-chip.pain[aria-pressed="true"] { color: var(--bad); background: var(--bad-bg); border-color: var(--bad-line); }
-  .flag-input { flex: 1 1 260px; min-width: 0; height: 28px; font-size: 13px; }
+  .flag-input { flex: 1 1 260px; min-width: 0; }
   .flag-hint { font-size: 12px; }
   .submit-row { display: flex; align-items: center; gap: 14px; }
 
@@ -2374,9 +2348,8 @@
     .next-ex span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .next-ex :global(svg) { flex: 0 0 auto; width: 16px; height: 16px; transform: rotate(-90deg); }
 
-    .head-controls .select, .date { width: 100%; }
-    .head-controls { display: grid; grid-template-columns: auto minmax(0, 1fr); }
-    .hc-pair { display: contents; }
+    .head-controls { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .hc-pair, .hc-pair.date { display: block; width: auto; }
     .hc-summary {
       grid-column: 1 / -1;
       display: flex;
@@ -2389,9 +2362,9 @@
     .head-controls.collapsed .hc-pair { display: none; }
     .head-controls :global(.btn) { grid-column: 1 / -1; min-height: 44px; justify-content: center; }
     .flag-pill { max-width: 100%; }
-    .flag-input { flex-basis: 100%; height: 44px; font-size: 14px; }
+    .flag-input { flex-basis: 100%; }
     .notes { min-width: 0; }
-    .notes .input, .notes :global(.sk-notes) { min-height: 44px; }
+    .notes :global(.sk-notes) { min-height: 44px; }
     .save-bar :global(.sk-save) { min-height: 44px; }
     .submit-row :global(.btn) { min-height: 44px; padding: 0 22px; }
     .save-bar { padding: 8px 14px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }

@@ -27,6 +27,8 @@
 		inputmode?: HTMLInputAttributes['inputmode'];
 		/** Off for paths and codes, so they don't get underlined as typos. */
 		spellcheck?: boolean;
+		/** Keep the label for screen readers only (a field inline beside its button). */
+		hideLabel?: boolean;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
 		onblur?: () => void;
@@ -49,6 +51,7 @@
 		id: fixedId,
 		inputmode,
 		spellcheck,
+		hideLabel = false,
 		oninput,
 		onchange,
 		onblur,
@@ -59,7 +62,7 @@
 	const left = $derived(maxlength === undefined ? Infinity : maxlength - value.length);
 </script>
 
-<FieldFrame {id} {label} {hint} {error} {optional}>
+<FieldFrame {id} {label} {hint} {error} {optional} {hideLabel}>
 	{#snippet meta()}
 		{#if maxlength !== undefined && left <= 10}<span class:full={left <= 0}>{value.length} / {maxlength}</span>{/if}
 	{/snippet}
