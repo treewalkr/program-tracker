@@ -17,6 +17,32 @@ describe("toLogin", () => {
     expect(toLogin(u("/en/login?returnTo=%2Fx"))).toBe("/en/login");
   });
 
+  test("an anchor rides along, so an emailed ticket link survives sign-in", () => {
+    expect(toLogin(u("/en/feedback#FB-042"))).toBe("/en/login?returnTo=%2Ffeedback%23FB-042");
+    // anything but a plain anchor is dropped
+    expect(toLogin(u("/en/feedback#x/../y?z"))).toBe("/en/login?returnTo=%2Ffeedback");
+  });
+
+  test("load's URL hides its hash: take it from the address bar for the same page", () => {
+    const hidden = (s: string) =>
+      new Proxy(u(s), {
+        get(target, key) {
+          if (key === "hash") throw new Error("Cannot access event.url.hash");
+          const v = Reflect.get(target, key);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      });
+    const g = globalThis as { window?: unknown };
+    const before = g.window;
+    g.window = { location: u("/feedback#FB-042") };
+    try {
+      expect(toLogin(hidden("/en/feedback"))).toBe("/en/login?returnTo=%2Ffeedback%23FB-042");
+      expect(toLogin(hidden("/en/clients"))).toBe("/en/login?returnTo=%2Fclients");
+    } finally {
+      g.window = before;
+    }
+  });
+
   test("an unprefixed page keeps an unprefixed sign-in (the redirect adds one)", () => {
     expect(toLogin(u("/clients"))).toBe("/login?returnTo=%2Fclients");
   });
