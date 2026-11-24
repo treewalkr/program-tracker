@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'The form default for single-line text: name, email, phone. Same box, 12px label and 32px height as Select 01, so they share a form column. The error line replaces the hint; with a length limit, a mono count appears in the label row once 10 characters are left. Tab moves in and out; nothing else is special.',
+            'The form default for single-line text: name, email, phone. Same box, 12px label and 32px height as Select 01, so they share a form column. The error line replaces the hint; with a length limit, a mono count appears in the label row once 10 characters are left. Tab moves in and out; nothing else is special. `hideLabel` keeps the label for screen readers only, for an inline add or edit row whose placeholder says what goes in; `id` and `input` let the page focus the field.',
         },
       },
     },
@@ -50,6 +50,10 @@
 
 <Story name="Disabled" asChild>
   <div style="max-width: 320px"><InputField label="Name" value="Ann Rattanakul" disabled /></div>
+</Story>
+
+<Story name="Hidden label (inline add row)" asChild>
+  <div style="max-width: 320px"><InputField label="Term" hideLabel placeholder="Term, e.g. LPD" maxlength={40} /></div>
 </Story>
 
 <Story name="Path, no spellcheck" asChild>

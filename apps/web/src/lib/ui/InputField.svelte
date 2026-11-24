@@ -25,8 +25,16 @@
 		inputmode?: HTMLInputAttributes['inputmode'];
 		/** Off for paths and codes, so they don't get underlined as typos. */
 		spellcheck?: boolean;
+		/** Fixed id, so the page can focus the field; generated when omitted. */
+		id?: string;
+		/** Keep the label for screen readers only (an inline add row). */
+		hideLabel?: boolean;
+		/** The input, for focus. */
+		input?: HTMLInputElement;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
+		onkeydown?: (e: KeyboardEvent) => void;
+		onblur?: () => void;
 	}
 
 	let {
@@ -45,19 +53,26 @@
 		name,
 		inputmode,
 		spellcheck,
+		id: fixedId,
+		hideLabel = false,
+		input = $bindable(),
 		oninput,
 		onchange,
+		onkeydown,
+		onblur,
 	}: Props = $props();
 
-	const id = $props.id();
+	const autoId = $props.id();
+	const id = $derived(fixedId ?? autoId);
 	const left = $derived(maxlength === undefined ? Infinity : maxlength - value.length);
 </script>
 
-<FieldFrame {id} {label} {hint} {error} {optional}>
+<FieldFrame {id} {label} {hint} {error} {optional} {hideLabel}>
 	{#snippet meta()}
 		{#if maxlength !== undefined && left <= 10}<span class:full={left <= 0}>{value.length} / {maxlength}</span>{/if}
 	{/snippet}
 	<input
+		bind:this={input}
 		{id}
 		class="in"
 		{type}
@@ -75,6 +90,8 @@
 		bind:value
 		oninput={() => oninput?.(value)}
 		onchange={() => onchange?.(value)}
+		{onkeydown}
+		onblur={() => onblur?.()}
 	/>
 </FieldFrame>
 
