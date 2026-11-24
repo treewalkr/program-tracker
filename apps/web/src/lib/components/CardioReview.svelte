@@ -66,7 +66,7 @@
   {#if skipped}
     <p class="skip">{member} didn't do this one: <b>{SKIP_REASON_LABEL[skipped.reason]}</b>.</p>
   {:else}
-    <div class="scroll">
+    <div class="scroll x-scroll">
       <table class="pva">
         <thead><tr><th></th><th>Plan</th><th>Actual</th></tr></thead>
         <tbody>

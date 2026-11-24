@@ -149,6 +149,10 @@
     .toc { position: static; margin-bottom: 4px; }
     .toc-title { display: none; }
     .toc ul { display: flex; gap: 4px; border-left: 0; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line-soft); }
+    /* app.css .x-scroll's edge fade, only while the contents are a strip */
+    @supports (animation-timeline: scroll()) {
+      .toc ul { mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent); animation: x-fade linear both; animation-timeline: scroll(self inline); }
+    }
     .toc li { flex: none; }
     .toc a { margin: 0; padding: 9px 10px; min-height: 36px; border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
     .toc a[aria-current="true"] { border-bottom-color: var(--tab-on); }

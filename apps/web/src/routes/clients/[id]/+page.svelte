@@ -721,7 +721,7 @@
             <PulseChart weeks={pulse} pulseWeek={pulseWeek} />
           </div>
         {/if}
-        <div class="table-wrap">
+        <div class="table-wrap x-scroll">
           <table class="sheet">
             <thead><tr><th class="r">Wk</th><th>Directive</th><th>Target</th><th class="r">Overall volume</th><th class="r">Sets</th><th class="r">Avg RPE</th><th class="r">Best e1RM</th></tr></thead>
             <tbody>
@@ -820,7 +820,7 @@
         {#if historyCapped}
           <p class="cap-note">Showing the newest {historyLogs.length} sessions.</p>
         {/if}
-        <div class="table-wrap">
+        <div class="table-wrap x-scroll">
           <table class="sheet">
             <thead><tr><th>Lift</th><th>Trend</th><th class="r">Best e1RM</th><th>Recent sets</th></tr></thead>
             <tbody>

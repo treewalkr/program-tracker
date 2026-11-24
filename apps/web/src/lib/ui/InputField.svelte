@@ -98,9 +98,9 @@
 <style>
 	.in {
 		width: 100%;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 5px 12px;
-		font: 400 14px var(--font-ui);
+		font: 400 var(--field-font, 14px) var(--font-ui);
 		color: var(--ink);
 		background: var(--well);
 		border: 1px solid var(--line);
@@ -113,5 +113,4 @@
 	.in:read-only:not(:disabled):focus { background: var(--well); border-color: var(--line-strong); box-shadow: none; }
 	.in:disabled { opacity: 0.55; cursor: not-allowed; }
 	.full { color: var(--warn); }
-	@media (max-width: 720px) { .in { min-height: 40px; font-size: 16px; } }
 </style>

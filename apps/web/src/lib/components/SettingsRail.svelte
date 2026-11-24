@@ -153,6 +153,10 @@
       border-bottom: 1px solid var(--line-soft);
     }
     .rail::-webkit-scrollbar { display: none; }
+    /* app.css .x-scroll's edge fade, only while the rail is a strip */
+    @supports (animation-timeline: scroll()) {
+      .rail { mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent); animation: x-fade linear both; animation-timeline: scroll(self inline); }
+    }
     .group { display: flex; align-items: center; flex: none; }
     .label { display: none; }
     ul { flex-direction: row; gap: 4px; }

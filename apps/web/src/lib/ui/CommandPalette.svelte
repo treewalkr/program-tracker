@@ -273,7 +273,7 @@
     border: 0;
     background: transparent;
     color: var(--ink);
-    font: 400 15px/1.4 var(--font-ui);
+    font: 400 var(--field-font, 15px)/1.4 var(--font-ui);
     outline: none;
   }
   .bar input::placeholder {
@@ -437,9 +437,6 @@
     }
     .list {
       max-height: calc(100dvh - 48px - 16px - 48px);
-    }
-    .bar input {
-      font-size: 16px; /* no zoom on focus in iOS Safari */
     }
     .opt {
       min-height: 44px;

@@ -160,7 +160,7 @@
 </script>
 
 <div class="ib" bind:clientWidth={width}>
-  <div class="scroll">
+  <div class="scroll x-scroll">
     <table class="sheet" class:narrow>
       <thead>
         <tr>

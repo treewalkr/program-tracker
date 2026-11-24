@@ -278,7 +278,7 @@
                 {/each}
               </ol>
             {:else}
-            <div class="scroll">
+            <div class="scroll x-scroll">
               <table class="sheet">
                 <thead>
                   <tr><th>{text.rep}</th><th class="r">{text.time}</th><th class="r">{distLabel}</th><th class="r">{text.avgHr}</th><th class="r">RPE</th></tr>

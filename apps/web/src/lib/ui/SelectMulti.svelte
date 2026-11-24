@@ -89,7 +89,7 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: 4px;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 3px 8px 3px 6px;
 		background: var(--well);
 		border: 1px solid var(--line);
@@ -121,7 +121,7 @@
 		padding: 0 0 0 4px;
 		border: 0;
 		background: none;
-		font: 400 14px var(--font-ui);
+		font: 400 var(--field-font, 14px) var(--font-ui);
 		color: var(--ink);
 		text-align: left;
 		cursor: pointer;
@@ -133,5 +133,4 @@
 	.open :global(svg) { width: 14px; height: 14px; flex: none; color: var(--muted); }
 	.cnt:empty + :global(svg) { margin-left: auto; }
 	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
-	@media (max-width: 720px) { .sel { min-height: 40px; } .open { font-size: 16px; } }
 </style>

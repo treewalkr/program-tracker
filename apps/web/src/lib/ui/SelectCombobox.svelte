@@ -120,7 +120,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 5px 12px;
 		background: var(--well);
 		border: 1px solid var(--line);
@@ -130,7 +130,6 @@
 	.sel:focus-within { background: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
 	.sel.off { opacity: 0.55; }
 	.sel :global(svg) { width: 14px; height: 14px; flex: none; }
-	input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; font: 400 14px var(--font-ui); color: var(--ink); outline: none; }
+	input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; font: 400 var(--field-font, 14px) var(--font-ui); color: var(--ink); outline: none; }
 	input::placeholder { color: var(--muted); }
-	@media (max-width: 720px) { .sel { min-height: 40px; } input { font-size: 16px; } }
 </style>

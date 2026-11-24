@@ -152,7 +152,7 @@
 	.box {
 		display: flex;
 		align-items: stretch;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		background: var(--well);
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
@@ -169,7 +169,7 @@
 		border: 0;
 		background: transparent;
 		color: var(--ink);
-		font: 400 13px var(--font-mono);
+		font: 400 var(--field-font, 13px) var(--font-mono);
 		font-variant-numeric: tabular-nums;
 		text-align: right;
 		caret-color: var(--blue);
@@ -187,9 +187,9 @@
 		border: 1px solid transparent;
 		border-radius: var(--radius);
 		line-height: 17px;
+		min-height: var(--field-h, auto);
 	}
 	.cellin:hover:not(:disabled):not(:focus) { border-color: var(--line); background: var(--well); }
 	.cellin:focus { border-color: var(--blue); background: var(--surface); box-shadow: 0 0 0 3px var(--focus-ring); }
 	.cellin.bad { border-color: var(--bad); }
-	@media (max-width: 720px) { .box { min-height: 40px; } .in { font-size: 16px; } .cellin { min-height: 40px; } }
 </style>

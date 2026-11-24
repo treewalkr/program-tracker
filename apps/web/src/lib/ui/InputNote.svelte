@@ -127,12 +127,12 @@
 		border: 0;
 		background: transparent;
 		color: var(--ink);
-		font: 400 14px/20px var(--font-ui);
+		font: 400 var(--field-font, 14px)/var(--field-lh, 20px) var(--font-ui);
 		caret-color: var(--blue);
 		resize: none;
 		overflow-y: hidden;
 	}
-	.ta.mono { font: 400 12px/20px var(--font-mono); }
+	.ta.mono { font: 400 var(--field-font, 12px)/var(--field-lh, 20px) var(--font-mono); }
 	.ta::placeholder { color: var(--muted); }
 	.ta:focus { outline: none; }
 	.box:not(.ro):focus-within .ta { background: var(--surface); }
@@ -149,5 +149,4 @@
 	}
 	.cnt { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.full { color: var(--warn); }
-	@media (max-width: 720px) { .ta, .ta.mono { font-size: 16px; line-height: 22px; } }
 </style>

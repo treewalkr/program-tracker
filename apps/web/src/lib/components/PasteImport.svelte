@@ -825,7 +825,7 @@
   .chars { margin-left: auto; font-size: 12px; color: var(--muted); }
   .chars.over { color: var(--bad); font-weight: 600; }
   .paste {
-    font: 13px/1.55 var(--font-mono);
+    font: var(--field-font, 13px)/1.55 var(--font-mono);
     min-height: 320px;
     resize: vertical;
     tab-size: 4;

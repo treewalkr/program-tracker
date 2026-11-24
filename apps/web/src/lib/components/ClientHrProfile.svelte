@@ -158,7 +158,7 @@
 </ProfileSection>
 
 {#snippet table(zones: readonly HrZone[] | null, editable: boolean)}
-  <div class="scroll"><table class="zones" aria-label="Heart-rate zones">
+  <div class="scroll x-scroll"><table class="zones" aria-label="Heart-rate zones">
     <thead><tr><th>Zone</th>{#each [1, 2, 3, 4, 5] as z (z)}<th class="r">Z{z}</th>{/each}</tr></thead>
     <tbody>
       <tr>

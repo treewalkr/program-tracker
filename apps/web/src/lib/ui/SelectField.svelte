@@ -96,12 +96,12 @@
 		justify-content: space-between;
 		gap: 8px;
 		width: 100%;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 5px 12px;
 		background: var(--well);
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
-		font: 400 14px var(--font-ui);
+		font: 400 var(--field-font, 14px) var(--font-ui);
 		color: var(--ink);
 		cursor: pointer;
 		text-align: left;
@@ -125,5 +125,4 @@
 		background: var(--avatar-bg); color: var(--ink);
 		font: 600 10px/20px var(--font-ui); text-align: center;
 	}
-	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
 </style>
