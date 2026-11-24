@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { filterClients, lastSessionLabel, programmeLabel, sampleAdminClientDetail, sampleAdminClients, shortDay, trainersOf } from "./adminClients";
+import { bookCell, booksOf, filterClients, lastSessionLabel, programmeLabel, sampleAdminClientDetail, sampleAdminClients, shortDay, trainersOf } from "./adminClients";
 
 const TODAY = "2026-11-09";
 const rows = sampleAdminClients(TODAY);
@@ -71,5 +71,41 @@ describe("sampleAdminClientDetail", () => {
   });
   test("an active client can have no programme", () => {
     expect(sampleAdminClientDetail("c-12", TODAY)?.programme).toBeNull();
+  });
+});
+
+describe("booksOf", () => {
+  const books = booksOf(rows, TODAY);
+  test("one book per trainer, in first-seen order, holding every client", () => {
+    expect(books.map((b) => b.trainer.id)).toEqual(["t-alex", "t-june", "t-sam"]);
+    expect(books.reduce((n, b) => n + b.clients.length, 0)).toBe(rows.length);
+  });
+  test("counts status, quiet, never and over plan", () => {
+    const alex = books[0];
+    expect(alex.status).toEqual({ active: 4, paused: 1, archived: 0 });
+    expect(alex.never).toBe(1); // Ben Kowalski
+    expect(alex.quiet).toBe(0);
+    const june = books[1];
+    expect(june.quiet).toBe(1); // Tom Becker, 18 days
+    expect(june.over).toBe(1); // Lena Fischer
+  });
+  test("strip runs recent → fading → quiet → never → off, newest first within a kind", () => {
+    const cells = books[0].strip.map((s) => s.cell);
+    expect(cells).toEqual(["recent", "recent", "recent", "never", "off"]);
+    expect(books[0].strip[0].client.name).toBe("Maya Chen"); // logged today
+  });
+});
+
+describe("bookCell", () => {
+  const c = rows[0];
+  test("active clients by days since last session", () => {
+    expect(bookCell({ ...c, lastSessionAt: "2026-11-02" }, TODAY)).toBe("recent");
+    expect(bookCell({ ...c, lastSessionAt: "2026-11-01" }, TODAY)).toBe("fading");
+    expect(bookCell({ ...c, lastSessionAt: "2026-10-26" }, TODAY)).toBe("fading");
+    expect(bookCell({ ...c, lastSessionAt: "2026-10-25" }, TODAY)).toBe("quiet");
+    expect(bookCell({ ...c, lastSessionAt: null }, TODAY)).toBe("never");
+  });
+  test("paused and archived are off whatever they logged", () => {
+    expect(bookCell({ ...c, status: "paused" }, TODAY)).toBe("off");
   });
 });
