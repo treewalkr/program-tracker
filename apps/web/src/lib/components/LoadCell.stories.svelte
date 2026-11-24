@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            "One set's load on the member's log: the external weight held or added. **BW** means none (a quiet Bodyweight box, nothing to fill in); **kg** is the log stepper. The switch is a text link on the label's line, top-right in both modes, so the cell is as tall as the reps cell beside it and focus stays put. On a bodyweight move kg reads **Added kg** (a vest, a belt). Shown beside a reps cell at phone width, as on the page; the switches work. **Compact** is the trainer's log sheet at desk width: one 28px line, the switch a chip left of the number, the column head as label; under 680px it reads like the member's cell.",
+            "One set's load on the member's log: the external weight held or added. **BW** means none (a quiet Bodyweight box, nothing to fill in); **kg** is the log stepper. The switch is a text link on the label's line, top-right in both modes, so the cell is as tall as the reps cell beside it and focus stays put. On a bodyweight move kg reads **Added kg** (a vest, a belt). Shown beside a reps cell at phone width, as on the page; the switches work. **Compact** is the trainer's log sheet at desk width: one 28px line, the switch a chip left of the number, the column head as label; under 680px it reads like the member's cell. A tap on a filled number selects it, so typing replaces it (a filled-down 35 + typed 40 is 40, not 3540); Enter moves to the next field and never submits the form.",
         },
       },
     },

@@ -1,6 +1,10 @@
+import type { Attachment } from 'svelte/attachments';
+
 /**
- * Touch-first number entry: the keyboard's Next/Enter key moves to the next
- * field instead of submitting the form around it.
+ * Touch-first number entry: a tap on a prefilled field selects it, so typing
+ * replaces the value rather than appending to it ("35" + "35" ≠ 3535), and the
+ * keyboard's Next/Enter key moves to the next field instead of submitting the
+ * form around it.
  */
 
 /** Fields Enter can land on: typed inputs, not toggles or buttons. */
@@ -70,3 +74,63 @@ export function enterToNext(e: KeyboardEvent): void {
 	};
 	view.addEventListener('keydown', late);
 }
+
+/**
+ * `{@attach selectOnTap}`: focusing the field selects its whole value, and so
+ * does a tap on it while it is still untouched (focused by Enter, say). A tap
+ * places the caret on mouseup (and WebKit again just after), so that mouseup is
+ * cancelled and the select repeated a frame later. Once the user types, the
+ * field stands back: a value being typed keeps its caret.
+ */
+export const selectOnTap: Attachment<HTMLInputElement> = (node) => {
+	/** Focused and not edited since: the value is still the prefill or the copy. */
+	let pristine = false;
+	/** A tap's mouseup is still to come and would drop the selection. */
+	let armed = false;
+	let raf = 0;
+	const select = () => {
+		try {
+			node.select();
+		} catch {
+			/* types without a selection */
+		}
+	};
+	const isFocused = () => node.ownerDocument.activeElement === node;
+	const onpointerdown = () => {
+		armed = !!node.value && (!isFocused() || pristine);
+	};
+	const onfocus = () => {
+		pristine = true;
+		if (node.value) select();
+	};
+	const onmouseup = (e: MouseEvent) => {
+		if (!armed) return;
+		armed = false;
+		e.preventDefault();
+		select();
+		cancelAnimationFrame(raf);
+		raf = requestAnimationFrame(() => {
+			if (pristine && isFocused()) select();
+		});
+	};
+	const edited = () => {
+		pristine = false;
+		armed = false;
+		cancelAnimationFrame(raf);
+	};
+	node.addEventListener('pointerdown', onpointerdown);
+	node.addEventListener('focus', onfocus);
+	node.addEventListener('mouseup', onmouseup);
+	node.addEventListener('keydown', edited);
+	node.addEventListener('input', edited);
+	node.addEventListener('blur', edited);
+	return () => {
+		edited();
+		node.removeEventListener('pointerdown', onpointerdown);
+		node.removeEventListener('focus', onfocus);
+		node.removeEventListener('mouseup', onmouseup);
+		node.removeEventListener('keydown', edited);
+		node.removeEventListener('input', edited);
+		node.removeEventListener('blur', edited);
+	};
+};

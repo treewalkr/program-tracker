@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
-	import { enterToNext } from './input/entry';
+	import { enterToNext, selectOnTap } from './input/entry';
 	import { durationIssue, formatDuration, parseDuration, RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
 	/**
@@ -11,7 +11,8 @@
 	 * numeric keypad has no ":"; one or two digits are minutes. The value is whole seconds; the field shows it back
 	 * in the clock format on blur. ↑/↓ step by `step` seconds (Shift ×10).
 	 * `cell` is the quiet table-cell look of Input 04, for interval rows.
-	 * Enter moves to the next field (a cell just closes) and never submits the form.
+	 * Focus selects the time, so typing replaces a prefilled plan; Enter moves
+	 * to the next field (a cell just closes) and never submits the form.
 	 */
 	interface Props {
 		label: string;
@@ -64,9 +65,14 @@
 	let checked = $state(false);
 	let junk = $state(false);
 
+	// A new value from outside reformats the text; blur does its own, and keeps typed junk on screen.
 	$effect(() => {
 		const v = value ?? null;
-		if (!focused) text = formatDuration(v, { hours });
+		untrack(() => {
+			if (focused) return;
+			text = formatDuration(v, { hours });
+			junk = false;
+		});
 	});
 
 	const issue = $derived(error ?? (junk ? junkText : checked ? durationIssue(value ?? null, min, max, rangeWords) : null));
@@ -128,6 +134,7 @@
 		{oninput}
 		{onblur}
 		{onkeydown}
+		{@attach selectOnTap}
 	/>
 {/snippet}
 
