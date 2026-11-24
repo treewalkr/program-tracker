@@ -2,7 +2,7 @@ import { feedbackApi } from "./client";
 
 /**
  * Unread feedback count for the sidebar badge. Refreshed on navigation; the
- * feedback page marks items seen as they scroll into view and drops the count
+ * feedback page marks items seen once they stay in view (`seen.ts`) and drops the count
  * at once so the badge never lags behind what the trainer just read.
  */
 class FeedbackUnread {

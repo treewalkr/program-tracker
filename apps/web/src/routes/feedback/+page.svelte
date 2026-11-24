@@ -34,6 +34,7 @@
   import { ImageTray } from "$lib/feedback/tray.svelte";
   import { shortPath } from "$lib/feedback/capture";
   import { runtimeSnapshot } from "$lib/feedback/runtime";
+  import { watchSeen } from "$lib/feedback/seen";
   import { fmtDate, fmtDateTime } from "$lib/format";
   import Author from "$lib/feedback/Author.svelte";
   import Thread from "$lib/feedback/Thread.svelte";
@@ -191,20 +192,14 @@
     shotsOpen = shots.length > 0;
   }
 
-  /** Marks an unread item seen once at least half of it has been on screen. */
+  /** Marks an unread item seen once half of it has stayed on screen for a moment (not while a jump scrolls past). */
   function seenWhenVisible(node: HTMLElement, item: FeedbackItem) {
     if (!item.unread) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        io.disconnect();
-        items = items.map((i) => (i.id === item.id ? { ...i, unread: false } : i));
-        feedbackUnread.markSeen(item.id);
-      },
-      { threshold: 0.5 },
-    );
-    io.observe(node);
-    return { destroy: () => io.disconnect() };
+    const stop = watchSeen(node, () => {
+      items = items.map((i) => (i.id === item.id ? { ...i, unread: false } : i));
+      feedbackUnread.markSeen(item.id);
+    });
+    return { destroy: stop };
   }
 
   function replace(next: FeedbackItem) {
