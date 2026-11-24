@@ -91,7 +91,15 @@ export function latinLang(text: string | null | undefined): "en" | undefined {
   return /[A-Za-z]/.test(text) && !/[\u0E00-\u0E7F]/.test(text) ? "en" : undefined;
 }
 
-const dayFmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlTag(current()), { timeZone: "UTC", ...opts });
+/** Building a formatter is slow (ICU data, worst in Thai) and a week renders dozens of dates: one per language and format. */
+const dayFmts = new Map<string, Intl.DateTimeFormat>();
+function dayFmt(opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const tag = intlTag(current());
+  const key = `${tag}|${JSON.stringify(opts)}`;
+  let fmt = dayFmts.get(key);
+  if (!fmt) dayFmts.set(key, (fmt = new Intl.DateTimeFormat(tag, { timeZone: "UTC", ...opts })));
+  return fmt;
+}
 const utc = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
 
 /** "Mon 17 Nov" / "จ. 17 พ.ย." */
