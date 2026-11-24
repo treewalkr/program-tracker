@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MediaQuery } from "svelte/reactivity";
   import { onMount, tick } from "svelte";
   import { ROLE_LABEL_CHIP_MAX, ROLE_LABEL_DESCRIPTION_MAX, ROLE_LABEL_NAME_MAX, builtinNameTwin, type RoleLabel } from "@pt/shared";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
@@ -15,6 +16,9 @@
   import { createLibraryGuard } from "$lib/libraryGuard.svelte";
   import { editChanged, hasDraft } from "$lib/libraryDraft";
   import { revealRow } from "$lib/revealRow";
+
+  /** Phones: placeholders vanish once typed in, so the fields keep visible labels. */
+  const narrow = new MediaQuery("(max-width: 720px)", false);
 
   /**
    * Role labels: the built-ins and the trainer's own, in rank order (the
@@ -119,7 +123,7 @@
   <div class="after">
     <SelectField
       {label}
-      hideLabel
+      hideLabel={!narrow.current}
       maxWidth="none"
       options={[{ value: "", label: "First" }, ...ordered.active.filter((o) => o.key !== except).map((o) => ({ value: o.key, label: `After ${o.name}` }))]}
       {value}
@@ -136,10 +140,10 @@
   </p>
 
   <form class="panel-body add" onsubmit={add} aria-label="Add a role label">
-    <div class="name"><InputField label="Label name" hideLabel placeholder="New label, e.g. Speed" bind:value={draft.name} maxlength={ROLE_LABEL_NAME_MAX} /></div>
-    <div class="chip"><InputField label="Chip (optional)" hideLabel placeholder={draft.name.trim() || "Chip"} bind:value={draft.chip} maxlength={ROLE_LABEL_CHIP_MAX} /></div>
+    <div class="name"><InputField label="Label name" hideLabel={!narrow.current} placeholder="New label, e.g. Speed" bind:value={draft.name} maxlength={ROLE_LABEL_NAME_MAX} /></div>
+    <div class="chip"><InputField label="Chip (optional)" hideLabel={!narrow.current} placeholder={draft.name.trim() || "Chip"} bind:value={draft.chip} maxlength={ROLE_LABEL_CHIP_MAX} /></div>
     <div class="meaning">
-      <InputField label="What it means" hideLabel placeholder="What it means, in one line" bind:value={draft.description} maxlength={ROLE_LABEL_DESCRIPTION_MAX} />
+      <InputField label="What it means" hideLabel={!narrow.current} placeholder="What it means, in one line" bind:value={draft.description} maxlength={ROLE_LABEL_DESCRIPTION_MAX} />
     </div>
     {@render afterSelect(draft.after ?? lastKey, (v) => (draft.after = v), null, "Position")}
     <Button variant="primary" type="submit" disabled={adding || !draft.name.trim() || !draft.description.trim()}>
@@ -156,17 +160,17 @@
           <form class="edit" onsubmit={(e) => { e.preventDefault(); save(l); }} aria-label="Edit {l.name}" onkeydown={(e) => { if (e.key === "Escape") void closeEdit(); }}>
             {#if l.builtinKey}
               <span class="name-text">{l.name}</span>
-              <div class="chip"><InputField label="Chip" hideLabel bind:input={firstField} bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={l.name} /></div>
+              <div class="chip"><InputField label="Chip" hideLabel={!narrow.current} bind:input={firstField} bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={l.name} /></div>
             {:else}
-              <div class="name"><InputField label="Name" hideLabel bind:input={firstField} bind:value={edit.name} maxlength={ROLE_LABEL_NAME_MAX} required /></div>
+              <div class="name"><InputField label="Name" hideLabel={!narrow.current} bind:input={firstField} bind:value={edit.name} maxlength={ROLE_LABEL_NAME_MAX} required /></div>
               <div class="chip">
-                <InputField label="Chip" hideLabel bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={edit.name.trim() || "Same as name"} />
+                <InputField label="Chip" hideLabel={!narrow.current} bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={edit.name.trim() || "Same as name"} />
               </div>
             {/if}
             <div class="meaning">
               <InputField
                 label="What it means"
-                hideLabel
+                hideLabel={!narrow.current}
                 bind:value={edit.description}
                 maxlength={ROLE_LABEL_DESCRIPTION_MAX}
                 placeholder={l.builtinKey ? "Empty = the default meaning" : "What it means"}
@@ -220,6 +224,8 @@
 <LeaveGuard guard={guard.asker} />
 
 <style>
+  /* Labelled fields on phones: buttons line up with the boxes, not the labels. */
+  @media (max-width: 720px) { .add, .edit { align-items: flex-end; } }
   .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
   .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .err { margin-bottom: 12px; }
