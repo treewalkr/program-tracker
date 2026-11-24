@@ -932,6 +932,24 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   .tabs, .head-actions, .x-scroll { scrollbar-width: none; }
   .tabs::-webkit-scrollbar, .head-actions::-webkit-scrollbar, .x-scroll::-webkit-scrollbar { display: none; }
 }
+/* The hint that a row scrolls: an edge fades while there is more past it
+   (right from the start, left once scrolled). Driven by the row's own scroll,
+   so a row that fits has no timeline and no fade; no support, no fade. */
+@property --fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes x-fade {
+  from { --fade-l: 0px; --fade-r: 32px; }
+  6% { --fade-l: 32px; }
+  94% { --fade-r: 32px; }
+  to { --fade-l: 32px; --fade-r: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  .tabs, .head-actions, .x-scroll {
+    mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+    animation: x-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
 
 /* —— misc ————————————————————————————— */
 
