@@ -55,11 +55,18 @@ export function feedbackLift(
   return Math.ceil(viewportHeight - bar.top);
 }
 
-/** The nearest fixed or sticky element holding `el` (itself included), below `<body>`. */
+/**
+ * Whether an element with this computed style can dock to the bottom: any
+ * fixed element, or a sticky one held from the bottom. A `sticky; top:`
+ * heading passing the pill is no bar to ride on.
+ */
+export const docksToBottom = (style: Pick<CSSStyleDeclaration, "position" | "bottom">): boolean =>
+  style.position === "fixed" || (style.position === "sticky" && style.bottom !== "auto");
+
+/** The nearest bottom-docking element holding `el` (itself included), below `<body>`. */
 function dockOf(el: Element | null): Element | null {
   for (let e = el; e && e !== document.body && e !== document.documentElement; e = e.parentElement) {
-    const pos = getComputedStyle(e).position;
-    if (pos === "fixed" || pos === "sticky") return e;
+    if (docksToBottom(getComputedStyle(e))) return e;
   }
   return null;
 }
