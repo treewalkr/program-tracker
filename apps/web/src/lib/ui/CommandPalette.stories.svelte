@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            "⌘K palette on a native modal dialog: a search field over grouped results. Not a select — it navigates and holds no value. ↑↓ wrap, PageUp/PageDown jump 8, Enter opens, ⌘/Ctrl+Enter opens in a new tab, Esc or the backdrop closes and focus goes back to the opener. Matches are marked like the selects' (OptionList).",
+            "⌘K palette on a native modal dialog: a search field over grouped results. Not a select — it navigates and holds no value. ↑↓ wrap, PageUp/PageDown jump 8, Enter opens, ⌘/Ctrl+Enter opens in a new tab, Esc, the backdrop or the esc chip (a 44px ✕ on touch screens) closes and focus goes back to the opener. Matches are marked like the selects' (OptionList).",
         },
       },
     },

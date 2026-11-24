@@ -13,7 +13,7 @@
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import GuideSearch from "$lib/guide/GuideSearch.svelte";
-  import { searchShortcut } from "$lib/guide/searchState.svelte";
+  import { openGuideSearch, searchShortcut } from "$lib/guide/searchState.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
   import { syncThemeAttribute } from "$lib/theme.svelte";
@@ -60,7 +60,8 @@
 
   syncThemeAttribute();
 
-  type NavGroup = { label: string; items: { href: string; label: string; icon: IconName }[] };
+  /** `short`: the label under the icon on a touch screen's rail (fits 56px at 10px). */
+  type NavGroup = { label: string; items: { href: string; label: string; short?: string; icon: IconName }[] };
   const baseGroups: NavGroup[] = [
     {
       label: "Workspace",
@@ -72,15 +73,15 @@
     {
       label: "Library",
       items: [
-        { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
-        { href: "/session-types", label: "Session types", icon: "layers" },
-        { href: "/cardio-library", label: "Cardio library", icon: "timer" },
-        { href: "/schemes", label: "Progression schemes", icon: "trending" },
-        { href: "/vocabulary", label: "Vocabulary", icon: "pencil" },
-        { href: "/chains", label: "Kinetic chains", icon: "link" },
+        { href: "/exercises", label: "Exercise library", short: "Exercises", icon: "dumbbell" },
+        { href: "/session-types", label: "Session types", short: "Sessions", icon: "layers" },
+        { href: "/cardio-library", label: "Cardio library", short: "Cardio", icon: "timer" },
+        { href: "/schemes", label: "Progression schemes", short: "Schemes", icon: "trending" },
+        { href: "/vocabulary", label: "Vocabulary", short: "Vocab", icon: "pencil" },
+        { href: "/chains", label: "Kinetic chains", short: "Chains", icon: "link" },
         { href: "/templates", label: "Templates", icon: "file" },
         { href: "/examples", label: "Examples", icon: "star" },
-        { href: "/rules", label: "Coaching rules", icon: "list-check" },
+        { href: "/rules", label: "Coaching rules", short: "Rules", icon: "list-check" },
       ],
     },
   ];
@@ -92,7 +93,7 @@
             label: "Platform",
             items: [
               { href: "/admin", label: "Trainers", icon: "lock" },
-              { href: "/admin/clients", label: "All clients", icon: "users" },
+              { href: "/admin/clients", label: "All clients", short: "Clients", icon: "users" },
               { href: "/admin/emails/outbox", label: "Outbox", icon: "send" },
             ],
           },
@@ -146,6 +147,8 @@
      on phones (≤640px), where the rail is hidden on every page. */
   const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(here));
   const sideOpen = $derived(!rail);
+  /* Phones hide the rail (and its Feedback dot): the menu button carries the unread dot. */
+  const menuUnread = $derived(phone && (!keepRail || focusRoute) && feedbackUnread.count > 0);
 
   function toggleKeepRail() {
     keepRail = !keepRail;
@@ -288,6 +291,7 @@
   >
     <Icon name={item.icon} />
     <span class="nav-text">{item.label}</span>
+    <span class="nav-short" aria-hidden="true">{item.short ?? item.label}</span>
     {#if item.href === "/clients" && clientCount !== null}
       <span class="count">{clientCount}</span>
     {/if}
@@ -436,12 +440,17 @@
         class="side-toggle"
         aria-controls="sidebar"
         aria-expanded={sideOpen}
-        aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
+        aria-label={(sideOpen ? "Collapse menu" : "Expand menu") + (menuUnread ? `, ${feedbackUnread.count} unread feedback` : "")}
         aria-keyshortcuts={isMac ? "Meta+B" : "Control+B"}
         title={toggleLabel}
         onclick={toggleSide}
       >
         <Icon name="sidebar" />
+        {#if menuUnread}<span class="menu-dot" aria-hidden="true"></span>{/if}
+      </button>
+      <!-- ⌘K's tap path: touch screens and narrow windows (CSS shows it). -->
+      <button type="button" class="side-toggle search" aria-label="Search the guides" onclick={() => openGuideSearch()}>
+        <Icon name="search" />
       </button>
     </div>
     {#if focusRoute && !drawerOpen}
@@ -450,10 +459,11 @@
         class="focus-menu"
         aria-controls="sidebar"
         aria-expanded="false"
-        aria-label="Open menu"
+        aria-label={menuUnread ? `Open menu, ${feedbackUnread.count} unread feedback` : "Open menu"}
         onclick={toggleSide}
       >
         <Icon name="sidebar" />
+        {#if menuUnread}<span class="menu-dot" aria-hidden="true"></span>{/if}
       </button>
     {/if}
     {#if apiMode === "mock"}
@@ -512,7 +522,23 @@
     /* below the view-as bar when there is one */
     top: var(--view-bar-h, 0px);
     height: calc(100vh - var(--view-bar-h, 0px));
-    overflow: hidden; /* labels clip at the edge while the column animates; only the nav scrolls */
+    /* dvh: iOS Safari's 100vh runs under its toolbar, hiding the foot. */
+    height: calc(100dvh - var(--view-bar-h, 0px));
+    /* Labels clip at the edge while the column animates. A menu taller than
+       the screen (the admin's Platform group on a phone or iPad landscape)
+       scrolls as one column: the foot follows the list instead of pinning
+       over it and hiding the last groups in an inner box. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    /* Thumb stays invisible until the menu is in use. */
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 160ms;
+  }
+  .side:hover,
+  .side:focus-within {
+    scrollbar-color: var(--line-strong) transparent;
   }
 
   /* Edge rail: rides the column's right border (and its animation), 6px each
@@ -527,6 +553,7 @@
     z-index: 5;
     width: 12px;
     height: calc(100vh - var(--view-bar-h, 0px));
+    height: calc(100dvh - var(--view-bar-h, 0px));
     margin-right: -6px;
     padding: 0;
     border: 0;
@@ -674,25 +701,8 @@
     flex-direction: column;
     gap: 16px;
   }
-  /* Header and foot stay put; a long admin nav scrolls between them. The
-     scroll box reaches into the side padding so focus rings aren't clipped. */
-  .nav.primary {
-    flex: 1;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    margin: -4px -8px;
-    padding: 4px 8px;
-    scrollbar-width: thin;
-    /* Thumb stays invisible until the nav is in use; the gutter keeps its
-       width so nothing shifts when it appears. */
-    scrollbar-color: transparent transparent;
-    transition: scrollbar-color 160ms;
-  }
-  .nav.primary:hover,
-  .nav.primary:focus-within {
-    scrollbar-color: var(--line-strong) transparent;
-  }
+  /* Takes the spare height so the foot sits at the bottom when the menu fits. */
+  .nav.primary { flex: 1 0 auto; }
   .group {
     display: flex;
     flex-direction: column;
@@ -832,8 +842,8 @@
   /* Icon rail: chosen on wide screens, the default on narrow ones. The 39px
      content box centres 32px buttons at x=11.5, so 16px icons land on x=20. */
   .shell.slim { grid-template-columns: 56px 1fr; }
-  .rail .nav.primary { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
-  .rail .nav.primary::-webkit-scrollbar { display: none; }
+  .rail .side { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
+  .rail .side::-webkit-scrollbar { display: none; }
   /* Rows keep their open-menu heights on the rail, so icons hold the same y
      both ways and the toggle only moves things sideways. */
   .rail .brand { flex: none; width: 32px; height: 48px; padding: 8px 0; }
@@ -899,6 +909,10 @@
        full width. Icons sit at x=20 in both layouts, so they hold still while
        the labels are uncovered. The end inset goes negative to let the shadow out. */
     --rail-w: 56px;
+    /* Clear the notch and home indicator when the app runs edge to edge. */
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
     animation: drawer-unfold 280ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .drawer.closing .side {
@@ -933,6 +947,55 @@
     .main { padding: 20px 16px 56px; }
   }
 
+  .side-toggle, .focus-menu { position: relative; }
+  /* Unread feedback on the menu button while the rail (and its dot) is hidden. */
+  .menu-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--blue);
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+  .focus-menu .menu-dot { top: 6px; right: 6px; }
+  .side-toggle.search { display: none; }
+  /* Touch screens (and narrow windows): a 44px target around each 28px topbar
+     button, without moving the title line, and the search button ⌘K can't
+     reach there. */
+  @media (max-width: 860px), (hover: none) {
+    .side-toggle::before { content: ""; position: absolute; inset: -8px; }
+    .side-toggle.search { display: grid; }
+    .topbar { gap: 16px; }
+  }
+
+  /* Touch screens have no hover, so rail tooltips never show: the rail
+     widens to 72px and names each icon underneath. */
+  .nav-short { display: none; }
+  @media (hover: none) {
+    .shell.slim { grid-template-columns: 72px 1fr; }
+    .drawer .side { --rail-w: 72px; }
+    .rail .nav-item {
+      flex-direction: column;
+      gap: 3px;
+      width: 56px;
+      height: 48px;
+    }
+    .rail .nav-short {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font: 500 10px/1.1 var(--font-ui);
+      color: var(--muted);
+    }
+    .rail .nav-item.active .nav-short { color: var(--ink); }
+    .rail .unread { top: 4px; right: calc(50% - 14px); }
+    /* No keyboard to press it with. */
+    .hint { display: none; }
+  }
+
   .focus-menu { display: none; }
   /* Phones give every page the full width: the rail hides and the menu
      button (top bar, or the corner on gym-floor routes) opens the drawer. */
@@ -940,9 +1003,6 @@
     .shell:not(.keep-rail).slim { grid-template-columns: 0 1fr; }
     .shell:not(.keep-rail).rail .side { display: none; }
     .shell:not(.keep-rail).drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
-    /* 44px touch target around the 28px toggle, without moving the title line. */
-    .side-toggle { position: relative; }
-    .side-toggle::before { content: ""; position: absolute; inset: -8px; }
     .shell.focus .main { padding: 12px 12px 56px; }
     .shell.focus .topbar { display: none; } /* the corner menu button covers it here */
     .focus-menu {

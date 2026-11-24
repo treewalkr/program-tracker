@@ -169,10 +169,20 @@
     border-color: var(--line-strong);
   }
 
-  /* Phones: across the top, under the notch, clear of the bottom launcher. */
+  /* Touch: a 44px target for ✕; the negative margin keeps the row's height. */
+  @media (hover: none) {
+    .dismiss {
+      width: 44px;
+      height: 44px;
+      margin: -9px -9px -9px 0;
+    }
+  }
+
+  /* Phones: across the top, under the notch, clear of the bottom launcher
+     and below the page's menu and search buttons (top bar ends ~56px). */
   @media (max-width: 520px) {
     .draft-notices {
-      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      top: calc(env(safe-area-inset-top, 0px) + 64px);
       bottom: auto;
       left: 8px;
       right: 8px;
