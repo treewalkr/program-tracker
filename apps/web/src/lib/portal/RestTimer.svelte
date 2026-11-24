@@ -1,32 +1,59 @@
+<script lang="ts" module>
+  import { idleRest, restIn, restRunning, type RestRun } from "./restTimer";
+
+  /** The rest in progress, outside any one timer: paging away and back finds it still counting. */
+  let run = $state<RestRun>(idleRest(null));
+
+  /** A rest is counting down in `session`: the log keeps the timer on screen until it ends. */
+  export const restActive = (session: string): boolean => restRunning(restIn(run, session), Date.now());
+</script>
+
 <script lang="ts">
   import { onDestroy } from "svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import { t } from "./i18n.svelte";
-  import { clock, secondsLeft } from "./restTimer";
+  import { clock, secondsLeft, startRest } from "./restTimer";
 
   /**
    * Tap-to-start rest countdown for the log screen. Runs off an end time so it
    * stays right through a locked screen; holds a screen wake lock while it runs
    * where the browser offers one, and quietly does without where it doesn't.
+   * One rest per session: a new session starts with none.
    */
-  let { seconds }: { seconds: number } = $props();
+  let { seconds, session }: { seconds: number; session: string } = $props();
 
-  let endsAt = $state<number | null>(null);
-  let total = $state(0);
+  type Sentinel = { released?: boolean; release(): Promise<void>; addEventListener?(type: "release", fn: () => void): void };
+  type WakeLock = { request(type: "screen"): Promise<Sentinel> };
+
+  const mine = $derived(restIn(run, session));
   let now = $state(Date.now());
-  let finished = $state(false);
   let timer: ReturnType<typeof setInterval> | null = null;
-  let lock: { release(): Promise<void> } | null = null;
+  let lock: Sentinel | null = null;
+  /** A wake-lock request is out: don't send another. */
+  let asking = false;
 
-  const left = $derived(endsAt == null ? 0 : secondsLeft(endsAt, now));
-  const running = $derived(endsAt != null && left > 0);
+  const left = $derived(mine.endsAt == null ? 0 : secondsLeft(mine.endsAt, now));
+  const running = $derived(mine.endsAt != null && left > 0);
 
   async function holdScreen() {
+    if (asking || (lock && !lock.released)) return;
+    asking = true;
     try {
-      const wl = (navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<{ release(): Promise<void> }> } }).wakeLock;
-      lock = (await wl?.request("screen")) ?? null;
+      const got = (await (navigator as Navigator & { wakeLock?: WakeLock }).wakeLock?.request("screen")) ?? null;
+      // stopped (or finished) while the request was out: hand it straight back
+      if (got && !restRunning(run, Date.now())) {
+        got.release().catch(() => {});
+        return;
+      }
+      lock = got;
+      // the browser lets go whenever the tab hides: forget it, so coming back asks again
+      got?.addEventListener?.("release", () => {
+        if (lock === got) lock = null;
+      });
     } catch {
       lock = null; // denied, low battery, or unsupported: the timer still runs
+    } finally {
+      asking = false;
     }
   }
   function letScreenSleep() {
@@ -34,11 +61,15 @@
     lock = null;
   }
 
+  function ticking() {
+    timer ??= setInterval(tick, 250);
+  }
+
   function tick() {
     now = Date.now();
-    if (endsAt != null && secondsLeft(endsAt, now) === 0) {
+    if (mine.endsAt != null && secondsLeft(mine.endsAt, now) === 0) {
       stop();
-      finished = true;
+      run = { ...run, finished: true };
       try {
         navigator.vibrate?.([180, 80, 180]);
       } catch {
@@ -48,29 +79,40 @@
   }
 
   function start() {
-    total = seconds;
-    endsAt = Date.now() + seconds * 1000;
     now = Date.now();
-    finished = false;
-    timer ??= setInterval(tick, 250);
+    run = startRest(session, seconds, now);
+    ticking();
     void holdScreen();
   }
 
-  function stop() {
+  /** Let go of this timer's interval and lock; the rest itself carries on. */
+  function release() {
     if (timer) clearInterval(timer);
     timer = null;
-    endsAt = null;
     letScreenSleep();
   }
+
+  function stop() {
+    release();
+    run = { ...restIn(run, session), endsAt: null };
+  }
+
+  // mounted mid-rest (paged back to it, or reopened the session): pick the countdown up
+  $effect(() => {
+    if (!restRunning(mine, Date.now())) return;
+    now = Date.now();
+    ticking();
+    void holdScreen();
+  });
 
   // the browser drops the wake lock when the tab hides; take it back on return
   function onVisible() {
     if (document.visibilityState !== "visible") return;
     tick();
-    if (running && !lock) void holdScreen();
+    if (running && (!lock || lock.released)) void holdScreen();
   }
 
-  onDestroy(stop);
+  onDestroy(release);
 </script>
 
 <svelte:document onvisibilitychange={onVisible} />
@@ -82,14 +124,14 @@
       <span class="v tnum" aria-hidden="true">{clock(left)}</span>
     </div>
     <button type="button" class="btn stop" onclick={stop}>{t("rest.stop")}</button>
-    <div class="bar" aria-hidden="true"><span style:width={`${(left / Math.max(1, total)) * 100}%`}></span></div>
+    <div class="bar" aria-hidden="true"><span style:width={`${(left / Math.max(1, mine.total)) * 100}%`}></span></div>
   {:else}
     <button type="button" class="btn start" onclick={start}>
-      <Icon name="timer" />{finished ? t("rest.again", { t: clock(seconds) }) : t("rest.start", { t: clock(seconds) })}
+      <Icon name="timer" />{mine.finished ? t("rest.again", { t: clock(seconds) }) : t("rest.start", { t: clock(seconds) })}
     </button>
   {/if}
-  <p class="sr-only" role="status">{finished ? t("rest.done") : ""}</p>
-  {#if finished}<p class="done" aria-hidden="true">{t("rest.done")}</p>{/if}
+  <p class="sr-only" role="status">{mine.finished ? t("rest.done") : ""}</p>
+  {#if mine.finished}<p class="done" aria-hidden="true">{t("rest.done")}</p>{/if}
 </div>
 
 <style>

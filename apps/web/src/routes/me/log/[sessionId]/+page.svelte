@@ -38,7 +38,7 @@
     type PortalRow,
   } from "$lib/portal/logForm";
   import PortalBar from "$lib/portal/PortalBar.svelte";
-  import RestTimer from "$lib/portal/RestTimer.svelte";
+  import RestTimer, { restActive } from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
   import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
   import Button from "$lib/ui/Button.svelte";
@@ -815,9 +815,9 @@
             </div>
           {/if}
 
-          {#if blockRest}
-            <!-- one timer for the whole session: paging to the next exercise doesn't reset a running rest -->
-            <RestTimer seconds={blockRest} />
+          {#if blockRest || restActive(session.id)}
+            <!-- one timer for the whole session: paging to an exercise without a rest keeps a running one on screen -->
+            <RestTimer seconds={blockRest ?? 0} session={session.id} />
           {/if}
 
           {#if current < blocks.length - 1}
