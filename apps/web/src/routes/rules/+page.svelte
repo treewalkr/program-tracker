@@ -277,7 +277,7 @@
   .broken { color: var(--bad); }
   .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .scope { width: 200px; max-width: 100%; }
-  .f { display: grid; gap: 4px; min-width: 0; }
+  .f { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
   .lbl { font: 500 12px var(--font-ui); color: var(--ink); }
 
   .origin { font-size: 12px; color: var(--muted); }
