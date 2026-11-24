@@ -25,6 +25,24 @@
   const remove = async () => {};
 </script>
 
+<script lang="ts">
+  // Saves and deletes really change the list, so the "Saved" note can be seen to clear when its test is deleted.
+  let live = $state<AssessmentDto[]>([...three]);
+  let n = 0;
+  const createLive = async (input: AssessmentInput) => {
+    const row = { ...three[2], id: `live-${++n}`, ...input, result: 46.1 } as AssessmentDto;
+    live = [...live, row];
+    return row;
+  };
+  const removeLive = async (id: string) => {
+    live = live.filter((a) => a.id !== id);
+  };
+</script>
+
+<Story name="Save, then delete" asChild>
+  <ClientAssessments member={nok} assessments={live} today="2026-11-22" oncreate={createLive} ondelete={removeLive} />
+</Story>
+
 <Story name="Three Cooper tests" asChild>
   <ClientAssessments member={nok} assessments={three} today="2026-11-22" oncreate={create} ondelete={remove} />
 </Story>
