@@ -156,24 +156,26 @@
   /** The builder's own width: under 600px (a half-width editor, a phone) the targets drop to a second line. */
   let width = $state(0);
   const narrow = $derived(width > 0 && width < 600);
-  const cols = $derived(narrow ? 6 : 8);
+  /** An iPhone SE card (~250px): distance and remove join the second line too, so nothing hides off the edge. */
+  const tiny = $derived(width > 0 && width < 340);
+  const cols = $derived(tiny ? 4 : narrow ? 6 : 8);
 </script>
 
 <div class="ib" bind:clientWidth={width}>
   <div class="scroll">
-    <table class="sheet" class:narrow>
+    <table class="sheet" class:narrow class:tiny>
       <thead>
         <tr>
           <th class="ord"><span class="sr-only">Order</span></th>
           <th>Type</th>
-          <th class="r">Repeat</th>
+          <th class="r">{tiny ? "Reps" : "Repeat"}</th>
           <th class="r">Time</th>
-          <th class="r">{narrow ? "Dist. m" : "Distance m"}</th>
+          {#if !tiny}<th class="r">{narrow ? "Dist. m" : "Distance m"}</th>{/if}
           {#if !narrow}
             <th>Target</th>
             <th class="r">RPE</th>
           {/if}
-          <th><span class="sr-only">Remove</span></th>
+          {#if !tiny}<th><span class="sr-only">Remove</span></th>{/if}
         </tr>
       </thead>
       <tbody>
@@ -197,6 +199,12 @@
             </span></span>
             <span class="note"><InputCell label="Note for {name}" placeholder="Note" value={iv.notes ?? ""} oncommit={(v) => patch(i, { notes: v.trim() ? v.trim().slice(0, 280) : undefined })} /></span>
           {/snippet}
+          {#snippet distCell()}
+            <InputCell label="Distance in metres of {name}" figure placeholder="—" value={iv.distanceM != null ? String(iv.distanceM) : ""} oncommit={(v) => patch(i, { distanceM: numOrUndef(v) })} />
+          {/snippet}
+          {#snippet removeBtn()}
+            <button type="button" class="icon-btn" aria-label="Remove {name}" onclick={() => remove(i)}><Icon name="x" size={12} /></button>
+          {/snippet}
           {#snippet rpeCell()}
             <InputCell label="RPE of {name}" figure placeholder="—" value={iv.rpe != null ? String(iv.rpe) : ""} oncommit={(v) => { const n = numOrUndef(v, false); patch(i, { rpe: n != null ? Math.min(10, Math.max(1, n)) : undefined }); }} />
           {/snippet}
@@ -208,26 +216,30 @@
             <td class="type"><SelectCell label="Type of {name}" options={TYPE_OPTIONS} value={iv.type} onchange={(t) => patch(i, { type: t })} /></td>
             <td class="r w-rep"><InputCell label="Repeats of {name}" figure value={String(iv.repeat ?? 1)} oncommit={(v) => patch(i, { repeat: Math.min(50, Math.max(1, numOrUndef(v) ?? 1)) })} /></td>
             <td class="r w-time"><InputDuration label="Time of {name}" cell step={15} value={iv.durationSec ?? null} onchange={(s) => patch(i, { durationSec: s && s > 0 ? s : undefined })} /></td>
-            <td class="r w-dist"><InputCell label="Distance in metres of {name}" figure placeholder="—" value={iv.distanceM != null ? String(iv.distanceM) : ""} oncommit={(v) => patch(i, { distanceM: numOrUndef(v) })} /></td>
+            {#if !tiny}<td class="r w-dist">{@render distCell()}</td>{/if}
             {#if !narrow}
               <td class="target">{@render zoneCell()}</td>
               <td class="r w-rpe">{@render rpeCell()}</td>
             {/if}
-            <td><button type="button" class="icon-btn" aria-label="Remove {name}" onclick={() => remove(i)}><Icon name="x" size={12} /></button></td>
+            {#if !tiny}<td>{@render removeBtn()}</td>{/if}
           </tr>
           <!-- pace, bpm band and note sit on a line of their own; a narrow editor adds the zone and RPE to it, so no column is cut off -->
           <tr class="sub row-{kindOf(iv.type)}">
             <td></td>
-            <td colspan={cols - 2}>
+            <td colspan={tiny ? cols - 1 : cols - 2}>
               <span class="sub-line">
+                {#if tiny}
+                  <span class="tg"><span class="lbl">Dist.</span><span class="dist">{@render distCell()}</span><span class="unit">m</span></span>
+                {/if}
                 {#if narrow}
                   <span class="tg"><span class="lbl">Target</span>{@render zoneCell()}</span>
                   <span class="tg"><span class="lbl">RPE</span><span class="rpe">{@render rpeCell()}</span></span>
                 {/if}
                 {@render targetsLine()}
+                {#if tiny}<span class="end">{@render removeBtn()}</span>{/if}
               </span>
             </td>
-            <td></td>
+            {#if !tiny}<td></td>{/if}
           </tr>
           {#if iv.type === "work"}
             <tr class="rec">
@@ -236,11 +248,11 @@
                 <td class="rec-type"><span class="arrow" aria-hidden="true">↳</span><SelectCell label="Recovery type after {name}" options={RECOVERY_OPTIONS} value={recoveryOf(iv).type} onchange={(t) => patch(i, { recovery: { ...recoveryOf(iv), type: t } })} /></td>
                 <td class="r muted mono">{narrow ? "" : "between · "}{recoveryCount(iv)}×</td>
                 <td class="r w-time"><InputDuration label="Recovery time after {name}" cell step={15} value={iv.recovery.durationSec ?? null} onchange={(s) => patch(i, { recovery: { ...recoveryOf(iv), durationSec: s && s > 0 ? s : undefined } })} /></td>
-                <td class="r w-dist"><InputCell label="Recovery distance after {name}" figure placeholder="—" value={iv.recovery.distanceM != null ? String(iv.recovery.distanceM) : ""} oncommit={(v) => patch(i, { recovery: { ...recoveryOf(iv), distanceM: numOrUndef(v) } })} /></td>
+                {#if !tiny}<td class="r w-dist">{@render recDist(iv, i, name)}</td>{/if}
                 {#if !narrow}
                   <td colspan="2"></td>
                 {/if}
-                <td><button type="button" class="icon-btn" aria-label="Remove the recovery after {name}" onclick={() => patch(i, { recovery: undefined, recoveryAfterLast: undefined })}><Icon name="x" size={12} /></button></td>
+                {#if !tiny}<td>{@render recRemove(i, name)}</td>{/if}
               {:else}
                 <td colspan={cols - 1}><button type="button" class="link" onclick={() => patch(i, { recovery: { type: "active_recovery", durationSec: 120 } })}>+ Recovery between reps</button></td>
               {/if}
@@ -250,7 +262,7 @@
               {@const recBpm = zoneBpm(zones, rec.hrZone)}
               <tr class="rec sub">
                 <td></td>
-                <td colspan={cols - 2}>
+                <td colspan={tiny ? cols - 1 : cols - 2}>
                   <span class="sub-line">
                     <span class="tg"><span class="lbl">Target</span>
                     <span class="zone"><SelectCell label="HR zone of the recovery after {name}" options={zoneOptions} value={rec.hrZone != null ? String(rec.hrZone) : ""} onchange={(z) => patchRecovery(i, { hrZone: z ? Number(z) : undefined })} /></span>
@@ -258,10 +270,12 @@
                     {#if pace}
                       <span class="tg"><span class="lbl">Pace</span>{@render paceInput(`Pace of the recovery after ${name}`, rec.paceSecPerKm, (v) => patchRecovery(i, { paceSecPerKm: v }))}</span>
                     {/if}
+                    {#if tiny}<span class="tg"><span class="lbl">Dist.</span><span class="dist">{@render recDist(iv, i, name)}</span><span class="unit">m</span></span>{/if}
                     <span class="after">{@render afterLast(iv, i)}</span>
+                    {#if tiny}<span class="end">{@render recRemove(i, name)}</span>{/if}
                   </span>
                 </td>
-                <td></td>
+                {#if !tiny}<td></td>{/if}
               </tr>
             {/if}
           {/if}
@@ -282,6 +296,14 @@
   {:else if pace?.kind === "speed"}
     <span class="pace speed"><InputCell {label} figure width={5} placeholder="—" value={secPerKm != null ? String(pace.show(secPerKm)) : ""} oncommit={(v) => { const n = numOrUndef(v, false); set(n != null ? pace.store(n) : undefined); }} /><span class="unit">{pace.unit}</span></span>
   {/if}
+{/snippet}
+
+{#snippet recDist(iv: CardioInterval, i: number, name: string)}
+  <InputCell label="Recovery distance after {name}" figure placeholder="—" value={iv.recovery?.distanceM != null ? String(iv.recovery.distanceM) : ""} oncommit={(v) => patch(i, { recovery: { ...recoveryOf(iv), distanceM: numOrUndef(v) } })} />
+{/snippet}
+
+{#snippet recRemove(i: number, name: string)}
+  <button type="button" class="icon-btn" aria-label="Remove the recovery after {name}" onclick={() => patch(i, { recovery: undefined, recoveryAfterLast: undefined })}><Icon name="x" size={12} /></button>
 {/snippet}
 
 {#snippet afterLast(iv: CardioInterval, i: number)}
@@ -323,12 +345,28 @@
   .sheet.narrow th, .sheet.narrow td { padding-left: 2px; padding-right: 2px; }
   .sheet.narrow tbody td:first-child { padding-left: 4px; }
   .sheet.narrow { min-width: 300px; }
+  .sheet.tiny { min-width: 0; }
+  .sheet.tiny .type { width: auto; }
+  .sheet.tiny tbody td:first-child { padding-left: 2px; }
+  /* the cell input reaches past its padding; keep that inside the box at the right edge */
+  .sheet.tiny tr > :last-child { padding-right: 6px; }
+  /* move up / down stacked, so the order column takes one arrow's width */
+  .sheet.tiny .ord .icon-btn { display: flex; padding: 2px 1px; }
+  .dist { display: inline-block; width: 6ch; }
+  .end { margin-left: auto; }
   tr.has-sub td { border-bottom: 0; }
   tr.sub td { padding-top: 0; }
   .sub-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
   .lbl { font: 500 12px var(--font-ui); color: var(--muted); }
+  /* the cell inputs reach past their own box; keep them off the label */
+  .sub-line .lbl { margin-right: 4px; }
   .sub-line .zone { min-width: 52px; }
   .band, .pace { display: inline-flex; align-items: center; gap: 2px; }
+  /* the dash between the bpm boxes keeps its own room, never drawn over them */
+  .band { gap: 6px; }
+  .band > span[aria-hidden] { flex-shrink: 0; padding-inline: 2px; }
+  /* an iPhone SE card: the second line wraps its chip rather than pushing the table wide */
+  .sheet.tiny .after :global(button) { white-space: normal; text-align: left; }
   .pace-in { display: inline-block; width: 8ch; }
   .unit { font: 400 12px var(--font-mono); color: var(--muted); margin-left: 2px; }
   .note { flex: 1 1 200px; min-width: 160px; }
