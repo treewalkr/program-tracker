@@ -9,7 +9,7 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Counter from "$lib/ui/Counter.svelte";
-  import Field from "$lib/ui/Field.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -363,33 +363,27 @@
             first sign-in. <a class="how" href="/guide/trainer-access">How trainer access works</a>
           </p>
           <div class="fields">
-            <Field label="Name" htmlFor="t-name" error={shownErr.name}>
-              <input
-                class="input"
-                id="t-name"
-                bind:value={name}
-                maxlength="120"
-                autocomplete="off"
-                placeholder="Full name"
-                onblur={() => attempted && (errs.name = nameErr)}
-                aria-invalid={shownErr.name ? "true" : undefined}
-                aria-describedby={shownErr.name ? "t-name-err" : undefined}
-              />
-            </Field>
-            <Field label="Google email" htmlFor="t-email" error={shownErr.email}>
-              <input
-                class="input"
-                id="t-email"
-                type="email"
-                bind:value={email}
-                maxlength="254"
-                autocomplete="off"
-                placeholder="name@gmail.com"
-                onblur={() => attempted && (errs.email = emailErr)}
-                aria-invalid={shownErr.email ? "true" : undefined}
-                aria-describedby={shownErr.email ? "t-email-err" : undefined}
-              />
-            </Field>
+            <InputField
+              label="Name"
+              id="t-name"
+              bind:value={name}
+              maxlength={120}
+              autocomplete="off"
+              placeholder="Full name"
+              error={shownErr.name}
+              onblur={() => attempted && (errs.name = nameErr)}
+            />
+            <InputField
+              label="Google email"
+              id="t-email"
+              type="email"
+              bind:value={email}
+              maxlength={254}
+              autocomplete="off"
+              placeholder="name@gmail.com"
+              error={shownErr.email}
+              onblur={() => attempted && (errs.email = emailErr)}
+            />
           </div>
           <div class="foot">
             <Button variant="primary" type="submit" disabled={adding}>
