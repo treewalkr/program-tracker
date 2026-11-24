@@ -165,6 +165,13 @@
     };
   });
 
+  // On the root, so the draft notices above the pill rise with it (lift.ts).
+  $effect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--feedback-auto-lift", `${autoLift}px`);
+    return () => root.style.removeProperty("--feedback-auto-lift");
+  });
+
   // Keep outlines glued to their elements through scroll and resize.
   $effect(() => {
     if (!feedbackMode.on) return;
@@ -414,7 +421,6 @@
     class="bar"
     bind:this={barEl}
     class:on={feedbackMode.on}
-    style:--feedback-auto-lift="{autoLift}px"
     {@attach (el) => watchBottomBars(el, (px) => (autoLift = px))}
     role="toolbar"
     aria-label="Feedback mode"

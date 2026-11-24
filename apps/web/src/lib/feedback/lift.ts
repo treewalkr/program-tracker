@@ -12,9 +12,14 @@ import { isFeedbackUi } from "./capture";
  *   a composer at the foot of a full-height layout that isn't positioned at
  *   all (`liftFeedback`), or a page that docks the pill itself (the log sheet).
  *
- * The pill takes the larger of the two.
+ * The pill takes the larger of the two. The automatic lift is published on
+ * the root as `--feedback-auto-lift`, so what floats above the pill (the draft
+ * notices) can rise with it; such an element carries `data-no-lift` so the
+ * pill never rides on it in turn.
  */
 const INSET = 16;
+/** Marks a fixed element that moves with the pill, never one it rides on. */
+export const NO_LIFT_ATTR = "data-no-lift";
 /** The idle pill when it can't be measured: about 130 × 40. */
 const PILL = { width: 130, height: 40 };
 
@@ -79,7 +84,7 @@ export function watchBottomBars(pill: HTMLElement, onlift: (px: number) => void)
       for (const fy of [0.2, 0.8]) {
         const x = home.left + (home.right - home.left) * fx;
         const y = home.top + (home.bottom - home.top) * fy;
-        const hit = document.elementsFromPoint(x, y).find((e) => !isFeedbackUi(e));
+        const hit = document.elementsFromPoint(x, y).find((e) => !isFeedbackUi(e) && !e.closest(`[${NO_LIFT_ATTR}]`));
         const dock = dockOf(hit ?? null);
         if (!dock || seen.has(dock)) continue;
         seen.add(dock);

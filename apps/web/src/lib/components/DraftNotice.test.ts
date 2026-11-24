@@ -16,6 +16,11 @@ const n = (id: string, over: Partial<Notice> = {}): Notice => ({
 const noop = () => {};
 
 describe("DraftNotice", () => {
+  test("the stack is never a bar the Feedback pill rides on: it moves with the pill instead", () => {
+    const { body } = render(DraftNotice, { props: { notices: [n("a")], onopen: noop, ondismiss: noop } });
+    expect(body).toMatch(/<section[^>]*class="draft-notices[^"]*"[^>]*data-no-lift/);
+  });
+
   test("ready notice: title, Review link, dismiss", () => {
     const { body } = render(DraftNotice, { props: { notices: [n("a")], onopen: noop, ondismiss: noop } });
     expect(body).toContain("Ada’s draft a is ready");
