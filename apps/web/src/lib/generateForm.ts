@@ -75,12 +75,12 @@ export function generateSubtitle(i: {
 }): string {
   const { firstName, current, weekMode: w, plannedWeeks, recentLogs: n } = i;
   if (w) {
-    return `Re-drafts week ${w} of ${plannedWeeks} from this week's logs. The pre-drafted week ${w} is replaced when you approve.`;
+    return `Re-drafts ${firstName}'s week ${w} of ${plannedWeeks} from this week's logs. The pre-drafted week ${w} is replaced when you approve.`;
   }
   if (current) {
     return n > 0
-      ? `Builds on “${current.name}” and ${n} logged session${s(n)} from the last 8 weeks.`
-      : `Builds on “${current.name}”. No sessions logged in the last 8 weeks.`;
+      ? `Builds on “${current.name}” for ${firstName} and ${n} logged session${s(n)} from the last 8 weeks.`
+      : `Builds on “${current.name}” for ${firstName}. No sessions logged in the last 8 weeks.`;
   }
   return n > 0
     ? `${firstName} has no active program; this draft reads the profile and ${n} logged session${s(n)} from the last 8 weeks.`

@@ -174,6 +174,12 @@ describe("ledgerRows", () => {
 describe("generateSubtitle", () => {
   const base = { firstName: "Ada", current: null, weekMode: null, plannedWeeks: 6, recentLogs: 0 };
 
+  test("week mode names whose week it re-drafts", () => {
+    expect(generateSubtitle({ ...base, weekMode: 3 })).toBe(
+      "Re-drafts Ada's week 3 of 6 from this week's logs. The pre-drafted week 3 is replaced when you approve."
+    );
+  });
+
   test("cold start subtitle says profile alone", () => {
     expect(generateSubtitle(base)).toBe(
       "Ada has no active program and no logged sessions, so this draft starts from the profile alone."
@@ -189,9 +195,9 @@ describe("generateSubtitle", () => {
   test("active subtitle counts real logs", () => {
     const current = mkProgram({ id: "p", name: "Base", status: "active" });
     expect(generateSubtitle({ ...base, current, recentLogs: 1 })).toBe(
-      "Builds on “Base” and 1 logged session from the last 8 weeks."
+      "Builds on “Base” for Ada and 1 logged session from the last 8 weeks."
     );
-    expect(generateSubtitle({ ...base, current })).toBe("Builds on “Base”. No sessions logged in the last 8 weeks.");
+    expect(generateSubtitle({ ...base, current })).toBe("Builds on “Base” for Ada. No sessions logged in the last 8 weeks.");
   });
 });
 

@@ -576,7 +576,7 @@
   const DAY_NAMES = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 </script>
 
-<svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
+<svelte:head><title>{program?.name ?? "Program"}{clientName ? ` · ${clientName.split(" ")[0]}` : ""} · Program Tracker</title></svelte:head>
 
 {#if program === null}
   <!-- Loading: the loaded layout's shape — head, week tabs, toolbars, calendar, session cards. -->
@@ -615,6 +615,8 @@
     <div>
       <h1>{program.name} <StatusPill status={program.status} /></h1>
       <p class="sub">
+        <!-- Phones and the installed app swap the crumb trail for Back: say whose program this is. -->
+        {#if clientName}<span class="for-member">For <strong>{clientName}</strong> · </span>{/if}
         {programSubline(program, savedAt, weekLine(weekDates))}
         {#if program.status === "active"}<button type="button" class="edit-link sub-link" onclick={() => (startDialog = "change")}>Change</button>{/if}
       </p>
@@ -1041,6 +1043,9 @@
   .mark-actions .hint { margin: 0; }
   @media (max-width: 980px) { .mark-form { grid-template-columns: 1fr; } }
   .readonly-note { margin: 0; }
+  .for-member { display: none; }
+  .for-member strong { color: var(--ink); font-weight: 600; }
+  @media (max-width: 860px), (display-mode: standalone) { .for-member { display: inline; } }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
   .tab-dates { margin-left: 4px; font-weight: 500; }
