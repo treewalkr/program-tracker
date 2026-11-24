@@ -4,7 +4,7 @@
   import { page } from "$app/state";
   import { api } from "$lib/api";
   import { CLIENT_MESSAGE_MAX_CHARS } from "@pt/shared";
-  import { loggedBlockWeeks } from "$lib/messageWeeks";
+  import { loggedBlockWeeks, switchDraftWeek, type OpenDraft } from "$lib/messageWeeks";
   import type { ClientDto, ClientMessageDto, ProgramDto, SessionLogDto } from "$lib/api/types";
   import { fmtDate } from "$lib/format";
   import StatusPill from "$lib/components/StatusPill.svelte";
@@ -21,6 +21,8 @@
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
 
   const id = $derived(page.params.id ?? "");
   const paramWeek = $derived(new URLSearchParams(page.url.search).get("week"));
@@ -38,6 +40,20 @@
   let draftError = $state<string | null>(null);
   let approving = $state(false);
   let actionError = $state<string | null>(null);
+  /**
+   * Drafts set aside by switching week, with the trainer's edits: a drafted
+   * message costs an AI call and isn't listed in history until approved or
+   * rejected, so switching back restores it rather than dropping it.
+   */
+  let parked = $state<Record<number, OpenDraft<ClientMessageDto>>>({});
+
+  /** Weeks holding a draft that isn't approved or rejected yet, open one included. */
+  const pendingWeeks = $derived(
+    [
+      ...Object.keys(parked).map(Number),
+      ...(draftMsg?.status === "validated" && selectedWeek != null ? [selectedWeek] : []),
+    ].sort((a, b) => a - b)
+  );
 
   const signalLogs = $derived(
     logs.map((l) => ({
@@ -80,12 +96,27 @@
 
   function pickWeek(week: number) {
     if (week === selectedWeek) return;
+    const next = switchDraftWeek(parked, selectedWeek, draftMsg && { msg: draftMsg, text }, week);
+    parked = next.parked;
     selectedWeek = week;
-    draftMsg = null;
-    text = "";
+    draftMsg = next.open?.msg ?? null;
+    text = next.open?.text ?? "";
     draftError = null;
     actionError = null;
   }
+
+  const guard = createLeaveGuard({
+    dirty: () => pendingWeeks.length > 0,
+    prompt: () => {
+      const weeks = pendingWeeks.map((w) => `W${w}`).join(", ");
+      const one = pendingWeeks.length === 1;
+      return {
+        title: one ? "Discard this draft?" : "Discard these drafts?",
+        body: `The drafted message${one ? "" : "s"} for ${weeks} ${one ? "isn't" : "aren't"} approved yet. Leaving drops ${one ? "it" : "them"} and your edits; drafting again uses a new AI call.`,
+        leaveLabel: one ? "Discard draft" : "Discard drafts",
+      };
+    },
+  });
 
   async function draft() {
     if (!current || selectedWeek == null) return;
@@ -145,6 +176,8 @@
   const stats = $derived(draftMsg?.stats ?? null);
 </script>
 
+<LeaveGuard {guard} />
+
 {#if loading}
   <SkeletonHead label="Loading messages…" />
   <div class="weekbar" aria-hidden="true">
@@ -193,9 +226,10 @@
         class="tchip"
         class:on={selectedWeek === w}
         aria-pressed={selectedWeek === w}
+        disabled={drafting}
         onclick={() => pickWeek(w)}
       >
-        W{w}
+        W{w}{#if pendingWeeks.includes(w)}<span class="draft-dot" aria-hidden="true"></span><span class="sr-only">, unapproved draft</span>{/if}
       </button>
     {/each}
     <div class="weekbar-actions">
@@ -339,6 +373,17 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     margin-right: 2px;
+  }
+  .weekbar .tchip:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .draft-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
   }
   .weekbar-actions {
     margin-left: auto;
