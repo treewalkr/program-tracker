@@ -835,7 +835,7 @@
                   <span class="logged-tag" class:not-done={!tag.done}>{#if tag.done}<Icon name="check" size={12} />{/if} {tag.text}
                     {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}</span>
                   {#each logsOf(s.id) as l (l.id)}
-                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip">{cardioLine(l.cardio)}</span>{/if}
+                    {#if s.kind === "cardio" && l.cardio}<span class="log-chip" class:skipped={!!l.cardio.skipped}>{cardioLine(l.cardio)}{#if l.cardio.skipped && tag.done} · not done{/if}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
                     {@const extras = s.kind === "exercises" ? extraSets(l, s.exercises) : []}
                     {#if extras.length > 0}
@@ -979,7 +979,7 @@
             <div class="logline">
               <span class="log-date">{logDateLabel(l.date)}</span>
               {#if l.kind === "cardio"}
-                <span class="log-chip">{cardioLine(l.cardio)}</span>
+                <span class="log-chip" class:skipped={!!l.cardio?.skipped}>{cardioLine(l.cardio)}{#if l.cardio?.skipped} · not done{/if}</span>
               {:else}
                 {#each l.sets as d, di (di)}<span class="log-chip">{nameOf(d.exerciseId)} {loggedSetLabel(d, false)}</span>{/each}
               {/if}
@@ -1227,6 +1227,8 @@
     background: var(--well);
     color: var(--ink);
   }
+  /* a skip reads like its Not done tag: muted, never as a done chip */
+  .log-chip.skipped { background: none; color: var(--muted); padding: 0; }
   .other-logs { margin-top: 18px; }
   .exnotes { margin: -4px 0 8px; }
   .exname {
