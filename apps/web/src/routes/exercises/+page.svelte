@@ -42,6 +42,8 @@
   import SelectPrefixed from "$lib/ui/SelectPrefixed.svelte";
   import { listUrlState } from "$lib/list/urlState.svelte";
   import { pageOf } from "@pt/shared";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
 
   const TABS = ["all", "mine", "untagged", "archived"] as const satisfies readonly Tab[];
   const MAP_KEY = "pt.exercises.map";
@@ -66,6 +68,20 @@
 
   /** Inspector: an exercise id, "new", or closed. `nonce` remounts it. */
   let editing = $state<{ id: string | "new"; prefill?: Partial<ExerciseForm>; nonce: number } | null>(null);
+  /** The open inspector holds edits that aren't saved. */
+  let inspectorDirty = $state(false);
+  const guard = createLibraryGuard({
+    dirty: () => editing !== null && inspectorDirty,
+    what: () => (editingExercise ? `Your edit to ${editingExercise.name}` : "Your new exercise"),
+    queryStays: true,
+  });
+  /** Close the inspector, asking first when it holds unsaved edits. */
+  async function closeInspector() {
+    if (!(await guard.discard())) return false;
+    editing = null;
+    inspectorDirty = false;
+    return true;
+  }
   const editingExercise = $derived(editing && editing.id !== "new" ? (list.find((e) => e.id === editing!.id) ?? null) : null);
 
   const rows = $derived(visibleRows(list, { tab, q, filters, sort }));
@@ -237,7 +253,8 @@
           : tags
       );
       put(row);
-      editing = { id: row.id, nonce: Date.now() };
+      inspectorDirty = false;
+    editing = { id: row.id, nonce: Date.now() };
       flash(`Saved ${row.name}.`);
       return;
     }
@@ -255,6 +272,7 @@
       filters = emptyFilters();
       view.update({ q: "", params: { tab: "mine" } });
     }
+    inspectorDirty = false;
     editing = { id: row.id, nonce: Date.now() };
     flash(`Created ${row.name} in your exercises.`);
   }
@@ -263,7 +281,8 @@
   let splitEl = $state<HTMLElement>();
   let searchEl = $state<HTMLInputElement>();
 
-  function open(id: string | "new", prefill?: Partial<ExerciseForm>) {
+  async function open(id: string | "new", prefill?: Partial<ExerciseForm>) {
+    if (editing && !(await closeInspector())) return;
     editing = { id, prefill, nonce: Date.now() };
     tick().then(() => {
       if (splitEl && splitEl.getBoundingClientRect().top < 0) splitEl.scrollIntoView({ block: "start", behavior: smooth() });
@@ -420,7 +439,7 @@
     if (ev.key === "Escape") {
       if (menu) return closeMenu();
       if (t.closest("input, textarea, select")) return (t as HTMLInputElement).blur();
-      if (editing) editing = null;
+      if (editing) void closeInspector();
       return;
     }
     if (t.closest("input, textarea, select, [contenteditable]") || ev.metaKey || ev.ctrlKey || ev.altKey) return;
@@ -642,7 +661,8 @@
           exercise={editingExercise}
           prefill={editing.prefill}
           {list}
-          onclose={() => (editing = null)}
+          onclose={closeInspector}
+          ondirty={(d) => (inspectorDirty = d)}
           onsave={save}
           onremove={remove}
           onrestore={(e) => setArchived([e.id], false)}
@@ -654,6 +674,8 @@
     {/if}
   </div>
 {/if}
+
+<LeaveGuard guard={guard.asker} />
 
 {#if menu}
   <div class="menu" role="menu" aria-label={menu.label} bind:this={menuEl} style="left:{menu.x}px; top:{menu.y}px">
