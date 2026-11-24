@@ -398,9 +398,9 @@
   });
 
   async function load() {
-    program = await api.program(id);
-    baseline = snapshot(program);
-    deloadUndo = new Map();
+    // Build the page off-screen and show it only once its opening week is known: shown early it sat
+    // on W1 until the member's logs landed, and "+ Exercise session" tapped then went into W1.
+    const p = await api.program(id);
     [catalog, types] = await Promise.all([api.exercises(), api.sessionTypes()]);
     // cardio editor: the modality list and templates (a failed read leaves the free-text path)
     api.modalities().then((m) => (modalities = m), () => {});
@@ -408,19 +408,24 @@
     const mine = await api.examples(id);
     existingExample = mine[0] ?? null;
     if (!existingExample) marking = false;
-    if (program?.clientId) {
-      const detail = await api.client(program.clientId);
+    let pLogs: SessionLogDto[] = [];
+    if (p.clientId) {
+      const detail = await api.client(p.clientId);
       clientName = detail.client.name;
       trainingDays = detail.client.trainingDays ?? [];
       cardioDays = detail.client.cardioDays ?? null;
       longRunDay = detail.client.longRunDay ?? null;
       oneRepMaxes = detail.client.oneRepMaxes ?? null;
       deload = clientDeload(detail.client);
-      logs = await api.sessionLogs(program.clientId, program.id).catch(() => []);
-      api.hrProfiles(program.clientId).then((v) => (hrVersions = v), () => {});
+      pLogs = await api.sessionLogs(p.clientId, p.id).catch(() => []);
+      api.hrProfiles(p.clientId).then((v) => (hrVersions = v), () => {});
     }
+    logs = pLogs;
+    program = p;
+    baseline = snapshot(p);
+    deloadUndo = new Map();
     // Open on the client's current week (FB-017: edits on a finished week never reached them).
-    currentWeekIndex = openingWeekIndex(weekTabDates(program, logs, today));
+    currentWeekIndex = openingWeekIndex(weekTabDates(p, pLogs, today));
   }
 
   async function markAsExample() {
