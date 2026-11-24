@@ -184,8 +184,11 @@ const km2 = (km: number) => `${showDistance(km).toFixed(2)} ${distanceUnit()}`;
 const paceText = (p: ReturnType<typeof cardioPace>) =>
   p?.metric === "pace" ? fmtPace(p.secPerKm) : p?.metric === "split" ? `${formatDuration(p.secPer500m)} /500 m` : p?.metric === "speed" ? fmtSpeed(p.kmh) : null;
 
+/** The heart-rate target the member was given: a coach's bpm band overrides its zone, as on the member's card. */
 function planZone(rx: CardioPrescription, zones: LogPrescription["zonesBpm"]): string | null {
-  const work = rx.intervals?.find((i) => i.type === "work" && i.hrZone != null);
+  const work = rx.intervals?.find((i) => i.type === "work" && (i.hrBpm != null || i.hrZone != null));
+  const band = work ? work.hrBpm : rx.hrBpm;
+  if (band) return `${work ? "work · " : ""}${band.min}–${band.max} bpm`;
   const z = work?.hrZone ?? rx.hrZone ?? null;
   if (z == null) return null;
   const b = zoneBpm(zones, z);

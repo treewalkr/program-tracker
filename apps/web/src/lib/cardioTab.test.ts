@@ -111,4 +111,16 @@ describe("plan vs actual", () => {
     expect(free.some((r) => r.label === "Work reps")).toBe(false);
     expect(planSource(null)).toContain("Freestyle");
   });
+
+  test("a bpm band the coach set is the plan, not the zone it overrides", () => {
+    const bike = (cardio: ProgramSession["cardio"]): LogPrescription => ({ ...plan, session: { ...intervals, cardio } });
+    const ride: CardioLog = { modality: "Cycling", durationSec: 3690, rpe: 4, avgHr: 140 };
+    const hr = (p: LogPrescription) => reviewRows(ride, p, "speed").find((r) => r.label === "Heart rate")!.plan;
+    expect(hr(bike({ modality: "Cycling", durationMin: 60, hrZone: 2, hrBpm: { min: 135, max: 145 } }))).toBe("135–145 bpm");
+    // a band with no zone still has a plan
+    expect(hr(bike({ modality: "Cycling", durationMin: 60, hrBpm: { min: 135, max: 145 } }))).toBe("135–145 bpm");
+    // a work interval's own band wins over its zone
+    const work = intervals.cardio!.intervals!.map((iv) => (iv.type === "work" ? { ...iv, hrBpm: { min: 160, max: 170 } } : iv));
+    expect(hr(bike({ modality: "Running", intervals: work }))).toBe("work · 160–170 bpm");
+  });
 });

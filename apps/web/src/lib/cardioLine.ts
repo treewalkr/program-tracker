@@ -5,7 +5,7 @@ import { SKIP_REASON_LABEL } from "./cardioForm";
 import { logDateLabel } from "./programLogs";
 
 /** What a cardio line reads: a prescription (targetRpe) or a log (rpe). */
-export type CardioLineSource = Partial<Pick<CardioPrescription, "durationMin" | "hrZone" | "intensity" | "distanceKm" | "targetRpe">> &
+export type CardioLineSource = Partial<Pick<CardioPrescription, "durationMin" | "hrZone" | "hrBpm" | "intensity" | "distanceKm" | "targetRpe">> &
   Partial<Pick<CardioLog, "rpe">> & {
     modality: string;
     /** A prescription's intervals; a log's per-rep results are ignored here. */
@@ -61,7 +61,8 @@ export function cardioLine(c: CardioLineSource | null | undefined): string {
   return [
     c.modality,
     c.durationMin ? `${c.durationMin} min` : null,
-    c.hrZone ? `Z${c.hrZone}` : null,
+    // the coach's own band overrides the zone, so it replaces it
+    c.hrBpm ? `${c.hrBpm.min}–${c.hrBpm.max} bpm` : c.hrZone ? `Z${c.hrZone}` : null,
     coachIntensity(c.intensity),
     c.distanceKm ? fmtDistance(c.distanceKm) : null,
     rpe ? `RPE ${rpe}` : null,
