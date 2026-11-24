@@ -2,6 +2,7 @@
   import { localDateOf, startsOnWindow, type SignalProgram } from "@pt/shared";
   import { movedLogs, movedSummary, nextMonday, startIssue, startLine } from "$lib/startDate";
   import { weekdayDayMonth } from "$lib/programEdit";
+  import InputDate from "$lib/ui/InputDate.svelte";
 
   /**
    * "Week 1 starts on": one date decides the block's calendar. On the
@@ -102,22 +103,15 @@
             ? "Every week of the block counts from this day, for you and in the client portal."
             : "Every week moves with it. Logged sessions keep their dates."}
         </p>
-        <label class="label" for="{uid}-date">Week 1 starts on</label>
+        <span class="label" aria-hidden="true">Week 1 starts on</span>
         <div class="pick">
-          <input
-            class="input"
-            id="{uid}-date"
-            type="date"
-            min={range.earliest}
-            max={range.latest}
-            aria-invalid={issue ? "true" : undefined}
-            aria-describedby="{uid}-line"
-            bind:value={date}
-          />
+          <div class="date">
+            <InputDate label="Week 1 starts on" hideLabel {today} min={range.earliest} max={range.latest} error={issue} bind:value={date} />
+          </div>
           <button type="button" class="btn ghost small" aria-pressed={date === today} onclick={() => (date = today)}>Today</button>
           <button type="button" class="btn ghost small" aria-pressed={date === nextMonday(today)} onclick={() => (date = nextMonday(today))}>Next Monday</button>
         </div>
-        <p class="line" id="{uid}-line" aria-live="polite" class:bad={!!issue}>{issue ?? line}</p>
+        <p class="line" aria-live="polite">{line ?? ""}</p>
       {:else}
         <h2 id="{uid}-title">Move Week 1 to {weekdayDayMonth(date)}?</h2>
         <p class="lede">{line}. {movedSummary(moved)}</p>
@@ -190,12 +184,12 @@
   .pick {
     display: flex;
     gap: 8px;
-    align-items: center;
+    align-items: flex-start;
     flex-wrap: wrap;
   }
-  .pick .input {
-    width: auto;
-    flex: 1 1 160px;
+  .pick .date {
+    flex: 1 1 100%;
+    min-width: 0;
   }
   .btn[aria-pressed="true"] {
     background: var(--active);
@@ -206,10 +200,6 @@
     margin: 8px 0 18px;
     font: 500 13px/1.45 var(--font-mono);
     color: var(--ink);
-  }
-  .line.bad {
-    font-family: var(--font-ui);
-    color: var(--bad);
   }
   .moved {
     margin: -6px 0 18px;
