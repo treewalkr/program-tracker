@@ -21,8 +21,11 @@
   import { api } from "$lib/api";
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, AssessmentDto, AssessmentInput, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
+  import { draftState } from "$lib/draftState";
+  import DraftBanner from "$lib/components/DraftBanner.svelte";
+  import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import { blockPulse, weekOf, type WeekMetrics } from "$lib/metrics";
-  import { FEED_ONLY_KINDS, oneRepMaxKg, plannedVolume, profileOn, pulseCellSets, type PulseCell } from "@pt/shared";
+  import { FEED_ONLY_KINDS, oneRepMaxKg, plannedVolume, profileOn, pulseCellSets, type PulseCell, type SignalProgram } from "@pt/shared";
   import { maxHrUntested } from "$lib/hrProfile";
   import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
@@ -67,7 +70,19 @@
   };
   let current = $state<ProgramDto | null>(null);
   let programs = $state<ProgramDto[] | null>(null);
-  let latestGen = $state<GenerationDto | null>(null);
+  let gens = $state<GenerationDto[]>([]);
+  const latestGen = $derived(gens[0] ?? null);
+  /** A draft waiting for review, or an approved block not yet active — what the generate form also shows. */
+  const drafts = $derived(draftState(gens, programs ?? []));
+  let activateOpen = $state(false);
+  /** Make the approved-but-inactive block live from `startsOn` (an error shows in the dialog), then reload around it. */
+  async function activateApproved(startsOn: string) {
+    const p = drafts.approved?.program;
+    if (!p) return;
+    await api.setProgramStatus(p.id, "active", startsOn);
+    activateOpen = false;
+    await load();
+  }
   let chainWeekData = $state<ChainWeekDto | null>(null);
   let sessionLogRows = $state<SessionLogDto[]>([]);
   let saving = $state(false);
@@ -272,7 +287,7 @@
     idEmail = detail.client.email ?? "";
     idPhone = detail.client.phone ?? "";
     savedId = idKey();
-    latestGen = (await api.generations(id))[0] ?? null;
+    gens = await api.generations(id);
   }
 
   // ---- Cardio tab ----
@@ -504,7 +519,7 @@
       <Button href={`/clients/${id}/programs/new`}>Write program</Button>
       <Button variant="primary" href={`/clients/${id}/generate`}>
         {#snippet icon()}<Icon name="sparkle" />{/snippet}
-        {current ? "Generate next block" : "Generate first program"}
+        {drafts.ready ? "Review draft" : current ? "Generate next block" : "Generate first program"}
       </Button>
     </div>
   </div>
@@ -514,6 +529,30 @@
       <span>AI draft is generating in the background — it keeps going even with this page closed.</span>
       <Button variant="ghost" href={`/clients/${id}/generate?watch=1`}>Watch progress</Button>
     </Note>
+  {/if}
+  {#if drafts.ready}
+    {@const r = drafts.ready}
+    <DraftBanner
+      class="draft-state"
+      title={`Draft v${r.version} ready`}
+      text={r.gen.kind === "week" && r.gen.targetWeek ? `Week ${r.gen.targetWeek} re-draft for ${firstName} is waiting for your review.` : `${firstName}'s ${r.gen.kind === "fill" ? "fill" : "next block"} is waiting for your review.`}
+    >
+      {#snippet actions()}<Button small href={`/clients/${id}/generate`}>Review</Button>{/snippet}
+    </DraftBanner>
+  {/if}
+  {#if drafts.approved}
+    {@const a = drafts.approved}
+    <DraftBanner
+      class="draft-state"
+      title={`v${a.version} approved, not active`}
+      text={`“${a.program.name}” — ${firstName} can't see it yet, and new drafts can't build on it until you activate it.`}
+    >
+      {#snippet actions()}
+        <Button small href={`/programs/${a.program.id}`}>Open</Button>
+        <Button small type="button" onclick={() => (activateOpen = true)}>Activate</Button>
+      {/snippet}
+    </DraftBanner>
+    <StartDateDialog mode={activateOpen ? "activate" : null} program={a.program as SignalProgram} onconfirm={activateApproved} onclose={() => (activateOpen = false)} />
   {/if}
 
   {#if visibleSignals.length > 0}
@@ -1091,6 +1130,7 @@
     margin: 18px 0 0;
   }
 
+  :global(.draft-state) { margin: 18px 0 0; }
   .sig-panel { margin: 18px 0 0; }
   .deload-pf { margin-top: 16px; }
   .cardio-stack { display: grid; gap: 16px; }
