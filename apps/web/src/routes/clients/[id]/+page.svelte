@@ -15,6 +15,7 @@
   import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
+  import { replaceState } from "$app/navigation";
   import { api } from "$lib/api";
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, AssessmentDto, AssessmentInput, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
@@ -106,7 +107,10 @@
 
   function setTab(t: typeof tab) {
     tab = t;
-    history.replaceState(null, "", `#${t}`);
+    // SvelteKit's replaceState keeps its history.state; a raw null wipes it and Back stops working
+    const url = new URL(location.href);
+    url.hash = t;
+    replaceState(url, page.state);
   }
 
   async function snooze(signal: SignalDto) {
