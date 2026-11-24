@@ -58,7 +58,7 @@
     {@const words = text.scale[sc.field]}
     <div class="rd">
       <span class="rd-label" id={`rd-${sc.field}`}>{words.label} <span class="faint">1 {words.low} · {sc.max} {words.high}</span></span>
-      <div class="seg rd-scale" class:wrap={sc.max > 5} role="group" aria-labelledby={`rd-${sc.field}`}>
+      <div class="seg rd-scale" role="group" aria-labelledby={`rd-${sc.field}`}>
         {#each Array.from({ length: sc.max }, (_, i) => i + 1) as v (v)}
           <button
             type="button"
@@ -114,12 +114,16 @@
   /* ---- Touch: the client portal — always open, full-width scales, 44px taps ---- */
   .readiness.touch { display: grid; gap: 16px; padding: 4px 0 0; border-bottom: 0; }
   .touch .rd-label { font-size: 14px; color: var(--ink); }
-  .touch .rd-scale { display: flex; }
-  .touch .seg button { flex: 1; min-width: 44px; height: 44px; font-size: 16px; }
-  /* 1–10 can't fit ten 44px cells on a phone: two rows of five, hairlines drawn by the gap */
-  .touch .rd-scale.wrap { display: grid; grid-template-columns: repeat(5, minmax(44px, 1fr)); gap: 1px; background: var(--line); }
-  .touch .rd-scale.wrap button + button { border-left: 0; }
+  .touch .seg button { height: 44px; font-size: 16px; }
+  .touch .rd-scale { --cell: 44px; }
   .touch .rd-hint { margin-left: 0; }
+
+  /* Scales that wrap: at most five cells a row, fewer once a cell would drop under --cell
+     (1–10 is two rows of five on a phone; at large text or 195 px nothing runs off the edge,
+     and a short last row stretches). Hairlines are drawn by the gap. */
+  .touch .rd-scale { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); }
+  .touch .rd-scale button { flex: 1 0 max(var(--cell), 20% - 1px); min-width: 0; }
+  .touch .rd-scale button + button { border-left: 0; }
 
   /* ---- Narrow sheet: fold to one line ---- */
   @container logform (max-width: 679px) {
@@ -143,8 +147,10 @@
     .rd-toggle-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
     .rd-toggle :global(svg) { flex: 0 0 auto; width: 16px; height: 16px; transition: transform 150ms ease-out; }
     .rd-toggle[aria-expanded="true"] :global(svg) { transform: rotate(180deg); }
-    .rd-scale { display: flex; }
-    .seg button { flex: 1; min-width: 0; height: 40px; font-size: 14px; }
+    /* Same wrap as touch; 28px cells still fit five a row at 195 px (200 % text on a phone) */
+    .rd-scale { --cell: 28px; display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); }
+    .rd-scale button + button { border-left: 0; }
+    .seg button { flex: 1 0 max(var(--cell), 20% - 1px); min-width: 0; height: 40px; font-size: 14px; }
     .rd-hint { margin-left: 0; }
   }
 </style>

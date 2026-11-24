@@ -24,6 +24,8 @@
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   const label = $derived(model || provider?.model || "model");
   const effortLabel = $derived(effort || provider?.defaultEffort || "");
+  /** The visible text alone ("deepseek-flash") said nothing about what the button is for. */
+  const name = $derived(`AI model: ${label}${effortLabel ? ` · ${effortSummary(effortLabel)}` : ""}`);
 </script>
 
 <svelte:window
@@ -43,6 +45,7 @@
     class="ms-btn"
     aria-expanded={open}
     aria-controls="ms-pop"
+    aria-label={name}
     title="Change model"
     onclick={() => (open = !open)}
   >

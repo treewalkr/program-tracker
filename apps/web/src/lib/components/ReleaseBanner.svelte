@@ -56,7 +56,7 @@
 {/if}
 
 <style>
-  /* A toast: one row, bottom-centre, floats over the page and leaves by itself. */
+  /* A toast: one row, bottom-centre (top on phones), floats over the page and leaves by itself. */
   .toast {
     position: fixed;
     bottom: calc(16px + env(safe-area-inset-bottom));
@@ -98,9 +98,13 @@
   .close :global(svg) { width: 14px; height: 14px; }
   .close:hover { color: var(--ink); background: var(--line-soft); }
   .close:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
-  /* Phone: sit above the Feedback pill's row and let the message wrap. */
-  @media (max-width: 640px) {
-    .toast { bottom: 68px; width: max-content; max-width: calc(100vw - 32px); }
+  /* Phone and touch screens: drop in from the top. The bottom edge is where save bars and the
+     Feedback pill live, and a toast there covered "Save profile". The message may wrap. */
+  @media (max-width: 640px), (hover: none) and (pointer: coarse) {
+    .toast { top: calc(env(safe-area-inset-top, 0px) + 8px); bottom: auto; animation-name: toast-down; }
     .msg { flex: 1; }
+  }
+  @keyframes toast-down {
+    from { opacity: 0; transform: translateY(-12px); }
   }
 </style>

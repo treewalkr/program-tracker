@@ -554,7 +554,7 @@
       </div>
 
       {#if rows.length}
-        <div class="tw">
+        <div class="tw x-scroll">
           <table class="sheet">
             <thead>
               <tr>
