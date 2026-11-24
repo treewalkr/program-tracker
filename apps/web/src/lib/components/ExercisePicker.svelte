@@ -4,6 +4,10 @@
   import { exerciseMeta, groupByPattern, guessExercise, searchExercises } from "$lib/exerciseSearch";
   import { EQUIPMENT_OPTIONS, MUSCLE_OPTIONS } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
   import PatternChips from "./PatternChips.svelte";
 
   /**
@@ -56,6 +60,9 @@
   );
   /** Options incl. the trailing create row. */
   const count = $derived(flat.length + (canCreate ? 1 : 0));
+
+  const muscleOptions: SelectOption[] = MUSCLE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
+  const equipmentOptions: SelectOption[] = EQUIPMENT_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
 
   type Draft = { name: string; primaryMuscleGroup: string; equipment: string; movementPatterns: string[] };
   let draft = $state<Draft | null>(null);
@@ -197,7 +204,7 @@
   </button>
 
   {#if open}
-    <div class="xp-pop">
+    <div class="xp-pop" class:draft>
       {#if draft}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <form class="xp-new" onsubmit={submitCreate} onkeydown={onDraftKey} aria-label="New exercise">
@@ -209,25 +216,20 @@
             <span class="xp-new-sub">Saved to your library</span>
           </div>
           <div class="xp-new-body">
-            <label class="xp-f">
-              <span>Name</span>
-              <input bind:this={nameInput} bind:value={draft.name} class="input" required maxlength="120" autocomplete="off" />
-            </label>
+            <InputField label="Name" bind:value={draft.name} bind:input={nameInput} required maxlength={120} autocomplete="off" />
             <div class="xp-new-grid">
-              <label class="xp-f">
+              <div class="xp-f">
                 <span>Main muscle</span>
-                <select bind:value={draft.primaryMuscleGroup} class="select" required>
-                  <option value="" disabled>Choose…</option>
-                  {#each MUSCLE_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
-                </select>
-              </label>
-              <label class="xp-f">
-                <span>Equipment</span>
-                <select bind:value={draft.equipment} class="select" required>
-                  <option value="" disabled>Choose…</option>
-                  {#each EQUIPMENT_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
-                </select>
-              </label>
+                <SelectCombobox
+                  label="Main muscle"
+                  placeholder="Choose…"
+                  emptyText="No muscles match"
+                  options={muscleOptions}
+                  value={draft.primaryMuscleGroup || undefined}
+                  onchange={(m) => draft && (draft.primaryMuscleGroup = m)}
+                />
+              </div>
+              <SelectField label="Equipment" maxWidth="none" options={equipmentOptions} value={draft.equipment || undefined} onchange={(v) => draft && (draft.equipment = v)} />
               <div class="xp-f wide xp-patterns" role="group" aria-labelledby="{uid}-patterns">
                 <span><span id="{uid}-patterns">Movement patterns</span> <em>optional · <span class="xp-star" aria-hidden="true"><Icon name="star" /></span>primary</em></span>
                 <PatternChips bind:value={draft.movementPatterns} />
@@ -394,6 +396,8 @@
     z-index: 20;
     overflow: hidden;
   }
+  /* the new-exercise form's lists open past the popover's edge */
+  .xp-pop.draft { overflow: visible; }
 
   .xp-search {
     display: flex;
@@ -531,7 +535,6 @@
   .xp-star :global(svg) { width: 11px; height: 11px; fill: currentColor; vertical-align: -1px; margin-right: 2px; }
   .xp-f > span { font: 500 12px var(--font-ui); color: var(--ink); }
   .xp-f em { font-style: normal; font-weight: 400; color: var(--muted); }
-  .xp-f .input, .xp-f .select { width: 100%; font-size: 14px; }
   .xp-err { margin: 0; font-size: 12px; color: var(--bad); }
   .xp-new-foot {
     display: flex;
@@ -540,6 +543,7 @@
     padding: 8px 12px;
     border-top: 1px solid var(--line-soft);
     background: var(--well);
+    border-radius: 0 0 var(--radius) var(--radius);
   }
 
   @media (max-width: 600px) {
