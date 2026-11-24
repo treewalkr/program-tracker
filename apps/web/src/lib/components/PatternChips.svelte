@@ -6,7 +6,8 @@
   /**
    * Movement-pattern toggle chips, grouped (Upper / Lower / Core / Other) with
    * "No pattern" on its own row. The first selected is the primary (★); a
-   * selected secondary splits into ☆ (make primary) and its label (remove).
+   * selected secondary splits into a ☆ segment (make primary), a divider, and
+   * its label with × (remove) — 44 px targets each on touch.
    * A full list disables the rest. "Multi-movement" (in Other) is a marker,
    * never the primary: it sits last and carries no star. The caller wraps it
    * in a labelled group.
@@ -31,7 +32,9 @@
     <span class="tchip on split">
       <button type="button" class="star" aria-label="Make {name} primary" title="Make primary" onclick={() => (value = makePrimary(value, p))}
         ><Icon name="star" /></button
-      ><button type="button" class="lbl" aria-pressed="true" onclick={() => (value = togglePattern(value, p))}>{name}</button>
+      ><button type="button" class="lbl" aria-label="Remove {name}" onclick={() => (value = togglePattern(value, p))}
+        >{name}<span class="x" aria-hidden="true"><Icon name="x" size={12} /></span></button
+      >
     </span>
   {:else}
     <button
@@ -72,8 +75,15 @@
     appearance: none; border: 0; background: none; color: inherit; font: inherit; cursor: pointer;
     display: inline-flex; align-items: center;
   }
-  .split .star { padding: 4px 2px 4px 10px; border-radius: 99px 0 0 99px; }
-  .split .lbl { padding: 4px 12px 4px 4px; border-radius: 0 99px 99px 0; }
+  /* the ☆ is its own segment behind a divider, so a near-miss never lands on remove */
+  .split .star { padding: 4px 8px 4px 10px; border-radius: 99px 0 0 99px; border-right: 1px solid currentColor; border-right-color: color-mix(in srgb, currentColor 30%, transparent); }
+  .split .lbl { gap: 4px; padding: 4px 10px 4px 8px; border-radius: 0 99px 99px 0; }
+  .split .x { display: inline-flex; opacity: 0.7; }
+  .split .lbl:hover .x { opacity: 1; }
+  @media (pointer: coarse) {
+    .split .star { min-width: 44px; min-height: 44px; justify-content: center; }
+    .split .lbl { min-height: 44px; }
+  }
   .split .star:hover :global(svg) { fill: currentColor; }
   .split button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   .tchip.none:not(.on) { border-style: dashed; }
