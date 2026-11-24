@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InputField from "$lib/ui/InputField.svelte";
   import { FEEDBACK_FIX_COMMENT_MAX, type FeedbackComment, type FeedbackFixRating, type FeedbackItem } from "@pt/shared";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -103,13 +104,13 @@
     {#if open}
       <div class="tray">
         <span class="ask">What's still wrong? Optional — it goes on the ticket as your reply.</span>
-        <input
-          class="input note"
+        <InputField
+          hideLabel
+          label="What's still wrong"
           placeholder="e.g. still too small on my phone"
-          aria-label="What's still wrong"
           maxlength={FEEDBACK_FIX_COMMENT_MAX}
           bind:value={comment}
-          onkeydown={(e) => {
+          onkeydown={(e: KeyboardEvent) => {
             if (e.key === "Enter" && !e.isComposing) void save(-1);
             if (e.key === "Escape") open = false;
           }}
@@ -206,10 +207,6 @@
     border: 1px solid var(--line);
     border-radius: 6px;
     background: var(--surface);
-  }
-  .note {
-    width: 100%;
-    font-size: 13px;
   }
   .actions {
     display: flex;

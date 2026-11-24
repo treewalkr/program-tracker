@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InputField from "$lib/ui/InputField.svelte";
   import {
     FEEDBACK_ANSWER_COMMENT_MAX,
     FEEDBACK_ANSWER_TAGS,
@@ -154,13 +155,13 @@
             <ToggleChip on={tags.includes(tag)} onclick={() => toggle(tag)}>{FEEDBACK_ANSWER_TAG_LABELS[tag]}</ToggleChip>
           {/each}
         </div>
-        <input
-          class="input note"
+        <InputField
+          hideLabel
+          label="What was wrong"
           placeholder="Tell us more (optional)"
-          aria-label="What was wrong"
           maxlength={FEEDBACK_ANSWER_COMMENT_MAX}
           bind:value={comment}
-          onkeydown={(e) => {
+          onkeydown={(e: KeyboardEvent) => {
             if (e.key === "Enter" && !e.isComposing) void save(-1);
             if (e.key === "Escape") open = false;
           }}
@@ -280,10 +281,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-  }
-  .note {
-    width: 100%;
-    font-size: 13px;
   }
   .actions {
     display: flex;
