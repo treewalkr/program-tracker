@@ -156,12 +156,27 @@
     }
   }
 
+  /** Deleting the open template: narrow goes back to the list, wide opens its neighbour in Yours. */
   async function remove(id: string) {
     listError = null;
+    const wasOpen = picked?.id === id;
+    const ownBefore = entries.filter((e) => e.kind === "own");
+    const at = ownBefore.findIndex((e) => e.id === id);
+    const name = ownBefore[at]?.name ?? "the template";
     try {
       await api.deleteInstructionTemplate(id);
       if (editingId === id) editingId = null;
+      // narrow: back to the list first, so the reader never shows another template
+      if (wasOpen && narrow) {
+        selId = null;
+        await backToList();
+      }
       await load();
+      if (wasOpen && !narrow) {
+        const own = entries.filter((e) => e.kind === "own");
+        selId = (own[at] ?? own[at - 1] ?? entries[0])?.id ?? null;
+      }
+      announce(`Deleted ${name}.`);
     } catch (e) {
       listError = (e as Error).message;
     }
@@ -381,6 +396,7 @@
 <div class="lib-wrap" bind:clientWidth={libWidth}>
 <div class="lib" class:reading>
   <aside class="rail" aria-label="Templates">
+    {#if narrow && !reading}<p class="notice" role="status">{#if notice}<Icon name="check" size={14} />{notice}{/if}</p>{/if}
     <div class="bar">
       <div class="find"><InputSearch label="Search templates" bind:value={q} /></div>
       <Button variant="primary" onclick={startNew}>New template</Button>
@@ -485,6 +501,8 @@
               {picked.summary ?? `Updated ${fmtDate(picked.updatedAt!)}`}
             </p>
           </div>
+          <!-- keyed: a new template's buttons are new, never the last one's armed or hovered Delete -->
+          {#key picked.id}
           <div class="rd-actions">
             {#if picked.kind === "builtin"}
               <Button variant="primary" onclick={() => copyAndSelect(picked.preset!)} disabled={copyingKey === picked.preset!.key}>
@@ -495,6 +513,7 @@
               <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => remove(picked.id)} variant="ghost" class="danger" />
             {/if}
           </div>
+          {/key}
         </header>
         <div class="rd-grid">
           <div class="rd-rules">
@@ -685,6 +704,7 @@
   .reader :global(#rd-title:focus) { outline: none; }
   .notice { display: flex; align-items: center; gap: 6px; margin: 0; font: 500 13px var(--font-ui); color: var(--good); }
   .notice:not(:empty) { margin-bottom: 12px; }
+  .rail > .notice:not(:empty) { margin-bottom: 0; }
   .rd-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 22px; }
   .rd-head > div:first-child { min-width: 0; flex: 1 1 280px; }
   .rd-head h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; text-wrap: balance; }
