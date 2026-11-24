@@ -40,3 +40,14 @@
     Upper body
   </ToggleChip>
 </Story>
+
+<Story name="Long label wraps in a narrow row" asChild>
+  <div style="display: flex; gap: 6px; flex-wrap: wrap; width: 320px; border: 1px dashed var(--line); padding: 6px;">
+    <ToggleChip>Weekly volume</ToggleChip>
+    <ToggleChip on>
+      <Icon name="check" />
+      ห้ามกระโดดสำหรับลูกค้าที่เจ็บเข่า 🦵 no jumping, no plyometrics, low-impact cardio only
+    </ToggleChip>
+    <ToggleChip>Deload</ToggleChip>
+  </div>
+</Story>

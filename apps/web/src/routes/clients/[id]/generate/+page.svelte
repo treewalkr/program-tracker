@@ -1046,7 +1046,7 @@
   .nobr { white-space: nowrap; }
   .fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .sz { font: 400 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; opacity: 0.75; }
-  .rules { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+  .rules { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; min-width: 0; border-top: 1px solid var(--line-soft); }
   .rules .lbl { font-size: 12px; color: var(--muted); margin-right: 2px; }
   .row { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 8px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
   .spacer { flex: 1; }
