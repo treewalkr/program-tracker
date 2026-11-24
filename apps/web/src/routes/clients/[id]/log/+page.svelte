@@ -1287,10 +1287,10 @@
     <Panel title="Session">
       {#snippet act()}
         <div class="head-controls collapsed" inert>
-          <div class="hc-summary"><span class="hc-sum-text"><Skeleton shape="line" h="12px" w="min(272px, calc(100vw - 96px))" /></span></div>
+          <div class="hc-summary"><span class="hc-sum-text"><Skeleton shape="line" h="12px" w="min(292px, calc(100vw - 96px))" /></span></div>
           <span class="hc-pair"><Skeleton h="32px" w="95px" class="sk-pick" /></span>
           <span class="hc-pair"><Skeleton h="32px" w="285px" class="sk-pick" /></span>
-          <span class="hc-pair date"><Skeleton h="32px" w="220px" class="sk-pick" /></span>
+          <span class="hc-pair date"><Skeleton h="32px" w="292px" class="sk-pick" /></span>
         </div>
       {/snippet}
       <div class="sheet">
@@ -1844,7 +1844,7 @@
   .head-controls :global(.sk-pick) { max-width: 100%; }
   /* A label never wraps away from its field. */
   .hc-pair { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
-  .hc-pair.date { width: 220px; }
+  .hc-pair.date { width: 292px; }
   .tnum { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
   /* ---- The sheet: one block per prescribed exercise, one row per set ---- */
