@@ -22,6 +22,9 @@
     if (req && !dialog.open) {
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       dialog.showModal();
+      // Chromium's dialog focusing steps can land on the first button (the
+      // destructive one) despite `autofocus`; put it on the safe choice.
+      dialog.querySelector<HTMLElement>("[autofocus]")?.focus();
     } else if (!req && dialog.open) {
       dialog.close();
       // The dialog hands focus back itself; this covers an opener it couldn't reach.
