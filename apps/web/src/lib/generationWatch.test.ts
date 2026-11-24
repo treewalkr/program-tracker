@@ -214,6 +214,63 @@ describe("createGenerationWatch", () => {
     expect(env.timers).toHaveLength(1);
   });
 
+  test("watch(): a superseded request never answers — only the latest one for that page does (B-04)", async () => {
+    const { watch, flush } = harness();
+    await watch.start();
+    let settleFirst!: (g: GenerationDto) => void;
+    let settleSecond!: (g: GenerationDto) => void;
+    const first = watch.watch(new Promise<GenerationDto>((r) => (settleFirst = r)), { clientId: "c1", clientName: "Ada" });
+    // Cancel, then Generate again: a second draft for the same page.
+    const second = watch.watch(new Promise<GenerationDto>((r) => (settleSecond = r)), { clientId: "c1", clientName: "Ada" });
+    const heard: string[] = [];
+    void first.then((g) => heard.push(`first:${g.id}:${g.status}`));
+    void second.then((g) => heard.push(`second:${g.id}:${g.status}`));
+
+    // The cancelled draft's reply lands while the new one still runs: nobody hears "cancelled".
+    settleFirst(gen({ id: "g1", status: "cancelled" }));
+    for (let i = 0; i < 5; i++) await flush();
+    expect(heard).toEqual([]);
+
+    settleSecond(gen({ id: "g2", status: "validated" }));
+    for (let i = 0; i < 5; i++) await flush();
+    expect(heard).toEqual(["second:g2:validated"]);
+
+    // Even when it lands after the new draft is done.
+    let settleThird!: (g: GenerationDto) => void;
+    const third = watch.watch(new Promise<GenerationDto>((r) => (settleThird = r)), { clientId: "c1", clientName: "Ada" });
+    const fourth = watch.watch(Promise.resolve(gen({ id: "g4" })), { clientId: "c1", clientName: "Ada" });
+    void third.then((g) => heard.push(`third:${g.id}`));
+    await fourth;
+    settleThird(gen({ id: "g3", status: "cancelled" }));
+    for (let i = 0; i < 5; i++) await flush();
+    expect(heard).toEqual(["second:g2:validated"]);
+  });
+
+  test("watch(): drafts on another page or client are not superseded", async () => {
+    const { watch, flush } = harness();
+    await watch.start();
+    let settleBlock!: (g: GenerationDto) => void;
+    const block = watch.watch(new Promise<GenerationDto>((r) => (settleBlock = r)), { clientId: "c1", clientName: "Ada" });
+    void watch.watch(new Promise<GenerationDto>(() => {}), { clientId: "c1", clientName: "Ada", href: "/clients/c1/chat" });
+    void watch.watch(new Promise<GenerationDto>(() => {}), { clientId: "c2", clientName: "Bo" });
+    let heard: GenerationDto | null = null;
+    void block.then((g) => (heard = g));
+    settleBlock(gen({ id: "g1", status: "cancelled" }));
+    for (let i = 0; i < 5; i++) await flush();
+    expect(heard!).toMatchObject({ id: "g1", status: "cancelled" });
+  });
+
+  test("watch(): a superseded request that fails doesn't reject either", async () => {
+    const { watch, flush } = harness();
+    await watch.start();
+    const first = watch.watch(Promise.reject(new Error("aborted")) as Promise<GenerationDto>, { clientId: "c1", clientName: "Ada" });
+    void watch.watch(new Promise<GenerationDto>(() => {}), { clientId: "c1", clientName: "Ada" });
+    let heard = "nothing";
+    first.then(() => (heard = "resolved"), () => (heard = "rejected"));
+    for (let i = 0; i < 5; i++) await flush();
+    expect(heard).toBe("nothing");
+  });
+
   test("dismiss removes one notice", async () => {
     const { watch, flush } = harness();
     await watch.start();
